@@ -65,6 +65,7 @@ import {
 } from "@/lib/orders/operationalFilters";
 import { cn } from "@/lib/utils";
 import { format, differenceInCalendarDays } from "date-fns";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const dataIt = (iso?: string | null) =>
   iso ? iso.slice(0, 10).split("-").reverse().join("/") : "—";
@@ -113,6 +114,7 @@ const STATUSES = [
 ];
 
 export default function SupplierRfqsList() {
+  const t = useT();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   useOperationalViewMemory("rdo", [
@@ -290,12 +292,10 @@ export default function SupplierRfqsList() {
     return (
       <div className="space-y-1 whitespace-nowrap text-xs">
         <span>
-          {c?.risposte ?? 0}/{c?.invitati ?? 0} risposte
+          {t("{risposte}/{invitati} risposte", { risposte: c?.risposte ?? 0, invitati: c?.invitati ?? 0 })}
         </span>
         {wait > 3 && (
-          <span className="ml-2 text-amber-700">
-            In attesa da {wait} giorni
-          </span>
+          <span className="ml-2 text-amber-700">{t("In attesa da {wait} giorni", { wait: String(wait ?? "") })}</span>
         )}
       </div>
     );
@@ -318,7 +318,7 @@ export default function SupplierRfqsList() {
         <Badge
           className={cn("shrink-0 text-[10px]", RDO_STATUS_COLORS[r.status])}
         >
-          {RDO_STATUS_LABELS[r.status] ?? r.status}
+          {t(RDO_STATUS_LABELS[r.status] ?? r.status)}
         </Badge>
       </PipelineCardHeading>
       <Link
@@ -328,13 +328,12 @@ export default function SupplierRfqsList() {
         {r.titolo}
       </Link>
       <p className="mt-1 text-xs text-muted-foreground">
-        {r.orders?.order_code ?? "Senza commessa"}
+        {r.orders?.order_code ?? t("Senza commessa")}
       </p>
       {r.status === "aggiudicata" && r.supplier_id_aggiudicato && (
         <p className="mt-1 text-xs text-muted-foreground">
-          Fornitore scelto:{" "}
-          {suppliers.find((s) => s.id === r.supplier_id_aggiudicato)?.name ||
-            "Apri aggiudicazione per i dettagli"}
+          {t("Fornitore scelto: {fornitore}", { fornitore: suppliers.find((s) => s.id === r.supplier_id_aggiudicato)?.name ||
+            t("Apri aggiudicazione per i dettagli") })}
         </p>
       )}
       <div className="my-2">{response(r)}</div>
@@ -345,21 +344,19 @@ export default function SupplierRfqsList() {
         )}
       >
         <CalendarClock className="h-3.5 w-3.5" />
-        Risposta entro {dataIt(r.scadenza_offerte)}
+        {t("Risposta entro")} {dataIt(r.scadenza_offerte)}
       </p>
       {r.data_fabbisogno && (
-        <p className="mt-1 text-xs text-muted-foreground">
-          Serve entro {dataIt(r.data_fabbisogno)}
-        </p>
+        <p className="mt-1 text-xs text-muted-foreground">{t("Serve entro {data_fabbisogno}", { data_fabbisogno: String(dataIt(r.data_fabbisogno) ?? "") })}</p>
       )}
       {overdue(r) && (
         <p className="mt-1 text-xs font-medium text-orange-700">
-          Termine di risposta superato
+          {t("Termine di risposta superato")}
         </p>
       )}
       {perm.canViewCosts && contatori[r.id]?.migliore != null && (
         <p className="mt-3 text-xs">
-          Migliore offerta{" "}
+          {t("Migliore offerta")}{" "}
           <strong className="float-right tabular-nums">
             {formatCurrency(contatori[r.id].migliore!)}
           </strong>
@@ -394,11 +391,10 @@ export default function SupplierRfqsList() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
-            Richieste d’offerta
+            {t("Richieste d’offerta")}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Inviti, risposte e confronto delle offerte, fino all’ordine al
-            fornitore.
+            {t("Inviti, risposte e confronto delle offerte, fino all’ordine al fornitore.")}
           </p>
         </div>
         <Button
@@ -407,15 +403,15 @@ export default function SupplierRfqsList() {
           className="bg-orange-500 text-white hover:bg-orange-600"
         >
           <Plus className="mr-1.5 h-4 w-4" />
-          Nuova richiesta
+          {t("Nuova richiesta")}
         </Button>
       </div>
-      <OperationalSummary label="Riepilogo richieste d’offerta" title="Le richieste ai fornitori" icon={FileQuestion} error={isError} note="Richieste aperte, risposte e aggiudicazioni nel perimetro corrente.">
+      <OperationalSummary label={t("Riepilogo richieste d’offerta")} title={t("Le richieste ai fornitori")} icon={FileQuestion} error={isError} note={t("Richieste aperte, risposte e aggiudicazioni nel perimetro corrente.")}>
         <OperationalSummaryMetric
           icon={FileQuestion}
-          label="Aperte"
+          label={t("Aperte")}
           value={kpis.aperte}
-          hint="bozze, inviate e in valutazione"
+          hint={t("bozze, inviate e in valutazione")}
           tone="blue"
           isLoading={isLoading}
           onClick={() => selectKpi("aperte")}
@@ -423,9 +419,9 @@ export default function SupplierRfqsList() {
         />
         <OperationalSummaryMetric
           icon={Inbox}
-          label="Da valutare"
+          label={t("Da valutare")}
           value={kpis.risposte}
-          hint="richieste con almeno una risposta"
+          hint={t("richieste con almeno una risposta")}
           tone="amber"
           isLoading={isLoading}
           onClick={() => selectKpi("aperte", "risposte")}
@@ -433,9 +429,9 @@ export default function SupplierRfqsList() {
         />
         <OperationalSummaryMetric
           icon={Clock}
-          label="In attesa di risposte"
+          label={t("In attesa di risposte")}
           value={kpis.attesa}
-          hint="richieste con fornitori in attesa"
+          hint={t("richieste con fornitori in attesa")}
           tone="orange"
           isLoading={isLoading}
           onClick={() => selectKpi("aperte", "attesa")}
@@ -443,46 +439,45 @@ export default function SupplierRfqsList() {
         />
         <OperationalSummaryMetric
           icon={Trophy}
-          label="Aggiudicate"
+          label={t("Aggiudicate")}
           value={kpis.aggiudicate}
-          hint="richieste assegnate a un fornitore"
+          hint={t("richieste assegnate a un fornitore")}
           tone="green"
           isLoading={isLoading}
           onClick={() => selectKpi("aggiudicata")}
           active={status === "aggiudicata"}
         />
       </OperationalSummary>
-      <section aria-label="Filtri richieste d’offerta" className="rounded-xl border bg-white p-2.5 shadow-sm">
+      <section aria-label={t("Filtri richieste d’offerta")} className="rounded-xl border bg-white p-2.5 shadow-sm">
         <div className="flex flex-nowrap items-center gap-2 overflow-x-auto"><div className="relative min-w-[200px] flex-1">
             <Search className="absolute left-3 top-2 h-4 w-4 text-muted-foreground" />
             <Input
-              aria-label="Cerca richieste d’offerta"
-              placeholder="Cerca richiesta, oggetto o commessa…"
+              aria-label={t("Cerca richieste d’offerta")}
+              placeholder={t("Cerca richiesta, oggetto o commessa…")}
               value={search}
               onChange={(e) => update({ cerca: e.target.value })}
               className="h-8 pl-9 text-xs"
             />
-          </div><UniformSelect aria-label="Stato richieste d’offerta" className="h-8 max-w-full rounded-md border bg-background px-3 text-xs" value={status} onChange={e => update({ stato: e.target.value, focus: null })}>{STATUSES.map(id => <option key={id} value={id}>{id === "tutti" ? "Tutti gli stati" : id === "aperte" ? "Aperte" : RDO_STATUS_LABELS[id]}</option>)}</UniformSelect><OperationalViewSwitch
+          </div><UniformSelect aria-label={t("Stato richieste d’offerta")} className="h-8 max-w-full rounded-md border bg-background px-3 text-xs" value={status} onChange={e => update({ stato: e.target.value, focus: null })}>{STATUSES.map(id => <option key={id} value={id}>{id === "tutti" ? t("Tutti gli stati") : id === "aperte" ? t("Aperte") : RDO_STATUS_LABELS[id]}</option>)}</UniformSelect><OperationalViewSwitch
             value={view}
             onChange={(v) => update({ vista: v, ambito: archive.scope })}
           /><OperationalExtraFilters count={Number(order !== "all") + Number(supplier !== "all") + Number(period !== "tutto") + Number(!!focus) + Number(archive.scope !== "all")}>      <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
 
           <OperationalHelp>
-            Apri una richiesta per invitare i fornitori, registrare una risposta
-            o confrontare le offerte.
+            {t("Apri una richiesta per invitare i fornitori, registrare una risposta o confrontare le offerte.")}
           </OperationalHelp>
 
           <Select value={order} onValueChange={(v) => update({ commessa: v })}>
             <SelectTrigger
-              aria-label="Commessa richieste d’offerta"
+              aria-label={t("Commessa richieste d’offerta")}
               className="h-8 w-[165px] text-xs"
             >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tutte le commesse</SelectItem>
-              <SelectItem value="none">Senza commessa</SelectItem>
+              <SelectItem value="all">{t("Tutte le commesse")}</SelectItem>
+              <SelectItem value="none">{t("Senza commessa")}</SelectItem>
               {commesse.map(([id, name]) => (
                 <SelectItem key={id} value={id}>
                   {name}
@@ -495,13 +490,13 @@ export default function SupplierRfqsList() {
             onValueChange={(v) => update({ fornitore: v })}
           >
             <SelectTrigger
-              aria-label="Fornitore invitato"
+              aria-label={t("Fornitore invitato")}
               className="h-8 w-[165px] text-xs"
             >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tutti i fornitori</SelectItem>
+              <SelectItem value="all">{t("Tutti i fornitori")}</SelectItem>
               {availableSuppliers.map((s) => (
                 <SelectItem key={s.id} value={s.id}>
                   {s.name}
@@ -512,7 +507,7 @@ export default function SupplierRfqsList() {
           {!!active && (
             <Button size="sm" variant="ghost" onClick={clear}>
               <X className="mr-1 h-3.5 w-3.5" />
-              Azzera ({active})
+              {t("Azzera ({n})", { n: active })}
             </Button>
           )}
         </div>
@@ -520,24 +515,24 @@ export default function SupplierRfqsList() {
 
           <Select value={period} onValueChange={(v) => update({ periodo: v })}>
             <SelectTrigger
-              aria-label="Creazione richiesta"
+              aria-label={t("Creazione richiesta")}
               className="h-8 w-[190px] shrink-0 text-xs"
             >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="tutto">Creazione: sempre</SelectItem>
-              <SelectItem value="30">Ultimi 30 giorni</SelectItem>
-              <SelectItem value="90">Ultimi 90 giorni</SelectItem>
-              <SelectItem value="anno">Quest’anno</SelectItem>
-              <SelectItem value="personalizzato">Intervallo di date</SelectItem>
+              <SelectItem value="tutto">{t("Creazione: sempre")}</SelectItem>
+              <SelectItem value="30">{t("Ultimi 30 giorni")}</SelectItem>
+              <SelectItem value="90">{t("Ultimi 90 giorni")}</SelectItem>
+              <SelectItem value="anno">{t("Quest’anno")}</SelectItem>
+              <SelectItem value="personalizzato">{t("Intervallo di date")}</SelectItem>
             </SelectContent>
           </Select>
           {period === "personalizzato" && <OperationalDateRange from={dateFrom} to={dateTo} onChange={values => update(values)} />}
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
           <OperationalArchive
-            label="richieste d’offerta"
+            label={t("richieste d’offerta")}
             scope={archive.scope}
             onChange={(v) =>
               archive.setScope(v, ["rdo_stato", "rdo_focus", "rdo_pagina"])
@@ -545,9 +540,7 @@ export default function SupplierRfqsList() {
             active={base.filter((r) => OPEN.includes(r.status)).length}
             history={base.filter((r) => !OPEN.includes(r.status)).length}
           />
-          <span>
-            {filtered.length} di {rfqs.length} richieste
-          </span>
+          <span>{t("{n} di {totale} richieste", { n: filtered.length, totale: rfqs.length })}</span>
           <Button
             variant={focus === "scadute" ? "secondary" : "ghost"}
             size="sm"
@@ -560,15 +553,14 @@ export default function SupplierRfqsList() {
             }
           >
             <AlertTriangle className="mr-1 h-3.5 w-3.5" />
-            Risposta scaduta ({base.filter(overdue).length})
+            {t("Risposta scaduta ({n})", { n: base.filter(overdue).length })}
           </Button>
         </div>
       </div></OperationalExtraFilters></div>
       </section>
       {isError ? (
         <div role="alert" className="rounded-xl border p-6 text-sm">
-          Impossibile caricare le richieste d’offerta. Riprova ricaricando la
-          pagina.
+          {t("Impossibile caricare le richieste d’offerta. Riprova ricaricando la pagina.")}
         </div>
       ) : isLoading ? (
         <Skeleton className="h-60 w-full" />
@@ -578,9 +570,9 @@ export default function SupplierRfqsList() {
           <p className="text-sm text-muted-foreground">
             {rfqs.length
               ? archive.scope === "active"
-                ? "Nessuna richiesta aperta con questi filtri. Le richieste concluse sono nello storico."
-                : "Nessuna richiesta con questi filtri."
-              : "Nessuna richiesta d’offerta. Crea una richiesta per raccogliere e confrontare i prezzi dei fornitori."}
+                ? t("Nessuna richiesta aperta con questi filtri. Le richieste concluse sono nello storico.")
+                : t("Nessuna richiesta con questi filtri.")
+              : t("Nessuna richiesta d’offerta. Crea una richiesta per raccogliere e confrontare i prezzi dei fornitori.")}
           </p>
           {archive.scope === "active" &&
             base.some((r) => !OPEN.includes(r.status)) && (
@@ -591,27 +583,27 @@ export default function SupplierRfqsList() {
                   archive.setScope("history", ["rdo_stato", "rdo_focus"])
                 }
               >
-                Consulta storico
+                {t("Consulta storico")}
               </Button>
             )}
           {!!active && (
             <Button variant="outline" className="mt-3" onClick={clear}>
-              Azzera filtri
+              {t("Azzera filtri")}
             </Button>
           )}
         </div>
       ) : view === "pipeline" ? (
         <>
           <OperationalBoard
-            label="Pipeline richieste d’offerta"
+            label={t("Pipeline richieste d’offerta")}
             onOpen={(r) => navigate(`/azienda/richieste-offerta/${r.id}`)}
             renderActions={(r) =>
               r.purchase_order_id ? (
                 <Button asChild variant="ghost" size="icon" className="h-6 w-6">
                   <Link
                     to={`/azienda/ordini-acquisto/${r.purchase_order_id}`}
-                    aria-label="Apri ordine d’acquisto"
-                    title="Ordine d’acquisto collegato"
+                    aria-label={t("Apri ordine d’acquisto")}
+                    title={t("Ordine d’acquisto collegato")}
                   >
                     <ShoppingCart className="h-3.5 w-3.5" />
                   </Link>
@@ -623,6 +615,8 @@ export default function SupplierRfqsList() {
             getLabel={(r) => r.rfq_number}
             columns={STAGES.map((s) => ({
               ...s,
+              label: t(s.label),
+              hint: t(s.hint),
               items: filtered.filter((r) =>
                 s.id === "chiusa"
                   ? ["chiusa", "annullata"].includes(r.status)
@@ -636,7 +630,7 @@ export default function SupplierRfqsList() {
         <>
           {selection.toolbar}
           {selection.confirmation}
-          <OperationalTable label="Elenco richieste d’offerta">
+          <OperationalTable label={t("Elenco richieste d’offerta")}>
             <thead className="border-b bg-muted/50 text-left">
               <tr>
                 {selection.enabled && <th scope="col">{selection.header}</th>}
@@ -654,7 +648,7 @@ export default function SupplierRfqsList() {
                     key={v}
                     className="whitespace-nowrap p-3 text-xs font-medium"
                   >
-                    {v}
+                    {t(v)}
                   </th>
                 ))}
               </tr>
@@ -686,7 +680,7 @@ export default function SupplierRfqsList() {
                         to={`/azienda/ordini/${r.order_id}`}
                         className="text-primary hover:underline"
                       >
-                        {r.orders?.order_code ?? "Apri commessa"}
+                        {r.orders?.order_code ?? t("Apri commessa")}
                       </Link>
                     ) : (
                       "—"
@@ -699,7 +693,7 @@ export default function SupplierRfqsList() {
                     )}
                   >
                     {dataIt(r.scadenza_offerte)}
-                    {overdue(r) && <p className="text-xs">Scaduta</p>}
+                    {overdue(r) && <p className="text-xs">{t("Scaduta")}</p>}
                   </td>
                   <td className="whitespace-nowrap p-3 text-muted-foreground">
                     {dataIt(r.data_fabbisogno)}
@@ -719,7 +713,7 @@ export default function SupplierRfqsList() {
                         RDO_STATUS_COLORS[r.status],
                       )}
                     >
-                      {RDO_STATUS_LABELS[r.status] ?? r.status}
+                      {t(RDO_STATUS_LABELS[r.status] ?? r.status)}
                     </Badge>
                   </td>
                 </tr>
@@ -730,7 +724,7 @@ export default function SupplierRfqsList() {
             page={page}
             total={filtered.length}
             onChange={(v) => update({ pagina: String(v) })}
-            label="Pagine richieste d’offerta"
+            label={t("Pagine richieste d’offerta")}
           />
         </>
       )}
@@ -738,33 +732,33 @@ export default function SupplierRfqsList() {
       <Dialog open={newOpen && canCreate} onOpenChange={setNewOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Nuova richiesta d'offerta</DialogTitle>
+            <DialogTitle>{t("Nuova richiesta d'offerta")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="rdo-titolo">Cosa ti serve</Label>
+              <Label htmlFor="rdo-titolo">{t("Cosa ti serve")}</Label>
               <Input
                 id="rdo-titolo"
                 value={titolo}
                 onChange={(e) => setTitolo(e.target.value)}
-                placeholder="Es. Ferro d'armatura per fondazioni lotto B"
+                placeholder={t("Es. Ferro d'armatura per fondazioni lotto B")}
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="rdo-desc">
-                Dettagli per il fornitore (facoltativo)
+                {t("Dettagli per il fornitore (facoltativo)")}
               </Label>
               <Textarea
                 id="rdo-desc"
                 rows={2}
                 value={descrizione}
                 onChange={(e) => setDescrizione(e.target.value)}
-                placeholder="Condizioni, luogo di consegna, requisiti particolari."
+                placeholder={t("Condizioni, luogo di consegna, requisiti particolari.")}
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label htmlFor="rdo-fab">Serve in cantiere entro</Label>
+                <Label htmlFor="rdo-fab">{t("Serve in cantiere entro")}</Label>
                 <Input
                   id="rdo-fab"
                   type="date"
@@ -773,7 +767,7 @@ export default function SupplierRfqsList() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="rdo-scad">Risposta entro</Label>
+                <Label htmlFor="rdo-scad">{t("Risposta entro")}</Label>
                 <Input
                   id="rdo-scad"
                   type="date"
@@ -783,20 +777,18 @@ export default function SupplierRfqsList() {
               </div>
             </div>
             <p className="text-xs text-slate-500">
-              Prossimo passo: elenchi cosa serve e a quali fornitori. Se l'hai
-              già chiesta per telefono o WhatsApp, la segni come chiesta e
-              scrivi i prezzi quando arrivano.
+              {t("Prossimo passo: elenchi cosa serve e a quali fornitori. Se l'hai già chiesta per telefono o WhatsApp, la segni come chiesta e scrivi i prezzi quando arrivano.")}
             </p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewOpen(false)}>
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button
               onClick={handleCreate}
               disabled={!canCreate || !titolo.trim() || create.isPending}
             >
-              {create.isPending ? "Creazione..." : "Crea richiesta"}
+              {create.isPending ? t("Creazione...") : t("Crea richiesta")}
             </Button>
           </DialogFooter>
         </DialogContent>

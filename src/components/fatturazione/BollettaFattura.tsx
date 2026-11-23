@@ -8,6 +8,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -24,6 +25,7 @@ interface Dati {
 }
 
 export function BollettaFattura({ fatturaId, companyId }: { fatturaId: string; companyId: string }) {
+  const t = useT();
   const { data } = useQuery({
     queryKey: ["fattura-bolletta", companyId, fatturaId],
     queryFn: async (): Promise<Dati | null> => {
@@ -37,7 +39,7 @@ export function BollettaFattura({ fatturaId, companyId }: { fatturaId: string; c
   if (!data || data.stato === "senza_utenze") return null;
   return (
     <>
-      <dt className="text-muted-foreground">Bolletta</dt>
+      <dt className="text-muted-foreground">{t("Bolletta")}</dt>
       <dd className="space-y-0.5" data-testid="bolletta-fattura">
         {data.righe.map((r) => (
           <span key={r.codice} className="block">
@@ -45,10 +47,10 @@ export function BollettaFattura({ fatturaId, companyId }: { fatturaId: string; c
           </span>
         ))}
         <span className="block text-xs text-muted-foreground">
-          {data.tipo === "conguaglio" ? "Conguaglio · " : data.tipo === "nota_credito" ? "Nota di credito · " : ""}
-          {data.stato === "doppione_sospetto" ? <span className="text-amber-700 dark:text-amber-400">Possibile doppione: {data.avvisi[0]?.testo ?? ""} </span> : null}
-          {data.costo_esito ? COSTO[data.costo_esito] ?? data.costo_esito : ""}
-          {" · "}<Link className="underline underline-offset-2" to="/azienda/costi?tab=utenze">Utenze</Link>
+          {data.tipo === "conguaglio" ? `${t("Conguaglio")} · ` : data.tipo === "nota_credito" ? `${t("Nota di credito")} · ` : ""}
+          {data.stato === "doppione_sospetto" ? <span className="text-amber-700 dark:text-amber-400">{t("Possibile doppione:")} {data.avvisi[0]?.testo ?? ""} </span> : null}
+          {data.costo_esito ? (COSTO[data.costo_esito] ? t(COSTO[data.costo_esito]) : data.costo_esito) : ""}
+          {" · "}<Link className="underline underline-offset-2" to="/azienda/costi?tab=utenze">{t("Utenze")}</Link>
         </span>
       </dd>
     </>

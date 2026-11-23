@@ -23,6 +23,7 @@ import {
 } from "@/lib/clienti/documentiCliente";
 import { fmtBytes, scaricaAllegato, useUrlMiniature } from "@/components/orders/filePreviewUtils";
 import { FileThumb } from "@/components/orders/filePreview";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface DocumentoClienteRiga {
   id: string;
@@ -48,6 +49,7 @@ export function FascicoloCliente({
   /** Un'impresa non ha carta d'identità: un solo gruppo, per visura, DURC, polizze. */
   perCommittente?: boolean;
 }) {
+  const tr = useT();
   const { user } = useAuth();
   const qc = useQueryClient();
   const [inCaricamento, setInCaricamento] = useState<TipoDocumentoCliente | null>(null);
@@ -65,7 +67,7 @@ export function FascicoloCliente({
     if (!user?.id || files.length === 0) return;
     const buoni = files.filter((f) => {
       const p = problemaFile(f);
-      if (p) toast.error("File escluso", { description: p });
+      if (p) toast.error(tr("File escluso"), { description: p });
       return !p;
     });
     if (buoni.length === 0) return;
@@ -73,8 +75,8 @@ export function FascicoloCliente({
     const { caricati, falliti } = await caricaDocumentiCliente({ companyId, customerId, userId: user.id, file: { [tipo]: buoni } });
     setInCaricamento(null);
     invalida();
-    if (falliti.length) toast.error(`${falliti.length} file non caricati`, { description: falliti.join(", ") });
-    if (caricati) toast.success(caricati === 1 ? "Documento caricato" : `${caricati} documenti caricati`);
+    if (falliti.length) toast.error(tr("{n} file non caricati", { n: falliti.length }), { description: falliti.join(", ") });
+    if (caricati) toast.success(caricati === 1 ? tr("Documento caricato") : tr("{n} documenti caricati", { n: caricati }));
   };
 
   const togli = useMutation({
@@ -83,26 +85,26 @@ export function FascicoloCliente({
       if (error) throw error;
       await supabase.storage.from(BUCKET_DOCUMENTI_CLIENTE).remove(d.thumb_path ? [d.file_path, d.thumb_path] : [d.file_path]);
     },
-    onSuccess: () => { invalida(); toast.success("Documento tolto"); },
-    onError: () => toast.error("Documento non tolto"),
+    onSuccess: () => { invalida(); toast.success(tr("Documento tolto")); },
+    onError: () => toast.error(tr("Documento non tolto")),
   });
 
   // I tipi standard sempre; «Contratto» solo se ce n'è uno storico.
   const tipi: { tipo: string; etichetta: string }[] = [
     ...(perCommittente
-      ? [{ tipo: "other", etichetta: "Visura, DURC, polizze…" }]
-      : TIPI_DOCUMENTO_CLIENTE.map((t) => ({ tipo: t.tipo, etichetta: t.etichetta }))),
-    ...(documenti.some((d) => d.document_type === "contract") ? [{ tipo: "contract", etichetta: "Contratto" }] : []),
+      ? [{ tipo: "other", etichetta: tr("Visura, DURC, polizze…") }]
+      : TIPI_DOCUMENTO_CLIENTE.map((t) => ({ tipo: t.tipo, etichetta: tr(t.etichetta) }))),
+    ...(documenti.some((d) => d.document_type === "contract") ? [{ tipo: "contract", etichetta: tr("Contratto") }] : []),
   ];
 
   return (
     <div className="rounded-lg border p-3 space-y-3">
       <div>
-        <p className="text-sm font-semibold">{perCommittente ? "Documenti dell'impresa" : "Documenti personali"}</p>
+        <p className="text-sm font-semibold">{perCommittente ? tr("Documenti dell'impresa") : tr("Documenti personali")}</p>
         <p className="text-xs text-muted-foreground">
           {perCommittente
-            ? "Anche più file. Compaiono anche nei documenti delle sue commesse."
-            : "Facoltativi, anche più file per tipo. Compaiono anche nei documenti delle commesse del cliente."}
+            ? tr("Anche più file. Compaiono anche nei documenti delle sue commesse.")
+            : tr("Facoltativi, anche più file per tipo. Compaiono anche nei documenti delle commesse del cliente.")}
         </p>
       </div>
       {/* Colonne secondo lo spazio che c'è, non secondo lo schermo: nel pannello
@@ -132,7 +134,7 @@ export function FascicoloCliente({
                     <Button asChild variant="ghost" size="sm" className="h-7 px-2 text-xs shrink-0 whitespace-nowrap" disabled={inCaricamento !== null}>
                       <label htmlFor={id} className="cursor-pointer">
                         {inCaricamento === tipo ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5 mr-1" />}
-                        {inCaricamento === tipo ? "" : "Aggiungi"}
+                        {inCaricamento === tipo ? "" : tr("Aggiungi")}
                       </label>
                     </Button>
                   </>
@@ -140,16 +142,16 @@ export function FascicoloCliente({
               </div>
               {storico && !perCommittente && (
                 <p className="text-[11px] text-amber-700 dark:text-amber-400">
-                  Il contratto va nei documenti della commessa: caricalo lì.
+                  {tr("Il contratto va nei documenti della commessa: caricalo lì.")}
                 </p>
               )}
               {lista.length === 0 ? (
-                <p className="text-[11px] text-muted-foreground">Nessun file</p>
+                <p className="text-[11px] text-muted-foreground">{tr("Nessun file")}</p>
               ) : (
                 <ul className="space-y-1">
                   {lista.map((d) => (
                     <li key={d.id} className="flex items-center gap-1.5 text-[11px]">
-                      <button type="button" onClick={() => scarica(d)} className="shrink-0 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Scarica ${d.file_name}`}>
+                      <button type="button" onClick={() => scarica(d)} className="shrink-0 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={tr("Scarica {file_name}", { file_name: String(d.file_name ?? "") })}>
                         <FileThumb
                           file={{ id: d.id, file_name: d.file_name, file_url: d.file_path, file_type: d.file_type, file_size: d.file_size }}
                           thumbUrl={d.thumb_path ? miniature[d.thumb_path] : undefined}
@@ -160,10 +162,10 @@ export function FascicoloCliente({
                         {d.file_name}
                       </button>
                       <span className="text-muted-foreground tabular-nums shrink-0">{fmtBytes(d.file_size)}</span>
-                      <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => scarica(d)} aria-label={`Scarica ${d.file_name}`}>
+                      <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => scarica(d)} aria-label={tr("Scarica {file_name}", { file_name: String(d.file_name ?? "") })}>
                         <Download className="h-3 w-3" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 text-destructive" onClick={() => setDaTogliere(d)} aria-label={`Togli ${d.file_name}`}>
+                      <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 text-destructive" onClick={() => setDaTogliere(d)} aria-label={tr("Togli {file_name}", { file_name: String(d.file_name ?? "") })}>
                         <Trash2 className="h-3 w-3" />
                       </Button>
                     </li>
@@ -178,19 +180,20 @@ export function FascicoloCliente({
       <AlertDialog open={!!daTogliere} onOpenChange={(o) => { if (!o) setDaTogliere(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Togliere «{daTogliere?.file_name}»?</AlertDialogTitle>
+            <AlertDialogTitle>{tr("Togliere «{file_name}»?", { file_name: String(daTogliere?.file_name ?? "") })}</AlertDialogTitle>
             <AlertDialogDescription>
-              {perCommittente ? "Documento" : ETICHETTA_DOCUMENTO_CLIENTE[daTogliere?.document_type ?? ""] ?? "Documento"} eliminato definitivamente:
-              sparisce anche dai documenti delle commesse {perCommittente ? "del committente" : "del cliente"}.
+              {perCommittente
+                ? tr("{documento} eliminato definitivamente: sparisce anche dai documenti delle commesse del committente.", { documento: tr("Documento") })
+                : tr("{documento} eliminato definitivamente: sparisce anche dai documenti delle commesse del cliente.", { documento: tr(ETICHETTA_DOCUMENTO_CLIENTE[daTogliere?.document_type ?? ""] ?? "Documento") })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => { if (daTogliere) togli.mutate(daTogliere); }}
             >
-              Togli
+              {tr("Togli")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

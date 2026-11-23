@@ -10,6 +10,7 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { readAllPages } from "@/lib/personale/readAllPages";
 import { formatCurrency, formatDateIt } from "@/lib/formatters";
 import { FiscalMetric } from "./FiscalSectionLayout";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Riga {
   id: string;
@@ -29,6 +30,7 @@ const cliente = (r: Riga) => {
 };
 
 export function RitenuteSubiteFatture({ anno, primoMese, ultimoMese }: { anno: number; primoMese: number; ultimoMese: number }) {
+  const tr = useT();
   const companyId = useEffectiveCompanyId();
   const q = useQuery({
     queryKey: ["ritenute-subite-fatture", companyId, anno],
@@ -64,38 +66,37 @@ export function RitenuteSubiteFatture({ anno, primoMese, ultimoMese }: { anno: n
 
   if (q.isLoading || q.isError || righe.length === 0) return null;
   return (
-    <section className="space-y-3 border-t pt-4" aria-label="Ritenute subite sulle fatture">
+    <section className="space-y-3 border-t pt-4" aria-label={tr("Ritenute subite sulle fatture")}>
       <div>
-        <h3 className="font-semibold">Ritenute subite sulle nostre fatture</h3>
+        <h3 className="font-semibold">{tr("Ritenute subite sulle nostre fatture")}</h3>
         <p className="text-sm text-muted-foreground">
-          Condominio (4%) e altri sostituti d’imposta: pagano la fattura al netto e versano loro la ritenuta.
-          È un acconto d’imposta dell’impresa, da riportare in dichiarazione con la loro certificazione.
+          {tr("Condominio (4%) e altri sostituti d’imposta: pagano la fattura al netto e versano loro la ritenuta. È un acconto d’imposta dell’impresa, da riportare in dichiarazione con la loro certificazione.")}
         </p>
       </div>
       <div className="grid gap-3 md:grid-cols-2">
         <FiscalMetric
-          label="Ritenute sulle fatture del periodo"
+          label={tr("Ritenute sulle fatture del periodo")}
           value={formatCurrency(somma(righe))}
           description={`${righe.length} ${righe.length === 1 ? "fattura" : "fatture"} per data di emissione`}
         />
         <FiscalMetric
-          label="Già incassate (credito maturato)"
+          label={tr("Già incassate (credito maturato)")}
           value={formatCurrency(somma(incassate))}
-          description="La ritenuta conta quando il cliente paga la fattura"
+          description={tr("La ritenuta conta quando il cliente paga la fattura")}
         />
       </div>
       <ul className="divide-y rounded-xl border text-sm">
         {righe.slice(0, 50).map((r) => (
           <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
             <Link to={`/azienda/documenti/${r.id}/dettaglio`} className="min-w-0 font-medium hover:underline">
-              {r.tipo === "nota_credito" ? "Nota di credito" : "Fattura"} {r.numero}
+              {r.tipo === "nota_credito" ? tr("Nota di credito") : tr("Fattura")} {r.numero}
               <span className="ml-2 font-normal text-muted-foreground">{cliente(r)} · {formatDateIt(r.data_emissione)}</span>
             </Link>
             <span className="tabular-nums">
               {formatCurrency(segno(r) * Number(r.ritenuta_importo ?? 0))}
               {r.ritenuta_aliquota ? <span className="ml-1 text-muted-foreground">({Number(r.ritenuta_aliquota)}%)</span> : null}
               <span className={`ml-2 text-xs ${r.stato === "pagata" ? "text-emerald-700" : "text-amber-700"}`}>
-                {r.stato === "pagata" ? "incassata" : "da incassare"}
+                {r.stato === "pagata" ? tr("incassata") : tr("da incassare")}
               </span>
             </span>
           </li>

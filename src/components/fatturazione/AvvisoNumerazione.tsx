@@ -10,6 +10,7 @@
 import { Link } from "react-router-dom";
 import { AlertTriangle, Info } from "lucide-react";
 import { useAvvisoNumerazione } from "@/hooks/useAvvisoNumerazione";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // La pagina unica delle impostazioni di fatturazione (`?tab=nativa`), aperta sulla scheda
 // «Numerazione» (`?sezione=numeratori`): l'indirizzo apre la scheda anche a pagina già aperta.
@@ -18,6 +19,7 @@ const IMPOSTAZIONI = "/azienda/impostazioni/fatturazione?tab=nativa&sezione=nume
 export function AvvisoNumerazione({
   companyId, tipo, anno,
 }: { companyId: string | null | undefined; tipo: string; anno: number }) {
+  const t = useT();
   const a = useAvvisoNumerazione(companyId, tipo, anno);
   if (a.tipo === "nessuno") return null;
 
@@ -26,18 +28,16 @@ export function AvvisoNumerazione({
       <div role="alert" className="flex gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
         <div className="space-y-1">
-          <p className="font-medium">Il numero {a.prossimo} è già stato usato.</p>
+          <p className="font-medium">{t("Il numero {prossimo} è già stato usato.", { prossimo: a.prossimo ?? "" })}</p>
           <p>
-            Nell'archivio di questa azienda il {anno} arriva già alla <strong>{a.massimoArchivio}</strong>:
-            la prossima dovrebbe essere la <strong>{a.suggerito}</strong>. Se emetti adesso, esce un numero doppio —
-            e il numero di una fattura emessa non si cambia più da qui.
+            {t("Nell'archivio di questa azienda il {anno} arriva già alla {massimo}: la prossima dovrebbe essere la {suggerito}. Se emetti adesso, esce un numero doppio — e il numero di una fattura emessa non si cambia più da qui.", { anno, massimo: a.massimoArchivio ?? "", suggerito: a.suggerito ?? "" })}
           </p>
           <p>
-            Sistemalo in{" "}
+            {t("Sistemalo in")}{" "}
             <Link to={IMPOSTAZIONI} className="font-medium underline underline-offset-2">
-              Impostazioni → Fatturazione → Numeratori
+              {t("Impostazioni → Fatturazione → Numeratori")}
             </Link>
-            , scrivendo {a.suggerito} in «Prossimo numero».
+            {t(", scrivendo {numero} in «Prossimo numero».", { numero: a.suggerito ?? "" })}
           </p>
         </div>
       </div>
@@ -48,17 +48,16 @@ export function AvvisoNumerazione({
     <div className="flex gap-2 rounded-md border bg-muted/40 p-3 text-sm">
       <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
       <div className="space-y-1">
-        <p className="font-medium">È la prima fattura di questa azienda.</p>
+        <p className="font-medium">{t("È la prima fattura di questa azienda.")}</p>
         <p className="text-muted-foreground">
           {a.prossimo !== null
-            ? <>Uscirà con il numero <strong className="text-foreground">{a.prossimo}</strong>. </>
+            ? <>{t("Uscirà con il numero")} <strong className="text-foreground">{a.prossimo}</strong>. </>
             : null}
-          Se l'azienda fatturava già con un altro gestionale, il numero va fatto ripartire da dove si era
-          fermata: si imposta in{" "}
+          {t("Se l'azienda fatturava già con un altro gestionale, il numero va fatto ripartire da dove si era fermata: si imposta in")}{" "}
           <Link to={IMPOSTAZIONI} className="font-medium text-foreground underline underline-offset-2">
-            Impostazioni → Fatturazione → Numeratori
+            {t("Impostazioni → Fatturazione → Numeratori")}
           </Link>
-          . Dopo l'emissione non si cambia più.
+          .{" "}{t("Dopo l'emissione non si cambia più.")}
         </p>
       </div>
     </div>

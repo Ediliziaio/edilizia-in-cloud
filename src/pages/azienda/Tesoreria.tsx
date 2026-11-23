@@ -34,6 +34,7 @@ import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // Il collegamento e il recupero delle banche devono restare disponibili anche sul telefono.
 const TREASURY_TABS_MOBILE = new Set(["overview", "conti", "transazioni", "riconciliazione"]);
@@ -62,6 +63,7 @@ function getErrorMessage(error: unknown) {
 }
 
 export default function Tesoreria() {
+  const tr = useT();
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const permessi = usePermissions();
@@ -103,7 +105,7 @@ export default function Tesoreria() {
       .neq("status", "disconnected");
 
     if (error) {
-      toast.error("Impossibile verificare le connessioni bancarie", { description: error.message });
+      toast.error(tr("Impossibile verificare le connessioni bancarie"), { description: error.message });
       setHasConnections(false);
       return;
     }
@@ -141,7 +143,7 @@ export default function Tesoreria() {
 
   async function handleSync() {
     if (!effectiveCompany?.id) {
-      toast.error("Azienda non disponibile");
+      toast.error(tr("Azienda non disponibile"));
       return;
     }
 
@@ -151,15 +153,15 @@ export default function Tesoreria() {
       BANKING_QUERY_KEYS.forEach(key => queryClient.invalidateQueries({ queryKey: [key] }));
       const dettagli = [...esito.avvisi, ...esito.errori].join(" · ");
       if (!esito.totale) {
-        toast.info("Collega prima una banca dalla scheda Connessioni.");
+        toast.info(tr("Collega prima una banca dalla scheda Connessioni."));
         handleTabChange("connessioni");
-      } else if (esito.aggiornate === esito.totale) toast.success(`Sincronizzati ${esito.movimenti} movimenti da ${esito.aggiornate} collegamenti`);
-      else if (esito.aggiornate > 0) toast.warning(`Aggiornati ${esito.aggiornate} collegamenti su ${esito.totale}`, { description: dettagli });
-      else if (esito.avvisi.length) toast.info("Collegamenti verificati; movimenti in attesa", { description: dettagli });
-      else toast.error("Aggiornamento bancario non completato", { description: dettagli });
+      } else if (esito.aggiornate === esito.totale) toast.success(tr("Sincronizzati {movimenti} movimenti da {aggiornate} collegamenti", { movimenti: String(esito.movimenti ?? ""), aggiornate: String(esito.aggiornate ?? "") }));
+      else if (esito.aggiornate > 0) toast.warning(tr("Aggiornati {aggiornate} collegamenti su {totale}", { aggiornate: String(esito.aggiornate ?? ""), totale: String(esito.totale ?? "") }), { description: dettagli });
+      else if (esito.avvisi.length) toast.info(tr("Collegamenti verificati; movimenti in attesa"), { description: dettagli });
+      else toast.error(tr("Aggiornamento bancario non completato"), { description: dettagli });
       await handleConnectionChanged();
     } catch (e: unknown) {
-      toast.error("Errore: " + getErrorMessage(e));
+      toast.error(tr("Errore: {errore}", { errore: tr(getErrorMessage(e)) }));
     } finally {
       setSyncing(false);
     }
@@ -174,7 +176,7 @@ export default function Tesoreria() {
   if (!effectiveCompany?.id) {
     return (
       <div className="flex items-center justify-center h-64 text-sm text-muted-foreground">
-        Seleziona un'azienda per visualizzare la tesoreria.
+        {tr("Seleziona un'azienda per visualizzare la tesoreria.")}
       </div>
     );
   }
@@ -203,7 +205,7 @@ export default function Tesoreria() {
 
   if (!hasConnections && !hasManualAccounts && activeTab === "note-spese") {
     return <div className="space-y-4">
-      <Button variant="outline" onClick={() => handleTabChange("overview")}>Torna alla tesoreria</Button>
+      <Button variant="outline" onClick={() => handleTabChange("overview")}>{tr("Torna alla tesoreria")}</Button>
       <ExpenseReports companyId={effectiveCompany.id} refreshKey={refreshKey} />
     </div>;
   }
@@ -217,8 +219,8 @@ export default function Tesoreria() {
               <Landmark className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-xl font-bold leading-tight tracking-tight text-foreground sm:text-2xl">Tesoreria</h1>
-              <p className="mt-0.5 hidden text-sm text-muted-foreground sm:block">Gestisci conti bancari e monitora il cash flow in tempo reale.</p>
+              <h1 className="text-xl font-bold leading-tight tracking-tight text-foreground sm:text-2xl">{tr("Tesoreria")}</h1>
+              <p className="mt-0.5 hidden text-sm text-muted-foreground sm:block">{tr("Gestisci conti bancari e monitora il cash flow in tempo reale.")}</p>
             </div>
           </div>
         </div>
@@ -229,24 +231,24 @@ export default function Tesoreria() {
             <Landmark className="h-8 w-8 text-primary" />
           </div>
           <div className="space-y-2 max-w-md">
-            <h2 className="text-xl font-semibold max-sm:text-base">Collega il tuo conto bancario</h2>
+            <h2 className="text-xl font-semibold max-sm:text-base">{tr("Collega il tuo conto bancario")}</h2>
             <p className="text-muted-foreground text-sm max-sm:hidden">
-              Connetti il tuo conto tramite Open Banking (PSD2) per visualizzare saldi, transazioni e riconciliare automaticamente i movimenti. Il collegamento si gestisce in Impostazioni → Integrazioni.
+              {tr("Connetti il tuo conto tramite Open Banking (PSD2) per visualizzare saldi, transazioni e riconciliare automaticamente i movimenti. Il collegamento si gestisce in Impostazioni → Integrazioni.")}
             </p>
           </div>
           <div className="flex flex-wrap gap-2 justify-center text-xs text-muted-foreground max-sm:hidden">
-            <Badge variant="outline">Open Banking · PSD2</Badge>
-            <Badge variant="outline">Sicuro e crittografato</Badge>
-            <Badge variant="outline">Importazione dei movimenti</Badge>
+            <Badge variant="outline">{tr("Open Banking · PSD2")}</Badge>
+            <Badge variant="outline">{tr("Sicuro e crittografato")}</Badge>
+            <Badge variant="outline">{tr("Importazione dei movimenti")}</Badge>
           </div>
           <Button onClick={() => navigate("/azienda/impostazioni/integrazioni")} className="mt-2 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:mt-0 max-sm:h-9 max-sm:text-xs">
             <Link2 className="h-4 w-4 mr-2" />
-            Collega primo conto
+            {tr("Collega primo conto")}
           </Button>
         </div>
 
         <Button variant="outline" onClick={() => handleTabChange("note-spese")}>
-          <Receipt className="mr-2 h-4 w-4" /> Note spese
+          <Receipt className="mr-2 h-4 w-4" /> {tr("Note spese")}
         </Button>
 
         {/* Alternativa senza banca: conti/casse manuali con import CSV/Excel o AI.
@@ -254,9 +256,9 @@ export default function Tesoreria() {
             la tesoreria completa a tab (saldi, previsionali, controllo di gestione). */}
         <div className="rounded-xl border border-border bg-card p-4 shadow-sm sm:p-6 max-sm:p-3">
           <div className="mb-3 max-sm:hidden">
-            <h2 className="text-base font-semibold text-foreground">Non usi l'Open Banking? Gestisci a mano</h2>
+            <h2 className="text-base font-semibold text-foreground">{tr("Non usi l'Open Banking? Gestisci a mano")}</h2>
             <p className="text-sm text-muted-foreground">
-              Crea un conto o una cassa manuale e carica i movimenti a mano, oppure importa l'estratto conto da CSV/Excel o da una foto/PDF letta dall'AI. Alimenta comunque tesoreria, previsionali e controllo di gestione.
+              {tr("Crea un conto o una cassa manuale e carica i movimenti a mano, oppure importa l'estratto conto da CSV/Excel o da una foto/PDF letta dall'AI. Alimenta comunque tesoreria, previsionali e controllo di gestione.")}
             </p>
           </div>
           <ManualTreasuryPanel />
@@ -272,8 +274,8 @@ export default function Tesoreria() {
   // spese e Impostazioni (si aprono di rado) finiscono in «Altro», che prende
   // il nome della scheda quando è aperta una di loro.
   const SCHEDE_ALTRO = [
-    { value: "note-spese", label: "Note Spese", icon: Receipt },
-    { value: "impostazioni", label: "Impostazioni", icon: Settings },
+    { value: "note-spese", label: tr("Note Spese"), icon: Receipt },
+    { value: "impostazioni", label: tr("Impostazioni"), icon: Settings },
   ];
   const schedaInAltro = SCHEDE_ALTRO.find((s) => s.value === schedaVisibile);
 
@@ -286,19 +288,19 @@ export default function Tesoreria() {
               <Landmark className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-xl font-bold leading-tight tracking-tight text-foreground sm:text-2xl">Tesoreria</h1>
+              <h1 className="text-xl font-bold leading-tight tracking-tight text-foreground sm:text-2xl">{tr("Tesoreria")}</h1>
               <p className="mt-0.5 hidden text-sm text-muted-foreground sm:block">
-                Gestisci conti bancari e monitora il cash flow in tempo reale.
+                {tr("Gestisci conti bancari e monitora il cash flow in tempo reale.")}
               </p>
             </div>
           </div>
           {/* Mobile: via l'etichetta «Open Banking», sincronizza a sola icona. */}
           <div className="flex items-center gap-3">
-            <Badge variant="outline" className="text-xs max-sm:hidden">{hasConnections ? "Open Banking · PSD2" : "Gestione manuale"}</Badge>
+            <Badge variant="outline" className="text-xs max-sm:hidden">{hasConnections ? tr("Open Banking · PSD2") : tr("Gestione manuale")}</Badge>
             {hasConnections && (
-              <Button onClick={handleSync} disabled={syncing} size="sm" aria-label="Sincronizza" className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-8 max-sm:w-8 max-sm:px-0">
+              <Button onClick={handleSync} disabled={syncing} size="sm" aria-label={tr("Sincronizza")} className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-8 max-sm:w-8 max-sm:px-0">
                 {syncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin max-sm:mr-0" /> : <RefreshCw className="h-4 w-4 mr-2 max-sm:mr-0" />}
-                <span className="max-sm:hidden">Sincronizza</span>
+                <span className="max-sm:hidden">{tr("Sincronizza")}</span>
               </Button>
             )}
           </div>
@@ -313,22 +315,22 @@ export default function Tesoreria() {
             tutte e otto su una riga). */}
         <TabsList className="flex h-auto w-full flex-nowrap overflow-x-auto scrollbar-hide justify-start gap-1 rounded-2xl border border-border bg-card p-2 shadow-sm sm:flex-wrap sm:overflow-visible [&>button]:shrink-0 sm:max-2xl:[&_[role=tab]>svg]:hidden max-sm:grid max-sm:grid-cols-4 max-sm:rounded-lg max-sm:p-1 max-sm:shadow-none max-sm:[&_svg]:hidden">
           <TabsTrigger value="overview" className="tap-compact gap-2 max-sm:h-8 max-sm:text-xs">
-            <LayoutDashboard className="h-4 w-4" /> <span>Panoramica</span>
+            <LayoutDashboard className="h-4 w-4" /> <span>{tr("Panoramica")}</span>
           </TabsTrigger>
           <TabsTrigger value="conti" className="tap-compact gap-2 max-sm:h-8 max-sm:text-xs">
-            <CreditCard className="h-4 w-4" /><span className="max-sm:hidden">Conti e banche</span><span className="sm:hidden">Conti</span>
+            <CreditCard className="h-4 w-4" /><span className="max-sm:hidden">{tr("Conti e banche")}</span><span className="sm:hidden">{tr("Conti")}</span>
           </TabsTrigger>
           <TabsTrigger value="transazioni" className="tap-compact gap-2 max-sm:h-8 max-sm:text-xs">
-            <ArrowLeftRight className="h-4 w-4" /> <span className="max-sm:hidden">Movimenti e riconciliazione</span><span className="sm:hidden">Movimenti</span>
+            <ArrowLeftRight className="h-4 w-4" /> <span className="max-sm:hidden">{tr("Movimenti e riconciliazione")}</span><span className="sm:hidden">{tr("Movimenti")}</span>
           </TabsTrigger>
           <TabsTrigger value="previsioni" className={cn("gap-2", soloDesktop("previsioni"))}>
-            <TrendingUp className="h-4 w-4" /> Previsioni
+            <TrendingUp className="h-4 w-4" /> {tr("Previsioni")}
           </TabsTrigger>
           <TabsTrigger value="note-spese" className={cn("gap-2", soloDesktop("note-spese"), "hidden xl:inline-flex")}>
-            <Receipt className="h-4 w-4" /> Note Spese
+            <Receipt className="h-4 w-4" /> {tr("Note Spese")}
           </TabsTrigger>
           <TabsTrigger value="impostazioni" className={cn("gap-2", soloDesktop("impostazioni"), "hidden xl:inline-flex")}>
-            <Settings className="h-4 w-4" /> Impostazioni
+            <Settings className="h-4 w-4" /> {tr("Impostazioni")}
           </TabsTrigger>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -339,7 +341,7 @@ export default function Tesoreria() {
                   schedaInAltro && "bg-background text-foreground shadow-sm",
                 )}
               >
-                {schedaInAltro ? schedaInAltro.label : "Altro"}
+                {schedaInAltro ? schedaInAltro.label : tr("Altro")}
                 <ChevronDown className="h-3.5 w-3.5" />
               </button>
             </DropdownMenuTrigger>
@@ -378,7 +380,7 @@ export default function Tesoreria() {
               <PrevisionaleCompleto />
             </Suspense>
           ) : (
-            <p className="p-6 text-sm text-muted-foreground">Il previsionale non è tra i permessi del tuo ruolo.</p>
+            <p className="p-6 text-sm text-muted-foreground">{tr("Il previsionale non è tra i permessi del tuo ruolo.")}</p>
           )}
         </TabsContent>
         <TabsContent value="note-spese">

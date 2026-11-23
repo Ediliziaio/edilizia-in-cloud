@@ -19,6 +19,13 @@ import { formatEuroRiquadro } from "@/lib/controlloGestione/formatCG";
 import type { MonthSummary } from "@/hooks/billing/useMonthlyTimeline";
 import { AnelloPercentuale, Comparsa, PillolaVariazione } from "@/components/charts/grafici/comune";
 import { NumeroVeloce } from "@/components/charts/grafici/NumeroVeloce";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+
+/** Il nome del mese nella lingua scelta («Gennaio» in italiano). */
+function nomeMese(m: MonthSummary): string {
+  const nome = new Date(m.year, m.month - 1, 1).toLocaleDateString(intlCampo(), { month: "long" });
+  return nome ? nome.charAt(0).toUpperCase() + nome.slice(1) : m.label;
+}
 
 interface Somme {
   doc: number; totale: number; imponibile: number; iva: number; incassato: number; daIncassare: number; scaduto: number;
@@ -82,6 +89,7 @@ export function RiepilogoFatture({
   /** I numeri stanno arrivando: i riquadri si disegnano subito con «…» al posto della cifra. */
   caricamento?: boolean;
 }) {
+  const t = useT();
   const anno = mesi[0]?.year ?? new Date().getFullYear();
 
   const periodo = useMemo(
@@ -96,7 +104,7 @@ export function RiepilogoFatture({
   const daIncassareTot = s.incassato + s.daIncassare;
   const pctIncassato = daIncassareTot > 0 ? (s.incassato / daIncassareTot) * 100 : 0;
   const nomePeriodo = meseScelto
-    ? `${periodo[0]?.label ?? ""} ${anno}`.trim()
+    ? `${periodo[0] ? nomeMese(periodo[0]) : ""} ${anno}`.trim()
     : String(anno);
 
 
@@ -133,11 +141,11 @@ export function RiepilogoFatture({
   // Telefono: solo i tre numeri che contano, su una riga, per non spingere giù l'elenco.
   if (isMobile) {
     return (
-      <section aria-label="Numeri delle fatture" className="grid grid-cols-3 gap-2">
+      <section aria-label={t("Numeri delle fatture")} className="grid grid-cols-3 gap-2">
         {[
-          { e: testi.totale, v: s.totale, c: "" },
-          { e: testi.incassato, v: s.incassato, c: testi.incassatoBuono ? "text-emerald-600 dark:text-emerald-400" : "" },
-          { e: "Scaduto", v: s.scaduto, c: s.scaduto > 0 ? "text-rose-600 dark:text-rose-400" : "" },
+          { e: t(testi.totale), v: s.totale, c: "" },
+          { e: t(testi.incassato), v: s.incassato, c: testi.incassatoBuono ? "text-emerald-600 dark:text-emerald-400" : "" },
+          { e: t("Scaduto"), v: s.scaduto, c: s.scaduto > 0 ? "text-rose-600 dark:text-rose-400" : "" },
         ].map((n, i) => (
           <Comparsa key={n.e} indice={i} className="min-w-0 rounded-xl border bg-card px-2.5 py-2">
             <p className="truncate text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{n.e}</p>
@@ -152,36 +160,36 @@ export function RiepilogoFatture({
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
       <NumeroVeloce
         indice={0}
-        etichetta={`${testi.totale} ${nomePeriodo}`}
+        etichetta={`${t(testi.totale)} ${nomePeriodo}`}
         valore={s.totale}
-        nota={`${s.doc} ${etichettaDocumenti}`}
+        nota={`${s.doc} ${t(etichettaDocumenti)}`}
         extra={
           <PillolaVariazione
             pct={variazione}
-            titolo={meseScelto ? "Rispetto allo stesso mese dell'anno prima" : "Rispetto allo stesso periodo dell'anno prima"}
+            titolo={meseScelto ? t("Rispetto allo stesso mese dell'anno prima") : t("Rispetto allo stesso periodo dell'anno prima")}
           />
         }
       />
-      <NumeroVeloce indice={1} etichetta="Imponibile" valore={s.imponibile} nota="senza IVA" />
-      <NumeroVeloce indice={2} etichetta="IVA" valore={s.iva} nota={s.imponibile > 0 ? `${((s.iva / s.imponibile) * 100).toLocaleString("it-IT", { maximumFractionDigits: 1 })}% dell'imponibile` : undefined} />
+      <NumeroVeloce indice={1} etichetta={t("Imponibile")} valore={s.imponibile} nota={t("senza IVA")} />
+      <NumeroVeloce indice={2} etichetta="IVA" valore={s.iva} nota={s.imponibile > 0 ? t("{percentuale}% dell'imponibile", { percentuale: ((s.iva / s.imponibile) * 100).toLocaleString(intlCampo(), { maximumFractionDigits: 1 }) }) : undefined} />
       <NumeroVeloce
         indice={3}
-        etichetta={testi.incassato}
+        etichetta={t(testi.incassato)}
         valore={s.incassato}
         tono={testi.incassatoBuono ? "buono" : "neutro"}
-        nota={daIncassareTot > 0 ? `${Math.round(pctIncassato)}% ${testi.notaIncassato}` : "di queste fatture"}
+        nota={daIncassareTot > 0 ? `${Math.round(pctIncassato)}% ${t(testi.notaIncassato)}` : t("di queste fatture")}
         extra={daIncassareTot > 0 ? <AnelloPercentuale pct={pctIncassato} dimensione={22} /> : undefined}
       />
-      <NumeroVeloce indice={4} etichetta={testi.daIncassare} valore={s.daIncassare} nota="di queste fatture" />
+      <NumeroVeloce indice={4} etichetta={t(testi.daIncassare)} valore={s.daIncassare} nota={t("di queste fatture")} />
       <NumeroVeloce
         indice={5}
-        etichetta="Scaduto"
+        etichetta={t("Scaduto")}
         valore={s.scaduto}
         tono={s.scaduto > 0 ? "cattivo" : "neutro"}
-        nota={s.scaduto > 0 ? "oltre la scadenza" : "niente in ritardo"}
+        nota={s.scaduto > 0 ? t("oltre la scadenza") : t("niente in ritardo")}
       />
     </div>
   );
 
-  return <section aria-label="Numeri delle fatture">{numeri}</section>;
+  return <section aria-label={t("Numeri delle fatture")}>{numeri}</section>;
 }

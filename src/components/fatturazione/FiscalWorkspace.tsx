@@ -17,6 +17,7 @@ import {
   fiscalHref,
   type FiscalSection,
 } from "@/lib/fatturazione/fiscalWorkspace";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 const Registro = lazy(() => import("@/pages/azienda/fatturazione/RegistroIVA"));
 const Contabilita = lazy(() => import("@/pages/azienda/ContabilitaFiscale"));
 const Ritenute = lazy(() => import("@/pages/azienda/RitenuteGaranzia"));
@@ -91,12 +92,13 @@ function LegacyHubEligibility({
   fallback: ReactNode;
   children: ReactNode;
 }) {
+  const t = useT();
   // Original route guards still authorize this content. Do not add the native
   // billing entitlement to standalone accounting/guarantee/archive permissions.
   const permissions = usePermissions();
   const documents = useFeatureAccess("documenti");
   if (permissions.isLoading || documents.isLoading)
-    return <p role="status">Verifica accesso al workspace…</p>;
+    return <p role="status">{t("Verifica accesso al workspace…")}</p>;
   if (
     !permissions.canViewBilling ||
     (!documents.isEnabled && !documents.isPreview)
@@ -114,6 +116,7 @@ export function FiscalStandaloneWorkspace({
 export default function FiscalWorkspace({
   defaultSection = "iva",
 }: { defaultSection?: FiscalSection } = {}) {
+  const t = useT();
   const { params, set, anno, mese, tipo, trimestre } = useFiscalPeriod();
   // La Contabilità generale sta nel menu Contabilità (10/11/2026): il vecchio indirizzo porta lì.
   if (params.get("sezione") === "generale") {
@@ -130,13 +133,12 @@ export default function FiscalWorkspace({
   const vista = params.get("vista");
   const conPeriodo = section === "iva" || (section === "contabilita" && (vista === "f24" || vista === "ritenute_bancarie"));
   return (
-    <section className="space-y-4" aria-label="Area fiscale">
+    <section className="space-y-4" aria-label={t("Area fiscale")}>
       <div className="flex flex-wrap items-start justify-between gap-4 rounded-2xl border bg-white p-5 max-md:gap-2 max-md:p-3">
         <div>
-          <h1 className="text-lg font-bold text-slate-950 max-md:hidden">Fiscalità</h1>
+          <h1 className="text-lg font-bold text-slate-950 max-md:hidden">{t("Fiscalità")}</h1>
           <p className="mt-1 text-sm text-slate-500 max-md:hidden">
-            Documenti, prospetti e verifiche della tua azienda. Nessun
-            versamento automatico.
+            {t("Documenti, prospetti e verifiche della tua azienda. Nessun versamento automatico.")}
           </p>
         </div>
         <FiscalPeriodFilters
@@ -150,7 +152,7 @@ export default function FiscalWorkspace({
       </div>
       <div
         role="tablist"
-        aria-label="Sezioni fiscali"
+        aria-label={t("Sezioni fiscali")}
         className="flex gap-1 overflow-x-auto rounded-xl border bg-white p-1.5"
       >
         {sections.map(([key, label, Icon]) => (
@@ -186,7 +188,7 @@ export default function FiscalWorkspace({
             className={`flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${section === key ? "bg-blue-50 text-blue-800 ring-1 ring-inset ring-blue-200" : "text-slate-600 hover:bg-slate-50"}`}
           >
             <Icon className="h-4 w-4" />
-            {label}
+            {t(label)}
           </button>
         ))}
       </div>
@@ -196,11 +198,11 @@ export default function FiscalWorkspace({
         aria-labelledby={`fiscal-tab-${section}`}
       >
         <Access section={section}>
-          <ErrorBoundary key={section} title="Errore nel caricamento fiscale">
+          <ErrorBoundary key={section} title={t("Errore nel caricamento fiscale")}>
             <Suspense
               fallback={
                 <p role="status" className="p-6">
-                  Caricamento sezione…
+                  {t("Caricamento sezione…")}
                 </p>
               }
             >

@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { altreNote } from "@/lib/marketing/autoreNota";
 import { oggiRoma, scadenzaAttivita } from "@/lib/opportunitaAgenda";
 import { nomiPersone } from "@/lib/marketing/nomiPersone";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const MOSTRATE = 4;
 
@@ -26,6 +27,7 @@ export function AnteprimaAttivita({ opportunityId, contactId, totale }: {
   contactId: string | null;
   totale: number;
 }) {
+  const tr = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const oggi = oggiRoma();
@@ -52,22 +54,22 @@ export function AnteprimaAttivita({ opportunityId, contactId, totale }: {
     staleTime: 60_000,
   });
 
-  if (isLoading) return <p className="text-muted-foreground">Carico le attività…</p>;
-  if (isError || !data) return <p>{`Attività da fare (${totale})`}</p>;
+  if (isLoading) return <p className="text-muted-foreground">{tr("Carico le attività…")}</p>;
+  if (isError || !data) return <p>{tr("Attività da fare ({totale})", { totale: String(totale ?? "") })}</p>;
 
   // Il numero della scheda può essere di qualche secondo fa: non meno di quelle a schermo.
   const tutte = Math.max(totale, data.attivita.length);
   const altre = altreNote(tutte, data.attivita.length);
   return (
     <div className="space-y-1.5 py-0.5">
-      <p className="font-semibold">{`Attività da fare (${tutte})`}</p>
-      {data.attivita.length === 0 && <p className="text-[10px] text-muted-foreground">Nessuna da fare</p>}
+      <p className="font-semibold">{tr("Attività da fare ({tutte})", { tutte: String(tutte ?? "") })}</p>
+      {data.attivita.length === 0 && <p className="text-[10px] text-muted-foreground">{tr("Nessuna da fare")}</p>}
       {data.attivita.map((t) => {
         const scadenza = scadenzaAttivita(t.due_date, oggi);
         const chi = t.assigned_to ? data.nomi[t.assigned_to] : "";
         return (
           <div key={t.id} className="border-t border-border/60 pt-1.5">
-            <p className="line-clamp-2 break-words">{t.title || "Attività senza titolo"}</p>
+            <p className="line-clamp-2 break-words">{t.title || tr("Attività senza titolo")}</p>
             <p className="mt-0.5 text-[10px] text-muted-foreground">
               <span className={cn(scadenza.scaduta && "font-semibold text-destructive")}>{scadenza.testo}</span>
               {chi ? ` · ${chi}` : ""}

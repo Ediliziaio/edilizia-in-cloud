@@ -27,6 +27,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Loader2, Plus, Trash2, HandCoins } from "lucide-react";
 import { ServizioAedixFields, useAedixProductLines, useAedixPackages } from "./ServizioAedixFields";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const sb = () => supabase as any;
 
@@ -60,6 +61,7 @@ interface Props {
 export function ConvertiClienteServizioDialog({
   opportunity, open, onOpenChange, clienteNome, onConverted,
 }: Props) {
+  const t = useT();
   const qc = useQueryClient();
 
   const [productLineId, setProductLineId] = useState<string | null>(null);
@@ -110,13 +112,13 @@ export function ConvertiClienteServizioDialog({
 
   const converti = useMutation({
     mutationFn: async () => {
-      if (!productLineId) throw new Error("Scegli il servizio venduto");
-      if (!nome.trim()) throw new Error("Manca il nome del cliente");
+      if (!productLineId) throw new Error(t("Scegli il servizio venduto"));
+      if (!nome.trim()) throw new Error(t("Manca il nome del cliente"));
       // Il contatto e' l'identita' del cliente-servizio (NOT NULL a database):
       // e' cio' che permette di sommare gli acquisti ripetuti della stessa
       // persona. Un'opportunita' senza contatto non puo' diventare un cliente.
       if (!opportunity?.contact_id) {
-        throw new Error("Questa opportunità non è collegata a un contatto: collegalo prima di convertirla");
+        throw new Error(t("Questa opportunità non è collegata a un contatto: collegalo prima di convertirla"));
       }
 
       const attive = commLines.filter((l) => Number(l.percentuale) > 0);
@@ -168,15 +170,15 @@ export function ConvertiClienteServizioDialog({
       return clientId;
     },
     onSuccess: () => {
-      toast.success("Cliente-servizio creato", {
-        description: "Da ora entra in Clienti Servizi e nel Fatturato Servizi.",
+      toast.success(t("Cliente-servizio creato"), {
+        description: t("Da ora entra in Clienti Servizi e nel Fatturato Servizi."),
       });
       qc.invalidateQueries({ queryKey: ["aedix-service-clients"] });
       qc.invalidateQueries({ queryKey: ["opportunities"] });
       onConverted?.();
       onOpenChange(false);
     },
-    onError: (e: Error) => toast.error("Conversione non riuscita", { description: e.message }),
+    onError: (e: Error) => toast.error(t("Conversione non riuscita"), { description: e.message }),
   });
 
   return (
@@ -184,10 +186,10 @@ export function ConvertiClienteServizioDialog({
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <HandCoins className="h-4 w-4" /> Trasforma in cliente-servizio
+            <HandCoins className="h-4 w-4" /> {t("Trasforma in cliente-servizio")}
           </DialogTitle>
           <DialogDescription>
-            La trattativa vinta diventa una relazione ricorrente, con i suoi incassi mensili.
+            {t("La trattativa vinta diventa una relazione ricorrente, con i suoi incassi mensili.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -199,26 +201,26 @@ export function ConvertiClienteServizioDialog({
           />
 
           <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Cliente</Label>
-            <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Nome del cliente" />
+            <Label className="text-xs text-muted-foreground">{t("Cliente")}</Label>
+            <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder={t("Nome del cliente")} />
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Come paga</Label>
+              <Label className="text-xs text-muted-foreground">{t("Come paga")}</Label>
               <Select value={billingModel} onValueChange={setBillingModel}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {BILLING.map((b) => <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>)}
+                  {BILLING.map((b) => <SelectItem key={b.value} value={b.value}>{t(b.label)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Ogni quanto</Label>
+              <Label className="text-xs text-muted-foreground">{t("Ogni quanto")}</Label>
               <Select value={ricorrenza} onValueChange={setRicorrenza}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {RICORRENZE.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+                  {RICORRENZE.map((r) => <SelectItem key={r.value} value={r.value}>{t(r.label)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -227,21 +229,21 @@ export function ConvertiClienteServizioDialog({
           {isProv ? (
             <div className="space-y-2 rounded-md border p-3">
               <div className="flex items-center justify-between">
-                <Label className="text-xs text-muted-foreground">Righe di provvigione</Label>
+                <Label className="text-xs text-muted-foreground">{t("Righe di provvigione")}</Label>
                 <Button type="button" variant="ghost" size="sm" className="h-7 gap-1"
                   onClick={() => setCommLines((p) => [...p, { etichetta: "", base: "fatturato", percentuale: 0 }])}>
-                  <Plus className="h-3.5 w-3.5" /> Riga
+                  <Plus className="h-3.5 w-3.5" /> {t("Riga")}
                 </Button>
               </div>
               {commLines.map((l, i) => (
                 <div key={i} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-2">
-                  <Input className="h-8" placeholder="Etichetta" value={l.etichetta}
+                  <Input className="h-8" placeholder={t("Etichetta")} value={l.etichetta}
                     onChange={(e) => setCommLines((p) => p.map((x, j) => j === i ? { ...x, etichetta: e.target.value } : x))} />
                   <Select value={l.base}
                     onValueChange={(v) => setCommLines((p) => p.map((x, j) => j === i ? { ...x, base: v } : x))}>
                     <SelectTrigger className="h-8 w-[150px]"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {COMM_BASE.map((b) => <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>)}
+                      {COMM_BASE.map((b) => <SelectItem key={b.value} value={b.value}>{t(b.label)}</SelectItem>)}
                     </SelectContent>
                   </Select>
                   <Input className="h-8 w-20" type="number" step="0.01" placeholder="%" value={l.percentuale || ""}
@@ -253,17 +255,17 @@ export function ConvertiClienteServizioDialog({
                 </div>
               ))}
               <p className="text-[10px] text-muted-foreground">
-                Percentuale sul fatturato o sull'incassato del cliente. La base di ogni mese si inserisce dagli Incassi.
+                {t("Percentuale sul fatturato o sull'incassato del cliente. La base di ogni mese si inserisce dagli Incassi.")}
               </p>
             </div>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Importo</Label>
+                <Label className="text-xs text-muted-foreground">{t("Importo")}</Label>
                 <Input type="number" step="0.01" value={importo} onChange={(e) => setImporto(e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Data inizio</Label>
+                <Label className="text-xs text-muted-foreground">{t("Data inizio")}</Label>
                 <Input type="date" value={dataInizio} onChange={(e) => setDataInizio(e.target.value)} />
               </div>
             </div>
@@ -271,22 +273,22 @@ export function ConvertiClienteServizioDialog({
 
           {isProv && (
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Data inizio</Label>
+              <Label className="text-xs text-muted-foreground">{t("Data inizio")}</Label>
               <Input type="date" value={dataInizio} onChange={(e) => setDataInizio(e.target.value)} />
             </div>
           )}
 
           <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Note</Label>
-            <Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Condizioni concordate, riferimenti…" />
+            <Label className="text-xs text-muted-foreground">{t("Note")}</Label>
+            <Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("Condizioni concordate, riferimenti…")} />
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t("Annulla")}</Button>
           <Button onClick={() => converti.mutate()} disabled={converti.isPending || !productLineId}>
             {converti.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Crea cliente-servizio
+            {t("Crea cliente-servizio")}
           </Button>
         </DialogFooter>
       </DialogContent>

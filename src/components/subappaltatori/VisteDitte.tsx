@@ -14,6 +14,7 @@ import {
   SezioneApribile, TABELLONE_GRUPPI, apriGruppo, gruppoPiccolo, larghezzaGruppo,
 } from "@/components/common/SezioneApribile";
 import type { StatoContratto, SubappaltatoreConDashboard } from "@/types/subappaltatori";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Le viste raggruppate della pagina Subappaltatori (06/10/2026): per lavoro,
@@ -43,13 +44,14 @@ const PASTIGLIA_DURC = {
 
 /** Il DURC in una pastiglia: «DURC ok», «DURC 8 gg», «DURC scaduto», «DURC mancante». */
 export function DurcPastiglia({ scadenza, oggi, className }: { scadenza: string | null; oggi: string; className?: string }) {
+  const t = useT();
   const { stato, giorni } = statoDurc(scadenza, oggi);
   const testo = stato === "ok" ? "DURC ok" : stato === "in_scadenza" ? `DURC ${giorni} gg` : stato === "scaduto" ? "DURC scaduto"
     : stato === "errata" ? "DURC da correggere" : "DURC mancante";
   return (
     <span
-      title={stato === "errata" ? `La scadenza registrata (${scadenza}) non è una data possibile: correggila nella scheda`
-        : scadenza ? `Scadenza DURC: ${formatDateIt(scadenza)}` : "Nessuna scadenza DURC registrata"}
+      title={stato === "errata" ? t("La scadenza registrata ({scadenza}) non è una data possibile: correggila nella scheda", { scadenza: String(scadenza ?? "") })
+        : scadenza ? t("Scadenza DURC: {scadenza}", { scadenza: formatDateIt(scadenza) }) : t("Nessuna scadenza DURC registrata")}
       className={cn("inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset", PASTIGLIA_DURC[stato], className)}
     >
       {testo}
@@ -92,6 +94,7 @@ export function SchedaDitta({
   /** Cosa scrivere nella terza riga: la zona (nella vista per lavoro) o il lavoro (nella vista per zona). */
   mostra: "zona" | "lavoro";
 }) {
+  const t = useT();
   const zona = zonaDa(d.indirizzo);
   const categoria = categoriaLavori(d.tipo_lavori);
   const terza = mostra === "zona"
@@ -131,19 +134,19 @@ export function SchedaDitta({
         <p className="mt-0.5 truncate text-xs">
           {terza && <span className="text-slate-600">{terza} · </span>}
           {info.cantieriInCorso > 0
-            ? <span className="text-emerald-700">{info.cantieriInCorso === 1 ? "1 cantiere in corso" : `${info.cantieriInCorso} cantieri in corso`}</span>
-            : <span className="text-muted-foreground">nessun cantiere in corso</span>}
+            ? <span className="text-emerald-700">{info.cantieriInCorso === 1 ? t("1 cantiere in corso") : t("{cantieriInCorso} cantieri in corso", { cantieriInCorso: String(info.cantieriInCorso ?? "") })}</span>
+            : <span className="text-muted-foreground">{t("nessun cantiere in corso")}</span>}
         </p>
         {/* Cosa manca per il subappalto, in parole, e il messaggio per chiederlo */}
         <p className="mt-0.5 flex min-w-0 items-start gap-2 text-xs">
           {info.mancanze.length === 0 ? (
             <span className="truncate text-emerald-700">
-              Documenti in regola{info.documenti > 0 && <span className="text-muted-foreground"> · {info.documenti === 1 ? "1 documento" : `${info.documenti} documenti`}</span>}
+              {t("Documenti in regola")}{info.documenti > 0 && <span className="text-muted-foreground"> · {info.documenti === 1 ? t("1 documento") : t("{documenti} documenti", { documenti: String(info.documenti ?? "") })}</span>}
             </span>
           ) : (
             <span className="min-w-0 text-amber-700 line-clamp-2 max-sm:truncate" title={`Mancano: ${info.mancanze.map((m) => m.etichetta).join(", ")}`}>
-              <span className="max-sm:hidden">Mancano: {info.mancanze.map((m) => m.etichetta).join(", ")}</span>
-              <span className="sm:hidden">{info.mancanze.length === 1 ? `manca ${info.mancanze[0].etichetta}` : `mancano ${info.mancanze.length} cose`}</span>
+              <span className="max-sm:hidden">{t("Mancano:")} {info.mancanze.map((m) => m.etichetta).join(", ")}</span>
+              <span className="sm:hidden">{info.mancanze.length === 1 ? t("manca {etichetta}", { etichetta: String(info.mancanze[0].etichetta ?? "") }) : t("mancano {n} cose", { n: info.mancanze.length })}</span>
             </span>
           )}
           {info.mancanze.some((m) => m.chiave !== "piva") && info.richiesta && (
@@ -151,11 +154,11 @@ export function SchedaDitta({
               href={info.richiesta.href}
               target={info.richiesta.canale === "whatsapp" ? "_blank" : undefined}
               rel="noreferrer"
-              title={info.richiesta.canale === "email" ? "Scrivi un'email con l'elenco di quello che manca" : "Manda un WhatsApp con l'elenco di quello che manca"}
+              title={info.richiesta.canale === "email" ? t("Scrivi un'email con l'elenco di quello che manca") : t("Manda un WhatsApp con l'elenco di quello che manca")}
               className="tap-compact ml-auto inline-flex shrink-0 items-center gap-1 rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 font-medium text-orange-800 hover:bg-orange-100"
             >
               {info.richiesta.canale === "email" ? <Mail className="h-3 w-3" aria-hidden="true" /> : <MessageCircle className="h-3 w-3" aria-hidden="true" />}
-              Chiedi
+              {t("Chiedi")}
             </a>
           )}
         </p>
@@ -172,18 +175,20 @@ const largoSe = larghezzaGruppo;
 const apriSezione = apriGruppo;
 const TABELLONE = TABELLONE_GRUPPI;
 
-const contaDitte = (n: number) => (n === 1 ? "1 ditta" : `${n} ditte`);
-const alLavoroTesto = (n: number) => (n > 0 ? `${n} al lavoro` : null);
+type Traduci = ReturnType<typeof useT>;
+const contaDitte = (n: number, t: Traduci) => (n === 1 ? t("1 ditta") : t("{n} ditte", { n }));
+const alLavoroTesto = (n: number, t: Traduci) => (n > 0 ? t("{n} al lavoro", { n }) : null);
 
-const avvisoDurc = (righe: ReadonlyArray<Ditta>, oggi: string) => {
+const avvisoDurc = (righe: ReadonlyArray<Ditta>, oggi: string, t: Traduci) => {
   const n = righe.filter((d) => durcDaGuardare(d.durc_scadenza, oggi)).length;
-  return n === 0 ? null : n === 1 ? "1 DURC da controllare" : `${n} DURC da controllare`;
+  return n === 0 ? null : n === 1 ? t("1 DURC da controllare") : t("{n} DURC da controllare", { n });
 };
 
 const perNome = (a: Ditta, b: Ditta) => a.ragione_sociale.localeCompare(b.ragione_sociale, "it");
 
 /** Per lavoro: elettricisti, idraulici, cartongessisti… con le varianti del testo libero messe insieme. */
 export function VistaPerLavoro({ ditte, info, oggi }: { ditte: ReadonlyArray<Ditta>; info: (d: Ditta) => InfoDitta; oggi: string }) {
+  const t = useT();
   const gruppi = raggruppa(ditte, (d) => categoriaLavori(d.tipo_lavori), perNome);
   return (
     <div className={TABELLONE}>
@@ -193,10 +198,10 @@ export function VistaPerLavoro({ ditte, info, oggi }: { ditte: ReadonlyArray<Dit
           className={largoSe(g.righe.length)}
           titolo={g.etichetta}
           icona={iconaCategoria(g.chiave)}
-          conteggio={contaDitte(g.righe.length)}
-          buono={alLavoroTesto(g.righe.filter((d) => info(d).alLavoro).length)}
-          avviso={avvisoDurc(g.righe, oggi)}
-          dettaglio={g.chiave === "_senza" ? "Scrivi il tipo di lavoro nella scheda della ditta per metterla nel suo gruppo" : undefined}
+          conteggio={contaDitte(g.righe.length, t)}
+          buono={alLavoroTesto(g.righe.filter((d) => info(d).alLavoro).length, t)}
+          avviso={avvisoDurc(g.righe, oggi, t)}
+          dettaglio={g.chiave === "_senza" ? t("Scrivi il tipo di lavoro nella scheda della ditta per metterla nel suo gruppo") : undefined}
           aperta={apriSezione(i, ditte.length)}
         >
           <ul className={piccolo(g.righe.length) ? COLONNA : GRIGLIA}>
@@ -210,6 +215,7 @@ export function VistaPerLavoro({ ditte, info, oggi }: { ditte: ReadonlyArray<Dit
 
 /** Per zona: la regione, e dentro le province, dalla sigla tra parentesi nell'indirizzo. */
 export function VistaPerZona({ ditte, info, oggi }: { ditte: ReadonlyArray<Ditta>; info: (d: Ditta) => InfoDitta; oggi: string }) {
+  const t = useT();
   const regioni = raggruppa(ditte, (d) => {
     const z = zonaDa(d.indirizzo);
     return z ? { chiave: z.regione, etichetta: z.regione } : { chiave: "_senza", etichetta: ZONA_NON_INDICATA };
@@ -222,7 +228,7 @@ export function VistaPerZona({ ditte, info, oggi }: { ditte: ReadonlyArray<Ditta
           return z ? { chiave: z.provincia, etichetta: z.nomeProvincia } : { chiave: "_senza", etichetta: ZONA_NON_INDICATA };
         }, perNome);
         const riassunto = province.length > 1
-          ? province.slice(0, 4).map((p) => `${p.etichetta} ${p.righe.length}`).join(" · ") + (province.length > 4 ? ` · altre ${province.length - 4}` : "")
+          ? province.slice(0, 4).map((p) => `${p.etichetta} ${p.righe.length}`).join(" · ") + (province.length > 4 ? ` · ${t("altre {n}", { n: province.length - 4 })}` : "")
           : undefined;
         return (
           <SezioneApribile
@@ -230,10 +236,10 @@ export function VistaPerZona({ ditte, info, oggi }: { ditte: ReadonlyArray<Ditta
             className={largoSe(r.righe.length)}
             titolo={r.etichetta}
             icona={MapPin}
-            conteggio={contaDitte(r.righe.length)}
-            buono={alLavoroTesto(r.righe.filter((d) => info(d).alLavoro).length)}
-            avviso={avvisoDurc(r.righe, oggi)}
-            dettaglio={r.chiave === "_senza" ? "Metti la sigla della provincia tra parentesi nell'indirizzo, es. «(PD)»" : riassunto}
+            conteggio={contaDitte(r.righe.length, t)}
+            buono={alLavoroTesto(r.righe.filter((d) => info(d).alLavoro).length, t)}
+            avviso={avvisoDurc(r.righe, oggi, t)}
+            dettaglio={r.chiave === "_senza" ? t("Metti la sigla della provincia tra parentesi nell'indirizzo, es. «(PD)»") : riassunto}
             aperta={apriSezione(i, ditte.length)}
           >
             {province.length > 1 ? (
@@ -285,13 +291,14 @@ export function VistaCantieri({
   oggi: string;
   vedeImporti: boolean;
 }) {
+  const t = useT();
   const perId = new Map(ditte.map((d) => [d.id, d]));
   const inCorso = contratti.filter((c) => STATI_IN_CORSO.has(c.stato) && perId.has(c.schedaId));
   const cantieri = raggruppa(
     inCorso,
     (c) => c.orderId
-      ? { chiave: c.orderId, etichetta: [c.codiceCommessa, c.commessa].filter(Boolean).join(" · ") || "Commessa" }
-      : { chiave: "_senza", etichetta: "Contratti senza commessa" },
+      ? { chiave: c.orderId, etichetta: [c.codiceCommessa, c.commessa].filter(Boolean).join(" · ") || t("Commessa") }
+      : { chiave: "_senza", etichetta: t("Contratti senza commessa") },
     (a, b) => (ORDINE_STATO[a.stato] ?? 9) - (ORDINE_STATO[b.stato] ?? 9)
       || (perId.get(a.schedaId)?.ragione_sociale ?? "").localeCompare(perId.get(b.schedaId)?.ragione_sociale ?? "", "it"),
   );
@@ -302,7 +309,7 @@ export function VistaCantieri({
     <div className="grid items-start gap-3 xl:grid-cols-2">
       {cantieri.length === 0 && (
         <p className="rounded-xl border border-dashed bg-white px-4 py-8 text-center text-sm text-muted-foreground xl:col-span-2">
-          Nessuna ditta ha un contratto in corso. I contratti si aprono dalla scheda della ditta.
+          {t("Nessuna ditta ha un contratto in corso. I contratti si aprono dalla scheda della ditta.")}
         </p>
       )}
       {cantieri.map((g, i) => {
@@ -316,8 +323,8 @@ export function VistaCantieri({
             className={g.righe.length > 2 ? "xl:col-span-2" : undefined}
             titolo={g.etichetta}
             icona={HardHat}
-            conteggio={contaDitte(ditteQui.size)}
-            avviso={avvisoDurc([...ditteQui].map((id) => perId.get(id)!).filter(Boolean), oggi)}
+            conteggio={contaDitte(ditteQui.size, t)}
+            avviso={avvisoDurc([...ditteQui].map((id) => perId.get(id)!).filter(Boolean), oggi, t)}
             dettaglio={[
               primo?.cliente,
               vedeImporti && importo > 0 ? `contratti ${formatCurrency(importo)}${sal > 0 ? ` · SAL ${Math.round((sal / importo) * 100)}%` : ""}` : null,
@@ -340,11 +347,11 @@ export function VistaCantieri({
                       </p>
                     </div>
                     <DurcPastiglia scadenza={d.durc_scadenza} oggi={oggi} />
-                    <span className={cn("inline-flex shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset", stato.classe)}>{stato.testo}</span>
+                    <span className={cn("inline-flex shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset", stato.classe)}>{t(stato.testo)}</span>
                     {vedeImporti && (
                       <span className="w-40 shrink-0 text-right text-xs tabular-nums text-slate-700 max-sm:w-full max-sm:text-left">
                         {formatCurrency(c.importo)}
-                        <span className="mt-1 block h-1 w-full overflow-hidden rounded-full bg-slate-100" title={`SAL ${pct}%`} aria-label={`SAL al ${pct}%`}>
+                        <span className="mt-1 block h-1 w-full overflow-hidden rounded-full bg-slate-100" title={t("SAL {pct}%", { pct: String(pct ?? "") })} aria-label={t("SAL al {pct}%", { pct: String(pct ?? "") })}>
                           <span className="block h-full rounded-full bg-emerald-500" style={{ width: `${pct}%` }} />
                         </span>
                       </span>
@@ -358,9 +365,9 @@ export function VistaCantieri({
       })}
 
       {ferme.length > 0 && (
-        <section className="rounded-2xl border border-dashed bg-white px-4 py-3 xl:col-span-2" aria-label="Ditte senza cantieri in corso">
+        <section className="rounded-2xl border border-dashed bg-white px-4 py-3 xl:col-span-2" aria-label={t("Ditte senza cantieri in corso")}>
           <p className="text-sm font-semibold text-slate-900">
-            Senza cantieri in corso <span className="font-normal text-muted-foreground">· {ferme.length}</span>
+            {t("Senza cantieri in corso")} <span className="font-normal text-muted-foreground">· {ferme.length}</span>
           </p>
           <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
             {ferme.map((d) => (

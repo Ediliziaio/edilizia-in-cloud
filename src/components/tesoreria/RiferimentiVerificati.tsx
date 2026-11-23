@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { bankRpc } from "@/lib/finance/bankWorkspace";
 import { formatDateIt } from "@/lib/formatters";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface IbanCliente { id: string; cliente: string | null; chiave_fiscale: string; iban: string; confermato_at: string }
 export interface Pagante { id: string; intestatario: string; pagante: string | null; iban: string | null; prova: string; created_at: string }
@@ -31,6 +32,7 @@ export function FormPagante({ companyId, iniziale, onFatto, onAnnulla }: {
   onFatto: () => void;
   onAnnulla?: () => void;
 }) {
+  const t = useT();
   const [intestatario, setIntestatario] = useState(iniziale?.intestatario ?? "");
   const [pagante, setPagante] = useState(iniziale?.pagante ?? "");
   const [iban, setIban] = useState(iniziale?.iban ?? "");
@@ -46,10 +48,10 @@ export function FormPagante({ companyId, iniziale, onFatto, onAnnulla }: {
         p_company: companyId, p_soggetto_nome: intestatario.trim(), p_pagante_nome: pagante.trim() || null,
         p_pagante_iban: iban.trim() || null, p_prova: prova.trim(),
       });
-      toast.success("Rapporto registrato: i pagamenti di questo pagante valgono per l'intestatario");
+      toast.success(t("Rapporto registrato: i pagamenti di questo pagante valgono per l'intestatario"));
       onFatto();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Rapporto non registrato");
+      toast.error(err instanceof Error ? err.message : t("Rapporto non registrato"));
     } finally {
       setSalvo(false);
     }
@@ -57,30 +59,31 @@ export function FormPagante({ companyId, iniziale, onFatto, onAnnulla }: {
   return (
     <div className="grid gap-2 rounded-lg border bg-muted/20 p-3 sm:grid-cols-2">
       <div className="space-y-1">
-        <Label htmlFor={`${uid}-pagante-intestatario`} className="text-xs">Intestatario delle fatture</Label>
+        <Label htmlFor={`${uid}-pagante-intestatario`} className="text-xs">{t("Intestatario delle fatture")}</Label>
         <Input id={`${uid}-pagante-intestatario`} value={intestatario} onChange={(e) => setIntestatario(e.target.value)} className="h-8" />
       </div>
       <div className="space-y-1">
-        <Label htmlFor={`${uid}-pagante-nome`} className="text-xs">Chi paga</Label>
+        <Label htmlFor={`${uid}-pagante-nome`} className="text-xs">{t("Chi paga")}</Label>
         <Input id={`${uid}-pagante-nome`} value={pagante} onChange={(e) => setPagante(e.target.value)} className="h-8" />
       </div>
       <div className="space-y-1">
-        <Label htmlFor={`${uid}-pagante-iban`} className="text-xs">IBAN di chi paga (facoltativo)</Label>
+        <Label htmlFor={`${uid}-pagante-iban`} className="text-xs">{t("IBAN di chi paga (facoltativo)")}</Label>
         <Input id={`${uid}-pagante-iban`} value={iban ?? ""} onChange={(e) => setIban(e.target.value)} className="h-8 font-mono text-xs" />
       </div>
       <div className="space-y-1">
-        <Label htmlFor={`${uid}-pagante-prova`} className="text-xs">Prova del rapporto</Label>
-        <Input id={`${uid}-pagante-prova`} value={prova} onChange={(e) => setProva(e.target.value)} placeholder="Delega del 01/11, contratto, mail del cliente…" className="h-8" />
+        <Label htmlFor={`${uid}-pagante-prova`} className="text-xs">{t("Prova del rapporto")}</Label>
+        <Input id={`${uid}-pagante-prova`} value={prova} onChange={(e) => setProva(e.target.value)} placeholder={t("Delega del 01/11, contratto, mail del cliente…")} className="h-8" />
       </div>
       <div className="flex justify-end gap-2 sm:col-span-2">
-        {onAnnulla && <Button size="sm" variant="ghost" onClick={onAnnulla}>Annulla</Button>}
-        <Button size="sm" disabled={!pronto || salvo} onClick={() => void salva()}>Registra il rapporto</Button>
+        {onAnnulla && <Button size="sm" variant="ghost" onClick={onAnnulla}>{t("Annulla")}</Button>}
+        <Button size="sm" disabled={!pronto || salvo} onClick={() => void salva()}>{t("Registra il rapporto")}</Button>
       </div>
     </div>
   );
 }
 
 export function RiferimentiVerificati({ companyId, puoScrivere }: { companyId: string; puoScrivere: boolean }) {
+  const t = useT();
   const qc = useQueryClient();
   const [nuovo, setNuovo] = useState(false);
   const q = useQuery({
@@ -95,36 +98,36 @@ export function RiferimentiVerificati({ companyId, puoScrivere }: { companyId: s
       toast.success(testo);
       aggiorna();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Non revocato");
+      toast.error(err instanceof Error ? err.message : t("Non revocato"));
     }
   }
   if (q.isLoading) return <Skeleton className="h-24 w-full" />;
-  if (q.isError) return <p className="text-sm text-muted-foreground">Riferimenti verificati non disponibili per il tuo ruolo.</p>;
+  if (q.isError) return <p className="text-sm text-muted-foreground">{t("Riferimenti verificati non disponibili per il tuo ruolo.")}</p>;
   const { iban_clienti = [], paganti = [] } = q.data ?? { iban_clienti: [], paganti: [] };
   return (
     <section className="space-y-4" aria-labelledby="riferimenti-verificati">
       <div>
-        <h3 id="riferimenti-verificati" className="flex items-center gap-2 font-semibold"><UserCheck className="h-4 w-4" /> Riferimenti verificati</h3>
+        <h3 id="riferimenti-verificati" className="flex items-center gap-2 font-semibold"><UserCheck className="h-4 w-4" /> {t("Riferimenti verificati")}</h3>
         <p className="text-sm text-muted-foreground">
-          Quello che la riconciliazione considera certo. Un pagamento da solo non crea mai un riferimento: lo conferma una persona.
+          {t("Quello che la riconciliazione considera certo. Un pagamento da solo non crea mai un riferimento: lo conferma una persona.")}
         </p>
       </div>
 
       <Card>
         <CardContent className="space-y-2 py-3">
-          <p className="flex items-center gap-2 text-sm font-medium"><Landmark className="h-4 w-4 text-muted-foreground" /> IBAN dei clienti</p>
+          <p className="flex items-center gap-2 text-sm font-medium"><Landmark className="h-4 w-4 text-muted-foreground" /> {t("IBAN dei clienti")}</p>
           {iban_clienti.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Nessuno. Si aggiungono dal dettaglio di un incasso già collegato a una fattura, con «Ricorda questo IBAN».</p>
+            <p className="text-xs text-muted-foreground">{t("Nessuno. Si aggiungono dal dettaglio di un incasso già collegato a una fattura, con «Ricorda questo IBAN».")}</p>
           ) : (
             <ul className="divide-y rounded-lg border">
               {iban_clienti.map((r) => (
                 <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-2.5 py-1.5 text-sm">
                   <span className="min-w-0 flex-1 truncate font-medium">{r.cliente ?? r.chiave_fiscale}</span>
                   <span className="font-mono text-xs">{r.iban}</span>
-                  <span className="text-xs text-muted-foreground">dal {formatDateIt(r.confermato_at)}</span>
+                  <span className="text-xs text-muted-foreground">{t("dal {confermato_at}", { confermato_at: formatDateIt(r.confermato_at) })}</span>
                   {puoScrivere && (
-                    <Button size="icon" variant="ghost" className="h-7 w-7" aria-label={`Revoca IBAN di ${r.cliente ?? r.chiave_fiscale}`}
-                      onClick={() => void revoca("tesoreria_revoca_iban_cliente", r.id, "IBAN revocato")}>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" aria-label={t("Revoca IBAN di {cliente}", { cliente: String((r.cliente ?? r.chiave_fiscale) ?? "") })}
+                      onClick={() => void revoca("tesoreria_revoca_iban_cliente", r.id, t("IBAN revocato"))}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   )}
@@ -138,23 +141,23 @@ export function RiferimentiVerificati({ companyId, puoScrivere }: { companyId: s
       <Card>
         <CardContent className="space-y-2 py-3">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-sm font-medium">Chi paga per conto di altri</p>
+            <p className="text-sm font-medium">{t("Chi paga per conto di altri")}</p>
             {puoScrivere && !nuovo && (
-              <Button size="sm" variant="outline" onClick={() => setNuovo(true)}><Plus className="mr-1 h-3.5 w-3.5" /> Aggiungi</Button>
+              <Button size="sm" variant="outline" onClick={() => setNuovo(true)}><Plus className="mr-1 h-3.5 w-3.5" /> {t("Aggiungi")}</Button>
             )}
           </div>
           {nuovo && <FormPagante companyId={companyId} onFatto={() => { setNuovo(false); aggiorna(); }} onAnnulla={() => setNuovo(false)} />}
           {paganti.length === 0 && !nuovo ? (
-            <p className="text-xs text-muted-foreground">Nessuno. Un bonifico da un soggetto diverso dall'intestatario resta in conflitto finché non c'è il rapporto.</p>
+            <p className="text-xs text-muted-foreground">{t("Nessuno. Un bonifico da un soggetto diverso dall'intestatario resta in conflitto finché non c'è il rapporto.")}</p>
           ) : (
             <ul className="divide-y rounded-lg border">
               {paganti.map((p) => (
                 <li key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-2.5 py-1.5 text-sm">
-                  <span className="min-w-0 flex-1 truncate"><span className="font-medium">{p.pagante ?? p.iban}</span> paga per <span className="font-medium">{p.intestatario}</span></span>
+                  <span className="min-w-0 flex-1 truncate">{t("{pagante} paga per {intestatario}", { pagante: String(p.pagante ?? p.iban ?? ""), intestatario: String(p.intestatario ?? "") })}</span>
                   <span className="truncate text-xs text-muted-foreground" title={p.prova}>{p.prova}</span>
                   {puoScrivere && (
-                    <Button size="icon" variant="ghost" className="h-7 w-7" aria-label={`Revoca il rapporto di ${p.pagante ?? p.iban}`}
-                      onClick={() => void revoca("tesoreria_revoca_pagante", p.id, "Rapporto revocato")}>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" aria-label={t("Revoca il rapporto di {pagante}", { pagante: String((p.pagante ?? p.iban) ?? "") })}
+                      onClick={() => void revoca("tesoreria_revoca_pagante", p.id, t("Rapporto revocato"))}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   )}

@@ -15,6 +15,7 @@ import {
 import { useBillingMode, type BillingMode } from "@/contexts/BillingModeContext";
 import { ID_SCELTA_ESTERNA, ID_SCELTA_NATIVA } from "@/lib/fatturazione/sceltaCheFatturi";
 import { cn } from "@/lib/utils";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const SCELTE: { mode: BillingMode; id: string; titolo: string; descrizione: string; Icona: typeof FileText }[] = [
   {
@@ -48,9 +49,10 @@ const CONFERMA: Record<BillingMode, { titolo: string; testo: string; azione: str
 };
 
 const dataLunga = (iso: string) =>
-  new Date(iso).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" });
+  new Date(iso).toLocaleDateString(intlCampo(), { day: "numeric", month: "long", year: "numeric" });
 
 export function ComeFatturi({ onScelta }: { /** Dopo una scelta registrata: la pagina porta alla scheda di quel modo. */ onScelta?: (modo: BillingMode) => void }) {
+  const t = useT();
   const { mode, isChosen, chosenAt, isLoading, switchMode } = useBillingMode();
   const [daConfermare, setDaConfermare] = useState<BillingMode | null>(null);
   const [inCorso, setInCorso] = useState(false);
@@ -79,9 +81,9 @@ export function ComeFatturi({ onScelta }: { /** Dopo una scelta registrata: la p
   return (
     <section aria-labelledby="come-fatturi-titolo" className="space-y-3">
       <div>
-        <h2 id="come-fatturi-titolo" className="text-lg font-semibold">Come fatturi?</h2>
+        <h2 id="come-fatturi-titolo" className="text-lg font-semibold">{t("Come fatturi?")}</h2>
         <p className="text-sm text-muted-foreground">
-          Puoi cambiare quando vuoi. Le fatture già fatte non si cancellano.
+          {t("Puoi cambiare quando vuoi. Le fatture già fatte non si cancellano.")}
         </p>
       </div>
 
@@ -110,8 +112,8 @@ export function ComeFatturi({ onScelta }: { /** Dopo una scelta registrata: la p
                 <Icona className="h-5 w-5 text-primary" />
               </span>
               <span className="min-w-0 pr-6">
-                <span className="block font-semibold">{titolo}</span>
-                <span className="mt-1 block text-sm text-muted-foreground">{descrizione}</span>
+                <span className="block font-semibold">{t(titolo)}</span>
+                <span className="mt-1 block text-sm text-muted-foreground">{t(descrizione)}</span>
               </span>
             </button>
           );
@@ -120,7 +122,7 @@ export function ComeFatturi({ onScelta }: { /** Dopo una scelta registrata: la p
 
       {!isLoading && (
         <p className="text-sm text-muted-foreground" role="status">
-          {isChosen && chosenAt ? `Hai scelto il ${dataLunga(chosenAt)}.` : "Non hai ancora scelto."}
+          {isChosen && chosenAt ? t("Hai scelto il {chosenAt}.", { chosenAt: dataLunga(chosenAt) }) : t("Non hai ancora scelto.")}
         </p>
       )}
 
@@ -129,11 +131,11 @@ export function ComeFatturi({ onScelta }: { /** Dopo una scelta registrata: la p
           {daConfermare && (
             <>
               <AlertDialogHeader>
-                <AlertDialogTitle>{CONFERMA[daConfermare].titolo}</AlertDialogTitle>
-                <AlertDialogDescription>{CONFERMA[daConfermare].testo}</AlertDialogDescription>
+                <AlertDialogTitle>{t(CONFERMA[daConfermare].titolo)}</AlertDialogTitle>
+                <AlertDialogDescription>{t(CONFERMA[daConfermare].testo)}</AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel disabled={inCorso}>Annulla</AlertDialogCancel>
+                <AlertDialogCancel disabled={inCorso}>{t("Annulla")}</AlertDialogCancel>
                 <AlertDialogAction
                   disabled={inCorso}
                   onClick={(e) => {
@@ -143,7 +145,7 @@ export function ComeFatturi({ onScelta }: { /** Dopo una scelta registrata: la p
                   }}
                 >
                   {inCorso && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {CONFERMA[daConfermare].azione}
+                  {t(CONFERMA[daConfermare].azione)}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </>

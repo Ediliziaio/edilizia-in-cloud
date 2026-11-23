@@ -14,13 +14,13 @@ import {
 } from "@/components/ui/table";
 import { FileText, AlertTriangle, RefreshCw, ArrowDownToLine, Truck, Download, Loader2 } from "lucide-react";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { useDocumentiFiscali } from "@/hooks/useDocumentiFiscali";
 import { useShipmentDDTPDF } from "@/hooks/useShipmentDDTPDF";
 import { useBillingMode } from "@/contexts/BillingModeContext";
 import { formatCurrency } from "@/lib/formatters";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 interface Props {
   /** id magazzino selezionato in UI; null = tutti i magazzini visibili via RLS. */
   warehouseFilter: string | null;
@@ -56,7 +56,7 @@ const STATO_USCITA_BADGE: Record<string, "default" | "secondary" | "outline" | "
 function fmtDate(d: string | null | undefined) {
   if (!d) return "—";
   const parsed = new Date(d);
-  return isNaN(parsed.getTime()) ? "—" : format(parsed, "dd MMM yyyy", { locale: it });
+  return isNaN(parsed.getTime()) ? "—" : format(parsed, "dd MMM yyyy", { locale: dateFnsCampo() });
 }
 
 /**
@@ -75,6 +75,7 @@ function fmtDate(d: string | null | undefined) {
  *              dal flusso "Spedisci a cantiere" alla generazione del DDT.
  */
 export function WarehouseDDTTab({ warehouseFilter, onRegisterArrival }: Props) {
+  const t = useT();
   const isMobile = useIsMobile();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -135,14 +136,14 @@ export function WarehouseDDTTab({ warehouseFilter, onRegisterArrival }: Props) {
       <TabsList>
         <TabsTrigger value="entrata" className="gap-1.5">
           <ArrowDownToLine className="h-4 w-4" />
-          In entrata
+          {t("In entrata")}
           {ddts.length > 0 && (
             <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[11px]">{ddts.length}</Badge>
           )}
         </TabsTrigger>
         <TabsTrigger value="uscita" className="gap-1.5">
           <Truck className="h-4 w-4" />
-          In uscita
+          {t("In uscita")}
           {uscite.length > 0 && (
             <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[11px]">{uscite.length}</Badge>
           )}
@@ -153,22 +154,22 @@ export function WarehouseDDTTab({ warehouseFilter, onRegisterArrival }: Props) {
       <TabsContent value="entrata">
         {!permessi.solaLettura && (
           <div className="mb-3 flex justify-end">
-            <Button variant="outline" size="sm" onClick={() => setCaricaPiu(true)}>Carica più bolle</Button>
+            <Button variant="outline" size="sm" onClick={() => setCaricaPiu(true)}>{t("Carica più bolle")}</Button>
           </div>
         )}
         {caricaPiu && <BolleInBloccoDialog open onOpenChange={setCaricaPiu} destinazione="magazzino" warehouseId={warehouseFilter} />}
         {isLoading ? (
           <p className="text-muted-foreground text-center py-8" role="status" aria-live="polite">
-            Caricamento DDT…
+            {t("Caricamento DDT…")}
           </p>
         ) : error ? (
           <Card>
             <CardContent className="py-10 flex flex-col items-center gap-3 text-center" role="alert" aria-live="assertive">
               <AlertTriangle className="h-10 w-10 text-destructive/70" aria-hidden="true" />
-              <p className="text-sm text-destructive">Errore nel caricamento dei DDT. Riprova tra qualche secondo.</p>
+              <p className="text-sm text-destructive">{t("Errore nel caricamento dei DDT. Riprova tra qualche secondo.")}</p>
               <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isRefetching}>
                 <RefreshCw className={`h-4 w-4 mr-2 ${isRefetching ? "animate-spin" : ""}`} aria-hidden="true" />
-                Riprova
+                {t("Riprova")}
               </Button>
             </CardContent>
           </Card>
@@ -176,13 +177,13 @@ export function WarehouseDDTTab({ warehouseFilter, onRegisterArrival }: Props) {
           <Card>
             <CardContent className="py-12 text-center space-y-2">
               <FileText className="h-12 w-12 mx-auto text-muted-foreground/40" aria-hidden="true" />
-              <p className="text-muted-foreground">Nessun DDT di ricezione registrato.</p>
+              <p className="text-muted-foreground">{t("Nessun DDT di ricezione registrato.")}</p>
               <p className="text-xs text-muted-foreground">
-                I DDT in entrata compaiono qui quando ricevi merce su un ordine di acquisto.
+                {t("I DDT in entrata compaiono qui quando ricevi merce su un ordine di acquisto.")}
               </p>
               {onRegisterArrival && (
                 <Button className="mt-3" onClick={onRegisterArrival}>
-                  Registra arrivo merce
+                  {t("Registra arrivo merce")}
                 </Button>
               )}
             </CardContent>
@@ -193,13 +194,13 @@ export function WarehouseDDTTab({ warehouseFilter, onRegisterArrival }: Props) {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>N° DDT</TableHead>
-                    <TableHead>Stato</TableHead>
-                    <TableHead>Data</TableHead>
+                    <TableHead>{t("N° DDT")}</TableHead>
+                    <TableHead>{t("Stato")}</TableHead>
+                    <TableHead>{t("Data")}</TableHead>
                     <TableHead>ODA</TableHead>
-                    <TableHead>Magazzino</TableHead>
-                    <TableHead className="text-center">Qtà</TableHead>
-                    <TableHead className="text-right">Azioni</TableHead>
+                    <TableHead>{t("Magazzino")}</TableHead>
+                    <TableHead className="text-center">{t("Qtà")}</TableHead>
+                    <TableHead className="text-right">{t("Azioni")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -227,9 +228,9 @@ export function WarehouseDDTTab({ warehouseFilter, onRegisterArrival }: Props) {
                             variant="outline"
                             size="sm"
                             onClick={() => navigate(`/azienda/ordini-acquisto/${d.purchase_order_id}`)}
-                            aria-label={`Apri ordine di acquisto collegato al DDT ${d.numero_ddt}`}
+                            aria-label={t("Apri ordine di acquisto collegato al DDT {numero_ddt}", { numero_ddt: String(d.numero_ddt ?? "") })}
                           >
-                            Apri ODA
+                            {t("Apri ODA")}
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -246,16 +247,16 @@ export function WarehouseDDTTab({ warehouseFilter, onRegisterArrival }: Props) {
       <TabsContent value="uscita">
         {isLoadingUscite ? (
           <p className="text-muted-foreground text-center py-8" role="status" aria-live="polite">
-            Caricamento DDT…
+            {t("Caricamento DDT…")}
           </p>
         ) : errorUscite ? (
           <Card>
             <CardContent className="py-10 flex flex-col items-center gap-3 text-center" role="alert" aria-live="assertive">
               <AlertTriangle className="h-10 w-10 text-destructive/70" aria-hidden="true" />
-              <p className="text-sm text-destructive">Errore nel caricamento dei DDT in uscita. Riprova tra qualche secondo.</p>
+              <p className="text-sm text-destructive">{t("Errore nel caricamento dei DDT in uscita. Riprova tra qualche secondo.")}</p>
               <Button variant="outline" size="sm" onClick={() => refetchUscite()} disabled={isRefetchingUscite}>
                 <RefreshCw className={`h-4 w-4 mr-2 ${isRefetchingUscite ? "animate-spin" : ""}`} aria-hidden="true" />
-                Riprova
+                {t("Riprova")}
               </Button>
             </CardContent>
           </Card>
@@ -263,10 +264,9 @@ export function WarehouseDDTTab({ warehouseFilter, onRegisterArrival }: Props) {
           <Card>
             <CardContent className="py-12 text-center space-y-2">
               <FileText className="h-12 w-12 mx-auto text-muted-foreground/40" aria-hidden="true" />
-              <p className="text-muted-foreground">Nessun DDT in uscita.</p>
+              <p className="text-muted-foreground">{t("Nessun DDT in uscita.")}</p>
               <p className="text-xs text-muted-foreground">
-                I DDT in uscita si generano da “Spedisci a cantiere” / Uscita merce: lo scarico
-                crea il DDT in bozza con le righe scansionate.
+                {t("I DDT in uscita si generano da “Spedisci a cantiere” / Uscita merce: lo scarico crea il DDT in bozza con le righe scansionate.")}
               </p>
             </CardContent>
           </Card>
@@ -276,13 +276,13 @@ export function WarehouseDDTTab({ warehouseFilter, onRegisterArrival }: Props) {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>N° DDT</TableHead>
-                    <TableHead>Stato</TableHead>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Destinatario</TableHead>
-                    <TableHead>Commessa</TableHead>
-                    <TableHead className="text-right">Totale</TableHead>
-                    <TableHead className="text-right">Azioni</TableHead>
+                    <TableHead>{t("N° DDT")}</TableHead>
+                    <TableHead>{t("Stato")}</TableHead>
+                    <TableHead>{t("Data")}</TableHead>
+                    <TableHead>{t("Destinatario")}</TableHead>
+                    <TableHead>{t("Commessa")}</TableHead>
+                    <TableHead className="text-right">{t("Totale")}</TableHead>
+                    <TableHead className="text-right">{t("Azioni")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -312,14 +312,14 @@ export function WarehouseDDTTab({ warehouseFilter, onRegisterArrival }: Props) {
                               size="sm"
                               onClick={() => generateDDT(d.id)}
                               disabled={isGenerating}
-                              aria-label={`Scarica PDF del DDT ${d.numero}`}
+                              aria-label={t("Scarica PDF del DDT {numero}", { numero: String(d.numero ?? "") })}
                             >
                               {isGenerating ? (
                                 <Loader2 className="h-3.5 w-3.5 animate-spin sm:mr-1.5" />
                               ) : (
                                 <Download className="h-3.5 w-3.5 sm:mr-1.5" />
                               )}
-                              <span className="hidden sm:inline">Scarica DDT</span>
+                              <span className="hidden sm:inline">{t("Scarica DDT")}</span>
                             </Button>
                           )}
                           {isNative && (
@@ -327,9 +327,9 @@ export function WarehouseDDTTab({ warehouseFilter, onRegisterArrival }: Props) {
                               variant="ghost"
                               size="sm"
                               onClick={() => navigate(`/azienda/documenti/${d.id}`)}
-                              aria-label={`Apri DDT ${d.numero} nell'editor`}
+                              aria-label={t("Apri DDT {numero} nell'editor", { numero: String(d.numero ?? "") })}
                             >
-                              Apri
+                              {t("Apri")}
                             </Button>
                           )}
                         </div>

@@ -6,6 +6,7 @@
 import { useId, useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface Proposta {
   valore: string;
@@ -41,6 +42,7 @@ export function CampoConProposte({
   className?: string;
   maiuscolo?: boolean;
 }) {
+  const t = useT();
   const id = useId();
   const [aperto, setAperto] = useState(false);
   const visibili = useMemo(() => filtraProposte(proposte, valore), [proposte, valore]);
@@ -68,7 +70,7 @@ export function CampoConProposte({
         <ul
           id={`${id}-lista`}
           role="listbox"
-          aria-label={`Proposte per ${ariaLabel}`}
+          aria-label={t("Proposte per {ariaLabel}", { ariaLabel: String(ariaLabel ?? "") })}
           className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-y-auto rounded-md border bg-popover p-1 shadow-md"
         >
           {visibili.map((p) => (

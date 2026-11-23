@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { useWarehouseUscite, type UscitaRow } from "@/hooks/warehouse/useWarehouseUscita";
 import { CreaDdtDaUscitaDialog } from "@/components/warehouse/CreaDdtDaUscitaDialog";
 import { destinatarioLabel, uscitaPerDdt, type UscitaPerDdt } from "@/lib/magazzino/usciteDdt";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type Filtro = "tutte" | "senza_ddt" | "con_ddt";
 
@@ -30,6 +31,7 @@ const STATO_BADGE: Record<UscitaRow["stato"], { label: string; variant: "default
 const TIPO_ICON = { cliente: User, cantiere: HardHat, libero: PencilLine } as const;
 
 export function WarehouseUsciteTab({ warehouseFilter, readOnly = false }: { warehouseFilter: string | null; readOnly?: boolean }) {
+  const t = useT();
   const navigate = useNavigate();
   const permissions = usePermissions();
   const canWrite = !readOnly && !permissions.isLoading && permissions.canEditWarehouse;
@@ -53,18 +55,18 @@ export function WarehouseUsciteTab({ warehouseFilter, readOnly = false }: { ware
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
-          <ArrowUpFromLine className="h-4 w-4 text-muted-foreground" /> Uscite merce
+          <ArrowUpFromLine className="h-4 w-4 text-muted-foreground" /> {t("Uscite merce")}
         </CardTitle>
         <CardDescription>
-          Le uscite registrate. Da qui crei il <strong>DDT</strong> quando vuoi (doppio controllo): prima registri l'uscita, poi generi il documento.
+          {t("Le uscite registrate. Da qui crei il DDT quando vuoi (doppio controllo): prima registri l'uscita, poi generi il documento.")}
         </CardDescription>
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <Input className="max-w-xs" placeholder="Cerca per numero o destinatario…" value={search} onChange={(e) => setSearch(e.target.value)} />
-          <div role="group" aria-label="Filtra le uscite" className="flex gap-1">
+          <Input className="max-w-xs" placeholder={t("Cerca per numero o destinatario…")} value={search} onChange={(e) => setSearch(e.target.value)} />
+          <div role="group" aria-label={t("Filtra le uscite")} className="flex gap-1">
             {([
-              ["tutte", `Tutte · ${isLoading || isError ? "—" : uscite.length}`],
-              ["senza_ddt", `Senza DDT · ${isLoading || isError ? "—" : senzaDdt}`],
-              ["con_ddt", `Con DDT · ${isLoading || isError ? "—" : uscite.length - senzaDdt}`],
+              ["tutte", `${t("Tutte")} · ${isLoading || isError ? "—" : uscite.length}`],
+              ["senza_ddt", `${t("Senza DDT")} · ${isLoading || isError ? "—" : senzaDdt}`],
+              ["con_ddt", `${t("Con DDT")} · ${isLoading || isError ? "—" : uscite.length - senzaDdt}`],
             ] as const).map(([valore, etichetta]) => (
               <Button
                 key={valore}
@@ -82,25 +84,25 @@ export function WarehouseUsciteTab({ warehouseFilter, readOnly = false }: { ware
         {!isLoading && !isError && senzaDdt > 0 && (
           <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
             {senzaDdt === 1
-              ? "1 uscita è partita senza DDT."
-              : `${senzaDdt} uscite sono partite senza DDT.`}{" "}
-            La merce che viaggia su strada deve avere il suo documento: crealo con «Crea DDT».
+              ? t("1 uscita è partita senza DDT.")
+              : t("{senzaDdt} uscite sono partite senza DDT.", { senzaDdt: String(senzaDdt ?? "") })}{" "}
+            {t("La merce che viaggia su strada deve avere il suo documento: crealo con «Crea DDT».")}
           </p>
         )}
       </CardHeader>
       <CardContent className="p-0">
         <div className="divide-y">
-          {isLoading && <div className="py-10 text-center text-sm text-muted-foreground">Caricamento…</div>}
+          {isLoading && <div className="py-10 text-center text-sm text-muted-foreground">{t("Caricamento…")}</div>}
           {!isLoading && !isError && filtered.length === 0 && (
             <div className="py-12 text-center text-sm text-muted-foreground">
               {uscite.length === 0 ? (
-                <>Nessuna uscita registrata. Usa <strong>"Uscita merce"</strong> per registrarne una.</>
+                t("Nessuna uscita registrata. Usa \"Uscita merce\" per registrarne una.")
               ) : (
-                "Nessuna uscita con questi filtri."
+                t("Nessuna uscita con questi filtri.")
               )}
             </div>
           )}
-          {isError && <div role="alert" className="p-4 text-sm">Impossibile caricare le uscite. <Button variant="outline" size="sm" onClick={() => void refetch()}>Riprova uscite</Button></div>}
+          {isError && <div role="alert" className="p-4 text-sm">{t("Impossibile caricare le uscite.")} <Button variant="outline" size="sm" onClick={() => void refetch()}>{t("Riprova uscite")}</Button></div>}
           {!isError && filtered.map((u) => {
             const Icon = TIPO_ICON[u.destinatario_tipo] ?? PencilLine;
             const badge = STATO_BADGE[u.stato];
@@ -110,29 +112,29 @@ export function WarehouseUsciteTab({ warehouseFilter, readOnly = false }: { ware
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-mono text-sm font-medium">{u.numero}</span>
-                    <Badge variant={badge.variant} className="text-[10px]">{badge.label}</Badge>
+                    <Badge variant={badge.variant} className="text-[10px]">{t(badge.label)}</Badge>
                     <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                       <Icon className="h-3 w-3" /> {destinatarioLabel(u)}
                     </span>
                     {u.vettore && u.vettore.tipo !== "mittente" && (
                       <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                        <Truck className="h-3 w-3" /> {"ragione_sociale" in u.vettore ? u.vettore.ragione_sociale : "vettore"}
+                        <Truck className="h-3 w-3" /> {"ragione_sociale" in u.vettore ? u.vettore.ragione_sociale : t("vettore")}
                       </span>
                     )}
                   </div>
                   <div className="text-xs text-muted-foreground mt-0.5">
-                    {new Date(u.data).toLocaleDateString("it-IT")} · {nRighe} {nRighe === 1 ? "articolo" : "articoli"}
+                    {new Date(u.data).toLocaleDateString(intlCampo())} · {nRighe === 1 ? t("{n} articolo", { n: 1 }) : t("{n} articoli", { n: nRighe })}
                     {u.note ? ` · ${u.note}` : ""}
                   </div>
                 </div>
                 {u.stato === "registrata" && canWrite ? (
                   <Button size="sm" onClick={() => setPerDdt(uscitaPerDdt(u))}>
                     <FileText className="h-4 w-4 mr-2" />
-                    Crea DDT
+                    {t("Crea DDT")}
                   </Button>
                 ) : u.documento_id ? (
                   <Button size="sm" variant="outline" onClick={() => navigate(`/azienda/documenti/${u.documento_id}`)}>
-                    <ExternalLink className="h-4 w-4 mr-2" /> Apri DDT
+                    <ExternalLink className="h-4 w-4 mr-2" /> {t("Apri DDT")}
                   </Button>
                 ) : null}
               </div>

@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { CheckCircle2, Clock, FileDown, Loader2, Send, XCircle } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import { faseSdi, type DocFaseSdi, type FaseSdi, type StatoSdiVisibile } from "@/lib/fatturazione/sdiCassetto";
 
 // La fase della fattura verso lo SDI, uguale in elenco, editor, dettaglio e
@@ -24,12 +25,13 @@ const ICONE: Record<FaseSdi, React.ElementType> = {
 };
 
 export function FaseSdiBadge({ doc, className }: { doc: DocFaseSdi; className?: string }) {
+  const t = useT();
   const f = faseSdi(doc);
   if (!f) return null;
   const Icon = ICONE[f.fase];
   return (
     <span
-      title={f.spiegazione}
+      title={t(f.spiegazione)}
       className={cn(
         "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border whitespace-nowrap",
         TONI[f.tono],
@@ -37,7 +39,7 @@ export function FaseSdiBadge({ doc, className }: { doc: DocFaseSdi; className?: 
       )}
     >
       <Icon className={cn("h-3 w-3", f.fase === "invio_in_corso" && "animate-spin")} />
-      {f.etichetta}
+      {t(f.etichetta)}
     </span>
   );
 }

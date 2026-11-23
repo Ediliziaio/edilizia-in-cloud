@@ -35,6 +35,7 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   state: EditorState;
@@ -155,6 +156,7 @@ function SortableRowImpl({
   ritenutaSuTutte,
   onRitenuta,
 }: SortableRowProps) {
+  const t = useT();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: riga.id,
     disabled,
@@ -180,19 +182,19 @@ function SortableRowImpl({
         <div
           className={`mb-2 flex items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors hover:border-primary/40 ${isDragging ? "bg-muted/40" : "bg-card"}`}
         >
-          <button className="cursor-grab text-muted-foreground/40 hover:text-muted-foreground" {...attributes} {...listeners} aria-label="Trascina riga">
+          <button className="cursor-grab text-muted-foreground/40 hover:text-muted-foreground" {...attributes} {...listeners} aria-label={t("Trascina riga")}>
             <GripVertical className="h-4 w-4" />
           </button>
-          <button type="button" className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={() => onToggle(riga.id)} aria-label={`Modifica la riga ${index + 1}`}>
+          <button type="button" className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={() => onToggle(riga.id)} aria-label={t("Modifica la riga {index}", { index: index + 1 })}>
             <span className="w-5 shrink-0 text-[10px] font-medium text-muted-foreground/60">{index + 1}</span>
             <span className="min-w-0 flex-1">
               <span className={`block truncate text-sm font-semibold ${nome.trim() ? "" : "text-muted-foreground/60"}`}>
-                {nome.trim() || "Articolo senza nome"}
+                {nome.trim() || t("Articolo senza nome")}
               </span>
               <span className="block truncate text-[11px] text-muted-foreground">
                 {/* Al telefono l'importo sta sotto il nome: in colonna il nome restava di tre lettere. */}
                 <span className="font-semibold tabular-nums text-foreground sm:hidden">{formatCurrency(riga.imponibile ?? riga.totale_riga)} · </span>
-                {riga.codice_articolo ? `${riga.codice_articolo} · ` : ""}{dettaglio || "Nessuna descrizione"}
+                {riga.codice_articolo ? `${riga.codice_articolo} · ` : ""}{dettaglio || t("Nessuna descrizione")}
               </span>
             </span>
             <span className="hidden shrink-0 text-xs tabular-nums text-muted-foreground sm:block">
@@ -203,8 +205,8 @@ function SortableRowImpl({
           </button>
           {!disabled && (
             <div className="flex shrink-0 items-center">
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onDuplicate(index)} aria-label="Duplica"><Copy className="h-3.5 w-3.5 text-muted-foreground" /></Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onRemove(index)} aria-label="Elimina"><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onDuplicate(index)} aria-label={t("Duplica")}><Copy className="h-3.5 w-3.5 text-muted-foreground" /></Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onRemove(index)} aria-label={t("Elimina")}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
             </div>
           )}
         </div>
@@ -231,7 +233,7 @@ function SortableRowImpl({
                 className="cursor-grab text-muted-foreground/40 hover:text-muted-foreground transition"
                 {...attributes}
                 {...listeners}
-                aria-label="Trascina riga"
+                aria-label={t("Trascina riga")}
               >
                 <GripVertical className="h-4 w-4" />
               </button>
@@ -247,7 +249,7 @@ function SortableRowImpl({
                   per riga (Codice+Descrizione, Quantita'+U.M., Prezzo+Importo). */}
               <div className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-2 lg:grid-cols-[5.5rem_minmax(0,1fr)_4.5rem_5rem_7rem_auto]">
                 <div className="space-y-1">
-                  <Label className="text-[10px] text-muted-foreground font-normal">Codice</Label>
+                  <Label className="text-[10px] text-muted-foreground font-normal">{t("Codice")}</Label>
                   <Input
                     value={riga.codice_articolo ?? ""}
                     onChange={(e) => onUpdate(index, "codice_articolo", e.target.value)}
@@ -256,7 +258,7 @@ function SortableRowImpl({
                   />
                 </div>
                 <div className="space-y-1 min-w-0">
-                  <Label className="text-[10px] text-muted-foreground font-normal">Nome prodotto</Label>
+                  <Label className="text-[10px] text-muted-foreground font-normal">{t("Nome prodotto")}</Label>
                   <Input
                     value={riga.descrizione.split("\n")[0] ?? ""}
                     onChange={(e) => {
@@ -269,7 +271,7 @@ function SortableRowImpl({
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-[10px] text-muted-foreground font-normal">Quantità</Label>
+                  <Label className="text-[10px] text-muted-foreground font-normal">{t("Quantità")}</Label>
                   <Input
                     type="number"
                     inputMode="decimal"
@@ -297,13 +299,13 @@ function SortableRowImpl({
                     </SelectTrigger>
                     <SelectContent>
                       {UNITA_MISURA.map((u) => (
-                        <SelectItem key={u} value={u} className="text-xs">{u}</SelectItem>
+                        <SelectItem key={u} value={u} className="text-xs">{t(u)}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-[10px] text-muted-foreground font-normal">{prezziLordi ? "Lordo" : "Prezzo"}</Label>
+                  <Label className="text-[10px] text-muted-foreground font-normal">{prezziLordi ? t("Lordo") : t("Prezzo")}</Label>
                   <Input
                     type="number"
                     inputMode="decimal"
@@ -326,15 +328,15 @@ function SortableRowImpl({
                 </div>
                 {/* Actions inline su una sola riga, allineate alla baseline degli input */}
                 <div className="self-end flex items-center gap-0.5 pb-0.5">
-                  <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7" onClick={() => onToggle(riga.id)} aria-label="Chiudi riga" title="Chiudi la riga">
+                  <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7" onClick={() => onToggle(riga.id)} aria-label={t("Chiudi riga")} title={t("Chiudi la riga")}>
                     <ChevronDown className="h-4 w-4 rotate-180 text-muted-foreground" />
                   </Button>
                   {!disabled && (
                     <>
-                      <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7" onClick={() => onDuplicate(index)} aria-label="Duplica">
+                      <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7" onClick={() => onDuplicate(index)} aria-label={t("Duplica")}>
                         <Copy className="h-3.5 w-3.5 text-muted-foreground" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7" onClick={() => onRemove(index)} aria-label="Elimina">
+                      <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7" onClick={() => onRemove(index)} aria-label={t("Elimina")}>
                         <Trash2 className="h-3.5 w-3.5 text-destructive" />
                       </Button>
                     </>
@@ -346,7 +348,7 @@ function SortableRowImpl({
               {/* MIDDLE ROW — grid 2 col: Descrizione (1fr) | Sc% IVA stacked */}
               <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_17rem]">
                 <div className="space-y-1 min-w-0">
-                  <Label className="text-[10px] text-muted-foreground font-normal">Descrizione</Label>
+                  <Label className="text-[10px] text-muted-foreground font-normal">{t("Descrizione")}</Label>
                   <Textarea
                     value={riga.descrizione.split("\n").slice(1).join("\n")}
                     onChange={(e) => {
@@ -355,7 +357,7 @@ function SortableRowImpl({
                       onUpdate(index, "descrizione", extra ? `${firstLine}\n${extra}` : firstLine);
                     }}
                     className="text-xs resize-y min-h-[4.5rem] w-full"
-                    placeholder="Note aggiuntive sulla riga…"
+                    placeholder={t("Note aggiuntive sulla riga…")}
                     rows={3}
                     disabled={disabled}
                   />
@@ -363,7 +365,7 @@ function SortableRowImpl({
                 <div className="space-y-2">
                   <div className="grid grid-cols-3 gap-2">
                     <div className="space-y-1">
-                      <Label className="text-[10px] text-muted-foreground font-normal">Sconto %</Label>
+                      <Label className="text-[10px] text-muted-foreground font-normal">{t("Sconto %")}</Label>
                       <Input
                         type="number"
                         inputMode="decimal"
@@ -429,7 +431,7 @@ function SortableRowImpl({
                       )}
                     </div>
                 <div className="space-y-1">
-                  <Label className="text-[10px] text-muted-foreground font-normal">Importo totale</Label>
+                  <Label className="text-[10px] text-muted-foreground font-normal">{t("Importo totale")}</Label>
                   <div className="h-8 px-2 flex items-center justify-end text-sm font-semibold tabular-nums rounded-md border bg-muted/40">
                     {formatCurrency(riga.totale_riga)}
                   </div>
@@ -463,7 +465,7 @@ function SortableRowImpl({
                     className="h-3.5 w-3.5 rounded border-input"
                     disabled={disabled}
                   />
-                  <span className="text-muted-foreground whitespace-nowrap">Articolo non imponibile (anticipazione)</span>
+                  <span className="text-muted-foreground whitespace-nowrap">{t("Articolo non imponibile (anticipazione)")}</span>
                 </label>
                 {conRitenuta && (
                   <label className="flex items-center gap-2 text-xs cursor-pointer select-none pb-2">
@@ -474,11 +476,11 @@ function SortableRowImpl({
                       className="h-3.5 w-3.5 rounded border-input"
                       disabled={disabled}
                     />
-                    <span className="text-muted-foreground whitespace-nowrap">Applica ritenuta</span>
+                    <span className="text-muted-foreground whitespace-nowrap">{t("Applica ritenuta")}</span>
                   </label>
                 )}
                 <div className="space-y-1 min-w-0">
-                  <Label className="text-[10px] text-muted-foreground font-normal">Categoria</Label>
+                  <Label className="text-[10px] text-muted-foreground font-normal">{t("Categoria")}</Label>
                   <Input
                     value={riga.categoria ?? ""}
                     onChange={(e) => onUpdate(index, "categoria", e.target.value)}
@@ -540,6 +542,7 @@ SortableRow.displayName = "SortableRow";
 // ─── Main Component ──────────────────────────────────────────
 
 export function EditorRigheSection({ state, dispatch, disabled }: Props) {
+  const t = useT();
   const righe = state.righe ?? [];
   const { data: articoli } = useArticoliNative();
   const [catalogOpen, setCatalogOpen] = useState(false);
@@ -718,18 +721,18 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
   return (
     <div className="space-y-3 rounded-lg border bg-card p-4 shadow-sm">
       <div className="flex items-center justify-between">
-        <Label className="text-[11px] font-bold uppercase tracking-wider text-foreground/70">Articoli e prestazioni</Label>
+        <Label className="text-[11px] font-bold uppercase tracking-wider text-foreground/70">{t("Articoli e prestazioni")}</Label>
         {!disabled && (
           <Popover open={catalogOpen} onOpenChange={setCatalogOpen}>
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="h-6 text-[10px] px-2">
                 <PackageSearch className="h-3 w-3 mr-1" />
-                Da catalogo
+                {t("Da catalogo")}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-80 p-2" align="end">
               <Input
-                placeholder="Cerca articolo..."
+                placeholder={t("Cerca articolo...")}
                 value={catalogSearch}
                 onChange={(e) => setCatalogSearch(e.target.value)}
                 className="h-7 text-xs mb-2"
@@ -742,18 +745,14 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
                     onClick={() => addFromCatalog(art)}
                   >
                     <div className="font-medium truncate">{art.descrizione}</div>
-                    <div className="text-[10px] text-muted-foreground">
-                      {formatCurrency(art.prezzo_vendita)} · IVA {art.aliquota_iva}%
-                    </div>
+                    <div className="text-[10px] text-muted-foreground">{t("{prezzo_vendita} · IVA {aliquota_iva}%", { prezzo_vendita: formatCurrency(art.prezzo_vendita), aliquota_iva: String(art.aliquota_iva ?? "") })}</div>
                   </button>
                 ))}
                 {filteredArticoli.length === 0 && (
-                  <p className="text-[10px] text-muted-foreground text-center py-3">Nessun articolo trovato</p>
+                  <p className="text-[10px] text-muted-foreground text-center py-3">{t("Nessun articolo trovato")}</p>
                 )}
                 {articoliNascosti > 0 && (
-                  <p className="text-[10px] text-muted-foreground text-center py-1.5 border-t">
-                    +{articoliNascosti} altri risultati — affina la ricerca
-                  </p>
+                  <p className="text-[10px] text-muted-foreground text-center py-1.5 border-t">{t("+{articoliNascosti} altri risultati — affina la ricerca", { articoliNascosti: String(articoliNascosti ?? "") })}</p>
                 )}
               </div>
             </PopoverContent>
@@ -763,7 +762,7 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
 
       {righe.length === 0 ? (
         <p className="rounded-md bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-          Nessuna voce: aggiungi il primo articolo o prestazione{disabled ? "" : " qui sotto, o prendilo «Da catalogo»"}.
+          {disabled ? t("Nessuna voce: aggiungi il primo articolo o prestazione.") : t("Nessuna voce: aggiungi il primo articolo o prestazione qui sotto, o prendilo «Da catalogo».")}
         </p>
       ) : (
         <div className="border rounded-lg overflow-hidden">
@@ -800,21 +799,19 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
           <div className="flex gap-2 flex-wrap items-center">
             <Button variant="default" size="sm" className="text-xs h-7" onClick={addBlankRow}>
               <Plus className="h-3 w-3 mr-1" />
-              Aggiungi voce
+              {t("Aggiungi voce")}
             </Button>
             <Button variant="outline" size="sm" className="text-xs h-7" onClick={addDescriptiveRow}>
-              + Riga descrittiva
+              {t("+ Riga descrittiva")}
             </Button>
             {/* Scorciatoie come in Fatture in Cloud: sconto sul totale e bollo a carico del cliente
                 (le stesse impostazioni di «Opzioni avanzate»). */}
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="text-xs h-7">
-                  + Sconto sul totale{state.sconto_globale_percentuale ? ` (${state.sconto_globale_percentuale}%)` : ""}
-                </Button>
+                <Button variant="outline" size="sm" className="text-xs h-7">{t("+ Sconto sul totale{valore}", { valore: String((state.sconto_globale_percentuale ? ` (${state.sconto_globale_percentuale}%)` : "") ?? "") })}</Button>
               </PopoverTrigger>
               <PopoverContent className="w-56 p-3" align="start">
-                <label className="text-[10px] text-muted-foreground">Sconto % sul totale</label>
+                <label className="text-[10px] text-muted-foreground">{t("Sconto % sul totale")}</label>
                 <Input
                   type="number" inputMode="decimal" min="0" max="100" step="0.01"
                   value={state.sconto_globale_percentuale ?? ""}
@@ -830,7 +827,7 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
               className="text-xs h-7"
               onClick={() => dispatch({ type: "SET_FIELD", field: "bollo_virtuale", value: !state.bollo_virtuale })}
             >
-              {state.bollo_virtuale ? "✓ Bollo a carico del cliente" : "+ Bollo a carico del cliente"}
+              {state.bollo_virtuale ? t("✓ Bollo a carico del cliente") : t("+ Bollo a carico del cliente")}
             </Button>
           </div>
           <div className="flex flex-wrap gap-3 items-center">
@@ -842,69 +839,66 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
                 onChange={(e) => setUsePrezziLordi(e.target.checked)}
                 className="h-3.5 w-3.5 rounded"
               />
-              <span className="text-xs text-muted-foreground">Prezzi lordi (IVA inclusa)</span>
+              <span className="text-xs text-muted-foreground">{t("Prezzi lordi (IVA inclusa)")}</span>
             </label>
             {/* Beni significativi: IVA 10% fino al valore del resto, 22% sull'eccedenza */}
             <Popover open={bsOpen} onOpenChange={setBsOpen}>
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className="text-xs h-7 gap-1">
                   <Scale className="h-3 w-3" />
-                  Beni significativi (IVA 10%)
+                  {t("Beni significativi (IVA 10%)")}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-96 p-3" align="end">
-                <p className="text-xs font-medium">Manutenzione con beni significativi</p>
+                <p className="text-xs font-medium">{t("Manutenzione con beni significativi")}</p>
                 <p className="text-[10px] text-muted-foreground mt-0.5 mb-2">
-                  Infissi, caldaie, condizionatori, sanitari…: al 10% solo fino al valore del resto dell'intervento, l'eccedenza al 22%
-                  (DM 29/12/1999). Inserisci prima le altre voci (manodopera, materiali…): il conto le legge dalle righe.
+                  {t("Infissi, caldaie, condizionatori, sanitari…: al 10% solo fino al valore del resto dell'intervento, l'eccedenza al 22% (DM 29/12/1999). Inserisci prima le altre voci (manodopera, materiali…): il conto le legge dalle righe.")}
                 </p>
                 <div className="space-y-2">
                   <div className="grid grid-cols-2 gap-1 rounded-md bg-muted p-0.5 text-[11px]">
-                    <button type="button" className={`rounded px-2 py-1 ${bsModo === "totale" ? "bg-background font-medium shadow-sm" : "text-muted-foreground"}`} onClick={() => setBsModo("totale")}>Ho il prezzo concordato</button>
-                    <button type="button" className={`rounded px-2 py-1 ${bsModo === "valore" ? "bg-background font-medium shadow-sm" : "text-muted-foreground"}`} onClick={() => setBsModo("valore")}>Ho il valore dei beni</button>
+                    <button type="button" className={`rounded px-2 py-1 ${bsModo === "totale" ? "bg-background font-medium shadow-sm" : "text-muted-foreground"}`} onClick={() => setBsModo("totale")}>{t("Ho il prezzo concordato")}</button>
+                    <button type="button" className={`rounded px-2 py-1 ${bsModo === "valore" ? "bg-background font-medium shadow-sm" : "text-muted-foreground"}`} onClick={() => setBsModo("valore")}>{t("Ho il valore dei beni")}</button>
                   </div>
                   <div>
-                    <label className="text-[10px] text-muted-foreground">Beni significativi forniti</label>
-                    <Input value={bsBeni} onChange={(e) => setBsBeni(e.target.value)} placeholder="es. Caldaia a condensazione 25 kW" className="h-7 text-xs mt-0.5" />
+                    <label className="text-[10px] text-muted-foreground">{t("Beni significativi forniti")}</label>
+                    <Input value={bsBeni} onChange={(e) => setBsBeni(e.target.value)} placeholder={t("es. Caldaia a condensazione 25 kW")} className="h-7 text-xs mt-0.5" />
                   </div>
                   {bsModo === "totale" ? (
                     <div>
-                      <label className="text-[10px] text-muted-foreground">Totale concordato, IVA inclusa (€)</label>
+                      <label className="text-[10px] text-muted-foreground">{t("Totale concordato, IVA inclusa (€)")}</label>
                       <Input inputMode="decimal" value={bsTotale} onChange={(e) => setBsTotale(e.target.value)} placeholder="27.500,00" className="h-7 text-xs mt-0.5" />
                     </div>
                   ) : (
                     <div>
-                      <label className="text-[10px] text-muted-foreground">Valore dei beni (€)</label>
+                      <label className="text-[10px] text-muted-foreground">{t("Valore dei beni (€)")}</label>
                       <Input inputMode="decimal" value={bsValoreBeni} onChange={(e) => setBsValoreBeni(e.target.value)} placeholder="2.000,00" className="h-7 text-xs mt-0.5" />
                     </div>
                   )}
                   <div>
-                    <label className="text-[10px] text-muted-foreground">
-                      Altre prestazioni al 10%: {formatCurrency(bsAltreDalleRighe.al10)} dalle righe già inserite
-                    </label>
+                    <label className="text-[10px] text-muted-foreground">{t("Altre prestazioni al 10%: {al10} dalle righe già inserite", { al10: formatCurrency(bsAltreDalleRighe.al10) })}</label>
                     <Input inputMode="decimal" value={bsAltro} onChange={(e) => setBsAltro(e.target.value)} placeholder="800,00" className="h-7 text-xs mt-0.5" />
-                    <p className="mt-0.5 text-[10px] text-muted-foreground">Solo se non le hai ancora inserite: le aggiungo come riga «Manodopera e altre prestazioni».</p>
+                    <p className="mt-0.5 text-[10px] text-muted-foreground">{t("Solo se non le hai ancora inserite: le aggiungo come riga «Manodopera e altre prestazioni».")}</p>
                   </div>
                   <label className="flex items-center gap-1.5 text-[11px]">
                     <input type="checkbox" checked={bsRigaInfo} onChange={(e) => setBsRigaInfo(e.target.checked)} />
-                    Riga informativa «corrispettivo imponibile pattuito»
+                    {t("Riga informativa «corrispettivo imponibile pattuito»")}
                   </label>
                   {bsConto && (
                     <div className="bg-muted/50 rounded p-2 text-[11px] tabular-nums space-y-0.5">
-                      <div className="flex justify-between"><span>Valore dei beni significativi</span><span>{formatCurrency(bsConto.valoreBeni)}</span></div>
-                      <div className="flex justify-between"><span>Beni al 10% (fino al valore del resto)</span><span>{formatCurrency(bsRighe?.righe.find((x) => x.aliquota_iva === "10" && x.prezzo_unitario > 0)?.prezzo_unitario ?? bsConto.quota10)}</span></div>
-                      <div className="flex justify-between"><span>Beni al 22% (eccedenza)</span><span>{formatCurrency(bsRighe?.righe.find((x) => x.aliquota_iva === "22")?.prezzo_unitario ?? bsConto.quota22)}</span></div>
-                      {bsRighe && <div className="flex justify-between border-t pt-0.5 font-medium"><span>Totale della fattura</span><span>{formatCurrency(bsRighe.totale)}</span></div>}
+                      <div className="flex justify-between"><span>{t("Valore dei beni significativi")}</span><span>{formatCurrency(bsConto.valoreBeni)}</span></div>
+                      <div className="flex justify-between"><span>{t("Beni al 10% (fino al valore del resto)")}</span><span>{formatCurrency(bsRighe?.righe.find((x) => x.aliquota_iva === "10" && x.prezzo_unitario > 0)?.prezzo_unitario ?? bsConto.quota10)}</span></div>
+                      <div className="flex justify-between"><span>{t("Beni al 22% (eccedenza)")}</span><span>{formatCurrency(bsRighe?.righe.find((x) => x.aliquota_iva === "22")?.prezzo_unitario ?? bsConto.quota22)}</span></div>
+                      {bsRighe && <div className="flex justify-between border-t pt-0.5 font-medium"><span>{t("Totale della fattura")}</span><span>{formatCurrency(bsRighe.totale)}</span></div>}
                       {bsModo === "totale" && bsRighe && Math.abs(bsRighe.totale - bsTotaleNum) > 0.001 && (
-                        <p className="text-amber-700">Il totale non torna esatto al prezzo concordato: controlla le altre righe.</p>
+                        <p className="text-amber-700">{t("Il totale non torna esatto al prezzo concordato: controlla le altre righe.")}</p>
                       )}
                     </div>
                   )}
                   {bsModo === "totale" && bsTotaleNum > 0 && !bsConto && (
-                    <p className="text-[11px] text-amber-700">Il totale non basta nemmeno per le altre prestazioni: controlla gli importi.</p>
+                    <p className="text-[11px] text-amber-700">{t("Il totale non basta nemmeno per le altre prestazioni: controlla gli importi.")}</p>
                   )}
                   <Button size="sm" className="w-full h-7 text-xs" disabled={!bsCompleto} onClick={addBeniSignificativi}>
-                    Aggiungi le righe
+                    {t("Aggiungi le righe")}
                   </Button>
                 </div>
               </PopoverContent>
@@ -914,25 +908,25 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className="text-xs h-7 gap-1">
                   <Calculator className="h-3 w-3" />
-                  Calcolo inverso
+                  {t("Calcolo inverso")}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-64 p-3" align="end">
-                <p className="text-xs font-medium mb-2">Da prezzo lordo a netto</p>
+                <p className="text-xs font-medium mb-2">{t("Da prezzo lordo a netto")}</p>
                 <div className="space-y-2">
                   <div>
-                    <label className="text-[10px] text-muted-foreground">Prezzo IVA inclusa (€)</label>
+                    <label className="text-[10px] text-muted-foreground">{t("Prezzo IVA inclusa (€)")}</label>
                     <Input
                       type="number"
                       step="0.01"
-                      placeholder="es. 122,00"
+                      placeholder={t("es. 122,00")}
                       value={calcoloLordo}
                       onChange={(e) => setCalcoloLordo(e.target.value)}
                       className="h-7 text-xs mt-0.5"
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] text-muted-foreground">Aliquota IVA (%)</label>
+                    <label className="text-[10px] text-muted-foreground">{t("Aliquota IVA (%)")}</label>
                     <Select value={calcoloAliquota} onValueChange={setCalcoloAliquota}>
                       <SelectTrigger className="h-7 text-xs mt-0.5">
                         <SelectValue />
@@ -944,8 +938,8 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
                   </div>
                   {calcoloNetto !== null && (
                     <div className="bg-muted/50 rounded p-2 text-center">
-                      <p className="text-[10px] text-muted-foreground">Prezzo netto</p>
-                      <p className="text-base font-bold tabular-nums">{calcoloNetto.toLocaleString("it-IT", { minimumFractionDigits: 4, maximumFractionDigits: 4, useGrouping: true })} €</p>
+                      <p className="text-[10px] text-muted-foreground">{t("Prezzo netto")}</p>
+                      <p className="text-base font-bold tabular-nums">{calcoloNetto.toLocaleString(intlCampo(), { minimumFractionDigits: 4, maximumFractionDigits: 4, useGrouping: true })} €</p>
                       <p className="text-[10px] text-muted-foreground mt-0.5">
                         IVA {calcoloAliquota}% = {formatCurrency((parseFloat(calcoloLordo) || 0) - calcoloNetto)}
                       </p>

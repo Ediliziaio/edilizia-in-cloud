@@ -43,17 +43,18 @@ import {
   type RibaFornitore,
   type StatoRegistrato,
 } from "@/lib/costi/ribaFornitori";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // La vista e la tabella delle rate sono del 29/10/2026 e in `types.ts` non ci
 // sono: su questo progetto i tipi generati non si rigenerano a ogni migrazione.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
-function etichettaStato(r: RibaFornitore): { testo: string; classe: string } {
+function etichettaStato(r: RibaFornitore, t: ReturnType<typeof useT>): { testo: string; classe: string } {
   if (r.stato === "in_arrivo") {
     const g = r.giorni ?? 0;
     return {
-      testo: g <= 0 ? "Oggi" : g === 1 ? "Domani" : `Tra ${g} giorni`,
+      testo: g <= 0 ? t("Oggi") : g === 1 ? t("Domani") : t("Tra {g} giorni", { g }),
       classe: g <= 7
         ? "border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-900 dark:bg-amber-900/30 dark:text-amber-300"
         : "border-sky-300 bg-sky-100 text-sky-800 dark:border-sky-900 dark:bg-sky-900/30 dark:text-sky-300",
@@ -61,35 +62,35 @@ function etichettaStato(r: RibaFornitore): { testo: string; classe: string } {
   }
   if (r.stato === "passata") {
     return {
-      testo: "Passata: addebitata?",
+      testo: t("Passata: addebitata?"),
       classe: "border-rose-300 bg-rose-100 text-rose-700 dark:border-rose-900 dark:bg-rose-900/30 dark:text-rose-300",
     };
   }
   if (r.stato === "avvisata") {
     return {
-      testo: r.giorni != null ? `Avvisata · tra ${r.giorni} gg` : "Avvisata",
+      testo: r.giorni != null ? t("Avvisata · tra {giorni} gg", { giorni: r.giorni }) : t("Avvisata"),
       classe: "border-sky-300 bg-sky-100 text-sky-800 dark:border-sky-900 dark:bg-sky-900/30 dark:text-sky-300",
     };
   }
   if (r.stato === "da_bloccare") {
     return {
-      testo: "Da bloccare",
+      testo: t("Da bloccare"),
       classe: "border-orange-300 bg-orange-100 text-orange-800 dark:border-orange-900 dark:bg-orange-900/30 dark:text-orange-300",
     };
   }
   if (r.stato === "richiamata") {
-    return { testo: "Richiamata", classe: "border-slate-300 bg-slate-100 text-slate-600" };
+    return { testo: t("Richiamata"), classe: "border-slate-300 bg-slate-100 text-slate-600" };
   }
   if (r.stato === "insoluta") {
     return {
-      testo: "Insoluta",
+      testo: t("Insoluta"),
       classe: "border-rose-400 bg-rose-200 text-rose-800 dark:border-rose-800 dark:bg-rose-900/40 dark:text-rose-200",
     };
   }
   if (r.stato === "senza_data") {
-    return { testo: "Senza data", classe: "border-slate-300 bg-slate-100 text-slate-700" };
+    return { testo: t("Senza data"), classe: "border-slate-300 bg-slate-100 text-slate-700" };
   }
-  return { testo: "Più avanti", classe: "border-slate-300 bg-slate-100 text-slate-600" };
+  return { testo: t("Più avanti"), classe: "border-slate-300 bg-slate-100 text-slate-600" };
 }
 
 export function RibaFornitoriCard({
@@ -100,6 +101,7 @@ export function RibaFornitoriCard({
   /** Il saldo dei conti collegati; NULL se nessun conto è collegato. */
   liquidita: number | null;
 }) {
+  const t = useT();
   const { data: righe = [], isError, refetch } = useQuery<RibaFornitore[]>({
     queryKey: ["riba-fornitori", companyId],
     queryFn: async () => {
@@ -129,17 +131,17 @@ export function RibaFornitoriCard({
         .select("id");
       if (error) throw error;
       if (!data || data.length === 0) {
-        throw new Error("Non hai il permesso di modificare i costi di questa azienda.");
+        throw new Error(t("Non hai il permesso di modificare i costi di questa azienda."));
       }
     },
     onSuccess: (_d, v) => {
-      toast.success(AZIONI_RIBA.find((a) => a.stato === v.stato)?.label ?? "Stato aggiornato");
+      toast.success(AZIONI_RIBA.find((a) => a.stato === v.stato)?.label ?? t("Stato aggiornato"));
       refreshFinancialQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: ["riba-fornitori", companyId] });
       // Pagare tutte le RiBa di una fattura paga il costo: anche i Costi cambiano.
       queryClient.invalidateQueries({ queryKey: queryKeys.costs.all });
     },
-    onError: (e: Error) => toast.error(e.message || "Stato non aggiornato"),
+    onError: (e: Error) => toast.error(e.message || t("Stato non aggiornato")),
   });
 
   const r = useMemo(() => riepilogoRiba(righe, liquidita), [righe, liquidita]);
@@ -166,17 +168,17 @@ export function RibaFornitoriCard({
         if (error) throw error;
         segnate += fatte?.length ?? 0;
       }
-      if (segnate === 0) throw new Error("Nessuna RiBa aggiornata: non hai il permesso di modificare i costi.");
+      if (segnate === 0) throw new Error(t("Nessuna RiBa aggiornata: non hai il permesso di modificare i costi."));
       return segnate;
     },
     onSuccess: (n) => {
-      toast.success(n === 1 ? "Una RiBa segnata pagata" : `${n} RiBa segnate pagate`);
+      toast.success(n === 1 ? t("Una RiBa segnata pagata") : t("{n} RiBa segnate pagate", { n: String(n ?? "") }));
       setConfermaPassate(false);
       refreshFinancialQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: ["riba-fornitori", companyId] });
       queryClient.invalidateQueries({ queryKey: queryKeys.costs.all });
     },
-    onError: (e: Error) => toast.error(e.message || "RiBa non aggiornate"),
+    onError: (e: Error) => toast.error(e.message || t("RiBa non aggiornate")),
   });
 
   // Prima quelle che stanno per partire, poi le passate da verificare, poi le altre.
@@ -188,7 +190,7 @@ export function RibaFornitoriCard({
     .sort((a, b) => ordine[a.stato] - ordine[b.stato] || String(a.scadenza).localeCompare(String(b.scadenza)))
     .slice(0, 8);
 
-  if(isError)return <div role="alert" className="rounded-xl border p-4 text-sm xl:col-span-2">RiBa non disponibili. <button className="underline" onClick={()=>void refetch()}>Riprova</button></div>;
+  if(isError)return <div role="alert" className="rounded-xl border p-4 text-sm xl:col-span-2">{t("RiBa non disponibili.")} <button className="underline" onClick={()=>void refetch()}>{t("Riprova")}</button></div>;
   if (righe.length === 0) return null;
 
   return (
@@ -196,77 +198,70 @@ export function RibaFornitoriCard({
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
           <Landmark className="h-4 w-4 text-primary" />
-          RiBa ai fornitori
+          {t("RiBa ai fornitori")}
           <Badge variant="secondary" className="text-xs">{righe.length}</Badge>
         </CardTitle>
         <Link
           to="/azienda/costi?tab=spese&preset=riba"
           className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
         >
-          Vedi nei costi <ArrowRight className="h-3 w-3" />
+          {t("Vedi nei costi")} <ArrowRight className="h-3 w-3" />
         </Link>
       </CardHeader>
-      <details><summary className="cursor-pointer px-6 pb-3 text-xs font-medium text-primary">Apri le scadenze RiBa e le azioni</summary>
+      <details><summary className="cursor-pointer px-6 pb-3 text-xs font-medium text-primary">{t("Apri le scadenze RiBa e le azioni")}</summary>
       <CardContent className="space-y-3">
         <div className="grid gap-2 sm:grid-cols-2">
           {/* In arrivo: la finestra in cui va garantita la provvista */}
           <div className="rounded-xl border p-3">
             <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-              <CalendarClock className="h-3.5 w-3.5" /> In arrivo nei prossimi 30 giorni
+              <CalendarClock className="h-3.5 w-3.5" /> {t("In arrivo nei prossimi 30 giorni")}
             </p>
             <p className="mt-1 text-lg font-semibold tabular-nums">
               {formatCurrency(r.totaleInArrivo)}
-              <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-                {r.inArrivo.length} RiBa
-              </span>
+              <span className="ml-1.5 text-xs font-normal text-muted-foreground">{t("{n} RiBa", { n: r.inArrivo.length })}</span>
             </p>
             {r.scoperto == null ? (
               <p className="mt-1 text-[11px] text-muted-foreground">
-                Nessun conto collegato: se ci sono i soldi non si può verificare.
+                {t("Nessun conto collegato: se ci sono i soldi non si può verificare.")}
               </p>
             ) : r.scoperto > 0 ? (
               <p className="mt-1 text-[11px] font-medium text-rose-600 flex items-center gap-1">
                 <AlertTriangle className="h-3 w-3" />
-                Mancano {formatCurrency(r.scoperto)} sul conto: rischio insoluto
+                {t("Mancano {importo} sul conto: rischio insoluto", { importo: formatCurrency(r.scoperto) })}
               </p>
             ) : (
-              <p className="mt-1 text-[11px] text-emerald-700">Il saldo attuale le copre.</p>
+              <p className="mt-1 text-[11px] text-emerald-700">{t("Il saldo attuale le copre.")}</p>
             )}
           </div>
 
           {/* Passate e non registrate: da verificare sull'estratto conto */}
           <div className={cn("rounded-xl border p-3", r.passate.length > 0 && "border-rose-200 bg-rose-50/50 dark:border-rose-900/50 dark:bg-rose-950/20")}>
-            <p className="text-xs text-muted-foreground">Passate, non registrate</p>
+            <p className="text-xs text-muted-foreground">{t("Passate, non registrate")}</p>
             <p className="mt-1 text-lg font-semibold tabular-nums">
               {formatCurrency(r.totalePassate)}
-              <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-                {r.passate.length} RiBa
-              </span>
+              <span className="ml-1.5 text-xs font-normal text-muted-foreground">{t("{n} RiBa", { n: r.passate.length })}</span>
             </p>
             <p className="mt-1 text-[11px] text-muted-foreground">
               {r.passate.length > 0
-                ? "Addebitate o insolute? Lo dice l'estratto conto."
-                : "Nessuna: tutte le RiBa passate sono registrate."}
+                ? t("Addebitate o insolute? Lo dice l'estratto conto.")
+                : t("Nessuna: tutte le RiBa passate sono registrate.")}
             </p>
             {r.passate.some((x) => x.rata_id && x.scadenza) && (
               confermaPassate ? (
                 <div className="mt-2 space-y-1.5">
-                  <p className="text-[11px] text-rose-800 dark:text-rose-200">
-                    Segni pagate {r.passate.length} RiBa per {formatCurrency(r.totalePassate)}, ognuna alla sua scadenza.
-                    Fallo solo se le hai viste addebitate sull'estratto conto.
-                  </p>
+                  <p className="text-[11px] text-rose-800 dark:text-rose-200">{t("Segni pagate {n} RiBa per {totalePassate}, ognuna alla sua scadenza. Fallo solo se le hai viste addebitate sull'estratto conto.", { n: r.passate.length, totalePassate: formatCurrency(r.totalePassate) })}</p>
                   <div className="flex gap-2">
                     <Button size="sm" className="h-7 text-xs" disabled={pagaPassate.isPending} onClick={() => pagaPassate.mutate()}>
-                      Sì, sono addebitate
+                      {t("Sì, sono addebitate")}
                     </Button>
                     <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setConfermaPassate(false)}>
-                      Annulla
+                      {t("Annulla")}
                     </Button>
                   </div>
                 </div>
               ) : (
                 <Button size="sm" variant="outline" className="mt-2 h-7 text-xs" onClick={() => setConfermaPassate(true)}>
-                  Segna pagate le passate
+                  {t("Segna pagate le passate")}
                 </Button>
               )
             )}
@@ -277,26 +272,25 @@ export function RibaFornitoriCard({
           <div className="flex items-start gap-2 rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-200">
             <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
             <p>
-              <strong>{r.insolute.length} {r.insolute.length === 1 ? "RiBa insoluta" : "RiBa insolute"}</strong>{" "}
-              per {formatCurrency(r.totaleInsolute)}: il fornitore non è stato pagato e la banca
-              addebiterà le spese. Va sentito il fornitore, e va rifatto il pagamento.
+              <strong>{r.insolute.length} {r.insolute.length === 1 ? t("RiBa insoluta") : t("RiBa insolute")}</strong>{" "}
+              {t("per {importo}: il fornitore non è stato pagato e la banca addebiterà le spese. Va sentito il fornitore, e va rifatto il pagamento.", { importo: formatCurrency(r.totaleInsolute) })}
             </p>
           </div>
         )}
 
         <div className="divide-y rounded-xl border">
           {prossime.map((x) => {
-            const s = etichettaStato(x);
+            const s = etichettaStato(x, t);
             return (
               <div key={`${x.cost_id}-${x.numero_rata}`} className="flex items-center gap-3 px-3 py-2 text-sm">
                 <span className="w-20 shrink-0 tabular-nums text-xs text-muted-foreground">
                   {x.scadenza ? formatDateIt(x.scadenza) : "—"}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">{x.fornitore ?? "Fornitore"}</p>
+                  <p className="truncate font-medium">{x.fornitore ?? t("Fornitore")}</p>
                   <p className="truncate text-[11px] text-muted-foreground">
-                    {x.numero_fattura ? `Fattura ${x.numero_fattura}` : "Registrata a mano"}
-                    {x.rate_riba_della_fattura > 1 ? ` · RiBa ${x.numero_rata} di ${x.rate_riba_della_fattura}` : ""}
+                    {x.numero_fattura ? t("Fattura {numero_fattura}", { numero_fattura: String(x.numero_fattura ?? "") }) : t("Registrata a mano")}
+                    {x.rate_riba_della_fattura > 1 ? ` · ${t("RiBa {numero_rata} di {rate_riba_della_fattura}", { numero_rata: String(x.numero_rata ?? ""), rate_riba_della_fattura: String(x.rate_riba_della_fattura ?? "") })}` : ""}
                     {x.order_code ? ` · ${x.order_code}` : ""}
                   </p>
                 </div>
@@ -309,7 +303,7 @@ export function RibaFornitoriCard({
                         variant="ghost"
                         size="icon"
                         className="h-7 w-7 shrink-0"
-                        aria-label={`Cambia lo stato della RiBa di ${x.fornitore ?? "fornitore"}`}
+                        aria-label={t("Cambia lo stato della RiBa di {fornitore}", { fornitore: x.fornitore ?? t("fornitore") })}
                         disabled={cambiaStato.isPending}
                       >
                         <MoreHorizontal className="h-4 w-4" />
@@ -336,9 +330,7 @@ export function RibaFornitoriCard({
           })}
         </div>
         {righe.length > prossime.length && (
-          <p className="text-[11px] text-muted-foreground">
-            E altre {righe.length - prossime.length}: tutte nei costi, col filtro RiBa.
-          </p>
+          <p className="text-[11px] text-muted-foreground">{t("E altre {n}: tutte nei costi, col filtro RiBa.", { n: righe.length - prossime.length })}</p>
         )}
       </CardContent></details>
     </Card>

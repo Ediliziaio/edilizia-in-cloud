@@ -39,6 +39,7 @@ import {
 import { friendlyPostgresError } from "@/lib/postgresErrors";
 import { segnaNelloStoricoScheda } from "@/lib/email/storicoScheda";
 import { LinkImpostazione } from "@/components/impostazioni/LinkImpostazione";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Channel = "email" | "whatsapp" | "sms" | "note";
 
@@ -105,6 +106,7 @@ export function CustomerComposeBar({
   customerPhone,
   onSent,
 }: CustomerComposeBarProps) {
+  const t = useT();
   const { user, effectiveCompany } = useAuth();
   const qc = useQueryClient();
   const [channel, setChannel] = useState<Channel>("note");
@@ -259,7 +261,7 @@ export function CustomerComposeBar({
       qc.invalidateQueries({ queryKey: ["customer-diary", customerId] });
       qc.invalidateQueries({ queryKey: ["customer-diary-timeline", customerId] });
       setNoteText("");
-      toast.success("Nota salvata nel diario");
+      toast.success(t("Nota salvata nel diario"));
       onSent?.();
     },
     onError: (e) => {
@@ -274,20 +276,20 @@ export function CustomerComposeBar({
   const sendEmail = useMutation({
     mutationFn: async () => {
       if (!user?.id || !effectiveCompany?.id) throw new Error("Non autenticato");
-      if (!emailFrom) throw new Error("Seleziona l'account mittente");
-      if (!customerEmail) throw new Error("Il cliente non ha un indirizzo email");
+      if (!emailFrom) throw new Error(t("Seleziona l'account mittente"));
+      if (!customerEmail) throw new Error(t("Il cliente non ha un indirizzo email"));
       const subject = emailSubject.trim();
       const body = emailBody.trim();
-      if (!subject) throw new Error("Aggiungi un oggetto");
-      if (!body) throw new Error("Scrivi un messaggio");
+      if (!subject) throw new Error(t("Aggiungi un oggetto"));
+      if (!body) throw new Error(t("Scrivi un messaggio"));
 
       // 2026-05-27: parsing CC/BCC + validazione
       const ccList = parseEmails(emailCc);
       const bccList = parseEmails(emailBcc);
       const invalidCc = findInvalidEmail(emailCc);
       const invalidBcc = findInvalidEmail(emailBcc);
-      if (invalidCc) throw new Error(`Email CC non valida: ${invalidCc}`);
-      if (invalidBcc) throw new Error(`Email CCN non valida: ${invalidBcc}`);
+      if (invalidCc) throw new Error(t("Email CC non valida: {email}", { email: invalidCc }));
+      if (invalidBcc) throw new Error(t("Email CCN non valida: {email}", { email: invalidBcc }));
 
       // 2026-05-27 (firma email auto-append):
       // Se l'account ha signature_html / signature_text settata, l'appendiamo
@@ -375,7 +377,7 @@ export function CustomerComposeBar({
       setEmailCcVisible(false);
       setEmailBccVisible(false);
       setEmailExpanded(false);
-      toast.success(`Email inviata a ${customerEmail}`);
+      toast.success(t("Email inviata a {customerEmail}", { customerEmail: String(customerEmail ?? "") }));
       onSent?.();
     },
     onError: (e) => {
@@ -395,7 +397,7 @@ export function CustomerComposeBar({
         <div className="px-3 py-2.5 border-b flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5">
             <ChannelDropdown channel={channel} onChange={setChannel} hasEmail={!!customerEmail} hasPhone={!!waHref} />
-            <span className="text-xs font-semibold text-violet-700">Nuova email</span>
+            <span className="text-xs font-semibold text-violet-700">{t("Nuova email")}</span>
           </div>
           {emailExpanded && (
             <div className="flex items-center gap-1.5">
@@ -414,7 +416,7 @@ export function CustomerComposeBar({
                 size="icon"
                 className="h-7 w-7"
                 onClick={() => { setEmailExpanded(false); setEmailSubject(""); setEmailBody(""); }}
-                aria-label="Chiudi compose email"
+                aria-label={t("Chiudi compose email")}
               >
                 <XIcon className="h-3.5 w-3.5" />
               </Button>
@@ -426,7 +428,7 @@ export function CustomerComposeBar({
           // Stato collassato: prompt + click "Scrivi nuova email"
           <div className="px-3 py-3 flex items-center gap-2">
             <Input
-              placeholder={customerEmail ? "Oggetto email…" : "Cliente senza email"}
+              placeholder={customerEmail ? t("Oggetto email…") : t("Cliente senza email")}
               value={emailSubject}
               onChange={(e) => setEmailSubject(e.target.value.slice(0, 200))}
               onFocus={() => setEmailExpanded(true)}
@@ -439,7 +441,7 @@ export function CustomerComposeBar({
               onClick={() => setEmailExpanded(true)}
               disabled={!customerEmail}
             >
-              Scrivi
+              {t("Scrivi")}
             </Button>
           </div>
         ) : (
@@ -449,12 +451,12 @@ export function CustomerComposeBar({
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-0.5">
                 <div className="flex h-4 items-center">
-                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Da</Label>
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">{t("Da")}</Label>
                 </div>
                 <Select value={emailFrom} onValueChange={setEmailFrom} disabled={emailAccounts.length === 0}>
                   <SelectTrigger className="h-8 text-xs">
                     <SelectValue placeholder={
-                      emailAccounts.length === 0 ? "Nessun account email collegato" : "Scegli mittente"
+                      emailAccounts.length === 0 ? t("Nessun account email collegato") : t("Scegli mittente")
                     } />
                   </SelectTrigger>
                   <SelectContent>
@@ -480,7 +482,7 @@ export function CustomerComposeBar({
                         className="text-blue-600 hover:underline font-medium"
                         onClick={() => setEmailCcVisible(true)}
                       >
-                        + Cc
+                        {t("+ Cc")}
                       </button>
                     )}
                     {!emailBccVisible && (
@@ -489,7 +491,7 @@ export function CustomerComposeBar({
                         className="text-blue-600 hover:underline font-medium"
                         onClick={() => setEmailBccVisible(true)}
                       >
-                        + Ccn
+                        {t("+ Ccn")}
                       </button>
                     )}
                   </div>
@@ -506,14 +508,14 @@ export function CustomerComposeBar({
             {emailCcVisible && (
               <div className="space-y-0.5">
                 <div className="flex items-center justify-between">
-                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Cc</Label>
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">{t("Cc")}</Label>
                   <button
                     type="button"
                     className="text-[10px] text-muted-foreground hover:text-foreground"
                     onClick={() => { setEmailCcVisible(false); setEmailCc(""); }}
-                    aria-label="Rimuovi campo Cc"
+                    aria-label={t("Rimuovi campo Cc")}
                   >
-                    Rimuovi
+                    {t("Rimuovi")}
                   </button>
                 </div>
                 <Input
@@ -523,21 +525,21 @@ export function CustomerComposeBar({
                   className="h-8 text-xs"
                 />
                 <p className="text-[10px] text-muted-foreground">
-                  Conoscenza (visibile a tutti i destinatari). Separa con virgole.
+                  {t("Conoscenza (visibile a tutti i destinatari). Separa con virgole.")}
                 </p>
               </div>
             )}
             {emailBccVisible && (
               <div className="space-y-0.5">
                 <div className="flex items-center justify-between">
-                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Ccn (Bcc)</Label>
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">{t("Ccn (Bcc)")}</Label>
                   <button
                     type="button"
                     className="text-[10px] text-muted-foreground hover:text-foreground"
                     onClick={() => { setEmailBccVisible(false); setEmailBcc(""); }}
-                    aria-label="Rimuovi campo Ccn"
+                    aria-label={t("Rimuovi campo Ccn")}
                   >
-                    Rimuovi
+                    {t("Rimuovi")}
                   </button>
                 </div>
                 <Input
@@ -547,16 +549,16 @@ export function CustomerComposeBar({
                   className="h-8 text-xs"
                 />
                 <p className="text-[10px] text-muted-foreground">
-                  Conoscenza nascosta (gli altri destinatari NON vedono questi indirizzi).
+                  {t("Conoscenza nascosta (gli altri destinatari NON vedono questi indirizzi).")}
                 </p>
               </div>
             )}
 
             {/* Oggetto */}
             <div className="space-y-0.5">
-              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Oggetto *</Label>
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">{t("Oggetto *")}</Label>
               <Input
-                placeholder="Oggetto dell'email"
+                placeholder={t("Oggetto dell'email")}
                 value={emailSubject}
                 onChange={(e) => setEmailSubject(e.target.value.slice(0, 200))}
                 className="h-8 text-sm"
@@ -566,27 +568,27 @@ export function CustomerComposeBar({
 
             {/* Body */}
             <div className="space-y-0.5">
-              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Messaggio *</Label>
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">{t("Messaggio *")}</Label>
               <Textarea
-                placeholder="Scrivi il contenuto dell'email…"
+                placeholder={t("Scrivi il contenuto dell'email…")}
                 value={emailBody}
                 onChange={(e) => setEmailBody(e.target.value.slice(0, 50_000))}
                 rows={4}
                 className="text-sm resize-y min-h-[100px]"
               />
               <p className="text-[10px] text-muted-foreground flex items-center gap-2 flex-wrap">
-                <span>{emailBody.length}/50000 caratteri.</span>
+                <span>{t("{n}/50000 caratteri.", { n: emailBody.length })}</span>
                 {(() => {
                   const acc = emailAccounts.find((a) => a.id === emailFrom);
                   const hasSig = !!(acc?.signature_html?.trim() || acc?.signature_text?.trim());
                   return hasSig ? (
                     <span className="text-emerald-700 flex items-center gap-0.5">
                       <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                      Firma applicata automaticamente
+                      {t("Firma applicata automaticamente")}
                     </span>
                   ) : (
                     <LinkImpostazione to="/azienda/impostazioni/mio-profilo?tab=email" className="text-blue-600 hover:underline">
-                      + Aggiungi firma email
+                      {t("+ Aggiungi firma email")}
                     </LinkImpostazione>
                   );
                 })()}
@@ -601,14 +603,14 @@ export function CustomerComposeBar({
                 size="sm"
                 className="h-8 text-xs gap-1.5 text-muted-foreground"
                 disabled
-                title="Allegati disponibili nel compose completo (futuro)"
+                title={t("Allegati disponibili nel compose completo (futuro)")}
               >
                 <PaperclipIcon className="h-3.5 w-3.5" />
-                Allegati
+                {t("Allegati")}
               </Button>
               <div className="flex items-center gap-2">
                 {sendEmail.isPending && (
-                  <span className="text-[10px] text-muted-foreground">Invio in corso…</span>
+                  <span className="text-[10px] text-muted-foreground">{t("Invio in corso…")}</span>
                 )}
                 <Button
                   size="sm"
@@ -627,18 +629,18 @@ export function CustomerComposeBar({
                   ) : (
                     <Send className="h-4 w-4" />
                   )}
-                  Invia
+                  {t("Invia")}
                 </Button>
               </div>
             </div>
 
             {emailAccounts.length === 0 && (
               <div className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800">
-                Nessun account email collegato.{" "}
+                {t("Nessun account email collegato.")}{" "}
                 <LinkImpostazione to="/azienda/impostazioni/mio-profilo?tab=email" className="underline font-medium">
-                  Connetti la tua casella Gmail/Outlook
+                  {t("Connetti la tua casella Gmail/Outlook")}
                 </LinkImpostazione>{" "}
-                per inviare email da qui.
+                {t("per inviare email da qui.")}
               </div>
             )}
           </div>
@@ -667,7 +669,7 @@ export function CustomerComposeBar({
               seedAt={waSeed?.at}
               onSend={async ({ waNumberId, content, template, idempotencyKey }) => {
                 if (!effectiveCompany?.id) {
-                  toast.error("Azienda non disponibile");
+                  toast.error(t("Azienda non disponibile"));
                   return false;
                 }
                 setWaSending(true);
@@ -693,13 +695,13 @@ export function CustomerComposeBar({
                     throw new Error((data as { error: string }).error);
                   }
                   requireWhatsAppReceipt(data);
-                  toast.success("Messaggio accettato da WhatsApp");
+                  toast.success(t("Messaggio accettato da WhatsApp"));
                   qc.invalidateQueries({ queryKey: ["customer-diary-timeline", customerId] });
                   qc.invalidateQueries({ queryKey: ["customer-messages", customerId] });
                   onSent?.();
                   return true;
                 } catch (e) {
-                  toast.error(e instanceof Error ? e.message : "Errore invio WhatsApp");
+                  toast.error(e instanceof Error ? e.message : t("Errore invio WhatsApp"));
                   return false;
                 } finally {
                   setWaSending(false);
@@ -707,7 +709,7 @@ export function CustomerComposeBar({
               }}
             />
           ) : (
-            <p className="text-xs text-muted-foreground italic">Cliente senza numero di telefono.</p>
+            <p className="text-xs text-muted-foreground italic">{t("Cliente senza numero di telefono.")}</p>
           )}
         </div>
       </div>
@@ -729,23 +731,21 @@ export function CustomerComposeBar({
           {hasPhone ? (
             <>
               <Textarea
-                placeholder="Scrivi l'SMS…"
+                placeholder={t("Scrivi l'SMS…")}
                 value={smsText}
                 onChange={(e) => setSmsText(e.target.value.slice(0, 459))}
                 rows={3}
                 className="text-sm resize-y"
               />
               <div className="flex items-center justify-between">
-                <span className="text-[10px] text-muted-foreground">
-                  {smsText.length}/459 · {Math.max(1, Math.ceil(smsText.length / 153))} segmento/i
-                </span>
+                <span className="text-[10px] text-muted-foreground">{t("{n}/459 · {segmenti} segmento/i", { n: smsText.length, segmenti: Math.max(1, Math.ceil(smsText.length / 153)) })}</span>
                 <Button size="sm" className="h-8 gap-1.5" onClick={handleSendSms} disabled={!smsText.trim() || smsSending}>
-                  {smsSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Invia SMS
+                  {smsSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} {t("Invia SMS")}
                 </Button>
               </div>
             </>
           ) : (
-            <p className="text-xs text-muted-foreground italic">Cliente senza numero di telefono.</p>
+            <p className="text-xs text-muted-foreground italic">{t("Cliente senza numero di telefono.")}</p>
           )}
         </div>
       </div>
@@ -758,7 +758,7 @@ export function CustomerComposeBar({
       <div className="px-3 py-2 flex items-end gap-2">
         <ChannelDropdown channel={channel} onChange={setChannel} hasEmail={!!customerEmail} hasPhone={!!waHref} />
         <Textarea
-          placeholder="Scrivi una nota interna…"
+          placeholder={t("Scrivi una nota interna…")}
           value={noteText}
           onChange={(e) => setNoteText(e.target.value.slice(0, 5000))}
           rows={1}
@@ -782,7 +782,7 @@ export function CustomerComposeBar({
       {/* Mobile no: i tasti Enter/Shift+Enter sono da tastiera del computer. */}
       <p className="px-3 pb-2 text-[10px] text-muted-foreground max-sm:hidden">
         <span className={activeChannel.color}>{activeChannel.icon}</span>{" "}
-        Visibile solo al team. Enter per salvare · Shift+Enter per nuova riga.
+        {t("Visibile solo al team. Enter per salvare · Shift+Enter per nuova riga.")}
       </p>
     </div>
   );
@@ -800,6 +800,7 @@ function ChannelDropdown({
   hasEmail: boolean;
   hasPhone: boolean;
 }) {
+  const t = useT();
   const active = CHANNELS.find((c) => c.key === channel) ?? CHANNELS[0];
   return (
     <DropdownMenu>
@@ -821,12 +822,12 @@ function ChannelDropdown({
               disabled={disabled}
             >
               <span className={`mr-2 ${c.color}`}>{c.icon}</span>
-              {c.label}
+              {t(c.label)}
               {c.key === "email" && !hasEmail && (
-                <span className="ml-auto text-[10px] text-muted-foreground">no email</span>
+                <span className="ml-auto text-[10px] text-muted-foreground">{t("no email")}</span>
               )}
               {c.key === "whatsapp" && !hasPhone && (
-                <span className="ml-auto text-[10px] text-muted-foreground">no tel.</span>
+                <span className="ml-auto text-[10px] text-muted-foreground">{t("no tel.")}</span>
               )}
             </DropdownMenuItem>
           );

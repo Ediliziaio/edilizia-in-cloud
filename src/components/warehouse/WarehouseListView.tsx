@@ -4,7 +4,6 @@ import { fabbisognoMateriale } from "@/lib/magazzino/riepiloghiMagazzino";
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   Calendar,
@@ -20,6 +19,7 @@ import type { OrderItemStatus, WarehouseItem, OrderWithItems } from "@/types/war
 import WarehouseItemDetailDialog from "./WarehouseItemDetailDialog";
 import WarehouseItemRow from "./WarehouseItemRow";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface WarehouseListViewProps {
   orderGroups: OrderWithItems[];
@@ -60,6 +60,7 @@ function WarehouseListView({
   onSectionChange,
   readOnly = false,
 }: WarehouseListViewProps) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const balances = usePreparationBalances(effectiveCompany?.id, orderGroups.map(g => g.orderId));
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
@@ -82,7 +83,7 @@ function WarehouseListView({
 
   const isSupplierGroup = groupBy === "supplier";
 
-  const formatDate = (dateStr: string) => format(new Date(dateStr), "dd MMM", { locale: it });
+  const formatDate = (dateStr: string) => format(new Date(dateStr), "dd MMM", { locale: dateFnsCampo() });
 
   useEffect(() => {
     if (isSupplierGroup || orderGroups.length === 0 || expandedOrders.size > 0) return;
@@ -133,9 +134,9 @@ function WarehouseListView({
     return (
       <div className="text-center py-12">
         <Package className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-        <p className="text-muted-foreground">Nessun articolo trovato</p>
+        <p className="text-muted-foreground">{t("Nessun articolo trovato")}</p>
         <p className="text-sm text-muted-foreground/70 mt-1">
-          Aggiungi articoli agli ordini per vederli qui
+          {t("Aggiungi articoli agli ordini per vederli qui")}
         </p>
       </div>
     );
@@ -143,23 +144,21 @@ function WarehouseListView({
 
   return (
     <div className="space-y-2">
-      <p className="text-xs text-muted-foreground">Le fasi operative sono separate dalle quantità. “Da coprire” è il residuo senza prenotazione: verifica il libero nel deposito e gli ordini in arrivo prima di acquistare.</p>
-      {balances.isError && <p role="alert" className="text-sm text-amber-800">Quantità di commessa non verificabili. <Button variant="outline" size="sm" onClick={() => void balances.refetch()}>Riprova quantità</Button></p>}
+      <p className="text-xs text-muted-foreground">{t("Le fasi operative sono separate dalle quantità. “Da coprire” è il residuo senza prenotazione: verifica il libero nel deposito e gli ordini in arrivo prima di acquistare.")}</p>
+      {balances.isError && <p role="alert" className="text-sm text-amber-800">{t("Quantità di commessa non verificabili.")} <Button variant="outline" size="sm" onClick={() => void balances.refetch()}>{t("Riprova quantità")}</Button></p>}
       {/* Batch actions bar */}
       {!readOnly && selectedItems.size > 0 && (
         <div className="flex items-center justify-between p-3 bg-primary/5 border rounded-lg">
-          <span className="text-sm font-medium">
-            {selectedItems.size} selezionati
-          </span>
+          <span className="text-sm font-medium">{t("{size} selezionati", { size: String(selectedItems.size ?? "") })}</span>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => handleBatchAction("ordinato")} disabled={isUpdating}>
-              Ordinato
+              {t("Ordinato")}
             </Button>
             <Button variant="outline" size="sm" onClick={() => handleBatchAction("in_magazzino")} disabled={isUpdating}>
-              In Magazzino
+              {t("In Magazzino")}
             </Button>
             <Button variant="outline" size="sm" onClick={() => handleBatchAction("installato")} disabled={isUpdating}>
-              Installato
+              {t("Installato")}
             </Button>
           </div>
         </div>
@@ -188,12 +187,12 @@ function WarehouseListView({
             const totalActiveItems = Math.max(group.items.length - indicators.installed, 0);
             const readyLabel =
               indicators.toOrder > 0
-                ? "Materiali da preparare"
+                ? t("Materiali da preparare")
                 : indicators.ordered > 0
-                  ? "Merce in arrivo"
+                  ? t("Merce in arrivo")
                   : indicators.ready >= totalActiveItems
-                    ? "Pronto per uscita"
-                    : "Da controllare";
+                    ? t("Pronto per uscita")
+                    : t("Da controllare");
             const isExpanded = expandedOrders.has(group.orderId);
             const urgent = group.items.some(isItemUrgent);
             const critical = group.items.some(isItemCritical);
@@ -265,7 +264,7 @@ function WarehouseListView({
                         {!isSupplierGroup && group.expectedDate && (
                           <span className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                             <Calendar className="h-3 w-3" />
-                            Lavori: {formatDate(group.expectedDate)}
+                            {t("Lavori:")} {formatDate(group.expectedDate)}
                           </span>
                         )}
                       </div>
@@ -274,25 +273,19 @@ function WarehouseListView({
                     <div className="flex items-center justify-between gap-3 sm:justify-end">
                       <div className="flex flex-wrap items-center gap-1.5">
                         {indicators.ready > 0 && (
-                          <Badge variant="outline" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 text-xs max-sm:hidden">
-                            {indicators.ready} pronti
-                          </Badge>
+                          <Badge variant="outline" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 text-xs max-sm:hidden">{t("{ready} pronti", { ready: String(indicators.ready ?? "") })}</Badge>
                         )}
                         {indicators.ordered > 0 && (
-                          <Badge variant="outline" className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 text-xs max-sm:hidden">
-                            {indicators.ordered} in arrivo
-                          </Badge>
+                          <Badge variant="outline" className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 text-xs max-sm:hidden">{t("{ordered} in arrivo", { ordered: String(indicators.ordered ?? "") })}</Badge>
                         )}
                         {indicators.toOrder > 0 && (
-                          <Badge variant="outline" className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 text-xs max-sm:hidden">
-                            {indicators.toOrder} in fase da ordinare
-                          </Badge>
+                          <Badge variant="outline" className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 text-xs max-sm:hidden">{t("{toOrder} in fase da ordinare", { toOrder: String(indicators.toOrder ?? "") })}</Badge>
                         )}
                         <Badge variant="secondary" className="text-xs max-sm:px-1.5 max-sm:text-[11px]">
-                          {indicators.ready}/{totalActiveItems || group.items.length} pronti
+                          {t("{pronti}/{totale} pronti", { pronti: indicators.ready, totale: totalActiveItems || group.items.length })}
                         </Badge>
                       </div>
-                      <span className="text-xs text-muted-foreground">{group.items.length} art.</span>
+                      <span className="text-xs text-muted-foreground">{t("{n} art.", { n: group.items.length })}</span>
                       <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", isExpanded && "rotate-180")} />
                     </div>
                   </div>
@@ -333,7 +326,7 @@ function WarehouseListView({
                             )}
                             disabled={isUpdating || group.items.filter(i => i.status === "da_ordinare").length === 0}
                           >
-                            Segna tutti come Ordinati
+                            {t("Segna tutti come Ordinati")}
                           </Button>
                         ) : !readOnly ? (
                           <Button
@@ -343,16 +336,16 @@ function WarehouseListView({
                             onClick={() => onMarkAllInstalled(group.items)}
                             disabled={isUpdating}
                           >
-                            Segna tutti installati
+                            {t("Segna tutti installati")}
                           </Button>
                         ) : (
-                          <span className="text-xs text-muted-foreground">Vista consulente in sola lettura</span>
+                          <span className="text-xs text-muted-foreground">{t("Vista consulente in sola lettura")}</span>
                         )}
                         {!isSupplierGroup && (
                           <Button variant="ghost" size="sm" asChild>
                             <Link to={`/azienda/ordini/${group.orderId}`} className="text-xs">
                               <ExternalLink className="h-3 w-3 mr-1" />
-                              Vai all'ordine
+                              {t("Vai all'ordine")}
                             </Link>
                           </Button>
                         )}

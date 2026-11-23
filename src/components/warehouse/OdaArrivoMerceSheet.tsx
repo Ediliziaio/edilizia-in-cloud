@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/select";
 import { userErrorMessage } from "@/lib/userErrorMessage";
 import { queryKeys } from "@/lib/queryKeys";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ArticoloMagazzino {
   id: string;
@@ -76,6 +77,7 @@ export function OdaArrivoMerceSheet({
   /** Dentro la pagina dell'ordine invece del pannello laterale. */
   inline?: boolean;
 }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const [quantita, setQuantita] = useState<Record<string, string>>({});
   const [numeroBolla, setNumeroBolla] = useState("");
@@ -239,13 +241,13 @@ export function OdaArrivoMerceSheet({
       const base64 = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(String(reader.result).split(",")[1] ?? "");
-        reader.onerror = () => reject(reader.error ?? new Error("Lettura file non riuscita"));
+        reader.onerror = () => reject(reader.error ?? new Error(t("Lettura file non riuscita")));
         reader.readAsDataURL(file);
       });
       const { data, error } = await supabase.functions.invoke("ai-ddt-analyzer", {
         body: { file_name: file.name, file_base64: base64, mime: file.type || "image/jpeg", company_id: companyId },
       });
-      if (error) throw new Error(await edgeErrorMessage(error, "Non sono riuscito a leggere la bolla"));
+      if (error) throw new Error(await edgeErrorMessage(error, t("Non sono riuscito a leggere la bolla")));
       const payload = data as {
         success?: boolean;
         error?: string;
@@ -257,7 +259,7 @@ export function OdaArrivoMerceSheet({
           items?: Array<{ description?: string | null; quantity?: number | string | null; code?: string | null }>;
         };
       };
-      if (!payload?.success) throw new Error(payload?.error ?? "Non sono riuscito a leggere la bolla");
+      if (!payload?.success) throw new Error(payload?.error ?? t("Non sono riuscito a leggere la bolla"));
 
       const estratte = payload.extracted?.items ?? [];
       const prossime: Record<string, string> = Object.fromEntries(daRicevere.map((r) => [r.id, valoreRiga(r.id)]));
@@ -285,12 +287,12 @@ export function OdaArrivoMerceSheet({
       if (dataLetta) setDataBolla(dataLetta.slice(0, 10));
 
       toast.success(
-        abbinate > 0 ? `Bolla letta: ${abbinate} righe compilate` : "Bolla letta, ma nessuna riga riconosciuta",
-        { description: abbinate > 0 ? "Controlla le quantità prima di confermare." : "Scrivi le quantità a mano." },
+        abbinate > 0 ? t("Bolla letta: {abbinate} righe compilate", { abbinate: String(abbinate ?? "") }) : t("Bolla letta, ma nessuna riga riconosciuta"),
+        { description: abbinate > 0 ? t("Controlla le quantità prima di confermare.") : t("Scrivi le quantità a mano.") },
       );
     } catch (e) {
       // Il messaggio del server (credito, file illeggibile…) è già scritto per l'utente: userErrorMessage lo coprirebbe col generico.
-      toast.error("Lettura non riuscita", { description: userErrorMessage(e, (e instanceof Error && e.message) || undefined) });
+      toast.error(t("Lettura non riuscita"), { description: userErrorMessage(e, (e instanceof Error && e.message) || undefined) });
     } finally {
       setAnalisiInCorso(false);
       if (fileRef.current) fileRef.current.value = "";
@@ -308,7 +310,7 @@ export function OdaArrivoMerceSheet({
           stock_item_id: magazzinoId ? abbinamenti[r.id]?.id ?? null : null,
         }))
         .filter((r) => r.quantity > 0);
-      if (payload.length === 0) throw new Error("Non hai indicato nessuna quantità arrivata.");
+      if (payload.length === 0) throw new Error(t("Non hai indicato nessuna quantità arrivata."));
       const { data, error } = await supabase.rpc("oda_registra_arrivo" as never, {
         p_oda_id: odaId,
         p_righe: payload,
@@ -344,13 +346,13 @@ export function OdaArrivoMerceSheet({
         queryClient.invalidateQueries({ queryKey: queryKeys.companyTickets.all });
       }
       toast.success(
-        res?.oda_completo ? "Arrivo registrato: ordine completo" : "Arrivo registrato: ordine ancora parziale",
+        res?.oda_completo ? t("Arrivo registrato: ordine completo") : t("Arrivo registrato: ordine ancora parziale"),
         {
           description: [
-            res?.oda_completo ? "Tutte le righe sono arrivate." : "Il residuo resta in attesa sull'ordine.",
-            testata?.ticket_id ? "Ticket di assistenza aggiornato." : null,
+            res?.oda_completo ? t("Tutte le righe sono arrivate.") : t("Il residuo resta in attesa sull'ordine."),
+            testata?.ticket_id ? t("Ticket di assistenza aggiornato.") : null,
             magazzinoId && righeAbbinate > 0
-              ? `${righeAbbinate} ${righeAbbinate === 1 ? "riga caricata" : "righe caricate"} in magazzino.`
+              ? t(righeAbbinate === 1 ? "{n} riga caricata in magazzino." : "{n} righe caricate in magazzino.", { n: righeAbbinate })
               : null,
           ]
             .filter(Boolean)
@@ -359,21 +361,21 @@ export function OdaArrivoMerceSheet({
       );
       chiudi(false);
     },
-    onError: (e) => toast.error("Arrivo non registrato", { description: userErrorMessage(e) }),
+    onError: (e) => toast.error(t("Arrivo non registrato"), { description: userErrorMessage(e) }),
   });
 
   const avviso = daRicevere.length > 0
-    ? "Le quantità sono già quelle che mancavano. Se è arrivato tutto conferma, altrimenti correggi solo la riga che non torna."
+    ? t("Le quantità sono già quelle che mancavano. Se è arrivato tutto conferma, altrimenti correggi solo la riga che non torna.")
     : null;
-  const azioneRegistra = <Button className="w-full min-h-11" disabled={registra.isPending || totale<=0} onClick={()=>registra.mutate()}>{registra.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{mancaQualcosa?'Registra arrivo parziale':'Registra arrivo'}</Button>;
+  const azioneRegistra = <Button className="w-full min-h-11" disabled={registra.isPending || totale<=0} onClick={()=>registra.mutate()}>{registra.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{mancaQualcosa?t("Registra arrivo parziale"):t("Registra arrivo")}</Button>;
   const corpo = (
     <>
         {inline && suMisura.size > 0 && <div className="mt-3"><ArrivoPosizioniPanel odaId={odaId} compatto /></div>}
         {!inline && suMisura.size > 0 && (
           <div className="mt-3 space-y-2 rounded-lg border p-3 text-sm">
-            <p>{suMisura.size === 1 ? "1 posizione è su misura" : `${suMisura.size} posizioni sono su misura`}: va al cantiere, non in magazzino.</p>
+            <p>{suMisura.size === 1 ? t("1 posizione è su misura: va al cantiere, non in magazzino.") : t("{size} posizioni sono su misura: va al cantiere, non in magazzino.", { size: suMisura.size })}</p>
             <Button asChild size="sm" className="w-full">
-              <Link to={`/azienda/ordini-acquisto/${odaId}/arrivo`}>Spunta per posizione</Link>
+              <Link to={`/azienda/ordini-acquisto/${odaId}/arrivo`}>{t("Spunta per posizione")}</Link>
             </Button>
           </div>
         )}
@@ -386,19 +388,19 @@ export function OdaArrivoMerceSheet({
           suMisura.size > 0 ? null : (
             <p className="py-10 text-center text-sm text-muted-foreground">
               {righe.length === 0
-                ? "Questo ordine non ha righe: aggiungile dall'ordine per poter registrare l'arrivo."
-                : "Su questo ordine è già arrivato tutto."}
+                ? t("Questo ordine non ha righe: aggiungile dall'ordine per poter registrare l'arrivo.")
+                : t("Su questo ordine è già arrivato tutto.")}
             </p>
           )
         ) : (
           <div className="mt-4 space-y-4">
-            {inline && suMisura.size > 0 && <h3 className="text-sm font-semibold">Gli altri articoli</h3>}
+            {inline && suMisura.size > 0 && <h3 className="text-sm font-semibold">{t("Gli altri articoli")}</h3>}
             <div className="flex flex-wrap gap-2">
               <Button size="sm" onClick={tuttoArrivato} className="flex-1">
-                È arrivato tutto
+                {t("È arrivato tutto")}
               </Button>
               <Button size="sm" variant="outline" onClick={azzera}>
-                <RotateCcw className="mr-1 h-3.5 w-3.5" /> Azzera
+                <RotateCcw className="mr-1 h-3.5 w-3.5" /> {t("Azzera")}
               </Button>
               <Button
                 size="sm"
@@ -411,7 +413,7 @@ export function OdaArrivoMerceSheet({
                 ) : (
                   <Camera className="mr-1 h-3.5 w-3.5" />
                 )}
-                Foto bolla
+                {t("Foto bolla")}
               </Button>
               <input
                 ref={fileRef}
@@ -437,17 +439,17 @@ export function OdaArrivoMerceSheet({
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">{r.description || "Riga senza descrizione"}</p>
+                        <p className="truncate text-sm font-medium">{r.description || t("Riga senza descrizione")}</p>
                         <p className="text-xs text-muted-foreground">
-                          Ordinati {Number(r.quantity)} {r.unit_of_measure || "pz"}
-                          {Number(r.quantity_received ?? 0) > 0 && <> · già arrivati {Number(r.quantity_received)}</>}
-                          {" · mancano "}
+                          {t("Ordinati {quantita} {unita}", { quantita: Number(r.quantity), unita: r.unit_of_measure || t("pz") })}
+                          {Number(r.quantity_received ?? 0) > 0 && <>{" "}{t("· già arrivati {valore}", { valore: Number(r.quantity_received) })}</>}
+                          {` ${t("· mancano")} `}
                           <strong>{res}</strong>
                         </p>
                       </div>
                       <Input
                         type="number"
-                        aria-label={`Quantità arrivata di ${r.description}`}
+                        aria-label={t("Quantità arrivata di {description}", { description: String(r.description ?? "") })}
                         min="0"
                         max={res}
                         step="any"
@@ -460,13 +462,11 @@ export function OdaArrivoMerceSheet({
                     {magazzinoId && abbinamenti[r.id] && (
                       <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                         <Warehouse className="h-3 w-3" aria-hidden="true" />
-                        Carico su {abbinamenti[r.id].name || "articolo di magazzino"}
+                        {t("Carico su {articolo}", { articolo: abbinamenti[r.id].name || t("articolo di magazzino") })}
                       </p>
                     )}
                     {parziale && (
-                      <p className="mt-2 text-xs font-medium text-red-700">
-                        Ne mancano {res - val}: la riga resta aperta sull&apos;ordine.
-                      </p>
+                      <p className="mt-2 text-xs font-medium text-red-700">{t("Ne mancano {res}: la riga resta aperta sull'ordine.", { res: res - val })}</p>
                     )}
                   </div>
                 );
@@ -475,15 +475,15 @@ export function OdaArrivoMerceSheet({
 
             {!warehouseId && magazzini.length > 1 && righeAbbinate > 0 && (
               <div className="space-y-1">
-                <Label className="text-xs">Magazzino di destinazione</Label>
+                <Label className="text-xs">{t("Magazzino di destinazione")}</Label>
                 <Select value={magazzinoId ?? undefined} onValueChange={setMagazzinoScelto}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Scegli il magazzino" />
+                    <SelectValue placeholder={t("Scegli il magazzino")} />
                   </SelectTrigger>
                   <SelectContent>
                     {magazzini.map((m) => (
                       <SelectItem key={m.id} value={m.id}>
-                        {m.name || "Magazzino"}
+                        {m.name || t("Magazzino")}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -493,43 +493,42 @@ export function OdaArrivoMerceSheet({
 
             {magazzinoId && righeAbbinate === 0 && articoli.length > 0 && (
               <p className="text-xs text-muted-foreground">
-                Nessuna riga corrisponde a un articolo di magazzino: l&apos;arrivo aggiorna l&apos;ordine, la
-                giacenza resta invariata.
+                {t("Nessuna riga corrisponde a un articolo di magazzino: l'arrivo aggiorna l'ordine, la giacenza resta invariata.")}
               </p>
             )}
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label htmlFor={`arrivo-numero-${odaId}`} className="text-xs">Numero bolla</Label>
+                <Label htmlFor={`arrivo-numero-${odaId}`} className="text-xs">{t("Numero bolla")}</Label>
                 <Input
                   id={`arrivo-numero-${odaId}`}
                   value={numeroBolla}
                   onChange={(e) => setNumeroBolla(e.target.value)}
-                  placeholder="Se non ce l'hai, lascia vuoto"
+                  placeholder={t("Se non ce l'hai, lascia vuoto")}
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor={`arrivo-data-${odaId}`} className="text-xs">Data</Label>
+                <Label htmlFor={`arrivo-data-${odaId}`} className="text-xs">{t("Data")}</Label>
                 <Input id={`arrivo-data-${odaId}`} type="date" value={dataBolla} onChange={(e) => setDataBolla(e.target.value)} />
               </div>
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor={`arrivo-note-${odaId}`} className="text-xs">Note (facoltative)</Label>
+              <Label htmlFor={`arrivo-note-${odaId}`} className="text-xs">{t("Note (facoltative)")}</Label>
               <Textarea
                 id={`arrivo-note-${odaId}`}
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 rows={2}
-                placeholder="Es. imballo danneggiato, mancano le viti"
+                placeholder={t("Es. imballo danneggiato, mancano le viti")}
               />
             </div>
 
             <div className="flex items-center justify-between rounded-lg bg-muted/60 px-3 py-2 text-sm">
-              <span>In arrivo ora</span>
+              <span>{t("In arrivo ora")}</span>
               <span className="flex items-center gap-2 font-semibold">
                 {totale} / {totaleAtteso}
-                {mancaQualcosa && <Badge className="bg-red-100 text-red-800">incompleto</Badge>}
+                {mancaQualcosa && <Badge className="bg-red-100 text-red-800">{t("incompleto")}</Badge>}
               </span>
             </div>
 
@@ -540,15 +539,15 @@ export function OdaArrivoMerceSheet({
 
   if (inline) {
     return (
-      <section aria-label="Arrivo merce" className="flex max-h-[72dvh] min-h-0 flex-col gap-4 overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:px-6">
+      <section aria-label={t("Arrivo merce")} className="flex max-h-[72dvh] min-h-0 flex-col gap-4 overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:px-6">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h2 className="flex items-center gap-2 text-base font-bold text-slate-900">
-              <PackageCheck className="h-5 w-5 text-primary" aria-hidden="true" /> Arrivo merce
+              <PackageCheck className="h-5 w-5 text-primary" aria-hidden="true" /> {t("Arrivo merce")}
             </h2>
             {avviso && <p className="mt-0.5 text-xs text-muted-foreground">{avviso}</p>}
           </div>
-          <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label="Chiudi arrivo merce" onClick={() => chiudi(false)}>
+          <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label={t("Chiudi arrivo merce")} onClick={() => chiudi(false)}>
             <X className="h-4 w-4" aria-hidden="true" />
           </Button>
         </div>
@@ -563,15 +562,15 @@ export function OdaArrivoMerceSheet({
       <SheetContent side="right" className="commessa-sheet-layout w-full sm:max-w-lg">
         <SheetHeader className="shrink-0 pr-8">
           <SheetTitle className="flex items-center gap-2">
-            <PackageCheck className="h-5 w-5" /> Arrivata merce
+            <PackageCheck className="h-5 w-5" /> {t("Arrivata merce")}
           </SheetTitle>
           <SheetDescription>
             {testata?.oda_number ? (
               <span className="mb-1 block font-medium text-foreground">
                 {testata.oda_number}
                 {testata.supplier?.name && <> · {testata.supplier.name}</>}
-                {testata.commessa?.order_code && <> · commessa {testata.commessa.order_code}</>}
-                {testata.ticket_id && <> · assistenza</>}
+                {testata.commessa?.order_code && <>{" "}{t("· commessa {order_code}", { order_code: String(testata.commessa.order_code ?? "") })}</>}
+                {testata.ticket_id && <> {t("· assistenza")}</>}
               </span>
             ) : null}
             {avviso}

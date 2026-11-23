@@ -27,6 +27,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { logger } from "@/utils/logger";
 import { sanitizeCustomerInput } from "@/lib/customerDataSanitizer";
 import { matchCustomerImportHeaders } from "@/lib/clienti/customerImportMapping";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /* ─── Field schema ──────────────────────────────────────────────── */
 export interface CustomerImportField {
@@ -149,6 +150,7 @@ export function CustomerImportDialog({
   onImport,
   portalEnabled,
 }: CustomerImportDialogProps) {
+  const t = useT();
   const { user } = useAuth();
   const [mode, setMode] = useState<Mode>("file");
   const [step, setStep] = useState<Step>("source");
@@ -207,11 +209,11 @@ export function CustomerImportDialog({
   /* ─── AI Extraction pipeline ─────────────────────────── */
   const runAiExtraction = useCallback(async (file: File) => {
     if (!user?.id) {
-      setFileError("Utente non autenticato");
+      setFileError(t("Utente non autenticato"));
       return;
     }
     setAiBusy(true);
-    setAiProgress("Caricamento documento sul server sicuro…");
+    setAiProgress(t("Caricamento documento sul server sicuro…"));
     setStep("importing");
     setMode("ai");
 
@@ -229,7 +231,7 @@ export function CustomerImportDialog({
       if (upErr) throw new Error(`Upload fallito: ${upErr.message}`);
 
       // 2. Invoke edge function AI
-      setAiProgress("L'AI sta leggendo il documento (può richiedere 20-60 secondi)…");
+      setAiProgress(t("L'AI sta leggendo il documento (può richiedere 20-60 secondi)…"));
       const { data, error: fnErr } = await supabase.functions.invoke("ai-customers-extract", {
         body: { storage_path: storagePath, mime_type: file.type },
       });
@@ -276,7 +278,7 @@ export function CustomerImportDialog({
   const handleFile = useCallback(async (file: File) => {
     setFileError(null);
     if (file.size > MAX_FILE_SIZE_BYTES) {
-      setFileError(`File troppo grande. Massimo ${MAX_FILE_SIZE_BYTES / 1024 / 1024} MB.`);
+      setFileError(t("File troppo grande. Massimo {mb} MB.", { mb: MAX_FILE_SIZE_BYTES / 1024 / 1024 }));
       return;
     }
     setFileName(file.name);
@@ -301,7 +303,7 @@ export function CustomerImportDialog({
       } else if (lower.endsWith(".pdf") || file.type.startsWith("image/")) {
         await runAiExtraction(file);
       } else {
-        setFileError(`Formato non supportato: ${file.name}. Accettati: CSV, XLSX, PDF, PNG, JPG.`);
+        setFileError(t("Formato non supportato: {nome}. Accettati: CSV, XLSX, PDF, PNG, JPG.", { nome: file.name }));
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Errore lettura file";
@@ -420,11 +422,10 @@ export function CustomerImportDialog({
       <DialogHeader>
         <DialogTitle className="flex items-center gap-2">
           <Upload className="h-5 w-5 text-primary" />
-          Importa clienti
+          {t("Importa clienti")}
         </DialogTitle>
         <DialogDescription>
-          Scegli come importare i tuoi clienti: da file strutturato (CSV/Excel)
-          oppure da documento PDF/foto con l'aiuto dell'AI.
+          {t("Scegli come importare i tuoi clienti: da file strutturato (CSV/Excel) oppure da documento PDF/foto con l'aiuto dell'AI.")}
         </DialogDescription>
       </DialogHeader>
 
@@ -432,25 +433,24 @@ export function CustomerImportDialog({
         <TabsList className="grid grid-cols-2 w-full">
           <TabsTrigger value="file">
             <FileSpreadsheet className="h-4 w-4 mr-2" />
-            File strutturato
+            {t("File strutturato")}
           </TabsTrigger>
           <TabsTrigger value="ai">
             <Sparkles className="h-4 w-4 mr-2" />
-            Documento + AI
+            {t("Documento + AI")}
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="file" className="space-y-3 mt-4">
           <div className="rounded-lg border p-4 bg-muted/30 text-sm space-y-2">
-            <p className="font-semibold">CSV o Excel (.xlsx)</p>
+            <p className="font-semibold">{t("CSV o Excel (.xlsx)")}</p>
             <p className="text-muted-foreground text-xs">
-              Carica un file con intestazioni nella prima riga. Le colonne verranno
-              mappate automaticamente ai campi (nome, email, telefono, CF, indirizzo…).
+              {t("Carica un file con intestazioni nella prima riga. Le colonne verranno mappate automaticamente ai campi (nome, email, telefono, CF, indirizzo…).")}
             </p>
             <div className="flex flex-wrap gap-1">
               {effectiveFields.map((f) => (
                 <Badge key={f.key} variant="outline" className="text-[10px]">
-                  {f.label}{f.required ? " *" : ""}
+                  {t(f.label)}{f.required ? " *" : ""}
                 </Badge>
               ))}
             </div>
@@ -461,14 +461,12 @@ export function CustomerImportDialog({
           <Alert>
             <Sparkles className="h-4 w-4" />
             <AlertDescription className="text-xs space-y-1">
-              <p className="font-semibold">Estrazione AI (OpenAI GPT-4o)</p>
+              <p className="font-semibold">{t("Estrazione AI (OpenAI GPT-4o)")}</p>
               <p>
-                Carica un <strong>PDF</strong>, <strong>foto</strong> o <strong>scansione</strong> con
-                elenchi di clienti, fatture, biglietti da visita, rubriche.
-                L'AI legge il documento e ricostruisce la tabella anagrafica.
+                {t("Carica un PDF, foto o scansione con elenchi di clienti, fatture, biglietti da visita, rubriche. L'AI legge il documento e ricostruisce la tabella anagrafica.")}
               </p>
               <p className="text-muted-foreground">
-                Per file Excel/CSV usa la modalità "File strutturato": più veloce e gratis.
+                {t("Per file Excel/CSV usa la modalità \"File strutturato\": più veloce e gratis.")}
               </p>
             </AlertDescription>
           </Alert>
@@ -476,7 +474,7 @@ export function CustomerImportDialog({
       </Tabs>
 
       <Button className="w-full" onClick={() => setStep("upload")}>
-        Continua
+        {t("Continua")}
         <ArrowRight className="h-4 w-4 ml-2" />
       </Button>
     </div>
@@ -492,12 +490,12 @@ export function CustomerImportDialog({
       <DialogHeader>
         <DialogTitle className="flex items-center gap-2">
           {mode === "ai" ? <Sparkles className="h-5 w-5 text-primary" /> : <FileSpreadsheet className="h-5 w-5 text-primary" />}
-          {mode === "ai" ? "Carica documento per AI" : "Carica file"}
+          {mode === "ai" ? t("Carica documento per AI") : t("Carica file")}
         </DialogTitle>
         <DialogDescription>
           {mode === "ai"
-            ? "PDF o immagine fino a 20 MB — l'AI estrarrà i clienti."
-            : "Trascina un CSV o Excel (xlsx). Massimo 20 MB."}
+            ? t("PDF o immagine fino a 20 MB — l'AI estrarrà i clienti.")
+            : t("Trascina un CSV o Excel (xlsx). Massimo 20 MB.")}
         </DialogDescription>
       </DialogHeader>
 
@@ -510,8 +508,8 @@ export function CustomerImportDialog({
         }`}
       >
         <FileIcon className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-        <p className="text-sm font-medium mb-2">Trascina il file qui</p>
-        <p className="text-xs text-muted-foreground mb-4">oppure</p>
+        <p className="text-sm font-medium mb-2">{t("Trascina il file qui")}</p>
+        <p className="text-xs text-muted-foreground mb-4">{t("oppure")}</p>
         <label className="inline-flex">
           <input
             type="file"
@@ -521,7 +519,7 @@ export function CustomerImportDialog({
           />
           <span className="bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-md text-sm cursor-pointer inline-flex items-center">
             <Upload className="h-4 w-4 mr-2" />
-            Seleziona file
+            {t("Seleziona file")}
           </span>
         </label>
       </div>
@@ -536,7 +534,7 @@ export function CustomerImportDialog({
       <DialogFooter>
         <Button variant="outline" onClick={() => setStep("source")}>
           <ArrowLeft className="h-4 w-4 mr-2" />
-          Indietro
+          {t("Indietro")}
         </Button>
       </DialogFooter>
     </div>
@@ -549,10 +547,10 @@ export function CustomerImportDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-            Anteprima estrazione
+            {t("Anteprima estrazione")}
           </DialogTitle>
           <DialogDescription>
-            Controlla le prime righe prima di procedere al mapping e all'import.
+            {t("Controlla le prime righe prima di procedere al mapping e all'import.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -562,20 +560,18 @@ export function CustomerImportDialog({
               <Alert>
                 <Info className="h-4 w-4" />
                 <AlertDescription className="text-xs">
-                  <strong>Contesto rilevato:</strong> {aiContext}
+                  <strong>{t("Contesto rilevato:")}</strong> {aiContext}
                 </AlertDescription>
               </Alert>
             )}
             {aiCost !== null && (
-              <p className="text-xs text-muted-foreground">
-                Costo stimato di questa estrazione: {aiCost.toFixed(4)} centesimi di euro.
-              </p>
+              <p className="text-xs text-muted-foreground">{t("Costo stimato di questa estrazione: {costo} centesimi di euro.", { costo: aiCost.toFixed(4) })}</p>
             )}
             {aiWarnings.length > 0 && (
               <Alert variant="default" className="border-amber-400 bg-amber-50 dark:bg-amber-900/10">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription className="text-xs">
-                  <strong>Avvisi AI:</strong>
+                  <strong>{t("Avvisi AI:")}</strong>
                   <ul className="list-disc pl-4 mt-1">
                     {aiWarnings.map((w, i) => <li key={i}>{w}</li>)}
                   </ul>
@@ -587,21 +583,17 @@ export function CustomerImportDialog({
 
         <div className="flex items-center gap-3 text-sm flex-wrap">
           <Badge variant="secondary">{fileName}</Badge>
-          <Badge variant="outline">{mappedRows.length} righe rilevate</Badge>
+          <Badge variant="outline">{t("{n} righe rilevate", { n: mappedRows.length })}</Badge>
           {validRowsCount > 0 && (
-            <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300">
-              {validRowsCount} valide
-            </Badge>
+            <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300">{t("{n} valide", { n: validRowsCount })}</Badge>
           )}
           {invalidRowsCount > 0 && (
-            <Badge className="bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300">
-              {invalidRowsCount} con errori
-            </Badge>
+            <Badge className="bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300">{t("{n} con errori", { n: invalidRowsCount })}</Badge>
           )}
           {totalFixes > 0 && (
             <Badge className="bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300">
               <Sparkles className="h-3 w-3 mr-1 inline" />
-              {totalFixes} correzioni auto
+              {t("{n} correzioni auto", { n: totalFixes })}
             </Badge>
           )}
         </div>
@@ -610,9 +602,7 @@ export function CustomerImportDialog({
           <Alert>
             <Sparkles className="h-4 w-4" />
             <AlertDescription className="text-xs">
-              <strong>Auto-correzioni rilevate:</strong> il sistema ha riconosciuto e sistemato
-              automaticamente valori scambiati (es. numero di telefono finito nel campo Nome).
-              I fix saranno applicati all'import.
+              <strong>{t("Auto-correzioni rilevate:")}</strong> {t("il sistema ha riconosciuto e sistemato automaticamente valori scambiati (es. numero di telefono finito nel campo Nome). I fix saranno applicati all'import.")}
             </AlertDescription>
           </Alert>
         )}
@@ -650,13 +640,13 @@ export function CustomerImportDialog({
         <DialogFooter>
           <Button variant="outline" onClick={() => setStep("upload")}>
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Cambia file
+            {t("Cambia file")}
           </Button>
           <Button variant="outline" onClick={() => setStep("mapping")}>
-            Modifica mapping
+            {t("Modifica mapping")}
           </Button>
           <Button onClick={() => setStep("options")} disabled={validRowsCount === 0}>
-            Continua ({validRowsCount} valide)
+            {t("Continua ({n} valide)", { n: validRowsCount })}
             <ArrowRight className="h-4 w-4 ml-2" />
           </Button>
         </DialogFooter>
@@ -667,10 +657,9 @@ export function CustomerImportDialog({
   const renderMapping = () => (
     <div className="space-y-4">
       <DialogHeader>
-        <DialogTitle>Mapping colonne</DialogTitle>
+        <DialogTitle>{t("Mapping colonne")}</DialogTitle>
         <DialogDescription>
-          Associa ogni intestazione del file al campo corrispondente. I campi
-          contrassegnati con * sono obbligatori.
+          {t("Associa ogni intestazione del file al campo corrispondente. I campi contrassegnati con * sono obbligatori.")}
         </DialogDescription>
       </DialogHeader>
 
@@ -678,7 +667,7 @@ export function CustomerImportDialog({
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription className="text-xs">
-            Campi obbligatori mancanti: {missingRequired.map((f) => f.label).join(", ")}
+            {t("Campi obbligatori mancanti:")} {missingRequired.map((f) => t(f.label)).join(", ")}
           </AlertDescription>
         </Alert>
       )}
@@ -695,13 +684,13 @@ export function CustomerImportDialog({
                 }
               >
                 <SelectTrigger className="h-9 text-xs">
-                  <SelectValue placeholder="— non importare —" />
+                  <SelectValue placeholder={t("— non importare —")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">— non importare —</SelectItem>
+                  <SelectItem value="none">{t("— non importare —")}</SelectItem>
                   {effectiveFields.map((f) => (
                     <SelectItem key={f.key} value={f.key}>
-                      {f.label}{f.required ? " *" : ""}
+                      {t(f.label)}{f.required ? " *" : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -714,10 +703,10 @@ export function CustomerImportDialog({
       <DialogFooter>
         <Button variant="outline" onClick={() => setStep("preview")}>
           <ArrowLeft className="h-4 w-4 mr-2" />
-          Anteprima
+          {t("Anteprima")}
         </Button>
         <Button onClick={() => setStep("preview")} disabled={missingRequired.length > 0}>
-          Conferma
+          {t("Conferma")}
         </Button>
       </DialogFooter>
     </div>
@@ -726,9 +715,9 @@ export function CustomerImportDialog({
   const renderOptions = () => (
     <div className="space-y-4">
       <DialogHeader>
-        <DialogTitle>Opzioni di import</DialogTitle>
+        <DialogTitle>{t("Opzioni di import")}</DialogTitle>
         <DialogDescription>
-          Scegli come trattare i nuovi clienti prima di finalizzare l'import.
+          {t("Scegli come trattare i nuovi clienti prima di finalizzare l'import.")}
         </DialogDescription>
       </DialogHeader>
 
@@ -737,8 +726,7 @@ export function CustomerImportDialog({
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription className="text-xs">
-              L'area privata clienti è <strong>disattivata</strong> nelle impostazioni.
-              Tutti i clienti saranno importati come "solo anagrafica".
+              {t("L'area privata clienti è disattivata nelle impostazioni. Tutti i clienti saranno importati come \"solo anagrafica\".")}
             </AlertDescription>
           </Alert>
         )}
@@ -752,9 +740,9 @@ export function CustomerImportDialog({
               disabled={!portalEnabled}
             />
             <div className="min-w-0">
-              <Label htmlFor="imp-portal" className="text-sm">Crea account portale per ogni cliente</Label>
+              <Label htmlFor="imp-portal" className="text-sm">{t("Crea account portale per ogni cliente")}</Label>
               <p className="text-xs text-muted-foreground">
-                Ogni cliente avrà email + password per accedere al portale privato.
+                {t("Ogni cliente avrà email + password per accedere al portale privato.")}
               </p>
             </div>
           </div>
@@ -767,9 +755,9 @@ export function CustomerImportDialog({
                 onCheckedChange={(v) => setSendWelcome(!!v)}
               />
               <div className="min-w-0">
-                <Label htmlFor="imp-welcome" className="text-sm">Invia email di benvenuto</Label>
+                <Label htmlFor="imp-welcome" className="text-sm">{t("Invia email di benvenuto")}</Label>
                 <p className="text-xs text-muted-foreground">
-                  Consuma un credito email per ogni cliente importato. Sconsigliato per import massivi.
+                  {t("Consuma un credito email per ogni cliente importato. Sconsigliato per import massivi.")}
                 </p>
               </div>
             </div>
@@ -782,28 +770,26 @@ export function CustomerImportDialog({
               onCheckedChange={(v) => setSkipDuplicates(!!v)}
             />
             <div className="min-w-0">
-              <Label htmlFor="imp-dedup" className="text-sm">Salta duplicati per email</Label>
+              <Label htmlFor="imp-dedup" className="text-sm">{t("Salta duplicati per email")}</Label>
               <p className="text-xs text-muted-foreground">
-                Se l'email esiste già, salta la riga invece di generare un errore.
+                {t("Se l'email esiste già, salta la riga invece di generare un errore.")}
               </p>
             </div>
           </div>
         </div>
 
         <div className="rounded-lg bg-muted/30 p-3 text-sm">
-          <p><strong>Riepilogo:</strong> {validRowsCount} clienti verranno importati.
-          {invalidRowsCount > 0 && ` ${invalidRowsCount} righe con errori saranno saltate.`}</p>
+          <p><strong>{t("Riepilogo:")}</strong> {t("{n} clienti verranno importati.", { n: validRowsCount })}
+          {invalidRowsCount > 0 && ` ${t("{n} righe con errori saranno saltate.", { n: invalidRowsCount })}`}</p>
         </div>
       </div>
 
       <DialogFooter>
         <Button variant="outline" onClick={() => setStep("preview")}>
           <ArrowLeft className="h-4 w-4 mr-2" />
-          Anteprima
+          {t("Anteprima")}
         </Button>
-        <Button onClick={handleDoImport} disabled={validRowsCount === 0}>
-          Importa {validRowsCount} clienti
-        </Button>
+        <Button onClick={handleDoImport} disabled={validRowsCount === 0}>{t("Importa {n} clienti", { n: validRowsCount })}</Button>
       </DialogFooter>
     </div>
   );
@@ -813,8 +799,8 @@ export function CustomerImportDialog({
       <Loader2 className="h-10 w-10 animate-spin text-primary mx-auto" />
       <p className="font-medium">
         {aiBusy
-          ? "Estrazione AI in corso…"
-          : `Import di ${validRowsCount} clienti in corso…`}
+          ? t("Estrazione AI in corso…")
+          : t("Import di {n} clienti in corso…", { n: validRowsCount })}
       </p>
       {aiProgress && <p className="text-sm text-muted-foreground">{aiProgress}</p>}
       <Progress value={aiBusy ? 60 : 80} className="max-w-xs mx-auto" />
@@ -826,21 +812,21 @@ export function CustomerImportDialog({
       <DialogHeader>
         <DialogTitle className="flex items-center gap-2">
           <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-          Import completato
+          {t("Import completato")}
         </DialogTitle>
       </DialogHeader>
 
       <div className="space-y-2">
         <div className="rounded-lg border-l-4 border-l-emerald-500 p-3 bg-emerald-50/50 dark:bg-emerald-900/10">
           <p className="font-semibold text-emerald-700 dark:text-emerald-400">
-            {importResult?.success ?? 0} clienti importati con successo
+            {t("{n} clienti importati con successo", { n: importResult?.success ?? 0 })}
           </p>
         </div>
 
         {(importResult?.errors?.length ?? 0) > 0 && (
           <div className="rounded-lg border-l-4 border-l-amber-500 p-3 bg-amber-50/50 dark:bg-amber-900/10 space-y-2">
             <p className="font-semibold text-amber-700 dark:text-amber-400">
-              {importResult?.errors.length ?? 0} errori
+              {t("{n} errori", { n: importResult?.errors.length ?? 0 })}
             </p>
             <ScrollArea className="max-h-[200px]">
               <ul className="list-disc pl-4 text-xs space-y-0.5">
@@ -848,7 +834,7 @@ export function CustomerImportDialog({
                   <li key={i} className="text-muted-foreground">{err}</li>
                 ))}
                 {(importResult?.errors?.length ?? 0) > 50 && (
-                  <li className="italic">...e altri {(importResult!.errors.length - 50)} errori</li>
+                  <li className="italic">{t("...e altri {n} errori", { n: (importResult!.errors.length - 50) })}</li>
                 )}
               </ul>
             </ScrollArea>
@@ -857,7 +843,7 @@ export function CustomerImportDialog({
       </div>
 
       <DialogFooter>
-        <Button onClick={() => handleClose(false)}>Chiudi</Button>
+        <Button onClick={() => handleClose(false)}>{t("Chiudi")}</Button>
       </DialogFooter>
     </div>
   );

@@ -30,6 +30,7 @@ import type { DecisioneRiconciliazione } from "../../../supabase/functions/_shar
 
 import { EquivalenzeFornitoreFattura } from "./EquivalenzeFornitoreFattura";
 import { RipartizioneQuantitaFattura } from "./RipartizioneQuantitaFattura";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type Ai = ReturnType<typeof useRiconciliazioneFatturaAI>;
 type Props = {
@@ -54,7 +55,7 @@ const colori = {
   senza_riferimento: "border-slate-200 bg-slate-50 text-slate-600",
 };
 const numero = (v: number | null) =>
-  v == null ? "—" : v.toLocaleString("it-IT", { maximumFractionDigits: 4 });
+  v == null ? "—" : v.toLocaleString(intlCampo(), { maximumFractionDigits: 4 });
 const griglia =
   "sm:grid-cols-[2.5rem_minmax(0,1.5fr)_minmax(0,1fr)_8rem_7rem_2rem]";
 
@@ -68,6 +69,7 @@ function Scelte({
   aperta,
   onApertura,
 }: Props & { analisi: AnalisiFatturaAI }) {
+  const t = useT();
   const iniziali = Object.fromEntries(
     analisi.proposta.righe.map((r) => [
       r.fattura,
@@ -102,21 +104,20 @@ function Scelte({
   return (
     <>
       <section
-        aria-label="Revisione della riconciliazione AI"
+        aria-label={t("Revisione della riconciliazione AI")}
         className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b bg-indigo-50/40 px-4 py-2 sm:px-6"
       >
         <span className="flex items-center gap-1.5 text-xs font-semibold text-indigo-900">
           <Sparkles className="h-3.5 w-3.5" />
-          Analisi AI pronta
+          {t("Analisi AI pronta")}
         </span>
         <span className="text-xs text-muted-foreground">
-          {accettate}/{righe.length} abbinamenti confermati
-          {daRivedere ? ` · ${daRivedere} da rivedere` : ""}
+          {t("{accettate}/{n} abbinamenti confermati", { accettate, n: righe.length })}
+          {daRivedere ? ` · ${t("{n} da rivedere", { n: daRivedere })}` : ""}
         </span>
         {problemi > 0 && (
           <span className="text-xs text-amber-800">
-            {problemi}{" "}
-            {problemi === 1 ? "voce da controllare" : "voci da controllare"}
+            {t(problemi === 1 ? "{n} voce da controllare" : "{n} voci da controllare", { n: problemi })}
           </span>
         )}
         <Button
@@ -125,7 +126,7 @@ function Scelte({
           className="ml-auto h-7 text-xs text-indigo-800"
           onClick={() => onApertura(true)}
         >
-          {dirty ? "Rivedi e salva" : "Rivedi abbinamenti"}
+          {dirty ? t("Rivedi e salva") : t("Rivedi abbinamenti")}
           <ArrowUpRight className="ml-1 h-3.5 w-3.5" />
         </Button>
       </section>
@@ -134,22 +135,21 @@ function Scelte({
           <DialogHeader className="shrink-0 border-b px-5 py-4 pr-12">
             <DialogTitle className="flex items-center gap-2 text-base">
               <Sparkles className="h-4 w-4 text-indigo-600" />
-              Rivedi gli abbinamenti
+              {t("Rivedi gli abbinamenti")}
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Conferma le corrispondenze proposte. Quantità e prezzi mancanti o
-              diversi restano da controllare.
+              {t("Conferma le corrispondenze proposte. Quantità e prezzi mancanti o diversi restano da controllare.")}
             </DialogDescription>
           </DialogHeader>
           <div className="flex shrink-0 flex-wrap items-center gap-3 border-b bg-muted/20 px-5 py-2.5">
             <p className="mr-auto text-xs">
               <strong>
-                {righe.length} {righe.length === 1 ? "voce" : "voci"}
+                {t(righe.length === 1 ? "{n} voce" : "{n} voci", { n: righe.length })}
               </strong>
               <span className="text-muted-foreground">
                 {" "}
-                · {accettate} {accettate === 1 ? "confermata" : "confermate"} ·{" "}
-                {daRivedere} da rivedere
+                · {t(accettate === 1 ? "{n} confermata" : "{n} confermate", { n: accettate })} ·{" "}
+                {t("{n} da rivedere", { n: daRivedere })}
               </span>
             </p>
             {ai.dati.data?.contesto && (
@@ -176,7 +176,7 @@ function Scelte({
                 }
               >
                 <Check className="mr-1 h-3.5 w-3.5" />
-                Accetta coerenti ({coerenti.length})
+                {t("Accetta coerenti ({n})", { n: coerenti.length })}
               </Button>
             )}
           </div>
@@ -194,7 +194,7 @@ function Scelte({
                   void ai.dati.refetch();
                 }}
               >
-                Aggiorna
+                {t("Aggiorna")}
               </button>
             </p>
           )}
@@ -202,11 +202,11 @@ function Scelte({
             <div
               className={`sticky top-0 z-10 hidden gap-3 border-b bg-slate-50 px-5 py-2 text-[11px] font-medium text-muted-foreground sm:grid ${griglia}`}
             >
-              <span>Voce</span>
-              <span>Articolo in fattura</span>
-              <span>DDT e ordini</span>
-              <span>Controllo</span>
-              <span>Conferma</span>
+              <span>{t("Voce")}</span>
+              <span>{t("Articolo in fattura")}</span>
+              <span>{t("DDT e ordini")}</span>
+              <span>{t("Controllo")}</span>
+              <span>{t("Conferma")}</span>
               <span />
             </div>
             <ol className="divide-y">
@@ -235,8 +235,8 @@ function Scelte({
                     >
                       <button
                         className="rounded border bg-slate-50 px-1.5 py-1 text-xs font-semibold text-slate-700 hover:border-blue-300 hover:bg-blue-50"
-                        aria-label={`Vedi confronto voce F${i + 1}`}
-                        title="Apri questa voce nel confronto affiancato"
+                        aria-label={t("Vedi confronto voce F{i}", { i: i + 1 })}
+                        title={t("Apri questa voce nel confronto affiancato")}
                         onClick={() => {
                           onApertura(false);
                           const indice = righe.findIndex(
@@ -251,32 +251,32 @@ function Scelte({
                         className="truncate text-xs font-medium"
                         title={f?.descrizione}
                       >
-                        {f?.descrizione ?? "Voce fattura"}
+                        {f?.descrizione ?? t("Voce fattura")}
                       </span>
                       <span
                         className="col-span-2 col-start-2 truncate text-[11px] text-muted-foreground sm:col-span-1 sm:col-start-auto"
                         title={riferimenti.join("\n")}
                       >
-                        {riferimenti.join(" · ") || "Nessun riferimento"}
+                        {riferimenti.join(" · ") || t("Nessun riferimento")}
                       </span>
                       <span
                         className={`col-start-2 w-fit whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] sm:col-start-auto ${esito ? colori[esito.stato] : colori.da_controllare}`}
                         title={esito?.motivo}
                       >
-                        {esito ? titoli[esito.stato] : "Da controllare"}
+                        {esito ? t(titoli[esito.stato]) : t("Da controllare")}
                       </span>
                       <div
                         className="col-start-3 row-start-1 flex items-center gap-1 sm:col-start-auto sm:row-start-auto"
                         role="group"
-                        aria-label={`Scelta per la voce F${i + 1}`}
+                        aria-label={t("Scelta per la voce F{i}", { i: i + 1 })}
                       >
                         <Button
                           size="icon"
                           variant="ghost"
                           className={`h-8 w-8 border ${scelta === "accettata" ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-transparent text-muted-foreground"}`}
-                          aria-label={`Accetta abbinamento F${i + 1}`}
+                          aria-label={t("Accetta abbinamento F{i}", { i: i + 1 })}
                           aria-pressed={scelta === "accettata"}
-                          title="Conferma che le voci riguardano lo stesso articolo"
+                          title={t("Conferma che le voci riguardano lo stesso articolo")}
                           disabled={
                             disabilitata || (!r.ddt.length && !r.oda.length)
                           }
@@ -288,9 +288,9 @@ function Scelte({
                           size="icon"
                           variant="ghost"
                           className={`h-8 w-8 border ${scelta === "rifiutata" ? "border-red-300 bg-red-50 text-red-800" : "border-transparent text-muted-foreground"}`}
-                          aria-label={`Rifiuta abbinamento F${i + 1}`}
+                          aria-label={t("Rifiuta abbinamento F{i}", { i: i + 1 })}
                           aria-pressed={scelta === "rifiutata"}
-                          title="Le voci riguardano articoli diversi"
+                          title={t("Le voci riguardano articoli diversi")}
                           disabled={disabilitata}
                           onClick={() => scegli(r.fattura, "rifiutata")}
                         >
@@ -301,8 +301,8 @@ function Scelte({
                             size="icon"
                             variant="ghost"
                             className="h-7 w-7 text-muted-foreground"
-                            aria-label={`Rimetti da rivedere F${i + 1}`}
-                            title="Rimetti da rivedere"
+                            aria-label={t("Rimetti da rivedere F{i}", { i: i + 1 })}
+                            title={t("Rimetti da rivedere")}
                             disabled={disabilitata}
                             onClick={() => scegli(r.fattura, "da_rivedere")}
                           >
@@ -314,7 +314,7 @@ function Scelte({
                         size="icon"
                         variant="ghost"
                         className="col-start-3 h-7 w-7 justify-self-end sm:col-start-auto"
-                        aria-label={`Dettagli voce F${i + 1}`}
+                        aria-label={t("Dettagli voce F{i}", { i: i + 1 })}
                         aria-expanded={aperti}
                         onClick={() =>
                           setDettagli((v) => {
@@ -339,25 +339,23 @@ function Scelte({
                           <table className="w-full text-xs">
                             <thead className="bg-slate-50 text-left text-[11px] text-muted-foreground">
                               <tr>
-                                <th className="p-2">Documento / articolo</th>
-                                <th className="p-2 text-right">Quantità</th>
+                                <th className="p-2">{t("Documento / articolo")}</th>
+                                <th className="p-2 text-right">{t("Quantità")}</th>
                                 <th className="p-2">UM</th>
-                                <th className="p-2 text-right">Prezzo netto</th>
+                                <th className="p-2 text-right">{t("Prezzo netto")}</th>
                               </tr>
                             </thead>
                             <tbody>
                               {f && (
                                 <tr className="border-t">
-                                  <td className="p-2 font-medium">
-                                    Fattura · {f.descrizione}
-                                  </td>
+                                  <td className="p-2 font-medium">{t("Fattura · {descrizione}", { descrizione: String(f.descrizione ?? "") })}</td>
                                   <td className="p-2 text-right tabular-nums">
                                     {numero(f.quantita)}
                                   </td>
-                                  <td className="p-2">{f.um || "Assente"}</td>
+                                  <td className="p-2">{f.um || t("Assente")}</td>
                                   <td className="whitespace-nowrap p-2 text-right">
                                     {f.prezzo == null
-                                      ? "Da definire"
+                                      ? t("Da definire")
                                       : formatCurrency(f.prezzo)}
                                   </td>
                                 </tr>
@@ -377,10 +375,10 @@ function Scelte({
                                   <td className="p-2 text-right tabular-nums">
                                     {numero(x.quantita)}
                                   </td>
-                                  <td className="p-2">{x.um || "Assente"}</td>
+                                  <td className="p-2">{x.um || t("Assente")}</td>
                                   <td className="whitespace-nowrap p-2 text-right">
                                     {x.prezzo == null
-                                      ? "Da definire"
+                                      ? t("Da definire")
                                       : formatCurrency(x.prezzo)}
                                   </td>
                                 </tr>
@@ -395,18 +393,16 @@ function Scelte({
                             {esito.motivo}
                             {esito.deltaImporto != null &&
                             Math.abs(esito.deltaImporto) > 0.01
-                              ? ` Differenza sulla voce: ${formatCurrency(esito.deltaImporto)}.`
+                              ? ` ${t("Differenza sulla voce: {importo}.", { importo: formatCurrency(esito.deltaImporto) })}`
                               : ""}
                           </p>
                         )}
                         <p className="text-xs text-muted-foreground">
                           <strong className="font-medium">
-                            Motivo proposto dall’AI:
+                            {t("Motivo proposto dall’AI:")}
                           </strong>{" "}
                           {r.motivo}{" "}
-                          <span className="text-[11px]">
-                            Affidabilità: {r.affidabilita}.
-                          </span>
+                          <span className="text-[11px]">{t("Affidabilità: {affidabilita}.", { affidabilita: String(r.affidabilita ?? "") })}</span>
                         </p>
                       </div>
                     )}
@@ -422,9 +418,7 @@ function Scelte({
             )}
             {analisi.proposta.avvisi.length > 0 && (
               <details className="border-t px-5 py-3 text-xs text-muted-foreground">
-                <summary className="cursor-pointer">
-                  Note dell’AI ({analisi.proposta.avvisi.length})
-                </summary>
+                <summary className="cursor-pointer">{t("Note dell’AI ({n})", { n: analisi.proposta.avvisi.length })}</summary>
                 <ul className="mt-2 list-disc space-y-1 pl-4">
                   {analisi.proposta.avvisi.map((a, i) => (
                     <li key={i}>{a}</li>
@@ -441,23 +435,23 @@ function Scelte({
                 disabled={!puoModificare}
                 onChange={(e) => setRicorda(e.target.checked)}
               />
-              Ricorda gli abbinamenti confermati per questo fornitore
+              {t("Ricorda gli abbinamenti confermati per questo fornitore")}
             </label>
           )}
           <footer className="flex shrink-0 flex-wrap items-center gap-2 border-t bg-slate-50/50 px-5 py-3">
             <div className="mr-auto min-w-0 text-xs text-muted-foreground">
               <p>
-                Confermare gli abbinamenti non cambia la verifica della fattura.
+                {t("Confermare gli abbinamenti non cambia la verifica della fattura.")}
               </p>
               {dirty ? (
-                <p className="mt-1 text-amber-800">Scelte da salvare</p>
+                <p className="mt-1 text-amber-800">{t("Scelte da salvare")}</p>
               ) : analisi.rivista_il ? (
                 <p
                   role="status"
                   className="mt-1 flex items-center gap-1 text-emerald-800"
                 >
                   <Check className="h-3 w-3" />
-                  Revisione salvata
+                  {t("Revisione salvata")}
                 </p>
               ) : null}
             </div>
@@ -466,7 +460,7 @@ function Scelte({
               variant="outline"
               onClick={() => onApertura(false)}
             >
-              Torna al confronto
+              {t("Torna al confronto")}
             </Button>
             <Button
               size="sm"
@@ -484,7 +478,7 @@ function Scelte({
               ) : (
                 <Save className="mr-1 h-3.5 w-3.5" />
               )}
-              Salva revisione
+              {t("Salva revisione")}
             </Button>
           </footer>
         </DialogContent>
@@ -494,6 +488,7 @@ function Scelte({
 }
 
 export function RevisioneRiconciliazioneAI(props: Props) {
+  const t = useT();
   const { ai } = props,
     analisi = ai.dati.data?.analisi;
   if (analisi)
@@ -508,7 +503,7 @@ export function RevisioneRiconciliazioneAI(props: Props) {
   if (!errore && !ai.analizza.isPending && !ai.dati.data?.superata) return null;
   return (
     <section
-      aria-label="Revisione della riconciliazione AI"
+      aria-label={t("Revisione della riconciliazione AI")}
       className="shrink-0 border-b bg-muted/20 px-4 py-2 text-xs sm:px-6"
     >
       <p className="flex items-center gap-2">
@@ -516,10 +511,10 @@ export function RevisioneRiconciliazioneAI(props: Props) {
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
         )}
         {ai.analizza.isPending
-          ? "L’AI sta abbinando le voci…"
+          ? t("L’AI sta abbinando le voci…")
           : ai.dati.data?.superata
-            ? "Documenti cambiati: aggiorna l’analisi AI per rivedere gli abbinamenti."
-            : "Riconciliazione AI non disponibile."}
+            ? t("Documenti cambiati: aggiorna l’analisi AI per rivedere gli abbinamenti.")
+            : t("Riconciliazione AI non disponibile.")}
       </p>
       {errore && (
         <p role="alert" className="mt-1 text-red-700">
@@ -532,7 +527,7 @@ export function RevisioneRiconciliazioneAI(props: Props) {
               void ai.dati.refetch();
             }}
           >
-            Aggiorna
+            {t("Aggiorna")}
           </button>
         </p>
       )}

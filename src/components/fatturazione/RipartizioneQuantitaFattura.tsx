@@ -18,6 +18,7 @@ import {
 } from "../../../supabase/functions/_shared/ripartizioneFatture.ts";
 import type { ContestoRiconciliazione } from "../../../supabase/functions/_shared/riconciliazioneFattureAI.ts";
 import type { AnalisiFatturaAI } from "@/hooks/useRiconciliazioneFatturaAI";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 export function RipartizioneQuantitaFattura({
   analisi,
   contesto,
@@ -29,6 +30,7 @@ export function RipartizioneQuantitaFattura({
   impronta: string;
   puoModificare: boolean;
 }) {
+  const t = useT();
   const [aperta, setAperta] = useState(false);
   const [quote, setQuote] = useState<QuotaFattura[]>(() =>
     preparaQuote(contesto, analisi.proposta, analisi.decisioni),
@@ -46,7 +48,7 @@ export function RipartizioneQuantitaFattura({
         p_completa: completa,
       });
       if (error) throw error;
-      if (!data) throw new Error("Ripartizione non salvata.");
+      if (!data) throw new Error(t("Ripartizione non salvata."));
       return data;
     },
     onSuccess: async () => {
@@ -90,22 +92,20 @@ export function RipartizioneQuantitaFattura({
         }}
       >
         <Calculator className="mr-1 h-3.5 w-3.5" />
-        Ripartisci quantità
+        {t("Ripartisci quantità")}
       </Button>
       <Dialog open={aperta} onOpenChange={setAperta}>
         <DialogContent className="flex max-h-[90dvh] max-w-5xl flex-col gap-0 overflow-hidden p-0">
           <DialogHeader className="border-b p-5 pr-12">
-            <DialogTitle>Quantità della fattura sui DDT</DialogTitle>
+            <DialogTitle>{t("Quantità della fattura sui DDT")}</DialogTitle>
             <DialogDescription>
-              Conferma le quantità da attribuire a ciascuna bolla. Un fattore 25
-              significa che 1 unità in fattura corrisponde a 25 unità del DDT.
+              {t("Conferma le quantità da attribuire a ciascuna bolla. Un fattore 25 significa che 1 unità in fattura corrisponde a 25 unità del DDT.")}
             </DialogDescription>
           </DialogHeader>
           <div className="min-h-0 space-y-3 overflow-auto p-5">
             {!quote.length && (
               <p className="rounded border border-dashed p-4 text-sm text-muted-foreground">
-                Conferma prima gli abbinamenti ai DDT. Per una nota di credito
-                serve anche la ripartizione della fattura originale.
+                {t("Conferma prima gli abbinamenti ai DDT. Per una nota di credito serve anche la ripartizione della fattura originale.")}
               </p>
             )}
             {quote.map((r) => (
@@ -115,9 +115,9 @@ export function RipartizioneQuantitaFattura({
                   <span className="text-muted-foreground">{r.documento}</span>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Quantità voce: {r.massimo} · Residuo bolla:{" "}
-                  {r.residuo ?? "da verificare"} {r.unita_ddt}
-                  {r.incerto ? " · Altre fatture da controllare" : ""}
+                  {t("Quantità voce: {massimo} · Residuo bolla: {residuo}", { massimo: String(r.massimo ?? ""), residuo: r.residuo != null ? String(r.residuo) : t("da verificare") })}{" "}
+                  {r.unita_ddt}
+                  {r.incerto ? ` · ${t("Altre fatture da controllare")}` : ""}
                 </p>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {campi.map(([campo, label]) => (
@@ -125,9 +125,9 @@ export function RipartizioneQuantitaFattura({
                       key={campo}
                       className="text-xs text-muted-foreground"
                     >
-                      {label}
+                      {t(label)}
                       <input
-                        aria-label={`${label} ${r.chiave}`}
+                        aria-label={`${t(label)} ${r.chiave}`}
                         className="mt-1 h-9 w-full rounded border bg-background px-2 text-foreground"
                         inputMode={
                           campo === "fattore" || campo === "quantita_fattura"
@@ -151,8 +151,7 @@ export function RipartizioneQuantitaFattura({
                         modifica(r.chiave, "conferma_residuo", e.target.checked)
                       }
                     />
-                    Ho controllato le altre fatture collegate e confermo questa
-                    quantità disponibile.
+                    {t("Ho controllato le altre fatture collegate e confermo questa quantità disponibile.")}
                   </label>
                 )}
                 <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs">
@@ -173,9 +172,9 @@ export function RipartizioneQuantitaFattura({
                       />
                       {
                         [
-                          "Confermo le unità mancanti",
-                          "Confermo il fattore di conversione",
-                          "Ricorda il fattore per questo articolo e fornitore",
+                          t("Confermo le unità mancanti"),
+                          t("Confermo il fattore di conversione"),
+                          t("Ricorda il fattore per questo articolo e fornitore"),
                         ][i]
                       }
                     </label>
@@ -196,13 +195,11 @@ export function RipartizioneQuantitaFattura({
                 checked={completa}
                 onChange={(e) => setCompleta(e.target.checked)}
               />
-              Confermo di avere ripartito tutte le quantità materiali della
-              fattura. I servizi senza DDT restano fuori dalla ripartizione.
+              {t("Confermo di avere ripartito tutte le quantità materiali della fattura. I servizi senza DDT restano fuori dalla ripartizione.")}
             </label>
             <div className="flex items-center justify-between gap-2">
               <p className="text-xs text-muted-foreground">
-                Le quantità verranno considerate anche nelle altre fatture
-                collegate.
+                {t("Le quantità verranno considerate anche nelle altre fatture collegate.")}
               </p>
               <Button
                 size="sm"
@@ -212,7 +209,7 @@ export function RipartizioneQuantitaFattura({
                 {salva.isPending && (
                   <Loader2 className="mr-1 h-4 w-4 animate-spin" />
                 )}
-                Salva quantità
+                {t("Salva quantità")}
               </Button>
             </div>
           </footer>

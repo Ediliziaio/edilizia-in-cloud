@@ -16,6 +16,7 @@ import {
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { formatCurrency } from "@/lib/formatters";
 import type { EditorState } from "./useEditorState";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   state: EditorState;
@@ -24,6 +25,7 @@ interface Props {
 }
 
 export function EditorOrdineSection({ state, disabled }: Props) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const fatturaId = state.id;
   const [searchParams] = useSearchParams();
@@ -73,7 +75,7 @@ export function EditorOrdineSection({ state, disabled }: Props) {
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-medium flex items-center gap-2">
           <Package className="h-4 w-4" />
-          Ordine collegato
+          {t("Ordine collegato")}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -81,9 +83,9 @@ export function EditorOrdineSection({ state, disabled }: Props) {
           <div className="rounded-md border bg-muted/30 p-2 text-sm">
             <Link className="inline-flex items-center gap-2 underline" to={`/azienda/ordini/${state.ordine_id}`}>
               <ExternalLink className="h-3.5 w-3.5" />
-              Apri la commessa di origine
+              {t("Apri la commessa di origine")}
             </Link>
-            <p className="mt-1 text-xs text-muted-foreground">Collegamento già presente nel documento.</p>
+            <p className="mt-1 text-xs text-muted-foreground">{t("Collegamento già presente nel documento.")}</p>
           </div>
         )}
         {/* Linked orders */}
@@ -109,13 +111,13 @@ export function EditorOrdineSection({ state, disabled }: Props) {
                     </span>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
-                    <Button variant="ghost" size="icon" aria-label="Apri la commessa collegata" className="h-7 w-7" asChild>
+                    <Button variant="ghost" size="icon" aria-label={t("Apri la commessa collegata")} className="h-7 w-7" asChild>
                       <Link to={`/azienda/ordini/${ordine.id}`}>
                         <ExternalLink className="h-3.5 w-3.5" />
                       </Link>
                     </Button>
                     {!disabled && (
-                      <Button aria-label="Scollega la commessa"
+                      <Button aria-label={t("Scollega la commessa")}
                         variant="ghost"
                         size="icon"
                         className="h-7 w-7 text-muted-foreground hover:text-destructive"
@@ -139,13 +141,13 @@ export function EditorOrdineSection({ state, disabled }: Props) {
               <Button variant="outline" size="sm" className="w-full text-xs">
                 <Search className="h-3.5 w-3.5 mr-1.5" />
                 {linkedOrdini.length === 0 && !directOnly
-                  ? "Collega un ordine"
-                  : "Collega altro ordine"}
+                  ? t("Collega un ordine")
+                  : t("Collega altro ordine")}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-80 p-2" align="start">
               <Input
-                placeholder="Cerca per codice o descrizione..."
+                placeholder={t("Cerca per codice o descrizione...")}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="h-8 text-xs mb-2"
@@ -154,7 +156,7 @@ export function EditorOrdineSection({ state, disabled }: Props) {
               <div className="max-h-48 overflow-y-auto space-y-1">
                 {filteredResults.length === 0 && (
                   <p className="text-xs text-muted-foreground text-center py-3">
-                    {search ? "Nessun ordine trovato" : "Digita per cercare"}
+                    {search ? t("Nessun ordine trovato") : t("Digita per cercare")}
                   </p>
                 )}
                 {filteredResults.map((o) => (
@@ -165,7 +167,7 @@ export function EditorOrdineSection({ state, disabled }: Props) {
                   >
                     <div className="flex items-center justify-between">
                       <span className="font-medium">
-                        {o.order_code ?? "Senza codice"}
+                        {o.order_code ?? t("Senza codice")}
                       </span>
                       <span className="text-muted-foreground">
                         {formatCurrency(o.total_amount)}
@@ -187,7 +189,7 @@ export function EditorOrdineSection({ state, disabled }: Props) {
         )}
 
         {isLoading && linkedOrdini.length === 0 && (
-          <p className="text-xs text-muted-foreground">Caricamento...</p>
+          <p className="text-xs text-muted-foreground">{t("Caricamento...")}</p>
         )}
       </CardContent>
     </Card>

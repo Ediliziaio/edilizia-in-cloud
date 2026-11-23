@@ -38,6 +38,7 @@ import {
   type CapabilityField,
   type WarehouseAssignmentRow,
 } from "@/hooks/useWarehouseAssignments";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   warehouseId: string;
@@ -78,6 +79,7 @@ export function WarehouseAssignmentsDialog({
   open,
   onOpenChange,
 }: Props) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
@@ -157,30 +159,29 @@ export function WarehouseAssignmentsDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
-            Magazzinieri di {warehouseName}
+            {t("Magazzinieri di {magazzino}", { magazzino: warehouseName })}
           </DialogTitle>
           <DialogDescription>
-            Gestisci chi può accedere a questo magazzino e le relative capability.
-            L&apos;utente vedrà automaticamente Magazzino e Ordini in sidebar.
+            {t("Gestisci chi può accedere a questo magazzino e le relative capability. L'utente vedrà automaticamente Magazzino e Ordini in sidebar.")}
           </DialogDescription>
         </DialogHeader>
 
         {/* Add new user */}
         <div className="flex items-end gap-2 border-b pb-4">
           <div className="flex-1 space-y-1.5">
-            <Label htmlFor="assign-user-select">Assegna utente</Label>
+            <Label htmlFor="assign-user-select">{t("Assegna utente")}</Label>
             <Select value={newUserId} onValueChange={setNewUserId}>
               <SelectTrigger
                 id="assign-user-select"
                 disabled={isLoadingProfiles}
-                aria-label="Seleziona utente da assegnare a questo magazzino"
+                aria-label={t("Seleziona utente da assegnare a questo magazzino")}
               >
-                <SelectValue placeholder={isLoadingProfiles ? "Caricamento…" : "Scegli utente…"} />
+                <SelectValue placeholder={isLoadingProfiles ? t("Caricamento…") : t("Scegli utente…")} />
               </SelectTrigger>
               <SelectContent>
                 {selectableProfiles.length === 0 ? (
                   <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                    Nessun utente disponibile
+                    {t("Nessun utente disponibile")}
                   </div>
                 ) : (
                   selectableProfiles.map((p) => {
@@ -208,7 +209,7 @@ export function WarehouseAssignmentsDialog({
             ) : (
               <UserPlus className="h-4 w-4 mr-1" aria-hidden="true" />
             )}
-            Aggiungi
+            {t("Aggiungi")}
           </Button>
         </div>
 
@@ -217,16 +218,16 @@ export function WarehouseAssignmentsDialog({
           <div className="space-y-3 pr-3">
             {isLoading ? (
               <p className="text-sm text-muted-foreground text-center py-6">
-                Caricamento assegnazioni…
+                {t("Caricamento assegnazioni…")}
               </p>
             ) : assignments.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-6">
-                Nessun utente assegnato a questo magazzino.
+                {t("Nessun utente assegnato a questo magazzino.")}
               </p>
             ) : (
               assignments.map((row) => {
                 const displayName =
-                  row.profile?.full_name || row.profile?.email || "Utente";
+                  row.profile?.full_name || row.profile?.email || t("Utente");
                 return (
                   <div
                     key={row.id}
@@ -245,10 +246,10 @@ export function WarehouseAssignmentsDialog({
                                 className="h-3 w-3 fill-amber-500 text-amber-500"
                                 aria-hidden="true"
                               />
-                              Responsabile
+                              {t("Responsabile")}
                             </Badge>
                           )}
-                          {!row.active && <Badge variant="outline">Revocato</Badge>}
+                          {!row.active && <Badge variant="outline">{t("Revocato")}</Badge>}
                         </div>
                         {row.profile?.email && (
                           <p className="text-xs text-muted-foreground truncate">
@@ -266,7 +267,7 @@ export function WarehouseAssignmentsDialog({
                             setRevokeTarget({ id: row.id, name: displayName })
                           }
                           disabled={isRevoking}
-                          aria-label={`Revoca ${displayName}`}
+                          aria-label={t("Revoca {displayName}", { displayName: String(displayName ?? "") })}
                         >
                           <UserX className="h-4 w-4" aria-hidden="true" />
                         </Button>
@@ -283,7 +284,7 @@ export function WarehouseAssignmentsDialog({
                             className="flex items-center justify-between gap-2 rounded-md border px-2 py-1.5"
                           >
                             <Label htmlFor={cid} className="text-xs cursor-pointer">
-                              {CAP_LABELS[cap]}
+                              {t(CAP_LABELS[cap])}
                             </Label>
                             <Switch
                               id={cid}
@@ -301,7 +302,7 @@ export function WarehouseAssignmentsDialog({
                           htmlFor={`cap-${row.id}-is_primary_manager`}
                           className="text-xs cursor-pointer"
                         >
-                          {CAP_LABELS.is_primary_manager}
+                          {t(CAP_LABELS.is_primary_manager)}
                         </Label>
                         <Switch
                           id={`cap-${row.id}-is_primary_manager`}
@@ -322,7 +323,7 @@ export function WarehouseAssignmentsDialog({
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Chiudi
+            {t("Chiudi")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -333,22 +334,19 @@ export function WarehouseAssignmentsDialog({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Revocare l&apos;assegnazione?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Revocare l'assegnazione?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Stai per revocare l&apos;accesso di{" "}
-              <strong>{revokeTarget?.name ?? "questo utente"}</strong> al
-              magazzino <strong>{warehouseName}</strong>. Non potrà più ricevere
-              merce, trasferire o inventariare finché non sarà riassegnato.
+              {t("Stai per revocare l'accesso di {utente} al magazzino {magazzino}. Non potrà più ricevere merce, trasferire o inventariare finché non sarà riassegnato.", { utente: revokeTarget?.name ?? t("questo utente"), magazzino: warehouseName })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isRevoking}>Annulla</AlertDialogCancel>
+            <AlertDialogCancel disabled={isRevoking}>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleRevokeConfirm}
               disabled={isRevoking}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {isRevoking ? "Revoca in corso…" : "Revoca"}
+              {isRevoking ? t("Revoca in corso…") : t("Revoca")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

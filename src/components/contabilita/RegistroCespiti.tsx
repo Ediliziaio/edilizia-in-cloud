@@ -22,8 +22,9 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { leggiImportoItaliano } from "@/lib/orders/salCertificato";
 import { ContiPerRuolo, useContiMovimentabili, type RuoloConto } from "./ContiPerRuolo";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
-const euro = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" } as Intl.NumberFormatOptions).format(n);
+const euro = (n: number) => new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", useGrouping: "always" } as Intl.NumberFormatOptions).format(n);
 const dataIt = (d: string) => d.split("-").reverse().join("/");
 const errore = (titolo: string) => (e: unknown) => toast.error(titolo, { description: e instanceof Error ? e.message : String(e) });
 
@@ -86,6 +87,7 @@ export function leggiEsitoCessione(j: Json): EsitoCessione {
 }
 
 export function RegistroCespiti({ companyId, anno, chiuso }: { companyId: string; anno: number; chiuso: boolean }) {
+  const t = useT();
   const [conti, setConti] = useState<QuotaCespite | null>(null);
   const [cedi, setCedi] = useState<QuotaCespite | null>(null);
   const [daAnnullare, setDaAnnullare] = useState<string | null>(null);
@@ -116,12 +118,12 @@ export function RegistroCespiti({ companyId, anno, chiuso }: { companyId: string
       const { error } = await supabase.rpc("contabilita_cespite_annulla_cessione", { p_cespite: id });
       if (error) throw error;
     },
-    onSuccess: () => { toast.success("Cessione annullata: il cespite torna nel registro"); void qc.invalidateQueries({ queryKey: ["contabilita-generale", companyId] }); },
-    onError: errore("Cessione non annullata"),
+    onSuccess: () => { toast.success(t("Cessione annullata: il cespite torna nel registro")); void qc.invalidateQueries({ queryKey: ["contabilita-generale", companyId] }); },
+    onError: errore(t("Cessione non annullata")),
   });
 
-  if (elenco.isLoading) return <p role="status" className="text-sm text-muted-foreground">Carico il registro dei cespiti…</p>;
-  if (elenco.isError || !elenco.data) return <p role="alert" className="text-sm text-destructive">Registro dei cespiti non disponibile. <Button variant="link" className="h-auto p-0" onClick={() => void elenco.refetch()}>Riprova</Button></p>;
+  if (elenco.isLoading) return <p role="status" className="text-sm text-muted-foreground">{t("Carico il registro dei cespiti…")}</p>;
+  if (elenco.isError || !elenco.data) return <p role="alert" className="text-sm text-destructive">{t("Registro dei cespiti non disponibile.")} <Button variant="link" className="h-auto p-0" onClick={() => void elenco.refetch()}>{t("Riprova")}</Button></p>;
   const e = elenco.data;
   const stimati = e.quote.filter((q) => q.fondo_stimato).length;
 
@@ -130,45 +132,42 @@ export function RegistroCespiti({ companyId, anno, chiuso }: { companyId: string
       <ContiPerRuolo companyId={companyId} ruoli={ruoliMancanti(e.conti_mancanti)} chiuso={chiuso} />
       {stimati > 0 && (
         <p className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
-          Per {stimati === 1 ? "un cespite" : `${stimati} cespiti`} il fondo a inizio anno è stimato dagli anni trascorsi: indica quello vero
-          (dal registro dei beni ammortizzabili o dal bilancio) con «Conti e fondo».
+          {t(stimati === 1 ? "Per un cespite il fondo a inizio anno è stimato dagli anni trascorsi: indica quello vero (dal registro dei beni ammortizzabili o dal bilancio) con «Conti e fondo»." : "Per {n} cespiti il fondo a inizio anno è stimato dagli anni trascorsi: indica quello vero (dal registro dei beni ammortizzabili o dal bilancio) con «Conti e fondo».", { n: stimati })}
         </p>
       )}
       <TabellaContabile>
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
             <tr>
-              <th className="p-2">Cespite</th><th className="p-2 text-right">Costo</th><th className="p-2 text-right">Aliquota</th>
-              <th className="p-2 text-right">Fondo al 01/01</th><th className="p-2 text-right">Quota {anno}</th><th className="p-2 text-right">Residuo</th><th className="p-2" />
+              <th className="p-2">{t("Cespite")}</th><th className="p-2 text-right">{t("Costo")}</th><th className="p-2 text-right">{t("Aliquota")}</th>
+              <th className="p-2 text-right">{t("Fondo al 01/01")}</th><th className="p-2 text-right">{t("Quota {anno}", { anno })}</th><th className="p-2 text-right">{t("Residuo")}</th><th className="p-2" />
             </tr>
           </thead>
           <tbody>
             {e.quote.length === 0 ? (
-              <tr><td colSpan={7} className="p-4 text-center text-muted-foreground">Nessun cespite da ammortizzare nel {anno}. I cespiti si aggiungono in Controllo di gestione o da una riga di fattura ricevuta.</td></tr>
+              <tr><td colSpan={7} className="p-4 text-center text-muted-foreground">{t("Nessun cespite da ammortizzare nel {anno}. I cespiti si aggiungono in Controllo di gestione o da una riga di fattura ricevuta.", { anno })}</td></tr>
             ) : e.quote.map((q) => (
               <tr key={q.id} className="border-t">
                 <td className="p-2">
                   {q.codice ? <span className="mr-2 font-mono text-xs">{q.codice}</span> : null}{q.cespite}
-                  <p className="text-xs text-muted-foreground">
-                    Bene {codiceDi(q.conto_bene)} · fondo {codiceDi(q.conto_fondo)} · ammortamento {codiceDi(q.conto_ammortamento)}
-                  </p>
+                  <p className="text-xs text-muted-foreground">{t("Bene {conto_bene} · fondo {conto_fondo} · ammortamento {conto_ammortamento}", { conto_bene: String(codiceDi(q.conto_bene) ?? ""), conto_fondo: String(codiceDi(q.conto_fondo) ?? ""), conto_ammortamento: String(codiceDi(q.conto_ammortamento) ?? "") })}</p>
                 </td>
                 <td className="p-2 text-right tabular-nums">{euro(q.costo)}</td>
-                <td className="p-2 text-right tabular-nums">{q.aliquota.toLocaleString("it-IT")}%</td>
+                <td className="p-2 text-right tabular-nums">{q.aliquota.toLocaleString(intlCampo())}%</td>
                 <td className="p-2 text-right tabular-nums">
                   {euro(q.fondo_inizio)}
-                  {q.fondo_stimato ? <span className="ml-1 rounded bg-amber-100 px-1 text-[10px] font-medium text-amber-800">stimato</span> : null}
+                  {q.fondo_stimato ? <span className="ml-1 rounded bg-amber-100 px-1 text-[10px] font-medium text-amber-800">{t("stimato")}</span> : null}
                 </td>
                 <td className="p-2 text-right font-medium tabular-nums">{euro(q.quota)}</td>
                 <td className="p-2 text-right tabular-nums">{euro(q.residuo)}</td>
                 <td className="p-2 text-right">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button size="icon" variant="ghost" className="h-7 w-7" aria-label={`Azioni per ${q.cespite}`} disabled={chiuso}><MoreHorizontal className="h-4 w-4" /></Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7" aria-label={t("Azioni per {cespite}", { cespite: String(q.cespite ?? "") })} disabled={chiuso}><MoreHorizontal className="h-4 w-4" /></Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onSelect={() => setConti(q)}>Conti e fondo</DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => setCedi(q)}>Cessione o dismissione</DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => setConti(q)}>{t("Conti e fondo")}</DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => setCedi(q)}>{t("Cessione o dismissione")}</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </td>
@@ -176,7 +175,7 @@ export function RegistroCespiti({ companyId, anno, chiuso }: { companyId: string
             ))}
             <tr className="border-t bg-muted/30 font-medium">
               <td className="p-2">
-                Totale ammortamenti {e.da_aggiornare ? <span className="text-amber-700">· da aggiornare</span> : e.registrati ? "· registrati" : ""}
+                {t("Totale ammortamenti")} {e.da_aggiornare ? <span className="text-amber-700">· {t("da aggiornare")}</span> : e.registrati ? `· ${t("registrati")}` : ""}
               </td>
               <td colSpan={3} /><td className="p-2 text-right tabular-nums">{euro(e.totale)}</td><td colSpan={2} />
             </tr>
@@ -185,19 +184,19 @@ export function RegistroCespiti({ companyId, anno, chiuso }: { companyId: string
       </TabellaContabile>
       {(ceduti.data ?? []).length > 0 && (
         <div className="space-y-1 text-sm">
-          <p className="text-xs font-medium uppercase text-muted-foreground">Ceduti o dismessi nel {anno}</p>
+          <p className="text-xs font-medium uppercase text-muted-foreground">{t("Ceduti o dismessi nel {anno}", { anno })}</p>
           {(ceduti.data ?? []).map((c) => (
             <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-1.5">
               <span>{c.descrizione} · {c.data_dismissione ? dataIt(c.data_dismissione) : ""} · {euro(Number(c.prezzo_cessione) || 0)}</span>
               {daAnnullare === c.id ? (
                 <span className="flex items-center gap-1 text-xs">
-                  Storno la cessione e il cespite torna nel registro?
+                  {t("Storno la cessione e il cespite torna nel registro?")}
                   <Button size="sm" variant="destructive" className="h-7" disabled={annulla.isPending}
-                    onClick={() => { annulla.mutate(c.id); setDaAnnullare(null); }}>Sì, annulla</Button>
-                  <Button size="sm" variant="ghost" className="h-7" onClick={() => setDaAnnullare(null)}>No</Button>
+                    onClick={() => { annulla.mutate(c.id); setDaAnnullare(null); }}>{t("Sì, annulla")}</Button>
+                  <Button size="sm" variant="ghost" className="h-7" onClick={() => setDaAnnullare(null)}>{t("No")}</Button>
                 </span>
               ) : (
-                <Button size="sm" variant="ghost" disabled={chiuso || annulla.isPending} onClick={() => setDaAnnullare(c.id)}>Annulla cessione</Button>
+                <Button size="sm" variant="ghost" disabled={chiuso || annulla.isPending} onClick={() => setDaAnnullare(c.id)}>{t("Annulla cessione")}</Button>
               )}
             </div>
           ))}
@@ -212,6 +211,7 @@ export function RegistroCespiti({ companyId, anno, chiuso }: { companyId: string
 const DAL_RUOLO = "__ruolo__";
 
 function ContiEFondo({ companyId, anno, cespite, onClose }: { companyId: string; anno: number; cespite: QuotaCespite; onClose: () => void }) {
+  const t = useT();
   const qc = useQueryClient();
   const piano = useContiMovimentabili(companyId);
   const riga = useQuery({
@@ -249,8 +249,8 @@ function ContiEFondo({ companyId, anno, cespite, onClose }: { companyId: string;
       });
       if (error) throw error;
     },
-    onSuccess: () => { toast.success("Cespite aggiornato"); void qc.invalidateQueries({ queryKey: ["contabilita-generale", companyId] }); onClose(); },
-    onError: errore("Cespite non aggiornato"),
+    onSuccess: () => { toast.success(t("Cespite aggiornato")); void qc.invalidateQueries({ queryKey: ["contabilita-generale", companyId] }); onClose(); },
+    onError: errore(t("Cespite non aggiornato")),
   });
 
   const scelta = (etichetta: string, valore: string | null, set: (x: string | null) => void, natura: string) => (
@@ -259,7 +259,7 @@ function ContiEFondo({ companyId, anno, cespite, onClose }: { companyId: string;
       <Select value={valore ?? DAL_RUOLO} onValueChange={(x) => set(x === DAL_RUOLO ? null : x)}>
         <SelectTrigger aria-label={etichetta} className="h-8 text-xs"><SelectValue /></SelectTrigger>
         <SelectContent>
-          <SelectItem value={DAL_RUOLO} className="text-xs">Proposto dalla categoria</SelectItem>
+          <SelectItem value={DAL_RUOLO} className="text-xs">{t("Proposto dalla categoria")}</SelectItem>
           {(piano.data ?? []).filter((c) => c.natura === natura).map((c) => (
             <SelectItem key={c.id} value={c.id} className="text-xs">{c.codice} {c.descrizione}</SelectItem>
           ))}
@@ -272,32 +272,31 @@ function ContiEFondo({ companyId, anno, cespite, onClose }: { companyId: string;
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="max-w-lg">
         <DialogHeader><DialogTitle>{cespite.cespite}</DialogTitle></DialogHeader>
-        {riga.isLoading ? <p className="text-sm text-muted-foreground">Carico…</p> : (
+        {riga.isLoading ? <p className="text-sm text-muted-foreground">{t("Carico…")}</p> : (
           <div className="space-y-3">
-            {scelta("Conto del bene", v.bene, setBene, "attivo")}
-            {scelta("Conto del fondo ammortamento", v.fondo, setFondo, "attivo")}
-            {scelta("Conto dell'ammortamento (costo)", v.amm, setAmm, "costo")}
+            {scelta(t("Conto del bene"), v.bene, setBene, "attivo")}
+            {scelta(t("Conto del fondo ammortamento"), v.fondo, setFondo, "attivo")}
+            {scelta(t("Conto dell'ammortamento (costo)"), v.amm, setAmm, "costo")}
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <Label htmlFor="fondo-ini" className="text-xs">Fondo ammortamento noto</Label>
-                <Input id="fondo-ini" inputMode="decimal" className="h-8 text-right tabular-nums" placeholder="vuoto = dalle quote"
+                <Label htmlFor="fondo-ini" className="text-xs">{t("Fondo ammortamento noto")}</Label>
+                <Input id="fondo-ini" inputMode="decimal" className="h-8 text-right tabular-nums" placeholder={t("vuoto = dalle quote")}
                   value={v.fondoIni} onChange={(ev) => setFondoIni(ev.target.value)} />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="anno-ini" className="text-xs">al 01/01 dell'anno</Label>
+                <Label htmlFor="anno-ini" className="text-xs">{t("al 01/01 dell'anno")}</Label>
                 <Input id="anno-ini" inputMode="numeric" className="h-8 tabular-nums" value={v.annoIni} onChange={(ev) => setAnnoIni(ev.target.value)} />
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              Per un bene già in parte ammortizzato quando la contabilità parte qui: il fondo che risulta dal registro dei beni
-              ammortizzabili a quella data. Dopo, il fondo è la somma delle quote registrate.
-              {r?.fondo_amm ? ` In Controllo di gestione il fondo indicato è ${euro(Number(r.fondo_amm))}.` : ""}
+              {t("Per un bene già in parte ammortizzato quando la contabilità parte qui: il fondo che risulta dal registro dei beni ammortizzabili a quella data. Dopo, il fondo è la somma delle quote registrate.")}
+              {r?.fondo_amm ? ` ${t("In Controllo di gestione il fondo indicato è {valore}.", { valore: euro(Number(r.fondo_amm)) })}` : ""}
             </p>
           </div>
         )}
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Annulla</Button>
-          <Button disabled={!valido || salva.isPending || riga.isLoading} onClick={() => salva.mutate()}>Salva</Button>
+          <Button variant="outline" onClick={onClose}>{t("Annulla")}</Button>
+          <Button disabled={!valido || salva.isPending || riga.isLoading} onClick={() => salva.mutate()}>{t("Salva")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -305,6 +304,7 @@ function ContiEFondo({ companyId, anno, cespite, onClose }: { companyId: string;
 }
 
 function Cessione({ companyId, anno, cespite, onClose }: { companyId: string; anno: number; cespite: QuotaCespite; onClose: () => void }) {
+  const t = useT();
   const qc = useQueryClient();
   const piano = useContiMovimentabili(companyId);
   const [data, setData] = useState(`${anno}-12-31`);
@@ -332,8 +332,8 @@ function Cessione({ companyId, anno, cespite, onClose }: { companyId: string; an
       });
       if (error) throw error;
     },
-    onSuccess: () => { toast.success("Cessione registrata"); void qc.invalidateQueries({ queryKey: ["contabilita-generale", companyId] }); onClose(); },
-    onError: errore("Cessione non registrata"),
+    onSuccess: () => { toast.success(t("Cessione registrata")); void qc.invalidateQueries({ queryKey: ["contabilita-generale", companyId] }); onClose(); },
+    onError: errore(t("Cessione non registrata")),
   });
   const a = anteprima.data;
   const mancanti = a ? ruoliMancanti(a.conti_mancanti) : [];
@@ -341,30 +341,29 @@ function Cessione({ companyId, anno, cespite, onClose }: { companyId: string; an
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="max-w-lg">
-        <DialogHeader><DialogTitle>Cessione: {cespite.cespite}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{t("Cessione: {cespite}", { cespite: String(cespite.cespite ?? "") })}</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
-              <Label htmlFor="ces-data" className="text-xs">Data</Label>
+              <Label htmlFor="ces-data" className="text-xs">{t("Data")}</Label>
               <Input id="ces-data" type="date" className="h-8" value={data} onChange={(ev) => setData(ev.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="ces-prezzo" className="text-xs">Prezzo (0 = rottamazione)</Label>
+              <Label htmlFor="ces-prezzo" className="text-xs">{t("Prezzo (0 = rottamazione)")}</Label>
               <Input id="ces-prezzo" inputMode="decimal" className="h-8 text-right tabular-nums" value={prezzo} onChange={(ev) => setPrezzo(ev.target.value)} />
             </div>
           </div>
           {p > 0 && (
             <div className="space-y-1">
-              <Label className="text-xs">Dove sta il prezzo</Label>
+              <Label className="text-xs">{t("Dove sta il prezzo")}</Label>
               <Select value={contoPrezzo ?? undefined} onValueChange={setConto}>
-                <SelectTrigger aria-label="Conto del prezzo" className="h-8 text-xs"><SelectValue placeholder="Scegli il conto…" /></SelectTrigger>
+                <SelectTrigger aria-label={t("Conto del prezzo")} className="h-8 text-xs"><SelectValue placeholder={t("Scegli il conto…")} /></SelectTrigger>
                 <SelectContent>
                   {(piano.data ?? []).map((c) => <SelectItem key={c.id} value={c.id} className="text-xs">{c.codice} {c.descrizione}</SelectItem>)}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Se hai fatturato la vendita: il conto di ricavo usato nella fattura (il ricavo diventa plusvalenza o minusvalenza).
-                Se l'hai incassato senza fattura: la banca o la cassa.
+                {t("Se hai fatturato la vendita: il conto di ricavo usato nella fattura (il ricavo diventa plusvalenza o minusvalenza). Se l'hai incassato senza fattura: la banca o la cassa.")}
               </p>
             </div>
           )}
@@ -372,11 +371,11 @@ function Cessione({ companyId, anno, cespite, onClose }: { companyId: string; an
           {a && (
             <table className="w-full text-sm">
               <tbody>
-                <tr><td className="py-0.5">Fondo al 01/01{a.fondo_stimato ? " (stimato)" : ""}</td><td className="text-right tabular-nums">{euro(a.fondo_inizio)}</td></tr>
-                <tr><td className="py-0.5">Quota fino alla cessione</td><td className="text-right tabular-nums">{euro(a.quota)}</td></tr>
-                <tr><td className="py-0.5">Valore residuo</td><td className="text-right tabular-nums">{euro(a.residuo)}</td></tr>
+                <tr><td className="py-0.5">{t("Fondo al 01/01")}{a.fondo_stimato ? ` ${t("(stimato)")}` : ""}</td><td className="text-right tabular-nums">{euro(a.fondo_inizio)}</td></tr>
+                <tr><td className="py-0.5">{t("Quota fino alla cessione")}</td><td className="text-right tabular-nums">{euro(a.quota)}</td></tr>
+                <tr><td className="py-0.5">{t("Valore residuo")}</td><td className="text-right tabular-nums">{euro(a.residuo)}</td></tr>
                 <tr className="font-medium">
-                  <td className="py-0.5">{a.plusvalenza > 0 ? "Plusvalenza" : "Minusvalenza"}</td>
+                  <td className="py-0.5">{a.plusvalenza > 0 ? t("Plusvalenza") : t("Minusvalenza")}</td>
                   <td className="text-right tabular-nums">{euro(a.plusvalenza > 0 ? a.plusvalenza : a.minusvalenza)}</td>
                 </tr>
               </tbody>
@@ -384,9 +383,9 @@ function Cessione({ companyId, anno, cespite, onClose }: { companyId: string; an
           )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Annulla</Button>
+          <Button variant="outline" onClick={onClose}>{t("Annulla")}</Button>
           <Button disabled={!a || !prezzoValido || mancanti.length > 0 || (p > 0 && !contoPrezzo) || registra.isPending} onClick={() => registra.mutate()}>
-            {registra.isPending ? "Registrazione…" : "Registra la cessione"}
+            {registra.isPending ? t("Registrazione…") : t("Registra la cessione")}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -13,6 +13,7 @@ import { messaggioSalvataggio } from "@/lib/fatturazione/salvataggioFattura";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function CollegaDdtFattura({
   fatturaId,
@@ -25,6 +26,7 @@ export function CollegaDdtFattura({
   fornitoreId?: string | null;
   onSalvato?: () => void;
 }) {
+  const t = useT();
   const qc = useQueryClient();
   const [ricerca, setRicerca] = useState("");
   const [riferimento, setRiferimento] = useState(false);
@@ -68,7 +70,7 @@ export function CollegaDdtFattura({
         data: d?.data_ricezione?.slice(0, 10) ?? (data || null),
       }),
     onSuccess: async (esito) => {
-      toast.success("DDT collegato alla fattura", { description: messaggioPrezzoBolla(esito?.prezzo) ?? undefined });
+      toast.success(t("DDT collegato alla fattura"), { description: messaggioPrezzoBolla(esito?.prezzo) ?? undefined });
       refreshFinancialQueries(qc);
       await Promise.all(
         [
@@ -81,7 +83,7 @@ export function CollegaDdtFattura({
       onSalvato?.();
     },
     onError: (e) =>
-      toast.error("DDT non collegato", {
+      toast.error(t("DDT non collegato"), {
         description: messaggioSalvataggio(e),
       }),
   });
@@ -90,7 +92,7 @@ export function CollegaDdtFattura({
       <div
         className="flex gap-2"
         role="group"
-        aria-label="Tipo di collegamento DDT"
+        aria-label={t("Tipo di collegamento DDT")}
       >
         <Button
           size="sm"
@@ -98,7 +100,7 @@ export function CollegaDdtFattura({
           onClick={() => setRiferimento(false)}
           disabled={salva.isPending}
         >
-          DDT caricati
+          {t("DDT caricati")}
         </Button>
         <Button
           size="sm"
@@ -106,27 +108,26 @@ export function CollegaDdtFattura({
           onClick={() => setRiferimento(true)}
           disabled={salva.isPending}
         >
-          Solo riferimento
+          {t("Solo riferimento")}
         </Button>
       </div>
       {riferimento ? (
         <>
           <p className="text-xs text-muted-foreground">
-            Registra numero e data se la bolla non è stata caricata. Potrai
-            collegare l’originale in seguito.
+            {t("Registra numero e data se la bolla non è stata caricata. Potrai collegare l’originale in seguito.")}
           </p>
           <Input
             value={numero}
             onChange={(e) => setNumero(e.target.value)}
             maxLength={100}
-            placeholder="Numero DDT"
-            aria-label="Numero DDT"
+            placeholder={t("Numero DDT")}
+            aria-label={t("Numero DDT")}
           />
           <Input
             type="date"
             value={data}
             onChange={(e) => setData(e.target.value)}
-            aria-label="Data DDT"
+            aria-label={t("Data DDT")}
           />
           <Button
             size="sm"
@@ -134,38 +135,37 @@ export function CollegaDdtFattura({
             disabled={!numero.trim() || salva.isPending}
             onClick={() => salva.mutate(undefined)}
           >
-            Salva riferimento
+            {t("Salva riferimento")}
           </Button>
         </>
       ) : (
         <>
           <Input
-            aria-label="Cerca DDT per numero"
-            placeholder="Cerca il numero DDT…"
+            aria-label={t("Cerca DDT per numero")}
+            placeholder={t("Cerca il numero DDT…")}
             value={ricerca}
             onChange={(e) => setRicerca(e.target.value)}
           />
           <p className="text-xs text-muted-foreground">
             {fornitoreId
-              ? "Bolle del fornitore della fattura."
-              : "Bolle dell’azienda: controlla il fornitore prima di collegare."}
+              ? t("Bolle del fornitore della fattura.")
+              : t("Bolle dell’azienda: controlla il fornitore prima di collegare.")}
           </p>
           <div className="max-h-64 space-y-1 overflow-y-auto">
             {q.isFetching ? (
               <p role="status" className="p-2 text-xs">
-                Cerco i DDT…
+                {t("Cerco i DDT…")}
               </p>
             ) : q.isError ? (
               <p role="alert" className="text-xs text-destructive">
                 {messaggioSalvataggio(q.error)}{" "}
                 <button className="underline" onClick={() => void q.refetch()}>
-                  Riprova
+                  {t("Riprova")}
                 </button>
               </p>
             ) : !q.data?.length ? (
               <p className="p-2 text-xs text-muted-foreground">
-                Nessun DDT trovato. Carica la bolla o registra il solo
-                riferimento.
+                {t("Nessun DDT trovato. Carica la bolla o registra il solo riferimento.")}
               </p>
             ) : (
               q.data.slice(0, 50).map((d) => (
@@ -177,18 +177,18 @@ export function CollegaDdtFattura({
                   className="block w-full rounded-md border p-2 text-left text-sm hover:bg-muted disabled:opacity-50"
                 >
                   <span className="font-medium">
-                    {d.numero_ddt || "Senza numero"}
+                    {d.numero_ddt || t("Senza numero")}
                   </span>
                   <span className="ml-2 text-xs text-muted-foreground">
                     {formatDateShort(d.data_ricezione)}
                   </span>
                   <span className="block text-xs text-muted-foreground">
-                    {d.suppliers?.name || "Fornitore da associare"} ·{" "}
-                    {d.orders?.order_code ? `Commessa ${d.orders.order_code}` : d.destinazione === "cantiere"
-                      ? "Consegna in cantiere"
+                    {d.suppliers?.name || t("Fornitore da associare")} ·{" "}
+                    {d.orders?.order_code ? t("Commessa {order_code}", { order_code: d.orders.order_code }) : d.destinazione === "cantiere"
+                      ? t("Consegna in cantiere")
                       : d.destinazione === "magazzino"
-                        ? "Magazzino"
-                        : "Destinazione da verificare"}
+                        ? t("Magazzino")
+                        : t("Destinazione da verificare")}
                   </span>
                 </button>
               ))
@@ -196,7 +196,7 @@ export function CollegaDdtFattura({
           </div>
           {(q.data?.length ?? 0) > 50 && (
             <p className="text-xs text-muted-foreground">
-              Primi 50 DDT: cerca il numero per trovare gli altri.
+              {t("Primi 50 DDT: cerca il numero per trovare gli altri.")}
             </p>
           )}
         </>
@@ -208,7 +208,7 @@ export function CollegaDdtFattura({
       )}
       {salva.isPending && (
         <p role="status" className="text-xs">
-          Salvataggio in corso…
+          {t("Salvataggio in corso…")}
         </p>
       )}
     </div>

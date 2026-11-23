@@ -8,6 +8,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Search, Lock, GripVertical, ChevronDown, ChevronRight, LayoutTemplate, Minimize2, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BUILT_IN_FIELDS, type FieldDefinition, type CardLayout } from "@/hooks/useCardFieldPreferences";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface CardCustomizeSheetProps {
   open: boolean;
@@ -31,6 +32,7 @@ const SECTIONS: { key: string; label: string }[] = [
 ];
 
 export function CardCustomizeSheet({ open, onOpenChange, activeFields, layout, onApply, customFields = [] }: CardCustomizeSheetProps) {
+  const t = useT();
   const [draftFields, setDraftFields] = useState<string[]>(activeFields);
   const [draftLayout, setDraftLayout] = useState<CardLayout>(layout);
   const [search, setSearch] = useState("");
@@ -107,15 +109,15 @@ export function CardCustomizeSheet({ open, onOpenChange, activeFields, layout, o
     <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent side="right" className="w-full sm:max-w-md flex flex-col p-0 gap-0">
         <SheetHeader className="px-5 pt-5 pb-3 border-b">
-          <SheetTitle className="text-lg font-bold">Personalizza scheda</SheetTitle>
+          <SheetTitle className="text-lg font-bold">{t("Personalizza scheda")}</SheetTitle>
           <SheetDescription className="text-xs text-muted-foreground">
-            Scegli i campi da mostrare sulla card dell'opportunità
+            {t("Scegli i campi da mostrare sulla card dell'opportunità")}
           </SheetDescription>
         </SheetHeader>
 
         {/* Mini Preview */}
         <div className="px-5 py-3 border-b bg-muted/30">
-          <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">Anteprima</p>
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">{t("Anteprima")}</p>
           <div className="bg-background border rounded-lg p-3 shadow-sm space-y-1.5">
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-bold truncate">Mario Rossi - Roma</p>
@@ -134,7 +136,7 @@ export function CardCustomizeSheet({ open, onOpenChange, activeFields, layout, o
             {previewLines.slice(0, 4).map((line) => (
               <p key={line.label} className="text-[10px] leading-tight truncate">
                 {draftLayout !== "no-label" && (
-                  <span className="text-muted-foreground">{line.label}: </span>
+                  <span className="text-muted-foreground">{t(line.label)}: </span>
                 )}
                 <span className={cn("text-foreground", draftLayout === "compact" && "text-[9px]")}>
                   {line.value}
@@ -142,14 +144,14 @@ export function CardCustomizeSheet({ open, onOpenChange, activeFields, layout, o
               </p>
             ))}
             {previewLines.length > 4 && (
-              <p className="text-[9px] text-muted-foreground">+{previewLines.length - 4} altri campi...</p>
+              <p className="text-[9px] text-muted-foreground">{t("+{n} altri campi...", { n: previewLines.length - 4 })}</p>
             )}
           </div>
         </div>
 
         {/* Layout selector */}
         <div className="px-5 py-3 border-b">
-          <p className="text-xs font-semibold mb-2">Layout della scheda</p>
+          <p className="text-xs font-semibold mb-2">{t("Layout della scheda")}</p>
           <div className="flex gap-2">
             {LAYOUT_OPTIONS.map((opt) => (
               <button
@@ -163,7 +165,7 @@ export function CardCustomizeSheet({ open, onOpenChange, activeFields, layout, o
                 )}
               >
                 {opt.icon}
-                {opt.label}
+                {t(opt.label)}
               </button>
             ))}
           </div>
@@ -172,8 +174,8 @@ export function CardCustomizeSheet({ open, onOpenChange, activeFields, layout, o
         {/* Tabs */}
         <Tabs defaultValue="fields" className="flex-1 flex flex-col overflow-hidden">
           <TabsList className="mx-5 mt-3 w-auto self-start">
-            <TabsTrigger value="fields" className="text-xs">Campi</TabsTrigger>
-            <TabsTrigger value="quick" className="text-xs">Attività rapida</TabsTrigger>
+            <TabsTrigger value="fields" className="text-xs">{t("Campi")}</TabsTrigger>
+            <TabsTrigger value="quick" className="text-xs">{t("Attività rapida")}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="fields" className="flex-1 overflow-auto px-5 pb-20 mt-2 space-y-3">
@@ -181,7 +183,7 @@ export function CardCustomizeSheet({ open, onOpenChange, activeFields, layout, o
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
-                placeholder="Cerca campi..."
+                placeholder={t("Cerca campi...")}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="h-8 pl-8 text-xs"
@@ -190,7 +192,7 @@ export function CardCustomizeSheet({ open, onOpenChange, activeFields, layout, o
 
             {/* Active fields */}
             <div className="space-y-1">
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase">Campi attivi</p>
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase">{t("Campi attivi")}</p>
               {activeMainFields.filter(filterField).map((field) => (
                 <FieldRow
                   key={field.key}
@@ -212,7 +214,7 @@ export function CardCustomizeSheet({ open, onOpenChange, activeFields, layout, o
 
             {/* Add fields sections */}
             <div className="space-y-1">
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase">Aggiungi campi</p>
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase">{t("Aggiungi campi")}</p>
 
               {/* Inactive main fields */}
               {mainFields
@@ -229,7 +231,7 @@ export function CardCustomizeSheet({ open, onOpenChange, activeFields, layout, o
                   <Collapsible key={sec.key} open={isOpen} onOpenChange={() => toggleSection(sec.key)}>
                     <CollapsibleTrigger className="flex items-center gap-1.5 w-full py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground">
                       {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                      {sec.label}
+                      {t(sec.label)}
                       <span className="ml-auto text-[10px] text-muted-foreground">{fields.length}</span>
                     </CollapsibleTrigger>
                     <CollapsibleContent className="space-y-0.5 pl-2">
@@ -245,7 +247,7 @@ export function CardCustomizeSheet({ open, onOpenChange, activeFields, layout, o
 
           <TabsContent value="quick" className="flex-1 overflow-auto px-5 pb-20 mt-2">
             <p className="text-xs text-muted-foreground py-8 text-center">
-              Le attività rapide saranno disponibili prossimamente.
+              {t("Le attività rapide saranno disponibili prossimamente.")}
             </p>
           </TabsContent>
         </Tabs>
@@ -253,7 +255,7 @@ export function CardCustomizeSheet({ open, onOpenChange, activeFields, layout, o
         {/* Fixed footer */}
         <div className="absolute bottom-0 left-0 right-0 flex items-center justify-end gap-2 px-5 py-3 bg-background border-t">
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button
             size="sm"
@@ -262,7 +264,7 @@ export function CardCustomizeSheet({ open, onOpenChange, activeFields, layout, o
               onOpenChange(false);
             }}
           >
-            Applica
+            {t("Applica")}
           </Button>
         </div>
       </SheetContent>
@@ -281,6 +283,7 @@ function FieldRow({
   locked?: boolean;
   onToggle: () => void;
 }) {
+  const t = useT();
   return (
     <div className="flex items-center gap-2 py-1.5 px-1 rounded hover:bg-muted/50 group">
       {active && !locked && <GripVertical className="h-3.5 w-3.5 text-muted-foreground/50 cursor-grab shrink-0" />}
@@ -292,7 +295,7 @@ function FieldRow({
         onCheckedChange={() => !locked && onToggle()}
         className="h-3.5 w-3.5"
       />
-      <span className="text-xs truncate">{field.label}</span>
+      <span className="text-xs truncate">{t(field.label)}</span>
     </div>
   );
 }

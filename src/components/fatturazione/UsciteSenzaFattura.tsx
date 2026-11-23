@@ -26,6 +26,7 @@ import { SupplierSelect } from "@/components/orders/SupplierSelect";
 import { Textarea } from "@/components/ui/textarea";
 import { queryKeys } from "@/lib/queryKeys";
 import { userErrorMessage } from "@/lib/userErrorMessage";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -44,6 +45,7 @@ interface Uscita {
  * conteggio e totale; l'elenco e «Nuova uscita» si aprono in una finestra.
  */
 export function UsciteSenzaFattura({ companyId, puoModificare, variante = "fascia", moduloAperto, onModuloChange }: { moduloAperto?: boolean; onModuloChange?: (open: boolean) => void; companyId: string; puoModificare: boolean; variante?: "fascia" | "pillola" }) {
+  const t = useT();
   const qc = useQueryClient();
   const [aperto, setAperto] = useState(false);
   const [dialogoLocale, setDialogoLocale] = useState(false);
@@ -112,16 +114,16 @@ export function UsciteSenzaFattura({ companyId, puoModificare, variante = "fasci
       return { id, erroreFile, conFile: file.length, modificata: !!inModifica };
     },
     onSuccess: ({ id, erroreFile, conFile, modificata }) => {
-      const fatto = modificata ? "Uscita aggiornata" : "Uscita registrata";
-      if (erroreFile) toast.warning(`${fatto}, ma un documento non è stato caricato`, { description: `${erroreFile} Riallegalo qui sotto.` });
-      else toast.success(conFile ? `${fatto} con ${conFile === 1 ? "il documento" : `${conFile} documenti`}` : fatto);
+      const fatto = modificata ? t("Uscita aggiornata") : t("Uscita registrata");
+      if (erroreFile) toast.warning(t("{fatto}, ma un documento non è stato caricato", { fatto }), { description: `${erroreFile} ${t("Riallegalo qui sotto.")}` });
+      else toast.success(conFile ? t(conFile === 1 ? "{fatto} con il documento" : "{fatto} con {n} documenti", { fatto, n: conFile }) : fatto);
       chiudi(); setAperto(true); setDettaglio(id);
       aggiornaCosti();
       void qc.invalidateQueries({ queryKey: ["fattura-allegati"] });
       void qc.invalidateQueries({ queryKey: ["fattura-allegati-conteggi"] });
     },
     // Il messaggio tecnico («violates row-level security policy») non diceva cosa fare.
-    onError: (e) => toast.error("Uscita non salvata", { description: userErrorMessage(e, "Non sono riuscito a salvarla. Riprova.") }),
+    onError: (e) => toast.error(t("Uscita non salvata"), { description: userErrorMessage(e, t("Non sono riuscito a salvarla. Riprova.")) }),
   });
   // Se poi arriva la fattura vera, l'uscita si toglie: prima la finestra lo diceva ma non si poteva.
   const [daEliminare, setDaEliminare] = useState<Uscita | null>(null);
@@ -130,13 +132,13 @@ export function UsciteSenzaFattura({ companyId, puoModificare, variante = "fasci
       const { data: allegati } = await db.from("fattura_allegati").select("storage_path").eq("company_id", companyId).eq("company_cost_id", id);
       const { data, error } = await db.from("company_costs").delete().eq("id", id).eq("company_id", companyId).eq("senza_fattura", true).select("id");
       if (error) throw error;
-      if (!data?.length) throw new Error("Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso.");
+      if (!data?.length) throw new Error(t("Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso."));
       // Le righe degli allegati vanno via col costo; i file si tolgono dall'archivio.
       const percorsi = ((allegati ?? []) as Array<{ storage_path: string }>).map((a) => a.storage_path).filter(Boolean);
       if (percorsi.length) await supabase.storage.from("fatture-allegati").remove(percorsi);
     },
-    onSuccess: () => { toast.success("Uscita eliminata"); setDaEliminare(null); setDettaglio(null); aggiornaCosti(); },
-    onError: (e) => toast.error("Uscita non eliminata", { description: userErrorMessage(e, "Non sono riuscito a eliminarla. Riprova.") }),
+    onSuccess: () => { toast.success(t("Uscita eliminata")); setDaEliminare(null); setDettaglio(null); aggiornaCosti(); },
+    onError: (e) => toast.error(t("Uscita non eliminata"), { description: userErrorMessage(e, t("Non sono riuscito a eliminarla. Riprova.")) }),
   });
   const errore = erroreUscita(form);
   const { data: categorie = [] } = useQuery({
@@ -174,19 +176,19 @@ export function UsciteSenzaFattura({ companyId, puoModificare, variante = "fasci
   });
   const assegnato = quote.reduce((somma, q) => somma + Math.round(Number(q.euro.replace(",", ".")) * 100), 0);
   const residuo = costo ? Math.round(costo.amount * 100) - assegnato : 0;
-  const percentuale = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits: 4 }) + "%";
+  const percentuale = (n: number) => n.toLocaleString(intlCampo(), { maximumFractionDigits: 4 }) + "%";
   const totale = uscite.reduce((s, u) => s + Number(u.amount ?? 0), 0);
   const elenco = (
           <div className="mt-3 divide-y rounded-md border">
-            {!uscite.length && <p className="p-3 text-sm text-muted-foreground">Bollo, tasse, spese senza fattura: registrale qui, con i documenti. Non entrano nel registro IVA.</p>}
+            {!uscite.length && <p className="p-3 text-sm text-muted-foreground">{t("Bollo, tasse, spese senza fattura: registrale qui, con i documenti. Non entrano nel registro IVA.")}</p>}
             {uscite.map((u) => (
               <div key={u.id} className="p-2 text-sm">
                 <button type="button" className="flex w-full flex-wrap items-center gap-2 text-left" aria-haspopup="dialog" onClick={() => setDettaglio(u.id)}>
-                  <Badge variant="outline">Senza fattura</Badge>
+                  <Badge variant="outline">{t("Senza fattura")}</Badge>
                   <span className="min-w-0 flex-1 truncate font-medium">{u.name}</span>
                   <span className="text-xs text-muted-foreground">{[u.suppliers?.name, u.orders?.order_code, u.allocations?.length ? `${u.allocations.length} commesse` : null, u.mezzi?.nome, u.documento_riferimento, formatDateShort(u.documento_data ?? u.due_date)].filter(Boolean).join(" · ")}</span>
                   <span className="font-medium tabular-nums">{formatCurrency(u.amount)}</span>
-                  <span className={`text-xs ${u.is_paid ? "text-emerald-600" : "text-amber-700"}`}>{u.is_paid ? "Pagata" : `Scadenza ${formatDateShort(u.due_date)}`}</span>
+                  <span className={`text-xs ${u.is_paid ? "text-emerald-600" : "text-amber-700"}`}>{u.is_paid ? t("Pagata") : t("Scadenza {data}", { data: formatDateShort(u.due_date) })}</span>
                 </button>
               </div>
             ))}
@@ -197,70 +199,70 @@ export function UsciteSenzaFattura({ companyId, puoModificare, variante = "fasci
     <>
       {costo && <Dialog open={!dialogo} onOpenChange={open => { if (!open) setDettaglio(null); }}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
-          <DialogHeader><DialogTitle>{costo.name}</DialogTitle><DialogDescription>Costo senza fattura · {formatDateShort(costo.documento_data ?? costo.due_date)}</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>{costo.name}</DialogTitle><DialogDescription>{t("Costo senza fattura · {data}", { data: formatDateShort(costo.documento_data ?? costo.due_date) })}</DialogDescription></DialogHeader>
           <dl className="grid grid-cols-2 gap-3 text-sm">
-            <div><dt className="text-muted-foreground">Conto di costo</dt><dd className="font-semibold">{costo.category || "Da scegliere"}</dd></div>
-            <div><dt className="text-muted-foreground">Imponibile</dt><dd className="font-semibold">{formatCurrency(costo.amount)}</dd></div>
+            <div><dt className="text-muted-foreground">{t("Conto di costo")}</dt><dd className="font-semibold">{costo.category || t("Da scegliere")}</dd></div>
+            <div><dt className="text-muted-foreground">{t("Imponibile")}</dt><dd className="font-semibold">{formatCurrency(costo.amount)}</dd></div>
           </dl>
           <table className="w-full text-sm [&_td]:py-2 [&_th]:pb-2">
-            <caption className="mb-2 text-left font-semibold">Ripartizione del costo</caption>
-            <thead><tr className="border-b text-muted-foreground"><th className="text-left">Commessa o macrocommessa</th><th className="text-right">Quota</th><th className="text-right">Importo</th></tr></thead>
+            <caption className="mb-2 text-left font-semibold">{t("Ripartizione del costo")}</caption>
+            <thead><tr className="border-b text-muted-foreground"><th className="text-left">{t("Commessa o macrocommessa")}</th><th className="text-right">{t("Quota")}</th><th className="text-right">{t("Importo")}</th></tr></thead>
             <tbody>{quote.map(q => {
               const r = commesseCosto.data?.get(q.id);
               const nome = r ? [eGenerale(r) ? "Macrocommessa" : "Commessa", r.order_code, r.description].filter(Boolean).join(" · ") :
                 (q.id === costo.order_id && costo.orders?.order_code) || (commesseCosto.isLoading ? "Caricamento…" : "Commessa " + q.id);
               return <tr key={q.id} className="border-b"><td>{nome}</td><td className="text-right tabular-nums">{percentuale(Number(q.pct.replace(",", ".")))}</td><td className="whitespace-nowrap text-right tabular-nums">{formatCurrency(Number(q.euro.replace(",", ".")))}</td></tr>;
             })}
-            {(residuo > 0 || !quote.length) && <tr><td>Costo generale</td><td className="text-right">{percentuale(100 - quote.reduce((n,q) => n + Number(q.pct.replace(",", ".")), 0))}</td><td className="text-right">{formatCurrency(residuo / 100)}</td></tr>}</tbody>
+            {(residuo > 0 || !quote.length) && <tr><td>{t("Costo generale")}</td><td className="text-right">{percentuale(100 - quote.reduce((n,q) => n + Number(q.pct.replace(",", ".")), 0))}</td><td className="text-right">{formatCurrency(residuo / 100)}</td></tr>}</tbody>
           </table>
-          {commesseCosto.isError && <Button variant="outline" onClick={() => void commesseCosto.refetch()}>Ricarica nomi commesse</Button>}
+          {commesseCosto.isError && <Button variant="outline" onClick={() => void commesseCosto.refetch()}>{t("Ricarica nomi commesse")}</Button>}
           {costo.notes && <p className="whitespace-pre-wrap text-sm">{costo.notes}</p>}
           <AllegatiFattura companyId={companyId} madre={{ costoId: costo.id }} sola_lettura={!puoModificare} />
-          {puoModificare && <DialogFooter><Button variant="ghost" onClick={() => setDaEliminare(costo)}><Trash2 className="mr-2 h-4 w-4" />Elimina</Button>
-            <Button variant="outline" onClick={() => apriModifica(costo)}><Pencil className="mr-2 h-4 w-4" />Modifica</Button></DialogFooter>}
+          {puoModificare && <DialogFooter><Button variant="ghost" onClick={() => setDaEliminare(costo)}><Trash2 className="mr-2 h-4 w-4" />{t("Elimina")}</Button>
+            <Button variant="outline" onClick={() => apriModifica(costo)}><Pencil className="mr-2 h-4 w-4" />{t("Modifica")}</Button></DialogFooter>}
         </DialogContent>
       </Dialog>}
       <Dialog open={dialogo} onOpenChange={(v) => (v ? setDialogo(true) : chiudi())}>
         <DialogContent className="max-h-[90vh] overflow-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{inModifica ? "Modifica uscita senza fattura" : "Nuova uscita senza fattura"}</DialogTitle>
-            <DialogDescription>Non è una fattura: non entra nel registro IVA. Se poi arriva la fattura vera, questa va tolta per non contare il costo due volte.</DialogDescription>
+            <DialogTitle>{inModifica ? t("Modifica uscita senza fattura") : t("Nuova uscita senza fattura")}</DialogTitle>
+            <DialogDescription>{t("Non è una fattura: non entra nel registro IVA. Se poi arriva la fattura vera, questa va tolta per non contare il costo due volte.")}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1 sm:col-span-2"><Label htmlFor="us-desc">Cos'è</Label><Input id="us-desc" value={form.descrizione} maxLength={200} onChange={(e) => set("descrizione", e.target.value)} placeholder="Bollo, tassa comunale…" /></div>
-            <div className="space-y-1"><Label htmlFor="us-imp">Importo €</Label><Input id="us-imp" inputMode="decimal" value={form.imponibile} onChange={(e) => set("imponibile", e.target.value)} /></div>
-            <div className="space-y-1"><Label htmlFor="us-iva">IVA %</Label><Input id="us-iva" inputMode="decimal" value={form.aliquota} onChange={(e) => set("aliquota", e.target.value)} /></div>
-            <div className="space-y-1"><Label htmlFor="us-data">Data</Label><Input id="us-data" type="date" value={form.data} onChange={(e) => set("data", e.target.value)} /></div>
-            <div className="space-y-1"><Label htmlFor="us-mese">Mese di competenza</Label><Input id="us-mese" type="month" value={meseMostrato(form)} onChange={(e) => set("mese", e.target.value)} /></div>
-            <div className="space-y-1"><Label htmlFor="us-scadenza">Scadenza pagamento</Label><Input id="us-scadenza" type="date" required value={form.scadenza ?? form.data} onChange={e => set("scadenza", e.target.value)} /></div>
+            <div className="space-y-1 sm:col-span-2"><Label htmlFor="us-desc">{t("Cos'è")}</Label><Input id="us-desc" value={form.descrizione} maxLength={200} onChange={(e) => set("descrizione", e.target.value)} placeholder={t("Bollo, tassa comunale…")} /></div>
+            <div className="space-y-1"><Label htmlFor="us-imp">{t("Importo €")}</Label><Input id="us-imp" inputMode="decimal" value={form.imponibile} onChange={(e) => set("imponibile", e.target.value)} /></div>
+            <div className="space-y-1"><Label htmlFor="us-iva">{t("IVA %")}</Label><Input id="us-iva" inputMode="decimal" value={form.aliquota} onChange={(e) => set("aliquota", e.target.value)} /></div>
+            <div className="space-y-1"><Label htmlFor="us-data">{t("Data")}</Label><Input id="us-data" type="date" value={form.data} onChange={(e) => set("data", e.target.value)} /></div>
+            <div className="space-y-1"><Label htmlFor="us-mese">{t("Mese di competenza")}</Label><Input id="us-mese" type="month" value={meseMostrato(form)} onChange={(e) => set("mese", e.target.value)} /></div>
+            <div className="space-y-1"><Label htmlFor="us-scadenza">{t("Scadenza pagamento")}</Label><Input id="us-scadenza" type="date" required value={form.scadenza ?? form.data} onChange={e => set("scadenza", e.target.value)} /></div>
             <div className="space-y-1">
-              <label className="flex items-center gap-2 text-sm"><Checkbox checked={form.pagata} onCheckedChange={v => set("pagata", v === true)} />Già pagata</label>
-              <Label htmlFor="us-pagamento" className="sr-only">Pagata il</Label>
+              <label className="flex items-center gap-2 text-sm"><Checkbox checked={form.pagata} onCheckedChange={v => set("pagata", v === true)} />{t("Già pagata")}</label>
+              <Label htmlFor="us-pagamento" className="sr-only">{t("Pagata il")}</Label>
               <Input id="us-pagamento" type="date" disabled={!form.pagata} required={form.pagata} value={form.pagata ? (form.dataPagamento ?? "") : ""} onChange={e => set("dataPagamento", e.target.value)} />
             </div>
-            <div className="space-y-1 sm:col-span-2"><Label htmlFor="us-rif">Riferimento del documento</Label><Input id="us-rif" value={form.riferimento} maxLength={100} onChange={(e) => set("riferimento", e.target.value)} placeholder="Numero ricevuta, avviso…" /></div>
+            <div className="space-y-1 sm:col-span-2"><Label htmlFor="us-rif">{t("Riferimento del documento")}</Label><Input id="us-rif" value={form.riferimento} maxLength={100} onChange={(e) => set("riferimento", e.target.value)} placeholder={t("Numero ricevuta, avviso…")} /></div>
             {/* Fornitore con la ricerca e il «+» per crearlo (12/11/2026): era una tendina con
                 tutti i fornitori, senza ricerca, che non si scorreva bene con le frecce o col
                 trackpad; e chi non c'era (il Comune, per una tassa) non si poteva aggiungere. */}
             <div className="space-y-1 sm:col-span-2">
-              <Label>Fornitore o ente</Label>
+              <Label>{t("Fornitore o ente")}</Label>
               <SupplierSelect value={form.fornitoreId} onValueChange={(v) => set("fornitoreId", v ?? "")} fallbackCompanyId={companyId} searchable allowCreate />
             </div>
             <div className="space-y-1 sm:col-span-2">
-              <div className="flex items-center justify-between gap-2"><Label>{form.commesse.length > 1 ? "Commesse, macrocommesse e quote" : "Commessa o macrocommessa"}</Label>
-                {form.commesse.length > 1 && <div role="group" aria-label="Unità delle quote" className="flex gap-1">
-                  <Button type="button" size="sm" className="h-7" variant={inEuro ? "ghost" : "secondary"} aria-pressed={!inEuro} onClick={() => cambiaModoQuota(false)}>Percentuale</Button>
-                  <Button type="button" size="sm" className="h-7" variant={inEuro ? "secondary" : "ghost"} aria-pressed={inEuro} onClick={() => cambiaModoQuota(true)}>Importo €</Button>
+              <div className="flex items-center justify-between gap-2"><Label>{form.commesse.length > 1 ? t("Commesse, macrocommesse e quote") : t("Commessa o macrocommessa")}</Label>
+                {form.commesse.length > 1 && <div role="group" aria-label={t("Unità delle quote")} className="flex gap-1">
+                  <Button type="button" size="sm" className="h-7" variant={inEuro ? "ghost" : "secondary"} aria-pressed={!inEuro} onClick={() => cambiaModoQuota(false)}>{t("Percentuale")}</Button>
+                  <Button type="button" size="sm" className="h-7" variant={inEuro ? "secondary" : "ghost"} aria-pressed={inEuro} onClick={() => cambiaModoQuota(true)}>{t("Importo €")}</Button>
                 </div>}
               </div>
               {form.commesse.map((c, i) => (
                 <div key={i} className="flex items-center gap-2">
                   <div className="min-w-0 flex-1">
                     <ViaggioSelect
-                      label={`Commessa ${i + 1}`}
+                      label={t("Commessa {i}", { i: i + 1 })}
                       value={c.id || NESSUNO}
                       onValueChange={(v) => cambiaCommessa(i, v === NESSUNO ? "" : v)}
-                      emptyMessage="Nessuna corrispondenza."
+                      emptyMessage={t("Nessuna corrispondenza.")}
                       options={[{ value: NESSUNO, label: "Nessuna" }, ...opzioniCommesse]}
                     />
                   </div>
@@ -268,48 +270,48 @@ export function UsciteSenzaFattura({ companyId, puoModificare, variante = "fasci
                     <>
                       <Input aria-label={`Quota commessa ${i + 1} ${inEuro ? "€" : "%"}`} inputMode="decimal" className="w-20" value={inEuro ? c.euro ?? "" : c.pct} onChange={(e) => cambiaQuota(i, e.target.value)} />
                       <span className="text-xs text-muted-foreground">{inEuro ? "€" : "%"}</span>
-                      <Button type="button" size="icon" variant="ghost" className="h-8 w-8" aria-label={`Togli commessa ${i + 1}`} onClick={() => togliCommessa(i)}><X className="h-4 w-4" /></Button>
+                      <Button type="button" size="icon" variant="ghost" className="h-8 w-8" aria-label={t("Togli commessa {i}", { i: i + 1 })} onClick={() => togliCommessa(i)}><X className="h-4 w-4" /></Button>
                     </>
                   )}
                 </div>
               ))}
-              <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={aggiungiCommessa}><Plus className="mr-1 h-3 w-3" />Dividi su un'altra commessa</Button>
+              <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={aggiungiCommessa}><Plus className="mr-1 h-3 w-3" />{t("Dividi su un'altra commessa")}</Button>
             </div>
-            <div className="space-y-1"><Label>Conto di costo</Label><ViaggioSelect label="Conto di costo"
+            <div className="space-y-1"><Label>{t("Conto di costo")}</Label><ViaggioSelect label={t("Conto di costo")}
               value={form.categoria ?? ""} onValueChange={v => set("categoria", v)}
-              options={conti.map(c => ({ value: c, label: c }))} emptyMessage="Nessun conto trovato." /></div>
-            <Scelta etichetta="Mezzo" valore={form.mezzoId} cambia={(v) => set("mezzoId", v)} opzioni={(scelte?.mezzi ?? []).map((x) => [x.id, x.targa ? `${x.nome} · ${x.targa}` : x.nome])} />
-            <div className="space-y-1 sm:col-span-2"><Label htmlFor="us-note">Note</Label><Textarea id="us-note" rows={2} maxLength={2000} value={form.note} onChange={(e) => set("note", e.target.value)} placeholder="A cosa si riferisce, chi l'ha pagata…" /></div>
+              options={conti.map(c => ({ value: c, label: c }))} emptyMessage={t("Nessun conto trovato.")} /></div>
+            <Scelta etichetta={t("Mezzo")} valore={form.mezzoId} cambia={(v) => set("mezzoId", v)} opzioni={(scelte?.mezzi ?? []).map((x) => [x.id, x.targa ? `${x.nome} · ${x.targa}` : x.nome])} />
+            <div className="space-y-1 sm:col-span-2"><Label htmlFor="us-note">{t("Note")}</Label><Textarea id="us-note" rows={2} maxLength={2000} value={form.note} onChange={(e) => set("note", e.target.value)} placeholder={t("A cosa si riferisce, chi l'ha pagata…")} /></div>
             <div className="space-y-1 sm:col-span-2">
-              <Label>Documenti</Label>
-              <input ref={fileInput} type="file" multiple className="hidden" aria-label="Scegli i documenti" onChange={(e) => { const nuovi = Array.from(e.target.files ?? []); setFile((f) => [...f, ...nuovi]); e.target.value = ""; }} />
+              <Label>{t("Documenti")}</Label>
+              <input ref={fileInput} type="file" multiple className="hidden" aria-label={t("Scegli i documenti")} onChange={(e) => { const nuovi = Array.from(e.target.files ?? []); setFile((f) => [...f, ...nuovi]); e.target.value = ""; }} />
               {file.map((f, i) => (
                 <div key={`${f.name}-${i}`} className="flex items-center gap-2 rounded border px-2 py-1 text-sm">
                   <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   <span className="min-w-0 flex-1 truncate">{f.name}</span>
                   <span className="text-xs text-muted-foreground">{dimensioneLeggibile(f.size)}</span>
-                  <Button type="button" size="icon" variant="ghost" className="h-6 w-6" aria-label={`Togli ${f.name}`} onClick={() => setFile((l) => l.filter((_, j) => j !== i))}><X className="h-3.5 w-3.5" /></Button>
+                  <Button type="button" size="icon" variant="ghost" className="h-6 w-6" aria-label={t("Togli {name}", { name: String(f.name ?? "") })} onClick={() => setFile((l) => l.filter((_, j) => j !== i))}><X className="h-3.5 w-3.5" /></Button>
                 </div>
               ))}
-              <Button type="button" size="sm" variant="outline" onClick={() => fileInput.current?.click()}><Paperclip className="mr-1.5 h-3.5 w-3.5" />Allega ricevuta, F24, foto…</Button>
+              <Button type="button" size="sm" variant="outline" onClick={() => fileInput.current?.click()}><Paperclip className="mr-1.5 h-3.5 w-3.5" />{t("Allega ricevuta, F24, foto…")}</Button>
             </div>
           </div>
           {errore && form.descrizione && <p className="text-xs text-muted-foreground">{errore}</p>}
           <DialogFooter>
-            <Button variant="outline" onClick={chiudi}>Annulla</Button>
-            <Button disabled={!!errore || salva.isPending} onClick={() => salva.mutate()}>{inModifica ? "Salva modifiche" : "Salva"}</Button>
+            <Button variant="outline" onClick={chiudi}>{t("Annulla")}</Button>
+            <Button disabled={!!errore || salva.isPending} onClick={() => salva.mutate()}>{inModifica ? t("Salva modifiche") : t("Salva")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
       <AlertDialog open={!!daEliminare} onOpenChange={(v) => { if (!v) setDaEliminare(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare «{daEliminare?.name}»?</AlertDialogTitle>
-            <AlertDialogDescription>Il costo esce dai conti, insieme ai documenti allegati. Non si recupera.</AlertDialogDescription>
+            <AlertDialogTitle>{t("Eliminare «{name}»?", { name: String(daEliminare?.name ?? "") })}</AlertDialogTitle>
+            <AlertDialogDescription>{t("Il costo esce dai conti, insieme ai documenti allegati. Non si recupera.")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" disabled={elimina.isPending} onClick={() => daEliminare && elimina.mutate(daEliminare.id)}>Elimina</AlertDialogAction>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" disabled={elimina.isPending} onClick={() => daEliminare && elimina.mutate(daEliminare.id)}>{t("Elimina")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -322,21 +324,21 @@ export function UsciteSenzaFattura({ companyId, puoModificare, variante = "fasci
         <button
           type="button"
           onClick={() => setAperto(true)}
-          title={uscite.length ? `${uscite.length} uscite senza fattura · ${formatCurrency(totale)}` : "Bollo, tasse, spese senza fattura"}
+          title={uscite.length ? t("{n} uscite senza fattura · {totale}", { n: uscite.length, totale: formatCurrency(totale) }) : t("Bollo, tasse, spese senza fattura")}
           className="inline-flex h-7 items-center gap-1.5 rounded-full border bg-background px-2.5 text-xs font-medium text-foreground hover:bg-muted max-md:hidden"
         >
           <Receipt className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-          Uscite senza fattura
+          {t("Uscite senza fattura")}
           <span className="tabular-nums text-muted-foreground">{uscite.length}</span>
         </button>
         <Dialog open={aperto} onOpenChange={setAperto}>
           <DialogContent className="max-h-[85vh] overflow-auto sm:max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Uscite senza fattura · {uscite.length}{uscite.length > 0 ? ` · ${formatCurrency(totale)}` : ""}</DialogTitle>
-              <DialogDescription>Bollo, tasse, spese senza fattura, con i loro documenti. Non entrano nel registro IVA.</DialogDescription>
+              <DialogTitle>{t("Uscite senza fattura · {n}", { n: uscite.length })}{uscite.length > 0 ? ` · ${formatCurrency(totale)}` : ""}</DialogTitle>
+              <DialogDescription>{t("Bollo, tasse, spese senza fattura, con i loro documenti. Non entrano nel registro IVA.")}</DialogDescription>
             </DialogHeader>
             {puoModificare && (
-              <div><Button size="sm" variant="outline" onClick={() => setDialogo(true)}><Plus className="mr-1.5 h-3.5 w-3.5" />Nuova uscita</Button></div>
+              <div><Button size="sm" variant="outline" onClick={() => setDialogo(true)}><Plus className="mr-1.5 h-3.5 w-3.5" />{t("Nuova uscita")}</Button></div>
             )}
             {elenco}
           </DialogContent>
@@ -352,9 +354,9 @@ export function UsciteSenzaFattura({ companyId, puoModificare, variante = "fasci
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" className="flex flex-1 items-center gap-2 text-left text-sm font-medium" aria-expanded={aperto} onClick={() => setAperto((v) => !v)}>
             <ChevronDown className={`h-4 w-4 transition-transform ${aperto ? "rotate-180" : ""}`} />
-            Uscite senza fattura · {uscite.length}{uscite.length > 0 ? ` · ${formatCurrency(totale)}` : ""}
+            {t("Uscite senza fattura · {n}", { n: uscite.length })}{uscite.length > 0 ? ` · ${formatCurrency(totale)}` : ""}
           </button>
-          {puoModificare && <Button size="sm" variant="outline" onClick={() => setDialogo(true)}><Plus className="mr-1.5 h-3.5 w-3.5" />Nuova uscita</Button>}
+          {puoModificare && <Button size="sm" variant="outline" onClick={() => setDialogo(true)}><Plus className="mr-1.5 h-3.5 w-3.5" />{t("Nuova uscita")}</Button>}
         </div>
         {aperto && elenco}
       </CardContent>
@@ -364,6 +366,7 @@ export function UsciteSenzaFattura({ companyId, puoModificare, variante = "fasci
 }
 
 function Scelta({ etichetta, valore, cambia, opzioni }: { etichetta: string; valore: string; cambia: (v: string) => void; opzioni: Array<[string, string]> }) {
+  const t = useT();
   // Con la ricerca, come il fornitore: frecce, Invio e scorrimento funzionano anche dentro la finestra.
   return (
     <div className="space-y-1">
@@ -372,7 +375,7 @@ function Scelta({ etichetta, valore, cambia, opzioni }: { etichetta: string; val
         label={etichetta}
         value={valore || NESSUNO}
         onValueChange={(v) => cambia(v === NESSUNO ? "" : v)}
-        emptyMessage="Nessuna corrispondenza."
+        emptyMessage={t("Nessuna corrispondenza.")}
         options={[{ value: NESSUNO, label: "Nessuno" }, ...opzioni.map(([value, label]) => ({ value, label }))]}
       />
     </div>

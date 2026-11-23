@@ -28,6 +28,7 @@ import { useShipmentDDTPDF } from "@/hooks/useShipmentDDTPDF";
 import { useCreateDdtFromUscita } from "@/hooks/warehouse/useWarehouseUscita";
 import { CAUSALI_TRASPORTO, causalePerDestinatario } from "@/lib/ddt/causaliTrasporto";
 import { datiTrasportoDdt, type UscitaPerDdt } from "@/lib/magazzino/usciteDdt";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function CreaDdtDaUscitaDialog({
   uscita,
@@ -68,6 +69,7 @@ function Modulo({
   onCreato?: () => void;
   appenaRegistrata: boolean;
 }) {
+  const t = useT();
   const navigate = useNavigate();
   const { isNative } = useBillingMode();
   const { generate: generaPdf } = useShipmentDDTPDF();
@@ -84,7 +86,7 @@ function Modulo({
         uscitaId: uscita.id,
         ddtExtra: datiTrasportoDdt({ causale, porto, colli, aspetto, peso }),
       });
-      toast.success(`DDT ${res.numero_ddt} creato dall'uscita ${uscita.numero}`);
+      toast.success(t("DDT {numero_ddt} creato dall'uscita {numero}", { numero_ddt: String(res.numero_ddt ?? ""), numero: String(uscita.numero ?? "") }));
       onCreato?.();
       onOpenChange(false);
       if (res.documento_id) {
@@ -92,7 +94,7 @@ function Modulo({
         else void generaPdf(res.documento_id);
       }
     } catch (e) {
-      toast.error("DDT non creato", { description: (e as Error).message });
+      toast.error(t("DDT non creato"), { description: (e as Error).message });
     }
   };
 
@@ -100,19 +102,19 @@ function Modulo({
     <DialogContent className="sm:max-w-md">
       <DialogHeader>
         <DialogTitle className="flex items-center gap-2">
-          <Truck className="h-5 w-5 text-primary" /> DDT dell'uscita {uscita.numero}
+          <Truck className="h-5 w-5 text-primary" /> {t("DDT dell'uscita {numero}", { numero: String(uscita.numero ?? "") })}
         </DialogTitle>
         <DialogDescription>
-          {appenaRegistrata && <>Uscita registrata, la giacenza è già scalata. </>}
-          Per {uscita.destinatario}. Il DDT nasce in bozza: lo controlli nell'editor prima di emetterlo.
+          {appenaRegistrata && <>{t("Uscita registrata, la giacenza è già scalata.")} </>}
+          {t("Per {destinatario}. Il DDT nasce in bozza: lo controlli nell'editor prima di emetterlo.", { destinatario: String(uscita.destinatario ?? "") })}
         </DialogDescription>
       </DialogHeader>
 
       <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2 space-y-1.5">
-          <Label htmlFor="ddt-causale" className="text-xs">Causale del trasporto</Label>
+          <Label htmlFor="ddt-causale" className="text-xs">{t("Causale del trasporto")}</Label>
           <Select value={causale} onValueChange={setCausale}>
-            <SelectTrigger id="ddt-causale" className="h-9" aria-label="Causale del trasporto">
+            <SelectTrigger id="ddt-causale" className="h-9" aria-label={t("Causale del trasporto")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -123,38 +125,38 @@ function Modulo({
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="ddt-porto" className="text-xs">Porto <span className="font-normal text-muted-foreground">· chi paga il trasporto</span></Label>
+          <Label htmlFor="ddt-porto" className="text-xs">{t("Porto")} <span className="font-normal text-muted-foreground">{t("· chi paga il trasporto")}</span></Label>
           <Select value={porto} onValueChange={setPorto}>
-            <SelectTrigger id="ddt-porto" className="h-9" aria-label="Porto">
+            <SelectTrigger id="ddt-porto" className="h-9" aria-label={t("Porto")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="Franco">Franco</SelectItem>
-              <SelectItem value="Assegnato">Assegnato</SelectItem>
+              <SelectItem value="Franco">{t("Franco")}</SelectItem>
+              <SelectItem value="Assegnato">{t("Assegnato")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="ddt-colli" className="text-xs">Colli</Label>
+          <Label htmlFor="ddt-colli" className="text-xs">{t("Colli")}</Label>
           <Input id="ddt-colli" type="number" min={0} inputMode="numeric" className="h-9" value={colli} onChange={(e) => setColli(e.target.value)} />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="ddt-aspetto" className="text-xs">Aspetto dei beni</Label>
-          <Input id="ddt-aspetto" className="h-9" placeholder="Bancale, cartoni…" value={aspetto} onChange={(e) => setAspetto(e.target.value)} />
+          <Label htmlFor="ddt-aspetto" className="text-xs">{t("Aspetto dei beni")}</Label>
+          <Input id="ddt-aspetto" className="h-9" placeholder={t("Bancale, cartoni…")} value={aspetto} onChange={(e) => setAspetto(e.target.value)} />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="ddt-peso" className="text-xs">Peso (kg)</Label>
-          <Input id="ddt-peso" inputMode="decimal" className="h-9" placeholder="Facoltativo" value={peso} onChange={(e) => setPeso(e.target.value)} />
+          <Label htmlFor="ddt-peso" className="text-xs">{t("Peso (kg)")}</Label>
+          <Input id="ddt-peso" inputMode="decimal" className="h-9" placeholder={t("Facoltativo")} value={peso} onChange={(e) => setPeso(e.target.value)} />
         </div>
       </div>
 
       <DialogFooter className="gap-2 sm:gap-0">
         <Button variant="outline" onClick={() => onOpenChange(false)} disabled={crea.isPending}>
-          {appenaRegistrata ? "Più tardi" : "Annulla"}
+          {appenaRegistrata ? t("Più tardi") : t("Annulla")}
         </Button>
         <Button onClick={conferma} disabled={crea.isPending}>
           {crea.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileText className="h-4 w-4 mr-2" />}
-          Crea il DDT
+          {t("Crea il DDT")}
         </Button>
       </DialogFooter>
     </DialogContent>

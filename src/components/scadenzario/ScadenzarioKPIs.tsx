@@ -8,11 +8,12 @@ import { queryKeys } from "@/lib/queryKeys";
 import { domenicaDi } from "@/lib/finance/incassiSettimanali";
 import { useForecastLedger } from "@/hooks/useForecastLedger";
 import { incassiScaduti } from "@/lib/finance/incassiScaduti";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // Nei KPI di testata niente centesimi: piu' leggibili, mai troncati
 // (stessa scelta del riepilogo Commesse e dei Costi).
 const fmtEur = (n: number) =>
-  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(n);
+  new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(n);
 
 interface Props {
   summary: ScadenzarioSummary | undefined;
@@ -45,6 +46,7 @@ function useSettimanaScadenzario() {
 }
 
 export default function ScadenzarioKPIs({ summary, isLoading, className, onScadute, scaduteAttive }: Props) {
+  const tr = useT();
   // I due versi separati arrivano dalla RPC. Se una risposta vecchia non li
   // porta ancora, si ricade sul totale: meglio il numero di prima che nessuno.
   const settimana = useSettimanaScadenzario();
@@ -78,38 +80,38 @@ export default function ScadenzarioKPIs({ summary, isLoading, className, onScadu
     <div className={cn("grid grid-cols-2 gap-2 xl:grid-cols-4", className)}>
       <NumeroVeloce
         indice={0}
-        etichetta="Scaduto da incassare"
+        etichetta={tr("Scaduto da incassare")}
         valore={scadutoTotale ?? scadutoEntrata}
         tono={entrataCount > 0 ? "cattivo" : "buono"}
         onClick={onScadute}
         attivo={scaduteAttive}
         nota={
           (scadutoTotale != null
-            ? `di cui ${fmtEur(scadutoEntrata)} in ${entrataCount} scadenz${entrataCount === 1 ? "a" : "e"} qui`
-            : `${entrataCount} scadenz${entrataCount === 1 ? "a" : "e"}`)
-          + (scadutoUscita > 0 ? ` · ${fmtEur(scadutoUscita)} da pagare` : "")
+            ? tr(entrataCount === 1 ? "di cui {importo} in {n} scadenza qui" : "di cui {importo} in {n} scadenze qui", { importo: fmtEur(scadutoEntrata), n: entrataCount })
+            : tr(entrataCount === 1 ? "{n} scadenza" : "{n} scadenze", { n: entrataCount }))
+          + (scadutoUscita > 0 ? ` · ${tr("{importo} da pagare", { importo: fmtEur(scadutoUscita) })}` : "")
         }
       />
       <NumeroVeloce
         indice={1}
-        etichetta="Da incassare questa settimana"
+        etichetta={tr("Da incassare questa settimana")}
         valore={settimana?.incassare}
         testo={settimana ? undefined : "—"}
         tono="attenzione"
-        nota={settimana ? `e ${fmtEur(settimana.pagare)} da pagare` : "non caricato"}
+        nota={settimana ? tr("e {importo} da pagare", { importo: fmtEur(settimana.pagare) }) : tr("non caricato")}
       />
       <NumeroVeloce
         indice={2}
-        etichetta="Prossimi 30 giorni"
+        etichetta={tr("Prossimi 30 giorni")}
         valore={summary.prossimi_30gg_amount}
-        nota={`${summary.prossimi_30gg_count} scadenz${summary.prossimi_30gg_count === 1 ? "a" : "e"}`}
+        nota={tr(summary.prossimi_30gg_count === 1 ? "{n} scadenza" : "{n} scadenze", { n: Number(summary.prossimi_30gg_count) })}
       />
       <NumeroVeloce
         indice={3}
-        etichetta="Saldo netto atteso"
+        etichetta={tr("Saldo netto atteso")}
         valore={saldoNetto}
         tono={saldoNetto >= 0 ? "buono" : "cattivo"}
-        nota={`entrate ${fmtEur(summary.entrate_previste)} · uscite ${fmtEur(summary.uscite_previste)}`}
+        nota={tr("entrate {entrate} · uscite {uscite}", { entrate: fmtEur(summary.entrate_previste), uscite: fmtEur(summary.uscite_previste) })}
       />
     </div>
   );

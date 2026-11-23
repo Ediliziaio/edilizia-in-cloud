@@ -8,6 +8,7 @@ import {Dialog,DialogContent,DialogHeader,DialogTitle,DialogDescription,DialogFo
 import {Button} from "@/components/ui/button";
 import {toast} from "sonner";
 import type {DocumentoFiscale} from "@/types/fatturazione";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export async function collegaEmessaACommessa(doc:DocumentoFiscale,orderId:string) {
  if(!doc.company_id||!doc.id||!orderId)throw new Error("Seleziona una commessa");
@@ -19,13 +20,14 @@ export async function collegaEmessaACommessa(doc:DocumentoFiscale,orderId:string
  }
 }
 export function CollegaEmessaDialog({doc,onOpenChange}:{doc:DocumentoFiscale|null;onOpenChange:(open:boolean)=>void}) {
+  const t = useT();
  const qc=useQueryClient();const [order,setOrder]=useState<{doc:string;id:string}|null>(null);const [busy,setBusy]=useState(false);const selected=order?.doc===doc?.id?order?.id:undefined;
  async function save(){if(!doc||!selected)return;setBusy(true);try{
   await collegaEmessaACommessa(doc,selected);
   ["documenti-fiscali","fattura-ordini","ordine-fatture","emessa-importata","emesse-importate","collegamenti-emessa-importata"].forEach(key=>void qc.invalidateQueries({queryKey:[key]}));
-  refreshFinancialQueries(qc);toast.success("Fattura collegata alla commessa");setOrder(null);onOpenChange(false);
- }catch(e){toast.error((e as {message?:string}).message||"Collegamento non riuscito");}finally{setBusy(false);}}
- return <Dialog open={!!doc} onOpenChange={v=>{if(!busy)onOpenChange(v);}}><DialogContent><DialogHeader><DialogTitle>Collega fattura {doc?.numero}</DialogTitle><DialogDescription>La fattura e i suoi incassi saranno visibili nella commessa. Questa operazione non registra nuovi pagamenti e non modifica il documento fiscale.</DialogDescription></DialogHeader>
- {doc&&<OrderSelectCombobox companyId={doc.company_id} value={selected} onChange={id=>setOrder({doc:doc.id,id})} disabled={busy} filtroIniziale="all" ariaLabel="Commessa da collegare" placeholder="Cerca commessa per codice o cliente…"/>}
- <DialogFooter><Button variant="outline" disabled={busy} onClick={()=>onOpenChange(false)}>Annulla</Button><Button disabled={busy||!selected} onClick={()=>void save()}>{busy?"Collegamento…":"Collega alla commessa"}</Button></DialogFooter></DialogContent></Dialog>;
+  refreshFinancialQueries(qc);toast.success(t("Fattura collegata alla commessa"));setOrder(null);onOpenChange(false);
+ }catch(e){toast.error((e as {message?:string}).message||t("Collegamento non riuscito"));}finally{setBusy(false);}}
+ return <Dialog open={!!doc} onOpenChange={v=>{if(!busy)onOpenChange(v);}}><DialogContent><DialogHeader><DialogTitle>{t("Collega fattura {numero}", { numero: String(doc?.numero ?? "") })}</DialogTitle><DialogDescription>{t("La fattura e i suoi incassi saranno visibili nella commessa. Questa operazione non registra nuovi pagamenti e non modifica il documento fiscale.")}</DialogDescription></DialogHeader>
+ {doc&&<OrderSelectCombobox companyId={doc.company_id} value={selected} onChange={id=>setOrder({doc:doc.id,id})} disabled={busy} filtroIniziale="all" ariaLabel={t("Commessa da collegare")} placeholder={t("Cerca commessa per codice o cliente…")}/>}
+ <DialogFooter><Button variant="outline" disabled={busy} onClick={()=>onOpenChange(false)}>{t("Annulla")}</Button><Button disabled={busy||!selected} onClick={()=>void save()}>{busy?t("Collegamento…"):t("Collega alla commessa")}</Button></DialogFooter></DialogContent></Dialog>;
 }

@@ -22,6 +22,7 @@ import {
 } from "@/lib/fatturazione/clienteAnagrafica";
 import type { ClienteSnapshot } from "@/types/fatturazione";
 import { riferimentiDelCliente, type EditorState } from "./useEditorState";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   state: EditorState;
@@ -67,6 +68,7 @@ const CAMPI_INDIRIZZO_CLIENTE = {
 } as const;
 
 export function EditorClienteSection({ state, dispatch, disabled }: Props) {
+  const tr = useT();
   const [search, setSearch] = useState("");
   const [occasionaleOpen, setOccasionaleOpen] = useState(false);
   const [nomeOccasionale, setNomeOccasionale] = useState("");
@@ -181,11 +183,11 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
   async function createNewClient() {
     const problemi = problemiNuovoCliente(newForm);
     if (problemi.length > 0) {
-      toast.error(`Per creare il cliente manca: ${problemi.join(", ")}`);
+      toast.error(tr("Per creare il cliente manca: {problemi}", { problemi: problemi.join(", ") }));
       return;
     }
     if (!companyId) {
-      toast.error("Azienda non ancora caricata: riprova tra un attimo.");
+      toast.error(tr("Azienda non ancora caricata: riprova tra un attimo."));
       return;
     }
     const form = pulisciNuovoCliente(newForm);
@@ -201,7 +203,7 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
         esistente = ((data as unknown as Record<string, unknown>[] | null) ?? [])[0] ?? null;
       }
       if (esistente) {
-        toast.info("Questo cliente è già in anagrafica: l'ho scelto.");
+        toast.info(tr("Questo cliente è già in anagrafica: l'ho scelto."));
         selectCliente(esistente);
         setNewForm({ tipo: "B2B" });
         return;
@@ -212,14 +214,14 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ["anagrafiche-native"] });
       dispatch({ type: "SET_CLIENTE", anagrafica_id: (data as unknown as { id: string }).id, snapshot: snap });
-      toast.success("Cliente creato e salvato in anagrafica");
+      toast.success(tr("Cliente creato e salvato in anagrafica"));
       setNewForm({ tipo: "B2B" });
       setShowNewForm(false);
       setSearch("");
       setIsOpen(false);
       setDetailsOpen(true);
     } catch (e) {
-      toast.error("Cliente non creato", { description: (e as { message?: string })?.message ?? "Errore sconosciuto" });
+      toast.error(tr("Cliente non creato"), { description: (e as { message?: string })?.message ?? tr("Errore sconosciuto") });
     } finally {
       setSalvataggio(false);
     }
@@ -244,7 +246,7 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
     void tipo; void attivo;
     const { error } = await supabase.from("anagrafiche_native" as never)
       .update(campi as never).eq("id", state.anagrafica_id).eq("company_id", companyId);
-    if (error) toast.error("Dati non salvati in anagrafica", { description: error.message });
+    if (error) toast.error(tr("Dati non salvati in anagrafica"), { description: error.message });
     else queryClient.invalidateQueries({ queryKey: ["anagrafiche-native"] });
   }
 
@@ -263,16 +265,16 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
       <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
         <Label className="whitespace-nowrap text-[11px] font-bold uppercase tracking-wider text-primary/80">
           {state.tipo === "reverse_charge_interno"
-            ? "Fornitore"
+            ? tr("Fornitore")
             : ["integrazione_servizi_estero", "integrazione_beni_ue", "integrazione_beni_extra_ue"].includes(state.tipo)
-            ? "Fornitore Estero"
-            : "Cliente / Committente"}
+            ? tr("Fornitore Estero")
+            : tr("Cliente / Committente")}
         </Label>
         {hasCliente && !disabled && (
           <div className="ml-auto flex items-center gap-1">
             {state.anagrafica_id && snapshot && (
               <Button variant="ghost" size="sm" className="h-6 text-[11px] px-1.5 text-muted-foreground" onClick={passaAManuale}>
-                Inserisci a mano
+                {tr("Inserisci a mano")}
               </Button>
             )}
             <Button
@@ -282,7 +284,7 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
               onClick={() => { setDetailsOpen(true); setEditingSnapshot(true); }}
             >
               <Pencil className="h-3 w-3 mr-1" />
-              Modifica
+              {tr("Modifica")}
             </Button>
             <Button
               variant="outline"
@@ -291,8 +293,8 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
               onClick={() => {
                 const tolti = riferimentiDelCliente(state);
                 if (tolti.length > 0) {
-                  toast.info(`Tolti dalla fattura i dati del cliente precedente: ${tolti.join(", ")}`, {
-                    description: "Appartengono all'appalto di quel cliente. Se servono anche per il nuovo, riscrivili nella sezione Commessa e riferimenti PA.",
+                  toast.info(tr("Tolti dalla fattura i dati del cliente precedente: {tolti}", { tolti: tolti.join(", ") }), {
+                    description: tr("Appartengono all'appalto di quel cliente. Se servono anche per il nuovo, riscrivili nella sezione Commessa e riferimenti PA."),
                   });
                 }
                 dispatch({ type: "CLEAR_CLIENTE" });
@@ -301,7 +303,7 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
               }}
             >
               <X className="h-3 w-3 mr-1" />
-              Cambia
+              {tr("Cambia")}
             </Button>
           </div>
         )}
@@ -315,13 +317,13 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
               const t = tipoMostrato(snapshot!);
               return (
                 <Badge variant="secondary" className={`mt-0.5 h-5 shrink-0 px-2 text-[10px] font-semibold ${TIPO_BADGE[t].className}`} data-testid="tipo-cliente">
-                  {TIPO_BADGE[t].label}
+                  {tr(TIPO_BADGE[t].label)}
                 </Badge>
               );
             })()}
             <div className="min-w-0 flex-1">
               <div className="font-semibold text-sm leading-tight truncate">
-                {nomeCliente(snapshot) || <span className="text-amber-600">Cliente senza nome</span>}
+                {nomeCliente(snapshot) || <span className="text-amber-600">{tr("Cliente senza nome")}</span>}
               </div>
               <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
                 {snapshot!.partita_iva ? (
@@ -329,21 +331,21 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                 ) : snapshot!.codice_fiscale ? (
                   <span><span className="text-muted-foreground/70">CF</span> <span className="font-mono uppercase text-foreground">{snapshot!.codice_fiscale}</span></span>
                 ) : (
-                  <span className="text-amber-600">P.IVA o CF mancante</span>
+                  <span className="text-amber-600">{tr("P.IVA o CF mancante")}</span>
                 )}
                 {snapshot!.tipo_cliente === "PA" ? (
                   snapshot!.ufficio_pa ? (
-                    <span title={snapshot!.ufficio_pa.descrizione ?? undefined}><span className="text-muted-foreground/70">Ufficio</span> <span className="font-mono text-foreground">{snapshot!.ufficio_pa.codice}</span>{snapshot!.ufficio_pa.descrizione ? ` · ${snapshot!.ufficio_pa.descrizione}` : ""}</span>
+                    <span title={snapshot!.ufficio_pa.descrizione ?? undefined}><span className="text-muted-foreground/70">{tr("Ufficio")}</span> <span className="font-mono text-foreground">{snapshot!.ufficio_pa.codice}</span>{snapshot!.ufficio_pa.descrizione ? ` · ${snapshot!.ufficio_pa.descrizione}` : ""}</span>
                   ) : snapshot!.codice_sdi ? (
-                    <span><span className="text-muted-foreground/70">Ufficio</span> <span className="font-mono text-foreground">{snapshot!.codice_sdi}</span></span>
+                    <span><span className="text-muted-foreground/70">{tr("Ufficio")}</span> <span className="font-mono text-foreground">{snapshot!.codice_sdi}</span></span>
                   ) : (
-                    <span className="text-amber-600">Codice ufficio mancante</span>
+                    <span className="text-amber-600">{tr("Codice ufficio mancante")}</span>
                   )
                 ) : snapshot!.codice_sdi ? (
-                  <span><span className="text-muted-foreground/70">Cod. destinatario</span> <span className="font-mono text-foreground">{snapshot!.codice_sdi}</span></span>
+                  <span><span className="text-muted-foreground/70">{tr("Cod. destinatario")}</span> <span className="font-mono text-foreground">{snapshot!.codice_sdi}</span></span>
                 ) : null}
                 {snapshot!.pec && <span className="min-w-0 truncate"><span className="text-muted-foreground/70">PEC</span> <span className="text-foreground">{snapshot!.pec}</span></span>}
-                {state.esigibilita_iva === "S" && <span className="rounded bg-blue-50 px-1 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">Split payment</span>}
+                {state.esigibilita_iva === "S" && <span className="rounded bg-blue-50 px-1 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">{tr("Split payment")}</span>}
               </div>
             </div>
           </div>
@@ -353,9 +355,9 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
             <div className="mt-2 flex items-start gap-1.5 rounded border border-amber-200 bg-amber-50 p-2 text-[11px] text-amber-800" role="alert">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               <span>
-                Per fatturare a un privato servono nome, cognome, codice fiscale e indirizzo. Manca: {mancanti.join(", ")}.
+                {tr("Per fatturare a un privato servono nome, cognome, codice fiscale e indirizzo. Manca:")} {mancanti.join(", ")}.
                 {!disabled && !editingSnapshot && (
-                  <button className="ml-1 font-semibold underline" onClick={() => { setDetailsOpen(true); setEditingSnapshot(true); }}>Completa i dati</button>
+                  <button className="ml-1 font-semibold underline" onClick={() => { setDetailsOpen(true); setEditingSnapshot(true); }}>{tr("Completa i dati")}</button>
                 )}
               </span>
             </div>
@@ -366,7 +368,7 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
             <CollapsibleTrigger asChild>
               <button className="mt-1 flex items-center gap-1 rounded px-1 py-0.5 text-[10px] text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground">
                 <ChevronDown className={`h-2.5 w-2.5 transition-transform ${detailsOpen ? "rotate-180" : ""}`} />
-                {detailsOpen ? "Chiudi dettagli" : "Indirizzo e dettagli"}
+                {detailsOpen ? tr("Chiudi dettagli") : tr("Indirizzo e dettagli")}
               </button>
             </CollapsibleTrigger>
             <CollapsibleContent className="pt-2 space-y-3 animate-in fade-in-50">
@@ -374,7 +376,7 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
               <div className="space-y-2">
                 <div className="flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                   <Building2 className="h-3 w-3" />
-                  Dati Fiscali
+                  {tr("Dati Fiscali")}
                 </div>
                 {editingSnapshot && !disabled ? (
                   <div className="grid grid-cols-2 gap-2">
@@ -390,7 +392,7 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                             className="h-6 flex-1 text-[10px]"
                             onClick={() => dispatch({ type: "SET_CLIENTE", anagrafica_id: "", snapshot: cambiaTipoCliente(snapshot!, tipo) })}
                           >
-                            {etichetta}
+                            {tr(etichetta)}
                           </Button>
                         ))}
                       </div>
@@ -398,17 +400,17 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                     {snapshot!.tipo_cliente === "B2C" ? (
                       <>
                         <div>
-                          <Label htmlFor="cliente-nome" className="text-[9px] text-muted-foreground">Nome *</Label>
+                          <Label htmlFor="cliente-nome" className="text-[9px] text-muted-foreground">{tr("Nome *")}</Label>
                           <Input id="cliente-nome" value={snapshot!.nome ?? ""} onChange={(e) => updateSnapshotField("nome", e.target.value)} className="h-6 text-[11px]" />
                         </div>
                         <div>
-                          <Label htmlFor="cliente-cognome" className="text-[9px] text-muted-foreground">Cognome *</Label>
+                          <Label htmlFor="cliente-cognome" className="text-[9px] text-muted-foreground">{tr("Cognome *")}</Label>
                           <Input id="cliente-cognome" value={snapshot!.cognome ?? ""} onChange={(e) => updateSnapshotField("cognome", e.target.value)} className="h-6 text-[11px]" />
                         </div>
                       </>
                     ) : (
                       <div>
-                        <Label htmlFor="cliente-ragione-sociale" className="text-[9px] text-muted-foreground">Ragione Sociale</Label>
+                        <Label htmlFor="cliente-ragione-sociale" className="text-[9px] text-muted-foreground">{tr("Ragione Sociale")}</Label>
                         <Input id="cliente-ragione-sociale" value={snapshot!.ragione_sociale ?? ""} onChange={(e) => updateSnapshotField("ragione_sociale", e.target.value)} className="h-6 text-[11px]" />
                       </div>
                     )}
@@ -417,11 +419,11 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                       <Input value={snapshot!.partita_iva ?? ""} onChange={(e) => updateSnapshotField("partita_iva", e.target.value)} className="h-6 text-[11px] font-mono" />
                     </div>
                     <div>
-                      <Label className="text-[9px] text-muted-foreground">Codice Fiscale</Label>
+                      <Label className="text-[9px] text-muted-foreground">{tr("Codice Fiscale")}</Label>
                       <Input value={snapshot!.codice_fiscale ?? ""} onChange={(e) => updateSnapshotField("codice_fiscale", e.target.value)} className="h-6 text-[11px] font-mono uppercase" />
                     </div>
                     <div>
-                      <Label className="text-[9px] text-muted-foreground">{snapshot!.tipo_cliente === "PA" ? "Codice Univoco Ufficio" : "Codice SDI"}</Label>
+                      <Label className="text-[9px] text-muted-foreground">{snapshot!.tipo_cliente === "PA" ? tr("Codice Univoco Ufficio") : tr("Codice SDI")}</Label>
                       {/* PA: Codice Univoco Ufficio, esattamente 6 caratteri; privati: 7. Solo A-Z/0-9 (SDI rifiuta altri caratteri). */}
                       <Input
                         value={snapshot!.codice_sdi ?? ""}
@@ -442,21 +444,21 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                       {snapshot!.partita_iva ? (
                         <span className="font-mono">{snapshot!.partita_iva}</span>
                       ) : (
-                        <span className="text-amber-600 italic text-[10px]">Non inserita</span>
+                        <span className="text-amber-600 italic text-[10px]">{tr("Non inserita")}</span>
                       )}
 
                       <span className="text-muted-foreground">CF</span>
                       {snapshot!.codice_fiscale ? (
                         <span className="font-mono uppercase">{snapshot!.codice_fiscale}</span>
                       ) : (
-                        <span className="text-amber-600 italic text-[10px]">Non inserito</span>
+                        <span className="text-amber-600 italic text-[10px]">{tr("Non inserito")}</span>
                       )}
 
                       <span className="text-muted-foreground">SDI</span>
                       {snapshot!.codice_sdi ? (
                         <span className="font-mono">{snapshot!.codice_sdi}</span>
                       ) : (
-                        <span className="text-amber-600 italic text-[10px]">Non inserito</span>
+                        <span className="text-amber-600 italic text-[10px]">{tr("Non inserito")}</span>
                       )}
 
                       <span className="text-muted-foreground">PEC</span>
@@ -471,7 +473,7 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                     {!snapshot!.partita_iva && !snapshot!.codice_fiscale && (
                       <div className="flex items-start gap-1.5 p-2 rounded bg-amber-50 border border-amber-200 text-[10px] text-amber-700">
                         <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" />
-                        <span>Per la fatturazione elettronica serve almeno P.IVA o Codice Fiscale. Clicca "Modifica dati cliente" per inserirli.</span>
+                        <span>{tr("Per la fatturazione elettronica serve almeno P.IVA o Codice Fiscale. Clicca \"Modifica dati cliente\" per inserirli.")}</span>
                       </div>
                     )}
                   </div>
@@ -482,19 +484,19 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
               <div className="space-y-2">
                 <div className="flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                   <MapPin className="h-3 w-3" />
-                  Indirizzo
+                  {tr("Indirizzo")}
                 </div>
                 {editingSnapshot && !disabled ? (
                   <div className="grid grid-cols-2 gap-2">
                     <div className="col-span-2">
-                      <Label htmlFor="cliente-indirizzo-via" className="text-[9px] text-muted-foreground">Via/Indirizzo</Label>
+                      <Label htmlFor="cliente-indirizzo-via" className="text-[9px] text-muted-foreground">{tr("Via/Indirizzo")}</Label>
                       <CampoIndirizzo
                         id="cliente-indirizzo-via"
                         value={snapshot!.indirizzo_via ?? ""}
                         onChange={(v) => updateSnapshotField("indirizzo_via", v)}
                         onScegli={(a) => updateSnapshotFields(campiDaTrovato(a, CAMPI_INDIRIZZO_CLIENTE))}
                         className="h-6 text-[11px]"
-                        placeholder="Via Roma 1"
+                        placeholder={tr("Via Roma 1")}
                       />
                     </div>
                     <div>
@@ -502,15 +504,15 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                       <Input value={snapshot!.indirizzo_cap ?? ""} onChange={(e) => updateSnapshotField("indirizzo_cap", e.target.value)} className="h-6 text-[11px]" maxLength={5} placeholder="00100" />
                     </div>
                     <div>
-                      <Label className="text-[9px] text-muted-foreground">Comune</Label>
-                      <Input value={snapshot!.indirizzo_comune ?? ""} onChange={(e) => updateSnapshotField("indirizzo_comune", e.target.value)} className="h-6 text-[11px]" placeholder="Roma" />
+                      <Label className="text-[9px] text-muted-foreground">{tr("Comune")}</Label>
+                      <Input value={snapshot!.indirizzo_comune ?? ""} onChange={(e) => updateSnapshotField("indirizzo_comune", e.target.value)} className="h-6 text-[11px]" placeholder={tr("Roma")} />
                     </div>
                     <div>
-                      <Label className="text-[9px] text-muted-foreground">Provincia</Label>
+                      <Label className="text-[9px] text-muted-foreground">{tr("Provincia")}</Label>
                       <Input value={snapshot!.indirizzo_provincia ?? ""} onChange={(e) => updateSnapshotField("indirizzo_provincia", e.target.value)} className="h-6 text-[11px] uppercase" maxLength={2} placeholder="RM" />
                     </div>
                     <div>
-                      <Label className="text-[9px] text-muted-foreground">Nazione</Label>
+                      <Label className="text-[9px] text-muted-foreground">{tr("Nazione")}</Label>
                       <Input value={snapshot!.indirizzo_nazione ?? "IT"} onChange={(e) => updateSnapshotField("indirizzo_nazione", e.target.value)} className="h-6 text-[11px] uppercase" maxLength={2} placeholder="IT" />
                     </div>
                   </div>
@@ -525,7 +527,7 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                         </p>
                       </div>
                     ) : (
-                      <p className="text-muted-foreground italic">Nessun indirizzo inserito</p>
+                      <p className="text-muted-foreground italic">{tr("Nessun indirizzo inserito")}</p>
                     )}
                   </div>
                 )}
@@ -540,7 +542,7 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                   onClick={() => (editingSnapshot ? void fineModifica() : setEditingSnapshot(true))}
                 >
                   <Pencil className="h-2.5 w-2.5" />
-                  {editingSnapshot ? "Fine modifica" : "Modifica dati cliente"}
+                  {editingSnapshot ? tr("Fine modifica") : tr("Modifica dati cliente")}
                 </Button>
               )}
             </CollapsibleContent>
@@ -555,7 +557,7 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
               <div className="relative min-w-0 flex-1">
                 <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
-                  placeholder="Cerca cliente per nome, P.IVA o CF..."
+                  placeholder={tr("Cerca cliente per nome, P.IVA o CF...")}
                   value={search}
                   onChange={(e) => { setSearch(e.target.value); setIsOpen(true); }}
                   onFocus={() => setIsOpen(true)}
@@ -571,7 +573,7 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                     onClick={() => { setShowNewForm(true); setIsOpen(false); }}
                   >
                     <Plus className="h-3.5 w-3.5 mr-1" />
-                    Nuovo cliente
+                    {tr("Nuovo cliente")}
                   </Button>
                   <Button
                     variant="outline"
@@ -583,7 +585,7 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                       setIsOpen(false);
                     }}
                   >
-                    Occasionale
+                    {tr("Occasionale")}
                   </Button>
                 </div>
               )}
@@ -596,7 +598,7 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                   filtered.map((a) => {
                     const nomeAnagrafica = (a.ragione_sociale as string) || `${a.nome ?? ""} ${a.cognome ?? ""}`.trim();
                     // Privato importato senza nome: si riconosce dal codice fiscale e dal comune.
-                    const name = nomeAnagrafica || "Privato senza nome";
+                    const name = nomeAnagrafica || tr("Privato senza nome");
                     const tipoCliente = a.tipo_cliente as string | undefined;
                     const addr = [a.indirizzo_comune as string, a.indirizzo_provincia as string].filter(Boolean).join(" ");
                     return (
@@ -618,14 +620,14 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                         </div>
                         {tipoCliente && TIPO_BADGE[tipoCliente] && (
                           <Badge variant="secondary" className={`text-[8px] px-1 h-3.5 shrink-0 ${TIPO_BADGE[tipoCliente]?.className ?? ""}`}>
-                            {TIPO_BADGE[tipoCliente]?.label}
+                            {tr(TIPO_BADGE[tipoCliente]?.label ?? "")}
                           </Badge>
                         )}
                       </button>
                     );
                   })
                 ) : (
-                  <div className="px-3 py-2 text-[11px] text-muted-foreground">Nessun cliente trovato</div>
+                  <div className="px-3 py-2 text-[11px] text-muted-foreground">{tr("Nessun cliente trovato")}</div>
                 )}
               </div>
             )}
@@ -639,32 +641,32 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                   setNewForm({ tipo });
                 }}>
                   <TabsList className="grid w-full grid-cols-3 h-7">
-                    <TabsTrigger value="B2B" className="text-[10px]">Azienda</TabsTrigger>
-                    <TabsTrigger value="B2C" className="text-[10px]">Privato</TabsTrigger>
-                    <TabsTrigger value="PA" className="text-[10px]">Ente PA</TabsTrigger>
+                    <TabsTrigger value="B2B" className="text-[10px]">{tr("Azienda")}</TabsTrigger>
+                    <TabsTrigger value="B2C" className="text-[10px]">{tr("Privato")}</TabsTrigger>
+                    <TabsTrigger value="PA" className="text-[10px]">{tr("Ente PA")}</TabsTrigger>
                   </TabsList>
 
                   {/* B2B form */}
                   <TabsContent value="B2B" className="space-y-2 mt-2">
                     <div>
-                      <Label className="text-[10px]">Ragione Sociale *</Label>
-                      <Input placeholder="Nome azienda" value={newForm.ragioneSociale ?? ""} onChange={(e) => setNewForm({ ...newForm, ragioneSociale: e.target.value })} className="h-7 text-xs" />
+                      <Label className="text-[10px]">{tr("Ragione Sociale *")}</Label>
+                      <Input placeholder={tr("Nome azienda")} value={newForm.ragioneSociale ?? ""} onChange={(e) => setNewForm({ ...newForm, ragioneSociale: e.target.value })} className="h-7 text-xs" />
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <Label className="text-[10px]">P.IVA</Label>
-                        <Input placeholder="11 cifre" value={newForm.partitaIva ?? ""} onChange={(e) => setNewForm({ ...newForm, partitaIva: e.target.value.replace(/\s+/g, "") })} className="h-7 text-xs font-mono" />
+                        <Input placeholder={tr("11 cifre")} value={newForm.partitaIva ?? ""} onChange={(e) => setNewForm({ ...newForm, partitaIva: e.target.value.replace(/\s+/g, "") })} className="h-7 text-xs font-mono" />
                         {pivaError && <p className="text-[9px] text-destructive mt-0.5">{pivaError}</p>}
                       </div>
                       <div>
-                        <Label className="text-[10px]">Codice Fiscale</Label>
+                        <Label className="text-[10px]">{tr("Codice Fiscale")}</Label>
                         <Input placeholder="CF" value={newForm.codiceFiscale ?? ""} onChange={(e) => setNewForm({ ...newForm, codiceFiscale: e.target.value.toUpperCase() })} className="h-7 text-xs font-mono uppercase" />
                         {cfError && <p className="text-[9px] text-destructive mt-0.5">{cfError}</p>}
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <Label className="text-[10px]">Codice SDI</Label>
+                        <Label className="text-[10px]">{tr("Codice SDI")}</Label>
                         <Input placeholder="0000000" value={newForm.codiceSdi ?? ""} onChange={(e) => setNewForm({ ...newForm, codiceSdi: e.target.value.toUpperCase() })} className="h-7 text-xs font-mono" maxLength={7} />
                       </div>
                       <div>
@@ -678,17 +680,17 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                   <TabsContent value="B2C" className="space-y-2 mt-2">
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <Label className="text-[10px]">Nome *</Label>
-                        <Input placeholder="Nome" value={newForm.nome ?? ""} onChange={(e) => setNewForm({ ...newForm, nome: e.target.value })} className="h-7 text-xs" />
+                        <Label className="text-[10px]">{tr("Nome *")}</Label>
+                        <Input placeholder={tr("Nome")} value={newForm.nome ?? ""} onChange={(e) => setNewForm({ ...newForm, nome: e.target.value })} className="h-7 text-xs" />
                       </div>
                       <div>
-                        <Label className="text-[10px]">Cognome *</Label>
-                        <Input placeholder="Cognome" value={newForm.cognome ?? ""} onChange={(e) => setNewForm({ ...newForm, cognome: e.target.value })} className="h-7 text-xs" />
+                        <Label className="text-[10px]">{tr("Cognome *")}</Label>
+                        <Input placeholder={tr("Cognome")} value={newForm.cognome ?? ""} onChange={(e) => setNewForm({ ...newForm, cognome: e.target.value })} className="h-7 text-xs" />
                       </div>
                     </div>
                     <div>
-                      <Label className="text-[10px]">Codice Fiscale *</Label>
-                      <Input placeholder="16 caratteri" value={newForm.codiceFiscale ?? ""} onChange={(e) => setNewForm({ ...newForm, codiceFiscale: e.target.value.toUpperCase() })} className="h-7 text-xs font-mono uppercase" />
+                      <Label className="text-[10px]">{tr("Codice Fiscale *")}</Label>
+                      <Input placeholder={tr("16 caratteri")} value={newForm.codiceFiscale ?? ""} onChange={(e) => setNewForm({ ...newForm, codiceFiscale: e.target.value.toUpperCase() })} className="h-7 text-xs font-mono uppercase" />
                       {cfError && <p className="text-[9px] text-destructive mt-0.5">{cfError}</p>}
                     </div>
                   </TabsContent>
@@ -696,18 +698,18 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                   {/* PA form */}
                   <TabsContent value="PA" className="space-y-2 mt-2">
                     <div>
-                      <Label className="text-[10px]">Denominazione Ente *</Label>
-                      <Input placeholder="Nome ente pubblico" value={newForm.ragioneSociale ?? ""} onChange={(e) => setNewForm({ ...newForm, ragioneSociale: e.target.value })} className="h-7 text-xs" />
+                      <Label className="text-[10px]">{tr("Denominazione Ente *")}</Label>
+                      <Input placeholder={tr("Nome ente pubblico")} value={newForm.ragioneSociale ?? ""} onChange={(e) => setNewForm({ ...newForm, ragioneSociale: e.target.value })} className="h-7 text-xs" />
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <Label className="text-[10px]">Codice Fiscale Ente</Label>
+                        <Label className="text-[10px]">{tr("Codice Fiscale Ente")}</Label>
                         <Input placeholder="CF" value={newForm.codiceFiscale ?? ""} onChange={(e) => setNewForm({ ...newForm, codiceFiscale: e.target.value })} className="h-7 text-xs font-mono" />
                       </div>
                       <div>
-                        <Label className="text-[10px]">Codice Univoco Ufficio *</Label>
-                        <Input placeholder="6 caratteri" value={newForm.codiceSdi ?? ""} onChange={(e) => setNewForm({ ...newForm, codiceSdi: e.target.value.toUpperCase() })} className="h-7 text-xs font-mono" maxLength={6} />
-                        <p className="text-[8px] text-muted-foreground mt-0.5">6 caratteri, dall'Indice PA: uno per ufficio</p>
+                        <Label className="text-[10px]">{tr("Codice Univoco Ufficio *")}</Label>
+                        <Input placeholder={tr("6 caratteri")} value={newForm.codiceSdi ?? ""} onChange={(e) => setNewForm({ ...newForm, codiceSdi: e.target.value.toUpperCase() })} className="h-7 text-xs font-mono" maxLength={6} />
+                        <p className="text-[8px] text-muted-foreground mt-0.5">{tr("6 caratteri, dall'Indice PA: uno per ufficio")}</p>
                       </div>
                     </div>
                     <div>
@@ -721,12 +723,12 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                 <div className="border-t pt-2 space-y-2">
                   <div className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                     <MapPin className="h-2.5 w-2.5" />
-                    Indirizzo * (via, CAP, comune)
+                    {tr("Indirizzo * (via, CAP, comune)")}
                   </div>
                   <div>
                     <CampoIndirizzo
-                      aria-label="Via / Indirizzo"
-                      placeholder="Via / Indirizzo"
+                      aria-label={tr("Via / Indirizzo")}
+                      placeholder={tr("Via / Indirizzo")}
                       value={newForm.indirizzo_via ?? ""}
                       onChange={(v) => setNewForm({ ...newForm, indirizzo_via: v })}
                       onScegli={(a) => setNewForm((p) => ({ ...p, ...campiDaTrovato(a, CAMPI_INDIRIZZO_CLIENTE) }))}
@@ -735,13 +737,13 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                   </div>
                   <div className="grid grid-cols-4 gap-1.5">
                     <Input placeholder="CAP" value={newForm.indirizzo_cap ?? ""} onChange={(e) => setNewForm({ ...newForm, indirizzo_cap: e.target.value })} className="h-7 text-xs" maxLength={5} />
-                    <Input placeholder="Comune" value={newForm.indirizzo_comune ?? ""} onChange={(e) => setNewForm({ ...newForm, indirizzo_comune: e.target.value })} className="h-7 text-xs col-span-2" />
-                    <Input placeholder="Prov" value={newForm.indirizzo_provincia ?? ""} onChange={(e) => setNewForm({ ...newForm, indirizzo_provincia: e.target.value.toUpperCase() })} className="h-7 text-xs uppercase" maxLength={2} />
+                    <Input placeholder={tr("Comune")} value={newForm.indirizzo_comune ?? ""} onChange={(e) => setNewForm({ ...newForm, indirizzo_comune: e.target.value })} className="h-7 text-xs col-span-2" />
+                    <Input placeholder={tr("Prov")} value={newForm.indirizzo_provincia ?? ""} onChange={(e) => setNewForm({ ...newForm, indirizzo_provincia: e.target.value.toUpperCase() })} className="h-7 text-xs uppercase" maxLength={2} />
                   </div>
                 </div>
 
                 {problemiNuovo.length > 0 && (
-                  <p className="text-[10px] text-amber-700">Manca: {problemiNuovo.join(", ")}.</p>
+                  <p className="text-[10px] text-amber-700">{tr("Manca: {problemiNuovo}.", { problemiNuovo: problemiNuovo.join(", ") })}</p>
                 )}
                 <div className="flex gap-2">
                   <Button
@@ -750,7 +752,7 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                     onClick={() => void createNewClient()}
                     disabled={salvataggio || problemiNuovo.length > 0}
                   >
-                    {salvataggio ? "Salvo…" : 'Crea e seleziona'}
+                    {salvataggio ? tr("Salvo…") : tr("Crea e seleziona")}
                   </Button>
                   <Button
                     variant="outline"
@@ -761,7 +763,7 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                       setNewForm({ tipo: "B2B" });
                     }}
                   >
-                    Annulla
+                    {tr("Annulla")}
                   </Button>
                 </div>
               </div>
@@ -772,17 +774,17 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
       <Dialog open={occasionaleOpen} onOpenChange={setOccasionaleOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Cliente occasionale</DialogTitle>
-            <DialogDescription>Inserisci il nome, poi completa i dati del cliente nel documento.</DialogDescription>
+            <DialogTitle>{tr("Cliente occasionale")}</DialogTitle>
+            <DialogDescription>{tr("Inserisci il nome, poi completa i dati del cliente nel documento.")}</DialogDescription>
           </DialogHeader>
-          <Label htmlFor="nome-cliente-occasionale">Nome cliente occasionale</Label>
+          <Label htmlFor="nome-cliente-occasionale">{tr("Nome cliente occasionale")}</Label>
           <Input id="nome-cliente-occasionale" value={nomeOccasionale} onChange={(e) => setNomeOccasionale(e.target.value)} />
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOccasionaleOpen(false)}>Annulla</Button>
+            <Button type="button" variant="outline" onClick={() => setOccasionaleOpen(false)}>{tr("Annulla")}</Button>
             <Button type="button" disabled={!nomeOccasionale.trim()} onClick={() => {
               createQuickB2C(nomeOccasionale.trim());
               setOccasionaleOpen(false);
-            }}>Usa cliente</Button>
+            }}>{tr("Usa cliente")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

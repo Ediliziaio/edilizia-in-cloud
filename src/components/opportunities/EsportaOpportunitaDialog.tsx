@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { COLONNE_OPPORTUNITA, NOMI_DATA_PERIODO, type DataPeriodo } from "@/lib/opportunita/esportaOpportunita";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type FormatoEsportazioneOpportunita = "xlsx" | "csv";
 export interface SceltaDialog {
@@ -66,6 +67,7 @@ export function periodoRelativo(tipo: Salvata["periodo"]["tipo"], oggi = new Dat
 }
 
 export function EsportaOpportunitaDialog({ aperto, onChiudi, fasi, nomePipeline, piuPipeline, filtriAttivi, inCorso, chiaveMemoria, onEsporta, accesso = { note: true, appuntamenti: true, parzialeNote: false, parzialeAppuntamenti: false } }: Props) {
+  const tr = useT();
   const [scelteFasi, setScelteFasi] = useState<Set<string>>(new Set());
   const [stati, setStati] = useState<Set<string>>(new Set());
   const [formato, setFormato] = useState<FormatoEsportazioneOpportunita>("xlsx");
@@ -124,18 +126,18 @@ export function EsportaOpportunitaDialog({ aperto, onChiudi, fasi, nomePipeline,
     <Dialog open={aperto} onOpenChange={(v) => { if (!v && !inCorso) onChiudi(); }}>
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>Esporta opportunità</DialogTitle>
-          <DialogDescription>Scegli cosa portare fuori: fasi, periodo, colonne, note e appuntamenti.</DialogDescription>
+          <DialogTitle>{tr("Esporta opportunità")}</DialogTitle>
+          <DialogDescription>{tr("Scegli cosa portare fuori: fasi, periodo, colonne, note e appuntamenti.")}</DialogDescription>
         </DialogHeader>
 
         {salvate.length > 0 && (
           <div className="space-y-1">
-            <Label>Esportazioni salvate</Label>
+            <Label>{tr("Esportazioni salvate")}</Label>
             <div className="flex flex-wrap gap-1.5">
               {salvate.map((sv) => (
                 <span key={sv.nome} className="flex items-center gap-1 rounded-full border bg-muted/40 pl-3 text-sm">
                   <button type="button" className="py-1 hover:underline" onClick={() => applica(sv)}>{sv.nome}</button>
-                  <button type="button" aria-label={`Togli «${sv.nome}»`} className="rounded-full p-1 text-muted-foreground hover:text-destructive" onClick={() => togli(sv.nome)}><Trash2 className="h-3.5 w-3.5" /></button>
+                  <button type="button" aria-label={tr("Togli «{nome}»", { nome: String(sv.nome ?? "") })} className="rounded-full p-1 text-muted-foreground hover:text-destructive" onClick={() => togli(sv.nome)}><Trash2 className="h-3.5 w-3.5" /></button>
                 </span>
               ))}
             </div>
@@ -144,10 +146,10 @@ export function EsportaOpportunitaDialog({ aperto, onChiudi, fasi, nomePipeline,
 
         {piuPipeline && (
           <div className="space-y-1">
-            <Label>Pipeline</Label>
+            <Label>{tr("Pipeline")}</Label>
             <RadioGroup value={tuttePipeline ? "tutte" : "questa"} onValueChange={(v) => setTuttePipeline(v === "tutte")} className="flex flex-wrap gap-4">
-              <label className="flex items-center gap-2 text-sm"><RadioGroupItem value="questa" />{nomePipeline ? `Solo «${nomePipeline}»` : "Questa pipeline"}</label>
-              <label className="flex items-center gap-2 text-sm"><RadioGroupItem value="tutte" />Tutte le pipeline</label>
+              <label className="flex items-center gap-2 text-sm"><RadioGroupItem value="questa" />{nomePipeline ? tr("Solo «{nomePipeline}»", { nomePipeline: String(nomePipeline ?? "") }) : tr("Questa pipeline")}</label>
+              <label className="flex items-center gap-2 text-sm"><RadioGroupItem value="tutte" />{tr("Tutte le pipeline")}</label>
             </RadioGroup>
           </div>
         )}
@@ -155,9 +157,9 @@ export function EsportaOpportunitaDialog({ aperto, onChiudi, fasi, nomePipeline,
         {!tuttePipeline && (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label>Fasi</Label>
+              <Label>{tr("Fasi")}</Label>
               <button type="button" className="text-xs text-primary hover:underline" onClick={() => setScelteFasi(scelteFasi.size ? new Set() : new Set(fasi.map((f) => f.id)))}>
-                {scelteFasi.size ? "Tutte le fasi" : "Seleziona tutte"}
+                {scelteFasi.size ? tr("Tutte le fasi") : tr("Seleziona tutte")}
               </button>
             </div>
             <div className="grid max-h-48 gap-1 overflow-y-auto rounded-md border p-2 sm:grid-cols-2">
@@ -168,12 +170,12 @@ export function EsportaOpportunitaDialog({ aperto, onChiudi, fasi, nomePipeline,
                 </label>
               ))}
             </div>
-            <p className="text-xs text-muted-foreground">{scelteFasi.size ? `${scelteFasi.size} ${scelteFasi.size === 1 ? "fase scelta" : "fasi scelte"}.` : "Nessuna fase scelta: si esportano tutte."}</p>
+            <p className="text-xs text-muted-foreground">{scelteFasi.size ? tr(scelteFasi.size === 1 ? "{n} fase scelta." : "{n} fasi scelte.", { n: scelteFasi.size }) : tr("Nessuna fase scelta: si esportano tutte.")}</p>
           </div>
         )}
 
         <div className="space-y-2">
-          <Label>Stato</Label>
+          <Label>{tr("Stato")}</Label>
           <div className="flex flex-wrap gap-3">
             {([["open", "Aperte"], ["won", "Vinte"], ["lost", "Perse"], ["abandoned", "Abbandonate"]] as const).map(([s, nome]) => (
               <label key={s} className="flex items-center gap-2 text-sm">
@@ -182,82 +184,82 @@ export function EsportaOpportunitaDialog({ aperto, onChiudi, fasi, nomePipeline,
               </label>
             ))}
           </div>
-          <p className="text-xs text-muted-foreground">{stati.size ? "" : "Nessuno stato scelto: tutte. "}Solo «Perse» per l'elenco dei persi con il motivo.</p>
+          <p className="text-xs text-muted-foreground">{stati.size ? "" : `${tr("Nessuno stato scelto: tutte.")} `}{tr("Solo «Perse» per l'elenco dei persi con il motivo.")}</p>
         </div>
 
         <div className="space-y-2">
-          <Label>Periodo (facoltativo)</Label>
+          <Label>{tr("Periodo (facoltativo)")}</Label>
           <div className="flex flex-wrap items-end gap-2">
-            <label className="space-y-0.5 text-xs"><span className="text-muted-foreground">Dal</span><Input type="date" className="h-9 w-40" value={da} onChange={(e) => setDa(e.target.value)} /></label>
-            <label className="space-y-0.5 text-xs"><span className="text-muted-foreground">Al</span><Input type="date" className="h-9 w-40" value={a} onChange={(e) => setA(e.target.value)} /></label>
+            <label className="space-y-0.5 text-xs"><span className="text-muted-foreground">{tr("Dal")}</span><Input type="date" className="h-9 w-40" value={da} onChange={(e) => setDa(e.target.value)} /></label>
+            <label className="space-y-0.5 text-xs"><span className="text-muted-foreground">{tr("Al")}</span><Input type="date" className="h-9 w-40" value={a} onChange={(e) => setA(e.target.value)} /></label>
             <Select value={dataPeriodo} onValueChange={(v) => setDataPeriodo(v as DataPeriodo)}>
-              <SelectTrigger className="h-9 w-56" aria-label="Su quale data"><SelectValue /></SelectTrigger>
-              <SelectContent>{(Object.keys(NOMI_DATA_PERIODO) as DataPeriodo[]).map((k) => <SelectItem key={k} value={k}>per {NOMI_DATA_PERIODO[k]}</SelectItem>)}</SelectContent>
+              <SelectTrigger className="h-9 w-56" aria-label={tr("Su quale data")}><SelectValue /></SelectTrigger>
+              <SelectContent>{(Object.keys(NOMI_DATA_PERIODO) as DataPeriodo[]).map((k) => <SelectItem key={k} value={k}>{tr("per {data}", { data: tr(NOMI_DATA_PERIODO[k]) })}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           <div className="flex flex-wrap gap-1.5 text-xs">
-            <button type="button" className="rounded-full border px-2.5 py-0.5 hover:bg-muted" onClick={() => periodoRapido("settimana_scorsa")}>Settimana scorsa</button>
-            <button type="button" className="rounded-full border px-2.5 py-0.5 hover:bg-muted" onClick={() => periodoRapido("mese_scorso")}>Mese scorso</button>
-            <button type="button" className="rounded-full border px-2.5 py-0.5 hover:bg-muted" onClick={() => periodoRapido("anno")}>Quest'anno</button>
-            {(da || a) && <button type="button" className="rounded-full px-2.5 py-0.5 text-muted-foreground hover:underline" onClick={() => { setDa(""); setA(""); }}>Nessun periodo</button>}
+            <button type="button" className="rounded-full border px-2.5 py-0.5 hover:bg-muted" onClick={() => periodoRapido("settimana_scorsa")}>{tr("Settimana scorsa")}</button>
+            <button type="button" className="rounded-full border px-2.5 py-0.5 hover:bg-muted" onClick={() => periodoRapido("mese_scorso")}>{tr("Mese scorso")}</button>
+            <button type="button" className="rounded-full border px-2.5 py-0.5 hover:bg-muted" onClick={() => periodoRapido("anno")}>{tr("Quest'anno")}</button>
+            {(da || a) && <button type="button" className="rounded-full px-2.5 py-0.5 text-muted-foreground hover:underline" onClick={() => { setDa(""); setA(""); }}>{tr("Nessun periodo")}</button>}
           </div>
-          {(da || a) && dataPeriodo === "chiusura" && <p className="text-xs text-muted-foreground">Per data vinta o persa: le aperte restano fuori.</p>}
+          {(da || a) && dataPeriodo === "chiusura" && <p className="text-xs text-muted-foreground">{tr("Per data vinta o persa: le aperte restano fuori.")}</p>}
         </div>
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label>Colonne</Label>
-            <button type="button" className="text-xs text-primary hover:underline" onClick={() => setMostraColonne((v) => !v)}>{mostraColonne ? "Chiudi" : colonne.size ? `${colonne.size} scelte · cambia` : "Tutte · scegli"}</button>
+            <Label>{tr("Colonne")}</Label>
+            <button type="button" className="text-xs text-primary hover:underline" onClick={() => setMostraColonne((v) => !v)}>{mostraColonne ? tr("Chiudi") : colonne.size ? tr("{n} scelte · cambia", { n: colonne.size }) : tr("Tutte · scegli")}</button>
           </div>
           {mostraColonne && (
             <div className="space-y-1 rounded-md border p-2">
               <div className="flex gap-3 text-xs">
-                <button type="button" className="text-primary hover:underline" onClick={() => setColonne(new Set())}>Tutte</button>
-                <button type="button" className="text-primary hover:underline" onClick={() => setColonne(new Set(["name", "contact", "stage", "status", "lost_cause", "lost_detail"]))}>Solo fase e motivo</button>
+                <button type="button" className="text-primary hover:underline" onClick={() => setColonne(new Set())}>{tr("Tutte")}</button>
+                <button type="button" className="text-primary hover:underline" onClick={() => setColonne(new Set(["name", "contact", "stage", "status", "lost_cause", "lost_detail"]))}>{tr("Solo fase e motivo")}</button>
               </div>
               <div className="grid max-h-48 gap-1 overflow-y-auto sm:grid-cols-2">
                 {tutteLeColonne.map((c) => (
                   <label key={c.key} className="flex items-center gap-2 rounded px-1 py-0.5 text-sm hover:bg-muted">
                     <Checkbox checked={!colonne.size || colonne.has(c.key)} onCheckedChange={(v) => setColonne((s) => alterna(s.size ? s : new Set(tutteLeColonne.map((x) => x.key)), c.key, !!v))} />
-                    {c.label}
+                    {tr(c.label)}
                   </label>
                 ))}
               </div>
-              <p className="text-[11px] text-muted-foreground">Le colonne scelte si ricordano per la prossima volta.</p>
+              <p className="text-[11px] text-muted-foreground">{tr("Le colonne scelte si ricordano per la prossima volta.")}</p>
             </div>
           )}
         </div>
 
         <div className="space-y-2">
-          <Label>Aggiungi al file</Label>
+          <Label>{tr("Aggiungi al file")}</Label>
           <div className="flex flex-wrap gap-4">
-            <label className={`flex items-center gap-2 text-sm ${accesso.note ? "" : "text-muted-foreground"}`}><Checkbox disabled={!accesso.note} checked={note && accesso.note} onCheckedChange={(v) => setNote(!!v)} />Note{accesso.note ? "" : " (non hai il permesso di vederle)"}</label>
-            <label className={`flex items-center gap-2 text-sm ${accesso.appuntamenti ? "" : "text-muted-foreground"}`}><Checkbox disabled={!accesso.appuntamenti} checked={appuntamenti && accesso.appuntamenti} onCheckedChange={(v) => setAppuntamenti(!!v)} />Appuntamenti{accesso.appuntamenti ? "" : " (non hai il permesso di vederli)"}</label>
+            <label className={`flex items-center gap-2 text-sm ${accesso.note ? "" : "text-muted-foreground"}`}><Checkbox disabled={!accesso.note} checked={note && accesso.note} onCheckedChange={(v) => setNote(!!v)} />{tr("Note")}{accesso.note ? "" : ` ${tr("(non hai il permesso di vederle)")}`}</label>
+            <label className={`flex items-center gap-2 text-sm ${accesso.appuntamenti ? "" : "text-muted-foreground"}`}><Checkbox disabled={!accesso.appuntamenti} checked={appuntamenti && accesso.appuntamenti} onCheckedChange={(v) => setAppuntamenti(!!v)} />{tr("Appuntamenti")}{accesso.appuntamenti ? "" : ` ${tr("(non hai il permesso di vederli)")}`}</label>
           </div>
-          {(conNote || conAppuntamenti) && <p className="text-xs text-muted-foreground">Colonne con il riepilogo{formato === "xlsx" ? " e un foglio con una riga per ognuno" : ""}. Le note automatiche del sistema restano fuori.</p>}
-          {((conNote && accesso.parzialeNote) || (conAppuntamenti && accesso.parzialeAppuntamenti)) && <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-900">Vedi solo una parte: nel file ci sono solo {conNote && accesso.parzialeNote && conAppuntamenti && accesso.parzialeAppuntamenti ? "le note e gli appuntamenti" : conNote && accesso.parzialeNote ? "le note" : "gli appuntamenti"} che puoi vedere, e le colonne lo dicono.</p>}
+          {(conNote || conAppuntamenti) && <p className="text-xs text-muted-foreground">{formato === "xlsx" ? tr("Colonne con il riepilogo e un foglio con una riga per ognuno. Le note automatiche del sistema restano fuori.") : tr("Colonne con il riepilogo. Le note automatiche del sistema restano fuori.")}</p>}
+          {((conNote && accesso.parzialeNote) || (conAppuntamenti && accesso.parzialeAppuntamenti)) && <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-900">{conNote && accesso.parzialeNote && conAppuntamenti && accesso.parzialeAppuntamenti ? tr("Vedi solo una parte: nel file ci sono solo le note e gli appuntamenti che puoi vedere, e le colonne lo dicono.") : conNote && accesso.parzialeNote ? tr("Vedi solo una parte: nel file ci sono solo le note che puoi vedere, e le colonne lo dicono.") : tr("Vedi solo una parte: nel file ci sono solo gli appuntamenti che puoi vedere, e le colonne lo dicono.")}</p>}
         </div>
 
         <div className="space-y-2">
-          <Label>Formato</Label>
+          <Label>{tr("Formato")}</Label>
           <RadioGroup value={formato} onValueChange={(v) => setFormato(v as FormatoEsportazioneOpportunita)} className="gap-2">
-            <label className="flex items-start gap-2 text-sm"><RadioGroupItem value="xlsx" className="mt-0.5" /><span><span className="font-medium">Excel</span> — un foglio con tutte, uno per ogni fase e il riepilogo dei motivi di perdita</span></label>
-            <label className="flex items-start gap-2 text-sm"><RadioGroupItem value="csv" className="mt-0.5" /><span><span className="font-medium">CSV</span> — un solo elenco</span></label>
+            <label className="flex items-start gap-2 text-sm"><RadioGroupItem value="xlsx" className="mt-0.5" /><span><span className="font-medium">Excel</span> {tr("— un foglio con tutte, uno per ogni fase e il riepilogo dei motivi di perdita")}</span></label>
+            <label className="flex items-start gap-2 text-sm"><RadioGroupItem value="csv" className="mt-0.5" /><span><span className="font-medium">CSV</span> {tr("— un solo elenco")}</span></label>
           </RadioGroup>
         </div>
 
-        {filtriAttivi > 0 && <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-900">Valgono anche la ricerca e i {filtriAttivi === 1 ? "filtro attivo" : `${filtriAttivi} filtri attivi`} della pagina.</p>}
+        {filtriAttivi > 0 && <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-900">{filtriAttivi === 1 ? tr("Valgono anche la ricerca e il filtro attivo della pagina.") : tr("Valgono anche la ricerca e i {n} filtri attivi della pagina.", { n: filtriAttivi })}</p>}
 
         <div className="flex flex-wrap items-end gap-2 border-t pt-3">
-          <label className="flex-1 space-y-0.5 text-xs"><span className="text-muted-foreground">Salva queste scelte per rifarla con un clic</span>
-            <Input className="h-9" placeholder="Es. Persi del mese con il motivo" value={nomeSalvata} maxLength={60} onChange={(e) => setNomeSalvata(e.target.value)} /></label>
-          <Button variant="outline" size="sm" className="h-9" onClick={salva} disabled={!nomeSalvata.trim()}><Save className="mr-1.5 h-4 w-4" />Salva</Button>
+          <label className="flex-1 space-y-0.5 text-xs"><span className="text-muted-foreground">{tr("Salva queste scelte per rifarla con un clic")}</span>
+            <Input className="h-9" placeholder={tr("Es. Persi del mese con il motivo")} value={nomeSalvata} maxLength={60} onChange={(e) => setNomeSalvata(e.target.value)} /></label>
+          <Button variant="outline" size="sm" className="h-9" onClick={salva} disabled={!nomeSalvata.trim()}><Save className="mr-1.5 h-4 w-4" />{tr("Salva")}</Button>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onChiudi} disabled={inCorso}>Annulla</Button>
+          <Button variant="outline" onClick={onChiudi} disabled={inCorso}>{tr("Annulla")}</Button>
           <Button onClick={esporta} disabled={inCorso}>
-            {inCorso ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}Esporta
+            {inCorso ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}{tr("Esporta")}
           </Button>
         </DialogFooter>
       </DialogContent>

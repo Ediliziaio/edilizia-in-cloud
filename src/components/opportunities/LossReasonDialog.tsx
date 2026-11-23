@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
 import { MotivoPerditaSelect } from "./MotivoPerditaSelect";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface EsitoPerdita {
   categoria: string;
@@ -43,6 +44,7 @@ export function LossReasonDialog({
   onClose: () => void;
   onConfirm: (esito: EsitoPerdita) => void;
 }) {
+  const t = useT();
   const [categoria, setCategoria] = useState("");
   const [dettaglio, setDettaglio] = useState("");
   const [concorrente, setConcorrente] = useState("");
@@ -55,11 +57,9 @@ export function LossReasonDialog({
     <Dialog open={open} onOpenChange={(o) => { if (!o) { reset(); onClose(); } }}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Perché hai perso questa opportunità?</DialogTitle>
+          <DialogTitle>{t("Perché hai perso questa opportunità?")}</DialogTitle>
           <DialogDescription>
-            {titolo ? `"${titolo}" — ` : ""}il motivo alimenta i report e
-            aiuta a non ripetere gli stessi errori. Senza motivo, niente
-            spostamento.
+            {titolo ? `"${titolo}" — ` : ""}{t("il motivo alimenta i report e aiuta a non ripetere gli stessi errori. Senza motivo, niente spostamento.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -67,9 +67,9 @@ export function LossReasonDialog({
           <MotivoPerditaSelect value={categoria} onChange={setCategoria} />
 
           <div className="space-y-1">
-            <Label className="text-sm font-medium">Dettaglio (opzionale)</Label>
+            <Label className="text-sm font-medium">{t("Dettaglio (opzionale)")}</Label>
             <Textarea
-              placeholder="Descrivi cosa è successo…"
+              placeholder={t("Descrivi cosa è successo…")}
               value={dettaglio}
               onChange={(e) => setDettaglio(e.target.value)}
               className="mt-1 text-sm min-h-[70px] resize-none"
@@ -77,9 +77,9 @@ export function LossReasonDialog({
           </div>
 
           <div className="space-y-1">
-            <Label className="text-sm font-medium">Concorrente che ha vinto (opzionale)</Label>
+            <Label className="text-sm font-medium">{t("Concorrente che ha vinto (opzionale)")}</Label>
             <Input
-              placeholder="Es: Competitor SpA, nessuno, fai-da-te…"
+              placeholder={t("Es: Competitor SpA, nessuno, fai-da-te…")}
               value={concorrente}
               onChange={(e) => setConcorrente(e.target.value)}
               className="mt-1"
@@ -89,7 +89,7 @@ export function LossReasonDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => { reset(); onClose(); }}>
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button
             variant="destructive"
@@ -107,7 +107,7 @@ export function LossReasonDialog({
             }}
           >
             {inCorso && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Conferma perdita
+            {t("Conferma perdita")}
           </Button>
         </DialogFooter>
       </DialogContent>

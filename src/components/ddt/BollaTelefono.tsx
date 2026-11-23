@@ -44,6 +44,7 @@ import {
   mostraSpuntaCarico,
 } from "@/lib/ddt/caricoAlSalvataggio";
 import { FinestraBollaFotoRighe } from "./FinestraBollaFotoRighe";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Chi può registrare una bolla letta (`ddt_documento_registra`). */
 export function puoRegistrareBolle(p: {
@@ -96,6 +97,7 @@ export function RevisioneBollaTelefono({
   etichettaCantiere: string;
   onChiudi: () => void;
 }) {
+  const t = useT();
   const qc = useQueryClient();
   const permessi = usePermissions();
   const magazzini = useWarehouses();
@@ -166,12 +168,12 @@ export function RevisioneBollaTelefono({
         },
       });
       if (error) throw error;
-      toast.success("Bolla registrata");
+      toast.success(t("Bolla registrata"));
       if (spunta && carica) avvisaEsitoCarico(await caricaAlSalvataggio(data as string), testata.numero.trim());
       void qc.invalidateQueries({ queryKey: ["ddt-documenti"] });
       onChiudi();
     } catch (e) {
-      toast.error("Bolla non registrata", { description: (e as { message?: string })?.message });
+      toast.error(t("Bolla non registrata"), { description: (e as { message?: string })?.message });
     } finally {
       setSalvando(false);
     }
@@ -181,21 +183,21 @@ export function RevisioneBollaTelefono({
     return (
       <div role="alert" className="rounded-xl border p-3 text-sm">
         {(caricamento.error as Error).message}
-        <button type="button" className="ml-2 underline" onClick={() => void caricamento.refetch()}>Riprova</button>
-        <button type="button" className="ml-2 underline" onClick={onChiudi}>Chiudi</button>
+        <button type="button" className="ml-2 underline" onClick={() => void caricamento.refetch()}>{t("Riprova")}</button>
+        <button type="button" className="ml-2 underline" onClick={onChiudi}>{t("Chiudi")}</button>
       </div>
     );
   if (!caricamento.data || !testata)
     return (
       <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Apro la bolla letta…
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> {t("Apro la bolla letta…")}
       </p>
     );
   return (
     <FinestraBollaFotoRighe
       open
       onOpenChange={(v) => { if (!v) onChiudi(); }}
-      titolo="Ecco cosa ha letto l'AI"
+      titolo={t("Ecco cosa ha letto l'AI")}
       files={caricamento.data.files}
       companyId={documento.company_id}
       testata={testata}
@@ -207,18 +209,18 @@ export function RevisioneBollaTelefono({
       stato={
         <>
           <p className="rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200">
-            Controlla fornitore, numero e righe, poi conferma. Si corregge tutto toccando i campi.
+            {t("Controlla fornitore, numero e righe, poi conferma. Si corregge tutto toccando i campi.")}
           </p>
           {senzaMagazzino && (
             <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
-              L'azienda non ha ancora un magazzino: la bolla si registra e il carico resta in sospeso finché l'ufficio non ne sceglie uno.
+              {t("L'azienda non ha ancora un magazzino: la bolla si registra e il carico resta in sospeso finché l'ufficio non ne sceglie uno.")}
             </p>
           )}
         </>
       }
       carico={{ visibile: spunta && !senzaMagazzino, valore: carica, onChange: setCarica }}
       conferma={{
-        etichetta: "Conferma la bolla",
+        etichetta: t("Conferma la bolla"),
         onConferma: () => void registra(),
         inCorso: salvando,
       }}
@@ -244,6 +246,7 @@ export function CompilaBollaTelefono({
   onFatto: () => void;
   onChiudi: () => void;
 }) {
+  const tr = useT();
   const permessi = usePermissions();
   const { createDDT } = useDDTRicezioneMutations(null);
   const { uploadMainDDT, uploadAttachments } = useDDTAttachments();
@@ -273,11 +276,11 @@ export function CompilaBollaTelefono({
       await uploadMainDDT.mutateAsync({ ddtId: creata.id, file: files[0], silenzioso: true });
       if (files.length > 1)
         await uploadAttachments.mutateAsync({ ddtId: creata.id, files: files.slice(1).map((file) => ({ file, kind: "bolla" as const })) });
-      toast.success("Bolla registrata");
+      toast.success(tr("Bolla registrata"));
       if (spunta && carica) avvisaEsitoCarico(await caricaAlSalvataggio(creata.id), testata.numero.trim());
       onFatto();
     } catch (e) {
-      toast.error("Bolla non registrata: le foto restano qui", { description: (e as { message?: string })?.message });
+      toast.error(tr("Bolla non registrata: le foto restano qui"), { description: (e as { message?: string })?.message });
     } finally {
       setSalvando(false);
     }
@@ -287,7 +290,7 @@ export function CompilaBollaTelefono({
     <FinestraBollaFotoRighe
       open
       onOpenChange={(v) => { if (!v) onChiudi(); }}
-      titolo="Compila la bolla"
+      titolo={tr("Compila la bolla")}
       files={pagine}
       companyId={companyId}
       testata={testata}
@@ -296,7 +299,7 @@ export function CompilaBollaTelefono({
       onRigheChange={setRighe}
       commessaFissa={etichettaCantiere}
       carico={{ visibile: spunta, valore: carica, onChange: setCarica }}
-      conferma={{ etichetta: "Registra la bolla", onConferma: () => void salva(), inCorso: salvando }}
+      conferma={{ etichetta: tr("Registra la bolla"), onConferma: () => void salva(), inCorso: salvando }}
       etichettaChiudi="Indietro"
     />
   );

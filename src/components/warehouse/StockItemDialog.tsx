@@ -33,6 +33,7 @@ import { unitaConsumoConfrontabile } from "@/lib/distinta/consumiMateriali";
 import { COST_CATEGORIES } from "@/types/warehouse";
 import { useWarehouseSections } from "@/hooks/useWarehouseSections";
 import { EntityCustomFieldsSection } from "@/components/shared/EntityCustomFieldsSection";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface StockItemDialogProps {
   open: boolean;
@@ -85,6 +86,7 @@ function StockItemDialogSession({
   prefillSupplierId,
   prefillSerials,
 }: StockItemDialogProps) {
+  const t = useT();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [quantity, setQuantity] = useState("0");
@@ -191,12 +193,12 @@ function StockItemDialogSession({
       <DialogContent className="w-[calc(100vw-2rem)] max-w-md sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {editingItem ? "Modifica Articolo" : "Nuovo Articolo in Giacenza"}
+            {editingItem ? t("Modifica Articolo") : t("Nuovo Articolo in Giacenza")}
           </DialogTitle>
           <DialogDescription>
             {editingItem
-              ? "Modifica i dettagli dell'articolo in magazzino"
-              : "Aggiungi un articolo al magazzino"}
+              ? t("Modifica i dettagli dell'articolo in magazzino")
+              : t("Aggiungi un articolo al magazzino")}
           </DialogDescription>
         </DialogHeader>
 
@@ -205,17 +207,12 @@ function StockItemDialogSession({
               verranno collegati come stock_units di questo articolo. */}
           {!editingItem && (prefillSerials?.length ?? 0) >= 2 && (
             <div className="rounded-lg border-2 border-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-700 p-3 space-y-2">
-              <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">
-                {prefillSerials!.length} seriali rilevati dal QR pallet
-              </p>
+              <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">{t("{n} seriali rilevati dal QR pallet", { n: prefillSerials!.length })}</p>
               <p className="text-xs text-emerald-800 dark:text-emerald-200">
-                Quantità precompilata. Tracking impostato su <strong>serialized</strong>.
-                Ogni seriale verrà creato come unità separata sotto questo articolo.
+                {t("Quantità precompilata. Tracking impostato su serializzato. Ogni seriale verrà creato come unità separata sotto questo articolo.")}
               </p>
               <details className="text-xs">
-                <summary className="cursor-pointer text-emerald-700 dark:text-emerald-300 hover:underline">
-                  Vedi i {prefillSerials!.length} seriali
-                </summary>
+                <summary className="cursor-pointer text-emerald-700 dark:text-emerald-300 hover:underline">{t("Vedi i {n} seriali", { n: prefillSerials!.length })}</summary>
                 <div className="mt-1.5 max-h-32 overflow-y-auto bg-white dark:bg-emerald-950/60 rounded p-1.5 font-mono text-[10px] text-emerald-900 dark:text-emerald-200 space-y-0.5">
                   {prefillSerials!.map((s, i) => (
                     <div key={i}>{i + 1}. {s}</div>
@@ -226,31 +223,31 @@ function StockItemDialogSession({
           )}
 
           <div className="space-y-2">
-            <Label>Nome Articolo *</Label>
+            <Label>{t("Nome Articolo *")}</Label>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Es: Motore tapparella"
+              placeholder={t("Es: Motore tapparella")}
             />
           </div>
 
           <div className="space-y-2">
-            <Label>Descrizione</Label>
+            <Label>{t("Descrizione")}</Label>
             <Input
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Dettagli aggiuntivi..."
+              placeholder={t("Dettagli aggiuntivi...")}
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="stock-unit-measure">Unità di misura</Label>
-            <Input id="stock-unit-measure" value={trackingMode === "serialized" ? "pz" : unit} disabled={!!editingItem || trackingMode === "serialized"} onChange={e => setUnit(e.target.value)} placeholder="pz, m, mq, kg…" />
-            {editingItem && <p className="text-xs text-muted-foreground">L’unità della scheda si conserva per mantenere coerenti i movimenti.</p>}
+            <Label htmlFor="stock-unit-measure">{t("Unità di misura")}</Label>
+            <Input id="stock-unit-measure" value={trackingMode === "serialized" ? "pz" : unit} disabled={!!editingItem || trackingMode === "serialized"} onChange={e => setUnit(e.target.value)} placeholder={t("pz, m, mq, kg…")} />
+            {editingItem && <p className="text-xs text-muted-foreground">{t("L’unità della scheda si conserva per mantenere coerenti i movimenti.")}</p>}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>{editingItem ? "Giacenza" : "Giacenza iniziale"}</Label>
+              <Label>{editingItem ? t("Giacenza") : t("Giacenza iniziale")}</Label>
               <Input
                 type="number"
                 step="any"
@@ -258,15 +255,15 @@ function StockItemDialogSession({
                 value={quantity}
                 onChange={(e) => setQuantity(e.target.value)}
               />
-              {trackingMode === "serialized" && !Number.isInteger(Number(quantity)) && <p role="alert" className="text-xs text-destructive">Per gli articoli con seriali serve una quantità intera.</p>}
+              {trackingMode === "serialized" && !Number.isInteger(Number(quantity)) && <p role="alert" className="text-xs text-destructive">{t("Per gli articoli con seriali serve una quantità intera.")}</p>}
               {editingItem && Number(quantity) !== Number(editingItem.quantity) && (
                 <p className="text-[11px] text-amber-700">
-                  Da {editingItem.quantity} a {Number(quantity) || 0}: diventa una rettifica nei movimenti.
+                  {t("Da {prima} a {dopo}: diventa una rettifica nei movimenti.", { prima: editingItem.quantity, dopo: Number(quantity) || 0 })}
                 </p>
               )}
             </div>
             {canViewCosts && <div className="space-y-2">
-              <Label>Costo Unitario (€)</Label>
+              <Label>{t("Costo Unitario (€)")}</Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
                 <Input
@@ -301,7 +298,7 @@ function StockItemDialogSession({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Soglia Minima</Label>
+              <Label>{t("Soglia Minima")}</Label>
               <Input
                 type="number"
                 step="any"
@@ -313,7 +310,7 @@ function StockItemDialogSession({
           </div>
 
           <div className="space-y-2">
-            <Label>Fornitore</Label>
+            <Label>{t("Fornitore")}</Label>
             <SupplierSelect
               value={supplierId}
               onValueChange={(id, vr) => {
@@ -325,16 +322,16 @@ function StockItemDialogSession({
 
           {sections.length > 0 && (
             <div className="space-y-2">
-              <Label>Zona Magazzino</Label>
+              <Label>{t("Zona Magazzino")}</Label>
               <Select
                 value={sectionId || "__none__"}
                 onValueChange={(v) => setSectionId(v === "__none__" ? undefined : v)}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Nessuna zona" />
+                  <SelectValue placeholder={t("Nessuna zona")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">Nessuna zona</SelectItem>
+                  <SelectItem value="__none__">{t("Nessuna zona")}</SelectItem>
                   {sections.map((s) => (
                     <SelectItem key={s.id} value={s.id}>
                       <div className="flex items-center gap-2">
@@ -353,42 +350,42 @@ function StockItemDialogSession({
             <AccordionItem value="qr-tracking" className="border-0">
               <AccordionTrigger className="px-3 py-2 hover:no-underline">
                 <div className="flex flex-col items-start text-left">
-                  <span className="text-sm font-medium">QR & Tracking</span>
+                  <span className="text-sm font-medium">{t("QR & Tracking")}</span>
                   <span className="text-xs text-muted-foreground">
-                    {trackingMode === "serialized" ? "Seriali per pezzo" : "Articolo identico"}
+                    {trackingMode === "serialized" ? t("Seriali per pezzo") : t("Articolo identico")}
                     {barcode ? ` · barcode: ${barcode.slice(0, 16)}${barcode.length > 16 ? "…" : ""}` : ""}
                   </span>
                 </div>
               </AccordionTrigger>
               <AccordionContent className="px-3 pb-3 space-y-3">
                 <div className="space-y-2">
-                  <Label className="text-xs">Barcode / QR fornitore</Label>
+                  <Label className="text-xs">{t("Barcode / QR fornitore")}</Label>
                   <Input
                     value={barcode}
                     onChange={(e) => setBarcode(e.target.value)}
-                    placeholder="Es. 8001234567890 o GTIN"
+                    placeholder={t("Es. 8001234567890 o GTIN")}
                     autoComplete="off"
                   />
                   <p className="text-[11px] text-muted-foreground">
-                    Codice stampato dal fornitore. Lasciato vuoto = nessun match QR su questo articolo.
+                    {t("Codice stampato dal fornitore. Lasciato vuoto = nessun match QR su questo articolo.")}
                   </p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs">Codice interno</Label>
+                  <Label className="text-xs">{t("Codice interno")}</Label>
                   <Input
                     value={internalCode}
                     onChange={(e) => setInternalCode(e.target.value)}
-                    placeholder="Es. EIC-MOTOR-A12"
+                    placeholder={t("Es. EIC-MOTOR-A12")}
                     autoComplete="off"
                   />
                   <p className="text-[11px] text-muted-foreground">
-                    Codice interno su etichette stampate da te (alternativo al QR fornitore).
+                    {t("Codice interno su etichette stampate da te (alternativo al QR fornitore).")}
                   </p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs">Modalità tracking</Label>
+                  <Label className="text-xs">{t("Modalità tracking")}</Label>
                   <Select
                     value={trackingMode}
                     onValueChange={(v) => setTrackingMode(requiresWarranty ? "serialized" : v as "fungible" | "serialized")}
@@ -398,12 +395,12 @@ function StockItemDialogSession({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="fungible" disabled={requiresWarranty}>
-                        <span className="font-medium">Fungibile</span>{" "}
-                        <span className="text-muted-foreground">— articoli identici (viti, tubi)</span>
+                        <span className="font-medium">{t("Fungibile")}</span>{" "}
+                        <span className="text-muted-foreground">{t("— articoli identici (viti, tubi)")}</span>
                       </SelectItem>
                       <SelectItem value="serialized">
-                        <span className="font-medium">Serializzato</span>{" "}
-                        <span className="text-muted-foreground">— ogni pezzo ha seriale univoco</span>
+                        <span className="font-medium">{t("Serializzato")}</span>{" "}
+                        <span className="text-muted-foreground">{t("— ogni pezzo ha seriale univoco")}</span>
                       </SelectItem>
                     </SelectContent>
                   </Select>
@@ -417,23 +414,23 @@ function StockItemDialogSession({
                   />
                   <div className="flex-1">
                     <Label htmlFor="requires-warranty" className="text-sm font-medium cursor-pointer">
-                      Garanzia obbligatoria
+                      {t("Garanzia obbligatoria")}
                     </Label>
                     <p className="text-[11px] text-muted-foreground mt-0.5">
-                      Forza tracking serializzato per associare ogni garanzia al seriale.
+                      {t("Forza tracking serializzato per associare ogni garanzia al seriale.")}
                     </p>
                   </div>
                 </div>
 
                 {(requiresWarranty || trackingMode === "serialized") && (
                   <div className="space-y-2">
-                    <Label className="text-xs">Mesi garanzia di default</Label>
+                    <Label className="text-xs">{t("Mesi garanzia di default")}</Label>
                     <Input
                       type="number"
                       min="0"
                       value={defaultWarrantyMonths}
                       onChange={(e) => setDefaultWarrantyMonths(e.target.value)}
-                      placeholder="Es. 24"
+                      placeholder={t("Es. 24")}
                     />
                   </div>
                 )}
@@ -451,13 +448,13 @@ function StockItemDialogSession({
                   onCheckedChange={(checked) => setRegisterCost(checked === true)}
                 />
                 <Label htmlFor="register-cost" className="text-sm font-medium cursor-pointer">
-                  Registra costo acquisto nei Costi Aziendali
+                  {t("Registra costo acquisto nei Costi Aziendali")}
                 </Label>
               </div>
               {registerCost && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Data pagamento</Label>
+                    <Label className="text-xs">{t("Data pagamento")}</Label>
                     <Input
                       type="date"
                       value={costPaidDate}
@@ -465,7 +462,7 @@ function StockItemDialogSession({
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Categoria</Label>
+                    <Label className="text-xs">{t("Categoria")}</Label>
                     <Select value={costCategory} onValueChange={setCostCategory}>
                       <SelectTrigger>
                         <SelectValue />
@@ -488,7 +485,7 @@ function StockItemDialogSession({
           {editingItem?.id && (
             <div className="pt-3 border-t">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-                Campi personalizzati
+                {t("Campi personalizzati")}
               </p>
               <EntityCustomFieldsSection entityType="warehouse" entityId={editingItem.id} />
             </div>
@@ -497,10 +494,10 @@ function StockItemDialogSession({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button onClick={handleSave} disabled={!name.trim() || isPending || invalidQuantity || invalidMinimum || invalidCost || invalidWarranty}>
-            {isPending ? "Salvataggio..." : editingItem ? "Salva" : "Aggiungi"}
+            {isPending ? t("Salvataggio...") : editingItem ? t("Salva") : t("Aggiungi")}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -10,6 +10,7 @@ import { ESIGIBILITA_IVA, METODI_PAGAMENTO_SDI } from "@/types/fatturazione";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import type { EditorState } from "./useEditorState";
 import { splitPredefinito } from "@/lib/fatturazione/fatturaPa";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   state: EditorState;
@@ -20,6 +21,7 @@ interface Props {
 export const APRI_FATTURAZIONE_ELETTRONICA = "editor-apri-fatturazione-elettronica";
 
 export function EditorFatturazioneElettronicaSection({ state, dispatch, disabled }: Props) {
+  const t = useT();
   const { data: azienda } = useAnagraficaAzienda();
   const snap = state.cliente_snapshot;
   const isPA = snap?.tipo_cliente === "PA";
@@ -78,7 +80,7 @@ export function EditorFatturazioneElettronicaSection({ state, dispatch, disabled
             <div className="flex items-center gap-2">
               <FileText className="h-4 w-4 text-blue-500" />
               <span className="text-[11px] font-bold uppercase tracking-wider text-blue-600/80 dark:text-blue-400/80">
-                Fatturazione Elettronica
+                {t("Fatturazione Elettronica")}
               </span>
             </div>
             <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
@@ -91,7 +93,7 @@ export function EditorFatturazioneElettronicaSection({ state, dispatch, disabled
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <div className="flex items-center gap-1">
-                    <Label className="text-[10px] text-muted-foreground">Codice Destinatario (SDI)</Label>
+                    <Label className="text-[10px] text-muted-foreground">{t("Codice Destinatario (SDI)")}</Label>
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -99,8 +101,8 @@ export function EditorFatturazioneElettronicaSection({ state, dispatch, disabled
                         </TooltipTrigger>
                         <TooltipContent side="top" className="max-w-xs text-xs">
                           {isPA
-                            ? "Per la PA: Codice Univoco Ufficio a 6 caratteri (obbligatorio), dall'Indice PA"
-                            : "Codice a 7 caratteri per privati (es. 0000000 se non noto). Per forfettari/B2C: 0000000"}
+                            ? t("Per la PA: Codice Univoco Ufficio a 6 caratteri (obbligatorio), dall'Indice PA")
+                            : t("Codice a 7 caratteri per privati (es. 0000000 se non noto). Per forfettari/B2C: 0000000")}
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
@@ -115,7 +117,7 @@ export function EditorFatturazioneElettronicaSection({ state, dispatch, disabled
                   />
                 </div>
                 <div>
-                  <Label className="text-[10px] text-muted-foreground">Indirizzo PEC</Label>
+                  <Label className="text-[10px] text-muted-foreground">{t("Indirizzo PEC")}</Label>
                   <div className="relative">
                     <Mail className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
                     <Input
@@ -134,10 +136,10 @@ export function EditorFatturazioneElettronicaSection({ state, dispatch, disabled
                 <div className="flex items-center gap-2 p-2 rounded bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
                   <Building2 className="h-4 w-4 text-blue-600 shrink-0" />
                   <div className="text-xs text-blue-700 dark:text-blue-300">
-                    <span className="font-medium">Pubblica Amministrazione</span>
+                    <span className="font-medium">{t("Pubblica Amministrazione")}</span>
                     <span className="text-blue-600 dark:text-blue-400 ml-1">
-                      — Codice Univoco Ufficio obbligatorio (6 caratteri).{" "}
-                      {state.esigibilita_iva === "S" ? "Split payment: l'IVA la versa l'ente." : "Senza split payment: l'IVA la paga l'ente con la fattura."}
+                      {t("— Codice Univoco Ufficio obbligatorio (6 caratteri).")}{" "}
+                      {state.esigibilita_iva === "S" ? t("Split payment: l'IVA la versa l'ente.") : t("Senza split payment: l'IVA la paga l'ente con la fattura.")}
                     </span>
                   </div>
                 </div>
@@ -146,7 +148,7 @@ export function EditorFatturazioneElettronicaSection({ state, dispatch, disabled
 
             {/* ─── Esigibilità IVA ─── */}
             <div>
-              <Label className="text-[10px] text-muted-foreground">Esigibilità IVA</Label>
+              <Label className="text-[10px] text-muted-foreground">{t("Esigibilità IVA")}</Label>
               <Select
                 value={state.esigibilita_iva ?? (isPA && splitPredefinito(azienda, snap) ? "S" : "I")}
                 onValueChange={(v) => setField("esigibilita_iva", v)}
@@ -167,24 +169,24 @@ export function EditorFatturazioneElettronicaSection({ state, dispatch, disabled
 
             {/* ─── Dati bancari per XML (visibili sempre, non solo per bonifico) ─── */}
             <div className="space-y-2 pt-2 border-t">
-              <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Dati pagamento per XML</Label>
+              <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{t("Dati pagamento per XML")}</Label>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <Label className="text-[10px] text-muted-foreground">Metodo pagamento</Label>
+                  <Label className="text-[10px] text-muted-foreground">{t("Metodo pagamento")}</Label>
                   <div className="text-xs px-2 py-1.5 rounded bg-muted/50 border">
                     {state.metodo_pagamento_codice
                       ? `${state.metodo_pagamento_codice} – ${METODI_PAGAMENTO_SDI[state.metodo_pagamento_codice as keyof typeof METODI_PAGAMENTO_SDI] ?? ""}`
-                      : "Non impostato"}
+                      : t("Non impostato")}
                   </div>
                 </div>
                 <div>
-                  <Label className="text-[10px] text-muted-foreground">Emesso in seguito a</Label>
+                  <Label className="text-[10px] text-muted-foreground">{t("Emesso in seguito a")}</Label>
                   <Input
                     value={state.emesso_in_seguito_a ?? ""}
                     onChange={(e) => setField("emesso_in_seguito_a", e.target.value)}
                     className="h-7 text-xs"
-                    placeholder="Es: Ordine n. 123"
+                    placeholder={t("Es: Ordine n. 123")}
                     disabled={disabled}
                   />
                 </div>
@@ -193,12 +195,12 @@ export function EditorFatturazioneElettronicaSection({ state, dispatch, disabled
               {isBonifico && (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <Label className="text-[10px] text-muted-foreground">Nome istituto di credito</Label>
+                    <Label className="text-[10px] text-muted-foreground">{t("Nome istituto di credito")}</Label>
                     <Input
                       value={state.nome_banca ?? ""}
                       onChange={(e) => dispatch({ type: "SET_PAGAMENTO", fields: { nome_banca: e.target.value } })}
                       className="h-7 text-xs"
-                      placeholder="Banca Esempio"
+                      placeholder={t("Banca Esempio")}
                       disabled={disabled}
                     />
                   </div>
@@ -208,12 +210,12 @@ export function EditorFatturazioneElettronicaSection({ state, dispatch, disabled
                       value={state.iban_pagamento ?? ""}
                       onChange={(e) => dispatch({ type: "SET_PAGAMENTO", fields: { iban_pagamento: e.target.value.toUpperCase() } })}
                       className="h-7 text-xs font-mono"
-                      placeholder="IT60X0542811101..."
+                      placeholder={t("IT60X0542811101...")}
                       disabled={disabled}
                     />
                   </div>
                   <div>
-                    <Label className="text-[10px] text-muted-foreground">Intestatario conto</Label>
+                    <Label className="text-[10px] text-muted-foreground">{t("Intestatario conto")}</Label>
                     <Input
                       value={state.intestatario_conto ?? ""}
                       onChange={(e) => dispatch({ type: "SET_PAGAMENTO", fields: { intestatario_conto: e.target.value } })}
@@ -236,7 +238,7 @@ export function EditorFatturazioneElettronicaSection({ state, dispatch, disabled
                   disabled={disabled}
                 />
                 <Label htmlFor="allega-pdf-sdi" className="text-xs cursor-pointer">
-                  Allega PDF al documento elettronico
+                  {t("Allega PDF al documento elettronico")}
                 </Label>
                 <TooltipProvider>
                   <Tooltip>
@@ -244,8 +246,7 @@ export function EditorFatturazioneElettronicaSection({ state, dispatch, disabled
                       <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
                     </TooltipTrigger>
                     <TooltipContent className="max-w-xs text-xs">
-                      Inserisce il PDF della fattura come allegato nell'XML FatturaPA (tag &lt;Allegati&gt;).
-                      Il destinatario riceverà sia l'XML sia il PDF leggibile.
+                      {t("Inserisce il PDF della fattura come allegato nell'XML FatturaPA (tag <Allegati>). Il destinatario riceverà sia l'XML sia il PDF leggibile.")}
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
@@ -255,7 +256,7 @@ export function EditorFatturazioneElettronicaSection({ state, dispatch, disabled
             {/* CIG, CUP, contratto, ordine, convenzione e ufficio: sezione «Commessa e riferimenti PA» (lotto 4). */}
             {isPA && (
               <p className="pt-2 border-t text-[11px] text-muted-foreground">
-                CIG, CUP, contratto e ufficio destinatario si scelgono in <a href="#ed-riferimenti-pa" className="underline">Commessa e riferimenti PA</a>.
+                {t("CIG, CUP, contratto e ufficio destinatario si scelgono in")} <a href="#ed-riferimenti-pa" className="underline">{t("Commessa e riferimenti PA")}</a>.
               </p>
             )}
           </div>

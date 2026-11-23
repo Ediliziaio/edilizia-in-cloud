@@ -10,8 +10,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function PaDaConfermare() {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const navigate = useNavigate();
   const [aperto, setAperto] = useState(false);
@@ -35,14 +37,13 @@ export function PaDaConfermare() {
     <Alert className="border-violet-200 bg-violet-50/60">
       <Landmark className="h-4 w-4" />
       <AlertTitle className="flex items-center gap-2">
-        {data.length === 1 ? "Un cliente sembra un ente pubblico" : `${data.length} clienti sembrano enti pubblici`}
+        {data.length === 1 ? t("Un cliente sembra un ente pubblico") : t("{n} clienti sembrano enti pubblici", { n: data.length })}
         <Button variant="ghost" size="sm" className="h-6 px-2 ml-auto" onClick={() => setAperto(!aperto)}>
-          {aperto ? "Nascondi" : "Vedi chi"} <ChevronDown className={`h-3.5 w-3.5 ml-1 transition-transform ${aperto ? "rotate-180" : ""}`} />
+          {aperto ? t("Nascondi") : t("Vedi chi")} <ChevronDown className={`h-3.5 w-3.5 ml-1 transition-transform ${aperto ? "rotate-180" : ""}`} />
         </Button>
       </AlertTitle>
       <AlertDescription className="text-sm">
-        Sono segnati come azienda o privato: la fattura parte nel formato dei privati (FPR12) e non come PA. Apri la scheda,
-        premi «Modifica» e scegli il tipo giusto: chi confermi esce dall'elenco.
+        {t("Sono segnati come azienda o privato: la fattura parte nel formato dei privati (FPR12) e non come PA. Apri la scheda, premi «Modifica» e scegli il tipo giusto: chi confermi esce dall'elenco.")}
         {aperto && (
           <ul className="mt-2 divide-y rounded-md border bg-white">
             {data.map((r) => (

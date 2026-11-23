@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/select";
 import { useWarehouses } from "@/hooks/useWarehouses";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface WarehouseSelectProps {
   /** ID del magazzino selezionato */
@@ -44,14 +45,15 @@ const TYPE_LABEL: Record<string, string> = {
 export function WarehouseSelect({
   value,
   onChange,
-  placeholder = "Seleziona magazzino…",
+  placeholder,
   allowAll = false,
-  allLabel = "Tutti i magazzini",
+  allLabel,
   onlyActive = true,
   className,
   disabled = false,
   nullable = false,
 }: WarehouseSelectProps) {
+  const t = useT();
   const { warehouses, isLoading } = useWarehouses(onlyActive);
 
   const handleChange = (val: string) => {
@@ -71,32 +73,32 @@ export function WarehouseSelect({
       <SelectTrigger className={cn("w-full", className)}>
         <div className="flex items-center gap-2">
           <WarehouseIcon className="h-4 w-4 text-muted-foreground shrink-0" />
-          <SelectValue placeholder={isLoading ? "Caricamento…" : placeholder} />
+          <SelectValue placeholder={isLoading ? t("Caricamento…") : placeholder ?? t("Seleziona magazzino…")} />
         </div>
       </SelectTrigger>
       <SelectContent>
         {allowAll && (
-          <SelectItem value="__all__">{allLabel}</SelectItem>
+          <SelectItem value="__all__">{allLabel ?? t("Tutti i magazzini")}</SelectItem>
         )}
         {nullable && (
-          <SelectItem value="__none__">— Nessuno —</SelectItem>
+          <SelectItem value="__none__">{t("— Nessuno —")}</SelectItem>
         )}
         {warehouses.map((w) => (
           <SelectItem key={w.id} value={w.id}>
             <span className="flex items-center gap-1.5">
               {w.name}
               {w.is_default && (
-                <span className="text-xs text-muted-foreground">(predefinito)</span>
+                <span className="text-xs text-muted-foreground">{t("(predefinito)")}</span>
               )}
               <span className="text-xs text-muted-foreground ml-1">
-                · {TYPE_LABEL[w.type] ?? w.type}
+                · {t(TYPE_LABEL[w.type] ?? w.type)}
               </span>
             </span>
           </SelectItem>
         ))}
         {!isLoading && warehouses.length === 0 && (
           <SelectItem value="__empty__" disabled>
-            Nessun magazzino disponibile
+            {t("Nessun magazzino disponibile")}
           </SelectItem>
         )}
       </SelectContent>

@@ -41,6 +41,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Plus, X, Save } from "lucide-react";
 import { AllegatiFattura } from "@/components/fatturazione/AllegatiFattura";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   readOnly?: boolean;
@@ -76,23 +77,24 @@ const MESI = [
 ];
 
 function StatoBadge({ stato }: { stato: F24Entry["stato"] }) {
+  const t = useT();
   if (stato === "pagato") {
     return (
       <Badge className="bg-green-100 text-green-800 border-green-200">
-        Pagamento dichiarato
+        {t("Pagamento dichiarato")}
       </Badge>
     );
   }
   if (stato === "annullato") {
     return (
       <Badge className="bg-gray-100 text-gray-600 border-gray-200">
-        Annullato
+        {t("Annullato")}
       </Badge>
     );
   }
   return (
     <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">
-      Da pagare
+      {t("Da pagare")}
     </Badge>
   );
 }
@@ -125,6 +127,7 @@ export function F24Generator({
   onAnteprima,
   onSegnaPagato,
 }: Props) {
+  const tr = useT();
   const formId = useId();
   const [showForm, setShowForm] = useState(false);
   const [filter, setFilter] = useState("tutti"),
@@ -157,7 +160,7 @@ export function F24Generator({
   );
   const amount = (rows: F24Entry[]) => {
     const total = fiscalAmountTotal(rows.map((entry) => entry.importo));
-    return total === null ? "Da verificare" : formatCurrency(total);
+    return total === null ? tr("Da verificare") : formatCurrency(total);
   };
   const [form, setForm] = useState<FormState>({
     ...defaultForm,
@@ -215,7 +218,7 @@ export function F24Generator({
     } catch (e) {
       setPrepared(null);
       setSaveError(
-        `Registrazione non riuscita. ${e instanceof Error ? e.message : "Verifica codice, importo e riferimento al documento del consulente."} Nessun successo confermato.`,
+        tr("Registrazione non riuscita. {motivo} Nessun successo confermato.", { motivo: e instanceof Error ? e.message : tr("Verifica codice, importo e riferimento al documento del consulente.") }),
       );
     } finally {
       setPreparing(false);
@@ -234,28 +237,28 @@ export function F24Generator({
       {/* Summary row */}
       <div className="grid gap-3 sm:grid-cols-3">
         <FiscalMetric
-          label="Registrazioni da pagare nel periodo"
+          label={tr("Registrazioni da pagare nel periodo")}
           value={
             totaleAPagare === null
               ? "Importo da verificare"
               : formatCurrency(totaleAPagare)
           }
-          description={`${unpaid.length} registrazioni gestionali · non una delega trasmessa`}
+          description={tr("{n} registrazioni gestionali · non una delega trasmessa", { n: unpaid.length })}
           onClick={() => setFilter("da_pagare")}
           active={filter === "da_pagare"}
         />
         <FiscalMetric
-          label="Scadute nel periodo"
+          label={tr("Scadute nel periodo")}
           value={overdue.length}
-          description={`${amount(overdue)} · scadenza precedente a oggi`}
+          description={tr("{overdue} · scadenza precedente a oggi", { overdue: amount(overdue) })}
           onClick={() => setFilter("scaduti")}
           active={filter === "scaduti"}
           warning={overdue.length > 0}
         />
         <FiscalMetric
-          label="Scadenze del periodo entro 30 giorni"
+          label={tr("Scadenze del periodo entro 30 giorni")}
           value={upcoming.length}
-          description={`${amount(upcoming)} · oggi incluso`}
+          description={tr("{upcoming} · oggi incluso", { upcoming: amount(upcoming) })}
           onClick={() => setFilter("prossimi")}
           active={filter === "prossimi"}
         />
@@ -263,23 +266,23 @@ export function F24Generator({
       <div className="flex flex-wrap items-center gap-2">
         <Input
           className="min-w-48 flex-1"
-          aria-label="Cerca registrazioni F24"
-          placeholder="Codice tributo, descrizione o riferimento…"
+          aria-label={tr("Cerca registrazioni F24")}
+          placeholder={tr("Codice tributo, descrizione o riferimento…")}
           value={search}
           onChange={(event) => setSearch(event.target.value)}
         />
         <FiscalSelectFilter
-          label="Filtro registrazioni F24"
+          label={tr("Filtro registrazioni F24")}
           value={filter}
           onChange={setFilter}
           options={[
-            { value: "tutti", label: "Tutte le registrazioni" },
-            { value: "da_pagare", label: "Da pagare · registrate" },
-            { value: "scaduti", label: "Scadute" },
-            { value: "prossimi", label: "Entro 30 giorni" },
-            { value: "pagato", label: "Pagamento dichiarato" },
-            { value: "annullato", label: "Annullate" },
-            { value: "senza_data", label: "Senza scadenza valida" },
+            { value: "tutti", label: tr("Tutte le registrazioni") },
+            { value: "da_pagare", label: tr("Da pagare · registrate") },
+            { value: "scaduti", label: tr("Scadute") },
+            { value: "prossimi", label: tr("Entro 30 giorni") },
+            { value: "pagato", label: tr("Pagamento dichiarato") },
+            { value: "annullato", label: tr("Annullate") },
+            { value: "senza_data", label: tr("Senza scadenza valida") },
           ]}
         />
         {(filter !== "tutti" || search) && (
@@ -290,26 +293,25 @@ export function F24Generator({
               setSearch("");
             }}
           >
-            Azzera filtri F24
+            {tr("Azzera filtri F24")}
           </Button>
         )}
       </div>
       <p className="text-xs text-muted-foreground">
-        Riepiloghi dell’intero periodo selezionato; i filtri cambiano solo
-        l’elenco. Pagamenti e quietanze non vengono certificati da questa vista.
+        {tr("Riepiloghi dell’intero periodo selezionato; i filtri cambiano solo l’elenco. Pagamenti e quietanze non vengono certificati da questa vista.")}
       </p>
 
       {!showForm && !readOnly ? (
         <Button variant="outline" onClick={() => setShowForm(true)}>
           <Plus className="h-4 w-4 mr-2" />
-          Nuovo F24
+          {tr("Nuovo F24")}
         </Button>
       ) : showForm && !readOnly ? (
         <div className="border rounded-lg p-4 space-y-4 bg-card">
-          <h3 className="text-sm font-semibold">Nuovo F24</h3>
+          <h3 className="text-sm font-semibold">{tr("Nuovo F24")}</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5 sm:col-span-2">
-              <Label htmlFor={`${formId}-tributo`}>Tributo</Label>
+              <Label htmlFor={`${formId}-tributo`}>{tr("Tributo")}</Label>
               <Select
                 value={form.tributo_code}
                 onValueChange={(v) =>
@@ -317,7 +319,7 @@ export function F24Generator({
                 }
               >
                 <SelectTrigger id={`${formId}-tributo`}>
-                  <SelectValue placeholder="Seleziona tributo..." />
+                  <SelectValue placeholder={tr("Seleziona tributo...")} />
                 </SelectTrigger>
                 <SelectContent>
                   {TRIBUTI_PREDEFINITI.map((t) => (
@@ -330,7 +332,7 @@ export function F24Generator({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor={`${formId}-importo`}>Importo (€)</Label>
+              <Label htmlFor={`${formId}-importo`}>{tr("Importo (€)")}</Label>
               <Input
                 id={`${formId}-importo`}
                 type="number"
@@ -345,7 +347,7 @@ export function F24Generator({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor={`${formId}-scadenza`}>Data scadenza</Label>
+              <Label htmlFor={`${formId}-scadenza`}>{tr("Data scadenza")}</Label>
               <Input
                 id={`${formId}-scadenza`}
                 type="date"
@@ -357,21 +359,21 @@ export function F24Generator({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor={`${formId}-mese`}>Mese di riferimento</Label>
+              <Label htmlFor={`${formId}-mese`}>{tr("Mese di riferimento")}</Label>
               <Select
                 value={form.mese}
                 disabled={!!periodMonth}
                 onValueChange={(v) => setForm((f) => ({ ...f, mese: v }))}
               >
                 <SelectTrigger id={`${formId}-mese`}>
-                  <SelectValue placeholder="Seleziona mese..." />
+                  <SelectValue placeholder={tr("Seleziona mese...")} />
                 </SelectTrigger>
                 <SelectContent>
                   {MESI.map(
                     (m, i) =>
                       (!periodMonths || periodMonths.includes(i + 1)) && (
                         <SelectItem key={i + 1} value={String(i + 1)}>
-                          {m}
+                          {tr(m)}
                         </SelectItem>
                       ),
                   )}
@@ -381,11 +383,11 @@ export function F24Generator({
 
             <div className="space-y-1.5 sm:col-span-2">
               <Label htmlFor={`${formId}-riferimento`}>
-                Riferimento al prospetto del consulente (obbligatorio)
+                {tr("Riferimento al prospetto del consulente (obbligatorio)")}
               </Label>
               <Textarea
                 id={`${formId}-riferimento`}
-                placeholder="Note aggiuntive..."
+                placeholder={tr("Note aggiuntive...")}
                 value={form.note}
                 onChange={(e) =>
                   setForm((f) => ({ ...f, note: e.target.value }))
@@ -400,13 +402,8 @@ export function F24Generator({
               role="status"
               className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm"
             >
-              Verifica: codice {form.tributo_code} ·{" "}
-              {formatCurrency(Number(form.importo))} · mese {form.mese}.
-              <p>
-                Riferimento: {form.note}. La conferma registra questo importo,
-                senza trasmissioni o pagamenti. Una modifica ai dati richiede
-                una nuova anteprima.
-              </p>
+              {tr("Verifica: codice {codice} · {importo} · mese {mese}.", { codice: form.tributo_code, importo: formatCurrency(Number(form.importo)), mese: form.mese })}
+              <p>{tr("Riferimento: {note}. La conferma registra questo importo, senza trasmissioni o pagamenti. Una modifica ai dati richiede una nuova anteprima.", { note: String(form.note ?? "") })}</p>
             </div>
           )}
           <div className="flex gap-2">
@@ -425,14 +422,14 @@ export function F24Generator({
             >
               <Save className="h-4 w-4 mr-1.5" />
               {isSalvando || preparing
-                ? "Verifica in corso…"
+                ? tr("Verifica in corso…")
                 : confirmedPreview
-                  ? "Conferma registrazione"
-                  : "Verifica anteprima"}
+                  ? tr("Conferma registrazione")
+                  : tr("Verifica anteprima")}
             </Button>
             <Button variant="ghost" size="sm" onClick={handleCancel}>
               <X className="h-4 w-4 mr-1.5" />
-              Annulla
+              {tr("Annulla")}
             </Button>
           </div>
         </div>
@@ -448,12 +445,12 @@ export function F24Generator({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Tributo</TableHead>
-              <TableHead className="text-right">Importo</TableHead>
-              <TableHead>Scadenza</TableHead>
-              <TableHead>Mese</TableHead>
-              <TableHead>Stato</TableHead>
-              <TableHead className="text-right">Azioni</TableHead>
+              <TableHead>{tr("Tributo")}</TableHead>
+              <TableHead className="text-right">{tr("Importo")}</TableHead>
+              <TableHead>{tr("Scadenza")}</TableHead>
+              <TableHead>{tr("Mese")}</TableHead>
+              <TableHead>{tr("Stato")}</TableHead>
+              <TableHead className="text-right">{tr("Azioni")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -487,8 +484,8 @@ export function F24Generator({
                   className="text-center text-muted-foreground py-8"
                 >
                   {entries.length
-                    ? "Nessuna registrazione corrisponde ai filtri"
-                    : "Nessun F24 registrato"}
+                    ? tr("Nessuna registrazione corrisponde ai filtri")
+                    : tr("Nessun F24 registrato")}
                 </TableCell>
               </TableRow>
             ) : (
@@ -504,14 +501,14 @@ export function F24Generator({
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm">
                     {fiscalAmountTotal([entry.importo]) === null
-                      ? "Importo da verificare"
+                      ? tr("Importo da verificare")
                       : formatCurrency(entry.importo)}
                   </TableCell>
                   <TableCell className="text-sm">
-                    {fiscalDate(entry.data_scadenza, "Non indicata")}
+                    {fiscalDate(entry.data_scadenza, tr("Non indicata"))}
                   </TableCell>
                   <TableCell className="text-sm">
-                    {entry.mese ? MESI[entry.mese - 1] : "—"}
+                    {entry.mese ? tr(MESI[entry.mese - 1]) : "—"}
                   </TableCell>
                   <TableCell>
                     <StatoBadge stato={entry.stato} />
@@ -525,7 +522,7 @@ export function F24Generator({
                         setPagamento({ data: new Date().toISOString().slice(0, 10), quietanza: "" });
                       }}
                     >
-                      Dati e documenti
+                      {tr("Dati e documenti")}
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -542,36 +539,33 @@ export function F24Generator({
       >
         <DialogContent className="max-h-[85vh] overflow-auto">
           <DialogHeader>
-            <DialogTitle>
-              Registrazione F24 · {detail?.tributo_code}
-            </DialogTitle>
+            <DialogTitle>{tr("Registrazione F24 · {tributo_code}", { tributo_code: String(detail?.tributo_code ?? "") })}</DialogTitle>
             <DialogDescription>
-              Consultazione del dato registrato. Non attesta invio, addebito o
-              validità di una quietanza.
+              {tr("Consultazione del dato registrato. Non attesta invio, addebito o validità di una quietanza.")}
             </DialogDescription>
           </DialogHeader>
           {detail && (
             <div className="rounded-md border p-3">
-              <AllegatiFattura companyId={detail.company_id} madre={{ f24Id: detail.id }} sola_lettura={readOnly} titolo="Delega e quietanza" />
+              <AllegatiFattura companyId={detail.company_id} madre={{ f24Id: detail.id }} sola_lettura={readOnly} titolo={tr("Delega e quietanza")} />
             </div>
           )}
           {detail && (
             <dl className="space-y-3 text-sm">
               {[
-                ["Importo", amount([detail])],
-                ["Scadenza", fiscalDate(detail.data_scadenza, "Non indicata")],
+                [tr("Importo"), amount([detail])],
+                [tr("Scadenza"), fiscalDate(detail.data_scadenza, tr("Non indicata"))],
                 [
-                  "Pagamento dichiarato",
-                  fiscalDate(detail.data_pagamento, "Non indicato"),
+                  tr("Pagamento dichiarato"),
+                  fiscalDate(detail.data_pagamento, tr("Non indicato")),
                 ],
-                ["Riferimento registrato", detail.note || "Non presente"],
+                [tr("Riferimento registrato"), detail.note || tr("Non presente")],
                 [
-                  "Documento associato",
-                  detail.pdf_url || "Nessun riferimento ad allegato",
+                  tr("Documento associato"),
+                  detail.pdf_url || tr("Nessun riferimento ad allegato"),
                 ],
                 [
-                  "Verifica quietanza",
-                  "Non disponibile: occorrono esito, identificativo e corrispondenza con questa registrazione.",
+                  tr("Verifica quietanza"),
+                  tr("Non disponibile: occorrono esito, identificativo e corrispondenza con questa registrazione."),
                 ],
               ].map(([label, value]) => (
                 <div key={label} className="rounded-lg border p-3">
@@ -597,14 +591,13 @@ export function F24Generator({
                 }
               }}
             >
-              <p className="text-sm font-medium">Segna pagato</p>
+              <p className="text-sm font-medium">{tr("Segna pagato")}</p>
               <p className="text-xs text-muted-foreground">
-                Con la data e il riferimento della quietanza (protocollo telematico, CRO o contabile della banca).
-                Dopo non si modifica più, ed esce dal previsionale.
+                {tr("Con la data e il riferimento della quietanza (protocollo telematico, CRO o contabile della banca). Dopo non si modifica più, ed esce dal previsionale.")}
               </p>
               <div className="grid gap-2 sm:grid-cols-2">
                 <div className="space-y-1">
-                  <Label htmlFor="f24-data-pagamento">Pagato il</Label>
+                  <Label htmlFor="f24-data-pagamento">{tr("Pagato il")}</Label>
                   <Input
                     id="f24-data-pagamento"
                     type="date"
@@ -613,17 +606,17 @@ export function F24Generator({
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="f24-quietanza">Riferimento quietanza</Label>
+                  <Label htmlFor="f24-quietanza">{tr("Riferimento quietanza")}</Label>
                   <Input
                     id="f24-quietanza"
                     value={pagamento.quietanza}
-                    placeholder="Protocollo o CRO"
+                    placeholder={tr("Protocollo o CRO")}
                     onChange={(e) => setPagamento((v) => ({ ...v, quietanza: e.target.value }))}
                   />
                 </div>
               </div>
               <Button type="submit" size="sm" disabled={segnando || !pagamento.data || pagamento.quietanza.trim().length < 5}>
-                Segna pagato
+                {tr("Segna pagato")}
               </Button>
             </form>
           )}

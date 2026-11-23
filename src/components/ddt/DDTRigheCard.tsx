@@ -40,12 +40,13 @@ import { ArrivoPosizioniPanel } from "@/components/ddt/ArrivoPosizioniPanel";
 import { avvisoQuantitaTestata } from "@/lib/ddt/collegamentiBolla";
 import { importoRiga } from "@/lib/ddt/letturaAI";
 import { cn } from "@/lib/utils";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const euro = (v: number) =>
-  v.toLocaleString("it-IT", { style: "currency", currency: "EUR", useGrouping: true });
+  v.toLocaleString(intlCampo(), { style: "currency", currency: "EUR", useGrouping: true });
 
 const numero = (v: number | null | undefined, max = 3) =>
-  v == null ? "—" : v.toLocaleString("it-IT", { maximumFractionDigits: max });
+  v == null ? "—" : v.toLocaleString(intlCampo(), { maximumFractionDigits: max });
 
 /** Il testo è quello che si digita; vuoto vuol dire «non si sa», cioè NULL. */
 const testo = (v: string) => (v.trim() === "" ? null : v.trim());
@@ -104,6 +105,7 @@ function AbbinamentoRiga({ riga, ordine, piuOrdini, modificabile, inCorso, onSce
   inCorso: boolean;
   onScegli: (poi: string | null) => void;
 }) {
+  const t = useT();
   const abbinata = ordine.find((o) => o.id === riga.purchase_order_item_id);
   const esclusa = !abbinata && riga.abbinamento === "manuale";
   const scarto = abbinata && riga.quantita != null && Number(riga.quantita) !== Number(abbinata.quantity);
@@ -111,18 +113,18 @@ function AbbinamentoRiga({ riga, ordine, piuOrdini, modificabile, inCorso, onSce
   return (
     <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
       {abbinata && <span className="inline-flex min-w-0 items-center gap-1 text-emerald-700"><Check className="h-3 w-3 shrink-0" aria-hidden="true" /><span className="truncate">{piuOrdini && abbinata.oda_number ? `${abbinata.oda_number} · ` : ""}{abbinata.description}</span></span>}
-      {scarto && <span className="text-amber-700">ordinati {numero(abbinata.quantity)}, in bolla {numero(riga.quantita)}</span>}
-      {esclusa && <span className="text-muted-foreground">Non è di questo ordine</span>}
-      {riga.arrivo_registrato_il && <span className="rounded-full bg-emerald-50 px-1.5 font-medium text-emerald-800">Arrivo registrato</span>}
-      {!abbinata && !esclusa && <span className="font-medium text-amber-700">Non trovata nell'ordine</span>}
+      {scarto && <span className="text-amber-700">{t("ordinati {quantity}, in bolla {quantita}", { quantity: String(numero(abbinata.quantity) ?? ""), quantita: String(numero(riga.quantita) ?? "") })}</span>}
+      {esclusa && <span className="text-muted-foreground">{t("Non è di questo ordine")}</span>}
+      {riga.arrivo_registrato_il && <span className="rounded-full bg-emerald-50 px-1.5 font-medium text-emerald-800">{t("Arrivo registrato")}</span>}
+      {!abbinata && !esclusa && <span className="font-medium text-amber-700">{t("Non trovata nell'ordine")}</span>}
       {modificabile && (
         <Select value="" disabled={inCorso} onValueChange={(v) => onScegli(v === NON_DI_QUESTO_ORDINE ? null : v)}>
-          <SelectTrigger aria-label={`Abbina ${riga.descrizione} a una riga dell'ordine`} className="h-6 w-auto gap-1 border-dashed px-2 text-[11px]">
-            <SelectValue placeholder={abbinata || esclusa ? "Cambia" : "Abbina…"} />
+          <SelectTrigger aria-label={t("Abbina {descrizione} a una riga dell'ordine", { descrizione: String(riga.descrizione ?? "") })} className="h-6 w-auto gap-1 border-dashed px-2 text-[11px]">
+            <SelectValue placeholder={abbinata || esclusa ? t("Cambia") : t("Abbina…")} />
           </SelectTrigger>
           <SelectContent>
             {opzioni.map((o) => <SelectItem key={o.id} value={o.id}>{etichettaOrdine(o, piuOrdini)}</SelectItem>)}
-            <SelectItem value={NON_DI_QUESTO_ORDINE}>Non è di questo ordine</SelectItem>
+            <SelectItem value={NON_DI_QUESTO_ORDINE}>{t("Non è di questo ordine")}</SelectItem>
           </SelectContent>
         </Select>
       )}
@@ -159,6 +161,7 @@ export function DDTRigheCard({
   /** Una bolla può consegnare più ordini: si guardano anche gli altri aperti del fornitore. */
   fornitoreId?: string | null;
 }) {
+  const t = useT();
   const { data: righe = [], isLoading, isError, refetch } = useDDTRighe(ddtId);
   const { aggiungiRighe, aggiornaRiga, eliminaRiga } = useDDTRigheMutations(ddtId);
   const { ordine, abbina, registraArrivo, nonInBolla, ordiniToccati } = useAbbinamentoBolla(ddtId, odaId, righe, modificabile, fornitoreId);
@@ -166,12 +169,12 @@ export function DDTRigheCard({
   const daRegistrare = arriviDaRegistrare(righe, ordine);
   const chiediRegistrazione = async () => {
     if (consegnaDiretta || gestioneConsegneEsplicita) return;
-    const elenco = daRegistrare.map((d) => `${d.numero ?? "ordine"}: ${d.righe === 1 ? "1 riga" : `${d.righe} righe`}`).join(" · ");
+    const elenco = daRegistrare.map((d) => `${d.numero ?? t("ordine")}: ${d.righe === 1 ? t("1 riga") : t("{n} righe", { n: d.righe })}`).join(" · ");
     if (await conferma({
-      title: "Registrare l'arrivo sugli ordini?",
-      description: `${elenco}. Non si supera mai la quantità ordinata.${daScegliere > 0 ? ` ${daScegliere} ${daScegliere === 1 ? "riga non abbinata resta" : "righe non abbinate restano"} fuori.` : ""}`,
-      confirmLabel: "Registra arrivo",
-      cancelLabel: "Non ora",
+      title: t("Registrare l'arrivo sugli ordini?"),
+      description: `${t("{elenco}. Non si supera mai la quantità ordinata.", { elenco })}${daScegliere > 0 ? ` ${t(daScegliere === 1 ? "{n} riga non abbinata resta fuori." : "{n} righe non abbinate restano fuori.", { n: daScegliere })}` : ""}`,
+      confirmLabel: t("Registra arrivo"),
+      cancelLabel: t("Non ora"),
     })) registraArrivo.mutate();
   };
   const piuOrdini = new Set(ordine.map((o) => o.purchase_order_id)).size > 1;
@@ -246,7 +249,7 @@ export function DDTRigheCard({
 
   const inCorso = aggiornaRiga.isPending || aggiungiRighe.isPending || eliminaRiga.isPending;
 
-  if (isError) return <Card><CardHeader><CardTitle className="text-base">Merce sulla bolla</CardTitle></CardHeader><CardContent><p role="alert" className="text-sm text-destructive">Le righe non sono disponibili: il documento non è vuoto. <button type="button" className="underline" onClick={() => void refetch()}>Riprova</button></p></CardContent></Card>;
+  if (isError) return <Card><CardHeader><CardTitle className="text-base">{t("Merce sulla bolla")}</CardTitle></CardHeader><CardContent><p role="alert" className="text-sm text-destructive">{t("Le righe non sono disponibili: il documento non è vuoto.")} <button type="button" className="underline" onClick={() => void refetch()}>{t("Riprova")}</button></p></CardContent></Card>;
 
   return (
     <>
@@ -255,27 +258,27 @@ export function DDTRigheCard({
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <CardTitle className="text-base flex flex-wrap items-center gap-2">
             <ListTree className="h-4 w-4 text-primary" />
-            Merce sulla bolla
+            {t("Merce sulla bolla")}
             <Badge variant="secondary" className="text-xs">
               {righe.length}
             </Badge>
             {aiConfidenza != null && (
               <Badge variant="outline" className="text-[10px] font-normal gap-1">
                 <Sparkles className="h-3 w-3" />
-                letta dall'AI · {Math.round(aiConfidenza * 100)}%
+                {t("letta dall'AI · {pct}%", { pct: Math.round(aiConfidenza * 100) })}
               </Badge>
             )}
             {ordine.length > 0 && righe.length > 0 && (
               <Badge variant="outline" className={cn("gap-1 px-2 py-0.5 text-xs font-medium", daScegliere > 0 ? "border-amber-300 bg-amber-50 text-amber-800" : "border-emerald-300 bg-emerald-50 text-emerald-800")}>
                 {daScegliere > 0 ? <AlertTriangle className="h-3.5 w-3.5" /> : <Check className="h-3.5 w-3.5" />}
-                {abbinate === righe.length ? (righe.length === 1 ? "Riga trovata nell'ordine" : `Tutte le ${righe.length} righe trovate nell'ordine`) : `${abbinate} righe su ${righe.length} trovate nell'ordine`}{ordiniToccati.length > 1 ? ` · ${ordiniToccati.length} ordini` : ""}
+                {abbinate === righe.length ? (righe.length === 1 ? t("Riga trovata nell'ordine") : t("Tutte le {n} righe trovate nell'ordine", { n: righe.length })) : t("{abbinate} righe su {n} trovate nell'ordine", { abbinate: String(abbinate ?? ""), n: righe.length })}{ordiniToccati.length > 1 ? ` ${t("· {n} ordini", { n: ordiniToccati.length })}` : ""}
               </Badge>
             )}
           </CardTitle>
           <div className="flex items-center gap-3">
             {totale != null && (
               <span className="text-xs text-muted-foreground">
-                Valore merce: <strong className="tabular-nums">{euro(totale)}</strong>
+                {t("Valore merce:")} <strong className="tabular-nums">{euro(totale)}</strong>
               </span>
             )}
             {modificabile && !nuova && (
@@ -289,7 +292,7 @@ export function DDTRigheCard({
                 }}
               >
                 <Plus className="h-3.5 w-3.5" />
-                Aggiungi riga
+                {t("Aggiungi riga")}
               </Button>
             )}
           </div>
@@ -304,8 +307,8 @@ export function DDTRigheCard({
         ) : righe.length === 0 && !nuova ? (
           <p className="py-4 text-center text-sm text-muted-foreground">
             {ricezioni > 0
-              ? "La merce arrivata è registrata articolo per articolo qui sotto. Le righe della bolla servono per confrontarla con la fattura del fornitore."
-              : "Nessuna riga registrata per questa bolla. Senza le righe non si può confrontare la bolla con la fattura del fornitore."}
+              ? t("La merce arrivata è registrata articolo per articolo qui sotto. Le righe della bolla servono per confrontarla con la fattura del fornitore.")
+              : t("Nessuna riga registrata per questa bolla. Senza le righe non si può confrontare la bolla con la fattura del fornitore.")}
           </p>
         ) : (
           <div className="overflow-x-auto rounded-md border">
@@ -315,12 +318,12 @@ export function DDTRigheCard({
             <table className="w-full text-xs">
               <thead className="bg-muted/40 text-muted-foreground">
                 <tr className="[&>th]:px-2 [&>th]:py-1.5 [&>th]:text-left [&>th]:font-medium">
-                  <th className={cn("w-[15%]", stretta && "max-sm:hidden")}>Codice</th>
-                  <th>Descrizione</th>
-                  <th className="w-[10%] text-right">Q.tà</th>
+                  <th className={cn("w-[15%]", stretta && "max-sm:hidden")}>{t("Codice")}</th>
+                  <th>{t("Descrizione")}</th>
+                  <th className="w-[10%] text-right">{t("Q.tà")}</th>
                   <th className={cn("w-[8%]", stretta && "max-sm:hidden")}>UM</th>
-                  <th className={cn("w-[13%] text-right", stretta && "max-sm:hidden")}>€/UM</th>
-                  <th className="w-[13%] text-right">Importo</th>
+                  <th className={cn("w-[13%] text-right", stretta && "max-sm:hidden")}>{t("€/UM")}</th>
+                  <th className="w-[13%] text-right">{t("Importo")}</th>
                   {modificabile && <th className="w-[8%]" />}
                 </tr>
               </thead>
@@ -333,7 +336,7 @@ export function DDTRigheCard({
                           value={bozza.codice_articolo}
                           onChange={(e) => setBozza({ ...bozza, codice_articolo: e.target.value })}
                           className="h-7 text-xs font-mono"
-                          placeholder="codice"
+                          placeholder={t("codice")}
                         />
                       </td>
                       <td>
@@ -341,7 +344,7 @@ export function DDTRigheCard({
                           value={bozza.descrizione}
                           onChange={(e) => setBozza({ ...bozza, descrizione: e.target.value })}
                           className="h-7 text-xs"
-                          placeholder="descrizione"
+                          placeholder={t("descrizione")}
                           autoFocus
                         />
                       </td>
@@ -415,21 +418,19 @@ export function DDTRigheCard({
                           {r.origine === "manuale" && r.ai_originale && (
                             <span
                               className="shrink-0"
-                              title={`Corretta a mano. L'AI aveva letto: ${lettoDallAI(r) ?? "—"}`}
+                              title={t("Corretta a mano. L'AI aveva letto: {letto}", { letto: lettoDallAI(r) ?? "—" })}
                             >
                               <PenLine className="h-3 w-3 text-amber-600" />
                             </span>
                           )}
                           {r.origine === "ai" && (
-                            <span className="shrink-0" title="Letta dall'AI, non ancora controllata">
+                            <span className="shrink-0" title={t("Letta dall'AI, non ancora controllata")}>
                               <Sparkles className="h-3 w-3 text-violet-500" />
                             </span>
                           )}
                         </span>
                         {r.origine === "manuale" && lettoDallAI(r) && (
-                          <span className="block truncate text-[10px] text-muted-foreground">
-                            l'AI aveva letto: {lettoDallAI(r)}
-                          </span>
+                          <span className="block truncate text-[10px] text-muted-foreground">{t("l'AI aveva letto: {r}", { r: String(lettoDallAI(r) ?? "") })}</span>
                         )}
                         {ordine.length > 0 && (
                           <AbbinamentoRiga riga={r} ordine={ordine} piuOrdini={piuOrdini} modificabile={modificabile} inCorso={abbina.isPending}
@@ -450,7 +451,7 @@ export function DDTRigheCard({
                           importoRiga(r) == null && "text-amber-600",
                         )}
                       >
-                        {importoRiga(r) != null ? euro(importoRiga(r)!) : "da valorizzare"}
+                        {importoRiga(r) != null ? euro(importoRiga(r)!) : t("da valorizzare")}
                       </td>
                       {modificabile && (
                         <td>
@@ -460,7 +461,7 @@ export function DDTRigheCard({
                               variant="ghost"
                               className="h-6 w-6"
                               onClick={() => apriModifica(r)}
-                              title="Correggi la riga"
+                              title={t("Correggi la riga")}
                             >
                               <PenLine className="h-3 w-3" />
                             </Button>
@@ -469,7 +470,7 @@ export function DDTRigheCard({
                               variant="ghost"
                               className="h-6 w-6 text-destructive hover:text-destructive max-sm:hidden"
                               onClick={() => eliminaRiga.mutate(r.id)}
-                              title="Togli la riga"
+                              title={t("Togli la riga")}
                             >
                               <Trash2 className="h-3 w-3" />
                             </Button>
@@ -487,7 +488,7 @@ export function DDTRigheCard({
                         value={nuova.codice_articolo}
                         onChange={(e) => setNuova({ ...nuova, codice_articolo: e.target.value })}
                         className="h-7 text-xs font-mono"
-                        placeholder="codice"
+                        placeholder={t("codice")}
                       />
                     </td>
                     <td>
@@ -495,7 +496,7 @@ export function DDTRigheCard({
                         value={nuova.descrizione}
                         onChange={(e) => setNuova({ ...nuova, descrizione: e.target.value })}
                         className="h-7 text-xs"
-                        placeholder="descrizione della merce"
+                        placeholder={t("descrizione della merce")}
                         autoFocus
                       />
                     </td>
@@ -512,7 +513,7 @@ export function DDTRigheCard({
                         value={nuova.unita_misura}
                         onChange={(e) => setNuova({ ...nuova, unita_misura: e.target.value })}
                         className="h-7 text-xs"
-                        placeholder="pz"
+                        placeholder={t("pz")}
                       />
                     </td>
                     <td>
@@ -556,7 +557,7 @@ export function DDTRigheCard({
                 <tfoot className="border-t bg-muted/20 font-medium">
                   <tr className="[&>td]:px-2 [&>td]:py-1.5">
                     <td colSpan={2} className="text-muted-foreground">
-                      Totale
+                      {t("Totale")}
                     </td>
                     <td colSpan={3} className={cn("text-right tabular-nums", stretta && "max-sm:hidden")}>
                       {[...quantitaPerUnita].map(([um, q]) => `${numero(q)} ${um}`).join(" · ") || "—"}
@@ -582,9 +583,7 @@ export function DDTRigheCard({
 
         {senzaPrezzo > 0 && (
           <p className="text-[11px] text-muted-foreground">
-            {senzaPrezzo} {senzaPrezzo === 1 ? "riga" : "righe"} senza prezzo: la bolla
-            non è ancora valorizzabile per intero. Potrai completare i prezzi
-            collegando la fattura del fornitore.
+            {t(senzaPrezzo === 1 ? "{senzaPrezzo} riga senza prezzo: la bolla non è ancora valorizzabile per intero. Potrai completare i prezzi collegando la fattura del fornitore." : "{senzaPrezzo} righe senza prezzo: la bolla non è ancora valorizzabile per intero. Potrai completare i prezzi collegando la fattura del fornitore.", { senzaPrezzo })}
           </p>
         )}
 
@@ -598,24 +597,24 @@ export function DDTRigheCard({
             ))}
           </ul>
         )}
-        {consegnaDiretta && <p className="mt-3 text-xs text-emerald-800">Consegna diretta in cantiere: le righe documentano la consegna e non generano carichi di magazzino.</p>}
+        {consegnaDiretta && <p className="mt-3 text-xs text-emerald-800">{t("Consegna diretta in cantiere: le righe documentano la consegna e non generano carichi di magazzino.")}</p>}
         {modificabile && !consegnaDiretta && !gestioneConsegneEsplicita && daRegistrare.length > 0 && (
           <Button size="sm" className="mt-3" disabled={registraArrivo.isPending} onClick={() => void chiediRegistrazione()}>
             {registraArrivo.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden="true" />}
-            Registra arrivo sugli ordini
+            {t("Registra arrivo sugli ordini")}
           </Button>
         )}
         {ordiniToccati.length > 1 && (
           <p className="mt-2 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-            Questa bolla consegna:
+            {t("Questa bolla consegna:")}
             {ordiniToccati.map((o) => (
-              <Link key={o.id} to={`/azienda/ordini-acquisto/${o.id}`} className="font-medium text-primary underline">{o.numero ?? "ordine"}</Link>
+              <Link key={o.id} to={`/azienda/ordini-acquisto/${o.id}`} className="font-medium text-primary underline">{o.numero ?? t("ordine")}</Link>
             ))}
           </p>
         )}
         {righe.length > 0 && nonInBolla.length > 0 && (
           <p className="mt-2 text-xs text-muted-foreground">
-            Nell'ordine ma non su questa bolla: {nonInBolla.map((o) => o.description || "riga senza descrizione").join(" · ")}
+            {t("Nell'ordine ma non su questa bolla:")} {nonInBolla.map((o) => o.description || t("riga senza descrizione")).join(" · ")}
           </p>
         )}
       </CardContent>

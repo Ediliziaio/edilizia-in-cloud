@@ -8,6 +8,7 @@ import { X as XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface SezioneLaterale {
   key: string;
@@ -31,6 +32,7 @@ export function PannelloLateraleScheda({
   /** Il contenuto della sezione attiva. */
   children: ReactNode;
 }) {
+  const t = useT();
   const sezione = sezioni.find((s) => s.key === attiva);
   const panelId = useId();
   const activeButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -43,12 +45,12 @@ export function PannelloLateraleScheda({
         )}>
           <div className="flex items-center justify-between px-3 py-2 border-b">
             <h3 id={`${panelId}-titolo`} className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              {sezione?.label ?? "Pannello"}
+              {sezione ? t(sezione.label) : t("Pannello")}
               {sezione?.conteggio !== undefined && (
                 <span className="text-[10px] tabular-nums text-muted-foreground/70">({sezione.conteggio})</span>
               )}
             </h3>
-            <Button variant="ghost" size="icon" className="h-9 w-9 md:h-6 md:w-6" onClick={() => { activeButtonRef.current?.focus(); onCambia(null); }} aria-label="Chiudi pannello">
+            <Button variant="ghost" size="icon" className="h-9 w-9 md:h-6 md:w-6" onClick={() => { activeButtonRef.current?.focus(); onCambia(null); }} aria-label={t("Chiudi pannello")}>
               <XIcon className="h-3.5 w-3.5" />
             </Button>
           </div>
@@ -73,12 +75,12 @@ export function PannelloLateraleScheda({
                     accesa ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
                   )}
                   onClick={() => onCambia(accesa ? null : s.key)}
-                  aria-label={s.label}
+                  aria-label={t(s.label)}
                 >
                   <Icon className="h-4 w-4" />
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="left">{s.label}</TooltipContent>
+              <TooltipContent side="left">{t(s.label)}</TooltipContent>
             </Tooltip>
           );
         })}

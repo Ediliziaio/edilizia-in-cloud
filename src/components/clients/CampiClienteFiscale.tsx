@@ -18,6 +18,7 @@ import {
   type SceltaSplit,
   type TipoClienteFiscale,
 } from "@/lib/clienti/clienteFiscale";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const ICONA: Record<string, ReactNode> = {
   B2C: <UserIcon className="h-3.5 w-3.5 mr-1.5" />,
@@ -67,6 +68,7 @@ interface Props {
 }
 
 export function CampiClienteFiscale({ value, onChange, errori = {}, soloExtra = false, conUfficio = false, disabled }: Props) {
+  const t = useT();
   const f = value;
   const set = (patch: Partial<ClienteFiscaleForm>) => onChange({ ...f, ...patch });
   const privato = f.tipo === "B2C";
@@ -106,13 +108,13 @@ export function CampiClienteFiscale({ value, onChange, errori = {}, soloExtra = 
           <div className="grid gap-3 sm:grid-cols-2">
             {privato ? (
               <>
-                {campo("nome", "Nome *", { placeholder: "Mario" })}
-                {campo("cognome", "Cognome *", { placeholder: "Rossi" })}
+                {campo("nome", t("Nome *"), { placeholder: "Mario" })}
+                {campo("cognome", t("Cognome *"), { placeholder: "Rossi" })}
                 {campo("codiceFiscale", "Codice fiscale", { mono: true, maiuscolo: true, placeholder: "RSSMRA80A01H501U", maxLength: 16 })}
               </>
             ) : (
               <>
-                {campo("ragioneSociale", pa ? "Denominazione dell'ente *" : "Ragione sociale *", {
+                {campo("ragioneSociale", pa ? t("Denominazione dell'ente *") : t("Ragione sociale *"), {
                   placeholder: pa ? "Comune di …" : "Rossi Costruzioni S.r.l.",
                   className: "sm:col-span-2",
                 })}
@@ -127,16 +129,16 @@ export function CampiClienteFiscale({ value, onChange, errori = {}, soloExtra = 
           </div>
 
           <div className="grid gap-3 sm:grid-cols-6">
-            {campo("indirizzoVia", privato ? "Indirizzo" : "Sede", { className: "sm:col-span-6", placeholder: "Via Roma 1" })}
+            {campo("indirizzoVia", privato ? t("Indirizzo") : t("Sede"), { className: "sm:col-span-6", placeholder: "Via Roma 1" })}
             {campo("indirizzoCap", "CAP", { className: "sm:col-span-1", mono: true, maxLength: 5 })}
-            {campo("indirizzoComune", "Comune", { className: "sm:col-span-3" })}
+            {campo("indirizzoComune", t("Comune"), { className: "sm:col-span-3" })}
             {campo("indirizzoProvincia", "Prov.", { className: "sm:col-span-1", maxLength: 2 })}
-            {campo("indirizzoNazione", "Paese", { className: "sm:col-span-1", maxLength: 2, aiuto: "IT, FR…" })}
+            {campo("indirizzoNazione", t("Paese"), { className: "sm:col-span-1", maxLength: 2, aiuto: "IT, FR…" })}
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            {campo("email", "Email", { type: "email" })}
-            {campo("telefono", "Telefono", { type: "tel" })}
+            {campo("email", t("Email"), { type: "email" })}
+            {campo("telefono", t("Telefono"), { type: "tel" })}
           </div>
         </>
       )}
@@ -150,9 +152,9 @@ export function CampiClienteFiscale({ value, onChange, errori = {}, soloExtra = 
               mono: true,
               maxLength: 7,
               placeholder: "ABC1234",
-              aiuto: "7 caratteri. Senza codice si usa la PEC.",
+              aiuto: t("7 caratteri. Senza codice si usa la PEC."),
             })}
-          {campo("referenteAmministrativo", "Referente amministrativo", { placeholder: "Ufficio ragioneria, sig.ra Bianchi" })}
+          {campo("referenteAmministrativo", t("Referente amministrativo"), { placeholder: t("Ufficio ragioneria, sig.ra Bianchi") })}
           {campo("emailAmministrazione", "Email amministrazione (fatture)", { type: "email" })}
         </div>
       )}
@@ -163,10 +165,10 @@ export function CampiClienteFiscale({ value, onChange, errori = {}, soloExtra = 
             {campo("codiceIpa", "Codice IPA dell'ente", {
               mono: true,
               placeholder: "c_h501",
-              aiuto: "Il codice dell'ente su indicepa.gov.it. Non è il codice dell'ufficio.",
+              aiuto: t("Il codice dell'ente su indicepa.gov.it. Non è il codice dell'ufficio."),
             })}
             <div className="space-y-1.5">
-              <Label>Split payment</Label>
+              <Label>{t("Split payment")}</Label>
               <RadioGroup
                 value={f.split ?? "azienda"}
                 onValueChange={(v) => set({ split: v as SceltaSplit })}
@@ -175,9 +177,9 @@ export function CampiClienteFiscale({ value, onChange, errori = {}, soloExtra = 
               >
                 {(
                   [
-                    ["si", "Sì"],
-                    ["no", "No"],
-                    ["azienda", "Come l'impostazione dell'azienda"],
+                    ["si", t("Sì")],
+                    ["no", t("No")],
+                    ["azienda", t("Come l'impostazione dell'azienda")],
                   ] as const
                 ).map(([v, l]) => (
                   <label key={v} className="flex items-center gap-1.5 text-sm cursor-pointer">
@@ -185,7 +187,7 @@ export function CampiClienteFiscale({ value, onChange, errori = {}, soloExtra = 
                   </label>
                 ))}
               </RadioGroup>
-              <p className="text-xs text-muted-foreground">Non tutte le PA sono in split payment: controlla sul contratto o sull'ordine.</p>
+              <p className="text-xs text-muted-foreground">{t("Non tutte le PA sono in split payment: controlla sul contratto o sull'ordine.")}</p>
             </div>
           </div>
           {conUfficio && (
@@ -195,9 +197,9 @@ export function CampiClienteFiscale({ value, onChange, errori = {}, soloExtra = 
                 mono: true,
                 maxLength: 6,
                 placeholder: "UFXXXX",
-                aiuto: "6 caratteri, dall'ordine o da indicepa.gov.it. Altri uffici si aggiungono dalla scheda.",
+                aiuto: t("6 caratteri, dall'ordine o da indicepa.gov.it. Altri uffici si aggiungono dalla scheda."),
               })}
-              {campo("ufficioDescrizione", "Nome dell'ufficio", { placeholder: "Lavori pubblici" })}
+              {campo("ufficioDescrizione", t("Nome dell'ufficio"), { placeholder: t("Lavori pubblici") })}
             </div>
           )}
         </div>

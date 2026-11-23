@@ -55,6 +55,7 @@ import {
   validaBonifico,
   nuovoBonificoForm,
 } from "@/lib/fatturazione/bonificiParlanti";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // La stessa lista di «Segna pagata»: lib/fatturazione/incassi.ts.
 const METODI = METODI_INCASSO;
@@ -66,6 +67,7 @@ type RegistroIncassiProps = {
 export default function RegistroIncassi({
   embedded = false,
 }: RegistroIncassiProps = {}) {
+  const t = useT();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   // Telefono: 40 righe per elenco, poi «Mostra altri». Con tutti i movimenti in pagina il
@@ -177,17 +179,17 @@ export default function RegistroIncassi({
 
   const handleSubmit = () => {
     if (!formDocId || !formImporto) {
-      toast.error("Seleziona una fattura e inserisci l'importo");
+      toast.error(t("Seleziona una fattura e inserisci l'importo"));
       return;
     }
     const parsedImporto = Number(formImporto);
     if (!Number.isFinite(parsedImporto) || parsedImporto <= 0) {
-      toast.error("Inserisci un importo valido maggiore di zero");
+      toast.error(t("Inserisci un importo valido maggiore di zero"));
       return;
     }
     if (selectedInvoice && parsedImporto > maxImporto + 0.005) {
-      toast.error("L'importo supera il residuo della fattura", {
-        description: `Residuo disponibile: ${formatCurrency(maxImporto)}`,
+      toast.error(t("L'importo supera il residuo della fattura"), {
+        description: t("Residuo disponibile: {maxImporto}", { maxImporto: formatCurrency(maxImporto) }),
       });
       return;
     }
@@ -278,10 +280,10 @@ export default function RegistroIncassi({
             </div>
             <div className="min-w-0">
               <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">
-                Registro Incassi
+                {t("Registro Incassi")}
               </h1>
               <p className="mt-0.5 text-sm text-slate-500">
-                Controlla incassi, scadenze e residui cliente in modo operativo.
+                {t("Controlla incassi, scadenze e residui cliente in modo operativo.")}
               </p>
             </div>
           </div>
@@ -292,8 +294,8 @@ export default function RegistroIncassi({
                 className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-8 max-sm:px-3 max-sm:text-xs"
               >
                 <Plus className="h-4 w-4 mr-1" />{" "}
-                <span className="max-sm:hidden">Registra Incasso</span>
-                <span className="sm:hidden">Registra</span>
+                <span className="max-sm:hidden">{t("Registra Incasso")}</span>
+                <span className="sm:hidden">{t("Registra")}</span>
               </Button>
             </SheetTrigger>
             {/* Mobile: pannello dal basso, campi brevi affiancati, via le note. */}
@@ -307,15 +309,15 @@ export default function RegistroIncassi({
             >
               <SheetHeader className="max-sm:text-left">
                 <SheetTitle className="max-sm:text-base">
-                  Registra Incasso
+                  {t("Registra Incasso")}
                 </SheetTitle>
               </SheetHeader>
               <div className="space-y-4 mt-6 max-sm:mt-3 max-sm:grid max-sm:grid-cols-2 max-sm:gap-x-2 max-sm:gap-y-3 max-sm:space-y-0">
                 <div className="max-sm:col-span-2">
-                  <Label className="text-sm">Fattura</Label>
+                  <Label className="text-sm">{t("Fattura")}</Label>
                   <Select value={formDocId} onValueChange={handleSelectInvoice}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Seleziona fattura..." />
+                      <SelectValue placeholder={t("Seleziona fattura...")} />
                     </SelectTrigger>
                     <SelectContent>
                       {unpaidInvoices.map((inv) => (
@@ -333,7 +335,7 @@ export default function RegistroIncassi({
 
                 <div>
                   <Label className="text-sm">
-                    {parlante ? "Lordo pagato dal cliente €" : "Importo €"}
+                    {parlante ? t("Lordo pagato dal cliente €") : t("Importo €")}
                   </Label>
                   <Input
                     type="number"
@@ -348,16 +350,16 @@ export default function RegistroIncassi({
                   {formImporto && parseFloat(formImporto) < maxImporto && (
                     <p className="text-xs text-amber-600 mt-1 max-sm:text-[11px]">
                       <span className="max-sm:hidden">
-                        Incasso parziale — residuo:{" "}
+                        {t("Incasso parziale — residuo:")}{" "}
                       </span>
-                      <span className="sm:hidden">Residuo </span>
+                      <span className="sm:hidden">{t("Residuo")} </span>
                       {formatCurrency(maxImporto - parseFloat(formImporto))}
                     </p>
                   )}
                 </div>
 
                 <div>
-                  <Label className="text-sm">Data incasso</Label>
+                  <Label className="text-sm">{t("Data incasso")}</Label>
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button
@@ -387,7 +389,7 @@ export default function RegistroIncassi({
                 </div>
 
                 <div>
-                  <Label className="text-sm">Metodo</Label>
+                  <Label className="text-sm">{t("Metodo")}</Label>
                   <Select
                     value={formMetodo}
                     onValueChange={(value) => {
@@ -405,7 +407,7 @@ export default function RegistroIncassi({
                         </SelectItem>
                       ))}
                       <SelectItem value="bonifico_parlante">
-                        Bonifico parlante (con ritenuta)
+                        {t("Bonifico parlante (con ritenuta)")}
                       </SelectItem>
                     </SelectContent>
                   </Select>
@@ -414,9 +416,9 @@ export default function RegistroIncassi({
                 <div>
                   <Label className="text-sm">
                     <span className="max-sm:hidden">
-                      Riferimento (CRO, n. assegno...)
+                      {t("Riferimento (CRO, n. assegno...)")}
                     </span>
-                    <span className="sm:hidden">Riferimento</span>
+                    <span className="sm:hidden">{t("Riferimento")}</span>
                   </Label>
                   <Input
                     value={formRiferimento}
@@ -438,7 +440,7 @@ export default function RegistroIncassi({
                 )}
 
                 <div className="max-sm:hidden">
-                  <Label className="text-sm">Note</Label>
+                  <Label className="text-sm">{t("Note")}</Label>
                   <Input
                     value={formNote}
                     onChange={(e) => setFormNote(e.target.value)}
@@ -455,7 +457,7 @@ export default function RegistroIncassi({
                   {createMovimento.isPending && (
                     <Loader2 className="h-4 w-4 animate-spin mr-1" />
                   )}
-                  Registra Incasso
+                  {t("Registra Incasso")}
                 </Button>
               </div>
             </SheetContent>
@@ -468,31 +470,31 @@ export default function RegistroIncassi({
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 max-sm:gap-2">
         <OperationalKpiCard
           icon={TrendingUp}
-          label="Incassato mese"
+          label={t("Incassato mese")}
           value={formatCurrency(kpis.incassatoMese)}
-          hint="netto di ritenute e commissioni registrate"
+          hint={t("netto di ritenute e commissioni registrate")}
           tone="green"
         />
         <OperationalKpiCard
           icon={Wallet}
-          label="Da incassare"
+          label={t("Da incassare")}
           value={formatCurrency(kpis.daIncassare)}
-          hint="fatture aperte"
+          hint={t("fatture aperte")}
           tone="blue"
           className="max-sm:hidden"
         />
         <OperationalKpiCard
           icon={AlertTriangle}
-          label="Scaduto"
+          label={t("Scaduto")}
           value={formatCurrency(kpis.scaduto)}
-          hint="da sollecitare"
+          hint={t("da sollecitare")}
           tone={kpis.scaduto > 0 ? "red" : "green"}
         />
         <OperationalKpiCard
           icon={Clock}
-          label="Non scaduto"
+          label={t("Non scaduto")}
           value={formatCurrency(kpis.saldo)}
-          hint="ancora nei termini"
+          hint={t("ancora nei termini")}
           tone="amber"
           className="max-sm:hidden"
         />
@@ -502,13 +504,13 @@ export default function RegistroIncassi({
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="max-sm:grid max-sm:h-9 max-sm:w-full max-sm:grid-cols-2">
           <TabsTrigger value="incassi" className="tap-compact max-sm:text-xs">
-            Incassi
+            {t("Incassi")}
           </TabsTrigger>
           <TabsTrigger
             value="scadenzario"
             className="tap-compact max-sm:text-xs"
           >
-            Fatture da incassare
+            {t("Fatture da incassare")}
           </TabsTrigger>
         </TabsList>
 
@@ -530,7 +532,7 @@ export default function RegistroIncassi({
                 >
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[13px] font-semibold capitalize leading-tight">
-                      {m.metodo ?? "Incasso"}
+                      {m.metodo ?? t("Incasso")}
                     </div>
                     <div className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
                       {formatDateIt(m.data_movimento)}
@@ -540,16 +542,14 @@ export default function RegistroIncassi({
                   <span className="shrink-0 text-right text-[13px] font-semibold tabular-nums">
                     {formatCurrency(Number(m.importo_netto_banca ?? m.importo))}
                     {m.importo_netto_banca != null && (
-                      <span className="block text-[11px] font-normal">
-                        Lordo saldato {formatCurrency(m.importo)}
-                      </span>
+                      <span className="block text-[11px] font-normal">{t("Lordo saldato {importo}", { importo: formatCurrency(m.importo) })}</span>
                     )}
                   </span>
                 </button>
               ))}
               {(movimenti ?? []).length === 0 && (
                 <p className="px-3 py-3 text-center text-xs text-muted-foreground">
-                  Nessun incasso registrato
+                  {t("Nessun incasso registrato")}
                 </p>
               )}
               {(movimenti?.length ?? 0) > quanteTelefono && (
@@ -569,12 +569,12 @@ export default function RegistroIncassi({
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/50">
-                      <th className="p-3 text-left font-medium">Data</th>
-                      <th className="p-3 text-left font-medium">Fattura</th>
-                      <th className="p-3 text-right font-medium">Importo</th>
-                      <th className="p-3 text-left font-medium">Metodo</th>
-                      <th className="p-3 text-left font-medium">Riferimento</th>
-                      <th className="p-3 text-left font-medium">Note</th>
+                      <th className="p-3 text-left font-medium">{t("Data")}</th>
+                      <th className="p-3 text-left font-medium">{t("Fattura")}</th>
+                      <th className="p-3 text-right font-medium">{t("Importo")}</th>
+                      <th className="p-3 text-left font-medium">{t("Metodo")}</th>
+                      <th className="p-3 text-left font-medium">{t("Riferimento")}</th>
+                      <th className="p-3 text-left font-medium">{t("Note")}</th>
                       <th className="p-3 w-10"></th>
                     </tr>
                   </thead>
@@ -597,7 +597,7 @@ export default function RegistroIncassi({
                               }
                             >
                               <LinkIcon className="h-3 w-3 mr-1" />
-                              Vedi fattura
+                              {t("Vedi fattura")}
                             </Button>
                           ) : (
                             "—"
@@ -608,9 +608,7 @@ export default function RegistroIncassi({
                             Number(m.importo_netto_banca ?? m.importo),
                           )}
                           {m.importo_netto_banca != null && (
-                            <p className="text-xs text-muted-foreground">
-                              Lordo saldato {formatCurrency(m.importo)}
-                            </p>
+                            <p className="text-xs text-muted-foreground">{t("Lordo saldato {importo}", { importo: formatCurrency(m.importo) })}</p>
                           )}
                         </td>
                         <td className="p-3 capitalize">{m.metodo ?? "—"}</td>
@@ -629,16 +627,16 @@ export default function RegistroIncassi({
                                 )
                               }
                             >
-                              Gestisci ritenuta
+                              {t("Gestisci ritenuta")}
                             </Button>
                           ) : (
                             <Button
-                              aria-label="Elimina movimento"
+                              aria-label={t("Elimina movimento")}
                               variant="ghost"
                               size="icon"
                               className="h-7 w-7"
                               onClick={() => {
-                                if (confirm("Eliminare questo movimento?")) {
+                                if (confirm(t("Eliminare questo movimento?"))) {
                                   deleteMovimento.mutate(m.id);
                                 }
                               }}
@@ -655,7 +653,7 @@ export default function RegistroIncassi({
                           colSpan={7}
                           className="p-8 text-center text-muted-foreground"
                         >
-                          Nessun incasso registrato
+                          {t("Nessun incasso registrato")}
                         </td>
                       </tr>
                     )}
@@ -671,7 +669,7 @@ export default function RegistroIncassi({
           <div className="space-y-2 max-sm:space-y-1">
             {scadenzario.length === 0 && (
               <div className="text-center py-12 text-muted-foreground max-sm:py-4 max-sm:text-xs">
-                Nessuna scadenza aperta
+                {t("Nessuna scadenza aperta")}
               </div>
             )}
             {(isMobile ? scadenzario.slice(0, quanteTelefono) : scadenzario).map((d) => (
@@ -698,9 +696,7 @@ export default function RegistroIncassi({
                     <p className="font-mono max-sm:font-sans max-sm:text-[13px] max-sm:font-semibold max-sm:leading-tight">
                       {formatCurrency(d.totale_da_pagare - d.importo_pagato)}
                     </p>
-                    <p className="text-xs text-muted-foreground max-sm:text-[11px]">
-                      Scad. {formatDateIt(d.data_scadenza)}
-                    </p>
+                    <p className="text-xs text-muted-foreground max-sm:text-[11px]">{t("Scad. {data_scadenza}", { data_scadenza: formatDateIt(d.data_scadenza) })}</p>
                   </div>
                   <Badge
                     className="max-sm:hidden"
@@ -713,10 +709,10 @@ export default function RegistroIncassi({
                     }
                   >
                     {d.urgency === "scaduta"
-                      ? `${Math.abs(d.diff)} gg fa`
+                      ? t("{valore} gg fa", { valore: Math.abs(d.diff) })
                       : d.urgency === "oggi"
-                        ? "Oggi"
-                        : `tra ${d.diff} gg`}
+                        ? t("Oggi")
+                        : t("tra {diff} gg", { diff: String(d.diff ?? "") })}
                   </Badge>
                 </div>
               </div>

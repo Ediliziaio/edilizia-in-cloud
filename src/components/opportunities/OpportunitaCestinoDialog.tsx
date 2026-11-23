@@ -4,7 +4,6 @@
 
 import { useMemo, useState } from "react";
 import { format, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
 import { ArchiveRestore, Loader2, Search, Trash2 } from "lucide-react";
 
 import {
@@ -16,10 +15,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useOpportunitaCestino, useRipristinaOpportunita } from "@/hooks/useOpportunitiesData";
 import { filtraCestino, LIMITE_CESTINO } from "@/lib/opportunitaCestino";
 import { formatCount, formatCurrency } from "@/lib/formatters";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 function quando(iso: string): string {
   try {
-    return format(parseISO(iso), "d MMM yyyy 'alle' HH:mm", { locale: it });
+    return format(parseISO(iso), "d MMM yyyy 'alle' HH:mm", { locale: dateFnsCampo() });
   } catch {
     return "";
   }
@@ -32,6 +32,7 @@ export function OpportunitaCestinoDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const t = useT();
   const { data: righe = [], isLoading, isError, refetch } = useOpportunitaCestino(open);
   const ripristina = useRipristinaOpportunita();
   const [cerca, setCerca] = useState("");
@@ -45,11 +46,10 @@ export function OpportunitaCestinoDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Trash2 className="h-5 w-5 text-muted-foreground" />
-            Cestino opportunità
+            {t("Cestino opportunità")}
           </DialogTitle>
           <DialogDescription>
-            Le opportunità eliminate restano qui finché qualcuno non le ripristina.
-            Tornano nella loro fase, con lo stato che avevano.
+            {t("Le opportunità eliminate restano qui finché qualcuno non le ripristina. Tornano nella loro fase, con lo stato che avevano.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -59,9 +59,9 @@ export function OpportunitaCestinoDialog({
             <Input
               value={cerca}
               onChange={(e) => setCerca(e.target.value)}
-              placeholder="Cerca per nome, contatto, fase o chi l'ha eliminata"
+              placeholder={t("Cerca per nome, contatto, fase o chi l'ha eliminata")}
               className="h-9 pl-8 text-sm"
-              aria-label="Cerca nel cestino"
+              aria-label={t("Cerca nel cestino")}
             />
           </div>
         )}
@@ -73,12 +73,12 @@ export function OpportunitaCestinoDialog({
             </div>
           ) : isError ? (
             <div className="flex flex-col items-center gap-2 py-10 text-center text-sm text-muted-foreground">
-              Il cestino non si è caricato.
-              <Button size="sm" variant="outline" onClick={() => refetch()}>Riprova</Button>
+              {t("Il cestino non si è caricato.")}
+              <Button size="sm" variant="outline" onClick={() => refetch()}>{t("Riprova")}</Button>
             </div>
           ) : visibili.length === 0 ? (
             <div className="py-10 text-center text-sm text-muted-foreground">
-              {righe.length === 0 ? "Il cestino è vuoto." : "Nessuna opportunità del cestino corrisponde alla ricerca."}
+              {righe.length === 0 ? t("Il cestino è vuoto.") : t("Nessuna opportunità del cestino corrisponde alla ricerca.")}
             </div>
           ) : (
             <ul className="space-y-1.5 py-1">
@@ -94,8 +94,9 @@ export function OpportunitaCestinoDialog({
                       <p className="truncate text-sm font-medium">{r.nome}</p>
                       {dettagli && <p className="truncate text-[11px] text-muted-foreground">{dettagli}</p>}
                       <p className="text-[11px] text-muted-foreground">
-                        Eliminata il {quando(r.eliminataIl)}
-                        {r.eliminataDa && <> da <span className="font-medium text-foreground">{r.eliminataDa}</span></>}
+                        {r.eliminataDa
+                          ? t("Eliminata il {data} da {nome}", { data: quando(r.eliminataIl), nome: r.eliminataDa })
+                          : t("Eliminata il {data}", { data: quando(r.eliminataIl) })}
                       </p>
                     </div>
                     <Button
@@ -112,7 +113,7 @@ export function OpportunitaCestinoDialog({
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       ) : (
                         <>
-                          <ArchiveRestore className="mr-1 h-3.5 w-3.5" /> Ripristina
+                          <ArchiveRestore className="mr-1 h-3.5 w-3.5" /> {t("Ripristina")}
                         </>
                       )}
                     </Button>
@@ -124,9 +125,7 @@ export function OpportunitaCestinoDialog({
         </div>
 
         {righe.length >= LIMITE_CESTINO && (
-          <p className="text-[11px] text-muted-foreground">
-            Qui ci sono le ultime {formatCount(LIMITE_CESTINO)} eliminate.
-          </p>
+          <p className="text-[11px] text-muted-foreground">{t("Qui ci sono le ultime {n} eliminate.", { n: formatCount(LIMITE_CESTINO) })}</p>
         )}
       </DialogContent>
     </Dialog>

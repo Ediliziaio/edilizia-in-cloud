@@ -25,12 +25,13 @@ import {
   type CommessaDelCliente,
   type DocumentoCommessaRiga,
 } from "@/lib/clienti/documentiCommesseCliente";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 function dataBreve(iso: string): string {
   const d = new Date(iso);
   return Number.isNaN(d.getTime())
     ? "—"
-    : d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "2-digit" });
+    : d.toLocaleDateString(intlCampo(), { day: "2-digit", month: "2-digit", year: "2-digit" });
 }
 
 export function DocumentiCommesseCliente({
@@ -42,6 +43,7 @@ export function DocumentiCommesseCliente({
   commesse: CommessaDelCliente[];
   perCommittente?: boolean;
 }) {
+  const t = useT();
   const navigate = useNavigate();
   // Anche le cartelle archiviate: un file rimasto dentro mostra il nome vero.
   const { cartelle, isLoading: caricoCartelle } = useCartelleDocumenti({ tutte: true });
@@ -61,9 +63,9 @@ export function DocumentiCommesseCliente({
 
   const intestazione = (
     <div>
-      <p className="text-sm font-semibold">Documenti delle commesse</p>
+      <p className="text-sm font-semibold">{t("Documenti delle commesse")}</p>
       <p className="text-xs text-muted-foreground">
-        I file caricati nelle commesse {perCommittente ? "del committente" : "del cliente"}, per cartella. Si gestiscono dalla commessa.
+        {perCommittente ? t("I file caricati nelle commesse del committente, per cartella. Si gestiscono dalla commessa.") : t("I file caricati nelle commesse del cliente, per cartella. Si gestiscono dalla commessa.")}
       </p>
     </div>
   );
@@ -72,7 +74,7 @@ export function DocumentiCommesseCliente({
   if (commesse.length > 0 && (caricoDocumenti || caricoCartelle)) {
     contenuto = (
       <div className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" /> Carico i documenti delle commesse…
+        <Loader2 className="h-4 w-4 animate-spin" /> {t("Carico i documenti delle commesse…")}
       </div>
     );
   } else if (error) {
@@ -80,11 +82,11 @@ export function DocumentiCommesseCliente({
       <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
         <div className="min-w-0">
-          <p className="font-medium">Documenti delle commesse non caricati</p>
-          <p className="mt-0.5 text-xs">{error instanceof Error ? error.message : "Riprova tra poco."}</p>
+          <p className="font-medium">{t("Documenti delle commesse non caricati")}</p>
+          <p className="mt-0.5 text-xs">{error instanceof Error ? error.message : t("Riprova tra poco.")}</p>
           <Button variant="outline" size="sm" className="mt-2 h-7 text-xs" onClick={() => void refetch()} disabled={isRefetching}>
             {isRefetching && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-            Riprova
+            {t("Riprova")}
           </Button>
         </div>
       </div>
@@ -92,7 +94,7 @@ export function DocumentiCommesseCliente({
   } else if (gruppi.length === 0) {
     contenuto = (
       <p className="rounded-md border border-dashed px-3 py-6 text-center text-xs text-muted-foreground">
-        Nessun documento nelle commesse di questo {perCommittente ? "committente" : "cliente"}
+        {perCommittente ? t("Nessun documento nelle commesse di questo committente") : t("Nessun documento nelle commesse di questo cliente")}
       </p>
     );
   } else {
@@ -105,7 +107,7 @@ export function DocumentiCommesseCliente({
                 <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform group-data-[state=closed]:-rotate-90" />
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-medium">
-                    {commessa.order_code || commessa.description || "Commessa senza codice"}
+                    {commessa.order_code || commessa.description || t("Commessa senza codice")}
                   </span>
                   {commessa.order_code && commessa.description && (
                     <span className="block truncate text-[11px] text-muted-foreground">{commessa.description}</span>
@@ -123,8 +125,8 @@ export function DocumentiCommesseCliente({
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7 shrink-0"
-                aria-label="Apri la commessa"
-                title="Apri la commessa"
+                aria-label={t("Apri la commessa")}
+                title={t("Apri la commessa")}
                 onClick={() => navigate(`/azienda/ordini/${commessa.id}`)}
               >
                 <ExternalLink className="h-3.5 w-3.5" />
@@ -171,6 +173,7 @@ export function DocumentiCommesseCliente({
 }
 
 function RigaDocumento({ doc, thumbUrl }: { doc: DocumentoCommessaRiga; thumbUrl?: string }) {
+  const t = useT();
   const peso = fmtBytes(doc.file_size);
   const tipo = KIND_LABEL[fileKind(doc)];
   return (
@@ -180,7 +183,7 @@ function RigaDocumento({ doc, thumbUrl }: { doc: DocumentoCommessaRiga; thumbUrl
         <button
           type="button"
           className="block max-w-full truncate text-left text-xs font-medium hover:underline"
-          title={`Apri ${doc.file_name}`}
+          title={t("Apri {file_name}", { file_name: String(doc.file_name ?? "") })}
           onClick={() => void openAttachmentInTab(doc.file_url)}
         >
           {doc.file_name}
@@ -194,8 +197,8 @@ function RigaDocumento({ doc, thumbUrl }: { doc: DocumentoCommessaRiga; thumbUrl
         variant="ghost"
         size="icon"
         className="h-8 w-8 shrink-0"
-        aria-label={`Scarica ${doc.file_name}`}
-        title="Scarica"
+        aria-label={t("Scarica {file_name}", { file_name: String(doc.file_name ?? "") })}
+        title={t("Scarica")}
         onClick={() => void scaricaAllegato(doc.file_url, doc.file_name)}
       >
         <Download className="h-4 w-4" />

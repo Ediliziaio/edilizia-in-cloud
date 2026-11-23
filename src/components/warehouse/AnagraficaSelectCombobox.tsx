@@ -24,6 +24,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface AnagraficaOption {
   id: string;
@@ -63,6 +64,7 @@ interface Props {
 }
 
 export function AnagraficaSelectCombobox({ companyId, value, onChange, disabled, placeholder }: Props) {
+  const tr = useT();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -145,7 +147,7 @@ export function AnagraficaSelectCombobox({ companyId, value, onChange, disabled,
               </span>
             </div>
           ) : (
-            <span className="truncate">{placeholder ?? "Cerca cliente per nome o P.IVA..."}</span>
+            <span className="truncate">{placeholder ?? tr("Cerca cliente per nome o P.IVA...")}</span>
           )}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
@@ -155,7 +157,7 @@ export function AnagraficaSelectCombobox({ companyId, value, onChange, disabled,
           <div className="flex items-center border-b px-3">
             <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
             <CommandInput
-              placeholder="Cerca per nome o P.IVA…"
+              placeholder={tr("Cerca per nome o P.IVA…")}
               value={search}
               onValueChange={setSearch}
               className="flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground border-0 focus:ring-0"
@@ -170,11 +172,11 @@ export function AnagraficaSelectCombobox({ companyId, value, onChange, disabled,
             {isLoading ? (
               <div className="flex items-center justify-center py-6 text-xs text-muted-foreground">
                 <Loader2 className="h-3 w-3 animate-spin mr-2" />
-                Caricamento clienti…
+                {tr("Caricamento clienti…")}
               </div>
             ) : rows.length === 0 ? (
               <CommandEmpty className="py-6 text-center text-sm text-muted-foreground">
-                {debouncedSearch ? `Nessun cliente per "${debouncedSearch}"` : "Nessun cliente trovato"}
+                {debouncedSearch ? tr("Nessun cliente per \"{debouncedSearch}\"", { debouncedSearch: String(debouncedSearch ?? "") }) : tr("Nessun cliente trovato")}
               </CommandEmpty>
             ) : (
               <CommandGroup>
@@ -193,7 +195,7 @@ export function AnagraficaSelectCombobox({ companyId, value, onChange, disabled,
                         <span className="font-medium text-sm truncate">{anagraficaDisplayName(a)}</span>
                       </div>
                       <span className="pl-7 text-[11px] text-muted-foreground truncate w-full">
-                        {a.partita_iva ? `P.IVA ${a.partita_iva}` : a.codice_fiscale ? `CF ${a.codice_fiscale}` : "Senza P.IVA"}
+                        {a.partita_iva ? `P.IVA ${a.partita_iva}` : a.codice_fiscale ? `CF ${a.codice_fiscale}` : tr("Senza P.IVA")}
                         {a.indirizzo_comune ? ` · ${a.indirizzo_comune}${a.indirizzo_provincia ? ` (${a.indirizzo_provincia})` : ""}` : ""}
                       </span>
                     </CommandItem>

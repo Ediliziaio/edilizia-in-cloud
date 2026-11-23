@@ -11,10 +11,10 @@ import { Plus, Trash2, Upload, ArrowDownLeft, ArrowUpRight } from "lucide-react"
 import { userErrorMessage } from "@/lib/userErrorMessage";
 import { formatCurrency } from "@/lib/formatters";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { useManualTreasury, type ManualAccount } from "@/hooks/useManualTreasury";
 import { BankStatementImportDialog } from "./BankStatementImportDialog";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Row {
   id: string; booking_date: string; description: string | null; amount: number;
@@ -24,6 +24,7 @@ interface Row {
 export function ManualTransactionsSheet({ account, open, onOpenChange }: {
   account: ManualAccount | null; open: boolean; onOpenChange: (v: boolean) => void;
 }) {
+  const t = useT();
   const { upsertTx, deleteTx } = useManualTreasury();
   const confirm = useConfirm();
   const [importOpen, setImportOpen] = useState(false);
@@ -52,7 +53,7 @@ export function ManualTransactionsSheet({ account, open, onOpenChange }: {
     setErroreSalvataggio(null);
     const raw = Number(String(form.amount).replace(",", "."));
     if (!account?.id || !form.date || !isFinite(raw) || raw === 0) {
-      setErroreSalvataggio("Indica una data e un importo diverso da zero.");
+      setErroreSalvataggio(t("Indica una data e un importo diverso da zero."));
       return;
     }
     const signed = form.verso === "uscita" ? -Math.abs(raw) : Math.abs(raw);
@@ -62,7 +63,7 @@ export function ManualTransactionsSheet({ account, open, onOpenChange }: {
       setAdding(false);
       void txQuery.refetch();
     } catch (error) {
-      setErroreSalvataggio(`Movimento non salvato: ${userErrorMessage(error, "Impossibile completare l’operazione. Riprova.")}`);
+      setErroreSalvataggio(t("Movimento non salvato: {errore}", { errore: userErrorMessage(error, t("Impossibile completare l’operazione. Riprova.")) }));
     }
   }
 
@@ -72,37 +73,37 @@ export function ManualTransactionsSheet({ account, open, onOpenChange }: {
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>{account?.display_name || account?.account_name || "Conto manuale"}</SheetTitle>
+          <SheetTitle>{account?.display_name || account?.account_name || t("Conto manuale")}</SheetTitle>
           <SheetDescription>
-            {canViewBankBalances ? <>Saldo attuale: <strong>{formatCurrency(Number(account?.current_balance ?? 0))}</strong></> : "Saldo riservato"}
-            {canViewBankBalances && <> · apertura {formatCurrency(Number(account?.opening_balance ?? 0))}</>}
+            {canViewBankBalances ? <>{t("Saldo attuale:")} <strong>{formatCurrency(Number(account?.current_balance ?? 0))}</strong></> : t("Saldo riservato")}
+            {canViewBankBalances && <>{" "}{t("· apertura {valore}", { valore: formatCurrency(Number(account?.opening_balance ?? 0)) })}</>}
           </SheetDescription>
         </SheetHeader>
 
         <div className="mt-4 flex gap-2">
-          <Button size="sm" disabled={!canReconcileBankTransactions} onClick={() => setAdding((v) => !v)}><Plus className="h-4 w-4 mr-1" /> Movimento</Button>
+          <Button size="sm" disabled={!canReconcileBankTransactions} onClick={() => setAdding((v) => !v)}><Plus className="h-4 w-4 mr-1" /> {t("Movimento")}</Button>
           {/* Mobile no: niente importazioni da telefono. */}
-          <Button size="sm" variant="outline" disabled={!canReconcileBankTransactions} onClick={() => setImportOpen(true)} className="max-sm:hidden"><Upload className="h-4 w-4 mr-1" /> Importa estratto conto</Button>
+          <Button size="sm" variant="outline" disabled={!canReconcileBankTransactions} onClick={() => setImportOpen(true)} className="max-sm:hidden"><Upload className="h-4 w-4 mr-1" /> {t("Importa estratto conto")}</Button>
         </div>
 
         {adding && (
           <div className="mt-3 rounded-lg border p-3 space-y-3 bg-muted/30">
             <div className="grid grid-cols-2 gap-2">
-              <div><Label className="text-xs">Data</Label><Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
+              <div><Label className="text-xs">{t("Data")}</Label><Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
               <div>
-                <Label className="text-xs">Tipo</Label>
+                <Label className="text-xs">{t("Tipo")}</Label>
                 <div className="flex gap-1">
-                  <Button type="button" size="sm" variant={form.verso === "entrata" ? "default" : "outline"} className="flex-1" onClick={() => setForm({ ...form, verso: "entrata" })}>Entrata</Button>
-                  <Button type="button" size="sm" variant={form.verso === "uscita" ? "default" : "outline"} className="flex-1" onClick={() => setForm({ ...form, verso: "uscita" })}>Uscita</Button>
+                  <Button type="button" size="sm" variant={form.verso === "entrata" ? "default" : "outline"} className="flex-1" onClick={() => setForm({ ...form, verso: "entrata" })}>{t("Entrata")}</Button>
+                  <Button type="button" size="sm" variant={form.verso === "uscita" ? "default" : "outline"} className="flex-1" onClick={() => setForm({ ...form, verso: "uscita" })}>{t("Uscita")}</Button>
                 </div>
               </div>
             </div>
-            <div><Label className="text-xs">Descrizione</Label><Input value={form.desc} onChange={(e) => setForm({ ...form, desc: e.target.value })} placeholder="Es. Pagamento fornitore X" /></div>
-            <div><Label className="text-xs">Importo €</Label><Input inputMode="decimal" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="0,00" /></div>
+            <div><Label className="text-xs">{t("Descrizione")}</Label><Input value={form.desc} onChange={(e) => setForm({ ...form, desc: e.target.value })} placeholder={t("Es. Pagamento fornitore X")} /></div>
+            <div><Label className="text-xs">{t("Importo €")}</Label><Input inputMode="decimal" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="0,00" /></div>
             {erroreSalvataggio && <p role="alert" className="text-sm text-destructive">{erroreSalvataggio}</p>}
             <div className="flex justify-end gap-2">
-              <Button size="sm" variant="ghost" disabled={!canReconcileBankTransactions} onClick={() => setAdding(false)}>Annulla</Button>
-              <Button size="sm" onClick={handleAdd} disabled={upsertTx.isPending}>Salva</Button>
+              <Button size="sm" variant="ghost" disabled={!canReconcileBankTransactions} onClick={() => setAdding(false)}>{t("Annulla")}</Button>
+              <Button size="sm" onClick={handleAdd} disabled={upsertTx.isPending}>{t("Salva")}</Button>
             </div>
           </div>
         )}
@@ -111,18 +112,18 @@ export function ManualTransactionsSheet({ account, open, onOpenChange }: {
           {txQuery.isLoading ? (
             Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full rounded-lg" />)
           ) : txQuery.isError ? (
-            <p role="alert" className="text-sm text-destructive">Impossibile caricare i movimenti. Riapri il conto per riprovare.</p>
+            <p role="alert" className="text-sm text-destructive">{t("Impossibile caricare i movimenti. Riapri il conto per riprovare.")}</p>
           ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center max-sm:py-3 max-sm:text-xs">Nessun movimento.<span className="max-sm:hidden"> Aggiungine uno o importa l'estratto conto.</span></p>
+            <p className="text-sm text-muted-foreground py-8 text-center max-sm:py-3 max-sm:text-xs">{t("Nessun movimento.")}<span className="max-sm:hidden"> {t("Aggiungine uno o importa l'estratto conto.")}</span></p>
           ) : rows.map((r) => (
             <div key={r.id} className="flex items-center gap-3 rounded-lg border px-3 py-2 max-sm:gap-2">
               <div className={`max-sm:hidden ${r.amount >= 0 ? "text-green-700" : "text-destructive"}`}>
                 {r.amount >= 0 ? <ArrowDownLeft className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate max-sm:text-[13px]">{r.description || "Movimento"}</p>
+                <p className="text-sm font-medium truncate max-sm:text-[13px]">{r.description || t("Movimento")}</p>
                 <p className="text-xs text-muted-foreground max-sm:text-[11px]">
-                  {format(new Date(r.booking_date), "dd/MM/yyyy", { locale: it })}
+                  {format(new Date(r.booking_date), "dd/MM/yyyy", { locale: dateFnsCampo() })}
                   {r.source && r.source !== "manuale" ? ` · ${r.source === "import_ai" ? "AI" : "import"}` : ""}
                 </p>
               </div>
@@ -131,9 +132,9 @@ export function ManualTransactionsSheet({ account, open, onOpenChange }: {
               </p>
               <button
                 className="text-muted-foreground hover:text-destructive"
-                aria-label="Elimina movimento"
+                aria-label={t("Elimina movimento")}
                 onClick={async () => {
-                  if (await confirm({ title: "Eliminare il movimento?", description: "L'operazione non può essere annullata.", confirmLabel: "Elimina", variant: "destructive" })) {
+                  if (await confirm({ title: t("Eliminare il movimento?"), description: t("L'operazione non può essere annullata."), confirmLabel: t("Elimina"), variant: "destructive" })) {
                     await deleteTx.mutateAsync(r.id); txQuery.refetch();
                   }
                 }}

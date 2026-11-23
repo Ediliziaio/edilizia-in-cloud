@@ -29,6 +29,7 @@ import { vociListinoPerDitta } from "@/lib/orders/costoDitta";
 import { prezziPerVoce, righeDaSalvare, scartoDalCosto, type PrezzoDitta } from "@/lib/subappaltatori/listinoDitta";
 import { oggiInItalia } from "../../../shared/silvio-commessa/date.ts";
 import { ImportaListinoDittaDialog } from "./ImportaListinoDittaDialog";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // Colonne recenti (subappaltatore_id): passiamo dal client non tipizzato come il resto del modulo.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -52,6 +53,7 @@ const unitaBreve = (u: string) => (u === "a_corpo" ? "a corpo" : u);
 const prezzoInCasella = (n: number) => Number(n).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 4, useGrouping: false });
 
 export function ListinoDitta({ companyId, anagraficaId, nomeDitta, consultazione = false }: { companyId: string; anagraficaId: string; nomeDitta: string; consultazione?: boolean }) {
+  const tr = useT();
   const { canViewCosts, canEditSettingsPricing, solaLettura } = usePermissions();
   const puoScrivere = !consultazione && canViewCosts && canEditSettingsPricing && !solaLettura;
   const qc = useQueryClient();
@@ -125,14 +127,14 @@ export function ListinoDitta({ companyId, anagraficaId, nomeDitta, consultazione
       void qc.invalidateQueries({ queryKey: chiave });
       void qc.invalidateQueries({ queryKey: ["tariffa-costi-varianti", companyId] });
       void qc.invalidateQueries({ queryKey: ["ditte-contratti-commessa", companyId] });
-      if (esito) toast.success(`Listino di ${nomeDitta} salvato: ${esito.nuovi + esito.corretti} prezzi scritti${esito.chiusi ? `, ${esito.chiusi} tolti` : ""}.`);
+      if (esito) toast.success(esito.chiusi ? tr("Listino di {nomeDitta} salvato: {scritti} prezzi scritti, {chiusi} tolti.", { nomeDitta, scritti: esito.nuovi + esito.corretti, chiusi: esito.chiusi }) : tr("Listino di {nomeDitta} salvato: {scritti} prezzi scritti.", { nomeDitta, scritti: esito.nuovi + esito.corretti }));
     },
-    onError: (e: Error) => toast.error(e.message || "Salvataggio non riuscito."),
+    onError: (e: Error) => toast.error(e.message || tr("Salvataggio non riuscito.")),
   });
 
-  if (!canViewCosts) return <p className="text-sm text-muted-foreground">Il listino della ditta si vede con il permesso sui costi.</p>;
-  if (dati.isLoading) return <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Caricamento del listino…</p>;
-  if (dati.isError) return <p role="alert" className="text-sm text-destructive">Listino non disponibile. <Button variant="link" className="h-auto p-0" onClick={() => void dati.refetch()}>Riprova</Button></p>;
+  if (!canViewCosts) return <p className="text-sm text-muted-foreground">{tr("Il listino della ditta si vede con il permesso sui costi.")}</p>;
+  if (dati.isLoading) return <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />{tr("Caricamento del listino…")}</p>;
+  if (dati.isError) return <p role="alert" className="text-sm text-destructive">{tr("Listino non disponibile.")} <Button variant="link" className="h-auto p-0" onClick={() => void dati.refetch()}>{tr("Riprova")}</Button></p>;
 
   const voci = dati.data?.voci ?? [];
   return (
@@ -140,16 +142,16 @@ export function ListinoDitta({ companyId, anagraficaId, nomeDitta, consultazione
       <div className="flex flex-wrap items-end gap-2">
         {/* Su telefono il testo prende tutta la riga e i pulsanti vanno sotto. */}
         <div className="min-w-[min(100%,20rem)] flex-1">
-          <h3 className="text-sm font-semibold">Listino di {nomeDitta}</h3>
+          <h3 className="text-sm font-semibold">{tr("Listino di {nomeDitta}", { nomeDitta: String(nomeDitta ?? "") })}</h3>
           <p className="text-xs text-muted-foreground">
-            {conPrezzo} voci con un prezzo della ditta su {voci.length}{validoDal !== oggi ? ` (prezzi al ${data(validoDal)})` : ""}. I prezzi valgono per tutte le commesse: li propongono «Ditte e contratti» e «Aggiungi manodopera». I contratti già fatti non cambiano.
+            {tr("{conPrezzo} voci con un prezzo della ditta su {n}", { conPrezzo, n: voci.length })}{validoDal !== oggi ? ` ${tr("(prezzi al {validoDal})", { validoDal: String(data(validoDal) ?? "") })}` : ""}{tr(". I prezzi valgono per tutte le commesse: li propongono «Ditte e contratti» e «Aggiungi manodopera». I contratti già fatti non cambiano.")}
           </p>
         </div>
         {puoScrivere && (
           <>
-            <Button size="sm" variant="outline" disabled={Object.keys(modifiche).length > 0} title={Object.keys(modifiche).length ? "Salva prima le modifiche a mano" : undefined}
-              onClick={() => setCaricaFile(true)}><FileUp className="mr-1 h-4 w-4" />Carica listino</Button>
-            <Button size="sm" variant="outline" onClick={() => setVoceNuova(true)}><Plus className="mr-1 h-4 w-4" />Voce sua</Button>
+            <Button size="sm" variant="outline" disabled={Object.keys(modifiche).length > 0} title={Object.keys(modifiche).length ? tr("Salva prima le modifiche a mano") : undefined}
+              onClick={() => setCaricaFile(true)}><FileUp className="mr-1 h-4 w-4" />{tr("Carica listino")}</Button>
+            <Button size="sm" variant="outline" onClick={() => setVoceNuova(true)}><Plus className="mr-1 h-4 w-4" />{tr("Voce sua")}</Button>
           </>
         )}
       </div>
@@ -157,13 +159,13 @@ export function ListinoDitta({ companyId, anagraficaId, nomeDitta, consultazione
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative min-w-[12rem] flex-1">
           <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder="Cerca voce o codice" className="h-9 pl-8" aria-label="Cerca nel listino" />
+          <Input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder={tr("Cerca voce o codice")} className="h-9 pl-8" aria-label={tr("Cerca nel listino")} />
         </div>
         <label className="flex items-center gap-2 text-sm">
-          <Switch checked={soloConPrezzo} onCheckedChange={setSoloConPrezzo} aria-label="Solo le voci con un prezzo della ditta" />Solo con prezzo
+          <Switch checked={soloConPrezzo} onCheckedChange={setSoloConPrezzo} aria-label={tr("Solo le voci con un prezzo della ditta")} />{tr("Solo con prezzo")}
         </label>
         {storia.length > 0 && (
-          <Button size="sm" variant="ghost" onClick={() => setStoriaAperta((x) => !x)}><History className="mr-1 h-4 w-4" />Prezzi passati ({storia.length})</Button>
+          <Button size="sm" variant="ghost" onClick={() => setStoriaAperta((x) => !x)}><History className="mr-1 h-4 w-4" />{tr("Prezzi passati ({n})", { n: storia.length })}</Button>
         )}
       </div>
 
@@ -172,18 +174,18 @@ export function ListinoDitta({ companyId, anagraficaId, nomeDitta, consultazione
           {storia.map(({ voce, p }) => (
             <li key={p.id} className="flex flex-wrap justify-between gap-2">
               <span className="min-w-0 truncate">{voce.nome}{p.nome && !p.nome.startsWith(nomeDitta) ? ` · ${p.nome}` : ""}</span>
-              <span className="tabular-nums text-muted-foreground">{formatCurrency(p.costo)}/{unitaBreve(voce.unita)} · dal {data(p.valid_from)}{p.valid_to ? ` al ${data(p.valid_to)}` : ""}</span>
+              <span className="tabular-nums text-muted-foreground">{formatCurrency(p.costo)}/{unitaBreve(voce.unita)} {p.valid_to ? tr("· dal {valid_from} al {valid_to}", { valid_from: String(data(p.valid_from) ?? ""), valid_to: String(data(p.valid_to) ?? "") }) : tr("· dal {valid_from}", { valid_from: String(data(p.valid_from) ?? "") })}</span>
             </li>
           ))}
         </ul>
       )}
 
       {voci.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Il listino di manodopera e servizi dell'azienda è vuoto: aggiungi le voci in Impostazioni → Listino manodopera, oppure una voce sua di questa ditta.</p>
+        <p className="text-sm text-muted-foreground">{tr("Il listino di manodopera e servizi dell'azienda è vuoto: aggiungi le voci in Impostazioni → Listino manodopera, oppure una voce sua di questa ditta.")}</p>
       ) : (
         <div className="divide-y rounded-md border">
           <div className="hidden grid-cols-[minmax(0,1fr)_4rem_6.5rem_8rem] gap-2 bg-muted/50 px-3 py-1.5 text-xs font-medium text-muted-foreground sm:grid">
-            <span>Voce</span><span>U.M.</span><span className="text-right">Costo nostro</span><span className="text-right">Prezzo della ditta</span>
+            <span>{tr("Voce")}</span><span>U.M.</span><span className="text-right">{tr("Costo nostro")}</span><span className="text-right">{tr("Prezzo della ditta")}</span>
           </div>
           {visibili.map((v) => {
             const pv = perVoce.get(v.id);
@@ -197,16 +199,16 @@ export function ListinoDitta({ companyId, anagraficaId, nomeDitta, consultazione
                 <div className="flex min-w-0 flex-wrap items-center gap-x-2 sm:flex-nowrap">
                   <p className="min-w-0 truncate text-sm" title={v.nome}>{v.codice && <span className="mr-1 text-xs text-muted-foreground">{v.codice}</span>}{v.nome}</p>
                   <div className="flex shrink-0 flex-wrap items-center gap-1">
-                    {(v.subappaltatore_id || v.external_team_id) && <Badge variant="secondary" className="h-4 px-1.5 text-[10px] font-normal">Voce sua</Badge>}
+                    {(v.subappaltatore_id || v.external_team_id) && <Badge variant="secondary" className="h-4 px-1.5 text-[10px] font-normal">{tr("Voce sua")}</Badge>}
                     {pv && pv.altri.length > 0 && (
                       <Badge variant="outline" className="h-4 px-1.5 text-[10px] font-normal" title={pv.altri.map((a) => `${a.nome}: ${formatCurrency(a.costo)}`).join(" · ")}>
-                        +{pv.altri.length} {pv.altri.length === 1 ? "altro prezzo" : "altri prezzi"}
+                        +{pv.altri.length} {pv.altri.length === 1 ? tr("altro prezzo") : tr("altri prezzi")}
                       </Badge>
                     )}
                     {pv?.principale?.valid_from && (
-                      <span className="text-[10px] text-muted-foreground">dal {data(pv.principale.valid_from)}</span>
+                      <span className="text-[10px] text-muted-foreground">{tr("dal {valid_from}", { valid_from: String(data(pv.principale.valid_from) ?? "") })}</span>
                     )}
-                    <span className="text-[10px] text-muted-foreground sm:hidden">{unitaBreve(v.unita)} · nostro {v.costo != null ? formatCurrency(v.costo) : "—"}</span>
+                    <span className="text-[10px] text-muted-foreground sm:hidden">{unitaBreve(v.unita)} {tr("· nostro")} {v.costo != null ? formatCurrency(v.costo) : "—"}</span>
                   </div>
                 </div>
                 <span className="hidden text-xs text-muted-foreground sm:block">{unitaBreve(v.unita)}</span>
@@ -217,30 +219,30 @@ export function ListinoDitta({ companyId, anagraficaId, nomeDitta, consultazione
                     disabled={!puoScrivere || salva.isPending}
                     onChange={(e) => setModifiche((m) => ({ ...m, [v.id]: e.target.value }))}
                     inputMode="decimal" placeholder="—"
-                    aria-label={`Prezzo di ${nomeDitta} per ${v.nome}`}
+                    aria-label={tr("Prezzo di {nomeDitta} per {nome}", { nomeDitta: String(nomeDitta ?? ""), nome: String(v.nome ?? "") })}
                     aria-invalid={sbagliato}
                     className={`h-8 text-right tabular-nums ${sbagliato ? "border-destructive" : ""}`}
                   />
-                  {sbagliato ? <span className="text-[10px] text-destructive">Numero non valido</span>
-                    : scarto != null && <span className={`text-[10px] ${scarto > 0 ? "text-destructive" : "text-muted-foreground"}`}>{scarto > 0 ? "+" : ""}{scarto.toLocaleString("it-IT")}% sul nostro</span>}
+                  {sbagliato ? <span className="text-[10px] text-destructive">{tr("Numero non valido")}</span>
+                    : scarto != null && <span className={`text-[10px] ${scarto > 0 ? "text-destructive" : "text-muted-foreground"}`}>{scarto > 0 ? "+" : ""}{scarto.toLocaleString(intlCampo())}{tr("% sul nostro")}</span>}
                 </div>
               </div>
             );
           })}
-          {visibili.length === 0 && <p className="px-3 py-4 text-sm text-muted-foreground">Nessuna voce con questi filtri.</p>}
+          {visibili.length === 0 && <p className="px-3 py-4 text-sm text-muted-foreground">{tr("Nessuna voce con questi filtri.")}</p>}
         </div>
       )}
 
       {puoScrivere && (Object.keys(modifiche).length > 0) && (
         <div className="sticky bottom-2 flex flex-wrap items-center gap-2 rounded-md border bg-background p-2 shadow-sm">
-          <span className="text-sm">{daSalvare.length} {daSalvare.length === 1 ? "prezzo cambiato" : "prezzi cambiati"}</span>
+          <span className="text-sm">{daSalvare.length} {daSalvare.length === 1 ? tr("prezzo cambiato") : tr("prezzi cambiati")}</span>
           <span className="flex items-center gap-2 sm:ml-auto">
-            <Label htmlFor="listino-valido-dal" className="text-xs text-muted-foreground">Valgono dal</Label>
+            <Label htmlFor="listino-valido-dal" className="text-xs text-muted-foreground">{tr("Valgono dal")}</Label>
             <Input id="listino-valido-dal" type="date" value={validoDal} onChange={(e) => setValidoDal(e.target.value || oggi)} className="h-8 w-auto" />
           </span>
-          <Button size="sm" variant="ghost" disabled={salva.isPending} onClick={() => setModifiche({})}>Annulla</Button>
+          <Button size="sm" variant="ghost" disabled={salva.isPending} onClick={() => setModifiche({})}>{tr("Annulla")}</Button>
           <Button size="sm" disabled={salva.isPending || errori.length > 0 || daSalvare.length === 0} onClick={() => salva.mutate()}>
-            {salva.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Salva il listino
+            {salva.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{tr("Salva il listino")}
           </Button>
         </div>
       )}
@@ -270,11 +272,12 @@ export function ListinoDitta({ companyId, anagraficaId, nomeDitta, consultazione
 function VoceSuaDialog({ companyId, anagraficaId, nomeDitta, validoDal, onChiudi, onCreata }: {
   companyId: string; anagraficaId: string; nomeDitta: string; validoDal: string; onChiudi: () => void; onCreata: () => void;
 }) {
+  const t = useT();
   const [nome, setNome] = useState("");
   const [unita, setUnita] = useState<(typeof UNITA_VOCE_NUOVA)[number]["valore"]>("mq");
   const [prezzo, setPrezzo] = useState("");
   const costo = prezzo.trim() ? parseAssignmentAmount(prezzo, 4) : null;
-  const errore = !nome.trim() ? "Scrivi il nome della voce." : costo == null ? "Scrivi un prezzo valido." : null;
+  const errore = !nome.trim() ? t("Scrivi il nome della voce.") : costo == null ? t("Scrivi un prezzo valido.") : null;
 
   const crea = useMutation({
     mutationFn: async () => {
@@ -295,34 +298,34 @@ function VoceSuaDialog({ companyId, anagraficaId, nomeDitta, validoDal, onChiudi
         throw errPrezzo;
       }
     },
-    onSuccess: () => { toast.success(`Voce aggiunta al listino di ${nomeDitta}.`); onCreata(); },
-    onError: (e: Error) => toast.error(e.message || "Voce non creata."),
+    onSuccess: () => { toast.success(t("Voce aggiunta al listino di {nomeDitta}.", { nomeDitta: String(nomeDitta ?? "") })); onCreata(); },
+    onError: (e: Error) => toast.error(e.message || t("Voce non creata.")),
   });
 
   return (
     <Dialog open onOpenChange={(o) => !o && !crea.isPending && onChiudi()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Voce di {nomeDitta}</DialogTitle>
-          <DialogDescription>Una lavorazione che ha solo questa ditta. Si propone solo per lei, mai per le altre.</DialogDescription>
+          <DialogTitle>{t("Voce di {nomeDitta}", { nomeDitta: String(nomeDitta ?? "") })}</DialogTitle>
+          <DialogDescription>{t("Una lavorazione che ha solo questa ditta. Si propone solo per lei, mai per le altre.")}</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
-          <div className="space-y-1"><Label htmlFor="voce-sua-nome">Nome</Label>
-            <Input id="voce-sua-nome" value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Es. Punto luce" /></div>
+          <div className="space-y-1"><Label htmlFor="voce-sua-nome">{t("Nome")}</Label>
+            <Input id="voce-sua-nome" value={nome} onChange={(e) => setNome(e.target.value)} placeholder={t("Es. Punto luce")} /></div>
           <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1"><Label>Unità</Label>
+            <div className="space-y-1"><Label>{t("Unità")}</Label>
               <Select value={unita} onValueChange={(v) => setUnita(v as typeof unita)}>
-                <SelectTrigger aria-label="Unità di misura"><SelectValue /></SelectTrigger>
-                <SelectContent>{UNITA_VOCE_NUOVA.map((u) => <SelectItem key={u.valore} value={u.valore}>{u.nome}</SelectItem>)}</SelectContent>
+                <SelectTrigger aria-label={t("Unità di misura")}><SelectValue /></SelectTrigger>
+                <SelectContent>{UNITA_VOCE_NUOVA.map((u) => <SelectItem key={u.valore} value={u.valore}>{t(u.nome)}</SelectItem>)}</SelectContent>
               </Select></div>
-            <div className="space-y-1"><Label htmlFor="voce-sua-prezzo">Prezzo della ditta</Label>
+            <div className="space-y-1"><Label htmlFor="voce-sua-prezzo">{t("Prezzo della ditta")}</Label>
               <Input id="voce-sua-prezzo" value={prezzo} onChange={(e) => setPrezzo(e.target.value)} inputMode="decimal" placeholder="0,00" className="text-right" /></div>
           </div>
           {errore && (nome || prezzo) && <p className="text-xs text-destructive">{errore}</p>}
         </div>
         <DialogFooter>
-          <Button variant="ghost" disabled={crea.isPending} onClick={onChiudi}>Annulla</Button>
-          <Button disabled={!!errore || crea.isPending} onClick={() => crea.mutate()}>{crea.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Aggiungi</Button>
+          <Button variant="ghost" disabled={crea.isPending} onClick={onChiudi}>{t("Annulla")}</Button>
+          <Button disabled={!!errore || crea.isPending} onClick={() => crea.mutate()}>{crea.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{t("Aggiungi")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

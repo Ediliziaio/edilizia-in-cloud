@@ -8,6 +8,7 @@ import {
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { queryKeys } from "@/lib/queryKeys";
 import { invalidaFattureImportate } from "./GestionaleEsterno";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Il contrario di «Segna incassata» sulle fatture emesse importate da XML, che arrivano
@@ -22,6 +23,7 @@ export function siRiportaDaIncassare(doc: { origine?: string; external_provider?
 }
 
 export function RiportaDaIncassareDialog({ fattura, onClose }: { fattura: { id: string; numero: string } | null; onClose: () => void }) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const queryClient = useQueryClient();
   const riporta = useMutation({
@@ -38,25 +40,25 @@ export function RiportaDaIncassareDialog({ fattura, onClose }: { fattura: { id: 
       toast.success(`Fattura ${fattura?.numero ?? ""} di nuovo da incassare`);
       onClose();
     },
-    onError: (e) => toast.error("Non sono riuscito a riportarla da incassare", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Non sono riuscito a riportarla da incassare"), { description: e instanceof Error ? e.message : String(e) }),
   });
 
   return (
     <AlertDialog open={!!fattura} onOpenChange={(aperto) => { if (!aperto && !riporta.isPending) onClose(); }}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Riportare da incassare la fattura {fattura?.numero}?</AlertDialogTitle>
+          <AlertDialogTitle>{t("Riportare da incassare la fattura {numero}?", { numero: String(fattura?.numero ?? "") })}</AlertDialogTitle>
           <AlertDialogDescription>
-            Tolgo gli incassi registrati: anche la scadenza e la rata della commessa tornano aperte. Se c'era un bonifico abbinato viene sganciato e torna libero.
+            {t("Tolgo gli incassi registrati: anche la scadenza e la rata della commessa tornano aperte. Se c'era un bonifico abbinato viene sganciato e torna libero.")}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={riporta.isPending}>Annulla</AlertDialogCancel>
+          <AlertDialogCancel disabled={riporta.isPending}>{t("Annulla")}</AlertDialogCancel>
           <AlertDialogAction
             disabled={riporta.isPending}
             onClick={(e) => { e.preventDefault(); if (fattura) riporta.mutate(fattura.id); }}
           >
-            Riporta da incassare
+            {t("Riporta da incassare")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

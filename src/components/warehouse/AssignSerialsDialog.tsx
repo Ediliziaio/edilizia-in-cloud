@@ -35,6 +35,7 @@ import {
   useStockUnitsByOrderItem,
   useUnassignSerial,
 } from "@/hooks/warehouse/useStockUnits";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface AssignSerialsDialogProps {
   open: boolean;
@@ -55,6 +56,7 @@ export function AssignSerialsDialog({
   expectedQty,
   itemLabel,
 }: AssignSerialsDialogProps) {
+  const t = useT();
   const [scannerOpen, setScannerOpen] = useState(false);
   const [serialInput, setSerialInput] = useState("");
   const [pending, setPending] = useState<string[]>([]);
@@ -152,11 +154,11 @@ export function AssignSerialsDialog({
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              Assegna seriali alla commessa
+              {t("Assegna seriali alla commessa")}
               {isComplete && (
                 <Badge variant="default" className="bg-emerald-600">
                   <CheckCircle2 className="h-3 w-3 mr-1" />
-                  Completata
+                  {t("Completata")}
                 </Badge>
               )}
             </DialogTitle>
@@ -165,11 +167,11 @@ export function AssignSerialsDialog({
                 <span className="font-medium block">{itemLabel}</span>
               )}
               <span>
-                Target: <strong>{targetCount}</strong> · Assegnati:{" "}
+                {t("Target:")} <strong>{targetCount}</strong> {t("· Assegnati:")}{" "}
                 <strong className={isComplete ? "text-emerald-600" : "text-amber-600"}>
                   {alreadyAssignedCount}
                 </strong>{" "}
-                · Mancanti: <strong>{remaining}</strong>
+                {t("· Mancanti:")} <strong>{remaining}</strong>
               </span>
             </DialogDescription>
           </DialogHeader>
@@ -179,14 +181,14 @@ export function AssignSerialsDialog({
             <div className="flex gap-2">
               <form onSubmit={handleManualSubmit} className="flex-1 flex gap-2">
                 <Input
-                  aria-label="Seriale da assegnare"
-                  placeholder="Digita o incolla seriale e premi Invio"
+                  aria-label={t("Seriale da assegnare")}
+                  placeholder={t("Digita o incolla seriale e premi Invio")}
                   value={serialInput}
                   onChange={(e) => setSerialInput(e.target.value)}
                   autoFocus
                 />
                 <Button type="submit" variant="outline" size="sm" disabled={!serialInput.trim()}>
-                  Aggiungi
+                  {t("Aggiungi")}
                 </Button>
               </form>
               <Button
@@ -196,16 +198,14 @@ export function AssignSerialsDialog({
                 onClick={() => setScannerOpen(true)}
               >
                 <ScanLine className="h-4 w-4 mr-1" />
-                Scannerizza
+                {t("Scannerizza")}
               </Button>
             </div>
 
             {/* Lista pending */}
             {pendingUnique.length > 0 && (
               <div className="border rounded-md p-2 space-y-1">
-                <p className="text-xs text-muted-foreground mb-1">
-                  Da confermare ({pendingUnique.length}):
-                </p>
+                <p className="text-xs text-muted-foreground mb-1">{t("Da confermare ({n}):", { n: pendingUnique.length })}</p>
                 <div className="flex flex-wrap gap-1">
                   {pendingUnique.map((s) => (
                     <Badge key={s} variant="secondary" className="gap-1 font-mono text-xs">
@@ -214,7 +214,7 @@ export function AssignSerialsDialog({
                         type="button"
                         onClick={() => removePending(s)}
                         className="hover:text-destructive"
-                        aria-label={`Rimuovi ${s}`}
+                        aria-label={t("Rimuovi {s}", { s: String(s ?? "") })}
                       >
                         <X className="h-3 w-3" />
                       </button>
@@ -231,13 +231,13 @@ export function AssignSerialsDialog({
                 <AlertDescription className="space-y-1 text-xs">
                   {lastResult.notFound.length > 0 && (
                     <div>
-                      <strong>{lastResult.notFound.length}</strong> seriali non trovati in magazzino:{" "}
+                      <strong>{lastResult.notFound.length}</strong> {t("seriali non trovati in magazzino:")}{" "}
                       <span className="font-mono">{lastResult.notFound.join(", ")}</span>
                     </div>
                   )}
                   {lastResult.alreadyReserved.length > 0 && (
                     <div>
-                      <strong>{lastResult.alreadyReserved.length}</strong> già assegnati ad altre commesse:{" "}
+                      <strong>{lastResult.alreadyReserved.length}</strong> {t("già assegnati ad altre commesse:")}{" "}
                       <span className="font-mono">
                         {lastResult.alreadyReserved.map((x) => x.serial).join(", ")}
                       </span>
@@ -249,16 +249,14 @@ export function AssignSerialsDialog({
 
             {/* Lista seriali già assegnati */}
             <div className="space-y-1">
-              <p className="text-xs font-medium text-muted-foreground">
-                Seriali già assegnati ({alreadyAssignedCount}):
-              </p>
+              <p className="text-xs font-medium text-muted-foreground">{t("Seriali già assegnati ({alreadyAssignedCount}):", { alreadyAssignedCount: String(alreadyAssignedCount ?? "") })}</p>
               {loadingAssigned ? (
                 <div className="text-xs text-muted-foreground flex items-center gap-2">
                   <Loader2 className="h-3 w-3 animate-spin" />
-                  Caricamento...
+                  {t("Caricamento...")}
                 </div>
               ) : assignedUnits.length === 0 ? (
-                <p className="text-xs text-muted-foreground italic">Nessuno ancora.</p>
+                <p className="text-xs text-muted-foreground italic">{t("Nessuno ancora.")}</p>
               ) : (
                 <div className="border rounded-md max-h-48 overflow-y-auto divide-y">
                   {assignedUnits.map((u) => (
@@ -292,8 +290,8 @@ export function AssignSerialsDialog({
                         }
                         title={
                           u.status === "shipped" || u.status === "installed"
-                            ? "Non si possono liberare seriali già consegnati"
-                            : "Libera seriale"
+                            ? t("Non si possono liberare seriali già consegnati")
+                            : t("Libera seriale")
                         }
                       >
                         <X className="h-3 w-3" />
@@ -307,7 +305,7 @@ export function AssignSerialsDialog({
 
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => handleClose(false)}>
-              Chiudi
+              {t("Chiudi")}
             </Button>
             <Button
               onClick={handleConfirm}
@@ -316,7 +314,7 @@ export function AssignSerialsDialog({
               {assignMutation.isPending && (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               )}
-              Conferma {pendingUnique.length > 0 ? `(${pendingUnique.length})` : ""}
+              {t("Conferma")} {pendingUnique.length > 0 ? `(${pendingUnique.length})` : ""}
             </Button>
           </DialogFooter>
         </DialogContent>

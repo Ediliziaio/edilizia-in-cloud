@@ -19,8 +19,10 @@ import {
 import type { RitenutaBonifico } from "@/lib/fatturazione/bonificiParlanti";
 import { exportToCSV } from "@/lib/csvExport";
 import { RitenuteSubiteFatture } from "./RitenuteSubiteFatture";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export default function RitenuteBonificiPanel() {
+  const t = useT();
   const period = useFiscalPeriod(),
     q = useRitenuteBonifici(period.anno);
   const [filter, setFilter] = useState("tutte"),
@@ -57,77 +59,71 @@ export default function RitenuteBonificiPanel() {
     setConfirmed(false);
   };
   return (
-    <section className="space-y-4" aria-label="Ritenute subite su bonifici">
+    <section className="space-y-4" aria-label={t("Ritenute subite su bonifici")}>
       <div className="flex flex-wrap justify-between gap-3">
         <div>
           <h3 className="font-semibold">
-            Ritenute bancarie sui bonifici parlanti
+            {t("Ritenute bancarie sui bonifici parlanti")}
           </h3>
           <p className="text-sm text-muted-foreground">
-            Periodo per data di accredito. Acconti d’imposta subiti, non
-            garanzie contrattuali.
+            {t("Periodo per data di accredito. Acconti d’imposta subiti, non garanzie contrattuali.")}
           </p>
         </div>
         <Button variant="outline" asChild>
-          <Link to="/azienda/documenti?tab=incassi">Apri Registro incassi</Link>
+          <Link to="/azienda/documenti?tab=incassi">{t("Apri Registro incassi")}</Link>
         </Button>
       </div>
       <p className="rounded-xl border border-blue-100 bg-blue-50/50 p-3 text-sm">
-        Il cliente salda il lordo, in banca entra il netto. Nessun F24 1039 a
-        carico dell’impresa e nessuna compensazione automatica. Il riepilogo va
-        verificato dal commercialista con le certificazioni bancarie.
+        {t("Il cliente salda il lordo, in banca entra il netto. Nessun F24 1039 a carico dell’impresa e nessuna compensazione automatica. Il riepilogo va verificato dal commercialista con le certificazioni bancarie.")}
       </p>
       {q.isLoading ? (
-        <p role="status">Caricamento registro…</p>
+        <p role="status">{t("Caricamento registro…")}</p>
       ) : q.isError ? (
         <div
           role="alert"
           className="rounded-xl border border-amber-200 bg-amber-50 p-4"
         >
           <p>
-            Registro non disponibile. Non è possibile determinare gli importi
-            del periodo.
+            {t("Registro non disponibile. Non è possibile determinare gli importi del periodo.")}
           </p>
           <p className="mt-1 text-sm">
-            Se il modulo non è ancora attivato sul database, serve applicare la
-            migrazione dopo i test. Nessun dato viene simulato o registrato in
-            alternativa.
+            {t("Se il modulo non è ancora attivato sul database, serve applicare la migrazione dopo i test. Nessun dato viene simulato o registrato in alternativa.")}
           </p>
           <Button
             variant="outline"
             className="mt-3"
             onClick={() => void q.refetch()}
           >
-            Riprova
+            {t("Riprova")}
           </Button>
         </div>
       ) : (
         <>
           <div className="grid gap-3 md:grid-cols-3">
             <FiscalMetric
-              label="Ritenute verificate nel periodo"
+              label={t("Ritenute verificate nel periodo")}
               value={formatCurrency(sum(active))}
-              description="Comprende quelle riscontrate con certificazione"
+              description={t("Comprende quelle riscontrate con certificazione")}
             />
             <FiscalMetric
-              label="Da riscontrare con certificazione"
+              label={t("Da riscontrare con certificazione")}
               value={formatCurrency(
                 sum(active.filter((r) => r.stato === "verificata")),
               )}
-              description="Già confrontate con la contabile dell’incasso"
+              description={t("Già confrontate con la contabile dell’incasso")}
             />
             <FiscalMetric
-              label="Riscontrate con certificazione"
+              label={t("Riscontrate con certificazione")}
               value={formatCurrency(
                 sum(active.filter((r) => r.stato === "certificata")),
               )}
-              description="Non equivale a credito fiscale già utilizzabile"
+              description={t("Non equivale a credito fiscale già utilizzabile")}
             />
           </div>
           <div className="flex flex-wrap gap-2">
             <Input
-              aria-label="Cerca ritenute bancarie"
-              placeholder="Fattura, banca o TRN/CRO…"
+              aria-label={t("Cerca ritenute bancarie")}
+              placeholder={t("Fattura, banca o TRN/CRO…")}
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
@@ -199,7 +195,7 @@ export default function RitenuteBonificiPanel() {
                 );
               }}
             >
-              Esporta righe filtrate
+              {t("Esporta righe filtrate")}
             </Button>
           </div>
           <div className="overflow-x-auto rounded-xl border">
@@ -219,7 +215,7 @@ export default function RitenuteBonificiPanel() {
                       key={label}
                       className="whitespace-nowrap px-3 py-2 text-left"
                     >
-                      {label}
+                      {t(label)}
                     </th>
                   ))}
                 </tr>
@@ -256,10 +252,10 @@ export default function RitenuteBonificiPanel() {
                     <td className="px-3 py-2">
                       <p>
                         {r.stato === "certificata"
-                          ? "Riscontrata con certificazione"
+                          ? t("Riscontrata con certificazione")
                           : r.stato === "stornata"
-                            ? "Stornata"
-                            : "Verificata sulla contabile"}
+                            ? t("Stornata")
+                            : t("Verificata sulla contabile")}
                       </p>
                       {r.certificazione && (
                         <p className="text-xs text-muted-foreground">
@@ -279,7 +275,7 @@ export default function RitenuteBonificiPanel() {
                               variant="ghost"
                               onClick={() => pick(r, "certifica")}
                             >
-                              Riscontra certificazione
+                              {t("Riscontra certificazione")}
                             </Button>
                           )}
                           <Button
@@ -287,7 +283,7 @@ export default function RitenuteBonificiPanel() {
                             variant="ghost"
                             onClick={() => pick(r, "storna")}
                           >
-                            Storna
+                            {t("Storna")}
                           </Button>
                         </div>
                       )}
@@ -300,8 +296,7 @@ export default function RitenuteBonificiPanel() {
                       colSpan={7}
                       className="p-6 text-center text-muted-foreground"
                     >
-                      Nessuna ritenuta registrata per questi filtri. Non sono
-                      conteggiati importi soltanto previsti.
+                      {t("Nessuna ritenuta registrata per questi filtri. Non sono conteggiati importi soltanto previsti.")}
                     </td>
                   </tr>
                 )}
@@ -315,7 +310,7 @@ export default function RitenuteBonificiPanel() {
                 disabled={!current}
                 onClick={() => setPage(current - 1)}
               >
-                Precedenti
+                {t("Precedenti")}
               </Button>
               <span>
                 {current + 1} / {Math.ceil(rows.length / 30)}
@@ -325,7 +320,7 @@ export default function RitenuteBonificiPanel() {
                 disabled={(current + 1) * 30 >= rows.length}
                 onClick={() => setPage(current + 1)}
               >
-                Successivi
+                {t("Successivi")}
               </Button>
             </div>
           )}
@@ -341,26 +336,22 @@ export default function RitenuteBonificiPanel() {
           <DialogHeader>
             <DialogTitle>
               {choice?.azione === "storna"
-                ? "Storno documentato dell’incasso"
-                : "Riscontro con certificazione bancaria"}
+                ? t("Storno documentato dell’incasso")
+                : t("Riscontro con certificazione bancaria")}
             </DialogTitle>
             <DialogDescription>
               {choice?.azione === "storna"
-                ? "Riapre il residuo lordo della fattura e annulla il netto in prima nota. La ritenuta resta nello storico."
-                : "Conferma solo il riscontro documentale: nessuna dichiarazione, compensazione o pagamento viene effettuato."}
+                ? t("Riapre il residuo lordo della fattura e annulla il netto in prima nota. La ritenuta resta nello storico.")
+                : t("Conferma solo il riscontro documentale: nessuna dichiarazione, compensazione o pagamento viene effettuato.")}
             </DialogDescription>
           </DialogHeader>
           {choice && (
-            <p className="text-sm">
-              Fattura {choice.row.numero_fattura} · lordo{" "}
-              {formatCurrency(Number(choice.row.lordo))} · ritenuta{" "}
-              {formatCurrency(Number(choice.row.ritenuta))}
-            </p>
+            <p className="text-sm">{t("Fattura {numero} · lordo {lordo} · ritenuta {ritenuta}", { numero: String(choice.row.numero_fattura ?? ""), lordo: formatCurrency(Number(choice.row.lordo)), ritenuta: formatCurrency(Number(choice.row.ritenuta)) })}</p>
           )}
           <Label htmlFor="ritenuta-reference">
             {choice?.azione === "storna"
-              ? "Motivo e riferimento dello storno"
-              : "Riferimento della certificazione verificata"}
+              ? t("Motivo e riferimento dello storno")
+              : t("Riferimento della certificazione verificata")}
           </Label>
           <Input
             id="ritenuta-reference"
@@ -376,7 +367,7 @@ export default function RitenuteBonificiPanel() {
               checked={confirmed}
               onCheckedChange={(v) => setConfirmed(v === true)}
             />
-            Ho verificato i documenti e gli effetti dell’operazione.
+            {t("Ho verificato i documenti e gli effetti dell’operazione.")}
           </Label>
           <DialogFooter>
             <Button
@@ -384,7 +375,7 @@ export default function RitenuteBonificiPanel() {
               disabled={q.mutation.isPending}
               onClick={() => setChoice(null)}
             >
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button
               disabled={
@@ -405,7 +396,7 @@ export default function RitenuteBonificiPanel() {
                 )
               }
             >
-              Conferma
+              {t("Conferma")}
             </Button>
           </DialogFooter>
         </DialogContent>

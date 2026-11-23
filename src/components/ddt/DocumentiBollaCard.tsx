@@ -21,6 +21,7 @@ import { DDTFileRiga } from "@/components/ddt/DDTFilePreview";
 import { DDTOriginaliCard } from "@/components/ddt/DDTOriginaliCard";
 import type { DDTAttachment, DDTAttachmentKind, DDTRicezione } from "@/hooks/useDDTRicezione";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const MAX_MB = 20;
 const ACCETTA = "image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf";
@@ -62,6 +63,7 @@ export function DocumentiBollaCard({
   onCaricaAllegati,
   onEliminaAllegato,
 }: DocumentiBollaCardProps) {
+  const tr = useT();
   // Originale dalla lettura AI (ddt_document_jobs) o caricato a mano.
   const originaleArchiviato = !!ddt.ddt_file_bucket;
   const originaleManuale = !originaleArchiviato && !!ddt.ddt_file_url;
@@ -112,7 +114,7 @@ export function DocumentiBollaCard({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <Paperclip className="h-4 w-4 text-primary" />
-            Documenti della bolla
+            {tr("Documenti della bolla")}
             {quanti > 0 && (
               <Badge variant="secondary" className="text-xs">
                 {quanti}
@@ -121,14 +123,14 @@ export function DocumentiBollaCard({
           </CardTitle>
           <div className="flex w-full items-center gap-1.5 sm:w-auto">
             <UniformSelect
-              aria-label="Tipo di documento"
+              aria-label={tr("Tipo di documento")}
               className="h-8 min-w-0 flex-1 rounded-md border bg-background px-2 text-xs sm:w-44 sm:flex-none"
               value={tipo}
               onChange={(e) => setScelto(e.target.value as DDTAttachmentKind)}
             >
               {tipi.map((t) => (
                 <option key={t.valore} value={t.valore}>
-                  {t.etichetta}
+                  {tr(t.etichetta)}
                 </option>
               ))}
             </UniformSelect>
@@ -141,7 +143,7 @@ export function DocumentiBollaCard({
               onClick={() => fileRef.current?.click()}
             >
               <FolderOpen className="h-3.5 w-3.5" />
-              Aggiungi file
+              {tr("Aggiungi file")}
             </Button>
             <Button
               type="button"
@@ -149,8 +151,8 @@ export function DocumentiBollaCard({
               variant="outline"
               className="h-8 w-8 shrink-0 p-0"
               disabled={inCaricamento}
-              aria-label="Scatta una foto"
-              title="Scatta una foto"
+              aria-label={tr("Scatta una foto")}
+              title={tr("Scatta una foto")}
               onClick={() => cameraRef.current?.click()}
             >
               <Camera className="h-3.5 w-3.5" />
@@ -196,15 +198,15 @@ export function DocumentiBollaCard({
 
         {fileErrore && originaleManuale && (
           <p role="alert" className="text-sm text-destructive">
-            Non riesco ad aprire l’originale.{" "}
+            {tr("Non riesco ad aprire l’originale.")}{" "}
             <button type="button" className="underline" onClick={onRiprovaFile}>
-              Riprova
+              {tr("Riprova")}
             </button>
           </p>
         )}
 
         {(!senzaOriginale || allegati.length > 0) && (
-          <ul className="divide-y overflow-hidden rounded-md border" aria-label="Documenti della bolla">
+          <ul className="divide-y overflow-hidden rounded-md border" aria-label={tr("Documenti della bolla")}>
             {originaleArchiviato && (
               <DDTOriginaliCard ddtId={ddt.id} companyId={ddt.company_id} incorporato />
             )}
@@ -213,11 +215,11 @@ export function DocumentiBollaCard({
                 url={fileUrl}
                 name={ddt.ddt_file_name ?? "Bolla originale"}
                 mime={ddt.ddt_file_mime ?? "application/pdf"}
-                etichetta="Bolla originale"
+                etichetta={tr("Bolla originale")}
                 evidenziata
                 onReplace={() => sostituisciRef.current?.click()}
                 onDelete={onRimuoviOriginale}
-                confermaRimozione={`Rimuovere il documento DDT "${ddt.ddt_file_name ?? ""}"?`}
+                confermaRimozione={tr("Rimuovere il documento DDT \"{name}\"?", { name: ddt.ddt_file_name ?? "" })}
               />
             )}
             {allegati.map((a) => (
@@ -249,17 +251,17 @@ export function DocumentiBollaCard({
         >
           <Upload className="h-3.5 w-3.5" />
           {inCaricamento
-            ? "Caricamento in corso…"
+            ? tr("Caricamento in corso…")
             : senzaOriginale && tipo === "ddt"
-              ? `Trascina qui la bolla: foto o PDF, max ${MAX_MB} MB`
-              : `Trascina qui i file: foto o PDF, max ${MAX_MB} MB`}
+              ? tr("Trascina qui la bolla: foto o PDF, max {MAX_MB} MB", { MAX_MB: String(MAX_MB ?? "") })
+              : tr("Trascina qui i file: foto o PDF, max {MAX_MB} MB", { MAX_MB: String(MAX_MB ?? "") })}
         </div>
         {inCaricamento && (
-          <p className="text-xs text-primary sm:hidden">Caricamento in corso…</p>
+          <p className="text-xs text-primary sm:hidden">{tr("Caricamento in corso…")}</p>
         )}
         {senzaOriginale && allegati.length === 0 && (
           <p className="text-xs text-muted-foreground sm:hidden">
-            Nessun documento: fotografa la bolla o carica il PDF.
+            {tr("Nessun documento: fotografa la bolla o carica il PDF.")}
           </p>
         )}
 
@@ -269,7 +271,7 @@ export function DocumentiBollaCard({
               <p key={r}>{r}</p>
             ))}
             <button type="button" className="underline" onClick={() => setRifiutati([])}>
-              Nascondi
+              {tr("Nascondi")}
             </button>
           </div>
         )}

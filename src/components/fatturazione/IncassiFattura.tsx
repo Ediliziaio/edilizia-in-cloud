@@ -36,6 +36,7 @@ import {
 import { SegnaPagataDialog } from "@/components/fatturazione/SegnaPagataDialog";
 import { AbbinaBonificoDialog } from "@/components/fatturazione/AbbinaBonificoDialog";
 import type { DocumentoFiscale } from "@/types/fatturazione";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // Gli incassi della fattura, dalla fattura (30/10/2026): lo storico, «Annulla»
 // su ciascuno (storna_incasso_atomico: la fattura torna da incassare o in
@@ -149,6 +150,7 @@ export function PannelloIncassi({
   puoAnnullare,
   annullaInCorso,
 }: PannelloIncassiProps) {
+  const t = useT();
   const [daAnnullare, setDaAnnullare] = useState<IncassoFattura | null>(null);
   const statoBanca = descriviPagamentoBanca(
     stato === "pagata" ? "pagata" : stato === "parziale" ? "parzialmente_pagata" : "",
@@ -170,9 +172,9 @@ export function PannelloIncassi({
       ) : errore ? (
         <p className="text-xs text-muted-foreground">{errore}</p>
       ) : elenco.length === 0 ? (
-        <p className="text-xs text-muted-foreground">Nessun incasso registrato.</p>
+        <p className="text-xs text-muted-foreground">{t("Nessun incasso registrato.")}</p>
       ) : (
-        <ul className="divide-y rounded-md border text-sm" aria-label="Incassi registrati">
+        <ul className="divide-y rounded-md border text-sm" aria-label={t("Incassi registrati")}>
           {elenco.map((i) => (
             <li key={i.id} className="flex items-start justify-between gap-2 p-2.5">
               <div className="min-w-0">
@@ -185,16 +187,16 @@ export function PannelloIncassi({
                 </p>
                 {i.bonifico_id ? (
                   <p className="truncate text-xs text-emerald-700" title={i.bonifico_descrizione ?? undefined}>
-                    Abbinato al bonifico del {giornoMese(i.bonifico_data)}
-                    {i.abbinamento === "auto" ? " (automatico)" : ""}
+                    {t("Abbinato al bonifico del {data}", { data: String(giornoMese(i.bonifico_data) ?? "") })}
+                    {i.abbinamento === "auto" ? ` ${t("(automatico)")}` : ""}
                   </p>
                 ) : i.parlante ? (
-                  <p className="text-xs text-muted-foreground">Bonifico con ritenuta</p>
+                  <p className="text-xs text-muted-foreground">{t("Bonifico con ritenuta")}</p>
                 ) : null}
               </div>
               {i.parlante ? (
                 <Button asChild variant="ghost" size="sm" className="h-7 shrink-0 px-2 text-xs">
-                  <Link to="/azienda/documenti?tab=incassi">Registro</Link>
+                  <Link to="/azienda/documenti?tab=incassi">{t("Registro")}</Link>
                 </Button>
               ) : (!puoAnnullare || puoAnnullare(i)) && (
                 <Button
@@ -203,9 +205,9 @@ export function PannelloIncassi({
                   className="h-7 shrink-0 px-2 text-xs text-destructive hover:text-destructive"
                   onClick={() => setDaAnnullare(i)}
                   disabled={annullaInCorso}
-                  aria-label={`Annulla incasso di ${formatCurrency(i.importo)}`}
+                  aria-label={t("Annulla incasso di {importo}", { importo: formatCurrency(i.importo) })}
                 >
-                  <Undo2 className="mr-1 h-3.5 w-3.5" /> Annulla
+                  <Undo2 className="mr-1 h-3.5 w-3.5" /> {t("Annulla")}
                 </Button>
               )}
             </li>
@@ -217,12 +219,12 @@ export function PannelloIncassi({
         <div className="flex gap-2">
           {puoSegnarePagata && (
             <Button variant="outline" size="sm" className="flex-1" onClick={onSegnaPagata}>
-              <CreditCard className="mr-1 h-4 w-4" /> Registra incasso
+              <CreditCard className="mr-1 h-4 w-4" /> {t("Registra incasso")}
             </Button>
           )}
           {puoAbbinare && (
             <Button variant="outline" size="sm" className="flex-1" onClick={onAbbina}>
-              <Landmark className="mr-1 h-4 w-4" /> Abbina al bonifico
+              <Landmark className="mr-1 h-4 w-4" /> {t("Abbina al bonifico")}
             </Button>
           )}
         </div>
@@ -231,15 +233,15 @@ export function PannelloIncassi({
       <AlertDialog open={!!daAnnullare} onOpenChange={(o) => !o && setDaAnnullare(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Annullare l'incasso?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Annullare l'incasso?")}</AlertDialogTitle>
             <AlertDialogDescription>
               {daAnnullare &&
-                `L'incasso di ${formatCurrency(daAnnullare.importo)} del ${formatDateShort(daAnnullare.data_movimento)} esce da registro incassi, prima nota e scadenzario, e la fattura torna da incassare per questa cifra.`}
-              {daAnnullare?.bonifico_id && " Il bonifico torna da abbinare in Tesoreria."}
+                t("L'incasso di {importo} del {data} esce da registro incassi, prima nota e scadenzario, e la fattura torna da incassare per questa cifra.", { importo: formatCurrency(daAnnullare.importo), data: formatDateShort(daAnnullare.data_movimento) })}
+              {daAnnullare?.bonifico_id && ` ${t("Il bonifico torna da abbinare in Tesoreria.")}`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Lascia com'è</AlertDialogCancel>
+            <AlertDialogCancel>{t("Lascia com'è")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
@@ -247,7 +249,7 @@ export function PannelloIncassi({
                 setDaAnnullare(null);
               }}
             >
-              Annulla incasso
+              {t("Annulla incasso")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -266,16 +268,15 @@ export function IncassiFatturaDialog({
   pagabile: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const t = useT();
   return (
     <Dialog open={!!doc} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         {doc && (
           <>
             <DialogHeader>
-              <DialogTitle>Incassi · fattura n. {doc.numero}</DialogTitle>
-              <DialogDescription>
-                Incassato {formatCurrency(doc.importo_pagato ?? 0)} di {formatCurrency(doc.totale_da_pagare ?? 0)}
-              </DialogDescription>
+              <DialogTitle>{t("Incassi · fattura n. {numero}", { numero: String(doc.numero ?? "") })}</DialogTitle>
+              <DialogDescription>{t("Incassato {incassato} di {totale}", { incassato: formatCurrency(doc.importo_pagato ?? 0), totale: formatCurrency(doc.totale_da_pagare ?? 0) })}</DialogDescription>
             </DialogHeader>
             <IncassiFattura doc={doc} pagabile={pagabile} />
           </>

@@ -2,7 +2,6 @@ import { scadenzaDaFonte } from "@/lib/finance/fontiScadenzario";
 import { commesseScadenza } from "@/lib/finance/commesseScadenza";
 import { Fragment, useMemo } from "react";
 import { format, isPast, isToday, differenceInDays } from "date-fns";
-import { it } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, CreditCard, ArrowUpRight, ArrowDownLeft, CalendarClock, Plus, Undo2, Pencil, Trash2 } from "lucide-react";
@@ -24,6 +23,7 @@ const TIPO_LABELS: Record<string, { label: string; color: string }> = {
 };
 
 import { NotaRiga } from "@/components/shared/NotaRiga";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   scadenze: Scadenza[];
@@ -49,7 +49,7 @@ interface Props {
 
 const monthLabel = (d: Date | null) => {
   if (!d) return "Senza data";
-  const s = format(d, "LLLL yyyy", { locale: it });
+  const s = format(d, "LLLL yyyy", { locale: dateFnsCampo() });
   return s.charAt(0).toUpperCase() + s.slice(1);
 };
 
@@ -57,7 +57,10 @@ const monthLabel = (d: Date | null) => {
 interface TotaliMese { incassi: number; pagamenti: number; apertoIn: number; apertoOut: number }
 
 export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnnullaIncasso, onAdd, onRowClick, onNota, onModifica, selezionate, onSeleziona, onSelezionaPagina, tutteSelezionate, selezioneParziale, inCorso = false, pagaSulPosto }: Props) {
-  const azionePagamento = (s: Scadenza) => pagaSulPosto?.(s) ? "Paga" : scadenzaDaFonte(s) ? "Apri fonte" : s.direction === "entrata" ? "Incassa" : "Paga";
+  const tTesto = useT();
+  const azionePagamento = (s: Scadenza) => pagaSulPosto?.(s) ? tTesto("Paga") : scadenzaDaFonte(s) ? tTesto("Apri fonte") : s.direction === "entrata" ? tTesto("Incassa") : tTesto("Paga");
+  // «Senza data» fa anche da chiave del gruppo: si traduce solo quando si mostra.
+  const meseMostrato = (d: Date | null) => d ? monthLabel(d) : tTesto("Senza data");
   // Totali per mese delle righe in pagina (16/11/2026): si legge il mese senza sommare a mente.
   const totaliMese = useMemo(() => {
     const m = new Map<string, TotaliMese>();
@@ -79,15 +82,15 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
       <div className="flex flex-col items-center justify-center py-16 gap-3 text-center border rounded-xl bg-card max-sm:py-4">
         <CalendarClock className="h-12 w-12 text-muted-foreground/40 max-lg:hidden" aria-hidden="true" />
         <div>
-          <p className="text-sm font-medium text-foreground max-sm:text-xs max-sm:font-normal max-sm:text-muted-foreground">Nessuna scadenza trovata</p>
+          <p className="text-sm font-medium text-foreground max-sm:text-xs max-sm:font-normal max-sm:text-muted-foreground">{tTesto("Nessuna scadenza trovata")}</p>
           <p className="text-xs text-muted-foreground mt-0.5 max-lg:hidden">
-            Non ci sono scadenze per i filtri selezionati.
+            {tTesto("Non ci sono scadenze per i filtri selezionati.")}
           </p>
         </div>
         {onAdd && (
           <Button size="sm" variant="outline" onClick={onAdd} className="gap-1.5 max-lg:hidden">
             <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-            Nuova scadenza
+            {tTesto("Nuova scadenza")}
           </Button>
         )}
       </div>
@@ -99,8 +102,8 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
     {/* Sul telefono niente selezione multipla (le distinte si fanno da computer o tablet): una
         casella per riga e «Seleziona pagina» occupavano una colonna e una riga in più. */}
     {onSelezionaPagina && <label className="flex min-h-11 items-center gap-2 px-2 text-sm lg:hidden max-sm:hidden">
-      <Checkbox aria-label="Seleziona le scadenze di questa pagina" checked={tutteSelezionate ? true : selezioneParziale ? "indeterminate" : false} disabled={inCorso} onCheckedChange={v => onSelezionaPagina(v === true)} />
-      Seleziona pagina
+      <Checkbox aria-label={tTesto("Seleziona le scadenze di questa pagina")} checked={tutteSelezionate ? true : selezioneParziale ? "indeterminate" : false} disabled={inCorso} onCheckedChange={v => onSelezionaPagina(v === true)} />
+      {tTesto("Seleziona pagina")}
     </label>}
     {/* Mobile: una riga da ~52px per scadenza (descrizione; data, riferimento e
         giorni; importo e «Paga»), col mese come riga sottile. Prima: tre righe
@@ -128,13 +131,13 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
           <Fragment key={s.id}>
             {showMonthHeader && (
               <div className={`bg-muted/60 px-3 py-1 text-[11px] font-semibold text-muted-foreground ${idx > 0 ? "border-t" : ""}`}>
-                {monthLabel(dueDate)}
+                {meseMostrato(dueDate)}
               </div>
             )}
             <div
               className={`flex items-center gap-2.5 px-3 py-2.5 ${showMonthHeader ? "" : "border-t"} ${isOverdue ? "bg-destructive/5" : isDueToday ? "bg-amber-50 dark:bg-amber-950/20" : ""} ${isCancelled || isPaid ? "opacity-60" : ""}`}
             >
-              {onSeleziona && <span className="max-sm:hidden" onClick={(e) => e.stopPropagation()}><Checkbox aria-label={`Seleziona ${s.description}`} checked={selezionate?.has(s.id) ?? false} disabled={inCorso} onCheckedChange={() => onSeleziona(s.id)} /></span>}
+              {onSeleziona && <span className="max-sm:hidden" onClick={(e) => e.stopPropagation()}><Checkbox aria-label={tTesto("Seleziona {descrizione}", { descrizione: String(s.description ?? "") })} checked={selezionate?.has(s.id) ?? false} disabled={inCorso} onCheckedChange={() => onSeleziona(s.id)} /></span>}
               <div className="min-w-0 flex-1">
                 {onRowClick ? (
                   <button type="button" className="min-h-11 w-full text-left text-sm font-semibold leading-tight hover:underline max-sm:min-h-0 max-sm:truncate" onClick={() => onRowClick(s)}>
@@ -142,20 +145,20 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
                   </button>
                 ) : <p className="break-words text-sm font-semibold leading-tight max-sm:truncate">{s.description}</p>}
                 <p className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
-                  {dueDate ? format(dueDate, "dd/MM", { locale: it }) : "Senza data"}
+                  {dueDate ? format(dueDate, "dd/MM", { locale: dateFnsCampo() }) : tTesto("Senza data")}
                   {refLabel ? ` · ${refLabel}` : ""}
                   {etichettaMetodo(s.payment_method) ? ` · ${etichettaMetodo(s.payment_method)}` : ""}
-                  {isOverdue && <span className="font-medium text-destructive"> · da {Math.abs(daysLeft)} gg</span>}
-                  {isDueToday && <span className="font-medium text-amber-600"> · oggi</span>}
+                  {isOverdue && <span className="font-medium text-destructive">{" · "}{tTesto("da {giorni} gg", { giorni: Math.abs(daysLeft) })}</span>}
+                  {isDueToday && <span className="font-medium text-amber-600"> · {tTesto("oggi")}</span>}
                 </p>
               </div>
-              {onModifica && !percheScadenzaNonModificabile(s) && <Button size="icon" variant="ghost" className="size-11 shrink-0" disabled={inCorso} aria-label={`Modifica ${s.description}`} onClick={(e) => { e.stopPropagation(); onModifica(s); }}><Pencil className="h-4 w-4" /></Button>}
+              {onModifica && !percheScadenzaNonModificabile(s) && <Button size="icon" variant="ghost" className="size-11 shrink-0" disabled={inCorso} aria-label={tTesto("Modifica {descrizione}", { descrizione: String(s.description ?? "") })} onClick={(e) => { e.stopPropagation(); onModifica(s); }}><Pencil className="h-4 w-4" /></Button>}
               <div className="shrink-0 text-right">
                 <p className={`text-[13px] font-semibold leading-tight tabular-nums ${s.direction === "entrata" ? "text-green-700" : ""}`}>
                   {s.direction === "uscita" ? "−" : "+"}{fmtEur(isPaid || isCancelled ? s.amount : remaining)}
                 </p>
                 {isPaid || isCancelled ? (
-                  <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground">{isPaid ? "Saldato" : "Annullata"}</p>
+                  <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground">{isPaid ? tTesto("Saldato") : tTesto("Annullata")}</p>
                 ) : (
                   <button
                     type="button"
@@ -170,10 +173,10 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
                   <button
                     type="button"
                     className="block min-h-11 w-full text-right text-xs font-medium leading-tight text-primary"
-                    aria-label={`Annulla l'incasso di ${s.description}`}
+                    aria-label={tTesto("Annulla l'incasso di {descrizione}", { descrizione: String(s.description ?? "") })}
                     onClick={(e) => { e.stopPropagation(); onAnnullaIncasso(s); }}
                   >
-                    Annulla incasso
+                    {tTesto("Annulla incasso")}
                   </button>
                 )}
               </div>
@@ -190,17 +193,17 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
       <table className="w-full text-sm [&_td]:whitespace-nowrap [&_th]:whitespace-nowrap [&_td]:px-2 [&_th]:px-2 [&_td]:py-1.5">
         <thead>
           <tr className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
-            {onSeleziona && <th className="w-10">{onSelezionaPagina ? <Checkbox aria-label="Seleziona le scadenze di questa pagina" checked={tutteSelezionate ? true : selezioneParziale ? "indeterminate" : false} disabled={inCorso} onCheckedChange={v => onSelezionaPagina(v === true)} /> : <span className="sr-only">Selezione</span>}</th>}
-            <th className="py-2 font-medium">Scadenza</th>
-            <th className="hidden py-2 font-medium 2xl:table-cell">Tipo</th>
-            <th className="py-2 font-medium">Cliente / fornitore</th>
-            <th className="py-2 font-medium">Descrizione</th>
-            <th className="hidden py-2 font-medium lg:table-cell">Documento · commessa</th>
-            <th className="py-2 font-medium">Modalità</th>
-            <th className="py-2 text-right font-medium">Importo</th>
-            <th className="py-2 text-right font-medium">Residuo</th>
-            <th className="py-2 font-medium">Stato</th>
-            <th className="py-2"><span className="sr-only">Azioni</span></th>
+            {onSeleziona && <th className="w-10">{onSelezionaPagina ? <Checkbox aria-label={tTesto("Seleziona le scadenze di questa pagina")} checked={tutteSelezionate ? true : selezioneParziale ? "indeterminate" : false} disabled={inCorso} onCheckedChange={v => onSelezionaPagina(v === true)} /> : <span className="sr-only">{tTesto("Selezione")}</span>}</th>}
+            <th className="py-2 font-medium">{tTesto("Scadenza")}</th>
+            <th className="hidden py-2 font-medium 2xl:table-cell">{tTesto("Tipo")}</th>
+            <th className="py-2 font-medium">{tTesto("Cliente / fornitore")}</th>
+            <th className="py-2 font-medium">{tTesto("Descrizione")}</th>
+            <th className="hidden py-2 font-medium lg:table-cell">{tTesto("Documento · commessa")}</th>
+            <th className="py-2 font-medium">{tTesto("Modalità")}</th>
+            <th className="py-2 text-right font-medium">{tTesto("Importo")}</th>
+            <th className="py-2 text-right font-medium">{tTesto("Residuo")}</th>
+            <th className="py-2 font-medium">{tTesto("Stato")}</th>
+            <th className="py-2"><span className="sr-only">{tTesto("Azioni")}</span></th>
           </tr>
         </thead>
         <tbody>
@@ -228,14 +231,12 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
                     <tr className="bg-muted/30">
                       <td colSpan={onSeleziona ? 11 : 10} className="!py-1.5 text-xs">
                         <span className="flex flex-wrap items-center gap-x-4 gap-y-0.5">
-                          <span className="font-semibold text-foreground">{monthLabel(dueDate)}</span>
-                          {t && t.incassi > 0 && <span className="tabular-nums text-emerald-700 dark:text-emerald-400">↓ {fmtEur(t.incassi)} da clienti</span>}
-                          {t && t.pagamenti > 0 && <span className="tabular-nums text-rose-700 dark:text-rose-400">↑ {fmtEur(t.pagamenti)} a fornitori</span>}
+                          <span className="font-semibold text-foreground">{meseMostrato(dueDate)}</span>
+                          {t && t.incassi > 0 && <span className="tabular-nums text-emerald-700 dark:text-emerald-400">{tTesto("↓ {incassi} da clienti", { incassi: fmtEur(t.incassi) })}</span>}
+                          {t && t.pagamenti > 0 && <span className="tabular-nums text-rose-700 dark:text-rose-400">{tTesto("↑ {pagamenti} a fornitori", { pagamenti: fmtEur(t.pagamenti) })}</span>}
                           {/* «Ancora aperto» solo se non è tutto il mese: in «Aperte» ripeterebbe le stesse cifre. */}
                           {t && (t.apertoIn > 0 || t.apertoOut > 0) && (Math.abs(t.apertoIn - t.incassi) > 0.005 || Math.abs(t.apertoOut - t.pagamenti) > 0.005) && (
-                            <span className="tabular-nums text-muted-foreground">
-                              ancora aperto: {[t.apertoIn > 0 ? `${fmtEur(t.apertoIn)} da incassare` : null, t.apertoOut > 0 ? `${fmtEur(t.apertoOut)} da pagare` : null].filter(Boolean).join(" · ")}
-                            </span>
+                            <span className="tabular-nums text-muted-foreground">{tTesto("ancora aperto: {valore}", { valore: [t.apertoIn > 0 ? tTesto("{importo} da incassare", { importo: fmtEur(t.apertoIn) }) : null, t.apertoOut > 0 ? tTesto("{importo} da pagare", { importo: fmtEur(t.apertoOut) }) : null].filter(Boolean).join(" · ") })}</span>
                           )}
                         </span>
                       </td>
@@ -245,23 +246,23 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
               <tr
                 className={`border-b hover:bg-muted/30 ${rowStyle} ${onRowClick ? "cursor-pointer" : ""}`}
                 >
-                {onSeleziona && <td onClick={(e) => e.stopPropagation()}><Checkbox aria-label={`Seleziona ${s.description}`} checked={selezionate?.has(s.id) ?? false} disabled={inCorso} onCheckedChange={() => onSeleziona(s.id)} /></td>}
+                {onSeleziona && <td onClick={(e) => e.stopPropagation()}><Checkbox aria-label={tTesto("Seleziona {descrizione}", { descrizione: String(s.description ?? "") })} checked={selezionate?.has(s.id) ?? false} disabled={inCorso} onCheckedChange={() => onSeleziona(s.id)} /></td>}
                 <td>
                   <span className={`inline-flex items-center gap-1.5 tabular-nums ${isOverdue ? "font-semibold text-destructive" : ""}`}>
                     {isOverdue && <AlertTriangle className="h-3.5 w-3.5 shrink-0" />}
-                    {dueDate ? format(dueDate, "dd/MM/yyyy", { locale: it }) : "Senza data"}
+                    {dueDate ? format(dueDate, "dd/MM/yyyy", { locale: dateFnsCampo() }) : tTesto("Senza data")}
                   </span>
                   {dueDate && !isPaid && !isCancelled && (
                     <span className={`ml-1.5 text-xs tabular-nums ${isOverdue ? "text-destructive" : "text-muted-foreground"}`}
-                      title={isOverdue ? `Scaduta da ${stato.giorniRitardo} giorni` : undefined}>
-                      {isOverdue ? `+${stato.giorniRitardo} gg` : isDueToday ? "oggi" : `fra ${daysLeft} gg`}
+                      title={isOverdue ? tTesto("Scaduta da {giorni} giorni", { giorni: stato.giorniRitardo }) : undefined}>
+                      {isOverdue ? tTesto("+{giorni} gg", { giorni: stato.giorniRitardo }) : isDueToday ? tTesto("oggi") : tTesto("fra {giorni} gg", { giorni: String(daysLeft ?? "") })}
                     </span>
                   )}
                 </td>
                 <td className="hidden 2xl:table-cell">
                   <Badge variant="secondary" className={`text-xs ${tipoInfo.color}`}>
                     {s.direction === "entrata" ? <ArrowDownLeft className="mr-1 inline h-3 w-3" /> : <ArrowUpRight className="mr-1 inline h-3 w-3" />}
-                    {tipoInfo.label}
+                    {tTesto(tipoInfo.label)}
                   </Badge>
                 </td>
                 <td><span className="block max-w-[130px] truncate xl:max-w-[180px] 2xl:max-w-[220px]" title={controparte ?? undefined}>{controparte ?? <span className="text-muted-foreground">—</span>}</span></td>
@@ -285,17 +286,17 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
                     {fmtEur(remaining)}
                   </>}
                 </td>
-                <td><Badge variant="outline" className={`px-1.5 text-[11px] ${CLASSE_TONO[stato.tono]}`}>{stato.label}</Badge></td>
+                <td><Badge variant="outline" className={`px-1.5 text-[11px] ${CLASSE_TONO[stato.tono]}`}>{tTesto(stato.label)}</Badge></td>
                 <td onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center justify-end gap-1">
                     {onModifica && !percheScadenzaNonModificabile(s) && <>
-                      <Button variant="ghost" size="icon" className="h-8 w-8" disabled={inCorso} aria-label={`Modifica ${s.description}`} title="Modifica scadenza" onClick={() => onModifica(s)}><Pencil className="h-3.5 w-3.5" /></Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8" disabled={inCorso} aria-label={`Annulla scadenza ${s.description}`} title="Annulla scadenza" onClick={() => onCancel(s.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" disabled={inCorso} aria-label={tTesto("Modifica {descrizione}", { descrizione: String(s.description ?? "") })} title={tTesto("Modifica scadenza")} onClick={() => onModifica(s)}><Pencil className="h-3.5 w-3.5" /></Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" disabled={inCorso} aria-label={tTesto("Annulla scadenza {descrizione}", { descrizione: String(s.description ?? "") })} title={tTesto("Annulla scadenza")} onClick={() => onCancel(s.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                     </>}
                     {onNota && !scadenzaDaFonte(s) && (
                       <NotaRiga
                         nota={s.notes}
-                        titolo={`${dueDate ? format(dueDate, "dd/MM/yyyy", { locale: it }) : "Senza data"} · ${s.description}`}
+                        titolo={`${dueDate ? format(dueDate, "dd/MM/yyyy", { locale: dateFnsCampo() }) : tTesto("Senza data")} · ${s.description}`}
                         onSalva={(nota) => onNota(s, nota)}
                       />
                     )}
@@ -305,8 +306,8 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
                       </Button>
                     )}
                     {onAnnullaIncasso && siAnnullaIncasso(s) && (
-                      <Button variant="ghost" size="icon" className="h-7 w-7" title="Annulla incasso"
-                        aria-label={`Annulla l'incasso di ${s.description}`} onClick={() => onAnnullaIncasso(s)}>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" title={tTesto("Annulla incasso")}
+                        aria-label={tTesto("Annulla l'incasso di {descrizione}", { descrizione: String(s.description ?? "") })} onClick={() => onAnnullaIncasso(s)}>
                         <Undo2 className="h-3.5 w-3.5" />
                       </Button>
                     )}

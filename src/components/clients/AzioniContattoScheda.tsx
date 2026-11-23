@@ -4,6 +4,7 @@ import { CalendarDays, Mail, MessageSquare, Phone } from "lucide-react";
 import { WebCallButton } from "@/components/telephony/WebCallButton";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Il link wa.me di un telefono, col prefisso italiano se manca; null senza numero. */
 export function linkWhatsApp(telefono: string | null | undefined): string | null {
@@ -35,12 +36,13 @@ const ICONA = "h-9 w-9";
 
 /** Da computer, in fila nella testata: icone uguali, senza colori che si fanno concorrenza. */
 export function AzioniContattoScheda({ telefono, nome, contactId, email, onEmail, onAppuntamento }: Props) {
+  const t = useT();
   const waHref = linkWhatsApp(telefono);
   return (
     <>
       {telefono && (
-        <IconaScheda etichetta="Chiama">
-          <WebCallButton phone={telefono} name={nome} contactId={contactId} label="Chiama" variant="outline" size="icon" iconOnly className={ICONA} />
+        <IconaScheda etichetta={t("Chiama")}>
+          <WebCallButton phone={telefono} name={nome} contactId={contactId} label={t("Chiama")} variant="outline" size="icon" iconOnly className={ICONA} />
         </IconaScheda>
       )}
       {email && (
@@ -55,8 +57,8 @@ export function AzioniContattoScheda({ telefono, nome, contactId, email, onEmail
           </Button>
         </IconaScheda>
       )}
-      <IconaScheda etichetta="Appuntamento">
-        <Button variant="outline" size="icon" className={ICONA} onClick={onAppuntamento} aria-label="Appuntamento"><CalendarDays className="h-4 w-4" /></Button>
+      <IconaScheda etichetta={t("Appuntamento")}>
+        <Button variant="outline" size="icon" className={ICONA} onClick={onAppuntamento} aria-label={t("Appuntamento")}><CalendarDays className="h-4 w-4" /></Button>
       </IconaScheda>
     </>
   );
@@ -64,12 +66,13 @@ export function AzioniContattoScheda({ telefono, nome, contactId, email, onEmail
 
 /** Da telefono, sotto il nome. */
 export function AzioniContattoSchedaMobile({ telefono, email, onEmail, onAppuntamento }: Omit<Props, "nome" | "contactId">) {
+  const t = useT();
   const waHref = linkWhatsApp(telefono);
   return (
     <div className="mt-3 flex md:hidden flex-wrap gap-1.5">
       {telefono && (
         <Button asChild variant="outline" size="sm" className="flex-1 min-w-[80px] gap-1.5 border-emerald-200 bg-emerald-50 text-emerald-700">
-          <a href={`tel:${telefono}`}><Phone className="h-3.5 w-3.5" /> Chiama</a>
+          <a href={`tel:${telefono}`}><Phone className="h-3.5 w-3.5" /> {t("Chiama")}</a>
         </Button>
       )}
       {email && (
@@ -85,7 +88,7 @@ export function AzioniContattoSchedaMobile({ telefono, email, onEmail, onAppunta
         </Button>
       )}
       <Button variant="outline" size="sm" className="flex-1 min-w-[80px] gap-1.5" onClick={onAppuntamento}>
-        <CalendarDays className="h-3.5 w-3.5" /> Appuntamento
+        <CalendarDays className="h-3.5 w-3.5" /> {t("Appuntamento")}
       </Button>
     </div>
   );

@@ -11,6 +11,7 @@ import { formatTreasuryCurrency as money } from "@/lib/treasury";
 import { formatDateIt } from "@/lib/formatters";
 import { FormPagante } from "@/components/tesoreria/RiferimentiVerificati";
 import { codiceDaRicordare } from "@/lib/orders/codiciCommittente";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Il motore degli esiti della tesoreria (tesoreria_esito_movimento): per ogni
@@ -117,18 +118,18 @@ export function codiceDaProporre(m: Pick<BankMovement, "amount" | "description" 
   return codice ? { orderId: ordini[0], codice } : null;
 }
 
-async function proponiCodice(m: BankMovement, c: CandidatoEsito) {
+async function proponiCodice(m: BankMovement, c: CandidatoEsito, t: ReturnType<typeof useT>) {
   const p = codiceDaProporre(m, c);
   if (!p) return;
-  toast(`Ricordare il codice «${p.codice}» su questa commessa?`, {
-    description: "Il prossimo bonifico con questo codice si collegherà da solo alla commessa.",
+  toast(t("Ricordare il codice «{codice}» su questa commessa?", { codice: p.codice }), {
+    description: t("Il prossimo bonifico con questo codice si collegherà da solo alla commessa."),
     duration: 15000,
     action: {
-      label: "Ricorda",
+      label: t("Ricorda"),
       onClick: () => {
         void bankRpc("commessa_ricorda_codice", { p_order: p.orderId, p_codice: p.codice })
-          .then(() => toast.success(`Codice «${p.codice}» salvato sulla commessa`))
-          .catch((e: unknown) => toast.error("Codice non salvato", { description: e instanceof Error ? e.message : undefined }));
+          .then(() => toast.success(t("Codice «{codice}» salvato sulla commessa", { codice: p.codice })))
+          .catch((e: unknown) => toast.error(t("Codice non salvato"), { description: e instanceof Error ? e.message : undefined }));
       },
     },
   });
@@ -161,10 +162,11 @@ export function useEsitoMovimento(company: string, tx: string) {
 
 /** Etichetta per la testata: niente per i movimenti già chiusi. */
 export function BadgeEsito({ esito }: { esito: EsitoMovimentoDati | null | undefined }) {
+  const t = useT();
   if (!esito || esito.natura === "gia_riconciliato" || esito.scartato_at) return null;
   const e = ETICHETTA_ESITO[esito.esito];
   if (!e) return null;
-  return <Badge variant="outline" className={e.className} title={NATURA[esito.natura] ?? esito.natura}>{e.label}</Badge>;
+  return <Badge variant="outline" className={e.className} title={NATURA[esito.natura] ? t(NATURA[esito.natura]) : esito.natura}>{t(e.label)}</Badge>;
 }
 
 /**
@@ -178,6 +180,7 @@ export function RigaEsitoMovimento({ company, movement: m, esito, puoScrivere, o
   puoScrivere: boolean;
   onCambiato: () => void;
 }) {
+  const t = useT();
   const [scarto, setScarto] = useState<string | null>(null);
   const [inCorso, setInCorso] = useState(false);
   const e = ETICHETTA_ESITO[esito.esito];
@@ -205,12 +208,12 @@ export function RigaEsitoMovimento({ company, movement: m, esito, puoScrivere, o
       // Fattura importata: il gestionale esterno si allinea dopo il salvataggio, mai prima.
       const falliti = await syncBankExternalPayments([{ id: m.id, booking_date: m.booking_date, result: result ?? {} }]);
       if (falliti.length) await segnaDaRiallineare(company, m, result?.esterne ?? []);
-      toast.success(esito.natura === "giroconto" ? "Giroconto confermato" : "Collegamento confermato");
-      if (falliti.length) toast.warning(`Pagamento salvato, aggiornamento esterno da riprovare: ${falliti.join(", ")}`);
+      toast.success(esito.natura === "giroconto" ? t("Giroconto confermato") : t("Collegamento confermato"));
+      if (falliti.length) toast.warning(t("Pagamento salvato, aggiornamento esterno da riprovare: {falliti}", { falliti: falliti.join(", ") }));
       onCambiato();
     } catch (err) {
-      if (salvato) toast.warning("Collegamento salvato, aggiornamento esterno da riprovare");
-      else toast.error("Non confermato", { description: err instanceof Error ? err.message : undefined });
+      if (salvato) toast.warning(t("Collegamento salvato, aggiornamento esterno da riprovare"));
+      else toast.error(t("Non confermato"), { description: err instanceof Error ? err.message : undefined });
       onCambiato();
     } finally {
       setInCorso(false);
@@ -223,11 +226,11 @@ export function RigaEsitoMovimento({ company, movement: m, esito, puoScrivere, o
     setInCorso(true);
     try {
       await bankRpc("tesoreria_scarta_esito", { p_company: company, p_tx: m.id, p_motivo: motivo });
-      toast.success("Proposta scartata");
+      toast.success(t("Proposta scartata"));
       setScarto(null);
       onCambiato();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Proposta non scartata");
+      toast.error(err instanceof Error ? err.message : t("Proposta non scartata"));
     } finally {
       setInCorso(false);
     }
@@ -235,10 +238,10 @@ export function RigaEsitoMovimento({ company, movement: m, esito, puoScrivere, o
   return (
     <div className="w-full min-w-0 space-y-1.5">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        {e && <Badge variant="outline" className={e.className}>{e.label}</Badge>}
-        <span className="font-medium">{NATURA[esito.natura] ?? esito.natura}</span>
+        {e && <Badge variant="outline" className={e.className}>{t(e.label)}</Badge>}
+        <span className="font-medium">{NATURA[esito.natura] ? t(NATURA[esito.natura]) : esito.natura}</span>
         {(esito.motivi ?? []).length > 0 && <span className="text-xs text-muted-foreground">· {esito.motivi!.join(" · ")}</span>}
-        {Number(esito.differenza) > 0 && <span className="text-xs text-amber-700">· differenza {money(Number(esito.differenza), "—", m.currency)}</span>}
+        {Number(esito.differenza) > 0 && <span className="text-xs text-amber-700">{t("· differenza {valore}", { valore: String(money(Number(esito.differenza), "—", m.currency) ?? "") })}</span>}
       </div>
       {esito.nota && <p className="text-xs text-muted-foreground">{esito.nota}</p>}
       {conflitti.map((c, i) => {
@@ -246,7 +249,7 @@ export function RigaEsitoMovimento({ company, movement: m, esito, puoScrivere, o
         return (
           <p key={i} className="flex flex-wrap items-start gap-1.5 text-xs text-red-700"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />{c}
             {pd && !rapporto && (
-              <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setRapporto(pd)}>Registra il rapporto</Button>
+              <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setRapporto(pd)}>{t("Registra il rapporto")}</Button>
             )}
           </p>
         );
@@ -258,28 +261,28 @@ export function RigaEsitoMovimento({ company, movement: m, esito, puoScrivere, o
       {(esito.mancanti ?? []).map((c, i) => (
         <p key={i} className="flex items-start gap-1.5 text-xs text-muted-foreground"><CircleHelp className="mt-0.5 h-3 w-3 shrink-0" />{c}</p>
       ))}
-      {esito.ripartizione_da_completare && <p className="text-xs text-amber-700">Il documento è su più commesse senza le quote: la ripartizione va completata.</p>}
+      {esito.ripartizione_da_completare && <p className="text-xs text-amber-700">{t("Il documento è su più commesse senza le quote: la ripartizione va completata.")}</p>}
       {esito.scartato_at && (
-        <p className="text-xs text-muted-foreground">Proposta scartata il {formatDateIt(esito.scartato_at)}{esito.scartato_motivo ? `: ${esito.scartato_motivo}` : ""}</p>
+        <p className="text-xs text-muted-foreground">{t("Proposta scartata il {scartato_at}{valore}", { scartato_at: formatDateIt(esito.scartato_at), valore: String((esito.scartato_motivo ? `: ${esito.scartato_motivo}` : "") ?? "") })}</p>
       )}
       <div className="flex flex-wrap items-center gap-3">
         {confermaClic && (
           <Button size="sm" className="h-7" disabled={inCorso} onClick={() => void confermaEsito()}>
-            {inCorso && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}<CheckCircle2 className="mr-1 h-3.5 w-3.5" />Conferma
+            {inCorso && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}<CheckCircle2 className="mr-1 h-3.5 w-3.5" />{t("Conferma")}
           </Button>
         )}
         {scartabile && scarto === null && (
-          <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setScarto("")}>Scarta proposta</Button>
+          <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setScarto("")}>{t("Scarta proposta")}</Button>
         )}
         {(esito.storia?.length ?? 0) > 0 && (
           <details className="text-xs">
-            <summary className="cursor-pointer text-muted-foreground">Storico ({esito.storia!.length})</summary>
+            <summary className="cursor-pointer text-muted-foreground">{t("Storico ({n})", { n: esito.storia!.length })}</summary>
             <ul className="mt-1 space-y-0.5">
               {esito.storia!.map((h, i) => (
                 <li key={i} className="text-muted-foreground">
-                  {formatDateIt(h.il)} · {EVENTO_STORIA[h.evento] ?? h.evento}
-                  {h.esito ? ` · ${ETICHETTA_ESITO[h.esito as EsitoCodice]?.label ?? h.esito}` : ""}
-                  {h.natura ? ` · ${NATURA[h.natura] ?? h.natura}` : ""}
+                  {formatDateIt(h.il)} · {EVENTO_STORIA[h.evento] ? t(EVENTO_STORIA[h.evento]) : h.evento}
+                  {h.esito ? ` · ${ETICHETTA_ESITO[h.esito as EsitoCodice] ? t(ETICHETTA_ESITO[h.esito as EsitoCodice].label) : h.esito}` : ""}
+                  {h.natura ? ` · ${NATURA[h.natura] ? t(NATURA[h.natura]) : h.natura}` : ""}
                   {h.regola ? ` (${h.regola})` : ""}
                 </li>
               ))}
@@ -289,12 +292,12 @@ export function RigaEsitoMovimento({ company, movement: m, esito, puoScrivere, o
       </div>
       {scarto !== null && (
         <div className="flex flex-wrap items-center gap-2">
-          <Input value={scarto} onChange={(ev) => setScarto(ev.target.value)} placeholder="Perché la scarti? (resta nello storico)" className="h-8 max-w-sm text-sm"
-            aria-label="Motivo dello scarto" autoFocus onKeyDown={(ev) => { if (ev.key === "Enter") void scarta(); }} />
+          <Input value={scarto} onChange={(ev) => setScarto(ev.target.value)} placeholder={t("Perché la scarti? (resta nello storico)")} className="h-8 max-w-sm text-sm"
+            aria-label={t("Motivo dello scarto")} autoFocus onKeyDown={(ev) => { if (ev.key === "Enter") void scarta(); }} />
           <Button size="sm" className="h-8" disabled={inCorso || scarto.trim().length < 3} onClick={() => void scarta()}>
-            {inCorso && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}Scarta
+            {inCorso && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}{t("Scarta")}
           </Button>
-          <Button size="sm" variant="ghost" className="h-8" onClick={() => setScarto(null)}>Annulla</Button>
+          <Button size="sm" variant="ghost" className="h-8" onClick={() => setScarto(null)}>{t("Annulla")}</Button>
         </div>
       )}
     </div>
@@ -309,6 +312,7 @@ export function AlternativeEsito({ company, movement: m, esito, puoAbbinare, onA
   puoAbbinare: boolean;
   onAbbinato: () => void;
 }) {
+  const t = useT();
   const [inCorso, setInCorso] = useState<string | null>(null);
   const candidati = esito.scartato_at || esito.natura === "gia_riconciliato" ? [] : esito.candidati ?? [];
   if (!candidati.length) return null;
@@ -324,12 +328,12 @@ export function AlternativeEsito({ company, movement: m, esito, puoAbbinare, onA
       salvato = true;
       const falliti = await syncBankExternalPayments([{ id: m.id, booking_date: m.booking_date, result }]);
       if (falliti.length) await segnaDaRiallineare(company, m, result?.esterne ?? []);
-      toast.success(c.righe.length === 1 ? `Collegato a ${c.righe[0].titolo}` : `Collegato a ${c.righe.length} documenti`);
-      if (falliti.length) toast.warning(`Pagamento salvato, aggiornamento esterno da riprovare: ${falliti.join(", ")}`);
-      void proponiCodice(m, c);
+      toast.success(c.righe.length === 1 ? t("Collegato a {titolo}", { titolo: String(c.righe[0].titolo ?? "") }) : t("Collegato a {n} documenti", { n: c.righe.length }));
+      if (falliti.length) toast.warning(t("Pagamento salvato, aggiornamento esterno da riprovare: {falliti}", { falliti: falliti.join(", ") }));
+      void proponiCodice(m, c, t);
     } catch (err) {
-      if (salvato) toast.warning("Collegamento salvato, aggiornamento esterno da riprovare");
-      else toast.error(err instanceof Error ? err.message : "Collegamento non riuscito");
+      if (salvato) toast.warning(t("Collegamento salvato, aggiornamento esterno da riprovare"));
+      else toast.error(err instanceof Error ? err.message : t("Collegamento non riuscito"));
     } finally {
       setInCorso(null);
       if (salvato) onAbbinato();
@@ -339,7 +343,7 @@ export function AlternativeEsito({ company, movement: m, esito, puoAbbinare, onA
   return (
     <div className="w-full min-w-0 basis-full space-y-1">
       <p className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
-        <Sparkles className="h-3 w-3 text-primary" />{candidati.length === 1 ? "Proposta" : `${candidati.length} alternative`}
+        <Sparkles className="h-3 w-3 text-primary" />{candidati.length === 1 ? t("Proposta") : t("{n} alternative", { n: candidati.length })}
       </p>
       <ul className="divide-y rounded-lg border bg-card">
         {candidati.map((c) => {
@@ -356,17 +360,17 @@ export function AlternativeEsito({ company, movement: m, esito, puoAbbinare, onA
                 {(c.conflitti ?? []).length > 0 && <p className="truncate text-xs text-red-700">{c.conflitti!.join(" · ")}</p>}
               </div>
               <Badge variant="outline" className={c.forza === "forte" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : c.forza === "media" ? "border-amber-200 bg-amber-50 text-amber-700" : "text-muted-foreground"}
-                title="Quanto è sicura l'alternativa">
+                title={t("Quanto è sicura l'alternativa")}>
                 {c.forza === "forte" ? <CheckCircle2 className="mr-1 h-3 w-3" /> : null}{c.forza}
               </Badge>
               <span className="shrink-0 tabular-nums">{valuta(totale)}</span>
               {ok ? (
                 <Button size="sm" className="h-7" variant={c.forza === "forte" ? "default" : "outline"} disabled={!!inCorso} onClick={() => void conferma(c)}
-                  aria-label={`Conferma ${c.righe.map((r) => r.titolo).join(" + ")}`}>
-                  {inCorso === c.chiave && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}Conferma
+                  aria-label={t("Conferma {titoli}", { titoli: c.righe.map((r) => r.titolo).join(" + ") })}>
+                  {inCorso === c.chiave && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}{t("Conferma")}
                 </Button>
               ) : (
-                <span className="shrink-0 text-xs text-muted-foreground" title="Questa alternativa si collega da «Collega»">a mano</span>
+                <span className="shrink-0 text-xs text-muted-foreground" title={t("Questa alternativa si collega da «Collega»")}>{t("a mano")}</span>
               )}
             </li>
           );

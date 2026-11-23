@@ -22,12 +22,14 @@ import { riepilogoValore } from "@/lib/magazzino/riepiloghiMagazzino";
 import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { Calculator, Package, TrendingUp, AlertCircle } from "lucide-react";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   warehouseId?: string | null;
 }
 
 export function WarehouseValorizzazionePanel({ warehouseId = null }: Props) {
+  const t = useT();
   const [method, setMethod] = useState<ValorizzazioneMethod>("media");
   const q = useValorizzazione(method, warehouseId);
 
@@ -38,7 +40,7 @@ export function WarehouseValorizzazionePanel({ warehouseId = null }: Props) {
     return (
       <Card className="rounded-2xl border-destructive/30 bg-destructive/5">
         <CardContent className="p-4 text-sm text-destructive">
-          Impossibile verificare la valorizzazione. <Button variant="outline" size="sm" onClick={()=>void q.refetch()}>Riprova valorizzazione</Button>
+          {t("Impossibile verificare la valorizzazione.")} <Button variant="outline" size="sm" onClick={()=>void q.refetch()}>{t("Riprova valorizzazione")}</Button>
         </CardContent>
       </Card>
     );
@@ -55,11 +57,10 @@ export function WarehouseValorizzazionePanel({ warehouseId = null }: Props) {
         <div>
           <h2 className="flex items-center gap-2 text-lg font-semibold">
             <Calculator className="h-4 w-4 text-muted-foreground" />
-            Valorizzazione Magazzino
+            {t("Valorizzazione Magazzino")}
           </h2>
           <p className="text-xs text-muted-foreground">
-            Costo dei materiali in giacenza secondo il metodo selezionato.
-            Confluisce nella voce "Rimanenze" dello Stato Patrimoniale.
+            {t("Costo dei materiali in giacenza secondo il metodo selezionato. Confluisce nella voce \"Rimanenze\" dello Stato Patrimoniale.")}
           </p>
         </div>
         <ToggleGroup
@@ -68,7 +69,7 @@ export function WarehouseValorizzazionePanel({ warehouseId = null }: Props) {
           onValueChange={(v) => v && setMethod(v as ValorizzazioneMethod)}
         >
           <ToggleGroupItem value="media" variant="outline" size="sm">
-            Costo medio
+            {t("Costo medio")}
           </ToggleGroupItem>
           <ToggleGroupItem value="fifo" variant="outline" size="sm">
             FIFO
@@ -79,53 +80,51 @@ export function WarehouseValorizzazionePanel({ warehouseId = null }: Props) {
         </ToggleGroup>
       </div>
 
-      {articoli.some(a=>a.copertura_lotti_incompleta)&&<p role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">Valore stimato per gli articoli con lotti incompleti: la quota senza lotto usa il costo medio registrato in magazzino.</p>}
-      {articoli.some(a=>a.prezzo_da_definire)&&<p role="status" className="rounded-lg border border-amber-200 p-3 text-sm">Valore parziale: alcuni articoli hanno prezzi ancora da confermare.</p>}
+      {articoli.some(a=>a.copertura_lotti_incompleta)&&<p role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">{t("Valore stimato per gli articoli con lotti incompleti: la quota senza lotto usa il costo medio registrato in magazzino.")}</p>}
+      {articoli.some(a=>a.prezzo_da_definire)&&<p role="status" className="rounded-lg border border-amber-200 p-3 text-sm">{t("Valore parziale: alcuni articoli hanno prezzi ancora da confermare.")}</p>}
       {/* KPI grid */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Card className="rounded-2xl border-0 bg-blue-50">
           <CardContent className="p-4">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Valore totale magazzino
+              {t("Valore totale magazzino")}
             </p>
             <p className="mt-1 text-2xl font-bold tabular-nums">
               {formatCurrency(kpi.valore_totale)}
             </p>
             <p className="mt-1 text-[11px] text-muted-foreground">
-              Metodo: <strong className="capitalize">{method}</strong>
+              {t("Metodo:")} <strong className="capitalize">{method}</strong>
             </p>
           </CardContent>
         </Card>
         <Card className="rounded-2xl border-0 bg-emerald-50">
           <CardContent className="p-4">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Articoli a stock
+              {t("Articoli a stock")}
             </p>
             <p className="mt-1 text-2xl font-bold tabular-nums">{summary.articoli}</p>
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              {summary.conLotti} con tracciamento lotti
-            </p>
+            <p className="mt-1 text-[11px] text-muted-foreground">{t("{conLotti} con tracciamento lotti", { conLotti: String(summary.conLotti ?? "") })}</p>
           </CardContent>
         </Card>
         <Card className="rounded-2xl border-0 bg-violet-50">
           <CardContent className="p-4">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Quantità per unità
+              {t("Quantità per unità")}
             </p>
-            <div className="mt-1 space-y-1 text-lg font-bold tabular-nums">{summary.quantita.map(([unit, quantity]) => <p key={unit}>{quantity.toLocaleString("it-IT", {maximumFractionDigits:6})} {unit}</p>)}</div>
-            {summary.unitaDaVerificare > 0 && <p className="text-xs text-amber-800">{summary.unitaDaVerificare} articoli con unità da verificare</p>}
+            <div className="mt-1 space-y-1 text-lg font-bold tabular-nums">{summary.quantita.map(([unit, quantity]) => <p key={unit}>{quantity.toLocaleString(intlCampo(), {maximumFractionDigits:6})} {unit}</p>)}</div>
+            {summary.unitaDaVerificare > 0 && <p className="text-xs text-amber-800">{t("{unitaDaVerificare} articoli con unità da verificare", { unitaDaVerificare: String(summary.unitaDaVerificare ?? "") })}</p>}
             {summary.quantita.length === 0 && !summary.unitaDaVerificare && <p className="mt-1">—</p>}
           </CardContent>
         </Card>
         <Card className="rounded-2xl border-0 bg-amber-50">
           <CardContent className="p-4">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Valore senza lotti
+              {t("Valore senza lotti")}
             </p>
             <p className="mt-1 text-2xl font-bold tabular-nums">
               {formatCurrency(summary.valoreSenzaLotti)}
             </p>
-            <p className="mt-1 text-[11px] text-muted-foreground">calcolato dal costo anagrafico</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">{t("calcolato dal costo anagrafico")}</p>
           </CardContent>
         </Card>
       </div>
@@ -136,12 +135,9 @@ export function WarehouseValorizzazionePanel({ warehouseId = null }: Props) {
           <CardContent className="flex items-start gap-3 p-4">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
             <div className="text-sm text-amber-900">
-              <p className="font-semibold">Nessun articolo ha lotti tracciati</p>
+              <p className="font-semibold">{t("Nessun articolo ha lotti tracciati")}</p>
               <p className="mt-1 text-xs">
-                La valorizzazione usa il <code>unit_cost</code> dell'anagrafica
-                articoli (fallback). Per un calcolo preciso FIFO/LIFO,
-                registra i carichi via <strong>DDT ricezione</strong> con costo unitario.
-                In quel modo ogni lotto entra a magazzino col suo prezzo storico.
+                {t("La valorizzazione usa il costo unitario dell'anagrafica articoli (fallback). Per un calcolo preciso FIFO/LIFO, registra i carichi via DDT ricezione con costo unitario. In quel modo ogni lotto entra a magazzino col suo prezzo storico.")}
               </p>
             </div>
           </CardContent>
@@ -151,12 +147,12 @@ export function WarehouseValorizzazionePanel({ warehouseId = null }: Props) {
       {/* Tabella dettaglio */}
       <Card className="rounded-2xl">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Dettaglio per articolo</CardTitle>
+          <CardTitle className="text-base">{t("Dettaglio per articolo")}</CardTitle>
         </CardHeader>
         <CardContent>
           {articoli.length === 0 ? (
             <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-              Nessun articolo a magazzino.
+              {t("Nessun articolo a magazzino.")}
             </p>
           ) : (
             <div className="overflow-x-auto rounded-xl border">
@@ -164,22 +160,22 @@ export function WarehouseValorizzazionePanel({ warehouseId = null }: Props) {
                 <thead className="bg-muted/40">
                   <tr>
                     <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                      Articolo
+                      {t("Articolo")}
                     </th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                      Codice
+                      {t("Codice")}
                     </th>
                     <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">
-                      Quantità
+                      {t("Quantità")}
                     </th>
                     <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">
-                      Costo unit.
+                      {t("Costo unit.")}
                     </th>
                     <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">
-                      Valore
+                      {t("Valore")}
                     </th>
                     <th className="px-3 py-2 text-center text-xs font-medium text-muted-foreground">
-                      Lotti
+                      {t("Lotti")}
                     </th>
                   </tr>
                 </thead>
@@ -196,7 +192,7 @@ export function WarehouseValorizzazionePanel({ warehouseId = null }: Props) {
                         {a.internal_code ?? "—"}
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums">
-                        {a.quantity.toLocaleString("it-IT")} {a.unita_misura ?? ""}
+                        {a.quantity.toLocaleString(intlCampo())} {a.unita_misura ?? ""}
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums">
                         {formatCurrency(a.unit_cost)}
@@ -212,11 +208,11 @@ export function WarehouseValorizzazionePanel({ warehouseId = null }: Props) {
                       <td className="px-3 py-2 text-center">
                         {a.ha_lotti ? (
                           <Badge variant="outline" className="bg-emerald-50 text-emerald-700 text-[10px]">
-                            <TrendingUp className="mr-1 h-3 w-3" /> tracciato
+                            <TrendingUp className="mr-1 h-3 w-3" /> {t("tracciato")}
                           </Badge>
                         ) : (
                           <Badge variant="outline" className="text-[10px] text-muted-foreground">
-                            fallback
+                            {t("fallback")}
                           </Badge>
                         )}
                       </td>
@@ -225,9 +221,7 @@ export function WarehouseValorizzazionePanel({ warehouseId = null }: Props) {
                 </tbody>
                 <tfoot className="border-t bg-muted/30 font-bold">
                   <tr>
-                    <td className="px-3 py-2.5" colSpan={4}>
-                      TOTALE MAGAZZINO ({method})
-                    </td>
+                    <td className="px-3 py-2.5" colSpan={4}>{t("TOTALE MAGAZZINO ({method})", { method: String(method ?? "") })}</td>
                     <td className="px-3 py-2.5 text-right tabular-nums text-base">
                       {formatCurrency(kpi.valore_totale)}
                     </td>

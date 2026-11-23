@@ -56,14 +56,15 @@ import { useContropartiMovimenti, type ControparteMovimento } from "@/lib/financ
 
 /** Da dove viene il nome, detto a chi ci passa sopra: un nome certo non è un'ipotesi. */
 const SPIEGA_ORIGINE: Record<string, string> = {
-  documento: " · dal documento abbinato",
-  motore: " · dal documento che questo movimento paga",
-  istituto: " · la banca del conto",
-  ente: " · versamento F24",
-  conto: " · giroconto tra conti tuoi",
+  documento: "dal documento abbinato",
+  motore: "dal documento che questo movimento paga",
+  istituto: "la banca del conto",
+  ente: "versamento F24",
+  conto: "giroconto tra conti tuoi",
 };
 import { CategoriaMovimento } from "./CategoriaMovimento";
 import { useVociMovimenti } from "@/lib/finance/cassaVoci";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const columns = {
   category: "Categoria",
@@ -118,6 +119,7 @@ export default function TransactionsFeed({
   refreshKey?: number;
   mode?: "all" | "reconcile";
 }) {
+  const tr = useT();
   const perms = usePermissions();
   const { user } = useAuth();
   const client = useQueryClient();
@@ -190,7 +192,7 @@ export default function TransactionsFeed({
       bankFiltersPayload(filters);
       return null;
     } catch (e) {
-      return e instanceof Error ? e.message : "Filtri non validi";
+      return e instanceof Error ? e.message : tr("Filtri non validi");
     }
   }, [filters]);
   const data = useQuery({
@@ -269,13 +271,13 @@ export default function TransactionsFeed({
       const n = await bankRpc<number>("bank_suggerisci_riconciliazioni", {
         p_company: companyId,
       });
-      toast.success(`${n} nuove proposte da verificare`, {
-        description: "Nessun pagamento registrato automaticamente.",
+      toast.success(tr("{n} nuove proposte da verificare", { n: String(n ?? "") }), {
+        description: tr("Nessun pagamento registrato automaticamente."),
       });
       refreshFinancialQueries(client);
       change("state", "suggestion");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Analisi non riuscita");
+      toast.error(e instanceof Error ? e.message : tr("Analisi non riuscita"));
     } finally {
       setScanning(false);
     }
@@ -294,7 +296,7 @@ export default function TransactionsFeed({
         });
         if (count >= 0 && count !== result.count)
           throw new Error(
-            "I movimenti sono cambiati durante l’esportazione. Riprova.",
+            tr("I movimenti sono cambiati durante l’esportazione. Riprova."),
           );
         count = result.count;
         entries.push(...result.rows);
@@ -304,7 +306,7 @@ export default function TransactionsFeed({
         entries.length !== count ||
         new Set(entries.map((r) => r.id)).size !== entries.length
       )
-        throw new Error("Esportazione incompleta: aggiorna e riprova.");
+        throw new Error(tr("Esportazione incompleta: aggiorna e riprova."));
       // Le controparti di TUTTE le righe esportate, non solo di quelle a schermo: il foglio deve
       // dire gli stessi nomi della tabella.
       const controparti: Record<string, ControparteMovimento> = {};
@@ -376,9 +378,9 @@ export default function TransactionsFeed({
       a.download = `movimenti-${new Date().toISOString().slice(0, 10)}.csv`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      toast.success(`Esportati ${entries.length} movimenti`);
+      toast.success(tr("Esportati {n} movimenti", { n: entries.length }));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Esportazione non riuscita");
+      toast.error(e instanceof Error ? e.message : tr("Esportazione non riuscita"));
     } finally {
       setExporting(false);
     }
@@ -391,7 +393,7 @@ export default function TransactionsFeed({
         return (
           <span
             className={`block max-w-56 truncate ${cp.dedotta ? "text-muted-foreground" : ""}`}
-            title={cp.dedotta ? `${cp.nome} · ricavato dalla causale: la banca non ha comunicato il nome` : (cp.nome ? `${cp.nome}${SPIEGA_ORIGINE[cp.origine ?? ""] ?? ""}` : "")}
+            title={cp.dedotta ? tr("{nome} · ricavato dalla causale: la banca non ha comunicato il nome", { nome: String(cp.nome ?? "") }) : (cp.nome ? `${cp.nome}${SPIEGA_ORIGINE[cp.origine ?? ""] ? ` · ${tr(SPIEGA_ORIGINE[cp.origine ?? ""])}` : ""}` : "")}
           >
             {cp.nome || "—"}
           </span>
@@ -422,7 +424,7 @@ export default function TransactionsFeed({
           <button
             type="button"
             onClick={() => openMovement(m.id)}
-            aria-label={`${s.label}: apri ${prettyTxDesc(m)}`}
+            aria-label={tr("{label}: apri {m}", { label: String(s.label ?? ""), m: String(prettyTxDesc(m) ?? "") })}
           >
             <Badge
               variant="outline"
@@ -453,9 +455,9 @@ export default function TransactionsFeed({
           <button
             className="text-primary hover:underline"
             onClick={() => openMovement(m.id, "documents")}
-            aria-label={`Collega fatture e pagamenti: ${prettyTxDesc(m)}`}
+            aria-label={tr("Collega fatture e pagamenti: {m}", { m: String(prettyTxDesc(m) ?? "") })}
           >
-            Collega
+            {tr("Collega")}
           </button>
         ) : (
           <span className="text-muted-foreground">—</span>
@@ -485,7 +487,7 @@ export default function TransactionsFeed({
             className="text-primary hover:underline"
             onClick={() => openMovement(m.id, "contexts")}
           >
-            {perms.canReconcileBankTransactions ? "Collega" : "—"}
+            {perms.canReconcileBankTransactions ? tr("Collega") : "—"}
           </button>
         );
       }
@@ -521,7 +523,7 @@ export default function TransactionsFeed({
             className="text-muted-foreground hover:underline"
             onClick={() => openMovement(m.id)}
           >
-            {perms.canReconcileBankTransactions ? "Aggiungi nota" : "—"}
+            {perms.canReconcileBankTransactions ? tr("Aggiungi nota") : "—"}
           </button>
         );
       case "reference":
@@ -536,16 +538,15 @@ export default function TransactionsFeed({
         <div>
           <h2 className="text-xl font-semibold">
             {mode === "reconcile"
-              ? "Verifica e riconcilia"
-              : "Movimenti bancari"}
+              ? tr("Verifica e riconcilia")
+              : tr("Movimenti bancari")}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Un movimento, tutti i collegamenti. Quote, documenti e note nello
-            stesso dettaglio.
+            {tr("Un movimento, tutti i collegamenti. Quote, documenti e note nello stesso dettaglio.")}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {perms.canReconcileBankTransactions && <Button onClick={() => setReconciling(true)}>Riconcilia</Button>}
+          {perms.canReconcileBankTransactions && <Button onClick={() => setReconciling(true)}>{tr("Riconcilia")}</Button>}
           {perms.canReconcileBankTransactions && (
             <Button
               variant="outline"
@@ -557,7 +558,7 @@ export default function TransactionsFeed({
               ) : (
                 <Sparkles className="mr-2 h-4 w-4" />
               )}
-              Trova corrispondenze
+              {tr("Trova corrispondenze")}
             </Button>
           )}
           <Button
@@ -570,7 +571,7 @@ export default function TransactionsFeed({
             ) : (
               <Download className="mr-2 h-4 w-4" />
             )}
-            Esporta risultati
+            {tr("Esporta risultati")}
           </Button>
         </div>
       </div>
@@ -581,21 +582,21 @@ export default function TransactionsFeed({
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              aria-label="Cerca movimenti"
-              placeholder="Causale, nome, importo, data, fattura, commessa o note…"
+              aria-label={tr("Cerca movimenti")}
+              placeholder={tr("Causale, nome, importo, data, fattura, commessa o note…")}
               className="pl-9"
             />
           </div>
           <UniformSelect
-            aria-label="Filtra per conto"
+            aria-label={tr("Filtra per conto")}
             value={filters.account}
             onChange={(e) => change("account", e.target.value)}
             className="h-10 max-w-full rounded-md border bg-background px-3 text-sm"
           >
-            <option value="all">Tutti i conti</option>
+            <option value="all">{tr("Tutti i conti")}</option>
             {accounts.data?.map((a) => (
               <option key={a.id} value={a.id}>
-                {a.nome}{a.attivo === false ? " · chiuso" : ""}
+                {a.nome}{a.attivo === false ? ` ${tr("· chiuso")}` : ""}
               </option>
             ))}
           </UniformSelect>
@@ -605,13 +606,13 @@ export default function TransactionsFeed({
             aria-expanded={expanded}
           >
             <SlidersHorizontal className="mr-2 h-4 w-4" />
-            Filtri {active.length > 0 && `(${active.length})`}
+            {tr("Filtri")} {active.length > 0 && `(${active.length})`}
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
                 <Columns3 className="mr-2 h-4 w-4" />
-                Colonne
+                {tr("Colonne")}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -622,7 +623,7 @@ export default function TransactionsFeed({
                   onSelect={(e) => e.preventDefault()}
                   onCheckedChange={() => select(k as Column)}
                 >
-                  {l}
+                  {tr(l)}
                 </DropdownMenuCheckboxItem>
               ))}
             </DropdownMenuContent>
@@ -630,12 +631,12 @@ export default function TransactionsFeed({
         </div>
         {accounts.isError && (
           <p role="alert" className="mt-2 text-xs text-destructive">
-            Elenco conti non disponibile.{" "}
+            {tr("Elenco conti non disponibile.")}{" "}
             <button
               className="underline"
               onClick={() => void accounts.refetch()}
             >
-              Riprova
+              {tr("Riprova")}
             </button>
           </p>
         )}
@@ -654,7 +655,7 @@ export default function TransactionsFeed({
               variant={filters.state === s ? "default" : "outline"}
               onClick={() => change("state", s)}
             >
-              {states[s]}
+              {tr(states[s])}
             </Button>
           ))}
         </div>
@@ -716,16 +717,16 @@ export default function TransactionsFeed({
               ] as [keyof BankFilters, string, string[][]][]
             ).map(([k, label, opts]) => (
               <label key={k} className="text-xs text-muted-foreground">
-                {label}
+                {tr(label)}
                 <UniformSelect
-                  aria-label={label}
+                  aria-label={tr(label)}
                   value={filters[k]}
                   onChange={(e) => change(k, e.target.value)}
                   className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm text-foreground"
                 >
                   {opts.map(([v, l]) => (
                     <option key={v} value={v}>
-                      {l}
+                      {tr(l)}
                     </option>
                   ))}
                 </UniformSelect>
@@ -740,9 +741,9 @@ export default function TransactionsFeed({
               ] as [keyof BankFilters, string, string][]
             ).map(([k, l, t]) => (
               <label key={k} className="text-xs text-muted-foreground">
-                {l}
+                {tr(l)}
                 <Input
-                  aria-label={l}
+                  aria-label={tr(l)}
                   type={t}
                   inputMode={t === "text" ? "decimal" : undefined}
                   value={filters[k]}
@@ -766,15 +767,15 @@ export default function TransactionsFeed({
                   );
                 }}
                 className="inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-1 text-xs"
-                aria-label={`Rimuovi filtro ${k}`}
+                aria-label={tr("Rimuovi filtro {k}", { k: String(k ?? "") })}
               >
                 <span className="truncate">
                   {k === "state"
-                    ? states[v]
+                    ? tr(states[v])
                     : k === "account"
                       ? accounts.data?.find((a) => a.id === v)?.nome ||
-                        "Conto selezionato"
-                      : `${({ search: "Ricerca", direction: "Direzione", category: "Categoria", currency: "Valuta", linked: "Collegamenti", from: "Dal", to: "Al", min: "Minimo", max: "Massimo" } as Record<string, string>)[k] ?? k}: ${v}`}
+                        tr("Conto selezionato")
+                      : `${tr(({ search: "Ricerca", direction: "Direzione", category: "Categoria", currency: "Valuta", linked: "Collegamenti", from: "Dal", to: "Al", min: "Minimo", max: "Massimo" } as Record<string, string>)[k] ?? k)}: ${v}`}
                 </span>
                 <X className="h-3 w-3 shrink-0" />
               </button>
@@ -783,7 +784,7 @@ export default function TransactionsFeed({
               onClick={reset}
               className="text-xs text-primary hover:underline"
             >
-              Ripristina filtri
+              {tr("Ripristina filtri")}
             </button>
           </div>
         )}
@@ -801,14 +802,14 @@ export default function TransactionsFeed({
           role="alert"
           className="rounded-lg border border-red-200 p-4 text-sm"
         >
-          <p>Movimenti non disponibili: {data.error.message}</p>
+          <p>{tr("Movimenti non disponibili: {message}", { message: String(data.error.message ?? "") })}</p>
           <Button
             size="sm"
             variant="outline"
             className="mt-2"
             onClick={() => void data.refetch()}
           >
-            Riprova
+            {tr("Riprova")}
           </Button>
         </div>
       )}
@@ -819,26 +820,24 @@ export default function TransactionsFeed({
               key={t.currency}
               className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border bg-muted/20 px-4 py-3 text-sm"
             >
-              <span className="font-medium">
-                {t.n} movimenti · {t.currency}
-              </span>
+              <span className="font-medium">{tr("{n} movimenti · {currency}", { n: String(t.n ?? ""), currency: String(t.currency ?? "") })}</span>
               <span>
-                Entrate{" "}
+                {tr("Entrate")}{" "}
                 <strong className="text-emerald-700">
                   {money(t.income, "—", t.currency)}
                 </strong>
               </span>
               <span>
-                Uscite{" "}
+                {tr("Uscite")}{" "}
                 <strong className="text-red-700">
                   {money(t.expenses, "—", t.currency)}
                 </strong>
               </span>
               <span className="rounded-md bg-amber-50 px-2 py-1 text-amber-900">
-                <strong>{t.unreconciled_count ?? 0}</strong> da riconciliare · <strong>{money(t.unreconciled_amount ?? 0, "—", t.currency)}</strong>
+                <strong>{t.unreconciled_count ?? 0}</strong> {tr("da riconciliare ·")} <strong>{money(t.unreconciled_amount ?? 0, "—", t.currency)}</strong>
               </span>
               <span>
-                Saldo dei movimenti{" "}
+                {tr("Saldo dei movimenti")}{" "}
                 <strong>{money(t.net, "—", t.currency)}</strong>
               </span>
             </div>
@@ -849,21 +848,21 @@ export default function TransactionsFeed({
               <thead className="sticky top-0 z-20 bg-muted text-xs text-muted-foreground">
                 <tr>
                   <th className="sticky left-0 top-0 z-30 min-w-[112px] bg-muted px-4 py-3 text-left max-sm:static">
-                    Data
+                    {tr("Data")}
                   </th>
-                  <th className="min-w-48 px-4 py-3 text-left">Controparte</th>
-                  <th className="min-w-36 px-4 py-3 text-right">Importo</th>
+                  <th className="min-w-48 px-4 py-3 text-left">{tr("Controparte")}</th>
+                  <th className="min-w-36 px-4 py-3 text-right">{tr("Importo")}</th>
                   <th className="min-w-64 px-4 py-3 text-left">
-                    Causale
+                    {tr("Causale")}
                   </th>
-                  <th className="min-w-44 px-4 py-3 text-left">Conto</th>
+                  <th className="min-w-44 px-4 py-3 text-left">{tr("Conto")}</th>
                   {shown.map((k) => (
                     <th key={k} className="px-4 py-3 text-left">
-                      {columns[k]}
+                      {tr(columns[k])}
                     </th>
                   ))}
                   <th className="sticky right-0 bg-card px-3 py-3 text-right">
-                    Dettaglio
+                    {tr("Dettaglio")}
                   </th>
                 </tr>
               </thead>
@@ -875,7 +874,7 @@ export default function TransactionsFeed({
                       className="p-8 text-center"
                       role="status"
                     >
-                      Caricamento movimenti…
+                      {tr("Caricamento movimenti…")}
                     </td>
                   </tr>
                 ) : data.data?.rows.length === 0 ? (
@@ -884,10 +883,10 @@ export default function TransactionsFeed({
                       colSpan={shown.length + 6}
                       className="p-10 text-center text-muted-foreground"
                     >
-                      Nessun movimento con questi filtri.
+                      {tr("Nessun movimento con questi filtri.")}
                       {active.length > 0 && (
                         <Button variant="link" onClick={reset}>
-                          Ripristina filtri
+                          {tr("Ripristina filtri")}
                         </Button>
                       )}
                     </td>
@@ -921,7 +920,7 @@ export default function TransactionsFeed({
                           <span className="block max-w-[360px] truncate">{bankCausale(m)}</span>
                           {m.status !== "booked" && (
                             <span className="shrink-0 text-xs font-normal text-muted-foreground">
-                              · in attesa in banca
+                              {tr("· in attesa in banca")}
                             </span>
                           )}
                         </button>
@@ -938,7 +937,7 @@ export default function TransactionsFeed({
                         <Button
                           variant="ghost"
                           size="icon"
-                          aria-label={`Dettaglio movimento: ${prettyTxDesc(m)}`}
+                          aria-label={tr("Dettaglio movimento: {m}", { m: String(prettyTxDesc(m) ?? "") })}
                           onClick={() => openMovement(m.id)}
                         >
                           <ExternalLink className="h-4 w-4" />
@@ -952,9 +951,8 @@ export default function TransactionsFeed({
           </div>
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs text-muted-foreground">
-              {data.data?.count ?? 0} risultati · pagina {page + 1} di{" "}
-              {Math.max(1, Math.ceil((data.data?.count ?? 0) / 50))}
-              {data.isFetching && !data.isPending && " · aggiornamento…"}
+              {tr("{n} risultati · pagina {pagina} di {pagine}", { n: data.data?.count ?? 0, pagina: page + 1, pagine: Math.max(1, Math.ceil((data.data?.count ?? 0) / 50)) })}
+              {data.isFetching && !data.isPending && ` ${tr("· aggiornamento…")}`}
             </p>
             <div className="flex gap-2">
               <Button
@@ -962,7 +960,7 @@ export default function TransactionsFeed({
                 variant="outline"
                 disabled={page === 0 || data.isFetching}
                 onClick={() => setPage((p) => p - 1)}
-                aria-label="Pagina precedente"
+                aria-label={tr("Pagina precedente")}
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
@@ -973,7 +971,7 @@ export default function TransactionsFeed({
                   (page + 1) * 50 >= (data.data?.count ?? 0) || data.isFetching
                 }
                 onClick={() => setPage((p) => p + 1)}
-                aria-label="Pagina successiva"
+                aria-label={tr("Pagina successiva")}
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>
@@ -981,7 +979,7 @@ export default function TransactionsFeed({
           </div>
         </>
       )}
-      {reconciling && perms.canReconcileBankTransactions && <Suspense fallback={<p role="status">Apertura riconciliazione…</p>}><BankReconciliationWorkspace key={`${companyId}:${user?.id}`} company={companyId} filters={filters} accounts={accounts.data ?? []} onClose={() => setReconciling(false)} /></Suspense>}
+      {reconciling && perms.canReconcileBankTransactions && <Suspense fallback={<p role="status">{tr("Apertura riconciliazione…")}</p>}><BankReconciliationWorkspace key={`${companyId}:${user?.id}`} company={companyId} filters={filters} accounts={accounts.data ?? []} onClose={() => setReconciling(false)} /></Suspense>}
       {selected && companyId && (
         <BankMovementDetail
           key={`${companyId}:${selected}`}

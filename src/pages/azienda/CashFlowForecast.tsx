@@ -3,19 +3,21 @@ import { useForecastLedger } from "@/hooks/useForecastLedger";
 import { ForecastWorkspace } from "@/components/forecast/ForecastWorkspace";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export default function CashFlowForecast() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const query = useForecastLedger();
   if (!effectiveCompany?.id)
     return (
       <p className="p-6 text-sm text-muted-foreground">
-        Seleziona un’azienda per consultare il previsionale.
+        {t("Seleziona un’azienda per consultare il previsionale.")}
       </p>
     );
   if (query.isPending)
     return (
-      <div className="space-y-5" aria-label="Caricamento previsionale">
+      <div className="space-y-5" aria-label={t("Caricamento previsionale")}>
         <Skeleton className="h-14 w-64" />
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {[0, 1, 2, 3].map((i) => (
@@ -32,17 +34,16 @@ export default function CashFlowForecast() {
         className="space-y-3 rounded-2xl border border-destructive/30 p-6"
       >
         <h1 className="text-lg font-semibold">
-          Il previsionale non è disponibile
+          {t("Il previsionale non è disponibile")}
         </h1>
         <p className="text-sm text-muted-foreground">
-          Riprova a caricare i dati. Gli importi mancanti non vengono sostituiti
-          con valori zero.
+          {t("Riprova a caricare i dati. Gli importi mancanti non vengono sostituiti con valori zero.")}
         </p>
         <Button
           onClick={() => void query.refetch()}
           disabled={query.isFetching}
         >
-          Riprova
+          {t("Riprova")}
         </Button>
       </div>
     );

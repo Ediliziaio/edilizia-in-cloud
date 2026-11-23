@@ -6,6 +6,7 @@ import { AlertTriangle, Package, MapPin } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { isSottoScorta, type StockItem } from "@/types/warehouse";
 import type { WarehouseSection } from "@/hooks/useWarehouseSections";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface WarehouseMapViewProps {
   stockItems: StockItem[];
@@ -45,6 +46,7 @@ export function WarehouseMapView({
   droppable = false,
   showTitle = true,
 }: WarehouseMapViewProps) {
+  const t = useT();
   const statsBySection = useMemo(() => {
     const map = new Map<string | null, SectionStats>();
     const grouped = new Map<string | null, StockItem[]>();
@@ -76,10 +78,10 @@ export function WarehouseMapView({
       {showTitle && (
         <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
           <MapPin className="h-4 w-4" />
-          Mappa Magazzino
+          {t("Mappa Magazzino")}
           {droppable && (
             <span className="text-xs text-muted-foreground/70 ml-1">
-              — trascina articoli qui per spostarli
+              {t("— trascina articoli qui per spostarli")}
             </span>
           )}
         </div>
@@ -114,7 +116,7 @@ export function WarehouseMapView({
         {/* Senza zona */}
         <DroppableSectionCard
           droppableId="__none__"
-          name="Senza zona"
+          name={t("Senza zona")}
           description={null}
           color="hsl(var(--muted-foreground))"
           stats={unassignedStats}
@@ -171,6 +173,7 @@ const SectionCard = memo(function SectionCard({
   isOver?: boolean;
   onClick: () => void;
 }) {
+  const t = useT();
   return (
     <Card
       className={`cursor-pointer transition-all hover:shadow-md border-l-4 ${
@@ -198,9 +201,7 @@ const SectionCard = memo(function SectionCard({
             <Package className="h-3 w-3" />
             {stats.itemCount}
           </Badge>
-          <span className="text-xs text-muted-foreground">
-            qtà {stats.totalQuantity}
-          </span>
+          <span className="text-xs text-muted-foreground">{t("qtà {totalQuantity}", { totalQuantity: String(stats.totalQuantity ?? "") })}</span>
         </div>
         <p className="text-xs font-medium">
           {formatCurrency(stats.totalValue)}

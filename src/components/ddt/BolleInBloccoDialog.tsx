@@ -92,6 +92,7 @@ import {
   type BollaLetta,
   type BollaSenzaOriginale,
 } from "@/lib/ddt/importBolle";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -153,6 +154,7 @@ function BolleAperte({
   pdfIniziale,
   documentoOrigineId,
 }: BolleProps) {
+  const t = useT();
   const { effectiveCompany, role, user } = useAuth();
   const permissions = usePermissions();
   const puoCreareFornitore =
@@ -298,7 +300,7 @@ function BolleAperte({
         });
         if (!salvato.id)
           throw new Error(
-            "Questo originale è già presente nei documenti dell’azienda.",
+            t("Questo originale è già presente nei documenti dell’azienda."),
           );
         ids.add(salvato.id);
         accodate += 1;
@@ -329,7 +331,7 @@ function BolleAperte({
         p_figli: [...ids],
       });
       if (error)
-        toast.error("Bolle salvate; non riesco a segnare il PDF come diviso", {
+        toast.error(t("Bolle salvate; non riesco a segnare il PDF come diviso"), {
           description: error.message,
         });
       void queryClient.invalidateQueries({ queryKey: ["ddt-documenti"] });
@@ -615,10 +617,10 @@ function BolleAperte({
   useEffect(() => {
     if (finite && !salvando) {
       toast.success(
-        `${salvate} ${salvate === 1 ? "bolla registrata" : "bolle registrate"}`,
+        t(salvate === 1 ? "{salvate} bolla registrata" : "{salvate} bolle registrate", { salvate }),
         daAbbinare.current > 0
           ? {
-              description: `${daAbbinare.current} righe aspettano che tu scelga l'articolo: le trovi nella scheda di ogni bolla.`,
+              description: t("{current} righe aspettano che tu scelga l'articolo: le trovi nella scheda di ogni bolla.", { current: String(daAbbinare.current ?? "") }),
             }
           : undefined,
       );
@@ -666,7 +668,7 @@ function BolleAperte({
         if (!v) setFinestraPer(null);
       }}
       incorporata={incorporata}
-      titolo={incorporata ? "Verifica la bolla" : undefined}
+      titolo={incorporata ? t("Verifica la bolla") : undefined}
       files={originaliEditor}
       companyId={companyId}
       testata={bollaInFinestra}
@@ -684,10 +686,10 @@ function BolleAperte({
       disabled={salvando || !!bollaInFinestra.ddtCreatoId}
       avvisi={[
         ...(doppi.get(bollaInFinestra.id) && !bollaInFinestra.caricaComunque
-          ? ["Stesso numero, data e fornitore già presenti"]
+          ? [t("Stesso numero, data e fornitore già presenti")]
           : []),
         ...(conflittoFornitore(bollaInFinestra, rubrica)
-          ? ["P.IVA del fornitore diversa da quella letta"]
+          ? [t("P.IVA del fornitore diversa da quella letta")]
           : []),
       ]}
       carico={{
@@ -697,13 +699,13 @@ function BolleAperte({
         onChange: setCaricaMagazzino,
       }}
       conferma={{
-        etichetta: "Registra la bolla",
+        etichetta: t("Registra la bolla"),
         inCorso: salvando,
         bloccata:
           inLettura
-            ? "aspetta la fine delle letture"
+            ? t("aspetta la fine delle letture")
             : doppi.get(bollaInFinestra.id) && !bollaInFinestra.caricaComunque
-              ? "Conferma che si tratta di una versione distinta"
+              ? t("Conferma che si tratta di una versione distinta")
               : incorporata ? problemiBloccanti(bollaInFinestra).join(" · ") || null : null,
         onConferma: () => {
           const b = bollaInFinestra;
@@ -716,13 +718,13 @@ function BolleAperte({
         <>
           {!bollaInFinestra.supplierId && bollaInFinestra.fornitoreLetto && puoCreareFornitore && (
             <Button type="button" size="sm" variant="outline" disabled={salvando}
-              onClick={() => setNuovoFornitore(bollaInFinestra.id)}>Crea fornitore dai dati letti</Button>
+              onClick={() => setNuovoFornitore(bollaInFinestra.id)}>{t("Crea fornitore dai dati letti")}</Button>
           )}
           {bollaInFinestra.destinazione === "magazzino" && puoMagazzino && (
             <div className="space-y-1">
-              <p className="text-xs font-medium text-muted-foreground">Magazzino di arrivo</p>
+              <p className="text-xs font-medium text-muted-foreground">{t("Magazzino di arrivo")}</p>
               <WarehouseSelect value={bollaInFinestra.warehouseId ?? warehouseId} disabled={salvando}
-                placeholder="Magazzino predefinito" onChange={id => cambia(bollaInFinestra.id, { warehouseId: id })} />
+                placeholder={t("Magazzino predefinito")} onChange={id => cambia(bollaInFinestra.id, { warehouseId: id })} />
             </div>
           )}
           {companyId && (
@@ -733,7 +735,7 @@ function BolleAperte({
             <label className="flex items-center gap-2 text-sm">
               <Checkbox checked={bollaInFinestra.caricaComunque} disabled={salvando}
                 onCheckedChange={v => cambia(bollaInFinestra.id, { caricaComunque: v === true })} />
-              Registra come versione distinta
+              {t("Registra come versione distinta")}
             </label>
           )}
         </>
@@ -752,11 +754,9 @@ function BolleAperte({
     >
       <DialogContent struttura="contenuta" className="max-h-[94dvh] gap-0 overflow-hidden p-0 sm:max-w-6xl">
         <DialogHeader className="border-b bg-muted/20 px-6 py-5">
-          <DialogTitle>Carica più bolle</DialogTitle>
+          <DialogTitle>{t("Carica più bolle")}</DialogTitle>
           <DialogDescription>
-            Scegli i file: conserviamo gli originali e leggiamo le bolle. La
-            lettura continua anche se chiudi; il DDT viene registrato solo
-            quando confermi.
+            {t("Scegli i file: conserviamo gli originali e leggiamo le bolle. La lettura continua anche se chiudi; il DDT viene registrato solo quando confermi.")}
           </DialogDescription>
         </DialogHeader>
         <div
@@ -776,12 +776,10 @@ function BolleAperte({
               className="mx-auto mb-2 h-6 w-6 text-muted-foreground"
             />
             <p className="text-sm text-muted-foreground">
-              Trascina qui PDF e foto: una bolla per file, o un PDF con tante
-              bolle.
+              {t("Trascina qui PDF e foto: una bolla per file, o un PDF con tante bolle.")}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Se una scansione perde delle righe, usa «Rileggi scansione». Il
-              PDF originale viene conservato.
+              {t("Se una scansione perde delle righe, usa «Rileggi scansione». Il PDF originale viene conservato.")}
             </p>
             <Button
               type="button"
@@ -791,7 +789,7 @@ function BolleAperte({
               disabled={salvando || !!fileIniziale}
               onClick={() => inputRef.current?.click()}
             >
-              Scegli i file
+              {t("Scegli i file")}
             </Button>
             {bolle.length > 0 && (
               <Button
@@ -804,7 +802,7 @@ function BolleAperte({
                   const result = await ricaricaRubrica();
                   if (result.error) {
                     toast.error(
-                      "Non riesco ad aggiornare i fornitori. Le letture restano disponibili.",
+                      t("Non riesco ad aggiornare i fornitori. Le letture restano disponibili."),
                     );
                     return;
                   }
@@ -812,13 +810,13 @@ function BolleAperte({
                     riabbinaFornitori(attuali, result.data ?? []),
                   );
                   toast.success(
-                    "Rubrica aggiornata: ricollegati i fornitori riconosciuti, senza rileggere le bolle.",
+                    t("Rubrica aggiornata: ricollegati i fornitori riconosciuti, senza rileggere le bolle."),
                   );
                 }}
               >
                 {fornitoriInCaricamento
-                  ? "Aggiorno i fornitori…"
-                  : "Riconosci i nuovi fornitori"}
+                  ? t("Aggiorno i fornitori…")
+                  : t("Riconosci i nuovi fornitori")}
               </Button>
             )}
             <input
@@ -826,7 +824,7 @@ function BolleAperte({
               type="file"
               multiple
               hidden
-              aria-label="File delle bolle"
+              aria-label={t("File delle bolle")}
               accept={ACCEPT_DOCUMENTI_DDT}
               onChange={(e) => {
                 if (e.target.files) void aggiungi(Array.from(e.target.files));
@@ -837,7 +835,7 @@ function BolleAperte({
 
           {scartati.length > 0 && (
             <p className="text-xs text-muted-foreground">
-              Non presi:{" "}
+              {t("Non presi:")}{" "}
               {scartati.map((s) => `${s.nome} (${s.motivo})`).join(", ")}.
             </p>
           )}
@@ -845,7 +843,7 @@ function BolleAperte({
           {preparando > 0 && (
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
-              {progressoPdf || "Sto guardando le pagine…"}
+              {progressoPdf || t("Sto guardando le pagine…")}
             </p>
           )}
           {daDividere.map((d) => (
@@ -866,14 +864,14 @@ function BolleAperte({
             <>
               <div
                 className="flex flex-wrap items-center gap-2"
-                aria-label="Filtri delle bolle"
+                aria-label={t("Filtri delle bolle")}
               >
                 {[
-                  ["tutte", `Tutte (${bolle.length})`],
-                  ["attenzione", "Da controllare"],
+                  ["tutte", t("Tutte ({n})", { n: bolle.length })],
+                  ["attenzione", t("Da controllare")],
                   [
                     "duplicati",
-                    `Duplicati (${[...doppi.values()].filter(Boolean).length})`,
+                    t("Duplicati ({n})", { n: [...doppi.values()].filter(Boolean).length }),
                   ],
                 ].map(([id, titolo]) => (
                   <Button
@@ -889,8 +887,7 @@ function BolleAperte({
                 ))}
                 <span className="ml-auto text-xs text-muted-foreground">
                   {bolle.filter((b) => b.stato === "letta").length}/
-                  {bolle.length} lette · {salvate}{" "}
-                  {salvate === 1 ? "registrata" : "registrate"}
+                  {t(salvate === 1 ? "{lette} lette · {salvate} registrata" : "{lette} lette · {salvate} registrate", { lette: bolle.length, salvate })}
                 </span>
               </div>
               {bolle.some((b) => b.stato === "da_leggere") && (
@@ -905,11 +902,7 @@ function BolleAperte({
                       bolle.filter((b) => b.stato === "da_leggere"),
                     )
                   }
-                >
-                  Leggi con AI le{" "}
-                  {bolle.filter((b) => b.stato === "da_leggere").length} bolle
-                  preparate
-                </Button>
+                >{t("Leggi con AI le {n} bolle preparate", { n: bolle.filter((b) => b.stato === "da_leggere").length })}</Button>
               )}
               <AzioniBolle
                 companyId={companyId}
@@ -927,7 +920,7 @@ function BolleAperte({
                     modificaBolleSelezionate(attuali, selezioneAttiva, patch),
                   );
                   toast.success(
-                    `Aggiornate ${selezioneAttiva.size} bolle. Controlla le associazioni prima di registrare.`,
+                    t("Aggiornate {size} bolle. Controlla le associazioni prima di registrare.", { size: String(selezioneAttiva.size ?? "") }),
                   );
                 }}
                 onTogli={() => {
@@ -947,18 +940,18 @@ function BolleAperte({
                     (attuali) =>
                       new Set([...attuali].filter((id) => !ids.has(id))),
                   );
-                  toast.success(`${ids.size} duplicati tolti dal caricamento.`);
+                  toast.success(t("{size} duplicati tolti dal caricamento.", { size: String(ids.size ?? "") }));
                 }}
               />
               {!elencoVisibile.length && (
                 <p className="py-8 text-center text-sm text-muted-foreground">
-                  Nessuna bolla in questo filtro.
+                  {t("Nessuna bolla in questo filtro.")}
                 </p>
               )}
             </>
           )}
           {elencoVisibile.length > 0 && (
-            <ul aria-label="Bolle da confermare" className="space-y-2">
+            <ul aria-label={t("Bolle da confermare")} className="space-y-2">
               {elencoVisibile.map((b) => {
                 const bloccanti = problemiBloccanti(b);
                 const dubbiB = b.stato === "letta" ? dubbi(b) : [];
@@ -989,7 +982,7 @@ function BolleAperte({
                     })()}
                     <div className="flex flex-wrap items-center gap-2">
                       <Checkbox
-                        aria-label={`Seleziona ${b.file.name}`}
+                        aria-label={t("Seleziona {name}", { name: String(b.file.name ?? "") })}
                         disabled={
                           salvando ||
                           b.stato !== "letta" ||
@@ -1010,16 +1003,16 @@ function BolleAperte({
                         className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${doppio ? "bg-amber-100 text-amber-900" : attenzione ? "bg-muted text-muted-foreground" : "bg-emerald-50 text-emerald-800"}`}
                       >
                         {b.esito === "salvata"
-                          ? "Registrata"
+                          ? t("Registrata")
                           : doppio
-                            ? "Duplicata"
+                            ? t("Duplicata")
                             : attenzione
-                              ? "Da controllare"
-                              : "Pronta"}
+                              ? t("Da controllare")
+                              : t("Pronta")}
                       </span>
                       {b.esito === "salvata" ? (
                         <CheckCircle2
-                          aria-label="Salvata"
+                          aria-label={t("Salvata")}
                           className="h-4 w-4 shrink-0 text-emerald-600"
                         />
                       ) : b.stato === "letta" ? null : b.stato ===
@@ -1030,11 +1023,11 @@ function BolleAperte({
                         />
                       ) : b.stato === "da_leggere" ? (
                         <span className="text-xs text-muted-foreground">
-                          Da leggere
+                          {t("Da leggere")}
                         </span>
                       ) : (
                         <Loader2
-                          aria-label="In lettura"
+                          aria-label={t("In lettura")}
                           className="h-4 w-4 shrink-0 animate-spin text-muted-foreground"
                         />
                       )}
@@ -1049,7 +1042,7 @@ function BolleAperte({
                           type="button"
                           className="shrink-0 text-xs underline underline-offset-2"
                           disabled={salvando || !!b.ddtCreatoId}
-                          aria-label={`Rileggi scansione ${b.file.name}`}
+                          aria-label={t("Rileggi scansione {name}", { name: String(b.file.name ?? "") })}
                           onClick={async () => {
                             if (!companyId) return;
                             cambia(b.id, { stato: "in_lettura" });
@@ -1063,7 +1056,7 @@ function BolleAperte({
                                 letta.righe.length < b.righe.length
                               ) {
                                 throw new Error(
-                                  "La rilettura contiene meno righe: conservata la lettura precedente. Confronta con l’originale.",
+                                  t("La rilettura contiene meno righe: conservata la lettura precedente. Confronta con l’originale."),
                                 );
                               }
                               if (!annullato.current)
@@ -1079,13 +1072,13 @@ function BolleAperte({
                               toast.error(
                                 testoErrore(
                                   e,
-                                  "Rilettura non riuscita: la lettura precedente resta disponibile.",
+                                  t("Rilettura non riuscita: la lettura precedente resta disponibile."),
                                 ),
                               );
                             }
                           }}
                         >
-                          Rileggi scansione
+                          {t("Rileggi scansione")}
                         </button>
                       )}
                       <button
@@ -1100,7 +1093,7 @@ function BolleAperte({
                           );
                         }}
                       >
-                        Apri
+                        {t("Apri")}
                         <ExternalLink aria-hidden="true" className="h-3 w-3" />
                       </button>
                       <Button
@@ -1109,7 +1102,7 @@ function BolleAperte({
                         size="sm"
                         className="h-7 w-7 p-0"
                         disabled={salvando || b.esito === "salvata"}
-                        aria-label={`Togli ${b.file.name}`}
+                        aria-label={t("Togli {name}", { name: String(b.file.name ?? "") })}
                         onClick={() => {
                           const togli = () => {
                             setBolle((p) => p.filter((x) => x.id !== b.id));
@@ -1123,11 +1116,11 @@ function BolleAperte({
                           void scartaDocumentoPersistente(b.documentoJobId)
                             .then(() => {
                               togli();
-                              toast.success(`${b.file.name}: scartata`);
+                              toast.success(t("{name}: scartata", { name: String(b.file.name ?? "") }));
                               void queryClient.invalidateQueries({ queryKey: ["ddt-documenti"] });
                             })
                             .catch((e: unknown) =>
-                              toast.error("Bolla non scartata", {
+                              toast.error(t("Bolla non scartata"), {
                                 description: e instanceof Error ? e.message : String(e),
                               }),
                             );
@@ -1144,13 +1137,13 @@ function BolleAperte({
                         target="_blank"
                         rel="noopener noreferrer"
                       >
-                        Apri DDT registrato
+                        {t("Apri DDT registrato")}
                         <ExternalLink className="h-3 w-3" />
                       </a>
                     )}
                     {b.stato === "non_letta" && (
                       <p className="flex flex-wrap items-center gap-2 text-xs text-amber-800 dark:text-amber-300">
-                        Non letta: {b.errore}.
+                        {t("Non letta:")} {b.errore}.
                         <Button
                           type="button"
                           size="sm"
@@ -1165,9 +1158,9 @@ function BolleAperte({
                             setFinestraPer(b.id);
                           }}
                         >
-                          Compila a mano
+                          {t("Compila a mano")}
                         </Button>
-                        <span>oppure toglila e riprova.</span>
+                        <span>{t("oppure toglila e riprova.")}</span>
                       </p>
                     )}
 
@@ -1175,20 +1168,20 @@ function BolleAperte({
                       <>
                         <div className="grid gap-2 sm:grid-cols-[minmax(9rem,12rem)_9rem_minmax(0,1fr)_8rem]">
                           <p className="hidden text-xs font-medium text-muted-foreground sm:block">
-                            Numero DDT
+                            {t("Numero DDT")}
                           </p>
                           <p className="hidden text-xs font-medium text-muted-foreground sm:block">
-                            Data documento
+                            {t("Data documento")}
                           </p>
                           <p className="hidden text-xs font-medium text-muted-foreground sm:block">
-                            Fornitore
+                            {t("Fornitore")}
                           </p>
                           <p className="hidden text-xs font-medium text-muted-foreground sm:block">
-                            Destinazione
+                            {t("Destinazione")}
                           </p>
                           <Input
-                            aria-label={`Numero bolla ${b.file.name}`}
-                            placeholder="Numero"
+                            aria-label={t("Numero bolla {name}", { name: String(b.file.name ?? "") })}
+                            placeholder={t("Numero")}
                             value={b.numero}
                             disabled={salvando || !!b.ddtCreatoId}
                             className="h-9"
@@ -1197,7 +1190,7 @@ function BolleAperte({
                             }
                           />
                           <Input
-                            aria-label={`Data bolla ${b.file.name}`}
+                            aria-label={t("Data bolla {name}", { name: String(b.file.name ?? "") })}
                             type="date"
                             value={b.data}
                             disabled={salvando || !!b.ddtCreatoId}
@@ -1218,15 +1211,15 @@ function BolleAperte({
                           >
                             <SelectTrigger
                               className="h-8"
-                              aria-label={`Fornitore bolla ${b.file.name}`}
+                              aria-label={t("Fornitore bolla {name}", { name: String(b.file.name ?? "") })}
                             >
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="nessuno">
                                 {b.fornitoreLetto
-                                  ? `Non in rubrica: ${b.fornitoreLetto}`
-                                  : "Fornitore non riconosciuto"}
+                                  ? t("Non in rubrica: {fornitoreLetto}", { fornitoreLetto: String(b.fornitoreLetto ?? "") })
+                                  : t("Fornitore non riconosciuto")}
                               </SelectItem>
                               {rubrica.map((f) => (
                                 <SelectItem key={f.id} value={f.id}>
@@ -1246,15 +1239,15 @@ function BolleAperte({
                           >
                             <SelectTrigger
                               className="h-8"
-                              aria-label={`Destinazione bolla ${b.file.name}`}
+                              aria-label={t("Destinazione bolla {name}", { name: String(b.file.name ?? "") })}
                             >
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="magazzino">
-                                Magazzino
+                                {t("Magazzino")}
                               </SelectItem>
-                              <SelectItem value="cantiere">Cantiere</SelectItem>
+                              <SelectItem value="cantiere">{t("Cantiere")}</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -1263,8 +1256,7 @@ function BolleAperte({
                             role="alert"
                             className="rounded-md bg-amber-50 p-2 text-xs font-medium text-amber-900"
                           >
-                            Il fornitore scelto ha una partita IVA diversa da
-                            quella letta sul documento. Verifica l’associazione.
+                            {t("Il fornitore scelto ha una partita IVA diversa da quella letta sul documento. Verifica l’associazione.")}
                           </p>
                         )}
                         {!b.supplierId &&
@@ -1277,37 +1269,36 @@ function BolleAperte({
                               disabled={salvando || !!b.ddtCreatoId}
                               onClick={() => setNuovoFornitore(b.id)}
                             >
-                              Crea fornitore dai dati letti
+                              {t("Crea fornitore dai dati letti")}
                             </Button>
                           )}
                         <div className="grid items-start gap-3 sm:grid-cols-2">
                           <div className="space-y-1">
                             <p className="text-xs font-medium text-muted-foreground">
-                              Commessa
+                              {t("Commessa")}
                             </p>
                             <OrderSelectCombobox
                               companyId={companyId}
                               filtroIniziale="all"
                               value={b.orderId ?? undefined}
                               disabled={salvando || !!b.ddtCreatoId}
-                              placeholder="Commessa (facoltativa)"
+                              placeholder={t("Commessa (facoltativa)")}
                               onChange={(id) => cambia(b.id, { orderId: id })}
                             />
                           </div>
                           {b.destinazione === "cantiere" ? (
                             <p className="rounded-md bg-emerald-50 p-3 text-xs text-emerald-900">
-                              Consegna diretta in cantiere: non entra nelle
-                              giacenze di magazzino.
+                              {t("Consegna diretta in cantiere: non entra nelle giacenze di magazzino.")}
                             </p>
                           ) : (
                             <div className="space-y-1">
                               <p className="text-xs font-medium text-muted-foreground">
-                                Magazzino di arrivo
+                                {t("Magazzino di arrivo")}
                               </p>
                               <WarehouseSelect
                                 value={b.warehouseId ?? warehouseId}
                                 disabled={salvando || !!b.ddtCreatoId}
-                                placeholder="Magazzino predefinito dell’azienda"
+                                placeholder={t("Magazzino predefinito dell’azienda")}
                                 onChange={(id) =>
                                   cambia(b.id, { warehouseId: id })
                                 }
@@ -1323,14 +1314,13 @@ function BolleAperte({
                               disabled={salvando || !!b.ddtCreatoId}
                               onClick={() => cambia(b.id, { orderId: null })}
                             >
-                              Togli commessa
+                              {t("Togli commessa")}
                             </Button>
                           )}
                           <span className="text-xs text-muted-foreground">
-                            {b.righe.length}{" "}
-                            {b.righe.length === 1 ? "riga" : "righe"} merce
+                            {t(b.righe.length === 1 ? "{n} riga merce" : "{n} righe merce", { n: b.righe.length })}
                             {b.abbinatoPer
-                              ? ` · fornitore riconosciuto da ${b.abbinatoPer}`
+                              ? ` ${t("· fornitore riconosciuto da {abbinatoPer}", { abbinatoPer: String(b.abbinatoPer ?? "") })}`
                               : ""}
                           </span>
                         </div>
@@ -1339,10 +1329,7 @@ function BolleAperte({
                             role="alert"
                             className="text-xs font-medium text-amber-800"
                           >
-                            Documento da verificare: reso, noleggio o
-                            destinazioni miste. Le righe non verranno caricate
-                            automaticamente in magazzino; verifica dalla scheda
-                            DDT.
+                            {t("Documento da verificare: reso, noleggio o destinazioni miste. Le righe non verranno caricate automaticamente in magazzino; verifica dalla scheda DDT.")}
                           </p>
                         )}
                         <Button
@@ -1353,8 +1340,8 @@ function BolleAperte({
                           onClick={() => setFinestraPer(b.id)}
                         >
                           {b.righe.length
-                            ? "Controlla la bolla con la foto a fianco"
-                            : "Compila le righe guardando la foto"}
+                            ? t("Controlla la bolla con la foto a fianco")
+                            : t("Compila le righe guardando la foto")}
                         </Button>
                         {companyId && (
                           <CollegamentiBolla
@@ -1380,9 +1367,7 @@ function BolleAperte({
                         )}
                         {b.avvisi.length > 0 && (
                           <details className="text-xs text-muted-foreground">
-                            <summary className="cursor-pointer">
-                              Note della lettura ({b.avvisi.length})
-                            </summary>
+                            <summary className="cursor-pointer">{t("Note della lettura ({n})", { n: b.avvisi.length })}</summary>
                             <p className="mt-1">{b.avvisi.join(" · ")}</p>
                           </details>
                         )}
@@ -1396,15 +1381,13 @@ function BolleAperte({
                               }
                             />
                             {doppio === "gia_presente"
-                              ? "Stesso numero, data e fornitore già registrati."
-                              : "Stesso numero, data e fornitore: confronta gli originali, potrebbero essere versioni diverse."}{" "}
-                            Carica comunque
+                              ? t("Stesso numero, data e fornitore già registrati.")
+                              : t("Stesso numero, data e fornitore: confronta gli originali, potrebbero essere versioni diverse.")}{" "}
+                            {t("Carica comunque")}
                           </label>
                         )}
                         {b.esito === "errore" && (
-                          <p className="text-xs text-destructive">
-                            Non salvata: {b.motivoEsito}
-                          </p>
+                          <p className="text-xs text-destructive">{t("Non salvata: {motivoEsito}", { motivoEsito: String(b.motivoEsito ?? "") })}</p>
                         )}
                       </>
                     )}
@@ -1426,9 +1409,9 @@ function BolleAperte({
           )}
           <p className="mr-auto text-xs text-muted-foreground">
             {selezionate.size
-              ? "Registri solo le selezionate idonee."
-              : "Registri tutte le bolle idonee."}{" "}
-            I duplicati restano esclusi.
+              ? t("Registri solo le selezionate idonee.")
+              : t("Registri tutte le bolle idonee.")}{" "}
+            {t("I duplicati restano esclusi.")}
           </p>
           <Button
             type="button"
@@ -1436,7 +1419,7 @@ function BolleAperte({
             disabled={salvando}
             onClick={() => onOpenChange(false)}
           >
-            {salvate > 0 ? "Chiudi" : "Annulla"}
+            {salvate > 0 ? t("Chiudi") : t("Annulla")}
           </Button>
           <Button
             type="button"
@@ -1456,9 +1439,9 @@ function BolleAperte({
               />
             )}
             {daDividere.length > 0
-              ? "Prima controlla dove tagliare"
+              ? t("Prima controlla dove tagliare")
               : inLettura
-                ? "Sto leggendo…"
+                ? t("Sto leggendo…")
                 : `Registra ${daSalvare.length} ${daSalvare.length === 1 ? "bolla" : "bolle"}`}
           </Button>
         </DialogFooter>

@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import type { DDTAttachmentKind } from "@/hooks/useDDTRicezione";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const KIND_LABELS: Record<DDTAttachmentKind, string> = {
   ddt: "DDT",
@@ -55,6 +56,7 @@ interface LightboxProps {
 }
 
 function Lightbox({ open, onClose, url, name, mime }: LightboxProps) {
+  const t = useT();
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent
@@ -78,7 +80,7 @@ function Lightbox({ open, onClose, url, name, mime }: LightboxProps) {
                 target="_blank"
                 rel="noreferrer"
                 className="text-white/80 hover:text-white p-1.5 rounded-md hover:bg-white/10 transition"
-                title="Apri in nuova tab"
+                title={t("Apri in nuova tab")}
               >
                 <ExternalLink className="h-4 w-4" />
               </a>
@@ -86,14 +88,14 @@ function Lightbox({ open, onClose, url, name, mime }: LightboxProps) {
                 href={url}
                 download={name}
                 className="text-white/80 hover:text-white p-1.5 rounded-md hover:bg-white/10 transition"
-                title="Scarica"
+                title={t("Scarica")}
               >
                 <Download className="h-4 w-4" />
               </a>
               <button
                 onClick={onClose}
                 className="text-white/80 hover:text-white p-1.5 rounded-md hover:bg-white/10 transition"
-                title="Chiudi"
+                title={t("Chiudi")}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -116,27 +118,27 @@ function Lightbox({ open, onClose, url, name, mime }: LightboxProps) {
               >
                 <div className="text-white text-center space-y-3 p-6">
                   <FileText className="h-12 w-12 mx-auto opacity-60" />
-                  <p className="text-sm">Anteprima PDF non disponibile.</p>
+                  <p className="text-sm">{t("Anteprima PDF non disponibile.")}</p>
                   <a
                     href={url}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center gap-2 px-4 py-2 bg-white text-black rounded-md hover:bg-white/90"
                   >
-                    <ExternalLink className="h-4 w-4" /> Apri PDF
+                    <ExternalLink className="h-4 w-4" /> {t("Apri PDF")}
                   </a>
                 </div>
               </object>
             ) : (
               <div className="text-white text-center space-y-3">
                 <FileIcon className="h-12 w-12 mx-auto opacity-60" />
-                <p className="text-sm">Anteprima non disponibile per questo tipo di file.</p>
+                <p className="text-sm">{t("Anteprima non disponibile per questo tipo di file.")}</p>
                 <a
                   href={url}
                   download={name}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-white text-black rounded-md"
                 >
-                  <Download className="h-4 w-4" /> Scarica {name}
+                  <Download className="h-4 w-4" /> {t("Scarica")} {name}
                 </a>
               </div>
             )}
@@ -172,6 +174,7 @@ export function DDTFilePreview({
   className,
   minimal = false,
 }: DDTFilePreviewProps) {
+  const t = useT();
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const canPreview = isImage(mime) || isPdf(mime);
 
@@ -226,7 +229,7 @@ export function DDTFilePreview({
                 KIND_COLORS[kind],
               )}
             >
-              {KIND_LABELS[kind]}
+              {t(KIND_LABELS[kind])}
             </span>
           )}
 
@@ -236,10 +239,10 @@ export function DDTFilePreview({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                if (confirm(`Rimuovere ${name}?`)) onDelete();
+                if (confirm(t("Rimuovere {name}?", { name: String(name ?? "") }))) onDelete();
               }}
               className="absolute top-1.5 right-1.5 p-1 bg-rose-500/90 hover:bg-rose-600 text-white rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
-              title="Rimuovi"
+              title={t("Rimuovi")}
             >
               <Trash2 className="h-3 w-3" />
             </button>
@@ -262,7 +265,7 @@ export function DDTFilePreview({
                     type="button"
                     onClick={() => setLightboxOpen(true)}
                     className="text-muted-foreground hover:text-foreground p-0.5"
-                    title="Anteprima"
+                    title={t("Anteprima")}
                   >
                     <Eye className="h-3 w-3" />
                   </button>
@@ -272,7 +275,7 @@ export function DDTFilePreview({
                   target="_blank"
                   rel="noreferrer"
                   className="text-muted-foreground hover:text-foreground p-0.5"
-                  title="Apri"
+                  title={t("Apri")}
                   onClick={(e) => e.stopPropagation()}
                 >
                   <ExternalLink className="h-3 w-3" />
@@ -281,7 +284,7 @@ export function DDTFilePreview({
                   href={url}
                   download={name}
                   className="text-muted-foreground hover:text-foreground p-0.5"
-                  title="Scarica"
+                  title={t("Scarica")}
                   onClick={(e) => e.stopPropagation()}
                 >
                   <Download className="h-3 w-3" />
@@ -290,7 +293,7 @@ export function DDTFilePreview({
             </div>
             {uploadedAt && (
               <p className="text-[9px] text-muted-foreground/70 mt-0.5">
-                {new Date(uploadedAt).toLocaleDateString("it-IT", {
+                {new Date(uploadedAt).toLocaleDateString(intlCampo(), {
                   day: "2-digit",
                   month: "2-digit",
                   year: "2-digit",
@@ -330,6 +333,7 @@ export function DDTMainFilePreview({
   onReplace,
   onDelete,
 }: DDTMainFilePreviewProps) {
+  const t = useT();
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
   return (
@@ -361,7 +365,7 @@ export function DDTMainFilePreview({
           <div className="flex-1 min-w-0 space-y-2">
             <div>
               <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-primary text-primary-foreground uppercase tracking-wide">
-                DDT cartaceo
+                {t("DDT cartaceo")}
               </span>
               <p className="text-sm font-medium mt-1 break-all">{name}</p>
             </div>
@@ -374,7 +378,7 @@ export function DDTMainFilePreview({
                 onClick={() => setLightboxOpen(true)}
               >
                 <Eye className="h-3 w-3 mr-1" />
-                Anteprima
+                {t("Anteprima")}
               </Button>
               <Button
                 type="button"
@@ -385,7 +389,7 @@ export function DDTMainFilePreview({
               >
                 <a href={url} target="_blank" rel="noreferrer">
                   <ExternalLink className="h-3 w-3 mr-1" />
-                  Apri
+                  {t("Apri")}
                 </a>
               </Button>
               <Button
@@ -397,7 +401,7 @@ export function DDTMainFilePreview({
               >
                 <a href={url} download={name}>
                   <Download className="h-3 w-3 mr-1" />
-                  Scarica
+                  {t("Scarica")}
                 </a>
               </Button>
               {onReplace && (
@@ -408,7 +412,7 @@ export function DDTMainFilePreview({
                   onClick={onReplace}
                   className="h-7 text-xs"
                 >
-                  Sostituisci
+                  {t("Sostituisci")}
                 </Button>
               )}
               {onDelete && (
@@ -416,7 +420,7 @@ export function DDTMainFilePreview({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={() => confirm(`Rimuovere il documento DDT "${name}"?`) && onDelete()}
+                  onClick={() => confirm(t("Rimuovere il documento DDT \"{name}\"?", { name: String(name ?? "") })) && onDelete()}
                   className="h-7 text-xs text-destructive hover:text-destructive"
                 >
                   <Trash2 className="h-3 w-3" />
@@ -469,6 +473,7 @@ export function DDTFileRiga({
   onDelete,
   confermaRimozione,
 }: DDTFileRigaProps) {
+  const t = useT();
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const canPreview = isImage(mime) || isPdf(mime);
   const tipo = etichetta ?? (kind ? KIND_LABELS[kind] : undefined);
@@ -484,7 +489,7 @@ export function DDTFileRiga({
           type="button"
           onClick={() => canPreview && setLightboxOpen(true)}
           disabled={!canPreview}
-          aria-label={`Anteprima ${name}`}
+          aria-label={t("Anteprima {name}", { name: String(name ?? "") })}
           className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded border bg-muted/40"
         >
           {isImage(mime) ? (
@@ -515,30 +520,30 @@ export function DDTFileRiga({
           <Button type="button" variant="ghost" size="sm" asChild className="h-7 px-2 text-xs">
             <a href={url} target="_blank" rel="noreferrer">
               <ExternalLink className="h-3.5 w-3.5 sm:mr-1" />
-              <span className="hidden sm:inline">Apri</span>
+              <span className="hidden sm:inline">{t("Apri")}</span>
             </a>
           </Button>
           <a
             href={url}
             download={name}
-            title="Scarica"
-            aria-label={`Scarica ${name}`}
+            title={t("Scarica")}
+            aria-label={t("Scarica {name}", { name: String(name ?? "") })}
             className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <Download className="h-3.5 w-3.5" />
           </a>
           {onReplace && (
-            <Button type="button" variant="ghost" size="sm" onClick={onReplace} className="h-7 px-2 text-xs" aria-label={`Sostituisci ${name}`}>
+            <Button type="button" variant="ghost" size="sm" onClick={onReplace} className="h-7 px-2 text-xs" aria-label={t("Sostituisci {name}", { name: String(name ?? "") })}>
               <RefreshCw className="h-3.5 w-3.5 sm:mr-1" />
-              <span className="hidden sm:inline">Sostituisci</span>
+              <span className="hidden sm:inline">{t("Sostituisci")}</span>
             </Button>
           )}
           {onDelete && (
             <button
               type="button"
-              title="Rimuovi"
-              aria-label={`Rimuovi ${name}`}
-              onClick={() => confirm(confermaRimozione ?? `Rimuovere ${name}?`) && onDelete()}
+              title={t("Rimuovi")}
+              aria-label={t("Rimuovi {name}", { name: String(name ?? "") })}
+              onClick={() => confirm(confermaRimozione ?? t("Rimuovere {name}?", { name: String(name ?? "") })) && onDelete()}
               className="rounded p-1.5 text-muted-foreground hover:bg-rose-50 hover:text-rose-600"
             >
               <Trash2 className="h-3.5 w-3.5" />

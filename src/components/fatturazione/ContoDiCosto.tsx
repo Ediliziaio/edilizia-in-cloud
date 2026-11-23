@@ -23,6 +23,7 @@ import { CATEGORIE_DI_BASE, contiDaCreare } from "@/lib/fatturazione/contoPerRig
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** La voce in fondo al menu: non è un conto, apre il campo per scriverne uno nuovo. */
 const VOCE_NUOVO = "__nuovo_conto__";
@@ -40,6 +41,7 @@ export function ContoDiCosto({ companyId, fatturaId, costoId, attuale, onCambiat
   attuale: string | null;
   onCambiato: () => void;
 }) {
+  const t = useT();
   const qc = useQueryClient();
   const { data: categorie = [] } = useQuery({
     queryKey: queryKeys.costCategories.list(companyId),
@@ -75,18 +77,18 @@ export function ContoDiCosto({ companyId, fatturaId, costoId, attuale, onCambiat
       return { stornate, nonRifatta, motivo: data?.esito?.errori?.[0] ?? null, errGiornale: errGiornale?.message ?? null };
     },
     onSuccess: ({ stornate, nonRifatta, motivo, errGiornale }, categoria) => {
-      toast.success(costoId ? `Conto di costo cambiato in «${categoria}»` : `Conto di costo salvato: «${categoria}», si userà alla contabilizzazione`, {
-        description: stornate > 0 && !nonRifatta ? "Anche la contabilità generale: la scrittura è stata stornata e rifatta col conto nuovo." : undefined,
+      toast.success(costoId ? t("Conto di costo cambiato in «{categoria}»", { categoria: String(categoria ?? "") }) : t("Conto di costo salvato: «{categoria}», si userà alla contabilizzazione", { categoria: String(categoria ?? "") }), {
+        description: stornate > 0 && !nonRifatta ? t("Anche la contabilità generale: la scrittura è stata stornata e rifatta col conto nuovo.") : undefined,
       });
       if (nonRifatta) {
-        toast.warning("Contabilità generale: scrittura stornata ma non rifatta", {
-          description: `${motivo ? `${motivo}. ` : ""}Risolto il motivo, «Genera dai documenti» in Contabilità generale la registra di nuovo.`,
+        toast.warning(t("Contabilità generale: scrittura stornata ma non rifatta"), {
+          description: `${motivo ? `${motivo}. ` : ""}${t("Risolto il motivo, «Genera dai documenti» in Contabilità generale la registra di nuovo.")}`,
           duration: 12000,
         });
       } else if (errGiornale) {
-        toast.warning("Conto salvato · contabilità generale da aggiornare", {
+        toast.warning(t("Conto salvato · contabilità generale da aggiornare"), {
           description: /Accesso negato/.test(errGiornale)
-            ? "Il conto è salvato sulla fattura. Se usate la contabilità generale, la sua scrittura la rifà chi ne ha il permesso: avvisalo."
+            ? t("Il conto è salvato sulla fattura. Se usate la contabilità generale, la sua scrittura la rifà chi ne ha il permesso: avvisalo.")
             : errGiornale,
           duration: 12000,
         });
@@ -94,7 +96,7 @@ export function ContoDiCosto({ companyId, fatturaId, costoId, attuale, onCambiat
       onCambiato();
       void qc.invalidateQueries({ queryKey: ["contabilita-generale", companyId] });
     },
-    onError: (e) => toast.error("Conto di costo non cambiato", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Conto di costo non cambiato"), { description: e instanceof Error ? e.message : String(e) }),
   });
 
   // Un conto che non c'è: si scrive qui, senza passare dalle impostazioni (16/11/2026).
@@ -113,9 +115,9 @@ export function ContoDiCosto({ companyId, fatturaId, costoId, attuale, onCambiat
       return gia ?? nome.trim();
     },
     onSuccess: (nome) => { setNuovo(null); cambia.mutate(nome); },
-    onError: (e) => toast.error("Conto non aggiunto", {
+    onError: (e) => toast.error(t("Conto non aggiunto"), {
       description: e instanceof Error && /permission|policy|row-level/i.test(e.message)
-        ? "Per creare un conto di costo serve il permesso Costi o Gestione acquisti."
+        ? t("Per creare un conto di costo serve il permesso Costi o Gestione acquisti.")
         : e instanceof Error ? e.message : String(e),
     }),
   });
@@ -128,13 +130,13 @@ export function ContoDiCosto({ companyId, fatturaId, costoId, attuale, onCambiat
   if (nuovo !== null) {
     return (
       <div className="flex flex-wrap items-center gap-2">
-        <Input autoFocus value={nuovo} onChange={(e) => setNuovo(e.target.value)} placeholder="Nome del conto, per esempio Leasing"
-          className="h-7 w-56 text-xs" aria-label="Nome del conto di costo nuovo"
+        <Input autoFocus value={nuovo} onChange={(e) => setNuovo(e.target.value)} placeholder={t("Nome del conto, per esempio Leasing")}
+          className="h-7 w-56 text-xs" aria-label={t("Nome del conto di costo nuovo")}
           onKeyDown={(e) => { if (e.key === "Enter" && nuovo.trim()) aggiungi.mutate(nuovo); if (e.key === "Escape") setNuovo(null); }} />
         <Button size="sm" className="h-7 text-xs" disabled={!nuovo.trim() || aggiungi.isPending} onClick={() => aggiungi.mutate(nuovo)}>
-          {aggiungi.isPending ? "Aggiungo…" : "Aggiungi"}
+          {aggiungi.isPending ? t("Aggiungo…") : t("Aggiungi")}
         </Button>
-        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setNuovo(null)}>Annulla</Button>
+        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setNuovo(null)}>{t("Annulla")}</Button>
       </div>
     );
   }
@@ -142,17 +144,17 @@ export function ContoDiCosto({ companyId, fatturaId, costoId, attuale, onCambiat
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Select value={valore} onValueChange={(v) => { if (v === VOCE_NUOVO) setNuovo(""); else if (v !== valore) cambia.mutate(v); }} disabled={cambia.isPending}>
-        <SelectTrigger className="h-7 w-auto min-w-[10rem] text-xs" aria-label="Conto di costo">
+        <SelectTrigger className="h-7 w-auto min-w-[10rem] text-xs" aria-label={t("Conto di costo")}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
           {nomi.map((n) => (
             <SelectItem key={n} value={n}>{n}</SelectItem>
           ))}
-          <SelectItem value={VOCE_NUOVO}>+ Nuovo conto di costo…</SelectItem>
+          <SelectItem value={VOCE_NUOVO}>{t("+ Nuovo conto di costo…")}</SelectItem>
         </SelectContent>
       </Select>
-      {!attuale ? <span className="text-xs text-muted-foreground">predefinito, nessuno l'ha scelto</span> : null}
+      {!attuale ? <span className="text-xs text-muted-foreground">{t("predefinito, nessuno l'ha scelto")}</span> : null}
     </div>
   );
 }

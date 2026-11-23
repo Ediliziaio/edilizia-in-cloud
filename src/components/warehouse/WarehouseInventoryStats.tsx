@@ -18,6 +18,7 @@ import { AlertTriangle, Euro, Package, Truck, type LucideIcon } from "lucide-rea
 import { OperationalSummaryMetric } from "@/components/shared/OperationalSummary";
 import { formatCurrency } from "@/lib/formatters";
 import type { MagazzinoRiepilogo } from "@/hooks/useMagazzinoRiepilogo";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type WarehouseInventoryMetricKey =
   | "inventory_value"
@@ -37,9 +38,10 @@ interface Props {
   activeKey?: WarehouseInventoryMetricKey | null;
 }
 
-const articoli = (n: number) => `${n} ${n === 1 ? "articolo" : "articoli"}`;
 
 export default function WarehouseInventoryStats({ riepilogo, visibleCards, onCardClick, activeKey, isLoading = false, canViewCosts = true }: Props) {
+  const t = useT();
+  const articoli = (n: number) => (n === 1 ? t("{n} articolo", { n }) : t("{n} articoli", { n }));
   const a = riepilogo?.articoli;
   const arrivo = riepilogo?.in_arrivo;
   const conGiacenza = a?.con_giacenza ?? 0;
@@ -50,42 +52,42 @@ export default function WarehouseInventoryStats({ riepilogo, visibleCards, onCar
   const cards = [
     {
       key: "inventory_value" as const,
-      label: "Valore inventario",
+      label: t("Valore inventario"),
       value: formatCurrency(Number(a?.valore ?? 0)),
       // un valore con articoli senza costo è un valore per difetto: va detto
-      hint: senzaCosto > 0 ? `${articoli(senzaCosto)} senza costo: il valore vero è più alto` : conGiacenza > 0 ? `${articoli(conGiacenza)} a stock` : "magazzino vuoto",
+      hint: senzaCosto > 0 ? t("{senzaCosto} senza costo: il valore vero è più alto", { senzaCosto: articoli(senzaCosto) }) : conGiacenza > 0 ? t("{conGiacenza} a stock", { conGiacenza: articoli(conGiacenza) }) : t("magazzino vuoto"),
       icon: Euro,
       accent: senzaCosto > 0 ? ("amber" as const) : ("blue" as const),
     },
     {
       key: "stock_items" as const,
-      label: "Articoli a stock",
+      label: t("Articoli a stock"),
       value: String(conGiacenza),
-      hint: (a?.negativi ?? 0) > 0 ? `${articoli(a!.negativi)} con giacenza negativa` : `${articoli(a?.n ?? 0)} in anagrafica`,
+      hint: (a?.negativi ?? 0) > 0 ? t("{negativi} con giacenza negativa", { negativi: String(articoli(a!.negativi) ?? "") }) : t("{valore} in anagrafica", { valore: String(articoli(a?.n ?? 0) ?? "") }),
       icon: Package,
       accent: (a?.negativi ?? 0) > 0 ? ("red" as const) : ("primary" as const),
     },
     {
       key: "low_stock" as const,
-      label: "Sotto scorta",
+      label: t("Sotto scorta"),
       value: String(sottoScorta),
-      hint: sottoScorta > 0 ? "disponibile sotto il minimo" : "tutto ok",
+      hint: sottoScorta > 0 ? t("disponibile sotto il minimo") : t("tutto ok"),
       icon: AlertTriangle,
       accent: sottoScorta > 0 ? ("amber" as const) : ("emerald" as const),
     },
     {
       key: "incoming_7d" as const,
-      label: "In arrivo",
+      label: t("In arrivo"),
       value: String(inArrivo),
-      hint: inArrivo > 0 ? "articoli negli ordini fornitore aperti" : "nessun ordine aperto",
+      hint: inArrivo > 0 ? t("articoli negli ordini fornitore aperti") : t("nessun ordine aperto"),
       icon: Truck,
       accent: "blue" as const,
     },
     {
       key: "missing_cost" as const,
-      label: "Senza costo",
+      label: t("Senza costo"),
       value: String(senzaCosto),
-      hint: senzaCosto > 0 ? "falsano il valore" : "anagrafica ok",
+      hint: senzaCosto > 0 ? t("falsano il valore") : t("anagrafica ok"),
       icon: Euro,
       accent: senzaCosto > 0 ? ("red" as const) : ("emerald" as const),
     },

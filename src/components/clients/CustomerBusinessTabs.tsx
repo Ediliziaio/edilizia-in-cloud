@@ -13,7 +13,6 @@ import {
   PencilLine,
 } from "lucide-react";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 // KpiMini rimosso (2026-05-27): le KPI sono già nell'header CompanyCustomerDetail.
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,6 +23,7 @@ import { useDocumentiCommesseCliente } from "@/hooks/useDocumentiCommesseCliente
 import type { CommessaDelCliente } from "@/lib/clienti/documentiCommesseCliente";
 import { EmailComposeDialog, type ComposeContext } from "@/pages/azienda/email/components/EmailComposeDialog";
 import { euro } from "@/lib/clienti/schedaCliente";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // ── Row types ────────────────────────────────────────────────────────────────
 
@@ -200,7 +200,7 @@ function buildCreateUrl(base: string, customerId: string, customerName?: string)
 function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return "—";
   try {
-    return format(new Date(dateStr), "dd MMM yyyy", { locale: it });
+    return format(new Date(dateStr), "dd MMM yyyy", { locale: dateFnsCampo() });
   } catch {
     return "—";
   }
@@ -314,18 +314,19 @@ function EmptyState({
   actionLabel?: string;
   actionHref?: string;
 }) {
+  const t = useT();
   const navigate = useNavigate();
   return (
     <div className="flex flex-col items-center justify-center py-10 text-center">
       <Icon className="h-10 w-10 text-muted-foreground/30 mb-3" />
-      <p className="text-sm font-medium text-muted-foreground">Nessun {label} trovato</p>
+      <p className="text-sm font-medium text-muted-foreground">{t("Nessun {label} trovato", { label: String(label ?? "") })}</p>
       <p className="text-xs text-muted-foreground mt-1 mb-3">
-        {actionHref ? "Crealo ora e verrà collegato a questo cliente." : "Apparirà qui quando sarà disponibile."}
+        {actionHref ? t("Crealo ora e verrà collegato a questo cliente.") : t("Apparirà qui quando sarà disponibile.")}
       </p>
       {actionHref && (
         <Button variant="outline" size="sm" onClick={() => navigate(actionHref)}>
           <Plus className="h-3.5 w-3.5 mr-1.5" />
-          {actionLabel ?? `Crea ${label}`}
+          {actionLabel ?? t("Crea {label}", { label: String(label ?? "") })}
         </Button>
       )}
     </div>
@@ -335,13 +336,14 @@ function EmptyState({
 // ── Tab content components ────────────────────────────────────────────────────
 
 function OrdiniTab({ orders, customerId, customerFullName }: { orders: OrderRow[]; customerId: string; customerFullName?: string }) {
+  const t = useT();
   const navigate = useNavigate();
   if (orders.length === 0) {
     return (
       <EmptyState
         icon={ClipboardList}
-        label="ordine"
-        actionLabel="Crea ordine"
+        label={t("ordine")}
+        actionLabel={t("Crea ordine")}
         actionHref={buildCreateUrl("/azienda/ordini/nuovo", customerId, customerFullName)}
       />
     );
@@ -375,7 +377,7 @@ function OrdiniTab({ orders, customerId, customerFullName }: { orders: OrderRow[
                   {status.name}
                 </Badge>
               )}
-              <span>dal {formatDate(order.created_at)}</span>
+              <span>{t("dal {created_at}", { created_at: formatDate(order.created_at) })}</span>
               <ExternalLink className="ml-auto h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
           </button>
@@ -386,13 +388,14 @@ function OrdiniTab({ orders, customerId, customerFullName }: { orders: OrderRow[
 }
 
 function PreventiviTab({ items, customerId, customerFullName }: { items: PreventivoRow[]; customerId: string; customerFullName?: string }) {
+  const t = useT();
   const navigate = useNavigate();
   if (items.length === 0) {
     return (
       <EmptyState
         icon={FileSignature}
-        label="preventivo"
-        actionLabel="Crea preventivo"
+        label={t("preventivo")}
+        actionLabel={t("Crea preventivo")}
         actionHref={buildCreateUrl("/azienda/marketing/preventivi/nuovo", customerId, customerFullName)}
       />
     );
@@ -425,13 +428,14 @@ function PreventiviTab({ items, customerId, customerFullName }: { items: Prevent
 }
 
 function AssistenzaTab({ tickets, customerId, customerFullName }: { tickets: TicketRow[]; customerId: string; customerFullName?: string }) {
+  const t = useT();
   const navigate = useNavigate();
   if (tickets.length === 0) {
     return (
       <EmptyState
         icon={Ticket}
-        label="ticket"
-        actionLabel="Apri ticket"
+        label={t("ticket")}
+        actionLabel={t("Apri ticket")}
         actionHref={buildCreateUrl("/azienda/assistenza/nuovo", customerId, customerFullName)}
       />
     );
@@ -460,8 +464,9 @@ function AssistenzaTab({ tickets, customerId, customerFullName }: { tickets: Tic
 }
 
 function InterventiTab({ items }: { items: RapportinoRow[] }) {
+  const t = useT();
   const navigate = useNavigate();
-  if (items.length === 0) return <EmptyState icon={Wrench} label="intervento" />;
+  if (items.length === 0) return <EmptyState icon={Wrench} label={t("intervento")} />;
   return (
     <div className="space-y-1">
       {items.map((item) => (
@@ -471,7 +476,7 @@ function InterventiTab({ items }: { items: RapportinoRow[] }) {
           onClick={() => navigate(`/azienda/assistenza/${item.id}`)}
         >
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium truncate">{item.descrizione || "Intervento"}</p>
+            <p className="text-sm font-medium truncate">{item.descrizione || t("Intervento")}</p>
             <p className="text-xs text-muted-foreground">{formatDate(item.created_at)}</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -505,6 +510,7 @@ function DocumentiTab({
   perCommittente?: boolean;
   nascondiImporti?: boolean;
 }) {
+  const t = useT();
   const navigate = useNavigate();
   return (
     <div className="space-y-4">
@@ -512,14 +518,14 @@ function DocumentiTab({
           quelli delle commesse. */}
       {fatture.length === 0 ? (
         <div className="rounded-lg border border-dashed p-3 text-center">
-          <p className="text-sm font-medium text-muted-foreground">Nessuna fattura</p>
+          <p className="text-sm font-medium text-muted-foreground">{t("Nessuna fattura")}</p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {anagraficaCollegata ? `Anagrafica fiscale: ${anagraficaCollegata.ragione_sociale}. ` : ""}Fatture e note di credito compaiono qui quando ci sono.
+            {anagraficaCollegata ? `${t("Anagrafica fiscale: {nome}.", { nome: anagraficaCollegata.ragione_sociale ?? "" })} ` : ""}{t("Fatture e note di credito compaiono qui quando ci sono.")}
           </p>
         </div>
       ) : (
         <div className="rounded-lg border p-1">
-          <p className="px-2 pt-1.5 pb-1 text-sm font-semibold">Fatture e note di credito</p>
+          <p className="px-2 pt-1.5 pb-1 text-sm font-semibold">{t("Fatture e note di credito")}</p>
           {fatture.map((f) => (
             <button
               type="button"
@@ -565,19 +571,20 @@ function AppuntamentiTab({
   onCreateClick?: () => void;
   perCommittente?: boolean;
 }) {
+  const t = useT();
   const navigate = useNavigate();
   if (items.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-10 text-center">
         <CalendarDays className="h-10 w-10 text-muted-foreground/30 mb-3" />
-        <p className="text-sm font-medium text-muted-foreground">Nessun appuntamento trovato</p>
+        <p className="text-sm font-medium text-muted-foreground">{t("Nessun appuntamento trovato")}</p>
         <p className="text-xs text-muted-foreground mt-1 mb-3">
-          Crealo ora e verrà collegato a questo {perCommittente ? "committente" : "cliente"}.
+          {perCommittente ? t("Crealo ora e verrà collegato a questo committente.") : t("Crealo ora e verrà collegato a questo cliente.")}
         </p>
         {onCreateClick && (
           <Button variant="outline" size="sm" onClick={onCreateClick}>
             <Plus className="h-3.5 w-3.5 mr-1.5" />
-            Nuovo appuntamento
+            {t("Nuovo appuntamento")}
           </Button>
         )}
       </div>
@@ -587,7 +594,7 @@ function AppuntamentiTab({
     <div className="space-y-1">
       {items.map((item) => {
         const dateLabel = item.appointment_date
-          ? format(new Date(item.appointment_date), "dd MMM yyyy", { locale: it })
+          ? format(new Date(item.appointment_date), "dd MMM yyyy", { locale: dateFnsCampo() })
           : "—";
         const timeLabel = item.appointment_time ? ` · ${item.appointment_time.substring(0, 5)}` : "";
         return (
@@ -597,7 +604,7 @@ function AppuntamentiTab({
             onClick={() => navigate(`/azienda/calendario`)}
           >
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium truncate">{item.title || "Appuntamento"}</p>
+              <p className="text-sm font-medium truncate">{item.title || t("Appuntamento")}</p>
               <p className="text-xs text-muted-foreground">{dateLabel}{timeLabel}</p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
@@ -615,7 +622,8 @@ function AppuntamentiTab({
 }
 
 function RateTab({ rate }: { rate: RataRow[] }) {
-  if (rate.length === 0) return <EmptyState icon={CreditCard} label="rata" />;
+  const t = useT();
+  if (rate.length === 0) return <EmptyState icon={CreditCard} label={t("rata")} />;
   // Per commessa, nell'ordine del piano: prima quelle con qualcosa di scaduto.
   const perCommessa = new Map<string, RataRow[]>();
   for (const r of rate) perCommessa.set(r.order_id, [...(perCommessa.get(r.order_id) ?? []), r]);
@@ -628,25 +636,25 @@ function RateTab({ rate }: { rate: RataRow[] }) {
         return (
           <div key={righe[0].order_id} className="rounded-lg border p-1">
             <div className="flex items-baseline justify-between gap-2 px-2 pt-1.5 pb-1">
-              <p className="text-sm font-semibold break-all">{righe[0].order_code ?? "Commessa"}</p>
+              <p className="text-sm font-semibold break-all">{righe[0].order_code ?? t("Commessa")}</p>
               {righe.some((r) => r.residuo != null) && (
                 <span className={cn("text-xs tabular-nums whitespace-nowrap", scaduto > 0 ? "text-red-700 font-medium" : "text-muted-foreground")}>
-                  {daIncassare === 0 ? "Tutto incassato" : scaduto > 0 ? `${euro(scaduto, true)} scaduti` : `${euro(daIncassare, true)} da incassare`}
+                  {daIncassare === 0 ? t("Tutto incassato") : scaduto > 0 ? t("{scaduto} scaduti", { scaduto: euro(scaduto, true) }) : t("{daIncassare} da incassare", { daIncassare: euro(daIncassare, true) })}
                 </span>
               )}
             </div>
             {righe.map((r) => (
               <div key={r.id} className={cn("flex items-center justify-between gap-2 rounded-md px-2 py-1.5", r.scaduta && "bg-red-50 dark:bg-red-950/20")}>
                 <div className="min-w-0">
-                  <p className="text-sm truncate">{r.label || "Rata"}</p>
+                  <p className="text-sm truncate">{r.label || t("Rata")}</p>
                   <p className={cn("text-xs", r.scaduta ? "text-red-700 dark:text-red-400" : "text-muted-foreground")}>
-                    {r.pagata ? "Incassata" : r.scaduta ? `Scaduta il ${formatDate(r.scadenza)}` : r.scadenza ? `Entro il ${formatDate(r.scadenza)}` : "Senza data"}
+                    {r.pagata ? t("Incassata") : r.scaduta ? t("Scaduta il {scadenza}", { scadenza: formatDate(r.scadenza) }) : r.scadenza ? t("Entro il {scadenza}", { scadenza: formatDate(r.scadenza) }) : t("Senza data")}
                   </p>
                 </div>
                 <div className="text-right shrink-0">
                   {r.importo != null && <p className="text-sm font-medium tabular-nums">{euro(r.importo, true)}</p>}
                   {!r.pagata && r.residuo != null && r.importo != null && r.residuo > 0 && r.residuo < r.importo && (
-                    <p className="text-[11px] text-muted-foreground tabular-nums">restano {euro(r.residuo, true)}</p>
+                    <p className="text-[11px] text-muted-foreground tabular-nums">{t("restano {residuo}", { residuo: euro(r.residuo, true) })}</p>
                   )}
                 </div>
               </div>
@@ -671,6 +679,7 @@ function EmailConversationsTab({
   isLoading: boolean;
   error: unknown;
 }) {
+  const t = useT();
   const navigate = useNavigate();
   // 2026-05-26 (request utente "potere inviare email anche da qui"):
   // dialog di compose locale, apre con destinatario pre-popolato. Niente
@@ -693,9 +702,9 @@ function EmailConversationsTab({
     return (
       <div className="flex flex-col items-center justify-center py-10 text-center">
         <Mail className="h-10 w-10 text-muted-foreground/30 mb-3" />
-        <p className="text-sm font-medium text-muted-foreground">Nessuna email cliente disponibile</p>
+        <p className="text-sm font-medium text-muted-foreground">{t("Nessuna email cliente disponibile")}</p>
         <p className="text-xs text-muted-foreground mt-1">
-          Quando l'anagrafica avrà un indirizzo email reale, qui vedrai le conversazioni collegate.
+          {t("Quando l'anagrafica avrà un indirizzo email reale, qui vedrai le conversazioni collegate.")}
         </p>
       </div>
     );
@@ -717,10 +726,10 @@ function EmailConversationsTab({
         <div className="flex items-start gap-2">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <div>
-            <p className="font-semibold">Conversazioni email non caricate</p>
-            <p className="mt-1 text-xs">Puoi comunque aprire il client email e cercare manualmente {customerEmail}.</p>
+            <p className="font-semibold">{t("Conversazioni email non caricate")}</p>
+            <p className="mt-1 text-xs">{t("Puoi comunque aprire il client email e cercare manualmente {customerEmail}.", { customerEmail: String(customerEmail ?? "") })}</p>
             <Button variant="outline" size="sm" className="mt-2 bg-white" onClick={() => navigate(emailHref)}>
-              Apri client email
+              {t("Apri client email")}
             </Button>
           </div>
         </div>
@@ -733,17 +742,15 @@ function EmailConversationsTab({
       <>
         <div className="flex flex-col items-center justify-center py-10 text-center">
           <MessageSquare className="h-10 w-10 text-muted-foreground/30 mb-3" />
-          <p className="text-sm font-medium text-muted-foreground">Nessuna conversazione email trovata</p>
-          <p className="text-xs text-muted-foreground mt-1 mb-3">
-            Ho cercato nelle tue caselle personali collegate usando {customerEmail}.
-          </p>
+          <p className="text-sm font-medium text-muted-foreground">{t("Nessuna conversazione email trovata")}</p>
+          <p className="text-xs text-muted-foreground mt-1 mb-3">{t("Ho cercato nelle tue caselle personali collegate usando {customerEmail}.", { customerEmail: String(customerEmail ?? "") })}</p>
           <div className="flex flex-wrap items-center justify-center gap-2">
             <Button size="sm" className="gap-1.5 bg-blue-600 hover:bg-blue-700" onClick={openNewEmail}>
               <PencilLine className="h-3.5 w-3.5" />
-              Scrivi prima email
+              {t("Scrivi prima email")}
             </Button>
             <Button variant="outline" size="sm" onClick={() => navigate(emailHref)}>
-              Cerca nel client
+              {t("Cerca nel client")}
             </Button>
           </div>
         </div>
@@ -763,19 +770,17 @@ function EmailConversationsTab({
         <div className="flex items-start gap-2">
           <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
           <div>
-            <p className="text-sm font-semibold text-blue-950">Conversazioni collegate al cliente</p>
-            <p className="text-xs text-blue-900/70">
-              Vista personale: email inviate o ricevute da {customerEmail}, con categoria AI e allegati.
-            </p>
+            <p className="text-sm font-semibold text-blue-950">{t("Conversazioni collegate al cliente")}</p>
+            <p className="text-xs text-blue-900/70">{t("Vista personale: email inviate o ricevute da {customerEmail}, con categoria AI e allegati.", { customerEmail: String(customerEmail ?? "") })}</p>
           </div>
         </div>
         <div className="flex items-center gap-1.5">
           <Button size="sm" className="gap-1.5 bg-blue-600 hover:bg-blue-700" onClick={openNewEmail}>
             <PencilLine className="h-3.5 w-3.5" />
-            Scrivi
+            {t("Scrivi")}
           </Button>
           <Button variant="outline" size="sm" className="bg-white" onClick={() => navigate(emailHref)}>
-            Apri inbox
+            {t("Apri inbox")}
           </Button>
         </div>
       </div>
@@ -808,13 +813,13 @@ function EmailConversationsTab({
                   )}
                   {highPriority && (
                     <Badge variant="outline" className="h-5 border-orange-200 bg-orange-50 px-1.5 text-[10px] text-orange-700">
-                      Priorità
+                      {t("Priorità")}
                     </Badge>
                   )}
                 </div>
-                <p className="mt-0.5 truncate text-sm text-foreground">{message.subject || "(senza oggetto)"}</p>
+                <p className="mt-0.5 truncate text-sm text-foreground">{message.subject || t("(senza oggetto)")}</p>
                 <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
-                  {message.ai_summary || message.preview || "Nessuna anteprima disponibile"}
+                  {message.ai_summary || message.preview || t("Nessuna anteprima disponibile")}
                 </p>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1 text-xs text-muted-foreground">
@@ -860,6 +865,7 @@ export function CustomerBusinessTabs({
   perCommittente = false,
   nascondiImporti = false,
 }: CustomerBusinessTabsProps) {
+  const t = useT();
   useAuth();
   const navigate = useNavigate();
   const normalizedCustomerEmail = normalizeEmailForLookup(customerEmail);
@@ -902,10 +908,10 @@ export function CustomerBusinessTabs({
 
   // Quick actions bar
   const quickActions: Array<{ label: string; href: string; icon: React.ComponentType<{ className?: string }> }> = [
-    { label: "Ordine",      href: buildCreateUrl("/azienda/ordini/nuovo", customerId, customerFullName),       icon: ClipboardList },
-    { label: "Preventivo",  href: buildCreateUrl("/azienda/marketing/preventivi/nuovo", customerId, customerFullName), icon: FileSignature },
-    { label: "Appuntamento", href: buildCreateUrl("/azienda/calendario", customerId, customerFullName),         icon: CalendarDays },
-    { label: "Ticket",      href: buildCreateUrl("/azienda/assistenza/nuovo", customerId, customerFullName),    icon: Ticket },
+    { label: t("Ordine"),      href: buildCreateUrl("/azienda/ordini/nuovo", customerId, customerFullName),       icon: ClipboardList },
+    { label: t("Preventivo"),  href: buildCreateUrl("/azienda/marketing/preventivi/nuovo", customerId, customerFullName), icon: FileSignature },
+    { label: t("Appuntamento"), href: buildCreateUrl("/azienda/calendario", customerId, customerFullName),         icon: CalendarDays },
+    { label: t("Ticket"),      href: buildCreateUrl("/azienda/assistenza/nuovo", customerId, customerFullName),    icon: Ticket },
   ];
 
   // 2026-05-27 (richiesta utente "coerente con pagina contatti"):
@@ -938,11 +944,11 @@ export function CustomerBusinessTabs({
             <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
             <span className="font-medium">
               {Object.values(dataWarnings).filter(Boolean).length === 1
-                ? "1 collegamento non caricato"
-                : `${Object.values(dataWarnings).filter(Boolean).length} collegamenti non caricati`}
+                ? t("1 collegamento non caricato")
+                : t("{n} collegamenti non caricati", { n: Object.values(dataWarnings).filter(Boolean).length })}
             </span>
-            <span className="ml-auto text-[10px] text-amber-700 group-open:hidden">Mostra dettagli</span>
-            <span className="ml-auto text-[10px] text-amber-700 hidden group-open:inline">Nascondi</span>
+            <span className="ml-auto text-[10px] text-amber-700 group-open:hidden">{t("Mostra dettagli")}</span>
+            <span className="ml-auto text-[10px] text-amber-700 hidden group-open:inline">{t("Nascondi")}</span>
           </summary>
           <div className="mt-1.5 space-y-0.5 rounded-md border border-amber-100 bg-amber-50/50 px-3 py-2 text-[11px] text-amber-900">
             {Object.entries(dataWarnings)
@@ -960,30 +966,14 @@ export function CustomerBusinessTabs({
         // Mobile: riga unica scrollabile (prima grid-cols-2 = 4 righe di tab
         // che mangiavano mezza schermata); da sm in su torna a griglia.
         <TabsList className="flex w-full gap-1 overflow-x-auto scrollbar-hide sm:grid sm:grid-cols-4 lg:grid-cols-8 h-auto mb-2 justify-start">
-          <TabsTrigger value="ordini" className="shrink-0 text-xs px-2 py-2 sm:px-1">
-            Ordini ({orders.length})
-          </TabsTrigger>
-          <TabsTrigger value="preventivi" className="shrink-0 text-xs px-2 py-2 sm:px-1">
-            Preventivi ({preventivi.length})
-          </TabsTrigger>
-          <TabsTrigger value="assistenza" className="shrink-0 text-xs px-2 py-2 sm:px-1">
-            Assistenza ({tickets.length})
-          </TabsTrigger>
-          <TabsTrigger value="interventi" className="shrink-0 text-xs px-2 py-2 sm:px-1">
-            Interventi ({rapportini.length})
-          </TabsTrigger>
-          <TabsTrigger value="documenti" className="shrink-0 text-xs px-2 py-2 sm:px-1">
-            Documenti ({fatture.length + customerDocuments.length + documentiCommesse.length})
-          </TabsTrigger>
-          <TabsTrigger value="email" className="shrink-0 text-xs px-2 py-2 sm:px-1">
-            Email ({emailConversations.length})
-          </TabsTrigger>
-          <TabsTrigger value="appuntamenti" className="shrink-0 text-xs px-2 py-2 sm:px-1">
-            Appuntamenti ({appuntamenti.length})
-          </TabsTrigger>
-          <TabsTrigger value="rate" className="shrink-0 text-xs px-2 py-2 sm:px-1">
-            Rate ({rate.length})
-          </TabsTrigger>
+          <TabsTrigger value="ordini" className="shrink-0 text-xs px-2 py-2 sm:px-1">{t("Ordini ({n})", { n: orders.length })}</TabsTrigger>
+          <TabsTrigger value="preventivi" className="shrink-0 text-xs px-2 py-2 sm:px-1">{t("Preventivi ({n})", { n: preventivi.length })}</TabsTrigger>
+          <TabsTrigger value="assistenza" className="shrink-0 text-xs px-2 py-2 sm:px-1">{t("Assistenza ({n})", { n: tickets.length })}</TabsTrigger>
+          <TabsTrigger value="interventi" className="shrink-0 text-xs px-2 py-2 sm:px-1">{t("Interventi ({n})", { n: rapportini.length })}</TabsTrigger>
+          <TabsTrigger value="documenti" className="shrink-0 text-xs px-2 py-2 sm:px-1">{t("Documenti ({n})", { n: fatture.length + customerDocuments.length + documentiCommesse.length })}</TabsTrigger>
+          <TabsTrigger value="email" className="shrink-0 text-xs px-2 py-2 sm:px-1">{t("Email ({n})", { n: emailConversations.length })}</TabsTrigger>
+          <TabsTrigger value="appuntamenti" className="shrink-0 text-xs px-2 py-2 sm:px-1">{t("Appuntamenti ({n})", { n: appuntamenti.length })}</TabsTrigger>
+          <TabsTrigger value="rate" className="shrink-0 text-xs px-2 py-2 sm:px-1">{t("Rate ({n})", { n: rate.length })}</TabsTrigger>
         </TabsList>
       )}
 

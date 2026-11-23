@@ -16,7 +16,6 @@ import { getAvatarColor } from "@/lib/contactUtils";
 import { escapeCsvCell, neutralizeXlsxCell } from "@/lib/csvExport";
 import { messaggioEsportazioneNonRiuscita, registraEsportazioneCrm } from "@/lib/export/esportazioniCrm";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -79,9 +78,11 @@ import { useColumnVisibility } from "./CustomersList/hooks/useColumnVisibility";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ConfermaQuantita, useConfermaQuantita } from "@/components/shared/ConfermaQuantita";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 /* ─── KPI Card ──────────────────────────────────────────────────── */
 /* ─── Main ──────────────────────────────────────────────────────── */
 function CustomersListInner() {
+  const t = useT();
   const isMobile = useIsMobile();
   const navigate = useNavigate();
   /**
@@ -308,8 +309,8 @@ function CustomersListInner() {
     },
     onError: (e) => {
       toast({
-        title: "Errore",
-        description: e instanceof Error ? e.message : "Impossibile assegnare il venditore",
+        title: t("Errore"),
+        description: e instanceof Error ? e.message : t("Impossibile assegnare il venditore"),
         variant: "destructive",
       });
     },
@@ -329,7 +330,7 @@ function CustomersListInner() {
     onSuccess: (count) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.customersList.all });
       toast({
-        title: "Venditore assegnato",
+        title: t("Venditore assegnato"),
         description: `${count ?? 0} clienti aggiornati.`,
       });
       setBulkAssignOpen(false);
@@ -337,8 +338,8 @@ function CustomersListInner() {
     },
     onError: (e) => {
       toast({
-        title: "Errore",
-        description: e instanceof Error ? e.message : "Assegnazione massiva fallita",
+        title: t("Errore"),
+        description: e instanceof Error ? e.message : t("Assegnazione massiva fallita"),
         variant: "destructive",
       });
     },
@@ -369,8 +370,8 @@ function CustomersListInner() {
     },
     onError: (e) => {
       toast({
-        title: "Errore",
-        description: e instanceof Error ? e.message : "Impossibile resettare la password",
+        title: t("Errore"),
+        description: e instanceof Error ? e.message : t("Impossibile resettare la password"),
         variant: "destructive",
       });
     },
@@ -380,7 +381,7 @@ function CustomersListInner() {
     if (resetPasswordDialog.newPassword) {
       await navigator.clipboard.writeText(resetPasswordDialog.newPassword);
       setResetPasswordDialog((prev) => ({ ...prev, copied: true }));
-      toast({ title: "Copiato", description: "Password copiata negli appunti" });
+      toast({ title: t("Copiato"), description: t("Password copiata negli appunti") });
     }
   };
 
@@ -406,12 +407,12 @@ function CustomersListInner() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.customersList.all });
-      toast({ title: "Cliente eliminato", description: "Il cliente è stato eliminato con successo" });
+      toast({ title: t("Cliente eliminato"), description: t("Il cliente è stato eliminato con successo") });
     },
     onError: (e) => {
       toast({
-        title: "Errore",
-        description: e instanceof Error ? e.message : "Impossibile eliminare il cliente",
+        title: t("Errore"),
+        description: e instanceof Error ? e.message : t("Impossibile eliminare il cliente"),
         variant: "destructive",
       });
     },
@@ -452,17 +453,17 @@ function CustomersListInner() {
       setBulkDeleteOpen(false);
       setSelectedIds(new Set());
       toast({
-        title: `Eliminati ${success} clienti`,
+        title: t("Eliminati {n} clienti", { n: success }),
         description: errors.length > 0
-          ? `${errors.length} errori. Alcuni clienti potrebbero avere ordini associati.`
-          : "Tutti i clienti selezionati sono stati eliminati.",
+          ? t("{n} errori. Alcuni clienti potrebbero avere ordini associati.", { n: errors.length })
+          : t("Tutti i clienti selezionati sono stati eliminati."),
         variant: errors.length > 0 ? "destructive" : "default",
       });
     },
     onError: (e) => {
       toast({
-        title: "Errore",
-        description: e instanceof Error ? e.message : "Eliminazione massiva fallita",
+        title: t("Errore"),
+        description: e instanceof Error ? e.message : t("Eliminazione massiva fallita"),
         variant: "destructive",
       });
     },
@@ -629,7 +630,7 @@ function CustomersListInner() {
       else rows = await fetchAllFiltered();
 
       if (!rows.length) {
-        toast({ title: "Nessun cliente", description: "Non ci sono clienti da esportare.", variant: "destructive" });
+        toast({ title: t("Nessun cliente"), description: t("Non ci sono clienti da esportare."), variant: "destructive" });
         return;
       }
 
@@ -660,10 +661,10 @@ function CustomersListInner() {
       else if (format === "xlsx") await downloadExcel(rows, `${base}.xlsx`);
       else await downloadPDF(rows, `${base}.pdf`);
 
-      toast({ title: "Export generato", description: `${rows.length} clienti esportati in ${format.toUpperCase()}.` });
+      toast({ title: t("Export generato"), description: t("{n} clienti esportati in {format}.", { n: rows.length, format: format.toUpperCase() }) });
     } catch (e) {
       toast({
-        title: "Errore export",
+        title: t("Errore export"),
         description: messaggioEsportazioneNonRiuscita(e),
         variant: "destructive",
       });
@@ -850,18 +851,18 @@ function CustomersListInner() {
             </div>
             <div className="min-w-0">
               <h1 className="text-lg font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">
-                {sonoCommittenti ? "Committenti" : "Clienti"}
+                {sonoCommittenti ? t("Committenti") : t("Clienti")}
               </h1>
               <p className="hidden sm:block mt-0.5 text-sm text-slate-500">
                 {sonoCommittenti
-                  ? "Le imprese che ti passano lavori in appalto: contratto, listino concordato e lavori che ti danno."
-                  : "Gestisci anagrafica, ordini, accessi al portale e import da file o AI."}
+                  ? t("Le imprese che ti passano lavori in appalto: contratto, listino concordato e lavori che ti danno.")
+                  : t("Gestisci anagrafica, ordini, accessi al portale e import da file o AI.")}
               </p>
               {moduloAppaltatori && (
                 <div className="mt-2 inline-flex rounded-lg border border-slate-200 bg-white p-0.5 text-xs font-medium shadow-sm">
                   {([
-                    { v: "privato" as const, label: "Clienti" },
-                    { v: "appaltatore" as const, label: "Committenti" },
+                    { v: "privato" as const, label: t("Clienti") },
+                    { v: "appaltatore" as const, label: t("Committenti") },
                   ]).map(({ v, label }) => (
                     <button
                       key={v}
@@ -886,19 +887,19 @@ function CustomersListInner() {
               telefono (il menu si vede da 640px). */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" aria-label="Importa ed esporta clienti" className="hidden sm:inline-flex">
+              <Button variant="outline" size="icon" aria-label={t("Importa ed esporta clienti")} className="hidden sm:inline-flex">
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuItem onClick={() => setImportOpen(true)}>
-                <Upload className="h-4 w-4 mr-2" /> Importa clienti
+                <Upload className="h-4 w-4 mr-2" /> {t("Importa clienti")}
                 <Sparkles className="ml-auto h-3.5 w-3.5 text-primary" />
               </DropdownMenuItem>
               {!isMobile && canExportClients && (
                 <>
                 <DropdownMenuSeparator />
-                <DropdownMenuLabel className="text-[11px]">Pagina corrente</DropdownMenuLabel>
+                <DropdownMenuLabel className="text-[11px]">{t("Pagina corrente")}</DropdownMenuLabel>
                 <DropdownMenuItem onClick={() => handleExport("csv", "page")}>
                   <FileText className="h-4 w-4 mr-2" /> CSV
                 </DropdownMenuItem>
@@ -909,7 +910,7 @@ function CustomersListInner() {
                   <FileText className="h-4 w-4 mr-2" /> PDF
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuLabel className="text-[11px]">Tutti i filtrati</DropdownMenuLabel>
+                <DropdownMenuLabel className="text-[11px]">{t("Tutti i filtrati")}</DropdownMenuLabel>
                 <DropdownMenuItem onClick={() => handleExport("csv", "all")}>
                   <FileText className="h-4 w-4 mr-2" /> CSV
                 </DropdownMenuItem>
@@ -922,9 +923,7 @@ function CustomersListInner() {
                 {selectedIds.size > 0 && (
                   <>
                     <DropdownMenuSeparator />
-                    <DropdownMenuLabel className="text-[11px]">
-                      Solo {selectedIds.size} selezionati
-                    </DropdownMenuLabel>
+                    <DropdownMenuLabel className="text-[11px]">{t("Solo {n} selezionati", { n: selectedIds.size })}</DropdownMenuLabel>
                     <DropdownMenuItem onClick={() => handleExport("csv", "selected")}>
                       <FileText className="h-4 w-4 mr-2" /> CSV
                     </DropdownMenuItem>
@@ -945,12 +944,12 @@ function CustomersListInner() {
               su mobile la lista è a card, quindi il bottone è inutile. */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" aria-label="Colonne" className="hidden sm:inline-flex">
+              <Button variant="outline" size="icon" aria-label={t("Colonne")} className="hidden sm:inline-flex">
                 <Columns3 className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuLabel>Colonne visibili</DropdownMenuLabel>
+              <DropdownMenuLabel>{t("Colonne visibili")}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               {ALL_COLUMNS.filter((c) => !("required" in c) || !c.required).map((c) => (
                 <DropdownMenuCheckboxItem
@@ -959,12 +958,12 @@ function CustomersListInner() {
                   onCheckedChange={() => toggle(c.key as ColumnKey)}
                   onSelect={(e) => e.preventDefault()}
                 >
-                  {c.label}
+                  {t(c.label)}
                 </DropdownMenuCheckboxItem>
               ))}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={resetColumns}>
-                Ripristina default
+                {t("Ripristina default")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -976,7 +975,7 @@ function CustomersListInner() {
             <Button asChild size="sm" variant="outline">
               <Link to="/azienda/committenti/numeri">
                 <TrendingUp className="mr-1.5 h-4 w-4" />
-                <span className="hidden sm:inline">I numeri</span>
+                <span className="hidden sm:inline">{t("I numeri")}</span>
               </Link>
             </Button>
           )}
@@ -987,15 +986,15 @@ function CustomersListInner() {
             <Button asChild size="sm" variant="brand">
               <Link to={sonoCommittenti ? "/azienda/clienti/nuovo?tipo=committente" : "/azienda/clienti/nuovo"}>
                 <Plus className="mr-1.5 h-4 w-4" />
-                <span className="sm:hidden">Nuovo</span>
-                <span className="hidden sm:inline">Nuovo Cliente</span>
+                <span className="sm:hidden">{t("Nuovo")}</span>
+                <span className="hidden sm:inline">{t("Nuovo Cliente")}</span>
               </Link>
             </Button>
           ) : (
-            <Button size="sm" variant="brand" disabled title={customerPermissions.solaLettura ? "Sei in sola lettura" : "Non hai il permesso di modifica"}>
+            <Button size="sm" variant="brand" disabled title={customerPermissions.solaLettura ? t("Sei in sola lettura") : t("Non hai il permesso di modifica")}>
               <Plus className="mr-1.5 h-4 w-4" />
-              <span className="sm:hidden">Nuovo</span>
-              <span className="hidden sm:inline">Nuovo Cliente</span>
+              <span className="sm:hidden">{t("Nuovo")}</span>
+              <span className="hidden sm:inline">{t("Nuovo Cliente")}</span>
             </Button>
           )}
           </div>
@@ -1022,23 +1021,23 @@ function CustomersListInner() {
           <div className="flex items-start gap-2 rounded-xl border border-white/12 bg-white/9 p-3 text-sm">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-orange-300" />
             <div>
-              <p className="font-semibold text-white">Dashboard non disponibile</p>
+              <p className="font-semibold text-white">{t("Dashboard non disponibile")}</p>
               <p className="mt-1 text-xs text-blue-100">
-                {statsError instanceof Error ? statsError.message : "Errore statistiche"}
+                {statsError instanceof Error ? statsError.message : t("Errore statistiche")}
               </p>
             </div>
           </div>
         ) : (
           <div className="hidden sm:grid sm:grid-cols-4 sm:gap-3">
             <NavyStatCard
-              label="Totale clienti"
+              label={t("Totale clienti")}
               value={stats?.total ?? 0}
               sub="in anagrafica"
               icon={Users}
               tone="text-blue-100"
             />
             <NavyStatCard
-              label="Nuovi questo mese"
+              label={t("Nuovi questo mese")}
               value={stats?.month_current ?? 0}
               sub={trend != null ? `${trend.positive ? "+" : ""}${trend.value}% vs mese scorso` : "vs mese scorso"}
               icon={UserPlus}
@@ -1046,14 +1045,14 @@ function CustomersListInner() {
             />
             <div className="hidden sm:contents">
               <NavyStatCard
-                label="Con ordini"
+                label={t("Con ordini")}
                 value={stats?.with_orders ?? 0}
                 sub="almeno 1 ordine"
                 icon={ShoppingBag}
                 tone="text-blue-100"
               />
               <NavyStatCard
-                label="Senza accesso al portale"
+                label={t("Senza accesso al portale")}
                 value={stats?.portal_disabled ?? 0}
                 sub="clienti con accesso disattivato"
                 icon={ShieldOff}
@@ -1075,18 +1074,18 @@ function CustomersListInner() {
           <div className="relative flex-1 min-w-0 sm:min-w-[220px]">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Cerca cliente…"
+              placeholder={t("Cerca cliente…")}
               value={searchQuery}
               onChange={(e) => wrapSet(setSearchQuery)(e.target.value)}
               className="pl-10 pr-9 h-10 sm:h-9 max-sm:h-9 max-sm:bg-white"
-              aria-label="Cerca per nome, email, telefono o codice fiscale"
+              aria-label={t("Cerca per nome, email, telefono o codice fiscale")}
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => wrapSet(setSearchQuery)("")}
                 className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-muted"
-                aria-label="Pulisci ricerca"
+                aria-label={t("Pulisci ricerca")}
               >
                 <X className="h-3.5 w-3.5 text-muted-foreground" />
               </button>
@@ -1097,11 +1096,11 @@ function CustomersListInner() {
             size="sm"
             className="tap-compact relative h-10 sm:h-9 shrink-0 max-sm:h-9 max-sm:bg-white sm:order-last"
             onClick={() => setAdvOpen(true)}
-            aria-label="Apri filtri avanzati"
-            title="Filtri avanzati"
+            aria-label={t("Apri filtri avanzati")}
+            title={t("Filtri avanzati")}
           >
             <Filter className="h-4 w-4 sm:mr-1.5" />
-            <span className="hidden sm:inline">Filtri avanzati</span>
+            <span className="hidden sm:inline">{t("Filtri avanzati")}</span>
             {activeFiltersCount > 0 && (
               <Badge className="ml-1 sm:ml-2 h-5 min-w-[20px] px-1 text-[10px] bg-primary flex items-center justify-center">
                 {activeFiltersCount}
@@ -1114,8 +1113,8 @@ function CustomersListInner() {
               size="icon"
               onClick={clearAllFilters}
               className="text-muted-foreground h-10 w-10 sm:h-9 sm:w-9 shrink-0 sm:order-last"
-              aria-label="Azzera tutti i filtri"
-              title="Azzera filtri"
+              aria-label={t("Azzera tutti i filtri")}
+              title={t("Azzera filtri")}
             >
               <X className="h-4 w-4" />
             </Button>
@@ -1129,11 +1128,11 @@ function CustomersListInner() {
           // Mobile no: una riga in più sotto la ricerca per due filtri poco usati.
           className="mt-2 hidden w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
           aria-expanded={quickFiltersOpen}
-          aria-label="Apri filtri rapidi"
+          aria-label={t("Apri filtri rapidi")}
         >
           <span className="flex items-center gap-1.5">
             <UserCheck className="h-3.5 w-3.5 text-slate-400" />
-            Filtri rapidi
+            {t("Filtri rapidi")}
             {(filterSalesperson !== "all" || filterOrders !== "all") && (
               <span className="bg-orange-500 text-white text-[10px] rounded-full w-4 h-4 inline-flex items-center justify-center font-bold">
                 {[filterSalesperson !== "all", filterOrders !== "all"].filter(Boolean).length}
@@ -1149,15 +1148,15 @@ function CustomersListInner() {
           !quickFiltersOpen && "max-sm:hidden",
         )}>
           <Select value={filterSalesperson} onValueChange={wrapSet(setFilterSalesperson)}>
-            <SelectTrigger aria-label="Filtra clienti per venditore" className="w-full h-10 sm:h-9 sm:w-[180px] min-w-0">
+            <SelectTrigger aria-label={t("Filtra clienti per venditore")} className="w-full h-10 sm:h-9 sm:w-[180px] min-w-0">
               <div className="flex items-center gap-2 min-w-0">
                 <UserCheck className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <SelectValue placeholder="Venditore" />
+                <SelectValue placeholder={t("Venditore")} />
               </div>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tutti i venditori</SelectItem>
-              <SelectItem value="none">Senza venditore</SelectItem>
+              <SelectItem value="all">{t("Tutti i venditori")}</SelectItem>
+              <SelectItem value="none">{t("Senza venditore")}</SelectItem>
               {salespeople.map((sp) => (
                 <SelectItem key={sp.id} value={sp.id}>
                   {sp.first_name} {sp.last_name}
@@ -1167,16 +1166,16 @@ function CustomersListInner() {
           </Select>
 
           <Select value={filterOrders} onValueChange={wrapSet(setFilterOrders)}>
-            <SelectTrigger aria-label="Filtra clienti per presenza di ordini" className="w-full h-10 sm:h-9 sm:w-[160px] min-w-0">
+            <SelectTrigger aria-label={t("Filtra clienti per presenza di ordini")} className="w-full h-10 sm:h-9 sm:w-[160px] min-w-0">
               <div className="flex items-center gap-2 min-w-0">
                 <ClipboardList className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <SelectValue placeholder="Ordini" />
+                <SelectValue placeholder={t("Ordini")} />
               </div>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tutti</SelectItem>
-              <SelectItem value="with">Con ordini</SelectItem>
-              <SelectItem value="without">Senza ordini</SelectItem>
+              <SelectItem value="all">{t("Tutti")}</SelectItem>
+              <SelectItem value="with">{t("Con ordini")}</SelectItem>
+              <SelectItem value="without">{t("Senza ordini")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -1185,9 +1184,9 @@ function CustomersListInner() {
       <Sheet open={advOpen} onOpenChange={setAdvOpen}>
         <SheetContent side="right" className="flex h-full w-full flex-col gap-0 p-0 sm:max-w-md">
           <SheetHeader className="border-b px-5 py-4 pr-12 text-left">
-            <SheetTitle>Filtri avanzati</SheetTitle>
+            <SheetTitle>{t("Filtri avanzati")}</SheetTitle>
             <SheetDescription>
-              Affina l'anagrafica clienti per dati di contatto, cantiere, portale e date di inserimento.
+              {t("Affina l'anagrafica clienti per dati di contatto, cantiere, portale e date di inserimento.")}
             </SheetDescription>
           </SheetHeader>
 
@@ -1195,7 +1194,7 @@ function CustomersListInner() {
             <div className="space-y-5">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold uppercase text-muted-foreground">Data dal</Label>
+                  <Label className="text-xs font-semibold uppercase text-muted-foreground">{t("Data dal")}</Label>
                   <Input
                     type="date"
                     value={filterDateFrom}
@@ -1203,7 +1202,7 @@ function CustomersListInner() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold uppercase text-muted-foreground">Data al</Label>
+                  <Label className="text-xs font-semibold uppercase text-muted-foreground">{t("Data al")}</Label>
                   <Input
                     type="date"
                     value={filterDateTo}
@@ -1213,49 +1212,49 @@ function CustomersListInner() {
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold uppercase text-muted-foreground">Telefono</Label>
+                <Label className="text-xs font-semibold uppercase text-muted-foreground">{t("Telefono")}</Label>
                 <Select value={filterHasPhone} onValueChange={wrapSet((v: string) => setFilterHasPhone(v as YesNoAll))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Tutti</SelectItem>
-                    <SelectItem value="yes">Con telefono</SelectItem>
-                    <SelectItem value="no">Senza telefono</SelectItem>
+                    <SelectItem value="all">{t("Tutti")}</SelectItem>
+                    <SelectItem value="yes">{t("Con telefono")}</SelectItem>
+                    <SelectItem value="no">{t("Senza telefono")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold uppercase text-muted-foreground">Codice Fiscale / P.IVA</Label>
+                <Label className="text-xs font-semibold uppercase text-muted-foreground">{t("Codice Fiscale / P.IVA")}</Label>
                 <Select value={filterHasFC} onValueChange={wrapSet((v: string) => setFilterHasFC(v as YesNoAll))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Tutti</SelectItem>
-                    <SelectItem value="yes">Con CF/P.IVA</SelectItem>
-                    <SelectItem value="no">Senza CF/P.IVA</SelectItem>
+                    <SelectItem value="all">{t("Tutti")}</SelectItem>
+                    <SelectItem value="yes">{t("Con CF/P.IVA")}</SelectItem>
+                    <SelectItem value="no">{t("Senza CF/P.IVA")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold uppercase text-muted-foreground">Indirizzo cantiere</Label>
+                <Label className="text-xs font-semibold uppercase text-muted-foreground">{t("Indirizzo cantiere")}</Label>
                 <Select value={filterHasSite} onValueChange={wrapSet((v: string) => setFilterHasSite(v as YesNoAll))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Tutti</SelectItem>
-                    <SelectItem value="yes">Con cantiere</SelectItem>
-                    <SelectItem value="no">Senza cantiere</SelectItem>
+                    <SelectItem value="all">{t("Tutti")}</SelectItem>
+                    <SelectItem value="yes">{t("Con cantiere")}</SelectItem>
+                    <SelectItem value="no">{t("Senza cantiere")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold uppercase text-muted-foreground">Stato portale</Label>
+                <Label className="text-xs font-semibold uppercase text-muted-foreground">{t("Stato portale")}</Label>
                 <Select value={filterPortal} onValueChange={wrapSet((v: string) => setFilterPortal(v as PortalState))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Tutti</SelectItem>
-                    <SelectItem value="active">Con accesso portale</SelectItem>
-                    <SelectItem value="disabled">Solo anagrafica</SelectItem>
+                    <SelectItem value="all">{t("Tutti")}</SelectItem>
+                    <SelectItem value="active">{t("Con accesso portale")}</SelectItem>
+                    <SelectItem value="disabled">{t("Solo anagrafica")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1268,10 +1267,10 @@ function CustomersListInner() {
               onClick={clearAllFilters}
               disabled={activeFiltersCount === 0 && !searchQuery}
             >
-              Azzera filtri
+              {t("Azzera filtri")}
             </Button>
             <Button onClick={() => setAdvOpen(false)}>
-              Applica
+              {t("Applica")}
             </Button>
           </SheetFooter>
         </SheetContent>
@@ -1285,19 +1284,13 @@ function CustomersListInner() {
             <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-sm font-semibold text-slate-900">Anomalie clienti</h2>
-                  <Badge variant="outline" className="border-red-300 bg-white text-red-700">
-                    {anomalyTotals.high} critiche
-                  </Badge>
-                  <Badge variant="outline" className="border-amber-300 bg-white text-amber-700">
-                    {anomalyTotals.medium} da gestire
-                  </Badge>
-                  <Badge variant="outline" className="border-slate-300 bg-white text-slate-700">
-                    {anomalyTotals.low} leggere
-                  </Badge>
+                  <h2 className="text-sm font-semibold text-slate-900">{t("Anomalie clienti")}</h2>
+                  <Badge variant="outline" className="border-red-300 bg-white text-red-700">{t("{n} critiche", { n: anomalyTotals.high ?? 0 })}</Badge>
+                  <Badge variant="outline" className="border-amber-300 bg-white text-amber-700">{t("{n} da gestire", { n: anomalyTotals.medium ?? 0 })}</Badge>
+                  <Badge variant="outline" className="border-slate-300 bg-white text-slate-700">{t("{n} leggere", { n: anomalyTotals.low ?? 0 })}</Badge>
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Controllo operativo sui clienti visibili: dati mancanti, portale, venditore e cantiere.
+                  {t("Controllo operativo sui clienti visibili: dati mancanti, portale, venditore e cantiere.")}
                 </p>
               </div>
 
@@ -1340,30 +1333,30 @@ function CustomersListInner() {
             <div className="flex items-center gap-2">
               <Badge className="bg-primary text-primary-foreground">{selectedIds.size}</Badge>
               <span className="text-sm font-medium">
-                {selectedIds.size === 1 ? "cliente selezionato" : "clienti selezionati"}
+                {selectedIds.size === 1 ? t("cliente selezionato") : t("clienti selezionati")}
               </span>
               <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setSelectedIds(new Set())}>
-                Deseleziona
+                {t("Deseleziona")}
               </Button>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               {canEditCustomers && (
                 <Button size="sm" variant="outline" onClick={() => setBulkAssignOpen(true)}>
                   <UserCheck className="h-4 w-4 mr-1.5" />
-                  Assegna venditore
+                  {t("Assegna venditore")}
                 </Button>
               )}
               {/* Niente export su telefono, né senza «Esporta Clienti». */}
               {!isMobile && canExportClients && (
                 <Button size="sm" variant="outline" onClick={() => handleExport("xlsx", "selected")}>
                   <Download className="h-4 w-4 mr-1.5" />
-                  Esporta Excel
+                  {t("Esporta Excel")}
                 </Button>
               )}
               {canEditCustomers && (
                 <Button size="sm" variant="destructive" onClick={() => setBulkDeleteOpen(true)}>
                   <Trash2 className="h-4 w-4 mr-1.5" />
-                  Elimina selezionati
+                  {t("Elimina selezionati")}
                 </Button>
               )}
             </div>
@@ -1376,16 +1369,16 @@ function CustomersListInner() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
-            <h3 className="text-lg font-medium">Errore nel caricamento</h3>
+            <h3 className="text-lg font-medium">{t("Errore nel caricamento")}</h3>
             <p className="text-muted-foreground text-center mt-2 max-w-md">
-              {listError instanceof Error ? listError.message : "Impossibile caricare la lista clienti."}
+              {listError instanceof Error ? listError.message : t("Impossibile caricare la lista clienti.")}
             </p>
             <Button
               variant="outline"
               className="mt-4"
               onClick={() => queryClient.invalidateQueries({ queryKey: queryKeys.customersList.all })}
             >
-              Riprova
+              {t("Riprova")}
             </Button>
           </CardContent>
         </Card>
@@ -1409,26 +1402,26 @@ function CustomersListInner() {
             <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
               <Users className="h-6 w-6 text-primary" />
             </div>
-            <h3 className="text-lg font-medium">Nessun cliente trovato</h3>
+            <h3 className="text-lg font-medium">{t("Nessun cliente trovato")}</h3>
             <p className="text-muted-foreground mt-2 max-w-md">
               {searchQuery || activeFiltersCount > 0
-                ? "Prova a modificare i filtri o i termini di ricerca."
-                : "Non hai ancora clienti in anagrafica. Creane uno o importa da file / AI."}
+                ? t("Prova a modificare i filtri o i termini di ricerca.")
+                : t("Non hai ancora clienti in anagrafica. Creane uno o importa da file / AI.")}
             </p>
             <div className="flex flex-wrap gap-2 mt-4 justify-center">
               {(searchQuery || activeFiltersCount > 0) ? (
-                <Button variant="outline" onClick={clearAllFilters}>Azzera filtri</Button>
+                <Button variant="outline" onClick={clearAllFilters}>{t("Azzera filtri")}</Button>
               ) : (
                 <>
                   <Button asChild>
                     <Link to={sonoCommittenti ? "/azienda/clienti/nuovo?tipo=committente" : "/azienda/clienti/nuovo"}>
                       <Plus className="mr-2 h-4 w-4" />
-                      Aggiungi Cliente
+                      {t("Aggiungi Cliente")}
                     </Link>
                   </Button>
                   <Button variant="outline" onClick={() => setImportOpen(true)}>
                     <Upload className="mr-2 h-4 w-4" />
-                    Importa
+                    {t("Importa")}
                   </Button>
                 </>
               )}
@@ -1462,7 +1455,7 @@ function CustomersListInner() {
                     <div className="flex-1 min-w-0">
                       <p className="truncate text-sm font-semibold leading-tight">{fullName}</p>
                       <p className={cn("truncate text-xs", cleanPhone || cleanEmail ? "text-muted-foreground" : "text-amber-700")}>
-                        {cleanPhone || cleanEmail || "Nessun contatto"}
+                        {cleanPhone || cleanEmail || t("Nessun contatto")}
                         {customer.city ? ` · ${customer.city}` : ""}
                       </p>
                     </div>
@@ -1475,13 +1468,13 @@ function CustomersListInner() {
                         title={anomalies.map((a) => a.label).join(", ")}
                       >
                         {/* In parole (collaudo 23/11/2026): «⚠ 4» da solo non diceva cosa fare. */}
-                        ⚠ {anomalies.length === 1 ? anomalies[0].label : `${anomalies.length} da sistemare`}
+                        ⚠ {anomalies.length === 1 ? anomalies[0].label : t("{n} da sistemare", { n: anomalies.length })}
                       </span>
                     )}
                     {customer.order_count > 0 && (
                       <span className="flex shrink-0 items-center gap-0.5 text-[11px] text-muted-foreground" title={`${customer.order_count} ${customer.order_count === 1 ? "commessa" : "commesse"}`}>
                         <ClipboardList className="h-3 w-3" aria-hidden="true" />
-                        <span className="sr-only">Commesse: </span>{customer.order_count}
+                        <span className="sr-only">{t("Commesse:")} </span>{customer.order_count}
                       </span>
                     )}
                   </Link>
@@ -1499,42 +1492,42 @@ function CustomersListInner() {
                   <Checkbox
                     checked={allSelectedOnPage ? true : (someSelectedOnPage ? "indeterminate" : false)}
                     onCheckedChange={togglePageSelection}
-                    aria-label="Seleziona pagina"
+                    aria-label={t("Seleziona pagina")}
                   />
                 </TableHead>
                 {visible.avatar && <TableHead className="w-10"></TableHead>}
                 {visible.name && (
                   <TableHead>
                     <button className="flex items-center gap-1 hover:text-foreground transition-colors" onClick={() => toggleSort("name")}>
-                      Nome <ArrowUpDown className="h-3.5 w-3.5" />
+                      {t("Nome")} <ArrowUpDown className="h-3.5 w-3.5" />
                     </button>
                   </TableHead>
                 )}
-                {visible.locality && <TableHead>Località</TableHead>}
-                {visible.health && <TableHead>Salute</TableHead>}
+                {visible.locality && <TableHead>{t("Località")}</TableHead>}
+                {visible.health && <TableHead>{t("Salute")}</TableHead>}
                 {visible.email && <TableHead>Email</TableHead>}
-                {visible.phone && <TableHead>Telefono</TableHead>}
-                {visible.fiscal_code && <TableHead>CF / P.IVA</TableHead>}
-                {visible.address && <TableHead>Indirizzo</TableHead>}
-                {visible.site_address && <TableHead>Cantiere</TableHead>}
-                {visible.notes && <TableHead>Note</TableHead>}
+                {visible.phone && <TableHead>{t("Telefono")}</TableHead>}
+                {visible.fiscal_code && <TableHead>{t("CF / P.IVA")}</TableHead>}
+                {visible.address && <TableHead>{t("Indirizzo")}</TableHead>}
+                {visible.site_address && <TableHead>{t("Cantiere")}</TableHead>}
+                {visible.notes && <TableHead>{t("Note")}</TableHead>}
                 {visible.created_at && (
                   <TableHead className="whitespace-nowrap">
                     <button className="flex items-center gap-1 hover:text-foreground transition-colors" onClick={() => toggleSort("created_at")}>
-                      <Calendar className="h-3.5 w-3.5" /> Data <ArrowUpDown className="h-3.5 w-3.5" />
+                      <Calendar className="h-3.5 w-3.5" /> {t("Data")} <ArrowUpDown className="h-3.5 w-3.5" />
                     </button>
                   </TableHead>
                 )}
-                {visible.salesperson && <TableHead>Venditore</TableHead>}
+                {visible.salesperson && <TableHead>{t("Venditore")}</TableHead>}
                 {visible.orders && (
                   <TableHead className="text-center">
                     <button className="flex items-center gap-1 hover:text-foreground transition-colors mx-auto" onClick={() => toggleSort("orders")}>
-                      Ordini <ArrowUpDown className="h-3.5 w-3.5" />
+                      {t("Ordini")} <ArrowUpDown className="h-3.5 w-3.5" />
                     </button>
                   </TableHead>
                 )}
-                {visible.portal && <TableHead>Portale</TableHead>}
-                <TableHead className="text-right">Azioni</TableHead>
+                {visible.portal && <TableHead>{t("Portale")}</TableHead>}
+                <TableHead className="text-right">{t("Azioni")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1559,7 +1552,7 @@ function CustomersListInner() {
                       <Checkbox
                         checked={isSelected}
                         onCheckedChange={() => toggleRow(customer.id)}
-                        aria-label={`Seleziona ${fullName}`}
+                        aria-label={t("Seleziona {nome}", { nome: fullName })}
                       />
                     </TableCell>
                     {visible.avatar && (
@@ -1578,7 +1571,7 @@ function CustomersListInner() {
                             <Link to={`${schedaBase}/${customer.id}`} onClick={e => e.stopPropagation()} title={fullName} className="truncate max-w-[220px] font-semibold hover:underline">{fullName}</Link>
                             {customer.is_business && (
                               <Badge variant="outline" className="h-4 px-1 text-[9px] border-blue-500/40 text-blue-700 dark:text-blue-400">
-                                Azienda
+                                {t("Azienda")}
                               </Badge>
                             )}
                             {customer.portal_disabled && (
@@ -1589,7 +1582,7 @@ function CustomersListInner() {
                                   </TooltipTrigger>
                                   <TooltipContent>
                                     <p className="text-xs max-w-[200px]">
-                                      Cliente solo anagrafica: nessun accesso al portale.
+                                      {t("Cliente solo anagrafica: nessun accesso al portale.")}
                                     </p>
                                   </TooltipContent>
                                 </Tooltip>
@@ -1621,7 +1614,7 @@ function CustomersListInner() {
                                         : "border-slate-300 text-slate-700"
                                   }
                                 >
-                                  {severity === "high" ? "Critico" : severity === "medium" ? "Da gestire" : "Da completare"}
+                                  {severity === "high" ? t("Critico") : severity === "medium" ? t("Da gestire") : t("Da completare")}
                                 </Badge>
                               </TooltipTrigger>
                               <TooltipContent>
@@ -1650,7 +1643,7 @@ function CustomersListInner() {
                             <span className="truncate max-w-[200px]">{cleanEmail}</span>
                           </a>
                         ) : (
-                          <span className="text-xs text-amber-700">Email non inserita</span>
+                          <span className="text-xs text-amber-700">{t("Email non inserita")}</span>
                         )}
                       </TableCell>
                     )}
@@ -1722,7 +1715,7 @@ function CustomersListInner() {
                     {visible.created_at && (
                       <TableCell className="whitespace-nowrap">
                         <span className="text-sm text-muted-foreground">
-                          {customer.created_at ? format(new Date(customer.created_at), "dd MMM yyyy", { locale: it }) : "—"}
+                          {customer.created_at ? format(new Date(customer.created_at), "dd MMM yyyy", { locale: dateFnsCampo() }) : "—"}
                         </span>
                       </TableCell>
                     )}
@@ -1737,7 +1730,7 @@ function CustomersListInner() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="none"><span className="text-muted-foreground">Nessuno</span></SelectItem>
+                            <SelectItem value="none"><span className="text-muted-foreground">{t("Nessuno")}</span></SelectItem>
                             {salespeople.map((s) => (
                               <SelectItem key={s.id} value={s.id}>{s.first_name} {s.last_name}</SelectItem>
                             ))}
@@ -1764,11 +1757,11 @@ function CustomersListInner() {
                         {customer.portal_disabled ? (
                           <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-700 dark:text-amber-400">
                             <ShieldOff className="h-3 w-3 mr-1" />
-                            No
+                            {t("No")}
                           </Badge>
                         ) : (
                           <Badge variant="outline" className="text-[10px] border-emerald-500/40 text-emerald-700 dark:text-emerald-400">
-                            Sì
+                            {t("Sì")}
                           </Badge>
                         )}
                       </TableCell>
@@ -1776,26 +1769,26 @@ function CustomersListInner() {
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="outline" size="icon" className="h-8 w-8" aria-label={`Azioni ${fullName}`}>
+                          <Button variant="outline" size="icon" className="h-8 w-8" aria-label={t("Azioni {nome}", { nome: fullName })}>
                             <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-56">
-                          <DropdownMenuLabel>Azioni cliente</DropdownMenuLabel>
+                          <DropdownMenuLabel>{t("Azioni cliente")}</DropdownMenuLabel>
                           <DropdownMenuItem onClick={() => navigate(`${schedaBase}/${customer.id}`)}>
                             <Pencil className="h-4 w-4 mr-2" />
-                            Apri scheda
+                            {t("Apri scheda")}
                           </DropdownMenuItem>
                           {cleanEmail && (
                             <DropdownMenuItem onClick={() => window.location.href = `mailto:${cleanEmail}`}>
                               <Mail className="h-4 w-4 mr-2" />
-                              Scrivi email
+                              {t("Scrivi email")}
                             </DropdownMenuItem>
                           )}
                           {cleanPhone && (
                             <DropdownMenuItem onClick={() => window.location.href = `tel:${cleanPhone}`}>
                               <Phone className="h-4 w-4 mr-2" />
-                              Chiama
+                              {t("Chiama")}
                             </DropdownMenuItem>
                           )}
                           {!customer.portal_disabled && (
@@ -1808,21 +1801,21 @@ function CustomersListInner() {
                                     disabled={resetPasswordMutation.isPending}
                                   >
                                     <KeyRound className="h-4 w-4 mr-2" />
-                                    Reset password
+                                    {t("Reset password")}
                                   </DropdownMenuItem>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
                                   <AlertDialogHeader>
-                                    <AlertDialogTitle>Reset Password</AlertDialogTitle>
+                                    <AlertDialogTitle>{t("Reset Password")}</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                      Vuoi resettare la password per {fullName}?
+                                      {t("Vuoi resettare la password per {nome}?", { nome: fullName })}
                                       <br />
-                                      <span className="text-muted-foreground">Verrà generata una nuova password da comunicare al cliente.</span>
+                                      <span className="text-muted-foreground">{t("Verrà generata una nuova password da comunicare al cliente.")}</span>
                                     </AlertDialogDescription>
                                   </AlertDialogHeader>
                                   <AlertDialogFooter>
-                                    <AlertDialogCancel>Annulla</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => resetPasswordMutation.mutate(customer.id)}>Conferma</AlertDialogAction>
+                                    <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => resetPasswordMutation.mutate(customer.id)}>{t("Conferma")}</AlertDialogAction>
                                   </AlertDialogFooter>
                                 </AlertDialogContent>
                               </AlertDialog>
@@ -1838,28 +1831,28 @@ function CustomersListInner() {
                                 className="text-destructive focus:text-destructive"
                               >
                                 <Trash2 className="h-4 w-4 mr-2" />
-                                Elimina
+                                {t("Elimina")}
                               </DropdownMenuItem>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>
-                                <AlertDialogTitle>Elimina Cliente</AlertDialogTitle>
+                                <AlertDialogTitle>{t("Elimina Cliente")}</AlertDialogTitle>
                                 <AlertDialogDescription>
                                   {customer.order_count > 0 ? (
-                                    <>Impossibile eliminare {fullName} perché ha <strong>{customer.order_count} ordini</strong> associati.</>
+                                    <>{t("Impossibile eliminare {nome} perché ha {n} ordini associati.", { nome: fullName, n: customer.order_count ?? 0 })}</>
                                   ) : (
-                                    <>Sei sicuro di voler eliminare {fullName}? Questa azione non può essere annullata.</>
+                                    <>{t("Sei sicuro di voler eliminare {nome}? Questa azione non può essere annullata.", { nome: fullName })}</>
                                   )}
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
-                                <AlertDialogCancel>Annulla</AlertDialogCancel>
+                                <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
                                 {customer.order_count === 0 && (
                                   <AlertDialogAction
                                     className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                     onClick={() => deleteCustomerMutation.mutate(customer.id)}
                                   >
-                                    Elimina
+                                    {t("Elimina")}
                                   </AlertDialogAction>
                                 )}
                               </AlertDialogFooter>
@@ -1879,14 +1872,14 @@ function CustomersListInner() {
           {/* Pagination */}
           <div className="flex items-center justify-between gap-3 px-4 py-3 border-t flex-wrap">
             <p className="text-xs sm:text-sm text-muted-foreground">
-              <span className="hidden sm:inline">Mostrando {rangeStart}–{rangeEnd} di </span>
+              <span className="hidden sm:inline">{t("Mostrando {rangeStart}–{rangeEnd} di", { rangeStart: String(rangeStart ?? ""), rangeEnd: String(rangeEnd ?? "") })}{" "}</span>
               <span className="sm:hidden">{totalCount} </span>
               <span className="hidden sm:inline">{totalCount} </span>
-              clienti
+              {t("clienti")}
             </p>
             <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
               <div className="hidden sm:flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Righe:</span>
+                <span className="text-sm text-muted-foreground">{t("Righe:")}</span>
                 <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(0); }}>
                   <SelectTrigger className="h-8 w-[80px] text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -1896,10 +1889,10 @@ function CustomersListInner() {
               </div>
               <span className="text-xs sm:text-sm text-muted-foreground">{page + 1} / {totalPages}</span>
               <div className="flex items-center gap-1">
-                <Button variant="outline" size="icon" className="h-8 w-8" disabled={page === 0} onClick={() => setPage(p => p - 1)} aria-label="Pagina precedente">
+                <Button variant="outline" size="icon" className="h-8 w-8" disabled={page === 0} onClick={() => setPage(p => p - 1)} aria-label={t("Pagina precedente")}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" size="icon" className="h-8 w-8" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} aria-label="Pagina successiva">
+                <Button variant="outline" size="icon" className="h-8 w-8" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} aria-label={t("Pagina successiva")}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
@@ -1917,32 +1910,32 @@ function CustomersListInner() {
       >
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Password Resettata</DialogTitle>
+            <DialogTitle>{t("Password Resettata")}</DialogTitle>
             <DialogDescription>
-              La password per {resetPasswordDialog.customer ? formatDisplayName(resetPasswordDialog.customer) : ""} è stata resettata con successo.
+              {t("La password per {nome} è stata resettata con successo.", { nome: resetPasswordDialog.customer ? formatDisplayName(resetPasswordDialog.customer) : "" })}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="rounded-lg border bg-muted/50 p-4">
-              <p className="text-sm text-muted-foreground mb-2">Nuova Password:</p>
+              <p className="text-sm text-muted-foreground mb-2">{t("Nuova Password:")}</p>
               <div className="flex items-center gap-2">
                 <code className="flex-1 rounded bg-background px-3 py-2 font-mono text-lg break-all">
                   {resetPasswordDialog.newPassword}
                 </code>
-                <Button variant="outline" size="icon" onClick={handleCopyPassword} aria-label="Copia password">
+                <Button variant="outline" size="icon" onClick={handleCopyPassword} aria-label={t("Copia password")}>
                   {resetPasswordDialog.copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
                 </Button>
               </div>
             </div>
             <div className="rounded-lg border border-orange-300/30 bg-orange-50/50 dark:bg-orange-900/10 p-4">
               <p className="text-sm">
-                <strong>Importante:</strong> Comunica questa password al cliente in modo sicuro.
+                <strong>{t("Importante:")}</strong> {t("Comunica questa password al cliente in modo sicuro.")}
               </p>
             </div>
           </div>
           <DialogFooter>
             <Button onClick={() => setResetPasswordDialog({ open: false, customer: null, newPassword: null, copied: false })}>
-              Ho Copiato la Password
+              {t("Ho Copiato la Password")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1952,17 +1945,16 @@ function CustomersListInner() {
       <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare {selectedIds.size} clienti?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Eliminare {n} clienti?", { n: selectedIds.size })}</AlertDialogTitle>
             <AlertDialogDescription>
-              Verranno eliminati <strong>{selectedIds.size}</strong> clienti. I clienti con ordini associati
-              saranno saltati. Questa azione non può essere annullata.
+              {t("Verranno eliminati {n} clienti. I clienti con ordini associati saranno saltati. Questa azione non può essere annullata.", { n: selectedIds.size })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {/* Sopra la soglia si scrive il numero: «seleziona tutti» più
               «Elimina» erano due clic. */}
           <ConfermaQuantita stato={confermaBulk} cosa="clienti" disabled={bulkDeleteMutation.isPending} />
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={(e) => {
@@ -1971,7 +1963,7 @@ function CustomersListInner() {
               }}
               disabled={bulkDeleteMutation.isPending || !confermaBulk.valida}
             >
-              Elimina
+              {t("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1981,17 +1973,17 @@ function CustomersListInner() {
       <Dialog open={bulkAssignOpen} onOpenChange={setBulkAssignOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Assegna venditore a {selectedIds.size} clienti</DialogTitle>
+            <DialogTitle>{t("Assegna venditore a {n} clienti", { n: selectedIds.size })}</DialogTitle>
             <DialogDescription>
-              Scegli il venditore da assegnare. Sovrascriverà eventuali assegnazioni esistenti.
+              {t("Scegli il venditore da assegnare. Sovrascriverà eventuali assegnazioni esistenti.")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label>Venditore</Label>
+            <Label>{t("Venditore")}</Label>
             <Select value={bulkAssignValue} onValueChange={setBulkAssignValue}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="none"><span className="text-muted-foreground">Rimuovi venditore</span></SelectItem>
+                <SelectItem value="none"><span className="text-muted-foreground">{t("Rimuovi venditore")}</span></SelectItem>
                 {salespeople.map((s) => (
                   <SelectItem key={s.id} value={s.id}>{s.first_name} {s.last_name}</SelectItem>
                 ))}
@@ -1999,7 +1991,7 @@ function CustomersListInner() {
             </Select>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setBulkAssignOpen(false)}>Annulla</Button>
+            <Button variant="outline" onClick={() => setBulkAssignOpen(false)}>{t("Annulla")}</Button>
             <Button
               onClick={() => bulkAssignMutation.mutate({
                 ids: Array.from(selectedIds),
@@ -2007,7 +1999,7 @@ function CustomersListInner() {
               })}
               disabled={bulkAssignMutation.isPending}
             >
-              Assegna
+              {t("Assegna")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2026,8 +2018,9 @@ function CustomersListInner() {
 }
 
 export default function CustomersList() {
+  const t = useT();
   return (
-    <ErrorBoundary title="Errore nella lista clienti">
+    <ErrorBoundary title={t("Errore nella lista clienti")}>
       <CustomersListInner />
     </ErrorBoundary>
   );

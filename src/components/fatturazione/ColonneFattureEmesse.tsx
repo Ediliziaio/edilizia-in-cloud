@@ -16,6 +16,7 @@ import { faseSdi } from "@/lib/fatturazione/sdiCassetto";
 import { etichettaModalitaPagamento } from "@/lib/fatturazione/pagamentoFatturaRicevuta";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import type { DocumentoFiscale } from "@/types/fatturazione";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export const COLONNE_EMESSE = [
   // Numero e cliente in due colonne (15/11/2026, richiesta del titolare), entrambe ferme a
@@ -67,12 +68,13 @@ export function useColonneEmesse(companyId?: string, userId?: string) {
 }
 
 export function SceltaColonneEmesse({ colonne, cambia }: ReturnType<typeof useColonneEmesse>) {
+  const t = useT();
   return <DropdownMenu>
-    <DropdownMenuTrigger asChild><Button size="sm" variant="outline" className="gap-1.5"><Columns3 className="h-4 w-4" />Colonne</Button></DropdownMenuTrigger>
+    <DropdownMenuTrigger asChild><Button size="sm" variant="outline" className="gap-1.5"><Columns3 className="h-4 w-4" />{t("Colonne")}</Button></DropdownMenuTrigger>
     <DropdownMenuContent align="end" className="max-h-[70vh] overflow-y-auto">
-      <DropdownMenuLabel>Colonne visibili</DropdownMenuLabel>
+      <DropdownMenuLabel>{t("Colonne visibili")}</DropdownMenuLabel>
       {COLONNE_EMESSE.map(c => <DropdownMenuCheckboxItem key={c.id} checked={colonne.includes(c.id)} disabled={"fissa" in c}
-        onSelect={e => e.preventDefault()} onCheckedChange={() => cambia(c.id)}>{c.label}</DropdownMenuCheckboxItem>)}
+        onSelect={e => e.preventDefault()} onCheckedChange={() => cambia(c.id)}>{t(c.label)}</DropdownMenuCheckboxItem>)}
     </DropdownMenuContent>
   </DropdownMenu>;
 }
@@ -85,61 +87,67 @@ const STICKY_CLIENTE = "sticky left-[calc(2.5rem+150px)] min-w-[200px] max-w-[28
 const FISSA: Partial<Record<ColonnaEmesse, string>> = { numero: STICKY_NUMERO, cliente: STICKY_CLIENTE };
 
 export function IntestazioniEmesse({ colonne }: { colonne: ColonnaEmesse[] }) {
+  const t = useT();
   return <>{COLONNE_EMESSE.filter(c => colonne.includes(c.id)).map(c => <TableHead key={c.id}
-    className={`whitespace-nowrap ${"cifra" in c ? "text-right" : ""} ${FISSA[c.id] ? `${FISSA[c.id]} z-20 bg-card` : ""}`}>{c.label}</TableHead>)}</>;
+    className={`whitespace-nowrap ${"cifra" in c ? "text-right" : ""} ${FISSA[c.id] ? `${FISSA[c.id]} z-20 bg-card` : ""}`}>{t(c.label)}</TableHead>)}</>;
 }
 
 export function NoteEmessa({ doc, interne=false }: { doc: DocumentoFiscale; interne?:boolean }) {
+  const t = useT();
   const nota = (interne?doc.note_interne:doc.note_documento)?.trim();
   if (!nota) return <span className="text-muted-foreground">—</span>;
   return <Popover><PopoverTrigger asChild>
-    <button type="button" onClick={e => e.stopPropagation()} aria-label={`Leggi le note${interne?" interne":""} della fattura ${doc.numero}`}
+    <button type="button" onClick={e => e.stopPropagation()} aria-label={interne ? t("Leggi le note interne della fattura {numero}", { numero: doc.numero ?? "" }) : t("Leggi le note della fattura {numero}", { numero: doc.numero ?? "" })}
       className="flex max-w-[220px] items-center gap-1.5 text-left text-xs hover:text-primary">
       <MessageSquare className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{nota}</span>
     </button>
   </PopoverTrigger><PopoverContent className="w-96 max-w-[90vw] max-h-[60vh] overflow-y-auto text-sm" onClick={e => e.stopPropagation()}>
-    <section><h3 className="mb-1 font-semibold">{interne?"Note interne · solo azienda":"Note del documento"}</h3><p className="whitespace-pre-wrap break-words">{nota}</p></section>
+    <section><h3 className="mb-1 font-semibold">{interne?t("Note interne · solo azienda"):t("Note del documento")}</h3><p className="whitespace-pre-wrap break-words">{nota}</p></section>
   </PopoverContent></Popover>;
 }
 
 function CommesseEmessa({ doc, collega }: { doc: DocumentoFiscale; collega?:()=>void }) {
+  const t = useT();
   const commesse = doc.commesse ?? [];
-  if (!commesse.length) return collega?<button type="button" onClick={e=>{e.stopPropagation();collega();}} className="text-xs text-primary hover:underline" aria-label={`Collega la fattura ${doc.numero} a una commessa`}>Collega</button>:<span className="text-muted-foreground">—</span>;
-  return <Popover><PopoverTrigger asChild><button type="button" className="flex max-w-[210px] items-center gap-1 text-xs" onClick={e => e.stopPropagation()} aria-label={`Commesse della fattura ${doc.numero}`}>
-    <Badge variant="outline" className="max-w-[175px] truncate inline-block">{commesse[0].codice || "Commessa"}</Badge>{commesse.length > 1 && <span>+{commesse.length - 1}</span>}
+  if (!commesse.length) return collega?<button type="button" onClick={e=>{e.stopPropagation();collega();}} className="text-xs text-primary hover:underline" aria-label={t("Collega la fattura {numero} a una commessa", { numero: doc.numero ?? "" })}>{t("Collega")}</button>:<span className="text-muted-foreground">—</span>;
+  return <Popover><PopoverTrigger asChild><button type="button" className="flex max-w-[210px] items-center gap-1 text-xs" onClick={e => e.stopPropagation()} aria-label={t("Commesse della fattura {numero}", { numero: doc.numero ?? "" })}>
+    <Badge variant="outline" className="max-w-[175px] truncate inline-block">{commesse[0].codice || t("Commessa")}</Badge>{commesse.length > 1 && <span>+{commesse.length - 1}</span>}
   </button></PopoverTrigger><PopoverContent onClick={e => e.stopPropagation()} className="max-h-[60vh] overflow-y-auto">
-    <p className="mb-2 text-sm font-semibold">Commesse collegate</p>
-    {commesse.map(c => <Link key={c.id} to={`/azienda/ordini/${c.id}`} className="block rounded p-2 text-sm hover:bg-muted"><strong>{c.codice || "Commessa"}</strong><span className="mt-1 block text-xs text-muted-foreground">{c.descrizione}</span></Link>)}
+    <p className="mb-2 text-sm font-semibold">{t("Commesse collegate")}</p>
+    {commesse.map(c => <Link key={c.id} to={`/azienda/ordini/${c.id}`} className="block rounded p-2 text-sm hover:bg-muted"><strong>{c.codice || t("Commessa")}</strong><span className="mt-1 block text-xs text-muted-foreground">{c.descrizione}</span></Link>)}
   </PopoverContent></Popover>;
 }
 
 function IncassoEmessa({ doc, incassa }: { doc: DocumentoFiscale; incassa?:()=>void }) {
+  const t = useT();
   if (["bozza", "annullata", "stornata"].includes(doc.stato)) return <StatoBadge stato={doc.stato} />;
   const residuo = residuoDaIncassare(doc);
-  const label = residuo <= 0 ? "Incassata" : doc.importo_pagato > 0 ? "Parz. incassata" : "Da incassare";
+  const label = residuo <= 0 ? t("Incassata") : doc.importo_pagato > 0 ? t("Parz. incassata") : t("Da incassare");
   const badge=<Badge variant="outline" className={residuo <= 0 ? "text-emerald-700 border-emerald-200 bg-emerald-50" : "text-amber-700 border-amber-200 bg-amber-50"}>{label}</Badge>;
-  return incassa&&residuo>0?<button type="button" className="rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" onClick={e=>{e.stopPropagation();incassa();}} aria-label={`Registra incasso fattura ${doc.numero}`}>{badge}</button>:badge;
+  return incassa&&residuo>0?<button type="button" className="rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" onClick={e=>{e.stopPropagation();incassa();}} aria-label={t("Registra incasso fattura {numero}", { numero: doc.numero ?? "" })}>{badge}</button>:badge;
 }
 
 function AllegatiEmessa({ doc, apri }: { doc: DocumentoFiscale; apri: () => void }) {
+  const t = useT();
   return <Popover><PopoverTrigger asChild>
-    <button type="button" className="inline-flex items-center gap-1 text-xs hover:text-primary" onClick={e => e.stopPropagation()} aria-label={`Apri gli allegati della fattura ${doc.numero}`}><Paperclip className="h-3.5 w-3.5" />{doc.elenco_allegati ?? doc.allegati?.length ?? 0}</button>
+    <button type="button" className="inline-flex items-center gap-1 text-xs hover:text-primary" onClick={e => e.stopPropagation()} aria-label={t("Apri gli allegati della fattura {numero}", { numero: doc.numero ?? "" })}><Paperclip className="h-3.5 w-3.5" />{doc.elenco_allegati ?? doc.allegati?.length ?? 0}</button>
   </PopoverTrigger><PopoverContent className="w-[520px] max-w-[90vw] max-h-[65vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
     {/* Il componente esistente si monta solo aprendo la cella: nessuna query per riga. */}
     <AllegatiFattura companyId={doc.company_id} madre={doc.origine === "importata" ? { invoiceId: doc.id } : { documentoFiscaleId: doc.id }} sola_lettura />
-    {!!doc.allegati?.length && <p className="mt-3 text-xs text-muted-foreground">Altri allegati incorporati sono disponibili nel documento.</p>}
-    <Button variant="link" size="sm" className="mt-2 px-0" onClick={apri}>Apri il dettaglio della fattura</Button>
+    {!!doc.allegati?.length && <p className="mt-3 text-xs text-muted-foreground">{t("Altri allegati incorporati sono disponibili nel documento.")}</p>}
+    <Button variant="link" size="sm" className="mt-2 px-0" onClick={apri}>{t("Apri il dettaglio della fattura")}</Button>
   </PopoverContent></Popover>;
 }
 
 export function CelleEmesse({ doc, colonne, apri, incassa, collega }: { doc: DocumentoFiscale; colonne: ColonnaEmesse[]; apri: () => void; incassa?:()=>void; collega?:()=>void }) {
+  const t = useT();
   const dataScadenza = doc.elenco_prossima_scadenza === undefined ? doc.data_scadenza : doc.elenco_prossima_scadenza ?? undefined;
   const scadenza = getScadenzaInfo({ ...doc, data_scadenza: dataScadenza });
   const cliente = nomeCliente(doc.cliente_snapshot as never) || "—";
   const credito = creditoCliente(doc);
   const valori: Record<ColonnaEmesse, React.ReactNode> = {
-    numero: <button type="button" onClick={e => { e.stopPropagation(); apri(); }} className="block w-full truncate text-left font-mono text-xs hover:underline" title={doc.numero || "Bozza senza numero"}>
-      {doc.numero || "Bozza"}
+    numero: <button type="button" onClick={e => { e.stopPropagation(); apri(); }} className="block w-full truncate text-left font-mono text-xs hover:underline" title={doc.numero || t("Bozza senza numero")}>
+      {doc.numero || t("Bozza")}
     </button>,
     cliente: <button type="button" onClick={e => { e.stopPropagation(); apri(); }} className="block w-full truncate text-left font-medium hover:underline" title={cliente}>
       {cliente}
@@ -148,16 +156,16 @@ export function CelleEmesse({ doc, colonne, apri, incassa, collega }: { doc: Doc
     imponibile: formatCurrency(doc.imponibile_totale), iva: formatCurrency(doc.iva_totale),
     totale: formatCurrency(doc.totale_documento), netto: formatCurrency(doc.totale_da_pagare),
     stato: <StatoBadge stato={doc.stato} />,
-    sdi: doc.origine === "importata" ? <Badge variant="outline" title="Esito SDI non disponibile nell'importazione. Verifica nel gestionale di origine.">Gestita esternamente</Badge> : faseSdi(doc) ? <FaseSdiBadge doc={doc} /> : "—",
+    sdi: doc.origine === "importata" ? <Badge variant="outline" title={t("Esito SDI non disponibile nell'importazione. Verifica nel gestionale di origine.")}>{t("Gestita esternamente")}</Badge> : faseSdi(doc) ? <FaseSdiBadge doc={doc} /> : "—",
     incasso: <IncassoEmessa doc={doc} incassa={incassa} />,
     incassato: formatCurrency(doc.importo_pagato),
-    residuo: credito > 0 ? <span title="Credito del cliente, da rimborsare o compensare">Credito {formatCurrency(credito)}</span> : formatCurrency(Math.max(0, residuoDaIncassare(doc))),
+    residuo: credito > 0 ? <span title={t("Credito del cliente, da rimborsare o compensare")}>{t("Credito {credito}", { credito: formatCurrency(credito) })}</span> : formatCurrency(Math.max(0, residuoDaIncassare(doc))),
     modalita: etichettaModalitaPagamento(doc.metodo_pagamento_nome || doc.metodo_pagamento_codice) || "—",
     scadenza: scadenza && dataScadenza ? <span className={scadenza.scaduta ? "text-destructive font-medium" : scadenza.urgente ? "text-amber-700" : ""}
-      title={scadenza.scaduta ? `Scaduta da ${scadenza.giorni} giorni` : `Scade fra ${scadenza.giorni} giorni`}>{formatDateShort(dataScadenza)}{scadenza.scaduta && ` · ${scadenza.giorni} gg fa`}</span> : "—",
+      title={scadenza.scaduta ? t("Scaduta da {giorni} giorni", { giorni: scadenza.giorni }) : t("Scade fra {giorni} giorni", { giorni: scadenza.giorni })}>{formatDateShort(dataScadenza)}{scadenza.scaduta && ` · ${t("{giorni} gg fa", { giorni: scadenza.giorni })}`}</span> : "—",
     commesse: <CommesseEmessa doc={doc} collega={collega} />, note: <NoteEmessa doc={doc} />, note_interne:<NoteEmessa doc={doc} interne />,
     allegati: <AllegatiEmessa doc={doc} apri={apri} />,
-    origine: doc.origine === "importata" ? (doc.external_provider || "Importata") : "Edilizia in Cloud",
+    origine: doc.origine === "importata" ? (doc.external_provider || t("Importata")) : "Edilizia in Cloud",
   };
   return <>{COLONNE_EMESSE.filter(c => colonne.includes(c.id)).map(c => <TableCell key={c.id}
     className={`whitespace-nowrap py-2 ${"cifra" in c ? "text-right tabular-nums" : ""} ${FISSA[c.id] ? `${FISSA[c.id]} z-[1] bg-card group-hover:bg-[color-mix(in_srgb,hsl(var(--muted))_50%,hsl(var(--card)))]` : ""}`}>{valori[c.id]}</TableCell>)}</>;

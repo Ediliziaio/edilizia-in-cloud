@@ -20,6 +20,7 @@ import {
 } from "@/lib/fatturazione/notaCreditoStorno";
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import type { LettoreXml } from "../../../supabase/functions/_shared/fatturapaReader";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -38,6 +39,7 @@ export interface NotaDaCollegare {
 const testoImporto = (n: number) => (Math.round(n * 100) / 100).toString().replace(".", ",");
 
 export function CollegaNotaCreditoDialog({ nota, onChiudi }: { nota: NotaDaCollegare; onChiudi: () => void }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const { data, isLoading, error } = useQuery({
     queryKey: ["nota-credito-collega", nota.id],
@@ -121,20 +123,20 @@ export function CollegaNotaCreditoDialog({ nota, onChiudi }: { nota: NotaDaColle
       });
       if (e) throw e;
       const parti: string[] = [];
-      if (r.fatture_chiuse?.length) parti.push(`Chiusa: ${r.fatture_chiuse.join(", ")}.`);
-      if (Number(r.credito_residuo) > 0) parti.push(`${formatCurrency(r.credito_residuo)} non hanno trovato rate aperte: sono un credito verso il fornitore.`);
-      if (Number(r.non_assegnato) > 0) parti.push(`${formatCurrency(r.non_assegnato)} della nota restano da assegnare.`);
-      toast.success(`Debito ridotto di ${formatCurrency(r.stornato)}`, { description: parti.join(" ") || undefined });
+      if (r.fatture_chiuse?.length) parti.push(t("Chiusa: {fatture}.", { fatture: r.fatture_chiuse.join(", ") }));
+      if (Number(r.credito_residuo) > 0) parti.push(t("{importo} non hanno trovato rate aperte: sono un credito verso il fornitore.", { importo: formatCurrency(r.credito_residuo) }));
+      if (Number(r.non_assegnato) > 0) parti.push(t("{importo} della nota restano da assegnare.", { importo: formatCurrency(r.non_assegnato) }));
+      toast.success(t("Debito ridotto di {stornato}", { stornato: formatCurrency(r.stornato) }), { description: parti.join(" ") || undefined });
       if (r.riba_avvisate?.length) {
-        toast.warning("Ridotto un addebito già avvisato o vicino alla scadenza", {
-          description: "La banca addebita l'importo pieno finché nessuno la blocca, e se la scadenza è passata può averlo già fatto: controlla, poi avvisa il fornitore o blocca la RiBa.",
+        toast.warning(t("Ridotto un addebito già avvisato o vicino alla scadenza"), {
+          description: t("La banca addebita l'importo pieno finché nessuno la blocca, e se la scadenza è passata può averlo già fatto: controlla, poi avvisa il fornitore o blocca la RiBa."),
           duration: 12_000,
         });
       }
       aggiorna();
       onChiudi();
     } catch (e) {
-      toast.error("Collegamento non salvato", { description: e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e) });
+      toast.error(t("Collegamento non salvato"), { description: e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e) });
     } finally {
       setSalvataggio(false);
     }
@@ -146,13 +148,13 @@ export function CollegaNotaCreditoDialog({ nota, onChiudi }: { nota: NotaDaColle
       const { data: r, error: e } = await db.rpc("nota_credito_scollega", { p_nota: nota.id });
       if (e) throw e;
       const restano: string[] = r.fatture_restano_contabilizzate ?? [];
-      toast.success("Collegamento tolto: costo e rate sono tornati come prima", {
-        description: restano.length ? `${restano.join(", ")} ${restano.length === 1 ? "resta contabilizzata" : "restano contabilizzate"}: ci sono pagamenti o altri documenti sopra.` : undefined,
+      toast.success(t("Collegamento tolto: costo e rate sono tornati come prima"), {
+        description: restano.length ? t(restano.length === 1 ? "{fatture} resta contabilizzata: ci sono pagamenti o altri documenti sopra." : "{fatture} restano contabilizzate: ci sono pagamenti o altri documenti sopra.", { fatture: restano.join(", ") }) : undefined,
       });
       aggiorna();
       onChiudi();
     } catch (e) {
-      toast.error("Collegamento non tolto", { description: e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e) });
+      toast.error(t("Collegamento non tolto"), { description: e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e) });
     } finally {
       setSalvataggio(false);
     }
@@ -163,41 +165,41 @@ export function CollegaNotaCreditoDialog({ nota, onChiudi }: { nota: NotaDaColle
     <Dialog open onOpenChange={(o) => { if (!o) onChiudi(); }}>
       <DialogContent ampiezza="conferma" struttura="scorrevole" className="max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Quale fattura storna?</DialogTitle>
+          <DialogTitle>{t("Quale fattura storna?")}</DialogTitle>
           <DialogDescription>
-            {nota.cedente_ragione_sociale ?? "Fornitore"} · nota n. {nota.numero_fattura ?? "—"} · <span className="font-medium text-foreground">{formatCurrency(importoNota)}</span>
+            {nota.cedente_ragione_sociale ?? t("Fornitore")} · {t("nota n. {numero}", { numero: nota.numero_fattura ?? "—" })} · <span className="font-medium text-foreground">{formatCurrency(importoNota)}</span>
           </DialogDescription>
         </DialogHeader>
 
         {isLoading ? (
           <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
         ) : error ? (
-          <p role="alert" className="rounded-md border border-destructive/30 p-3 text-sm">Non riesco a leggere le fatture di questo fornitore.</p>
+          <p role="alert" className="rounded-md border border-destructive/30 p-3 text-sm">{t("Non riesco a leggere le fatture di questo fornitore.")}</p>
         ) : (
           <div className="space-y-3">
             {!collegata && esito.proposte.length > 0 && (
               <p className="rounded-md border bg-muted/40 p-2.5 text-sm">
-                Nel file la nota cita {esito.proposte.map((p) => nomeCandidata(p.fatturaId)).join(", ")}. L’ho spuntata qui sotto: controlla e conferma.
+                {t("Nel file la nota cita {fatture}. L’ho spuntata qui sotto: controlla e conferma.", { fatture: esito.proposte.map((p) => nomeCandidata(p.fatturaId)).join(", ") })}
               </p>
             )}
             {!collegata && esito.irrisolti.map((x) => (
               <p key={x.riferimento.numero} role="status" className="rounded-md border border-amber-200 bg-amber-50 p-2.5 text-sm text-amber-900">
                 {x.motivo === "non_trovata"
-                  ? `Il file cita la fattura «${x.riferimento.numero}», ma tra quelle di questo fornitore non c’è: scegli qui sotto, se è un’altra.`
+                  ? t("Il file cita la fattura «{numero}», ma tra quelle di questo fornitore non c’è: scegli qui sotto, se è un’altra.", { numero: x.riferimento.numero ?? "" })
                   : x.motivo === "data_diversa"
-                    ? `Il file cita la fattura «${x.riferimento.numero}», ma la data non torna con quella di questo fornitore: può essere un altro anno. Scegli tu.`
-                    : `Più fatture di questo fornitore hanno il numero «${x.riferimento.numero}»: scegli tu quella giusta.`}
+                    ? t("Il file cita la fattura «{numero}», ma la data non torna con quella di questo fornitore: può essere un altro anno. Scegli tu.", { numero: x.riferimento.numero ?? "" })
+                    : t("Più fatture di questo fornitore hanno il numero «{numero}»: scegli tu quella giusta.", { numero: x.riferimento.numero ?? "" })}
               </p>
             ))}
             {!collegata && riferimenti.length === 0 && (
-              <p className="text-sm text-muted-foreground">Il documento non dice quale fattura rettifica: scegli qui sotto.</p>
+              <p className="text-sm text-muted-foreground">{t("Il documento non dice quale fattura rettifica: scegli qui sotto.")}</p>
             )}
 
             {candidate.length > 8 && (
-              <Input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder="Cerca per numero" aria-label="Cerca la fattura per numero" className="h-9" />
+              <Input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder={t("Cerca per numero")} aria-label={t("Cerca la fattura per numero")} className="h-9" />
             )}
             {candidate.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Questo fornitore non ha fatture registrate da stornare.</p>
+              <p className="text-sm text-muted-foreground">{t("Questo fornitore non ha fatture registrate da stornare.")}</p>
             ) : (
               <ul className="max-h-72 divide-y overflow-y-auto rounded-md border">
                 {elenco.map((c) => {
@@ -210,18 +212,18 @@ export function CollegaNotaCreditoDialog({ nota, onChiudi }: { nota: NotaDaColle
                         checked={scelta}
                         disabled={piena && !scelta}
                         onCheckedChange={(v) => scegli(c, v === true)}
-                        aria-label={`Storna la fattura ${c.numero_fattura ?? ""}`}
+                        aria-label={t("Storna la fattura {numero}", { numero: c.numero_fattura ?? "" })}
                       />
                       <label htmlFor={`storno-${c.id}`} className="min-w-0 flex-1 cursor-pointer">
                         <span className="font-medium">{c.numero_fattura ?? "s/n"}</span>
                         <span className="text-muted-foreground"> · {c.data_fattura ? formatDateShort(c.data_fattura) : "—"} · {formatCurrency(Math.abs(Number(c.totale_documento) || 0))}</span>
                         <span className="block text-xs text-muted-foreground">
                           {c.storico_esterno && !c.company_cost_id
-                            ? "Storico: pagata fuori dal gestionale"
+                            ? t("Storico: pagata fuori dal gestionale")
                             : !c.company_cost_id
-                              ? "Non ancora contabilizzata"
-                              : Number(c.aperto) > 0 ? `Da pagare ${formatCurrency(c.aperto)}` : "Niente da pagare"}
-                          {Number(c.stornato) > 0 ? ` · già stornati ${formatCurrency(c.stornato)}` : ""}
+                              ? t("Non ancora contabilizzata")
+                              : Number(c.aperto) > 0 ? t("Da pagare {aperto}", { aperto: formatCurrency(c.aperto) }) : t("Niente da pagare")}
+                          {Number(c.stornato) > 0 ? ` · ${t("già stornati {stornato}", { stornato: formatCurrency(c.stornato) })}` : ""}
                         </span>
                       </label>
                       {scelta && (
@@ -229,7 +231,7 @@ export function CollegaNotaCreditoDialog({ nota, onChiudi }: { nota: NotaDaColle
                           value={importi[c.id]}
                           onChange={(e) => setImporti((p) => ({ ...p, [c.id]: e.target.value }))}
                           inputMode="decimal"
-                          aria-label={`Importo da stornare sulla fattura ${c.numero_fattura ?? ""}`}
+                          aria-label={t("Importo da stornare sulla fattura {numero}", { numero: c.numero_fattura ?? "" })}
                           className="h-8 w-24 text-right tabular-nums"
                         />
                       )}
@@ -241,9 +243,9 @@ export function CollegaNotaCreditoDialog({ nota, onChiudi }: { nota: NotaDaColle
 
             {scelte.length > 0 && !problema && (
               <div className="space-y-1 text-sm text-muted-foreground">
-                {nonAssegnato > 0.01 && <p className="text-amber-700 dark:text-amber-400">{formatCurrency(nonAssegnato)} della nota restano senza fattura.</p>}
-                {daContabilizzare.length > 0 && <p>{daContabilizzare.map((c) => c.numero_fattura).join(", ")} non è ancora tra i costi: la contabilizzo insieme.</p>}
-                {soloStorico.length > 0 && <p>{soloStorico.map((c) => c.numero_fattura).join(", ")}: è storico, resta solo il collegamento senza toccare costi e rate.</p>}
+                {nonAssegnato > 0.01 && <p className="text-amber-700 dark:text-amber-400">{t("{nonAssegnato} della nota restano senza fattura.", { nonAssegnato: formatCurrency(nonAssegnato) })}</p>}
+                {daContabilizzare.length > 0 && <p>{t("{fatture} non è ancora tra i costi: la contabilizzo insieme.", { fatture: daContabilizzare.map((c) => c.numero_fattura).join(", ") })}</p>}
+                {soloStorico.length > 0 && <p>{t("{fatture}: è storico, resta solo il collegamento senza toccare costi e rate.", { fatture: soloStorico.map((c) => c.numero_fattura).join(", ") })}</p>}
               </div>
             )}
             {scelte.length > 0 && problema && <p role="alert" className="text-sm text-destructive">{problema}</p>}
@@ -252,13 +254,13 @@ export function CollegaNotaCreditoDialog({ nota, onChiudi }: { nota: NotaDaColle
 
         <DialogFooter className="gap-2 sm:justify-between">
           {collegata ? (
-            <Button variant="ghost" disabled={salvataggio} onClick={() => void togli()}>Togli il collegamento</Button>
+            <Button variant="ghost" disabled={salvataggio} onClick={() => void togli()}>{t("Togli il collegamento")}</Button>
           ) : <span />}
           <div className="flex gap-2">
-            <Button variant="outline" onClick={onChiudi}>Annulla</Button>
+            <Button variant="outline" onClick={onChiudi}>{t("Annulla")}</Button>
             <Button disabled={salvataggio || isLoading || !!problema} onClick={() => void salva()}>
               {salvataggio && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
-              {collegata ? "Salva" : "Riduci il debito"}
+              {collegata ? t("Salva") : t("Riduci il debito")}
             </Button>
           </div>
         </DialogFooter>

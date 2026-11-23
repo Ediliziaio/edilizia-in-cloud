@@ -19,6 +19,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import {
   articoliConDatiDelContratto, articoliContratto, datiPerTestiBase, unisciArticoliPersonalizzati, type DatiContrattoSubappalto,
 } from "@/lib/subappaltatori/contrattoSubappaltoHtml";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -41,6 +42,7 @@ export function CondizioniContrattoDialog({
   onClose: () => void;
   onSalvato: () => void;
 }) {
+  const t = useT();
   const qc = useQueryClient();
   const conDati = useMemo(() => articoliConDatiDelContratto(), []);
   // Testi senza le aggiunte del contratto (obblighi specifici, garanzie, note): quelle restano in coda da sole.
@@ -70,7 +72,7 @@ export function CondizioniContrattoDialog({
       return Object.keys(diff).length;
     },
     onSuccess: (n) => {
-      toast.success(n ? `Condizioni del contratto salvate (${n} ${n === 1 ? "articolo personalizzato" : "articoli personalizzati"})` : "Il contratto usa lo standard");
+      toast.success(n ? t(n === 1 ? "Condizioni del contratto salvate ({n} articolo personalizzato)" : "Condizioni del contratto salvate ({n} articoli personalizzati)", { n }) : t("Il contratto usa lo standard"));
       onSalvato(); onClose();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -87,17 +89,17 @@ export function CondizioniContrattoDialog({
         if (conDati.has(a.titolo)) { if (v && v !== norm(testoModello(a.titolo))) saltati += 1; continue; }
         if (v && v !== norm(testoBase(a.titolo))) nuovo[a.titolo] = v; else delete nuovo[a.titolo];
       }
-      if (saltati) toast.info(`${saltati} ${saltati === 1 ? "articolo con importi o date resta" : "articoli con importi o date restano"} solo in questo contratto: lo standard dell'azienda non li prende.`);
+      if (saltati) toast.info(t(saltati === 1 ? "{saltati} articolo con importi o date resta solo in questo contratto: lo standard dell'azienda non li prende." : "{saltati} articoli con importi o date restano solo in questo contratto: lo standard dell'azienda non li prende.", { saltati }));
       const { data: utente } = await supabase.auth.getUser();
       const { data, error } = await db.from("subappalto_modello_contratto")
         .upsert({ company_id: companyId, articoli: nuovo, updated_at: new Date().toISOString(), updated_by: utente.user?.id ?? null }, { onConflict: "company_id" })
         .select("company_id");
-      if (error) throw new Error("Standard non salvato: serve il permesso di modificare commesse e subappalti.");
-      if (!data?.length) throw new Error("Standard non salvato: non hai il permesso.");
+      if (error) throw new Error(t("Standard non salvato: serve il permesso di modificare commesse e subappalti."));
+      if (!data?.length) throw new Error(t("Standard non salvato: non hai il permesso."));
       return Object.keys(nuovo).length;
     },
     onSuccess: (n) => {
-      toast.success(`Standard dell'azienda salvato (${n} ${n === 1 ? "articolo diverso" : "articoli diversi"} dal testo di base). Vale per tutti i contratti che non hanno un testo proprio.`);
+      toast.success(t(n === 1 ? "Standard dell'azienda salvato ({n} articolo diverso dal testo di base). Vale per tutti i contratti che non hanno un testo proprio." : "Standard dell'azienda salvato ({n} articoli diversi dal testo di base). Vale per tutti i contratti che non hanno un testo proprio.", { n }));
       qc.invalidateQueries({ queryKey: ["subappalto-modello-contratto", companyId] });
       onSalvato(); onClose();
     },
@@ -109,11 +111,9 @@ export function CondizioniContrattoDialog({
     <Dialog open onOpenChange={(v) => { if (!v && !occupato) onClose(); }}>
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Condizioni del contratto</DialogTitle>
+          <DialogTitle>{t("Condizioni del contratto")}</DialogTitle>
           <DialogDescription>
-            Ogni articolo si può riscrivere. «Salva per questo contratto» vale solo qui; «Salva come standard dell'azienda»
-            vale per tutti i contratti che non hanno un testo proprio. Una riga vuota separa i paragrafi. Obblighi specifici,
-            garanzie e note scritti in «Modifica» si aggiungono in coda da soli.
+            {t("Ogni articolo si può riscrivere. «Salva per questo contratto» vale solo qui; «Salva come standard dell'azienda» vale per tutti i contratti che non hanno un testo proprio. Una riga vuota separa i paragrafi. Obblighi specifici, garanzie e note scritti in «Modifica» si aggiungono in coda da soli.")}
           </DialogDescription>
         </DialogHeader>
         {bloccato && <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">{bloccato}</p>}
@@ -125,16 +125,16 @@ export function CondizioniContrattoDialog({
             return (
               <div key={a.titolo} className="space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-medium">Art. {i + 1} – {a.titolo}</p>
-                  {daContratto && <Badge variant="outline" className="text-[11px]">Solo questo contratto</Badge>}
-                  {!daContratto && daModello && <Badge variant="outline" className="text-[11px]">Standard dell'azienda</Badge>}
-                  {conDati.has(a.titolo) && <span className="text-[11px] text-muted-foreground">contiene dati del contratto: si cambia solo qui</span>}
-                  {conDati.has(a.titolo) && daContratto && <span className="text-[11px] text-amber-800">testo scritto a mano: se cambiano importo o date, aggiornalo</span>}
+                  <p className="text-sm font-medium">{t("Art. {i} – {titolo}", { i: i + 1, titolo: String(a.titolo ?? "") })}</p>
+                  {daContratto && <Badge variant="outline" className="text-[11px]">{t("Solo questo contratto")}</Badge>}
+                  {!daContratto && daModello && <Badge variant="outline" className="text-[11px]">{t("Standard dell'azienda")}</Badge>}
+                  {conDati.has(a.titolo) && <span className="text-[11px] text-muted-foreground">{t("contiene dati del contratto: si cambia solo qui")}</span>}
+                  {conDati.has(a.titolo) && daContratto && <span className="text-[11px] text-amber-800">{t("testo scritto a mano: se cambiano importo o date, aggiornalo")}</span>}
                   {(daContratto || daModello) && (
                     <Button type="button" size="sm" variant="ghost" className="ml-auto h-7 gap-1 text-xs" disabled={occupato}
-                      title="Rimette il testo di base"
+                      title={t("Rimette il testo di base")}
                       onClick={() => setTesti((p) => ({ ...p, [a.titolo]: testoBase(a.titolo) }))}>
-                      <RotateCcw className="h-3 w-3" />Testo di base
+                      <RotateCcw className="h-3 w-3" />{t("Testo di base")}
                     </Button>
                   )}
                 </div>
@@ -145,12 +145,12 @@ export function CondizioniContrattoDialog({
           })}
         </div>
         <DialogFooter className="flex-wrap gap-2">
-          <Button variant="outline" disabled={occupato} onClick={onClose}>Annulla</Button>
+          <Button variant="outline" disabled={occupato} onClick={onClose}>{t("Annulla")}</Button>
           <Button variant="outline" disabled={occupato || !puoScrivere} onClick={() => salvaStandard.mutate()}>
-            {salvaStandard.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Salva come standard dell'azienda
+            {salvaStandard.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{t("Salva come standard dell'azienda")}
           </Button>
           <Button disabled={occupato || !puoScrivere || !!bloccato} onClick={() => salvaContratto.mutate()}>
-            {salvaContratto.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Salva per questo contratto
+            {salvaContratto.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{t("Salva per questo contratto")}
           </Button>
         </DialogFooter>
       </DialogContent>

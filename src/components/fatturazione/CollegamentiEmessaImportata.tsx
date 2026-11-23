@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { riconciliaEmessa } from "@/lib/fatturazione/collegamentiImportate";
 import { isNotaCredito, tutteLePagine } from "@/lib/fatturazione/registroVendite";
 import { CreateCustomerDialog } from "@/components/orders/CreateCustomerDialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface FatturaCliente {
   id: string; invoice_number: string; document_type: string | null; order_id: string | null;
@@ -17,6 +18,7 @@ interface FatturaCliente {
   client_email: string | null; client_address: string | null; client_city: string | null; client_zip: string | null; client_country: string | null;
 }
 export function CollegamentiEmessaImportata({ companyId, fattura }: { companyId: string; fattura: FatturaCliente }) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const { canEditCustomers, canEditOrders } = usePermissions();
   const puoGestire = companyId === effectiveCompany?.id && (canEditCustomers || canEditOrders);
@@ -42,38 +44,38 @@ export function CollegamentiEmessaImportata({ companyId, fattura }: { companyId:
       const result = await riconciliaEmessa(companyId, fattura.id, true, commessa);
       if (result.status !== "ok") throw new Error(result.motivo);
       await Promise.all([qc.invalidateQueries({ queryKey: ["collegamenti-emessa",companyId,fattura.id] }), qc.invalidateQueries({ queryKey: ["anagrafiche-native",companyId] }), qc.invalidateQueries({ queryKey: ["fatture-emesse-importate",companyId] }), qc.invalidateQueries({ queryKey: ["emessa-importata-dettaglio",companyId,fattura.id] })]);
-      toast.success(commessa ? "Fattura collegata alla commessa" : "Anagrafica recuperata senza duplicati");
-    } catch (e) { toast.error(e instanceof Error ? e.message : "Collegamento non riuscito: riprova."); }
+      toast.success(commessa ? t("Fattura collegata alla commessa") : t("Anagrafica recuperata senza duplicati"));
+    } catch (e) { toast.error(e instanceof Error ? e.message : t("Collegamento non riuscito: riprova.")); }
     finally { setSaving(false); }
   };
   if (!puoGestire && !commessaId) return null;
-  return <section aria-label="Cliente e lavoro collegati" className="space-y-3 rounded-lg border p-4">
-    <h2 className="font-semibold">Cliente e lavoro collegati</h2>
-    <p className="text-xs text-muted-foreground">La fattura resta in sola lettura. Recuperiamo solo anagrafiche e collegamenti; nessun nuovo incasso o invio SDI.</p>
-    {commessaId && <Button asChild variant="outline" size="sm"><Link to={`/azienda/ordini/${commessaId}`}>Apri commessa</Link></Button>}
+  return <section aria-label={t("Cliente e lavoro collegati")} className="space-y-3 rounded-lg border p-4">
+    <h2 className="font-semibold">{t("Cliente e lavoro collegati")}</h2>
+    <p className="text-xs text-muted-foreground">{t("La fattura resta in sola lettura. Recuperiamo solo anagrafiche e collegamenti; nessun nuovo incasso o invio SDI.")}</p>
+    {commessaId && <Button asChild variant="outline" size="sm"><Link to={`/azienda/ordini/${commessaId}`}>{t("Apri commessa")}</Link></Button>}
     {puoGestire && <>
-      {verifica.isPending ? <p role="status" className="text-sm">Verifica anagrafiche…</p> : verifica.isError ?
-        <p role="alert" className="text-sm text-destructive">Non riesco a verificare i collegamenti. <Button variant="link" onClick={() => void verifica.refetch()}>Riprova</Button></p> : verifica.data?.status === "da_verificare" ?
-        <p role="alert" className="text-sm text-amber-700">{verifica.data.motivo} Nessun dato viene sovrascritto.</p> : <>
+      {verifica.isPending ? <p role="status" className="text-sm">{t("Verifica anagrafiche…")}</p> : verifica.isError ?
+        <p role="alert" className="text-sm text-destructive">{t("Non riesco a verificare i collegamenti.")} <Button variant="link" onClick={() => void verifica.refetch()}>{t("Riprova")}</Button></p> : verifica.data?.status === "da_verificare" ?
+        <p role="alert" className="text-sm text-amber-700">{verifica.data.motivo} {t("Nessun dato viene sovrascritto.")}</p> : <>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" disabled={saving} onClick={() => void salva()}>Recupera dati anagrafica</Button>
-            {clienteId ? <Button asChild variant="outline" size="sm"><Link to={`/azienda/clienti/${clienteId}`}>Apri cliente</Link></Button> :
-              <Button size="sm" disabled={saving} onClick={() => setCreaCliente(true)}>Crea cliente per i lavori</Button>}
+            <Button variant="outline" size="sm" disabled={saving} onClick={() => void salva()}>{t("Recupera dati anagrafica")}</Button>
+            {clienteId ? <Button asChild variant="outline" size="sm"><Link to={`/azienda/clienti/${clienteId}`}>{t("Apri cliente")}</Link></Button> :
+              <Button size="sm" disabled={saving} onClick={() => setCreaCliente(true)}>{t("Crea cliente per i lavori")}</Button>}
           </div>
           {canEditOrders && clienteId && !commessaId && <div className="space-y-2">
-            {ordini.isPending ? <p role="status" className="text-sm">Caricamento commesse del cliente…</p> : ordini.isError ?
-              <p role="alert" className="text-sm text-destructive">Elenco commesse non disponibile. <Button variant="link" onClick={() => void ordini.refetch()}>Riprova</Button></p> : <>
+            {ordini.isPending ? <p role="status" className="text-sm">{t("Caricamento commesse del cliente…")}</p> : ordini.isError ?
+              <p role="alert" className="text-sm text-destructive">{t("Elenco commesse non disponibile.")} <Button variant="link" onClick={() => void ordini.refetch()}>{t("Riprova")}</Button></p> : <>
               {ordini.data && ordini.data.length > 0 && <div className="flex flex-wrap gap-2">
-                <UniformSelect aria-label="Commessa da collegare" className="min-w-0 max-w-full rounded-md border bg-background p-2 text-sm" value={orderId} onChange={e => setOrderId(e.target.value)}>
-                  <option value="">Scegli la commessa corretta…</option>
-                  {ordini.data.map(o => <option key={o.id} value={o.id}>{o.order_code || "Commessa"} · {o.description.slice(0,80)}{o.work_address ? ` · ${o.work_address}` : ""}</option>)}
+                <UniformSelect aria-label={t("Commessa da collegare")} className="min-w-0 max-w-full rounded-md border bg-background p-2 text-sm" value={orderId} onChange={e => setOrderId(e.target.value)}>
+                  <option value="">{t("Scegli la commessa corretta…")}</option>
+                  {ordini.data.map(o => <option key={o.id} value={o.id}>{o.order_code || t("Commessa")} · {o.description.slice(0,80)}{o.work_address ? ` · ${o.work_address}` : ""}</option>)}
                 </UniformSelect>
-                <Button variant="outline" size="sm" disabled={!orderId || saving} onClick={() => void salva(orderId)}>Collega</Button>
+                <Button variant="outline" size="sm" disabled={!orderId || saving} onClick={() => void salva(orderId)}>{t("Collega")}</Button>
               </div>}
-              {!isNotaCredito(fattura.document_type) && <Button asChild variant="outline" size="sm"><Link to={`/azienda/ordini/nuovo?customer_id=${clienteId}&invoice_id=${fattura.id}`}>Prepara nuovo lavoro</Link></Button>}
+              {!isNotaCredito(fattura.document_type) && <Button asChild variant="outline" size="sm"><Link to={`/azienda/ordini/nuovo?customer_id=${clienteId}&invoice_id=${fattura.id}`}>{t("Prepara nuovo lavoro")}</Link></Button>}
             </>}
           </div>}
-          <p className="text-xs text-muted-foreground">{isNotaCredito(fattura.document_type) ? "Una nota di credito va collegata al lavoro originale, non crea un nuovo cantiere." : "Stesso cliente non significa stesso cantiere. Conferma indirizzo lavori e valore del contratto prima di salvare una nuova commessa."}</p>
+          <p className="text-xs text-muted-foreground">{isNotaCredito(fattura.document_type) ? t("Una nota di credito va collegata al lavoro originale, non crea un nuovo cantiere.") : t("Stesso cliente non significa stesso cantiere. Conferma indirizzo lavori e valore del contratto prima di salvare una nuova commessa.")}</p>
         </>}
       {creaCliente && <CreateCustomerDialog open onOpenChange={setCreaCliente} importedInvoiceId={fattura.id} defaultCreatePortalAccount={false}
         initialValues={{ fullName: fattura.client_company_name || "", fiscalCode: fattura.client_fiscal_code || "", vatNumber: fattura.client_vat_number || "", isBusiness: !!fattura.client_vat_number,

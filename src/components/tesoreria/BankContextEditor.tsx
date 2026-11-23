@@ -16,6 +16,7 @@ import {
 } from "@/lib/finance/bankWorkspace";
 import { leggiImporto } from "@/lib/finance/reconciliationAnalysis";
 import { formatTreasuryCurrency as money } from "@/lib/treasury";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Draft = BankContext & { text: string };
 export function BankContextEditor({
@@ -35,6 +36,7 @@ export function BankContextEditor({
   canMezzi: boolean;
   onDirty: () => void;
 }) {
+  const tr = useT();
   const [rows, setRows] = useState<Draft[]>(() =>
     movement.links.contexts.map((c) => ({ ...c, text: String(c.amount) })),
   );
@@ -82,9 +84,9 @@ export function BankContextEditor({
         })),
       });
       onSaved(next);
-      toast.success("Collegamenti salvati");
+      toast.success(tr("Collegamenti salvati"));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Collegamenti non salvati");
+      toast.error(e instanceof Error ? e.message : tr("Collegamenti non salvati"));
     } finally {
       setSaving(false);
     }
@@ -92,18 +94,16 @@ export function BankContextEditor({
   return (
     <section className="space-y-4 rounded-xl border p-4">
       <div>
-        <h3 className="font-semibold">Commesse e altri riferimenti</h3>
+        <h3 className="font-semibold">{tr("Commesse e altri riferimenti")}</h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          Ripartisci le quote per commessa, mezzo, ordine d'acquisto, F24,
-          cespite o destinatario. Questi riferimenti non registrano nuovi
-          pagamenti o costi.
+          {tr("Ripartisci le quote per commessa, mezzo, ordine d'acquisto, F24, cespite o destinatario. Questi riferimenti non registrano nuovi pagamenti o costi.")}
         </p>
       </div>
       <div className="grid gap-2 sm:grid-cols-[170px_1fr]">
         <label className="text-sm">
-          Tipo
+          {tr("Tipo")}
           <UniformSelect
-            aria-label="Tipo di collegamento"
+            aria-label={tr("Tipo di collegamento")}
             className="mt-1 h-10 w-full rounded-md border bg-background px-2"
             value={kind}
             onChange={(e) => {
@@ -119,38 +119,38 @@ export function BankContextEditor({
               )
               .map(([k, l]) => (
                 <option key={k} value={k}>
-                  {l}
+                  {tr(l)}
                 </option>
               ))}
           </UniformSelect>
         </label>
         <label className="text-sm">
-          Cerca un riferimento
+          {tr("Cerca un riferimento")}
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Nome, codice commessa o ODA, mese del cedolino o dell'F24…"
+            placeholder={tr("Nome, codice commessa o ODA, mese del cedolino o dell'F24…")}
             className="mt-1"
           />
         </label>
       </div>
       {choices.isError ? (
         <p role="alert" className="text-sm text-destructive">
-          Riferimenti non disponibili.{" "}
+          {tr("Riferimenti non disponibili.")}{" "}
           <button onClick={() => void choices.refetch()} className="underline">
-            Riprova
+            {tr("Riprova")}
           </button>
         </p>
       ) : (
         <div className="max-h-40 overflow-auto rounded-md border">
           {choices.isFetching && (
             <p className="p-2 text-sm text-muted-foreground" role="status">
-              Ricerca in corso…
+              {tr("Ricerca in corso…")}
             </p>
           )}
           {!choices.isFetching && choices.data?.length === 0 && (
             <p className="p-2 text-sm text-muted-foreground">
-              Nessun riferimento disponibile con questi permessi.
+              {tr("Nessun riferimento disponibile con questi permessi.")}
             </p>
           )}
           {choices.data?.map((c) => (
@@ -182,7 +182,7 @@ export function BankContextEditor({
           ))}
           {(choices.data?.length ?? 0) >= 30 && (
             <p className="p-2 text-xs text-muted-foreground">
-              Primi 30 risultati: precisa la ricerca per trovare gli altri.
+              {tr("Primi 30 risultati: precisa la ricerca per trovare gli altri.")}
             </p>
           )}
         </div>
@@ -196,14 +196,14 @@ export function BankContextEditor({
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <p className="text-xs text-muted-foreground">
-                  {CONTEXT_LABELS[r.kind]}
+                  {tr(CONTEXT_LABELS[r.kind])}
                 </p>
                 <p className="break-words text-sm font-medium">{r.label}</p>
               </div>
               <Button
                 size="icon"
                 variant="ghost"
-                aria-label={`Rimuovi ${r.label}`}
+                aria-label={tr("Rimuovi {nome}", { nome: String(r.label ?? "") })}
                 onClick={() => {
                   onDirty();
                   setRows((rs) => rs.filter((_, n) => n !== i));
@@ -214,9 +214,9 @@ export function BankContextEditor({
             </div>
             <div className="mt-2 grid gap-2 sm:grid-cols-[150px_1fr]">
               <Label className="text-xs">
-                Quota ({movement.currency})
+                {tr("Quota ({valuta})", { valuta: movement.currency ?? "" })}
                 <Input
-                  aria-label={`Quota ${r.label}`}
+                  aria-label={tr("Quota {nome}", { nome: String(r.label ?? "") })}
                   inputMode="decimal"
                   value={r.text}
                   onChange={(e) => change(i, { text: e.target.value })}
@@ -224,9 +224,9 @@ export function BankContextEditor({
                 />
               </Label>
               <Label className="text-xs">
-                Nota sul collegamento
+                {tr("Nota sul collegamento")}
                 <Input
-                  aria-label={`Nota ${r.label}`}
+                  aria-label={tr("Nota {nome}", { nome: String(r.label ?? "") })}
                   maxLength={1000}
                   value={r.note ?? ""}
                   onChange={(e) => change(i, { note: e.target.value })}
@@ -241,19 +241,13 @@ export function BankContextEditor({
         <p
           key={k}
           className={`text-xs ${n > Math.abs(movement.amount) + 0.004 ? "text-destructive" : "text-muted-foreground"}`}
-        >
-          {CONTEXT_LABELS[k as ContextKind]}: {money(n, "—", movement.currency)}{" "}
-          su {money(Math.abs(movement.amount), "—", movement.currency)}
-        </p>
+        >{tr("{tipo}: {quota} su {totale}", { tipo: tr(CONTEXT_LABELS[k as ContextKind] ?? ""), quota: String(money(n, "—", movement.currency) ?? ""), totale: String(money(Math.abs(movement.amount), "—", movement.currency) ?? "") })}</p>
       ))}
       <p className="text-xs text-muted-foreground">
-        Le quote dello stesso tipo non possono superare il movimento. Una
-        commessa e un dipendente possono descrivere lo stesso pagamento: le
-        quote di tipi diversi non si sommano fra loro.
+        {tr("Le quote dello stesso tipo non possono superare il movimento. Una commessa e un dipendente possono descrivere lo stesso pagamento: le quote di tipi diversi non si sommano fra loro.")}
       </p>
       <Button onClick={() => void save()} disabled={saving || invalid}>
-        {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Salva
-        collegamenti
+        {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{tr("Salva collegamenti")}
       </Button>
     </section>
   );

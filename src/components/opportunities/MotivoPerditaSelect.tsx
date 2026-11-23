@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { useAddLossReason, useLossReasons } from "@/hooks/useLossReasons";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function MotivoPerditaSelect({
   value,
@@ -19,6 +20,7 @@ export function MotivoPerditaSelect({
   value: string;
   onChange: (valore: string) => void;
 }) {
+  const t = useT();
   const { motivi } = useLossReasons();
   const aggiungi = useAddLossReason();
   const [nuovoMotivo, setNuovoMotivo] = useState("");
@@ -33,20 +35,20 @@ export function MotivoPerditaSelect({
         onChange(etichetta);
         setNuovoMotivo("");
         setMostraAggiungi(false);
-        toast.success("Motivo aggiunto per tutta l'azienda");
+        toast.success(t("Motivo aggiunto per tutta l'azienda"));
       },
       onError: (e) =>
-        toast.error("Motivo non aggiunto", {
+        toast.error(t("Motivo non aggiunto"), {
           description: e instanceof Error ? e.message : String(e),
         }),
     });
 
   return (
     <div className="space-y-1">
-      <Label className="text-sm font-medium">Motivo *</Label>
+      <Label className="text-sm font-medium">{t("Motivo *")}</Label>
       <Select value={value} onValueChange={onChange}>
         <SelectTrigger className="mt-1">
-          <SelectValue placeholder="Scegli il motivo…" />
+          <SelectValue placeholder={t("Scegli il motivo…")} />
         </SelectTrigger>
         <SelectContent>
           {standard.map((m) => (
@@ -64,13 +66,13 @@ export function MotivoPerditaSelect({
           className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1 mt-1"
           onClick={() => setMostraAggiungi(true)}
         >
-          <Plus className="h-3 w-3" /> Nuovo motivo
+          <Plus className="h-3 w-3" /> {t("Nuovo motivo")}
         </button>
       ) : (
         <div className="flex gap-2 mt-1.5">
           <Input
             autoFocus
-            placeholder="Es. misure sbagliate, condominio non delibera…"
+            placeholder={t("Es. misure sbagliate, condominio non delibera…")}
             value={nuovoMotivo}
             onChange={(e) => setNuovoMotivo(e.target.value)}
             onKeyDown={(e) => {
@@ -87,7 +89,7 @@ export function MotivoPerditaSelect({
             disabled={aggiungi.isPending || !nuovoMotivo.trim()}
             onClick={conferma}
           >
-            {aggiungi.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Aggiungi"}
+            {aggiungi.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t("Aggiungi")}
           </Button>
         </div>
       )}

@@ -18,6 +18,7 @@ import { stampaPreventivoNativo } from "@/lib/fotovoltaico/htmlToPdf";
 import type { EditorState } from "@/pages/azienda/fatturazione/editor/useEditorState";
 import type { AnagraficaAzienda, DocumentoFiscale } from "@/types/fatturazione";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   documento: EditorState;
@@ -70,6 +71,7 @@ function Blocco({ nodo, livello, indice }: { nodo: NodoXml; livello: number; ind
 }
 
 export function AnteprimaXmlFattura({ documento, azienda, scale = 1, mostraStampa = false }: Props) {
+  const t = useT();
   const archiviato = !!documento.sdi_file_xml_url;
   const { data: originale, error: erroreOriginale } = useQuery({
     queryKey: ["anteprima-xml-emessa", documento.company_id, documento.id, documento.sdi_file_xml_url],
@@ -96,19 +98,17 @@ export function AnteprimaXmlFattura({ documento, azienda, scale = 1, mostraStamp
     <div className="w-full" style={scale === 1 ? undefined : { transform: `scale(${scale})`, transformOrigin: "top center" }}>
       <div className="space-y-2 p-2" data-testid="anteprima-xml">
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/40 p-2 text-xs text-muted-foreground">
-          <span>{archiviato ? "File XML archiviato" : "Anteprima del file XML per lo SDI"}{esito?.versione ? ` · ${esito.versione}` : ""}</span>
+          <span>{archiviato ? t("File XML archiviato") : t("Anteprima del file XML per lo SDI")}{esito?.versione ? ` · ${esito.versione}` : ""}</span>
           {mostraStampa && foglio && <Button variant="outline" size="sm" onClick={() => {
-            stampaPreventivoNativo(foglio.html, foglio.titolo).catch(() => toast.error("Impossibile preparare la stampa da XML."));
-          }}><Printer className="mr-1.5 h-3.5 w-3.5" />Stampa / Salva PDF da XML</Button>}
+            stampaPreventivoNativo(foglio.html, foglio.titolo).catch(() => toast.error(t("Impossibile preparare la stampa da XML.")));
+          }}><Printer className="mr-1.5 h-3.5 w-3.5" />{t("Stampa / Salva PDF da XML")}</Button>}
         </div>
-        {!esito ? <p role="status" className="p-2 text-sm text-muted-foreground">Caricamento dell’XML archiviato…</p> : esito.errore ? (
-          <p className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-[11px] text-destructive" role="alert">
-            Anteprima XML non disponibile. {esito.errore}
-          </p>
+        {!esito ? <p role="status" className="p-2 text-sm text-muted-foreground">{t("Caricamento dell’XML archiviato…")}</p> : esito.errore ? (
+          <p className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-[11px] text-destructive" role="alert">{t("Anteprima XML non disponibile.")} {esito.errore}</p>
         ) : foglio && <>
           <iframe title={foglio.titolo} srcDoc={foglio.html} sandbox="" className="h-[min(64dvh,680px)] w-full rounded-md border bg-white" />
           <details className="rounded-md border bg-card p-2">
-            <summary className="cursor-pointer text-sm font-medium">Struttura XML</summary>
+            <summary className="cursor-pointer text-sm font-medium">{t("Struttura XML")}</summary>
             <div className="mt-2 space-y-2">{esito.sezioni.map((s, i) => <Blocco key={i} nodo={s} livello={0} />)}</div>
           </details>
         </>}

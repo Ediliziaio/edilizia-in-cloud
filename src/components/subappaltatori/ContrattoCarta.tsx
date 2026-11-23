@@ -30,6 +30,7 @@ import {
   BUCKET_CONTRATTI_CARTA,
   validaScansioneContratto,
 } from "@/lib/subappaltatori/contrattoCarta";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type Copia = {
   id: string;
@@ -58,6 +59,7 @@ export function ContrattoCarta({
   onSaved: () => void;
   children?: ReactNode;
 }) {
+  const t = useT();
   const p = usePermissions();
   const lettura = puoConsultareSalSub(p);
   const scrittura =
@@ -212,24 +214,24 @@ export function ContrattoCarta({
     <>
       <section
         className="overflow-hidden rounded-xl border"
-        aria-label="Contratto e firma"
+        aria-label={t("Contratto e firma")}
       >
         <div className="flex min-w-0 items-start gap-3 border-b bg-muted/25 px-3 py-3 sm:px-4">
           <div className="rounded-lg bg-primary/10 p-2 text-primary">
             <FileCheck2 aria-hidden="true" className="size-4" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold">Contratto e firma</h3>
+            <h3 className="text-sm font-semibold">{t("Contratto e firma")}</h3>
             <p className="mt-0.5 text-xs text-muted-foreground">
               {q.isLoading
-                ? "Caricamento copie…"
+                ? t("Caricamento copie…")
                 : q.isError
-                  ? "Verifica copie non disponibile"
+                  ? t("Verifica copie non disponibile")
                   : q.data?.length
-                    ? "Copia cartacea archiviata"
+                    ? t("Copia cartacea archiviata")
                     : contratto.firmato_il
-                      ? "Firma registrata · copia cartacea non allegata"
-                      : "Apri il PDF, invia per la firma o carica la copia cartacea."}
+                      ? t("Firma registrata · copia cartacea non allegata")
+                      : t("Apri il PDF, invia per la firma o carica la copia cartacea.")}
             </p>
           </div>
         </div>
@@ -246,7 +248,7 @@ export function ContrattoCarta({
             }}
           >
             <Upload className="mr-1.5 h-4 w-4" />
-            {q.data?.length ? "Copie firmate" : "Carica firmato su carta"}
+            {q.data?.length ? t("Copie firmate") : t("Carica firmato su carta")}
           </Button>
         </div>
       </section>
@@ -262,11 +264,10 @@ export function ContrattoCarta({
         >
           <DialogHeader className="shrink-0 border-b p-4 pr-12">
             <DialogTitle>
-              {selezionata ? "Copia firmata" : "Contratto firmato su carta"}
+              {selezionata ? t("Copia firmata") : t("Contratto firmato su carta")}
             </DialogTitle>
             <DialogDescription>
-              {contratto.numero_contratto ?? "Contratto di subappalto"} · La
-              scansione resta collegata a questo contratto.
+              {contratto.numero_contratto ?? t("Contratto di subappalto")} {t("· La scansione resta collegata a questo contratto.")}
             </DialogDescription>
           </DialogHeader>
           <div className="min-h-0 flex-1 space-y-4 overflow-auto p-4">
@@ -278,7 +279,7 @@ export function ContrattoCarta({
                   onClick={() => setSelezionata(null)}
                 >
                   <ArrowLeft className="mr-1 h-4 w-4" />
-                  Torna alle copie
+                  {t("Torna alle copie")}
                 </Button>
                 <p className="break-words text-sm">
                   {selezionata.file_name} ·{" "}
@@ -291,7 +292,7 @@ export function ContrattoCarta({
                       renderBlobUrl={renderPdf}
                       depsKey={selezionata.id}
                       allowOpenInNewTab={false}
-                      headerLabel="Copia firmata"
+                      headerLabel={t("Copia firmata")}
                       downloadFileName={selezionata.file_name}
                     />
                   </div>
@@ -299,10 +300,10 @@ export function ContrattoCarta({
                   <img
                     className="mx-auto max-h-[65dvh] max-w-full object-contain"
                     src={immagine}
-                    alt={`Copia firmata: ${selezionata.file_name}`}
+                    alt={t("Copia firmata: {file_name}", { file_name: String(selezionata.file_name ?? "") })}
                   />
                 ) : (
-                  <p role="status">Caricamento immagine…</p>
+                  <p role="status">{t("Caricamento immagine…")}</p>
                 )}
               </>
             ) : (
@@ -311,7 +312,7 @@ export function ContrattoCarta({
                   <p role="alert" className="text-sm text-destructive">
                     {q.error.message}
                     <Button variant="link" onClick={() => void q.refetch()}>
-                      Riprova
+                      {t("Riprova")}
                     </Button>
                   </p>
                 )}
@@ -331,7 +332,7 @@ export function ContrattoCarta({
                         setModulo(false);
                       }}
                     >
-                      Copie archiviate
+                      {t("Copie archiviate")}
                     </Button>
                     <Button
                       size="sm"
@@ -339,7 +340,7 @@ export function ContrattoCarta({
                       disabled={!scrittura || busy}
                       onClick={() => setModulo(true)}
                     >
-                      Carica nuova copia
+                      {t("Carica nuova copia")}
                     </Button>
                   </div>
                 )}
@@ -355,25 +356,19 @@ export function ContrattoCarta({
                         <strong className="block break-words text-sm">
                           {d.file_name}
                         </strong>
-                        <small className="text-muted-foreground">
-                          Firmato il{" "}
-                          {d.firmato_il.split("-").reverse().join("/")} ·{" "}
-                          {d.firmato_da}
-                        </small>
+                        <small className="text-muted-foreground">{t("Firmato il {valore} · {firmato_da}", { valore: d.firmato_il.split("-").reverse().join("/"), firmato_da: String(d.firmato_da ?? "") })}</small>
                       </span>
-                      <span className="text-xs text-primary">Apri</span>
+                      <span className="text-xs text-primary">{t("Apri")}</span>
                     </button>
                   ))}
                 {!modulo && q.data && q.data.length > 20 && (
                   <p className="text-xs text-muted-foreground">
-                    Sono mostrate le 20 copie più recenti.
+                    {t("Sono mostrate le 20 copie più recenti.")}
                   </p>
                 )}
                 {firmaElettronica && (
                   <p className="rounded-lg border bg-muted p-3 text-sm">
-                    È presente una richiesta di firma elettronica attiva o
-                    completata. Gestiscila prima di registrare una firma
-                    cartacea.
+                    {t("È presente una richiesta di firma elettronica attiva o completata. Gestiscila prima di registrare una firma cartacea.")}
                   </p>
                 )}
                 {modulo && (
@@ -383,7 +378,7 @@ export function ContrattoCarta({
                         htmlFor={`carta-file-${contratto.id}`}
                         className="mb-2 block"
                       >
-                        Scansione del contratto firmato
+                        {t("Scansione del contratto firmato")}
                       </Label>
                       <Input
                         id={`carta-file-${contratto.id}`}
@@ -392,13 +387,12 @@ export function ContrattoCarta({
                         onChange={(e) => void scegli(e.target.files?.[0])}
                       />
                       <p className="mt-2 text-xs text-muted-foreground">
-                        PDF, JPG o PNG · fino a 20 MB. Includi tutte le pagine e
-                        le firme.
+                        {t("PDF, JPG o PNG · fino a 20 MB. Includi tutte le pagine e le firme.")}
                       </p>
                       {file && (
                         <p className="mt-2 break-words text-sm font-medium">
                           {file.name} ·{" "}
-                          {(file.size / 1024 / 1024).toLocaleString("it-IT", {
+                          {(file.size / 1024 / 1024).toLocaleString(intlCampo(), {
                             maximumFractionDigits: 2,
                           })}{" "}
                           MB
@@ -408,7 +402,7 @@ export function ContrattoCarta({
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="space-y-1">
                         <Label htmlFor="carta-data">
-                          Data della firma su carta
+                          {t("Data della firma su carta")}
                         </Label>
                         <Input
                           id="carta-data"
@@ -425,13 +419,13 @@ export function ContrattoCarta({
                       </div>
                       <div className="space-y-1">
                         <Label htmlFor="carta-firmatario">
-                          Firmatario per il subappaltatore
+                          {t("Firmatario per il subappaltatore")}
                         </Label>
                         <Input
                           id="carta-firmatario"
                           value={nome}
                           maxLength={200}
-                          placeholder="Nome e cognome"
+                          placeholder={t("Nome e cognome")}
                           onChange={(e) => {
                             cambia();
                             setNome(e.target.value);
@@ -447,14 +441,11 @@ export function ContrattoCarta({
                         onChange={(e) => setConferma(e.target.checked)}
                       />
                       <span>
-                        Ho verificato che il file sia la copia firmata di questo
-                        contratto.
+                        {t("Ho verificato che il file sia la copia firmata di questo contratto.")}
                       </span>
                     </label>
                     <p className="text-xs text-muted-foreground">
-                      Il caricamento conserva una copia della firma già raccolta
-                      su carta. Le copie precedenti non vengono sostituite e non
-                      viene avviata una firma elettronica.
+                      {t("Il caricamento conserva una copia della firma già raccolta su carta. Le copie precedenti non vengono sostituite e non viene avviata una firma elettronica.")}
                     </p>
                   </fieldset>
                 )}
@@ -471,7 +462,7 @@ export function ContrattoCarta({
           </div>
           <DialogFooter className="shrink-0 border-t p-3">
             <Button variant="outline" disabled={busy} onClick={chiudi}>
-              Chiudi
+              {t("Chiudi")}
             </Button>
             {modulo && !selezionata && (
               <Button
@@ -486,7 +477,7 @@ export function ContrattoCarta({
                 onClick={() => void registra()}
               >
                 {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {busy ? "Caricamento…" : "Archivia copia firmata"}
+                {busy ? t("Caricamento…") : t("Archivia copia firmata")}
               </Button>
             )}
           </DialogFooter>
@@ -495,14 +486,13 @@ export function ContrattoCarta({
       <AlertDialog open={uscita} onOpenChange={setUscita}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Chiudere il caricamento?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Chiudere il caricamento?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Il file selezionato non risulta ancora archiviato come copia
-              firmata. Le copie già registrate restano conservate.
+              {t("Il file selezionato non risulta ancora archiviato come copia firmata. Le copie già registrate restano conservate.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Continua caricamento</AlertDialogCancel>
+            <AlertDialogCancel>{t("Continua caricamento")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 setFile(null);
@@ -512,7 +502,7 @@ export function ContrattoCarta({
                 richiesta.current = crypto.randomUUID();
               }}
             >
-              Chiudi senza archiviare
+              {t("Chiudi senza archiviare")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

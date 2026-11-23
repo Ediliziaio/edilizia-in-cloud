@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DDTStato } from "@/hooks/useDDTRicezione";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface StatoMeta {
   label: string;
@@ -77,6 +78,7 @@ export function DDTStatusBadge({
   withIcon = true,
   className,
 }: DDTStatusBadgeProps) {
+  const t = useT();
   const meta = DDT_STATO_META[stato] ?? DDT_STATO_META.atteso;
   const Icon = meta.icon;
 
@@ -91,7 +93,7 @@ export function DDTStatusBadge({
       )}
     >
       {withIcon && <Icon className={size === "sm" ? "h-2.5 w-2.5" : "h-3 w-3"} />}
-      {meta.label}
+      {t(meta.label)}
     </Badge>
   );
 }
@@ -100,11 +102,12 @@ export function DDTStatusBadge({
  * Dot-only variant per contesti minimali (es. sidebar, liste compatte).
  */
 export function DDTStatusDot({ stato, className }: { stato: DDTStato; className?: string }) {
+  const t = useT();
   const meta = DDT_STATO_META[stato] ?? DDT_STATO_META.atteso;
   return (
     <span
       className={cn("inline-block h-2 w-2 rounded-full", meta.dotColor, className)}
-      title={meta.label}
+      title={t(meta.label)}
     />
   );
 }

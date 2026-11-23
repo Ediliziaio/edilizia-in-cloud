@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { FiscalMetric } from "@/components/fatturazione/FiscalSectionLayout";
 import { fiscalDate, fiscalReadable } from "@/lib/fatturazione/fiscalInsights";
 import { fiscalCents } from "@/lib/fatturazione/fiscalWorkspace";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 interface Props {
   calcola: () => Promise<void>;
   isCalcolando: boolean;
@@ -20,15 +21,13 @@ export function LiquidazioneIVA({
   error,
   documental,
 }: Props) {
+  const t = useT();
   const p = useFiscalPeriod();
   return (
     <div className="space-y-4 rounded-xl border bg-white p-5">
       <div>
-        <h3 className="font-semibold">Prospetto IVA preliminare</h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Periodo condiviso: {fiscalDate(p.dal)} – {fiscalDate(p.al)}. Calcolo
-          di lettura, nessuna liquidazione confermata e nessun F24 generato.
-        </p>
+        <h3 className="font-semibold">{t("Prospetto IVA preliminare")}</h3>
+        <p className="mt-1 text-sm text-muted-foreground">{t("Periodo condiviso: {dal} – {al}. Calcolo di lettura, nessuna liquidazione confermata e nessun F24 generato.", { dal: String(fiscalDate(p.dal) ?? ""), al: String(fiscalDate(p.al) ?? "") })}</p>
       </div>
       <Button
         variant="outline"
@@ -36,10 +35,10 @@ export function LiquidazioneIVA({
         onClick={() => void calcola()}
       >
         {isCalcolando
-          ? "Calcolo in corso…"
+          ? t("Calcolo in corso…")
           : r
-            ? "Ricalcola prospetto"
-            : "Calcola prospetto"}
+            ? t("Ricalcola prospetto")
+            : t("Calcola prospetto")}
       </Button>
       {error && (
         <p role="alert" className="rounded-lg bg-amber-50 p-3 text-sm">
@@ -50,30 +49,28 @@ export function LiquidazioneIVA({
         <>
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm">
             <strong>
-              Da verificare con il commercialista, non è un importo da versare.
+              {t("Da verificare con il commercialista, non è un importo da versare.")}
             </strong>
             <p className="mt-1">
-              Il server assume detraibilità piena e può collocare acquisti senza
-              ricezione alla data fattura. Crediti precedenti, indetraibilità,
-              incassi e regime fiscale devono essere verificati.
+              {t("Il server assume detraibilità piena e può collocare acquisti senza ricezione alla data fattura. Crediti precedenti, indetraibilità, incassi e regime fiscale devono essere verificati.")}
             </p>
           </div>
           {!r.calcolabile ? (
             <p role="alert">
-              {r.motivo || "Dati insufficienti per confermare un saldo."}
+              {r.motivo || t("Dati insufficienti per confermare un saldo.")}
             </p>
           ) : (
             <div className="grid gap-3 sm:grid-cols-3">
               {[
-                ["IVA vendite (calcolo server)", r.iva_vendite],
-                ["IVA acquisti (ipotesi server)", r.iva_acquisti],
-                ["Differenza aritmetica (vendite − acquisti)", r.saldo],
+                [t("IVA vendite (calcolo server)"), r.iva_vendite],
+                [t("IVA acquisti (ipotesi server)"), r.iva_acquisti],
+                [t("Differenza aritmetica (vendite − acquisti)"), r.saldo],
               ].map(([label, v]) => (
                 <FiscalMetric
                   key={String(label)}
                   label={String(label)}
                   value={
-                    v === null ? "Non disponibile" : formatCurrency(Number(v))
+                    v === null ? t("Non disponibile") : formatCurrency(Number(v))
                   }
                 />
               ))}
@@ -82,12 +79,10 @@ export function LiquidazioneIVA({
           {r.calcolabile && documental && (
             <div className="rounded-xl border p-4 text-sm">
               <h4 className="font-medium">
-                Confronto con il Registro IVA documentale
+                {t("Confronto con il Registro IVA documentale")}
               </h4>
               <p className="mt-1 text-xs text-muted-foreground">
-                Stesso periodo, criteri diversi: gli scostamenti richiedono
-                verifica di date, esclusioni e integrazioni. Non sono correzioni
-                o importi da versare.
+                {t("Stesso periodo, criteri diversi: gli scostamenti richiedono verifica di date, esclusioni e integrazioni. Non sono correzioni o importi da versare.")}
               </p>
               <dl className="mt-3 space-y-2">
                 {(["vendite", "acquisti"] as const).map((side) => {
@@ -97,19 +92,19 @@ export function LiquidazioneIVA({
                     doc = documental[side];
                   return (
                     <div key={side} className="rounded-lg bg-slate-50 p-3">
-                      <dt className="font-medium">IVA {side}</dt>
+                      <dt className="font-medium">{side === "vendite" ? t("IVA vendite") : t("IVA acquisti")}</dt>
                       <dd>
-                        Documenti:{" "}
+                        {t("Documenti:")}{" "}
                         {doc === null
-                          ? "Da verificare"
+                          ? t("Da verificare")
                           : formatCurrency(doc / 100)}{" "}
-                        · Server:{" "}
+                        · {t("Server:")}{" "}
                         {server === null
-                          ? "Da verificare"
+                          ? t("Da verificare")
                           : formatCurrency(server / 100)}{" "}
-                        · Differenza:{" "}
+                        · {t("Differenza:")}{" "}
                         {server === null || doc === null
-                          ? "Non calcolabile"
+                          ? t("Non calcolabile")
                           : formatCurrency((server - doc) / 100)}
                       </dd>
                     </div>
@@ -120,7 +115,7 @@ export function LiquidazioneIVA({
           )}
           <details className="text-sm">
             <summary className="cursor-pointer font-medium">
-              Fonti, esclusioni e ipotesi del calcolo
+              {t("Fonti, esclusioni e ipotesi del calcolo")}
             </summary>
             <ul className="my-3 list-disc space-y-1 pl-5">
               {r.ipotesi.map((s, i) => (
@@ -128,18 +123,18 @@ export function LiquidazioneIVA({
               ))}
             </ul>
             <FiscalFacts
-              title="Documenti inclusi e date mancanti"
+              title={t("Documenti inclusi e date mancanti")}
               value={r.documenti}
             />
             <FiscalFacts
-              title="Esclusioni ed esigibilità differita"
+              title={t("Esclusioni ed esigibilità differita")}
               value={{
                 escluso: r.escluso,
                 esigibilita_differita: r.esigibilita_differita,
               }}
             />
             <FiscalFacts
-              title="Dettaglio aliquote del server"
+              title={t("Dettaglio aliquote del server")}
               value={r.dettaglio_aliquote}
             />
           </details>

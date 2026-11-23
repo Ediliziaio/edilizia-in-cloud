@@ -7,6 +7,7 @@ import {
   documentiDb,
   type FileDocumento,
 } from "@/lib/ddt/documentiPersistenti";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function DDTOriginaliCard({
   ddtId,
@@ -22,6 +23,7 @@ export function DDTOriginaliCard({
    */
   incorporato?: boolean;
 }) {
+  const t = useT();
   const [pagina, setPagina] = useState(0);
   const [anteprima, setAnteprima] = useState<number | null>(null);
   const q = useQuery({
@@ -67,13 +69,13 @@ export function DDTOriginaliCard({
   if (!q.isError && !q.isLoading && !q.data?.length) return null;
   if (incorporato) {
     if (q.isLoading)
-      return <li className="px-2.5 py-2 text-xs text-muted-foreground">Apertura dell’originale…</li>;
+      return <li className="px-2.5 py-2 text-xs text-muted-foreground">{t("Apertura dell’originale…")}</li>;
     if (q.isError)
       return (
         <li role="alert" className="px-2.5 py-2 text-sm text-destructive">
-          Non riesco ad aprire l’originale.{" "}
+          {t("Non riesco ad aprire l’originale.")}{" "}
           <button className="underline" onClick={() => void q.refetch()}>
-            Riprova
+            {t("Riprova")}
           </button>
         </li>
       );
@@ -90,21 +92,21 @@ export function DDTOriginaliCard({
                 <p className="truncate text-sm font-medium" title={f.name}>{f.name}</p>
                 <p className="text-[11px] text-muted-foreground">
                   <span className="mr-1.5 rounded border border-primary/30 bg-primary/10 px-1 py-px font-medium text-primary">
-                    Bolla originale
+                    {t("Bolla originale")}
                   </span>
-                  {tutte.length > 1 ? `pagina ${i + 1} di ${tutte.length}` : null}
+                  {tutte.length > 1 ? t("pagina {i} di {n}", { i: i + 1, n: tutte.length }) : null}
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-0.5 text-xs">
                 <button
                   type="button"
                   aria-expanded={anteprima === i}
-                  aria-label={`Anteprima ${f.name}`}
+                  aria-label={t("Anteprima {name}", { name: String(f.name ?? "") })}
                   onClick={() => setAnteprima(anteprima === i ? null : i)}
                   className="inline-flex h-7 items-center gap-1 rounded px-2 hover:bg-muted"
                 >
                   <Eye className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">{anteprima === i ? "Chiudi" : "Anteprima"}</span>
+                  <span className="hidden sm:inline">{anteprima === i ? t("Chiudi") : t("Anteprima")}</span>
                 </button>
                 <a
                   className="inline-flex h-7 items-center gap-1 rounded px-2 hover:bg-muted"
@@ -113,15 +115,15 @@ export function DDTOriginaliCard({
                   rel="noreferrer"
                 >
                   <ExternalLink className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Apri</span>
-                  <span className="sr-only sm:hidden">Apri originale</span>
+                  <span className="hidden sm:inline">{t("Apri")}</span>
+                  <span className="sr-only sm:hidden">{t("Apri originale")}</span>
                 </a>
                 <a
                   className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
                   href={f.url}
                   download={f.name}
-                  title="Scarica originale"
-                  aria-label="Scarica originale"
+                  title={t("Scarica originale")}
+                  aria-label={t("Scarica originale")}
                 >
                   <Download className="h-3.5 w-3.5" />
                 </a>
@@ -142,17 +144,17 @@ export function DDTOriginaliCard({
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-base">
           <FileText className="h-4 w-4" />
-          Originale del fornitore
+          {t("Originale del fornitore")}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {q.isLoading ? (
-          <p className="text-sm text-muted-foreground">Apertura documento…</p>
+          <p className="text-sm text-muted-foreground">{t("Apertura documento…")}</p>
         ) : q.isError ? (
           <p role="alert" className="text-sm text-destructive">
-            Non riesco ad aprire l’originale.{" "}
+            {t("Non riesco ad aprire l’originale.")}{" "}
             <button className="underline" onClick={() => void q.refetch()}>
-              Riprova
+              {t("Riprova")}
             </button>
           </p>
         ) : (
@@ -161,7 +163,7 @@ export function DDTOriginaliCard({
               {(q.data?.length ?? 0) > 1 && (
                 <div
                   className="flex flex-wrap gap-2"
-                  aria-label="Pagine originali"
+                  aria-label={t("Pagine originali")}
                 >
                   {q.data!.map((f, i) => (
                     <button
@@ -170,9 +172,7 @@ export function DDTOriginaliCard({
                       aria-pressed={i === pagina}
                       className={`min-h-10 rounded-md border px-3 text-xs ${i === pagina ? "bg-primary text-primary-foreground" : "bg-background"}`}
                       onClick={() => setPagina(i)}
-                    >
-                      Pagina {i + 1}
-                    </button>
+                    >{t("Pagina {i}", { i: i + 1 })}</button>
                   ))}
                 </div>
               )}
@@ -186,7 +186,7 @@ export function DDTOriginaliCard({
                     rel="noreferrer"
                   >
                     <ExternalLink className="h-3.5 w-3.5" />
-                    Apri originale
+                    {t("Apri originale")}
                   </a>
                   <a
                     className="inline-flex min-h-10 items-center gap-1 underline"
@@ -194,7 +194,7 @@ export function DDTOriginaliCard({
                     download={file.name}
                   >
                     <Download className="h-3.5 w-3.5" />
-                    Scarica originale
+                    {t("Scarica originale")}
                   </a>
                 </div>
               </div>
@@ -212,23 +212,23 @@ function AnteprimaOriginale({
 }: {
   file: { name: string; preview: string; url: string; mimePreview: string };
 }) {
+  const t = useT();
   return (
     <>
       {file.mimePreview === "application/pdf" ? (
         <iframe
-          title={`Originale ${file.name}`}
+          title={t("Originale {name}", { name: String(file.name ?? "") })}
           src={file.preview}
           className="h-[36rem] w-full rounded-lg border bg-white"
         />
       ) : /image\/hei[cf]/.test(file.mimePreview) ? (
         <p className="rounded-lg border bg-muted/30 p-4 text-sm">
-          Foto HEIC originale conservata. Usa “Apri originale” o
-          “Scarica originale” per visualizzarla sul dispositivo.
+          {t("Foto HEIC originale conservata. Usa “Apri originale” o “Scarica originale” per visualizzarla sul dispositivo.")}
         </p>
       ) : (
         <img
           loading="lazy"
-          alt={`Originale ${file.name}`}
+          alt={t("Originale {name}", { name: String(file.name ?? "") })}
           src={file.preview}
           className="max-h-[45rem] w-full rounded-lg border bg-white object-contain"
         />

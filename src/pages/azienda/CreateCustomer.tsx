@@ -41,12 +41,14 @@ import {
 import { CampiClienteFiscale, SceltaTipoCliente } from "@/components/clients/CampiClienteFiscale";
 import { etichettaTipoCliente, problemiClienteFiscale, type ClienteFiscaleForm, type TipoClienteFiscale } from "@/lib/clienti/clienteFiscale";
 import { salvaClienteFiscale } from "@/lib/clienti/salvaClienteFiscale";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // Regex client-side (resta comunque validato server-side)
 const PHONE_CLEAN_REGEX = /[\u200B-\u200D\uFEFF]/g; // caratteri invisibili
 const PHONE_ALLOWED = /^[0-9+\-\s().]+$/;
 
 export default function CreateCustomer() {
+  const tr = useT();
   const navigate = useNavigate();
   const { effectiveCompany, user } = useAuth();
   const { toast } = useToast();
@@ -144,35 +146,35 @@ export default function CreateCustomer() {
     if (!phone.trim()) return null;
     const cleaned = phone.replace(PHONE_CLEAN_REGEX, "").trim();
     if (!PHONE_ALLOWED.test(cleaned)) {
-      return "Il telefono può contenere solo cifre, spazi, + - ( ) .";
+      return tr("Il telefono può contenere solo cifre, spazi, + - ( ) .");
     }
     const digits = cleaned.replace(/\D/g, "");
-    if (digits.length < 6) return "Numero troppo corto (minimo 6 cifre)";
-    if (digits.length > 15) return "Numero troppo lungo (massimo 15 cifre)";
+    if (digits.length < 6) return tr("Numero troppo corto (minimo 6 cifre)");
+    if (digits.length > 15) return tr("Numero troppo lungo (massimo 15 cifre)");
     return null;
-  }, [phone]);
+  }, [phone, tr]);
 
   const emailError = useMemo(() => {
     if (!email.trim()) return null;
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      return "Formato email non valido";
+      return tr("Formato email non valido");
     }
     return null;
-  }, [email]);
+  }, [email, tr]);
 
   // `italianFiscalValidation` esisteva già e non era importata da nessuna parte:
   // una P.IVA con checksum sbagliato entrava in anagrafica e usciva in fattura.
   const vatError = useMemo(() => {
     if (!vatNumber.trim()) return null;
     const esito = validatePartitaIva(vatNumber);
-    return esito.ok ? null : (esito.hint ?? "Partita IVA non valida");
-  }, [vatNumber]);
+    return esito.ok ? null : (esito.hint ?? tr("Partita IVA non valida"));
+  }, [vatNumber, tr]);
 
   const fiscalCodeError = useMemo(() => {
     if (!fiscalCode.trim()) return null;
     const esito = validateCodiceFiscale(fiscalCode);
-    return esito.ok ? null : (esito.hint ?? "Codice fiscale non valido");
-  }, [fiscalCode]);
+    return esito.ok ? null : (esito.hint ?? tr("Codice fiscale non valido"));
+  }, [fiscalCode, tr]);
 
   // Con il portale disattivato il server genera un'email tecnica unica: il
   // vincolo di unicità non impedisce più nulla e lo stesso cliente può entrare
@@ -234,42 +236,42 @@ export default function CreateCustomer() {
 
     if (isBusiness) {
       if (!businessName.trim()) {
-        toast({ title: "Campo obbligatorio", description: "Inserisci la ragione sociale.", variant: "destructive" });
+        toast({ title: tr("Campo obbligatorio"), description: tr("Inserisci la ragione sociale."), variant: "destructive" });
         return;
       }
     } else {
       if (!firstName.trim()) {
-        toast({ title: "Campo obbligatorio", description: "Inserisci il nome del cliente.", variant: "destructive" });
+        toast({ title: tr("Campo obbligatorio"), description: tr("Inserisci il nome del cliente."), variant: "destructive" });
         return;
       }
       if (!lastName.trim()) {
-        toast({ title: "Campo obbligatorio", description: "Inserisci il cognome del cliente.", variant: "destructive" });
+        toast({ title: tr("Campo obbligatorio"), description: tr("Inserisci il cognome del cliente."), variant: "destructive" });
         return;
       }
     }
     const shouldCreatePortal = companyPortalEnabled && createPortalAccount;
     if (shouldCreatePortal && !email.trim()) {
-      toast({ title: "Campo obbligatorio", description: "Inserisci l'email per creare l'accesso al portale.", variant: "destructive" });
+      toast({ title: tr("Campo obbligatorio"), description: tr("Inserisci l'email per creare l'accesso al portale."), variant: "destructive" });
       return;
     }
     if (emailError) {
-      toast({ title: "Email non valida", description: emailError, variant: "destructive" });
+      toast({ title: tr("Email non valida"), description: emailError, variant: "destructive" });
       return;
     }
     if (phoneError) {
-      toast({ title: "Telefono non valido", description: phoneError, variant: "destructive" });
+      toast({ title: tr("Telefono non valido"), description: phoneError, variant: "destructive" });
       return;
     }
     if (vatError) {
-      toast({ title: "Partita IVA non valida", description: vatError, variant: "destructive" });
+      toast({ title: tr("Partita IVA non valida"), description: vatError, variant: "destructive" });
       return;
     }
     if (fiscalCodeError) {
-      toast({ title: "Codice fiscale non valido", description: fiscalCodeError, variant: "destructive" });
+      toast({ title: tr("Codice fiscale non valido"), description: fiscalCodeError, variant: "destructive" });
       return;
     }
     if (erroreFiscaleBloccante) {
-      toast({ title: "Dati per la fattura da correggere", description: erroreFiscaleBloccante, variant: "destructive" });
+      toast({ title: tr("Dati per la fattura da correggere"), description: erroreFiscaleBloccante, variant: "destructive" });
       return;
     }
     if (simili.length > 0 && !confermaValida) {
@@ -277,14 +279,14 @@ export default function CreateCustomer() {
       setDuplicatiAccettati(true);
       setFirmaConfermata(firmaSimili);
       toast({
-        title: simili.length === 1 ? "Sembra un cliente già in anagrafica" : "Sembrano clienti già in anagrafica",
-        description: "Controlla l'avviso qui sopra. Premi di nuovo \"Crea cliente\" per inserirlo comunque.",
+        title: simili.length === 1 ? tr("Sembra un cliente già in anagrafica") : tr("Sembrano clienti già in anagrafica"),
+        description: tr("Controlla l'avviso qui sopra. Premi di nuovo \"Crea cliente\" per inserirlo comunque."),
         variant: "destructive",
       });
       return;
     }
     if (!effectiveCompany?.id) {
-      toast({ title: "Errore", description: "Azienda non trovata.", variant: "destructive" });
+      toast({ title: tr("Errore"), description: tr("Azienda non trovata."), variant: "destructive" });
       return;
     }
 
@@ -341,7 +343,7 @@ export default function CreateCustomer() {
         } catch (fiscErr) {
           logger.error("Anagrafica fiscale non creata:", fiscErr);
           toast({
-            title: "Cliente creato, dati per la fattura non salvati",
+            title: tr("Cliente creato, dati per la fattura non salvati"),
             description: `${fiscErr instanceof Error ? fiscErr.message : String(fiscErr)}. Completali dalla scheda cliente.`,
             variant: "destructive",
           });
@@ -350,22 +352,22 @@ export default function CreateCustomer() {
       if (selectedDocumentCount > 0) {
         if (!newCustomerId) {
           toast({
-            title: "Cliente creato, documenti non caricati",
-            description: "Il server non ha restituito l'ID cliente. Carica i documenti dalla scheda cliente.",
+            title: tr("Cliente creato, documenti non caricati"),
+            description: tr("Il server non ha restituito l'ID cliente. Carica i documenti dalla scheda cliente."),
             variant: "destructive",
           });
         } else {
           try {
             await uploadCustomerDocuments(newCustomerId);
             toast({
-              title: "Documenti cliente caricati",
-              description: `${selectedDocumentCount} file salvati sul cliente: li trovi anche nei documenti delle sue commesse.`,
+              title: tr("Documenti cliente caricati"),
+              description: tr("{n} file salvati sul cliente: li trovi anche nei documenti delle sue commesse.", { n: selectedDocumentCount }),
             });
           } catch (uploadError) {
             logger.error("Customer documents upload error:", uploadError);
             toast({
-              title: "Cliente creato, documenti non caricati",
-              description: uploadError instanceof Error ? uploadError.message : "Carica i documenti dalla scheda cliente.",
+              title: tr("Cliente creato, documenti non caricati"),
+              description: uploadError instanceof Error ? uploadError.message : tr("Carica i documenti dalla scheda cliente."),
               variant: "destructive",
             });
           }
@@ -380,8 +382,8 @@ export default function CreateCustomer() {
     } catch (e) {
       logger.error("Create customer error:", e);
       toast({
-        title: "Errore",
-        description: e instanceof Error ? e.message : "Si è verificato un errore durante la creazione del cliente.",
+        title: tr("Errore"),
+        description: e instanceof Error ? e.message : tr("Si è verificato un errore durante la creazione del cliente."),
         variant: "destructive",
       });
     } finally {
@@ -397,7 +399,7 @@ export default function CreateCustomer() {
       setPasswordCopied(true);
       setTimeout(() => setPasswordCopied(false), 2000);
     } catch {
-      toast({ title: "Errore", description: "Impossibile copiare la password.", variant: "destructive" });
+      toast({ title: tr("Errore"), description: tr("Impossibile copiare la password."), variant: "destructive" });
     }
   };
 
@@ -416,7 +418,7 @@ export default function CreateCustomer() {
           className="hidden md:inline-flex shrink-0"
           disabled={isSubmitting || showSuccessDialog}
           onClick={() => { if (!pendingRef.current && !createdRef.current) navigate(-1); }}
-          aria-label="Torna indietro"
+          aria-label={tr("Torna indietro")}
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
@@ -424,15 +426,15 @@ export default function CreateCustomer() {
           <UserPlus className="h-5 w-5 text-primary" />
         </div>
         <div className="min-w-0">
-          <h1 className="text-xl font-bold leading-tight sm:text-2xl">Nuovo Cliente</h1>
+          <h1 className="text-xl font-bold leading-tight sm:text-2xl">{tr("Nuovo Cliente")}</h1>
           <p className="hidden text-sm text-muted-foreground sm:block">
-            Crea un nuovo cliente in anagrafica. L'accesso al portale privato è opzionale.
+            {tr("Crea un nuovo cliente in anagrafica. L'accesso al portale privato è opzionale.")}
           </p>
         </div>
       </div>
 
       {permissions.solaLettura && (
-        <Alert><AlertDescription>La modalità sola lettura non consente di creare clienti.</AlertDescription></Alert>
+        <Alert><AlertDescription>{tr("La modalità sola lettura non consente di creare clienti.")}</AlertDescription></Alert>
       )}
       <form onSubmit={handleSubmit}>
         <fieldset disabled={isSubmitting || showSuccessDialog} className="min-w-0 grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -443,18 +445,18 @@ export default function CreateCustomer() {
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
                   <FileText className="h-4 w-4 text-primary" />
-                  Dati anagrafici
+                  {tr("Dati anagrafici")}
                 </CardTitle>
-                <CardDescription className="hidden sm:block">Informazioni di contatto del cliente</CardDescription>
+                <CardDescription className="hidden sm:block">{tr("Informazioni di contatto del cliente")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* Categoria cliente — visibile solo se Modulo Appaltatori attivo */}
                 {appaltatoreEnabled && (
                   <div className="space-y-1.5">
                     <Label className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-2">
-                      Cliente o committente
+                      {tr("Cliente o committente")}
                       <Badge variant="outline" className="text-[9px] uppercase tracking-wider">
-                        Modulo Appaltatori
+                        {tr("Modulo Appaltatori")}
                       </Badge>
                     </Label>
                     <Tabs
@@ -464,18 +466,18 @@ export default function CreateCustomer() {
                       <TabsList className="grid grid-cols-2 w-full">
                         <TabsTrigger value="privato">
                           <UserIcon className="h-3.5 w-3.5 mr-1.5" />
-                          Cliente
+                          {tr("Cliente")}
                         </TabsTrigger>
                         <TabsTrigger value="appaltatore">
                           <HardHat className="h-3.5 w-3.5 mr-1.5" />
-                          Committente
+                          {tr("Committente")}
                         </TabsTrigger>
                       </TabsList>
                     </Tabs>
                     <p className="text-[11px] text-muted-foreground">
                       {isAppaltatore
-                        ? "Impresa che ti passa lavori in appalto: ha un contratto e un listino suoi. Solo dati aziendali."
-                        : "Cliente finale per fornitura+posa (default, comportamento standard)."}
+                        ? tr("Impresa che ti passa lavori in appalto: ha un contratto e un listino suoi. Solo dati aziendali.")
+                        : tr("Cliente finale per fornitura+posa (default, comportamento standard).")}
                     </p>
                   </div>
                 )}
@@ -483,11 +485,11 @@ export default function CreateCustomer() {
                 {/* Tipo cliente Privato / Azienda / PA — nascosto se Appaltatore (forzato a azienda) */}
                 {!isAppaltatore && (
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground uppercase tracking-wide">Tipo cliente</Label>
+                    <Label className="text-xs text-muted-foreground uppercase tracking-wide">{tr("Tipo cliente")}</Label>
                     <SceltaTipoCliente value={tipoFiscale} onChange={setTipoFiscale} />
                     {isPa && (
                       <p className="text-[11px] text-muted-foreground">
-                        Ente pubblico: la fattura elettronica va al codice univoco dell'ufficio (FPA12).
+                        {tr("Ente pubblico: la fattura elettronica va al codice univoco dell'ufficio (FPA12).")}
                       </p>
                     )}
                   </div>
@@ -498,13 +500,13 @@ export default function CreateCustomer() {
                   <div className="space-y-2">
                     <Label htmlFor="businessName" className="flex items-center gap-1.5">
                       <Building2 className="h-3.5 w-3.5" />
-                      {isPa ? "Denominazione dell'ente *" : "Ragione sociale *"}
+                      {isPa ? tr("Denominazione dell'ente *") : tr("Ragione sociale *")}
                     </Label>
                     <Input
                       id="businessName"
                       value={businessName}
                       onChange={(e) => setBusinessName(e.target.value)}
-                      placeholder={isPa ? "Es. Comune di Bologna" : "Es. Rossi Costruzioni S.r.l."}
+                      placeholder={isPa ? tr("Es. Comune di Bologna") : tr("Es. Rossi Costruzioni S.r.l.")}
                       maxLength={200}
                       required
                     />
@@ -514,26 +516,26 @@ export default function CreateCustomer() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="firstName">
-                      {isBusiness ? "Nome referente" : "Nome *"}
+                      {isBusiness ? tr("Nome referente") : tr("Nome *")}
                     </Label>
                     <Input
                       id="firstName"
                       value={firstName}
                       onChange={(e) => setFirstName(e.target.value)}
-                      placeholder={isBusiness ? "Opzionale" : "Mario"}
+                      placeholder={isBusiness ? tr("Opzionale") : "Mario"}
                       autoComplete="given-name"
                       required={!isBusiness}
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="lastName">
-                      {isBusiness ? "Cognome referente" : "Cognome *"}
+                      {isBusiness ? tr("Cognome referente") : tr("Cognome *")}
                     </Label>
                     <Input
                       id="lastName"
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
-                      placeholder={isBusiness ? "Opzionale" : "Rossi"}
+                      placeholder={isBusiness ? tr("Opzionale") : "Rossi"}
                       autoComplete="family-name"
                       required={!isBusiness}
                     />
@@ -557,7 +559,7 @@ export default function CreateCustomer() {
                   />
                   {!shouldRequireEmail && (
                     <p className="text-xs text-muted-foreground">
-                      Opzionale se crei solo l'anagrafica. Diventa obbligatoria se abiliti il portale clienti.
+                      {tr("Opzionale se crei solo l'anagrafica. Diventa obbligatoria se abiliti il portale clienti.")}
                     </p>
                   )}
                   {emailError && <p className="text-xs text-destructive">{emailError}</p>}
@@ -566,7 +568,7 @@ export default function CreateCustomer() {
                 <div className="space-y-2">
                   <Label htmlFor="phone" className="flex items-center gap-1.5">
                     <Phone className="h-3.5 w-3.5" />
-                    Telefono
+                    {tr("Telefono")}
                   </Label>
                   <Input
                     id="phone"
@@ -584,7 +586,7 @@ export default function CreateCustomer() {
                   <div className="space-y-2">
                     <Label htmlFor="vatNumber" className="flex items-center gap-1.5">
                       <CreditCard className="h-3.5 w-3.5" />
-                      {isPa ? "Partita IVA (facoltativa)" : "Partita IVA"}
+                      {isPa ? tr("Partita IVA (facoltativa)") : tr("Partita IVA")}
                     </Label>
                     <Input
                       id="vatNumber"
@@ -602,7 +604,7 @@ export default function CreateCustomer() {
                 <div className="space-y-2">
                   <Label htmlFor="fiscalCode" className="flex items-center gap-1.5">
                     <CreditCard className="h-3.5 w-3.5" />
-                    {isPa ? "Codice fiscale dell'ente *" : isBusiness ? "Codice fiscale (se diverso dalla P.IVA)" : "Codice Fiscale"}
+                    {isPa ? tr("Codice fiscale dell'ente *") : isBusiness ? tr("Codice fiscale (se diverso dalla P.IVA)") : tr("Codice Fiscale")}
                   </Label>
                   <Input
                     id="fiscalCode"
@@ -651,12 +653,11 @@ export default function CreateCustomer() {
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
                   <FileCheck2 className="h-4 w-4 text-emerald-500" />
-                  Documenti personali
-                  <span className="text-sm font-normal text-muted-foreground">(facoltativi)</span>
+                  {tr("Documenti personali")}
+                  <span className="text-sm font-normal text-muted-foreground">{tr("(facoltativi)")}</span>
                 </CardTitle>
                 <CardDescription>
-                  Carta d'identità, codice fiscale e altri documenti della persona, anche più file per tipo.
-                  Compaiono anche nei documenti di ogni commessa del cliente. Il contratto si carica nella commessa.
+                  {tr("Carta d'identità, codice fiscale e altri documenti della persona, anche più file per tipo. Compaiono anche nei documenti di ogni commessa del cliente. Il contratto si carica nella commessa.")}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -669,10 +670,10 @@ export default function CreateCustomer() {
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
                   <MapPin className="h-4 w-4 text-blue-500" />
-                  Indirizzi
+                  {tr("Indirizzi")}
                 </CardTitle>
                 <CardDescription className="hidden sm:block">
-                  {isBusiness ? "Sede legale e indirizzo del cantiere" : "Residenza e indirizzo del cantiere"}
+                  {isBusiness ? tr("Sede legale e indirizzo del cantiere") : tr("Residenza e indirizzo del cantiere")}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -687,17 +688,17 @@ export default function CreateCustomer() {
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
                   <FileText className="h-4 w-4 text-amber-500" />
-                  Note interne
+                  {tr("Note interne")}
                 </CardTitle>
-                <CardDescription className="hidden sm:block">Informazioni aggiuntive visibili solo al tuo team</CardDescription>
+                <CardDescription className="hidden sm:block">{tr("Informazioni aggiuntive visibili solo al tuo team")}</CardDescription>
               </CardHeader>
               <CardContent>
                 <Textarea
                   id="notes"
-                  aria-label="Note interne"
+                  aria-label={tr("Note interne")}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Preferenze, note di lavorazione, referenze..."
+                  placeholder={tr("Preferenze, note di lavorazione, referenze...")}
                   rows={4}
                   maxLength={500}
                 />
@@ -713,20 +714,20 @@ export default function CreateCustomer() {
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <FileText className="h-4 w-4 text-primary" />
-                  Riepilogo
+                  {tr("Riepilogo")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 text-xs">
                 <div className="flex items-start justify-between gap-3">
-                  <span className="text-muted-foreground shrink-0">Tipo</span>
+                  <span className="text-muted-foreground shrink-0">{tr("Tipo")}</span>
                   <span className="font-medium text-right">
                     {isAppaltatore
-                      ? "Committente"
+                      ? tr("Committente")
                       : etichettaTipoCliente(tipoFiscale)}
                   </span>
                 </div>
                 <div className="flex items-start justify-between gap-3">
-                  <span className="text-muted-foreground shrink-0">Nominativo</span>
+                  <span className="text-muted-foreground shrink-0">{tr("Nominativo")}</span>
                   <span className="font-medium text-right truncate">
                     {isBusiness
                       ? (businessName.trim() || <em className="text-muted-foreground font-normal">—</em>)
@@ -741,7 +742,7 @@ export default function CreateCustomer() {
                 </div>
                 {phone.trim() && (
                   <div className="flex items-start justify-between gap-3">
-                    <span className="text-muted-foreground shrink-0">Telefono</span>
+                    <span className="text-muted-foreground shrink-0">{tr("Telefono")}</span>
                     <span className="font-medium text-right truncate">{phone.trim()}</span>
                   </div>
                 )}
@@ -759,9 +760,9 @@ export default function CreateCustomer() {
                 )}
                 <Separator className="my-2" />
                 <div className="flex items-start justify-between gap-3">
-                  <span className="text-muted-foreground shrink-0">Documenti</span>
+                  <span className="text-muted-foreground shrink-0">{tr("Documenti")}</span>
                   <span className="font-medium text-right">
-                    {selectedDocumentCount === 0 ? "nessuno" : `${selectedDocumentCount} file`}
+                    {selectedDocumentCount === 0 ? tr("nessuno") : tr("{n} file", { n: selectedDocumentCount })}
                   </span>
                 </div>
               </CardContent>
@@ -775,12 +776,12 @@ export default function CreateCustomer() {
                   ) : (
                     <ShieldOff className="h-4 w-4 text-muted-foreground" />
                   )}
-                  Accesso al portale
+                  {tr("Accesso al portale")}
                 </CardTitle>
                 <CardDescription>
                   {companyPortalEnabled
-                    ? "Genera credenziali di accesso al portale clienti"
-                    : "Disattivato dal profilo aziendale"}
+                    ? tr("Genera credenziali di accesso al portale clienti")
+                    : tr("Disattivato dal profilo aziendale")}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -788,9 +789,7 @@ export default function CreateCustomer() {
                   <Alert>
                     <ShieldOff className="h-4 w-4" />
                     <AlertDescription className="text-xs">
-                      L'area privata clienti è <strong>disattivata</strong> nelle impostazioni azienda.
-                      Il cliente verrà creato solo in anagrafica: non è possibile aprire o creare
-                      un accesso al portale finché il portale resta disattivato.
+                      {tr("L'area privata clienti è disattivata nelle impostazioni azienda. Il cliente verrà creato solo in anagrafica: non è possibile aprire o creare un accesso al portale finché il portale resta disattivato.")}
                     </AlertDescription>
                   </Alert>
                 ) : (
@@ -798,10 +797,10 @@ export default function CreateCustomer() {
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <Label htmlFor="toggle-portal" className="text-sm">
-                          Crea account portale
+                          {tr("Crea account portale")}
                         </Label>
                         <p className="text-xs text-muted-foreground">
-                          Il cliente potrà accedere con email e password.
+                          {tr("Il cliente potrà accedere con email e password.")}
                         </p>
                       </div>
                       <Switch
@@ -817,10 +816,10 @@ export default function CreateCustomer() {
                         <div className="flex items-center justify-between gap-3">
                           <div className="min-w-0">
                             <Label htmlFor="toggle-welcome" className="text-sm">
-                              Invia email di benvenuto
+                              {tr("Invia email di benvenuto")}
                             </Label>
                             <p className="text-xs text-muted-foreground">
-                              Invia email con credenziali (consuma 1 credito).
+                              {tr("Invia email con credenziali (consuma 1 credito).")}
                             </p>
                           </div>
                           <Switch
@@ -835,8 +834,7 @@ export default function CreateCustomer() {
                     {!createPortalAccount && (
                       <Alert variant="default" className="bg-muted/50">
                         <AlertDescription className="text-xs">
-                          Il cliente sarà creato <strong>solo in anagrafica</strong>: nessuna password,
-                          nessuna email, nessun accesso al portale.
+                          {tr("Il cliente sarà creato solo in anagrafica: nessuna password, nessuna email, nessun accesso al portale.")}
                         </AlertDescription>
                       </Alert>
                     )}
@@ -852,8 +850,8 @@ export default function CreateCustomer() {
                 <AlertDescription className="space-y-2">
                   <p className="text-sm font-medium">
                     {simili.length === 1
-                      ? "In anagrafica c'è già un cliente che sembra questo."
-                      : `In anagrafica ci sono già ${simili.length} clienti che sembrano questo.`}
+                      ? tr("In anagrafica c'è già un cliente che sembra questo.")
+                      : tr("In anagrafica ci sono già {n} clienti che sembrano questo.", { n: simili.length })}
                   </p>
                   <ul className="space-y-1">
                     {simili.slice(0, 4).map(({ cliente, motivi }) => (
@@ -871,7 +869,7 @@ export default function CreateCustomer() {
                     ))}
                   </ul>
                   <p className="text-xs">
-                    Se è davvero un altro cliente, premi "Crea cliente" una seconda volta.
+                    {tr("Se è davvero un altro cliente, premi \"Crea cliente\" una seconda volta.")}
                   </p>
                 </AlertDescription>
               </Alert>
@@ -884,12 +882,12 @@ export default function CreateCustomer() {
                   {isSubmitting ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      Creazione...
+                      {tr("Creazione...")}
                     </>
                   ) : (
                     <>
                       <UserPlus className="h-4 w-4 mr-2" />
-                      Crea cliente
+                      {tr("Crea cliente")}
                     </>
                   )}
                 </Button>
@@ -900,7 +898,7 @@ export default function CreateCustomer() {
                   onClick={() => navigate("/azienda/clienti")}
                   disabled={isSubmitting}
                 >
-                  Annulla
+                  {tr("Annulla")}
                 </Button>
               </CardContent>
             </Card>
@@ -914,10 +912,10 @@ export default function CreateCustomer() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Check className="h-5 w-5 text-emerald-500" />
-              Cliente creato con successo
+              {tr("Cliente creato con successo")}
             </DialogTitle>
             <DialogDescription>
-              <strong>{isBusiness ? businessName : `${firstName} ${lastName}`.trim()}</strong> è stato aggiunto all'anagrafica.
+              <strong>{isBusiness ? businessName : `${firstName} ${lastName}`.trim()}</strong> {tr("è stato aggiunto all'anagrafica.")}
             </DialogDescription>
           </DialogHeader>
 
@@ -928,14 +926,13 @@ export default function CreateCustomer() {
                   <Alert>
                     <Mail className="h-4 w-4" />
                     <AlertDescription className="text-xs">
-                      L'email di benvenuto con le credenziali è stata inviata a <strong>{email}</strong>.
-                      Puoi comunque copiare la password qui sotto per comodità.
+                      {tr("L'email di benvenuto con le credenziali è stata inviata a")} <strong>{email}</strong>{tr(". Puoi comunque copiare la password qui sotto per comodità.")}
                     </AlertDescription>
                   </Alert>
                 ) : (
                   <Alert variant="default" className="border-amber-300 bg-amber-50/50 dark:bg-amber-900/10">
                     <AlertDescription className="text-xs">
-                      Nessuna email inviata. <strong>Comunica tu</strong> la password al cliente in modo sicuro.
+                      {tr("Nessuna email inviata. Comunica tu la password al cliente in modo sicuro.")}
                     </AlertDescription>
                   </Alert>
                 )}
@@ -946,15 +943,15 @@ export default function CreateCustomer() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Password generata</Label>
+                  <Label>{tr("Password generata")}</Label>
                   <div className="flex gap-2">
                     <Input value={generatedPassword} readOnly className="bg-muted font-mono break-all" />
-                    <Button type="button" variant="outline" size="icon" onClick={copyPassword} aria-label="Copia password">
+                    <Button type="button" variant="outline" size="icon" onClick={copyPassword} aria-label={tr("Copia password")}>
                       {passwordCopied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
                     </Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Conserva questa password: non sarà più visibile dopo la chiusura.
+                    {tr("Conserva questa password: non sarà più visibile dopo la chiusura.")}
                   </p>
                 </div>
               </>
@@ -962,15 +959,14 @@ export default function CreateCustomer() {
               <Alert>
                 <ShieldOff className="h-4 w-4" />
                 <AlertDescription className="text-xs">
-                  Cliente creato <strong>solo in anagrafica</strong>: nessun account portale,
-                  nessuna password da comunicare.
+                  {tr("Cliente creato solo in anagrafica: nessun account portale, nessuna password da comunicare.")}
                 </AlertDescription>
               </Alert>
             )}
           </div>
 
           <DialogFooter>
-            <Button onClick={handleDialogClose}>Chiudi e torna alla lista</Button>
+            <Button onClick={handleDialogClose}>{tr("Chiudi e torna alla lista")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

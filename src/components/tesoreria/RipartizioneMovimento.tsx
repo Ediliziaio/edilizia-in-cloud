@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { combinazioneEsatta, fmtEur, leggiImporto } from "@/lib/finance/reconciliationAnalysis";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface CandidatoRipartizione {
   key: string;
@@ -53,6 +54,7 @@ export function RipartizioneMovimento({
   onSearch?: (value: string) => void;
   caricando?: boolean;
 }) {
+  const tr = useT();
   const [importi, setImporti] = useState<Record<string, string>>({});
   const [cerca, setCerca] = useState("");
   const [nota, setNota] = useState("");
@@ -117,20 +119,20 @@ export function RipartizioneMovimento({
         >
           <Sparkles className="h-3.5 w-3.5 shrink-0" />
           <span>
-            {combinazione.length} {etichettaDocumenti} fanno esattamente {fmtEur(resto)}:{" "}
-            <strong>{combinazione.map((k) => perChiave.get(k)!.titolo.split(" — ")[0]).join(", ")}</strong>. Clicca per sceglierle.
+            {tr("{n} {documenti} fanno esattamente {importo}:", { n: combinazione.length, documenti: tr(etichettaDocumenti), importo: fmtEur(resto) })}{" "}
+            <strong>{combinazione.map((k) => perChiave.get(k)!.titolo.split(" — ")[0]).join(", ")}</strong>{tr(". Clicca per sceglierle.")}
           </span>
         </button>
       )}
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input aria-label="Cerca documenti da collegare" value={cerca} onChange={(e) => { setCerca(e.target.value); onSearch?.(e.target.value); }} placeholder="Cerca numero, nome o importo…" className="h-8 pl-9 text-sm" />
+        <Input aria-label={tr("Cerca documenti da collegare")} value={cerca} onChange={(e) => { setCerca(e.target.value); onSearch?.(e.target.value); }} placeholder={tr("Cerca numero, nome o importo…")} className="h-8 pl-9 text-sm" />
       </div>
 
       <div className="max-h-[320px] space-y-1.5 overflow-y-auto">
-        {caricando && <p role="status" className="text-sm text-muted-foreground">Ricerca in corso…</p>}
-        {!caricando && elenco.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">Nessun risultato.</p>}
+        {caricando && <p role="status" className="text-sm text-muted-foreground">{tr("Ricerca in corso…")}</p>}
+        {!caricando && elenco.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">{tr("Nessun risultato.")}</p>}
         {elenco.map((c) => {
           const scelto = c.key in importi;
           const valore = scelto ? leggiImporto(importi[c.key]) : null;
@@ -138,7 +140,7 @@ export function RipartizioneMovimento({
           return (
             <div key={c.key} className={cn("rounded-md border p-2", scelto && "border-primary/40 bg-primary/5")}>
               <div className="flex items-start gap-2">
-                <Checkbox checked={scelto} onCheckedChange={() => attiva(c)} aria-label={`Scegli ${c.titolo}`} className="mt-0.5" />
+                <Checkbox checked={scelto} onCheckedChange={() => attiva(c)} aria-label={tr("Scegli {titolo}", { titolo: String(c.titolo ?? "") })} className="mt-0.5" />
                 <button type="button" onClick={() => attiva(c)} className="min-w-0 flex-1 text-left">
                   <span className="flex items-center gap-1.5 text-sm font-medium">
                     <span className="truncate">{c.titolo}</span>
@@ -160,7 +162,7 @@ export function RipartizioneMovimento({
                       value={importi[c.key]}
                       onChange={(e) => setImporti((p) => ({ ...p, [c.key]: e.target.value }))}
                       inputMode="decimal"
-                      aria-label={`Importo per ${c.titolo}`}
+                      aria-label={tr("Importo per {titolo}", { titolo: String(c.titolo ?? "") })}
                       aria-invalid={fuori}
                       className={cn("mt-1 h-7 w-28 text-right text-xs tabular-nums", fuori && "border-destructive")}
                     />
@@ -173,25 +175,25 @@ export function RipartizioneMovimento({
       </div>
 
       <div>
-        <Label className="text-xs">Nota (opzionale)</Label>
+        <Label className="text-xs">{tr("Nota (opzionale)")}</Label>
         <Textarea value={nota} onChange={(e) => setNota(e.target.value)} rows={2} className="text-sm" />
       </div>
 
       <div className="flex items-center justify-between gap-3 border-t pt-3">
         <p className={cn("text-xs", troppo || erroreRiga ? "text-destructive" : "text-muted-foreground")}>
           {erroreRiga
-            ? `Importo non valido su ${erroreRiga.candidato.titolo.split(" — ")[0]}: al massimo ${fmtEur(erroreRiga.candidato.residuo)}.`
+            ? tr("Importo non valido su {valore}: al massimo {residuo}.", { valore: String(erroreRiga.candidato.titolo.split(" — ")[0] ?? ""), residuo: fmtEur(erroreRiga.candidato.residuo) })
             : troppo
-              ? `Stai abbinando ${fmtEur(-avanza)} più del movimento.`
+              ? tr("Stai abbinando {valore} più del movimento.", { valore: fmtEur(-avanza) })
               : righe.length === 0
-                ? `Da abbinare: ${fmtEur(resto)}`
+                ? tr("Da abbinare: {resto}", { resto: fmtEur(resto) })
                 : avanza > 0
-                  ? `Abbinati ${fmtEur(somma)} · restano ${fmtEur(avanza)} da abbinare dopo`
-                  : `Abbinati ${fmtEur(somma)} · movimento coperto`}
+                  ? tr("Abbinati {somma} · restano {avanza} da abbinare dopo", { somma: fmtEur(somma), avanza: fmtEur(avanza) })
+                  : tr("Abbinati {somma} · movimento coperto", { somma: fmtEur(somma) })}
         </p>
         <Button size="sm" onClick={conferma} disabled={!valido || inCorso}>
           {inCorso && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Conferma
+          {tr("Conferma")}
         </Button>
       </div>
     </div>

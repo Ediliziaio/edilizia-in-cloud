@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Pencil, Users, MapPin, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function OperaiSubappaltatore({
   companyId,
@@ -38,6 +39,7 @@ export function OperaiSubappaltatore({
   companyId: string;
   subId: string;
 }) {
+  const t = useT();
   const perms = usePermissions();
   const ambito = { companyId, subId };
   const operai = useOperaiEsterni(ambito);
@@ -74,8 +76,7 @@ export function OperaiSubappaltatore({
   if (!perms.canViewSicurezzaCantiere)
     return (
       <p className="rounded-lg border p-4 text-sm text-muted-foreground">
-        Per consultare gli addetti esterni e i loro requisiti serve il permesso
-        Sicurezza cantiere.
+        {t("Per consultare gli addetti esterni e i loro requisiti serve il permesso Sicurezza cantiere.")}
       </p>
     );
   const righe = (operai.data ?? []).filter(
@@ -91,9 +92,9 @@ export function OperaiSubappaltatore({
     try {
       await salva.mutateAsync({ ...form, subappaltatore_id: subId });
       setForm(null);
-      toast.success("Operaio esterno salvato");
+      toast.success(t("Operaio esterno salvato"));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Salvataggio non riuscito");
+      toast.error(e instanceof Error ? e.message : t("Salvataggio non riuscito"));
     }
   };
   const inviaAssegnazione = async (e: React.FormEvent) => {
@@ -105,7 +106,7 @@ export function OperaiSubappaltatore({
         fasi.isError ||
         !fasi.data?.some((f) => f.id === dest.fase_id))
     ) {
-      toast.error("Rileggi le fasi della commessa prima di salvare.");
+      toast.error(t("Rileggi le fasi della commessa prima di salvare."));
       return;
     }
     const errore = errorePeriodo(dest.dal, dest.al);
@@ -123,9 +124,9 @@ export function OperaiSubappaltatore({
         operaio_id: assegnato.id,
       });
       setAssegnato(null);
-      toast.success("Assegnazione salvata sulla commessa");
+      toast.success(t("Assegnazione salvata sulla commessa"));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Assegnazione non salvata");
+      toast.error(e instanceof Error ? e.message : t("Assegnazione non salvata"));
     }
   };
   return (
@@ -134,11 +135,10 @@ export function OperaiSubappaltatore({
         <div>
           <CardTitle className="flex items-center gap-2 text-base">
             <Users className="h-4 w-4" />
-            Operai dell’impresa
+            {t("Operai dell’impresa")}
           </CardTitle>
           <p className="mt-1 text-sm text-muted-foreground">
-            Organico esterno e assegnazioni ai cantieri. Ogni operaio resta
-            distinto dai tuoi dipendenti.
+            {t("Organico esterno e assegnazioni ai cantieri. Ogni operaio resta distinto dai tuoi dipendenti.")}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -149,7 +149,7 @@ export function OperaiSubappaltatore({
               setDotazioni(true);
             }}
           >
-            Dotazioni DPI
+            {t("Dotazioni DPI")}
           </Button>
           {scrive && (
             <Button
@@ -164,7 +164,7 @@ export function OperaiSubappaltatore({
               }
             >
               <Plus className="mr-1 h-4 w-4" />
-              Aggiungi operaio
+              {t("Aggiungi operaio")}
             </Button>
           )}
         </div>
@@ -179,14 +179,9 @@ export function OperaiSubappaltatore({
           >
             <DialogContent className="max-w-3xl max-h-[90dvh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>
-                  Qualifiche di {qualifichePersona.nome}{" "}
-                  {qualifichePersona.cognome}
-                </DialogTitle>
+                <DialogTitle>{t("Qualifiche di {nome} {cognome}", { nome: String(qualifichePersona.nome ?? ""), cognome: String(qualifichePersona.cognome ?? "") })}</DialogTitle>
                 <DialogDescription>
-                  Gli originali restano nei Documenti dell’impresa, collegati al
-                  singolo operaio. Le qualifiche non vengono copiate fra persone
-                  o aziende.
+                  {t("Gli originali restano nei Documenti dell’impresa, collegati al singolo operaio. Le qualifiche non vengono copiate fra persone o aziende.")}
                 </DialogDescription>
               </DialogHeader>
               <QualificheAddetto
@@ -204,11 +199,9 @@ export function OperaiSubappaltatore({
           <Dialog open onOpenChange={setDotazioni}>
             <DialogContent className="max-h-[90dvh] max-w-4xl overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Dotazioni DPI degli operai esterni</DialogTitle>
+                <DialogTitle>{t("Dotazioni DPI degli operai esterni")}</DialogTitle>
                 <DialogDescription>
-                  Il registro resta collegato a questa impresa e ai suoi operai.
-                  Le commesse recuperano le registrazioni pertinenti senza
-                  copiarle.
+                  {t("Il registro resta collegato a questa impresa e ai suoi operai. Le commesse recuperano le registrazioni pertinenti senza copiarle.")}
                 </DialogDescription>
               </DialogHeader>
               <DpiEsterni
@@ -222,7 +215,7 @@ export function OperaiSubappaltatore({
               />
               <DialogFooter>
                 <Button variant="outline" onClick={() => setDotazioni(false)}>
-                  Chiudi dotazioni
+                  {t("Chiudi dotazioni")}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -242,7 +235,7 @@ export function OperaiSubappaltatore({
                 ["Periodi assegnati", assegnazioni.data.length],
               ].map(([label, valore]) => (
                 <div key={String(label)} className="rounded-xl border p-3">
-                  <p className="text-xs text-muted-foreground">{label}</p>
+                  <p className="text-xs text-muted-foreground">{t(String(label))}</p>
                   <p className="mt-1 text-xl font-semibold tabular-nums">
                     {valore}
                   </p>
@@ -254,8 +247,8 @@ export function OperaiSubappaltatore({
           <div className="flex flex-wrap items-center gap-3">
             <Input
               className="max-w-sm"
-              aria-label="Cerca operaio esterno"
-              placeholder="Cerca nome o mansione…"
+              aria-label={t("Cerca operaio esterno")}
+              placeholder={t("Cerca nome o mansione…")}
               value={cerca}
               onChange={(e) => setCerca(e.target.value)}
             />
@@ -265,13 +258,13 @@ export function OperaiSubappaltatore({
                 checked={archiviati}
                 onChange={(e) => setArchiviati(e.target.checked)}
               />
-              Mostra anche cessati
+              {t("Mostra anche cessati")}
             </label>
           </div>
         )}
         {operai.isError || assegnazioni.isError ? (
           <p role="alert" className="text-sm text-destructive">
-            Non riesco a leggere organico o assegnazioni.{" "}
+            {t("Non riesco a leggere organico o assegnazioni.")}{" "}
             <Button
               variant="link"
               onClick={() => {
@@ -279,11 +272,11 @@ export function OperaiSubappaltatore({
                 void assegnazioni.refetch();
               }}
             >
-              Riprova
+              {t("Riprova")}
             </Button>
           </p>
         ) : operai.isLoading ? (
-          <p>Caricamento operai…</p>
+          <p>{t("Caricamento operai…")}</p>
         ) : !righe.length ? (
           <div className="flex flex-col items-center rounded-xl border border-dashed bg-muted/10 px-5 py-8 text-center">
             <div className="mb-3 rounded-xl bg-primary/5 p-3 text-primary">
@@ -291,13 +284,13 @@ export function OperaiSubappaltatore({
             </div>
             <h3 className="font-semibold">
               {operai.data?.length
-                ? "Nessun operaio corrisponde ai filtri"
-                : "Aggiungi gli addetti di questa impresa"}
+                ? t("Nessun operaio corrisponde ai filtri")
+                : t("Aggiungi gli addetti di questa impresa")}
             </h3>
             <p className="mt-2 max-w-lg text-sm text-muted-foreground">
               {operai.data?.length
-                ? "Prova un altro nome o mostra anche gli addetti cessati."
-                : "Registra nome e mansione, poi assegna ciascun operaio alla commessa e al periodo di lavoro. Qualifiche, documenti e DPI restano collegati alla persona."}
+                ? t("Prova un altro nome o mostra anche gli addetti cessati.")
+                : t("Registra nome e mansione, poi assegna ciascun operaio alla commessa e al periodo di lavoro. Qualifiche, documenti e DPI restano collegati alla persona.")}
             </p>
             {operai.data?.length ? (
               <Button
@@ -308,7 +301,7 @@ export function OperaiSubappaltatore({
                   setArchiviati(true);
                 }}
               >
-                Reimposta filtri
+                {t("Reimposta filtri")}
               </Button>
             ) : (
               scrive && (
@@ -325,7 +318,7 @@ export function OperaiSubappaltatore({
                   }
                 >
                   <Plus className="mr-2 h-4 w-4" />
-                  Aggiungi il primo operaio
+                  {t("Aggiungi il primo operaio")}
                 </Button>
               )
             )}
@@ -335,10 +328,10 @@ export function OperaiSubappaltatore({
             <table className="w-full text-sm">
               <thead className="bg-slate-50">
                 <tr>
-                  <th className="p-3 text-left">Operaio</th>
-                  <th className="p-3 text-left">Mansione</th>
-                  <th className="p-3 text-left">Commesse e periodi</th>
-                  <th className="p-3 text-right">Azioni</th>
+                  <th className="p-3 text-left">{t("Operaio")}</th>
+                  <th className="p-3 text-left">{t("Mansione")}</th>
+                  <th className="p-3 text-left">{t("Commesse e periodi")}</th>
+                  <th className="p-3 text-right">{t("Azioni")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -348,7 +341,7 @@ export function OperaiSubappaltatore({
                       <p className="font-medium">
                         {o.nome} {o.cognome}
                       </p>
-                      {!o.attivo && <Badge variant="outline">Cessato</Badge>}
+                      {!o.attivo && <Badge variant="outline">{t("Cessato")}</Badge>}
                       {o.telefono && (
                         <a
                           href={`tel:${o.telefono}`}
@@ -369,14 +362,14 @@ export function OperaiSubappaltatore({
                               href={`/azienda/ordini/${a.order_id}`}
                             >
                               {commesse.data?.find((c) => c.id === a.order_id)
-                                ?.order_code ?? "Commessa"}
+                                ?.order_code ?? t("Commessa")}
                             </a>
                             <br />
-                            {a.dal} → {a.al ?? "fine da definire"}
+                            {a.dal} → {a.al ?? t("fine da definire")}
                             {a.area ? ` · ${a.area}` : ""}
                             {a.fase_id
-                              ? " · fase specifica"
-                              : " · tutte le fasi"}
+                              ? ` ${t("· fase specifica")}`
+                              : ` ${t("· tutte le fasi")}`}
                             <br />
                             {a.attivita}
                             {scrive && (
@@ -397,7 +390,7 @@ export function OperaiSubappaltatore({
                                   setAssegnato(o);
                                 }}
                               >
-                                Modifica periodo
+                                {t("Modifica periodo")}
                               </Button>
                             )}
                           </p>
@@ -406,7 +399,7 @@ export function OperaiSubappaltatore({
                         (a) => a.operaio_id === o.id,
                       ) && (
                         <span className="text-xs text-muted-foreground">
-                          Non assegnato
+                          {t("Non assegnato")}
                         </span>
                       )}
                     </td>
@@ -415,15 +408,15 @@ export function OperaiSubappaltatore({
                         <Button
                           size="sm"
                           variant="outline"
-                          aria-label={`Qualifiche di ${o.nome} ${o.cognome}`}
+                          aria-label={t("Qualifiche di {nome} {cognome}", { nome: String(o.nome ?? ""), cognome: String(o.cognome ?? "") })}
                           onClick={() => setQualifichePersona(o)}
                         >
-                          Qualifiche
+                          {t("Qualifiche")}
                         </Button>
                         <Button
                           size="sm"
                           variant="outline"
-                          aria-label={`Dotazioni DPI di ${o.nome} ${o.cognome}`}
+                          aria-label={t("Dotazioni DPI di {nome} {cognome}", { nome: String(o.nome ?? ""), cognome: String(o.cognome ?? "") })}
                           onClick={() => {
                             setOperaioDpi(o.id);
                             setDotazioni(true);
@@ -436,7 +429,7 @@ export function OperaiSubappaltatore({
                             <Button
                               size="icon"
                               variant="ghost"
-                              aria-label={`Modifica ${o.nome} ${o.cognome}`}
+                              aria-label={t("Modifica {nome} {cognome}", { nome: String(o.nome ?? ""), cognome: String(o.cognome ?? "") })}
                               onClick={() =>
                                 setForm({
                                   id: o.id,
@@ -468,7 +461,7 @@ export function OperaiSubappaltatore({
                                 }}
                               >
                                 <MapPin className="mr-1 h-4 w-4" />
-                                Assegna
+                                {t("Assegna")}
                               </Button>
                             )}
                           </>
@@ -492,12 +485,11 @@ export function OperaiSubappaltatore({
           <DialogHeader>
             <DialogTitle>
               {form?.id
-                ? "Modifica operaio esterno"
-                : "Aggiungi operaio esterno"}
+                ? t("Modifica operaio esterno")
+                : t("Aggiungi operaio esterno")}
             </DialogTitle>
             <DialogDescription>
-              L’addetto appartiene a questo subappaltatore. L’inserimento non
-              crea un account.
+              {t("L’addetto appartiene a questo subappaltatore. L’inserimento non crea un account.")}
             </DialogDescription>
           </DialogHeader>
           {form && (
@@ -507,12 +499,12 @@ export function OperaiSubappaltatore({
                   <div key={k}>
                     <Label htmlFor={`est-${k}`}>
                       {k === "nome"
-                        ? "Nome"
+                        ? t("Nome")
                         : k === "cognome"
-                          ? "Cognome"
+                          ? t("Cognome")
                           : k === "mansione"
-                            ? "Mansione"
-                            : "Telefono"}
+                            ? t("Mansione")
+                            : t("Telefono")}
                     </Label>
                     <Input
                       id={`est-${k}`}
@@ -533,7 +525,7 @@ export function OperaiSubappaltatore({
                     setForm({ ...form, attivo: e.target.checked })
                   }
                 />
-                Addetto attivo nell’impresa
+                {t("Addetto attivo nell’impresa")}
               </label>
               <DialogFooter>
                 <Button
@@ -542,13 +534,13 @@ export function OperaiSubappaltatore({
                   onClick={() => setForm(null)}
                   disabled={salva.isPending}
                 >
-                  Annulla
+                  {t("Annulla")}
                 </Button>
                 <Button disabled={salva.isPending}>
                   {salva.isPending && (
                     <Loader2 className="mr-1 h-4 w-4 animate-spin" />
                   )}
-                  Salva operaio
+                  {t("Salva operaio")}
                 </Button>
               </DialogFooter>
             </form>
@@ -563,25 +555,23 @@ export function OperaiSubappaltatore({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              Assegna {assegnato?.nome} {assegnato?.cognome}
-            </DialogTitle>
+            <DialogTitle>{t("Assegna {nome} {cognome}", { nome: String(assegnato?.nome ?? ""), cognome: String(assegnato?.cognome ?? "") })}</DialogTitle>
             <DialogDescription>
-              Scegli il cantiere e il periodo effettivo dell’incarico operativo.
+              {t("Scegli il cantiere e il periodo effettivo dell’incarico operativo.")}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={inviaAssegnazione} className="space-y-4">
             <div>
-              <Label htmlFor="est-commessa">Commessa</Label>
+              <Label htmlFor="est-commessa">{t("Commessa")}</Label>
               {commesse.isError ? (
                 <p role="alert">
-                  Commesse non disponibili.{" "}
+                  {t("Commesse non disponibili.")}{" "}
                   <Button
                     type="button"
                     variant="link"
                     onClick={() => commesse.refetch()}
                   >
-                    Riprova
+                    {t("Riprova")}
                   </Button>
                 </p>
               ) : (
@@ -594,7 +584,7 @@ export function OperaiSubappaltatore({
                     setDest({ ...dest, order_id: e.target.value, fase_id: "" })
                   }
                 >
-                  <option value="">Scegli la commessa</option>
+                  <option value="">{t("Scegli la commessa")}</option>
                   {commesse.data?.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.order_code} · {c.description?.slice(0, 70)}
@@ -604,7 +594,7 @@ export function OperaiSubappaltatore({
               )}
             </div>
             <div>
-              <Label htmlFor="est-fase">Fase di lavoro</Label>
+              <Label htmlFor="est-fase">{t("Fase di lavoro")}</Label>
               <UniformSelect
                 id="est-fase"
                 className="h-10 w-full rounded-md border bg-background px-3 text-sm"
@@ -612,7 +602,7 @@ export function OperaiSubappaltatore({
                 disabled={!dest.order_id || fasi.isLoading || fasi.isError}
                 onChange={(e) => setDest({ ...dest, fase_id: e.target.value })}
               >
-                <option value="">Tutte le fasi della commessa</option>
+                <option value="">{t("Tutte le fasi della commessa")}</option>
                 {fasi.data?.map((f) => (
                   <option key={f.id} value={f.id}>
                     {f.name}
@@ -621,24 +611,23 @@ export function OperaiSubappaltatore({
               </UniformSelect>
               {fasi.isError && (
                 <p role="alert" className="text-sm">
-                  Fasi non disponibili.{" "}
+                  {t("Fasi non disponibili.")}{" "}
                   <Button
                     type="button"
                     variant="link"
                     onClick={() => void fasi.refetch()}
                   >
-                    Riprova
+                    {t("Riprova")}
                   </Button>
                 </p>
               )}
               <p className="text-xs text-muted-foreground">
-                La fase limita l’assegnazione; il periodo viene confermato qui e
-                non segue automaticamente le date del cronoprogramma.
+                {t("La fase limita l’assegnazione; il periodo viene confermato qui e non segue automaticamente le date del cronoprogramma.")}
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label htmlFor="est-dal">Dal</Label>
+                <Label htmlFor="est-dal">{t("Dal")}</Label>
                 <Input
                   id="est-dal"
                   type="date"
@@ -648,7 +637,7 @@ export function OperaiSubappaltatore({
                 />
               </div>
               <div>
-                <Label htmlFor="est-al">Al</Label>
+                <Label htmlFor="est-al">{t("Al")}</Label>
                 <Input
                   id="est-al"
                   type="date"
@@ -659,7 +648,7 @@ export function OperaiSubappaltatore({
               </div>
             </div>
             <div>
-              <Label htmlFor="est-area">Area di lavoro</Label>
+              <Label htmlFor="est-area">{t("Area di lavoro")}</Label>
               <Input
                 id="est-area"
                 value={dest.area}
@@ -667,7 +656,7 @@ export function OperaiSubappaltatore({
               />
             </div>
             <div>
-              <Label htmlFor="est-attivita">Attività affidata</Label>
+              <Label htmlFor="est-attivita">{t("Attività affidata")}</Label>
               <Input
                 id="est-attivita"
                 required
@@ -682,10 +671,10 @@ export function OperaiSubappaltatore({
                 onClick={() => setAssegnato(null)}
                 disabled={assegna.isPending}
               >
-                Annulla
+                {t("Annulla")}
               </Button>
               <Button disabled={assegna.isPending || !dest.order_id}>
-                Salva assegnazione
+                {t("Salva assegnazione")}
               </Button>
             </DialogFooter>
           </form>

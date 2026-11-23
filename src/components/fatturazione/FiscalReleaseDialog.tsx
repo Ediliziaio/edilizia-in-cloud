@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { FiscalQueryState } from "./FiscalQueryState";
 import { FiscalHistory } from "./FiscalPeriodControl";
 import { fiscalDate } from "@/lib/fatturazione/fiscalInsights";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function FiscalReleaseDialog({
   companyId,
@@ -27,6 +28,7 @@ export function FiscalReleaseDialog({
   onClose: () => void;
   onReleased?: () => void | Promise<void>;
 }) {
+  const t = useT();
   const qc = useQueryClient();
   const saving = useRef(false);
   const today = new Intl.DateTimeFormat("sv-SE", {
@@ -89,7 +91,7 @@ export function FiscalReleaseDialog({
       setError(
         e instanceof Error
           ? e.message
-          : "Conferma non ricevuta: aggiorna la verifica prima di riprovare.",
+          : t("Conferma non ricevuta: aggiorna la verifica prima di riprovare."),
       );
     } finally {
       saving.current = false;
@@ -105,9 +107,9 @@ export function FiscalReleaseDialog({
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Svincolo documentato</DialogTitle>
+          <DialogTitle>{t("Svincolo documentato")}</DialogTitle>
           <DialogDescription>
-            Non registra un incasso, un pagamento o una movimentazione bancaria.
+            {t("Non registra un incasso, un pagamento o una movimentazione bancaria.")}
           </DialogDescription>
         </DialogHeader>
         {q.isLoading || q.isError ? (
@@ -126,7 +128,7 @@ export function FiscalReleaseDialog({
               {q.data.row.stato === "trattenuta" ? (
                 <>
                   <label className="block text-sm">
-                    Data del verbale di svincolo
+                    {t("Data del verbale di svincolo")}
                     <Input
                       disabled={pending}
                       type="date"
@@ -136,13 +138,13 @@ export function FiscalReleaseDialog({
                     />
                   </label>
                   <label className="block text-sm">
-                    Riferimento al documento verificato
+                    {t("Riferimento al documento verificato")}
                     <Input
                       disabled={pending}
                       value={reference}
                       maxLength={2000}
                       onChange={(e) => setReference(e.target.value)}
-                      placeholder="Verbale / attestazione e relativo riferimento…"
+                      placeholder={t("Verbale / attestazione e relativo riferimento…")}
                     />
                   </label>
                   <Button
@@ -155,19 +157,15 @@ export function FiscalReleaseDialog({
                     onClick={() => void confirm()}
                   >
                     {pending
-                      ? "Conferma in corso…"
-                      : "Conferma svincolo documentato"}
+                      ? t("Conferma in corso…")
+                      : t("Conferma svincolo documentato")}
                   </Button>
                 </>
               ) : (
-                <p className="text-sm">
-                  Data di svincolo:{" "}
-                  {fiscalDate(
+                <p className="text-sm">{t("Data di svincolo: {data_svincolo_effettiva}. Eventuali rettifiche richiedono una verifica dedicata.", { data_svincolo_effettiva: fiscalDate(
                     q.data.row.data_svincolo_effettiva,
-                    "Non disponibile",
-                  )}
-                  . Eventuali rettifiche richiedono una verifica dedicata.
-                </p>
+                    t("Non disponibile"),
+                  ) })}</p>
               )}
               {error && (
                 <div
@@ -180,7 +178,7 @@ export function FiscalReleaseDialog({
                     disabled={pending}
                     onClick={() => void q.refetch()}
                   >
-                    Ricarica verifica
+                    {t("Ricarica verifica")}
                   </Button>
                 </div>
               )}

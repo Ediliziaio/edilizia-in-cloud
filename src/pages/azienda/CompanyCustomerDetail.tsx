@@ -67,6 +67,7 @@ import { useUfficiPa } from "@/hooks/useUfficiPa";
 import { etichettaTipoCliente } from "@/lib/clienti/clienteFiscale";
 import { anagraficaEPa } from "@/lib/orders/riferimentiPa";
 import { RiferimentiPaCliente } from "@/components/orders/riferimentiPa/RiferimentiPaCliente";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface CustomerProfile {
   id: string;
@@ -113,6 +114,7 @@ const RIGHT_TABS: { key: string; icon: React.ComponentType<{ className?: string 
 ];
 
 export default function CompanyCustomerDetail() {
+  const tr = useT();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
@@ -267,16 +269,16 @@ export default function CompanyCustomerDetail() {
     },
     onSuccess: (data) => {
       if (data?.error) {
-        toast({ title: "Errore", description: data.error, variant: "destructive" });
+        toast({ title: tr("Errore"), description: data.error, variant: "destructive" });
         return;
       }
       if (!data?.changed) {
-        toast({ title: "Nessuna correzione applicata", description: "I dati sono già coerenti." });
+        toast({ title: tr("Nessuna correzione applicata"), description: tr("I dati sono già coerenti.") });
         return;
       }
       toast({
-        title: "Correzioni applicate",
-        description: (data.fixes ?? []).join(" · ") || "Dati del cliente sistemati.",
+        title: tr("Correzioni applicate"),
+        description: (data.fixes ?? []).join(" · ") || tr("Dati del cliente sistemati."),
       });
       if (customerId) {
         queryClient.invalidateQueries({ queryKey: ["company-customer-detail", customerId] });
@@ -286,8 +288,8 @@ export default function CompanyCustomerDetail() {
     },
     onError: (e) => {
       toast({
-        title: "Errore",
-        description: e instanceof Error ? e.message : "Impossibile correggere i dati",
+        title: tr("Errore"),
+        description: e instanceof Error ? e.message : tr("Impossibile correggere i dati"),
         variant: "destructive",
       });
     },
@@ -316,12 +318,12 @@ export default function CompanyCustomerDetail() {
   if (customerError) {
     return (
       <Alert variant="destructive">
-        <AlertTitle>Impossibile caricare il cliente</AlertTitle>
+        <AlertTitle>{tr("Impossibile caricare il cliente")}</AlertTitle>
         <AlertDescription className="space-y-3">
-          <p>La lettura non è riuscita. Riprova oppure torna all’elenco clienti.</p>
+          <p>{tr("La lettura non è riuscita. Riprova oppure torna all’elenco clienti.")}</p>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" aria-label="Riprova caricamento cliente" onClick={() => void refetchCustomer()}>Riprova</Button>
-            <Button variant="outline" onClick={() => navigate("/azienda/clienti")}>Torna ai clienti</Button>
+            <Button variant="outline" aria-label={tr("Riprova caricamento cliente")} onClick={() => void refetchCustomer()}>{tr("Riprova")}</Button>
+            <Button variant="outline" onClick={() => navigate("/azienda/clienti")}>{tr("Torna ai clienti")}</Button>
           </div>
         </AlertDescription>
       </Alert>
@@ -338,13 +340,13 @@ export default function CompanyCustomerDetail() {
         <div className="rounded-full bg-amber-100 p-4 mb-4">
           <AlertTriangle className="h-8 w-8 text-amber-600" />
         </div>
-        <h2 className="text-xl font-semibold text-slate-900">Cliente non trovato</h2>
+        <h2 className="text-xl font-semibold text-slate-900">{tr("Cliente non trovato")}</h2>
         <p className="mt-2 text-sm text-muted-foreground max-w-sm">
-          Il cliente che cerchi non esiste più, oppure non hai più i permessi per visualizzarlo.
+          {tr("Il cliente che cerchi non esiste più, oppure non hai più i permessi per visualizzarlo.")}
         </p>
         <Button onClick={() => navigate("/azienda/clienti")} className="mt-6 gap-2">
           <ArrowLeft className="h-4 w-4" />
-          Torna ai clienti
+          {tr("Torna ai clienti")}
         </Button>
       </div>
     );
@@ -401,7 +403,7 @@ export default function CompanyCustomerDetail() {
       <div className="rounded-2xl border bg-card p-3 md:p-4 shadow-sm">
         <TestataScheda
           onIndietro={() => navigate("/azienda/clienti")}
-          etichettaIndietro="Torna ai clienti"
+          etichettaIndietro={tr("Torna ai clienti")}
           iniziali={customerInitials}
           coloreAvatar="bg-gradient-to-br from-blue-500 to-orange-500"
           nome={fullName}
@@ -411,11 +413,11 @@ export default function CompanyCustomerDetail() {
                 {anaFiscale ? etichettaTipoCliente(anaFiscale.tipo_cliente) : customer.is_business ? "Azienda" : "Privato"}
               </Badge>
               {!customer.is_business && isFirstPlaceholder && isLastPlaceholder && !biz && (
-                <span className="truncate text-xs font-normal text-muted-foreground">(anagrafica da completare)</span>
+                <span className="truncate text-xs font-normal text-muted-foreground">{tr("(anagrafica da completare)")}</span>
               )}
               <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" aria-label="Altre azioni">
+                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" aria-label={tr("Altre azioni")}>
                   <ChevronDown className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -423,25 +425,25 @@ export default function CompanyCustomerDetail() {
                 {customer.phone && (
                   <>
                     <DropdownMenuItem onClick={() => setChiamataAi(true)}>
-                      <Phone className="h-3.5 w-3.5 mr-2" /> Chiama con agente AI
+                      <Phone className="h-3.5 w-3.5 mr-2" /> {tr("Chiama con agente AI")}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                   </>
                 )}
                 <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                  Crea per questo cliente
+                  {tr("Crea per questo cliente")}
                 </DropdownMenuLabel>
                 <DropdownMenuItem onClick={() => navigate(`/azienda/ordini/nuovo?customer_id=${customer.id}&customer_name=${encodeURIComponent(fullName)}`)}>
-                  <ClipboardList className="h-3.5 w-3.5 mr-2" /> Nuovo ordine
+                  <ClipboardList className="h-3.5 w-3.5 mr-2" /> {tr("Nuovo ordine")}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setNuovoContratto(true)}>
-                  <FileSignature className="h-3.5 w-3.5 mr-2" /> Nuovo contratto
+                  <FileSignature className="h-3.5 w-3.5 mr-2" /> {tr("Nuovo contratto")}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => navigate(`/azienda/marketing/preventivi/nuovo?customer_id=${customer.id}&customer_name=${encodeURIComponent(fullName)}`)}>
-                  <FileSignature className="h-3.5 w-3.5 mr-2" /> Nuovo preventivo
+                  <FileSignature className="h-3.5 w-3.5 mr-2" /> {tr("Nuovo preventivo")}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => navigate(`/azienda/assistenza/nuovo?customer_id=${customer.id}&customer_name=${encodeURIComponent(fullName)}`)}>
-                  <Ticket className="h-3.5 w-3.5 mr-2" /> Nuovo ticket
+                  <Ticket className="h-3.5 w-3.5 mr-2" /> {tr("Nuovo ticket")}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <VoceEliminaCliente id={customer.id} commesse={orderCount} disabled={!scheda || Boolean(schedaError)} />
@@ -451,7 +453,7 @@ export default function CompanyCustomerDetail() {
           }
           contatti={
             <>
-              {referentName && <span>Referente: <span className="font-medium text-foreground">{referentName}</span></span>}
+              {referentName && <span>{tr("Referente:")} <span className="font-medium text-foreground">{referentName}</span></span>}
               {customerEmailClean && (
                 <a href={`mailto:${customerEmailClean}`} className="inline-flex min-w-0 max-w-full items-center gap-1 transition-colors hover:text-primary">
                   <Mail className="h-3 w-3 shrink-0" />
@@ -472,7 +474,7 @@ export default function CompanyCustomerDetail() {
           }
           azioni={
             <>
-              <IconaScheda etichetta="Chiedi a Silvio">
+              <IconaScheda etichetta={tr("Chiedi a Silvio")}>
                 <ChiediASilvio
                   soloIcona
                   size="icon"
@@ -506,44 +508,44 @@ export default function CompanyCustomerDetail() {
 
         {(schedaError || (!scheda && !schedaLoading)) && (
           <Alert variant="destructive" className="mt-3">
-            <AlertTitle>Impossibile caricare il riepilogo cliente</AlertTitle>
+            <AlertTitle>{tr("Impossibile caricare il riepilogo cliente")}</AlertTitle>
             <AlertDescription className="space-y-2">
-              <p>{scheda ? "I numeri già caricati restano visibili, ma potrebbero non essere aggiornati." : "I numeri del cliente non sono disponibili. Riprova il caricamento."}</p>
-              <Button variant="outline" size="sm" aria-label="Riprova riepilogo cliente" onClick={() => void refetchScheda()}>Riprova</Button>
+              <p>{scheda ? tr("I numeri già caricati restano visibili, ma potrebbero non essere aggiornati.") : tr("I numeri del cliente non sono disponibili. Riprova il caricamento.")}</p>
+              <Button variant="outline" size="sm" aria-label={tr("Riprova riepilogo cliente")} onClick={() => void refetchScheda()}>{tr("Riprova")}</Button>
             </AlertDescription>
           </Alert>
         )}
-        {!scheda && schedaLoading && <p role="status" className="mt-3 text-sm text-muted-foreground">Caricamento riepilogo cliente…</p>}
+        {!scheda && schedaLoading && <p role="status" className="mt-3 text-sm text-muted-foreground">{tr("Caricamento riepilogo cliente…")}</p>}
         {scheda && <>
         {/* Telefono: i quattro numeri in una riga di testo, non quattro tessere strette
             (le etichette maiuscole a 9px andavano a capo o uscivano dal bordo). */}
         <p className="mt-3 md:hidden text-[13px] leading-snug text-muted-foreground">
-          <span className="font-semibold text-foreground tabular-nums">{orderCount}</span> {orderCount === 1 ? "commessa" : "commesse"}
+          <span className="font-semibold text-foreground tabular-nums">{orderCount}</span> {orderCount === 1 ? tr("commessa") : tr("commesse")}
           {" · "}
-          <span className={cn("font-semibold tabular-nums", daIncassare?.scaduto ? "text-red-700" : "text-foreground")}>{daIncassare ? euro(daIncassare.totale) : "—"}</span> da incassare
+          <span className={cn("font-semibold tabular-nums", daIncassare?.scaduto ? "text-red-700" : "text-foreground")}>{daIncassare ? euro(daIncassare.totale) : "—"}</span> {tr("da incassare")}
           {" · "}
-          <span className="font-semibold text-foreground tabular-nums">{preventivi.length}</span> {preventivi.length === 1 ? "preventivo" : "preventivi"}
+          <span className="font-semibold text-foreground tabular-nums">{preventivi.length}</span> {preventivi.length === 1 ? tr("preventivo") : tr("preventivi")}
           {" · "}
-          <span className="font-semibold text-foreground tabular-nums">{openTickets}</span> in assistenza
+          <span className="font-semibold text-foreground tabular-nums">{openTickets}</span> {tr("in assistenza")}
         </p>
 
         {/* Cinque numeri che dicono come sta il cliente; ognuno apre il suo pannello. */}
         <RigaNumeri
           numeri={[
-            { label: "Commesse", value: orderCount, sub: orderCount === 0 ? "Nessuna commessa" : `l'ultima del ${new Date(orders[0].created_at).toLocaleDateString("it-IT")}`, onClick: () => apri("ordini") },
-            { label: "Valore lavori", value: euro(totalOrderValue), sub: "IVA esclusa", onClick: () => apri("ordini") },
+            { label: tr("Commesse"), value: orderCount, sub: orderCount === 0 ? tr("Nessuna commessa") : tr("l'ultima del {data}", { data: new Date(orders[0].created_at).toLocaleDateString(intlCampo()) }), onClick: () => apri("ordini") },
+            { label: tr("Valore lavori"), value: euro(totalOrderValue), sub: tr("IVA esclusa"), onClick: () => apri("ordini") },
             {
-              label: "Da incassare",
+              label: tr("Da incassare"),
               value: daIncassare ? euro(daIncassare.totale) : orderCount === 0 ? "—" : "…",
-              sub: !daIncassare ? "IVA inclusa"
-                : daIncassare.totale === 0 ? "Tutto incassato"
-                : daIncassare.scaduto > 0 ? `di cui ${euro(daIncassare.scaduto)} scaduti`
-                : "IVA inclusa · niente di scaduto",
+              sub: !daIncassare ? tr("IVA inclusa")
+                : daIncassare.totale === 0 ? tr("Tutto incassato")
+                : daIncassare.scaduto > 0 ? tr("di cui {importo} scaduti", { importo: euro(daIncassare.scaduto) })
+                : tr("IVA inclusa · niente di scaduto"),
               tono: daIncassare?.scaduto ? "rosso" : undefined,
               onClick: () => apri("rate"),
             },
-            { label: "Preventivi", value: preventivi.length, sub: preventivi.length === 0 ? "Nessun preventivo" : preventiviInAttesa > 0 ? `${preventiviInAttesa} in attesa di risposta` : "nessuno in attesa", onClick: () => apri("preventivi") },
-            { label: "Assistenza aperta", value: openTickets, sub: tickets.length > 0 ? `su ${tickets.length} richieste` : "Nessuna richiesta", onClick: () => apri("assistenza") },
+            { label: tr("Preventivi"), value: preventivi.length, sub: preventivi.length === 0 ? tr("Nessun preventivo") : preventiviInAttesa > 0 ? tr("{n} in attesa di risposta", { n: preventiviInAttesa }) : tr("nessuno in attesa"), onClick: () => apri("preventivi") },
+            { label: tr("Assistenza aperta"), value: openTickets, sub: tickets.length > 0 ? tr("su {n} richieste", { n: tickets.length }) : tr("Nessuna richiesta"), onClick: () => apri("assistenza") },
           ]}
         />
         <CosaFareAdesso
@@ -563,12 +565,12 @@ export default function CompanyCustomerDetail() {
       {dataIssues.length > 0 && (
         <Alert variant="default" className="border-amber-400 bg-amber-50/50 dark:bg-amber-900/10">
           <AlertTriangle className="h-4 w-4 text-amber-600" />
-          <AlertTitle className="text-amber-800 dark:text-amber-300">Anagrafica da correggere</AlertTitle>
+          <AlertTitle className="text-amber-800 dark:text-amber-300">{tr("Anagrafica da correggere")}</AlertTitle>
           <AlertDescription className="text-amber-800 dark:text-amber-200 space-y-2">
             <ul className="list-disc pl-4 text-xs space-y-0.5">
               {dataIssues.map((iss, i) => (
                 <li key={i}>
-                  {iss.label}: <code className="px-1 rounded bg-amber-100 dark:bg-amber-900/30 font-mono">{iss.value}</code>
+                  {tr(iss.label)}: <code className="px-1 rounded bg-amber-100 dark:bg-amber-900/30 font-mono">{iss.value}</code>
                 </li>
               ))}
             </ul>
@@ -585,10 +587,10 @@ export default function CompanyCustomerDetail() {
                 ) : (
                   <Wand2 className="h-3.5 w-3.5 mr-1.5" />
                 )}
-                Sistema automaticamente
+                {tr("Sistema automaticamente")}
               </Button>
               <p className="text-xs text-amber-700 dark:text-amber-300/80 self-center">
-                Oppure usa <Pencil className="h-3 w-3 inline -mt-0.5" /> per modificare a mano.
+                {tr("Oppure usa")} <Pencil className="h-3 w-3 inline -mt-0.5" /> {tr("per modificare a mano.")}
               </p>
             </div>
           </AlertDescription>

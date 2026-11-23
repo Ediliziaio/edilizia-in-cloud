@@ -53,9 +53,10 @@ import {
   ShoppingCart,
   X,
 } from "lucide-react";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const eur0 = (v: number) =>
-  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(v);
+  new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(v);
 
 const SCHEDE = ["panoramica", "fornitori", "commesse", "prezzi", "scadenze", "da-sistemare"] as const;
 type Scheda = (typeof SCHEDE)[number];
@@ -72,12 +73,13 @@ const NESSUNA = "nessuna";
 // ───────────────────────── Pezzi comuni ─────────────────────────
 
 function Errore({ onRiprova }: { onRiprova: () => void }) {
+  const t = useT();
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">
       <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
-      <span className="flex-1">Non sono riuscito a leggere i dati. Controlla la connessione e riprova.</span>
+      <span className="flex-1">{t("Non sono riuscito a leggere i dati. Controlla la connessione e riprova.")}</span>
       <Button size="sm" variant="outline" onClick={onRiprova}>
-        <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Riprova
+        <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> {t("Riprova")}
       </Button>
     </div>
   );
@@ -125,6 +127,7 @@ function SceltaConRicerca({
   segnaposto: string;
   extra?: { id: string; label: string };
 }) {
+  const t = useT();
   const [aperto, setAperto] = useState(false);
   const [cerca, setCerca] = useState("");
   const scelta = valore === extra?.id ? extra?.label : opzioni.find((o) => o.id === valore)?.label;
@@ -145,7 +148,7 @@ function SceltaConRicerca({
         <Command shouldFilter={false}>
           <CommandInput placeholder={segnaposto} value={cerca} onValueChange={setCerca} />
           <CommandList>
-            <CommandEmpty>Nessun risultato.</CommandEmpty>
+            <CommandEmpty>{t("Nessun risultato.")}</CommandEmpty>
             <CommandGroup>
               <CommandItem value="__tutti" onSelect={() => { onCambia(null); setAperto(false); }}>
                 <Check className={cn("mr-2 h-3.5 w-3.5", valore ? "opacity-0" : "opacity-100")} /> {tutti}
@@ -189,6 +192,7 @@ function linkFornitore(supplierId: string | null): string | null {
 // ───────────────────────── Schede ─────────────────────────
 
 function GraficoMesi({ dati }: { dati: AnalisiAcquistiDati }) {
+  const t = useT();
   const [serie, setSerie] = useState<"ordinato" | "fatturato">("ordinato");
   const id = idSvg(useId());
   const fermo = usePreferisceMenoMovimento();
@@ -196,8 +200,8 @@ function GraficoMesi({ dati }: { dati: AnalisiAcquistiDati }) {
     const [a, mm] = m.mese.split("-").map(Number);
     const data = new Date(a, mm - 1, 1);
     return {
-      etichetta: data.toLocaleDateString("it-IT", { month: "short", year: "2-digit" }),
-      lungo: data.toLocaleDateString("it-IT", { month: "long", year: "numeric" }),
+      etichetta: data.toLocaleDateString(intlCampo(), { month: "short", year: "2-digit" }),
+      lungo: data.toLocaleDateString(intlCampo(), { month: "long", year: "numeric" }),
       questo: serie === "ordinato" ? m.ordinato : m.fatturato,
       prima: serie === "ordinato" ? m.ordinatoAnnoPrima : m.fatturatoAnnoPrima,
     };
@@ -208,7 +212,7 @@ function GraficoMesi({ dati }: { dati: AnalisiAcquistiDati }) {
   const caro = righe.reduce((x, r) => (r.questo > x.questo ? r : x), righe[0] ?? { questo: 0, lungo: "", etichetta: "", prima: 0 });
   return (
     <Sezione
-      titolo="Spesa mese per mese (senza IVA)"
+      titolo={t("Spesa mese per mese (senza IVA)")}
       destra={
         <div className="flex rounded-md border p-0.5 text-xs">
           {(["ordinato", "fatturato"] as const).map((s) => (
@@ -218,28 +222,28 @@ function GraficoMesi({ dati }: { dati: AnalisiAcquistiDati }) {
               onClick={() => setSerie(s)}
               className={cn("rounded px-2 py-0.5", serie === s ? "bg-muted font-medium" : "text-muted-foreground")}
             >
-              {s === "ordinato" ? "Ordinato" : "Fatturato"}
+              {s === "ordinato" ? t("Ordinato") : t("Fatturato")}
             </button>
           ))}
         </div>
       }
     >
       {vuoto ? (
-        <Vuoto titolo="Nessuna spesa nel periodo" guida="Il grafico si riempie con gli ordini d'acquisto e le fatture ricevute." />
+        <Vuoto titolo={t("Nessuna spesa nel periodo")} guida={t("Il grafico si riempie con gli ordini d'acquisto e le fatture ricevute.")} />
       ) : (
         <>
           <div className="mb-3 grid grid-cols-3 gap-3 rounded-xl border bg-muted/30 px-3 py-2">
-            <StatGrafico etichetta="Mese più caro" valore={formatCurrencyCompact(caro.questo)} nota={caro.lungo} />
-            <StatGrafico etichetta="Totale" valore={formatCurrencyCompact(totale)} nota={serie === "ordinato" ? "ordinato nel periodo" : "fatturato nel periodo"} />
+            <StatGrafico etichetta={t("Mese più caro")} valore={formatCurrencyCompact(caro.questo)} nota={caro.lungo} />
+            <StatGrafico etichetta={t("Totale")} valore={formatCurrencyCompact(totale)} nota={serie === "ordinato" ? t("ordinato nel periodo") : t("fatturato nel periodo")} />
             <StatGrafico
-              etichetta="Anno prima"
+              etichetta={t("Anno prima")}
               valore={
                 <span className="inline-flex flex-wrap items-center gap-1.5">
                   {formatCurrencyCompact(totalePrima)}
-                  <PillolaVariazione pct={pctVar(totale, totalePrima)} neutra titolo="Questo periodo rispetto all'anno prima" />
+                  <PillolaVariazione pct={pctVar(totale, totalePrima)} neutra titolo={t("Questo periodo rispetto all'anno prima")} />
                 </span>
               }
-              nota="stessi mesi"
+              nota={t("stessi mesi")}
             />
           </div>
           <div className="h-56 sm:h-64">
@@ -263,7 +267,7 @@ function GraficoMesi({ dati }: { dati: AnalisiAcquistiDati }) {
                 <Area
                   type="monotone"
                   dataKey="prima"
-                  name="Stesso mese, anno prima"
+                  name={t("Stesso mese, anno prima")}
                   stroke={COLORI_GRAFICO.viola}
                   strokeOpacity={0.6}
                   strokeDasharray="4 4"
@@ -274,7 +278,7 @@ function GraficoMesi({ dati }: { dati: AnalisiAcquistiDati }) {
                 />
                 <Bar
                   dataKey="questo"
-                  name="Periodo scelto"
+                  name={t("Periodo scelto")}
                   fill={`url(#${id}-barra-questo)`}
                   radius={[5, 5, 2, 2]}
                   maxBarSize={22}
@@ -285,8 +289,8 @@ function GraficoMesi({ dati }: { dati: AnalisiAcquistiDati }) {
             </ResponsiveContainer>
           </div>
           <div className="mt-2 flex gap-4 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm" style={{ background: COLORI_GRAFICO.blu }} /> Periodo scelto</span>
-            <span className="flex items-center gap-1.5"><span className="h-0.5 w-3 rounded" style={{ background: COLORI_GRAFICO.viola }} /> Stesso mese, anno prima</span>
+            <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm" style={{ background: COLORI_GRAFICO.blu }} /> {t("Periodo scelto")}</span>
+            <span className="flex items-center gap-1.5"><span className="h-0.5 w-3 rounded" style={{ background: COLORI_GRAFICO.viola }} /> {t("Stesso mese, anno prima")}</span>
           </div>
         </>
       )}
@@ -306,16 +310,17 @@ const COLORI_CATEGORIE = [
  * stanno già nella tabella qui sotto. Solo da scrivania.
  */
 function DoveVaLaSpesa({ dati }: { dati: AnalisiAcquistiDati }) {
+  const t = useT();
   const fermo = usePreferisceMenoMovimento();
   const cat = dati.categorie.slice(0, 7).map((c) => ({ nome: c.categoria, valore: c.ordinato }));
   const resto = dati.categorie.slice(7).reduce((s, c) => s + c.ordinato, 0);
-  if (resto > 0) cat.push({ nome: "Altre categorie", valore: resto });
+  if (resto > 0) cat.push({ nome: t("Altre categorie"), valore: resto });
   const tot = cat.reduce((s, c) => s + c.valore, 0);
   if (cat.length < 2 || tot <= 0) return null;
   const max = Math.max(...cat.map((c) => c.valore));
   const colore = (i: number) => COLORI_CATEGORIE[i % COLORI_CATEGORIE.length];
   return (
-    <Sezione titolo="Dove va la spesa: ordinato per categoria del fornitore">
+    <Sezione titolo={t("Dove va la spesa: ordinato per categoria del fornitore")}>
       <div className="grid gap-5 md:grid-cols-[200px_minmax(0,1fr)] md:items-center">
         <div className="relative h-[180px]">
           <ResponsiveContainer width="100%" height="100%">
@@ -323,11 +328,11 @@ function DoveVaLaSpesa({ dati }: { dati: AnalisiAcquistiDati }) {
               <Pie data={cat} dataKey="valore" nameKey="nome" innerRadius={56} outerRadius={84} paddingAngle={2} stroke="hsl(var(--card))" strokeWidth={2} isAnimationActive={!fermo} animationDuration={800}>
                 {cat.map((c, i) => <Cell key={c.nome} fill={colore(i)} />)}
               </Pie>
-              <Tooltip content={(p) => <TooltipScheda active={p.active} payload={(p.payload ?? []).map((x) => ({ ...x, color: (x.payload as { fill?: string } | undefined)?.fill })) as never} label="Categoria" />} />
+              <Tooltip content={(p) => <TooltipScheda active={p.active} payload={(p.payload ?? []).map((x) => ({ ...x, color: (x.payload as { fill?: string } | undefined)?.fill })) as never} label={t("Categoria")} />} />
             </PieChart>
           </ResponsiveContainer>
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Ordinato</span>
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{t("Ordinato")}</span>
             <span className="text-sm font-bold tabular-nums">{formatCurrencyCompact(tot)}</span>
           </div>
         </div>
@@ -357,17 +362,18 @@ function DoveVaLaSpesa({ dati }: { dati: AnalisiAcquistiDati }) {
 
 /** Riquadro scuro: quanto c'è da pagare, scaduto e nei prossimi 30 giorni. */
 function DaPagare({ scaduto, scadutoN, prossimi, prossimiN, onApri, fornitori }: { scaduto: number; scadutoN: number; prossimi: number; prossimiN: number; onApri: () => void; fornitori: FornitoreAnalisi[] }) {
+  const t = useT();
   const tot = scaduto + prossimi;
   // Chi aspetta di più: i fornitori con lo scaduto più alto.
   const chiAspetta = fornitori.filter((f) => f.scaduto > 0).sort((a, b) => b.scaduto - a.scaduto).slice(0, 4);
   return (
     <div className="flex flex-col rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 p-4 text-slate-50 shadow-sm dark:border-slate-700">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Da pagare entro 30 giorni</p>
-        <button type="button" onClick={onApri} className="text-[11px] font-medium text-sky-300 underline-offset-2 hover:underline">Scadenze →</button>
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t("Da pagare entro 30 giorni")}</p>
+        <button type="button" onClick={onApri} className="text-[11px] font-medium text-sky-300 underline-offset-2 hover:underline">{t("Scadenze →")}</button>
       </div>
       <p className="mt-2 text-3xl font-bold tabular-nums tracking-tight">{formatCurrencyCompact(tot)}</p>
-      <p className="text-xs text-slate-400">IVA compresa, dallo scadenzario</p>
+      <p className="text-xs text-slate-400">{t("IVA compresa, dallo scadenzario")}</p>
       {tot > 0 && (
         <div className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-white/10" aria-hidden>
           <div className="cg-barra-cresce bg-gradient-to-r from-red-500 to-rose-400" style={{ width: `${(scaduto / tot) * 100}%` }} />
@@ -376,19 +382,19 @@ function DaPagare({ scaduto, scadutoN, prossimi, prossimiN, onApri, fornitori }:
       )}
       <dl className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
         <div>
-          <dt className="flex items-center gap-1.5 text-slate-400"><span className="h-2 w-2 rounded-full bg-red-500" />Scaduto</dt>
+          <dt className="flex items-center gap-1.5 text-slate-400"><span className="h-2 w-2 rounded-full bg-red-500" />{t("Scaduto")}</dt>
           <dd className="font-semibold tabular-nums">{formatCurrency(scaduto)}</dd>
-          <dd className="text-slate-400">{scadutoN} rate</dd>
+          <dd className="text-slate-400">{t("{scadutoN} rate", { scadutoN: String(scadutoN ?? "") })}</dd>
         </div>
         <div>
-          <dt className="flex items-center gap-1.5 text-slate-400"><span className="h-2 w-2 rounded-full bg-amber-400" />Prossimi 30 giorni</dt>
+          <dt className="flex items-center gap-1.5 text-slate-400"><span className="h-2 w-2 rounded-full bg-amber-400" />{t("Prossimi 30 giorni")}</dt>
           <dd className="font-semibold tabular-nums">{formatCurrency(prossimi)}</dd>
-          <dd className="text-slate-400">{prossimiN} rate</dd>
+          <dd className="text-slate-400">{t("{prossimiN} rate", { prossimiN: String(prossimiN ?? "") })}</dd>
         </div>
       </dl>
       {chiAspetta.length > 0 && (
         <div className="mt-3 border-t border-white/10 pt-3">
-          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Chi aspetta di più</p>
+          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t("Chi aspetta di più")}</p>
           <ul className="space-y-1.5 text-xs">
             {chiAspetta.map((f) => (
               <li key={f.chiave} className="flex items-baseline justify-between gap-2">
@@ -439,6 +445,7 @@ function Intestazione({
 }
 
 function TabellaFornitori({ righe, compatta = false }: { righe: FornitoreAnalisi[]; compatta?: boolean }) {
+  const tr = useT();
   const navigate = useNavigate();
   const [ordine, setOrdine] = useState<{ col: Colonna; giu: boolean }>({ col: "ordinato", giu: true });
   const [cerca, setCerca] = useState("");
@@ -462,18 +469,18 @@ function TabellaFornitori({ righe, compatta = false }: { righe: FornitoreAnalisi
   return (
     <>
       {!compatta && (
-        <Input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder="Cerca fornitore o partita IVA" className="mb-3 h-9 sm:max-w-xs" />
+        <Input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder={tr("Cerca fornitore o partita IVA")} className="mb-3 h-9 sm:max-w-xs" />
       )}
       <Scorre>
         <Table className="min-w-[640px] [&_td]:px-3 [&_th]:px-3">
           <TableHeader>
             <TableRow>
-              <Intestazione {...intestazione} col="nome" destra={false}>Fornitore</Intestazione>
-              <Intestazione {...intestazione} col="ordinato">Ordinato</Intestazione>
-              <Intestazione {...intestazione} col="fatturato">Fatturato</Intestazione>
-              {!compatta && <Intestazione {...intestazione} col="ordinatoNonFatturato">Ordinato non fatturato</Intestazione>}
-              <Intestazione {...intestazione} col="scaduto">Scaduto</Intestazione>
-              {!compatta && <Intestazione {...intestazione} col="ultimoAcquisto">Ultimo acquisto</Intestazione>}
+              <Intestazione {...intestazione} col="nome" destra={false}>{tr("Fornitore")}</Intestazione>
+              <Intestazione {...intestazione} col="ordinato">{tr("Ordinato")}</Intestazione>
+              <Intestazione {...intestazione} col="fatturato">{tr("Fatturato")}</Intestazione>
+              {!compatta && <Intestazione {...intestazione} col="ordinatoNonFatturato">{tr("Ordinato non fatturato")}</Intestazione>}
+              <Intestazione {...intestazione} col="scaduto">{tr("Scaduto")}</Intestazione>
+              {!compatta && <Intestazione {...intestazione} col="ultimoAcquisto">{tr("Ultimo acquisto")}</Intestazione>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -484,13 +491,13 @@ function TabellaFornitori({ righe, compatta = false }: { righe: FornitoreAnalisi
                   key={r.chiave}
                   className={cn(link && "cursor-pointer")}
                   onClick={link ? () => navigate(link) : undefined}
-                  title={link ? "Apri la scheda del fornitore: ordini, scadenze e pagamenti" : undefined}
+                  title={link ? tr("Apri la scheda del fornitore: ordini, scadenze e pagamenti") : undefined}
                 >
                   <TableCell className="max-w-[260px]">
                     <span className="block truncate font-medium">{r.nome}</span>
                     {!compatta && (
                       <span className="block truncate text-[11px] text-muted-foreground">
-                        {r.supplierId ? r.categoria ?? `${r.numeroOrdini} ordini · ${r.numeroFatture} fatture` : "Non in anagrafica fornitori"}
+                        {r.supplierId ? r.categoria ?? tr("{numeroOrdini} ordini · {numeroFatture} fatture", { numeroOrdini: String(r.numeroOrdini ?? ""), numeroFatture: String(r.numeroFatture ?? "") }) : tr("Non in anagrafica fornitori")}
                       </span>
                     )}
                   </TableCell>
@@ -507,7 +514,7 @@ function TabellaFornitori({ righe, compatta = false }: { righe: FornitoreAnalisi
       </Scorre>
       {!compatta && ordinate.length > 10 && (
         <Button variant="ghost" size="sm" className="mt-2" onClick={() => setTutti((t) => !t)}>
-          {tutti ? "Mostra solo i primi 10" : `Mostra tutti (${ordinate.length})`}
+          {tutti ? tr("Mostra solo i primi 10") : tr("Mostra tutti ({n})", { n: ordinate.length })}
         </Button>
       )}
     </>
@@ -515,16 +522,17 @@ function TabellaFornitori({ righe, compatta = false }: { righe: FornitoreAnalisi
 }
 
 function TabellaCommesse({ dati, compatta = false }: { dati: AnalisiAcquistiDati; compatta?: boolean }) {
+  const t = useT();
   const righe = compatta ? dati.commesse.filter((c) => c.orderId).slice(0, 5) : dati.commesse;
   return (
     <Scorre>
       <Table className="min-w-[520px] [&_td]:px-3 [&_th]:px-3">
         <TableHeader>
           <TableRow>
-            <TableHead>Commessa</TableHead>
-            <TableHead className="text-right">Ordinato</TableHead>
-            <TableHead className="text-right">Fatturato</TableHead>
-            {!compatta && <TableHead className="text-right">Ordini</TableHead>}
+            <TableHead>{t("Commessa")}</TableHead>
+            <TableHead className="text-right">{t("Ordinato")}</TableHead>
+            <TableHead className="text-right">{t("Fatturato")}</TableHead>
+            {!compatta && <TableHead className="text-right">{t("Ordini")}</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -533,12 +541,12 @@ function TabellaCommesse({ dati, compatta = false }: { dati: AnalisiAcquistiDati
               <TableCell className="max-w-[280px]">
                 {c.orderId ? (
                   <Link to={`/azienda/ordini/${c.orderId}`} className="block truncate font-medium hover:underline">
-                    {nomeCommessa(c.codice, c.cliente)}
+                    {c.codice || c.cliente ? nomeCommessa(c.codice, c.cliente) : t("Commessa senza codice")}
                   </Link>
                 ) : (
                   <>
-                    <span className="block font-medium text-amber-800 dark:text-amber-300">Senza commessa</span>
-                    <span className="block text-[11px] text-muted-foreground">Ordini senza commessa e fatture non collegate a un ordine</span>
+                    <span className="block font-medium text-amber-800 dark:text-amber-300">{t("Senza commessa")}</span>
+                    <span className="block text-[11px] text-muted-foreground">{t("Ordini senza commessa e fatture non collegate a un ordine")}</span>
                   </>
                 )}
               </TableCell>
@@ -556,6 +564,7 @@ function TabellaCommesse({ dati, compatta = false }: { dati: AnalisiAcquistiDati
 // ───────────────────────── Pagina ─────────────────────────
 
 export default function AnalisiAcquisti() {
+  const tr = useT();
   const isMobile = useIsMobile();
   const [params, setParams] = useSearchParams();
   const permessi = usePermissions();
@@ -594,14 +603,14 @@ export default function AnalisiAcquisti() {
   const opzioniFornitori = useMemo(
     () =>
       (anagraficheQuery.data?.fornitori ?? [])
-        .map((f) => ({ id: f.id, label: (f.name ?? "").trim() || "Fornitore senza nome", sotto: f.product_category }))
+        .map((f) => ({ id: f.id, label: (f.name ?? "").trim() || tr("Fornitore senza nome"), sotto: f.product_category }))
         .sort((a, b) => a.label.localeCompare(b.label, "it")),
     [anagraficheQuery.data],
   );
   const opzioniCommesse = useMemo(
     () =>
       (anagraficheQuery.data?.commesse ?? [])
-        .map((c) => ({ id: c.id, label: c.order_code || c.client_name || "Commessa senza codice", sotto: c.order_code ? c.client_name : null }))
+        .map((c) => ({ id: c.id, label: c.order_code || c.client_name || tr("Commessa senza codice"), sotto: c.order_code ? c.client_name : null }))
         .sort((a, b) => b.label.localeCompare(a.label, "it", { numeric: true })),
     [anagraficheQuery.data],
   );
@@ -625,29 +634,29 @@ export default function AnalisiAcquisti() {
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Analisi Acquisti"
-        description={isMobile ? undefined : "Da chi compri, per quale commessa e quanto devi pagare. Importi senza IVA."}
-        badge={solaLettura ? <Badge variant="secondary" className="font-normal">Sola lettura</Badge> : undefined}
+        title={tr("Analisi Acquisti")}
+        description={isMobile ? undefined : tr("Da chi compri, per quale commessa e quanto devi pagare. Importi senza IVA.")}
+        badge={solaLettura ? <Badge variant="secondary" className="font-normal">{tr("Sola lettura")}</Badge> : undefined}
       />
 
       {/* Il confronto prezzi è aziendale: i filtri delle altre schede restano memorizzati. */}
       {scheda !== "prezzi" && (
       <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-card p-2.5">
         <Select value={sceltaPeriodo} onValueChange={(v) => imposta({ periodo: v === "anno" ? null : v, ...(v === "personalizzato" ? { dal: periodo.dal, al: periodo.al } : { dal: null, al: null }) })}>
-          <SelectTrigger className="h-9 w-full sm:w-[170px]" aria-label="Periodo">
+          <SelectTrigger className="h-9 w-full sm:w-[170px]" aria-label={tr("Periodo")}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {PERIODI.map((p) => (
-              <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>
+              <SelectItem key={p.id} value={p.id}>{tr(p.label)}</SelectItem>
             ))}
           </SelectContent>
         </Select>
         {sceltaPeriodo === "personalizzato" && (
           <div className="flex w-full items-center gap-1.5 sm:w-auto">
-            <Input type="date" aria-label="Dal" value={periodo.dal} onChange={(e) => e.target.value && imposta({ dal: e.target.value })} className="h-9 flex-1 sm:w-[150px]" />
+            <Input type="date" aria-label={tr("Dal")} value={periodo.dal} onChange={(e) => e.target.value && imposta({ dal: e.target.value })} className="h-9 flex-1 sm:w-[150px]" />
             <span className="text-xs text-muted-foreground">→</span>
-            <Input type="date" aria-label="Al" value={periodo.al} onChange={(e) => e.target.value && imposta({ al: e.target.value })} className="h-9 flex-1 sm:w-[150px]" />
+            <Input type="date" aria-label={tr("Al")} value={periodo.al} onChange={(e) => e.target.value && imposta({ al: e.target.value })} className="h-9 flex-1 sm:w-[150px]" />
           </div>
         )}
         {/* Da telefono solo il periodo: i filtri fini sono da scrivania. */}
@@ -656,25 +665,25 @@ export default function AnalisiAcquisti() {
           valore={filtri.fornitoreId ?? null}
           onCambia={(v) => imposta({ fornitore: v })}
           opzioni={opzioniFornitori}
-          tutti="Tutti i fornitori"
-          segnaposto="Cerca fornitore"
+          tutti={tr("Tutti i fornitori")}
+          segnaposto={tr("Cerca fornitore")}
         />
         <SceltaConRicerca
           valore={filtri.commessaId ?? null}
           onCambia={(v) => imposta({ commessa: v })}
           opzioni={opzioniCommesse}
-          tutti="Tutte le commesse"
-          segnaposto="Cerca commessa o cliente"
-          extra={{ id: NESSUNA, label: "Senza commessa" }}
+          tutti={tr("Tutte le commesse")}
+          segnaposto={tr("Cerca commessa o cliente")}
+          extra={{ id: NESSUNA, label: tr("Senza commessa") }}
         />
         </div>
         {categorie.length > 0 && (
           <Select value={filtri.categoria ?? "__tutte"} onValueChange={(v) => imposta({ categoria: v === "__tutte" ? null : v })}>
-            <SelectTrigger className="h-9 w-full max-md:hidden sm:w-[170px]" aria-label="Categoria">
+            <SelectTrigger className="h-9 w-full max-md:hidden sm:w-[170px]" aria-label={tr("Categoria")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="__tutte">Tutte le categorie</SelectItem>
+              <SelectItem value="__tutte">{tr("Tutte le categorie")}</SelectItem>
               {categorie.map((c) => (
                 <SelectItem key={c} value={c}>{c}</SelectItem>
               ))}
@@ -683,7 +692,7 @@ export default function AnalisiAcquisti() {
         )}
         {filtriAttivi && (
           <Button variant="ghost" size="sm" className="h-9" onClick={() => imposta({ periodo: null, dal: null, al: null, fornitore: null, commessa: null, categoria: null })}>
-            <X className="mr-1 h-3.5 w-3.5" /> Azzera filtri
+            <X className="mr-1 h-3.5 w-3.5" /> {tr("Azzera filtri")}
           </Button>
         )}
         <span className="ml-auto hidden text-xs text-muted-foreground lg:inline">
@@ -694,12 +703,12 @@ export default function AnalisiAcquisti() {
 
       <Tabs value={scheda} onValueChange={(v) => imposta({ scheda: v === "panoramica" ? null : v })}>
         <TabsList className="h-auto w-full justify-start overflow-x-auto sm:w-auto [&::-webkit-scrollbar]:hidden">
-          <TabsTrigger value="panoramica">Panoramica</TabsTrigger>
-          <TabsTrigger value="fornitori">Fornitori</TabsTrigger>
-          <TabsTrigger value="commesse">Commesse</TabsTrigger>
-          <TabsTrigger value="prezzi">Prezzi</TabsTrigger>
+          <TabsTrigger value="panoramica">{tr("Panoramica")}</TabsTrigger>
+          <TabsTrigger value="fornitori">{tr("Fornitori")}</TabsTrigger>
+          <TabsTrigger value="commesse">{tr("Commesse")}</TabsTrigger>
+          <TabsTrigger value="prezzi">{tr("Prezzi")}</TabsTrigger>
           <TabsTrigger value="scadenze">
-            Scadenze
+            {tr("Scadenze")}
             {t && t.scadutoConteggio > 0 && <span className="ml-1.5 rounded-full bg-red-600 px-1.5 text-[10px] font-semibold text-white">{t.scadutoConteggio}</span>}
           </TabsTrigger>
           <TabsTrigger value="da-sistemare">Da sistemare</TabsTrigger>
@@ -716,33 +725,33 @@ export default function AnalisiAcquisti() {
               ) : (
                 <>
                   <KpiCard
-                    label="Ordinato"
+                    label={tr("Ordinato")}
                     value={eur0(t.ordinato)}
-                    sub={formatVariazione(variazione(t.ordinato, t.annoPrima.ordinato)) ?? `${t.numeroOrdini} ordini`}
+                    sub={formatVariazione(variazione(t.ordinato, t.annoPrima.ordinato)) ?? tr("{n} ordini", { n: t.numeroOrdini })}
                     icon={ShoppingCart}
                     accent="bg-orange-500"
-                    variazione={{ pct: pctVar(t.ordinato, t.annoPrima.ordinato), neutra: true, nota: "Rispetto allo stesso periodo dell'anno prima" }}
+                    variazione={{ pct: pctVar(t.ordinato, t.annoPrima.ordinato), neutra: true, nota: tr("Rispetto allo stesso periodo dell'anno prima") }}
                   />
                   <KpiCard
-                    label="Fatturato"
+                    label={tr("Fatturato")}
                     value={eur0(t.fatturato)}
-                    sub={formatVariazione(variazione(t.fatturato, t.annoPrima.fatturato)) ?? `${t.numeroFatture} fatture`}
+                    sub={formatVariazione(variazione(t.fatturato, t.annoPrima.fatturato)) ?? tr("{n} fatture", { n: t.numeroFatture })}
                     icon={Receipt}
                     accent="bg-blue-500"
-                    variazione={{ pct: pctVar(t.fatturato, t.annoPrima.fatturato), neutra: true, nota: "Rispetto allo stesso periodo dell'anno prima" }}
+                    variazione={{ pct: pctVar(t.fatturato, t.annoPrima.fatturato), neutra: true, nota: tr("Rispetto allo stesso periodo dell'anno prima") }}
                   />
                   <KpiCard
-                    label="Scaduto"
+                    label={tr("Scaduto")}
                     value={eur0(t.scaduto)}
-                    sub={t.scadutoConteggio > 0 ? `${t.scadutoConteggio} rate · IVA compresa` : "Nessuna voce scaduta nello scadenzario"}
+                    sub={t.scadutoConteggio > 0 ? tr("{n} rate · IVA compresa", { n: t.scadutoConteggio }) : tr("Nessuna voce scaduta nello scadenzario")}
                     icon={AlertTriangle}
                     accent={t.scaduto > 0 ? "bg-red-500" : "bg-emerald-500"}
                     onClick={() => imposta({ scheda: "scadenze" })}
                   />
                   <KpiCard
-                    label="In scadenza 30 gg"
+                    label={tr("In scadenza 30 gg")}
                     value={eur0(t.inScadenza30)}
-                    sub={t.inScadenza30Conteggio > 0 ? `${t.inScadenza30Conteggio} rate · IVA compresa` : "Nessuna voce nello scadenzario"}
+                    sub={t.inScadenza30Conteggio > 0 ? tr("{n} rate · IVA compresa", { n: t.inScadenza30Conteggio }) : tr("Nessuna voce nello scadenzario")}
                     icon={CalendarClock}
                     accent="bg-amber-500"
                     onClick={() => imposta({ scheda: "scadenze" })}
@@ -756,17 +765,16 @@ export default function AnalisiAcquisti() {
             <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm dark:border-amber-800 dark:bg-amber-950/30">
               <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
               <span className="flex-1">
-                <strong className="tabular-nums">{formatCurrency(t.senzaCommessa)}</strong> di acquisti senza commessa: non finiscono nel margine di nessun lavoro.
+                {tr("{importo} di acquisti senza commessa: non finiscono nel margine di nessun lavoro.", { importo: formatCurrency(t.senzaCommessa) })}
               </span>
-              <Button size="sm" variant="outline" onClick={() => imposta({ scheda: "commesse" })}>Vedi</Button>
+              <Button size="sm" variant="outline" onClick={() => imposta({ scheda: "commesse" })}>{tr("Vedi")}</Button>
             </div>
           )}
 
           {firma && (
             <p className="text-sm text-muted-foreground">
-              {firma.base === "firma" ? "Dalla firma del preventivo" : "Dalla creazione della commessa"} al primo ordine d'acquisto passano in media{" "}
-              <strong className={firma.mediaGiorni > 7 ? "text-orange-700" : "text-foreground"}>{firma.mediaGiorni} giorni</strong> (su {firma.commesse} commesse degli ultimi 12 mesi).
-              {firma.mediaGiorni > 7 && " Ogni giorno di attesa è materiale che arriva tardi e cantiere fermo."}
+              {tr(firma.base === "firma" ? "Dalla firma del preventivo al primo ordine d'acquisto passano in media {giorni} giorni (su {n} commesse degli ultimi 12 mesi)." : "Dalla creazione della commessa al primo ordine d'acquisto passano in media {giorni} giorni (su {n} commesse degli ultimi 12 mesi).", { giorni: firma.mediaGiorni, n: firma.commesse })}
+              {firma.mediaGiorni > 7 && ` ${tr("Ogni giorno di attesa è materiale che arriva tardi e cantiere fermo.")}`}
             </p>
           )}
 
@@ -783,21 +791,21 @@ export default function AnalisiAcquisti() {
           {!isMobile && dati && <Comparsa indice={2}><DoveVaLaSpesa dati={dati} /></Comparsa>}
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <Sezione titolo="Primi 5 fornitori" destra={<Button variant="link" size="sm" className="h-auto p-0" onClick={() => imposta({ scheda: "fornitori" })}>Tutti</Button>}>
+            <Sezione titolo={tr("Primi 5 fornitori")} destra={<Button variant="link" size="sm" className="h-auto p-0" onClick={() => imposta({ scheda: "fornitori" })}>{tr("Tutti")}</Button>}>
               {caricaAnalisi((d) =>
                 d.fornitori.length === 0 ? (
-                  <Vuoto titolo="Nessun fornitore nel periodo" guida="Crea un ordine d'acquisto o importa le fatture ricevute." />
+                  <Vuoto titolo={tr("Nessun fornitore nel periodo")} guida={tr("Crea un ordine d'acquisto o importa le fatture ricevute.")} />
                 ) : (
                   <TabellaFornitori righe={d.fornitori} compatta />
                 ),
               )}
             </Sezione>
-            <Sezione titolo="Prime 5 commesse" destra={<Button variant="link" size="sm" className="h-auto p-0" onClick={() => imposta({ scheda: "commesse" })}>Tutte</Button>}>
+            <Sezione titolo={tr("Prime 5 commesse")} destra={<Button variant="link" size="sm" className="h-auto p-0" onClick={() => imposta({ scheda: "commesse" })}>{tr("Tutte")}</Button>}>
               {caricaAnalisi((d) =>
                 d.commesse.some((c) => c.orderId) ? (
                   <TabellaCommesse dati={d} compatta />
                 ) : (
-                  <Vuoto titolo="Nessun acquisto collegato a una commessa" guida="Quando crei un ordine d'acquisto, scegli la commessa: così la spesa entra nel suo margine." />
+                  <Vuoto titolo={tr("Nessun acquisto collegato a una commessa")} guida={tr("Quando crei un ordine d'acquisto, scegli la commessa: così la spesa entra nel suo margine.")} />
                 ),
               )}
             </Sezione>
@@ -806,10 +814,10 @@ export default function AnalisiAcquisti() {
 
         {/* ── Fornitori ── */}
         <TabsContent value="fornitori" className="mt-4">
-          <Sezione titolo="Fornitori (senza IVA)" destra={<span className="text-xs text-muted-foreground">Clicca un fornitore per aprire la sua scheda</span>}>
+          <Sezione titolo={tr("Fornitori (senza IVA)")} destra={<span className="text-xs text-muted-foreground">{tr("Clicca un fornitore per aprire la sua scheda")}</span>}>
             {caricaAnalisi((d) =>
               d.fornitori.length === 0 ? (
-                <Vuoto titolo="Nessun fornitore nel periodo" guida="Prova un periodo più lungo, oppure crea un ordine d'acquisto o importa le fatture ricevute." />
+                <Vuoto titolo={tr("Nessun fornitore nel periodo")} guida={tr("Prova un periodo più lungo, oppure crea un ordine d'acquisto o importa le fatture ricevute.")} />
               ) : (
                 <TabellaFornitori righe={d.fornitori} />
               ),
@@ -819,10 +827,10 @@ export default function AnalisiAcquisti() {
 
         {/* ── Commesse ── */}
         <TabsContent value="commesse" className="mt-4">
-          <Sezione titolo="Spesa per commessa (senza IVA)">
+          <Sezione titolo={tr("Spesa per commessa (senza IVA)")}>
             {caricaAnalisi((d) =>
               d.commesse.length === 0 ? (
-                <Vuoto titolo="Nessun acquisto nel periodo" guida="Gli ordini d'acquisto collegati a una commessa compaiono qui, con quelli senza commessa in cima." />
+                <Vuoto titolo={tr("Nessun acquisto nel periodo")} guida={tr("Gli ordini d'acquisto collegati a una commessa compaiono qui, con quelli senza commessa in cima.")} />
               ) : (
                 <TabellaCommesse dati={d} />
               ),
@@ -833,18 +841,18 @@ export default function AnalisiAcquisti() {
         {/* ── Prezzi ── */}
         <TabsContent value="prezzi" className="mt-4">
           <Sezione
-            titolo="Confronto prezzi dello stesso articolo"
+            titolo={tr("Confronto prezzi dello stesso articolo")}
             destra={
               prezziQuery.data && prezziQuery.data.totalSaving > 0 ? (
                 <span className="flex items-center gap-1.5 text-sm">
                   <PiggyBank className="h-4 w-4 text-emerald-600" />
-                  Risparmio potenziale <strong className="tabular-nums text-emerald-700 dark:text-emerald-400">{eur0(prezziQuery.data.totalSaving)}</strong>
+                  {tr("Risparmio potenziale")} <strong className="tabular-nums text-emerald-700 dark:text-emerald-400">{eur0(prezziQuery.data.totalSaving)}</strong>
                 </span>
               ) : undefined
             }
           >
             <p className="mb-3 text-xs text-muted-foreground">
-              Risparmio potenziale: quanto avresti risparmiato se avessi pagato il prezzo migliore degli ultimi 12 mesi. Prezzi netti di sconto, stesso articolo e stessa unità di misura; le voci «a corpo» e le righe generiche non entrano. Confronto aziendale sugli ultimi 12 mesi: i filtri periodo, commessa, fornitore e categoria delle altre schede non si applicano. Il risparmio mostrato riguarda l’intera azienda.
+              {tr("Risparmio potenziale: quanto avresti risparmiato se avessi pagato il prezzo migliore degli ultimi 12 mesi. Prezzi netti di sconto, stesso articolo e stessa unità di misura; le voci «a corpo» e le righe generiche non entrano. Confronto aziendale sugli ultimi 12 mesi: i filtri periodo, commessa, fornitore e categoria delle altre schede non si applicano. Il risparmio mostrato riguarda l’intera azienda.")}
             </p>
             {prezziQuery.isError ? (
               <Errore onRiprova={() => prezziQuery.refetch()} />
@@ -852,21 +860,21 @@ export default function AnalisiAcquisti() {
               <Skeleton className="h-48 w-full" />
             ) : benchmarks.length === 0 ? (
               <Vuoto
-                titolo="Nessun articolo comprato a prezzi diversi"
-                guida="Serve lo stesso articolo, con la stessa unità di misura, comprato da almeno due fornitori o almeno tre volte negli ultimi 12 mesi."
+                titolo={tr("Nessun articolo comprato a prezzi diversi")}
+                guida={tr("Serve lo stesso articolo, con la stessa unità di misura, comprato da almeno due fornitori o almeno tre volte negli ultimi 12 mesi.")}
               />
             ) : (
               <Scorre>
                 <Table className="min-w-[680px] [&_td]:px-3 [&_th]:px-3">
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Articolo</TableHead>
-                      <TableHead className="text-right">Acquisti</TableHead>
-                      <TableHead className="text-right">Migliore</TableHead>
-                      <TableHead className="text-right">Medio</TableHead>
-                      <TableHead className="text-right">Più alto</TableHead>
-                      <TableHead className="text-right">Ultimo</TableHead>
-                      <TableHead className="text-right">Risparmio</TableHead>
+                      <TableHead>{tr("Articolo")}</TableHead>
+                      <TableHead className="text-right">{tr("Acquisti")}</TableHead>
+                      <TableHead className="text-right">{tr("Migliore")}</TableHead>
+                      <TableHead className="text-right">{tr("Medio")}</TableHead>
+                      <TableHead className="text-right">{tr("Più alto")}</TableHead>
+                      <TableHead className="text-right">{tr("Ultimo")}</TableHead>
+                      <TableHead className="text-right">{tr("Risparmio")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -875,9 +883,9 @@ export default function AnalisiAcquisti() {
                         <TableCell className="max-w-[280px]">
                           <span className="block truncate font-medium" title={b.label}>{b.label}</span>
                           <span className="block truncate text-[11px] text-muted-foreground">
-                            {b.supplierCount} fornitor{b.supplierCount === 1 ? "e" : "i"}
-                            {b.bestSupplierName ? ` · migliore: ${b.bestSupplierName}` : ""}
-                            {b.unitOfMeasure ? ` · prezzo al ${b.unitOfMeasure}` : ""}
+                            {b.supplierCount === 1 ? tr("{n} fornitore", { n: 1 }) : tr("{n} fornitori", { n: b.supplierCount })}
+                            {b.bestSupplierName ? ` · ${tr("migliore: {bestSupplierName}", { bestSupplierName: String(b.bestSupplierName ?? "") })}` : ""}
+                            {b.unitOfMeasure ? ` · ${tr("prezzo al {unitOfMeasure}", { unitOfMeasure: String(b.unitOfMeasure ?? "") })}` : ""}
                           </span>
                         </TableCell>
                         <TableCell className="text-right tabular-nums">{b.purchaseCount}</TableCell>
@@ -898,25 +906,24 @@ export default function AnalisiAcquisti() {
         {/* ── Scadenze ── */}
         <TabsContent value="scadenze" className="mt-4">
           <Sezione
-            titolo="Scadenzario fornitori (IVA compresa)"
-            destra={t ? <span className="text-xs text-muted-foreground tabular-nums">Scaduto {formatCurrency(t.scaduto)} · prossimi 30 giorni {formatCurrency(t.inScadenza30)}</span> : undefined}
+            titolo={tr("Scadenzario fornitori (IVA compresa)")}
+            destra={t ? <span className="text-xs text-muted-foreground tabular-nums">{tr("Scaduto {scaduto} · prossimi 30 giorni {inScadenza30}", { scaduto: formatCurrency(t.scaduto), inScadenza30: formatCurrency(t.inScadenza30) })}</span> : undefined}
           >
             <p className="mb-3 text-sm text-muted-foreground">
-              Questa vista include le voci dello scadenzario. Le rate delle fatture ricevute
-              non ancora riportate qui vanno verificate in «Fatture e debiti» del fornitore.
+              {tr("Questa vista include le voci dello scadenzario. Le rate delle fatture ricevute non ancora riportate qui vanno verificate in «Fatture e debiti» del fornitore.")}
             </p>
             {caricaAnalisi((d) =>
               d.scadenze.length === 0 ? (
-                <Vuoto titolo="Nessuna rata scaduta o in scadenza nei prossimi 30 giorni" guida="Verifica anche le rate in Fatture e debiti del fornitore: potrebbero non essere ancora presenti nello scadenzario." />
+                <Vuoto titolo={tr("Nessuna rata scaduta o in scadenza nei prossimi 30 giorni")} guida={tr("Verifica anche le rate in Fatture e debiti del fornitore: potrebbero non essere ancora presenti nello scadenzario.")} />
               ) : (
                 <Scorre>
                   <Table className="min-w-[560px] [&_td]:px-3 [&_th]:px-3">
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Scadenza</TableHead>
-                        <TableHead>Fornitore</TableHead>
-                        <TableHead>Descrizione</TableHead>
-                        <TableHead className="text-right">Da pagare</TableHead>
+                        <TableHead>{tr("Scadenza")}</TableHead>
+                        <TableHead>{tr("Fornitore")}</TableHead>
+                        <TableHead>{tr("Descrizione")}</TableHead>
+                        <TableHead className="text-right">{tr("Da pagare")}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -926,7 +933,7 @@ export default function AnalisiAcquisti() {
                           <TableRow key={s.id}>
                             <TableCell className="whitespace-nowrap">
                               <span className={cn("tabular-nums", s.scaduta && "font-medium text-red-600")}>{formatDateIt(s.scadenza)}</span>
-                              {s.scaduta && <Badge variant="destructive" className="ml-2 px-1.5 py-0 text-[10px]">Scaduta</Badge>}
+                              {s.scaduta && <Badge variant="destructive" className="ml-2 px-1.5 py-0 text-[10px]">{tr("Scaduta")}</Badge>}
                             </TableCell>
                             <TableCell className="max-w-[200px]">
                               {link ? (

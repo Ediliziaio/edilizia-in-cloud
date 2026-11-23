@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import { formatCurrency } from "@/lib/formatters";
 import { useManualTreasury, type ManualAccount, type ManualTxInput } from "@/hooks/useManualTreasury";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // "1.234,56" (IT) o "1234.56" → number
 function parseAmount(v: unknown): number {
@@ -61,6 +62,7 @@ function parseCSV(text: string): Record<string, string>[] {
 export function BankStatementImportDialog({ account, open, onOpenChange, onImported }: {
   account: ManualAccount; open: boolean; onOpenChange: (v: boolean) => void; onImported: () => void;
 }) {
+  const tr = useT();
   const { bulkInsert } = useManualTreasury();
   const fileRef = useRef<HTMLInputElement>(null);
   const [rawRows, setRawRows] = useState<Record<string, string>[]>([]);
@@ -97,7 +99,7 @@ export function BankStatementImportDialog({ account, open, onOpenChange, onImpor
           rows.push(o);
         });
       }
-      if (!rows.length) { toast.error("File vuoto o non leggibile"); return; }
+      if (!rows.length) { toast.error(tr("File vuoto o non leggibile")); return; }
       const hs = Object.keys(rows[0]);
       setHeaders(hs); setRawRows(rows);
       setMap({
@@ -107,7 +109,7 @@ export function BankStatementImportDialog({ account, open, onOpenChange, onImpor
         entrate: detect(hs, ["entrate", "accredit", "avere", "dare in"]),
         uscite: detect(hs, ["uscite", "addebit", "dare", "avere out"]),
       });
-    } catch (e) { toast.error("Errore lettura file", { description: String((e as Error).message) }); }
+    } catch (e) { toast.error(tr("Errore lettura file"), { description: String((e as Error).message) }); }
     finally { setBusy(false); }
   }
 
@@ -156,22 +158,22 @@ export function BankStatementImportDialog({ account, open, onOpenChange, onImpor
           source: "import_ai" as const, external_transaction_id: `${base}:${n}`.slice(0, 200),
         };
       }).filter((r: ManualTxInput) => r.booking_date && isFinite(r.amount) && r.amount !== 0);
-      if (!rows.length) { toast.error("L'AI non ha trovato movimenti nel documento"); return; }
+      if (!rows.length) { toast.error(tr("L'AI non ha trovato movimenti nel documento")); return; }
       setAiRows(rows);
-      toast.success(`AI: ${rows.length} movimenti riconosciuti`);
-    } catch (e) { toast.error("Errore lettura AI", { description: String((e as Error).message) }); }
+      toast.success(tr("AI: {n} movimenti riconosciuti", { n: rows.length }));
+    } catch (e) { toast.error(tr("Errore lettura AI"), { description: String((e as Error).message) }); }
     finally { setBusy(false); }
   }
 
   async function doImport(rows: ManualTxInput[]) {
     setErroreImport(null);
-    if (!rows.length) { setErroreImport("Nessun movimento valido da importare"); return; }
+    if (!rows.length) { setErroreImport(tr("Nessun movimento valido da importare")); return; }
     try {
       await bulkInsert.mutateAsync({ account_id: account.id, rows, source: rows[0].source === "import_ai" ? "import_ai" : "import_csv" });
       onImported(); onOpenChange(false);
       setRawRows([]); setHeaders([]); setAiRows([]);
     } catch (error) {
-      setErroreImport(`Importazione non completata: ${error instanceof Error ? error.message : "controlla la connessione e riprova"}. I dati restano disponibili per riprovare.`);
+      setErroreImport(tr("Importazione non completata: {errore}. I dati restano disponibili per riprovare.", { errore: error instanceof Error ? error.message : tr("controlla la connessione e riprova") }));
     }
   }
 
@@ -181,50 +183,50 @@ export function BankStatementImportDialog({ account, open, onOpenChange, onImpor
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Importa estratto conto</DialogTitle>
-          <DialogDescription>Carica un file CSV/Excel oppure una foto/PDF dell'estratto conto letto dall'AI. Duplicati saltati automaticamente.</DialogDescription>
+          <DialogTitle>{tr("Importa estratto conto")}</DialogTitle>
+          <DialogDescription>{tr("Carica un file CSV/Excel oppure una foto/PDF dell'estratto conto letto dall'AI. Duplicati saltati automaticamente.")}</DialogDescription>
         </DialogHeader>
         {erroreImport && <p role="alert" className="text-sm text-destructive">{erroreImport}</p>}
 
         <Tabs defaultValue="file">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="file" className="gap-2"><FileSpreadsheet className="h-4 w-4" /> CSV / Excel</TabsTrigger>
-            <TabsTrigger value="ai" className="gap-2"><Sparkles className="h-4 w-4" /> Foto / PDF (AI)</TabsTrigger>
+            <TabsTrigger value="ai" className="gap-2"><Sparkles className="h-4 w-4" /> {tr("Foto / PDF (AI)")}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="file" className="space-y-3">
             <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
             <Button variant="outline" className="w-full" onClick={() => fileRef.current?.click()} disabled={busy}>
-              {busy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <UploadCloud className="h-4 w-4 mr-2" />} Scegli file CSV o Excel
+              {busy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <UploadCloud className="h-4 w-4 mr-2" />} {tr("Scegli file CSV o Excel")}
             </Button>
             {headers.length > 0 && (
               <div className="space-y-3 rounded-lg border p-3">
-                <p className="text-xs font-medium text-muted-foreground">Associa le colonne ({rawRows.length} righe)</p>
+                <p className="text-xs font-medium text-muted-foreground">{tr("Associa le colonne ({n} righe)", { n: rawRows.length })}</p>
                 <div className="grid grid-cols-2 gap-2">
-                  <div><Label className="text-xs">Data</Label><ColSelect headers={headers} value={map.date} onChange={(v) => setMap({ ...map, date: v })} /></div>
-                  <div><Label className="text-xs">Descrizione</Label><ColSelect headers={headers} value={map.desc} onChange={(v) => setMap({ ...map, desc: v })} /></div>
+                  <div><Label className="text-xs">{tr("Data")}</Label><ColSelect headers={headers} value={map.date} onChange={(v) => setMap({ ...map, date: v })} /></div>
+                  <div><Label className="text-xs">{tr("Descrizione")}</Label><ColSelect headers={headers} value={map.desc} onChange={(v) => setMap({ ...map, desc: v })} /></div>
                 </div>
                 <div className="flex gap-2">
-                  <Button type="button" size="sm" variant={amountMode === "single" ? "default" : "outline"} onClick={() => setAmountMode("single")}>Importo unico (±)</Button>
-                  <Button type="button" size="sm" variant={amountMode === "split" ? "default" : "outline"} onClick={() => setAmountMode("split")}>Entrate/Uscite separate</Button>
+                  <Button type="button" size="sm" variant={amountMode === "single" ? "default" : "outline"} onClick={() => setAmountMode("single")}>{tr("Importo unico (±)")}</Button>
+                  <Button type="button" size="sm" variant={amountMode === "split" ? "default" : "outline"} onClick={() => setAmountMode("split")}>{tr("Entrate/Uscite separate")}</Button>
                 </div>
                 {amountMode === "single" ? (
-                  <div><Label className="text-xs">Colonna importo</Label><ColSelect headers={headers} value={map.amount} onChange={(v) => setMap({ ...map, amount: v })} /></div>
+                  <div><Label className="text-xs">{tr("Colonna importo")}</Label><ColSelect headers={headers} value={map.amount} onChange={(v) => setMap({ ...map, amount: v })} /></div>
                 ) : (
                   <div className="grid grid-cols-2 gap-2">
-                    <div><Label className="text-xs">Entrate</Label><ColSelect headers={headers} value={map.entrate} onChange={(v) => setMap({ ...map, entrate: v })} /></div>
-                    <div><Label className="text-xs">Uscite</Label><ColSelect headers={headers} value={map.uscite} onChange={(v) => setMap({ ...map, uscite: v })} /></div>
+                    <div><Label className="text-xs">{tr("Entrate")}</Label><ColSelect headers={headers} value={map.entrate} onChange={(v) => setMap({ ...map, entrate: v })} /></div>
+                    <div><Label className="text-xs">{tr("Uscite")}</Label><ColSelect headers={headers} value={map.uscite} onChange={(v) => setMap({ ...map, uscite: v })} /></div>
                   </div>
                 )}
                 <PreviewList rows={fileRows} />
                 {rawRows.length > fileRows.length && (
                   <p role="status" className="text-sm text-muted-foreground">
-                    {rawRows.length - fileRows.length === 1 ? "1 riga esclusa" : `${rawRows.length - fileRows.length} righe escluse`}. Controlla le colonne della data e dell’importo.
+                    {rawRows.length - fileRows.length === 1 ? tr("1 riga esclusa") : tr("{n} righe escluse", { n: rawRows.length - fileRows.length })}. {tr("Controlla le colonne della data e dell’importo.")}
                   </p>
                 )}
                 <DialogFooter>
                   <Button onClick={() => doImport(fileRows)} disabled={bulkInsert.isPending || !fileRows.length}>
-                    {bulkInsert.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />} Importa {fileRows.length} movimenti
+                    {bulkInsert.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />} {tr("Importa {n} movimenti", { n: fileRows.length })}
                   </Button>
                 </DialogFooter>
               </div>
@@ -234,14 +236,14 @@ export function BankStatementImportDialog({ account, open, onOpenChange, onImpor
           <TabsContent value="ai" className="space-y-3">
             <input type="file" accept="image/*,application/pdf" className="hidden" id="ai-file" onChange={(e) => e.target.files?.[0] && handleAiFile(e.target.files[0])} />
             <Button variant="outline" className="w-full" onClick={() => document.getElementById("ai-file")?.click()} disabled={busy}>
-              {busy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />} Carica foto o PDF dell'estratto conto
+              {busy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />} {tr("Carica foto o PDF dell'estratto conto")}
             </Button>
             {aiRows.length > 0 && (
               <div className="space-y-3 rounded-lg border p-3">
                 <PreviewList rows={aiRows} />
                 <DialogFooter>
                   <Button onClick={() => doImport(aiRows)} disabled={bulkInsert.isPending}>
-                    {bulkInsert.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />} Importa {aiRows.length} movimenti
+                    {bulkInsert.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />} {tr("Importa {n} movimenti", { n: aiRows.length })}
                   </Button>
                 </DialogFooter>
               </div>
@@ -266,7 +268,8 @@ function ColSelect({ headers, value, onChange }: { headers: string[]; value: str
 }
 
 function PreviewList({ rows }: { rows: ManualTxInput[] }) {
-  if (!rows.length) return <p className="text-xs text-muted-foreground">Nessuna riga valida con la mappatura attuale.</p>;
+  const t = useT();
+  if (!rows.length) return <p className="text-xs text-muted-foreground">{t("Nessuna riga valida con la mappatura attuale.")}</p>;
   return (
     <div className="max-h-40 overflow-y-auto rounded border divide-y text-xs">
       {rows.slice(0, 8).map((r, i) => (
@@ -275,7 +278,7 @@ function PreviewList({ rows }: { rows: ManualTxInput[] }) {
           <span className={r.amount >= 0 ? "text-green-700" : "text-destructive"}>{r.amount >= 0 ? "+" : "−"}{formatCurrency(Math.abs(r.amount))}</span>
         </div>
       ))}
-      {rows.length > 8 && <div className="px-2 py-1 text-muted-foreground">… e altri {rows.length - 8}</div>}
+      {rows.length > 8 && <div className="px-2 py-1 text-muted-foreground">{t("… e altri {n}", { n: rows.length - 8 })}</div>}
     </div>
   );
 }

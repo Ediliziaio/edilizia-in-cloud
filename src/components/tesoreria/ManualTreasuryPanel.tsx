@@ -11,8 +11,10 @@ import { Wallet, Plus, ListOrdered, Pencil } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { useManualTreasury, type ManualAccount } from "@/hooks/useManualTreasury";
 import { ManualTransactionsSheet } from "./ManualTransactionsSheet";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function ManualTreasuryPanel({ autoOpenCreate = false, onAfterCreate }: { autoOpenCreate?: boolean; onAfterCreate?: () => void }) {
+  const t = useT();
   const { canViewBankBalances, solaLettura } = usePermissions();
   const { accounts, isLoading, createAccount, updateAccount } = useManualTreasury();
   const [createOpen, setCreateOpen] = useState(autoOpenCreate && canViewBankBalances && !solaLettura);
@@ -31,7 +33,7 @@ export function ManualTreasuryPanel({ autoOpenCreate = false, onAfterCreate }: {
     if (!editing || !canViewBankBalances || solaLettura || !form.name.trim()) return;
     const opening = Number(form.opening.trim().replace(",", "."));
     if (!Number.isFinite(opening)) {
-      toast.error("Inserisci un saldo di apertura valido.");
+      toast.error(t("Inserisci un saldo di apertura valido."));
       return;
     }
     const name = form.name.trim();
@@ -56,11 +58,11 @@ export function ManualTreasuryPanel({ autoOpenCreate = false, onAfterCreate }: {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Wallet className="h-4 w-4 text-muted-foreground max-sm:hidden" />
-          <h3 className="text-sm font-semibold max-sm:text-[13px]">Conti / casse manuali</h3>
-          <span className="text-xs text-muted-foreground max-sm:hidden">(senza collegamento bancario)</span>
+          <h3 className="text-sm font-semibold max-sm:text-[13px]">{t("Conti / casse manuali")}</h3>
+          <span className="text-xs text-muted-foreground max-sm:hidden">{t("(senza collegamento bancario)")}</span>
         </div>
-        <Button size="sm" variant="outline" onClick={() => { resetForm(); setCreateOpen(true); }} aria-label="Aggiungi conto/cassa" className="tap-compact max-sm:h-8 max-sm:w-8 max-sm:px-0">
-          <Plus className="h-4 w-4 mr-1 max-sm:mr-0" /> <span className="max-sm:hidden">Aggiungi conto/cassa</span>
+        <Button size="sm" variant="outline" onClick={() => { resetForm(); setCreateOpen(true); }} aria-label={t("Aggiungi conto/cassa")} className="tap-compact max-sm:h-8 max-sm:w-8 max-sm:px-0">
+          <Plus className="h-4 w-4 mr-1 max-sm:mr-0" /> <span className="max-sm:hidden">{t("Aggiungi conto/cassa")}</span>
         </Button>
       </div>
 
@@ -68,7 +70,7 @@ export function ManualTreasuryPanel({ autoOpenCreate = false, onAfterCreate }: {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}</div>
       ) : accounts.length === 0 ? (
         <Card className="max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none"><CardContent className="py-6 text-center text-sm text-muted-foreground max-sm:p-0 max-sm:text-left max-sm:text-xs">
-          Nessun conto manuale.<span className="max-sm:hidden"> Creane uno per gestire saldo e movimenti senza collegare la banca — alimenta previsionali, tesoreria e controllo di gestione.</span>
+          {t("Nessun conto manuale.")}<span className="max-sm:hidden"> {t("Creane uno per gestire saldo e movimenti senza collegare la banca — alimenta previsionali, tesoreria e controllo di gestione.")}</span>
         </CardContent></Card>
       ) : (
         <>
@@ -82,10 +84,10 @@ export function ManualTreasuryPanel({ autoOpenCreate = false, onAfterCreate }: {
               className="tap-compact flex w-full items-center gap-2.5 px-3 py-2.5 text-left active:bg-muted"
             >
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] font-semibold leading-tight">{a.display_name || a.account_name || "Conto"}</p>
+                <p className="truncate text-[13px] font-semibold leading-tight">{a.display_name || a.account_name || t("Conto")}</p>
                 {a.iban && <p className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">{a.iban}</p>}
               </div>
-              <p className={`shrink-0 text-[13px] font-semibold tabular-nums ${Number(a.current_balance) >= 0 ? "" : "text-destructive"}`}>{canViewBankBalances ? formatCurrency(Number(a.current_balance ?? 0)) : "Saldo riservato"}</p>
+              <p className={`shrink-0 text-[13px] font-semibold tabular-nums ${Number(a.current_balance) >= 0 ? "" : "text-destructive"}`}>{canViewBankBalances ? formatCurrency(Number(a.current_balance ?? 0)) : t("Saldo riservato")}</p>
             </button>
           ))}
         </div>
@@ -95,17 +97,17 @@ export function ManualTreasuryPanel({ autoOpenCreate = false, onAfterCreate }: {
               <CardContent className="p-4 space-y-2">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold truncate">{a.display_name || a.account_name || "Conto"}</p>
+                    <p className="text-sm font-semibold truncate">{a.display_name || a.account_name || t("Conto")}</p>
                     {a.iban && <p className="text-xs text-muted-foreground truncate">{a.iban}</p>}
                   </div>
-                  <button className="text-muted-foreground hover:text-foreground" aria-label="Modifica conto"
+                  <button className="text-muted-foreground hover:text-foreground" aria-label={t("Modifica conto")}
                     disabled={!canViewBankBalances || solaLettura} onClick={() => { setEditing(a); setForm({ name: a.display_name || a.account_name || "", iban: a.iban || "", opening: String(a.opening_balance ?? 0) }); }}>
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
                 </div>
-                <p className={`text-xl font-bold ${Number(a.current_balance) >= 0 ? "text-slate-900" : "text-destructive"}`}>{canViewBankBalances ? formatCurrency(Number(a.current_balance ?? 0)) : "Saldo riservato"}</p>
+                <p className={`text-xl font-bold ${Number(a.current_balance) >= 0 ? "text-slate-900" : "text-destructive"}`}>{canViewBankBalances ? formatCurrency(Number(a.current_balance ?? 0)) : t("Saldo riservato")}</p>
                 <Button size="sm" variant="secondary" className="w-full" onClick={() => setSheetAccount(a)}>
-                  <ListOrdered className="h-4 w-4 mr-1" /> Movimenti
+                  <ListOrdered className="h-4 w-4 mr-1" /> {t("Movimenti")}
                 </Button>
               </CardContent>
             </Card>
@@ -118,18 +120,18 @@ export function ManualTreasuryPanel({ autoOpenCreate = false, onAfterCreate }: {
       <Dialog open={createOpen || !!editing} onOpenChange={(v) => { if (!v) { setCreateOpen(false); setEditing(null); resetForm(); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{editing ? "Modifica conto/cassa" : "Nuovo conto/cassa manuale"}</DialogTitle>
-            <DialogDescription className="max-sm:sr-only">Il saldo si aggiorna da apertura + movimenti e alimenta tesoreria, previsionali e controllo di gestione.</DialogDescription>
+            <DialogTitle>{editing ? t("Modifica conto/cassa") : t("Nuovo conto/cassa manuale")}</DialogTitle>
+            <DialogDescription className="max-sm:sr-only">{t("Il saldo si aggiorna da apertura + movimenti e alimenta tesoreria, previsionali e controllo di gestione.")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <div><Label className="text-xs">Nome *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Es. Banca Intesa c/c oppure Cassa contanti" /></div>
-            <div><Label className="text-xs">IBAN (opzionale)</Label><Input value={form.iban} onChange={(e) => setForm({ ...form, iban: e.target.value })} placeholder="IT.." /></div>
-            <div><Label className="text-xs">Saldo di apertura €</Label><Input inputMode="decimal" value={form.opening} onChange={(e) => setForm({ ...form, opening: e.target.value })} placeholder="0,00" /></div>
+            <div><Label className="text-xs">{t("Nome *")}</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={t("Es. Banca Intesa c/c oppure Cassa contanti")} /></div>
+            <div><Label className="text-xs">{t("IBAN (opzionale)")}</Label><Input value={form.iban} onChange={(e) => setForm({ ...form, iban: e.target.value })} placeholder="IT.." /></div>
+            <div><Label className="text-xs">{t("Saldo di apertura €")}</Label><Input inputMode="decimal" value={form.opening} onChange={(e) => setForm({ ...form, opening: e.target.value })} placeholder="0,00" /></div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => { setCreateOpen(false); setEditing(null); resetForm(); }} className="max-sm:hidden">Annulla</Button>
+            <Button variant="ghost" onClick={() => { setCreateOpen(false); setEditing(null); resetForm(); }} className="max-sm:hidden">{t("Annulla")}</Button>
             <Button onClick={editing ? submitEdit : submitCreate} disabled={createAccount.isPending || updateAccount.isPending || !form.name.trim()}>
-              {editing ? "Salva" : "Crea conto"}
+              {editing ? t("Salva") : t("Crea conto")}
             </Button>
           </DialogFooter>
         </DialogContent>

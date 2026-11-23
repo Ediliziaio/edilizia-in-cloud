@@ -6,6 +6,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Shared presentation only: each section retains its own sources and period rules. */
 export function FiscalSectionHeader({
@@ -49,6 +50,7 @@ export function FiscalMetric({
   onClick?: () => void;
   active?: boolean;
 }) {
+  const t = useT();
   return (
     <div
       role="group"
@@ -58,12 +60,12 @@ export function FiscalMetric({
       {onClick && (
         <button
           type="button"
-          aria-label={`Filtra: ${label}`}
+          aria-label={t("Filtra: {label}", { label })}
           aria-pressed={active}
           onClick={onClick}
           className="absolute inset-0 cursor-pointer rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
         >
-          <span className="sr-only">Mostra le righe corrispondenti</span>
+          <span className="sr-only">{t("Mostra le righe corrispondenti")}</span>
         </button>
       )}
       {onClick && (

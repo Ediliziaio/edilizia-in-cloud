@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { UniformSelect } from "@/components/ui/uniform-select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const errore = (e: unknown) => e instanceof Error ? e.message : typeof e === "object" && e && "message" in e ? String((e as { message: unknown }).message) : String(e);
 
@@ -51,6 +52,7 @@ interface FatturaPerProtocollo { id: string; numero_fattura: string; cedente_rag
 const giornoArrivo = (f: FatturaPerProtocollo) => (f.data_ricezione_sdi ?? f.data_fattura ?? new Date().toISOString()).slice(0, 10);
 
 export function CellaProtocolloRicevuta({ fattura, protocolli }: { fattura: FatturaPerProtocollo; protocolli: ProtocolliRicevute }) {
+  const t = useT();
   const [aperto, setAperto] = useState(false);
   const [numero, setNumero] = useState("");
   const [data, setData] = useState("");
@@ -65,8 +67,8 @@ export function CellaProtocolloRicevuta({ fattura, protocolli }: { fattura: Fatt
       if (error) throw error;
       return esito as unknown as { numero: number; anno: number };
     },
-    onSuccess: async r => { await protocolli.registri.ricarica(); setAperto(false); toast.success(`Protocollo ${r.numero}/${r.anno}`); },
-    onError: e => toast.error("Protocollo non assegnato", { description: errore(e), duration: 10000 }),
+    onSuccess: async r => { await protocolli.registri.ricarica(); setAperto(false); toast.success(t("Protocollo {numero}/{anno}", { numero: String(r.numero ?? ""), anno: String(r.anno ?? "") })); },
+    onError: e => toast.error(t("Protocollo non assegnato"), { description: errore(e), duration: 10000 }),
   });
   if (fattura.stato === "rifiutata") return <span className="text-xs text-muted-foreground">—</span>;
   if (!p && !protocolli.puoScrivere) return <span className="text-xs text-muted-foreground">—</span>;
@@ -75,39 +77,39 @@ export function CellaProtocolloRicevuta({ fattura, protocolli }: { fattura: Fatt
   return <>
     <button type="button" onClick={() => { setNumero(""); setMotivo(""); setData(""); setAperto(true); }}
       className={p ? "whitespace-nowrap font-mono text-sm tabular-nums underline-offset-2 hover:underline" : "whitespace-nowrap text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"}
-      title={p ? `Protocollo interno, registrato il ${p.data_registrazione.split("-").reverse().join("/")}` : "Assegna il protocollo interno"}>
-      {p ? protocolli.etichetta(p) : "Assegna"}
+      title={p ? t("Protocollo interno, registrato il {data}", { data: p.data_registrazione.split("-").reverse().join("/") }) : t("Assegna il protocollo interno")}>
+      {p ? protocolli.etichetta(p) : t("Assegna")}
     </button>
     <Dialog open={aperto} onOpenChange={v => { if (!salva.isPending) setAperto(v); }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{p ? `Protocollo ${protocolli.etichetta(p)}` : "Protocollo interno"}</DialogTitle>
-          <DialogDescription>{fattura.cedente_ragione_sociale} · fattura n. {fattura.numero_fattura}. La numerazione riparte da 1 ogni anno ed è la stessa del Registro IVA acquisti.</DialogDescription>
+          <DialogTitle>{p ? t("Protocollo {numero}", { numero: String(protocolli.etichetta(p) ?? "") }) : t("Protocollo interno")}</DialogTitle>
+          <DialogDescription>{t("{fornitore} · fattura n. {numero}. La numerazione riparte da 1 ogni anno ed è la stessa del Registro IVA acquisti.", { fornitore: String(fattura.cedente_ragione_sociale ?? ""), numero: String(fattura.numero_fattura ?? "") })}</DialogDescription>
         </DialogHeader>
         {protocolli.puoScrivere ? <fieldset disabled={salva.isPending} className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label htmlFor={`prot-numero-${fattura.id}`}>Numero</Label>
+              <Label htmlFor={`prot-numero-${fattura.id}`}>{t("Numero")}</Label>
               <Input id={`prot-numero-${fattura.id}`} type="number" min="1" step="1" inputMode="numeric" value={numero}
-                placeholder={p ? String(p.numero) : `${protocolli.prossimo(anno)} (il prossimo)`} onChange={e => setNumero(e.target.value)} />
+                placeholder={p ? String(p.numero) : t("{numero} (il prossimo)", { numero: String(protocolli.prossimo(anno) ?? "") })} onChange={e => setNumero(e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label htmlFor={`prot-data-${fattura.id}`}>Registrata il</Label>
+              <Label htmlFor={`prot-data-${fattura.id}`}>{t("Registrata il")}</Label>
               <Input id={`prot-data-${fattura.id}`} type="date" value={data || p?.data_registrazione || giornoArrivo(fattura)} onChange={e => setData(e.target.value)} />
             </div>
           </div>
           {cambia && <div className="space-y-1">
-            <Label htmlFor={`prot-motivo-${fattura.id}`}>Perché lo cambi</Label>
-            <Input id={`prot-motivo-${fattura.id}`} value={motivo} placeholder="Es. numero sbagliato" onChange={e => setMotivo(e.target.value)} />
-            <p className="text-xs text-muted-foreground">Il numero vecchio resta nello storico e torna libero.</p>
+            <Label htmlFor={`prot-motivo-${fattura.id}`}>{t("Perché lo cambi")}</Label>
+            <Input id={`prot-motivo-${fattura.id}`} value={motivo} placeholder={t("Es. numero sbagliato")} onChange={e => setMotivo(e.target.value)} />
+            <p className="text-xs text-muted-foreground">{t("Il numero vecchio resta nello storico e torna libero.")}</p>
           </div>}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAperto(false)}>Chiudi</Button>
+            <Button variant="outline" onClick={() => setAperto(false)}>{t("Chiudi")}</Button>
             {(!p || cambia) && <Button disabled={!numeroValido || (cambia && !motivo.trim())} onClick={() => salva.mutate()}>
-              {salva.isPending ? "Salvo…" : p ? "Cambia protocollo" : numero ? `Assegna ${numero}` : "Assegna il prossimo"}
+              {salva.isPending ? t("Salvo…") : p ? t("Cambia protocollo") : numero ? t("Assegna {numero}", { numero: String(numero ?? "") }) : t("Assegna il prossimo")}
             </Button>}
           </DialogFooter>
-        </fieldset> : <p className="text-sm text-muted-foreground">Registrata il {p?.data_registrazione.split("-").reverse().join("/")}.</p>}
+        </fieldset> : <p className="text-sm text-muted-foreground">{t("Registrata il {data}.", { data: p?.data_registrazione.split("-").reverse().join("/") ?? "" })}</p>}
       </DialogContent>
     </Dialog>
   </>;
@@ -115,6 +117,7 @@ export function CellaProtocolloRicevuta({ fattura, protocolli }: { fattura: Fatt
 
 /** Numera in un colpo le fatture dell'anno ancora senza protocollo, in ordine di arrivo. */
 export function NumeraProtocolliRicevute({ companyId, protocolli, anni }: { companyId: string; protocolli: ProtocolliRicevute; anni: number[] }) {
+  const t = useT();
   const [aperto, setAperto] = useState(false);
   const [anno, setAnno] = useState(() => new Date().getFullYear());
   const [primo, setPrimo] = useState("");
@@ -124,35 +127,35 @@ export function NumeraProtocolliRicevute({ companyId, protocolli, anni }: { comp
       if (error) throw error;
       return Number(data ?? 0);
     },
-    onSuccess: async n => { await protocolli.registri.ricarica(); setAperto(false); setPrimo(""); toast.success(n ? `${n} fatture protocollate` : "Nessuna fattura da protocollare: hanno già tutte un numero"); },
-    onError: e => toast.error("Protocolli non assegnati", { description: errore(e), duration: 10000 }),
+    onSuccess: async n => { await protocolli.registri.ricarica(); setAperto(false); setPrimo(""); toast.success(n ? t("{n} fatture protocollate", { n: String(n ?? "") }) : t("Nessuna fattura da protocollare: hanno già tutte un numero")); },
+    onError: e => toast.error(t("Protocolli non assegnati"), { description: errore(e), duration: 10000 }),
   });
   if (!protocolli.puoScrivere) return null;
   const elencoAnni = [...new Set([new Date().getFullYear(), ...anni])].sort((a, b) => b - a);
   return <>
-    <Button variant="outline" className="max-sm:hidden" onClick={() => setAperto(true)}>Numera protocolli</Button>
+    <Button variant="outline" className="max-sm:hidden" onClick={() => setAperto(true)}>{t("Numera protocolli")}</Button>
     <Dialog open={aperto} onOpenChange={v => { if (!numera.isPending) setAperto(v); }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Numera i protocolli</DialogTitle>
-          <DialogDescription>Dà un numero progressivo (1, 2, 3…) alle fatture ricevute dell'anno che non ce l'hanno ancora, in ordine di arrivo. Quelle già numerate tengono il loro numero.</DialogDescription>
+          <DialogTitle>{t("Numera i protocolli")}</DialogTitle>
+          <DialogDescription>{t("Dà un numero progressivo (1, 2, 3…) alle fatture ricevute dell'anno che non ce l'hanno ancora, in ordine di arrivo. Quelle già numerate tengono il loro numero.")}</DialogDescription>
         </DialogHeader>
         <fieldset disabled={numera.isPending} className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
-            <Label htmlFor="numera-anno">Anno</Label>
+            <Label htmlFor="numera-anno">{t("Anno")}</Label>
             <UniformSelect id="numera-anno" className="h-10 w-full rounded-md border px-2" value={anno} onChange={e => setAnno(Number(e.target.value))}>
               {elencoAnni.map(a => <option key={a} value={a}>{a}</option>)}
             </UniformSelect>
           </div>
           <div className="space-y-1">
-            <Label htmlFor="numera-primo">Primo numero</Label>
+            <Label htmlFor="numera-primo">{t("Primo numero")}</Label>
             <Input id="numera-primo" type="number" min="1" step="1" inputMode="numeric" value={primo} placeholder={String(protocolli.prossimo(anno))} onChange={e => setPrimo(e.target.value)} />
           </div>
         </fieldset>
-        <p className="text-xs text-muted-foreground">Il primo numero serve per proseguire una numerazione tenuta altrove: lascialo vuoto per continuare dall'ultimo.</p>
+        <p className="text-xs text-muted-foreground">{t("Il primo numero serve per proseguire una numerazione tenuta altrove: lascialo vuoto per continuare dall'ultimo.")}</p>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setAperto(false)}>Annulla</Button>
-          <Button disabled={!!primo && !(Number.isInteger(Number(primo)) && Number(primo) > 0)} onClick={() => numera.mutate()}>{numera.isPending ? "Numerazione…" : `Numera ${anno}`}</Button>
+          <Button variant="outline" onClick={() => setAperto(false)}>{t("Annulla")}</Button>
+          <Button disabled={!!primo && !(Number.isInteger(Number(primo)) && Number(primo) > 0)} onClick={() => numera.mutate()}>{numera.isPending ? t("Numerazione…") : t("Numera {anno}", { anno: String(anno ?? "") })}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

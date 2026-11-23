@@ -116,6 +116,7 @@ import { invalidaStatisticheFatturazione } from "@/lib/fatturazione/invalidaStat
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { CercaConFiltri, KpiMobili, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 // ─── Types ────────────────────────────────────────────────────
 
 /**
@@ -140,12 +141,13 @@ function DataEmissione({ f }: { f: { data_fattura: string } }) {
 }
 
 function DataArrivo({ f }: { f: { data_fattura: string; data_ricezione_sdi: string | null } }) {
-  if (!f.data_ricezione_sdi) return <span className="text-muted-foreground" title="Data di arrivo non disponibile">—</span>;
+  const t = useT();
+  if (!f.data_ricezione_sdi) return <span className="text-muted-foreground" title={t("Data di arrivo non disponibile")}>—</span>;
   const giorni = giorniDallaFattura(f);
   return (
-    <span title={`Consegnata dallo SDI il ${formatDateTime(f.data_ricezione_sdi)}`}>
+    <span title={t("Consegnata dallo SDI il {data_ricezione_sdi}", { data_ricezione_sdi: formatDateTime(f.data_ricezione_sdi) })}>
       {formatDateShort(f.data_ricezione_sdi)}
-      {giorni != null && giorni > 0 && <span className="ml-1 text-[11px] text-muted-foreground">+{giorni} gg</span>}
+      {giorni != null && giorni > 0 && <span className="ml-1 text-[11px] text-muted-foreground">{t("+{giorni} gg", { giorni: String(giorni ?? "") })}</span>}
     </span>
   );
 }
@@ -222,16 +224,16 @@ const STATO_CONFIG: Record<
   rifiutata: { label: "Rifiutata", variant: "destructive" },
 };
 
-function testoSaldo(saldo: SaldoRicevuta | undefined) {
+function testoSaldo(saldo: SaldoRicevuta | undefined, t: ReturnType<typeof useT>) {
   if (!saldo) return "—";
-  if (saldo.stornata) return "Stornata";
-  if (saldo.pagata_il || saldo.data_saldo) return "Pagata";
-  if (saldo.residuo == null) return "Da verificare";
-  if (saldo.residuo === 0) return saldo.pagato ? "Pagata" : "Nessun residuo";
+  if (saldo.stornata) return t("Stornata");
+  if (saldo.pagata_il || saldo.data_saldo) return t("Pagata");
+  if (saldo.residuo == null) return t("Da verificare");
+  if (saldo.residuo === 0) return saldo.pagato ? t("Pagata") : t("Nessun residuo");
   if (saldo.rate_pagate > 0 && saldo.rate_pagate < saldo.rate_totali) {
     return testoRatePagate(saldo.rate_pagate, saldo.rate_totali);
   }
-  return saldo.pagato ? "Parziale" : "Da pagare";
+  return saldo.pagato ? t("Parziale") : t("Da pagare");
 }
 
 function ImportoRicevuta({ valore, titolo }: { valore?: number | null; titolo?: string }) {
@@ -241,17 +243,18 @@ function ImportoRicevuta({ valore, titolo }: { valore?: number | null; titolo?: 
 }
 
 /** La contabilizzata dello storico (data di taglio) non è passata da qui: si dice. */
-const etichettaStato = (f: { stato: string; storico_esterno?: boolean | null; da_leggere?: boolean | null }) => {
-  if (f.stato === "non_letta" || f.stato === "letta") return ricevutaDaLeggere(f) ? "Non letta" : "Letta";
-  const base = f.storico_esterno && f.stato === "contabilizzata" ? "Già registrata (storico)" : STATO_CONFIG[f.stato]?.label ?? f.stato;
-  return ricevutaDaLeggere(f) ? `${base} · Non letta` : base;
+const etichettaStato = (f: { stato: string; storico_esterno?: boolean | null; da_leggere?: boolean | null }, t: ReturnType<typeof useT>) => {
+  if (f.stato === "non_letta" || f.stato === "letta") return ricevutaDaLeggere(f) ? t("Non letta") : t("Letta");
+  const base = f.storico_esterno && f.stato === "contabilizzata" ? t("Già registrata (storico)") : STATO_CONFIG[f.stato] ? t(STATO_CONFIG[f.stato].label) : f.stato;
+  return ricevutaDaLeggere(f) ? `${base} · ${t("Non letta")}` : base;
 };
 
 function StatoBadge({ stato, storico, daLeggere }: { stato: string; storico?: boolean | null; daLeggere?: boolean | null }) {
+  const t = useT();
   const daAprire = ricevutaDaLeggere({ stato, da_leggere: daLeggere });
   const visuale = stato === "non_letta" || stato === "letta" ? (daAprire ? "non_letta" : "letta") : stato;
   const config = STATO_CONFIG[visuale] || { label: visuale, variant: "outline" as const };
-  return <span className="inline-flex flex-wrap gap-1"><Badge variant={storico && stato === "contabilizzata" ? "outline" : config.variant}>{storico && stato === "contabilizzata" ? "Già registrata (storico)" : config.label}</Badge>{daAprire && stato !== "non_letta" && stato !== "letta" && <Badge variant="destructive">Non letta</Badge>}</span>;
+  return <span className="inline-flex flex-wrap gap-1"><Badge variant={storico && stato === "contabilizzata" ? "outline" : config.variant}>{storico && stato === "contabilizzata" ? t("Già registrata (storico)") : t(config.label)}</Badge>{daAprire && stato !== "non_letta" && stato !== "letta" && <Badge variant="destructive">{t("Non letta")}</Badge>}</span>;
 }
 
 /** "materiali_edili" → "Materiali edili". Niente mappa fissa: le categorie
@@ -315,6 +318,7 @@ function IntestazioneOrdinabile({ children, campo, ordinamento, onOrdina, classN
 // ─── Component ────────────────────────────────────────────────
 
 export default function FattureRicevutePage() {
+  const tr = useT();
   // La barra di scorrimento in alto, come nei DDT (12/11/2026): la tabella è larga e quella di sistema sta in fondo.
   const [riquadroTabella, setRiquadroTabella] = useState<HTMLDivElement | null>(null);
   const isMobile = useIsMobile();
@@ -348,7 +352,7 @@ export default function FattureRicevutePage() {
   });
   const apriPdfRicevuta = async (f: FatturaRicevuta) => {
     const { data, error } = await supabase.storage.from(f.pdf_storage_bucket!).createSignedUrl(f.pdf_storage_path!, 300);
-    if (error || !data) { toast.error("PDF non disponibile", { description: error?.message }); return; }
+    if (error || !data) { toast.error(tr("PDF non disponibile"), { description: error?.message }); return; }
     window.open(data.signedUrl, "_blank", "noopener");
     if (ricevutaDaLeggere(f)) lettura.mutate({ id: f.id, daLeggere: false });
   };
@@ -869,16 +873,16 @@ export default function FattureRicevutePage() {
         .eq("company_id", companyId!)
         .select("id");
       if (error) throw error;
-      if (!data || data.length === 0) throw new Error("Fattura non aggiornata: non appartiene a questa azienda");
+      if (!data || data.length === 0) throw new Error(tr("Fattura non aggiornata: non appartiene a questa azienda"));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] });
       queryClient.invalidateQueries({ queryKey: ["fattura-ricevuta-riepilogo"] });
-      toast.success("Aggancio automatico riattivato", {
-        description: "Al prossimo aggiornamento degli importi il sistema riproverà a trovare l'ordine.",
+      toast.success(tr("Aggancio automatico riattivato"), {
+        description: tr("Al prossimo aggiornamento degli importi il sistema riproverà a trovare l'ordine."),
       });
     },
-    onError: (e) => toast.error("Non riuscito", { description: e.message }),
+    onError: (e) => toast.error(tr("Non riuscito"), { description: e.message }),
   });
 
   // Contabilizzare = generare il COSTO, non cambiare un'etichetta. La RPC
@@ -893,17 +897,19 @@ export default function FattureRicevutePage() {
     onSuccess: (esito, _id) => {
       refreshFinancialQueries(queryClient);
       const dettaglio = esito.esito === "costo_ridotto"
-        ? `Il costo dell'ordine collegato è stato ridotto della nota di credito (${formatCurrency(Math.abs(esito.imponibile))} imponibile).`
+        ? tr("Il costo dell'ordine collegato è stato ridotto della nota di credito ({importo} imponibile).", { importo: formatCurrency(Math.abs(esito.imponibile)) })
         : esito.esito === "costo_aggiornato"
-        ? `Il costo dell'ordine collegato è stato corretto con l'importo della fattura (${formatCurrency(esito.imponibile)} imponibile).`
-        : `Creato il costo di ${formatCurrency(esito.imponibile)} imponibile${esito.fornitore_riconosciuto ? "" : " (fornitore non in anagrafica: aggiungilo per vederlo nei report fornitore)"}.`;
+        ? tr("Il costo dell'ordine collegato è stato corretto con l'importo della fattura ({importo} imponibile).", { importo: formatCurrency(esito.imponibile) })
+        : esito.fornitore_riconosciuto
+        ? tr("Creato il costo di {importo} imponibile.", { importo: formatCurrency(esito.imponibile) })
+        : tr("Creato il costo di {importo} imponibile (fornitore non in anagrafica: aggiungilo per vederlo nei report fornitore).", { importo: formatCurrency(esito.imponibile) });
       toast.success(
-        esito.esito === "gia_contabilizzata" ? "Fattura già contabilizzata" : "Fattura contabilizzata",
-        { description: esito.esito === "gia_contabilizzata" ? "Nessun costo duplicato." : dettaglio },
+        esito.esito === "gia_contabilizzata" ? tr("Fattura già contabilizzata") : tr("Fattura contabilizzata"),
+        { description: esito.esito === "gia_contabilizzata" ? tr("Nessun costo duplicato.") : dettaglio },
       );
       setContabilizzaFattura(null);
     },
-    onError: (e) => toast.error("Contabilizzazione non riuscita", { description: e.message }),
+    onError: (e) => toast.error(tr("Contabilizzazione non riuscita"), { description: e.message }),
   });
 
   // Classificazione AI delle fatture non ancora categorizzate. La edge ne
@@ -956,15 +962,15 @@ export default function FattureRicevutePage() {
       queryClient.invalidateQueries({ queryKey: queryKeys.costs.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.companyCosts(companyId) });
       toast.success(
-        fatte === 0 ? "Nessuna fattura da classificare" : `${fatte} fatture classificate`,
+        fatte === 0 ? tr("Nessuna fattura da classificare") : tr("{fatte} fatture classificate", { fatte: String(fatte ?? "") }),
         {
           description: fallite > 0
-            ? `${fallite} non sono riuscite: restano senza categoria, puoi rilanciare.`
-            : "La categoria è arrivata anche sui costi già contabilizzati.",
+            ? tr("{fallite} non sono riuscite: restano senza categoria, puoi rilanciare.", { fallite: String(fallite ?? "") })
+            : tr("La categoria è arrivata anche sui costi già contabilizzati."),
         },
       );
     },
-    onError: (e) => toast.error("Classificazione non riuscita", { description: e.message }),
+    onError: (e) => toast.error(tr("Classificazione non riuscita"), { description: e.message }),
     onSettled: () => setClassProgress(null),
   });
 
@@ -990,13 +996,13 @@ export default function FattureRicevutePage() {
       setCollegaFattura(null);
       toast.success(
         v.quote.length === 0
-          ? "Fattura scollegata dagli ordini"
+          ? tr("Fattura scollegata dagli ordini")
           : v.quote.length === 1
-            ? "Fattura collegata all'ordine"
-            : `Fattura divisa tra ${v.quote.length} ordini`,
+            ? tr("Fattura collegata all'ordine")
+            : tr("Fattura divisa tra {n} ordini", { n: v.quote.length }),
       );
     },
-    onError: (e) => toast.error(`Errore: ${e.message}`),
+    onError: (e) => toast.error(tr("Errore: {message}", { message: String(e.message ?? "") })),
   });
 
   // ─── Importazione ───────────────────────────────────────
@@ -1024,15 +1030,15 @@ export default function FattureRicevutePage() {
       const xml = await leggiXmlRicevuta({ ...originale, xml_url: f.xml_url });
       if (!xml) {
         if (f.pdf_storage_path && f.pdf_storage_bucket) { await apriPdfRicevuta(f); return; }
-        toast.info("Fattura non disponibile in formato leggibile", { description: "Il gestionale di origine ha fornito i dati senza il file originale." });
+        toast.info(tr("Fattura non disponibile in formato leggibile"), { description: tr("Il gestionale di origine ha fornito i dati senza il file originale.") });
         return;
       }
       const vista = fatturaRicevutaHtml(xml, new DOMParser(), { indiceCorpo: originale?.indice_corpo ?? 0 });
-      if (!vista) throw new Error("Il file non è una fattura elettronica leggibile. Puoi scaricare il file originale.");
+      if (!vista) throw new Error(tr("Il file non è una fattura elettronica leggibile. Puoi scaricare il file originale."));
       setFatturaVista({ ...vista, origine: f });
       if (ricevutaDaLeggere(f)) lettura.mutate({ id: f.id, daLeggere: false });
     } catch (e) {
-      toast.error("Impossibile leggere la fattura", { description: e instanceof Error ? e.message : undefined });
+      toast.error(tr("Impossibile leggere la fattura"), { description: e instanceof Error ? e.message : undefined });
     }
   };
 
@@ -1046,7 +1052,7 @@ export default function FattureRicevutePage() {
       if (!xml_raw && f.pdf_storage_path && f.pdf_storage_bucket) { await apriPdfRicevuta(f); return; }
       await scaricaOriginaleRicevuta({ ...f, xml_raw });
     } catch (e) {
-      toast.error("Impossibile scaricare il file originale", { description: e instanceof Error ? e.message : undefined });
+      toast.error(tr("Impossibile scaricare il file originale"), { description: e instanceof Error ? e.message : undefined });
     }
   };
 
@@ -1059,9 +1065,9 @@ export default function FattureRicevutePage() {
     setEsportando("elenco");
     try {
       await esportaElencoRicevute(righeEsporta, etichettaEsporta);
-      toast.success(`${righeEsporta.length} fatture esportate in Excel`);
+      toast.success(tr("{n} fatture esportate in Excel", { n: righeEsporta.length }));
     } catch (err) {
-      toast.error("Esportazione non riuscita", { description: err instanceof Error ? err.message : undefined });
+      toast.error(tr("Esportazione non riuscita"), { description: err instanceof Error ? err.message : undefined });
     } finally {
       setEsportando(null);
     }
@@ -1069,18 +1075,18 @@ export default function FattureRicevutePage() {
 
   const handleEsportaXml = async () => {
     if (righeEsporta.length > 600) {
-      toast.error("Troppe fatture per uno zip solo", { description: "Restringi l'elenco (per anno o per stato): al massimo 600 alla volta." });
+      toast.error(tr("Troppe fatture per uno zip solo"), { description: tr("Restringi l'elenco (per anno o per stato): al massimo 600 alla volta.") });
       return;
     }
     setEsportando("xml");
     try {
       const esito = await esportaXmlRicevuteZip(supabase, companyId!, righeEsporta, etichettaEsporta, (fatte, totale) => setEsportando(`xml ${fatte}/${totale}`));
-      if (esito.inclusi === 0 && esito.senzaXml === 0) toast.info("Nessuna fattura da esportare");
+      if (esito.inclusi === 0 && esito.senzaXml === 0) toast.info(tr("Nessuna fattura da esportare"));
       else if (esito.senzaXml > 0) {
-        toast.warning(`${esito.inclusi} XML esportati, ${esito.senzaXml} senza file`, { description: "Le fatture senza XML sono elencate in LEGGIMI.txt dentro lo zip." });
-      } else toast.success(`${esito.inclusi} XML esportati`);
+        toast.warning(tr("{inclusi} XML esportati, {senzaXml} senza file", { inclusi: String(esito.inclusi ?? ""), senzaXml: String(esito.senzaXml ?? "") }), { description: tr("Le fatture senza XML sono elencate in LEGGIMI.txt dentro lo zip.") });
+      } else toast.success(tr("{inclusi} XML esportati", { inclusi: String(esito.inclusi ?? "") }));
     } catch (err) {
-      toast.error("Esportazione non riuscita", { description: err instanceof Error ? err.message : undefined });
+      toast.error(tr("Esportazione non riuscita"), { description: err instanceof Error ? err.message : undefined });
     } finally {
       setEsportando(null);
     }
@@ -1095,20 +1101,20 @@ export default function FattureRicevutePage() {
         {/* Senza sottotitolo: «Fatture passive ricevute dal Sistema di
             Interscambio» ripeteva il titolo con altre parole. */}
         <div>
-          <h1 className="text-2xl font-bold text-foreground max-sm:text-lg">Fatture Ricevute</h1>
+          <h1 className="text-2xl font-bold text-foreground max-sm:text-lg">{tr("Fatture Ricevute")}</h1>
         </div>
         <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
           <div className="flex flex-wrap items-center justify-end gap-2 max-sm:hidden">
           {/* Il tipo del fornitore decide se la fattura va su una commessa o nelle spese generali. */}
           <Button variant="outline" asChild>
-            <Link to="/azienda/documenti/tipi-fornitori">Tipi dei fornitori</Link>
+            <Link to="/azienda/documenti/tipi-fornitori">{tr("Tipi dei fornitori")}</Link>
           </Button>
           {kpi.daClassificare > 0 && (
             <Button
               variant="outline"
               onClick={() => setConfermaClassifica(true)}
               disabled={classProgress !== null}
-              title="Assegna a ogni fattura la categoria di spesa, e la porta anche sul costo"
+              title={tr("Assegna a ogni fattura la categoria di spesa, e la porta anche sul costo")}
             >
               {classProgress !== null ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -1116,34 +1122,34 @@ export default function FattureRicevutePage() {
                 <Sparkles className="h-4 w-4 mr-2" />
               )}
               {classProgress !== null
-                ? `Classificazione ${classProgress.fatte} di ${classProgress.totale}…`
-                : `Classifica con l'AI (${kpi.daClassificare})`}
+                ? tr("Classificazione {fatte} di {totale}…", { fatte: String(classProgress.fatte ?? ""), totale: String(classProgress.totale ?? "") })
+                : tr("Classifica con l'AI ({daClassificare})", { daClassificare: String(kpi.daClassificare ?? "") })}
             </Button>
           )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" disabled={esportando !== null || righeEsporta.length === 0 || erroreFatture || erroreRiferimenti || ricercaRiferimentiInCorso} title="Esporta le fatture che vedi nella lista">
+              <Button variant="outline" disabled={esportando !== null || righeEsporta.length === 0 || erroreFatture || erroreRiferimenti || ricercaRiferimentiInCorso} title={tr("Esporta le fatture che vedi nella lista")}>
                 {esportando ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Download className="h-4 w-4 mr-2" />}
-                {esportando?.startsWith("xml ") ? `Zip ${esportando.slice(4)}…` : "Esporta"}
+                {esportando?.startsWith("xml ") ? tr("Zip {esportando}…", { esportando: esportando.slice(4) }) : tr("Esporta")}
                 <ChevronDown className="h-3.5 w-3.5 ml-1.5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => void handleEsportaElenco()}>
-                <FileSpreadsheet className="h-4 w-4 mr-2" /> Elenco in Excel ({righeEsporta.length})
+                <FileSpreadsheet className="h-4 w-4 mr-2" /> {tr("Elenco in Excel ({n})", { n: righeEsporta.length })}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => void handleEsportaXml()}>
-                <Archive className="h-4 w-4 mr-2" /> XML originali (zip)
+                <Archive className="h-4 w-4 mr-2" /> {tr("XML originali (zip)")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <Button variant="outline" onClick={() => setImportaAperto(true)}>
             <Upload className="h-4 w-4 mr-2" />
-            Importa XML o PDF
+            {tr("Importa XML o PDF")}
           </Button>
           </div>
           {companyId && permessiCosti.canViewCosts && !permessiCosti.solaLettura && (
-            <Button onClick={() => setModuloUscitaAperto(true)}>Nuovo costo senza fattura</Button>
+            <Button onClick={() => setModuloUscitaAperto(true)}>{tr("Nuovo costo senza fattura")}</Button>
           )}
         </div>
       </div>
@@ -1156,17 +1162,15 @@ export default function FattureRicevutePage() {
             <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400 max-sm:h-4 max-sm:w-4" />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-amber-900 dark:text-amber-200 max-sm:text-xs">
-                Le fatture dei fornitori non stanno arrivando
+                {tr("Le fatture dei fornitori non stanno arrivando")}
               </p>
               <p className="mt-0.5 text-sm text-amber-800 dark:text-amber-300 max-sm:hidden">
-                Il collegamento con il gestionale funziona per le fatture che emetti, ma non ha il
-                permesso di leggere quelle che ricevi: il provider risponde «permesso negato». Serve
-                ricollegare l'account una volta, autorizzando anche i documenti ricevuti.
+                {tr("Il collegamento con il gestionale funziona per le fatture che emetti, ma non ha il permesso di leggere quelle che ricevi: il provider risponde «permesso negato». Serve ricollegare l'account una volta, autorizzando anche i documenti ricevuti.")}
               </p>
               {/* Da telefono la fatturazione non si imposta (solo computer o tablet). */}
               {!isMobile && (
                 <Button asChild variant="outline" size="sm" className="mt-3 border-amber-400 bg-white hover:bg-amber-100">
-                  <Link to="/azienda/impostazioni/fatturazione">Ricollega il gestionale</Link>
+                  <Link to="/azienda/impostazioni/fatturazione">{tr("Ricollega il gestionale")}</Link>
                 </Button>
               )}
             </div>
@@ -1194,23 +1198,23 @@ export default function FattureRicevutePage() {
         <div className="bg-eic-navy-deep p-4 text-white sm:p-5">
           <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
             <NavyStatCard
-              label={annoFilter === "all" ? "Totale ricevute" : `Ricevute nel ${annoFilter}`}
+              label={annoFilter === "all" ? tr("Totale ricevute") : tr("Ricevute nel {annoFilter}", { annoFilter: String(annoFilter ?? "") })}
               value={String(kpi.totale)}
               icon={Inbox}
               tone="text-orange-100"
             />
             <NavyStatCard
-              label="Da leggere"
+              label={tr("Da leggere")}
               value={String(kpi.nonLette)}
               icon={Eye}
               tone={kpi.nonLette > 0 ? "text-orange-300" : "text-emerald-200"}
             />
-            <NavyStatCard label="Contabilizzate" value={String(kpi.contabilizzate)} icon={CheckCircle2} tone="text-emerald-200" />
+            <NavyStatCard label={tr("Contabilizzate")} value={String(kpi.contabilizzate)} icon={CheckCircle2} tone="text-emerald-200" />
             {/* Il totale è quello che si paga ai fornitori; sotto, di quanto è merce e quanta IVA. */}
             <NavyStatCard
-              label="Importo totale"
+              label={tr("Importo totale")}
               value={formatCurrency(kpi.importoTotale)}
-              sub={`Imponibile ${formatCurrency(kpi.imponibile)} + IVA ${formatCurrency(kpi.iva)}${Math.abs(kpi.altro) >= 0.01 ? ` + altro ${formatCurrency(kpi.altro)}` : ""}${kpi.senzaImporto > 0 ? ` · ${kpi.senzaImporto} senza importo` : ""}`}
+              sub={`${tr("Imponibile {imponibile} + IVA {iva}", { imponibile: formatCurrency(kpi.imponibile), iva: formatCurrency(kpi.iva) })}${Math.abs(kpi.altro) >= 0.01 ? ` ${tr("+ altro {importo}", { importo: formatCurrency(kpi.altro) })}` : ""}${kpi.senzaImporto > 0 ? ` · ${tr("{n} senza importo", { n: kpi.senzaImporto })}` : ""}`}
               icon={Euro}
             />
           </div>
@@ -1244,7 +1248,7 @@ export default function FattureRicevutePage() {
         className="sm:hidden"
         valore={searchQuery}
         onCambia={setSearchQuery}
-        segnaposto="Cerca fornitore, fattura o note"
+        segnaposto={tr("Cerca fornitore, fattura o note")}
         filtriAttivi={(annoFilter !== annoCorrente ? 1 : 0) + (statoFilter !== "all" ? 1 : 0)}
         onApriFiltri={() => setFiltriMobileAperti(true)}
       />
@@ -1254,86 +1258,86 @@ export default function FattureRicevutePage() {
         <div className="flex flex-wrap items-center gap-2">
           <CampoRicercaRicevute valore={searchQuery} onCambia={setSearchQuery} />
           <Select value={annoFilter} onValueChange={setAnnoFilter}>
-            <SelectTrigger className="w-[130px]" aria-label="Anno">
-              <SelectValue placeholder="Anno" />
+            <SelectTrigger className="w-[130px]" aria-label={tr("Anno")}>
+              <SelectValue placeholder={tr("Anno")} />
             </SelectTrigger>
             <SelectContent>
               {anniDisponibili.map((a) => (
                 <SelectItem key={a} value={a}>{a}</SelectItem>
               ))}
-              <SelectItem value="all">Tutti gli anni</SelectItem>
+              <SelectItem value="all">{tr("Tutti gli anni")}</SelectItem>
             </SelectContent>
           </Select>
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" className="gap-1.5">
-                <SlidersHorizontal className="h-4 w-4" />Altri filtri
+                <SlidersHorizontal className="h-4 w-4" />{tr("Altri filtri")}
                 {altriFiltriAttivi > 0 && <Badge variant="secondary" className="ml-0.5 h-5 px-1.5 text-xs">{altriFiltriAttivi}</Badge>}
               </Button>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-72 space-y-3">
               {opzioniMetodo.length > 0 && (
-                <label className="block space-y-1 text-sm"><span className="font-medium">Modalità di pagamento</span>
+                <label className="block space-y-1 text-sm"><span className="font-medium">{tr("Modalità di pagamento")}</span>
                   <Select value={metodoFilter} onValueChange={setMetodoFilter}>
-                    <SelectTrigger aria-label="Modalità di pagamento"><SelectValue placeholder="Modalità" /></SelectTrigger>
+                    <SelectTrigger aria-label={tr("Modalità di pagamento")}><SelectValue placeholder={tr("Modalità")} /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Tutte</SelectItem>
+                      <SelectItem value="all">{tr("Tutte")}</SelectItem>
                       {opzioniMetodo.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </label>
               )}
-              <label className="block space-y-1 text-sm"><span className="font-medium">Allegati</span>
+              <label className="block space-y-1 text-sm"><span className="font-medium">{tr("Allegati")}</span>
                 <Select value={allegatiFilter} onValueChange={(v) => setAllegatiFilter(v as "all" | "con" | "senza")}>
-                  <SelectTrigger aria-label="Allegati"><SelectValue placeholder="Allegati" /></SelectTrigger>
+                  <SelectTrigger aria-label={tr("Allegati")}><SelectValue placeholder={tr("Allegati")} /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Tutte</SelectItem>
-                    <SelectItem value="con">Con allegati</SelectItem>
-                    <SelectItem value="senza">Senza allegati</SelectItem>
+                    <SelectItem value="all">{tr("Tutte")}</SelectItem>
+                    <SelectItem value="con">{tr("Con allegati")}</SelectItem>
+                    <SelectItem value="senza">{tr("Senza allegati")}</SelectItem>
                   </SelectContent>
                 </Select>
               </label>
-              <label className="block space-y-1 text-sm"><span className="font-medium">Stato</span>
+              <label className="block space-y-1 text-sm"><span className="font-medium">{tr("Stato")}</span>
                 <Select value={statoFilter} onValueChange={setStatoFilter}>
-                  <SelectTrigger aria-label="Stato"><SelectValue placeholder="Stato" /></SelectTrigger>
+                  <SelectTrigger aria-label={tr("Stato")}><SelectValue placeholder={tr("Stato")} /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Tutti</SelectItem>
-                    <SelectItem value="non_letta">Non lette</SelectItem>
-                    <SelectItem value="letta">Lette</SelectItem>
-                    <SelectItem value="contabilizzata">Contabilizzate</SelectItem>
+                    <SelectItem value="all">{tr("Tutti")}</SelectItem>
+                    <SelectItem value="non_letta">{tr("Non lette")}</SelectItem>
+                    <SelectItem value="letta">{tr("Lette")}</SelectItem>
+                    <SelectItem value="contabilizzata">{tr("Contabilizzate")}</SelectItem>
                   </SelectContent>
                 </Select>
               </label>
               {opzioniTipo.length > 0 && (
-                <label className="block space-y-1 text-sm"><span className="font-medium">Tipo di documento</span>
+                <label className="block space-y-1 text-sm"><span className="font-medium">{tr("Tipo di documento")}</span>
                   <Select value={tipoFilter} onValueChange={setTipoFilter}>
-                    <SelectTrigger aria-label="Tipo documento"><SelectValue placeholder="Tipo" /></SelectTrigger>
+                    <SelectTrigger aria-label={tr("Tipo documento")}><SelectValue placeholder={tr("Tipo")} /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Tutti</SelectItem>
+                      <SelectItem value="all">{tr("Tutti")}</SelectItem>
                       {opzioniTipo.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </label>
               )}
               {opzioniCategoria.length > 0 && (
-                <label className="block space-y-1 text-sm"><span className="font-medium">Categoria</span>
+                <label className="block space-y-1 text-sm"><span className="font-medium">{tr("Categoria")}</span>
                   <Select value={categoriaFilter} onValueChange={setCategoriaFilter}>
-                    <SelectTrigger aria-label="Categoria"><SelectValue placeholder="Categoria" /></SelectTrigger>
+                    <SelectTrigger aria-label={tr("Categoria")}><SelectValue placeholder={tr("Categoria")} /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Tutte</SelectItem>
-                      <SelectItem value="__nessuna__">Non classificate</SelectItem>
+                      <SelectItem value="all">{tr("Tutte")}</SelectItem>
+                      <SelectItem value="__nessuna__">{tr("Non classificate")}</SelectItem>
                       {opzioniCategoria.map((c) => <SelectItem key={c} value={c}>{etichettaCategoria(c)}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </label>
               )}
-              <label className="block space-y-1 text-sm"><span className="font-medium">Collegamento</span>
+              <label className="block space-y-1 text-sm"><span className="font-medium">{tr("Collegamento")}</span>
                 <Select value={ordineFilter} onValueChange={(v) => setOrdineFilter(v as "all" | "con" | "senza")}>
-                  <SelectTrigger aria-label="Collegamento"><SelectValue placeholder="Collegamento" /></SelectTrigger>
+                  <SelectTrigger aria-label={tr("Collegamento")}><SelectValue placeholder={tr("Collegamento")} /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Tutte</SelectItem>
-                    <SelectItem value="con">Collegate</SelectItem>
-                    <SelectItem value="senza">Da collegare</SelectItem>
+                    <SelectItem value="all">{tr("Tutte")}</SelectItem>
+                    <SelectItem value="con">{tr("Collegate")}</SelectItem>
+                    <SelectItem value="senza">{tr("Da collegare")}</SelectItem>
                   </SelectContent>
                 </Select>
               </label>
@@ -1343,7 +1347,7 @@ export default function FattureRicevutePage() {
             anni={[...new Set(fatture.map(f => Number((f.data_ricezione_sdi ?? f.data_fattura ?? "").slice(0, 4))).filter(a => a > 2000))]} />}
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="gap-1.5 max-sm:hidden"><Columns3 className="h-4 w-4" />Colonne</Button>
+              <Button variant="outline" className="gap-1.5 max-sm:hidden"><Columns3 className="h-4 w-4" />{tr("Colonne")}</Button>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-60 space-y-2">
               {COLONNE_RICEVUTE.map((c) => (
@@ -1358,7 +1362,7 @@ export default function FattureRicevutePage() {
         {/* Cosa c'è da fare: a zero non serve vederlo. */}
         <div className="flex flex-wrap items-center gap-2">
           <ChipFiltro attivo={filtriAttivi === 0} onClick={azzeraFiltri} conteggio={fatture.length}>
-            Tutte
+            {tr("Tutte")}
           </ChipFiltro>
           {([
             { attivo: statoFilter === "non_letta", fai: () => setStatoFilter((v) => (v === "non_letta" ? "all" : "non_letta")), n: kpi.nonLette, testo: "Da leggere" },
@@ -1373,7 +1377,7 @@ export default function FattureRicevutePage() {
           ))}
           {filtriAttivi > 0 && (
             <Button variant="ghost" size="sm" onClick={azzeraFiltri} className="h-7 text-muted-foreground">
-              <X className="mr-1 h-3.5 w-3.5" />Azzera
+              <X className="mr-1 h-3.5 w-3.5" />{tr("Azzera")}
             </Button>
           )}
           {/* Cose da sistemare che non sono filtri dell'elenco: pulsanti compatti che aprono una
@@ -1386,32 +1390,32 @@ export default function FattureRicevutePage() {
             </span>
           )}
           {!erroreFatture && <p className={cn("text-xs tabular-nums text-muted-foreground", !(companyId && permessiCosti.canViewCosts) && "ml-auto")}>
-            <span className="font-medium text-foreground">{filtered.length}</span> di {fatture.length}
+            {tr("{n} di {totale}", { n: filtered.length, totale: fatture.length })}
           </p>}
         </div>
       </div>
 
-      {erroreVerifiche && <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><span>Stati di verifica non disponibili. I filtri di verifica sono sospesi finché i dati non vengono riletti.</span><Button variant="outline" size="sm" onClick={() => void rileggiVerifiche()}>Rileggi verifiche</Button></div>}
+      {erroreVerifiche && <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><span>{tr("Stati di verifica non disponibili. I filtri di verifica sono sospesi finché i dati non vengono riletti.")}</span><Button variant="outline" size="sm" onClick={() => void rileggiVerifiche()}>{tr("Rileggi verifiche")}</Button></div>}
       {!isLoading && !erroreFatture && ricercaRiferimentiInCorso && <p role="status" className="text-sm text-muted-foreground">
-        Ricerca nei riferimenti a ordini e cantieri in corso…
+        {tr("Ricerca nei riferimenti a ordini e cantieri in corso…")}
       </p>}
       {!erroreFatture && erroreRiferimenti && <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-200 p-3 text-sm">
-        <span>Alcuni riferimenti a ordini o cantieri non sono disponibili. La ricerca per riferimenti può essere incompleta.</span>
+        <span>{tr("Alcuni riferimenti a ordini o cantieri non sono disponibili. La ricerca per riferimenti può essere incompleta.")}</span>
         <Button variant="outline" size="sm" onClick={() => {
           if (erroreQuote) void rileggiQuote();
           if (erroreCosti) void rileggiCosti();
           if (erroreOrdini) void rileggiOrdini();
-        }}>Rileggi riferimenti</Button>
+        }}>{tr("Rileggi riferimenti")}</Button>
       </div>}
       {!erroreFatture && erroreSaldi && <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-200 p-3 text-sm">
-        <span>Pagato e residuo non disponibili.</span>
-        <Button variant="outline" size="sm" onClick={() => void rileggiSaldi()}>Riprova pagamenti</Button>
+        <span>{tr("Pagato e residuo non disponibili.")}</span>
+        <Button variant="outline" size="sm" onClick={() => void rileggiSaldi()}>{tr("Riprova pagamenti")}</Button>
       </div>}
       {/* Table */}
       {erroreFatture ? (
         <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-destructive/30 p-4 text-sm">
-          <span>Non riesco a caricare le fatture ricevute.</span>
-          <Button variant="outline" size="sm" onClick={() => void rileggiFatture()}>Riprova fatture</Button>
+          <span>{tr("Non riesco a caricare le fatture ricevute.")}</span>
+          <Button variant="outline" size="sm" onClick={() => void rileggiFatture()}>{tr("Riprova fatture")}</Button>
         </div>
       ) : isLoading || (ricercaRiferimentiInCorso && !filtered.length) ? (
         <div className="flex items-center justify-center py-12">
@@ -1422,15 +1426,15 @@ export default function FattureRicevutePage() {
         <div className="flex flex-col items-center justify-center py-12 text-muted-foreground max-sm:py-4">
           <Inbox className="h-12 w-12 mb-4 max-sm:hidden" />
           <p className="text-lg font-medium max-sm:text-xs max-sm:font-normal">
-            {erroreRiferimenti && searchQuery.trim() ? "Nessun risultato nei dati disponibili" : fatture.length > 0 ? "Nessuna fattura con questi filtri" : "Nessuna fattura ricevuta"}
+            {erroreRiferimenti && searchQuery.trim() ? tr("Nessun risultato nei dati disponibili") : fatture.length > 0 ? tr("Nessuna fattura con questi filtri") : tr("Nessuna fattura ricevuta")}
           </p>
           <p className="text-sm max-sm:hidden">
             {fatture.length > 0 ? (
               <Button variant="link" size="sm" onClick={azzeraFiltri} className="h-auto p-0">
-                Azzera i filtri
+                {tr("Azzera i filtri")}
               </Button>
             ) : (
-              "Le fatture arriveranno automaticamente dal SDI oppure puoi importare XML manualmente."
+              tr("Le fatture arriveranno automaticamente dal SDI oppure puoi importare XML manualmente.")
             )}
           </p>
         </div>
@@ -1447,7 +1451,7 @@ export default function FattureRicevutePage() {
             <div key={f.id} className="flex items-center">
             {puoInBlocco && (
               <label className="flex shrink-0 items-center self-stretch pl-3 pr-1">
-                <Checkbox checked={selezionate.has(f.id)} onCheckedChange={(v) => cambiaSelezione(f.id, v === true)} aria-label={`Seleziona la fattura ${f.numero_fattura}`} />
+                <Checkbox checked={selezionate.has(f.id)} onCheckedChange={(v) => cambiaSelezione(f.id, v === true)} aria-label={tr("Seleziona la fattura {numero_fattura}", { numero_fattura: String(f.numero_fattura ?? "") })} />
               </label>
             )}
             <button
@@ -1455,13 +1459,13 @@ export default function FattureRicevutePage() {
               onClick={() => { setDettaglioMobile(f); if (ricevutaDaLeggere(f)) lettura.mutate({ id: f.id, daLeggere: false }); }}
               className="tap-compact flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2.5 text-left active:bg-muted"
             >
-              {ricevutaDaLeggere(f) && <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500" aria-label="Da leggere" />}
+              {ricevutaDaLeggere(f) && <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500" aria-label={tr("Da leggere")} />}
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[13px] font-semibold leading-tight">{f.cedente_ragione_sociale}</div>
                 <div className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
-                  {protocolli.di(f.id) && `Prot. ${protocolli.etichetta(protocolli.di(f.id)!)} · `}N. {f.numero_fattura} · emessa {formatDateShort(f.data_fattura)}
-                  {colonne.has("scadenza") && ` · scad. ${dataScadenza(f)}`}
-                  {f.data_ricezione_sdi ? ` · arrivata ${formatDateShort(f.data_ricezione_sdi)}` : ""}
+                  {protocolli.di(f.id) && `${tr("Prot. {protocollo}", { protocollo: String(protocolli.etichetta(protocolli.di(f.id)!) ?? "") })} · `}{tr("N. {numero} · emessa {data}", { numero: String(f.numero_fattura ?? ""), data: formatDateShort(f.data_fattura) })}
+                  {colonne.has("scadenza") && ` · ${tr("scad. {data}", { data: String(dataScadenza(f) ?? "") })}`}
+                  {f.data_ricezione_sdi ? ` · ${tr("arrivata {data_ricezione_sdi}", { data_ricezione_sdi: formatDateShort(f.data_ricezione_sdi) })}` : ""}
                   {f.categoria_ai ? ` · ${etichettaCategoria(f.categoria_ai)}` : ""}
                 </div>
               </div>
@@ -1470,8 +1474,8 @@ export default function FattureRicevutePage() {
                   {f.totale_documento != null ? formatCurrency(f.totale_documento) : "—"}
                 </div>
                 <div className={`mt-0.5 whitespace-nowrap text-[11px] leading-tight ${pagataIl(f.id) || pagataSulCosto(f) ? "text-emerald-600" : "text-muted-foreground"}`}>
-                  {isNotaCreditoRicevuta(f.tipo_documento) && storni?.perNota.has(f.id) ? "Collegata"
-                    : nonSiPaga(f.tipo_documento) || f.stato === "rifiutata" ? etichettaStato(f) : testoSaldo(saldi?.get(f.id))}
+                  {isNotaCreditoRicevuta(f.tipo_documento) && storni?.perNota.has(f.id) ? tr("Collegata")
+                    : nonSiPaga(f.tipo_documento) || f.stato === "rifiutata" ? etichettaStato(f, tr) : testoSaldo(saldi?.get(f.id), tr)}
                 </div>
               </div>
             </button>
@@ -1492,30 +1496,30 @@ export default function FattureRicevutePage() {
               <TableRow>
                 {puoInBlocco && (
                   <TableHead className="w-8 pr-0">
-                    <Checkbox aria-label="Seleziona tutte le fatture dell'elenco" checked={tutteSelezionate ? true : righeInBlocco.length ? "indeterminate" : false}
+                    <Checkbox aria-label={tr("Seleziona tutte le fatture dell'elenco")} checked={tutteSelezionate ? true : righeInBlocco.length ? "indeterminate" : false}
                       onCheckedChange={(v) => (v === true ? selezionaTutte() : setSelezionate(new Set()))} />
                   </TableHead>
                 )}
                 {/* Numero, data, fornitore (16/11/2026): come si cerca una fattura su carta. */}
-                <TableHead>Numero</TableHead>
-                {protocolli.visibile && <TableHead className="whitespace-nowrap" title="Protocollo interno: 1, 2, 3… per anno">Prot.</TableHead>}
-                <IntestazioneOrdinabile campo="data" ordinamento={ordinamento} onOrdina={ordinaPer}>Emessa il</IntestazioneOrdinabile>
-                {colonne.has("scadenza") && <TableHead className="whitespace-nowrap">Scadenza fattura</TableHead>}
-                <IntestazioneOrdinabile campo="fornitore" ordinamento={ordinamento} onOrdina={ordinaPer}>Fornitore</IntestazioneOrdinabile>
-                <TableHead className="whitespace-nowrap">Arrivata il</TableHead>
-                {colonne.has("imponibile") && <TableHead className="text-right">Imponibile</TableHead>}
-                <IntestazioneOrdinabile campo="totale" ordinamento={ordinamento} onOrdina={ordinaPer} className="text-right">Totale</IntestazioneOrdinabile>
-                {colonne.has("netto") && <TableHead className="whitespace-nowrap text-right">Netto a pagare</TableHead>}
-                {colonne.has("pagato") && <TableHead className="whitespace-nowrap text-right">Pagato</TableHead>}
-                {colonne.has("residuo") && <TableHead className="whitespace-nowrap text-right">Residuo</TableHead>}
-                {colonne.has("pagamento") && <TableHead className="whitespace-nowrap">Pagamento</TableHead>}
-                {colonne.has("metodo") && <TableHead>Modalità</TableHead>}
-                {colonne.has("stato") && <TableHead>Stato</TableHead>}
-                {colonne.has("verifica") && <TableHead>Verifica</TableHead>}
-                {colonne.has("collegata") && <TableHead>Collegata a</TableHead>}
-                {colonne.has("allegati") && <TableHead>Allegati</TableHead>}
-                {colonne.has("note") && <TableHead>Note</TableHead>}
-                <TableHead className="text-right">Azioni</TableHead>
+                <TableHead>{tr("Numero")}</TableHead>
+                {protocolli.visibile && <TableHead className="whitespace-nowrap" title={tr("Protocollo interno: 1, 2, 3… per anno")}>{tr("Prot.")}</TableHead>}
+                <IntestazioneOrdinabile campo="data" ordinamento={ordinamento} onOrdina={ordinaPer}>{tr("Emessa il")}</IntestazioneOrdinabile>
+                {colonne.has("scadenza") && <TableHead className="whitespace-nowrap">{tr("Scadenza fattura")}</TableHead>}
+                <IntestazioneOrdinabile campo="fornitore" ordinamento={ordinamento} onOrdina={ordinaPer}>{tr("Fornitore")}</IntestazioneOrdinabile>
+                <TableHead className="whitespace-nowrap">{tr("Arrivata il")}</TableHead>
+                {colonne.has("imponibile") && <TableHead className="text-right">{tr("Imponibile")}</TableHead>}
+                <IntestazioneOrdinabile campo="totale" ordinamento={ordinamento} onOrdina={ordinaPer} className="text-right">{tr("Totale")}</IntestazioneOrdinabile>
+                {colonne.has("netto") && <TableHead className="whitespace-nowrap text-right">{tr("Netto a pagare")}</TableHead>}
+                {colonne.has("pagato") && <TableHead className="whitespace-nowrap text-right">{tr("Pagato")}</TableHead>}
+                {colonne.has("residuo") && <TableHead className="whitespace-nowrap text-right">{tr("Residuo")}</TableHead>}
+                {colonne.has("pagamento") && <TableHead className="whitespace-nowrap">{tr("Pagamento")}</TableHead>}
+                {colonne.has("metodo") && <TableHead>{tr("Modalità")}</TableHead>}
+                {colonne.has("stato") && <TableHead>{tr("Stato")}</TableHead>}
+                {colonne.has("verifica") && <TableHead>{tr("Verifica")}</TableHead>}
+                {colonne.has("collegata") && <TableHead>{tr("Collegata a")}</TableHead>}
+                {colonne.has("allegati") && <TableHead>{tr("Allegati")}</TableHead>}
+                {colonne.has("note") && <TableHead>{tr("Note")}</TableHead>}
+                <TableHead className="text-right">{tr("Azioni")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1523,7 +1527,7 @@ export default function FattureRicevutePage() {
                 const saldo = saldi?.get(f.id);
                 const metodo = metodiPagamento(f.piano_pagamento).join(", ");
                 const split = (saldo?.iva_split ?? 0) > 0;
-                const titoloResiduo = split ? `Residuo verso il fornitore. IVA split ${formatCurrency(saldo!.iva_split)}` : "Residuo verso il fornitore";
+                const titoloResiduo = split ? tr("Residuo verso il fornitore. IVA split {importo}", { importo: formatCurrency(saldo!.iva_split) }) : tr("Residuo verso il fornitore");
                 return (
                 <TableRow
                   key={f.id}
@@ -1538,17 +1542,17 @@ export default function FattureRicevutePage() {
                 >
                   {puoInBlocco && (
                     <TableCell className="w-8 pr-0">
-                      <Checkbox checked={selezionate.has(f.id)} onCheckedChange={(v) => cambiaSelezione(f.id, v === true)} aria-label={`Seleziona la fattura ${f.numero_fattura}`} />
+                      <Checkbox checked={selezionate.has(f.id)} onCheckedChange={(v) => cambiaSelezione(f.id, v === true)} aria-label={tr("Seleziona la fattura {numero_fattura}", { numero_fattura: String(f.numero_fattura ?? "") })} />
                     </TableCell>
                   )}
                   <TableCell>
                     <div className="flex items-center gap-1.5">
                       <span className="block max-w-[190px] truncate font-mono text-sm" title={f.numero_fattura}>{f.numero_fattura}</span>
                       {integrazioni?.get(f.id) ? (
-                        <Link to={`/azienda/documenti/${integrazioni.get(f.id)!.id}`} className="whitespace-nowrap text-xs text-emerald-700 underline-offset-2 hover:underline" title={`Integrazione ${integrazioni.get(f.id)!.numero}`}>Integrata</Link>
+                        <Link to={`/azienda/documenti/${integrazioni.get(f.id)!.id}`} className="whitespace-nowrap text-xs text-emerald-700 underline-offset-2 hover:underline" title={tr("Integrazione {numero}", { numero: String(integrazioni.get(f.id)!.numero ?? "") })}>{tr("Integrata")}</Link>
                       ) : serveIntegrazione(f) && (
                         <button type="button" onClick={() => setDaIntegrare(f)} className={`whitespace-nowrap text-xs underline-offset-2 hover:underline ${f.pdf_storage_path ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"}`}>
-                          {f.pdf_storage_path ? "Da regolarizzare" : "Integra"}
+                          {f.pdf_storage_path ? tr("Da regolarizzare") : tr("Integra")}
                         </button>
                       )}
                       {etichettaTipoRicevuta(f.tipo_documento) !== "Fattura" && <span className="whitespace-nowrap text-xs text-muted-foreground">{etichettaTipoRicevuta(f.tipo_documento)}</span>}
@@ -1582,7 +1586,7 @@ export default function FattureRicevutePage() {
                   </TableCell>
                   {colonne.has("netto") && <TableCell className="whitespace-nowrap text-right"><ImportoRicevuta valore={saldo?.dovuto} /></TableCell>}
                   {colonne.has("pagato") && <TableCell className="whitespace-nowrap text-right">
-                    <ImportoRicevuta valore={saldo?.pagato} titolo="Pagamenti registrati e anticipi compensati" />
+                    <ImportoRicevuta valore={saldo?.pagato} titolo={tr("Pagamenti registrati e anticipi compensati")} />
                   </TableCell>}
                   {colonne.has("residuo") && <TableCell className={cn("whitespace-nowrap text-right font-medium", daPagare(f) && "text-amber-800 dark:text-amber-400")}>
                     <ImportoRicevuta valore={saldo?.residuo} titolo={titoloResiduo} />
@@ -1592,24 +1596,24 @@ export default function FattureRicevutePage() {
                       f.stato === "rifiutata" ? <span className="text-muted-foreground">—</span> : (
                         <button type="button" className="whitespace-nowrap text-xs underline underline-offset-2 hover:text-foreground" onClick={() => setCollegaNota(f)}>
                           {storni?.perNota.has(f.id)
-                            ? `Storna ${fatture.filter((x) => storni.perNota.get(f.id)!.fatture.includes(x.id)).map((x) => x.numero_fattura).join(", ") || "una fattura"}`
-                            : <span className="text-amber-700 dark:text-amber-400">Collega alla fattura</span>}
+                            ? tr("Storna {fatture}", { fatture: fatture.filter((x) => storni.perNota.get(f.id)!.fatture.includes(x.id)).map((x) => x.numero_fattura).join(", ") || tr("una fattura") })
+                            : <span className="text-amber-700 dark:text-amber-400">{tr("Collega alla fattura")}</span>}
                         </button>
                       )
                     ) : nonSiPaga(f.tipo_documento) || f.stato === "rifiutata" ? <span className="text-muted-foreground">—</span> : stornataDelTutto(f) ? (
-                      <StatoPill tono="grigio">Stornata</StatoPill>
+                      <StatoPill tono="grigio">{tr("Stornata")}</StatoPill>
                     ) : pagataSulCosto(f) && !pagataIl(f.id) ? (
-                      <StatoPill tono="verde">Pagata{saldo?.data_saldo ? ` ${formatDateShort(saldo.data_saldo)}` : ""}</StatoPill>
+                      <StatoPill tono="verde">{tr("Pagata{valore}", { valore: String((saldo?.data_saldo ? ` ${formatDateShort(saldo.data_saldo)}` : "") ?? "") })}</StatoPill>
                     ) : pagataIl(f.id) ? (
                       <PagamentoRicevutaCella forma="chip" id={f.id} numero={f.numero_fattura} tipo={f.tipo_documento} pagataIl={pagataIl(f.id)} />
                     ) : (
                       <span className={cn("inline-flex items-center gap-1 whitespace-nowrap text-xs", daPagare(f) ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>
-                        {testoSaldo(saldo)}
+                        {testoSaldo(saldo, tr)}
                         {daPagare(f) && (permessiCosti.canViewCosts && !permessiCosti.solaLettura
                           ? <Button variant="link" size="sm" className="h-auto min-h-0 p-0 text-xs font-semibold"
                               disabled={perPagare.isPending && perPagare.variables === f.id}
                               onClick={() => pagaRiga(f, Number(saldo?.residuo ?? 0))}
-                              aria-label={`Registra il pagamento della fattura ${f.numero_fattura}`}>Paga</Button>
+                              aria-label={tr("Registra il pagamento della fattura {numero_fattura}", { numero_fattura: String(f.numero_fattura ?? "") })}>{tr("Paga")}</Button>
                           : <PagamentoRicevutaCella forma="icona" id={f.id} numero={f.numero_fattura} tipo={f.tipo_documento} pagataIl={null} />)}
                       </span>
                     )}
@@ -1619,7 +1623,7 @@ export default function FattureRicevutePage() {
                   </TableCell>}
                   {colonne.has("stato") && <TableCell><StatoBadge stato={f.stato} storico={f.storico_esterno} daLeggere={f.da_leggere} /></TableCell>}
                   {colonne.has("verifica") && <TableCell>
-                    {f.stato === "rifiutata" ? <span className="text-muted-foreground">—</span> : !verifichePronte ? <span className="text-xs text-muted-foreground">{caricaVerifiche ? "Lettura verifica…" : "Verifica non disponibile"}</span> : <VerificaFatturaPill daRettificare={verifiche[f.id] === "da_rettificare"} motivoRettifica={f.rettifica_motivo} id={f.id} numero={f.numero_fattura} verificata={verificata(f)} puoCambiare={!!permessiCosti.canViewCosts && !permessiCosti.solaLettura} />}
+                    {f.stato === "rifiutata" ? <span className="text-muted-foreground">—</span> : !verifichePronte ? <span className="text-xs text-muted-foreground">{caricaVerifiche ? tr("Lettura verifica…") : tr("Verifica non disponibile")}</span> : <VerificaFatturaPill daRettificare={verifiche[f.id] === "da_rettificare"} motivoRettifica={f.rettifica_motivo} id={f.id} numero={f.numero_fattura} verificata={verificata(f)} puoCambiare={!!permessiCosti.canViewCosts && !permessiCosti.solaLettura} />}
                   </TableCell>}
                   {colonne.has("collegata") && <TableCell>
                     <div className="flex flex-nowrap items-center gap-1">
@@ -1629,10 +1633,10 @@ export default function FattureRicevutePage() {
                           <Link
                             key={q.purchase_order_id}
                             to={`/azienda/ordini-acquisto/${q.purchase_order_id}`}
-                            title={`Quota di questa fattura: ${formatCurrency(q.importo)} (imponibile)`}
+                            title={tr("Quota di questa fattura: {importo} (imponibile)", { importo: formatCurrency(q.importo) })}
                           >
                             <Badge variant="outline" className="font-mono text-[11px] hover:bg-orange-50 hover:border-orange-300 transition-colors">
-                              {odaNumbers[q.purchase_order_id] ?? "OdA"}
+                              {odaNumbers[q.purchase_order_id] ?? tr("OdA")}
                               <span className="ml-1 font-sans text-muted-foreground">{formatCurrency(q.importo)}</span>
                             </Badge>
                           </Link>
@@ -1642,7 +1646,7 @@ export default function FattureRicevutePage() {
                             variant="ghost"
                             size="icon"
                             className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                            title="Scollega dagli ordini" aria-label="Scollega dagli ordini"
+                            title={tr("Scollega dagli ordini")} aria-label={tr("Scollega dagli ordini")}
                             disabled={linkOdaMutation.isPending}
                             onClick={() => linkOdaMutation.mutate({ id: f.id, quote: [] })}
                           >
@@ -1654,17 +1658,17 @@ export default function FattureRicevutePage() {
                       <div className="flex items-center gap-0.5">
                         <Link
                           to={`/azienda/ordini-acquisto/${f.purchase_order_id}`}
-                          title="Apri l'ordine d'acquisto"
+                          title={tr("Apri l'ordine d'acquisto")}
                         >
                           <Badge variant="outline" className="font-mono text-[11px] hover:bg-orange-50 hover:border-orange-300 transition-colors">
-                            {odaNumbers[f.purchase_order_id] ?? "OdA"}
+                            {odaNumbers[f.purchase_order_id] ?? tr("OdA")}
                           </Badge>
                         </Link>
                         <Button
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                          title="Scollega dall'ordine" aria-label="Scollega dall'ordine"
+                          title={tr("Scollega dall'ordine")} aria-label={tr("Scollega dall'ordine")}
                           disabled={linkOdaMutation.isPending}
                           onClick={() => linkOdaMutation.mutate({ id: f.id, quote: [] })}
                         >
@@ -1674,22 +1678,22 @@ export default function FattureRicevutePage() {
                     ) : (
                       <div className="flex flex-nowrap items-center gap-1">
                         {commesseDi(f).slice(0, 2).map((q) => (
-                          <Link key={q.order_id} to={`/azienda/ordini/${q.order_id}`} title={q.pct < 100 ? `Quota ${q.pct.toLocaleString("it-IT")}%: ${formatCurrency((Number(f.totale_documento ?? 0) * q.pct) / 100)}` : undefined}>
+                          <Link key={q.order_id} to={`/azienda/ordini/${q.order_id}`} title={q.pct < 100 ? tr("Quota {pct}%: {valore}", { pct: q.pct.toLocaleString(intlCampo()), valore: formatCurrency((Number(f.totale_documento ?? 0) * q.pct) / 100) }) : undefined}>
                             <Badge variant="outline" className="whitespace-nowrap text-[11px] hover:bg-orange-50 hover:border-orange-300"
-                              title={q.generale ? "Su tutta l'operazione: costo comune, il piano lo divide tra le unità" : undefined}>
-                              {q.generale && <Building2 className="mr-1 h-3 w-3" aria-label="Operazione" />}{q.codice}
+                              title={q.generale ? tr("Su tutta l'operazione: costo comune, il piano lo divide tra le unità") : undefined}>
+                              {q.generale && <Building2 className="mr-1 h-3 w-3" aria-label={tr("Operazione")} />}{q.codice}
                             </Badge>
                           </Link>
                         ))}
                         {commesseDi(f).length > 2 && <span className="text-xs text-muted-foreground" title={commesseDi(f).slice(2).map((q) => q.codice).join(", ")}>+{commesseDi(f).length - 2}</span>}
                         {commesseDi(f).length ? (
-                          <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" title="Cambia il collegamento" aria-label={`Cambia il collegamento della fattura ${f.numero_fattura}`} onClick={() => setCollegaCommesse(f)}>
+                          <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" title={tr("Cambia il collegamento")} aria-label={tr("Cambia il collegamento della fattura {numero_fattura}", { numero_fattura: String(f.numero_fattura ?? "") })} onClick={() => setCollegaCommesse(f)}>
                             <Link2 className="h-3.5 w-3.5" />
                           </Button>
                         ) : (
                           <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-                            title="Collega a una o più commesse, o a un ordine d'acquisto" onClick={() => setCollegaCommesse(f)}>
-                            <Link2 className="mr-1 h-3.5 w-3.5" />Collega
+                            title={tr("Collega a una o più commesse, o a un ordine d'acquisto")} onClick={() => setCollegaCommesse(f)}>
+                            <Link2 className="mr-1 h-3.5 w-3.5" />{tr("Collega")}
                           </Button>
                         )}
                       </div>
@@ -1698,7 +1702,7 @@ export default function FattureRicevutePage() {
                         a mano" era uno stato invisibile che spiegava perché il sistema non riagganciava più. */}
                     {f.aggancio_oda_manuale && (
                       <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                        title="Scelto a mano: il sistema non riaggancia più questa fattura da solo. Clicca per restituirgliela." aria-label="Riattiva l'aggancio automatico"
+                        title={tr("Scelto a mano: il sistema non riaggancia più questa fattura da solo. Clicca per restituirgliela.")} aria-label={tr("Riattiva l'aggancio automatico")}
                         onClick={() => riattivaAutomaticoMutation.mutate(f.id)}>
                         <RotateCcw className="h-3 w-3" />
                       </Button>
@@ -1706,19 +1710,19 @@ export default function FattureRicevutePage() {
                     </div>
                   </TableCell>}
                   {colonne.has("allegati") && <TableCell>
-                    <button type="button" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground" title="Apri la fattura per vedere o aggiungere allegati" aria-label={`Allegati della fattura ${f.numero_fattura}`} onClick={() => setRiepilogoId(f.id)}>
+                    <button type="button" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground" title={tr("Apri la fattura per vedere o aggiungere allegati")} aria-label={tr("Allegati della fattura {numero_fattura}", { numero_fattura: String(f.numero_fattura ?? "") })} onClick={() => setRiepilogoId(f.id)}>
                       <Paperclip className="h-3.5 w-3.5" />{conteggiAllegati?.get(f.id) ?? 0}
                     </button>
                   </TableCell>}
                   {colonne.has("note") && <TableCell className="max-w-[220px] truncate text-xs" title={f.note_interne ?? undefined}>{f.note_interne || <span className="text-muted-foreground">—</span>}</TableCell>}
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Lettura fattura ${f.numero_fattura}`}><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem disabled={lettura.isPending} onSelect={() => lettura.mutate({id:f.id,daLeggere:!ricevutaDaLeggere(f)})}>{ricevutaDaLeggere(f) ? "Segna come letta" : "Segna come non letta"}</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
+                      <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8" aria-label={tr("Lettura fattura {numero_fattura}", { numero_fattura: String(f.numero_fattura ?? "") })}><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem disabled={lettura.isPending} onSelect={() => lettura.mutate({id:f.id,daLeggere:!ricevutaDaLeggere(f)})}>{ricevutaDaLeggere(f) ? tr("Segna come letta") : tr("Segna come non letta")}</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
                       <Button
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8"
-                        title="Apri la fattura: righe, totali e collegamenti" aria-label="Apri la fattura"
+                        title={tr("Apri la fattura: righe, totali e collegamenti")} aria-label={tr("Apri la fattura")}
                         onClick={() => setRiepilogoId(f.id)}
                       >
                         <FileText className="h-4 w-4" />
@@ -1729,7 +1733,7 @@ export default function FattureRicevutePage() {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8"
-                          title="Scarica il file originale" aria-label="Scarica il file originale"
+                          title={tr("Scarica il file originale")} aria-label={tr("Scarica il file originale")}
                           onClick={() => void handleScaricaOriginale(f)}
                         >
                           <Download className="h-4 w-4" />
@@ -1746,7 +1750,7 @@ export default function FattureRicevutePage() {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 text-green-700 hover:bg-green-50 hover:text-green-800"
-                          title="Contabilizza" aria-label={`Contabilizza la fattura ${f.numero_fattura}`}
+                          title={tr("Contabilizza")} aria-label={tr("Contabilizza la fattura {numero_fattura}", { numero_fattura: String(f.numero_fattura ?? "") })}
                           onClick={() => apriContabilizza(f)}
                         >
                           <CheckCircle2 className="h-4 w-4" />
@@ -1774,20 +1778,20 @@ export default function FattureRicevutePage() {
         risultati={isLoading || erroreFatture ? undefined : filtered.length}
       >
         <PilloleFiltro
-          titolo="Anno"
+          titolo={tr("Anno")}
           valore={annoFilter}
           onScegli={setAnnoFilter}
-          scelte={[...anniDisponibili.map((a) => ({ value: a, label: a })), { value: "all", label: "Tutti" }]}
+          scelte={[...anniDisponibili.map((a) => ({ value: a, label: a })), { value: "all", label: tr("Tutti") }]}
         />
         <PilloleFiltro
-          titolo="Stato"
+          titolo={tr("Stato")}
           valore={statoFilter}
           onScegli={setStatoFilter}
           scelte={[
-            { value: "all", label: "Tutti" },
-            { value: "non_letta", label: "Da leggere" },
-            { value: "letta", label: "Lette" },
-            { value: "contabilizzata", label: "Contabilizzate" },
+            { value: "all", label: tr("Tutti") },
+            { value: "non_letta", label: tr("Da leggere") },
+            { value: "letta", label: tr("Lette") },
+            { value: "contabilizzata", label: tr("Contabilizzate") },
           ]}
         />
       </PannelloFiltri>
@@ -1802,11 +1806,11 @@ export default function FattureRicevutePage() {
                 <SheetTitle className="pr-6 text-base leading-tight">{dettaglioMobile.cedente_ragione_sociale}</SheetTitle>
               </SheetHeader>
               <p className="mt-1 text-xs text-muted-foreground">
-                N. {dettaglioMobile.numero_fattura} · emessa il {formatDateShort(dettaglioMobile.data_fattura)}
-                {dettaglioMobile.data_ricezione_sdi ? ` · arrivata dallo SDI il ${formatDateTime(dettaglioMobile.data_ricezione_sdi)}` : ""}
+                {tr("N. {numero} · emessa il {data}", { numero: String(dettaglioMobile.numero_fattura ?? ""), data: formatDateShort(dettaglioMobile.data_fattura) })}
+                {dettaglioMobile.data_ricezione_sdi ? ` · ${tr("arrivata dallo SDI il {data_ricezione_sdi}", { data_ricezione_sdi: formatDateTime(dettaglioMobile.data_ricezione_sdi) })}` : ""}
                 {dettaglioMobile.cedente_piva ? ` · P.IVA ${dettaglioMobile.cedente_piva}` : ""}
               </p>
-              {protocolli.visibile && <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">Protocollo interno: <CellaProtocolloRicevuta fattura={dettaglioMobile} protocolli={protocolli} /></p>}
+              {protocolli.visibile && <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">{tr("Protocollo interno:")} <CellaProtocolloRicevuta fattura={dettaglioMobile} protocolli={protocolli} /></p>}
               <div className="mt-3 grid grid-cols-3 gap-2 text-center">
                 {[
                   { l: "Imponibile", v: dettaglioMobile.imponibile_totale },
@@ -1814,26 +1818,26 @@ export default function FattureRicevutePage() {
                   { l: "Totale", v: dettaglioMobile.totale_documento },
                 ].map((x) => (
                   <div key={x.l} className="rounded-lg border px-2 py-1.5">
-                    <p className="text-[11px] text-muted-foreground">{x.l}</p>
+                    <p className="text-[11px] text-muted-foreground">{tr(x.l)}</p>
                     <p className="text-[13px] font-semibold tabular-nums">{x.v != null ? formatCurrency(x.v) : "—"}</p>
                   </div>
                 ))}
               </div>
               <p className="mt-3 text-xs text-muted-foreground">
-                {etichettaStato(dettaglioMobile)}
+                {etichettaStato(dettaglioMobile, tr)}
                 {dettaglioMobile.categoria_ai ? ` · ${etichettaCategoria(dettaglioMobile.categoria_ai)}` : ""}
-                {dettaglioMobile.purchase_order_id ? ` · ordine ${odaNumbers[dettaglioMobile.purchase_order_id] ?? "collegato"}` : ""}
+                {dettaglioMobile.purchase_order_id ? ` · ${odaNumbers[dettaglioMobile.purchase_order_id] ? tr("ordine {numero}", { numero: odaNumbers[dettaglioMobile.purchase_order_id] }) : tr("ordine collegato")}` : ""}
                 {(quoteOrdini[dettaglioMobile.id]?.length ?? 0) > 0
-                  ? ` · divisa tra ${quoteOrdini[dettaglioMobile.id].map((q) => odaNumbers[q.purchase_order_id] ?? "OdA").join(", ")}`
+                  ? ` · ${tr("divisa tra {ordini}", { ordini: quoteOrdini[dettaglioMobile.id].map((q) => odaNumbers[q.purchase_order_id] ?? "OdA").join(", ") })}`
                   : ""}
               </p>
               {!nonSiPaga(dettaglioMobile.tipo_documento) && dettaglioMobile.stato !== "rifiutata" && <>
                 <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                  <div><dt className="text-xs text-muted-foreground">Pagato</dt><dd><ImportoRicevuta valore={saldi?.get(dettaglioMobile.id)?.pagato} /></dd></div>
-                  <div><dt className="text-xs text-muted-foreground">Residuo</dt><dd><ImportoRicevuta valore={saldi?.get(dettaglioMobile.id)?.residuo} /></dd></div>
+                  <div><dt className="text-xs text-muted-foreground">{tr("Pagato")}</dt><dd><ImportoRicevuta valore={saldi?.get(dettaglioMobile.id)?.pagato} /></dd></div>
+                  <div><dt className="text-xs text-muted-foreground">{tr("Residuo")}</dt><dd><ImportoRicevuta valore={saldi?.get(dettaglioMobile.id)?.residuo} /></dd></div>
                 </dl>
                 <div className="mt-2 flex items-center justify-between gap-2">
-                  <span className="text-xs text-muted-foreground">{testoSaldo(saldi?.get(dettaglioMobile.id))}</span>
+                  <span className="text-xs text-muted-foreground">{testoSaldo(saldi?.get(dettaglioMobile.id), tr)}</span>
                   {/* Da telefono lo stesso pannello del computer (23/11/2026): prima qui c'era il vecchio
                       «Segna pagata», senza residuo né banca. */}
                   {!stornataDelTutto(dettaglioMobile) && !permessiCosti.canViewCosts && (pagataIl(dettaglioMobile.id) || daPagare(dettaglioMobile)) &&
@@ -1846,7 +1850,7 @@ export default function FattureRicevutePage() {
                     disabled={perPagare.isPending}
                     onClick={() => { const f = dettaglioMobile; setDettaglioMobile(null); pagaRiga(f, Number(saldi?.get(f.id)?.residuo ?? 0)); }}
                   >
-                    {perPagare.isPending ? "Preparo il pagamento…" : daPagare(dettaglioMobile) && !permessiCosti.solaLettura ? "Paga" : "Pagamenti e residuo"}
+                    {perPagare.isPending ? tr("Preparo il pagamento…") : daPagare(dettaglioMobile) && !permessiCosti.solaLettura ? tr("Paga") : tr("Pagamenti e residuo")}
                   </Button>
                 )}
               </>}
@@ -1855,15 +1859,15 @@ export default function FattureRicevutePage() {
                 className="mt-4 h-10 w-full"
                 onClick={() => { const f = dettaglioMobile; setDettaglioMobile(null); setRiepilogoId(f.id); }}
               >
-                <FileText className="h-4 w-4 mr-1" /> Vedi la fattura
+                <FileText className="h-4 w-4 mr-1" /> {tr("Vedi la fattura")}
               </Button>
-              <Button variant="outline" className="mt-2 h-10 w-full" disabled={lettura.isPending} onClick={() => lettura.mutate({id:dettaglioMobile.id,daLeggere:!ricevutaDaLeggere(dettaglioMobile)})}>{ricevutaDaLeggere(dettaglioMobile) ? "Segna come letta" : "Segna come non letta"}</Button>
+              <Button variant="outline" className="mt-2 h-10 w-full" disabled={lettura.isPending} onClick={() => lettura.mutate({id:dettaglioMobile.id,daLeggere:!ricevutaDaLeggere(dettaglioMobile)})}>{ricevutaDaLeggere(dettaglioMobile) ? tr("Segna come letta") : tr("Segna come non letta")}</Button>
               {dettaglioMobile.stato !== "contabilizzata" && (
                 <Button
                   className="mt-2 h-10 w-full bg-green-600 hover:bg-green-700"
                   onClick={() => { apriContabilizza(dettaglioMobile); setDettaglioMobile(null); }}
                 >
-                  <CheckCircle2 className="h-4 w-4 mr-1" /> Contabilizza
+                  <CheckCircle2 className="h-4 w-4 mr-1" /> {tr("Contabilizza")}
                 </Button>
               )}
               {isNotaCreditoRicevuta(dettaglioMobile.tipo_documento) && dettaglioMobile.stato !== "rifiutata" && (dettaglioMobile.stato === "contabilizzata" || !!dettaglioMobile.purchase_order_id) && (
@@ -1872,7 +1876,7 @@ export default function FattureRicevutePage() {
                   className="mt-2 h-10 w-full"
                   onClick={() => { setCollegaNota(dettaglioMobile); setDettaglioMobile(null); }}
                 >
-                  {storni?.perNota.has(dettaglioMobile.id) ? "Cambia la fattura stornata" : "Collega alla fattura"}
+                  {storni?.perNota.has(dettaglioMobile.id) ? tr("Cambia la fattura stornata") : tr("Collega alla fattura")}
                 </Button>
               )}
             </>
@@ -1884,29 +1888,29 @@ export default function FattureRicevutePage() {
       <AlertDialog open={!!contabilizzaFattura} onOpenChange={(open) => { if (!open) setContabilizzaFattura(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Contabilizza fattura ricevuta</AlertDialogTitle>
+            <AlertDialogTitle>{tr("Contabilizza fattura ricevuta")}</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2">
                 {/* Mobile: basta il riepilogo sotto, senza la spiegazione. */}
                 <p className="max-sm:hidden">
                   {contabilizzaFattura && (quoteOrdini[contabilizzaFattura.id]?.length ?? 0) > 0
-                    ? "La fattura è divisa tra più ordini: nasce un costo solo con tutto l'imponibile, ogni ordine (e la sua commessa) prende la sua quota e il costo registrato alla ricezione scende di quella quota (nessun costo doppio). Dopo, le quote non si cambiano più."
+                    ? tr("La fattura è divisa tra più ordini: nasce un costo solo con tutto l'imponibile, ogni ordine (e la sua commessa) prende la sua quota e il costo registrato alla ricezione scende di quella quota (nessun costo doppio). Dopo, le quote non si cambiano più.")
                     : contabilizzaFattura?.purchase_order_id
-                    ? "La fattura è collegata a un ordine: l'importo del costo già registrato alla ricezione verrà corretto con quello della fattura (nessun costo doppio)."
-                    : "Verrà creato il costo corrispondente, con imponibile e IVA della fattura, visibile in Costi e nel Previsionale."}
+                    ? tr("La fattura è collegata a un ordine: l'importo del costo già registrato alla ricezione verrà corretto con quello della fattura (nessun costo doppio).")
+                    : tr("Verrà creato il costo corrispondente, con imponibile e IVA della fattura, visibile in Costi e nel Previsionale.")}
                 </p>
                 {contabilizzaFattura && (
                   <div className="bg-muted rounded-md p-3 text-sm space-y-1 max-sm:px-3 max-sm:py-2 max-sm:text-xs">
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Cedente</span>
+                      <span className="text-muted-foreground">{tr("Cedente")}</span>
                       <span className="font-medium">{contabilizzaFattura.cedente_ragione_sociale}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Numero</span>
+                      <span className="text-muted-foreground">{tr("Numero")}</span>
                       <span className="font-mono">{contabilizzaFattura.numero_fattura}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Importo totale</span>
+                      <span className="text-muted-foreground">{tr("Importo totale")}</span>
                       <span className="font-semibold">{formatCurrency(contabilizzaFattura.totale_documento)}</span>
                     </div>
                   </div>
@@ -1915,7 +1919,7 @@ export default function FattureRicevutePage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-green-600 hover:bg-green-700"
               disabled={contabilizzaMutation.isPending}
@@ -1927,7 +1931,7 @@ export default function FattureRicevutePage() {
               }}
             >
               <CheckCircle2 className="h-4 w-4 mr-1" />
-              Contabilizza
+              {tr("Contabilizza")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1938,32 +1942,29 @@ export default function FattureRicevutePage() {
       <AlertDialog open={confermaClassifica} onOpenChange={setConfermaClassifica}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Classificare {kpi.daClassificare} fatture con l&apos;AI?</AlertDialogTitle>
+            <AlertDialogTitle>{tr("Classificare {daClassificare} fatture con l'AI?", { daClassificare: String(kpi.daClassificare ?? "") })}</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2">
                 <p>
-                  A ogni fattura viene assegnata una categoria di spesa (materiali, subappalti,
-                  affitti, provvigioni…) leggendo fornitore e righe. Dove la fattura è già
-                  contabilizzata, la categoria arriva anche sul costo.
+                  {tr("A ogni fattura viene assegnata una categoria di spesa (materiali, subappalti, affitti, provvigioni…) leggendo fornitore e righe. Dove la fattura è già contabilizzata, la categoria arriva anche sul costo.")}
                 </p>
                 <p>
-                  È uno strumento a consumo: scala crediti AI dal borsellino dell&apos;azienda, una
-                  volta per fattura. Rilanciarlo dopo non ripaga quelle già fatte.
+                  {tr("È uno strumento a consumo: scala crediti AI dal borsellino dell'azienda, una volta per fattura. Rilanciarlo dopo non ripaga quelle già fatte.")}
                 </p>
                 <p className="text-muted-foreground">
-                  La categoria resta modificabile a mano: è una proposta, non l&apos;ultima parola.
+                  {tr("La categoria resta modificabile a mano: è una proposta, non l'ultima parola.")}
                 </p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               disabled={classificaMutation.isPending}
               onClick={() => classificaMutation.mutate()}
             >
               <Sparkles className="h-4 w-4 mr-1" />
-              Classifica
+              {tr("Classifica")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -2051,12 +2052,13 @@ export default function FattureRicevutePage() {
  * testo quando si smette di digitare (useTestoCheSegue).
  */
 function CampoRicercaRicevute({ valore, onCambia }: { valore: string; onCambia: (testo: string) => void }) {
+  const t = useT();
   const [testo, scrivi] = useTestoCheSegue(valore, onCambia);
   return (
     <div className="relative min-w-[220px] flex-1">
       <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
       <Input
-        placeholder="Cerca fornitore, fattura, note o riferimenti…"
+        placeholder={t("Cerca fornitore, fattura, note o riferimenti…")}
         className="pl-9"
         value={testo}
         onChange={(e) => scrivi(e.target.value)}

@@ -41,6 +41,7 @@ import {
   type RigaCantiere,
   quotaOneriSal,
 } from "@/lib/subappaltatori/lavoriMisure";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type Contratto = {
   id: string;
@@ -101,6 +102,7 @@ export function LavoriMisureSubDialog({
   onClose: () => void;
   onApriVerbale: (id: string) => Promise<void>;
 }) {
+  const tTesto = useT();
   const p = usePermissions(),
     qc = useQueryClient();
   const lettura = puoConsultareSalSub(p);
@@ -156,7 +158,7 @@ export function LavoriMisureSubDialog({
           .limit(1001),
       ]);
       if (a.error || b.error || s.error)
-        throw Error("Lettura lavori, misure o SAL non riuscita");
+        throw Error(tTesto("Lettura lavori, misure o SAL non riuscita"));
       const misure = (b.data ?? []) as unknown as MisuraSub[];
       const sal = (s.data ?? []) as unknown as {
         id: string;
@@ -171,7 +173,7 @@ export function LavoriMisureSubDialog({
         sal.length > 1000
       )
         throw Error(
-          "Storico oltre il limite di questa vista: non è possibile mostrare totali parziali",
+          tTesto("Storico oltre il limite di questa vista: non è possibile mostrare totali parziali"),
         );
       return {
         quadri: (a.data ?? []) as unknown as QuadroSub[],
@@ -194,7 +196,7 @@ export function LavoriMisureSubDialog({
         .limit(301);
       if (error) throw error;
       if ((data ?? []).length > 300)
-        throw Error("Troppe lavorazioni per questo selettore");
+        throw Error(tTesto("Troppe lavorazioni per questo selettore"));
       return data ?? [];
     },
   });
@@ -269,7 +271,7 @@ export function LavoriMisureSubDialog({
     try {
       await fn();
     } catch (e) {
-      setErrore(e instanceof Error ? e.message : "Operazione non riuscita");
+      setErrore(e instanceof Error ? e.message : tTesto("Operazione non riuscita"));
     } finally {
       setBusy(false);
       bloccato.current = false;
@@ -454,25 +456,25 @@ export function LavoriMisureSubDialog({
         >
           <DialogHeader className="shrink-0 border-b p-4 pr-12">
             <DialogTitle>
-              Lavori e quantità · {c.numero_contratto || "Subappalto"}
+              {tTesto("Lavori e quantità · {contratto}", { contratto: c.numero_contratto || tTesto("Subappalto") })}
             </DialogTitle>
             <DialogDescription>
-              Registra i lavori eseguiti, verifica le quantità e prepara il SAL.
+              {tTesto("Registra i lavori eseguiti, verifica le quantità e prepara il SAL.")}
             </DialogDescription>
           </DialogHeader>
           {!lettura ? (
             <p role="alert" className="p-6">
-              Non hai accesso ai dati economici di questo subappalto.
+              {tTesto("Non hai accesso ai dati economici di questo subappalto.")}
             </p>
           ) : q.isLoading ? (
             <p role="status" className="p-6">
-              Caricamento lavori e misure…
+              {tTesto("Caricamento lavori e misure…")}
             </p>
           ) : q.isError ? (
             <div role="alert" className="p-6">
               {q.error.message}
               <Button variant="outline" onClick={() => void q.refetch()}>
-                Riprova
+                {tTesto("Riprova")}
               </Button>
             </div>
           ) : (
@@ -480,7 +482,7 @@ export function LavoriMisureSubDialog({
               {!modifica && !dettaglio && (
                 <nav
                   className="grid shrink-0 grid-cols-3 gap-2 border-b px-4 py-2"
-                  aria-label="Sezioni lavori subappalto"
+                  aria-label={tTesto("Sezioni lavori subappalto")}
                 >
                   {(["lavori", "misure", "sal"] as const).map((t) => (
                     <Button
@@ -489,10 +491,10 @@ export function LavoriMisureSubDialog({
                       className="h-auto min-h-10 whitespace-normal px-2"
                       aria-label={
                         t === "lavori"
-                          ? "Lavori affidati"
+                          ? tTesto("Lavori affidati")
                           : t === "misure"
-                            ? "Rilevazioni e verifiche"
-                            : "Prepara SAL"
+                            ? tTesto("Rilevazioni e verifiche")
+                            : tTesto("Prepara SAL")
                       }
                       variant={tab === t ? "default" : "outline"}
                       disabled={busy || (!quadro && t !== "lavori")}
@@ -506,16 +508,16 @@ export function LavoriMisureSubDialog({
                     >
                       <span className="hidden sm:inline" aria-hidden="true">
                         {t === "lavori"
-                          ? "Lavori affidati"
+                          ? tTesto("Lavori affidati")
                           : t === "misure"
-                            ? "Rilevazioni e verifiche"
-                            : "Prepara SAL"}
+                            ? tTesto("Rilevazioni e verifiche")
+                            : tTesto("Prepara SAL")}
                       </span>
                       <span className="sm:hidden" aria-hidden="true">
                         {t === "lavori"
-                          ? "Lavori"
+                          ? tTesto("Lavori")
                           : t === "misure"
-                            ? "Verifiche"
+                            ? tTesto("Verifiche")
                             : "SAL"}
                       </span>
                       {t === "misure" && daVerificare > 0 && (
@@ -542,16 +544,14 @@ export function LavoriMisureSubDialog({
                 {!modifica && !dettaglio && tab === "sal" && avanzamento.length > 0 && (
                   <AvanzamentoVociSub righe={avanzamento} numero={salMostrato?.numero_sal}
                     selettore={consultaStorico && salPerQuantita.length > 1 && salMostrato
-                      ? <OfficeSelect label="SAL da consultare" value={salMostrato.id} onValueChange={setStoricoSelezionato}
+                      ? <OfficeSelect label={tTesto("SAL da consultare")} value={salMostrato.id} onValueChange={setStoricoSelezionato}
                         className="h-8 w-28" options={salPerQuantita.map(s => ({ value: s.id, label: `SAL ${s.numero_sal}` }))} />
                       : null} />
                 )}
                 {!modifica && !dettaglio && !risultato && quadro && (
                   <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-muted/50 px-3 py-2 text-sm">
                     <p>
-                      <span className="font-medium">
-                        {daVerificare} da verificare
-                      </span>
+                      <span className="font-medium">{tTesto("{daVerificare} da verificare", { daVerificare: String(daVerificare ?? "") })}</span>
                       <span
                         className="mx-2 text-muted-foreground"
                         aria-hidden="true"
@@ -561,36 +561,30 @@ export function LavoriMisureSubDialog({
                       <span className="font-medium">
                         {euroSub(valorePronto)}
                       </span>{" "}
-                      pronti per il SAL
+                      {tTesto("pronti per il SAL")}
                     </p>
                     {tab === "lavori" &&
                       (daVerificare > 0 ? (
                         <Button size="sm" onClick={() => setTab("misure")}>
-                          Verifica rilevazioni
+                          {tTesto("Verifica rilevazioni")}
                         </Button>
                       ) : disponibiliSal.length > 0 ? (
                         <Button size="sm" onClick={preparaSal}>
-                          Continua al SAL
+                          {tTesto("Continua al SAL")}
                         </Button>
                       ) : null)}
                   </div>
                 )}
                 {modifica ? (
                   <fieldset disabled={busy} className="space-y-4">
-                    <div className="rounded-md bg-muted p-3 text-sm">
-                      Le voci devono totalizzare{" "}
-                      {euroSub(Number(c.importo_contrattuale))}. Oneri separati:{" "}
-                      {euroSub(Number(c.oneri_sicurezza))}. Questa base
-                      operativa non modifica il contratto firmato e non
-                      certifica lavori eseguiti.
-                    </div>
+                    <div className="rounded-md bg-muted p-3 text-sm">{tTesto("Le voci devono totalizzare {valore}. Oneri separati: {valore2}. Questa base operativa non modifica il contratto firmato e non certifica lavori eseguiti.", { valore: euroSub(Number(c.importo_contrattuale)), valore2: euroSub(Number(c.oneri_sicurezza)) })}</div>
                     {bozza.map((v, i) => (
                       <div
                         key={v.id}
                         className="space-y-2 rounded-lg border p-3"
                       >
                         <div className="flex items-center justify-between">
-                          <strong className="text-sm">Voce {i + 1}</strong>
+                          <strong className="text-sm">{tTesto("Voce {i}", { i: i + 1 })}</strong>
                           <Button
                             size="sm"
                             variant="ghost"
@@ -599,11 +593,11 @@ export function LavoriMisureSubDialog({
                               setBozza((r) => r.filter((x) => x.id !== v.id))
                             }
                           >
-                            Rimuovi voce
+                            {tTesto("Rimuovi voce")}
                           </Button>
                         </div>
                         <label className="block text-sm">
-                          Lavoro affidato
+                          {tTesto("Lavoro affidato")}
                           <Input
                             value={v.descrizione}
                             maxLength={2000}
@@ -614,7 +608,7 @@ export function LavoriMisureSubDialog({
                         </label>
                         <div className="grid gap-3 sm:grid-cols-4">
                           <label className="grid gap-1 text-sm">
-                            Calcolo del compenso
+                            {tTesto("Calcolo del compenso")}
                             <UniformSelect
                               className={selettore}
                               value={v.base}
@@ -632,13 +626,13 @@ export function LavoriMisureSubDialog({
                                 });
                               }}
                             >
-                              <option value="corpo">A corpo</option>
-                              <option value="misura">A misura</option>
-                              <option value="ore">A ore</option>
+                              <option value="corpo">{tTesto("A corpo")}</option>
+                              <option value="misura">{tTesto("A misura")}</option>
+                              <option value="ore">{tTesto("A ore")}</option>
                             </UniformSelect>
                           </label>
                           <label className="text-sm">
-                            Quantità affidata
+                            {tTesto("Quantità affidata")}
                             <Input
                               inputMode="decimal"
                               value={v.quantita}
@@ -649,7 +643,7 @@ export function LavoriMisureSubDialog({
                             />
                           </label>
                           <label className="text-sm">
-                            Unità
+                            {tTesto("Unità")}
                             <Input
                               value={v.unita}
                               disabled={v.base !== "misura"}
@@ -661,8 +655,8 @@ export function LavoriMisureSubDialog({
                           </label>
                           <label className="text-sm">
                             {v.base === "corpo"
-                              ? "Prezzo dell’intero lavoro (€)"
-                              : "Prezzo unitario (€)"}
+                              ? tTesto("Prezzo dell’intero lavoro (€)")
+                              : tTesto("Prezzo unitario (€)")}
                             <Input
                               inputMode="decimal"
                               value={v.prezzo}
@@ -673,7 +667,7 @@ export function LavoriMisureSubDialog({
                           </label>
                         </div>
                         <label className="grid gap-1 text-sm">
-                          Lavorazione della commessa (facoltativa)
+                          {tTesto("Lavorazione della commessa (facoltativa)")}
                           <UniformSelect
                             className={selettore}
                             value={v.fase_id}
@@ -687,7 +681,7 @@ export function LavoriMisureSubDialog({
                               });
                             }}
                           >
-                            <option value="">Nessun collegamento</option>
+                            <option value="">{tTesto("Nessun collegamento")}</option>
                             {fasi.data?.map((f) => (
                               <option key={f.id} value={f.id}>
                                 {f.name}
@@ -699,8 +693,7 @@ export function LavoriMisureSubDialog({
                     ))}
                     {fasi.isError && (
                       <p role="alert" className="text-sm text-amber-800">
-                        Lavorazioni non disponibili: puoi compilare la voce
-                        senza collegamento.
+                        {tTesto("Lavorazioni non disponibili: puoi compilare la voce senza collegamento.")}
                       </p>
                     )}
                     <Button
@@ -721,26 +714,26 @@ export function LavoriMisureSubDialog({
                         ])
                       }
                     >
-                      Aggiungi lavoro
+                      {tTesto("Aggiungi lavoro")}
                     </Button>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <label className="grid gap-1 text-sm">
-                        Quando matura il compenso
+                        {tTesto("Quando matura il compenso")}
                         <UniformSelect
                           className={selettore}
                           value={maturazione}
                           onChange={(e) => setMaturazione(e.target.value)}
                         >
-                          <option value="">Scegli dal contratto</option>
-                          <option value="saldo">Saldo a fine lavoro</option>
-                          <option value="sal_periodici">SAL periodici</option>
+                          <option value="">{tTesto("Scegli dal contratto")}</option>
+                          <option value="saldo">{tTesto("Saldo a fine lavoro")}</option>
+                          <option value="sal_periodici">{tTesto("SAL periodici")}</option>
                           <option value="traguardi">
-                            Traguardi concordati
+                            {tTesto("Traguardi concordati")}
                           </option>
                         </UniformSelect>
                       </label>
                       <label className="text-sm">
-                        Giorni di pagamento, se pattuiti
+                        {tTesto("Giorni di pagamento, se pattuiti")}
                         <Input
                           inputMode="numeric"
                           value={giorni}
@@ -749,11 +742,10 @@ export function LavoriMisureSubDialog({
                       </label>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      I giorni non generano una scadenza: evento di decorrenza e
-                      condizioni rimangono quelli del contratto.
+                      {tTesto("I giorni non generano una scadenza: evento di decorrenza e condizioni rimangono quelli del contratto.")}
                     </p>
                     <label className="block text-sm">
-                      Motivo e riferimento della base lavori
+                      {tTesto("Motivo e riferimento della base lavori")}
                       <Textarea
                         value={motivo}
                         maxLength={2000}
@@ -763,17 +755,17 @@ export function LavoriMisureSubDialog({
                     <p
                       className={`font-medium ${Math.abs(totale - Number(c.importo_contrattuale)) > 0.005 ? "text-amber-800" : ""}`}
                     >
-                      Totale voci:{" "}
+                      {tTesto("Totale voci:")}{" "}
                       {Number.isFinite(totale)
                         ? euroSub(totale)
-                        : "Da completare"}
+                        : tTesto("Da completare")}
                     </p>
                     <div className="flex flex-wrap gap-2">
                       <Button
                         variant="outline"
                         onClick={() => setModifica(false)}
                       >
-                        Annulla modifica
+                        {tTesto("Annulla modifica")}
                       </Button>
                       <Button
                         disabled={
@@ -786,7 +778,7 @@ export function LavoriMisureSubDialog({
                         }
                         onClick={() => void salvaElenco()}
                       >
-                        Conferma base lavori
+                        {tTesto("Conferma base lavori")}
                       </Button>
                     </div>
                   </fieldset>
@@ -799,32 +791,28 @@ export function LavoriMisureSubDialog({
                       variant="outline"
                       onClick={() => setDettaglio(null)}
                     >
-                      Annulla e torna alle misure
+                      {tTesto("Annulla e torna alle misure")}
                     </Button>
                     <h3 className="font-semibold">
                       {dettaglio.tipo === "rileva"
-                        ? "Nuova rilevazione"
+                        ? tTesto("Nuova rilevazione")
                         : dettaglio.tipo === "verifica"
-                          ? "Verifica della quantità"
-                          : "Annullamento documentato"}{" "}
+                          ? tTesto("Verifica della quantità")
+                          : tTesto("Annullamento documentato")}{" "}
                       · {dettaglio.voce.descrizione}
                     </h3>
                     <p className="text-sm text-muted-foreground">
                       {dettaglio.tipo !== "rileva" && (
-                        <>
-                          Dichiarata:{" "}
-                          {quantitaSub(
+                        <>{tTesto("Dichiarata: {valore}.", { valore: String(quantitaSub(
                             Number(dettaglio.misura.quantita_dichiarata),
                             dettaglio.voce,
-                          )}
-                          .{" "}
-                        </>
+                          ) ?? "") })}{" "}</>
                       )}
-                      La verifica non registra un SAL o un pagamento.
+                      {tTesto("La verifica non registra un SAL o un pagamento.")}
                     </p>
                     {dettaglio.tipo === "rileva" && (
                       <label className="block text-sm">
-                        Data della rilevazione
+                        {tTesto("Data della rilevazione")}
                         <Input
                           type="date"
                           max={oggi()}
@@ -836,11 +824,11 @@ export function LavoriMisureSubDialog({
                     {dettaglio.tipo !== "annulla" && (
                       <label className="block text-sm">
                         {dettaglio.tipo === "verifica"
-                          ? "Quantità riconosciuta"
-                          : "Quantità dichiarata nel periodo"}{" "}
+                          ? tTesto("Quantità riconosciuta")
+                          : tTesto("Quantità dichiarata nel periodo")}{" "}
                         (
                         {dettaglio.voce.base === "corpo"
-                          ? "% dell’intero lavoro"
+                          ? tTesto("% dell’intero lavoro")
                           : dettaglio.voce.unita}
                         )
                         <Input
@@ -852,8 +840,8 @@ export function LavoriMisureSubDialog({
                     )}
                     <label className="block text-sm">
                       {dettaglio.tipo === "annulla"
-                        ? "Motivo dell’annullamento"
-                        : "Riscontro e riferimento (rapportino, misura o verifica)"}
+                        ? tTesto("Motivo dell’annullamento")
+                        : tTesto("Riscontro e riferimento (rapportino, misura o verifica)")}
                       <Textarea
                         value={riferimento}
                         maxLength={2000}
@@ -869,10 +857,10 @@ export function LavoriMisureSubDialog({
                       onClick={() => void salvaMisura()}
                     >
                       {dettaglio.tipo === "rileva"
-                        ? "Registra rilevazione"
+                        ? tTesto("Registra rilevazione")
                         : dettaglio.tipo === "verifica"
-                          ? "Riconosci quantità"
-                          : "Annulla rilevazione"}
+                          ? tTesto("Riconosci quantità")
+                          : tTesto("Annulla rilevazione")}
                     </Button>
                   </fieldset>
                 ) : tab === "lavori" || !quadro ? (
@@ -880,45 +868,37 @@ export function LavoriMisureSubDialog({
                     {!quadro ? (
                       <div className="rounded-lg border border-dashed p-6">
                         <h3 className="font-semibold">
-                          Definisci che cosa è affidato al subappaltatore
+                          {tTesto("Definisci che cosa è affidato al subappaltatore")}
                         </h3>
                         <p className="my-3 text-sm text-muted-foreground">
-                          Una voce per un lavoro a corpo, oppure quantità e
-                          prezzi per misure e ore. I dati del contratto sono già
-                          disponibili.
+                          {tTesto("Una voce per un lavoro a corpo, oppure quantità e prezzi per misure e ore. I dati del contratto sono già disponibili.")}
                         </p>
                         {storici ? (
                           <div className="space-y-3">
                             <p role="alert" className="text-sm text-amber-800">
-                              Questo contratto ha SAL già registrati. Per
-                              attivare le quantità occorre prima riconciliare lo
-                              storico. Puoi continuare a consultare SAL, verbali
-                              e ritenute esistenti.
+                              {tTesto("Questo contratto ha SAL già registrati. Per attivare le quantità occorre prima riconciliare lo storico. Puoi continuare a consultare SAL, verbali e ritenute esistenti.")}
                             </p>
                             {onApriStorico && (
                               <Button variant="outline" onClick={onApriStorico}>
-                                Consulta SAL registrati
+                                {tTesto("Consulta SAL registrati")}
                               </Button>
                             )}
                           </div>
                         ) : (
                           <Button disabled={!scrittura} onClick={iniziaElenco}>
-                            Imposta elenco lavori
+                            {tTesto("Imposta elenco lavori")}
                           </Button>
                         )}
                       </div>
                     ) : (
                       <>
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-sm">
-                            Base lavori · Rev. {quadro.revisione} ·{" "}
-                            {euroSub(Number(quadro.importo_lavori))}
-                          </p>
+                          <p className="text-sm">{tTesto("Base lavori · Rev. {revisione} · {valore}", { revisione: String(quadro.revisione ?? ""), valore: euroSub(Number(quadro.importo_lavori)) })}</p>
                           {(riconosciute || storici) && (
                             <span className="text-xs text-muted-foreground">
                               {riconosciute
-                                ? "Elenco bloccato: ci sono misure già verificate. Per cambiare l'importo serve una variante."
-                                : "Elenco bloccato: il contratto ha SAL già registrati."}
+                                ? tTesto("Elenco bloccato: ci sono misure già verificate. Per cambiare l'importo serve una variante.")
+                                : tTesto("Elenco bloccato: il contratto ha SAL già registrati.")}
                             </span>
                           )}
                           {!riconosciute && !storici && (
@@ -928,7 +908,7 @@ export function LavoriMisureSubDialog({
                               disabled={!scrittura}
                               onClick={iniziaElenco}
                             >
-                              Rivedi elenco
+                              {tTesto("Rivedi elenco")}
                             </Button>
                           )}
                         </div>
@@ -945,7 +925,7 @@ export function LavoriMisureSubDialog({
                                   "",
                                 ].map((h, i) => (
                                   <th key={i} className="p-3">
-                                    {h}
+                                    {h ? tTesto(h) : h}
                                   </th>
                                 ))}
                               </tr>
@@ -966,13 +946,13 @@ export function LavoriMisureSubDialog({
                                     <td className="block pb-3 md:table-cell md:p-3">
                                       {nomeFase && <span className="block text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{nomeFase}</span>}
                                       <strong>{v.descrizione}</strong>
-                                      {fatto != null && <span className="block text-xs text-muted-foreground">In cantiere: {quantitaSub(fatto, v)}</span>}
+                                      {fatto != null && <span className="block text-xs text-muted-foreground">{tTesto("In cantiere: {fatto}", { fatto: String(quantitaSub(fatto, v) ?? "") })}</span>}
                                       <p className="text-xs text-muted-foreground">
                                         {v.base === "corpo"
-                                          ? "A corpo"
+                                          ? tTesto("A corpo")
                                           : v.base === "ore"
-                                            ? "A ore"
-                                            : "A misura"}{" "}
+                                            ? tTesto("A ore")
+                                            : tTesto("A misura")}{" "}
                                         · {euroSub(v.prezzo)}
                                         {v.base === "corpo"
                                           ? ""
@@ -991,19 +971,17 @@ export function LavoriMisureSubDialog({
                                     >
                                       {quantitaSub(r.riconosciuta, v)}
                                       {r.daVerificare > 0 && (
-                                        <p className="text-xs text-amber-800">
-                                          {r.daVerificare} da verificare
-                                        </p>
+                                        <p className="text-xs text-amber-800">{tTesto("{daVerificare} da verificare", { daVerificare: String(r.daVerificare ?? "") })}</p>
                                       )}
                                     </td>
                                     <td
-                                      data-label="Residuo quantità"
+                                      data-label={tTesto("Residuo quantità")}
                                       className="flex flex-wrap items-center justify-between gap-2 py-1 before:text-xs before:text-muted-foreground before:content-[attr(data-label)] md:table-cell md:p-3 md:before:hidden"
                                     >
                                       {quantitaSub(r.residua, v)}
                                     </td>
                                     <td
-                                      data-label="Da contabilizzare"
+                                      data-label={tTesto("Da contabilizzare")}
                                       className="flex flex-wrap items-center justify-between gap-2 py-1 before:text-xs before:text-muted-foreground before:content-[attr(data-label)] md:table-cell md:p-3 md:before:hidden"
                                     >
                                       {euroSub(r.nonContabilizzato)}
@@ -1020,7 +998,7 @@ export function LavoriMisureSubDialog({
                                           })
                                         }
                                       >
-                                        Rileva quantità
+                                        {tTesto("Rileva quantità")}
                                       </Button>
                                       {daDichiarare > 0 && (
                                         <Button
@@ -1033,9 +1011,7 @@ export function LavoriMisureSubDialog({
                                             setQuantita(String(Math.round(daDichiarare * (v.base === "corpo" ? 100 : 1) * 10000) / 10000));
                                             setRiferimento("Dal cantiere");
                                           }}
-                                        >
-                                          Dal cantiere: {quantitaSub(daDichiarare, v)}
-                                        </Button>
+                                        >{tTesto("Dal cantiere: {daDichiarare}", { daDichiarare: String(quantitaSub(daDichiarare, v) ?? "") })}</Button>
                                       )}
                                     </td>
                                   </tr>
@@ -1046,33 +1022,27 @@ export function LavoriMisureSubDialog({
                         </div>
                         <details className="text-xs text-muted-foreground">
                           <summary className="cursor-pointer font-medium">
-                            Come registrare le quantità
+                            {tTesto("Come registrare le quantità")}
                           </summary>
                           <p className="mt-2 leading-relaxed">
-                            Le rilevazioni si aggiungono nel periodo, non sono
-                            percentuali cumulative da sommare. Per un lavoro a
-                            corpo 100% equivale a una quota completa. Le date e
-                            percentuali del calendario non riconoscono importi
-                            da sole.
+                            {tTesto("Le rilevazioni si aggiungono nel periodo, non sono percentuali cumulative da sommare. Per un lavoro a corpo 100% equivale a una quota completa. Le date e percentuali del calendario non riconoscono importi da sole.")}
                           </p>
                         </details>
                         <details className="rounded-lg border p-3 text-sm">
-                          <summary>Base e condizioni registrate</summary>
+                          <summary>{tTesto("Base e condizioni registrate")}</summary>
                           <p className="mt-2">{quadro.motivo}</p>
                           <p>
-                            Maturazione:{" "}
+                            {tTesto("Maturazione:")}{" "}
                             {quadro.maturazione === "saldo"
-                              ? "Saldo a fine lavoro"
+                              ? tTesto("Saldo a fine lavoro")
                               : quadro.maturazione === "sal_periodici"
-                                ? "SAL periodici"
-                                : "Traguardi concordati"}{" "}
-                            · Giorni pattuiti:{" "}
-                            {quadro.giorni_pagamento ?? "non definiti"}
+                                ? tTesto("SAL periodici")
+                                : tTesto("Traguardi concordati")}{" "}
+                            {tTesto("· Giorni pattuiti:")}{" "}
+                            {quadro.giorni_pagamento ?? tTesto("non definiti")}
                           </p>
                           <p className="mt-2 text-xs text-muted-foreground">
-                            Dopo il riconoscimento delle quantità la base non
-                            viene riscritta: le variazioni richiedono un
-                            percorso dedicato.
+                            {tTesto("Dopo il riconoscimento delle quantità la base non viene riscritta: le variazioni richiedono un percorso dedicato.")}
                           </p>
                         </details>
                       </>
@@ -1082,8 +1052,7 @@ export function LavoriMisureSubDialog({
                   <>
                     {!misure.length ? (
                       <p className="rounded-lg border p-6 text-sm text-muted-foreground">
-                        Nessuna rilevazione. Parti da “Lavori affidati” e scegli
-                        il lavoro.
+                        {tTesto("Nessuna rilevazione. Parti da “Lavori affidati” e scegli il lavoro.")}
                       </p>
                     ) : (
                       <div className="overflow-x-auto rounded-lg border">
@@ -1116,33 +1085,25 @@ export function LavoriMisureSubDialog({
                                   <td className="block pb-3 md:table-cell md:max-w-xs md:p-3">
                                     <strong>
                                       {v?.descrizione ||
-                                        "Voce di una base precedente"}
+                                        tTesto("Voce di una base precedente")}
                                     </strong>
-                                    <p className="text-xs text-muted-foreground">
-                                      {m.data_rilievo
+                                    <p className="text-xs text-muted-foreground">{tTesto("{valore} · Rif. {id}", { valore: m.data_rilievo
                                         .split("-")
                                         .reverse()
-                                        .join("/")}{" "}
-                                      · Rif. {m.id.slice(0, 8)}
-                                    </p>
+                                        .join("/"), id: m.id.slice(0, 8) })}</p>
                                     <details className="mt-1 text-xs">
-                                      <summary>Riscontri e verifica</summary>
+                                      <summary>{tTesto("Riscontri e verifica")}</summary>
                                       <p>{m.riferimento}</p>
                                       {m.nota_verifica && (
-                                        <p>Verifica: {m.nota_verifica}</p>
+                                        <p>{tTesto("Verifica: {nota_verifica}", { nota_verifica: String(m.nota_verifica ?? "") })}</p>
                                       )}
                                       {m.verificato_il && (
-                                        <p>
-                                          Registrata il{" "}
-                                          {new Date(
+                                        <p>{tTesto("Registrata il {valore}", { valore: new Date(
                                             m.verificato_il,
-                                          ).toLocaleString("it-IT")}
-                                        </p>
+                                          ).toLocaleString(intlCampo()) })}</p>
                                       )}
                                       {m.nota_annullamento && (
-                                        <p>
-                                          Annullamento: {m.nota_annullamento}
-                                        </p>
+                                        <p>{tTesto("Annullamento: {nota_annullamento}", { nota_annullamento: String(m.nota_annullamento ?? "") })}</p>
                                       )}
                                     </details>
                                   </td>
@@ -1162,7 +1123,7 @@ export function LavoriMisureSubDialog({
                                     className="flex items-center justify-between gap-3 py-1 before:text-xs before:text-muted-foreground before:content-[attr(data-label)] md:table-cell md:p-3 md:before:hidden"
                                   >
                                     {m.quantita_riconosciuta == null
-                                      ? "Da verificare"
+                                      ? tTesto("Da verificare")
                                       : v
                                         ? quantitaSub(
                                             Number(m.quantita_riconosciuta),
@@ -1181,12 +1142,12 @@ export function LavoriMisureSubDialog({
                                   <td className="block pt-3 md:table-cell md:p-3">
                                     <p>
                                       {m.sal_id
-                                        ? "Nel SAL"
+                                        ? tTesto("Nel SAL")
                                         : m.stato === "riconosciuta"
-                                          ? "Riconosciuta, non contabilizzata"
+                                          ? tTesto("Riconosciuta, non contabilizzata")
                                           : m.stato === "annullata"
-                                            ? "Annullata"
-                                            : "Da verificare"}
+                                            ? tTesto("Annullata")
+                                            : tTesto("Da verificare")}
                                     </p>
                                     <div className="mt-2 flex flex-wrap gap-2">
                                       {m.sal_id && (
@@ -1200,7 +1161,7 @@ export function LavoriMisureSubDialog({
                                             )
                                           }
                                         >
-                                          Verbale SAL
+                                          {tTesto("Verbale SAL")}
                                         </Button>
                                       )}
                                       {v && m.stato === "dichiarata" && (
@@ -1218,12 +1179,12 @@ export function LavoriMisureSubDialog({
                                             })
                                           }
                                         >
-                                          Verifica
+                                          {tTesto("Verifica")}
                                         </Button>
                                       )}
                                       {v && m.stato === "dichiarata" && m.quadro_id !== quadro?.id && (
                                         <span className="text-xs text-muted-foreground">
-                                          Rilevata su un elenco precedente: annullala e rilevala di nuovo.
+                                          {tTesto("Rilevata su un elenco precedente: annullala e rilevala di nuovo.")}
                                         </span>
                                       )}
                                       {v &&
@@ -1241,7 +1202,7 @@ export function LavoriMisureSubDialog({
                                               })
                                             }
                                           >
-                                            Annulla
+                                            {tTesto("Annulla")}
                                           </Button>
                                         )}
                                     </div>
@@ -1256,12 +1217,9 @@ export function LavoriMisureSubDialog({
                   </>
                 ) : risultato ? (
                   <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-5">
-                    <h3 className="font-semibold">
-                      SAL #{risultato.numero_sal} registrato dalle misure
-                    </h3>
+                    <h3 className="font-semibold">{tTesto("SAL #{numero_sal} registrato dalle misure", { numero_sal: String(risultato.numero_sal ?? "") })}</h3>
                     <p className="my-3 text-sm">
-                      Le fonti sono collegate al SAL e non sono selezionabili
-                      una seconda volta. Non è stato registrato un pagamento.
+                      {tTesto("Le fonti sono collegate al SAL e non sono selezionabili una seconda volta. Non è stato registrato un pagamento.")}
                     </p>
                     <Button
                       disabled={busy}
@@ -1269,18 +1227,18 @@ export function LavoriMisureSubDialog({
                         void esegui(() => onApriVerbale(risultato.id))
                       }
                     >
-                      Prepara verbale SAL
+                      {tTesto("Prepara verbale SAL")}
                     </Button>
                   </div>
                 ) : disponibiliSal.length === 0 ? (
                   <div className="rounded-xl border border-dashed p-6">
                     <h3 className="font-semibold">
-                      Nessun lavoro pronto per un nuovo SAL
+                      {tTesto("Nessun lavoro pronto per un nuovo SAL")}
                     </h3>
                     <p className="mt-2 text-sm text-muted-foreground">
                       {daVerificare > 0
-                        ? "Ci sono rilevazioni da verificare. Riconosci le quantità prima di inserirle nel SAL."
-                        : "Le quantità già inserite nei SAL restano nello storico. Registra una nuova rilevazione per contabilizzare altro lavoro."}
+                        ? tTesto("Ci sono rilevazioni da verificare. Riconosci le quantità prima di inserirle nel SAL.")
+                        : tTesto("Le quantità già inserite nei SAL restano nello storico. Registra una nuova rilevazione per contabilizzare altro lavoro.")}
                     </p>
                     <Button
                       className="mt-4"
@@ -1290,15 +1248,14 @@ export function LavoriMisureSubDialog({
                       }
                     >
                       {daVerificare > 0
-                        ? "Vai alle verifiche"
-                        : "Vai ai lavori affidati"}
+                        ? tTesto("Vai alle verifiche")
+                        : tTesto("Vai ai lavori affidati")}
                     </Button>
                   </div>
                 ) : (
                   <fieldset disabled={busy} className="space-y-4">
                     <p className="text-sm text-muted-foreground">
-                      Seleziona soltanto i lavori riconosciuti da includere in
-                      questo SAL. Gli importi del periodo usano i prezzi della base lavori.
+                      {tTesto("Seleziona soltanto i lavori riconosciuti da includere in questo SAL. Gli importi del periodo usano i prezzi della base lavori.")}
                     </p>
                     <div className="divide-y rounded-lg border">
                       {misure
@@ -1326,12 +1283,12 @@ export function LavoriMisureSubDialog({
                             />
                             <span className="flex-1">
                               {quadro?.voci.find((v) => v.id === m.voce_id)
-                                ?.descrizione || "Lavoro riconosciuto"}
+                                ?.descrizione || tTesto("Lavoro riconosciuto")}
                               <small className="block text-muted-foreground">
                                 {(() => {
                                   const voce = quadro?.voci.find(v => v.id === m.voce_id);
                                   return voce ? `${quantitaSub(Number(m.quantita_riconosciuta), voce)} · ` : "";
-                                })()}{m.data_rilievo} · Rif. {m.id.slice(0, 8)}
+                                })()}{tTesto("{data} · Rif. {id}", { data: String(m.data_rilievo ?? ""), id: m.id.slice(0, 8) })}
                               </small>
                             </span>
                             <strong>
@@ -1342,7 +1299,7 @@ export function LavoriMisureSubDialog({
                     </div>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <label className="text-sm">
-                        Data SAL
+                        {tTesto("Data SAL")}
                         <Input
                           type="date"
                           max={oggi()}
@@ -1351,7 +1308,7 @@ export function LavoriMisureSubDialog({
                         />
                       </label>
                       <label className="text-sm">
-                        Ritenuta di garanzia (%)
+                        {tTesto("Ritenuta di garanzia (%)")}
                         <Input
                           inputMode="decimal"
                           value={ritenuta}
@@ -1360,42 +1317,30 @@ export function LavoriMisureSubDialog({
                       </label>
                     </div>
                     <label className="block text-sm">
-                      Note del SAL
+                      {tTesto("Note del SAL")}
                       <Textarea
                         value={noteSal}
                         maxLength={6000}
                         onChange={(e) => setNoteSal(e.target.value)}
                       />
                     </label>
-                    <p className="font-semibold">
-                      Lordo del periodo: {euroSub(totaleSal)}
-                    </p>
+                    <p className="font-semibold">{tTesto("Lordo del periodo: {totaleSal}", { totaleSal: euroSub(totaleSal) })}</p>
                     {oneriSal > 0 && (
-                      <p className="text-xs text-muted-foreground">
-                        Lavori {euroSub(lavoriSal)} + oneri della sicurezza {euroSub(oneriSal)} (in proporzione ai lavori; l'ultimo SAL prende il residuo)
-                      </p>
+                      <p className="text-xs text-muted-foreground">{tTesto("Lavori {lavoriSal} + oneri della sicurezza {oneriSal} (in proporzione ai lavori; l'ultimo SAL prende il residuo)", { lavoriSal: euroSub(lavoriSal), oneriSal: euroSub(oneriSal) })}</p>
                     )}
-                    <p className="text-sm">
-                      Ritenuta:{" "}
-                      {euroSub(
+                    <p className="text-sm">{tTesto("Ritenuta: {valore} · Netto SAL: {valore2}", { valore: euroSub(
                         Math.round(
                           totaleSal * (parseDecimalIT(ritenuta) || 0),
                         ) / 100,
-                      )}{" "}
-                      · Netto SAL:{" "}
-                      {euroSub(
+                      ), valore2: euroSub(
                         totaleSal -
                           Math.round(
                             totaleSal * (parseDecimalIT(ritenuta) || 0),
                           ) /
                             100,
-                      )}
-                    </p>
+                      ) })}</p>
                     <p className="text-xs text-muted-foreground">
-                      La numerazione viene assegnata dal server. Il SAL è
-                      registrato come verificato sulle misure riconosciute. Non
-                      genera fattura, scadenza o pagamento; la ritenuta segue i
-                      controlli fiscali esistenti.
+                      {tTesto("La numerazione viene assegnata dal server. Il SAL è registrato come verificato sulle misure riconosciute. Non genera fattura, scadenza o pagamento; la ritenuta segue i controlli fiscali esistenti.")}
                     </p>
                   </fieldset>
                 )}
@@ -1410,7 +1355,7 @@ export function LavoriMisureSubDialog({
               )}
               <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t bg-background p-3">
                 <Button variant="outline" disabled={busy} onClick={chiudi}>
-                  Chiudi
+                  {tTesto("Chiudi")}
                 </Button>
                 {tab === "sal" &&
                   !modifica &&
@@ -1419,9 +1364,7 @@ export function LavoriMisureSubDialog({
                   disponibiliSal.length > 0 && (
                     <div className="flex flex-1 flex-wrap items-center justify-end gap-3">
                       <span className="text-sm">
-                        <span className="text-muted-foreground">
-                          {selezionate.length} selezionate · Lordo{" "}
-                        </span>
+                        <span className="text-muted-foreground">{tTesto("{n} selezionate · Lordo", { n: selezionate.length })}{" "}</span>
                         <strong>{euroSub(totaleSal)}</strong>
                       </span>
                       <Button
@@ -1430,13 +1373,13 @@ export function LavoriMisureSubDialog({
                         }
                         onClick={() => void creaSal()}
                       >
-                        {busy ? "Registrazione…" : "Registra SAL verificato"}
+                        {busy ? tTesto("Registrazione…") : tTesto("Registra SAL verificato")}
                       </Button>
                     </div>
                   )}
                 {busy && (
                   <span role="status" className="text-sm text-muted-foreground">
-                    Operazione in corso…
+                    {tTesto("Operazione in corso…")}
                   </span>
                 )}
               </div>
@@ -1447,16 +1390,15 @@ export function LavoriMisureSubDialog({
       <AlertDialog open={uscita} onOpenChange={setUscita}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Chiudere senza registrare?</AlertDialogTitle>
+            <AlertDialogTitle>{tTesto("Chiudere senza registrare?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              I dati del modulo non ancora confermati andranno persi. Le
-              rilevazioni e i SAL già registrati restano conservati.
+              {tTesto("I dati del modulo non ancora confermati andranno persi. Le rilevazioni e i SAL già registrati restano conservati.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Continua modifica</AlertDialogCancel>
+            <AlertDialogCancel>{tTesto("Continua modifica")}</AlertDialogCancel>
             <AlertDialogAction onClick={onClose}>
-              Chiudi modulo
+              {tTesto("Chiudi modulo")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1469,19 +1411,20 @@ export function LavoriMisureSubDialog({
 function AvanzamentoVociSub({ righe, numero, selettore }: {
   righe: RigaAvanzamentoSalSub[]; numero?: number; selettore: React.ReactNode;
 }) {
+  const t = useT();
   return <section className="mb-4 space-y-2" aria-labelledby="titolo-avanzamento-sal-sub">
     <div className="flex flex-wrap items-center justify-between gap-2">
       <h3 id="titolo-avanzamento-sal-sub" className="text-sm font-semibold">
-        {numero ? `Quantità a tutto il SAL ${numero}` : "Quantità del SAL"}
+        {numero ? t("Quantità a tutto il SAL {numero}", { numero: String(numero ?? "") }) : t("Quantità del SAL")}
       </h3>
       {selettore}
     </div>
     <div className="overflow-x-auto rounded-lg border">
       <table className="w-full min-w-[36rem] text-sm">
         <thead className="bg-muted text-xs text-muted-foreground">
-          <tr><th scope="col" className="px-3 py-2 text-left">Lavorazione</th>
+          <tr><th scope="col" className="px-3 py-2 text-left">{t("Lavorazione")}</th>
             {["Affidata", "Già contabilizzata", "Nel periodo", "Cumulata"].map(titolo =>
-              <th key={titolo} scope="col" className="px-2 py-2 text-right">{titolo}</th>)}</tr>
+              <th key={titolo} scope="col" className="px-2 py-2 text-right">{t(titolo)}</th>)}</tr>
         </thead>
         <tbody>
           {righe.map(riga => {
@@ -1491,7 +1434,7 @@ function AvanzamentoVociSub({ righe, numero, selettore }: {
             return <tr key={riga.voce_id} className="border-t">
               <th scope="row" className="px-3 py-2 text-left font-medium">{riga.descrizione}
                 <span className="block text-xs font-normal text-muted-foreground">
-                  {euroSub(riga.prezzo)}{riga.base === "corpo" ? " a corpo" : ` / ${riga.unita}`}</span></th>
+                  {euroSub(riga.prezzo)}{riga.base === "corpo" ? ` ${t("a corpo")}` : ` / ${riga.unita}`}</span></th>
               <td className="whitespace-nowrap p-2 text-right tabular-nums">{qta(riga.affidata)}</td>
               <td className="whitespace-nowrap p-2 text-right tabular-nums">{qta(riga.precedente)}</td>
               <td className="whitespace-nowrap p-2 text-right font-semibold tabular-nums">{qta(riga.periodo)}</td>
@@ -1502,6 +1445,6 @@ function AvanzamentoVociSub({ righe, numero, selettore }: {
       </table>
     </div>
     {righe.some(riga => riga.precedente == null) &&
-      <p className="text-xs text-muted-foreground">Per alcune quantità precedenti mancano le misure storiche.</p>}
+      <p className="text-xs text-muted-foreground">{t("Per alcune quantità precedenti mancano le misure storiche.")}</p>}
   </section>;
 }

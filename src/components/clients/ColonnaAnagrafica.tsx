@@ -3,6 +3,7 @@
 import { useState, type ReactElement, type ReactNode } from "react";
 import { User } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const CHIAVE = "scheda-anagrafica-chiusa";
 
@@ -18,11 +19,12 @@ export function useAnagraficaChiusa(): [boolean, (chiusa: boolean) => void] {
 }
 
 export function ColonnaAnagrafica({ chiusa, onApri, children }: { chiusa: boolean; onApri: () => void; children: ReactNode }): ReactElement {
+  const t = useT();
   return (
     <div className={cn("order-2 shrink-0 lg:order-none", chiusa ? "lg:w-10" : "lg:w-72")}>
       {chiusa && (
         <div className="hidden w-10 flex-col items-center gap-1 rounded-2xl border bg-muted/30 py-2 lg:flex lg:h-full">
-          <button type="button" aria-label="Apri l'anagrafica" title="Apri l'anagrafica" onClick={onApri}
+          <button type="button" aria-label={t("Apri l'anagrafica")} title={t("Apri l'anagrafica")} onClick={onApri}
             className="flex h-8 w-8 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
             <User className="h-4 w-4" aria-hidden="true" />
           </button>

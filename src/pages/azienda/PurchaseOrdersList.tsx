@@ -25,7 +25,6 @@ import {
 } from "@/lib/odaStatus";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -115,6 +114,7 @@ import {
   QuotePrimaryButton,
   type HubTab,
 } from "@/components/marketing/preventivi/ui/builderUI";
+import { useT, intlCampo, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const VERIFICATION_BADGES: Record<
   string,
@@ -147,7 +147,7 @@ function euroCompatto(n: number): string {
   // servono 102px, ce ne sono 82) e veniva troncata a meta'. Meglio un numero
   // arrotondato ma leggibile che uno preciso e invisibile: il dettaglio
   // esatto e' comunque nella colonna Totale della tabella.
-  return new Intl.NumberFormat("it-IT", {
+  return new Intl.NumberFormat(intlCampo(), {
     style: "currency",
     currency: "EUR",
     maximumFractionDigits: 0,
@@ -210,6 +210,7 @@ const impegnato = (o: PurchaseOrder) =>
   !["bozza", "annullato"].includes(o.status);
 
 function Arrivato({ o }: { o: PurchaseOrder }) {
+  const t = useT();
   const a = avanzamento(o);
   const ddt = numeroDdt(o);
   if (o.status === "bozza" || o.status === "annullato")
@@ -219,7 +220,7 @@ function Arrivato({ o }: { o: PurchaseOrder }) {
       {a ? (
         <span
           className="inline-flex items-center gap-1.5"
-          title={`${a.complete} righe arrivate su ${a.righe}`}
+          title={t("{complete} righe arrivate su {righe}", { complete: String(a.complete ?? ""), righe: String(a.righe ?? "") })}
         >
           <span className="h-1.5 w-12 overflow-hidden rounded-full bg-slate-200">
             <span
@@ -239,15 +240,15 @@ function Arrivato({ o }: { o: PurchaseOrder }) {
       ) : (
         <span
           className="text-xs text-muted-foreground"
-          title="Ordine senza righe: non c'è niente da contare"
+          title={t("Ordine senza righe: non c'è niente da contare")}
         >
-          senza righe
+          {t("senza righe")}
         </span>
       )}
       {ddt > 0 && (
         <span
           className="text-[11px] text-muted-foreground"
-          title={`${ddt} ${ddt === 1 ? "bolla registrata" : "bolle registrate"}`}
+          title={ddt === 1 ? t("{n} bolla registrata", { n: 1 }) : t("{n} bolle registrate", { n: ddt })}
         >
           · {ddt} DDT
         </span>
@@ -257,6 +258,7 @@ function Arrivato({ o }: { o: PurchaseOrder }) {
 }
 
 function CommessaCella({ o }: { o: PurchaseOrder }) {
+  const t = useT();
   if (!o.order_id || !o.orders?.order_code)
     return <span className="text-muted-foreground">—</span>;
   return (
@@ -273,9 +275,9 @@ function CommessaCella({ o }: { o: PurchaseOrder }) {
       {o.orders.deleted_at && (
         <span
           className="rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-700"
-          title="La commessa è nel cestino"
+          title={t("La commessa è nel cestino")}
         >
-          nel cestino
+          {t("nel cestino")}
         </span>
       )}
     </span>
@@ -283,18 +285,20 @@ function CommessaCella({ o }: { o: PurchaseOrder }) {
 }
 
 function VerificationBadge({ result }: { result: string | null | undefined }) {
+  const t = useT();
   if (!result) return null;
   const cfg = VERIFICATION_BADGES[result];
   if (!cfg) return null;
   return (
     <Badge className={`text-xs border-0 gap-1 ${cfg.className}`}>
       <ShieldCheck className="h-3 w-3" />
-      {cfg.label}
+      {t(cfg.label)}
     </Badge>
   );
 }
 
 export default function PurchaseOrdersList() {
+  const tTesto = useT();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { orders, isLoading, isError, create } = usePurchaseOrders();
@@ -589,7 +593,7 @@ export default function PurchaseOrdersList() {
     values: { fornitore: o.suppliers?.name ?? "", commessa: o.orders?.order_code ?? "", data: o.issue_date, consegna: o.expected_delivery_date ?? "", stato: STATUS_LABELS[o.status] ?? o.status, ...(vedeCosti ? { totale: String(o.total) } : {}) },
   })), puoAgire && vistaPrincipale === "elenco" && vista === "elenco", {
     filename: "ordini-acquisto", columns: [
-      { key: "documento", label: "N° OdA" }, { key: "fornitore", label: "Fornitore" }, { key: "commessa", label: "Commessa" }, { key: "data", label: "Emissione" }, { key: "consegna", label: "Consegna prevista" }, { key: "stato", label: "Stato" }, ...(vedeCosti ? [{ key: "totale", label: "Totale €" }] : []),
+      { key: "documento", label: tTesto("N° OdA") }, { key: "fornitore", label: tTesto("Fornitore") }, { key: "commessa", label: tTesto("Commessa") }, { key: "data", label: tTesto("Emissione") }, { key: "consegna", label: tTesto("Consegna prevista") }, { key: "stato", label: tTesto("Stato") }, ...(vedeCosti ? [{ key: "totale", label: "Totale €" }] : []),
     ],
   });
 
@@ -613,7 +617,7 @@ export default function PurchaseOrdersList() {
         codice: o.orders?.order_code ?? "Senza commessa",
         descrizione: o.order_id
           ? (o.orders?.description ?? null)
-          : "Scorte di magazzino, attrezzatura, spese generali",
+          : tTesto("Scorte di magazzino, attrezzatura, spese generali"),
         cestino: !!o.orders?.deleted_at,
         ordini: [],
       };
@@ -679,7 +683,7 @@ export default function PurchaseOrdersList() {
   const exportCSV = useCallback(() => {
     const rows = buildExportRows();
     if (rows.length === 0) {
-      toast({ title: "Nessun OdA da esportare", variant: "destructive" });
+      toast({ title: tTesto("Nessun OdA da esportare"), variant: "destructive" });
       return;
     }
     exportToCSV(
@@ -687,13 +691,13 @@ export default function PurchaseOrdersList() {
       exportColumns,
       `oda-${format(new Date(), "yyyy-MM-dd")}.csv`,
     );
-    toast({ title: `CSV esportato — ${rows.length} OdA` });
+    toast({ title: tTesto("CSV esportato — {n} OdA", { n: rows.length }) });
   }, [buildExportRows, exportColumns, toast]);
 
   const exportXLSX = useCallback(async () => {
     const rows = buildExportRows();
     if (rows.length === 0) {
-      toast({ title: "Nessun OdA da esportare", variant: "destructive" });
+      toast({ title: tTesto("Nessun OdA da esportare"), variant: "destructive" });
       return;
     }
     await exportToXLSX(
@@ -701,13 +705,13 @@ export default function PurchaseOrdersList() {
       exportColumns,
       `oda-${format(new Date(), "yyyy-MM-dd")}.xlsx`,
     );
-    toast({ title: `Excel esportato — ${rows.length} OdA` });
+    toast({ title: tTesto("Excel esportato — {n} OdA", { n: rows.length }) });
   }, [buildExportRows, exportColumns, toast]);
 
   const exportPDF = useCallback(async () => {
     const rows = buildExportRows();
     if (rows.length === 0) {
-      toast({ title: "Nessun OdA da esportare", variant: "destructive" });
+      toast({ title: tTesto("Nessun OdA da esportare"), variant: "destructive" });
       return;
     }
     try {
@@ -792,11 +796,11 @@ export default function PurchaseOrdersList() {
       });
 
       doc.save(`oda-${format(new Date(), "yyyy-MM-dd")}.pdf`);
-      toast({ title: `PDF esportato — ${rows.length} OdA` });
+      toast({ title: tTesto("PDF esportato — {n} OdA", { n: rows.length }) });
     } catch (e) {
       toast({
-        title: "Errore export PDF",
-        description: e instanceof Error ? e.message : "Generazione PDF fallita",
+        title: tTesto("Errore export PDF"),
+        description: e instanceof Error ? e.message : tTesto("Generazione PDF fallita"),
         variant: "destructive",
       });
     }
@@ -906,7 +910,7 @@ export default function PurchaseOrdersList() {
   const hubTabs: HubTab[] = [
     {
       key: "tutti",
-      label: "Tutti",
+      label: tTesto("Tutti"),
       icon: <ShoppingCart className="h-4 w-4" />,
       count: counts.tutti,
     },
@@ -914,25 +918,25 @@ export default function PurchaseOrdersList() {
     // che vale anche per la pipeline.
     {
       key: "bozze",
-      label: "Da mandare",
+      label: tTesto("Da mandare"),
       icon: <Send className="h-4 w-4" />,
       count: counts.bozze,
     },
     {
       key: "attivi",
-      label: "In arrivo",
+      label: tTesto("In arrivo"),
       icon: <Truck className="h-4 w-4" />,
       count: counts.attivi,
     },
     {
       key: "ricevuti",
-      label: "Ricevuti",
+      label: tTesto("Ricevuti"),
       icon: <Package className="h-4 w-4" />,
       count: counts.ricevuti,
     },
     {
       key: "annullati",
-      label: "Annullati",
+      label: tTesto("Annullati"),
       icon: <X className="h-4 w-4" />,
       count: counts.annullati,
     },
@@ -956,12 +960,12 @@ export default function PurchaseOrdersList() {
                   size="sm"
                   className="h-auto gap-1 px-1"
                   disabled={odaMovement.saving || o.status === "annullato"}
-                  aria-label={`Gestisci stato ordine ${o.oda_number}: ${STATUS_LABELS[o.status] || o.status}`}
+                  aria-label={tTesto("Gestisci stato ordine {numero}: {stato}", { numero: o.oda_number, stato: tTesto(STATUS_LABELS[o.status] || o.status) })}
                 >
                   <QuoteChip
                     variant={STATUS_CHIP_VARIANT[o.status] || "default"}
                   >
-                    {STATUS_LABELS[o.status] || o.status}
+                    {tTesto(STATUS_LABELS[o.status] || o.status)}
                   </QuoteChip>
                   <ChevronDown className="h-3 w-3" />
                 </Button>
@@ -976,18 +980,18 @@ export default function PurchaseOrdersList() {
                     movePurchaseDocument(`oda:${o.id}`, "ordinato")
                   }
                 >
-                  Ordine inviato
+                  {tTesto("Ordine inviato")}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onSelect={() => navigate(`/azienda/ordini-acquisto/${o.id}`)}
                 >
-                  Ricezioni e DDT
+                  {tTesto("Ricezioni e DDT")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
             <QuoteChip variant={STATUS_CHIP_VARIANT[o.status] || "default"}>
-              {STATUS_LABELS[o.status] || o.status}
+              {tTesto(STATUS_LABELS[o.status] || o.status)}
             </QuoteChip>
           )}
           <VerificationBadge result={o.last_verification?.result} />
@@ -1005,7 +1009,7 @@ export default function PurchaseOrdersList() {
         <CommessaCella o={o} />
       </td>
       <td className="p-3 text-muted-foreground">
-        {format(new Date(o.issue_date), "dd/MM/yyyy", { locale: it })}
+        {format(new Date(o.issue_date), "dd/MM/yyyy", { locale: dateFnsCampo() })}
       </td>
       <td className="p-3">
         <Arrivato o={o} />
@@ -1020,7 +1024,7 @@ export default function PurchaseOrdersList() {
           <>
             <span className="text-muted-foreground">
               {format(new Date(o.expected_delivery_date), "dd/MM/yyyy", {
-                locale: it,
+                locale: dateFnsCampo(),
               })}
             </span>
             {/* Il ritardo va detto, non lasciato calcolare a mente:
@@ -1029,7 +1033,7 @@ export default function PurchaseOrdersList() {
             {giorniDiRitardo(o) !== null && (
               <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-semibold text-destructive">
                 <AlertTriangle className="h-3 w-3" />
-                {giorniDiRitardo(o)}gg
+                {tTesto("{n}gg", { n: giorniDiRitardo(o) ?? 0 })}
               </span>
             )}
           </>
@@ -1046,12 +1050,12 @@ export default function PurchaseOrdersList() {
       {rfqMovement.dialog}
       {/* Telefono: «+» tondo sulla riga delle sezioni di Commesse, niente barra arancio a tutta riga. */}
       {slotAzioni && createPortal(
-        <QuotePrimaryButton disabled={!puoAgire} onClick={() => setNewOpen(true)} size="sm" aria-label="Nuovo ordine d'acquisto" className="h-9 w-9 justify-center rounded-full p-0">
+        <QuotePrimaryButton disabled={!puoAgire} onClick={() => setNewOpen(true)} size="sm" aria-label={tTesto("Nuovo ordine d'acquisto")} className="h-9 w-9 justify-center rounded-full p-0">
           <Plus className="h-4 w-4" />
         </QuotePrimaryButton>, slotAzioni)}
       {!slotAzioni && <QuotePageHeader
-        title="Acquisti"
-        subtitle="Dai materiali validati all'arrivo in cantiere: offerte, ordini e consegne, commessa per commessa."
+        title={tTesto("Acquisti")}
+        subtitle={tTesto("Dai materiali validati all'arrivo in cantiere: offerte, ordini e consegne, commessa per commessa.")}
         icon={<ShoppingCart className="h-5 w-5" />}
         className="testata-pagina bg-gradient-to-br from-white via-white to-orange-50/40"
         titoloSoloDaComputer
@@ -1062,7 +1066,7 @@ export default function PurchaseOrdersList() {
             <Button asChild variant="outline" size="sm" className="max-sm:hidden">
               <Link to="/azienda/fabbisogno-materiali">
                 <CalendarClock className="h-4 w-4 mr-1.5" />
-                Fabbisogno
+                {tTesto("Fabbisogno")}
               </Link>
             </Button>
             {/* Telefono no: niente esportazioni. */}
@@ -1075,14 +1079,12 @@ export default function PurchaseOrdersList() {
                   className="max-sm:hidden"
                 >
                   <Download className="h-4 w-4 mr-1.5" />
-                  <span className="hidden sm:inline">Esporta</span>
+                  <span className="hidden sm:inline">{tTesto("Esporta")}</span>
                   <ChevronDown className="h-3.5 w-3.5 ml-1" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-52">
-                <DropdownMenuLabel className="text-[11px]">
-                  OdA filtrati ({filtered.length})
-                </DropdownMenuLabel>
+                <DropdownMenuLabel className="text-[11px]">{tTesto("OdA filtrati ({n})", { n: filtered.length })}</DropdownMenuLabel>
                 <DropdownMenuItem onClick={exportCSV}>
                   <FileText className="h-4 w-4 mr-2" /> CSV
                 </DropdownMenuItem>
@@ -1102,8 +1104,8 @@ export default function PurchaseOrdersList() {
               className="max-sm:flex-1 max-sm:justify-center"
             >
               <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Nuovo OdA</span>
-              <span className="sm:hidden">Nuovo</span>
+              <span className="hidden sm:inline">{tTesto("Nuovo OdA")}</span>
+              <span className="sm:hidden">{tTesto("Nuovo")}</span>
             </QuotePrimaryButton>
           </>
         }
@@ -1114,18 +1116,18 @@ export default function PurchaseOrdersList() {
       {/* Riepilogo comune a pipeline ed elenco; segue i filtri di ricerca e di emissione. */}
       {(vistaPrincipale === "elenco" ||
         ["tutte", "ordini"].includes(fonte)) && (
-        <OperationalSummary label="Riepilogo acquisti" title="Materiali e consegne" icon={ShoppingCart} error={isError} note="Segue i filtri di ricerca e di emissione degli ordini.">
+        <OperationalSummary label={tTesto("Riepilogo acquisti")} title={tTesto("Materiali e consegne")} icon={ShoppingCart} error={isError} note={tTesto("Segue i filtri di ricerca e di emissione degli ordini.")}>
           <OperationalSummaryMetric
             isLoading={isLoading}
-            label="In ritardo"
+            label={tTesto("In ritardo")}
             value={kpis.lateCount}
             icon={AlertTriangle}
             hint={
               vedeCosti
                 ? kpis.lateCount > 0
                   ? euroCompatto(kpis.lateTotal)
-                  : "nessuno"
-                : "ordini da sollecitare"
+                  : tTesto("nessuno")
+                : tTesto("ordini da sollecitare")
             }
             tone={kpis.lateCount > 0 ? "red" : "green"}
             onClick={() => imposta("ritardo", !filtri.soloRitardo)}
@@ -1133,15 +1135,15 @@ export default function PurchaseOrdersList() {
           />
           <OperationalSummaryMetric
             isLoading={isLoading}
-            label="Da mandare"
+            label={tTesto("Da mandare")}
             value={kpis.draftCount}
             icon={Send}
             hint={
               vedeCosti
                 ? kpis.draftCount > 0
                   ? euroCompatto(kpis.draftTotal)
-                  : "nessuna bozza"
-                : "ordini in bozza"
+                  : tTesto("nessuna bozza")
+                : tTesto("ordini in bozza")
             }
             tone="amber"
             onClick={() => setTab(tab === "bozze" ? "tutti" : "bozze")}
@@ -1149,13 +1151,13 @@ export default function PurchaseOrdersList() {
           />
           <OperationalSummaryMetric
             isLoading={isLoading}
-            label="In arrivo"
+            label={tTesto("In arrivo")}
             value={kpis.inCorsoCount}
             icon={Truck}
             hint={
               vedeCosti
                 ? euroCompatto(kpis.inCorsoTotal)
-                : "inviati, confermati o parziali"
+                : tTesto("inviati, confermati o parziali")
             }
             tone="blue"
             onClick={() => setTab(tab === "attivi" ? "tutti" : "attivi")}
@@ -1163,33 +1165,33 @@ export default function PurchaseOrdersList() {
           />
           <OperationalSummaryMetric
             isLoading={isLoading}
-            label={vedeCosti ? "Impegnato" : "Ricevuti"}
+            label={vedeCosti ? tTesto("Impegnato") : tTesto("Ricevuti")}
             value={
               vedeCosti ? euroCompatto(kpis.committedTotal) : counts.ricevuti
             }
             icon={Wallet}
-            hint={vedeCosti ? "escluse bozze e annullati" : "ordini completati"}
+            hint={vedeCosti ? tTesto("escluse bozze e annullati") : tTesto("ordini completati")}
             tone="green"
           />
         </OperationalSummary>
       )}
 
       {/* Vista e filtri comuni: valgono per la pipeline e per l'elenco, e stanno nell'URL. */}
-      <section aria-label="Filtri acquisti" className="rounded-xl border bg-white p-2.5 shadow-sm max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
+      <section aria-label={tTesto("Filtri acquisti")} className="rounded-xl border bg-white p-2.5 shadow-sm max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
         <div className="flex flex-nowrap items-center gap-2 overflow-x-auto max-sm:overflow-visible"><div className="relative min-w-[180px] flex-1 max-sm:min-w-0 sm:max-w-xs">
             <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder={
                 vistaPrincipale === "pipeline"
-                  ? "Cerca ordine, richiesta o materiale…"
-                  : "Cerca OdA, fornitore o commessa…"
+                  ? tTesto("Cerca ordine, richiesta o materiale…")
+                  : tTesto("Cerca OdA, fornitore o commessa…")
               }
-              aria-label="Cerca negli acquisti"
+              aria-label={tTesto("Cerca negli acquisti")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="h-8 border-slate-200 pl-8 text-xs shadow-none max-sm:h-9 max-sm:text-sm"
             />
-          </div>{(vistaPrincipale === "elenco" || ["tutte", "ordini"].includes(fonte)) && <Select value={tab} onValueChange={setTab}><SelectTrigger aria-label="Stato degli OdA" className="h-8 w-[180px] max-w-full text-xs max-sm:h-9 max-sm:w-[8.5rem] max-sm:shrink-0 max-sm:text-sm"><SelectValue /></SelectTrigger><SelectContent>{hubTabs.map(item => <SelectItem key={item.key} value={item.key}>{item.key === "tutti" ? "Tutti gli stati" : item.label}</SelectItem>)}</SelectContent></Select>}{!telefono && <OperationalViewSwitch
+          </div>{(vistaPrincipale === "elenco" || ["tutte", "ordini"].includes(fonte)) && <Select value={tab} onValueChange={setTab}><SelectTrigger aria-label={tTesto("Stato degli OdA")} className="h-8 w-[180px] max-w-full text-xs max-sm:h-9 max-sm:w-[8.5rem] max-sm:shrink-0 max-sm:text-sm"><SelectValue /></SelectTrigger><SelectContent>{hubTabs.map(item => <SelectItem key={item.key} value={item.key}>{item.key === "tutti" ? tTesto("Tutti gli stati") : item.label}</SelectItem>)}</SelectContent></Select>}{!telefono && <OperationalViewSwitch
             value={vistaPrincipale}
             onChange={(v) =>
               setParams(
@@ -1231,16 +1233,16 @@ export default function PurchaseOrdersList() {
               }
             >
               <SelectTrigger
-                aria-label="Contenuto pipeline acquisti"
+                aria-label={tTesto("Contenuto pipeline acquisti")}
                 className="h-8 w-[145px] text-xs "
               >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="tutte">Tutti i contenuti</SelectItem>
-                <SelectItem value="materiali">Materiali da comprare</SelectItem>
-                <SelectItem value="offerte">Richieste d’offerta</SelectItem>
-                <SelectItem value="ordini">Ordini d’acquisto</SelectItem>
+                <SelectItem value="tutte">{tTesto("Tutti i contenuti")}</SelectItem>
+                <SelectItem value="materiali">{tTesto("Materiali da comprare")}</SelectItem>
+                <SelectItem value="offerte">{tTesto("Richieste d’offerta")}</SelectItem>
+                <SelectItem value="ordini">{tTesto("Ordini d’acquisto")}</SelectItem>
               </SelectContent>
             </Select>
           )}
@@ -1250,7 +1252,7 @@ export default function PurchaseOrdersList() {
             onValueChange={(v) => imposta("commessa", v === "all" ? null : v)}
           >
             <SelectTrigger
-              aria-label="Commessa"
+              aria-label={tTesto("Commessa")}
               className={cn(
                 "h-8 w-auto min-w-[140px] text-xs ",
                 filtri.commessa && "border-orange-300 bg-orange-50",
@@ -1259,12 +1261,12 @@ export default function PurchaseOrdersList() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tutte le commesse</SelectItem>
-              <SelectItem value="_nessuna">Senza commessa</SelectItem>
+              <SelectItem value="all">{tTesto("Tutte le commesse")}</SelectItem>
+              <SelectItem value="_nessuna">{tTesto("Senza commessa")}</SelectItem>
               {commesseInElenco.map(([id, c]) => (
                 <SelectItem key={id} value={id}>
                   {c.codice}
-                  {c.cestino ? " (nel cestino)" : ""}
+                  {c.cestino ? ` ${tTesto("(nel cestino)")}` : ""}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -1274,7 +1276,7 @@ export default function PurchaseOrdersList() {
             onValueChange={(v) => imposta("forn", v === "all" ? null : v)}
           >
             <SelectTrigger
-              aria-label="Fornitore"
+              aria-label={tTesto("Fornitore")}
               className={cn(
                 "h-8 w-auto min-w-[140px] text-xs ",
                 filtri.fornitore && "border-orange-300 bg-orange-50",
@@ -1283,13 +1285,13 @@ export default function PurchaseOrdersList() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tutti i fornitori</SelectItem>
+              <SelectItem value="all">{tTesto("Tutti i fornitori")}</SelectItem>
               <SelectItem value="_nessuno">
-                Materiali senza fornitore
+                {tTesto("Materiali senza fornitore")}
               </SelectItem>
               {fornitoriInElenco.map(([id, nome]) => (
                 <SelectItem key={id} value={id}>
-                  {nome}
+                  {nome === "Fornitore" || nome === "Fornitore invitato" ? tTesto(nome) : nome}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -1300,7 +1302,7 @@ export default function PurchaseOrdersList() {
               onValueChange={(v) => imposta("fase", v === "all" ? null : v)}
             >
               <SelectTrigger
-                aria-label="Fase"
+                aria-label={tTesto("Fase")}
                 className={cn(
                   "h-8 w-auto min-w-[120px] text-xs ",
                   filtri.fase && "border-orange-300 bg-orange-50",
@@ -1309,7 +1311,7 @@ export default function PurchaseOrdersList() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tutte le fasi</SelectItem>
+                <SelectItem value="all">{tTesto("Tutte le fasi")}</SelectItem>
                 {fasiInElenco.map(([id, f]) => (
                   <SelectItem key={id} value={id}>
                     {f.etichetta}
@@ -1329,7 +1331,7 @@ export default function PurchaseOrdersList() {
                 : "border-slate-200 text-slate-600 hover:bg-slate-50",
             )}
           >
-            <AlertTriangle className="h-3.5 w-3.5" /> Solo in ritardo
+            <AlertTriangle className="h-3.5 w-3.5" /> {tTesto("Solo in ritardo")}
           </button>
         </div>
 
@@ -1345,8 +1347,8 @@ export default function PurchaseOrdersList() {
                 }
               >
                 <SelectTrigger
-                  aria-label="Emissione OdA"
-                  title="Data di emissione degli ordini di acquisto"
+                  aria-label={tTesto("Emissione OdA")}
+                  title={tTesto("Data di emissione degli ordini di acquisto")}
                   className={cn(
                     "h-8 w-auto min-w-[130px] text-xs ",
                     filterPeriodo !== "tutto" &&
@@ -1357,11 +1359,11 @@ export default function PurchaseOrdersList() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="tutto">Emissione: sempre</SelectItem>
-                  <SelectItem value="30">Ultimi 30 giorni</SelectItem>
-                  <SelectItem value="90">Ultimi 90 giorni</SelectItem>
-                  <SelectItem value="anno">Quest'anno</SelectItem>
-                  <SelectItem value="personalizzato">Intervallo di date</SelectItem>
+                  <SelectItem value="tutto">{tTesto("Emissione: sempre")}</SelectItem>
+                  <SelectItem value="30">{tTesto("Ultimi 30 giorni")}</SelectItem>
+                  <SelectItem value="90">{tTesto("Ultimi 90 giorni")}</SelectItem>
+                  <SelectItem value="anno">{tTesto("Quest'anno")}</SelectItem>
+                  <SelectItem value="personalizzato">{tTesto("Intervallo di date")}</SelectItem>
                 </SelectContent>
               </Select>
               {filterPeriodo === "personalizzato" && <OperationalDateRange from={params.get("oda_da") ?? ""} to={params.get("oda_a") ?? ""} onChange={values => setParams(before => {let next = new URLSearchParams(before); if ("da" in values) next = scriviFiltroAcquisti(next,"oda_da",values.da ?? null);if ("a" in values) next = scriviFiltroAcquisti(next,"oda_a",values.a ?? null);return next;},{replace:true})} />}
@@ -1369,7 +1371,7 @@ export default function PurchaseOrdersList() {
                 <div
                   className="flex rounded-lg bg-slate-100 p-0.5 "
                   role="group"
-                  aria-label="Raggruppa"
+                  aria-label={tTesto("Raggruppa")}
                 >
                   {(
                     [
@@ -1394,7 +1396,7 @@ export default function PurchaseOrdersList() {
                           : "text-slate-500 hover:text-slate-800",
                       )}
                     >
-                      {label}
+                      {tTesto(label)}
                     </button>
                   ))}
                 </div>
@@ -1404,7 +1406,7 @@ export default function PurchaseOrdersList() {
         )}
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2 text-xs text-slate-500">
           <OperationalArchive
-            label="acquisti"
+            label={tTesto("acquisti")}
             scope={archive.scope}
             onChange={(v) => archive.setScope(v, ["stato", "oda_pagina"])}
             active={
@@ -1428,15 +1430,15 @@ export default function PurchaseOrdersList() {
           />
           <span>
             {isLoading
-              ? "Caricamento ordini…"
+              ? tTesto("Caricamento ordini…")
               : vistaPrincipale === "pipeline"
-                ? `${colonne.reduce((total, c) => total + c.conteggio, 0)} elementi nella pipeline`
-                : `${filtered.length} OdA con i filtri attuali`}
+                ? tTesto("{n} elementi nella pipeline", { n: colonne.reduce((total, c) => total + c.conteggio, 0) })
+                : tTesto("{n} OdA con i filtri attuali", { n: filtered.length })}
           </span>
           <OperationalHelp>
             {vistaPrincipale === "pipeline"
-              ? "La pipeline include materiali validati, richieste d’offerta e ordini. Con un filtro per stato o emissione vengono mostrati solo gli OdA."
-              : "L’elenco contiene gli ordini d’acquisto. Materiali da ordinare e richieste d’offerta si trovano nella pipeline."}
+              ? tTesto("La pipeline include materiali validati, richieste d’offerta e ordini. Con un filtro per stato o emissione vengono mostrati solo gli OdA.")
+              : tTesto("L’elenco contiene gli ordini d’acquisto. Materiali da ordinare e richieste d’offerta si trovano nella pipeline.")}
           </OperationalHelp>
           {activeFiltersCount > 0 && (
             <Button
@@ -1445,14 +1447,14 @@ export default function PurchaseOrdersList() {
               className="h-8 px-2 text-xs"
               onClick={clearFilters}
             >
-              <X className="mr-1 h-3 w-3" /> Azzera
+              <X className="mr-1 h-3 w-3" /> {tTesto("Azzera")}
             </Button>
           )}
           <Link
             to="/azienda/magazzino"
             className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
           >
-            Lista acquisti magazzino <ArrowRight className="h-3 w-3" />
+            {tTesto("Lista acquisti magazzino")} <ArrowRight className="h-3 w-3" />
           </Link>
         </div>
       </div>
@@ -1464,29 +1466,26 @@ export default function PurchaseOrdersList() {
         isError || materialiQuery.isError ? (
           <Alert variant="destructive">
             <AlertDescription>
-              Acquisti non caricati del tutto.{" "}
+              {tTesto("Acquisti non caricati del tutto.")}{" "}
               <button
                 type="button"
                 className="underline"
                 onClick={() => materialiQuery.refetch()}
               >
-                Riprova
+                {tTesto("Riprova")}
               </button>
             </AlertDescription>
           </Alert>
         ) : tab === "annullati" ? (
           <div className="rounded-xl border border-dashed p-8 text-center">
             <p className="text-sm text-slate-600">
-              Gli ordini annullati restano consultabili nell’elenco, fuori dalle
-              fasi operative.
+              {tTesto("Gli ordini annullati restano consultabili nell’elenco, fuori dalle fasi operative.")}
             </p>
             <Button
               variant="outline"
               className="mt-3"
               onClick={() => imposta("vista", "elenco")}
-            >
-              Apri elenco degli annullati ({filtered.length})
-            </Button>
+            >{tTesto("Apri elenco degli annullati ({n})", { n: filtered.length })}</Button>
           </div>
         ) : (
           <PipelineAcquisti
@@ -1533,7 +1532,7 @@ export default function PurchaseOrdersList() {
       ) : isError ? (
         <Alert variant="destructive">
           <AlertDescription>
-            Errore nel caricamento degli ordini. Riprova.
+            {tTesto("Errore nel caricamento degli ordini. Riprova.")}
           </AlertDescription>
         </Alert>
       ) : filtered.length === 0 ? (
@@ -1541,22 +1540,22 @@ export default function PurchaseOrdersList() {
           <Package className="h-12 w-12 mx-auto text-muted-foreground/40" />
           <p className="text-muted-foreground font-medium">
             {activeFiltersCount
-              ? "Nessun OdA per i filtri selezionati"
-              : "Nessun ordine d'acquisto"}
+              ? tTesto("Nessun OdA per i filtri selezionati")
+              : tTesto("Nessun ordine d'acquisto")}
           </p>
           <p className="text-sm text-muted-foreground">
             {activeFiltersCount
-              ? "Modifica o azzera i filtri per rivedere gli ordini."
-              : "Crea il primo ordine d'acquisto per gestire i tuoi fornitori."}
+              ? tTesto("Modifica o azzera i filtri per rivedere gli ordini.")
+              : tTesto("Crea il primo ordine d'acquisto per gestire i tuoi fornitori.")}
           </p>
           {activeFiltersCount > 0 && (
             <Button variant="outline" size="sm" onClick={clearFilters}>
-              Azzera filtri
+              {tTesto("Azzera filtri")}
             </Button>
           )}
           {!activeFiltersCount && puoAgire && (
             <Button onClick={() => setNewOpen(true)} className="mt-2">
-              <Plus className="h-4 w-4 mr-1" /> Crea il primo OdA
+              <Plus className="h-4 w-4 mr-1" /> {tTesto("Crea il primo OdA")}
             </Button>
           )}
         </div>
@@ -1567,7 +1566,7 @@ export default function PurchaseOrdersList() {
           {/* Telefono (collaudo 23/11/2026): schede invece della tabella, che da 390px
               tagliava fornitore e importi e scorreva di lato. Stessi dati, stessa pagina. */}
           {vista === "elenco" && (
-            <ul aria-label="Ordini d’acquisto" className="divide-y overflow-hidden rounded-lg border bg-card sm:hidden">
+            <ul aria-label={tTesto("Ordini d’acquisto")} className="divide-y overflow-hidden rounded-lg border bg-card sm:hidden">
               {visibili.map((o) => {
                 const ritardo = giorniDiRitardo(o);
                 return (
@@ -1577,16 +1576,16 @@ export default function PurchaseOrdersList() {
                       <span className="min-w-0 flex-1">
                         <span className="flex min-w-0 items-center gap-1.5">
                           <span className="shrink-0 font-mono text-[11px] font-semibold text-muted-foreground">{o.oda_number}</span>
-                          <QuoteChip variant={STATUS_CHIP_VARIANT[o.status] || "default"}>{STATUS_LABELS[o.status] || o.status}</QuoteChip>
+                          <QuoteChip variant={STATUS_CHIP_VARIANT[o.status] || "default"}>{tTesto(STATUS_LABELS[o.status] || o.status)}</QuoteChip>
                         </span>
-                        <span className="mt-0.5 block truncate text-sm font-semibold">{o.suppliers?.name || "Fornitore da scegliere"}</span>
-                        <span className="block truncate text-xs text-muted-foreground">{o.orders?.order_code ? `Commessa ${o.orders.order_code}${o.orders.deleted_at ? " · nel cestino" : ""}` : "Senza commessa"}</span>
+                        <span className="mt-0.5 block truncate text-sm font-semibold">{o.suppliers?.name || tTesto("Fornitore da scegliere")}</span>
+                        <span className="block truncate text-xs text-muted-foreground">{o.orders?.order_code ? (o.orders.deleted_at ? tTesto("Commessa {codice} · nel cestino", { codice: o.orders.order_code }) : tTesto("Commessa {codice}", { codice: o.orders.order_code })) : tTesto("Senza commessa")}</span>
                       </span>
                       <span className="shrink-0 text-right">
                         {vedeCosti && <span className="block text-sm font-bold tabular-nums">{formatCurrency(Number(o.total))}</span>}
                         {o.expected_delivery_date && (
                           <span className={cn("block text-[11px]", ritardo !== null ? "font-semibold text-destructive" : "text-muted-foreground")}>
-                            {ritardo !== null ? `In ritardo ${ritardo}gg` : `Arrivo ${format(new Date(o.expected_delivery_date), "dd/MM", { locale: it })}`}
+                            {ritardo !== null ? tTesto("In ritardo {ritardo}gg", { ritardo: String(ritardo ?? "") }) : tTesto("Arrivo {valore}", { valore: format(new Date(o.expected_delivery_date), "dd/MM", { locale: dateFnsCampo() }) })}
                           </span>
                         )}
                       </span>
@@ -1597,23 +1596,23 @@ export default function PurchaseOrdersList() {
             </ul>
           )}
           <div className={cn(vista === "elenco" && "max-sm:hidden")}>
-          <OperationalTable label="Elenco ordini d’acquisto">
+          <OperationalTable label={tTesto("Elenco ordini d’acquisto")}>
             <thead>
               <tr className="border-b bg-muted/50">
                 {selection.enabled && <th scope="col">{selection.header}</th>}
-                <th className="text-left p-3 font-medium">N° OdA</th>
-                <th className="text-left p-3 font-medium">Stato</th>
-                <th className="text-left p-3 font-medium">Fornitore</th>
-                <th className="text-left p-3 font-medium">Commessa</th>
+                <th className="text-left p-3 font-medium">{tTesto("N° OdA")}</th>
+                <th className="text-left p-3 font-medium">{tTesto("Stato")}</th>
+                <th className="text-left p-3 font-medium">{tTesto("Fornitore")}</th>
+                <th className="text-left p-3 font-medium">{tTesto("Commessa")}</th>
                 {/* La colonna "Destinazione" e' stata tolta: su 41 ordini nessuno
                   aveva il magazzino impostato, quindi diceva "Da decidere" 41
                   volte su 41. Il dato resta nel dettaglio, dove si imposta. */}
-                <th className="text-left p-3 font-medium">Data</th>
-                <th className="text-left p-3 font-medium">Arrivato</th>
+                <th className="text-left p-3 font-medium">{tTesto("Data")}</th>
+                <th className="text-left p-3 font-medium">{tTesto("Arrivato")}</th>
                 {vedeCosti && (
-                  <th className="text-right p-3 font-medium">Totale</th>
+                  <th className="text-right p-3 font-medium">{tTesto("Totale")}</th>
                 )}
-                <th className="text-left p-3 font-medium">Consegna</th>
+                <th className="text-left p-3 font-medium">{tTesto("Consegna")}</th>
               </tr>
             </thead>
             <tbody>
@@ -1654,12 +1653,12 @@ export default function PurchaseOrdersList() {
                                 </Link>
                               ) : (
                                 <span className="font-semibold text-slate-700">
-                                  {g.codice}
+                                  {g.id ? g.codice : tTesto("Senza commessa")}
                                 </span>
                               )}
                               {g.cestino && (
                                 <span className="rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">
-                                  commessa nel cestino
+                                  {tTesto("commessa nel cestino")}
                                 </span>
                               )}
                               {g.descrizione && (
@@ -1668,33 +1667,28 @@ export default function PurchaseOrdersList() {
                                 </span>
                               )}
                               <span className="ml-auto shrink-0 pl-3 text-xs text-slate-600">
-                                {g.ordini.length}{" "}
-                                {g.ordini.length === 1 ? "ordine" : "ordini"}
+                                {g.ordini.length === 1 ? tTesto("{n} ordine", { n: 1 }) : tTesto("{n} ordini", { n: g.ordini.length })}
                                 {g.daMandare > 0 && (
-                                  <span className="ml-2 text-amber-700">
-                                    {g.daMandare} da mandare
-                                  </span>
+                                  <span className="ml-2 text-amber-700">{tTesto("{daMandare} da mandare", { daMandare: String(g.daMandare ?? "") })}</span>
                                 )}
                                 {g.inRitardo > 0 && (
-                                  <span className="ml-2 font-semibold text-destructive">
-                                    {g.inRitardo} in ritardo
-                                  </span>
+                                  <span className="ml-2 font-semibold text-destructive">{tTesto("{inRitardo} in ritardo", { inRitardo: String(g.inRitardo ?? "") })}</span>
                                 )}
                               </span>
                             </div>
                           </td>
                           <td
                             className="p-3 text-xs text-slate-600"
-                            title="Valore degli ordini ricevuti sul totale impegnato"
+                            title={tTesto("Valore degli ordini ricevuti sul totale impegnato")}
                           >
                             {g.impegnato > 0
-                              ? `${Math.round((g.arrivato / g.impegnato) * 100)}% arrivato`
+                              ? tTesto("{valore}% arrivato", { valore: Math.round((g.arrivato / g.impegnato) * 100) })
                               : "—"}
                           </td>
                           {vedeCosti && (
                             <td
                               className="p-3 text-right font-semibold tabular-nums"
-                              title="Impegnato: ordini mandati, senza bozze e annullati"
+                              title={tTesto("Impegnato: ordini mandati, senza bozze e annullati")}
                             >
                               {formatCurrency(g.impegnato)}
                             </td>
@@ -1709,18 +1703,13 @@ export default function PurchaseOrdersList() {
           </OperationalTable>
           </div>
           <nav
-            aria-label="Pagine ordini di acquisto"
+            aria-label={tTesto("Pagine ordini di acquisto")}
             className={cn(
               "flex flex-wrap items-center justify-between gap-3 py-2 text-xs text-slate-500",
               vista !== "elenco" && "hidden",
             )}
           >
-            <span>
-              {(paginaElenco - 1) * 25 + 1}–
-              {Math.min(paginaElenco * 25, filtered.length)} di{" "}
-              {filtered.length} OdA · le esportazioni includono tutti i
-              risultati filtrati
-            </span>
+            <span>{tTesto("{paginaElenco}–{valore} di {n} OdA · le esportazioni includono tutti i risultati filtrati", { paginaElenco: (paginaElenco - 1) * 25 + 1, valore: Math.min(paginaElenco * 25, filtered.length), n: filtered.length })}</span>
             {pagineElenco > 1 && (
               <div className="flex items-center gap-2">
                 <Button
@@ -1731,7 +1720,7 @@ export default function PurchaseOrdersList() {
                     imposta("oda_pagina", String(paginaElenco - 1))
                   }
                 >
-                  Precedenti
+                  {tTesto("Precedenti")}
                 </Button>
                 <span>
                   {paginaElenco} / {pagineElenco}
@@ -1744,7 +1733,7 @@ export default function PurchaseOrdersList() {
                     imposta("oda_pagina", String(paginaElenco + 1))
                   }
                 >
-                  Successivi
+                  {tTesto("Successivi")}
                 </Button>
               </div>
             )}
@@ -1756,8 +1745,8 @@ export default function PurchaseOrdersList() {
       <Dialog open={newOpen} onOpenChange={(open) => { if (!create.isPending) setNewOpen(open); }}>
         <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Nuovo ordine d’acquisto</DialogTitle>
-            <DialogDescription>Scegli come acquisti e il fornitore. Nel passaggio successivo aggiungi articoli, quantità e prezzi.</DialogDescription>
+            <DialogTitle>{tTesto("Nuovo ordine d’acquisto")}</DialogTitle>
+            <DialogDescription>{tTesto("Scegli come acquisti e il fornitore. Nel passaggio successivo aggiungi articoli, quantità e prezzi.")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             {/* Prima domanda: come stai ordinando. Decide i passaggi che
@@ -1768,7 +1757,7 @@ export default function PurchaseOrdersList() {
                 scelta si legge in un colpo d'occhio e il resto del form non
                 finisce sotto la piega. */}
             <div className="space-y-2">
-              <h3 className="text-sm font-semibold text-slate-900">1. Come acquisti?</h3>
+              <h3 className="text-sm font-semibold text-slate-900">{tTesto("1. Come acquisti?")}</h3>
               <div className="grid grid-cols-2 gap-2">
                 {ODA_ORIGINI.map((o) => {
                   const info = ODA_ORIGINE_INFO[o];
@@ -1803,9 +1792,9 @@ export default function PurchaseOrdersList() {
                           scelta ? "text-orange-900" : "text-slate-700",
                         )}
                       >
-                        {info.titoloBreve}
+                        {tTesto(info.titoloBreve)}
                       </span>
-                      <span className="mt-1 block text-xs leading-relaxed text-slate-500">{({ email: "Da inviare via email al fornitore", telefono: "Già concordato a voce o per messaggio", portale: "Già acquistato sul sito del fornitore", documento: "Da registrare da PDF o modulo firmato", negozio: "Già acquistato e ritirato in negozio" })[o]}</span>
+                      <span className="mt-1 block text-xs leading-relaxed text-slate-500">{tTesto(({ email: "Da inviare via email al fornitore", telefono: "Già concordato a voce o per messaggio", portale: "Già acquistato sul sito del fornitore", documento: "Da registrare da PDF o modulo firmato", negozio: "Già acquistato e ritirato in negozio" })[o])}</span>
                       </span>
                       {scelta && (
                         <Check className="h-3.5 w-3.5 ml-auto shrink-0 text-orange-600" />
@@ -1821,22 +1810,22 @@ export default function PurchaseOrdersList() {
               )}
             </div>
             <div className="space-y-4 border-t border-slate-100 pt-4">
-              <h3 className="text-sm font-semibold text-slate-900">2. Fornitore e commessa</h3>
+              <h3 className="text-sm font-semibold text-slate-900">{tTesto("2. Fornitore e commessa")}</h3>
             <div className="space-y-2">
-              <Label>Commessa <span className="font-normal text-slate-400">· facoltativa</span></Label>
+              <Label>{tTesto("Commessa")} <span className="font-normal text-slate-400">{tTesto("· facoltativa")}</span></Label>
               <CommessaCombobox value={newOrderId} onChange={setNewOrderId} />
               <p className="text-[11px] text-slate-500">
-                Collega il cantiere per attribuirgli il costo, oppure lascia «Acquisto generico».
+                {tTesto("Collega il cantiere per attribuirgli il costo, oppure lascia «Acquisto generico».")}
               </p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="nuovo-oda-fornitore">Fornitore <span className="font-normal text-slate-400">· obbligatorio</span></Label>
+              <Label htmlFor="nuovo-oda-fornitore">{tTesto("Fornitore")} <span className="font-normal text-slate-400">{tTesto("· obbligatorio")}</span></Label>
               <FornitoreCombobox fornitori={suppliers} value={newSupplierId} onChange={setNewSupplierId}/>
 
             </div>
             </div>
             <div className="space-y-4 border-t border-slate-100 pt-4">
-              <h3 className="text-sm font-semibold text-slate-900">3. {newOrigine === "negozio" ? "Riferimento e magazzino" : "Consegna e riferimenti"} <span className="font-normal text-slate-400">· facoltativi</span></h3>
+              <h3 className="text-sm font-semibold text-slate-900">3. {newOrigine === "negozio" ? tTesto("Riferimento e magazzino") : tTesto("Consegna e riferimenti")} <span className="font-normal text-slate-400">{tTesto("· facoltativi")}</span></h3>
             <CampoNumeroNuovoOda
               supplierId={newSupplierId || null}
               value={newNumero.scritto}
@@ -1846,13 +1835,11 @@ export default function PurchaseOrdersList() {
                 uno scontrino: chiederlo qui evita di doverlo cercare dopo. */}
             {newOrigine && ODA_ORIGINE_INFO[newOrigine].riferimentoLabel && (
               <div className="space-y-2">
-                <Label>
-                  {ODA_ORIGINE_INFO[newOrigine].riferimentoLabel} (opzionale)
-                </Label>
+                <Label>{tTesto("{riferimentoLabel} (opzionale)", { riferimentoLabel: String(ODA_ORIGINE_INFO[newOrigine].riferimentoLabel ?? "") })}</Label>
                 <Input
                   value={newRiferimento}
                   onChange={(e) => setNewRiferimento(e.target.value)}
-                  placeholder="Es. 2026-A-4471"
+                  placeholder={tTesto("Es. 2026-A-4471")}
                 />
               </div>
             )}
@@ -1860,7 +1847,7 @@ export default function PurchaseOrdersList() {
                 consegneranno non ha senso. */}
             {newOrigine !== "negozio" && (
               <div className="space-y-2">
-                <Label htmlFor="nuovo-oda-consegna">Data di consegna prevista</Label>
+                <Label htmlFor="nuovo-oda-consegna">{tTesto("Data di consegna prevista")}</Label>
                 <Input
                   id="nuovo-oda-consegna"
                   type="date"
@@ -1872,34 +1859,31 @@ export default function PurchaseOrdersList() {
             <div className="space-y-2">
               <Label>
                 {newOrigine === "negozio"
-                  ? "Magazzino in cui scaricare"
-                  : "Magazzino di destinazione (opzionale)"}
+                  ? tTesto("Magazzino in cui scaricare")
+                  : tTesto("Magazzino di destinazione (opzionale)")}
               </Label>
               <WarehouseSelect
                 value={newWarehouseId}
                 onChange={setNewWarehouseId}
                 nullable
-                placeholder="Magazzino predefinito"
+                placeholder={tTesto("Magazzino predefinito")}
               />
             </div>
             </div>
             {newOrigine && (
-              <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs leading-relaxed text-slate-600" aria-live="polite">
-                Prossimo passo: aggiungi gli articoli, poi «
-                {ODA_ORIGINE_INFO[newOrigine].azione}».
-              </p>
+              <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs leading-relaxed text-slate-600" aria-live="polite">{tTesto("Prossimo passo: aggiungi gli articoli, poi «{azione}».", { azione: String(ODA_ORIGINE_INFO[newOrigine].azione ?? "") })}</p>
             )}
           </div>
           <DialogFooter className="border-t border-slate-100 pt-4 sm:items-center">
-            {(!newSupplierId || !newOrigine) && <p className="mr-auto text-xs text-slate-500" role="status">{!newOrigine ? "Scegli come acquisti per continuare." : "Seleziona il fornitore per continuare."}</p>}
+            {(!newSupplierId || !newOrigine) && <p className="mr-auto text-xs text-slate-500" role="status">{!newOrigine ? tTesto("Scegli come acquisti per continuare.") : tTesto("Seleziona il fornitore per continuare.")}</p>}
             <Button variant="outline" disabled={create.isPending} onClick={() => setNewOpen(false)}>
-              Annulla
+              {tTesto("Annulla")}
             </Button>
             <Button
               onClick={handleCreate}
               disabled={!newSupplierId || !newOrigine || create.isPending}
             >
-              {create.isPending ? "Creazione…" : "Crea e aggiungi articoli"}
+              {create.isPending ? tTesto("Creazione…") : tTesto("Crea e aggiungi articoli")}
             </Button>
           </DialogFooter>
         </DialogContent>

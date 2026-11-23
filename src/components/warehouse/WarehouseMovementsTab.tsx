@@ -29,6 +29,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { formattaQuantitaMovimento } from "@/lib/magazzino/quantitaMovimento";
 import { leggiMovimentiMagazzino } from "@/lib/magazzino/registroMovimenti";
 import { queryKeys } from "@/lib/queryKeys";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   companyId: string;
@@ -45,6 +46,7 @@ const PERIOD_LABEL: Record<PeriodKey, string> = {
 };
 
 export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Props) {
+  const t = useT();
   const permissions = usePermissions();
   const canViewCosts = !permissions.isLoading && permissions.canViewCosts;
   const [period, setPeriod] = useState<PeriodKey>("30");
@@ -128,8 +130,8 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                aria-label="Cerca nei movimenti"
-                placeholder="Cerca articolo, commessa, operatore…"
+                aria-label={t("Cerca nei movimenti")}
+                placeholder={t("Cerca articolo, commessa, operatore…")}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 className="pl-9"
@@ -138,16 +140,16 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
             <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as typeof typeFilter)}>
               <SelectTrigger className="w-full sm:w-[150px]"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tutti i tipi</SelectItem>
-                <SelectItem value="carico">Solo carichi</SelectItem>
-                <SelectItem value="scarico">Solo scarichi</SelectItem>
+                <SelectItem value="all">{t("Tutti i tipi")}</SelectItem>
+                <SelectItem value="carico">{t("Solo carichi")}</SelectItem>
+                <SelectItem value="scarico">{t("Solo scarichi")}</SelectItem>
               </SelectContent>
             </Select>
             <Select value={period} onValueChange={(v) => setPeriod(v as PeriodKey)}>
               <SelectTrigger className="w-full sm:w-[170px]"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {(Object.keys(PERIOD_LABEL) as PeriodKey[]).map((k) => (
-                  <SelectItem key={k} value={k}>{PERIOD_LABEL[k]}</SelectItem>
+                  <SelectItem key={k} value={k}>{t(PERIOD_LABEL[k])}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -155,7 +157,7 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching} className="gap-2">
               {isFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              <span className="sr-only sm:not-sr-only">Aggiorna</span>
+              <span className="sr-only sm:not-sr-only">{t("Aggiorna")}</span>
             </Button>
             <Button variant="outline" size="sm" onClick={handleExport} disabled={filtered.length === 0} className="gap-2">
               <Download className="h-4 w-4" />
@@ -167,36 +169,36 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
 
       {/* Riepilogo */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <SummaryCard label="Movimenti" value={String(summary.count)} icon={History} tone="slate" />
-        <SummaryCard label="Carichi e resi · movimenti" value={String(summary.carichi)} icon={ArrowDownToLine} tone="emerald" />
-        <SummaryCard label="Scarichi · movimenti" value={String(summary.scarichi)} icon={ArrowUpFromLine} tone="red" />
-        {canViewCosts && <SummaryCard label="Valore movimentato" value={formatCurrency(summary.valore)} icon={Download} tone="blue" />}
+        <SummaryCard label={t("Movimenti")} value={String(summary.count)} icon={History} tone="slate" />
+        <SummaryCard label={t("Carichi e resi · movimenti")} value={String(summary.carichi)} icon={ArrowDownToLine} tone="emerald" />
+        <SummaryCard label={t("Scarichi · movimenti")} value={String(summary.scarichi)} icon={ArrowUpFromLine} tone="red" />
+        {canViewCosts && <SummaryCard label={t("Valore movimentato")} value={formatCurrency(summary.valore)} icon={Download} tone="blue" />}
       </div>
 
       {isError ? (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Errore di caricamento</AlertTitle>
+          <AlertTitle>{t("Errore di caricamento")}</AlertTitle>
           <AlertDescription className="flex items-center justify-between">
-            <span>Impossibile caricare i movimenti.</span>
+            <span>{t("Impossibile caricare i movimenti.")}</span>
             <Button variant="outline" size="sm" onClick={() => refetch()} className="ml-4">
-              <RefreshCw className="h-4 w-4 mr-2" /> Riprova
+              <RefreshCw className="h-4 w-4 mr-2" /> {t("Riprova")}
             </Button>
           </AlertDescription>
         </Alert>
       ) : isLoading ? (
         <div className="flex flex-col items-center justify-center gap-3 py-12 text-muted-foreground" role="status" aria-live="polite">
           <Loader2 className="h-6 w-6 animate-spin" />
-          <span className="text-sm">Caricamento movimenti…</span>
+          <span className="text-sm">{t("Caricamento movimenti…")}</span>
         </div>
       ) : filtered.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center gap-3 py-14 text-center">
             <History className="h-12 w-12 text-muted-foreground/40" />
             <div>
-              <p className="text-sm font-medium text-foreground">Nessun movimento nel periodo</p>
+              <p className="text-sm font-medium text-foreground">{t("Nessun movimento nel periodo")}</p>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                I carichi (arrivi merce) e gli scarichi (uscite verso cantiere) compariranno qui.
+                {t("I carichi (arrivi merce) e gli scarichi (uscite verso cantiere) compariranno qui.")}
               </p>
             </div>
           </CardContent>
@@ -208,14 +210,14 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="whitespace-nowrap max-sm:px-2">Data</TableHead>
-                    <TableHead className="max-sm:px-2">Tipo</TableHead>
-                    <TableHead className="max-sm:px-2">Articolo</TableHead>
-                    <TableHead className="text-right max-sm:px-2 sm:text-center">Qtà</TableHead>
-                    <TableHead className="hidden md:table-cell">Lotto</TableHead>
-                    <TableHead className="hidden lg:table-cell">Commessa</TableHead>
-                    <TableHead className="hidden lg:table-cell">Operatore</TableHead>
-                    <TableHead className="hidden sm:table-cell">Note</TableHead>
+                    <TableHead className="whitespace-nowrap max-sm:px-2">{t("Data")}</TableHead>
+                    <TableHead className="max-sm:px-2">{t("Tipo")}</TableHead>
+                    <TableHead className="max-sm:px-2">{t("Articolo")}</TableHead>
+                    <TableHead className="text-right max-sm:px-2 sm:text-center">{t("Qtà")}</TableHead>
+                    <TableHead className="hidden md:table-cell">{t("Lotto")}</TableHead>
+                    <TableHead className="hidden lg:table-cell">{t("Commessa")}</TableHead>
+                    <TableHead className="hidden lg:table-cell">{t("Operatore")}</TableHead>
+                    <TableHead className="hidden sm:table-cell">{t("Note")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -234,7 +236,7 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
                           {m.movement_type === "carico"
                             ? <ArrowDownToLine aria-hidden className="hidden h-3 w-3 sm:block" />
                             : <ArrowUpFromLine aria-hidden className="hidden h-3 w-3 sm:block" />}
-                          {m.rientro_commessa ? "Reso da cantiere" : m.movement_type === "carico" ? "Carico" : "Scarico"}
+                          {m.rientro_commessa ? t("Reso da cantiere") : m.movement_type === "carico" ? t("Carico") : t("Scarico")}
                         </Badge>
                       </TableCell>
                       <TableCell className="max-w-[180px] text-sm font-medium max-sm:px-2">
@@ -247,7 +249,7 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
                         </div>
                       </TableCell>
                       <TableCell className={`text-right text-sm font-semibold tabular-nums max-sm:px-2 sm:text-center ${m.movement_type === "carico" ? "text-emerald-600" : "text-red-600"}`}>
-                        {m.movement_type === "carico" ? "+" : "−"}{formattaQuantitaMovimento(Number(m.quantity))} {m.unit ?? "unità non indicata"}
+                        {m.movement_type === "carico" ? "+" : "−"}{formattaQuantitaMovimento(Number(m.quantity))} {m.unit ?? t("unità non indicata")}
                       </TableCell>
                       <TableCell className="hidden md:table-cell text-sm text-muted-foreground">{m.lot_number || "—"}</TableCell>
                       <TableCell className="hidden lg:table-cell text-sm">
@@ -264,9 +266,7 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
             </div>
             {filtered.length > mostrate && (
               <div className="border-t px-3 py-2 text-center">
-                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setMostrate((n) => n + 300)}>
-                  Mostra altri {Math.min(300, filtered.length - mostrate)} di {filtered.length - mostrate}
-                </Button>
+                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setMostrate((n) => n + 300)}>{t("Mostra altri {valore} di {n}", { valore: Math.min(300, filtered.length - mostrate), n: filtered.length - mostrate })}</Button>
               </div>
             )}
           </CardContent>

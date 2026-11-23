@@ -19,6 +19,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { prettyTxDesc } from "./txLabel";
 import { RibaFornitoriCard } from "./RibaFornitoriCard";
 import { KpiMobili } from "@/components/mobile/FiltriMobile";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const formatEur = (val: unknown) => formatTreasuryCurrency(val, "€0,00");
 
@@ -51,6 +52,7 @@ function pctDelta(current: number, previous: number): number | null {
 
 /** Chip delta "+12% vs mese scorso". positiveIsGood inverte i colori per le uscite. */
 function DeltaChip({ delta, positiveIsGood = true }: { delta: number | null; positiveIsGood?: boolean }) {
+  const t = useT();
   if (delta === null) return null;
   const up = delta >= 0;
   const good = positiveIsGood ? up : !up;
@@ -61,12 +63,13 @@ function DeltaChip({ delta, positiveIsGood = true }: { delta: number | null; pos
         : "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"
     }`}>
       {up ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
-      {up ? "+" : ""}{delta.toFixed(0)}% <span className="font-normal opacity-70">vs mese prec.</span>
+      {up ? "+" : ""}{delta.toFixed(0)}% <span className="font-normal opacity-70">{t("vs mese prec.")}</span>
     </span>
   );
 }
 
 export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigateToTransactions }: Props) {
+  const t = useT();
   const { canViewBankBalances } = usePermissions();
   const isMobile = useIsMobile();
   const [summary, setSummary] = useState<any>(null);
@@ -146,7 +149,7 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
 
       if (!isMountedRef.current || requestId !== requestSeqRef.current) return;
       setBalancesUnavailable(!!accountsRes.error);
-      if (accountsRes.error) setError("Impossibile verificare le valute dei conti. Riprova.");
+      if (accountsRes.error) setError(t("Impossibile verificare le valute dei conti. Riprova."));
       else {
         setAccounts(accountsRes.data || []);
         setMultiCurrency((accountsRes.data || []).some(a => a.currency !== "EUR"));
@@ -224,12 +227,12 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
       }
 
       if (hasBlockingError) {
-        toast.error("Errore nel caricamento della tesoreria. Riprova tra qualche secondo.");
+        toast.error(t("Errore nel caricamento della tesoreria. Riprova tra qualche secondo."));
       }
     } catch (e: any) {
       if (!isMountedRef.current || requestId !== requestSeqRef.current) return;
-      toast.error("Problema temporaneo. Riprova tra qualche secondo.");
-      setError(e.message || "Errore sconosciuto");
+      toast.error(t("Problema temporaneo. Riprova tra qualche secondo."));
+      setError(e.message || t("Errore sconosciuto"));
     } finally {
       if (isMountedRef.current && requestId === requestSeqRef.current) setLoading(false);
     }
@@ -250,14 +253,14 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
 
   // Delta mese corrente vs precedente dal cash flow mensile (serie ascendente).
   if (!canViewBankBalances) return <TransactionsFeed companyId={companyId} refreshKey={refreshKey} />;
-  if (balancesUnavailable) return <div role="alert" className="space-y-3"><p>{error}</p><Button variant="outline" onClick={() => void loadData()}>Riprova</Button></div>;
+  if (balancesUnavailable) return <div role="alert" className="space-y-3"><p>{error}</p><Button variant="outline" onClick={() => void loadData()}>{t("Riprova")}</Button></div>;
   if (multiCurrency) return (
     <div className="space-y-6">
-      <div><h2 className="text-lg font-semibold">Liquidità per valuta</h2><p className="text-sm text-muted-foreground">Saldi separati, senza conversioni valutarie.</p></div>
+      <div><h2 className="text-lg font-semibold">{t("Liquidità per valuta")}</h2><p className="text-sm text-muted-foreground">{t("Saldi separati, senza conversioni valutarie.")}</p></div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {nativeBalances.map(b => <Card key={b.currency}><CardHeader className="pb-2"><CardTitle className="text-sm">{b.currency}</CardTitle></CardHeader><CardContent className="text-xl font-semibold tabular-nums">{formatTreasuryCurrency(b.total, "—", b.currency)}</CardContent></Card>)}
       </div>
-      <div className="flex items-center justify-between"><h3 className="font-semibold">Ultime transazioni</h3><Button variant="outline" size="sm" onClick={onNavigateToTransactions}>Vedi tutte</Button></div>
+      <div className="flex items-center justify-between"><h3 className="font-semibold">{t("Ultime transazioni")}</h3><Button variant="outline" size="sm" onClick={onNavigateToTransactions}>{t("Vedi tutte")}</Button></div>
       <div className="divide-y">{recentTxs.map(tx => <div key={tx.id} className="flex items-start justify-between gap-4 py-3"><div className="min-w-0"><p className="text-sm break-words">{prettyTxDesc(tx)}</p><p className="text-xs text-muted-foreground">{tx.booking_date}</p></div><span className="shrink-0 text-sm font-semibold tabular-nums">{formatTreasuryCurrency(treasuryTransactionAmount(tx), "—", tx.currency)}</span></div>)}</div>
     </div>
   );
@@ -270,43 +273,43 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
   const netMese = toFiniteAmount(summary?.monthly_net);
   const kpis = [
     {
-      title: "Liquidità Totale",
+      title: t("Liquidità Totale"),
       value: toFiniteAmount(summary?.total_balance),
       icon: Wallet,
       tile: "from-orange-500 to-eic-amber shadow-[0_4px_12px_rgba(249,115,22,0.3)]",
       tint: "to-orange-50/60 dark:to-orange-950/20",
       valueColor: "text-foreground",
-      sub: "Saldo di tutti i conti",
+      sub: t("Saldo di tutti i conti"),
       chip: null as ReactNode,
       spark: saldoTrend.map((p) => ({ v: p.saldo })),
       sparkColor: "#f97316",
     },
     {
-      title: "Entrate Mese",
+      title: t("Entrate Mese"),
       value: toFiniteAmount(summary?.monthly_income),
       icon: TrendingUp,
       tile: "from-emerald-500 to-teal-400 shadow-[0_4px_12px_rgba(16,185,129,0.3)]",
       tint: "to-emerald-50/60 dark:to-emerald-950/20",
       valueColor: "text-emerald-600 dark:text-emerald-400",
-      sub: "Questo mese",
+      sub: t("Questo mese"),
       chip: <DeltaChip delta={deltaIncome} />,
       spark: cashFlow.map((m) => ({ v: toFiniteAmount(m.income) })),
       sparkColor: "#10b981",
     },
     {
-      title: "Uscite Mese",
+      title: t("Uscite Mese"),
       value: toFiniteAmount(summary?.monthly_expenses),
       icon: TrendingDown,
       tile: "from-rose-500 to-red-400 shadow-[0_4px_12px_rgba(244,63,94,0.3)]",
       tint: "to-rose-50/60 dark:to-rose-950/20",
       valueColor: "text-rose-600 dark:text-rose-400",
-      sub: "Questo mese",
+      sub: t("Questo mese"),
       chip: <DeltaChip delta={deltaExpenses} positiveIsGood={false} />,
       spark: cashFlow.map((m) => ({ v: toFiniteAmount(m.expenses) })),
       sparkColor: "#f43f5e",
     },
     {
-      title: "Cash Flow Netto",
+      title: t("Cash Flow Netto"),
       value: netMese,
       icon: ArrowUpDown,
       tile: netMese >= 0
@@ -314,7 +317,7 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
         : "from-rose-500 to-red-400 shadow-[0_4px_12px_rgba(244,63,94,0.3)]",
       tint: netMese >= 0 ? "to-sky-50/60 dark:to-sky-950/20" : "to-rose-50/60 dark:to-rose-950/20",
       valueColor: netMese >= 0 ? "text-sky-600 dark:text-sky-400" : "text-rose-600 dark:text-rose-400",
-      sub: "Entrate − uscite mese corrente",
+      sub: t("Entrate − uscite mese corrente"),
       chip: null,
       spark: cashFlow.map((m) => ({ v: toFiniteAmount(m.net) })),
       sparkColor: netMese >= 0 ? "#0ea5e9" : "#f43f5e",
@@ -335,10 +338,10 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
         <div className="flex items-center gap-2 xl:col-span-2">
           <Select value={accountFilter} onValueChange={setAccountFilter}>
             <SelectTrigger className="w-[220px] h-8 text-sm">
-              <SelectValue placeholder="Tutti i conti" />
+              <SelectValue placeholder={t("Tutti i conti")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tutti i conti</SelectItem>
+              <SelectItem value="all">{t("Tutti i conti")}</SelectItem>
               {accounts.filter((a) => a.is_active).map((a) => (
                 <SelectItem key={a.id} value={a.id}>
                   {a.display_name || a.account_name || a.iban}
@@ -348,7 +351,7 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
           </Select>
           {accountFilter !== "all" && (
             <span className="text-xs text-muted-foreground">
-              Saldo, movimenti e categorie del solo conto selezionato.
+              {t("Saldo, movimenti e categorie del solo conto selezionato.")}
             </span>
           )}
         </div>
@@ -357,8 +360,8 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
       {error && (
         <Card className="border-destructive/30 xl:col-span-2">
           <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-destructive">Alcuni dati non sono disponibili: {error}</p>
-            <Button variant="outline" size="sm" onClick={() => loadData()}>Riprova</Button>
+            <p className="text-sm text-destructive">{t("Alcuni dati non sono disponibili: {error}", { error: String(error ?? "") })}</p>
+            <Button variant="outline" size="sm" onClick={() => loadData()}>{t("Riprova")}</Button>
           </CardContent>
         </Card>
       )}
@@ -406,8 +409,8 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
       <KpiMobili
         className="sm:hidden max-sm:!mt-0"
         voci={[
-          { label: "Liquidità", valore: formatEur(kpis[0].value), tono: saldoNegativo ? "text-rose-600" : saldoBasso ? "text-amber-600" : undefined },
-          { label: "Netto del mese", valore: formatEur(netMese), tono: netMese >= 0 ? "text-sky-600" : "text-rose-600" },
+          { label: t("Liquidità"), valore: formatEur(kpis[0].value), tono: saldoNegativo ? "text-rose-600" : saldoBasso ? "text-amber-600" : undefined },
+          { label: t("Netto del mese"), valore: formatEur(netMese), tono: netMese >= 0 ? "text-sky-600" : "text-rose-600" },
         ]}
       />
       {/* Alert liquidità */}
@@ -417,8 +420,8 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
             <AlertTriangle className="h-4 w-4 text-rose-600 dark:text-rose-400" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-rose-800 dark:text-rose-200">Saldo negativo rilevato</p>
-            <p className="text-xs text-rose-700/80 dark:text-rose-300/80">Controlla le uscite recenti e le scadenze in arrivo nelle Previsioni.</p>
+            <p className="text-sm font-semibold text-rose-800 dark:text-rose-200">{t("Saldo negativo rilevato")}</p>
+            <p className="text-xs text-rose-700/80 dark:text-rose-300/80">{t("Controlla le uscite recenti e le scadenze in arrivo nelle Previsioni.")}</p>
           </div>
         </div>
       )}
@@ -428,8 +431,8 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
             <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">Attenzione: liquidità bassa</p>
-            <p className="text-xs text-amber-700/80 dark:text-amber-300/80">Il saldo complessivo è sotto i €1.000.</p>
+            <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">{t("Attenzione: liquidità bassa")}</p>
+            <p className="text-xs text-amber-700/80 dark:text-amber-300/80">{t("Il saldo complessivo è sotto i €1.000.")}</p>
           </div>
         </div>
       )}
@@ -445,8 +448,8 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-100 text-orange-600 dark:bg-orange-950/50 dark:text-orange-400 max-sm:hidden">
                 <LineChartIcon className="h-4 w-4" />
               </span>
-              <span className="max-sm:hidden">Andamento Saldo — Ultimi 90 giorni</span>
-              <span className="sm:hidden">Saldo, ultimi 90 giorni</span>
+              <span className="max-sm:hidden">{t("Andamento Saldo — Ultimi 90 giorni")}</span>
+              <span className="sm:hidden">{t("Saldo, ultimi 90 giorni")}</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="max-sm:px-1 max-sm:pb-2">
@@ -461,7 +464,7 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
                 <XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} minTickGap={28} />
                 <YAxis tickFormatter={formatCurrencyCompact} tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={56} />
-                <Tooltip formatter={(v: number) => [formatEur(v), "Saldo"]} labelFormatter={(l) => `Giorno ${l}`} />
+                <Tooltip formatter={(v: number) => [formatEur(v), t("Saldo")]} labelFormatter={(l) => t("Giorno {giorno}", { giorno: String(l) })} />
                 <ReferenceLine y={0} stroke="#f43f5e" strokeDasharray="4 4" />
                 <Area type="monotone" dataKey="saldo" stroke="#f97316" strokeWidth={2} fill="url(#saldo-fill)" />
               </AreaChart>
@@ -479,25 +482,25 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-100 text-sky-600 dark:bg-sky-950/50 dark:text-sky-400">
               <ArrowUpDown className="h-4 w-4" />
             </span>
-            Entrate, uscite e saldo dei movimenti · 6 mesi
+            {t("Entrate, uscite e saldo dei movimenti · 6 mesi")}
           </CardTitle>
         </CardHeader>
         <CardContent>
           {cashFlow.length === 0 ? (
             <p className="text-muted-foreground text-center py-5">
-              Collega una banca per vedere il cash flow
+              {t("Collega una banca per vedere il cash flow")}
             </p>
           ) : (
             <ResponsiveContainer width="100%" height={240}>
               <ComposedChart data={cashFlow} barGap={2}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                <XAxis dataKey="label" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} tickFormatter={(l: string) => t(l)} />
                 <YAxis tickFormatter={formatCurrencyCompact} tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={56} />
-                <Tooltip formatter={(v: number) => formatEur(v)} />
+                <Tooltip formatter={(v: number) => formatEur(v)} labelFormatter={(l) => t(String(l))} />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="income" name="Entrate" fill="#10b981" radius={[6, 6, 0, 0]} maxBarSize={36} />
-                <Bar dataKey="expenses" name="Uscite" fill="#f43f5e" radius={[6, 6, 0, 0]} maxBarSize={36} />
-                <Line type="monotone" dataKey="net" name="Netto" stroke="#0ea5e9" strokeWidth={2.5} dot={{ r: 3 }} />
+                <Bar dataKey="income" name={t("Entrate")} fill="#10b981" radius={[6, 6, 0, 0]} maxBarSize={36} />
+                <Bar dataKey="expenses" name={t("Uscite")} fill="#f43f5e" radius={[6, 6, 0, 0]} maxBarSize={36} />
+                <Line type="monotone" dataKey="net" name={t("Netto")} stroke="#0ea5e9" strokeWidth={2.5} dot={{ r: 3 }} />
               </ComposedChart>
             </ResponsiveContainer>
           )}
@@ -512,13 +515,13 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-100 text-violet-600 dark:bg-violet-950/50 dark:text-violet-400">
               <TrendingDown className="h-4 w-4" />
             </span>
-            Spese per Categoria — Ultimi 3 Mesi
+            {t("Spese per Categoria — Ultimi 3 Mesi")}
           </CardTitle>
         </CardHeader>
         <CardContent>
           {byCategory.length === 0 ? (
             <p className="text-muted-foreground text-center py-5">
-              Nessuna uscita nel periodo. Categorizza i movimenti dalla scheda Transazioni per vedere la ripartizione.
+              {t("Nessuna uscita nel periodo. Categorizza i movimenti dalla scheda Transazioni per vedere la ripartizione.")}
             </p>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 items-center">
@@ -563,18 +566,18 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
               <ArrowRight className="h-4 w-4" />
             </span>
-            Ultime Transazioni
+            {t("Ultime Transazioni")}
           </CardTitle>
           <button
             className="text-sm text-primary hover:underline inline-flex items-center gap-1"
             onClick={onNavigateToTransactions}
           >
-            Vedi tutte <ArrowRight className="h-3 w-3" />
+            {t("Vedi tutte")} <ArrowRight className="h-3 w-3" />
           </button>
         </CardHeader>
         <CardContent>
           {recentTxs.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">Nessuna transazione</p>
+            <p className="text-muted-foreground text-center py-8">{t("Nessuna transazione")}</p>
           ) : (
             <div className="space-y-1">
               {recentTxs.map((tx) => {

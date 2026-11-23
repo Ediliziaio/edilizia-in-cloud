@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { queryKeys } from "@/lib/queryKeys";
 import { refreshMaterialQueries } from "@/lib/orders/refreshMaterialQueries";
 import { WAREHOUSE_REQUEST_CHANGED, warehouseResponseVerified, WarehouseRequestSlot, warehouseRequestScope, warehouseRequestStorage, warehouseRpc, type PendingWarehouseRequest } from "@/lib/magazzino/protocolloMovimenti";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const operations = [
   { operation: "reserve", label: "Prenotazione per commessa", rpc: "warehouse_reserve_v2" },
@@ -42,6 +43,7 @@ export function WarehousePendingOperations() {
   return effectiveCompany?.id && user?.id ? <PendingOperationsSession key={`${effectiveCompany.id}:${user.id}`} /> : null;
 }
 function PendingOperationsSession() {
+  const t = useT();
   const { effectiveCompany, user } = useAuth();
   const permissions = usePermissions();
   const qc = useQueryClient();
@@ -65,32 +67,32 @@ function PendingOperationsSession() {
     flight.current = true; setBusy(true); setError(null);
     const slot = new WarehouseRequestSlot(selected.scope, warehouseRequestStorage());
     try {
-      if (slot.pendingRequest()?.id !== selected.id) throw new Error("Questa richiesta è già stata verificata. Aggiorna l’elenco.");
+      if (slot.pendingRequest()?.id !== selected.id) throw new Error(t("Questa richiesta è già stata verificata. Aggiorna l’elenco."));
       const result = await warehouseRpc(selected.rpc, { ...selected.payload, p_request_id: selected.id });
       if (result.error) throw result.error;
-      if (!warehouseResponseVerified(selected.operation, result.data, selected.payload)) throw new Error("La risposta non è ancora verificabile. I dati della richiesta restano conservati.");
+      if (!warehouseResponseVerified(selected.operation, result.data, selected.payload)) throw new Error(t("La risposta non è ancora verificabile. I dati della richiesta restano conservati."));
       slot.succeeded(); setResolved(selected.label); setSelected(null);
       if (selected.operation === "reserve-operation-material") refreshMaterialQueries(qc);
       for (const key of [queryKeys.warehouse.all, ["warehouse-stock"], ["warehouse-uscite"], ["warehouse-movements"], ["stock-movements"], ["warehouse-transfers"], ["magazzino-live"], ["purchase-orders"], ["order-items"], ["uscita-order-items-prefill"], ["consumi-materiali"], ["materiali-per-fase"], ["order-material-usage"]]) void qc.invalidateQueries({ queryKey: key });
     } catch (e) {
-      setError((e as Error).message || "Operazione non verificata. Riprova senza registrare una nuova richiesta.");
+      setError((e as Error).message || t("Operazione non verificata. Riprova senza registrare una nuova richiesta."));
     } finally { flight.current = false; setBusy(false); }
   }
   if (!pending.length && !resolved) return null;
   return <>
-    <section aria-label="Operazioni da verificare" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950 print:hidden">
+    <section aria-label={t("Operazioni da verificare")} className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950 print:hidden">
       {pending.length > 0 && <>
-        <h2 className="flex items-center gap-2 font-semibold"><AlertTriangle className="h-4 w-4" />Operazioni da verificare</h2>
-        <p className="mt-1 text-sm">Una registrazione non ha ancora un esito confermato. Verificala prima di ripetere il lavoro.</p>
-        <ul className="mt-3 space-y-2">{pending.map(r => <li key={r.scope} className="flex flex-wrap items-center justify-between gap-2"><span className="text-sm font-medium">{r.label}</span><Button size="sm" variant="outline" disabled={!canRecover(r) || busy} onClick={() => { setError(null); setSelected(r); }}>Verifica {r.label.toLocaleLowerCase("it-IT")}</Button></li>)}</ul>
+        <h2 className="flex items-center gap-2 font-semibold"><AlertTriangle className="h-4 w-4" />{t("Operazioni da verificare")}</h2>
+        <p className="mt-1 text-sm">{t("Una registrazione non ha ancora un esito confermato. Verificala prima di ripetere il lavoro.")}</p>
+        <ul className="mt-3 space-y-2">{pending.map(r => <li key={r.scope} className="flex flex-wrap items-center justify-between gap-2"><span className="text-sm font-medium">{t(r.label)}</span><Button size="sm" variant="outline" disabled={!canRecover(r) || busy} onClick={() => { setError(null); setSelected(r); }}>{t("Verifica {label}", { label: t(r.label).toLocaleLowerCase("it-IT") })}</Button></li>)}</ul>
       </>}
-      {resolved && <p role="status" className="mt-2 flex items-center gap-2 text-sm text-emerald-800"><CheckCircle2 className="h-4 w-4" />{resolved}: registrazione verificata. Consulta l’elenco aggiornato.</p>}
+      {resolved && <p role="status" className="mt-2 flex items-center gap-2 text-sm text-emerald-800"><CheckCircle2 className="h-4 w-4" />{t("{operazione}: registrazione verificata. Consulta l’elenco aggiornato.", { operazione: t(resolved) })}</p>}
     </section>
     <Dialog open={!!selected} onOpenChange={open => { if (!open && !busy) setSelected(null); }}>
-      <DialogContent className="max-w-lg"><DialogHeader><DialogTitle>Verifica la registrazione precedente</DialogTitle><DialogDescription>{selected?.label}. Recuperiamo i dati che avevi già confermato: se la registrazione è già presente, non viene ripetuta; se manca, viene completata.</DialogDescription></DialogHeader>
-        <p className="text-sm">Dopo la verifica controlla il risultato nell’elenco e nello storico del Magazzino.</p>
+      <DialogContent className="max-w-lg"><DialogHeader><DialogTitle>{t("Verifica la registrazione precedente")}</DialogTitle><DialogDescription>{t("{label}. Recuperiamo i dati che avevi già confermato: se la registrazione è già presente, non viene ripetuta; se manca, viene completata.", { label: selected ? t(selected.label) : "" })}</DialogDescription></DialogHeader>
+        <p className="text-sm">{t("Dopo la verifica controlla il risultato nell’elenco e nello storico del Magazzino.")}</p>
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-        <DialogFooter><Button variant="outline" disabled={busy} onClick={() => setSelected(null)}>Chiudi</Button><Button disabled={busy || !selected || !canRecover(selected)} onClick={() => void recover()}>{busy ? "Verifica in corso…" : "Verifica / completa registrazione"}</Button></DialogFooter>
+        <DialogFooter><Button variant="outline" disabled={busy} onClick={() => setSelected(null)}>{t("Chiudi")}</Button><Button disabled={busy || !selected || !canRecover(selected)} onClick={() => void recover()}>{busy ? t("Verifica in corso…") : t("Verifica / completa registrazione")}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   </>;

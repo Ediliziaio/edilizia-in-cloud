@@ -12,6 +12,7 @@ import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { leggiImporto } from "@/lib/finance/reconciliationAnalysis";
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import type { AccreditoCassa, ConfrontoCassa, ValoriPropostaCassa } from "../../../../shared/cassaInCloud";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const RIGHE = [
   { id: "contanti", nome: "Cassa contanti", lato: "Dare", natura: "attivo" },
@@ -26,6 +27,7 @@ const messaggio = (e: unknown) => e instanceof Error ? e.message : "Operazione n
 export function ScritturaChiusuraCassa({ companyId, gruppo, valori, onClose }: {
   companyId: string; gruppo: ConfrontoCassa; valori: ValoriPropostaCassa; onClose: () => void;
 }) {
+  const t = useT();
   const qc = useQueryClient();
   const [conti, setConti] = useState<Record<string, string>>({});
   const righe = RIGHE.filter((r) => valori[r.id] > 0);
@@ -45,7 +47,7 @@ export function ScritturaChiusuraCassa({ companyId, gruppo, valori, onClose }: {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: chiaveQueryCassa(companyId) });
       void qc.invalidateQueries({ queryKey: ["contabilita", companyId] });
-      toast.success("Scrittura da chiusura registrata.");
+      toast.success(t("Scrittura da chiusura registrata."));
       onClose();
     },
   });
@@ -54,32 +56,32 @@ export function ScritturaChiusuraCassa({ companyId, gruppo, valori, onClose }: {
     <Dialog open onOpenChange={(open) => { if (!open && !registra.isPending) onClose(); }}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Scrittura proposta dalla chiusura</DialogTitle>
-          <DialogDescription>{gruppo.punto_vendita_nome} · Cassa {gruppo.cassa_id} · {formatDateShort(gruppo.giorno)}. Verifica l’IVA per aliquota e assegna i conti del tuo piano contabile prima di registrare.</DialogDescription>
+          <DialogTitle>{t("Scrittura proposta dalla chiusura")}</DialogTitle>
+          <DialogDescription>{t("{punto_vendita_nome} · Cassa {cassa_id} · {giorno}. Verifica l’IVA per aliquota e assegna i conti del tuo piano contabile prima di registrare.", { punto_vendita_nome: String(gruppo.punto_vendita_nome ?? ""), cassa_id: String(gruppo.cassa_id ?? ""), giorno: formatDateShort(gruppo.giorno) })}</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           {righe.map((r) => (
             <div className="grid items-end gap-2 sm:grid-cols-[1fr_auto]" key={r.id}>
               <div className="space-y-1">
-                <Label htmlFor={`cassa-conto-${r.id}`}>{r.nome}</Label>
+                <Label htmlFor={`cassa-conto-${r.id}`}>{t(r.nome)}</Label>
                 <select id={`cassa-conto-${r.id}`} className={campoSelect} value={conti[r.id] ?? ""} disabled={annuario.isLoading || registra.isPending}
                   onChange={(e) => setConti((c) => ({ ...c, [r.id]: e.target.value }))}>
-                  <option value="">Scegli il conto</option>
+                  <option value="">{t("Scegli il conto")}</option>
                   {annuario.data?.filter((c) => c.natura === r.natura).map((c) => <option key={c.id} value={c.id}>{c.codice} · {c.descrizione}</option>)}
                 </select>
               </div>
-              <p className="pb-2 text-sm tabular-nums">{r.lato} {formatCurrency(valori[r.id])}</p>
+              <p className="pb-2 text-sm tabular-nums">{t(r.lato)} {formatCurrency(valori[r.id])}</p>
             </div>
           ))}
-          <div className="rounded-md bg-muted/50 p-2 text-sm">Dare {formatCurrency(valori.lordo)} · Avere {formatCurrency(valori.ricavi + valori.iva)}</div>
-          {annuario.isError && <p role="alert" className="text-sm text-destructive">Piano dei conti non disponibile. <button className="underline" onClick={() => void annuario.refetch()}>Riprova</button></p>}
-          {!contiDistinti && <p role="alert" className="text-sm text-destructive">Scegli conti distinti per i contanti e il POS.</p>}
-          {registra.isError && <p role="alert" className="text-sm text-destructive">{messaggio(registra.error)}</p>}
+          <div className="rounded-md bg-muted/50 p-2 text-sm">{t("Dare {lordo} · Avere {valore}", { lordo: formatCurrency(valori.lordo), valore: formatCurrency(valori.ricavi + valori.iva) })}</div>
+          {annuario.isError && <p role="alert" className="text-sm text-destructive">{t("Piano dei conti non disponibile.")} <button className="underline" onClick={() => void annuario.refetch()}>{t("Riprova")}</button></p>}
+          {!contiDistinti && <p role="alert" className="text-sm text-destructive">{t("Scegli conti distinti per i contanti e il POS.")}</p>}
+          {registra.isError && <p role="alert" className="text-sm text-destructive">{t(messaggio(registra.error))}</p>}
         </div>
         <DialogFooter>
-          <Button variant="outline" disabled={registra.isPending} onClick={onClose}>Annulla</Button>
+          <Button variant="outline" disabled={registra.isPending} onClick={onClose}>{t("Annulla")}</Button>
           <Button disabled={registra.isPending || !contiDistinti || !righe.every((r) => conti[r.id])} onClick={() => registra.mutate()}>
-            {registra.isPending ? "Registrazione…" : "Registra scrittura"}
+            {registra.isPending ? t("Registrazione…") : t("Registra scrittura")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -95,6 +97,7 @@ const contiVuoti: ContiAccredito = { banca: "", commissioni: "" };
 function ContiPos({ companyId, commissioni, conti, onChange, disabled }: {
   companyId: string; commissioni: number; conti: ContiAccredito; onChange: (value: ContiAccredito) => void; disabled: boolean;
 }) {
+  const t = useT();
   const q = useQuery({
     queryKey: [...chiaveQueryCassa(companyId), "conti-contabili"],
     queryFn: async () => {
@@ -105,8 +108,8 @@ function ContiPos({ companyId, commissioni, conti, onChange, disabled }: {
     },
   });
   const campi = [
-    { id: "banca", label: "Conto bancario nel piano dei conti", natura: "attivo" },
-    ...(commissioni > 0 ? [{ id: "commissioni", label: "Conto costi per le commissioni POS", natura: "costo" }] : []),
+    { id: "banca", label: t("Conto bancario nel piano dei conti"), natura: "attivo" },
+    ...(commissioni > 0 ? [{ id: "commissioni", label: t("Conto costi per le commissioni POS"), natura: "costo" }] : []),
   ];
   return (
     <div className="grid gap-2 rounded-md border p-3">
@@ -115,12 +118,12 @@ function ContiPos({ companyId, commissioni, conti, onChange, disabled }: {
           <span>{label}</span>
           <select className={campoSelect} disabled={q.isLoading || disabled}
             value={conti[id as keyof ContiAccredito]} onChange={(e) => onChange({ ...conti, [id]: e.target.value })}>
-            <option value="">Scegli il conto</option>
+            <option value="">{t("Scegli il conto")}</option>
             {q.data?.filter((c) => c.natura === natura).map((c) => <option key={c.id} value={c.id}>{c.codice} · {c.descrizione}</option>)}
           </select>
         </label>
       ))}
-      {q.isError && <p role="alert" className="text-sm text-destructive">Piano dei conti non disponibile. <button className="underline" onClick={() => void q.refetch()}>Riprova</button></p>}
+      {q.isError && <p role="alert" className="text-sm text-destructive">{t("Piano dei conti non disponibile.")} <button className="underline" onClick={() => void q.refetch()}>{t("Riprova")}</button></p>}
     </div>
   );
 }
@@ -128,6 +131,7 @@ function ContiPos({ companyId, commissioni, conti, onChange, disabled }: {
 export function AbbinaAccreditoCassa({ companyId, gruppi, onClose, onFatto }: {
   companyId: string; gruppi: ConfrontoCassa[]; onClose: () => void; onFatto: () => void;
 }) {
+  const t = useT();
   const qc = useQueryClient();
   const [commissioni, setCommissioni] = useState("0");
   const [movimento, setMovimento] = useState("");
@@ -162,7 +166,7 @@ export function AbbinaAccreditoCassa({ companyId, gruppi, onClose, onFatto }: {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: chiaveQueryCassa(companyId) });
       void refreshFinancialQueries(qc);
-      toast.success(contabilizza ? "Accredito POS abbinato e contabilizzato." : "Accredito POS abbinato.");
+      toast.success(contabilizza ? t("Accredito POS abbinato e contabilizzato.") : t("Accredito POS abbinato."));
       onFatto();
     },
   });
@@ -170,33 +174,33 @@ export function AbbinaAccreditoCassa({ companyId, gruppi, onClose, onFatto }: {
     <Dialog open onOpenChange={(open) => { if (!open && !abbina.isPending) onClose(); }}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>Abbina accredito POS</DialogTitle>
-          <DialogDescription>{gruppi.length} {gruppi.length === 1 ? "chiusura selezionata" : "chiusure selezionate"}. Indica le commissioni trattenute e scegli l’accredito effettivo in Tesoreria.</DialogDescription>
+          <DialogTitle>{t("Abbina accredito POS")}</DialogTitle>
+          <DialogDescription>{t(gruppi.length === 1 ? "{n} chiusura selezionata. Indica le commissioni trattenute e scegli l’accredito effettivo in Tesoreria." : "{n} chiusure selezionate. Indica le commissioni trattenute e scegli l’accredito effettivo in Tesoreria.", { n: gruppi.length })}</DialogDescription>
         </DialogHeader>
-        {selezione.isLoading && <p role="status" className="text-sm text-muted-foreground">Verifica delle chiusure…</p>}
-        {selezione.isError && <p role="alert" className="text-sm text-destructive">{messaggio(selezione.error)}</p>}
-        {selezione.isSuccess && !disponibili && <p role="alert" className="text-sm text-destructive">Almeno una chiusura ha dati POS da verificare oppure è già abbinata. Rivedi la selezione.</p>}
+        {selezione.isLoading && <p role="status" className="text-sm text-muted-foreground">{t("Verifica delle chiusure…")}</p>}
+        {selezione.isError && <p role="alert" className="text-sm text-destructive">{t(messaggio(selezione.error))}</p>}
+        {selezione.isSuccess && !disponibili && <p role="alert" className="text-sm text-destructive">{t("Almeno una chiusura ha dati POS da verificare oppure è già abbinata. Rivedi la selezione.")}</p>}
         {disponibili && (
           <div className="space-y-3">
-            <p className="text-sm">POS lordo <strong>{formatCurrency(lordo)}</strong></p>
+            <p className="text-sm">{t("POS lordo")} <strong>{formatCurrency(lordo)}</strong></p>
             <div className="space-y-1">
-              <Label htmlFor="cassa-pos-commissioni">Commissioni trattenute in questo accredito</Label>
+              <Label htmlFor="cassa-pos-commissioni">{t("Commissioni trattenute in questo accredito")}</Label>
               <Input id="cassa-pos-commissioni" inputMode="decimal" value={commissioni} disabled={abbina.isPending}
                 onChange={(e) => { setCommissioni(e.target.value); setMovimento(""); }} />
             </div>
-            {commissioneValida ? <p className="text-sm">Accredito atteso <strong>{formatCurrency(netto)}</strong></p>
-              : <p className="text-sm text-destructive">Inserisci commissioni da zero a un importo inferiore al lordo.</p>}
-            {candidati.isFetching && <p role="status" className="text-sm text-muted-foreground">Ricerca accrediti in Tesoreria…</p>}
-            {candidati.isError && <p role="alert" className="text-sm text-destructive">{messaggio(candidati.error)}</p>}
-            {commissioneValida && candidati.data?.length === 0 && <p className="text-sm text-muted-foreground">Nessun movimento di entrata disponibile per questo importo e periodo.</p>}
+            {commissioneValida ? <p className="text-sm">{t("Accredito atteso")} <strong>{formatCurrency(netto)}</strong></p>
+              : <p className="text-sm text-destructive">{t("Inserisci commissioni da zero a un importo inferiore al lordo.")}</p>}
+            {candidati.isFetching && <p role="status" className="text-sm text-muted-foreground">{t("Ricerca accrediti in Tesoreria…")}</p>}
+            {candidati.isError && <p role="alert" className="text-sm text-destructive">{t(messaggio(candidati.error))}</p>}
+            {commissioneValida && candidati.data?.length === 0 && <p className="text-sm text-muted-foreground">{t("Nessun movimento di entrata disponibile per questo importo e periodo.")}</p>}
             {commissioneValida && candidati.data?.length > 0 && (
               <div className="space-y-1">
-                <Label htmlFor="cassa-pos-accredito">Accredito da abbinare</Label>
+                <Label htmlFor="cassa-pos-accredito">{t("Accredito da abbinare")}</Label>
                 <select id="cassa-pos-accredito" className={campoSelect} value={movimento} disabled={abbina.isPending}
                   onChange={(e) => { setMovimento(e.target.value); setConti(contiVuoti); }}>
-                  <option value="">Scegli conto e movimento</option>
+                  <option value="">{t("Scegli conto e movimento")}</option>
                   {candidati.data.map((c) => <option key={c.id} value={c.id}>
-                    {c.conto} · {formatDateShort(c.giorno)} · {c.descrizione || "Accredito"}
+                    {c.conto} · {formatDateShort(c.giorno)} · {c.descrizione || t("Accredito")}
                   </option>)}
                 </select>
               </div>
@@ -205,11 +209,11 @@ export function AbbinaAccreditoCassa({ companyId, gruppi, onClose, onFatto }: {
               onChange={setConti} disabled={abbina.isPending} />}
           </div>
         )}
-        {abbina.isError && <p role="alert" className="text-sm text-destructive">{messaggio(abbina.error)}</p>}
+        {abbina.isError && <p role="alert" className="text-sm text-destructive">{t(messaggio(abbina.error))}</p>}
         <DialogFooter>
-          <Button variant="outline" disabled={abbina.isPending} onClick={onClose}>Annulla</Button>
+          <Button variant="outline" disabled={abbina.isPending} onClick={onClose}>{t("Annulla")}</Button>
           <Button disabled={abbina.isPending || !disponibili || !valido || netto <= 0 || (contabilizza && !contiSelezionati)}
-            onClick={() => abbina.mutate()}>{contabilizza ? "Abbina e contabilizza" : "Conferma abbinamento"}</Button>
+            onClick={() => abbina.mutate()}>{contabilizza ? t("Abbina e contabilizza") : t("Conferma abbinamento")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -217,6 +221,7 @@ export function AbbinaAccreditoCassa({ companyId, gruppi, onClose, onFatto }: {
 }
 
 export function RiepilogoAccreditoCassa({ companyId, id, puoScollegare }: { companyId: string; id: string; puoScollegare: boolean }) {
+  const t = useT();
   const qc = useQueryClient();
   const [conferma, setConferma] = useState(false);
   const [apriConti, setApriConti] = useState(false);
@@ -230,7 +235,7 @@ export function RiepilogoAccreditoCassa({ companyId, id, puoScollegare }: { comp
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: chiaveQueryCassa(companyId) });
       void refreshFinancialQueries(qc);
-      toast.success("Accredito POS scollegato.");
+      toast.success(t("Accredito POS scollegato."));
       setConferma(false);
     },
   });
@@ -242,36 +247,36 @@ export function RiepilogoAccreditoCassa({ companyId, id, puoScollegare }: { comp
       void qc.invalidateQueries({ queryKey: chiaveQueryCassa(companyId) });
       void refreshFinancialQueries(qc);
       setApriConti(false);
-      toast.success("Scrittura dell’accredito registrata.");
+      toast.success(t("Scrittura dell’accredito registrata."));
     },
   });
-  if (accredito.isLoading) return <p role="status" className="text-sm text-muted-foreground">Caricamento accredito…</p>;
-  if (accredito.isError) return <p role="alert" className="text-sm text-destructive">{messaggio(accredito.error)}</p>;
+  if (accredito.isLoading) return <p role="status" className="text-sm text-muted-foreground">{t("Caricamento accredito…")}</p>;
+  if (accredito.isError) return <p role="alert" className="text-sm text-destructive">{t(messaggio(accredito.error))}</p>;
   const a = accredito.data;
   if (!a) return null;
   return (
     <div className="space-y-2 rounded-md border p-3 text-sm">
-      <p>Accredito POS · <strong>{a.conto}</strong>{a.giorno ? ` · ${formatDateShort(a.giorno)}` : ""}</p>
-      <p>Lordo {formatCurrency(a.lordo)} · Commissioni {formatCurrency(a.commissioni)} · Netto {formatCurrency(a.netto)}</p>
-      {a.scrittura_id && <p className="text-muted-foreground">Scrittura dell’accredito registrata in Contabilità generale.</p>}
+      <p>{t("Accredito POS ·")} <strong>{a.conto}</strong>{a.giorno ? ` · ${formatDateShort(a.giorno)}` : ""}</p>
+      <p>{t("Lordo {lordo} · Commissioni {commissioni} · Netto {netto}", { lordo: formatCurrency(a.lordo), commissioni: formatCurrency(a.commissioni), netto: formatCurrency(a.netto) })}</p>
+      {a.scrittura_id && <p className="text-muted-foreground">{t("Scrittura dell’accredito registrata in Contabilità generale.")}</p>}
       <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" variant="outline" asChild><Link to={`/azienda/tesoreria?tab=movimenti&movimento=${a.bank_transaction_id}`}>Apri in Tesoreria</Link></Button>
-        {a.puo_contabilizzare && !apriConti && <Button size="sm" variant="outline" onClick={() => setApriConti(true)}>Contabilizza accredito</Button>}
-        {puoScollegare && <Button size="sm" variant="ghost" onClick={() => setConferma(true)}>Scollega accredito</Button>}
+        <Button size="sm" variant="outline" asChild><Link to={`/azienda/tesoreria?tab=movimenti&movimento=${a.bank_transaction_id}`}>{t("Apri in Tesoreria")}</Link></Button>
+        {a.puo_contabilizzare && !apriConti && <Button size="sm" variant="outline" onClick={() => setApriConti(true)}>{t("Contabilizza accredito")}</Button>}
+        {puoScollegare && <Button size="sm" variant="ghost" onClick={() => setConferma(true)}>{t("Scollega accredito")}</Button>}
       </div>
       {apriConti && a.puo_contabilizzare && <div className="space-y-2">
         <ContiPos companyId={companyId} commissioni={a.commissioni} conti={conti} onChange={setConti} disabled={registra.isPending} />
-        <Button size="sm" variant="outline" onClick={() => setApriConti(false)} disabled={registra.isPending}>Annulla</Button>
+        <Button size="sm" variant="outline" onClick={() => setApriConti(false)} disabled={registra.isPending}>{t("Annulla")}</Button>
         <Button size="sm" className="ml-2" onClick={() => registra.mutate()}
-          disabled={registra.isPending || !conti.banca || (a.commissioni > 0 && !conti.commissioni)}>Registra accredito</Button>
-        {registra.isError && <p role="alert" className="text-destructive">{messaggio(registra.error)}</p>}
+          disabled={registra.isPending || !conti.banca || (a.commissioni > 0 && !conti.commissioni)}>{t("Registra accredito")}</Button>
+        {registra.isError && <p role="alert" className="text-destructive">{t(messaggio(registra.error))}</p>}
       </div>}
-      {conferma && <div role="group" aria-label="Conferma scollegamento" className="flex flex-wrap items-center gap-2">
-        <span>Riaprire l’accredito per {a.chiusure} {a.chiusure === 1 ? "chiusura" : "chiusure"}?</span>
-        <Button size="sm" variant="outline" disabled={scollega.isPending} onClick={() => setConferma(false)}>Annulla</Button>
-        <Button size="sm" variant="destructive" disabled={scollega.isPending} onClick={() => scollega.mutate()}>Conferma scollegamento</Button>
+      {conferma && <div role="group" aria-label={t("Conferma scollegamento")} className="flex flex-wrap items-center gap-2">
+        <span>{t(a.chiusure === 1 ? "Riaprire l’accredito per {n} chiusura?" : "Riaprire l’accredito per {n} chiusure?", { n: a.chiusure })}</span>
+        <Button size="sm" variant="outline" disabled={scollega.isPending} onClick={() => setConferma(false)}>{t("Annulla")}</Button>
+        <Button size="sm" variant="destructive" disabled={scollega.isPending} onClick={() => scollega.mutate()}>{t("Conferma scollegamento")}</Button>
       </div>}
-      {scollega.isError && <p role="alert" className="text-destructive">{messaggio(scollega.error)}</p>}
+      {scollega.isError && <p role="alert" className="text-destructive">{t(messaggio(scollega.error))}</p>}
     </div>
   );
 }

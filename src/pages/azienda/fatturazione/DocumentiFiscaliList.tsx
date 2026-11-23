@@ -77,6 +77,7 @@ import { CassettoSdiEsterno, RegistroIncassiImportate } from "@/components/fattu
 
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CercaConFiltri, DettaglioFiltri, GruppoFiltri, PannelloFiltri, SceltaFiltro, SelettoreSezione } from "@/components/mobile/FiltriMobile";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 const PER_PAGE = 25;
 
 // Mobile: Fatture, Incassi e Fiscalità; le altre schede restano al desktop.
@@ -145,13 +146,14 @@ function BillingHubTabs({
   activeTab: BillingHubTab;
   onChange: (tab: BillingHubTab) => void;
 }) {
+  const t = useT();
   // Telefono (decisione del founder, 23/11/2026): Registro incassi e Fiscalità non compaiono.
   const telefono = useIsMobile(640);
   const sezioni = telefono ? HUB_TABS.filter(({ id }) => !SOLO_DA_TABLET.has(id)) : HUB_TABS;
   return (
     <>
-      <SelettoreSezione nome="Sezioni documenti" valore={activeTab} sezioni={sezioni} onScegli={onChange} className="max-sm:-order-1 lg:hidden" />
-      <nav aria-label="Sezioni documenti" className="hidden flex-wrap gap-1 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm lg:flex">
+      <SelettoreSezione nome={t("Sezioni documenti")} valore={activeTab} sezioni={sezioni} onScegli={onChange} className="max-sm:-order-1 lg:hidden" />
+      <nav aria-label={t("Sezioni documenti")} className="hidden flex-wrap gap-1 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm lg:flex">
         {HUB_TABS.map(({ id, icon: Icon, label, description }) => {
           const attiva = activeTab === id;
           return (
@@ -162,8 +164,8 @@ function BillingHubTabs({
                 <Icon aria-hidden="true" className="size-4" />
               </span>
               <span className="min-w-0">
-                <span className="block text-sm font-semibold">{label}</span>
-                <span className={cn("block text-[11px]", attiva ? "text-white/70" : "text-slate-500")}>{description}</span>
+                <span className="block text-sm font-semibold">{t(label)}</span>
+                <span className={cn("block text-[11px]", attiva ? "text-white/70" : "text-slate-500")}>{t(description)}</span>
               </span>
             </button>
           );
@@ -174,6 +176,7 @@ function BillingHubTabs({
 }
 
 function DocumentiFiscaliHub() {
+  const t = useT();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get("tab") as BillingHubTab | null;
   const activeHubTab = HUB_TABS.find(({ id }) => id === requestedTab)?.id ?? "fatture";
@@ -206,9 +209,9 @@ function DocumentiFiscaliHub() {
           importate: il giorno del passaggio di incassi nativi non ce n'è
           nessuno. Chi non ha importate non vede la seconda sezione. */}
       {telefonoHub && SOLO_DA_TABLET.has(activeHubTab) ? (
-        <SoloDaTabletOComputer titolo={HUB_TABS.find(({ id }) => id === activeHubTab)?.label ?? "Documenti"}
-          dove={<>la trovi in <strong>Fatture</strong>, nelle schede in alto.</>}
-          indietro={{ url: "/azienda/documenti", etichetta: "Torna alle fatture" }}><></></SoloDaTabletOComputer>
+        <SoloDaTabletOComputer titolo={t(HUB_TABS.find(({ id }) => id === activeHubTab)?.label ?? "Documenti")}
+          dove={<>{t("la trovi in")} <strong>{t("Fatture")}</strong>{t(", nelle schede in alto.")}</>}
+          indietro={{ url: "/azienda/documenti", etichetta: t("Torna alle fatture") }}><></></SoloDaTabletOComputer>
       ) : <>
       {activeHubTab === "incassi" && (esterna ? <RegistroIncassiImportate /> : (
         <><RegistroIncassi embedded /><RegistroIncassiImportate soloSeCeNe /></>
@@ -222,6 +225,7 @@ function DocumentiFiscaliHub() {
 
 // ─── Inner Component ──────────────────────────────────────
 function DocumentiFiscaliListInner() {
+  const tr = useT();
   const isMobile = useIsMobile();
   const [tabellaSuTablet, setTabellaSuTablet] = useState(false);
   const soloVistaCompatta = tabellaSuTablet ? "sm:hidden" : "lg:hidden";
@@ -252,7 +256,7 @@ function DocumentiFiscaliListInner() {
   const elencoEmesse = activeTab === "fattura";
   const isTrash = activeTab === "annullate";
   const statiFiltro = elencoEmesse
-    ? [{ value: "all", label: "Tutti i documenti" }, { value: "bozza", label: "Bozza" }, { value: "emessa", label: "Emessi" }, { value: "annullata", label: "Annullati" }, { value: "stornata", label: "Stornati" }]
+    ? [{ value: "all", label: tr("Tutti i documenti") }, { value: "bozza", label: tr("Bozza") }, { value: "emessa", label: tr("Emessi") }, { value: "annullata", label: tr("Annullati") }, { value: "stornata", label: tr("Stornati") }]
     : esterna
     ? STATI_FILTRO_DOCUMENTI.filter((o) => o.value !== "bozza" && !o.value.startsWith("sdi:"))
     : STATI_FILTRO_DOCUMENTI;
@@ -474,7 +478,7 @@ function DocumentiFiscaliListInner() {
       totale: String(d.totale_documento),
     }));
     exportToXLSX(rows, columns, `documenti_${new Date().toISOString().slice(0, 10)}.xlsx`, "Documenti");
-    toast.success(`${rows.length} documenti esportati`);
+    toast.success(tr("{n} documenti esportati", { n: rows.length }));
   };
 
   // Gli XML partiti allo SDI dei documenti selezionati, in uno zip (quello che chiede il
@@ -482,7 +486,7 @@ function DocumentiFiscaliListInner() {
   const handleBulkExportXml = async () => {
     const conXml = selectedDocs.filter((d) => !!d.sdi_file_xml_url);
     if (conXml.length === 0) {
-      toast.info("Nessun XML da esportare", { description: "Gli XML ci sono solo per le fatture già inviate allo SDI." });
+      toast.info(tr("Nessun XML da esportare"), { description: tr("Gli XML ci sono solo per le fatture già inviate allo SDI.") });
       return;
     }
     try {
@@ -509,10 +513,10 @@ function DocumentiFiscaliListInner() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       const senza = selectedDocs.length - conXml.length + mancanti;
-      if (senza > 0) toast.warning(`${usati.size} XML esportati, ${senza} senza file`, { description: "Mancano le bozze, le fatture non ancora inviate e i file non trovati." });
-      else toast.success(`${usati.size} XML esportati`);
+      if (senza > 0) toast.warning(tr("{size} XML esportati, {senza} senza file", { size: String(usati.size ?? ""), senza: String(senza ?? "") }), { description: tr("Mancano le bozze, le fatture non ancora inviate e i file non trovati.") });
+      else toast.success(tr("{size} XML esportati", { size: String(usati.size ?? "") }));
     } catch (err) {
-      toast.error("Esportazione non riuscita", { description: err instanceof Error ? err.message : undefined });
+      toast.error(tr("Esportazione non riuscita"), { description: err instanceof Error ? err.message : undefined });
     }
   };
 
@@ -536,11 +540,11 @@ function DocumentiFiscaliListInner() {
         await deleteMutation.mutateAsync(doc.id);
         ok++;
       } catch (err: unknown) {
-        toast.error("Documento non eliminato", { description: getErrorMessage(err) });
+        toast.error(tr("Documento non eliminato"), { description: getErrorMessage(err) });
       }
     }
-    if (ok > 0) toast.success(`${ok} documenti spostati nel cestino`);
-    if (skipped > 0) toast.info(`${skipped} documenti emessi ignorati: usa una nota di credito per stornarli`);
+    if (ok > 0) toast.success(tr("{ok} documenti spostati nel cestino", { ok: String(ok ?? "") }));
+    if (skipped > 0) toast.info(tr("{skipped} documenti emessi ignorati: usa una nota di credito per stornarli", { skipped: String(skipped ?? "") }));
     clearSelection();
     setBulkDeleteOpen(false);
   };
@@ -585,7 +589,7 @@ function DocumentiFiscaliListInner() {
           const completo = await rileggiDocumentoFiscale(doc.id);
           navigate(`/azienda/documenti/nuovo?tipo=${doc.tipo}`, { state: preparaCopiaDocumento(completo) });
         } catch (e: unknown) {
-          toast.error("Documento non duplicato", { description: getErrorMessage(e) });
+          toast.error(tr("Documento non duplicato"), { description: getErrorMessage(e) });
         }
         break;
       case "pdf":
@@ -600,10 +604,10 @@ function DocumentiFiscaliListInner() {
             // Tutti gli altri tipi (fattura, NC, proforma, ecc.) usano la
             // edge function generate-native-pdf che produce HTML stampabile.
             await downloadNativePDF(doc.id, doc.numero);
-            toast.info("Stampa richiesta", { description: "Per salvare il file scegli «Salva come PDF» nel dialogo del browser. Il file non viene scaricato automaticamente.", duration: 12000 });
+            toast.info(tr("Stampa richiesta"), { description: tr("Per salvare il file scegli «Salva come PDF» nel dialogo del browser. Il file non viene scaricato automaticamente."), duration: 12000 });
           }
         } catch (e: unknown) {
-          toast.error(getErrorMessage(e));
+          toast.error(tr(getErrorMessage(e)));
         }
         break;
       case "save_pdf":
@@ -611,23 +615,23 @@ function DocumentiFiscaliListInner() {
           if (doc.tipo === "ddt") {
             await ddtPdf.uploadAndAttach(doc.id);
           } else {
-            toast.error("Salvataggio PDF disponibile solo per DDT");
+            toast.error(tr("Salvataggio PDF disponibile solo per DDT"));
           }
         } catch (e: unknown) {
-          toast.error(getErrorMessage(e));
+          toast.error(tr(getErrorMessage(e)));
         }
         break;
       case "xml":
         try {
           if (!azienda) {
-            toast.error("Anagrafica azienda non configurata");
+            toast.error(tr("Anagrafica azienda non configurata"));
             return;
           }
           // La riga dell'elenco non ha le righe della fattura: l'XML nasce dal documento intero.
           await scaricaXmlFattura(await rileggiDocumentoFiscale(doc.id), azienda as AnagraficaAzienda);
-          toast.success("XML scaricato");
+          toast.success(tr("XML scaricato"));
         } catch (e: unknown) {
-          toast.error(getErrorMessage(e));
+          toast.error(tr(getErrorMessage(e)));
         }
         break;
       case "nc":
@@ -635,7 +639,7 @@ function DocumentiFiscaliListInner() {
           const prefilled = await creaNotaCredito(doc.id, "totale");
           navigate("/azienda/documenti/nuovo?tipo=nota_credito", { state: { prefilled } });
         } catch (e: unknown) {
-          toast.error(getErrorMessage(e));
+          toast.error(tr(getErrorMessage(e)));
         }
         break;
       case "pagata":
@@ -643,7 +647,7 @@ function DocumentiFiscaliListInner() {
         try {
           setPayTarget(await rileggiDocumentoFiscale(doc.id));
         } catch (e: unknown) {
-          toast.error(getErrorMessage(e));
+          toast.error(tr(getErrorMessage(e)));
         }
         break;
       case "delete":
@@ -652,10 +656,10 @@ function DocumentiFiscaliListInner() {
       case "convert_proforma":
         try {
           const fattura = await convertiProformaInFattura(doc.id);
-          toast.success("Convertito in fattura", { description: `Bozza ${fattura.numero}: il numero è già suo, emettila quando è pronta.` });
+          toast.success(tr("Convertito in fattura"), { description: tr("Bozza {numero}: il numero è già suo, emettila quando è pronta.", { numero: String(fattura.numero ?? "") }) });
           navigate(`/azienda/documenti/${fattura.id}/dettaglio`);
         } catch (e: unknown) {
-          toast.error(getErrorMessage(e));
+          toast.error(tr(getErrorMessage(e)));
         }
         break;
       case "restore":
@@ -688,8 +692,8 @@ function DocumentiFiscaliListInner() {
               <FileText className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Fatturazione</h1>
-              <p className="mt-0.5 text-sm text-slate-500">Gestisci documenti fiscali, SDI, incassi e scadenze operative.</p>
+              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">{tr("Fatturazione")}</h1>
+              <p className="mt-0.5 text-sm text-slate-500">{tr("Gestisci documenti fiscali, SDI, incassi e scadenze operative.")}</p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -700,31 +704,31 @@ function DocumentiFiscaliListInner() {
                   azzeraFiltriElenco();
                 }}>
                 <FileText className="h-4 w-4" aria-hidden="true" />
-                Fatture in bozza
+                {tr("Fatture in bozza")}
               </Button>
             )}
             <Button variant="outline" size="sm" asChild className="gap-1.5 max-sm:hidden">
               <Link to="/azienda/documenti/report">
                 <BarChart3 className="h-4 w-4" />
-                <span className="hidden sm:inline">Report fiscali</span>
+                <span className="hidden sm:inline">{tr("Report fiscali")}</span>
               </Link>
             </Button>
             {/* Abbinare scrive su fatture e rate: lo fa chi ha «Pagamenti» (regola del database). */}
             {!isCommercialistaMode && effectiveCompany?.id && permissions.canManagePayments && !permissions.solaLettura && (
               <Button variant="outline" size="sm" className="gap-1.5 max-sm:hidden" onClick={() => setAbbinaAperto(true)}>
                 <Link2 className="h-4 w-4" />
-                <span className="hidden sm:inline">Abbina alle commesse</span>
+                <span className="hidden sm:inline">{tr("Abbina alle commesse")}</span>
               </Button>
             )}
             <Button variant="outline" size="sm" asChild className="gap-1.5 max-sm:hidden">
-              <Link to="/azienda/documenti/emesse-importate" title="Fatture emesse con un altro programma e importate, mese per mese">
-                <span className="hidden sm:inline">Emesse importate</span>
+              <Link to="/azienda/documenti/emesse-importate" title={tr("Fatture emesse con un altro programma e importate, mese per mese")}>
+                <span className="hidden sm:inline">{tr("Emesse importate")}</span>
               </Link>
             </Button>
             {!isCommercialistaMode && (
               <>
                 <Button variant="outline" size="sm" asChild className="gap-1.5 max-sm:h-11 max-sm:px-3 max-sm:text-sm">
-                  <Link to="/azienda/documenti/scontrini"><ReceiptText className="h-4 w-4" />Scontrini</Link>
+                  <Link to="/azienda/documenti/scontrini"><ReceiptText className="h-4 w-4" />{tr("Scontrini")}</Link>
                 </Button>
                 {/* Da telefono la fatturazione non si imposta (solo computer o tablet).
                     Chi importa imposta il collegamento al gestionale, non la numerazione. */}
@@ -732,7 +736,7 @@ function DocumentiFiscaliListInner() {
                   <Button variant="outline" size="sm" asChild className="gap-1.5">
                     <Link to={esterna ? "/azienda/impostazioni/fatturazione" : "/azienda/impostazioni/fatturazione-nativa"}>
                       <Settings2 className="h-4 w-4" />
-                      <span className="hidden sm:inline">Impostazioni</span>
+                      <span className="hidden sm:inline">{tr("Impostazioni")}</span>
                     </Link>
                   </Button>
                 )}
@@ -740,7 +744,7 @@ function DocumentiFiscaliListInner() {
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button className="gap-2 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-11 max-sm:gap-1 max-sm:px-3 max-sm:text-sm">
-                      <Plus className="h-4 w-4" /> <span className="max-sm:hidden">Nuovo documento</span><span className="sm:hidden">Nuovo</span>
+                      <Plus className="h-4 w-4" /> <span className="max-sm:hidden">{tr("Nuovo documento")}</span><span className="sm:hidden">{tr("Nuovo")}</span>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
@@ -754,17 +758,17 @@ function DocumentiFiscaliListInner() {
                         insieme: il vincolo su documenti_fiscali.tipo, l'elenco in
                         documento_crea, la numerazione, documento_segno e una prova
                         del suo XML. */}
-                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=fattura")}>Fattura (TD01)</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=fattura_pa")}>Fattura PA</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=nota_credito")}>Nota di Credito</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=nota_debito")}>Nota di Debito</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=proforma")}>Pro-Forma</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=fattura")}>{tr("Fattura (TD01)")}</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=fattura_pa")}>{tr("Fattura PA")}</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=nota_credito")}>{tr("Nota di Credito")}</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=nota_debito")}>{tr("Nota di Debito")}</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=proforma")}>{tr("Pro-Forma")}</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=ddt")}>DDT</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=reverse_charge_interno")}>Integrazione reverse charge (TD16)</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=integrazione_servizi_estero")}>Autofattura servizi esteri (TD17)</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=integrazione_beni_ue")}>Integrazione beni UE (TD18)</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=integrazione_beni_extra_ue")}>Integrazione art. 17 c.2 (TD19)</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=autofattura")}>Autofattura (TD20)</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=reverse_charge_interno")}>{tr("Integrazione reverse charge (TD16)")}</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=integrazione_servizi_estero")}>{tr("Autofattura servizi esteri (TD17)")}</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=integrazione_beni_ue")}>{tr("Integrazione beni UE (TD18)")}</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=integrazione_beni_extra_ue")}>{tr("Integrazione art. 17 c.2 (TD19)")}</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=autofattura")}>{tr("Autofattura (TD20)")}</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
                 )}
@@ -821,7 +825,7 @@ function DocumentiFiscaliListInner() {
 
       {/* ── Tabs ───────────────────────────────────────── */}
       {/* Mobile: il tipo di documento sta nel pannello dei filtri. */}
-      <div role="group" aria-label="Filtra per tipo di documento" className={cn("flex flex-wrap items-center gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm", soloTabella)}>
+      <div role="group" aria-label={tr("Filtra per tipo di documento")} className={cn("flex flex-wrap items-center gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm", soloTabella)}>
         {TIPO_TABS.map((tab) => {
           const count = counts?.[tab.countKey as keyof typeof counts] ?? 0;
           const isActive = activeTab === tab.id;
@@ -841,7 +845,7 @@ function DocumentiFiscaliListInner() {
               )}
             >
               <TabIcon className="h-4 w-4" />
-              {tab.label}
+              {tr(tab.label)}
               {(count as number) > 0 && (
                 <Badge
                   variant={isActive ? "default" : "secondary"}
@@ -860,8 +864,7 @@ function DocumentiFiscaliListInner() {
         <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 flex items-start gap-2 text-sm max-sm:p-2 max-sm:text-xs">
           <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0 max-sm:hidden" />
           <div className="text-amber-800 dark:text-amber-300">
-            Bozze e documenti non fiscali vengono eliminati definitivamente dopo <strong>14 giorni</strong><span className="max-sm:hidden">; puoi ripristinarli prima della scadenza.
-            Fatture, note di credito e DDT restano invece archiviati anche dopo: la conservazione è obbligatoria per legge.</span>
+            {tr("Bozze e documenti non fiscali vengono eliminati definitivamente dopo")} <strong>{tr("14 giorni")}</strong><span className="max-sm:hidden">{tr("; puoi ripristinarli prima della scadenza. Fatture, note di credito e DDT restano invece archiviati anche dopo: la conservazione è obbligatoria per legge.")}</span>
           </div>
         </div>
       )}
@@ -872,18 +875,18 @@ function DocumentiFiscaliListInner() {
         className={soloVistaCompatta}
         valore={searchRaw}
         onCambia={(v) => { setSearchRaw(v); setPage(0); clearSelection(); }}
-        segnaposto="Cerca documenti"
+        segnaposto={tr("Cerca documenti")}
         filtriAttivi={(activeTab !== "fattura" ? 1 : 0) + (statoFilter !== "all" ? 1 : 0) + nFiltriEmesse}
         onApriFiltri={() => setFiltriMobileAperti(true)}
       />
       <div className={cn("flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm", soloTabella)}>
         {!isTrash && (
           <Select value={statoFilter} onValueChange={(v) => { setStatoFilter(v); setPage(0); clearSelection(); }}>
-            <SelectTrigger aria-label="Filtra per stato" className="w-[190px] h-9 text-xs">
-              <SelectValue placeholder="Stato" />
+            <SelectTrigger aria-label={tr("Filtra per stato")} className="w-[190px] h-9 text-xs">
+              <SelectValue placeholder={tr("Stato")} />
             </SelectTrigger>
             <SelectContent>
-              {statiFiltro.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+              {statiFiltro.map(option => <SelectItem key={option.value} value={option.value}>{tr(option.label)}</SelectItem>)}
             </SelectContent>
           </Select>
         )}
@@ -891,8 +894,8 @@ function DocumentiFiscaliListInner() {
         <div className="relative min-w-[260px] flex-1">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Cliente, numero, importo, data o note…"
-            aria-label="Cerca fatture per cliente, numero, importo, data o note"
+            placeholder={tr("Cliente, numero, importo, data o note…")}
+            aria-label={tr("Cerca fatture per cliente, numero, importo, data o note")}
             value={searchRaw}
             onChange={(e) => { setSearchRaw(e.target.value); setPage(0); clearSelection(); }}
             className="pl-8 h-9 text-sm"
@@ -901,28 +904,28 @@ function DocumentiFiscaliListInner() {
 
         {elencoEmesse && <FiltriFattureEmesse valore={filtriEmesse} cambia={cambiaFiltriEmesse} />}
         {elencoEmesse && !soloBozzeFatture && <Select value={ordinamento} onValueChange={v => { setOrdinamento(v as "progressivo" | "data"); vaiAPagina(0); clearSelection(); }}>
-          <SelectTrigger aria-label="Ordina fatture" className="h-9 w-[170px] text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectItem value="progressivo">Anno e numero ↓</SelectItem><SelectItem value="data">Data emissione ↓</SelectItem></SelectContent>
+          <SelectTrigger aria-label={tr("Ordina fatture")} className="h-9 w-[170px] text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent><SelectItem value="progressivo">{tr("Anno e numero ↓")}</SelectItem><SelectItem value="data">{tr("Data emissione ↓")}</SelectItem></SelectContent>
         </Select>}
         {elencoEmesse && <SceltaColonneEmesse {...sceltaColonne} />}
 
         {hasFilters && (
           <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1 text-xs">
-            <X className="h-3 w-3" /> Azzera filtri
+            <X className="h-3 w-3" /> {tr("Azzera filtri")}
           </Button>
         )}
       </div>
       {nFiltriEmesse > 0 && <div className={soloTabella}><FiltriEmesseAttivi valore={filtriEmesse} cambia={cambiaFiltriEmesse} /></div>}
 
       {soloBozzeFatture ? (
-        <p className="text-xs text-muted-foreground">Le bozze modificate più di recente sono in cima. Apri una bozza per continuare a compilarla.</p>
+        <p className="text-xs text-muted-foreground">{tr("Le bozze modificate più di recente sono in cima. Apri una bozza per continuare a compilarla.")}</p>
       ) : !isTrash && !esterna && activeTab === "nota_credito" && (
-        <p className="text-xs text-muted-foreground">Ordine per anno e numero decrescente. Puoi trovare le bozze con il filtro Bozza.</p>
+        <p className="text-xs text-muted-foreground">{tr("Ordine per anno e numero decrescente. Puoi trovare le bozze con il filtro Bozza.")}</p>
       )}
 
       <div className="hidden justify-end sm:flex lg:hidden">
         <Button type="button" variant="outline" className="h-11" onClick={() => setTabellaSuTablet(v => !v)}>
-          {tabellaSuTablet ? "Vista compatta" : "Vista tabella"}
+          {tabellaSuTablet ? tr("Vista compatta") : tr("Vista tabella")}
         </Button>
       </div>
 
@@ -930,18 +933,18 @@ function DocumentiFiscaliListInner() {
       {/* Mobile no: niente selezione multipla. */}
       {someSelected && (
         <div className={cn("flex flex-wrap items-center gap-3 rounded-lg border bg-muted/50 px-4 py-2.5", soloTabella)}>
-          <span className="text-sm font-medium">{selectedDocs.length} selezionat{selectedDocs.length === 1 ? "o" : "i"}</span>
+          <span className="text-sm font-medium">{tr(selectedDocs.length === 1 ? "{n} selezionato" : "{n} selezionati", { n: selectedDocs.length })}</span>
 
           {/* Niente export su telefono. */}
           {!isMobile && (
             <>
               <Button variant="outline" size="sm" onClick={handleBulkExport}>
                 <FileSpreadsheet className="h-4 w-4 mr-1.5" />
-                Esporta XLS
+                {tr("Esporta XLS")}
               </Button>
               {!esterna && <Button variant="outline" size="sm" onClick={() => void handleBulkExportXml()}>
                 <FileText className="h-4 w-4 mr-1.5" />
-                Esporta XML (zip)
+                {tr("Esporta XML (zip)")}
               </Button>}
             </>
           )}
@@ -949,21 +952,21 @@ function DocumentiFiscaliListInner() {
           {!isTrash && !esterna && (
             <Button variant="outline" size="sm" onClick={() => setBulkPayOpen(true)}>
               <CreditCard className="h-4 w-4 mr-1.5" />
-              Segna pagati
+              {tr("Segna pagati")}
             </Button>
           )}
 
           {!isTrash && esterna && (
             <Button variant="outline" size="sm" disabled={!importateDaIncassare.length} onClick={() => setBulkIncassaOpen(true)}>
               <CreditCard className="h-4 w-4 mr-1.5" />
-              Segna incassate{importateDaIncassare.length ? ` (${importateDaIncassare.length})` : ""}
+              {tr("Segna incassate")}{importateDaIncassare.length ? ` (${importateDaIncassare.length})` : ""}
             </Button>
           )}
 
           {!esterna && (
             <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setBulkDeleteOpen(true)}>
               <Trash2 className="h-4 w-4 mr-1.5" />
-              Elimina
+              {tr("Elimina")}
             </Button>
           )}
 
@@ -976,24 +979,24 @@ function DocumentiFiscaliListInner() {
       {/* ── Table ──────────────────────────────────────── */}
       {isError ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-14">
-          <p className="text-sm text-muted-foreground">Errore nel caricamento dei documenti. Riprova.</p>
+          <p className="text-sm text-muted-foreground">{tr("Errore nel caricamento dei documenti. Riprova.")}</p>
           <Button variant="outline" size="sm" disabled={isFetching} onClick={() => void refetch()}>
             {isFetching ? (
               <>
                 <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-                Riprovo...
+                {tr("Riprovo...")}
               </>
-            ) : "Riprova"}
+            ) : tr("Riprova")}
           </Button>
         </div>
       ) : isLoading ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           <div>
-            <p className="text-sm font-medium text-slate-700">Caricamento documenti...</p>
+            <p className="text-sm font-medium text-slate-700">{tr("Caricamento documenti...")}</p>
             {showSlowLoading && (
               <p className="mt-1 max-w-xs text-xs text-muted-foreground">
-                Ci sta mettendo più del previsto. Puoi riprovare senza perdere i filtri.
+                {tr("Ci sta mettendo più del previsto. Puoi riprovare senza perdere i filtri.")}
               </p>
             )}
           </div>
@@ -1002,9 +1005,9 @@ function DocumentiFiscaliListInner() {
               {isFetching ? (
                 <>
                   <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-                  Riprovo...
+                  {tr("Riprovo...")}
                 </>
-              ) : "Riprova"}
+              ) : tr("Riprova")}
             </Button>
           )}
         </div>
@@ -1012,13 +1015,13 @@ function DocumentiFiscaliListInner() {
         // Mobile: una riga di testo, senza riquadro tratteggiato né icona grande.
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-20 text-center max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:py-6">
           <currentTab.icon className="h-16 w-16 text-muted-foreground/30 mb-4 max-sm:hidden" />
-          <p className="text-lg font-medium max-sm:text-sm">{soloBozzeFatture ? "Nessuna fattura in bozza" : currentTab.emptyTitle}</p>
+          <p className="text-lg font-medium max-sm:text-sm">{soloBozzeFatture ? tr("Nessuna fattura in bozza") : tr(currentTab.emptyTitle)}</p>
           <p className="text-sm text-muted-foreground mt-1 max-sm:hidden">
-            {hasFilters ? "Prova a modificare i filtri." : esterna ? "I documenti arrivano dal tuo gestionale a ogni sincronizzazione." : currentTab.emptyDescription}
+            {hasFilters ? tr("Prova a modificare i filtri.") : esterna ? tr("I documenti arrivano dal tuo gestionale a ogni sincronizzazione.") : tr(currentTab.emptyDescription)}
           </p>
           {!hasFilters && !isTrash && puoCreare && (
             <Button className="mt-4 max-sm:hidden" onClick={() => navigate(`/azienda/documenti/nuovo?tipo=${currentTab.tipos?.[0] ?? "fattura"}`)}>
-              <Plus className="h-4 w-4 mr-1" /> {currentTab.label === "Fatture" ? "Crea la tua prima fattura" : `Nuovo ${currentTab.label.toLowerCase().replace(/i$/, "o")}`}
+              <Plus className="h-4 w-4 mr-1" /> {currentTab.label === "Fatture" ? tr("Crea la tua prima fattura") : tr("Nuovo {valore}", { valore: currentTab.label.toLowerCase().replace(/i$/, "o") })}
             </Button>
           )}
         </div>
@@ -1041,8 +1044,8 @@ function DocumentiFiscaliListInner() {
                   <div className="truncate text-[13px] font-semibold leading-tight">{doc.cliente_snapshot?.ragione_sociale || "—"}</div>
                   <div className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
                     {doc.numero} · {formatDateShort(doc.data_emissione)}
-                    {scadenza?.scaduta && <span className="font-medium text-destructive"> · scaduta da {scadenza.giorni} gg</span>}
-                    {scadenza && !scadenza.scaduta && scadenza.urgente && <span className="text-amber-600"> · scade in {scadenza.giorni} gg</span>}
+                    {scadenza?.scaduta && <span className="font-medium text-destructive">{" · "}{tr("scaduta da {giorni} gg", { giorni: String(scadenza.giorni ?? "") })}</span>}
+                    {scadenza && !scadenza.scaduta && scadenza.urgente && <span className="text-amber-600">{" · "}{tr("scade in {giorni} gg", { giorni: String(scadenza.giorni ?? "") })}</span>}
                   </div>
                 </div>
                 <div className="shrink-0 text-right">
@@ -1052,7 +1055,7 @@ function DocumentiFiscaliListInner() {
                   <div className="mt-0.5 flex justify-end">
                     {isDdt && !isTrash ? (
                       <span className={cn("text-[11px]", doc.ddt_fatturato ? "text-emerald-600" : "text-amber-600")}>
-                        {doc.ddt_fatturato ? "Fatturato" : "Da fatturare"}
+                        {doc.ddt_fatturato ? tr("Fatturato") : tr("Da fatturare")}
                       </span>
                     ) : (
                       <StatoBadge stato={doc.stato} className="px-1.5 py-0 text-[10px] [&>svg]:hidden" />
@@ -1073,21 +1076,21 @@ function DocumentiFiscaliListInner() {
                     <Checkbox
                       checked={allSelected}
                       onCheckedChange={toggleSelectAll}
-                      aria-label="Seleziona tutti"
+                      aria-label={tr("Seleziona tutti")}
                     />
                   </TableHead>
                   {elencoEmesse ? <IntestazioniEmesse colonne={sceltaColonne.colonne} /> : <>
-                  {showColTipo && <TableHead className="w-28">Tipo</TableHead>}
-                  {showColEliminazione && <TableHead className="w-36">Eliminazione</TableHead>}
-                  <TableHead className="w-28">Stato</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  {showColStorno && <TableHead className="w-36">Storna Fattura</TableHead>}
-                  <TableHead className="w-36">Data / Numero</TableHead>
-                  {showColScadenza && <TableHead className="w-40">Prox. Scadenza</TableHead>}
-                  {showColFatturaCollegata && <TableHead className="w-36">Fattura Collegata</TableHead>}
-                  <TableHead className="text-right w-28">Importo</TableHead>
+                  {showColTipo && <TableHead className="w-28">{tr("Tipo")}</TableHead>}
+                  {showColEliminazione && <TableHead className="w-36">{tr("Eliminazione")}</TableHead>}
+                  <TableHead className="w-28">{tr("Stato")}</TableHead>
+                  <TableHead>{tr("Cliente")}</TableHead>
+                  {showColStorno && <TableHead className="w-36">{tr("Storna Fattura")}</TableHead>}
+                  <TableHead className="w-36">{tr("Data / Numero")}</TableHead>
+                  {showColScadenza && <TableHead className="w-40">{tr("Prox. Scadenza")}</TableHead>}
+                  {showColFatturaCollegata && <TableHead className="w-36">{tr("Fattura Collegata")}</TableHead>}
+                  <TableHead className="text-right w-28">{tr("Importo")}</TableHead>
                   </>}
-                  <TableHead className={elencoEmesse ? "sticky right-0 z-10 bg-card w-24" : "w-20"}><span className="sr-only">Azioni</span></TableHead>
+                  <TableHead className={elencoEmesse ? "sticky right-0 z-10 bg-card w-24" : "w-20"}><span className="sr-only">{tr("Azioni")}</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1107,7 +1110,7 @@ function DocumentiFiscaliListInner() {
                         <Checkbox
                           checked={selectedIds.has(doc.id)}
                           onCheckedChange={() => toggleSelect(doc.id)}
-                          aria-label={`Seleziona ${doc.numero}`}
+                          aria-label={tr("Seleziona {numero}", { numero: String(doc.numero ?? "") })}
                         />
                       </TableCell>
 
@@ -1132,8 +1135,8 @@ function DocumentiFiscaliListInner() {
                             // mostrare un conto alla rovescia sarebbe una promessa falsa.
                             if (documentoDaConservare(doc.tipo, doc.stato)) {
                               return (
-                                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" title="Conservazione obbligatoria: resta archiviato anche dopo i 14 giorni">
-                                  <ShieldCheck className="h-3 w-3" /> Conservato per legge
+                                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" title={tr("Conservazione obbligatoria: resta archiviato anche dopo i 14 giorni")}>
+                                  <ShieldCheck className="h-3 w-3" /> {tr("Conservato per legge")}
                                 </span>
                               );
                             }
@@ -1146,7 +1149,7 @@ function DocumentiFiscaliListInner() {
                                 daysLeft <= 3 ? "text-destructive font-medium" : daysLeft <= 7 ? "text-amber-600" : "text-muted-foreground"
                               )}>
                                 <Clock className="h-3 w-3" />
-                                {daysLeft === 0 ? "Scade oggi" : `${daysLeft} giorni rimasti`}
+                                {daysLeft === 0 ? tr("Scade oggi") : tr("{daysLeft} giorni rimasti", { daysLeft: String(daysLeft ?? "") })}
                               </span>
                             );
                           })()}
@@ -1157,7 +1160,7 @@ function DocumentiFiscaliListInner() {
                       <TableCell>
                         {isDdt && !isTrash ? (
                           <Badge className={cn("text-[10px]", ddtFatturato ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200" : "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200")}>
-                            {ddtFatturato ? "✓ Fatturato" : "⏳ Da fatturare"}
+                            {ddtFatturato ? tr("✓ Fatturato") : tr("⏳ Da fatturare")}
                           </Badge>
                         ) : doc.origine !== "importata" && faseSdi(doc) ? (
                           // Fattura elettronica: la fase SDI, e accanto l'incasso
@@ -1172,7 +1175,7 @@ function DocumentiFiscaliListInner() {
                           <div className="flex flex-wrap items-center gap-1">
                             <StatoBadge stato={doc.stato} />
                             {doc.origine === "importata" && senzaIncasso?.has(doc.id) && (
-                              <span className="whitespace-nowrap text-[10px] font-medium text-amber-700 dark:text-amber-400" title="Segnata incassata senza un incasso registrato, una scadenza incassata o un bonifico abbinato">senza incasso</span>
+                              <span className="whitespace-nowrap text-[10px] font-medium text-amber-700 dark:text-amber-400" title={tr("Segnata incassata senza un incasso registrato, una scadenza incassata o un bonifico abbinato")}>{tr("senza incasso")}</span>
                             )}
                           </div>
                         )}
@@ -1194,7 +1197,7 @@ function DocumentiFiscaliListInner() {
                                 navigate(doc.origine === "importata" ? `/azienda/documenti/importata/${doc.documento_correlato_id}` : `/azienda/documenti/${doc.documento_correlato_id}/dettaglio`);
                               }}
                             >
-                              Vedi fattura originale
+                              {tr("Vedi fattura originale")}
                             </button>
                           ) : (
                             <span className="text-xs text-muted-foreground">—</span>
@@ -1224,14 +1227,14 @@ function DocumentiFiscaliListInner() {
                               )}
                             >
                               {scadenza.scaduta ? (
-                                <><AlertCircle className="h-3 w-3" /> Scaduta da {scadenza.giorni} gg</>
+                                <><AlertCircle className="h-3 w-3" /> {tr("Scaduta da {giorni} gg", { giorni: String(scadenza.giorni ?? "") })}</>
                               ) : (
-                                <><Clock className="h-3 w-3" /> Scade in {scadenza.giorni} gg</>
+                                <><Clock className="h-3 w-3" /> {tr("Scade in {giorni} gg", { giorni: String(scadenza.giorni ?? "") })}</>
                               )}
                             </span>
                           ) : doc.stato === "pagata" ? (
                             <span className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
-                              <CheckCircle2 className="h-3 w-3" /> Pagata
+                              <CheckCircle2 className="h-3 w-3" /> {tr("Pagata")}
                             </span>
                           ) : (
                             <span className="text-xs text-muted-foreground">—</span>
@@ -1250,7 +1253,7 @@ function DocumentiFiscaliListInner() {
                                 navigate(`/azienda/documenti/${doc.ddt_fattura_id}/dettaglio`);
                               }}
                             >
-                              Vedi fattura
+                              {tr("Vedi fattura")}
                             </button>
                           ) : (
                             <span className="text-xs text-muted-foreground">—</span>
@@ -1272,8 +1275,8 @@ function DocumentiFiscaliListInner() {
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8"
-                            title="Segna incassata"
-                            aria-label={`Segna incassata la fattura ${doc.numero}`}
+                            title={tr("Segna incassata")}
+                            aria-label={tr("Segna incassata la fattura {numero}", { numero: String(doc.numero ?? "") })}
                             onClick={() => (doc.origine === "importata" ? setIncassoImportata(doc) : handleAction("pagata", doc))}
                           >
                             <CreditCard className="h-4 w-4" />
@@ -1281,7 +1284,7 @@ function DocumentiFiscaliListInner() {
                         )}
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" aria-label="Altre azioni" className="h-8 w-8">
+                            <Button variant="ghost" size="icon" aria-label={tr("Altre azioni")} className="h-8 w-8">
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -1290,52 +1293,52 @@ function DocumentiFiscaliListInner() {
                               // Fattura del gestionale: si consulta e si incassa, non si modifica.
                               <>
                                 <DropdownMenuItem onClick={() => apriDocumento(doc)}>
-                                  <Eye className="h-4 w-4 mr-2" /> Visualizza
+                                  <Eye className="h-4 w-4 mr-2" /> {tr("Visualizza")}
                                 </DropdownMenuItem>
                                 {importataPagabile(doc) && (
                                   <DropdownMenuItem onClick={() => setIncassoImportata(doc)}>
-                                    <CreditCard className="h-4 w-4 mr-2" /> Segna pagata
+                                    <CreditCard className="h-4 w-4 mr-2" /> {tr("Segna pagata")}
                                   </DropdownMenuItem>
                                 )}
                                 {siRiportaDaIncassare(doc) && (
                                   <DropdownMenuItem onClick={() => setDaRiaprire(doc)}>
-                                    <RotateCcw className="h-4 w-4 mr-2" /> Riporta da incassare
+                                    <RotateCcw className="h-4 w-4 mr-2" /> {tr("Riporta da incassare")}
                                   </DropdownMenuItem>
                                 )}
                               </>
                             ) : isTrash && esterna ? (
-                              <DropdownMenuItem disabled>Nel cestino</DropdownMenuItem>
+                              <DropdownMenuItem disabled>{tr("Nel cestino")}</DropdownMenuItem>
                             ) : isTrash ? (
                               <>
                                 {/* Si elimina da sola dopo 14 giorni, se la legge non la vuole conservata. */}
                                 {siPuoRipristinare(doc) ? (
                                   <DropdownMenuItem onClick={() => handleAction("restore", doc)}>
-                                    <RotateCcw className="h-4 w-4 mr-2" /> Ripristina
+                                    <RotateCcw className="h-4 w-4 mr-2" /> {tr("Ripristina")}
                                   </DropdownMenuItem>
                                 ) : (
-                                  <DropdownMenuItem disabled>In archivio: annullata con il suo numero</DropdownMenuItem>
+                                  <DropdownMenuItem disabled>{tr("In archivio: annullata con il suo numero")}</DropdownMenuItem>
                                 )}
                               </>
                             ) : (
                               <>
                                 <DropdownMenuItem onClick={() => handleAction("view", doc)}>
-                                  <Eye className="h-4 w-4 mr-2" /> Visualizza
+                                  <Eye className="h-4 w-4 mr-2" /> {tr("Visualizza")}
                                 </DropdownMenuItem>
                                 {doc.stato === "bozza" && puoCreare && (
                                   <DropdownMenuItem onClick={() => handleAction("edit", doc)}>
-                                    <Pencil className="h-4 w-4 mr-2" /> Modifica
+                                    <Pencil className="h-4 w-4 mr-2" /> {tr("Modifica")}
                                   </DropdownMenuItem>
                                 )}
                                 {puoCreare && siPuoDuplicare(doc.tipo) && (
                                   <DropdownMenuItem onClick={() => handleAction("duplicate", doc)}>
-                                    <Copy className="h-4 w-4 mr-2" /> Duplica
+                                    <Copy className="h-4 w-4 mr-2" /> {tr("Duplica")}
                                   </DropdownMenuItem>
                                 )}
                                 <DropdownMenuSeparator />
                                 {/* Niente export su telefono. */}
                                 {!isMobile && (
                                   <DropdownMenuItem onClick={() => handleAction("pdf", doc)}>
-                                    <Download className="h-4 w-4 mr-2" /> Scarica PDF
+                                    <Download className="h-4 w-4 mr-2" /> {tr("Scarica PDF")}
                                   </DropdownMenuItem>
                                 )}
                                 {doc.tipo === "ddt" && !esterna && (
@@ -1343,13 +1346,13 @@ function DocumentiFiscaliListInner() {
                                     onClick={() => handleAction("save_pdf", doc)}
                                     disabled={ddtPdf.isUploading}
                                   >
-                                    <FileText className="h-4 w-4 mr-2" /> Salva PDF su documento
+                                    <FileText className="h-4 w-4 mr-2" /> {tr("Salva PDF su documento")}
                                   </DropdownMenuItem>
                                 )}
                                 {/* Niente export su telefono. */}
                                 {!isMobile && !["ddt", "proforma", "preventivo"].includes(doc.tipo) && (
                                   <DropdownMenuItem onClick={() => handleAction("xml", doc)}>
-                                    <FileText className="h-4 w-4 mr-2" /> Scarica XML
+                                    <FileText className="h-4 w-4 mr-2" /> {tr("Scarica XML")}
                                   </DropdownMenuItem>
                                 )}
 
@@ -1358,7 +1361,7 @@ function DocumentiFiscaliListInner() {
                                   <>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem className="text-emerald-600" onClick={() => handleAction("convert_proforma", doc)}>
-                                      <FileText className="h-4 w-4 mr-2" /> Converti in Fattura
+                                      <FileText className="h-4 w-4 mr-2" /> {tr("Converti in Fattura")}
                                     </DropdownMenuItem>
                                   </>
                                 )}
@@ -1368,7 +1371,7 @@ function DocumentiFiscaliListInner() {
                                   <>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem className="text-emerald-600" onClick={() => handleAction("fattura_ddt", doc)}>
-                                      <FileText className="h-4 w-4 mr-2" /> Fattura da questo DDT
+                                      <FileText className="h-4 w-4 mr-2" /> {tr("Fattura da questo DDT")}
                                     </DropdownMenuItem>
                                   </>
                                 )}
@@ -1378,27 +1381,27 @@ function DocumentiFiscaliListInner() {
                                   <>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem onClick={() => handleAction("nc", doc)}>
-                                      <FileWarning className="h-4 w-4 mr-2" /> Emetti NC
+                                      <FileWarning className="h-4 w-4 mr-2" /> {tr("Emetti NC")}
                                     </DropdownMenuItem>
                                   </>
                                 )}
                                 {isDocumentoPagabile(doc) && (
                                   <DropdownMenuItem onClick={() => handleAction("pagata", doc)}>
-                                    <CreditCard className="h-4 w-4 mr-2" /> Segna pagata
+                                    <CreditCard className="h-4 w-4 mr-2" /> {tr("Segna pagata")}
                                   </DropdownMenuItem>
                                 )}
                                 {/* Storico, annulla incasso, abbina al bonifico. Da telefono no.
                                     Solo fatture native: le importate li hanno nel loro dettaglio. */}
                                 {!isMobile && !esterna && haIncassi(doc) && (
                                   <DropdownMenuItem onClick={() => setIncassiId(doc.id)}>
-                                    <Landmark className="h-4 w-4 mr-2" /> Incassi e banca
+                                    <Landmark className="h-4 w-4 mr-2" /> {tr("Incassi e banca")}
                                   </DropdownMenuItem>
                                 )}
                 {!esterna && isDocumentoEliminabile(doc) && (
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem className="text-destructive" onClick={() => handleAction("delete", doc)}>
-                      <Trash2 className="h-4 w-4 mr-2" /> Elimina
+                      <Trash2 className="h-4 w-4 mr-2" /> {tr("Elimina")}
                     </DropdownMenuItem>
                   </>
                 )}
@@ -1430,14 +1433,12 @@ function DocumentiFiscaliListInner() {
       {/* ── Pagination ─────────────────────────────────── */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground max-sm:text-xs">
-            Pagina {page + 1} di {totalPages}
-          </p>
+          <p className="text-sm text-muted-foreground max-sm:text-xs">{tr("Pagina {page} di {totalPages}", { page: page + 1, totalPages: String(totalPages ?? "") })}</p>
           <div className="flex items-center gap-2">
-            <Button aria-label="Pagina precedente" variant="outline" size="sm" className="max-lg:size-11" disabled={page === 0} onClick={() => { vaiAPagina(page - 1); clearSelection(); }}>
+            <Button aria-label={tr("Pagina precedente")} variant="outline" size="sm" className="max-lg:size-11" disabled={page === 0} onClick={() => { vaiAPagina(page - 1); clearSelection(); }}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <Button aria-label="Pagina successiva" variant="outline" size="sm" className="max-lg:size-11" disabled={page >= totalPages - 1} onClick={() => { vaiAPagina(page + 1); clearSelection(); }}>
+            <Button aria-label={tr("Pagina successiva")} variant="outline" size="sm" className="max-lg:size-11" disabled={page >= totalPages - 1} onClick={() => { vaiAPagina(page + 1); clearSelection(); }}>
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
@@ -1453,13 +1454,13 @@ function DocumentiFiscaliListInner() {
         risultati={total}
       >
         <GruppoFiltri>
-          <SceltaFiltro titolo="Documento" valore={activeTab} onScegli={handleTabChange}
+          <SceltaFiltro titolo={tr("Documento")} valore={activeTab} onScegli={handleTabChange}
             scelte={TIPO_TABS.map(({ id, label }) => ({ value: id, label }))} />
           {!isTrash && (
-            <SceltaFiltro titolo="Stato" valore={statoFilter} scelte={statiFiltro}
+            <SceltaFiltro titolo={tr("Stato")} valore={statoFilter} scelte={statiFiltro}
               onScegli={v => { setStatoFilter(v); setPage(0); clearSelection(); }} />
           )}
-          {elencoEmesse && <DettaglioFiltri titolo="Altri filtri" riepilogo={nFiltriEmesse ? String(nFiltriEmesse) : undefined}>
+          {elencoEmesse && <DettaglioFiltri titolo={tr("Altri filtri")} riepilogo={nFiltriEmesse ? String(nFiltriEmesse) : undefined}>
             <FiltriFattureEmesse valore={filtriEmesse} cambia={cambiaFiltriEmesse} compatto />
           </DettaglioFiltri>}
         </GruppoFiltri>
@@ -1471,22 +1472,22 @@ function DocumentiFiscaliListInner() {
           <AlertDialogHeader>
             <AlertDialogTitle>
               {deleteTarget?.stato === "bozza"
-                ? "Eliminare il documento?"
+                ? tr("Eliminare il documento?")
                 : deleteTarget?.stato === "annullata"
-                  ? "Eliminare definitivamente?"
-                  : "Documento non eliminabile"}
+                  ? tr("Eliminare definitivamente?")
+                  : tr("Documento non eliminabile")}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {deleteTarget?.stato === "bozza"
-                ? <>Stai per spostare nel cestino il documento <strong>{deleteTarget?.numero}</strong>.</>
+                ? <>{tr("Stai per spostare nel cestino il documento")} <strong>{deleteTarget?.numero}</strong>.</>
                 : deleteTarget?.stato === "annullata"
-                  ? <>Il documento <strong>{deleteTarget?.numero}</strong> verrà mantenuto nel cestino secondo le regole di conservazione fiscale.</>
-                  : <>Il documento <strong>{deleteTarget?.numero}</strong> è emesso: usa una nota di credito per stornarlo.</>
+                  ? <>{tr("Il documento")} <strong>{deleteTarget?.numero}</strong> {tr("verrà mantenuto nel cestino secondo le regole di conservazione fiscale.")}</>
+                  : <>{tr("Il documento")} <strong>{deleteTarget?.numero}</strong> {tr("è emesso: usa una nota di credito per stornarlo.")}</>
               }
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={deleteMutation.isPending || updateMutation.isPending}
@@ -1499,10 +1500,10 @@ function DocumentiFiscaliListInner() {
               }}
             >
               {(deleteMutation.isPending || updateMutation.isPending)
-                ? "Elaborazione..."
+                ? tr("Elaborazione...")
                 : deleteTarget && isDocumentoEliminabile(deleteTarget)
-                  ? "Sposta nel cestino"
-                  : "Chiudi"}
+                  ? tr("Sposta nel cestino")
+                  : tr("Chiudi")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1528,19 +1529,19 @@ function DocumentiFiscaliListInner() {
       <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare {selectedIds.size} documenti?</AlertDialogTitle>
+            <AlertDialogTitle>{tr("Eliminare {size} documenti?", { size: String(selectedIds.size ?? "") })}</AlertDialogTitle>
             <AlertDialogDescription>
-              Solo bozze e documenti già annullati verranno spostati nel cestino. I documenti emessi devono essere stornati con nota di credito.
+              {tr("Solo bozze e documenti già annullati verranno spostati nel cestino. I documenti emessi devono essere stornati con nota di credito.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={deleteMutation.isPending}
               onClick={handleBulkDelete}
             >
-              {deleteMutation.isPending ? "Eliminazione..." : "Elimina consentiti"}
+              {deleteMutation.isPending ? tr("Eliminazione...") : tr("Elimina consentiti")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1578,8 +1579,9 @@ function DocumentiFiscaliListInner() {
 }
 
 export default function DocumentiFiscaliList() {
+  const t = useT();
   return (
-    <ErrorBoundary title="Errore nella lista documenti fiscali">
+    <ErrorBoundary title={t("Errore nella lista documenti fiscali")}>
       <DocumentiFiscaliHub />
     </ErrorBoundary>
   );

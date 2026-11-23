@@ -76,6 +76,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { validaRigheUscita } from "@/lib/magazzino/validaRigheUscita";
 import { MovementReviewDialog } from "./MovementReviewDialog";
 import { ManualArticleAdder } from "./ManualArticleAdder";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface CaricoRapidoSheetProps {
   open: boolean;
@@ -110,6 +111,7 @@ export function CaricoRapidoSheet(props: CaricoRapidoSheetProps) {
 }
 
 function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialStockItem }: CaricoRapidoSheetProps) {
+  const t = useT();
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const permissions = usePermissions();
@@ -248,7 +250,7 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
   const [productPhotos, setProductPhotos] = useState<File[]>([]);
   const [entries, setEntries] = useState<BatchScanEntry[]>(() => initialStockItem ? [rigaMovimentoIniziale(initialStockItem, canViewCosts)] : []);
   const costAmount = entries.reduce((sum, entry) => sum + Math.round((entry.purchasePrice ?? 0) * entry.quantity * 100) / 100, 0);
-  const costProblem = registerCost && (!canViewCosts ? "Non hai il permesso di registrare costi." : !/^\d{4}-\d{2}-\d{2}$/.test(costDate) ? "Indica la data del costo." : entries.some(e => e.purchasePrice == null || !Number.isFinite(e.purchasePrice) || e.purchasePrice < 0) ? "Indica il prezzo d’acquisto di ogni articolo per registrare il costo." : costAmount <= 0 && entries.length > 0 ? "Il costo deve avere un imponibile maggiore di zero." : null);
+  const costProblem = registerCost && (!canViewCosts ? t("Non hai il permesso di registrare costi.") : !/^\d{4}-\d{2}-\d{2}$/.test(costDate) ? t("Indica la data del costo.") : entries.some(e => e.purchasePrice == null || !Number.isFinite(e.purchasePrice) || e.purchasePrice < 0) ? t("Indica il prezzo d’acquisto di ogni articolo per registrare il costo.") : costAmount <= 0 && entries.length > 0 ? t("Il costo deve avere un imponibile maggiore di zero.") : null);
   const balances = useMovementBalances(companyId, entries.flatMap((entry) => entry.stockItemId ? [entry.stockItemId] : []), step === "review");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [partialResult, setPartialResult] = useState<import("@/hooks/warehouse/useBatchCarico").BatchCaricoResult | null>(null);
@@ -286,7 +288,7 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
   // Il fornitore è facoltativo (11/11/2026): basta sapere in quale magazzino entra la merce.
   const canProceedToScan = canWrite && !warehousesError && warehouses.some((warehouse) => warehouse.id === warehouseId);
   const canContinueReceipt = canProceedToScan && (receiveMode !== "ddt" || !!ddtFile);
-  const continueLabel = receiveMode === "ddt" ? "Carica DDT e registra prodotti" : "Inizia scansione";
+  const continueLabel = receiveMode === "ddt" ? t("Carica DDT e registra prodotti") : t("Inizia scansione");
   const selectedRelatedOrders = useMemo(
     () => relatedOrders.filter((order) => relatedOrderIds.includes(order.id)),
     [relatedOrderIds, relatedOrders],
@@ -312,10 +314,10 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
     return parts.filter(Boolean).join(" · ");
   }, [ddtFile, selectedRelatedOrders.length, supplierObj, warehouseObj]);
   const progressItems = [
-    { label: "Fornitore facoltativo", done: true },
-    { label: "DDT facoltativo", done: receiveMode !== "ddt" || !!ddtFile },
-    { label: "Righe", done: entries.length > 0 },
-    { label: "Magazzino", done: !!warehouseId },
+    { label: t("Fornitore facoltativo"), done: true },
+    { label: t("DDT facoltativo"), done: receiveMode !== "ddt" || !!ddtFile },
+    { label: t("Righe"), done: entries.length > 0 },
+    { label: t("Magazzino"), done: !!warehouseId },
   ];
   const toggleRelatedOrder = (orderId: string) => {
     setRelatedOrderIds((current) =>
@@ -405,8 +407,8 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
       setCreatePrefillBarcode(undefined);
       setCreatePrefillSerials(undefined);
     } catch (err) {
-      toast.error("Errore creazione articolo", {
-        description: (err as Error)?.message ?? "Riprova",
+      toast.error(t("Errore creazione articolo"), {
+        description: (err as Error)?.message ?? t("Riprova"),
       });
     } finally {
       setCreatePending(false);
@@ -436,7 +438,7 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
       new Set(raw.split(/[\s,;]+/).map((s) => s.trim()).filter((s) => s.length >= 4)),
     ).slice(0, 500);
     if (serials.length === 0) {
-      toast.error("Nessun seriale valido nel testo incollato");
+      toast.error(t("Nessun seriale valido nel testo incollato"));
       return;
     }
     const ts = Date.now();
@@ -453,8 +455,8 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
       scannedAt: ts,
     }));
     setEntries((prev) => [...prev, ...pasted]);
-    toast.success(`${serials.length} seriali pronti`, {
-      description: 'Collega l\'articolo con "Crea articolo unico" e conferma il carico.',
+    toast.success(t("{n} seriali pronti", { n: serials.length }), {
+      description: t("Collega l'articolo con \"Crea articolo unico\" e conferma il carico."),
     });
     setSerialPaste("");
     setPasteSectionOpen(false);
@@ -515,8 +517,8 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
       const items = payload.extracted?.items ?? [];
       const matches = payload.matches ?? [];
       if (items.length === 0) {
-        toast.warning("Nessun articolo rilevato nel DDT", {
-          description: "Prova con una foto più nitida, oppure aggiungi a mano dal listino.",
+        toast.warning(t("Nessun articolo rilevato nel DDT"), {
+          description: t("Prova con una foto più nitida, oppure aggiungi a mano dal listino."),
         });
         return;
       }
@@ -557,12 +559,12 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
 
       const matchedCount = newEntries.filter((e) => e.stockItemId).length;
       setDdtAiDone(true);
-      toast.success(`DDT analizzato: ${items.length} righe estratte`, {
-        description: `${matchedCount} già a catalogo, ${items.length - matchedCount} da creare. Prosegui per controllare e confermare.`,
+      toast.success(t("DDT analizzato: {n} righe estratte", { n: items.length }), {
+        description: t("{matchedCount} già a catalogo, {n} da creare. Prosegui per controllare e confermare.", { matchedCount: String(matchedCount ?? ""), n: items.length - matchedCount }),
       });
     } catch (e) {
-      toast.error("Analisi DDT non riuscita", {
-        description: (e as Error)?.message ?? "Riprova o aggiungi gli articoli a mano.",
+      toast.error(t("Analisi DDT non riuscita"), {
+        description: (e as Error)?.message ?? t("Riprova o aggiungi gli articoli a mano."),
       });
     } finally {
       setDdtAiLoading(false);
@@ -572,7 +574,7 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
   async function handleConfirm() {
     if (!warehouseId) return;
     if (!canWrite || commitInFlight.current || batchCarico.isPending) return;
-    const invalid = validaRigheUscita(entries) || (entries.some((e) => e.purchasePrice != null && (!Number.isFinite(e.purchasePrice) || e.purchasePrice < 0)) ? "Verifica i prezzi d’acquisto." : null);
+    const invalid = validaRigheUscita(entries) || (entries.some((e) => e.purchasePrice != null && (!Number.isFinite(e.purchasePrice) || e.purchasePrice < 0)) ? t("Verifica i prezzi d’acquisto.") : null);
     if (invalid || costProblem) { setSubmitError(invalid || costProblem); return; }
     commitInFlight.current = true;
     setSubmitError(null);
@@ -674,8 +676,8 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
               .single();
 
             if (lottoErr) {
-              toast.warning("Lotto NON creato", {
-                description: `${lottoErr.message}. Seriali importati comunque.`,
+              toast.warning(t("Lotto NON creato"), {
+                description: t("{message}. Seriali importati comunque.", { message: String(lottoErr.message ?? "") }),
               });
             } else if (lottoRow?.id) {
               // Lega i nuovi stock_units al lotto via UPDATE batch sui seriali
@@ -687,19 +689,19 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
                 .in("serial_number", scannedSerials)
                 .is("lotto_id", null); // safety: aggiorna solo se non già in altro lotto
               if (updErr) {
-                toast.warning("Lotto creato ma seriali non collegati", {
+                toast.warning(t("Lotto creato ma seriali non collegati"), {
                   description: updErr.message,
                 });
               } else {
-                toast.success(`Lotto ${trimmedLottoCode} creato con ${scannedSerials.length} seriali`);
+                toast.success(t("Lotto {trimmedLottoCode} creato con {n} seriali", { trimmedLottoCode: String(trimmedLottoCode ?? ""), n: scannedSerials.length }));
                 queryClient.invalidateQueries({ queryKey: ["warehouse-lotti-list-full"] });
                 queryClient.invalidateQueries({ queryKey: ["warehouse-lotti-list"] });
               }
             }
           }
         } catch (lottoCreationErr) {
-          toast.warning("Errore creazione lotto", {
-            description: (lottoCreationErr as Error)?.message ?? "Seriali importati comunque",
+          toast.warning(t("Errore creazione lotto"), {
+            description: (lottoCreationErr as Error)?.message ?? t("Seriali importati comunque"),
           });
         }
       }
@@ -724,7 +726,7 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
                   description: `Foto prodotti ricevuti da ${supplierNameForUpload ?? "fornitore"} per ${warehouseNameForUpload ?? "magazzino"}`,
                 });
                 if (uploadResult.failed.length > 0) {
-                  toast.warning("Alcune foto prodotto non sono state salvate", {
+                  toast.warning(t("Alcune foto prodotto non sono state salvate"), {
                     description: uploadResult.failed.join(", "),
                   });
                 }
@@ -740,26 +742,26 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
                 insertedAt: insertedAtIso,
               });
               if (ddtUpload.failed.length > 0) {
-                toast.warning("DDT non collegato a tutti gli ordini", {
-                  description: `${ddtUpload.failed.length} collegamenti falliti.`,
+                toast.warning(t("DDT non collegato a tutti gli ordini"), {
+                  description: t("{n} collegamenti falliti.", { n: ddtUpload.failed.length }),
                 });
               }
             }
           } catch (uploadErr) {
-            toast.warning("Allegati non caricati in automatico", {
-              description: (uploadErr as Error)?.message ?? "Riallegali dal dettaglio commessa",
+            toast.warning(t("Allegati non caricati in automatico"), {
+              description: (uploadErr as Error)?.message ?? t("Riallegali dal dettaglio commessa"),
             });
           }
         })();
       }
     } catch (error) {
-      setSubmitError((error as Error).message || "Carico non confermato. Verifica il registro movimenti prima di riprovare se la connessione si è interrotta.");
+      setSubmitError((error as Error).message || t("Carico non confermato. Verifica il registro movimenti prima di riprovare se la connessione si è interrotta."));
     } finally { commitInFlight.current = false; }
   }
 
-  if (partialResult) return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-w-xl"><DialogHeader><DialogTitle>Esito del carico</DialogTitle><DialogDescription>{partialResult.created_movements} movimenti registrati · {partialResult.errors.length} segnalazioni. Il carico non va ripetuto per intero.</DialogDescription></DialogHeader><ul className="max-h-[45vh] space-y-2 overflow-auto">{partialResult.errors.map((e, i) => <li key={i} className="rounded-lg border p-3 text-sm">{entries.find((entry) => entry.stockItemId === e.stock_item_id)?.itemName || e.serial_number || "Articolo"}: {e.error}</li>)}</ul><p className="text-sm text-muted-foreground">Verifica i movimenti già registrati e correggi soltanto gli articoli mancanti.</p><DialogFooter><Button onClick={() => onOpenChange(false)}>Chiudi esito</Button></DialogFooter></DialogContent></Dialog>;
+  if (partialResult) return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-w-xl"><DialogHeader><DialogTitle>{t("Esito del carico")}</DialogTitle><DialogDescription>{t("{created_movements} movimenti registrati · {n} segnalazioni. Il carico non va ripetuto per intero.", { created_movements: String(partialResult.created_movements ?? ""), n: partialResult.errors.length })}</DialogDescription></DialogHeader><ul className="max-h-[45vh] space-y-2 overflow-auto">{partialResult.errors.map((e, i) => <li key={i} className="rounded-lg border p-3 text-sm">{entries.find((entry) => entry.stockItemId === e.stock_item_id)?.itemName || e.serial_number || t("Articolo")}: {e.error}</li>)}</ul><p className="text-sm text-muted-foreground">{t("Verifica i movimenti già registrati e correggi soltanto gli articoli mancanti.")}</p><DialogFooter><Button onClick={() => onOpenChange(false)}>{t("Chiudi esito")}</Button></DialogFooter></DialogContent></Dialog>;
 
-  if (step === "review") return <MovementReviewDialog open={open} operation="carico" balances={balances.data} balancesLoading={balances.isFetching} balancesUnavailable={balances.isError} warehouse={warehouseObj?.name ?? "Magazzino"} counterpart={supplierObj?.name} entries={entries} onBack={() => setStep("context")} onConfirm={() => void handleConfirm()} onOpenChange={onOpenChange} pending={batchCarico.isPending} additionalSummary={registerCost && canViewCosts ? <div className="rounded-xl border bg-blue-50 p-3 text-sm"><p className="font-semibold">Costo aziendale da registrare</p><p>Imponibile {costAmount.toLocaleString("it-IT", {style:"currency",currency:"EUR"})} · IVA {costVat}% · {costCategory}</p><p>{costPaid ? "Pagato il" : "Scadenza"} {new Date(`${costDate}T12:00:00`).toLocaleDateString("it-IT")}</p><p className="mt-1 text-xs text-muted-foreground">Carico e costo vengono salvati insieme una sola volta.</p></div> : undefined} blocked={!canProceedToScan ? "Verifica il magazzino e i permessi." : costProblem || validaRigheUscita(entries)} error={submitError} />;
+  if (step === "review") return <MovementReviewDialog open={open} operation="carico" balances={balances.data} balancesLoading={balances.isFetching} balancesUnavailable={balances.isError} warehouse={warehouseObj?.name ?? t("Magazzino")} counterpart={supplierObj?.name} entries={entries} onBack={() => setStep("context")} onConfirm={() => void handleConfirm()} onOpenChange={onOpenChange} pending={batchCarico.isPending} additionalSummary={registerCost && canViewCosts ? <div className="rounded-xl border bg-blue-50 p-3 text-sm"><p className="font-semibold">{t("Costo aziendale da registrare")}</p><p>{t("Imponibile {costAmount} · IVA {costVat}% · {costCategory}", { costAmount: costAmount.toLocaleString(intlCampo(), {style:"currency",currency:"EUR"}), costVat: String(costVat ?? ""), costCategory: String(costCategory ?? "") })}</p><p>{costPaid ? t("Pagato il {data}", { data: new Date(`${costDate}T12:00:00`).toLocaleDateString(intlCampo()) }) : t("Scadenza {data}", { data: new Date(`${costDate}T12:00:00`).toLocaleDateString(intlCampo()) })}</p><p className="mt-1 text-xs text-muted-foreground">{t("Carico e costo vengono salvati insieme una sola volta.")}</p></div> : undefined} blocked={!canProceedToScan ? t("Verifica il magazzino e i permessi.") : costProblem || validaRigheUscita(entries)} error={submitError} />;
 
   // Step "scan" è gestito dal BatchBarcodeScanner sheet, non dal nostro Sheet
   // (il BatchBarcodeScanner usa il proprio Sheet bottom h-90svh).
@@ -784,7 +786,7 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
             initialEntries={entries}
             onEntriesChange={setEntries}
             onConfirm={() => setStep("review")}
-            confirmLabel="Controlla carico"
+            confirmLabel={t("Controlla carico")}
             isConfirming={batchCarico.isPending}
             onRequestCreateItem={handleRequestCreateItem}
             confirmEachScan={confirmEachScan}
@@ -813,10 +815,10 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
         <DialogHeader className="shrink-0 border-b px-4 py-3 pr-12 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-5 sm:py-4 sm:pt-4">
           <DialogTitle className="flex items-center gap-2 text-base">
             <ArrowDownToLine className="h-5 w-5 text-primary" />
-            Registra arrivo merce
+            {t("Registra arrivo merce")}
           </DialogTitle>
           <DialogDescription className="text-xs">
-            Scegli gli articoli, controlla le quantità e conferma. Puoi usare elenco, scanner o documento di arrivo.
+            {t("Scegli gli articoli, controlla le quantità e conferma. Puoi usare elenco, scanner o documento di arrivo.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -845,10 +847,10 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
               testo impilati su mobile, inline su desktop). */}
           <div className="space-y-2">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Come registri l&apos;arrivo?
+              {t("Come registri l'arrivo?")}
             </p>
             <div className="grid grid-cols-3 gap-2">
-              <Button type="button" variant={receiveMode === "manual" ? "default" : "outline"} className="h-12" onClick={() => { setReceiveMode("manual"); setManualSectionOpen(true); }}>Da elenco</Button>
+              <Button type="button" variant={receiveMode === "manual" ? "default" : "outline"} className="h-12" onClick={() => { setReceiveMode("manual"); setManualSectionOpen(true); }}>{t("Da elenco")}</Button>
               <Button
                 type="button"
                 variant={receiveMode === "scan" ? "default" : "outline"}
@@ -856,7 +858,7 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
                 className="h-auto min-h-[3.25rem] flex-col gap-1 py-2.5 sm:h-12 sm:min-h-0 sm:flex-row sm:gap-2 sm:py-0"
               >
                 <ClipboardList className="h-5 w-5 sm:h-4 sm:w-4" />
-                <span className="text-sm font-medium">Scannerizza</span>
+                <span className="text-sm font-medium">{t("Scannerizza")}</span>
               </Button>
               <Button
                 type="button"
@@ -865,7 +867,7 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
                 className="h-auto min-h-[3.25rem] flex-col gap-1 py-2.5 sm:h-12 sm:min-h-0 sm:flex-row sm:gap-2 sm:py-0"
               >
                 <FileText className="h-5 w-5 sm:h-4 sm:w-4" />
-                <span className="text-sm font-medium">Carica DDT</span>
+                <span className="text-sm font-medium">{t("Carica DDT")}</span>
               </Button>
             </div>
             {receiveMode === "scan" && (
@@ -876,36 +878,34 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
                 aria-pressed={confirmEachScan}
               >
                 <span className="min-w-0 text-xs">
-                  <span className="font-medium">Conferma una alla volta</span>
-                  <span className="block text-muted-foreground">Popup di conferma a ogni scansione (associa o crea)</span>
+                  <span className="font-medium">{t("Conferma una alla volta")}</span>
+                  <span className="block text-muted-foreground">{t("Popup di conferma a ogni scansione (associa o crea)")}</span>
                 </span>
                 <span className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${confirmEachScan ? "bg-primary" : "bg-muted-foreground/30"}`}>
                   <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${confirmEachScan ? "left-[22px]" : "left-0.5"}`} />
                 </span>
               </button>
             )}
-            <p className="text-[11px] text-muted-foreground">
-              Inserimento {insertedAt.toLocaleString("it-IT")} · {insertedBy}
-            </p>
+            <p className="text-[11px] text-muted-foreground">{t("Inserimento {insertedAt} · {insertedBy}", { insertedAt: insertedAt.toLocaleString(intlCampo()), insertedBy: String(insertedBy ?? "") })}</p>
           </div>
 
           {/* Fornitore */}
           <div className="space-y-2">
-            <Label htmlFor="cr-supplier">Fornitore (facoltativo)</Label>
+            <Label htmlFor="cr-supplier">{t("Fornitore (facoltativo)")}</Label>
             {suppliersLoading ? (
               <div className="h-10 border rounded-md flex items-center justify-center text-xs text-muted-foreground">
                 <Loader2 className="h-3 w-3 animate-spin mr-2" />
-                Caricamento...
+                {t("Caricamento...")}
               </div>
             ) : (
               <Select value={supplierId} onValueChange={setSupplierId}>
                 <SelectTrigger id="cr-supplier" className="h-11 sm:h-10">
-                  <SelectValue placeholder="Scegli un fornitore..." />
+                  <SelectValue placeholder={t("Scegli un fornitore...")} />
                 </SelectTrigger>
                 <SelectContent>
                   {suppliers.length === 0 ? (
                     <div className="p-2 text-xs text-muted-foreground">
-                      Nessun fornitore configurato.
+                      {t("Nessun fornitore configurato.")}
                     </div>
                   ) : (
                     suppliers.map((s) => (
@@ -924,21 +924,21 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
                 onClick={() => onOpenChange(false)}
               >
                 <ExternalLink className="h-3 w-3" />
-                Aggiungi un fornitore (facoltativo)
+                {t("Aggiungi un fornitore (facoltativo)")}
               </Link>
             )}
           </div>
 
-          {warehousesError && <Alert variant="destructive"><AlertDescription>Magazzini non disponibili. <Button variant="link" onClick={() => void refetchWarehouses()}>Riprova magazzini</Button></AlertDescription></Alert>}
-          {entries.length > 0 && <p className="text-xs text-muted-foreground">Il magazzino resta fissato alle righe inserite. Rimuovi le righe prima di cambiarlo.</p>}
+          {warehousesError && <Alert variant="destructive"><AlertDescription>{t("Magazzini non disponibili.")} <Button variant="link" onClick={() => void refetchWarehouses()}>{t("Riprova magazzini")}</Button></AlertDescription></Alert>}
+          {entries.length > 0 && <p className="text-xs text-muted-foreground">{t("Il magazzino resta fissato alle righe inserite. Rimuovi le righe prima di cambiarlo.")}</p>}
 
           {/* Magazzino */}
           <div className="space-y-2">
-            <Label htmlFor="cr-warehouse">Magazzino destinazione *</Label>
+            <Label htmlFor="cr-warehouse">{t("Magazzino destinazione *")}</Label>
             {warehousesLoading ? (
               <div className="h-10 border rounded-md flex items-center justify-center text-xs text-muted-foreground">
                 <Loader2 className="h-3 w-3 animate-spin mr-2" />
-                Caricamento...
+                {t("Caricamento...")}
               </div>
             ) : (
               <Select
@@ -949,7 +949,7 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
                 }}
               >
                 <SelectTrigger id="cr-warehouse" className="h-11 sm:h-10">
-                  <SelectValue placeholder="Scegli un magazzino..." />
+                  <SelectValue placeholder={t("Scegli un magazzino...")} />
                 </SelectTrigger>
                 <SelectContent>
                   {warehouses.map((w) => (
@@ -958,7 +958,7 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
                         {w.name}
                         {w.is_default && (
                           <span className="text-[9px] uppercase bg-muted px-1.5 py-0.5 rounded">
-                            default
+                            {t("default")}
                           </span>
                         )}
                       </div>
@@ -979,9 +979,9 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
             >
               <PackagePlus className="h-4 w-4 text-primary shrink-0" aria-hidden="true" />
               <div className="flex-1 text-left min-w-0">
-                <p className="text-sm font-medium">Aggiungi a mano dal listino</p>
+                <p className="text-sm font-medium">{t("Aggiungi a mano dal listino")}</p>
                 <p className="text-[11px] text-muted-foreground">
-                  Niente codice a barre? Scegli l'articolo dal listino/giacenza, quantità e prezzo d'acquisto.
+                  {t("Niente codice a barre? Scegli l'articolo dal listino/giacenza, quantità e prezzo d'acquisto.")}
                 </p>
               </div>
               {manualSectionOpen ? (
@@ -994,7 +994,7 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
               <div className="px-3 pb-3 border-t border-muted-foreground/10 pt-3">
                 {!canProceedToScan ? (
                   <p className="text-[11px] text-amber-600">
-                    Scegli prima il magazzino qui sopra.
+                    {t("Scegli prima il magazzino qui sopra.")}
                   </p>
                 ) : (
                   <ManualArticleAdder
@@ -1025,10 +1025,10 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
               <FileText className="h-4 w-4 text-primary shrink-0" aria-hidden="true" />
               <div className="flex-1 text-left min-w-0">
                 <p className="text-sm font-medium">
-                  DDT arrivo e ordini collegati
+                  {t("DDT arrivo e ordini collegati")}
                   {(ddtFile || relatedOrderIds.length > 0) && (
                     <span className="ml-2 inline-flex items-center gap-1 text-[10px] font-normal bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 px-1.5 py-0.5 rounded-full">
-                      {ddtFile && "DDT ✓"}
+                      {ddtFile && t("DDT ✓")}
                       {ddtFile && relatedOrderIds.length > 0 && " · "}
                       {relatedOrderIds.length > 0 && `${relatedOrderIds.length} ordin${relatedOrderIds.length === 1 ? "e" : "i"}`}
                     </span>
@@ -1036,8 +1036,8 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
                 </p>
                 <p className="text-[11px] text-muted-foreground truncate">
                   {ddtSectionOpen
-                    ? "Opzionale — usa se il fornitore consegna su ordine cliente specifico"
-                    : "Apri se la merce è già destinata a un ordine cliente (opzionale)"}
+                    ? t("Opzionale — usa se il fornitore consegna su ordine cliente specifico")
+                    : t("Apri se la merce è già destinata a un ordine cliente (opzionale)")}
                 </p>
               </div>
               {ddtSectionOpen ? (
@@ -1049,8 +1049,8 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
             {ddtSectionOpen && (
             <div className="px-3 pb-3 space-y-3 border-t border-muted-foreground/10 pt-3">
             <div className="rounded-md border bg-background p-2">
-              <p className="mb-2 text-xs text-muted-foreground">Foto o PDF fino a 10 MB. SVG non ammessi.</p>
-              <p role="note" className="mb-2 text-xs text-muted-foreground">Il file DDT viene archiviato nelle commesse collegate. Senza una commessa puoi usarlo per preparare il carico, ma il file non viene conservato: mantieni l’originale.</p>
+              <p className="mb-2 text-xs text-muted-foreground">{t("Foto o PDF fino a 10 MB. SVG non ammessi.")}</p>
+              <p role="note" className="mb-2 text-xs text-muted-foreground">{t("Il file DDT viene archiviato nelle commesse collegate. Senza una commessa puoi usarlo per preparare il carico, ma il file non viene conservato: mantieni l’originale.")}</p>
               <Input
                 id="cr-ddt-file"
                 type="file"
@@ -1060,7 +1060,7 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
                 onChange={async (event) => {
                   const file=event.target.files?.[0];event.currentTarget.value="";
                   if(!file)return;
-                  try {await validateWarehouseFile(file);setDdtFile(file);setDdtAiDone(false);} catch(error){toast.error(error instanceof Error?error.message:"File non valido.");}
+                  try {await validateWarehouseFile(file);setDdtFile(file);setDdtAiDone(false);} catch(error){toast.error(error instanceof Error?error.message:t("File non valido."));}
                 }}
               />
               {ddtFile ? (
@@ -1068,7 +1068,7 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
                   <div className="flex min-w-0 items-center justify-between gap-2">
                     <div className="min-w-0">
                       <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                        DDT allegato
+                        {t("DDT allegato")}
                       </p>
                       <p className="truncate text-xs font-medium">{ddtFile.name}</p>
                     </div>
@@ -1081,7 +1081,7 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
                         setDdtFile(null);
                         setDdtAiDone(false);
                       }}
-                      aria-label={`Rimuovi DDT ${ddtFile.name}`}
+                      aria-label={t("Rimuovi DDT {name}", { name: String(ddtFile.name ?? "") })}
                     >
                       <X className="h-3.5 w-3.5" aria-hidden="true" />
                     </Button>
@@ -1098,23 +1098,22 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
                     {ddtAiLoading ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        Analisi in corso…
+                        {t("Analisi in corso…")}
                       </>
                     ) : ddtAiDone ? (
                       <>
                         <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                        Analizzato — rianalizza
+                        {t("Analizzato — rianalizza")}
                       </>
                     ) : (
                       <>
                         <Sparkles className="h-4 w-4" />
-                        Analizza DDT con AI
+                        {t("Analizza DDT con AI")}
                       </>
                     )}
                   </Button>
                   <p className="text-[10px] text-muted-foreground">
-                    L&apos;AI legge il DDT, estrae gli articoli e pre-compila il carico (li potrai
-                    controllare prima di confermare).
+                    {t("L'AI legge il DDT, estrae gli articoli e pre-compila il carico (li potrai controllare prima di confermare).")}
                   </p>
                 </div>
               ) : (
@@ -1124,9 +1123,9 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
                 >
                   <span className="flex min-w-0 items-center gap-2">
                     <FileText className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-                    <span className="truncate font-medium">Allega DDT</span>
+                    <span className="truncate font-medium">{t("Allega DDT")}</span>
                   </span>
-                  <span className="shrink-0 text-xs text-muted-foreground">Foto o PDF</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">{t("Foto o PDF")}</span>
                 </label>
               )}
             </div>
@@ -1134,25 +1133,25 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
               <Alert className="border-amber-200 bg-amber-50/70 text-amber-900">
                 <Info className="h-4 w-4" />
                 <AlertDescription className="text-xs">
-                  Hai scelto “Carica DDT”: allega il DDT prima di continuare, poi registrerai i prodotti ricevuti.
+                  {t("Hai scelto “Carica DDT”: allega il DDT prima di continuare, poi registrerai i prodotti ricevuti.")}
                 </AlertDescription>
               </Alert>
             )}
             <div className="rounded-md border bg-background">
               <div className="flex items-center justify-between gap-2 border-b px-3 py-2 text-xs font-medium text-muted-foreground">
-                <span>Ordini da collegare</span>
+                <span>{t("Ordini da collegare")}</span>
                 <div className="flex items-center gap-2">
                   {relatedOrderIds.length > 0 && (
                     <>
                       <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
-                        {relatedOrderIds.length} selezionat{relatedOrderIds.length === 1 ? "o" : "i"}
+                        {t(relatedOrderIds.length === 1 ? "{n} selezionato" : "{n} selezionati", { n: relatedOrderIds.length })}
                       </span>
                       <button
                         type="button"
                         className="text-[11px] text-primary hover:underline"
                         onClick={() => setRelatedOrderIds([])}
                       >
-                        Azzera
+                        {t("Azzera")}
                       </button>
                     </>
                   )}
@@ -1164,7 +1163,7 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
                   <Input
                     value={orderSearch}
                     onChange={(event) => setOrderSearch(event.target.value)}
-                    placeholder="Cerca ordine o cliente..."
+                    placeholder={t("Cerca ordine o cliente...")}
                     className="h-8 pl-8 text-xs"
                   />
                 </div>
@@ -1173,11 +1172,11 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
                 {relatedOrdersLoading ? (
                   <div className="flex items-center justify-center py-4 text-xs text-muted-foreground">
                     <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                    Caricamento ordini...
+                    {t("Caricamento ordini...")}
                   </div>
                 ) : filteredRelatedOrders.length === 0 ? (
                   <p className="px-2 py-3 text-xs text-muted-foreground">
-                    {orderSearch ? "Nessun ordine trovato con questa ricerca." : "Nessun ordine disponibile."}
+                    {orderSearch ? t("Nessun ordine trovato con questa ricerca.") : t("Nessun ordine disponibile.")}
                   </p>
                 ) : (
                   filteredRelatedOrders.map((order) => {
@@ -1222,22 +1221,22 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
             )}
           </div>
 
-          <details className="rounded-lg border p-3"><summary className="cursor-pointer text-sm font-medium">Lotti, ubicazione e seriali (facoltativi)</summary><div className="mt-3 space-y-4">
+          <details className="rounded-lg border p-3"><summary className="cursor-pointer text-sm font-medium">{t("Lotti, ubicazione e seriali (facoltativi)")}</summary><div className="mt-3 space-y-4">
           {/* B3 — Sezione di stoccaggio + scadenza lotto (entrata merce) */}
           {sections.length > 0 && (
             <div className="space-y-2">
               <Label htmlFor="cr-section" className="text-xs">
-                Sezione / ubicazione di stoccaggio (opzionale)
+                {t("Sezione / ubicazione di stoccaggio (opzionale)")}
               </Label>
               <Select
                 value={sectionId ?? "__none__"}
                 onValueChange={(v) => setSectionId(v === "__none__" ? undefined : v)}
               >
                 <SelectTrigger id="cr-section" className="h-11 sm:h-10">
-                  <SelectValue placeholder="Nessuna sezione" />
+                  <SelectValue placeholder={t("Nessuna sezione")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">Nessuna sezione</SelectItem>
+                  <SelectItem value="__none__">{t("Nessuna sezione")}</SelectItem>
                   {sections.map((s) => (
                     <SelectItem key={s.id} value={s.id}>
                       {s.name}
@@ -1246,7 +1245,7 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
                 </SelectContent>
               </Select>
               <p className="text-[10px] text-muted-foreground">
-                Applica scaffale/area a tutte le righe di questo carico (giacenza + seriali).
+                {t("Applica scaffale/area a tutte le righe di questo carico (giacenza + seriali).")}
               </p>
             </div>
           )}
@@ -1254,24 +1253,22 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
           {/* Codice lotto opzionale */}
           <div className="space-y-2">
             <Label htmlFor="cr-lotto" className="text-xs">
-              Codice lotto / bancale (opzionale)
+              {t("Codice lotto / bancale (opzionale)")}
             </Label>
             <Input
               id="cr-lotto"
               value={lottoCode}
               onChange={(e) => setLottoCode(e.target.value)}
-              placeholder="LOT-2026-001 — utile per fotovoltaico/impiantistica"
+              placeholder={t("LOT-2026-001 — utile per fotovoltaico/impiantistica")}
               className="font-mono text-xs"
               maxLength={80}
             />
             <p className="text-[10px] text-muted-foreground">
-              Se compilato, tutti i seriali scansionati verranno raggruppati sotto questo lotto.
-              Se lo lasci vuoto e scansioni il QR "SERIALS" di un bancale, il codice lotto viene
-              rilevato in automatico dal prefisso comune dei seriali (es. 36 pannelli → 1 lotto).
+              {t("Se compilato, tutti i seriali scansionati verranno raggruppati sotto questo lotto. Se lo lasci vuoto e scansioni il QR \"SERIALS\" di un bancale, il codice lotto viene rilevato in automatico dal prefisso comune dei seriali (es. 36 pannelli → 1 lotto).")}
             </p>
             <div className="space-y-1.5 pt-1">
               <Label htmlFor="cr-lotto-scadenza" className="text-xs">
-                Scadenza lotto (opzionale)
+                {t("Scadenza lotto (opzionale)")}
               </Label>
               <Input
                 id="cr-lotto-scadenza"
@@ -1281,7 +1278,7 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
                 className="text-xs"
               />
               <p className="text-[10px] text-muted-foreground">
-                Utile per materiali deperibili o con garanzia a termine (sigillanti, collanti, additivi).
+                {t("Utile per materiali deperibili o con garanzia a termine (sigillanti, collanti, additivi).")}
               </p>
             </div>
           </div>
@@ -1296,9 +1293,9 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
             >
               <ClipboardList className="h-4 w-4 text-primary shrink-0" aria-hidden="true" />
               <div className="flex-1 text-left min-w-0">
-                <p className="text-sm font-medium">Incolla seriali del bancale</p>
+                <p className="text-sm font-medium">{t("Incolla seriali del bancale")}</p>
                 <p className="text-[11px] text-muted-foreground">
-                  Se il QR è difficile da inquadrare: scansionalo col telefono e incolla qui la lista.
+                  {t("Se il QR è difficile da inquadrare: scansionalo col telefono e incolla qui la lista.")}
                 </p>
               </div>
               {pasteSectionOpen ? (
@@ -1312,7 +1309,7 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
                 <Textarea
                   value={serialPaste}
                   onChange={(e) => setSerialPaste(e.target.value)}
-                  placeholder={"Seriali separati da spazio, virgola o a-capo\nes. V13H10002035 V13H10002023 V13H10001689 ..."}
+                  placeholder={t("Seriali separati da spazio, virgola o a-capo\nes. V13H10002035 V13H10002023 V13H10001689 ...")}
                   rows={4}
                   className="font-mono text-xs"
                 />
@@ -1324,10 +1321,10 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
                   disabled={!serialPaste.trim() || !canProceedToScan}
                   onClick={handleLoadPastedSerials}
                 >
-                  Carica seriali e prosegui
+                  {t("Carica seriali e prosegui")}
                 </Button>
                 {!canProceedToScan && (
-                  <p className="text-[10px] text-amber-600">Scegli prima il magazzino qui sopra.</p>
+                  <p className="text-[10px] text-amber-600">{t("Scegli prima il magazzino qui sopra.")}</p>
                 )}
               </div>
             )}
@@ -1338,13 +1335,13 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
           {/* Note opzionali */}
           <div className="space-y-2">
             <Label htmlFor="cr-notes" className="text-xs">
-              Note (opzionali)
+              {t("Note (opzionali)")}
             </Label>
             <Input
               id="cr-notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Es. DDT 1234, ricezione mattina"
+              placeholder={t("Es. DDT 1234, ricezione mattina")}
               maxLength={200}
             />
           </div>
@@ -1353,9 +1350,9 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
             <div className="flex items-start gap-2">
               <Camera className="h-4 w-4 mt-0.5 text-primary" aria-hidden="true" />
               <div>
-                <p className="text-sm font-medium">Foto prodotti ricevuti</p>
+                <p className="text-sm font-medium">{t("Foto prodotti ricevuti")}</p>
                 <p className="text-xs text-muted-foreground">
-                  Foto fino a 10 MB ciascuna, massimo 10 foto. SVG non ammessi.
+                  {t("Foto fino a 10 MB ciascuna, massimo 10 foto. SVG non ammessi.")}
                 </p>
               </div>
             </div>
@@ -1369,7 +1366,7 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
                 const files=Array.from(event.target.files??[]);event.currentTarget.value="";
                 const valid:File[]=[];
                 for(const file of files){try{await validateWarehouseFile(file,true);valid.push(file);}catch(error){toast.error(`${file.name}: ${error instanceof Error?error.message:"File non valido."}`);}}
-                setProductPhotos(current=>{if(current.length+valid.length>MAX_WAREHOUSE_PHOTOS){toast.error("Carica al massimo 10 foto alla volta.");return current;}return [...current,...valid];});
+                setProductPhotos(current=>{if(current.length+valid.length>MAX_WAREHOUSE_PHOTOS){toast.error(t("Carica al massimo 10 foto alla volta."));return current;}return [...current,...valid];});
               }}
             />
             {productPhotos.length > 0 && (
@@ -1383,7 +1380,7 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
                       size="icon"
                       className="h-7 w-7 shrink-0"
                       onClick={() => setProductPhotos((current) => current.filter((_, i) => i !== index))}
-                      aria-label={`Rimuovi foto ${file.name}`}
+                      aria-label={t("Rimuovi foto {name}", { name: String(file.name ?? "") })}
                     >
                       <X className="h-3.5 w-3.5" aria-hidden="true" />
                     </Button>
@@ -1397,22 +1394,21 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
             <Alert>
               <Info className="h-4 w-4" />
               <AlertDescription className="text-xs">
-                Questo fornitore usa GS1: il parser estrarrà GTIN, lotto, seriale e scadenza
-                automaticamente.
+                {t("Questo fornitore usa GS1: il parser estrarrà GTIN, lotto, seriale e scadenza automaticamente.")}
               </AlertDescription>
             </Alert>
           )}
 
         {entries.length > 0 && validaRigheUscita(entries) && <p role="alert" className="border-t px-4 py-2 text-xs text-destructive">{validaRigheUscita(entries)}</p>}
-        {canViewCosts && <section className="rounded-xl border bg-muted/20 p-3 space-y-3" aria-label="Costo aziendale del carico">
-        <div className="flex items-center gap-2"><Checkbox id="carico-register-cost" checked={registerCost} onCheckedChange={v => setRegisterCost(v === true)} /><Label htmlFor="carico-register-cost">Registra costo acquisto nei Costi Aziendali</Label></div>
-        <p className="text-xs text-muted-foreground">Facoltativo per il carico libero. Attivalo solo se questo acquisto non è già registrato da un ordine, una fattura o un altro costo.</p>
+        {canViewCosts && <section className="rounded-xl border bg-muted/20 p-3 space-y-3" aria-label={t("Costo aziendale del carico")}>
+        <div className="flex items-center gap-2"><Checkbox id="carico-register-cost" checked={registerCost} onCheckedChange={v => setRegisterCost(v === true)} /><Label htmlFor="carico-register-cost">{t("Registra costo acquisto nei Costi Aziendali")}</Label></div>
+        <p className="text-xs text-muted-foreground">{t("Facoltativo per il carico libero. Attivalo solo se questo acquisto non è già registrato da un ordine, una fattura o un altro costo.")}</p>
         {registerCost && <><div className="grid gap-3 sm:grid-cols-2">
-          <div><Label htmlFor="carico-cost-date">{costPaid ? "Data pagamento" : "Data scadenza"}</Label><Input id="carico-cost-date" type="date" value={costDate} onChange={e => setCostDate(e.target.value)} /></div>
-          <div><Label htmlFor="carico-cost-category">Categoria costo</Label><Select value={costCategory} onValueChange={setCostCategory}><SelectTrigger id="carico-cost-category"><SelectValue /></SelectTrigger><SelectContent>{["Magazzino","Materiali","Attrezzature","Consumabili","Altro"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></div>
-          <div><Label htmlFor="carico-cost-vat">IVA del costo</Label><Select value={costVat} onValueChange={setCostVat}><SelectTrigger id="carico-cost-vat"><SelectValue /></SelectTrigger><SelectContent>{["0","4","5","10","22"].map(v => <SelectItem key={v} value={v}>{v}%</SelectItem>)}</SelectContent></Select></div>
-          <div className="flex items-center gap-2"><Checkbox id="carico-cost-paid" checked={costPaid} onCheckedChange={v => setCostPaid(v === true)} /><Label htmlFor="carico-cost-paid">Acquisto già pagato</Label></div>
-        </div><p className="text-sm font-medium">Imponibile: {costAmount.toLocaleString("it-IT", {style:"currency",currency:"EUR"})}</p>{costProblem && <p role="alert" className="text-sm text-destructive">{costProblem}</p>}</>}
+          <div><Label htmlFor="carico-cost-date">{costPaid ? t("Data pagamento") : t("Data scadenza")}</Label><Input id="carico-cost-date" type="date" value={costDate} onChange={e => setCostDate(e.target.value)} /></div>
+          <div><Label htmlFor="carico-cost-category">{t("Categoria costo")}</Label><Select value={costCategory} onValueChange={setCostCategory}><SelectTrigger id="carico-cost-category"><SelectValue /></SelectTrigger><SelectContent>{["Magazzino","Materiali","Attrezzature","Consumabili","Altro"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></div>
+          <div><Label htmlFor="carico-cost-vat">{t("IVA del costo")}</Label><Select value={costVat} onValueChange={setCostVat}><SelectTrigger id="carico-cost-vat"><SelectValue /></SelectTrigger><SelectContent>{["0","4","5","10","22"].map(v => <SelectItem key={v} value={v}>{v}%</SelectItem>)}</SelectContent></Select></div>
+          <div className="flex items-center gap-2"><Checkbox id="carico-cost-paid" checked={costPaid} onCheckedChange={v => setCostPaid(v === true)} /><Label htmlFor="carico-cost-paid">{t("Acquisto già pagato")}</Label></div>
+        </div><p className="text-sm font-medium">{t("Imponibile: {costAmount}", { costAmount: costAmount.toLocaleString(intlCampo(), {style:"currency",currency:"EUR"}) })}</p>{costProblem && <p role="alert" className="text-sm text-destructive">{costProblem}</p>}</>}
       </section>}
         </div>
       <DialogFooter className="shrink-0 flex-row gap-2 border-t bg-card p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-3">
@@ -1422,14 +1418,14 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
             className="h-12 flex-1 sm:h-10"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button
             onClick={() => setStep(entries.length > 0 ? "review" : "scan")}
             disabled={!canContinueReceipt || (receiveMode === "manual" && entries.length === 0) || (entries.length > 0 && !!validaRigheUscita(entries))}
             className="h-12 min-w-0 flex-[2] whitespace-normal text-[15px] leading-tight font-semibold sm:h-10 sm:text-sm"
           >
-            {entries.length > 0 ? "Controlla carico" : receiveMode === "manual" ? "Aggiungi articoli" : continueLabel}
+            {entries.length > 0 ? t("Controlla carico") : receiveMode === "manual" ? t("Aggiungi articoli") : continueLabel}
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </DialogFooter>

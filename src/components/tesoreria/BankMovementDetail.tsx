@@ -65,6 +65,7 @@ import { CategoriaMovimento } from "./CategoriaMovimento";
 import { useVociMovimenti } from "@/lib/finance/cassaVoci";
 import { ControparteRiconosciuta, SuggerimentiAbbinamento, useSuggerimentiMovimento } from "./MovimentoSuggerimenti";
 import { AlternativeEsito, BadgeEsito, RigaEsitoMovimento, useEsitoMovimento } from "./EsitoMovimento";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type BankDetailSection = "documents" | "contexts";
 
@@ -79,6 +80,7 @@ export function BankMovementDetail({
   onClose: () => void;
   initialSection?: BankDetailSection;
 }) {
+  const t = useT();
   const permissions = usePermissions();
   const [dirty, setDirty] = useState(false);
   const [discard, setDiscard] = useState(false);
@@ -110,23 +112,23 @@ export function BankMovementDetail({
         }}
       >
         <DialogHeader className="pr-8">
-          <DialogTitle>Dettaglio movimento</DialogTitle>
+          <DialogTitle>{t("Dettaglio movimento")}</DialogTitle>
           <DialogDescription
             className="line-clamp-2"
             title={q.data ? bankCausale(q.data) : undefined}
           >
             {q.data
               ? `${money(q.data.amount, "—", q.data.currency)} · ${bankCausale(q.data)}`
-              : "Dati bancari, abbinamenti, quote e note interne."}
+              : t("Dati bancari, abbinamenti, quote e note interne.")}
           </DialogDescription>
         </DialogHeader>
         {q.isPending ? (
-          <p role="status">Caricamento movimento…</p>
+          <p role="status">{t("Caricamento movimento…")}</p>
         ) : q.isError ? (
           <div role="alert">
-            <p>Movimento non disponibile: {q.error.message}</p>
+            <p>{t("Movimento non disponibile: {errore}", { errore: String(q.error.message ?? "") })}</p>
             <Button variant="outline" onClick={() => void q.refetch()}>
-              Riprova
+              {t("Riprova")}
             </Button>
           </div>
         ) : (
@@ -142,15 +144,15 @@ export function BankMovementDetail({
       <AlertDialog open={discard} onOpenChange={setDiscard}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Chiudere senza salvare?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Chiudere senza salvare?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Ci sono note o collegamenti modificati che non hai ancora salvato.
+              {t("Ci sono note o collegamenti modificati che non hai ancora salvato.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Continua a modificare</AlertDialogCancel>
+            <AlertDialogCancel>{t("Continua a modificare")}</AlertDialogCancel>
             <AlertDialogAction onClick={onClose}>
-              Chiudi senza salvare
+              {t("Chiudi senza salvare")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -169,6 +171,7 @@ function Detail({
   onDirtyChange: (dirty: boolean) => void;
   initialSection?: BankDetailSection;
 }) {
+  const tr = useT();
   const perms = usePermissions();
   const client = useQueryClient();
   const write = perms.canReconcileBankTransactions;
@@ -217,10 +220,10 @@ function Detail({
     setBusy(true);
     try {
       await action();
-      toast.success(message);
+      toast.success(tr(message));
       refresh();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Operazione non riuscita");
+      toast.error(e instanceof Error ? e.message : tr("Operazione non riuscita"));
     } finally {
       setBusy(false);
     }
@@ -254,7 +257,7 @@ function Detail({
     }, "Ordine d'acquisto collegato");
   const riga = (titolo: string, contenuto: ReactNode, sotto?: ReactNode) => (
     <>
-      <dt className="pt-0.5 text-muted-foreground">{titolo}</dt>
+      <dt className="pt-0.5 text-muted-foreground">{titolo ? tr(titolo) : null}</dt>
       <dd className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">{contenuto}{sotto}</dd>
     </>
   );
@@ -285,11 +288,11 @@ function Detail({
           </div>
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <span className="text-muted-foreground">
-              Abbinato <strong className="text-foreground tabular-nums">{monetary(pos ? pos.netto : m.links.matched)}</strong>
-              {" · "}da abbinare <strong className={`tabular-nums ${m.links.remaining > 0 ? "text-amber-700 dark:text-amber-400" : "text-foreground"}`}>{monetary(m.links.remaining)}</strong>
+              {tr("Abbinato")} <strong className="text-foreground tabular-nums">{monetary(pos ? pos.netto : m.links.matched)}</strong>
+              {" · "}{tr("da abbinare")} <strong className={`tabular-nums ${m.links.remaining > 0 ? "text-amber-700 dark:text-amber-400" : "text-foreground"}`}>{monetary(m.links.remaining)}</strong>
             </span>
             <Badge variant="outline" className={state.className}>
-              {pos ? "Accredito POS" : state.label}
+              {pos ? tr("Accredito POS") : tr(state.label)}
             </Badge>
             {!pos && <BadgeEsito esito={esito.data} />}
           </div>
@@ -309,13 +312,13 @@ function Detail({
             [
               "Stato in banca",
               m.status === "booked"
-                ? "Contabilizzato"
-                : "In attesa",
+                ? tr("Contabilizzato")
+                : tr("In attesa"),
             ],
             ...(m.reference ? [["Riferimento", m.reference]] : []),
           ].map(([k, v]) => (
             <div key={k} className="min-w-0">
-              <dt className="text-xs text-muted-foreground">{k}</dt>
+              <dt className="text-xs text-muted-foreground">{tr(k)}</dt>
               <dd className="break-words">{v || "—"}</dd>
             </div>
           ))}
@@ -325,14 +328,14 @@ function Detail({
       {/* Un posto solo: ogni legame ha la sua riga, e quel che serve per cambiarlo si apre lì sotto. */}
       <section className="rounded-xl border p-4" aria-labelledby="collegato-a">
         <h3 id="collegato-a" className="mb-3 flex items-center gap-2 font-semibold">
-          <Link2 className="h-4 w-4" /> A cosa è collegato
+          <Link2 className="h-4 w-4" /> {tr("A cosa è collegato")}
         </h3>
         <dl className="grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-[minmax(130px,max-content)_1fr]">
           {conEsito && !pos && riga("Esito", <RigaEsitoMovimento company={company} movement={m} esito={esito.data!} puoScrivere={write} onCambiato={refresh} />)}
           {pos && riga("Cassa in Cloud", <>
-            <span>{pos.chiusure} {pos.chiusure === 1 ? "chiusura" : "chiusure"} · Lordo {monetary(pos.lordo)} · Commissioni {monetary(pos.commissioni)}</span>
+            <span>{tr(pos.chiusure === 1 ? "{n} chiusura" : "{n} chiusure", { n: pos.chiusure })} · {tr("Lordo {importo}", { importo: monetary(pos.lordo) })} · {tr("Commissioni {importo}", { importo: monetary(pos.commissioni) })}</span>
             {perms.canViewBilling && <Link className="font-medium text-primary hover:underline"
-              to={`${CHIUSURE_CASSA}&dal=${pos.dal_chiusure ?? ""}&al=${pos.al_chiusure ?? ""}`}>Apri chiusure</Link>}
+              to={`${CHIUSURE_CASSA}&dal=${pos.dal_chiusure ?? ""}&al=${pos.al_chiusure ?? ""}`}>{tr("Apri chiusure")}</Link>}
           </>)}
           {riga("Controparte", <ControparteRiconosciuta s={s} onCollegaOda={puoContesti && !editContexts ? collegaOda : undefined} odaCollegate={contesti(["oda"]).map((c) => c.id)} />)}
           {riga(
@@ -359,12 +362,12 @@ function Detail({
             <>
               {m.links.financial.length === 0 && <Nessuno />}
               {validMatch && (
-                <Azione onClick={() => setMode((v) => (v ? null : "new"))} label="Collega fatture e pagamenti">
-                  {mode ? "Chiudi" : m.links.financial.length ? "Aggiungi" : "Collega"}
+                <Azione onClick={() => setMode((v) => (v ? null : "new"))} label={tr("Collega fatture e pagamenti")}>
+                  {mode ? tr("Chiudi") : m.links.financial.length ? tr("Aggiungi") : tr("Collega")}
                 </Azione>
               )}
               {m.links.remaining > 0 && m.links.matched > 0 && (
-                <span className="text-xs text-amber-700 dark:text-amber-400">restano {monetary(m.links.remaining)}</span>
+                <span className="text-xs text-amber-700 dark:text-amber-400">{tr("restano {importo}", { importo: String(monetary(m.links.remaining) ?? "") })}</span>
               )}
             </>,
             <>
@@ -373,7 +376,7 @@ function Detail({
                   {m.links.financial.map((f, i) => (
                     <li key={f.id ?? `legacy-${i}`} className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 px-2.5 py-1.5">
                       <span className="shrink-0 text-xs text-muted-foreground">
-                        {f.existing_payment ? "Pagamento registrato" : f.kind === "quota_fornitore" ? "Quota pagata" : f.kind === "scadenza" ? "Scadenza" : "Documento"}
+                        {f.existing_payment ? tr("Pagamento registrato") : f.kind === "quota_fornitore" ? tr("Quota pagata") : f.kind === "scadenza" ? tr("Scadenza") : tr("Documento")}
                       </span>
                       <span className="min-w-0 flex-1 truncate max-sm:basis-full max-sm:order-first" title={f.note ?? f.label}>
                         {f.url ? (
@@ -390,7 +393,7 @@ function Detail({
                           che identifica quel cliente negli incassi futuri (tesoreria_ricorda_iban_da_quota). */}
                       {write && f.id && m.amount > 0 && (m.debtor_iban || m.counterparty_iban) && (f.kind === "documento" || f.kind === "invoice") && (
                         <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground" disabled={busy}
-                          title="Ricorda questo IBAN per il cliente della fattura" aria-label="Ricorda questo IBAN per il cliente della fattura"
+                          title={tr("Ricorda questo IBAN per il cliente della fattura")} aria-label={tr("Ricorda questo IBAN per il cliente della fattura")}
                           onClick={() => void act(async () => {
                             await bankRpc("tesoreria_ricorda_iban_da_quota", { p_company: company, p_riconciliazione: f.id });
                           }, "IBAN ricordato: identificherà i prossimi bonifici di questo cliente")}>
@@ -399,8 +402,8 @@ function Detail({
                       )}
                       {write && f.id && f.split && (
                         <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground" onClick={() => setRemove(f)} disabled={busy}
-                          title={f.existing_payment ? "Scollega prova bancaria" : "Annulla abbinamento"}
-                          aria-label={f.existing_payment ? "Scollega prova bancaria" : "Annulla abbinamento"}>
+                          title={f.existing_payment ? tr("Scollega prova bancaria") : tr("Annulla abbinamento")}
+                          aria-label={f.existing_payment ? tr("Scollega prova bancaria") : tr("Annulla abbinamento")}>
                           <Unlink className="h-3.5 w-3.5" />
                         </Button>
                       )}
@@ -410,11 +413,11 @@ function Detail({
               )}
               {m.reconciliation_status === "suggestion" && (
                 <p className="basis-full rounded-lg border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-xs text-violet-900">
-                  Proposta da verificare: c'è una possibile corrispondenza, ma il suggerimento non registra pagamenti.
+                  {tr("Proposta da verificare: c'è una possibile corrispondenza, ma il suggerimento non registra pagamenti.")}
                   {write && (
                     <Button variant="link" size="sm" className="ml-1 h-auto p-0 text-xs" disabled={busy}
                       onClick={() => void act(async () => { await bankRpc("bank_scarta_suggerimento", { p_company: company, p_tx: m.id }); }, "Proposta scartata")}>
-                      Scarta proposta
+                      {tr("Scarta proposta")}
                     </Button>
                   )}
                 </p>
@@ -426,10 +429,10 @@ function Detail({
               {write && !validMatch && !m.chiuso_senza_documento && m.links.remaining > 0 && (
                 <p className="basis-full text-xs text-muted-foreground">
                   {m.status !== "booked"
-                    ? "Attendi che la banca contabilizzi il movimento prima di abbinarlo."
+                    ? tr("Attendi che la banca contabilizzi il movimento prima di abbinarlo.")
                     : m.currency !== "EUR"
-                      ? "Movimento in valuta estera: occorre verificare il cambio prima di registrare pagamenti in euro."
-                      : "Questo movimento richiede la verifica degli abbinamenti precedenti."}
+                      ? tr("Movimento in valuta estera: occorre verificare il cambio prima di registrare pagamenti in euro.")
+                      : tr("Questo movimento richiede la verifica degli abbinamenti precedenti.")}
                 </p>
               )}
               {validMatch && mode && (
@@ -437,23 +440,23 @@ function Detail({
                   ref={(el) => { if (initialSection === "documents") startSection.current = el; }}
                   className="basis-full scroll-mt-4 space-y-3 rounded-lg border bg-muted/20 p-3"
                 >
-                  <div className="flex flex-wrap gap-1.5" role="group" aria-label="Come collegare">
-                    <Button size="sm" variant={mode === "new" ? "default" : "outline"} aria-label="Collega fatture e scadenze" onClick={() => setMode("new")}>
-                      <FileText className="mr-1 h-3.5 w-3.5" />Fatture e scadenze
+                  <div className="flex flex-wrap gap-1.5" role="group" aria-label={tr("Come collegare")}>
+                    <Button size="sm" variant={mode === "new" ? "default" : "outline"} aria-label={tr("Collega fatture e scadenze")} onClick={() => setMode("new")}>
+                      <FileText className="mr-1 h-3.5 w-3.5" />{tr("Fatture e scadenze")}
                     </Button>
                     {perms.canViewPrimaNota && (
-                      <Button size="sm" variant={mode === "existing" ? "default" : "outline"} aria-label="Collega pagamenti già registrati" onClick={() => setMode("existing")}>
-                        <Link2 className="mr-1 h-3.5 w-3.5" />Pagamenti già registrati
+                      <Button size="sm" variant={mode === "existing" ? "default" : "outline"} aria-label={tr("Collega pagamenti già registrati")} onClick={() => setMode("existing")}>
+                        <Link2 className="mr-1 h-3.5 w-3.5" />{tr("Pagamenti già registrati")}
                       </Button>
                     )}
                     {perms.canViewPrimaNota && (
-                      <Button size="sm" variant="outline" aria-label="Dividi in quote" onClick={() => setDividi(true)}>
-                        Dividi in quote
+                      <Button size="sm" variant="outline" aria-label={tr("Dividi in quote")} onClick={() => setDividi(true)}>
+                        {tr("Dividi in quote")}
                       </Button>
                     )}
                     {m.links.matched === 0 && (
-                      <Button size="sm" variant={mode === "none" ? "default" : "outline"} aria-label="Senza fattura" onClick={() => setMode("none")}>
-                        Senza fattura
+                      <Button size="sm" variant={mode === "none" ? "default" : "outline"} aria-label={tr("Senza fattura")} onClick={() => setMode("none")}>
+                        {tr("Senza fattura")}
                       </Button>
                     )}
                   </div>
@@ -474,14 +477,14 @@ function Detail({
             "Commesse",
             <>
               {commesse.size ? [...commesse.values()].map((j) => <Pastiglia valuta={monetary} key={j.id} t={j} importo={(j as { amount?: number }).amount} />) : <Nessuno />}
-              {!editContexts && <Azione onClick={apriContesti} label="Collega una commessa">{commesse.size ? "Modifica" : "Collega"}</Azione>}
+              {!editContexts && <Azione onClick={apriContesti} label={tr("Collega una commessa")}>{commesse.size ? tr("Modifica") : tr("Collega")}</Azione>}
             </>,
           )}
           {riga(
             "Mezzi",
             <>
               {contesti(["mezzo"]).length ? contesti(["mezzo"]).map((c) => <Pastiglia valuta={monetary} key={c.context_id ?? c.id} t={c} importo={c.amount} />) : <Nessuno />}
-              {!editContexts && <Azione onClick={apriContesti} label="Collega un mezzo">{contesti(["mezzo"]).length ? "Modifica" : "Collega"}</Azione>}
+              {!editContexts && <Azione onClick={apriContesti} label={tr("Collega un mezzo")}>{contesti(["mezzo"]).length ? tr("Modifica") : tr("Collega")}</Azione>}
             </>,
           )}
           {contesti(["fornitore"]).length > 0 &&
@@ -493,7 +496,7 @@ function Detail({
               <Fragment key={tipo}>
                 {riga(titolo, <>
                   {contesti([tipo]).map((c) => <Pastiglia valuta={monetary} key={c.context_id ?? c.id} t={c} importo={c.amount} />)}
-                  {!editContexts && <Azione onClick={apriContesti} label={`Modifica ${titolo}`}>Modifica</Azione>}
+                  {!editContexts && <Azione onClick={apriContesti} label={tr("Modifica {titolo}", { titolo: tr(titolo) })}>{tr("Modifica")}</Azione>}
                 </>)}
               </Fragment>
             ) : null,
@@ -501,19 +504,19 @@ function Detail({
           {!editContexts && puoContesti && riga(
             "Altro",
             <span className="text-xs text-muted-foreground">
-              Fornitore, ordine d'acquisto, F24, cespite o personale:{" "}
-              <Azione onClick={apriContesti} label="Collega un altro riferimento">Collega</Azione>
+              {tr("Fornitore, ordine d'acquisto, F24, cespite o personale:")}{" "}
+              <Azione onClick={apriContesti} label={tr("Collega un altro riferimento")}>{tr("Collega")}</Azione>
             </span>,
           )}
-          {m.links.restricted_contexts && riga("", <span className="text-xs text-muted-foreground">Alcuni riferimenti sono riservati: li modifica un amministratore.</span>)}
+          {m.links.restricted_contexts && riga("", <span className="text-xs text-muted-foreground">{tr("Alcuni riferimenti sono riservati: li modifica un amministratore.")}</span>)}
           {editContexts && puoContesti && (
             <div
               ref={(el) => { if (initialSection === "contexts") startSection.current = el; }}
               className="scroll-mt-4 rounded-lg border bg-muted/20 p-3 sm:col-span-2"
             >
               <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="text-sm font-medium">Commesse, fornitori, mezzi e personale</p>
-                <Button size="sm" variant="ghost" onClick={() => { setEditContexts(false); setContextDirty(false); }}>Annulla</Button>
+                <p className="text-sm font-medium">{tr("Commesse, fornitori, mezzi e personale")}</p>
+                <Button size="sm" variant="ghost" onClick={() => { setEditContexts(false); setContextDirty(false); }}>{tr("Annulla")}</Button>
               </div>
               <BankContextEditor
                 company={company}
@@ -541,7 +544,7 @@ function Detail({
           {riga(
             "Note interne",
             <div className="w-full space-y-1.5">
-              <Label htmlFor="bank-note" className="sr-only">Note interne</Label>
+              <Label htmlFor="bank-note" className="sr-only">{tr("Note interne")}</Label>
               <Textarea
                 id="bank-note"
                 rows={2}
@@ -549,7 +552,7 @@ function Detail({
                 value={note}
                 readOnly={!write}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder={write ? "Annotazioni per il tuo team: restano nel gestionale, non vanno alla banca né in fattura" : "Nessuna nota"}
+                placeholder={write ? tr("Annotazioni per il tuo team: restano nel gestionale, non vanno alla banca né in fattura") : tr("Nessuna nota")}
                 className="min-h-[2.75rem] text-sm"
               />
               {write && noteCambiata && (
@@ -571,9 +574,9 @@ function Detail({
                       }, "Nota salvata")
                     }
                   >
-                    {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Salva nota
+                    {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{tr("Salva nota")}
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setNote(savedAnnotation.note)}>Annulla</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setNote(savedAnnotation.note)}>{tr("Annulla")}</Button>
                 </div>
               )}
             </div>,
@@ -582,17 +585,13 @@ function Detail({
       </section>
       {m.links.history.length > 0 && (
         <details className="rounded-xl border p-4">
-          <summary className="cursor-pointer text-sm font-medium">
-            Storico abbinamenti rimossi ({m.links.history.length})
-          </summary>
+          <summary className="cursor-pointer text-sm font-medium">{tr("Storico abbinamenti rimossi ({n})", { n: m.links.history.length })}</summary>
           {m.links.history.map((h) => (
             <div key={h.id} className="mt-3 border-t pt-2 text-sm">
               <p>
                 {h.label} · {monetary(h.amount)}
               </p>
-              <p className="text-xs text-muted-foreground">
-                Rimosso il {formatDateIt(h.unmatched_at)}
-              </p>
+              <p className="text-xs text-muted-foreground">{tr("Rimosso il {data}", { data: formatDateIt(h.unmatched_at) })}</p>
             </div>
           ))}
         </details>
@@ -607,21 +606,21 @@ function Detail({
           <AlertDialogHeader>
             <AlertDialogTitle>
               {remove?.existing_payment
-                ? "Scollegare la prova bancaria?"
-                : "Annullare questo abbinamento?"}
+                ? tr("Scollegare la prova bancaria?")
+                : tr("Annullare questo abbinamento?")}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {remove?.adjustment
-                ? "Verrà annullato l’abbinamento e stornato il pagamento della differenza creato da questa riconciliazione. Gli altri pagamenti restano invariati."
+                ? tr("Verrà annullato l’abbinamento e stornato il pagamento della differenza creato da questa riconciliazione. Gli altri pagamenti restano invariati.")
                 : remove?.existing_payment
-                ? "Il pagamento già registrato verrà conservato. Sarà rimossa soltanto l’associazione a questo movimento bancario."
+                ? tr("Il pagamento già registrato verrà conservato. Sarà rimossa soltanto l’associazione a questo movimento bancario.")
                 : remove?.kind === "quota_fornitore"
-                ? "La quota tornerà da pagare sulla fattura o sulla rata."
-                : "L’abbinamento sarà annullato con le regole del documento: gli incassi creati dalla riconciliazione possono essere stornati. Le altre quote del bonifico restano collegate."}
+                ? tr("La quota tornerà da pagare sulla fattura o sulla rata.")
+                : tr("L’abbinamento sarà annullato con le regole del documento: gli incassi creati dalla riconciliazione possono essere stornati. Le altre quote del bonifico restano collegate.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               disabled={busy}
               onClick={() => {
@@ -657,18 +656,18 @@ function Detail({
                       );
                       if (error || !data?.ok)
                         toast.warning(
-                          "Abbinamento annullato. Aggiornamento su Fatture in Cloud da riprovare.",
+                          tr("Abbinamento annullato. Aggiornamento su Fatture in Cloud da riprovare."),
                         );
                     } catch {
                       toast.warning(
-                        "Abbinamento annullato. Aggiornamento su Fatture in Cloud da riprovare.",
+                        tr("Abbinamento annullato. Aggiornamento su Fatture in Cloud da riprovare."),
                       );
                     }
                   }
                 }, "Abbinamento rimosso");
               }}
             >
-              Conferma scollegamento
+              {tr("Conferma scollegamento")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -706,6 +705,7 @@ function FinancialPicker({
   movement: BankMovement;
   onDone: () => void;
 }) {
+  const t = useT();
   const { query, setSearch } = useCandidates(company, m.id, false);
   const [busy, setBusy] = useState(false);
   async function confirm(rows: RigaRipartizione[], note: string) {
@@ -729,13 +729,13 @@ function FinancialPicker({
       });
       committed = true;
       const failed = await syncBankExternalPayments([{ id: m.id, booking_date: m.booking_date, result }]);
-      toast.success("Abbinamenti e pagamenti registrati");
+      toast.success(t("Abbinamenti e pagamenti registrati"));
       if (failed.length)
         toast.warning(
-          `Pagamenti salvati, aggiornamento esterno da riprovare: ${failed.join(", ")}`,
+          t("Pagamenti salvati, aggiornamento esterno da riprovare: {elenco}", { elenco: failed.join(", ") }),
         );
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Abbinamento non riuscito");
+      toast.error(e instanceof Error ? e.message : t("Abbinamento non riuscito"));
     } finally {
       setBusy(false);
       if (committed) onDone();
@@ -744,15 +744,15 @@ function FinancialPicker({
   return (
     <div className="space-y-3 border-t pt-3">
       <p className="text-sm text-muted-foreground">
-        Questa conferma registra nuovi{" "}
-        {m.transaction_type === "credit" ? "incassi" : "pagamenti"}. Se sono già
-        presenti in Prima nota, usa «Collega pagamenti già registrati».
+        {m.transaction_type === "credit"
+          ? t("Questa conferma registra nuovi incassi. Se sono già presenti in Prima nota, usa «Collega pagamenti già registrati».")
+          : t("Questa conferma registra nuovi pagamenti. Se sono già presenti in Prima nota, usa «Collega pagamenti già registrati».")}
       </p>
       {query.isError ? (
         <p role="alert" className="text-sm text-destructive">
           {query.error.message}{" "}
           <button className="underline" onClick={() => void query.refetch()}>
-            Riprova
+            {t("Riprova")}
           </button>
         </p>
       ) : (
@@ -770,7 +770,7 @@ function FinancialPicker({
       )}
       {(query.data?.length ?? 0) >= 100 && (
         <p className="text-xs text-muted-foreground">
-          Primi 100 risultati. Usa la ricerca per trovare gli altri documenti.
+          {t("Primi 100 risultati. Usa la ricerca per trovare gli altri documenti.")}
         </p>
       )}
     </div>
@@ -785,6 +785,7 @@ function ExistingPicker({
   movement: BankMovement;
   onDone: () => void;
 }) {
+  const t = useT();
   const { query, search, setSearch } = useCandidates(company, m.id, true);
   const [selected, setSelected] = useState<
     Record<string, CandidatoRipartizione>
@@ -837,10 +838,10 @@ function ExistingPicker({
         p_tx: m.id,
         p_ids: Object.keys(selected),
       });
-      toast.success("Prove bancarie collegate: nessun pagamento duplicato");
+      toast.success(t("Prove bancarie collegate: nessun pagamento duplicato"));
       onDone();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Collegamento non riuscito");
+      toast.error(e instanceof Error ? e.message : t("Collegamento non riuscito"));
     } finally {
       setBusy(false);
     }
@@ -848,13 +849,11 @@ function ExistingPicker({
   return (
     <div className="space-y-3 border-t pt-3">
       <p className="text-sm text-muted-foreground">
-        Seleziona gli incassi o pagamenti già registrati che compongono questo
-        bonifico. Saranno collegati per il loro intero importo, senza registrare
-        altri movimenti di cassa.
+        {t("Seleziona gli incassi o pagamenti già registrati che compongono questo bonifico. Saranno collegati per il loro intero importo, senza registrare altri movimenti di cassa.")}
       </p>
       <Input
-        aria-label="Cerca pagamenti già registrati"
-        placeholder="Cerca descrizione, riferimento o data…"
+        aria-label={t("Cerca pagamenti già registrati")}
+        placeholder={t("Cerca descrizione, riferimento o data…")}
         value={search}
         onChange={(e) => setSearch(e.target.value)}
       />
@@ -865,14 +864,14 @@ function ExistingPicker({
       )}
       {query.isFetching && (
         <p role="status" className="text-sm text-muted-foreground">
-          Ricerca in corso…
+          {t("Ricerca in corso…")}
         </p>
       )}
       {proposti.map((p) => (
         <button key={p.gruppo} type="button" disabled={busy} onClick={() => seleziona(p.quote, true)}
           className="w-full rounded-lg border border-dashed border-primary/40 bg-primary/5 p-3 text-left text-sm hover:bg-primary/10">
-          <span className="font-medium">«{p.info.descrizione}» fa esattamente {money(m.links.remaining)}</span>
-          <span className="block text-xs text-muted-foreground">{p.quote.length} quote registrate in Prima Nota: toccalo per selezionarle tutte.</span>
+          <span className="font-medium">{t("«{descrizione}» fa esattamente {remaining}", { descrizione: String(p.info.descrizione ?? ""), remaining: String(money(m.links.remaining) ?? "") })}</span>
+          <span className="block text-xs text-muted-foreground">{t("{n} quote registrate in Prima Nota: toccalo per selezionarle tutte.", { n: p.quote.length })}</span>
         </button>
       ))}
       <div className="max-h-72 space-y-2 overflow-auto">
@@ -888,7 +887,7 @@ function ExistingPicker({
                 const g = gruppoDi(r.id);
                 seleziona(g ? quoteDelGruppo(g.gruppo) : [r], v === true);
               }}
-              aria-label={`Collega ${r.titolo}`}
+              aria-label={t("Collega {titolo}", { titolo: String(r.titolo ?? "") })}
             />
             <span className="min-w-0 flex-1 text-sm">
               <span className="block break-words font-medium">{r.titolo}</span>
@@ -896,9 +895,7 @@ function ExistingPicker({
                 {r.sottotitolo}
               </span>
               {gruppoDi(r.id) && (
-                <span className="block text-xs text-primary">
-                  Quota di «{gruppoDi(r.id)!.descrizione}»: si collega insieme alle altre
-                </span>
+                <span className="block text-xs text-primary">{t("Quota di «{descrizione}»: si collega insieme alle altre", { descrizione: String(gruppoDi(r.id)!.descrizione ?? "") })}</span>
               )}
             </span>
             <span className="shrink-0 text-sm font-semibold">
@@ -908,16 +905,13 @@ function ExistingPicker({
         ))}
         {!query.isFetching && !rows.length && !query.isError && (
           <p className="text-sm text-muted-foreground">
-            Nessun pagamento disponibile: verifica che sia già registrato in
-            Prima nota e non sia collegato a un’altra prova bancaria.
+            {t("Nessun pagamento disponibile: verifica che sia già registrato in Prima nota e non sia collegato a un’altra prova bancaria.")}
           </p>
         )}
       </div>
       <p
         className={`text-sm ${total > m.links.remaining + 0.004 ? "text-destructive" : "text-muted-foreground"}`}
-      >
-        Selezionati {money(total)} · disponibili {money(m.links.remaining)}
-      </p>
+      >{t("Selezionati {selezionati} · disponibili {disponibili}", { selezionati: String(money(total) ?? ""), disponibili: String(money(m.links.remaining) ?? "") })}</p>
       <Button
         disabled={
           busy ||
@@ -927,8 +921,7 @@ function ExistingPicker({
         }
         onClick={() => void confirm()}
       >
-        {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Conferma
-        collegamento
+        {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{t("Conferma collegamento")}
       </Button>
     </div>
   );
@@ -958,5 +951,6 @@ function Pastiglia({ t, importo, valuta }: { t: BankTarget; importo?: number; va
 }
 
 function Nessuno() {
-  return <span className="text-muted-foreground">Nessuno</span>;
+  const t = useT();
+  return <span className="text-muted-foreground">{t("Nessuno")}</span>;
 }

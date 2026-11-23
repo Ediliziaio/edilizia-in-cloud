@@ -27,6 +27,7 @@ import { Popover, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CATEGORIE_DI_BASE, chiaveRiga, contoPropostoRiga, etichettaCategoria, proposteDalPiano, proposteDalleScelte, type FatturaStorica, type SceltaPassata } from "@/lib/fatturazione/contoPerRiga";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const DELLA_FATTURA = "__fattura";
 const uguali = (a: Record<string, string>, b: Record<string, string>) =>
@@ -49,6 +50,7 @@ export function useContiRighe({ companyId, fatturaId, salvati, righe, onCambiato
   righe: RigaPerConto[];
   onCambiato: () => void;
 }) {
+  const t = useT();
   const qc = useQueryClient();
   const [salvando, setSalvando] = useState(false);
   const invio = useRef(false);
@@ -172,11 +174,11 @@ export function useContiRighe({ companyId, fatturaId, salvati, righe, onCambiato
       } as never);
       if (error) throw error;
       setBozza({ ...corrente, salvata: true });
-      toast.success("Conti della fattura salvati");
+      toast.success(t("Conti della fattura salvati"));
       onCambiato();
       void qc.invalidateQueries({ queryKey: ["contabilita-generale", companyId] });
     } catch (e) {
-      toast.error("Conto della riga non salvato", { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Conto della riga non salvato"), { description: e instanceof Error ? e.message : String(e) });
     } finally {
       invio.current = false;
       setSalvando(false);
@@ -188,7 +190,7 @@ export function useContiRighe({ companyId, fatturaId, salvati, righe, onCambiato
     const m = VALORE_CONTO.exec(valore);
     if (!m) return etichettaCategoria(valore);
     const c = perId.get(m[1]);
-    return c ? `${c.codice} ${c.descrizione}` : "Conto del piano";
+    return c ? `${c.codice} ${c.descrizione}` : t("Conto del piano");
   };
 
   const cambia = (chiave: string, valore: string | null): void => {
@@ -225,10 +227,10 @@ export function useContiRighe({ companyId, fatturaId, salvati, righe, onCambiato
         p_sezione_cee: "CE", p_voce_cee: mastro?.voce_cee ?? "", p_mastro: nuovo.mastroId,
       });
       if (error || !data) {
-        toast.error("Conto non creato", { description: error?.message ?? "Il database non ha restituito il conto." });
+        toast.error(t("Conto non creato"), { description: error?.message ?? t("Il database non ha restituito il conto.") });
         return false;
       }
-      toast.success(`Conto ${nuovo.codice.trim()} creato nel piano dei conti`);
+      toast.success(t("Conto {codice} creato nel piano dei conti", { codice: nuovo.codice.trim() }));
       await qc.invalidateQueries({ queryKey: chiavePiano });
       cambia(chiave, valoreDelConto(data));
       return true;
@@ -243,17 +245,18 @@ export function ContoRigaMenu({ chiave, conti }: { chiave: string; conti: ContiR
 }
 
 function CategoriaMenu({ chiave, conti }: { chiave: string; conti: ContiRighe }) {
+  const t = useT();
   const v = conti.valore(chiave);
   const proposto = conti.proposto(chiave);
   return (
     <Select value={v ?? DELLA_FATTURA} disabled={conti.salvando}
       onValueChange={(x) => conti.cambia(chiave, x === DELLA_FATTURA ? null : x)}>
-      <SelectTrigger aria-label="Conto di costo della riga" title={proposto ? "Proposto dalla descrizione: conferma o cambia" : undefined}
+      <SelectTrigger aria-label={t("Conto di costo della riga")} title={proposto ? t("Proposto dalla descrizione: conferma o cambia") : undefined}
         className={`h-7 w-full min-w-[9rem] text-xs ${proposto ? "border-dashed italic text-muted-foreground" : ""}`}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value={DELLA_FATTURA}>Conto della fattura</SelectItem>
+        <SelectItem value={DELLA_FATTURA}>{t("Conto della fattura")}</SelectItem>
         {/* Un conto del piano scelto quando la contabilità generale era accesa: resta leggibile. */}
         {v && VALORE_CONTO.test(v) ? <SelectItem value={v}>{conti.etichetta(v)}</SelectItem> : null}
         {conti.categorie.map((c) => <SelectItem key={c} value={c}>{etichettaCategoria(c)}</SelectItem>)}
@@ -264,18 +267,19 @@ function CategoriaMenu({ chiave, conti }: { chiave: string; conti: ContiRighe })
 
 /** I conti di costo del piano, con la ricerca, e «Nuovo conto di costo». */
 function ContoDelPianoMenu({ chiave, conti }: { chiave: string; conti: ContiRighe }) {
+  const t = useT();
   const [aperto, setAperto] = useState(false);
   const [nuovo, setNuovo] = useState(false);
   const v = conti.valore(chiave);
   const proposto = conti.proposto(chiave);
-  const testo = v ? conti.etichetta(v) : "Conto della fattura";
+  const testo = v ? conti.etichetta(v) : t("Conto della fattura");
   const scegli = (valore: string | null) => { setAperto(false); conti.cambia(chiave, valore); };
   return (
     <>
       <Popover open={aperto} onOpenChange={setAperto}>
         <PopoverTrigger asChild>
-          <Button variant="outline" role="combobox" aria-expanded={aperto} aria-label="Conto di costo della riga" disabled={conti.salvando}
-            title={proposto ? "Proposto (dal contratto, dalle fatture passate del fornitore o dalla descrizione): conferma o cambia" : testo}
+          <Button variant="outline" role="combobox" aria-expanded={aperto} aria-label={t("Conto di costo della riga")} disabled={conti.salvando}
+            title={proposto ? t("Proposto (dal contratto, dalle fatture passate del fornitore o dalla descrizione): conferma o cambia") : testo}
             className={cn("h-7 w-full min-w-[9rem] justify-between px-2 text-xs font-normal", proposto && "border-dashed italic text-muted-foreground")}>
             <span className="truncate">{testo}</span>
             <ChevronsUpDown className="ml-1 h-3.5 w-3.5 shrink-0 opacity-50" />
@@ -285,12 +289,12 @@ function ContoDelPianoMenu({ chiave, conti }: { chiave: string; conti: ContiRigh
         <PopoverPrimitive.Content align="start" sideOffset={4} onEscapeKeyDown={() => setAperto(false)}
           className="z-50 w-[min(26rem,calc(100vw-2rem))] rounded-md border bg-popover p-0 text-popover-foreground shadow-md outline-none">
           <Command>
-            <CommandInput placeholder="Cerca codice o descrizione…" className="h-8 text-xs" />
+            <CommandInput placeholder={t("Cerca codice o descrizione…")} className="h-8 text-xs" />
             <CommandList className="max-h-72">
-              <CommandEmpty className="py-4 text-center text-xs text-muted-foreground">Nessun conto: crealo qui sotto.</CommandEmpty>
+              <CommandEmpty className="py-4 text-center text-xs text-muted-foreground">{t("Nessun conto: crealo qui sotto.")}</CommandEmpty>
               <CommandGroup>
                 <CommandItem value="conto della fattura" onSelect={() => scegli(null)} className="text-xs">
-                  <Check className={cn("mr-2 h-3.5 w-3.5", !v ? "opacity-100" : "opacity-0")} />Conto della fattura
+                  <Check className={cn("mr-2 h-3.5 w-3.5", !v ? "opacity-100" : "opacity-0")} />{t("Conto della fattura")}
                 </CommandItem>
                 {conti.contiDelPiano.map((c) => (
                   <CommandItem key={c.id} value={`${c.codice} ${c.descrizione}`} onSelect={() => scegli(valoreDelConto(c.id))} className="text-xs">
@@ -301,7 +305,7 @@ function ContoDelPianoMenu({ chiave, conti }: { chiave: string; conti: ContiRigh
               </CommandGroup>
               <CommandGroup>
                 <CommandItem value="nuovo conto di costo" onSelect={() => { setAperto(false); setNuovo(true); }} className="text-xs font-medium">
-                  <Plus className="mr-2 h-3.5 w-3.5" />Nuovo conto di costo
+                  <Plus className="mr-2 h-3.5 w-3.5" />{t("Nuovo conto di costo")}
                 </CommandItem>
               </CommandGroup>
             </CommandList>
@@ -318,6 +322,7 @@ function NuovoContoDiCosto({ conti, onChiudi, onCrea }: {
   onChiudi: () => void;
   onCrea: (d: { codice: string; descrizione: string; mastroId: string }) => Promise<boolean>;
 }) {
+  const t = useT();
   const [codice, setCodice] = useState("");
   const [descrizione, setDescrizione] = useState("");
   const [mastro, setMastro] = useState(conti.mastriDelPiano[0]?.id ?? "");
@@ -328,32 +333,32 @@ function NuovoContoDiCosto({ conti, onChiudi, onCrea }: {
   return (
     <Dialog open onOpenChange={(o) => { if (!o && !inCorso) onChiudi(); }}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader><DialogTitle>Nuovo conto di costo</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{t("Nuovo conto di costo")}</DialogTitle></DialogHeader>
         <div className="space-y-3">
-          <p className="text-xs text-muted-foreground">Nasce nel piano dei conti, sotto il mastro scelto, e va subito su questa riga. Lo ritrovi in Contabilità generale → Piano dei conti.</p>
+          <p className="text-xs text-muted-foreground">{t("Nasce nel piano dei conti, sotto il mastro scelto, e va subito su questa riga. Lo ritrovi in Contabilità generale → Piano dei conti.")}</p>
           {conti.mastriDelPiano.length > 0 ? (
             <div className="space-y-1">
-              <Label>Mastro</Label>
+              <Label>{t("Mastro")}</Label>
               <Select value={mastro} onValueChange={setMastro}>
-                <SelectTrigger aria-label="Mastro"><SelectValue /></SelectTrigger>
+                <SelectTrigger aria-label={t("Mastro")}><SelectValue /></SelectTrigger>
                 <SelectContent>{conti.mastriDelPiano.map((m) => <SelectItem key={m.id} value={m.id}>{m.codice} {m.descrizione}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-          ) : <p role="alert" className="text-xs text-destructive">Il piano dei conti non ha mastri di costo: crea il conto da Contabilità generale → Piano dei conti.</p>}
+          ) : <p role="alert" className="text-xs text-destructive">{t("Il piano dei conti non ha mastri di costo: crea il conto da Contabilità generale → Piano dei conti.")}</p>}
           <div className="grid grid-cols-3 gap-2">
-            <div className="space-y-1"><Label htmlFor="nuovo-conto-codice">Codice</Label><Input id="nuovo-conto-codice" value={codice} onChange={(e) => setCodice(e.target.value)} /></div>
-            <div className="col-span-2 space-y-1"><Label htmlFor="nuovo-conto-descrizione">Descrizione</Label><Input id="nuovo-conto-descrizione" value={descrizione} onChange={(e) => setDescrizione(e.target.value)} /></div>
+            <div className="space-y-1"><Label htmlFor="nuovo-conto-codice">{t("Codice")}</Label><Input id="nuovo-conto-codice" value={codice} onChange={(e) => setCodice(e.target.value)} /></div>
+            <div className="col-span-2 space-y-1"><Label htmlFor="nuovo-conto-descrizione">{t("Descrizione")}</Label><Input id="nuovo-conto-descrizione" value={descrizione} onChange={(e) => setDescrizione(e.target.value)} /></div>
           </div>
-          {doppio && <p role="alert" className="text-xs text-destructive">Il codice {codice.trim()} c'è già nel piano dei conti.</p>}
+          {doppio && <p role="alert" className="text-xs text-destructive">{t("Il codice {codice} c'è già nel piano dei conti.", { codice: codice.trim() })}</p>}
         </div>
         <DialogFooter>
-          <Button variant="outline" disabled={inCorso} onClick={onChiudi}>Annulla</Button>
+          <Button variant="outline" disabled={inCorso} onClick={onChiudi}>{t("Annulla")}</Button>
           <Button disabled={!pronto} onClick={async () => {
             setInCorso(true);
             const ok = await onCrea({ codice, descrizione, mastroId: mastro });
             setInCorso(false);
             if (ok) onChiudi();
-          }}>Crea e usa</Button>
+          }}>{t("Crea e usa")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -362,13 +367,14 @@ function NuovoContoDiCosto({ conti, onChiudi, onCrea }: {
 
 /** Sopra le righe: quante hanno un conto proposto, e il pulsante per confermarle tutte. */
 export function ProposteContiRighe({ conti }: { conti: ContiRighe }) {
+  const t = useT();
   if (conti.quanteProposte === 0 && !conti.modificati) return null;
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-dashed px-3 py-1.5 text-xs text-muted-foreground">
-      <span aria-live="polite">{conti.modificati ? "Conti modificati: salva insieme tutte le righe della fattura." : `${conti.quanteProposte} righe hanno un conto proposto, da confermare.`}</span>
+      <span aria-live="polite">{conti.modificati ? t("Conti modificati: salva insieme tutte le righe della fattura.") : t("{quanteProposte} righe hanno un conto proposto, da confermare.", { quanteProposte: conti.quanteProposte })}</span>
       <div className="flex flex-wrap gap-2">
-        {conti.quanteProposte > 0 && <Button size="sm" variant="outline" disabled={conti.salvando} onClick={conti.confermaProposte}>Usa le proposte</Button>}
-        {conti.modificati && <><Button size="sm" variant="outline" disabled={conti.salvando} onClick={conti.annulla}>Annulla modifiche ai conti</Button><Button size="sm" disabled={conti.salvando} onClick={conti.salva}>{conti.salvando ? "Salvataggio…" : "Salva conti della fattura"}</Button></>}
+        {conti.quanteProposte > 0 && <Button size="sm" variant="outline" disabled={conti.salvando} onClick={conti.confermaProposte}>{t("Usa le proposte")}</Button>}
+        {conti.modificati && <><Button size="sm" variant="outline" disabled={conti.salvando} onClick={conti.annulla}>{t("Annulla modifiche ai conti")}</Button><Button size="sm" disabled={conti.salvando} onClick={conti.salva}>{conti.salvando ? t("Salvataggio…") : t("Salva conti della fattura")}</Button></>}
       </div>
     </div>
   );

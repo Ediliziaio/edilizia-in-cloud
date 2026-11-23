@@ -7,7 +7,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CalendarIcon, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, parseISO, isBefore, startOfDay } from "date-fns";
-import { it } from "date-fns/locale";
 import { TIPI_DOCUMENTO_FATTURAPA as TIPI_DOC } from "@/types/fatturazione";
 
 // Maps internal tipo to SDI TipoDocumento code (mirrors generateXML.ts)
@@ -24,6 +23,7 @@ const TIPO_TO_TD: Record<string, string> = {
 import type { EditorState, Action } from "./useEditorState";
 import { NumeroDocumentoField } from "./NumeroDocumentoField";
 import { emissioneConDataOdierna, TIPI_BOZZA_SENZA_NUMERO, haSegnapostoBozza } from "@/lib/fatturazione/emissioneBozza";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   state: EditorState;
@@ -34,6 +34,7 @@ interface Props {
 }
 
 export function EditorDatiDocumento({ state, dispatch, disabled, dataBloccata }: Props) {
+  const t = useT();
   function setField(field: string, value: unknown) {
     dispatch({ type: "SET_FIELD", field, value });
   }
@@ -47,10 +48,10 @@ export function EditorDatiDocumento({ state, dispatch, disabled, dataBloccata }:
   return (
     <div className="rounded-lg border bg-card p-3 space-y-2 border-l-[3px] border-l-amber-400/60 shadow-sm">
       <div className="flex flex-wrap items-baseline justify-between gap-x-2">
-        <Label className="whitespace-nowrap text-[11px] font-bold uppercase tracking-wider text-amber-600/80 dark:text-amber-400/80">Dati documento</Label>
+        <Label className="whitespace-nowrap text-[11px] font-bold uppercase tracking-wider text-amber-600/80 dark:text-amber-400/80">{t("Dati documento")}</Label>
         {/* Tipo SDI e valuta: si leggono, non si scelgono. */}
-        <span className="truncate text-[10px] text-muted-foreground" title={td ? `Tipo SDI ${td} – ${TIPI_DOC[td as keyof typeof TIPI_DOC] ?? ""}` : undefined}>
-          Tipo SDI <span className="font-mono">{td ?? "—"}</span>{td && TIPI_DOC[td as keyof typeof TIPI_DOC] ? ` – ${TIPI_DOC[td as keyof typeof TIPI_DOC]}` : ""} · EUR
+        <span className="truncate text-[10px] text-muted-foreground" title={td ? t("Tipo SDI {td} – {valore}", { td: String(td ?? ""), valore: String((TIPI_DOC[td as keyof typeof TIPI_DOC] ?? "") ?? "") }) : undefined}>
+          {t("Tipo SDI")} <span className="font-mono">{td ?? "—"}</span>{td && TIPI_DOC[td as keyof typeof TIPI_DOC] ? ` – ${TIPI_DOC[td as keyof typeof TIPI_DOC]}` : ""} {t("· EUR")}
         </span>
       </div>
 
@@ -58,18 +59,18 @@ export function EditorDatiDocumento({ state, dispatch, disabled, dataBloccata }:
         // Bozza senza numero: data e numero li dà l'emissione, qui non c'è niente da scegliere.
         <p
           className="flex items-center gap-1.5 rounded-md bg-muted/50 px-2 py-1.5 text-[11px] text-muted-foreground"
-          title="Data di oggi e prossimo numero vengono assegnati quando emetti. Preparare una bozza non riserva numeri."
+          title={t("Data di oggi e prossimo numero vengono assegnati quando emetti. Preparare una bozza non riserva numeri.")}
           data-testid="data-numero-emissione"
         >
           <CalendarIcon className="h-3 w-3 shrink-0" />
-          Data e numero si assegnano all'emissione
+          {t("Data e numero si assegnano all'emissione")}
         </p>
       ) : (
         <>
           {/* Data + Numero inline */}
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <Label className="text-[10px] text-muted-foreground">Data</Label>
+              <Label className="text-[10px] text-muted-foreground">{t("Data")}</Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
@@ -79,12 +80,12 @@ export function EditorDatiDocumento({ state, dispatch, disabled, dataBloccata }:
                       !state.data_emissione && "text-muted-foreground"
                     )}
                     disabled={disabled || dataBloccata}
-                    title={dataBloccata ? "Una fattura già numerata tiene la sua data: si corregge il contenuto, non il numero né la data" : undefined}
+                    title={dataBloccata ? t("Una fattura già numerata tiene la sua data: si corregge il contenuto, non il numero né la data") : undefined}
                   >
                     <CalendarIcon className="mr-1 h-3 w-3 shrink-0" />
                     {state.data_emissione
-                      ? format(parseISO(state.data_emissione), "dd/MM/yyyy", { locale: it })
-                      : "Seleziona"}
+                      ? format(parseISO(state.data_emissione), "dd/MM/yyyy", { locale: dateFnsCampo() })
+                      : t("Seleziona")}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
@@ -103,7 +104,7 @@ export function EditorDatiDocumento({ state, dispatch, disabled, dataBloccata }:
           </div>
           {state.stato === "bozza" && TIPI_BOZZA_SENZA_NUMERO.includes(state.tipo) && !haSegnapostoBozza(state.numero) && (
             <p className="text-[10px] leading-snug text-muted-foreground">
-              Questa bozza ha già il suo numero. Allo SDI parte quando la emetti e la invii.
+              {t("Questa bozza ha già il suo numero. Allo SDI parte quando la emetti e la invii.")}
             </p>
           )}
         </>
@@ -113,7 +114,7 @@ export function EditorDatiDocumento({ state, dispatch, disabled, dataBloccata }:
       <div className="grid grid-cols-2 gap-2">
         <div>
           <Label className={cn("text-[10px]", isScaduta ? "text-destructive" : "text-muted-foreground")}>
-            Scadenza {isScaduta && "!"}
+            {t("Scadenza")} {isScaduta && "!"}
           </Label>
           <Popover>
             <PopoverTrigger asChild>
@@ -128,8 +129,8 @@ export function EditorDatiDocumento({ state, dispatch, disabled, dataBloccata }:
               >
                 <CalendarIcon className="mr-1 h-3 w-3" />
                 {state.data_scadenza
-                  ? format(parseISO(state.data_scadenza), "dd/MM/yyyy", { locale: it })
-                  : "Seleziona"}
+                  ? format(parseISO(state.data_scadenza), "dd/MM/yyyy", { locale: dateFnsCampo() })
+                  : t("Seleziona")}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
@@ -144,7 +145,7 @@ export function EditorDatiDocumento({ state, dispatch, disabled, dataBloccata }:
           </Popover>
         </div>
         <div>
-          <Label className="text-[10px] text-muted-foreground">Serie</Label>
+          <Label className="text-[10px] text-muted-foreground">{t("Serie")}</Label>
           <Input
             value={state.serie ?? ""}
             onChange={(e) => setField("serie", e.target.value.toUpperCase().slice(0, 3))}
@@ -164,11 +165,7 @@ export function EditorDatiDocumento({ state, dispatch, disabled, dataBloccata }:
         <Alert className="bg-blue-50 border-blue-200">
           <Info className="h-4 w-4 text-blue-600" />
           <AlertDescription className="text-blue-800">
-            <strong>Integrazione di una fattura in reverse charge ricevuta (TD16)</strong> — si usa quando un fornitore,
-            per esempio un subappaltatore, ti ha fatturato senza IVA (natura N6.3): qui aggiungi l&apos;IVA che versi tu.
-            Come «cliente» indica il <strong>fornitore</strong>; il documento torna a te e al cliente non arriva niente.
-            Per <strong>fatturare tu</strong> un subappalto in reverse charge usa una <strong>Fattura</strong> normale con
-            natura <strong>N6.3</strong> sulle righe.
+            <strong>{t("Integrazione di una fattura in reverse charge ricevuta (TD16)")}</strong> {t("— si usa quando un fornitore, per esempio un subappaltatore, ti ha fatturato senza IVA (natura N6.3): qui aggiungi l'IVA che versi tu. Come «cliente» indica il fornitore; il documento torna a te e al cliente non arriva niente. Per fatturare tu un subappalto in reverse charge usa una Fattura normale con natura N6.3 sulle righe.")}
           </AlertDescription>
         </Alert>
       )}

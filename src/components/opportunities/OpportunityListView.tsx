@@ -1,6 +1,5 @@
 import { useState, useMemo, useRef, useEffect, memo } from "react";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowRight, Check, ChevronDown, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useIsMobile } from "@/hooks/use-mobile";
 import { GruppoFiltri, RigaMobile, SceltaFiltro } from "@/components/mobile/FiltriMobile";
 import { toast } from "sonner";
+import { useT, intlCampo, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ListProps {
   stages: OpportunityStage[];
@@ -63,6 +63,7 @@ export const OpportunityListView = memo(function OpportunityListView({
   onSelectStage,
   canEdit = true,
 }: ListProps) {
+  const t = useT();
   const isMobile = useIsMobile();
   const [selectedOpp, setSelectedOpp] = useState<any>(null);
   const setMobileStageId = onMobileStageChange;
@@ -136,8 +137,8 @@ export const OpportunityListView = memo(function OpportunityListView({
         onSuccess: () => {
           toast.success(
             cambiaPipeline
-              ? `Spostata in "${pipelineScelta.name}" — ${targetStage?.name ?? "fase"}`
-              : `Spostata in "${targetStage?.name ?? "fase"}"`,
+              ? t("Spostata in \"{pipeline}\" — {fase}", { pipeline: pipelineScelta.name, fase: targetStage?.name ?? t("fase") })
+              : t("Spostata in \"{fase}\"", { fase: targetStage?.name ?? t("fase") }),
           );
           setMoveOpp(null);
           setMovePipelineId(null);
@@ -223,7 +224,7 @@ export const OpportunityListView = memo(function OpportunityListView({
       <div className="flex flex-col gap-2">
         <GruppoFiltri>
           <SceltaFiltro
-            titolo="Fase"
+            titolo={t("Fase")}
             valore={mobileStageId ?? "all"}
             onScegli={(value) => setMobileStageId(value === "all" ? null : value)}
             scelte={[
@@ -247,7 +248,7 @@ export const OpportunityListView = memo(function OpportunityListView({
           </div>
         ) : mobileOpportunities.length === 0 ? (
           <p className="py-8 text-center text-[13px] text-muted-foreground">
-            Nessuna opportunità in questa fase
+            {t("Nessuna opportunità in questa fase")}
           </p>
         ) : (
           <>
@@ -260,7 +261,7 @@ export const OpportunityListView = memo(function OpportunityListView({
               // Due righe con l'essenziale (segnalazione del founder, 23/11/2026): il titolo spesso è
               // «Lavoro — Cliente» e da telefono si tagliava; sopra il lavoro, sotto cliente, città e
               // da quanto è ferma (giorni dall'ultimo aggiornamento).
-              const nomeIntero = opp.name || fullName || "Senza nome";
+              const nomeIntero = opp.name || fullName || t("Senza nome");
               const separato = fullName && nomeIntero.includes(" — ") && nomeIntero.toLocaleLowerCase("it-IT").endsWith(fullName.toLocaleLowerCase("it-IT"));
               const titolo = separato ? nomeIntero.slice(0, nomeIntero.lastIndexOf(" — ")) : nomeIntero;
               const giorniFermo = opp.updated_at ? Math.floor((Date.now() - new Date(opp.updated_at).getTime()) / 86_400_000) : null;
@@ -285,7 +286,7 @@ export const OpportunityListView = memo(function OpportunityListView({
                   ].filter(Boolean).join(" · ") || undefined}
                   // formatCount: punto delle migliaia anche a 4 cifre («6.800», non «6800»).
                   valore={`€ ${formatCount(Math.round(Number(opp.value || 0)))}`}
-                  stato={opp.status !== "open" ? <span className={coloreStato}>{statusInfo.label}</span> : undefined}
+                  stato={opp.status !== "open" ? <span className={coloreStato}>{t(statusInfo.label)}</span> : undefined}
                 />
               );
             })}
@@ -299,8 +300,8 @@ export const OpportunityListView = memo(function OpportunityListView({
               onClick={() => onLoadMore?.()}
             >
               {isLoadingMore
-                ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Carico altre…</>
-                : <>Mostra altre · {formatCount(mobileOpportunities.length)} di {formatCount(mobileStageId ? (stageAgg[mobileStageId]?.count ?? 0) : totaleTutte)}</>}
+                ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t("Carico altre…")}</>
+                : <>{t("Mostra altre · {n} di {totale}", { n: formatCount(mobileOpportunities.length), totale: formatCount(mobileStageId ? (stageAgg[mobileStageId]?.count ?? 0) : totaleTutte) })}</>}
             </Button>
           )}
           </>
@@ -312,24 +313,24 @@ export const OpportunityListView = memo(function OpportunityListView({
       <Sheet open={moveOpp != null} onOpenChange={(v) => { if (!v) { setMoveOpp(null); setMovePipelineId(null); } }}>
         <SheetContent side="bottom" className="max-h-[70vh] flex flex-col">
           <SheetHeader>
-            <SheetTitle>Sposta opportunità</SheetTitle>
+            <SheetTitle>{t("Sposta opportunità")}</SheetTitle>
             <SheetDescription className="text-xs">
-              {moveOpp?.name ?? ""} — scegli la pipeline e la fase di destinazione
+              {t("{nome} — scegli la pipeline e la fase di destinazione", { nome: moveOpp?.name ?? "" })}
             </SheetDescription>
           </SheetHeader>
           {pipelines.length > 1 && (
             <div className="mt-3 space-y-1">
-              <Label className="text-xs font-medium">Pipeline</Label>
+              <Label className="text-xs font-medium">{t("Pipeline")}</Label>
               <Select
                 value={pipelineScelta?.id ?? ""}
                 onValueChange={(v) => setMovePipelineId(v)}
                 disabled={updateStage.isPending}
               >
-                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Pipeline" /></SelectTrigger>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder={t("Pipeline")} /></SelectTrigger>
                 <SelectContent>
                   {pipelines.map((p: any) => (
                     <SelectItem key={p.id} value={p.id}>
-                      {p.name}{p.id === pipelineCorrente?.id ? " (attuale)" : ""}
+                      {p.name}{p.id === pipelineCorrente?.id ? ` ${t("(attuale)")}` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -382,7 +383,7 @@ export const OpportunityListView = memo(function OpportunityListView({
               perdita: esito,
             },
             {
-              onSuccess: () => { toast.success("Opportunità segnata come persa"); setPerditaInSospeso(null); },
+              onSuccess: () => { toast.success(t("Opportunità segnata come persa")); setPerditaInSospeso(null); },
               onError: (e: Error) => toast.error(e.message),
             },
           );
@@ -407,14 +408,14 @@ export const OpportunityListView = memo(function OpportunityListView({
                   <DropdownMenuTrigger asChild>
                     <button
                       type="button"
-                      title="Seleziona per fase"
+                      title={t("Seleziona per fase")}
                       className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                     >
                       <ChevronDown className="h-3.5 w-3.5" />
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="w-56">
-                    <DropdownMenuLabel className="text-xs">Seleziona per fase</DropdownMenuLabel>
+                    <DropdownMenuLabel className="text-xs">{t("Seleziona per fase")}</DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     {stages.map((s) => {
                       const count = stageAgg[s.id]?.count ?? 0;
@@ -437,17 +438,17 @@ export const OpportunityListView = memo(function OpportunityListView({
                 </DropdownMenu>
               )}
             </div>
-            <div className="w-[240px] shrink-0 px-3 py-3">Nome opportunità</div>
-            <div className="w-[170px] shrink-0 px-3 py-3">Contatto</div>
-            <div className="w-[150px] shrink-0 px-3 py-3">Fase</div>
-            <div className="w-[130px] shrink-0 px-3 py-3 text-right">Valore</div>
-            <div className="w-[90px] shrink-0 px-3 py-3">Stato</div>
-            <div className="w-[70px] shrink-0 px-3 py-3">Salute</div>
-            <div className="w-[150px] shrink-0 px-3 py-3">Venditore</div>
-            <div className="w-[150px] shrink-0 px-3 py-3">Etichette</div>
-            <div className="w-[100px] shrink-0 px-3 py-3">Fonte</div>
-            <div className="w-[90px] shrink-0 px-3 py-3">Creato il</div>
-            <div className="w-[90px] shrink-0 px-3 py-3">Aggiornato</div>
+            <div className="w-[240px] shrink-0 px-3 py-3">{t("Nome opportunità")}</div>
+            <div className="w-[170px] shrink-0 px-3 py-3">{t("Contatto")}</div>
+            <div className="w-[150px] shrink-0 px-3 py-3">{t("Fase")}</div>
+            <div className="w-[130px] shrink-0 px-3 py-3 text-right">{t("Valore")}</div>
+            <div className="w-[90px] shrink-0 px-3 py-3">{t("Stato")}</div>
+            <div className="w-[70px] shrink-0 px-3 py-3">{t("Salute")}</div>
+            <div className="w-[150px] shrink-0 px-3 py-3">{t("Venditore")}</div>
+            <div className="w-[150px] shrink-0 px-3 py-3">{t("Etichette")}</div>
+            <div className="w-[100px] shrink-0 px-3 py-3">{t("Fonte")}</div>
+            <div className="w-[90px] shrink-0 px-3 py-3">{t("Creato il")}</div>
+            <div className="w-[90px] shrink-0 px-3 py-3">{t("Aggiornato")}</div>
           </div>
 
           {/* Body — scroll verticale indipendente */}
@@ -458,7 +459,7 @@ export const OpportunityListView = memo(function OpportunityListView({
             </div>
           ) : opportunities.length === 0 ? (
             <div className="text-center text-muted-foreground py-12 text-sm">
-              Nessuna opportunità trovata
+              {t("Nessuna opportunità trovata")}
             </div>
           ) : (
             <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
@@ -536,7 +537,7 @@ export const OpportunityListView = memo(function OpportunityListView({
                           type="button"
                           onClick={() => apriSpostamento(opp)}
                           className="inline-flex items-center gap-1 rounded-md border border-dashed border-primary/40 px-2 py-0.5 text-xs font-medium text-primary hover:bg-primary/5 transition-colors whitespace-nowrap"
-                          title="Sposta in un'altra fase"
+                          title={t("Sposta in un'altra fase")}
                         >
                           {stageMap[opp.stage_id] || "—"}
                           <ArrowRight className="h-3 w-3" />
@@ -549,12 +550,12 @@ export const OpportunityListView = memo(function OpportunityListView({
                     </div>
                     {/* Valore */}
                     <div className="w-[130px] shrink-0 px-3 py-2.5 text-right font-medium text-sm whitespace-nowrap">
-                      € {Number(opp.value || 0).toLocaleString("it-IT", { minimumFractionDigits: 2 })}
+                      € {Number(opp.value || 0).toLocaleString(intlCampo(), { minimumFractionDigits: 2 })}
                     </div>
                     {/* Stato */}
                     <div className="w-[90px] shrink-0 px-3 py-2.5">
                       <Badge className={cn("text-[10px] font-medium border-0", statusInfo.className)}>
-                        {statusInfo.label}
+                        {t(statusInfo.label)}
                       </Badge>
                     </div>
                     {/* Salute */}
@@ -606,11 +607,11 @@ export const OpportunityListView = memo(function OpportunityListView({
                     </div>
                     {/* Creato il */}
                     <div className="w-[90px] shrink-0 px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
-                      {opp.created_at ? format(new Date(opp.created_at), "dd MMM yy", { locale: it }) : "—"}
+                      {opp.created_at ? format(new Date(opp.created_at), "dd MMM yy", { locale: dateFnsCampo() }) : "—"}
                     </div>
                     {/* Aggiornato */}
                     <div className="w-[90px] shrink-0 px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
-                      {opp.updated_at ? format(new Date(opp.updated_at), "dd MMM yy", { locale: it }) : "—"}
+                      {opp.updated_at ? format(new Date(opp.updated_at), "dd MMM yy", { locale: dateFnsCampo() }) : "—"}
                     </div>
                   </div>
                 );
@@ -619,16 +620,16 @@ export const OpportunityListView = memo(function OpportunityListView({
           )}
           {isLoadingMore && (
             <div className="flex items-center justify-center gap-2 py-2 text-xs text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Carico altre…
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("Carico altre…")}
             </div>
           )}
           </div>{/* close scrollRef */}
           {opportunities.length > 0 && (
             <div className="shrink-0 border-t bg-muted/20 px-3 py-1.5 text-[11px] text-muted-foreground tabular-nums">
-              {formatCount(opportunities.length)} di {formatCount(totaleTutte)}
+              {t("{n} di {totale}", { n: formatCount(opportunities.length), totale: formatCount(totaleTutte) })}
               {hasMore && !isLoadingMore && (
                 <button type="button" onClick={() => onLoadMore?.()} className="ml-2 underline-offset-2 hover:text-foreground hover:underline">
-                  mostra altre
+                  {t("mostra altre")}
                 </button>
               )}
             </div>

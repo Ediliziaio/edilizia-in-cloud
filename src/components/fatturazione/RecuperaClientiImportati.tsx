@@ -6,8 +6,10 @@ import { riconciliaEmessa } from "@/lib/fatturazione/collegamentiImportate";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function RecuperaClientiImportati({ companyId, invoiceIds }: { companyId: string; invoiceIds: string[] }) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const { canEditCustomers, canEditOrders } = usePermissions();
   const qc = useQueryClient();
@@ -64,22 +66,20 @@ export function RecuperaClientiImportati({ companyId, invoiceIds }: { companyId:
     } finally { if (ancoraAttivo()) setBusy(false); }
   };
   return <>
-    <Button variant="outline" size="sm" onClick={() => setOpen(true)}>Recupera clienti dallo storico</Button>
+    <Button variant="outline" size="sm" onClick={() => setOpen(true)}>{t("Recupera clienti dallo storico")}</Button>
     <Dialog open={open} onOpenChange={v => { if (!busy) setOpen(v); }}>
       <DialogContent onEscapeKeyDown={e => { if (busy) e.preventDefault(); }} onPointerDownOutside={e => { if (busy) e.preventDefault(); }}>
-        <DialogHeader><DialogTitle>Recupera le anagrafiche delle fatture</DialogTitle><DialogDescription>
-          Verifichiamo {invoiceIds.length} documenti dell’azienda selezionata. CF/P.IVA identificano il cliente: riusiamo l’anagrafica e completiamo solo i campi vuoti.
-        </DialogDescription></DialogHeader>
-        <p className="text-sm">Nessun invito o email di benvenuto, nessun nuovo lead o cantiere. Indirizzo lavori e contratto richiedono conferma.</p>
-        <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={creaOperativi} disabled={busy} onChange={e => setCreaOperativi(e.target.checked)} className="mt-1" />Crea anche i clienti operativi mancanti per cantieri e lavori, senza accesso al portale. Nome e dati fiscali vengono recuperati dall’intestatario della fattura.</label>
-        {busy && <p role="status" className="text-sm">Verifica {progress} / {invoiceIds.length}…</p>}
+        <DialogHeader><DialogTitle>{t("Recupera le anagrafiche delle fatture")}</DialogTitle><DialogDescription>{t("Verifichiamo {n} documenti dell’azienda selezionata. CF/P.IVA identificano il cliente: riusiamo l’anagrafica e completiamo solo i campi vuoti.", { n: invoiceIds.length })}</DialogDescription></DialogHeader>
+        <p className="text-sm">{t("Nessun invito o email di benvenuto, nessun nuovo lead o cantiere. Indirizzo lavori e contratto richiedono conferma.")}</p>
+        <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={creaOperativi} disabled={busy} onChange={e => setCreaOperativi(e.target.checked)} className="mt-1" />{t("Crea anche i clienti operativi mancanti per cantieri e lavori, senza accesso al portale. Nome e dati fiscali vengono recuperati dall’intestatario della fattura.")}</label>
+        {busy && <p role="status" className="text-sm">{t("Verifica {progress} / {n}…", { progress: String(progress ?? ""), n: invoiceIds.length })}</p>}
         {result && <div role="status" className="rounded-lg bg-muted p-3 text-sm space-y-1">
-          <p>{result.nuove} nuove anagrafiche fiscali · {result.verificate} fatture verificate.</p>
-          {creaOperativi && <p>{result.operativi} nuovi clienti operativi disponibili per i lavori.</p>}
-          <p>{result.daVerificare} da verificare manualmente · {result.errori} non elaborate.</p>
-          {result.errori > 0 && <p>Puoi riprovare: le anagrafiche già recuperate non vengono duplicate.</p>}
+          <p>{t("{nuove} nuove anagrafiche fiscali · {verificate} fatture verificate.", { nuove: String(result.nuove ?? ""), verificate: String(result.verificate ?? "") })}</p>
+          {creaOperativi && <p>{t("{operativi} nuovi clienti operativi disponibili per i lavori.", { operativi: String(result.operativi ?? "") })}</p>}
+          <p>{t("{daVerificare} da verificare manualmente · {errori} non elaborate.", { daVerificare: String(result.daVerificare ?? ""), errori: String(result.errori ?? "") })}</p>
+          {result.errori > 0 && <p>{t("Puoi riprovare: le anagrafiche già recuperate non vengono duplicate.")}</p>}
         </div>}
-        <Button disabled={busy} onClick={() => void recupera()}>{busy ? "Recupero in corso…" : result ? "Verifica di nuovo" : "Conferma recupero anagrafiche"}</Button>
+        <Button disabled={busy} onClick={() => void recupera()}>{busy ? t("Recupero in corso…") : result ? t("Verifica di nuovo") : t("Conferma recupero anagrafiche")}</Button>
       </DialogContent>
     </Dialog>
   </>;

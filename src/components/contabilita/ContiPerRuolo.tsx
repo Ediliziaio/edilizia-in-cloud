@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** I conti del piano standard hanno per codice il loro ruolo (05.01, 30.40…): fanno già da quello. */
 const RUOLO_DAL_CODICE = /^\d{2}\.\d{2}$/;
@@ -28,6 +29,7 @@ export function useContiMovimentabili(companyId: string, enabled = true) {
 }
 
 export function ContiPerRuolo({ companyId, ruoli, chiuso }: { companyId: string; ruoli: readonly RuoloConto[]; chiuso: boolean }) {
+  const t = useT();
   const qc = useQueryClient();
   const conti = useContiMovimentabili(companyId, ruoli.length > 0);
   const assegna = useMutation({
@@ -35,18 +37,18 @@ export function ContiPerRuolo({ companyId, ruoli, chiuso }: { companyId: string;
       const { error } = await supabase.rpc("contabilita_assegna_ruolo", { p_company: companyId, p_ruolo: ruolo, p_conto: conto });
       if (error) throw error;
     },
-    onSuccess: () => { toast.success("Conto assegnato"); void qc.invalidateQueries({ queryKey: ["contabilita-generale", companyId] }); },
-    onError: (e) => toast.error("Conto non assegnato", { description: e instanceof Error ? e.message : String(e) }),
+    onSuccess: () => { toast.success(t("Conto assegnato")); void qc.invalidateQueries({ queryKey: ["contabilita-generale", companyId] }); },
+    onError: (e) => toast.error(t("Conto non assegnato"), { description: e instanceof Error ? e.message : String(e) }),
   });
   if (ruoli.length === 0) return null;
   return (
     <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-      <p className="font-medium">Indica quali conti del tuo piano usare (una volta sola):</p>
+      <p className="font-medium">{t("Indica quali conti del tuo piano usare (una volta sola):")}</p>
       {ruoli.map((r) => (
         <div key={r.ruolo} className="grid items-center gap-2 sm:grid-cols-2">
-          <span className="text-xs">{r.etichetta}</span>
+          <span className="text-xs">{t(r.etichetta)}</span>
           <Select disabled={chiuso || assegna.isPending} onValueChange={(conto) => assegna.mutate({ ruolo: r.ruolo, conto })}>
-            <SelectTrigger aria-label={`Conto per: ${r.etichetta}`} className="h-8 bg-background text-xs"><SelectValue placeholder="Scegli il conto…" /></SelectTrigger>
+            <SelectTrigger aria-label={t("Conto per: {etichetta}", { etichetta: t(r.etichetta) })} className="h-8 bg-background text-xs"><SelectValue placeholder={t("Scegli il conto…")} /></SelectTrigger>
             <SelectContent>
               {/* Un conto che fa già da un altro ruolo non si offre: perderebbe il suo (le fatture, l'IVA…). */}
               {(conti.data ?? []).filter((c) => c.natura === r.natura && !c.codice_standard && !RUOLO_DAL_CODICE.test(c.codice)).map((c) => (
@@ -56,7 +58,7 @@ export function ContiPerRuolo({ companyId, ruoli, chiuso }: { companyId: string;
           </Select>
         </div>
       ))}
-      <p className="text-xs">Se il conto non c'è, crealo in Piano dei conti (sotto il suo mastro) e torna qui.</p>
+      <p className="text-xs">{t("Se il conto non c'è, crealo in Piano dei conti (sotto il suo mastro) e torna qui.")}</p>
     </div>
   );
 }

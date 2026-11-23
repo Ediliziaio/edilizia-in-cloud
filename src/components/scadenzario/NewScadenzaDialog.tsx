@@ -12,6 +12,7 @@ import { ChevronsUpDown, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   open: boolean;
@@ -46,6 +47,7 @@ export default function NewScadenzaDialog(props: Props) {
 }
 
 function ModuloScadenza({ open, onOpenChange, onConfirm, isPending }: Props) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
@@ -114,20 +116,20 @@ function ModuloScadenza({ open, onOpenChange, onConfirm, isPending }: Props) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Nuova Scadenza</DialogTitle>
+          <DialogTitle>{t("Nuova Scadenza")}</DialogTitle>
         </DialogHeader>
         {/* Mobile: via metodo, preavviso e note (restano i valori predefiniti). */}
         <div className="space-y-4 max-sm:space-y-3">
           <div className="space-y-2">
-            <Label htmlFor="nuova-scadenza-tipo">Tipo</Label>
+            <Label htmlFor="nuova-scadenza-tipo">{t("Tipo")}</Label>
             <Select value={tipo} onValueChange={setTipo}>
               <SelectTrigger id="nuova-scadenza-tipo"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="incasso_cliente">Incasso cliente</SelectItem>
-                <SelectItem value="pagamento_fornitore">Pagamento fornitore</SelectItem>
-                <SelectItem value="costo_aziendale">Costo aziendale</SelectItem>
-                <SelectItem value="scadenza_fiscale">Scadenza fiscale</SelectItem>
-                <SelectItem value="altro">Altro</SelectItem>
+                <SelectItem value="incasso_cliente">{t("Incasso cliente")}</SelectItem>
+                <SelectItem value="pagamento_fornitore">{t("Pagamento fornitore")}</SelectItem>
+                <SelectItem value="costo_aziendale">{t("Costo aziendale")}</SelectItem>
+                <SelectItem value="scadenza_fiscale">{t("Scadenza fiscale")}</SelectItem>
+                <SelectItem value="altro">{t("Altro")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -135,19 +137,19 @@ function ModuloScadenza({ open, onOpenChange, onConfirm, isPending }: Props) {
           {/* Supplier combobox */}
           {showSupplier && (
             <div className="space-y-2">
-              <Label htmlFor="nuova-scadenza-fornitore">Fornitore</Label>
+              <Label htmlFor="nuova-scadenza-fornitore">{t("Fornitore")}</Label>
               <Popover open={supplierOpen} onOpenChange={setSupplierOpen}>
                 <PopoverTrigger asChild>
                   <Button id="nuova-scadenza-fornitore" variant="outline" role="combobox" className="w-full justify-between font-normal">
-                    {selectedSupplier?.name || "Seleziona fornitore..."}
+                    {selectedSupplier?.name || t("Seleziona fornitore...")}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-full p-0" align="start">
                   <Command>
-                    <CommandInput placeholder="Cerca fornitore..." />
+                    <CommandInput placeholder={t("Cerca fornitore...")} />
                     <CommandList>
-                      <CommandEmpty>Nessun fornitore trovato.</CommandEmpty>
+                      <CommandEmpty>{t("Nessun fornitore trovato.")}</CommandEmpty>
                       <CommandGroup>
                         {suppliers.map((s) => (
                           <CommandItem key={s.id} value={s.name} onSelect={() => { setSupplierId(s.id); setSupplierOpen(false); }}>
@@ -166,19 +168,19 @@ function ModuloScadenza({ open, onOpenChange, onConfirm, isPending }: Props) {
           {/* Order combobox */}
           {showOrder && (
             <div className="space-y-2">
-              <Label htmlFor="nuova-scadenza-ordine">Collega a ordine<span className="max-sm:hidden"> (opzionale)</span></Label>
+              <Label htmlFor="nuova-scadenza-ordine">{t("Collega a ordine")}<span className="max-sm:hidden"> {t("(opzionale)")}</span></Label>
               <Popover open={orderOpen} onOpenChange={setOrderOpen}>
                 <PopoverTrigger asChild>
                   <Button id="nuova-scadenza-ordine" variant="outline" role="combobox" className="w-full justify-between font-normal">
-                    {selectedOrder ? `${selectedOrder.order_code || "—"}${orderCustName(selectedOrder) ? " - " + orderCustName(selectedOrder) : ""}` : "Seleziona ordine..."}
+                    {selectedOrder ? `${selectedOrder.order_code || "—"}${orderCustName(selectedOrder) ? " - " + orderCustName(selectedOrder) : ""}` : t("Seleziona ordine...")}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-full p-0" align="start">
                   <Command>
-                    <CommandInput placeholder="Cerca ordine..." />
+                    <CommandInput placeholder={t("Cerca ordine...")} />
                     <CommandList>
-                      <CommandEmpty>Nessun ordine trovato.</CommandEmpty>
+                      <CommandEmpty>{t("Nessun ordine trovato.")}</CommandEmpty>
                       <CommandGroup>
                         {orders.map((o) => (
                           <CommandItem key={o.id} value={`${o.order_code || ""} ${orderCustName(o)}`} onSelect={() => { setOrderId(o.id); setOrderOpen(false); }}>
@@ -196,50 +198,50 @@ function ModuloScadenza({ open, onOpenChange, onConfirm, isPending }: Props) {
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="nuova-scadenza-descrizione">Descrizione</Label>
-            <Input id="nuova-scadenza-descrizione" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="es. Fattura n. 123 - Cliente XYZ" />
+            <Label htmlFor="nuova-scadenza-descrizione">{t("Descrizione")}</Label>
+            <Input id="nuova-scadenza-descrizione" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("es. Fattura n. 123 - Cliente XYZ")} />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label htmlFor="nuova-scadenza-importo">Importo (€)</Label>
+              <Label htmlFor="nuova-scadenza-importo">{t("Importo (€)")}</Label>
               <Input id="nuova-scadenza-importo" type="number" inputMode="decimal" step="0.01" min="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="nuova-scadenza-data">Scadenza</Label>
+              <Label htmlFor="nuova-scadenza-data">{t("Scadenza")}</Label>
               <Input id="nuova-scadenza-data" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3 max-sm:hidden">
             <div className="space-y-2">
-              <Label htmlFor="nuova-scadenza-metodo">Metodo pagamento</Label>
+              <Label htmlFor="nuova-scadenza-metodo">{t("Metodo pagamento")}</Label>
               <Select value={method} onValueChange={setMethod}>
                 <SelectTrigger id="nuova-scadenza-metodo"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="bonifico">Bonifico</SelectItem>
-                  <SelectItem value="contanti">Contanti</SelectItem>
-                  <SelectItem value="carta">Carta</SelectItem>
-                  <SelectItem value="assegno">Assegno</SelectItem>
+                  <SelectItem value="bonifico">{t("Bonifico")}</SelectItem>
+                  <SelectItem value="contanti">{t("Contanti")}</SelectItem>
+                  <SelectItem value="carta">{t("Carta")}</SelectItem>
+                  <SelectItem value="assegno">{t("Assegno")}</SelectItem>
                   <SelectItem value="ri.ba">Ri.Ba.</SelectItem>
-                  <SelectItem value="altro">Altro</SelectItem>
+                  <SelectItem value="altro">{t("Altro")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="nuova-scadenza-preavviso">Alert (giorni prima)</Label>
+              <Label htmlFor="nuova-scadenza-preavviso">{t("Alert (giorni prima)")}</Label>
               <Input id="nuova-scadenza-preavviso" type="number" min="0" max="90" value={alertDays} onChange={(e) => setAlertDays(e.target.value)} />
             </div>
           </div>
 
           <div className="space-y-2 max-sm:hidden">
-            <Label htmlFor="nuova-scadenza-note">Note (opzionale)</Label>
+            <Label htmlFor="nuova-scadenza-note">{t("Note (opzionale)")}</Label>
             <Textarea id="nuova-scadenza-note" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="max-sm:hidden">Annulla</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="max-sm:hidden">{t("Annulla")}</Button>
           <Button
             disabled={isPending || !isValid}
             onClick={() => onConfirm({
@@ -254,7 +256,7 @@ function ModuloScadenza({ open, onOpenChange, onConfirm, isPending }: Props) {
               order_id: orderId || null,
             })}
           >
-            {isPending ? "Salvataggio..." : "Crea Scadenza"}
+            {isPending ? t("Salvataggio...") : t("Crea Scadenza")}
           </Button>
         </DialogFooter>
       </DialogContent>

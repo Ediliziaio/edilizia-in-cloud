@@ -49,6 +49,7 @@ import {
   fiscalMatch,
   fiscalToday,
 } from "@/lib/fatturazione/fiscalInsights";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Ritenuta {
   id: string;
@@ -91,6 +92,7 @@ export default function RitenuteGaranzia({
   );
 }
 function RitenuteContent() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const permissions = usePermissions(),
@@ -208,8 +210,8 @@ function RitenuteContent() {
   return (
     <div className="space-y-4">
       <FiscalSectionHeader
-        title="Ritenute di garanzia"
-        description="Garanzie contrattuali, non ritenute fiscali. Saldi aperti di tutti gli anni; svincoli dell’anno selezionato."
+        title={t("Ritenute di garanzia")}
+        description={t("Garanzie contrattuali, non ritenute fiscali. Saldi aperti di tutti gli anni; svincoli dell’anno selezionato.")}
         actions={
           <Button
             size="sm"
@@ -218,13 +220,13 @@ function RitenuteContent() {
             className="bg-orange-500 text-white hover:bg-orange-600"
           >
             <Plus className="mr-1 h-4 w-4" />
-            Nuova ritenuta
+            {t("Nuova ritenuta")}
           </Button>
         }
       />
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <FiscalMetric
-          label="Trattenuto a te"
+          label={t("Trattenuto a te")}
           value={money(trattenutoAttivo)}
           onClick={() =>
             applyFilter({
@@ -237,10 +239,10 @@ function RitenuteContent() {
           active={
             direzione === "attiva" && status === "trattenuta" && due === "tutte"
           }
-          description={`${aperteAttive.length} ${aperteAttive.length === 1 ? "ritenuta aperta" : "ritenute aperte"} sui tuoi SAL · tutti gli anni`}
+          description={t(aperteAttive.length === 1 ? "{n} ritenuta aperta sui tuoi SAL · tutti gli anni" : "{n} ritenute aperte sui tuoi SAL · tutti gli anni", { n: aperteAttive.length })}
         />
         <FiscalMetric
-          label="Da svincolare"
+          label={t("Da svincolare")}
           value={daSvincolare.length}
           onClick={() =>
             applyFilter({
@@ -254,12 +256,12 @@ function RitenuteContent() {
           warning={daSvincolare.length > 0}
           description={
             daSvincolare.length > 0
-              ? `${money(sum(daSvincolare))} con data prevista raggiunta`
-              : "Nessuna ritenuta aperta con data prevista raggiunta"
+              ? t("{valore} con data prevista raggiunta", { valore: String(money(sum(daSvincolare)) ?? "") })
+              : t("Nessuna ritenuta aperta con data prevista raggiunta")
           }
         />
         <FiscalMetric
-          label="Trattenuto ai subappaltatori"
+          label={t("Trattenuto ai subappaltatori")}
           value={money(trattenutoPassivo)}
           onClick={() =>
             applyFilter({
@@ -274,10 +276,10 @@ function RitenuteContent() {
             status === "trattenuta" &&
             due === "tutte"
           }
-          description="Solo garanzie ancora aperte · tutti gli anni"
+          description={t("Solo garanzie ancora aperte · tutti gli anni")}
         />
         <FiscalMetric
-          label={`Svincolato nel ${period.anno}`}
+          label={t("Svincolato nel {anno}", { anno: String(period.anno ?? "") })}
           value={money(svincolatoAnno)}
           onClick={() =>
             applyFilter({
@@ -288,34 +290,28 @@ function RitenuteContent() {
             })
           }
           active={direzione === "attiva" && status === "svincolata_anno"}
-          description="Svincolo dichiarato a tuo favore, non prova d’incasso"
+          description={t("Svincolo dichiarato a tuo favore, non prova d’incasso")}
         />
       </div>
       <details className="rounded-xl border bg-white p-4">
         <summary className="cursor-pointer text-sm font-medium">
-          Criteri di lettura e verifica
+          {t("Criteri di lettura e verifica")}
         </summary>
         <p className="mt-3 text-sm text-muted-foreground">
-          Le garanzie aperte sono mostrate per tutti gli anni; il riepilogo
-          svincoli riguarda l’anno selezionato. Importi, durata e percentuali
-          dipendono dal contratto. Lo svincolo non prova l’incasso e non genera
-          un movimento bancario. Ogni svincolo richiede data, riferimento
-          verificato e conferma esplicita, conservando lo storico delle
-          modifiche. Il conteggio nei filtri comprende anche le garanzie già
-          svincolate o perse, escluse dai saldi aperti.
+          {t("Le garanzie aperte sono mostrate per tutti gli anni; il riepilogo svincoli riguarda l’anno selezionato. Importi, durata e percentuali dipendono dal contratto. Lo svincolo non prova l’incasso e non genera un movimento bancario. Ogni svincolo richiede data, riferimento verificato e conferma esplicita, conservando lo storico delle modifiche. Il conteggio nei filtri comprende anche le garanzie già svincolate o perse, escluse dai saldi aperti.")}
         </p>
       </details>
 
       {/* Selettore direzione + tabella */}
       <div
         role="group"
-        aria-label="Direzione delle garanzie"
+        aria-label={t("Direzione delle garanzie")}
         className="flex flex-wrap items-center gap-2"
       >
         {(
           [
-            ["attiva", `Trattenute a te (${attive.length})`],
-            ["passiva", `Ai subappaltatori (${passive.length})`],
+            ["attiva", t("Trattenute a te ({n})", { n: attive.length })],
+            ["passiva", t("Ai subappaltatori ({n})", { n: passive.length })],
           ] as const
         ).map(([val, label]) => (
           <Button
@@ -338,8 +334,8 @@ function RitenuteContent() {
 
       <div className="flex flex-wrap items-center gap-2">
         <Input
-          aria-label="Cerca nelle garanzie"
-          placeholder="Commessa o controparte…"
+          aria-label={t("Cerca nelle garanzie")}
+          placeholder={t("Commessa o controparte…")}
           className="min-w-48 flex-1"
           value={search}
           onChange={(e) => {
@@ -348,29 +344,29 @@ function RitenuteContent() {
           }}
         />
         <FiscalSelectFilter
-          label="Stato delle garanzie"
+          label={t("Stato delle garanzie")}
           value={status}
           onChange={(value) => applyFilter({ stato_ritenute: value })}
           options={[
-            { value: "tutti", label: "Tutti gli stati" },
-            { value: "trattenuta", label: "Aperte" },
-            { value: "svincolata", label: "Svincolate · tutti gli anni" },
+            { value: "tutti", label: t("Tutti gli stati") },
+            { value: "trattenuta", label: t("Aperte") },
+            { value: "svincolata", label: t("Svincolate · tutti gli anni") },
             {
               value: "svincolata_anno",
-              label: `Svincolate nel ${period.anno}`,
+              label: t("Svincolate nel {anno}", { anno: String(period.anno ?? "") }),
             },
-            { value: "persa", label: "Perse" },
+            { value: "persa", label: t("Perse") },
           ]}
         />
         <FiscalSelectFilter
-          label="Scadenza delle garanzie"
+          label={t("Scadenza delle garanzie")}
           value={due}
           onChange={(value) => applyFilter({ scadenza_ritenute: value })}
           options={[
-            { value: "tutte", label: "Tutte le scadenze" },
-            { value: "raggiunta", label: "Data prevista raggiunta" },
-            { value: "prossimi", label: "Entro 30 giorni · aperte" },
-            { value: "mancante", label: "Senza data valida · aperte" },
+            { value: "tutte", label: t("Tutte le scadenze") },
+            { value: "raggiunta", label: t("Data prevista raggiunta") },
+            { value: "prossimi", label: t("Entro 30 giorni · aperte") },
+            { value: "mancante", label: t("Senza data valida · aperte") },
           ]}
         />
         {(search || status !== "tutti" || due !== "tutte") && (
@@ -384,13 +380,12 @@ function RitenuteContent() {
               })
             }
           >
-            Azzera filtri
+            {t("Azzera filtri")}
           </Button>
         )}
       </div>
       <p className="text-xs text-muted-foreground">
-        I riepiloghi mantengono il loro periodo di riferimento; i filtri
-        cambiano solo l’elenco.
+        {t("I riepiloghi mantengono il loro periodo di riferimento; i filtri cambiano solo l’elenco.")}
       </p>
 
       <Card className="overflow-hidden rounded-xl bg-white shadow-none">
@@ -400,14 +395,14 @@ function RitenuteContent() {
               <TableRow>
                 <TableHead>
                   {direzione === "attiva"
-                    ? "Commessa · committente"
-                    : "Subappaltatore"}
+                    ? t("Commessa · committente")
+                    : t("Subappaltatore")}
                 </TableHead>
-                <TableHead className="text-right">Importo</TableHead>
+                <TableHead className="text-right">{t("Importo")}</TableHead>
                 <TableHead className="text-right">%</TableHead>
-                <TableHead>Stato</TableHead>
-                <TableHead>Svincolo previsto</TableHead>
-                <TableHead className="text-right">Azioni</TableHead>
+                <TableHead>{t("Stato")}</TableHead>
+                <TableHead>{t("Svincolo previsto")}</TableHead>
+                <TableHead className="text-right">{t("Azioni")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -429,20 +424,18 @@ function RitenuteContent() {
                   >
                     <ShieldCheck className="mx-auto mb-2 h-8 w-8 opacity-40" />
                     {lista.length > 0 ? (
-                      <p>Nessuna garanzia corrisponde ai filtri selezionati.</p>
+                      <p>{t("Nessuna garanzia corrisponde ai filtri selezionati.")}</p>
                     ) : direzione === "attiva" ? (
                       <>
                         <p className="mb-1 font-medium text-foreground">
-                          Nessuna ritenuta registrata sui tuoi SAL
+                          {t("Nessuna ritenuta registrata sui tuoi SAL")}
                         </p>
                         <p className="text-sm">
-                          Quando un committente trattiene una quota su un
-                          pagamento, registralo qui: è l'unico modo per
-                          andarselo a riprendere alla scadenza.
+                          {t("Quando un committente trattiene una quota su un pagamento, registralo qui: è l'unico modo per andarselo a riprendere alla scadenza.")}
                         </p>
                       </>
                     ) : (
-                      <p>Nessuna ritenuta trattenuta ai subappaltatori.</p>
+                      <p>{t("Nessuna ritenuta trattenuta ai subappaltatori.")}</p>
                     )}
                   </TableCell>
                 </TableRow>
@@ -469,7 +462,7 @@ function RitenuteContent() {
                               variant="outline"
                               className="ml-2 border-sky-300 text-[10px] text-sky-700"
                             >
-                              fideiussione
+                              {t("fideiussione")}
                             </Badge>
                           )}
                         </p>
@@ -484,7 +477,7 @@ function RitenuteContent() {
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {r.percentuale_applicata != null
-                          ? `${Number(r.percentuale_applicata).toLocaleString("it-IT")}%`
+                          ? `${Number(r.percentuale_applicata).toLocaleString(intlCampo())}%`
                           : "—"}
                       </TableCell>
                       <TableCell>
@@ -500,7 +493,7 @@ function RitenuteContent() {
                           : "—"}
                         {scaduta && (
                           <span className="block text-[10px]">
-                            da riprendere
+                            {t("da riprendere")}
                           </span>
                         )}
                       </TableCell>
@@ -514,8 +507,8 @@ function RitenuteContent() {
                           >
                             <CheckCircle2 className="h-3.5 w-3.5" />{" "}
                             {r.stato === "trattenuta"
-                              ? "Verifica svincolo"
-                              : "Dettagli e storico"}
+                              ? t("Verifica svincolo")
+                              : t("Dettagli e storico")}
                           </Button>
                         )}
                       </TableCell>
@@ -529,8 +522,7 @@ function RitenuteContent() {
       </Card>
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
         <p>
-          {filtered.length} {filtered.length === 1 ? "garanzia" : "garanzie"} ·
-          pagina {current + 1} di {pages}
+          {t(filtered.length === 1 ? "{n} garanzia · pagina {pagina} di {pagine}" : "{n} garanzie · pagina {pagina} di {pagine}", { n: filtered.length, pagina: current + 1, pagine: pages })}
         </p>
         <div className="flex gap-2">
           <Button
@@ -539,7 +531,7 @@ function RitenuteContent() {
             disabled={current === 0}
             onClick={() => setPage(current - 1)}
           >
-            Precedenti
+            {t("Precedenti")}
           </Button>
           <Button
             size="sm"
@@ -547,7 +539,7 @@ function RitenuteContent() {
             disabled={current >= pages - 1}
             onClick={() => setPage(current + 1)}
           >
-            Successivi
+            {t("Successivi")}
           </Button>
         </div>
       </div>

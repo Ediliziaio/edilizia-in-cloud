@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { documentiDb as db } from "@/lib/ddt/documentiPersistenti";
 import { messaggioSalvataggio } from "@/lib/fatturazione/salvataggioFattura";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 export function EquivalenzeFornitoreFattura({
   regole,
   puoModificare,
@@ -9,6 +10,7 @@ export function EquivalenzeFornitoreFattura({
   regole: Record<string, unknown>[];
   puoModificare: boolean;
 }) {
+  const t = useT();
   const qc = useQueryClient();
   const togli = useMutation({
     mutationFn: async (id: string) => {
@@ -23,12 +25,9 @@ export function EquivalenzeFornitoreFattura({
   if (!regole.length) return null;
   return (
     <details className="border-t px-5 py-3 text-xs text-muted-foreground">
-      <summary className="cursor-pointer">
-        Equivalenze ricordate per questo fornitore ({regole.length})
-      </summary>
+      <summary className="cursor-pointer">{t("Equivalenze ricordate per questo fornitore ({n})", { n: regole.length })}</summary>
       <p className="my-2">
-        Vengono usate nelle prossime analisi della tua azienda. Puoi disattivare
-        quelle non più valide.
+        {t("Vengono usate nelle prossime analisi della tua azienda. Puoi disattivare quelle non più valide.")}
       </p>
       {togli.error && (
         <p role="alert" className="text-red-700">
@@ -51,7 +50,7 @@ export function EquivalenzeFornitoreFattura({
               disabled={!puoModificare || togli.isPending}
               onClick={() => togli.mutate(String(r.id))}
             >
-              Disattiva
+              {t("Disattiva")}
             </Button>
           </li>
         ))}

@@ -27,6 +27,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
 import { useControlloOrdiniDDT, useResiduiDestinazioni } from "@/hooks/useControlloOrdiniDDT";
 import { quantitaResiduaDDT } from "@/lib/ddt/riepilogoConsegne";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Scelta {
   ordineAcquisto?: string;
@@ -50,7 +51,7 @@ interface Articolo {
   internal_code?: string | null;
 }
 const numero = (n: number) =>
-  n.toLocaleString("it-IT", { maximumFractionDigits: 4 });
+  n.toLocaleString(intlCampo(), { maximumFractionDigits: 4 });
 const input = "h-10 w-full rounded-md border bg-background px-2 text-sm";
 // 11/11/2026 — Le spiegazioni erano due paragrafi fissi, sopra e sotto le
 // righe: ora stanno nel suggerimento dell'icona accanto al titolo.
@@ -58,6 +59,7 @@ const SPIEGAZIONE =
   "Conferma ciò che è arrivato davvero. In cantiere aggiorna gli articoli della commessa; in magazzino aggiorna la giacenza. Ricevuto e consumato restano distinti. Per dividere una riga fra cantiere e magazzino, conferma la prima quota e poi assegna il resto. I prezzi mancanti restano da definire: la consegna non crea una nuova fattura o un secondo costo.";
 
 export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
+  const t = useT();
   const permessi = usePermissions();
   const puoConfermare =
     !permessi.solaLettura &&
@@ -246,9 +248,9 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
   const erroriQuantita = new Map(righeDaInviare.flatMap((r) => {
     const residuo = residui.get(r.riga_id) ?? 0;
     const errore = !Number.isFinite(r.quantita) || r.quantita <= 0
-      ? "Inserisci una quantità valida, maggiore di zero."
+      ? t("Inserisci una quantità valida, maggiore di zero.")
       : r.quantita > residuo + 0.000001
-        ? `Puoi confermare al massimo ${numero(residuo)}: è la quantità ancora aperta sulla bolla.`
+        ? t("Puoi confermare al massimo {residuo}: è la quantità ancora aperta sulla bolla.", { residuo: numero(residuo) })
         : null;
     return errore ? [[r.riga_id, errore] as const] : [];
   }));
@@ -264,7 +266,7 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
         )
       )
         throw new Error(
-          "Seleziona le righe e controlla le quantità effettivamente arrivate",
+          t("Seleziona le righe e controlla le quantità effettivamente arrivate"),
         );
       if (
         righeDaInviare.some(
@@ -272,7 +274,7 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
         )
       )
         throw new Error(
-          "Scegli la commessa di destinazione delle righe che vanno in cantiere",
+          t("Scegli la commessa di destinazione delle righe che vanno in cantiere"),
         );
       const json = JSON.stringify(righeDaInviare);
       if (operazione.current?.json !== json)
@@ -289,12 +291,12 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
       setSelezione(new Set());
       setScelte({});
       setConfermo(false);
-      toast.success("Consegna confermata: aggiornate solo le quantità scelte");
+      toast.success(t("Consegna confermata: aggiornate solo le quantità scelte"));
       refreshMaterialQueries(qc);
       void qc.invalidateQueries({ queryKey: queryKeys.warehouse.all });
     },
     onError: (e: Error) => {
-      toast.error("Consegna non confermata", {
+      toast.error(t("Consegna non confermata"), {
         description: messaggioErroreConsegna(e.message, nessunMagazzino),
       });
       void consegne.refetch();
@@ -307,10 +309,10 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <PackageCheck className="h-4 w-4 text-orange-600" />
-            Consegne e materiali
+            {t("Consegne e materiali")}
             <span
-              title={SPIEGAZIONE}
-              aria-label={SPIEGAZIONE}
+              title={t(SPIEGAZIONE)}
+              aria-label={t(SPIEGAZIONE)}
               role="img"
               className="cursor-help text-muted-foreground"
             >
@@ -334,28 +336,28 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
               }}
             >
               {selezione.size === aperte.length
-                ? "Deseleziona"
-                : "Seleziona tutte"}
+                ? t("Deseleziona")
+                : t("Seleziona tutte")}
             </Button>
           )}
         </div>
         {puoConfermare && aperte.length > 0 && (
           <p className="text-xs text-muted-foreground">
-            Spunta le righe arrivate davvero per confermarle.
+            {t("Spunta le righe arrivate davvero per confermarle.")}
           </p>
         )}
       </CardHeader>
       <CardContent className="space-y-3">
         {righe.isLoading || consegne.isLoading ? (
-          <p className="text-sm text-muted-foreground">Caricamento consegne…</p>
+          <p className="text-sm text-muted-foreground">{t("Caricamento consegne…")}</p>
         ) : consegne.isError || righe.isError ? (
           <p role="alert" className="text-sm text-destructive">
-            Non riesco a controllare le consegne precedenti.{" "}
+            {t("Non riesco a controllare le consegne precedenti.")}{" "}
             <button
               className="underline"
               onClick={() => void consegne.refetch()}
             >
-              Riprova
+              {t("Riprova")}
             </button>
           </p>
         ) : (
@@ -363,7 +365,7 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
             {!!consegne.data?.length && (
               <ul
                 className="divide-y rounded-md border bg-emerald-50/30"
-                aria-label="Consegne confermate"
+                aria-label={t("Consegne confermate")}
               >
                 {consegne.data.map((c) => (
                   <li
@@ -381,12 +383,12 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                       </span>
                       <span className="text-xs text-muted-foreground">
                         {c.tipo === "reso"
-                          ? "Reso"
+                          ? t("Reso")
                           : c.tipo === "servizio"
-                            ? "Servizio / noleggio, nessuna giacenza"
+                            ? t("Servizio / noleggio, nessuna giacenza")
                             : c.destinazione === "cantiere"
-                              ? "Consegnato in cantiere"
-                              : `Caricato in ${c.warehouses?.name || "magazzino"}`}
+                              ? t("Consegnato in cantiere")
+                              : t("Caricato in {magazzino}", { magazzino: c.warehouses?.name || t("magazzino") })}
                         {c.order_id && (
                           <>
                             {" "}
@@ -395,7 +397,7 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                               className="underline"
                               to={`/azienda/ordini/${c.order_id}`}
                             >
-                              Commessa
+                              {t("Commessa")}
                             </Link>
                           </>
                         )}
@@ -458,11 +460,11 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                           <span>
                             {r.descrizione}
                             <span className="block text-xs font-normal text-muted-foreground">
-                              Da confermare:{" "}
+                              {t("Da confermare:")}{" "}
                               {numero(residui.get(r.id) ?? 0)}{" "}
-                              {r.unita_misura || "· unità da correggere"}
+                              {r.unita_misura || t("· unità da correggere")}
                               {r.prezzo_unitario == null
-                                ? " · Prezzo da definire"
+                                ? ` ${t("· Prezzo da definire")}`
                                 : ""}
                             </span>
                           </span>
@@ -474,9 +476,9 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                           >
                             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                               <label className="space-y-1 text-xs">
-                                Quantità accettata
+                                {t("Quantità accettata")}
                                 <Input
-                                  aria-label={`Quantità consegnata ${r.descrizione}`}
+                                  aria-label={t("Quantità consegnata {descrizione}", { descrizione: String(r.descrizione ?? "") })}
                                   aria-invalid={erroriQuantita.has(r.id) || undefined}
                                   aria-describedby={erroriQuantita.has(r.id) ? `${r.id}-errore-quantita` : undefined}
                                   inputMode="decimal"
@@ -491,7 +493,7 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                                 {erroriQuantita.has(r.id) && <p role="alert" id={`${r.id}-errore-quantita`} className="text-xs text-destructive">{erroriQuantita.get(r.id)}</p>}
                               </label>
                               <label className="space-y-1 text-xs">
-                                Operazione
+                                {t("Operazione")}
                                 <UniformSelect
                                   className={input}
                                   value={tipo}
@@ -502,18 +504,18 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                                   }
                                 >
                                   <option value="ingresso">
-                                    Merce ricevuta
+                                    {t("Merce ricevuta")}
                                   </option>
                                   <option value="reso">
-                                    Reso al fornitore
+                                    {t("Reso al fornitore")}
                                   </option>
                                   <option value="servizio">
-                                    Servizio / noleggio
+                                    {t("Servizio / noleggio")}
                                   </option>
                                 </UniformSelect>
                               </label>
                               <label className="space-y-1 text-xs">
-                                Destinazione
+                                {t("Destinazione")}
                                 <UniformSelect
                                   className={input}
                                   value={dest}
@@ -525,30 +527,30 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                                     })
                                   }
                                 >
-                                  <option value="cantiere">Cantiere</option>
+                                  <option value="cantiere">{t("Cantiere")}</option>
                                   {permessi.canEditWarehouse &&
                                     (!nessunMagazzino ||
                                       dest === "magazzino") && (
                                       <option value="magazzino">
-                                        Magazzino
+                                        {t("Magazzino")}
                                       </option>
                                     )}
                                 </UniformSelect>
                               </label>
                             </div>
-                            {tipo === "ingresso" && !!controlloOrdini.data?.righe.length && <label className="block space-y-1 text-xs">Riga dell’ordine a cui attribuire questo arrivo
-                              <UniformSelect className={input} aria-label={`Ordine per ${r.descrizione}`} value={poiScelto ?? "__fuori__"} onChange={(e) => {
+                            {tipo === "ingresso" && !!controlloOrdini.data?.righe.length && <label className="block space-y-1 text-xs">{t("Riga dell’ordine a cui attribuire questo arrivo")}
+                              <UniformSelect className={input} aria-label={t("Ordine per {descrizione}", { descrizione: String(r.descrizione ?? "") })} value={poiScelto ?? "__fuori__"} onChange={(e) => {
                                 const item = controlloOrdini.data?.righe.find((i) => i.id === e.target.value);
                                 const po = controlloOrdini.data?.ordini.find((o) => o.id === item?.purchase_order_id);
                                 cambia(r.id, { ordineAcquisto: e.target.value, ...(po?.order_id ? { orderId: po.order_id } : {}), articolo: "" });
                               }}>
-                                <option value="__fuori__">Articolo fuori ordine</option>
-                                {controlloOrdini.data.righe.map((i) => <option key={i.id} value={i.id}>{i.oda_number} · {i.description} · residuo {numero(Math.max(0, Number(i.quantity) - Number(i.quantity_received ?? 0)))} {i.unit_of_measure}</option>)}
-                              </UniformSelect><span className="block text-muted-foreground">Puoi confermare una parte su un ordine e attribuire il residuo a un altro, senza duplicare la bolla.</span>
+                                <option value="__fuori__">{t("Articolo fuori ordine")}</option>
+                                {controlloOrdini.data.righe.map((i) => <option key={i.id} value={i.id}>{t("{oda_number} · {description} · residuo {valore} {unit_of_measure}", { oda_number: String(i.oda_number ?? ""), description: String(i.description ?? ""), valore: String(numero(Math.max(0, Number(i.quantity) - Number(i.quantity_received ?? 0))) ?? ""), unit_of_measure: String(i.unit_of_measure ?? "") })}</option>)}
+                              </UniformSelect><span className="block text-muted-foreground">{t("Puoi confermare una parte su un ordine e attribuire il residuo a un altro, senza duplicare la bolla.")}</span>
                             </label>}
                             {tipo === "ingresso" && destinazioniPreviste.length > 0 && (
                               <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                                <span className="text-muted-foreground">Destinazioni previste</span>
+                                <span className="text-muted-foreground">{t("Destinazioni previste")}</span>
                                 {destinazioniPreviste.map(d => {
                                   const residue = residuiDestinazione?.destinazioni.find(x => x.tipo === d.tipo && x.id === d.id);
                                   return (
@@ -562,24 +564,24 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                                       warehouseId: d.tipo === "magazzino" ? d.id : undefined,
                                       articolo: "",
                                     })}>
-                                    {d.nome ?? (d.tipo === "commessa" ? "Cantiere" : "Magazzino")} · {
-                                      residue ? `${numero(residue.residua)} da consegnare` : numero(d.quantita)
+                                    {d.nome ?? (d.tipo === "commessa" ? t("Cantiere") : t("Magazzino"))} · {
+                                      residue ? t("{residua} da consegnare", { residua: String(numero(residue.residua) ?? "") }) : numero(d.quantita)
                                     }
-                                    {!!residue?.eccedenza && ` · ${numero(residue.eccedenza)} in più`}
+                                    {!!residue?.eccedenza && ` ${t("· {eccedenza} in più", { eccedenza: String(numero(residue.eccedenza) ?? "") })}`}
                                   </Button>
                                 );})}
                                 {(residuiDestinazione?.da_verificare || !!residuiDestinazione?.fuori_piano) && (
                                   <p className="basis-full text-amber-800 dark:text-amber-300">
                                     {residuiDestinazione.non_attribuita > 0
-                                      ? `${numero(residuiDestinazione.non_attribuita)} ricevuti con destinazione da attribuire. `
-                                      : residuiDestinazione.da_verificare ? "Verifica le quantità registrate. " : ""}
-                                    {residuiDestinazione.fuori_piano > 0 && `${numero(residuiDestinazione.fuori_piano)} consegnati fuori piano.`}
+                                      ? `${t("{non_attribuita} ricevuti con destinazione da attribuire.", { non_attribuita: String(numero(residuiDestinazione.non_attribuita) ?? "") })} `
+                                      : residuiDestinazione.da_verificare ? `${t("Verifica le quantità registrate.")} ` : ""}
+                                    {residuiDestinazione.fuori_piano > 0 && t("{fuori_piano} consegnati fuori piano.", { fuori_piano: String(numero(residuiDestinazione.fuori_piano) ?? "") })}
                                   </p>
                                 )}
-                                {residuiDestinazioni.isError && <p className="basis-full text-muted-foreground">Residui per destinazione da verificare.</p>}
+                                {residuiDestinazioni.isError && <p className="basis-full text-muted-foreground">{t("Residui per destinazione da verificare.")}</p>}
                               </div>
                             )}
-                            {tipo === "ingresso" && <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-900">Inserisci solo la merce accettata: quantità mancanti o danneggiate restano da gestire. I servizi e i resi si registrano con l’operazione dedicata.</p>}
+                            {tipo === "ingresso" && <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-900">{t("Inserisci solo la merce accettata: quantità mancanti o danneggiate restano da gestire. I servizi e i resi si registrano con l’operazione dedicata.")}</p>}
                             {dest === "cantiere" ? (
                               <OrderSelectCombobox
                                 companyId={ddt.company_id}
@@ -602,7 +604,7 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                             )}
                             {tipo === "reso" ? (
                               <label className="block space-y-1 text-xs">
-                                Consegna originale
+                                {t("Consegna originale")}
                                 <UniformSelect
                                   className={input}
                                   value={s.origine ?? ""}
@@ -611,7 +613,7 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                                   }
                                 >
                                   <option value="">
-                                    Scegli la consegna da rendere
+                                    {t("Scegli la consegna da rendere")}
                                   </option>
                                   {(origini.data ?? [])
                                     .filter(
@@ -625,7 +627,7 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                                       <option key={c.id} value={c.id}>
                                         {new Date(
                                           c.created_at,
-                                        ).toLocaleDateString("it-IT")}{" "}
+                                        ).toLocaleDateString(intlCampo())}{" "}
                                         · {numero(Number(c.quantita))}{" "}
                                         {c.unita_misura} · {c.id.slice(0, 8)}
                                       </option>
@@ -636,8 +638,8 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                               tipo !== "servizio" && (
                                 <label className="block space-y-1 text-xs">
                                   {dest === "cantiere"
-                                    ? "Articolo della commessa"
-                                    : "Articolo di magazzino"}
+                                    ? t("Articolo della commessa")
+                                    : t("Articolo di magazzino")}
                                   <UniformSelect
                                     className={input}
                                     value={valore}
@@ -647,16 +649,16 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                                     }
                                   >
                                     <option value="">
-                                      Scegli un articolo o creane uno nuovo
+                                      {t("Scegli un articolo o creane uno nuovo")}
                                     </option>
                                     <option value="__nuovo__">
-                                      + Crea nuovo articolo dalla bolla
+                                      {t("+ Crea nuovo articolo dalla bolla")}
                                     </option>
                                     {articoli.map((a) => (
                                       <option value={a.id} key={a.id}>
                                         {a.name} ·{" "}
                                         {a.unita_misura ||
-                                          "unità da confermare"}
+                                          t("unità da confermare")}
                                       </option>
                                     ))}
                                   </UniformSelect>
@@ -668,13 +670,13 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                                 role="alert"
                                 className="text-xs text-destructive"
                               >
-                                Articoli non disponibili.{" "}
+                                {t("Articoli non disponibili.")}{" "}
                                 <button
                                   type="button"
                                   className="underline"
                                   onClick={() => void catalogo.refetch()}
                                 >
-                                  Riprova
+                                  {t("Riprova")}
                                 </button>
                               </p>
                             )}
@@ -687,10 +689,9 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                                     cambia(r.id, { unita: e.target.checked })
                                   }
                                 />
-                                Se l’articolo non ha un’unità registrata,
-                                confermo che è{" "}
+                                {t("Se l’articolo non ha un’unità registrata, confermo che è")}{" "}
                                 {r.unita_misura ||
-                                  "quella da correggere sulla bolla"}
+                                  t("quella da correggere sulla bolla")}
                                 .
                               </label>
                             )}
@@ -706,8 +707,7 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                                       })
                                     }
                                   />
-                                  Accetto l’eventuale quantità in più rispetto
-                                  all’OdA.
+                                  {t("Accetto l’eventuale quantità in più rispetto all’OdA.")}
                                 </label>
                               )}
                           </fieldset>
@@ -727,8 +727,7 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                         disabled={!righeDaInviare.length || erroriQuantita.size > 0 || salva.isPending}
                         onChange={(e) => setConfermo(e.target.checked)}
                       />
-                      Ho controllato quantità, destinazione e articoli delle
-                      righe selezionate.
+                      {t("Ho controllato quantità, destinazione e articoli delle righe selezionate.")}
                     </label>
                     <div className="flex flex-wrap items-center gap-2">
                       <Button
@@ -746,8 +745,7 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                         {salva.isPending && (
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         )}
-                        Conferma {righeDaInviare.length}{" "}
-                        {righeDaInviare.length === 1 ? "consegna" : "consegne"}
+                        {t(righeDaInviare.length === 1 ? "Conferma {n} consegna" : "Conferma {n} consegne", { n: righeDaInviare.length })}
                       </Button>
                       <Button
                         type="button"
@@ -767,7 +765,7 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                           setConfermo(false);
                         }}
                       >
-                        Crea nuovi articoli per le selezionate
+                        {t("Crea nuovi articoli per le selezionate")}
                       </Button>
                     </div>
                   </div>
@@ -776,8 +774,7 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
             )}
             {!aperte.length && !consegne.data?.length && (
               <p className="text-sm text-muted-foreground">
-                Le righe non hanno quantità da confermare, oppure sono già state
-                ricevute con la procedura precedente.
+                {t("Le righe non hanno quantità da confermare, oppure sono già state ricevute con la procedura precedente.")}
               </p>
             )}
           </>

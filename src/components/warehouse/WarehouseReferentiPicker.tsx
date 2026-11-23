@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ReferentePerson } from "@/hooks/useWarehouseReferenti";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface PickerReferente {
   /** presente se la riga esiste già sul DB (id warehouse_referenti.id) */
@@ -65,6 +66,7 @@ export function WarehouseReferentiPicker({
   isLoading = false,
   disabled = false,
 }: WarehouseReferentiPickerProps) {
+  const t = useT();
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const selectedKeys = useMemo(
@@ -157,7 +159,7 @@ export function WarehouseReferentiPicker({
                       {r.is_primary && (
                         <Badge className="bg-primary/15 text-primary border border-primary/30 hover:bg-primary/15 text-[10px] h-4 px-1.5">
                           <Star className="h-2.5 w-2.5 mr-0.5 fill-primary" />
-                          Principale
+                          {t("Principale")}
                         </Badge>
                       )}
                     </div>
@@ -190,7 +192,7 @@ export function WarehouseReferentiPicker({
                         className="h-7 w-7"
                         onClick={() => setPrimary(idx)}
                         disabled={disabled}
-                        title="Imposta come principale"
+                        title={t("Imposta come principale")}
                       >
                         <Star className="h-3.5 w-3.5" />
                       </Button>
@@ -202,7 +204,7 @@ export function WarehouseReferentiPicker({
                       className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
                       onClick={() => removeAt(idx)}
                       disabled={disabled}
-                      title="Rimuovi referente"
+                      title={t("Rimuovi referente")}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
@@ -214,7 +216,7 @@ export function WarehouseReferentiPicker({
                   <Input
                     value={r.role_label}
                     onChange={(e) => updateRoleLabel(idx, e.target.value)}
-                    placeholder="Ruolo (es. Magazziniere)"
+                    placeholder={t("Ruolo (es. Magazziniere)")}
                     className="h-7 text-xs"
                     list={`role-suggestions-${idx}`}
                     disabled={disabled}
@@ -242,7 +244,7 @@ export function WarehouseReferentiPicker({
             disabled={disabled}
           >
             <Plus className="h-4 w-4" />
-            {value.length === 0 ? "Aggiungi referente" : "Aggiungi altro referente"}
+            {value.length === 0 ? t("Aggiungi referente") : t("Aggiungi altro referente")}
           </Button>
         </PopoverTrigger>
         <PopoverContent
@@ -270,7 +272,7 @@ export function WarehouseReferentiPicker({
               return value.toLowerCase().includes(search.toLowerCase()) ? 1 : 0;
             }}
           >
-            <CommandInput placeholder="Cerca dipendente o subappaltatore…" />
+            <CommandInput placeholder={t("Cerca dipendente o subappaltatore…")} />
             <CommandList
               className="max-h-[min(60vh,320px)] overflow-y-auto overscroll-contain"
               onWheel={(e) => e.stopPropagation()}
@@ -278,20 +280,20 @@ export function WarehouseReferentiPicker({
               <CommandEmpty>
                 {isLoading ? (
                   <div className="py-6 text-center text-sm text-muted-foreground">
-                    Caricamento candidati…
+                    {t("Caricamento candidati…")}
                   </div>
                 ) : (
                   <div className="py-6 text-center text-sm text-muted-foreground space-y-2">
                     <UserPlus className="h-8 w-8 mx-auto opacity-50" />
-                    <p>Nessun candidato trovato.</p>
+                    <p>{t("Nessun candidato trovato.")}</p>
                     <p className="text-xs">
-                      Aggiungi dipendenti da{" "}
+                      {t("Aggiungi dipendenti da")}{" "}
                       <a href="/azienda/personale" className="underline font-medium">
-                        Personale
+                        {t("Personale")}
                       </a>{" "}
-                      o subappaltatori da{" "}
+                      {t("o subappaltatori da")}{" "}
                       <a href="/azienda/manodopera?tab=subappaltatori" className="underline font-medium">
-                        Subappaltatori
+                        {t("Subappaltatori")}
                       </a>
                       .
                     </p>
@@ -300,7 +302,7 @@ export function WarehouseReferentiPicker({
               </CommandEmpty>
 
               {availableEmployees.length > 0 && (
-                <CommandGroup heading="Dipendenti / Operai">
+                <CommandGroup heading={t("Dipendenti / Operai")}>
                   {availableEmployees.map((e) => (
                     <CommandItem
                       key={`employee:${e.id}`}
@@ -329,7 +331,7 @@ export function WarehouseReferentiPicker({
               )}
 
               {availableSubcontractors.length > 0 && (
-                <CommandGroup heading="Subappaltatori">
+                <CommandGroup heading={t("Subappaltatori")}>
                   {availableSubcontractors.map((s) => (
                     <CommandItem
                       key={`subcontractor:${s.id}`}
@@ -357,8 +359,7 @@ export function WarehouseReferentiPicker({
       </Popover>
 
       <p className="text-[11px] text-muted-foreground leading-snug">
-        Assegna uno o più referenti: operai, staff interno o subappaltatori. I clienti non sono
-        selezionabili. Il referente <strong>Principale</strong> viene mostrato nelle anteprime.
+        {t("Assegna uno o più referenti: operai, staff interno o subappaltatori. I clienti non sono selezionabili. Il referente Principale viene mostrato nelle anteprime.")}
       </p>
     </div>
   );

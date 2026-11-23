@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { formatEuro } from "@/lib/formatEuro";
 import { centesimiDaTesto, type VoceCatalogo, type VoceMovimento } from "@/lib/finance/cassaVoci";
 import { ScegliVoceCassa } from "./ScegliVoceCassa";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Riga {
   chiave: number;
@@ -58,6 +59,7 @@ export function RipartizioneCassa({
   onTogli?: () => void;
   onAnnulla: () => void;
 }) {
+  const t = useT();
   const totale = Math.round(Math.abs(importo) * 100);
   const [righe, setRighe] = useState<Riga[]>(() => righeIniziali(voce, totale));
   const [attiva, setAttiva] = useState<number | null>(null);
@@ -80,10 +82,10 @@ export function RipartizioneCassa({
   const cambia = (chiave: number, p: Partial<Riga>) => setRighe((rs) => rs.map((r) => (r.chiave === chiave ? { ...r, ...p } : r)));
 
   return (
-    <div className="space-y-2" aria-label="Ripartizione su più voci">
+    <div className="space-y-2" aria-label={t("Ripartizione su più voci")}>
       <p className="text-xs text-muted-foreground">
-        Dividi i {formatEuro(totale / 100)} del movimento tra più voci. Nel cash flow ogni quota va nella sua riga.
-        {!voce?.quote?.length && voce?.proposta_quote?.length ? " Le quote vengono dalla fattura collegata." : ""}
+        {t("Dividi i {importo} del movimento tra più voci. Nel cash flow ogni quota va nella sua riga.", { importo: formatEuro(totale / 100) })}
+        {!voce?.quote?.length && voce?.proposta_quote?.length ? ` ${t("Le quote vengono dalla fattura collegata.")}` : ""}
       </p>
       <ul className="space-y-1.5">
         {righe.map((r, i) => (
@@ -96,22 +98,22 @@ export function RipartizioneCassa({
                   attiva === r.chiave && "border-primary ring-1 ring-primary",
                   !r.voce && "text-muted-foreground",
                 )}
-                aria-label={`Voce della riga ${i + 1}: ${r.voce?.nome ?? "da scegliere"}`}
+                aria-label={t("Voce della riga {n}: {voce}", { n: i + 1, voce: r.voce?.nome ?? t("da scegliere") })}
                 onClick={() => setAttiva(attiva === r.chiave ? null : r.chiave)}
               >
-                {r.voce?.nome ?? (r.suggerimento ? `In «${r.suggerimento}»: scegli la voce` : "Scegli la voce")}
+                {r.voce?.nome ?? (r.suggerimento ? t("In «{suggerimento}»: scegli la voce", { suggerimento: String(r.suggerimento ?? "") }) : t("Scegli la voce"))}
               </button>
               <Input
                 className="h-8 w-28 text-right tabular-nums"
                 inputMode="decimal"
-                aria-label={`Importo della riga ${i + 1}`}
+                aria-label={t("Importo della riga {i}", { i: i + 1 })}
                 value={r.importo}
                 onChange={(e) => cambia(r.chiave, { importo: e.target.value })}
               />
               <button
                 type="button"
                 className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
-                aria-label={`Togli la riga ${i + 1}`}
+                aria-label={t("Togli la riga {i}", { i: i + 1 })}
                 disabled={righe.length <= 2}
                 onClick={() => setRighe((rs) => rs.filter((x) => x.chiave !== r.chiave))}
               >
@@ -144,27 +146,27 @@ export function RipartizioneCassa({
             setProssima((n) => n + 1);
           }}
         >
-          <Plus className="mr-1 h-3.5 w-3.5" /> Aggiungi voce
+          <Plus className="mr-1 h-3.5 w-3.5" /> {t("Aggiungi voce")}
         </Button>
         <span role="status" className={cn("tabular-nums", stato.resta === 0 ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400")}>
-          {stato.resta === 0 ? "Quadra con il movimento" : stato.resta > 0 ? `Da ripartire: ${formatEuro(stato.resta / 100)}` : `Oltre l'importo di ${formatEuro(-stato.resta / 100)}`}
+          {stato.resta === 0 ? t("Quadra con il movimento") : stato.resta > 0 ? t("Da ripartire: {valore}", { valore: formatEuro(stato.resta / 100) }) : t("Oltre l'importo di {valore}", { valore: formatEuro(-stato.resta / 100) })}
         </span>
       </div>
-      {stato.problema && <p className="text-xs text-muted-foreground">{stato.problema}</p>}
+      {stato.problema && <p className="text-xs text-muted-foreground">{t(stato.problema)}</p>}
       <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
         {onTogli && voce?.quote?.length ? (
           <Button variant="ghost" size="sm" className="mr-auto text-muted-foreground" disabled={occupato} onClick={onTogli}>
-            Togli la ripartizione
+            {t("Togli la ripartizione")}
           </Button>
         ) : null}
-        <Button variant="outline" size="sm" disabled={occupato} onClick={onAnnulla}>Annulla</Button>
+        <Button variant="outline" size="sm" disabled={occupato} onClick={onAnnulla}>{t("Annulla")}</Button>
         <Button
           size="sm"
           disabled={!pronta || occupato}
           onClick={() => onSalva(righe.map((r, i) => ({ voce: r.voce!.id, cents: stato.cents[i]! })))}
         >
           {occupato && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}
-          Salva la ripartizione
+          {t("Salva la ripartizione")}
         </Button>
       </div>
     </div>

@@ -15,6 +15,7 @@ import { fiscalBucket, fiscalNumber } from "@/lib/fatturazione/fiscalWorkspace";
 import { formatCurrency } from "@/lib/formatters";
 import { Link } from "react-router-dom";
 import { fiscalDate } from "@/lib/fatturazione/fiscalInsights";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 export function FiscalSourceViewer({
   id,
   label,
@@ -24,6 +25,7 @@ export function FiscalSourceViewer({
   label: string;
   type: "vendite" | "acquisti";
 }) {
+  const t = useT();
   const company = useEffectiveCompanyId(),
     [open, setOpen] = useState(false);
   const q = useQuery({
@@ -48,7 +50,7 @@ export function FiscalSourceViewer({
   const source = q.data || {};
   const sourceMoney = (value: unknown) => {
     const n = fiscalNumber(value);
-    return n === null ? "Da verificare" : formatCurrency(n);
+    return n === null ? t("Da verificare") : formatCurrency(n);
   };
   return (
     <>
@@ -61,10 +63,9 @@ export function FiscalSourceViewer({
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[85vh] overflow-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Documento sorgente · {label}</DialogTitle>
+            <DialogTitle>{t("Documento sorgente · {label}", { label })}</DialogTitle>
             <DialogDescription>
-              Dati letti dal gestionale per l’azienda corrente. Non sono una
-              ricevuta fiscale o una verifica di conservazione.
+              {t("Dati letti dal gestionale per l’azienda corrente. Non sono una ricevuta fiscale o una verifica di conservazione.")}
             </DialogDescription>
           </DialogHeader>
           {q.isPending || q.isError ? (
@@ -78,16 +79,16 @@ export function FiscalSourceViewer({
               <dl className="grid grid-cols-2 gap-3 text-sm">
                 {[
                   [
-                    "Data documento",
-                    fiscalDate(source.data_fattura || source.data_emissione),
+                    t("Data documento"),
+                    fiscalDate(source.data_fattura || source.data_emissione, t("Da verificare")),
                   ],
-                  ["Stato gestionale", source.stato || "Non disponibile"],
-                  ["Imponibile", sourceMoney(source.imponibile_totale)],
-                  ["IVA", sourceMoney(source.iva_totale)],
-                  ["Totale documento", sourceMoney(source.totale_documento)],
+                  [t("Stato gestionale"), source.stato || t("Non disponibile")],
+                  [t("Imponibile"), sourceMoney(source.imponibile_totale)],
+                  [t("IVA"), sourceMoney(source.iva_totale)],
+                  [t("Totale documento"), sourceMoney(source.totale_documento)],
                   [
-                    "Ricezione SDI",
-                    fiscalDate(source.data_ricezione_sdi, "Non documentata"),
+                    t("Ricezione SDI"),
+                    fiscalDate(source.data_ricezione_sdi, t("Non documentata")),
                   ],
                 ].map(([label, value]) => (
                   <div className="rounded-lg border p-3" key={String(label)}>
@@ -106,13 +107,12 @@ export function FiscalSourceViewer({
                     const b = fiscalBucket(raw);
                     return (
                       <p key={i} className="rounded-lg bg-slate-50 p-3 text-sm">
-                        Aliquota{" "}
-                        {b.rate === null ? "da verificare" : b.rate + "%"} ·{" "}
+                        {t("Aliquota {aliquota}", { aliquota: b.rate === null ? t("da verificare") : b.rate + "%" })} ·{" "}
                         {b.nature ||
-                          "operazione imponibile / natura non indicata"}{" "}
-                        · IVA{" "}
+                          t("operazione imponibile / natura non indicata")}{" "}
+                        · {t("IVA")}{" "}
                         {b.tax === null
-                          ? "da verificare"
+                          ? t("da verificare")
                           : formatCurrency(b.tax / 100)}
                       </p>
                     );
@@ -121,7 +121,7 @@ export function FiscalSourceViewer({
               )}
               <details>
                 <summary className="cursor-pointer text-xs text-muted-foreground">
-                  Dati sorgente e identificatore documento
+                  {t("Dati sorgente e identificatore documento")}
                 </summary>
                 <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-slate-50 p-4 text-xs">
                   {JSON.stringify(
@@ -138,7 +138,7 @@ export function FiscalSourceViewer({
               {type === "vendite" && source.origine !== "importata" && (
                 <Button asChild variant="outline">
                   <Link to={`/azienda/documenti/${id}/dettaglio`}>
-                    Apri documento completo
+                    {t("Apri documento completo")}
                   </Link>
                 </Button>
               )}
@@ -156,12 +156,11 @@ export function FiscalSourceViewer({
                     setTimeout(() => URL.revokeObjectURL(url), 1000);
                   }}
                 >
-                  Scarica XML presente nel gestionale
+                  {t("Scarica XML presente nel gestionale")}
                 </Button>
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  XML non disponibile in questa scheda. I dati a video non lo
-                  sostituiscono.
+                  {t("XML non disponibile in questa scheda. I dati a video non lo sostituiscono.")}
                 </p>
               )}
             </>

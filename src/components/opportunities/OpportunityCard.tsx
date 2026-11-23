@@ -4,7 +4,6 @@ import { Link, useNavigate } from "react-router-dom";
 import { useSortable } from "@dnd-kit/sortable";
 import { Phone, Mail, Tag, StickyNote, Calendar, ListTodo, Folder, Trash2, UserCircle, Clock } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import { useLossReasons } from "@/hooks/useLossReasons";
@@ -25,6 +24,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useT, intlCampo, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface OpportunityCardProps {
   opportunity: any;
@@ -40,6 +40,7 @@ interface OpportunityCardProps {
 }
 
 export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardProps>(function OpportunityCard({ opportunity, onClick, onOpenTab, onDelete, isOverlay, selected, onSelect, canEdit = true, sogliaStalloGg = 14 }, _ref) {
+  const t = useT();
   const navigate = useNavigate();
   const routePrefix = useMarketingRoutePrefix();
   const contact = opportunity.marketing_contacts;
@@ -83,8 +84,8 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
     ? `${persona.first_name?.[0] || ""}${persona.last_name?.[0] || ""}`.toUpperCase() || null
     : null;
   const assignedFullName = [
-    venditore ? `Venditore: ${nomeDi(venditore)}` : null,
-    callCenter ? `Call center: ${nomeDi(callCenter)}` : null,
+    venditore ? t("Venditore: {nome}", { nome: nomeDi(venditore) }) : null,
+    callCenter ? t("Call center: {nome}", { nome: nomeDi(callCenter) }) : null,
   ].filter(Boolean).join(" · ") || null;
 
   // Tags
@@ -126,7 +127,7 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
     if (contact?.phone) {
       window.location.href = `tel:${contact.phone.replace(/[^\d+]/g, "")}`;
     } else {
-      toast.info("Nessun telefono disponibile");
+      toast.info(t("Nessun telefono disponibile"));
     }
   };
 
@@ -135,7 +136,7 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
     if (contact?.email) {
       window.open(`mailto:${contact.email}`);
     } else {
-      toast.info("Nessuna email disponibile");
+      toast.info(t("Nessuna email disponibile"));
     }
   };
 
@@ -160,7 +161,7 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
     const phoneVal = contact?.phone || "";
     const valueStr = formatCurrency(Number(opportunity.value || 0));
     const updatedAgo = opportunity.updated_at
-      ? formatDistanceToNow(new Date(opportunity.updated_at), { addSuffix: false, locale: it })
+      ? formatDistanceToNow(new Date(opportunity.updated_at), { addSuffix: false, locale: dateFnsCampo() })
       : null;
 
     return (
@@ -183,14 +184,14 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
         <div className="flex items-center gap-1.5 min-w-0">
           {!isOverlay && onSelect && (
             <div onClick={handleCheckboxChange} onPointerDown={(e) => e.stopPropagation()} className="shrink-0">
-              <Checkbox aria-label={`Seleziona opportunità: ${displayName}`} checked={!!selected} className="h-3.5 w-3.5" />
+              <Checkbox aria-label={t("Seleziona opportunità: {displayName}", { displayName: String(displayName ?? "") })} checked={!!selected} className="h-3.5 w-3.5" />
             </div>
           )}
           <p className="text-xs font-semibold leading-tight truncate flex-1 min-w-0">{displayName}</p>
           <RichiestaRipetutaBadge dati={opportunity.richiesta_ripetuta} compatta />
           {opportunity.status === 'open' && <DealHealthBadge opportunity={opportunity} compact />}
           {updatedAgo && (
-            <span className="shrink-0 text-[9px] text-muted-foreground whitespace-nowrap max-md:text-[11px]">Agg. {updatedAgo}</span>
+            <span className="shrink-0 text-[9px] text-muted-foreground whitespace-nowrap max-md:text-[11px]">{t("Agg. {tempo}", { tempo: updatedAgo ?? "" })}</span>
           )}
         </div>
         <div className="flex items-center gap-2 mt-0.5">
@@ -202,20 +203,20 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
   }
 
   const actionIcons = [
-    { icon: Phone, tooltip: "Chiama", action: handleCallPhone, mobileVisible: true },
-    { icon: Mail, tooltip: "Invia email", action: handleEmail, mobileVisible: true },
+    { icon: Phone, tooltip: t("Chiama"), action: handleCallPhone, mobileVisible: true },
+    { icon: Mail, tooltip: t("Invia email"), action: handleEmail, mobileVisible: true },
     {
       icon: Tag,
-      tooltip: tags.length > 0 ? tags.join(", ") : "Nessuna etichetta",
+      tooltip: tags.length > 0 ? tags.join(", ") : t("Nessuna etichetta"),
       action: (e: React.MouseEvent) => { stopProp(e); onClick?.(); },
       badge: tags.length > 0 ? tags.length : null,
       mobileVisible: false,
     },
-    { icon: StickyNote, tooltip: opportunity.notes_count > 0 ? `Appunti (${opportunity.notes_count})` : "Appunti", anteprima: opportunity.notes_count > 0 ? "appunti" : undefined, action: (e: React.MouseEvent) => { stopProp(e); onOpenTab?.("notes"); }, badge: opportunity.notes_count > 0 ? opportunity.notes_count : null, mobileVisible: true },
-    { icon: Calendar, tooltip: "Appuntamenti", anteprima: numeroAppuntamenti ? "appuntamenti" : undefined, action: (e: React.MouseEvent) => { stopProp(e); onOpenTab?.("appointments"); }, badge: numeroAppuntamenti, mobileVisible: true },
-    { icon: ListTodo, tooltip: "Attività da fare", anteprima: numeroAttivita.numero ? "attivita" : undefined, action: (e: React.MouseEvent) => { stopProp(e); onOpenTab?.("activities"); }, badge: numeroAttivita.numero, badgeUrgente: numeroAttivita.urgente, mobileVisible: true },
-    { icon: Folder, tooltip: opportunity.documents_count > 0 ? `Documenti (${opportunity.documents_count})` : "Documenti", action: (e: React.MouseEvent) => { stopProp(e); onOpenTab?.("documents"); }, badge: opportunity.documents_count > 0 ? opportunity.documents_count : null, mobileVisible: false },
-    canEdit ? { icon: Trash2, tooltip: "Elimina", action: handleDeleteClick, mobileVisible: false } : null,
+    { icon: StickyNote, tooltip: opportunity.notes_count > 0 ? t("Appunti ({n})", { n: opportunity.notes_count }) : t("Appunti"), anteprima: opportunity.notes_count > 0 ? "appunti" : undefined, action: (e: React.MouseEvent) => { stopProp(e); onOpenTab?.("notes"); }, badge: opportunity.notes_count > 0 ? opportunity.notes_count : null, mobileVisible: true },
+    { icon: Calendar, tooltip: t("Appuntamenti"), anteprima: numeroAppuntamenti ? "appuntamenti" : undefined, action: (e: React.MouseEvent) => { stopProp(e); onOpenTab?.("appointments"); }, badge: numeroAppuntamenti, mobileVisible: true },
+    { icon: ListTodo, tooltip: t("Attività da fare"), anteprima: numeroAttivita.numero ? "attivita" : undefined, action: (e: React.MouseEvent) => { stopProp(e); onOpenTab?.("activities"); }, badge: numeroAttivita.numero, badgeUrgente: numeroAttivita.urgente, mobileVisible: true },
+    { icon: Folder, tooltip: opportunity.documents_count > 0 ? t("Documenti ({n})", { n: opportunity.documents_count }) : t("Documenti"), action: (e: React.MouseEvent) => { stopProp(e); onOpenTab?.("documents"); }, badge: opportunity.documents_count > 0 ? opportunity.documents_count : null, mobileVisible: false },
+    canEdit ? { icon: Trash2, tooltip: t("Elimina"), action: handleDeleteClick, mobileVisible: false } : null,
   ].filter(Boolean) as Array<{
     icon: typeof Phone;
     tooltip: string;
@@ -256,7 +257,7 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
             {/* checkbox visibile anche su mobile: senza, la selezione multipla (BulkEditSheet) era impossibile da telefono */}
             {!isOverlay && onSelect && (
               <div onClick={handleCheckboxChange} onPointerDown={(e) => e.stopPropagation()} className="pt-0.5">
-                <Checkbox aria-label={`Seleziona opportunità: ${displayName}`} checked={!!selected} className="h-4 w-4" />
+                <Checkbox aria-label={t("Seleziona opportunità: {displayName}", { displayName: String(displayName ?? "") })} checked={!!selected} className="h-4 w-4" />
               </div>
             )}
             {contact ? (
@@ -300,7 +301,7 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
                 )}
               </TooltipTrigger>
               <TooltipContent side="top" className="text-xs">
-                {assignedFullName || "Non assegnato"}
+                {assignedFullName || t("Non assegnato")}
               </TooltipContent>
             </Tooltip>
           )}
@@ -316,12 +317,12 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
             {opportunity.updated_at && (
               <div className="flex items-center gap-1">
                 <Clock className="h-2.5 w-2.5" />
-                <span>Agg. {formatDistanceToNow(new Date(opportunity.updated_at), { addSuffix: false, locale: it })}</span>
+                <span>{t("Agg. {tempo}", { tempo: formatDistanceToNow(new Date(opportunity.updated_at), { addSuffix: false, locale: dateFnsCampo() }) })}</span>
               </div>
             )}
             {daysInStage !== null && opportunity.status === 'open' && (
               <span
-                title={daysInStage >= sogliaStalloGg ? `In stallo: oltre la soglia di ${sogliaStalloGg}gg di questa fase` : undefined}
+                title={daysInStage >= sogliaStalloGg ? t("In stallo: oltre la soglia di {sogliaStalloGg}gg di questa fase", { sogliaStalloGg: String(sogliaStalloGg ?? "") }) : undefined}
                 className={`text-[9px] rounded px-1 py-0.5 ${
                   daysInStage >= sogliaStalloGg * 2
                     ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 font-semibold"
@@ -329,9 +330,7 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
                       ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 font-medium"
                       : "bg-muted"
                 }`}
-              >
-                {daysInStage}gg in stage
-              </span>
+              >{t("{daysInStage}gg in stage", { daysInStage: String(daysInStage ?? "") })}</span>
             )}
             {/* Badge «già cliente / richiesta ripetuta»: in basso, a lato e compatto
                 (solo icona), così non ruba spazio al nome del contatto. */}
@@ -393,13 +392,13 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent onClick={stopProp}>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare questa opportunità?</AlertDialogTitle>
-            <AlertDialogDescription>Finisce nel cestino: la puoi ripristinare da Opportunità → Altre azioni → Cestino.</AlertDialogDescription>
+            <AlertDialogTitle>{t("Eliminare questa opportunità?")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("Finisce nel cestino: la puoi ripristinare da Opportunità → Altre azioni → Cestino.")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDeleteAction} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Elimina
+              {t("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -416,39 +415,40 @@ function CardDetailRows({ opportunity, contact, activeFields, layout }: {
   activeFields: string[];
   layout: CardLayout;
 }) {
+  const t = useT();
   const { motivi: motiviPerdita } = useLossReasons();
   const rows = useMemo(() => {
     const r: { label: string; value: string; highlight?: boolean }[] = [];
     const fieldMap: Record<string, () => { label: string; value: string; highlight?: boolean } | null> = {
-      source: () => ({ label: "Fonte", value: opportunity.source || "—" }),
+      source: () => ({ label: t("Fonte"), value: opportunity.source || "—" }),
       value: () => ({
-        label: "Valore",
+        label: t("Valore"),
         value: formatCurrency(Number(opportunity.value || 0)),
         highlight: true,
       }),
       contact_email: () => ({ label: "Email", value: contact?.email || "—" }),
-      contact_phone: () => ({ label: "Telefono", value: contact?.phone || "—" }),
+      contact_phone: () => ({ label: t("Telefono"), value: contact?.phone || "—" }),
       lost_reason: () => {
         if (opportunity.status !== "lost" && opportunity.status !== "abandoned") return null;
         return {
-          label: "Motivo perdita",
+          label: t("Motivo perdita"),
           value: testoMotivoPerdita(opportunity, motiviPerdita) || "—",
         };
       },
-      created_at: () => ({ label: "Creato il", value: opportunity.created_at ? new Date(opportunity.created_at).toLocaleDateString("it-IT") : "—" }),
-      updated_at: () => ({ label: "Aggiornato il", value: opportunity.updated_at ? new Date(opportunity.updated_at).toLocaleDateString("it-IT") : "—" }),
-      contact_name: () => ({ label: "Contatto", value: contact ? `${contact.first_name || ""} ${contact.last_name || ""}`.trim() || "—" : "—" }),
-      contact_company: () => ({ label: "Azienda", value: contact?.company_name || "—" }),
-      contact_city: () => ({ label: "Città", value: contact?.city || "—" }),
-      contact_source: () => ({ label: "Fonte contatto", value: contact?.source || "—" }),
-      status: () => ({ label: "Stato", value: opportunity.status || "—" }),
-      pipeline: () => ({ label: "Sequenza", value: opportunity.pipeline_name || "—" }),
-      stage: () => ({ label: "Fase", value: opportunity.stage_name || "—" }),
+      created_at: () => ({ label: t("Creato il"), value: opportunity.created_at ? new Date(opportunity.created_at).toLocaleDateString(intlCampo()) : "—" }),
+      updated_at: () => ({ label: t("Aggiornato il"), value: opportunity.updated_at ? new Date(opportunity.updated_at).toLocaleDateString(intlCampo()) : "—" }),
+      contact_name: () => ({ label: t("Contatto"), value: contact ? `${contact.first_name || ""} ${contact.last_name || ""}`.trim() || "—" : "—" }),
+      contact_company: () => ({ label: t("Azienda"), value: contact?.company_name || "—" }),
+      contact_city: () => ({ label: t("Città"), value: contact?.city || "—" }),
+      contact_source: () => ({ label: t("Fonte contatto"), value: contact?.source || "—" }),
+      status: () => ({ label: t("Stato"), value: opportunity.status || "—" }),
+      pipeline: () => ({ label: t("Sequenza"), value: opportunity.pipeline_name || "—" }),
+      stage: () => ({ label: t("Fase"), value: opportunity.stage_name || "—" }),
       appointment_date: () => {
         const appt = opportunity.next_appointment;
         if (!appt) return { label: "Appuntamento", value: "—" };
         const d = new Date(appt.date);
-        const dayMonth = d.toLocaleDateString("it-IT", { day: "numeric", month: "short" });
+        const dayMonth = d.toLocaleDateString(intlCampo(), { day: "numeric", month: "short" });
         const time = appt.time ? appt.time.slice(0, 5) : "";
         return { label: "📅 Appuntamento", value: time ? `${dayMonth}, ${time}` : dayMonth, highlight: true };
       },

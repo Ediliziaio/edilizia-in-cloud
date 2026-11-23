@@ -5,6 +5,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { EditorState } from "./useEditorState";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   state: EditorState;
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export function EditorPersonalizzazioneSection({ state, dispatch, disabled }: Props) {
+  const t = useT();
   const [open, setOpen] = useState(false);
 
   function setField(field: string, value: unknown) {
@@ -27,7 +29,7 @@ export function EditorPersonalizzazioneSection({ state, dispatch, disabled }: Pr
             <div className="flex items-center gap-2">
               <Palette className="h-4 w-4 text-purple-500" />
               <span className="text-[11px] font-bold uppercase tracking-wider text-purple-600/80 dark:text-purple-400/80">
-                Personalizzazione
+                {t("Personalizzazione")}
               </span>
             </div>
             <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
@@ -38,7 +40,7 @@ export function EditorPersonalizzazioneSection({ state, dispatch, disabled }: Pr
 
             {/* ─── Modello grafico ─── */}
             <div>
-              <Label className="text-[10px] text-muted-foreground">Modello grafico</Label>
+              <Label className="text-[10px] text-muted-foreground">{t("Modello grafico")}</Label>
               <Select
                 value={(state as any).modello_grafico ?? "Standard"}
                 onValueChange={(v) => setField("modello_grafico", v)}
@@ -48,16 +50,16 @@ export function EditorPersonalizzazioneSection({ state, dispatch, disabled }: Pr
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Standard" className="text-xs">Standard</SelectItem>
-                  <SelectItem value="Light Smoke" className="text-xs">Light Smoke</SelectItem>
-                  <SelectItem value="Professional" className="text-xs">Professional</SelectItem>
+                  <SelectItem value="Standard" className="text-xs">{t("Standard")}</SelectItem>
+                  <SelectItem value="Light Smoke" className="text-xs">{t("Light Smoke")}</SelectItem>
+                  <SelectItem value="Professional" className="text-xs">{t("Professional")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             {/* ─── Margini orizzontali ─── */}
             <div>
-              <Label className="text-[10px] text-muted-foreground">Margini orizzontali</Label>
+              <Label className="text-[10px] text-muted-foreground">{t("Margini orizzontali")}</Label>
               <Select
                 value={(state as any).margini_orizzontali ?? "15mm"}
                 onValueChange={(v) => setField("margini_orizzontali", v)}
@@ -67,16 +69,16 @@ export function EditorPersonalizzazioneSection({ state, dispatch, disabled }: Pr
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="10mm" className="text-xs">10 mm</SelectItem>
-                  <SelectItem value="15mm" className="text-xs">15 mm</SelectItem>
-                  <SelectItem value="20mm" className="text-xs">20 mm</SelectItem>
+                  <SelectItem value="10mm" className="text-xs">{t("10 mm")}</SelectItem>
+                  <SelectItem value="15mm" className="text-xs">{t("15 mm")}</SelectItem>
+                  <SelectItem value="20mm" className="text-xs">{t("20 mm")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             {/* ─── Margini verticali ─── */}
             <div>
-              <Label className="text-[10px] text-muted-foreground">Margini verticali</Label>
+              <Label className="text-[10px] text-muted-foreground">{t("Margini verticali")}</Label>
               <Select
                 value={(state as any).margini_verticali ?? "15mm"}
                 onValueChange={(v) => setField("margini_verticali", v)}
@@ -86,10 +88,10 @@ export function EditorPersonalizzazioneSection({ state, dispatch, disabled }: Pr
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="10mm" className="text-xs">10 mm</SelectItem>
-                  <SelectItem value="15mm" className="text-xs">15 mm</SelectItem>
-                  <SelectItem value="16mm" className="text-xs">16 mm</SelectItem>
-                  <SelectItem value="20mm" className="text-xs">20 mm</SelectItem>
+                  <SelectItem value="10mm" className="text-xs">{t("10 mm")}</SelectItem>
+                  <SelectItem value="15mm" className="text-xs">{t("15 mm")}</SelectItem>
+                  <SelectItem value="16mm" className="text-xs">{t("16 mm")}</SelectItem>
+                  <SelectItem value="20mm" className="text-xs">{t("20 mm")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -102,7 +104,7 @@ export function EditorPersonalizzazioneSection({ state, dispatch, disabled }: Pr
                 onCheckedChange={(v) => setField("mostra_scadenze", v)}
                 disabled={disabled}
               />
-              <Label className="text-xs text-muted-foreground cursor-pointer">Mostra scadenze nel PDF</Label>
+              <Label className="text-xs text-muted-foreground cursor-pointer">{t("Mostra scadenze nel PDF")}</Label>
             </div>
           </div>
         </CollapsibleContent>

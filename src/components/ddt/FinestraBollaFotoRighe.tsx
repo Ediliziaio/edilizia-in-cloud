@@ -31,6 +31,7 @@ import {
   aggiungiRiga, correggiRiga, numeroDaCampo, problemiBolla, togliRiga,
   type TestataBolla,
 } from "@/lib/ddt/righeBolla";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // ─── L'originale ─────────────────────────────────────────────────────────
 
@@ -76,6 +77,7 @@ const ZOOM = [1, 1.5, 2, 3, 4];
 
 /** Il visore: adatta, ingrandisci, sposta trascinando, ruota, pagine. */
 export function VisoreBolla({ files, compatto = false }: { files: ReadonlyArray<File>; compatto?: boolean }) {
+  const tr = useT();
   const { pagine, caricamento } = usePagine(files);
   const [indice, setIndice] = useState(0);
   const [zoom, setZoom] = useState(0);
@@ -101,14 +103,14 @@ export function VisoreBolla({ files, compatto = false }: { files: ReadonlyArray<
   };
 
   const comandi = (
-    <div className="flex flex-wrap items-center gap-1 border-b bg-background/95 px-2 py-1.5 text-xs" role="toolbar" aria-label="Comandi dell'originale">
+    <div className="flex flex-wrap items-center gap-1 border-b bg-background/95 px-2 py-1.5 text-xs" role="toolbar" aria-label={tr("Comandi dell'originale")}>
       {pagine.length > 1 && (
         <>
-          <Button type="button" size="icon" variant="ghost" className="h-8 w-8" aria-label="Pagina precedente" disabled={indice === 0} onClick={() => vaiA(Math.max(0, indice - 1))}>
+          <Button type="button" size="icon" variant="ghost" className="h-8 w-8" aria-label={tr("Pagina precedente")} disabled={indice === 0} onClick={() => vaiA(Math.max(0, indice - 1))}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <span className="tabular-nums" aria-live="polite">Pagina {indice + 1} di {pagine.length}</span>
-          <Button type="button" size="icon" variant="ghost" className="h-8 w-8" aria-label="Pagina successiva" disabled={indice >= pagine.length - 1} onClick={() => vaiA(Math.min(pagine.length - 1, indice + 1))}>
+          <span className="tabular-nums" aria-live="polite">{tr("Pagina {indice} di {n}", { indice: indice + 1, n: pagine.length })}</span>
+          <Button type="button" size="icon" variant="ghost" className="h-8 w-8" aria-label={tr("Pagina successiva")} disabled={indice >= pagine.length - 1} onClick={() => vaiA(Math.min(pagine.length - 1, indice + 1))}>
             <ChevronRight className="h-4 w-4" />
           </Button>
           <span className="mx-1 h-4 w-px bg-border" aria-hidden="true" />
@@ -116,27 +118,27 @@ export function VisoreBolla({ files, compatto = false }: { files: ReadonlyArray<
       )}
       {pagina?.tipo === "immagine" && (
         <>
-          <Button type="button" size="icon" variant="ghost" className="h-8 w-8" aria-label="Riduci" disabled={zoom === 0} onClick={() => setZoom((z) => Math.max(0, z - 1))}>
+          <Button type="button" size="icon" variant="ghost" className="h-8 w-8" aria-label={tr("Riduci")} disabled={zoom === 0} onClick={() => setZoom((z) => Math.max(0, z - 1))}>
             <Minus className="h-4 w-4" />
           </Button>
           <Button type="button" size="sm" variant={zoom === 0 ? "secondary" : "ghost"} className="h-8 px-2 text-xs" onClick={() => setZoom(0)}>
-            Adatta
+            {tr("Adatta")}
           </Button>
-          <Button type="button" size="icon" variant="ghost" className="h-8 w-8" aria-label="Ingrandisci" disabled={zoom === ZOOM.length - 1} onClick={() => setZoom((z) => Math.min(ZOOM.length - 1, z + 1))}>
+          <Button type="button" size="icon" variant="ghost" className="h-8 w-8" aria-label={tr("Ingrandisci")} disabled={zoom === ZOOM.length - 1} onClick={() => setZoom((z) => Math.min(ZOOM.length - 1, z + 1))}>
             <Plus className="h-4 w-4" />
           </Button>
           <span className="w-10 text-center tabular-nums text-muted-foreground">{Math.round(scala * 100)}%</span>
-          <Button type="button" size="icon" variant="ghost" className="h-8 w-8" aria-label="Ruota" onClick={() => setRotazione((r) => (r + 90) % 360)}>
+          <Button type="button" size="icon" variant="ghost" className="h-8 w-8" aria-label={tr("Ruota")} onClick={() => setRotazione((r) => (r + 90) % 360)}>
             <RotateCw className="h-4 w-4" />
           </Button>
         </>
       )}
       <Button type="button" size="sm" variant="ghost" className="ml-auto h-8 gap-1 px-2 text-xs" onClick={apriOriginale}>
-        Apri <ExternalLink className="h-3 w-3" aria-hidden="true" />
+        {tr("Apri")} <ExternalLink className="h-3 w-3" aria-hidden="true" />
       </Button>
       {grande && (
         <Button type="button" size="sm" variant="outline" className="h-8 gap-1 px-2 text-xs" onClick={() => setGrande(false)}>
-          <X className="h-3.5 w-3.5" aria-hidden="true" /> Chiudi foto
+          <X className="h-3.5 w-3.5" aria-hidden="true" /> {tr("Chiudi foto")}
         </Button>
       )}
     </div>
@@ -185,23 +187,23 @@ export function VisoreBolla({ files, compatto = false }: { files: ReadonlyArray<
       >
         {caricamento ? (
           <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Apro l'originale…
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> {tr("Apro l'originale…")}
           </p>
         ) : !pagina ? (
-          <p className="text-sm text-muted-foreground">Nessun originale.</p>
+          <p className="text-sm text-muted-foreground">{tr("Nessun originale.")}</p>
         ) : pagina.tipo === "pdf" ? (
-          <iframe title={`Originale ${pagina.nome}`} src={pagina.src} className="h-full min-h-[50vh] w-full" />
+          <iframe title={tr("Originale {nome}", { nome: String(pagina.nome ?? "") })} src={pagina.src} className="h-full min-h-[50vh] w-full" />
         ) : ridotto ? (
           <button
             type="button"
             className="flex h-full w-full items-center justify-center"
-            aria-label="Ingrandisci la foto della bolla"
+            aria-label={tr("Ingrandisci la foto della bolla")}
             onClick={() => setGrande(true)}
           >
             {immagine}
             <span className="pointer-events-none absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-full bg-background/90 px-2 py-1 text-[11px] font-medium shadow">
               <Maximize2 className="h-3 w-3" aria-hidden="true" />
-              Tocca per ingrandire{pagine.length > 1 ? ` · ${pagine.length} pagine` : ""}
+              {tr("Tocca per ingrandire")}{pagine.length > 1 ? ` ${tr("· {n} pagine", { n: pagine.length })}` : ""}
             </span>
           </button>
         ) : (
@@ -226,6 +228,7 @@ export function RigheBollaEditor({
   onChange: (r: DDTRigaNuova[]) => void;
   disabled?: boolean;
 }) {
+  const t = useT();
   const ultima = useRef<HTMLInputElement>(null);
   const aggiunta = useRef(false);
   useEffect(() => {
@@ -241,26 +244,26 @@ export function RigheBollaEditor({
   const totale = importoTotale(righe);
   return (
     <fieldset className="rounded-lg border" disabled={disabled}>
-      <legend className="sr-only">Righe della merce</legend>
+      <legend className="sr-only">{t("Righe della merce")}</legend>
       <div className="flex items-center gap-2 border-b bg-muted/30 px-3 py-2">
-        <p className="text-sm font-medium">Merce sulla bolla</p>
+        <p className="text-sm font-medium">{t("Merce sulla bolla")}</p>
         <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-foreground">
-          {righe.length} {righe.length === 1 ? "riga" : "righe"}
+          {righe.length} {righe.length === 1 ? t("riga") : t("righe")}
         </span>
         {totale != null && (
           <span className="ml-auto text-xs font-semibold tabular-nums">
-            {totale.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+            {totale.toLocaleString(intlCampo(), { style: "currency", currency: "EUR" })}
           </span>
         )}
       </div>
       {righe.length > 0 && (
         <div className="hidden grid-cols-[6.5rem_minmax(0,1fr)_5rem_4rem_6rem_2rem] gap-1.5 px-2 pt-2 text-[11px] font-medium text-muted-foreground lg:grid" aria-hidden="true">
-          <span>Codice</span><span>Descrizione</span><span className="text-right">Q.tà</span><span>UM</span><span className="text-right">Prezzo €/UM</span><span />
+          <span>{t("Codice")}</span><span>{t("Descrizione")}</span><span className="text-right">{t("Q.tà")}</span><span>UM</span><span className="text-right">{t("Prezzo €/UM")}</span><span />
         </div>
       )}
       {righe.length === 0 ? (
         <div className="space-y-2 px-3 py-4 text-sm text-muted-foreground">
-          <p>Nessuna riga: scrivile guardando la bolla. Il prezzo si può lasciare vuoto.</p>
+          <p>{t("Nessuna riga: scrivile guardando la bolla. Il prezzo si può lasciare vuoto.")}</p>
         </div>
       ) : (
         <ol className="divide-y">
@@ -271,22 +274,22 @@ export function RigheBollaEditor({
             >
               <Input
                 ref={i === righe.length - 1 ? ultima : undefined}
-                aria-label={`Descrizione riga ${i + 1}`}
-                placeholder="Descrizione"
+                aria-label={t("Descrizione riga {i}", { i: i + 1 })}
+                placeholder={t("Descrizione")}
                 value={r.descrizione}
                 onChange={(e) => onChange(correggiRiga(righe, i, { descrizione: e.target.value }))}
                 className="col-span-5 h-9 text-sm lg:order-2 lg:col-span-1"
               />
               <Input
-                aria-label={`Codice riga ${i + 1}`}
-                placeholder="Codice"
+                aria-label={t("Codice riga {i}", { i: i + 1 })}
+                placeholder={t("Codice")}
                 value={r.codice_articolo ?? ""}
                 onChange={(e) => onChange(correggiRiga(righe, i, { codice_articolo: e.target.value || null }))}
                 className="h-9 font-mono text-xs lg:order-1"
               />
               <Input
-                aria-label={`Quantità riga ${i + 1}`}
-                placeholder="Q.tà"
+                aria-label={t("Quantità riga {i}", { i: i + 1 })}
+                placeholder={t("Q.tà")}
                 type="number"
                 min="0"
                 step="any"
@@ -296,15 +299,15 @@ export function RigheBollaEditor({
                 className="h-9 text-right text-sm lg:order-3"
               />
               <Input
-                aria-label={`UM riga ${i + 1}`}
+                aria-label={t("UM riga {i}", { i: i + 1 })}
                 placeholder="UM"
                 value={r.unita_misura ?? ""}
                 onChange={(e) => onChange(correggiRiga(righe, i, { unita_misura: e.target.value || null }))}
                 className="h-9 text-sm lg:order-4"
               />
               <Input
-                aria-label={`Prezzo riga ${i + 1}`}
-                placeholder="€/UM"
+                aria-label={t("Prezzo riga {i}", { i: i + 1 })}
+                placeholder={t("€/UM")}
                 type="number"
                 min="0"
                 step="any"
@@ -318,7 +321,7 @@ export function RigheBollaEditor({
                 size="icon"
                 variant="ghost"
                 className="h-9 w-9 text-rose-600 lg:order-6 lg:h-8 lg:w-8"
-                aria-label={`Elimina riga ${i + 1}`}
+                aria-label={t("Elimina riga {i}", { i: i + 1 })}
                 onClick={() => onChange(togliRiga(righe, i))}
               >
                 <Trash2 className="h-4 w-4" />
@@ -329,7 +332,7 @@ export function RigheBollaEditor({
       )}
       <div className="border-t px-2 py-2">
         <Button type="button" variant="outline" size="sm" className="h-8 gap-1" onClick={aggiungi}>
-          <Plus className="h-3.5 w-3.5" aria-hidden="true" /> Aggiungi riga
+          <Plus className="h-3.5 w-3.5" aria-hidden="true" /> {t("Aggiungi riga")}
         </Button>
       </div>
     </fieldset>
@@ -349,10 +352,11 @@ export function SpuntaCaricoMagazzino({
   disabled?: boolean;
   className?: string;
 }) {
+  const t = useT();
   return (
-    <label className={cn("inline-flex items-center gap-2 text-sm", className)} title="Al salvataggio le righe entrano nella giacenza del magazzino di arrivo. Quelle che non possono entrare da sole restano da confermare nella pagina della bolla.">
-      <Checkbox checked={checked} disabled={disabled} onCheckedChange={(v) => onChange(v === true)} aria-label="Carica in magazzino" />
-      Carica in magazzino
+    <label className={cn("inline-flex items-center gap-2 text-sm", className)} title={t("Al salvataggio le righe entrano nella giacenza del magazzino di arrivo. Quelle che non possono entrare da sole restano da confermare nella pagina della bolla.")}>
+      <Checkbox checked={checked} disabled={disabled} onCheckedChange={(v) => onChange(v === true)} aria-label={t("Carica in magazzino")} />
+      {t("Carica in magazzino")}
     </label>
   );
 }
@@ -410,6 +414,7 @@ export interface FinestraBollaProps {
 }
 
 export function FinestraBollaFotoRighe(props: FinestraBollaProps) {
+  const t = useT();
   const {
     open, incorporata = false, onOpenChange, files, testata, onTestataChange, righe, onRigheChange, companyId,
     fornitoreLetto, ordineAcquisto, commessaFissa, mostraDestinazione, carico, conferma,
@@ -434,34 +439,34 @@ export function FinestraBollaFotoRighe(props: FinestraBollaProps) {
           <div className={cn("min-w-0 space-y-3 p-3 sm:p-4", !incorporata && "lg:overflow-y-auto", !conOriginale && "mx-auto max-w-3xl")}>
             {stato}
             <fieldset disabled={disabled} className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <legend className="sr-only">Testata della bolla</legend>
+              <legend className="sr-only">{t("Testata della bolla")}</legend>
               <label className="space-y-1 text-xs font-medium text-muted-foreground">
-                Numero
-                <Input aria-label="Numero bolla" value={testata.numero} className="h-9 text-sm text-foreground" onChange={(e) => onTestataChange({ numero: e.target.value })} />
+                {t("Numero")}
+                <Input aria-label={t("Numero bolla")} value={testata.numero} className="h-9 text-sm text-foreground" onChange={(e) => onTestataChange({ numero: e.target.value })} />
               </label>
               <label className="space-y-1 text-xs font-medium text-muted-foreground">
-                Data
-                <Input aria-label="Data bolla" type="date" value={testata.data} className="h-9 text-sm text-foreground" onChange={(e) => onTestataChange({ data: e.target.value })} />
+                {t("Data")}
+                <Input aria-label={t("Data bolla")} type="date" value={testata.data} className="h-9 text-sm text-foreground" onChange={(e) => onTestataChange({ data: e.target.value })} />
               </label>
               {ordineAcquisto ? (
                 <p className="col-span-2 self-end rounded-md bg-muted/50 px-3 py-2 text-xs">
-                  Dall'ordine <span className="font-medium">{ordineAcquisto}</span>: fornitore e commessa vengono da lì.
+                  {t("Dall'ordine")} <span className="font-medium">{ordineAcquisto}</span>{t(": fornitore e commessa vengono da lì.")}
                 </p>
               ) : (
                 <>
                   <div className="col-span-2 space-y-1 text-xs font-medium text-muted-foreground sm:col-span-1">
-                    Fornitore
+                    {t("Fornitore")}
                     <SupplierSelect
                       searchable
                       allowCreate={false}
                       value={testata.supplierId ?? undefined}
                       onValueChange={(v) => onTestataChange({ supplierId: v ?? null })}
-                      placeholder={fornitoreLetto ? `Non in rubrica: ${fornitoreLetto}` : "Fornitore"}
+                      placeholder={fornitoreLetto ? t("Non in rubrica: {fornitoreLetto}", { fornitoreLetto: String(fornitoreLetto ?? "") }) : t("Fornitore")}
                       fallbackCompanyId={companyId ?? undefined}
                     />
                   </div>
                   <div className="col-span-2 space-y-1 text-xs font-medium text-muted-foreground sm:col-span-1">
-                    {commessaFissa !== undefined ? "Destinazione" : "Commessa"}
+                    {commessaFissa !== undefined ? t("Destinazione") : t("Commessa")}
                     {commessaFissa !== undefined ? (
                       <p className="flex h-9 items-center truncate rounded-md border bg-muted/40 px-2 text-sm text-foreground">{commessaFissa}</p>
                     ) : (
@@ -472,12 +477,12 @@ export function FinestraBollaFotoRighe(props: FinestraBollaProps) {
                             filtroIniziale="all"
                             value={testata.orderId ?? undefined}
                             disabled={disabled}
-                            placeholder="Facoltativa"
+                            placeholder={t("Facoltativa")}
                             onChange={(id) => onTestataChange({ orderId: id })}
                           />
                         </div>
                         {testata.orderId && (
-                          <Button type="button" size="icon" variant="ghost" className="h-8 w-8 shrink-0" aria-label="Togli commessa" onClick={() => onTestataChange({ orderId: null })}>
+                          <Button type="button" size="icon" variant="ghost" className="h-8 w-8 shrink-0" aria-label={t("Togli commessa")} onClick={() => onTestataChange({ orderId: null })}>
                             <X className="h-3.5 w-3.5" />
                           </Button>
                         )}
@@ -488,8 +493,8 @@ export function FinestraBollaFotoRighe(props: FinestraBollaProps) {
               )}
               {testataExtra}
               {mostraDestinazione && (
-                <div className="col-span-2 flex items-center gap-1 sm:col-span-4" role="group" aria-label="Dove va la merce">
-                  <span className="mr-1 text-xs font-medium text-muted-foreground">Va in</span>
+                <div className="col-span-2 flex items-center gap-1 sm:col-span-4" role="group" aria-label={t("Dove va la merce")}>
+                  <span className="mr-1 text-xs font-medium text-muted-foreground">{t("Va in")}</span>
                   {(["magazzino", "cantiere"] as const).map((d) => (
                     <Button
                       key={d}
@@ -500,7 +505,7 @@ export function FinestraBollaFotoRighe(props: FinestraBollaProps) {
                       className="h-8 text-xs"
                       onClick={() => onTestataChange({ destinazione: d })}
                     >
-                      {d === "magazzino" ? "Magazzino" : "Cantiere"}
+                      {d === "magazzino" ? t("Magazzino") : t("Cantiere")}
                     </Button>
                   ))}
                 </div>
@@ -559,9 +564,9 @@ export function FinestraBollaFotoRighe(props: FinestraBollaProps) {
           <DialogDescription className="text-xs">
             {conOriginale
               ? largo
-                ? "Correggi o scrivi i dati a destra guardando l’originale."
-                : "Tocca l’originale per ingrandirlo e correggi i dati qui sotto."
-              : "Scrivi i dati della bolla."}
+                ? t("Correggi o scrivi i dati a destra guardando l’originale.")
+                : t("Tocca l’originale per ingrandirlo e correggi i dati qui sotto.")
+              : t("Scrivi i dati della bolla.")}
           </DialogDescription>
         </DialogHeader>
         {contenuto}

@@ -7,7 +7,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { Loader2, PackageCheck, Check, X, User, Calendar, Building2, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { queryKeys } from "@/lib/queryKeys";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Riga { stock_item_id: string; name: string; quantita: number; unita?: string | null }
 interface PrelievoRow {
@@ -25,6 +25,7 @@ interface PrelievoRow {
 }
 
 export function PrelieviCampoCard() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const qc = useQueryClient();
   const companyId = effectiveCompany?.id ?? null;
@@ -90,9 +91,9 @@ export function PrelieviCampoCard() {
         void qc.invalidateQueries({ queryKey: queryKeys.warehouse.movementsRegistry(companyId) });
         if (orderId) void qc.invalidateQueries({ queryKey: ["order-material-usage", orderId, companyId] });
       }
-      toast.success(v.tipo === "approva" ? "Prelievo approvato: giacenza scaricata" : v.tipo === "rifiuta" ? "Prelievo rifiutato" : "DDT generato (bozza)");
+      toast.success(v.tipo === "approva" ? t("Prelievo approvato: giacenza scaricata") : v.tipo === "rifiuta" ? t("Prelievo rifiutato") : t("DDT generato (bozza)"));
     },
-    onError: (e: unknown) => toast.error("Operazione non riuscita", { description: e instanceof Error ? e.message : "Riprova." }),
+    onError: (e: unknown) => toast.error(t("Operazione non riuscita"), { description: e instanceof Error ? e.message : t("Riprova.") }),
     onSettled: () => setBusyId(null),
   });
 
@@ -104,7 +105,7 @@ export function PrelieviCampoCard() {
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <PackageCheck className="h-5 w-5 text-amber-600" />
-          Prelievi da cantiere
+          {t("Prelievi da cantiere")}
           <Badge className="bg-amber-100 text-amber-700">{prelievi.length}</Badge>
         </CardTitle>
       </CardHeader>
@@ -115,7 +116,7 @@ export function PrelieviCampoCard() {
           <>
             {daConfermare.length > 0 && (
               <div className="space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Da confermare</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("Da confermare")}</p>
                 {daConfermare.map((p) => {
                   const busy = busyId === p.id && azione.isPending;
                   return (
@@ -124,11 +125,11 @@ export function PrelieviCampoCard() {
                       <div className="mt-3 flex gap-2">
                         <Button size="sm" variant="outline" className="flex-1 gap-1.5 text-destructive" disabled={busy}
                                 onClick={() => { setBusyId(p.id); azione.mutate({ id: p.id, tipo: "rifiuta" }); }}>
-                          <X className="h-4 w-4" /> Rifiuta
+                          <X className="h-4 w-4" /> {t("Rifiuta")}
                         </Button>
                         <Button size="sm" className="flex-1 gap-1.5" disabled={busy}
                                 onClick={() => { setBusyId(p.id); azione.mutate({ id: p.id, tipo: "approva" }); }}>
-                          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Approva
+                          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} {t("Approva")}
                         </Button>
                       </div>
                     </div>
@@ -139,7 +140,7 @@ export function PrelieviCampoCard() {
 
             {ddtDaGenerare.length > 0 && (
               <div className="space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">DDT richiesti dal cantiere</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("DDT richiesti dal cantiere")}</p>
                 {ddtDaGenerare.map((p) => {
                   const busy = busyId === p.id && azione.isPending;
                   return (
@@ -148,7 +149,7 @@ export function PrelieviCampoCard() {
                       <div className="mt-3">
                         <Button size="sm" className="w-full gap-1.5" disabled={busy}
                                 onClick={() => { setBusyId(p.id); azione.mutate({ id: p.id, tipo: "genera_ddt" }); }}>
-                          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />} Genera DDT
+                          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />} {t("Genera DDT")}
                         </Button>
                       </div>
                     </div>
@@ -166,12 +167,13 @@ export function PrelieviCampoCard() {
 function RigaTesta({ p, operai, commesse }: {
   p: PrelievoRow; operai: Record<string, string>; commesse: Record<string, string>;
 }) {
+  const t = useT();
   return (
     <>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-        <span className="inline-flex items-center gap-1"><User className="h-3 w-3" />{p.operaio_id ? (operai[p.operaio_id] ?? "Operaio") : "—"}</span>
-        <span className="inline-flex items-center gap-1"><Calendar className="h-3 w-3" />{format(new Date(p.data), "d MMM HH:mm", { locale: it })}</span>
-        {p.order_id && <span className="inline-flex items-center gap-1"><Building2 className="h-3 w-3" />{commesse[p.order_id] ?? "Commessa"}</span>}
+        <span className="inline-flex items-center gap-1"><User className="h-3 w-3" />{p.operaio_id ? (operai[p.operaio_id] ?? t("Operaio")) : "—"}</span>
+        <span className="inline-flex items-center gap-1"><Calendar className="h-3 w-3" />{format(new Date(p.data), "d MMM HH:mm", { locale: dateFnsCampo() })}</span>
+        {p.order_id && <span className="inline-flex items-center gap-1"><Building2 className="h-3 w-3" />{commesse[p.order_id] ?? t("Commessa")}</span>}
       </div>
       <ul className="mt-2 space-y-1 text-sm">
         {(p.righe ?? []).map((r, i) => (

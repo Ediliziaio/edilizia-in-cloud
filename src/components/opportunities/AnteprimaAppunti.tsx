@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { queryKeys } from "@/lib/queryKeys";
 import { altreNote, firmaNota, type ProfiloAutore } from "@/lib/marketing/autoreNota";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const MOSTRATE = 3;
 
@@ -15,6 +16,7 @@ interface NotaAnteprima {
 
 /** Le ultime note di un'opportunità, per il riquadro sull'icona della card: si carica solo quando il riquadro si apre. */
 export function AnteprimaAppunti({ opportunityId, totale }: { opportunityId: string; totale: number }) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
@@ -36,13 +38,13 @@ export function AnteprimaAppunti({ opportunityId, totale }: { opportunityId: str
     staleTime: 60_000,
   });
 
-  if (isLoading) return <p className="text-muted-foreground">Carico gli appunti…</p>;
-  if (isError || !note?.length) return <p>{`Appunti (${totale})`}</p>;
+  if (isLoading) return <p className="text-muted-foreground">{t("Carico gli appunti…")}</p>;
+  if (isError || !note?.length) return <p>{t("Appunti ({totale})", { totale: String(totale ?? "") })}</p>;
 
   const altre = altreNote(totale, note.length);
   return (
     <div className="space-y-1.5 py-0.5">
-      <p className="font-semibold">{`Appunti (${totale})`}</p>
+      <p className="font-semibold">{t("Appunti ({totale})", { totale: String(totale ?? "") })}</p>
       {note.map((nota) => (
         <div key={nota.id} className="border-t border-border/60 pt-1.5">
           <p className="line-clamp-3 whitespace-pre-line break-words">{nota.content}</p>

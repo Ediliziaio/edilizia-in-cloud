@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { fiscalDate, fiscalMatch } from "@/lib/fatturazione/fiscalInsights";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 interface Source {
   id: string;
   numero?: string;
@@ -49,6 +50,7 @@ export default function ArchivioSostitutivo({
   );
 }
 function ArchiveContent() {
+  const t = useT();
   const company = useEffectiveCompanyId(),
     p = useFiscalPeriod(),
     manual = useArchivioSostitutivo(p.anno);
@@ -127,7 +129,7 @@ function ArchiveContent() {
       );
     },
   });
-  if (!company) return <p>Seleziona un’azienda.</p>;
+  if (!company) return <p>{t("Seleziona un’azienda.")}</p>;
   if (
     sourceGateLoading ||
     sourceGateError ||
@@ -180,38 +182,34 @@ function ArchiveContent() {
   return (
     <div className="space-y-4">
       <FiscalSectionHeader
-        title={`Archivio fiscale · ${p.anno}`}
-        description="Documenti già presenti nel gestionale e allegati aggiuntivi, senza duplicare i file."
+        title={t("Archivio fiscale · {anno}", { anno: String(p.anno ?? "") })}
+        description={t("Documenti già presenti nel gestionale e allegati aggiuntivi, senza duplicare i file.")}
         actions={
           <Button
             disabled={!manual.canUpload}
             variant="outline"
             onClick={() => setShowUpload((v) => !v)}
           >
-            {showUpload ? "Chiudi caricamento" : "Aggiungi allegato"}
+            {showUpload ? t("Chiudi caricamento") : t("Aggiungi allegato")}
           </Button>
         }
       />
       {!canReadSources && (
         <p className="rounded-xl border p-4 text-sm">
-          Per consultare anche gli originali delle fatture servono il modulo e
-          il permesso Fatturazione. Qui rimangono disponibili solo gli allegati
-          autorizzati.
+          {t("Per consultare anche gli originali delle fatture servono il modulo e il permesso Fatturazione. Qui rimangono disponibili solo gli allegati autorizzati.")}
         </p>
       )}
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">
-        <strong>Conservazione a norma non verificata.</strong>
+        <strong>{t("Conservazione a norma non verificata.")}</strong>
         <p className="mt-1">
-          La presenza di una fattura, un XML o un hash non prova l’avvenuta
-          conservazione. Servono le ricevute del servizio effettivo; nessun
-          documento viene marcato automaticamente «conservato».
+          {t("La presenza di una fattura, un XML o un hash non prova l’avvenuta conservazione. Servono le ricevute del servizio effettivo; nessun documento viene marcato automaticamente «conservato».")}
         </p>
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
         <FiscalMetric
-          label="Documenti presenti"
+          label={t("Documenti presenti")}
           value={canReadSources ? available.length : "Accesso non disponibile"}
-          description={`Documenti gestionali del ${p.anno}, non prova di conservazione`}
+          description={t("Documenti gestionali del {anno}, non prova di conservazione", { anno: String(p.anno ?? "") })}
           onClick={
             canReadSources
               ? () =>
@@ -225,9 +223,9 @@ function ArchiveContent() {
           active={origin === "tutti" && xml === "tutti"}
         />
         <FiscalMetric
-          label="Allegati manuali"
+          label={t("Allegati manuali")}
           value={manual.documenti.length}
-          description="File caricati nell’archivio separato"
+          description={t("File caricati nell’archivio separato")}
           onClick={() =>
             filter({
               origine_archivio: "manuali",
@@ -238,9 +236,9 @@ function ArchiveContent() {
           active={origin === "manuali"}
         />
         <FiscalMetric
-          label="Riferimento XML da verificare"
+          label={t("Riferimento XML da verificare")}
           value={canReadSources ? missingXml : "Accesso non disponibile"}
-          description="Riferimento non presente: non significa che l’originale non esista"
+          description={t("Riferimento non presente: non significa che l’originale non esista")}
           onClick={
             canReadSources
               ? () =>
@@ -265,11 +263,11 @@ function ArchiveContent() {
       )}
       <div className="flex flex-wrap items-center gap-2">
         <Input
-          aria-label="Cerca nell’archivio fiscale"
+          aria-label={t("Cerca nell’archivio fiscale")}
           placeholder={
             origin === "manuali"
-              ? "Cerca tipo, note o riferimento file…"
-              : "Cerca numero o controparte…"
+              ? t("Cerca tipo, note o riferimento file…")
+              : t("Cerca numero o controparte…")
           }
           className="min-w-48 flex-1"
           value={search}
@@ -279,34 +277,33 @@ function ArchiveContent() {
           }}
         />
         <FiscalSelectFilter
-          label="Origine dei documenti"
+          label={t("Origine dei documenti")}
           value={origin}
           onChange={(value) =>
             filter({ origine_archivio: value, xml_archivio: "tutti" })
           }
           options={[
-            { value: "tutti", label: "Tutte le fatture" },
-            { value: "vendite", label: "Documenti attivi" },
-            { value: "acquisti", label: "Fatture ricevute" },
-            { value: "manuali", label: "Allegati manuali" },
+            { value: "tutti", label: t("Tutte le fatture") },
+            { value: "vendite", label: t("Documenti attivi") },
+            { value: "acquisti", label: t("Fatture ricevute") },
+            { value: "manuali", label: t("Allegati manuali") },
           ]}
         />
         {origin !== "manuali" && (
           <FiscalSelectFilter
-            label="Riferimento XML"
+            label={t("Riferimento XML")}
             value={xml}
             onChange={(value) => filter({ xml_archivio: value })}
             options={[
-              { value: "tutti", label: "Tutti i riferimenti XML" },
-              { value: "presente", label: "Riferimento presente" },
-              { value: "mancante", label: "Riferimento da verificare" },
+              { value: "tutti", label: t("Tutti i riferimenti XML") },
+              { value: "presente", label: t("Riferimento presente") },
+              { value: "mancante", label: t("Riferimento da verificare") },
             ]}
           />
         )}
       </div>
       <p className="text-xs text-muted-foreground">
-        I KPI riguardano l’intero anno; i filtri si applicano all’elenco. Un
-        riferimento XML non attesta accessibilità del file o conservazione.
+        {t("I KPI riguardano l’intero anno; i filtri si applicano all’elenco. Un riferimento XML non attesta accessibilità del file o conservazione.")}
       </p>
       {origin === "manuali" ? (
         <ArchivioTable
@@ -330,7 +327,7 @@ function ArchiveContent() {
                     "Originale / conservazione",
                   ].map((h) => (
                     <th key={h} className="p-3 font-medium">
-                      {h}
+                      {t(h)}
                     </th>
                   ))}
                 </tr>
@@ -345,13 +342,13 @@ function ArchiveContent() {
                         label={
                           r.numero ||
                           r.numero_fattura ||
-                          "Documento senza numero"
+                          t("Documento senza numero")
                         }
                       />
                       <p className="text-xs text-muted-foreground">
                         {r.cedente_ragione_sociale ||
                           r.cliente_snapshot?.ragione_sociale ||
-                          "Controparte da verificare"}
+                          t("Controparte da verificare")}
                       </p>
                     </td>
                     <td className="p-3">
@@ -359,17 +356,15 @@ function ArchiveContent() {
                     </td>
                     <td className="p-3">
                       {r.origin === "vendite"
-                        ? "Documenti attivi"
-                        : "Fatture ricevute"}
-                      <p className="text-xs text-muted-foreground">
-                        Stato gestionale: {r.stato}
-                      </p>
+                        ? t("Documenti attivi")
+                        : t("Fatture ricevute")}
+                      <p className="text-xs text-muted-foreground">{t("Stato gestionale: {stato}", { stato: String(r.stato ?? "") })}</p>
                     </td>
                     <td className="p-3 text-xs text-muted-foreground">
                       {r.sdi_file_xml_url || r.xml_url
-                        ? "Riferimento XML presente"
-                        : "File originale da verificare nella scheda"}
-                      <p>Conservazione non verificata</p>
+                        ? t("Riferimento XML presente")
+                        : t("File originale da verificare nella scheda")}
+                      <p>{t("Conservazione non verificata")}</p>
                     </td>
                   </tr>
                 ))}
@@ -377,15 +372,12 @@ function ArchiveContent() {
             </table>
             {!rows.length && (
               <p className="p-8 text-center text-sm text-muted-foreground">
-                Nessun documento corrisponde all’anno e alla ricerca. Non
-                significa che non esistano documenti di altri periodi.
+                {t("Nessun documento corrisponde all’anno e alla ricerca. Non significa che non esistano documenti di altri periodi.")}
               </p>
             )}
           </div>
           <div className="flex items-center justify-between gap-2 text-sm">
-            <span>
-              {rows.length} documenti · pagina {current + 1} / {pages}
-            </span>
+            <span>{t("{n} documenti · pagina {current} / {pages}", { n: rows.length, current: current + 1, pages: String(pages ?? "") })}</span>
             <div className="flex gap-2">
               <Button
                 size="sm"
@@ -393,7 +385,7 @@ function ArchiveContent() {
                 disabled={current === 0}
                 onClick={() => setPage(current - 1)}
               >
-                Precedenti
+                {t("Precedenti")}
               </Button>
               <Button
                 size="sm"
@@ -401,7 +393,7 @@ function ArchiveContent() {
                 disabled={current >= pages - 1}
                 onClick={() => setPage(current + 1)}
               >
-                Successivi
+                {t("Successivi")}
               </Button>
             </div>
           </div>
@@ -409,12 +401,9 @@ function ArchiveContent() {
       )}
       {origin !== "manuali" && (
         <details className="rounded-xl border bg-white p-4">
-          <summary className="cursor-pointer text-sm font-medium">
-            Allegati caricati manualmente ({manual.documenti.length})
-          </summary>
+          <summary className="cursor-pointer text-sm font-medium">{t("Allegati caricati manualmente ({n})", { n: manual.documenti.length })}</summary>
           <p className="my-3 text-xs text-muted-foreground">
-            Archivio separato dai documenti già presenti. Un hash non è una
-            prova di conservazione.
+            {t("Archivio separato dai documenti già presenti. Un hash non è una prova di conservazione.")}
           </p>
           <ArchivioTable
             documenti={manual.documenti}
@@ -426,14 +415,10 @@ function ArchiveContent() {
       )}
       <details className="rounded-xl border bg-white p-4 text-sm">
         <summary className="cursor-pointer font-medium">
-          Verifica delle prove di conservazione
+          {t("Verifica delle prove di conservazione")}
         </summary>
         <p className="mt-3 text-muted-foreground">
-          Questa vista non riceve ancora gli esiti del conservatore. Per
-          attestare una conservazione servono ricevuta del servizio,
-          identificativo del pacchetto, data/esito e corrispondenza con i
-          documenti originali. Gli allegati manuali non vengono promossi
-          automaticamente a prove verificate.
+          {t("Questa vista non riceve ancora gli esiti del conservatore. Per attestare una conservazione servono ricevuta del servizio, identificativo del pacchetto, data/esito e corrispondenza con i documenti originali. Gli allegati manuali non vengono promossi automaticamente a prove verificate.")}
         </p>
       </details>
     </div>

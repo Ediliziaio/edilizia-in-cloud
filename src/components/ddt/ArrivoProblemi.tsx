@@ -13,10 +13,12 @@ import { EmailComposeDialog, type ComposeContext } from "@/pages/azienda/email/c
 import { useRiordinaPezzi, useSegnaReclamo } from "@/hooks/useArrivoPosizioni";
 import { messaggioErrore } from "@/lib/campo/messaggioErrore";
 import { reclamoInHtml, testoReclamo, type ElencoArrivo } from "@/lib/arrivi/arrivoPosizioni";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const BUCKET_FOTO = "campo-rapportini";
 
 export function ArrivoProblemi({ elenco }: { elenco: ElencoArrivo }) {
+  const t = useT();
   // Un pezzo già riordinato si può ancora reclamare: il riordino non avvisa il fornitore del difetto.
   const aperti = useMemo(() => elenco.posizioni.flatMap(p => p.problemi
     .filter(x => x.stato === "aperto" || !x.reclamo_inviato_il)
@@ -41,15 +43,15 @@ export function ArrivoProblemi({ elenco }: { elenco: ElencoArrivo }) {
       onSuccess: r => {
         setChiediRiordino(false);
         setCreato({ id: r.purchase_order_id, numero: r.numero });
-        toast.success(r.gia_fatto ? "Il riordino era già pronto." : "Riordino pronto in bozza.");
+        toast.success(r.gia_fatto ? t("Il riordino era già pronto.") : t("Riordino pronto in bozza."));
       },
-      onError: e => toast.error(messaggioErrore(e, "Riordino non creato.")),
+      onError: e => toast.error(messaggioErrore(e, t("Riordino non creato."))),
     });
   };
 
   const preparaReclamo = () => {
     const email = elenco.ordine.email_fornitore;
-    if (!email) toast.warning("Questo fornitore non ha un'email in anagrafica: scrivila nel campo A.");
+    if (!email) toast.warning(t("Questo fornitore non ha un'email in anagrafica: scrivila nel campo A."));
     const testo = testoReclamo(elenco, scelti.map(x => x.id));
     const foto = scelti.flatMap(x => x.foto);
     setReclamo({
@@ -67,8 +69,8 @@ export function ArrivoProblemi({ elenco }: { elenco: ElencoArrivo }) {
   };
 
   return (
-    <section className="space-y-2 rounded-xl border border-red-200 bg-red-50/50 p-3 dark:bg-red-950/10" aria-label="Problemi da gestire">
-      <h2 className="text-sm font-bold">Da gestire con il fornitore</h2>
+    <section className="space-y-2 rounded-xl border border-red-200 bg-red-50/50 p-3 dark:bg-red-950/10" aria-label={t("Problemi da gestire")}>
+      <h2 className="text-sm font-bold">{t("Da gestire con il fornitore")}</h2>
 
       {aperti.length > 0 && (
         <ul className="space-y-1">
@@ -77,8 +79,8 @@ export function ArrivoProblemi({ elenco }: { elenco: ElencoArrivo }) {
               <label className="flex min-h-11 items-center gap-2 text-sm">
                 <input type="checkbox" className="h-5 w-5" checked={spuntato(x)}
                   onChange={e => setScelta(s => ({ ...s, [x.id]: e.target.checked }))} />
-                <span className="min-w-0">{nomeRiga(x)}: {x.esito}{Number(x.quantita) > 1 ? ` (${Number(x.quantita)})` : ""}{x.stato === "riordinato" ? " · già riordinato" : ""}</span>
-                {x.reclamo_inviato_il && <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">Reclamo inviato il {new Date(x.reclamo_inviato_il).toLocaleDateString("it-IT")}</span>}
+                <span className="min-w-0">{nomeRiga(x)}: {x.esito}{Number(x.quantita) > 1 ? ` (${Number(x.quantita)})` : ""}{x.stato === "riordinato" ? ` ${t("· già riordinato")}` : ""}</span>
+                {x.reclamo_inviato_il && <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">{t("Reclamo inviato il {valore}", { valore: new Date(x.reclamo_inviato_il).toLocaleDateString(intlCampo()) })}</span>}
               </label>
             </li>
           ))}
@@ -89,17 +91,17 @@ export function ArrivoProblemi({ elenco }: { elenco: ElencoArrivo }) {
         <div className="flex flex-col gap-2 sm:flex-row">
           <Button type="button" variant="outline" className="min-h-11 flex-1" disabled={scelti.length === 0}
             onClick={preparaReclamo}>
-            <Mail className="mr-2 h-4 w-4" aria-hidden="true" />Scrivi il reclamo
+            <Mail className="mr-2 h-4 w-4" aria-hidden="true" />{t("Scrivi il reclamo")}
           </Button>
           <Button type="button" className="min-h-11 flex-1" disabled={daRiordinare.length === 0} onClick={() => setChiediRiordino(true)}>
-            <RotateCw className="mr-2 h-4 w-4" aria-hidden="true" />Riordina solo questi
+            <RotateCw className="mr-2 h-4 w-4" aria-hidden="true" />{t("Riordina solo questi")}
           </Button>
         </div>
       )}
 
       {creato && (
         <p className="text-sm">
-          Riordino {creato.numero ?? ""} in bozza: <Link className="font-semibold text-primary underline" to={`/azienda/ordini-acquisto/${creato.id}`}>aprilo e invialo</Link>.
+          {t("Riordino")} {creato.numero ?? ""} {t("in bozza:")} <Link className="font-semibold text-primary underline" to={`/azienda/ordini-acquisto/${creato.id}`}>{t("aprilo e invialo")}</Link>.
         </p>
       )}
 
@@ -117,18 +119,18 @@ export function ArrivoProblemi({ elenco }: { elenco: ElencoArrivo }) {
       <Dialog open={chiediRiordino} onOpenChange={setChiediRiordino}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{daRiordinare.length === 1 ? "Riordina 1 pezzo" : `Riordina ${daRiordinare.length} pezzi`}</DialogTitle>
-            <DialogDescription>Nasce un ordine in bozza, legato alle stesse posizioni. Chi paga questi pezzi?</DialogDescription>
+            <DialogTitle>{daRiordinare.length === 1 ? t("Riordina 1 pezzo") : t("Riordina {n} pezzi", { n: daRiordinare.length })}</DialogTitle>
+            <DialogDescription>{t("Nasce un ordine in bozza, legato alle stesse posizioni. Chi paga questi pezzi?")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
             <Button type="button" className="min-h-12 w-full" disabled={riordina.isPending} onClick={() => riordinaOra(true)}>
-              {riordina.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}Li sostituisce gratis il fornitore
+              {riordina.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}{t("Li sostituisce gratis il fornitore")}
             </Button>
             <Button type="button" variant="outline" className="min-h-12 w-full" disabled={riordina.isPending} onClick={() => riordinaOra(false)}>
-              Si pagano, allo stesso prezzo
+              {t("Si pagano, allo stesso prezzo")}
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground">Gratis: il riordino vale zero, nessun costo doppio in commessa.</p>
+          <p className="text-xs text-muted-foreground">{t("Gratis: il riordino vale zero, nessun costo doppio in commessa.")}</p>
         </DialogContent>
       </Dialog>
     </section>

@@ -51,6 +51,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { STATUS_CONFIG, isSottoScorta } from "@/types/warehouse";
 import type { OrderItemStatus, StockItem, WarehouseItem } from "@/types/warehouse";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type PurchaseStatus = Extract<OrderItemStatus, "da_ordinare" | "ordinato" | "in_arrivo" | "in_magazzino">;
 type PaymentState = "paid" | "partial" | "unpaid" | "unknown";
@@ -212,6 +213,7 @@ export default function WarehousePurchaseListTab({
   onRegisterArrival,
   readOnly = false,
 }: WarehousePurchaseListTabProps) {
+  const t = useT();
   const { warehouses, defaultWarehouse } = useWarehouses(true);
   // La lista scritta a mano sta nel database (prima nel localStorage del browser).
   const { voci: manualItems, setVoci: setManualItems } = useAcquistiAMano(companyId, readOnly);
@@ -283,10 +285,10 @@ export default function WarehousePurchaseListTab({
     if (item.paymentTerm === "acconto_saldo" || item.paymentTerm === "30_70") {
       const deposit = total * getDepositPercent(item.paymentTerm);
       const balance = total - deposit;
-      return `Acconto ${formatCurrency(deposit)} ${item.depositPaid ? "pagato" : "da pagare"} · Saldo ${formatCurrency(balance)} ${item.balancePaid ? "pagato" : "da pagare"}`;
+      return `${t(item.depositPaid ? "Acconto {importo} pagato" : "Acconto {importo} da pagare", { importo: formatCurrency(deposit) })} · ${t(item.balancePaid ? "Saldo {importo} pagato" : "Saldo {importo} da pagare", { importo: formatCurrency(balance) })}`;
     }
-    return item.paid ? `Pagato${item.paidDate ? ` il ${item.paidDate}` : ""}` : "Pagamento non registrato";
-  }, []);
+    return item.paid ? (item.paidDate ? t("Pagato il {data}", { data: item.paidDate }) : t("Pagato")) : t("Pagamento non registrato");
+  }, [t]);
 
   const renderWarehouseArrivalSelect = (
     value: string | null,
@@ -294,13 +296,13 @@ export default function WarehousePurchaseListTab({
   ) => (
     <Select value={value ?? "__none__"} onValueChange={(nextValue) => onChange(nextValue === "__none__" ? null : nextValue)}>
       <SelectTrigger>
-        <SelectValue placeholder="Seleziona magazzino" />
+        <SelectValue placeholder={t("Seleziona magazzino")} />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="__none__">Da decidere</SelectItem>
+        <SelectItem value="__none__">{t("Da decidere")}</SelectItem>
         {warehouses.map((warehouse) => (
           <SelectItem key={warehouse.id} value={warehouse.id}>
-            {warehouse.name}{warehouse.is_default ? " · predefinito" : ""}
+            {warehouse.name}{warehouse.is_default ? ` ${t("· predefinito")}` : ""}
           </SelectItem>
         ))}
       </SelectContent>
@@ -727,30 +729,30 @@ export default function WarehousePurchaseListTab({
       <div className="grid gap-3 md:grid-cols-4">
         <Card className="border-l-4 border-l-slate-300">
           <CardContent className="p-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Da acquistare</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("Da acquistare")}</p>
             <p className="mt-1 text-2xl font-bold">{totals.total}</p>
-            <p className="text-xs text-muted-foreground">righe operative</p>
+            <p className="text-xs text-muted-foreground">{t("righe operative")}</p>
           </CardContent>
         </Card>
         <Card className="border-l-4 border-l-red-500">
           <CardContent className="p-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Urgenti</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("Urgenti")}</p>
             <p className="mt-1 text-2xl font-bold text-red-600">{totals.urgent}</p>
-            <p className="text-xs text-muted-foreground">lavori vicini o scorta zero</p>
+            <p className="text-xs text-muted-foreground">{t("lavori vicini o scorta zero")}</p>
           </CardContent>
         </Card>
         <Card className="border-l-4 border-l-blue-500">
           <CardContent className="p-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Importo da acquistare</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("Importo da acquistare")}</p>
             <p className="mt-1 text-2xl font-bold">{formatCurrency(totals.estimated)}</p>
-            <p className="text-xs text-muted-foreground">totale stimato con IVA</p>
+            <p className="text-xs text-muted-foreground">{t("totale stimato con IVA")}</p>
           </CardContent>
         </Card>
         <Card className="border-l-4 border-l-amber-500">
           <CardContent className="p-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Da pagare</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("Da pagare")}</p>
             <p className="mt-1 text-2xl font-bold">{formatCurrency(totals.toPay)}</p>
-            <p className="text-xs text-muted-foreground">{totals.ordered} ordinati/in arrivo · {totals.arrived} arrivati</p>
+            <p className="text-xs text-muted-foreground">{t("{ordered} ordinati/in arrivo · {arrived} arrivati", { ordered: String(totals.ordered ?? ""), arrived: String(totals.arrived ?? "") })}</p>
           </CardContent>
         </Card>
       </div>
@@ -758,17 +760,17 @@ export default function WarehousePurchaseListTab({
       <Card>
         <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm font-semibold">Lista acquisti operativa</p>
+            <p className="text-sm font-semibold">{t("Lista acquisti operativa")}</p>
             <p className="text-xs text-muted-foreground">
               {readOnly
-                ? "Vista consulente: acquisti, fabbisogni e scorte sono consultabili senza azioni operative."
-                : "Aggiungi prodotti manuali o usa i suggerimenti da inventario e storico acquisti. Quando una voce scritta a mano è ordinata, entra nei Costi e nel previsionale con acconto e saldo."}
+                ? t("Vista consulente: acquisti, fabbisogni e scorte sono consultabili senza azioni operative.")
+                : t("Aggiungi prodotti manuali o usa i suggerimenti da inventario e storico acquisti. Quando una voce scritta a mano è ordinata, entra nei Costi e nel previsionale con acconto e saldo.")}
             </p>
           </div>
           {!readOnly && (
             <Button type="button" onClick={openAddDialog} className="gap-2 sm:w-auto">
               <PackagePlus className="h-4 w-4" aria-hidden="true" />
-              Aggiungi acquisto
+              {t("Aggiungi acquisto")}
             </Button>
           )}
         </CardContent>
@@ -777,15 +779,15 @@ export default function WarehousePurchaseListTab({
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Aggiungi prodotto da acquistare</DialogTitle>
+            <DialogTitle>{t("Aggiungi prodotto da acquistare")}</DialogTitle>
             <DialogDescription>
-              Cerca tra i materiali già presenti o inserisci un nuovo prodotto per la prossima spesa.
+              {t("Cerca tra i materiali già presenti o inserisci un nuovo prodotto per la prossima spesa.")}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-5 py-2">
             <div className="space-y-2">
-              <Label htmlFor="purchase-name">Prodotto</Label>
+              <Label htmlFor="purchase-name">{t("Prodotto")}</Label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
                   <Input
@@ -797,15 +799,15 @@ export default function WarehousePurchaseListTab({
                       setForm((current) => ({ ...current, name: event.target.value }));
                   }}
                   className="pl-9"
-                  placeholder="Cerca o scrivi un prodotto..."
+                  placeholder={t("Cerca o scrivi un prodotto...")}
                 />
               </div>
 
               {!showProductSuggestions ? (
                 <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
                   {form.name.trim()
-                    ? "Prodotto selezionato. Clicca nel campo per cambiare articolo o cercarne un altro."
-                    : "Clicca nel campo per aprire l'elenco prodotti, poi cerca o scrivi un nuovo articolo."}
+                    ? t("Prodotto selezionato. Clicca nel campo per cambiare articolo o cercarne un altro.")
+                    : t("Clicca nel campo per aprire l'elenco prodotti, poi cerca o scrivi un nuovo articolo.")}
                 </div>
               ) : matchingSuggestions.length > 0 ? (
                 <div className="max-h-64 overflow-y-auto rounded-md border bg-muted/20 p-1">
@@ -819,31 +821,31 @@ export default function WarehousePurchaseListTab({
                       <span className="min-w-0">
                         <span className="block truncate font-medium">{suggestion.name}</span>
                         <span className="block truncate text-xs text-muted-foreground">
-                          {suggestion.supplierId ? supplierNameById.get(suggestion.supplierId) ?? "Fornitore salvato" : "Fornitore da decidere"}
-                          {suggestion.source === "stock" && suggestion.quantity !== null ? ` · giacenza ${suggestion.quantity}` : ""}
+                          {suggestion.supplierId ? supplierNameById.get(suggestion.supplierId) ?? t("Fornitore salvato") : t("Fornitore da decidere")}
+                          {suggestion.source === "stock" && suggestion.quantity !== null ? " · " + t("giacenza {quantity}", { quantity: String(suggestion.quantity ?? "") }) : ""}
                         </span>
                       </span>
-                      <Badge variant="outline">{suggestion.source === "stock" ? "Inventario" : "Storico"}</Badge>
+                      <Badge variant="outline">{suggestion.source === "stock" ? t("Inventario") : t("Storico")}</Badge>
                     </button>
                   ))}
                 </div>
               ) : form.name.trim() ? (
                 <div className="rounded-md border border-dashed p-3 text-sm">
-                  <p className="font-medium">Nuovo prodotto</p>
+                  <p className="font-medium">{t("Nuovo prodotto")}</p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Nessun articolo trovato. Verrà creata una nuova riga acquisto con questo nome.
+                    {t("Nessun articolo trovato. Verrà creata una nuova riga acquisto con questo nome.")}
                   </p>
                 </div>
               ) : (
                 <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
-                  Inizia a scrivere oppure scorri l'elenco dei prodotti già usati.
+                  {t("Inizia a scrivere oppure scorri l'elenco dei prodotti già usati.")}
                 </div>
               )}
             </div>
 
             <div className="grid gap-3 sm:grid-cols-[110px_150px_150px_120px]">
               <div className="space-y-2">
-                <Label htmlFor="purchase-qty">Quantità</Label>
+                <Label htmlFor="purchase-qty">{t("Quantità")}</Label>
                 <Input
                   id="purchase-qty"
                   type="number"
@@ -853,7 +855,7 @@ export default function WarehousePurchaseListTab({
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="purchase-unit-cost">Costo unitario</Label>
+                <Label htmlFor="purchase-unit-cost">{t("Costo unitario")}</Label>
                 <Input
                   id="purchase-unit-cost"
                   type="number"
@@ -865,7 +867,7 @@ export default function WarehousePurchaseListTab({
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="purchase-total-cost">Costo totale</Label>
+                <Label htmlFor="purchase-total-cost">{t("Costo totale")}</Label>
                 <Input
                   id="purchase-total-cost"
                   type="number"
@@ -877,7 +879,7 @@ export default function WarehousePurchaseListTab({
                 />
               </div>
               <div className="space-y-2">
-                <Label>IVA %</Label>
+                <Label>{t("IVA %")}</Label>
                 <Select
                   value={String(form.vatRate)}
                   onValueChange={(value) => updateVatRate(Number(value))}
@@ -898,16 +900,16 @@ export default function WarehousePurchaseListTab({
 
             <div className="grid gap-3 lg:grid-cols-[1fr_1fr_160px]">
               <div className="space-y-2">
-                <Label>Fornitore acquisto</Label>
+                <Label>{t("Fornitore acquisto")}</Label>
                 <Select
                   value={form.supplierId ?? "__none__"}
                   onValueChange={(value) => updateSupplier(value === "__none__" ? null : value)}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Fornitore" />
+                    <SelectValue placeholder={t("Fornitore")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__none__">Da decidere</SelectItem>
+                    <SelectItem value="__none__">{t("Da decidere")}</SelectItem>
                     {suppliers.map((supplier) => (
                         <SelectItem key={supplier.id} value={supplier.id}>
                           {supplier.name}
@@ -920,11 +922,11 @@ export default function WarehousePurchaseListTab({
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Magazzino di arrivo</Label>
+                <Label>{t("Magazzino di arrivo")}</Label>
                 {renderWarehouseArrivalSelect(form.warehouseId, (warehouseId) => setForm((current) => ({ ...current, warehouseId })))}
               </div>
               <div className="space-y-2">
-                <Label>Priorità</Label>
+                <Label>{t("Priorità")}</Label>
                 <Select
                   value={form.priority}
                   onValueChange={(value) => setForm((current) => ({ ...current, priority: value as ManualPurchaseItem["priority"] }))}
@@ -933,9 +935,9 @@ export default function WarehousePurchaseListTab({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="alta">Alta</SelectItem>
-                    <SelectItem value="media">Media</SelectItem>
-                    <SelectItem value="bassa">Bassa</SelectItem>
+                    <SelectItem value="alta">{t("Alta")}</SelectItem>
+                    <SelectItem value="media">{t("Media")}</SelectItem>
+                    <SelectItem value="bassa">{t("Bassa")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -943,7 +945,7 @@ export default function WarehousePurchaseListTab({
 
             <div className="grid gap-3 rounded-lg border bg-muted/20 p-3 sm:grid-cols-3">
               <div className="space-y-2">
-                <Label>Stato acquisto</Label>
+                <Label>{t("Stato acquisto")}</Label>
                 <Select
                   value={form.status}
                   onValueChange={(value) => setForm((current) => ({
@@ -959,14 +961,14 @@ export default function WarehousePurchaseListTab({
                   <SelectContent>
                     {PURCHASE_STATUSES.map((status) => (
                       <SelectItem key={status} value={status}>
-                        {STATUS_CONFIG[status].label}
+                        {t(STATUS_CONFIG[status].label)}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="purchase-order-date">Data ordine</Label>
+                <Label htmlFor="purchase-order-date">{t("Data ordine")}</Label>
                 <Input
                   id="purchase-order-date"
                   type="date"
@@ -976,7 +978,7 @@ export default function WarehousePurchaseListTab({
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="purchase-arrival-date">Arrivo previsto/reale</Label>
+                <Label htmlFor="purchase-arrival-date">{t("Arrivo previsto/reale")}</Label>
                 <Input
                   id="purchase-arrival-date"
                   type="date"
@@ -989,19 +991,19 @@ export default function WarehousePurchaseListTab({
             <div className="rounded-lg border bg-muted/20 p-3">
               <div className="grid gap-3 lg:grid-cols-[1fr_1fr_150px]">
                 <div className="space-y-2">
-                  <Label>Modalità di pagamento</Label>
+                  <Label>{t("Modalità di pagamento")}</Label>
                   <Select
                     value={form.paymentMethod ?? "__none__"}
                     onValueChange={(value) => setForm((current) => ({ ...current, paymentMethod: value === "__none__" ? null : value }))}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Da definire" />
+                      <SelectValue placeholder={t("Da definire")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="__none__">Da definire</SelectItem>
+                      <SelectItem value="__none__">{t("Da definire")}</SelectItem>
                       {PAYMENT_METHODS.map((method) => (
                         <SelectItem key={method.value} value={method.value}>
-                          {method.label}
+                          {t(method.label)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1009,7 +1011,7 @@ export default function WarehousePurchaseListTab({
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Condizioni pagamento</Label>
+                  <Label>{t("Condizioni pagamento")}</Label>
                   <Select
                     value={form.paymentTerm ?? "consegna"}
                     onValueChange={(value) => setForm((current) => ({
@@ -1025,7 +1027,7 @@ export default function WarehousePurchaseListTab({
                     <SelectContent>
                       {PAYMENT_TERMS.map((term) => (
                         <SelectItem key={term.value} value={term.value}>
-                          {term.label}
+                          {t(term.label)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1033,10 +1035,10 @@ export default function WarehousePurchaseListTab({
                 </div>
 
                 <div className="rounded-md border bg-background p-3">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Totale</p>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("Totale")}</p>
                   <p className="mt-1 text-lg font-bold">{formatCurrency(formTotal)}</p>
                   <p className="text-[11px] text-muted-foreground">
-                    {formatCurrency(formSubtotal)} + IVA {formatCurrency(formVatAmount)}
+                    {t("{imponibile} + IVA {iva}", { imponibile: formatCurrency(formSubtotal), iva: formatCurrency(formVatAmount) })}
                   </p>
                 </div>
               </div>
@@ -1046,18 +1048,18 @@ export default function WarehousePurchaseListTab({
                   <div className="rounded-md border bg-background p-3">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-sm font-semibold">Acconto ({Math.round(depositPercent * 100)}%)</p>
+                        <p className="text-sm font-semibold">{t("Acconto ({valore}%)", { valore: Math.round(depositPercent * 100) })}</p>
                         <p className="text-xs text-muted-foreground">{formatCurrency(depositAmount)}</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">Pagato</span>
+                        <span className="text-xs text-muted-foreground">{t("Pagato")}</span>
                         <Switch
                           checked={form.depositPaid}
                           onCheckedChange={(checked) => setForm((current) => ({ ...current, depositPaid: checked }))}
                         />
                       </div>
                     </div>
-                    <Label htmlFor="purchase-deposit-date" className="mt-3 block text-xs">Data prevista acconto</Label>
+                    <Label htmlFor="purchase-deposit-date" className="mt-3 block text-xs">{t("Data prevista acconto")}</Label>
                     <Input
                       id="purchase-deposit-date"
                       type="date"
@@ -1070,18 +1072,18 @@ export default function WarehousePurchaseListTab({
                   <div className="rounded-md border bg-background p-3">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-sm font-semibold">Saldo ({Math.round(balancePercent * 100)}%)</p>
+                        <p className="text-sm font-semibold">{t("Saldo ({valore}%)", { valore: Math.round(balancePercent * 100) })}</p>
                         <p className="text-xs text-muted-foreground">{formatCurrency(balanceAmount)}</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">Pagato</span>
+                        <span className="text-xs text-muted-foreground">{t("Pagato")}</span>
                         <Switch
                           checked={form.balancePaid}
                           onCheckedChange={(checked) => setForm((current) => ({ ...current, balancePaid: checked }))}
                         />
                       </div>
                     </div>
-                    <Label htmlFor="purchase-balance-date" className="mt-3 block text-xs">Data prevista saldo</Label>
+                    <Label htmlFor="purchase-balance-date" className="mt-3 block text-xs">{t("Data prevista saldo")}</Label>
                     <Input
                       id="purchase-balance-date"
                       type="date"
@@ -1094,7 +1096,7 @@ export default function WarehousePurchaseListTab({
               ) : (
                 <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_160px_1fr] sm:items-end">
                   <div className="space-y-2">
-                    <Label htmlFor="purchase-payment-date">Data prevista pagamento</Label>
+                    <Label htmlFor="purchase-payment-date">{t("Data prevista pagamento")}</Label>
                     <Input
                       id="purchase-payment-date"
                       type="date"
@@ -1103,14 +1105,14 @@ export default function WarehousePurchaseListTab({
                     />
                   </div>
                   <div className="flex h-10 items-center justify-between gap-3 rounded-md border bg-background px-3">
-                    <span className="text-sm">Pagato</span>
+                    <span className="text-sm">{t("Pagato")}</span>
                     <Switch
                       checked={form.paid}
                       onCheckedChange={(checked) => setForm((current) => ({ ...current, paid: checked, paidDate: checked ? current.paidDate : "" }))}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="purchase-paid-date">Data pagamento</Label>
+                    <Label htmlFor="purchase-paid-date">{t("Data pagamento")}</Label>
                     <Input
                       id="purchase-paid-date"
                       type="date"
@@ -1122,14 +1124,12 @@ export default function WarehousePurchaseListTab({
                 </div>
               )}
 
-              <p className="mt-3 text-xs text-muted-foreground">
-                Piano: {paymentTermLabel}. Il costo totale alimenta il budget stimato della lista acquisti.
-              </p>
+              <p className="mt-3 text-xs text-muted-foreground">{t("Piano: {paymentTermLabel}. Il costo totale alimenta il budget stimato della lista acquisti.", { paymentTermLabel: t(paymentTermLabel) })}</p>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-[180px_1fr]">
               <div className="space-y-2">
-                <Label htmlFor="purchase-date">Serve entro</Label>
+                <Label htmlFor="purchase-date">{t("Serve entro")}</Label>
                 <Input
                   id="purchase-date"
                   type="date"
@@ -1139,13 +1139,13 @@ export default function WarehousePurchaseListTab({
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="purchase-notes">Note acquisto</Label>
+                <Label htmlFor="purchase-notes">{t("Note acquisto")}</Label>
                 <Textarea
                   id="purchase-notes"
                   rows={3}
                   value={form.notes}
                   onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
-                  placeholder="Misure, marca preferita, cantiere, urgenze..."
+                  placeholder={t("Misure, marca preferita, cantiere, urgenze...")}
                 />
               </div>
             </div>
@@ -1153,11 +1153,11 @@ export default function WarehousePurchaseListTab({
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setAddDialogOpen(false)}>
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button type="button" onClick={addManualItem} disabled={!form.name.trim()} className="gap-2">
               <PackagePlus className="h-4 w-4" aria-hidden="true" />
-              Aggiungi alla lista
+              {t("Aggiungi alla lista")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1168,9 +1168,9 @@ export default function WarehousePurchaseListTab({
           {editingItem && (
             <>
               <DialogHeader>
-                <DialogTitle>Gestisci acquisto</DialogTitle>
+                <DialogTitle>{t("Gestisci acquisto")}</DialogTitle>
                 <DialogDescription>
-                  Aggiorna stato, pagamento e magazzino di arrivo senza perdere la storia della riga.
+                  {t("Aggiorna stato, pagamento e magazzino di arrivo senza perdere la storia della riga.")}
                 </DialogDescription>
               </DialogHeader>
 
@@ -1178,13 +1178,13 @@ export default function WarehousePurchaseListTab({
                 <div className="rounded-lg border bg-muted/20 p-3">
                   <p className="text-sm font-semibold">{editingItem.name}</p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Quantità {editingItem.quantity} · {editingItem.unitCost > 0 ? formatCurrency(editingItem.quantity * editingItem.unitCost * (1 + editingItem.vatRate / 100)) : "costo non inserito"}
+                    {t("Quantità {n}", { n: editingItem.quantity })} · {editingItem.unitCost > 0 ? formatCurrency(editingItem.quantity * editingItem.unitCost * (1 + editingItem.vatRate / 100)) : t("costo non inserito")}
                   </p>
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Stato acquisto</Label>
+                    <Label>{t("Stato acquisto")}</Label>
                     <Select
                       value={editingItem.status}
                       onValueChange={(value) => updateManualItem(editingItem.id, {
@@ -1200,7 +1200,7 @@ export default function WarehousePurchaseListTab({
                       <SelectContent>
                         {PURCHASE_STATUSES.map((status) => (
                           <SelectItem key={status} value={status}>
-                            {STATUS_CONFIG[status].label}
+                            {t(STATUS_CONFIG[status].label)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1208,14 +1208,14 @@ export default function WarehousePurchaseListTab({
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Magazzino di arrivo</Label>
+                    <Label>{t("Magazzino di arrivo")}</Label>
                     {renderWarehouseArrivalSelect(editingItem.warehouseId, (warehouseId) => updateManualItem(editingItem.id, { warehouseId }))}
                   </div>
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Data ordine</Label>
+                    <Label>{t("Data ordine")}</Label>
                     <Input
                       type="date"
                       value={editingItem.orderDate}
@@ -1224,7 +1224,7 @@ export default function WarehousePurchaseListTab({
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Arrivo previsto/reale</Label>
+                    <Label>{t("Arrivo previsto/reale")}</Label>
                     <Input
                       type="date"
                       value={editingItem.arrivalDate}
@@ -1235,7 +1235,7 @@ export default function WarehousePurchaseListTab({
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Fornitore</Label>
+                    <Label>{t("Fornitore")}</Label>
                     <Select
                       value={editingItem.supplierId ?? "__none__"}
                       onValueChange={(value) => {
@@ -1252,7 +1252,7 @@ export default function WarehousePurchaseListTab({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="__none__">Da decidere</SelectItem>
+                        <SelectItem value="__none__">{t("Da decidere")}</SelectItem>
                         {suppliers.map((supplier) => (
                           <SelectItem key={supplier.id} value={supplier.id}>
                             {supplier.name}
@@ -1262,7 +1262,7 @@ export default function WarehousePurchaseListTab({
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Modalità pagamento</Label>
+                    <Label>{t("Modalità pagamento")}</Label>
                     <Select
                       value={editingItem.paymentMethod ?? "__none__"}
                       onValueChange={(value) => updateManualItem(editingItem.id, { paymentMethod: value === "__none__" ? null : value })}
@@ -1271,10 +1271,10 @@ export default function WarehousePurchaseListTab({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="__none__">Da definire</SelectItem>
+                        <SelectItem value="__none__">{t("Da definire")}</SelectItem>
                         {PAYMENT_METHODS.map((method) => (
                           <SelectItem key={method.value} value={method.value}>
-                            {method.label}
+                            {t(method.label)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1284,7 +1284,7 @@ export default function WarehousePurchaseListTab({
 
                 <div className="rounded-lg border bg-muted/20 p-3">
                   <div className="space-y-2">
-                    <Label>Condizioni pagamento</Label>
+                    <Label>{t("Condizioni pagamento")}</Label>
                     <Select
                       value={editingItem.paymentTerm ?? "consegna"}
                       onValueChange={(value) => updateManualItem(editingItem.id, {
@@ -1299,7 +1299,7 @@ export default function WarehousePurchaseListTab({
                       <SelectContent>
                         {PAYMENT_TERMS.map((term) => (
                           <SelectItem key={term.value} value={term.value}>
-                            {term.label}
+                            {t(term.label)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1311,8 +1311,8 @@ export default function WarehousePurchaseListTab({
                       <div className="rounded-md border bg-background p-3">
                         <div className="flex items-center justify-between gap-3">
                           <div>
-                            <p className="text-sm font-semibold">Acconto</p>
-                            <p className="text-xs text-muted-foreground">pagamento iniziale</p>
+                            <p className="text-sm font-semibold">{t("Acconto")}</p>
+                            <p className="text-xs text-muted-foreground">{t("pagamento iniziale")}</p>
                           </div>
                           <Switch
                             checked={editingItem.depositPaid}
@@ -1329,8 +1329,8 @@ export default function WarehousePurchaseListTab({
                       <div className="rounded-md border bg-background p-3">
                         <div className="flex items-center justify-between gap-3">
                           <div>
-                            <p className="text-sm font-semibold">Saldo</p>
-                            <p className="text-xs text-muted-foreground">pagamento finale</p>
+                            <p className="text-sm font-semibold">{t("Saldo")}</p>
+                            <p className="text-xs text-muted-foreground">{t("pagamento finale")}</p>
                           </div>
                           <Switch
                             checked={editingItem.balancePaid}
@@ -1348,7 +1348,7 @@ export default function WarehousePurchaseListTab({
                   ) : (
                     <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_140px_1fr] sm:items-end">
                       <div className="space-y-2">
-                        <Label>Pagamento previsto</Label>
+                        <Label>{t("Pagamento previsto")}</Label>
                         <Input
                           type="date"
                           value={editingItem.expectedPaymentDate}
@@ -1356,14 +1356,14 @@ export default function WarehousePurchaseListTab({
                         />
                       </div>
                       <div className="flex h-10 items-center justify-between gap-3 rounded-md border bg-background px-3">
-                        <span className="text-sm">Pagato</span>
+                        <span className="text-sm">{t("Pagato")}</span>
                         <Switch
                           checked={editingItem.paid}
                           onCheckedChange={(checked) => updateManualItem(editingItem.id, { paid: checked, paidDate: checked ? editingItem.paidDate || todayIso() : "" })}
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label>Data pagamento</Label>
+                        <Label>{t("Data pagamento")}</Label>
                         <Input
                           type="date"
                           value={editingItem.paidDate}
@@ -1377,7 +1377,7 @@ export default function WarehousePurchaseListTab({
 
                 {editingItem.status === "in_magazzino" && (
                   <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
-                    Merce arrivata: registra il DDT/carico per farla entrare nell'inventario reale.
+                    {t("Merce arrivata: registra il DDT/carico per farla entrare nell'inventario reale.")}
                   </div>
                 )}
               </div>
@@ -1386,11 +1386,11 @@ export default function WarehousePurchaseListTab({
                 {editingItem.status === "in_magazzino" && (
                   <Button type="button" className="gap-2" onClick={onRegisterArrival}>
                     <Truck className="h-4 w-4" aria-hidden="true" />
-                    Registra DDT/carico
+                    {t("Registra DDT/carico")}
                   </Button>
                 )}
                 <Button type="button" variant="outline" onClick={() => setEditingItemId(null)}>
-                  Chiudi
+                  {t("Chiudi")}
                 </Button>
               </DialogFooter>
             </>
@@ -1405,7 +1405,7 @@ export default function WarehousePurchaseListTab({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             className="pl-9"
-            placeholder="Cerca prodotto, fornitore o commessa..."
+            placeholder={t("Cerca prodotto, fornitore o commessa...")}
           />
         </div>
         <Select value={sourceFilter} onValueChange={(value) => setSourceFilter(value as typeof sourceFilter)}>
@@ -1413,10 +1413,10 @@ export default function WarehousePurchaseListTab({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Tutte le fonti</SelectItem>
-            <SelectItem value="manual">Manuali</SelectItem>
-            <SelectItem value="stock">Scorte</SelectItem>
-            <SelectItem value="commessa">Commesse</SelectItem>
+            <SelectItem value="all">{t("Tutte le fonti")}</SelectItem>
+            <SelectItem value="manual">{t("Manuali")}</SelectItem>
+            <SelectItem value="stock">{t("Scorte")}</SelectItem>
+            <SelectItem value="commessa">{t("Commesse")}</SelectItem>
           </SelectContent>
         </Select>
         <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}>
@@ -1424,10 +1424,10 @@ export default function WarehousePurchaseListTab({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Tutti gli stati</SelectItem>
+            <SelectItem value="all">{t("Tutti gli stati")}</SelectItem>
             {PURCHASE_STATUSES.map((status) => (
               <SelectItem key={status} value={status}>
-                {STATUS_CONFIG[status].label}
+                {t(STATUS_CONFIG[status].label)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -1437,11 +1437,11 @@ export default function WarehousePurchaseListTab({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Tutti i pagamenti</SelectItem>
-            <SelectItem value="unpaid">Da pagare</SelectItem>
-            <SelectItem value="partial">Acconto/saldo parz.</SelectItem>
-            <SelectItem value="paid">Pagati</SelectItem>
-            <SelectItem value="unknown">Da definire</SelectItem>
+            <SelectItem value="all">{t("Tutti i pagamenti")}</SelectItem>
+            <SelectItem value="unpaid">{t("Da pagare")}</SelectItem>
+            <SelectItem value="partial">{t("Acconto/saldo parz.")}</SelectItem>
+            <SelectItem value="paid">{t("Pagati")}</SelectItem>
+            <SelectItem value="unknown">{t("Da definire")}</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -1451,27 +1451,27 @@ export default function WarehousePurchaseListTab({
           <CardContent className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-semibold text-blue-950">
-                {selectedRowIds.size} rig{selectedRowIds.size === 1 ? "a" : "he"} selezionat{selectedRowIds.size === 1 ? "a" : "e"}
+                {selectedRowIds.size === 1 ? t("{n} riga selezionata", { n: 1 }) : t("{n} righe selezionate", { n: selectedRowIds.size })}
               </p>
               <p className="text-xs text-blue-800">
-                Applica un'azione comune agli acquisti selezionati.
+                {t("Applica un'azione comune agli acquisti selezionati.")}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button type="button" size="sm" variant="outline" onClick={() => updateSelectedRowsStatus("ordinato")}>
-                Segna ordinato
+                {t("Segna ordinato")}
               </Button>
               <Button type="button" size="sm" variant="outline" onClick={() => updateSelectedRowsStatus("in_arrivo")}>
-                In arrivo
+                {t("In arrivo")}
               </Button>
               <Button type="button" size="sm" variant="outline" onClick={() => updateSelectedRowsStatus("in_magazzino")}>
-                Arrivato
+                {t("Arrivato")}
               </Button>
               <Button type="button" size="sm" variant="outline" onClick={() => setSelectedRowIds(new Set())}>
-                Annulla selezione
+                {t("Annulla selezione")}
               </Button>
               <Button type="button" size="sm" variant="destructive" onClick={removeSelectedRows}>
-                Elimina
+                {t("Elimina")}
               </Button>
             </div>
           </CardContent>
@@ -1483,9 +1483,9 @@ export default function WarehousePurchaseListTab({
           <CardContent className="flex flex-col items-center justify-center gap-3 py-14 text-center">
             <ClipboardList className="h-12 w-12 text-muted-foreground/40" aria-hidden="true" />
             <div>
-              <p className="text-sm font-medium">Nessun prodotto da acquistare</p>
+              <p className="text-sm font-medium">{t("Nessun prodotto da acquistare")}</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Aggiungi una riga manuale o controlla le soglie minime dell'inventario.
+                {t("Aggiungi una riga manuale o controlla le soglie minime dell'inventario.")}
               </p>
             </div>
           </CardContent>
@@ -1504,17 +1504,17 @@ export default function WarehousePurchaseListTab({
               <Checkbox
                 checked={allFilteredSelected ? true : hasPartialSelection ? "indeterminate" : false}
                 onCheckedChange={toggleAllFiltered}
-                aria-label="Seleziona tutti gli acquisti visibili"
+                aria-label={t("Seleziona tutti gli acquisti visibili")}
               />
             )}
-            <span>Articolo</span>
-            <span>Stato</span>
-            <span>Q.tà</span>
-            <span>Importo</span>
-            <span>Pagamento</span>
-            <span>Fornitore / arrivo</span>
-            <span>Entro</span>
-            {!readOnly && <span className="text-right">Azioni</span>}
+            <span>{t("Articolo")}</span>
+            <span>{t("Stato")}</span>
+            <span>{t("Q.tà")}</span>
+            <span>{t("Importo")}</span>
+            <span>{t("Pagamento")}</span>
+            <span>{t("Fornitore / arrivo")}</span>
+            <span>{t("Entro")}</span>
+            {!readOnly && <span className="text-right">{t("Azioni")}</span>}
           </div>
           {filteredRows.map((row) => {
             const daysUntil = getDaysUntil(row.dueDate);
@@ -1549,7 +1549,7 @@ export default function WarehousePurchaseListTab({
                         <Checkbox
                           checked={selected}
                           onCheckedChange={() => toggleRowSelection(row.id)}
-                          aria-label={`Seleziona ${row.name}`}
+                          aria-label={t("Seleziona {name}", { name: String(row.name ?? "") })}
                         />
                       </div>
                     )}
@@ -1558,17 +1558,17 @@ export default function WarehousePurchaseListTab({
                         <p className="truncate text-sm font-semibold" title={row.name}>
                           {row.name}
                         </p>
-                        <Badge variant="outline">{SOURCE_LABELS[row.source]}</Badge>
+                        <Badge variant="outline">{t(SOURCE_LABELS[row.source])}</Badge>
                         <Badge variant="outline" className={PRIORITY_STYLES[row.priority]}>
                           {row.priority}
                         </Badge>
                         {row.priority === "alta" && <AlertTriangle className="h-4 w-4 text-red-600" aria-hidden="true" />}
                       </div>
-                      <p className="mt-1 text-xs text-muted-foreground">{row.meta}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{t(row.meta)}</p>
                       {row.source === "commessa" && (
                         <p className="mt-1 inline-flex max-w-full items-center rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700">
                           <span className="truncate">
-                            Commessa collegata: {row.orderCode ?? "senza codice"}
+                            {t("Commessa collegata: {codice}", { codice: row.orderCode ?? t("senza codice") })}
                             {row.customerName ? ` · ${row.customerName}` : ""}
                           </span>
                         </p>
@@ -1577,10 +1577,10 @@ export default function WarehousePurchaseListTab({
                     </div>
 
                     <div>
-                      <p className="mb-1 text-xs font-medium text-muted-foreground xl:hidden">Stato</p>
+                      <p className="mb-1 text-xs font-medium text-muted-foreground xl:hidden">{t("Stato")}</p>
                       {readOnly || row.source === "stock" ? (
                         <Badge variant="outline" className={cn("text-[11px] leading-none", STATUS_BADGE_STYLES[row.status])}>
-                          {STATUS_CONFIG[row.status].label}
+                          {t(STATUS_CONFIG[row.status].label)}
                         </Badge>
                       ) : (
                         <div onClick={(event) => event.stopPropagation()}>
@@ -1594,7 +1594,7 @@ export default function WarehousePurchaseListTab({
                             <SelectContent>
                               {PURCHASE_STATUSES.map((status) => (
                                 <SelectItem key={status} value={status}>
-                                  {STATUS_CONFIG[status].label}
+                                  {t(STATUS_CONFIG[status].label)}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -1604,46 +1604,46 @@ export default function WarehousePurchaseListTab({
                     </div>
 
                     <div>
-                      <p className="mb-1 text-xs font-medium text-muted-foreground xl:hidden">Quantità</p>
+                      <p className="mb-1 text-xs font-medium text-muted-foreground xl:hidden">{t("Quantità")}</p>
                       <p className="text-lg font-semibold tabular-nums">{row.quantity}</p>
                     </div>
 
                     <div>
-                      <p className="mb-1 text-xs font-medium text-muted-foreground xl:hidden">Importo</p>
+                      <p className="mb-1 text-xs font-medium text-muted-foreground xl:hidden">{t("Importo")}</p>
                       <p className="text-base font-bold text-slate-950 tabular-nums">
-                        {row.estimatedCost !== null ? formatCurrency(row.estimatedCost) : "Da stimare"}
+                        {row.estimatedCost !== null ? formatCurrency(row.estimatedCost) : t("Da stimare")}
                       </p>
-                      <p className="text-[11px] text-muted-foreground">IVA incl.</p>
+                      <p className="text-[11px] text-muted-foreground">{t("IVA incl.")}</p>
                     </div>
 
                     <div className="rounded-md border bg-muted/20 p-3 xl:bg-transparent xl:p-0 xl:border-0">
-                      <p className="mb-1 text-xs font-medium text-muted-foreground xl:hidden">Pagamento</p>
+                      <p className="mb-1 text-xs font-medium text-muted-foreground xl:hidden">{t("Pagamento")}</p>
                       <Badge variant="outline" className={PAYMENT_BADGE_STYLES[row.paymentState]}>
-                        {row.paymentLabel}
+                        {t(row.paymentLabel)}
                       </Badge>
                       <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{row.paymentDetail}</p>
                     </div>
 
                     <div className="min-w-0">
-                      <p className="mb-1 text-xs font-medium text-muted-foreground xl:hidden">Fornitore / arrivo</p>
+                      <p className="mb-1 text-xs font-medium text-muted-foreground xl:hidden">{t("Fornitore / arrivo")}</p>
                       <p className="truncate text-sm font-semibold">
-                        {row.supplierId ? supplierNameById.get(row.supplierId) ?? "Fornitore" : "Fornitore da decidere"}
+                        {row.supplierId ? supplierNameById.get(row.supplierId) ?? t("Fornitore") : t("Fornitore da decidere")}
                       </p>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        {row.warehouseId ? warehouseNameById.get(row.warehouseId) ?? "Magazzino" : "Magazzino da decidere"}
+                        {row.warehouseId ? warehouseNameById.get(row.warehouseId) ?? t("Magazzino") : t("Magazzino da decidere")}
                       </p>
                     </div>
 
                     <div>
-                      <p className="mb-1 text-xs font-medium text-muted-foreground xl:hidden">Entro</p>
+                      <p className="mb-1 text-xs font-medium text-muted-foreground xl:hidden">{t("Entro")}</p>
                       <p className={cn("text-sm font-semibold", isOverdue && "text-red-600")}>
                         {row.dueDate
                           ? row.dueDate
-                          : "Non definito"}
+                          : t("Non definito")}
                       </p>
                       {daysUntil !== null && (
                         <p className={cn("text-xs text-muted-foreground", isOverdue && "text-red-600")}>
-                          {isOverdue ? "scaduto" : `${daysUntil} giorni`}
+                          {isOverdue ? t("scaduto") : t("{daysUntil} giorni", { daysUntil: String(daysUntil ?? "") })}
                         </p>
                       )}
                     </div>
@@ -1656,34 +1656,34 @@ export default function WarehousePurchaseListTab({
                             type="button"
                             variant="outline"
                             size="icon"
-                            aria-label={`Azioni per ${row.name}`}
+                            aria-label={t("Azioni per {name}", { name: String(row.name ?? "") })}
                           >
                             <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-56">
-                          <DropdownMenuLabel>Azioni acquisto</DropdownMenuLabel>
+                          <DropdownMenuLabel>{t("Azioni acquisto")}</DropdownMenuLabel>
                           {row.source === "manual" ? (
                             <>
                               <DropdownMenuItem onClick={() => setEditingItemId(row.id)}>
                                 <Pencil className="mr-2 h-4 w-4" aria-hidden="true" />
-                                Modifica acquisto
+                                {t("Modifica acquisto")}
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => completeManualItem(row.id)}>
                                 <CheckCircle2 className="mr-2 h-4 w-4" aria-hidden="true" />
-                                Segna arrivato
+                                {t("Segna arrivato")}
                               </DropdownMenuItem>
                             </>
                           ) : (
                             <DropdownMenuItem onClick={() => openAddDialogFromRow(row)}>
                               <Pencil className="mr-2 h-4 w-4" aria-hidden="true" />
-                              Modifica
+                              {t("Modifica")}
                             </DropdownMenuItem>
                           )}
                           {row.status === "in_magazzino" && (
                             <DropdownMenuItem onClick={onRegisterArrival}>
                               <Truck className="mr-2 h-4 w-4" aria-hidden="true" />
-                              Registra DDT/carico
+                              {t("Registra DDT/carico")}
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuSeparator />
@@ -1692,7 +1692,7 @@ export default function WarehousePurchaseListTab({
                             onClick={() => removePurchaseRow(row)}
                           >
                             <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
-                            Elimina
+                            {t("Elimina")}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>

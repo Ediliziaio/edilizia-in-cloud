@@ -12,6 +12,7 @@ import { CampiClienteFiscale, SceltaTipoCliente } from "@/components/clients/Cam
 import { etichettaTipoCliente, problemiClienteFiscale, type ClienteFiscaleForm } from "@/lib/clienti/clienteFiscale";
 import { salvaClienteFiscale } from "@/lib/clienti/salvaClienteFiscale";
 import { queryKeys } from "@/lib/queryKeys";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   open: boolean;
@@ -36,6 +37,7 @@ export function DatiFiscaliClienteDialog(props: Props) {
 }
 
 function Corpo({ onOpenChange, iniziale, clienteId, anagraficaId, chiediUfficio, onSaved }: Props) {
+  const t = useT();
   const { toast } = useToast();
   const qc = useQueryClient();
   const [form, setForm] = useState<ClienteFiscaleForm>(iniziale);
@@ -64,11 +66,11 @@ function Corpo({ onOpenChange, iniziale, clienteId, anagraficaId, chiediUfficio,
       qc.invalidateQueries({ queryKey: ["uffici-pa"] });
       qc.invalidateQueries({ queryKey: ["anagrafiche-pa-da-confermare"] });
       if (clienteId) qc.invalidateQueries({ queryKey: queryKeys.customersList.all });
-      toast({ title: "Dati per la fattura salvati" });
+      toast({ title: t("Dati per la fattura salvati") });
       onSaved?.(id);
       onOpenChange(false);
     } catch (e) {
-      toast({ title: "Non salvato", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+      toast({ title: t("Non salvato"), description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally {
       setSalvo(false);
     }
@@ -77,27 +79,24 @@ function Corpo({ onOpenChange, iniziale, clienteId, anagraficaId, chiediUfficio,
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Dati per la fattura</DialogTitle>
-        <DialogDescription>Il tipo decide il formato della fattura elettronica e i campi obbligatori.</DialogDescription>
+        <DialogTitle>{t("Dati per la fattura")}</DialogTitle>
+        <DialogDescription>{t("Il tipo decide il formato della fattura elettronica e i campi obbligatori.")}</DialogDescription>
       </DialogHeader>
       <div className="space-y-4">
         <SceltaTipoCliente value={form.tipo} onChange={(tipo) => setForm({ ...form, tipo })} />
         {cambiaTipo && (
           <Alert>
-            <AlertDescription className="text-sm">
-              Da {etichettaTipoCliente(iniziale.tipo).toLowerCase()} a {etichettaTipoCliente(form.tipo).toLowerCase()}: le
-              fatture già emesse restano come sono, le prossime usano il tipo nuovo.
-            </AlertDescription>
+            <AlertDescription className="text-sm">{t("Da {prima} a {dopo}: le fatture già emesse restano come sono, le prossime usano il tipo nuovo.", { prima: etichettaTipoCliente(iniziale.tipo).toLowerCase(), dopo: etichettaTipoCliente(form.tipo).toLowerCase() })}</AlertDescription>
           </Alert>
         )}
         <CampiClienteFiscale value={form} onChange={setForm} errori={provato ? errori : {}} conUfficio={chiediUfficio && form.tipo === "PA"} />
       </div>
       <DialogFooter>
         <Button variant="outline" onClick={() => onOpenChange(false)}>
-          Annulla
+          {t("Annulla")}
         </Button>
         <Button onClick={salva} disabled={salvo}>
-          {salvo && <Loader2 className="h-4 w-4 mr-1 animate-spin" />} Salva
+          {salvo && <Loader2 className="h-4 w-4 mr-1 animate-spin" />} {t("Salva")}
         </Button>
       </DialogFooter>
     </>

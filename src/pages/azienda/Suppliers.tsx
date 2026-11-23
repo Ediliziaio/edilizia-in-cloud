@@ -15,7 +15,6 @@ import {
   type NavigateFunction,
 } from "react-router-dom";
 import { format, isPast, isToday, subMonths } from "date-fns";
-import { it } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,6 +53,7 @@ import {
 } from "recharts";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { categorieFornitore } from "@/lib/fornitori/categorieFornitore";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type DatiDettaglioFornitore = ReturnType<typeof useSupplierDetail>;
 type OdaRiga = DatiDettaglioFornitore["oda"][number];
@@ -83,6 +83,7 @@ function SuppliersList({
   onSelectSupplier?: (id: string) => void;
   incorporato?: boolean;
 }) {
+  const t = useT();
   const navigate = useNavigate();
   const { suppliers, isLoading, isError, refetch } = useOperationalSuppliers();
   const [search, setSearch] = useState("");
@@ -105,16 +106,16 @@ function SuppliersList({
   if (isError)
     return (
       <Alert variant="destructive">
-        <AlertTitle>Ordini e pagamenti non disponibili</AlertTitle>
+        <AlertTitle>{t("Ordini e pagamenti non disponibili")}</AlertTitle>
         <AlertDescription>
-          Non riesco a leggere i fornitori o i loro movimenti.
+          {t("Non riesco a leggere i fornitori o i loro movimenti.")}
           <Button
             className="ml-3"
             variant="outline"
             size="sm"
             onClick={() => void refetch()}
           >
-            Riprova
+            {t("Riprova")}
           </Button>
         </AlertDescription>
       </Alert>
@@ -127,7 +128,7 @@ function SuppliersList({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Truck className="h-7 w-7 text-primary" />
-            <h1 className="text-2xl font-bold">Fornitori</h1>
+            <h1 className="text-2xl font-bold">{t("Fornitori")}</h1>
             <Badge variant="secondary" className="ml-2">
               {filtered.length}
             </Badge>
@@ -139,7 +140,7 @@ function SuppliersList({
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card>
           <CardContent className="pt-3 pb-2">
-            <p className="text-xs text-muted-foreground">Fornitori attivi</p>
+            <p className="text-xs text-muted-foreground">{t("Fornitori attivi")}</p>
             <p className="text-xl font-bold">
               {suppliers.filter((s) => s.is_active).length}
             </p>
@@ -147,7 +148,7 @@ function SuppliersList({
         </Card>
         <Card>
           <CardContent className="pt-3 pb-2">
-            <p className="text-xs text-muted-foreground">Totale OdA</p>
+            <p className="text-xs text-muted-foreground">{t("Totale OdA")}</p>
             <p className="text-xl font-bold">
               {formatCurrency(
                 suppliers.reduce((s, f) => s + (f.oda_total || 0), 0),
@@ -157,7 +158,7 @@ function SuppliersList({
         </Card>
         <Card>
           <CardContent className="pt-3 pb-2">
-            <p className="text-xs text-muted-foreground">Residuo scadenzario</p>
+            <p className="text-xs text-muted-foreground">{t("Residuo scadenzario")}</p>
             <p
               className={`text-xl font-bold ${totalDebt > 0 ? "text-destructive" : ""}`}
             >
@@ -167,7 +168,7 @@ function SuppliersList({
         </Card>
         <Card>
           <CardContent className="pt-3 pb-2">
-            <p className="text-xs text-muted-foreground">Con scadenze aperte</p>
+            <p className="text-xs text-muted-foreground">{t("Con scadenze aperte")}</p>
             <p className="text-xl font-bold">{overdueCount}</p>
           </CardContent>
         </Card>
@@ -177,8 +178,8 @@ function SuppliersList({
         <div className="relative flex-1">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Cerca fornitore..."
-            aria-label="Cerca un fornitore"
+            placeholder={t("Cerca fornitore...")}
+            aria-label={t("Cerca un fornitore")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-8"
@@ -189,7 +190,7 @@ function SuppliersList({
           size="sm"
           onClick={() => setShowInactive(!showInactive)}
         >
-          {showInactive ? "Solo attivi" : "Includi inattivi"}
+          {showInactive ? t("Solo attivi") : t("Includi inattivi")}
         </Button>
       </div>
 
@@ -215,7 +216,7 @@ function SuppliersList({
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
-          Nessun fornitore trovato.
+          {t("Nessun fornitore trovato.")}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -224,7 +225,7 @@ function SuppliersList({
               key={s.id}
               role="button"
               tabIndex={0}
-              aria-label={`Apri ${s.name}`}
+              aria-label={t("Apri {name}", { name: String(s.name ?? "") })}
               onKeyDown={(event) => {
                 if (event.key === "Enter" || event.key === " ") {
                   event.preventDefault();
@@ -249,7 +250,7 @@ function SuppliersList({
                   <div>
                     <p className="break-words font-semibold">{s.name}</p>
                     <p className="mt-1 break-words text-xs text-muted-foreground">
-                      {s.contact_name || "Referente da aggiungere"}
+                      {s.contact_name || t("Referente da aggiungere")}
                       {s.contact_role ? ` · ${s.contact_role}` : ""}
                     </p>
                     {categorieFornitore(s).length > 0 && (
@@ -263,13 +264,13 @@ function SuppliersList({
 
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div>
-                    <p className="text-muted-foreground">OdA</p>
+                    <p className="text-muted-foreground">{t("OdA")}</p>
                     <p className="font-medium">
                       {s.oda_count || 0} · {formatCurrency(s.oda_total || 0)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Residuo scadenzario</p>
+                    <p className="text-muted-foreground">{t("Residuo scadenzario")}</p>
                     <p
                       className={`font-medium ${(s.scadenze_importo || 0) > 0 ? "text-destructive" : ""}`}
                     >
@@ -280,7 +281,7 @@ function SuppliersList({
 
                 {!s.is_active && (
                   <Badge variant="secondary" className="text-xs">
-                    Inattivo
+                    {t("Inattivo")}
                   </Badge>
                 )}
               </CardContent>
@@ -306,6 +307,7 @@ function SupplierDetail({
   /** Dentro le impostazioni il titolo della pagina è già l'h1: il nome del fornitore è un titolo di secondo livello. */
   incorporato?: boolean;
 }) {
+  const t = useT();
   const navigate = useNavigate();
   const {
     suppliers,
@@ -355,16 +357,16 @@ function SupplierDetail({
   if (isSupError)
     return (
       <Alert variant="destructive">
-        <AlertTitle>Fornitore non disponibile</AlertTitle>
+        <AlertTitle>{t("Fornitore non disponibile")}</AlertTitle>
         <AlertDescription>
-          Non riesco a leggere l’anagrafica.
+          {t("Non riesco a leggere l’anagrafica.")}
           <Button
             className="ml-3"
             variant="outline"
             size="sm"
             onClick={() => void refetchSuppliers()}
           >
-            Riprova
+            {t("Riprova")}
           </Button>
         </AlertDescription>
       </Alert>
@@ -373,7 +375,7 @@ function SupplierDetail({
   if (!supplier) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground mb-4">Fornitore non trovato</p>
+        <p className="text-muted-foreground mb-4">{t("Fornitore non trovato")}</p>
         <Button
           variant="outline"
           onClick={() => {
@@ -383,7 +385,7 @@ function SupplierDetail({
             }
           }}
         >
-          Torna alla lista
+          {t("Torna alla lista")}
         </Button>
       </div>
     );
@@ -420,7 +422,7 @@ function SupplierDetail({
           className="inline-flex"
           onClick={() => (onBack ? onBack() : navigate("/azienda/fornitori"))}
         >
-          <ArrowLeft className="h-4 w-4 mr-1" /> Fornitori
+          <ArrowLeft className="h-4 w-4 mr-1" /> {t("Fornitori")}
         </Button>
       </div>
 
@@ -432,15 +434,15 @@ function SupplierDetail({
               <Badge variant="outline">{categorieFornitore(supplier).join(" · ")}</Badge>
             )}
             <RatingStars rating={supplier.rating} />
-            {!supplier.is_active && <Badge variant="secondary">Inattivo</Badge>}
-            {supplier.is_foreign && <Badge variant="outline">Estero</Badge>}
+            {!supplier.is_active && <Badge variant="secondary">{t("Inattivo")}</Badge>}
+            {supplier.is_foreign && <Badge variant="outline">{t("Estero")}</Badge>}
           </div>
         </div>
         <div className="flex gap-2">
           {puoModificare && (
             <Button variant="outline" size="sm" onClick={startEdit}>
               <Pencil className="h-4 w-4 mr-1" />
-              Modifica
+              {t("Modifica")}
             </Button>
           )}
         </div>
@@ -449,16 +451,16 @@ function SupplierDetail({
       {/* KPI cards */}
       {movimentiErrore ? (
         <Alert variant="destructive">
-          <AlertTitle>Movimenti non disponibili</AlertTitle>
+          <AlertTitle>{t("Movimenti non disponibili")}</AlertTitle>
           <AlertDescription>
-            Nessun totale viene mostrato come zero.
+            {t("Nessun totale viene mostrato come zero.")}
             <Button
               className="ml-3"
               variant="outline"
               size="sm"
               onClick={() => void refetchDettaglio()}
             >
-              Riprova movimenti
+              {t("Riprova movimenti")}
             </Button>
           </AlertDescription>
         </Alert>
@@ -467,25 +469,23 @@ function SupplierDetail({
           role="status"
           className="rounded-lg border p-4 text-sm text-muted-foreground"
         >
-          Caricamento ordini e pagamenti…
+          {t("Caricamento ordini e pagamenti…")}
         </p>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Card>
             <CardContent className="pt-3 pb-2">
               <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <Package className="h-3 w-3" /> Totale OdA
+                <Package className="h-3 w-3" /> {t("Totale OdA")}
               </p>
               <p className="text-xl font-bold">{formatCurrency(totalOda)}</p>
-              <p className="text-xs text-muted-foreground">
-                {oda.length} ordini
-              </p>
+              <p className="text-xs text-muted-foreground">{t("{n} ordini", { n: oda.length })}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-3 pb-2">
               <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <CreditCard className="h-3 w-3" /> Totale pagato
+                <CreditCard className="h-3 w-3" /> {t("Totale pagato")}
               </p>
               <p className="text-xl font-bold">{formatCurrency(totalPagato)}</p>
             </CardContent>
@@ -493,18 +493,16 @@ function SupplierDetail({
           <Card>
             <CardContent className="pt-3 pb-2">
               <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <CalendarClock className="h-3 w-3" /> Scadenze aperte
+                <CalendarClock className="h-3 w-3" /> {t("Scadenze aperte")}
               </p>
               <p className="text-xl font-bold">{openScadenze.length}</p>
-              <p className="text-xs text-muted-foreground">
-                {formatCurrency(supplier.scadenze_importo || 0)} residuo
-              </p>
+              <p className="text-xs text-muted-foreground">{t("{valore} residuo", { valore: formatCurrency(supplier.scadenze_importo || 0) })}</p>
             </CardContent>
           </Card>
           <Card className={scaduteCount > 0 ? "border-destructive" : ""}>
             <CardContent className="pt-3 pb-2">
               <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <AlertTriangle className="h-3 w-3" /> Scadute
+                <AlertTriangle className="h-3 w-3" /> {t("Scadute")}
               </p>
               <p
                 className={`text-xl font-bold ${scaduteCount > 0 ? "text-destructive" : ""}`}
@@ -517,8 +515,7 @@ function SupplierDetail({
       )}
 
       <p className="text-sm text-muted-foreground">
-        I contatori delle scadenze includono solo le voci presenti nello scadenzario.
-        Uno zero non esclude fatture ancora da pagare: consulta anche «Fatture e debiti».
+        {t("I contatori delle scadenze includono solo le voci presenti nello scadenzario. Uno zero non esclude fatture ancora da pagare: consulta anche «Fatture e debiti».")}
       </p>
 
       {/* Tabs */}
@@ -529,18 +526,14 @@ function SupplierDetail({
         }}
       >
         <TabsList className="h-auto max-w-full justify-start overflow-x-auto [&>button]:shrink-0">
-          <TabsTrigger value="anagrafica">Anagrafica</TabsTrigger>
-          <TabsTrigger value="fatture">Fatture e debiti</TabsTrigger>
-          <TabsTrigger value="contratti">Contratti e ruoli</TabsTrigger>
-          <TabsTrigger value="oda">OdA ({oda.length})</TabsTrigger>
-          <TabsTrigger value="listino">Listino</TabsTrigger>
-          <TabsTrigger value="scadenze">
-            Scadenze ({scadenze.length})
-          </TabsTrigger>
-          <TabsTrigger value="prima-nota">
-            Prima Nota ({primaNota.length})
-          </TabsTrigger>
-          <TabsTrigger value="stats">Statistiche</TabsTrigger>
+          <TabsTrigger value="anagrafica">{t("Anagrafica")}</TabsTrigger>
+          <TabsTrigger value="fatture">{t("Fatture e debiti")}</TabsTrigger>
+          <TabsTrigger value="contratti">{t("Contratti e ruoli")}</TabsTrigger>
+          <TabsTrigger value="oda">{t("OdA ({n})", { n: oda.length })}</TabsTrigger>
+          <TabsTrigger value="listino">{t("Listino")}</TabsTrigger>
+          <TabsTrigger value="scadenze">{t("Scadenze ({n})", { n: scadenze.length })}</TabsTrigger>
+          <TabsTrigger value="prima-nota">{t("Prima Nota ({n})", { n: primaNota.length })}</TabsTrigger>
+          <TabsTrigger value="stats">{t("Statistiche")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="anagrafica" className="mt-4">
@@ -561,7 +554,7 @@ function SupplierDetail({
         <TabsContent value="oda" className="mt-4">
           {isOdaError ? (
             <p role="alert">
-              Non riesco a leggere gli ordini. Usa «Riprova movimenti».
+              {t("Non riesco a leggere gli ordini. Usa «Riprova movimenti».")}
             </p>
           ) : (
             <OdaTab oda={oda} isLoading={isOdaLoading} navigate={navigate} />
@@ -575,7 +568,7 @@ function SupplierDetail({
         <TabsContent value="scadenze" className="mt-4">
           {isScadenzeError ? (
             <p role="alert">
-              Non riesco a leggere le scadenze. Usa «Riprova movimenti».
+              {t("Non riesco a leggere le scadenze. Usa «Riprova movimenti».")}
             </p>
           ) : (
             <ScadenzeTab
@@ -589,7 +582,7 @@ function SupplierDetail({
         <TabsContent value="prima-nota" className="mt-4">
           {isPrimaNotaError ? (
             <p role="alert">
-              Non riesco a leggere la prima nota. Usa «Riprova movimenti».
+              {t("Non riesco a leggere la prima nota. Usa «Riprova movimenti».")}
             </p>
           ) : (
             <PrimaNotaTab
@@ -647,6 +640,7 @@ function OdaTab({
   isLoading: boolean;
   navigate: NavigateFunction;
 }) {
+  const t = useT();
   if (isLoading)
     return (
       <div className="mt-4 space-y-2">
@@ -658,7 +652,7 @@ function OdaTab({
   if (oda.length === 0)
     return (
       <p className="text-center py-8 text-muted-foreground">
-        Nessun ordine d'acquisto.
+        {t("Nessun ordine d'acquisto.")}
       </p>
     );
 
@@ -693,9 +687,9 @@ function OdaTab({
                 </Badge>
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {format(new Date(o.issue_date), "dd/MM/yyyy", { locale: it })}
+                {format(new Date(o.issue_date), "dd/MM/yyyy", { locale: dateFnsCampo() })}
                 {o.expected_delivery_date
-                  ? ` · cons. ${format(new Date(o.expected_delivery_date), "dd/MM/yyyy", { locale: it })}`
+                  ? " · " + t("cons. {valore}", { valore: format(new Date(o.expected_delivery_date), "dd/MM/yyyy", { locale: dateFnsCampo() }) })
                   : ""}
               </p>
             </div>
@@ -709,11 +703,11 @@ function OdaTab({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/50">
-              <th className="text-left p-3 font-medium">N° OdA</th>
-              <th className="text-left p-3 font-medium">Data</th>
-              <th className="text-left p-3 font-medium">Stato</th>
-              <th className="text-right p-3 font-medium">Totale</th>
-              <th className="text-left p-3 font-medium">Consegna prevista</th>
+              <th className="text-left p-3 font-medium">{t("N° OdA")}</th>
+              <th className="text-left p-3 font-medium">{t("Data")}</th>
+              <th className="text-left p-3 font-medium">{t("Stato")}</th>
+              <th className="text-right p-3 font-medium">{t("Totale")}</th>
+              <th className="text-left p-3 font-medium">{t("Consegna prevista")}</th>
               <th className="text-left p-3 font-medium w-10"></th>
             </tr>
           </thead>
@@ -726,7 +720,7 @@ function OdaTab({
               >
                 <td className="p-3 font-mono text-xs">{o.oda_number}</td>
                 <td className="p-3">
-                  {format(new Date(o.issue_date), "dd/MM/yyyy", { locale: it })}
+                  {format(new Date(o.issue_date), "dd/MM/yyyy", { locale: dateFnsCampo() })}
                 </td>
                 <td className="p-3">
                   <Badge className={`text-xs ${STATUS_COLORS[o.status] || ""}`}>
@@ -739,7 +733,7 @@ function OdaTab({
                 <td className="p-3 text-sm text-muted-foreground">
                   {o.expected_delivery_date
                     ? format(new Date(o.expected_delivery_date), "dd/MM/yyyy", {
-                        locale: it,
+                        locale: dateFnsCampo(),
                       })
                     : "—"}
                 </td>
@@ -765,6 +759,7 @@ function ScadenzeTab({
   isLoading: boolean;
   navigate: NavigateFunction;
 }) {
+  const t = useT();
   if (isLoading)
     return (
       <div className="mt-4 space-y-2">
@@ -776,7 +771,7 @@ function ScadenzeTab({
   if (scadenze.length === 0)
     return (
       <p className="text-center py-8 text-muted-foreground">
-        Nessuna scadenza.
+        {t("Nessuna scadenza.")}
       </p>
     );
 
@@ -788,7 +783,7 @@ function ScadenzeTab({
           size="sm"
           onClick={() => navigate("/azienda/scadenzario")}
         >
-          <CalendarClock className="h-4 w-4 mr-1" /> Vai a Scadenzario
+          <CalendarClock className="h-4 w-4 mr-1" /> {t("Vai a Scadenzario")}
         </Button>
       </div>
       <>
@@ -816,7 +811,7 @@ function ScadenzeTab({
                       className={`text-sm font-medium ${isOverdue ? "text-destructive" : ""}`}
                     >
                       {format(new Date(s.due_date), "dd/MM/yyyy", {
-                        locale: it,
+                        locale: dateFnsCampo(),
                       })}
                     </span>
                   </div>
@@ -829,9 +824,7 @@ function ScadenzeTab({
                     {formatCurrency(Number(s.amount))}
                   </span>
                   {s.status !== "pagata" && (
-                    <p className="text-xs text-muted-foreground">
-                      {formatCurrency(remaining)} res.
-                    </p>
+                    <p className="text-xs text-muted-foreground">{t("{remaining} res.", { remaining: formatCurrency(remaining) })}</p>
                   )}
                 </div>
               </div>
@@ -842,11 +835,11 @@ function ScadenzeTab({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
-                <th className="text-left p-3 font-medium">Scadenza</th>
-                <th className="text-left p-3 font-medium">Descrizione</th>
-                <th className="text-right p-3 font-medium">Importo</th>
-                <th className="text-right p-3 font-medium">Residuo</th>
-                <th className="text-left p-3 font-medium">Stato</th>
+                <th className="text-left p-3 font-medium">{t("Scadenza")}</th>
+                <th className="text-left p-3 font-medium">{t("Descrizione")}</th>
+                <th className="text-right p-3 font-medium">{t("Importo")}</th>
+                <th className="text-right p-3 font-medium">{t("Residuo")}</th>
+                <th className="text-left p-3 font-medium">{t("Stato")}</th>
               </tr>
             </thead>
             <tbody>
@@ -870,7 +863,7 @@ function ScadenzeTab({
                           <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
                         )}
                         {format(new Date(s.due_date), "dd/MM/yyyy", {
-                          locale: it,
+                          locale: dateFnsCampo(),
                         })}
                       </div>
                     </td>
@@ -886,7 +879,7 @@ function ScadenzeTab({
                           variant="secondary"
                           className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
                         >
-                          Saldato
+                          {t("Saldato")}
                         </Badge>
                       ) : (
                         formatCurrency(remaining)
@@ -904,12 +897,12 @@ function ScadenzeTab({
                         className="text-xs"
                       >
                         {s.status === "pagata"
-                          ? "Pagata"
+                          ? t("Pagata")
                           : isOverdue
-                            ? "Scaduta"
+                            ? t("Scaduta")
                             : s.status === "parziale"
-                              ? "Parziale"
-                              : "Aperta"}
+                              ? t("Parziale")
+                              : t("Aperta")}
                       </Badge>
                     </td>
                   </tr>
@@ -933,6 +926,7 @@ function PrimaNotaTab({
   isLoading: boolean;
   navigate: NavigateFunction;
 }) {
+  const t = useT();
   if (isLoading)
     return (
       <div className="mt-4 space-y-2">
@@ -944,7 +938,7 @@ function PrimaNotaTab({
   if (entries.length === 0)
     return (
       <p className="text-center py-8 text-muted-foreground">
-        Nessun movimento.
+        {t("Nessun movimento.")}
       </p>
     );
 
@@ -956,7 +950,7 @@ function PrimaNotaTab({
           size="sm"
           onClick={() => navigate("/azienda/prima-nota")}
         >
-          <BookOpen className="h-4 w-4 mr-1" /> Vai a Prima Nota
+          <BookOpen className="h-4 w-4 mr-1" /> {t("Vai a Prima Nota")}
         </Button>
       </div>
       <>
@@ -969,7 +963,7 @@ function PrimaNotaTab({
               <div className="min-w-0">
                 <p className="text-sm font-medium truncate">{e.description}</p>
                 <p className="text-xs text-muted-foreground">
-                  {format(new Date(e.entry_date), "dd/MM/yyyy", { locale: it })}{" "}
+                  {format(new Date(e.entry_date), "dd/MM/yyyy", { locale: dateFnsCampo() })}{" "}
                   · {e.account_label || "—"}
                 </p>
               </div>
@@ -986,11 +980,11 @@ function PrimaNotaTab({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
-                <th className="text-left p-3 font-medium">Data</th>
-                <th className="text-left p-3 font-medium">Descrizione</th>
-                <th className="text-left p-3 font-medium">Conto</th>
-                <th className="text-right p-3 font-medium">Importo</th>
-                <th className="text-left p-3 font-medium">Metodo</th>
+                <th className="text-left p-3 font-medium">{t("Data")}</th>
+                <th className="text-left p-3 font-medium">{t("Descrizione")}</th>
+                <th className="text-left p-3 font-medium">{t("Conto")}</th>
+                <th className="text-right p-3 font-medium">{t("Importo")}</th>
+                <th className="text-left p-3 font-medium">{t("Metodo")}</th>
               </tr>
             </thead>
             <tbody>
@@ -998,7 +992,7 @@ function PrimaNotaTab({
                 <tr key={e.id} className="border-b">
                   <td className="p-3">
                     {format(new Date(e.entry_date), "dd/MM/yyyy", {
-                      locale: it,
+                      locale: dateFnsCampo(),
                     })}
                   </td>
                   <td className="p-3 truncate max-w-[250px]">
@@ -1044,6 +1038,7 @@ function StatsTab({
   scadenze: ScadenzaRiga[];
   primaNota: PrimaNotaRiga[];
 }) {
+  const t = useT();
   const totalOda = oda.reduce((s, o) => s + Number(o.total || 0), 0);
   const totalPagato = primaNota
     .filter((e) => e.direction === "uscita")
@@ -1059,7 +1054,7 @@ function StatsTab({
     for (let i = 5; i >= 0; i--) {
       const d = subMonths(now, i);
       const key = format(d, "yyyy-MM");
-      const label = format(d, "MMM yy", { locale: it });
+      const label = format(d, "MMM yy", { locale: dateFnsCampo() });
       const tot = primaNota
         .filter(
           (e) => e.direction === "uscita" && e.entry_date?.startsWith(key),
@@ -1077,24 +1072,21 @@ function StatsTab({
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Totale OdA</p>
+            <p className="text-xs text-muted-foreground">{t("Totale OdA")}</p>
             <p className="text-xl font-bold">{formatCurrency(totalOda)}</p>
-            <p className="text-xs text-muted-foreground">{oda.length} ordini</p>
+            <p className="text-xs text-muted-foreground">{t("{n} ordini", { n: oda.length })}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Totale pagato</p>
+            <p className="text-xs text-muted-foreground">{t("Totale pagato")}</p>
             <p className="text-xl font-bold">{formatCurrency(totalPagato)}</p>
-            <p className="text-xs text-muted-foreground">
-              {primaNota.filter((e) => e.direction === "uscita").length}{" "}
-              movimenti
-            </p>
+            <p className="text-xs text-muted-foreground">{t("{n} movimenti", { n: primaNota.filter((e) => e.direction === "uscita").length })}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Scadenze aperte</p>
+            <p className="text-xs text-muted-foreground">{t("Scadenze aperte")}</p>
             <p className="text-xl font-bold">
               {
                 scadenze.filter(
@@ -1102,14 +1094,12 @@ function StatsTab({
                 ).length
               }
             </p>
-            <p className="text-xs text-muted-foreground">
-              {formatCurrency(supplier.scadenze_importo || 0)} residuo
-            </p>
+            <p className="text-xs text-muted-foreground">{t("{valore} residuo", { valore: formatCurrency(supplier.scadenze_importo || 0) })}</p>
           </CardContent>
         </Card>
         <Card className={scaduteCount > 0 ? "border-destructive" : ""}>
           <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Scadute</p>
+            <p className="text-xs text-muted-foreground">{t("Scadute")}</p>
             <p
               className={`text-xl font-bold ${scaduteCount > 0 ? "text-destructive" : ""}`}
             >
@@ -1124,7 +1114,7 @@ function StatsTab({
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-1.5">
-              <BarChart3 className="h-4 w-4" /> Spesa mensile (ultimi 6 mesi)
+              <BarChart3 className="h-4 w-4" /> {t("Spesa mensile (ultimi 6 mesi)")}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -1148,7 +1138,7 @@ function StatsTab({
                   <Tooltip
                     formatter={(value: number) => [
                       formatCurrency(value),
-                      "Spesa",
+                      t("Spesa"),
                     ]}
                     contentStyle={{ fontSize: 12 }}
                   />

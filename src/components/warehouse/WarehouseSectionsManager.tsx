@@ -31,6 +31,7 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { useWarehouseSections, type WarehouseSection } from "@/hooks/useWarehouseSections";
 import { cn } from "@/lib/utils";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const PRESET_COLORS = [
   "#ef4444", "#f97316", "#eab308", "#22c55e", "#06b6d4",
@@ -125,6 +126,7 @@ export function WarehouseSectionsManager({
   warehouseId,
   warehouseName,
 }: WarehouseSectionsManagerProps) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const { sections, createSection, updateSection, deleteSection, isPending } = useWarehouseSections();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -365,67 +367,63 @@ export function WarehouseSectionsManager({
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2">
               <MapPin className="h-4 w-4 text-muted-foreground" />
-              <h3 className="text-sm font-semibold">Zone in magazzino</h3>
-              <Badge variant="secondary" className="h-5">
-                {sections.length} zone
-              </Badge>
+              <h3 className="text-sm font-semibold">{t("Zone in magazzino")}</h3>
+              <Badge variant="secondary" className="h-5">{t("{n} zone", { n: sections.length })}</Badge>
               <Badge variant="outline" className="h-5 gap-1">
                 <Ruler className="h-3 w-3" aria-hidden="true" />
-                {totalMq.toLocaleString("it-IT")} mq
+                {totalMq.toLocaleString(intlCampo())} mq
               </Badge>
-              <Badge variant="outline" className="h-5">
-                {coverage}% copertura
-              </Badge>
+              <Badge variant="outline" className="h-5">{t("{coverage}% copertura", { coverage: String(coverage ?? "") })}</Badge>
             </div>
             <p className="text-xs text-muted-foreground">
               {context === "manager"
-                ? `Definisci la planimetria operativa${warehouseName ? ` di ${warehouseName}` : ""}: carica una piantina e disegna aree come mobili, attrezzature, scorte o quarantena.`
-                : "Apri la planimetria solo quando serve: zone, metri quadri e posizioni restano disponibili per inventario, carico e scarico."}
+                ? (warehouseName ? t("Definisci la planimetria operativa di {magazzino}: carica una piantina e disegna aree come mobili, attrezzature, scorte o quarantena.", { magazzino: warehouseName }) : t("Definisci la planimetria operativa: carica una piantina e disegna aree come mobili, attrezzature, scorte o quarantena."))
+                : t("Apri la planimetria solo quando serve: zone, metri quadri e posizioni restano disponibili per inventario, carico e scarico.")}
             </p>
           </div>
           <Button variant="outline" size="sm" onClick={openNew} className="w-full gap-2 sm:w-auto">
             <Plus className="h-3.5 w-3.5" />
-            Nuova zona
+            {t("Nuova zona")}
           </Button>
         </div>
 
         <div className="grid gap-3 rounded-lg border bg-muted/20 p-3 md:grid-cols-[1.3fr_1fr_1fr_auto] md:items-end">
           <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Nome planimetria</Label>
+            <Label className="text-xs text-muted-foreground">{t("Nome planimetria")}</Label>
             <Input
               value={planMeta.name}
               onChange={(event) => setPlanMeta((current) => ({ ...current, name: event.target.value }))}
-              placeholder="Es. Magazzino principale"
+              placeholder={t("Es. Magazzino principale")}
               className="h-9"
             />
           </div>
           <NumberField
-            label="Larghezza metri"
+            label={t("Larghezza metri")}
             value={planMeta.widthM}
             min={1}
             max={500}
             onChange={(value) => setPlanMeta((current) => ({ ...current, widthM: value }))}
           />
           <NumberField
-            label="Lunghezza metri"
+            label={t("Lunghezza metri")}
             value={planMeta.lengthM}
             min={1}
             max={500}
             onChange={(value) => setPlanMeta((current) => ({ ...current, lengthM: value }))}
           />
           <div className="rounded-md bg-background px-3 py-2 text-xs">
-            <span className="block text-muted-foreground">Superficie stimata</span>
-            <span className="text-sm font-semibold">{planMq.toLocaleString("it-IT")} mq</span>
+            <span className="block text-muted-foreground">{t("Superficie stimata")}</span>
+            <span className="text-sm font-semibold">{t("{planMq} mq", { planMq: planMq.toLocaleString(intlCampo()) })}</span>
           </div>
         </div>
 
         <div className="flex flex-col gap-3 rounded-lg border bg-background p-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-1">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Base planimetria
+              {t("Base planimetria")}
             </p>
             <p className="text-xs text-muted-foreground">
-              Carica una piantina JPG/PNG, poi usa "Disegna zona" per tracciare l'area direttamente sopra il layout.
+              {t("Carica una piantina JPG/PNG, poi usa \"Disegna zona\" per tracciare l'area direttamente sopra il layout.")}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -438,12 +436,12 @@ export function WarehouseSectionsManager({
             />
             <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => fileInputRef.current?.click()}>
               <Upload className="h-3.5 w-3.5" />
-              Carica piantina
+              {t("Carica piantina")}
             </Button>
             {planImage && (
               <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => setPlanImage(null)}>
                 <Eraser className="h-3.5 w-3.5" />
-                Rimuovi
+                {t("Rimuovi")}
               </Button>
             )}
             <Button
@@ -458,7 +456,7 @@ export function WarehouseSectionsManager({
               }}
             >
               <MousePointer2 className="h-3.5 w-3.5" />
-              {drawMode ? "Disegno attivo" : "Disegna zona"}
+              {drawMode ? t("Disegno attivo") : t("Disegna zona")}
             </Button>
             <Button
               type="button"
@@ -471,7 +469,7 @@ export function WarehouseSectionsManager({
               }}
             >
               <PenLine className="h-3.5 w-3.5" />
-              {freehandMode ? "Linea attiva" : "Disegno libero"}
+              {freehandMode ? t("Linea attiva") : t("Disegno libero")}
             </Button>
             {strokes.length > 0 && (
               <>
@@ -483,7 +481,7 @@ export function WarehouseSectionsManager({
                   onClick={() => setStrokes((current) => current.slice(0, -1))}
                 >
                   <Undo2 className="h-3.5 w-3.5" />
-                  Annulla linea
+                  {t("Annulla linea")}
                 </Button>
                 <Button
                   type="button"
@@ -493,7 +491,7 @@ export function WarehouseSectionsManager({
                   onClick={() => setStrokes([])}
                 >
                   <Eraser className="h-3.5 w-3.5" />
-                  Pulisci linee
+                  {t("Pulisci linee")}
                 </Button>
               </>
             )}
@@ -503,13 +501,13 @@ export function WarehouseSectionsManager({
         {sections.length === 0 ? (
           <div className="rounded-lg border border-dashed p-6 text-center">
             <Grid2X2 className="mx-auto h-8 w-8 text-muted-foreground/60" aria-hidden="true" />
-            <p className="mt-2 text-sm font-medium">Nessuna zona definita</p>
+            <p className="mt-2 text-sm font-medium">{t("Nessuna zona definita")}</p>
             <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
-              Crea zone come scaffali, corsie, baie di carico o deposito esterno. Poi potrai disporle sulla piantina.
+              {t("Crea zone come scaffali, corsie, baie di carico o deposito esterno. Poi potrai disporle sulla piantina.")}
             </p>
             <Button className="mt-4 gap-2" onClick={openNew}>
               <Plus className="h-4 w-4" />
-              Crea prima zona
+              {t("Crea prima zona")}
             </Button>
             <div className="mt-4 flex flex-wrap justify-center gap-2">
               {presetZones.map((preset) => (
@@ -533,14 +531,14 @@ export function WarehouseSectionsManager({
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    {planMeta.name || "Planimetria"}
+                    {planMeta.name || t("Planimetria")}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {drawMode
-                      ? "Trascina sulla piantina per disegnare una nuova zona."
+                      ? t("Trascina sulla piantina per disegnare una nuova zona.")
                       : freehandMode
-                        ? "Disegna linee libere per muri, contorni, porte o percorsi interni."
-                      : "Clicca una zona per selezionarla, poi clicca sulla griglia per spostarla."}
+                        ? t("Disegna linee libere per muri, contorni, porte o percorsi interni.")
+                      : t("Clicca una zona per selezionarla, poi clicca sulla griglia per spostarla.")}
                   </p>
                 </div>
                 <Badge variant="outline" className="hidden shrink-0 gap-1 sm:inline-flex">
@@ -570,7 +568,7 @@ export function WarehouseSectionsManager({
                 }}
                 role="button"
                 tabIndex={0}
-                aria-label="Piantina zone magazzino"
+                aria-label={t("Piantina zone magazzino")}
               >
                 {planImage && <div className="absolute inset-0 bg-background/35" aria-hidden="true" />}
                 {visibleStrokes.length > 0 && (
@@ -615,11 +613,9 @@ export function WarehouseSectionsManager({
                     >
                       <span className="block truncate text-xs font-semibold">{section.name}</span>
                       <span className="mt-1 block text-[11px] text-muted-foreground">
-                        {layout.areaMq > 0 ? `${layout.areaMq} mq` : "mq da impostare"}
+                        {layout.areaMq > 0 ? t("{areaMq} mq", { areaMq: String(layout.areaMq ?? "") }) : t("mq da impostare")}
                       </span>
-                      <span className="mt-1 hidden truncate text-[10px] text-muted-foreground md:block">
-                        {layout.w} x {layout.h} celle
-                      </span>
+                      <span className="mt-1 hidden truncate text-[10px] text-muted-foreground md:block">{t("{w} x {h} celle", { w: String(layout.w ?? ""), h: String(layout.h ?? "") })}</span>
                     </button>
                   );
                 })}
@@ -655,10 +651,10 @@ export function WarehouseSectionsManager({
             <div className="space-y-3">
               <div>
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Dettaglio zona
+                  {t("Dettaglio zona")}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Regola posizione, ingombro e superficie.
+                  {t("Regola posizione, ingombro e superficie.")}
                 </p>
               </div>
 
@@ -693,12 +689,12 @@ export function WarehouseSectionsManager({
                         <span className="min-w-0">
                           <span className="block truncate text-sm font-medium">{section.name}</span>
                           <span className="block truncate text-xs text-muted-foreground">
-                            {section.description || "Nessuna nota"}
+                            {section.description || t("Nessuna nota")}
                           </span>
                         </span>
                       </span>
                       <span className="shrink-0 text-xs font-medium text-muted-foreground">
-                        {layout.areaMq > 0 ? `${layout.areaMq} mq` : "mq -"}
+                        {layout.areaMq > 0 ? t("{areaMq} mq", { areaMq: String(layout.areaMq ?? "") }) : "mq -"}
                       </span>
                     </button>
                   );
@@ -711,22 +707,22 @@ export function WarehouseSectionsManager({
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="max-w-sm">
             <DialogHeader>
-              <DialogTitle>{editing ? "Modifica zona" : "Nuova zona"}</DialogTitle>
+              <DialogTitle>{editing ? t("Modifica zona") : t("Nuova zona")}</DialogTitle>
               <DialogDescription>
-                Dai un nome operativo alla zona: corsia, scaffale, baia di carico, deposito esterno.
+                {t("Dai un nome operativo alla zona: corsia, scaffale, baia di carico, deposito esterno.")}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label>Nome *</Label>
-                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Es. Corsia A" />
+                <Label>{t("Nome *")}</Label>
+                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("Es. Corsia A")} />
               </div>
               <div className="space-y-2">
-                <Label>Descrizione</Label>
-                <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Es. materiali pronti per uscita" />
+                <Label>{t("Descrizione")}</Label>
+                <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("Es. materiali pronti per uscita")} />
               </div>
               <div className="space-y-2">
-                <Label>Colore</Label>
+                <Label>{t("Colore")}</Label>
                 <div className="flex gap-2 flex-wrap">
                   {PRESET_COLORS.map((preset) => (
                     <button
@@ -738,16 +734,16 @@ export function WarehouseSectionsManager({
                       )}
                       style={{ backgroundColor: preset }}
                       onClick={() => setColor(preset)}
-                      aria-label={`Colore ${preset}`}
+                      aria-label={t("Colore {preset}", { preset: String(preset ?? "") })}
                     />
                   ))}
                 </div>
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>Annulla</Button>
+              <Button variant="outline" onClick={() => setDialogOpen(false)}>{t("Annulla")}</Button>
               <Button onClick={handleSave} disabled={!name.trim() || isPending}>
-                {editing ? "Salva" : "Crea"}
+                {editing ? t("Salva") : t("Crea")}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -756,15 +752,15 @@ export function WarehouseSectionsManager({
         <AlertDialog open={!!deleteId} onOpenChange={(open) => { if (!open) setDeleteId(null); }}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Eliminare questa zona?</AlertDialogTitle>
+              <AlertDialogTitle>{t("Eliminare questa zona?")}</AlertDialogTitle>
               <AlertDialogDescription>
-                La zona verrà rimossa. Gli articoli assegnati perderanno l'associazione alla zona, ma resteranno in inventario.
+                {t("La zona verrà rimossa. Gli articoli assegnati perderanno l'associazione alla zona, ma resteranno in inventario.")}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Annulla</AlertDialogCancel>
+              <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
               <AlertDialogAction onClick={() => { if (deleteId) deleteSection(deleteId); setDeleteId(null); }}>
-                Elimina
+                {t("Elimina")}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -778,11 +774,11 @@ export function WarehouseSectionsManager({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-h-[90vh] max-w-6xl overflow-y-auto p-0">
           <DialogHeader className="border-b px-6 py-4">
-            <DialogTitle>Planimetria e zone magazzino</DialogTitle>
+            <DialogTitle>{t("Planimetria e zone magazzino")}</DialogTitle>
             <DialogDescription>
               {warehouseName
-                ? `Gestisci la piantina e le zone operative di ${warehouseName}.`
-                : "Gestisci piantina, metri quadri e zone operative del magazzino selezionato."}
+                ? t("Gestisci la piantina e le zone operative di {warehouseName}.", { warehouseName: String(warehouseName ?? "") })
+                : t("Gestisci piantina, metri quadri e zone operative del magazzino selezionato.")}
             </DialogDescription>
           </DialogHeader>
           {managerCard}
@@ -807,6 +803,7 @@ function ZoneEditor({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const t = useT();
   return (
     <div className="rounded-lg border p-3">
       <div className="flex items-start justify-between gap-3">
@@ -820,24 +817,24 @@ function ZoneEditor({
           )}
         </div>
         <div className="flex shrink-0 gap-1">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onEdit} aria-label="Modifica nome zona">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onEdit} aria-label={t("Modifica nome zona")}>
             <Pencil className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={onDelete} aria-label="Elimina zona">
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={onDelete} aria-label={t("Elimina zona")}>
             <Trash2 className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3">
-        <NumberField label="Mq" value={layout.areaMq} min={0} onChange={(value) => onChange({ areaMq: value })} />
-        <NumberField label="Larghezza griglia" value={layout.w} min={1} max={GRID_COLS} onChange={(value) => onChange({ w: value })} />
+        <NumberField label={t("Mq")} value={layout.areaMq} min={0} onChange={(value) => onChange({ areaMq: value })} />
+        <NumberField label={t("Larghezza griglia")} value={layout.w} min={1} max={GRID_COLS} onChange={(value) => onChange({ w: value })} />
         <NumberField label="X" value={layout.x} min={0} max={GRID_COLS - layout.w} onChange={(value) => onChange({ x: value })} />
         <NumberField label="Y" value={layout.y} min={0} max={GRID_ROWS - layout.h} onChange={(value) => onChange({ y: value })} />
-        <NumberField label="Altezza griglia" value={layout.h} min={1} max={GRID_ROWS} onChange={(value) => onChange({ h: value })} />
+        <NumberField label={t("Altezza griglia")} value={layout.h} min={1} max={GRID_ROWS} onChange={(value) => onChange({ h: value })} />
         <div className="rounded-md bg-muted/50 p-2 text-xs text-muted-foreground">
           <ArrowUpRight className="mb-1 h-3.5 w-3.5" aria-hidden="true" />
-          Usa X/Y per rifinire dopo il click sulla piantina.
+          {t("Usa X/Y per rifinire dopo il click sulla piantina.")}
         </div>
       </div>
     </div>

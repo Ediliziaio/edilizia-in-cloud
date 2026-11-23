@@ -83,6 +83,7 @@ import { usePurchaseOrderDetail } from "@/hooks/usePurchaseOrders";
 import { WarehouseSelect } from "@/components/warehouse/WarehouseSelect";
 import { DDTStatusBadge, DDT_STATO_META } from "@/components/ddt/DDTStatusBadge";
 import { cn } from "@/lib/utils";
+import { useT, intlCampo, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // Fallback icon import name — lucide-react's signature icon is exported as
 // `Signature` but to avoid clashes with the DOM type we alias locally.
@@ -107,6 +108,7 @@ export default function DDTRicezioneDetail() {
 }
 
 function ContenutoDDTRicezioneDetail() {
+  const t = useT();
   const { ddtId: ddtIdIndirizzo } = useParams();
   const ddtId = useIdDocumento(ddtIdIndirizzo);
   const navigate = useNavigaDocumento();
@@ -170,7 +172,7 @@ function ContenutoDDTRicezioneDetail() {
   const saveEditHeader = () => {
     if (!ddt || !editHeader) return;
     if (!editHeader.numero_ddt.trim()) {
-      toast.error("Numero DDT obbligatorio");
+      toast.error(t("Numero DDT obbligatorio"));
       return;
     }
     updateDDT.mutate(
@@ -196,7 +198,7 @@ function ContenutoDDTRicezioneDetail() {
 
   const handleDelete = () => {
     if (!ddt) return;
-    if (!confirm(`Eliminare il DDT ${ddt.numero_ddt}? L'operazione non è reversibile.`)) return;
+    if (!confirm(t("Eliminare il DDT {numero_ddt}? L'operazione non è reversibile.", { numero_ddt: String(ddt.numero_ddt ?? "") }))) return;
     deleteDDT.mutate(ddt.id, {
       onSuccess: () => {
         if (po?.id) navigate(`/azienda/ordini-acquisto/${po.id}`);
@@ -316,9 +318,9 @@ function ContenutoDDTRicezioneDetail() {
   const markVerified = async () => {
     if (!ddt || ddt.stato === "verificato" || updateDDT.isPending) return;
     if (!(await confermaVerifica({
-      title: "Segnare il DDT come verificato?",
-      description: "Conferma che hai controllato la bolla e che la merce è conforme.",
-      confirmLabel: "Segna verificato",
+      title: t("Segnare il DDT come verificato?"),
+      description: t("Conferma che hai controllato la bolla e che la merce è conforme."),
+      confirmLabel: t("Segna verificato"),
     }))) return;
     updateDDT.mutate({
       id: ddt.id,
@@ -390,16 +392,16 @@ function ContenutoDDTRicezioneDetail() {
     const it = poItems.find((x) => x.id === itemId);
     if (!it || isReceiptsLoading || isReceiptsError) return;
     if (!po || !["inviato", "confermato", "parziale"].includes(po.status)) {
-      toast.error("Verifica e conferma l’ordine prima di registrare una ricezione.");
+      toast.error(t("Verifica e conferma l’ordine prima di registrare una ricezione."));
       return;
     }
     if (ricezioneNonAllineata(it, receipts)) {
-      toast.error("Ricezione già registrata: verifica il riepilogo OdA prima di aggiungere altra merce.");
+      toast.error(t("Ricezione già registrata: verifica il riepilogo OdA prima di aggiungere altra merce."));
       return;
     }
     if (!it.order_item_id) {
       toast.error(
-        "Questo articolo ODA non è collegato a una riga d'ordine cliente. Collegalo per registrare la ricezione."
+        t("Questo articolo ODA non è collegato a una riga d'ordine cliente. Collegalo per registrare la ricezione.")
       );
       return;
     }
@@ -412,16 +414,16 @@ function ContenutoDDTRicezioneDetail() {
   const submitReceive = () => {
     if (!ddt || ddt.destinazione === "cantiere" || !selectedItem || isReceiptsLoading || isReceiptsError) return;
     if (!po || !["inviato", "confermato", "parziale"].includes(po.status)) {
-      toast.error("Lo stato dell’ordine non consente nuove ricezioni.");
+      toast.error(t("Lo stato dell’ordine non consente nuove ricezioni."));
       return;
     }
     if (ricezioneNonAllineata(selectedItem, receipts)) {
-      toast.error("Ricezione già registrata: il riepilogo OdA deve essere verificato.");
+      toast.error(t("Ricezione già registrata: il riepilogo OdA deve essere verificato."));
       return;
     }
     const rawQty = parseFloat(receiveQty);
     if (!rawQty || rawQty <= 0) {
-      toast.error("La quantità deve essere maggiore di zero");
+      toast.error(t("La quantità deve essere maggiore di zero"));
       return;
     }
     // Validation hardening: cap realistic + arrotonda a 2 decimali per
@@ -429,22 +431,22 @@ function ContenutoDDTRicezioneDetail() {
     // questi check si potevano inserire valori abnormi (999999999) o
     // accumulare errori di virgola mobile su goods_receipts successivi.
     if (rawQty > 999999) {
-      toast.error("Quantità troppo alta (max 999.999). Controlla il valore.");
+      toast.error(t("Quantità troppo alta (max 999.999). Controlla il valore."));
       return;
     }
     const qty = Math.round(rawQty * 100) / 100;
-    if (qty <= 0) { toast.error("La quantità minima è 0,01."); return; }
+    if (qty <= 0) { toast.error(t("La quantità minima è 0,01.")); return; }
     if (!Number.isInteger(qty)) {
-      toast.error("Questa ricezione gestisce quantità intere: nessun movimento registrato.");
+      toast.error(t("Questa ricezione gestisce quantità intere: nessun movimento registrato."));
       return;
     }
     const pending = itemPendingQty(selectedItem);
     if (qty > pending) {
-      toast.error("La quantità ricevuta supera il residuo");
+      toast.error(t("La quantità ricevuta supera il residuo"));
       return;
     }
     if (!selectedItem.order_item_id) {
-      toast.error("order_item_id mancante");
+      toast.error(t("Articolo dell'ordine mancante"));
       return;
     }
     createGoodsReceipt.mutate(
@@ -474,7 +476,7 @@ function ContenutoDDTRicezioneDetail() {
     // warehouse_stock.quantity (lo stock fisico è gestito separatamente
     // dal carico rapido / batch_carico_from_scans). Quindi il DELETE
     // pulisce solo il fulfillment status su order_items.
-    if (!confirm("Eliminare questa registrazione di ricezione? Lo stato della riga commessa tornerà a 'in attesa'.")) return;
+    if (!confirm(t("Eliminare questa registrazione di ricezione? Lo stato della riga commessa tornerà a 'in attesa'."))) return;
     deleteGoodsReceipt.mutate(receiptId);
   };
 
@@ -500,10 +502,10 @@ function ContenutoDDTRicezioneDetail() {
     return (
       <div className="text-center py-12 space-y-3">
         <FileCheck className="h-12 w-12 mx-auto text-muted-foreground/40" />
-        <p role={erroreDDT ? "alert" : undefined} className="text-muted-foreground">{erroreDDT ? "Non riesco a caricare il DDT. Riprova; il documento non è stato eliminato." : "DDT non trovato"}</p>
-        {erroreDDT && <Button variant="outline" onClick={() => rileggiDDT()}>Riprova</Button>}
+        <p role={erroreDDT ? "alert" : undefined} className="text-muted-foreground">{erroreDDT ? t("Non riesco a caricare il DDT. Riprova; il documento non è stato eliminato.") : t("DDT non trovato")}</p>
+        {erroreDDT && <Button variant="outline" onClick={() => rileggiDDT()}>{t("Riprova")}</Button>}
         <Button variant="outline" onClick={() => navigate("/azienda/ordini?tab=ddt")}>
-          <ArrowLeft className="h-4 w-4 mr-1" /> Torna ai DDT
+          <ArrowLeft className="h-4 w-4 mr-1" /> {t("Torna ai DDT")}
         </Button>
       </div>
     );
@@ -558,14 +560,14 @@ function ContenutoDDTRicezioneDetail() {
               {ddt.has_damages && ddt.stato !== "non_conforme" && (
                 <Badge className="bg-amber-100 text-amber-800 text-[10px]">
                   <AlertTriangle className="h-3 w-3 mr-1" />
-                  danni segnalati
+                  {t("danni segnalati")}
                 </Badge>
               )}
             </div>
             <div className="flex items-center gap-2 flex-wrap mt-0.5">
               <p className="text-xs text-muted-foreground">
                 <Calendar className="h-3 w-3 inline mr-1" />
-                {format(new Date(ddt.data_ricezione), "dd MMMM yyyy", { locale: it })}
+                {format(new Date(ddt.data_ricezione), "dd MMMM yyyy", { locale: dateFnsCampo() })}
               </p>
               {fornitoreNome && (
                 <p className="text-xs text-muted-foreground">
@@ -576,7 +578,7 @@ function ContenutoDDTRicezioneDetail() {
               {ddt.verified_at && (
                 <p className="text-xs text-emerald-700 dark:text-emerald-400">
                   · <ShieldCheck className="h-3 w-3 inline mr-1" />
-                  verificato il {format(new Date(ddt.verified_at), "dd/MM/yyyy HH:mm", { locale: it })}
+                  {t("verificato il {data}", { data: format(new Date(ddt.verified_at), "dd/MM/yyyy HH:mm", { locale: dateFnsCampo() }) })}
                 </p>
               )}
             </div>
@@ -585,11 +587,11 @@ function ContenutoDDTRicezioneDetail() {
 
         <div className="flex items-center gap-2 flex-wrap">
           <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setOriginaleAperto(true)}>
-            <FileText className="size-4" aria-hidden="true" /> Originale
+            <FileText className="size-4" aria-hidden="true" /> {t("Originale")}
           </Button>
           <Button variant="outline" size="sm" className="gap-1.5 border-primary/25 text-primary"
             onClick={() => setConfrontoAperto(true)}>
-            <ArrowLeftRight className="size-4" aria-hidden="true" /> Confronta con ordini
+            <ArrowLeftRight className="size-4" aria-hidden="true" /> {t("Confronta con ordini")}
           </Button>
           {canVerify && (
             <Button
@@ -599,8 +601,8 @@ function ContenutoDDTRicezioneDetail() {
               disabled={updateDDT.isPending}
             >
               <ShieldCheck className="h-4 w-4" />
-              <span className="hidden sm:inline">Marca verificato</span>
-              <span className="sm:hidden">Verifica</span>
+              <span className="hidden sm:inline">{t("Marca verificato")}</span>
+              <span className="sm:hidden">{t("Verifica")}</span>
             </Button>
           )}
           {ddt.stato !== "non_conforme" && (
@@ -612,14 +614,14 @@ function ContenutoDDTRicezioneDetail() {
               disabled={updateDDT.isPending}
             >
               <AlertTriangle className="h-4 w-4" />
-              <span className="hidden sm:inline">Non conforme</span>
+              <span className="hidden sm:inline">{t("Non conforme")}</span>
             </Button>
           )}
           {!isEditingHeader ? (
             <>
               <Button variant="outline" size="sm" onClick={startEditHeader} className="max-sm:hidden">
                 <Edit3 className="h-4 w-4 sm:mr-1" />
-                <span className="hidden sm:inline">Modifica</span>
+                <span className="hidden sm:inline">{t("Modifica")}</span>
               </Button>
               <Button
                 variant="outline"
@@ -633,22 +635,22 @@ function ContenutoDDTRicezioneDetail() {
                   bottoni in fila con il cestino rosso a portata di pollice. */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="sm:hidden" aria-label="Altre azioni sul DDT">
+                  <Button variant="outline" size="sm" className="sm:hidden" aria-label={t("Altre azioni sul DDT")}>
                     <MoreHorizontal className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-52">
                   {ddt.stato !== "non_conforme" && (
                     <DropdownMenuItem onSelect={() => void markNonConforme()} disabled={updateDDT.isPending}>
-                      <AlertTriangle className="mr-2 h-4 w-4 text-rose-600" />Segna non conforme
+                      <AlertTriangle className="mr-2 h-4 w-4 text-rose-600" />{t("Segna non conforme")}
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuItem onSelect={startEditHeader}>
-                    <Edit3 className="mr-2 h-4 w-4" />Modifica i dati
+                    <Edit3 className="mr-2 h-4 w-4" />{t("Modifica i dati")}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onSelect={() => void handleDelete()} className="text-destructive focus:text-destructive">
-                    <Trash2 className="mr-2 h-4 w-4" />Elimina il DDT
+                    <Trash2 className="mr-2 h-4 w-4" />{t("Elimina il DDT")}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -663,14 +665,14 @@ function ContenutoDDTRicezioneDetail() {
                   setEditHeader(null);
                 }}
               >
-                <X className="h-4 w-4 mr-1" /> Annulla
+                <X className="h-4 w-4 mr-1" /> {t("Annulla")}
               </Button>
               <Button size="sm" onClick={saveEditHeader} disabled={updateDDT.isPending}>
                 {updateDDT.isPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <>
-                    <Save className="h-4 w-4 mr-1" /> Salva
+                    <Save className="h-4 w-4 mr-1" /> {t("Salva")}
                   </>
                 )}
               </Button>
@@ -705,33 +707,33 @@ function ContenutoDDTRicezioneDetail() {
               <MetaCell
                 className="max-sm:hidden"
                 icon={Hash}
-                label="Numero"
+                label={t("Numero")}
                 value={<span className="font-mono font-medium">{ddt.numero_ddt}</span>}
               />
               <MetaCell
                 className="max-sm:hidden"
                 icon={Calendar}
-                label="Data ricezione"
-                value={format(new Date(ddt.data_ricezione), "dd/MM/yyyy", { locale: it })}
+                label={t("Data ricezione")}
+                value={format(new Date(ddt.data_ricezione), "dd/MM/yyyy", { locale: dateFnsCampo() })}
               />
               <MetaCell
                 icon={ListTree}
-                label="Merce"
+                label={t("Merce")}
                 value={
                   righeMerce.length > 0 ? (
                     <span>
-                      {righeMerce.length} {righeMerce.length === 1 ? "riga" : "righe"}
+                      {righeMerce.length === 1 ? t("{n} riga", { n: 1 }) : t("{n} righe", { n: righeMerce.length })}
                     </span>
                   ) : receipts.length > 0 ? (
-                    <span>{receipts.length} {receipts.length === 1 ? "articolo ricevuto" : "articoli ricevuti"}</span>
+                    <span>{receipts.length === 1 ? t("{n} articolo ricevuto", { n: 1 }) : t("{n} articoli ricevuti", { n: receipts.length })}</span>
                   ) : (
-                    <span className="text-amber-600">nessuna riga</span>
+                    <span className="text-amber-600">{t("nessuna riga")}</span>
                   )
                 }
               />
               {ddt.note && (
                 <div className="col-span-3 pt-1 border-t">
-                  <p className="text-xs text-muted-foreground">Note</p>
+                  <p className="text-xs text-muted-foreground">{t("Note")}</p>
                   <p className="whitespace-pre-wrap break-words text-sm">{ddt.note}</p>
                 </div>
               )}
@@ -739,7 +741,7 @@ function ContenutoDDTRicezioneDetail() {
           ) : editHeader ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label htmlFor="ddt-edit-numero" className="text-xs">Numero DDT *</Label>
+                <Label htmlFor="ddt-edit-numero" className="text-xs">{t("Numero DDT *")}</Label>
                 <Input
                   id="ddt-edit-numero"
                   value={editHeader.numero_ddt}
@@ -750,7 +752,7 @@ function ContenutoDDTRicezioneDetail() {
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="ddt-edit-data" className="text-xs">Data ricezione</Label>
+                <Label htmlFor="ddt-edit-data" className="text-xs">{t("Data ricezione")}</Label>
                 <Input
                   id="ddt-edit-data"
                   type="date"
@@ -761,7 +763,7 @@ function ContenutoDDTRicezioneDetail() {
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="ddt-edit-stato" className="text-xs">Stato</Label>
+                <Label htmlFor="ddt-edit-stato" className="text-xs">{t("Stato")}</Label>
                 <Select
                   value={editHeader.stato}
                   onValueChange={(v) =>
@@ -772,17 +774,17 @@ function ContenutoDDTRicezioneDetail() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="atteso">Atteso (pre-avviso)</SelectItem>
-                    <SelectItem value="ricevuto">Ricevuto completo</SelectItem>
-                    <SelectItem value="parziale">Parziale</SelectItem>
-                    <SelectItem value="verificato">Verificato</SelectItem>
-                    <SelectItem value="non_conforme">Non conforme</SelectItem>
-                    <SelectItem value="attesa">In attesa (legacy)</SelectItem>
+                    <SelectItem value="atteso">{t("Atteso (pre-avviso)")}</SelectItem>
+                    <SelectItem value="ricevuto">{t("Ricevuto completo")}</SelectItem>
+                    <SelectItem value="parziale">{t("Parziale")}</SelectItem>
+                    <SelectItem value="verificato">{t("Verificato")}</SelectItem>
+                    <SelectItem value="non_conforme">{t("Non conforme")}</SelectItem>
+                    <SelectItem value="attesa">{t("In attesa (legacy)")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label htmlFor="ddt-edit-quantita" className="text-xs">Quantità ricevuta</Label>
+                <Label htmlFor="ddt-edit-quantita" className="text-xs">{t("Quantità ricevuta")}</Label>
                 <Input
                   id="ddt-edit-quantita"
                   type="number"
@@ -798,7 +800,7 @@ function ContenutoDDTRicezioneDetail() {
                 />
               </div>
               <div className="space-y-1 sm:col-span-2">
-                <Label className="text-xs">Magazzino</Label>
+                <Label className="text-xs">{t("Magazzino")}</Label>
                 <WarehouseSelect
                   value={editHeader.warehouse_id}
                   onChange={(v) =>
@@ -807,7 +809,7 @@ function ContenutoDDTRicezioneDetail() {
                 />
               </div>
               <div className="space-y-1 sm:col-span-2">
-                <Label htmlFor="ddt-edit-note" className="text-xs">Note</Label>
+                <Label htmlFor="ddt-edit-note" className="text-xs">{t("Note")}</Label>
                 <Textarea
                   id="ddt-edit-note"
                   rows={2}
@@ -864,14 +866,14 @@ function ContenutoDDTRicezioneDetail() {
           <Dialog open={originaleAperto} onOpenChange={setOriginaleAperto}>
             <DialogContent className={`${CLASSE_DIALOG_CONFRONTO} max-w-5xl`}>
               <DialogHeader className="border-b px-4 py-3 pr-12">
-                <DialogTitle>Bolla originale</DialogTitle>
+                <DialogTitle>{t("Bolla originale")}</DialogTitle>
                 <DialogDescription>DDT {ddt.numero_ddt}</DialogDescription>
               </DialogHeader>
               <div className="flex min-h-0 flex-1 flex-col p-3 sm:p-4">
-                {originaliDocumento.isLoading ? <p role="status" className="text-sm">Caricamento originale…</p>
+                {originaliDocumento.isLoading ? <p role="status" className="text-sm">{t("Caricamento originale…")}</p>
                   : originaliDocumento.isError ? <p role="alert" className="text-sm text-destructive">
-                    Originale non disponibile.{" "}
-                    <button type="button" className="underline" onClick={() => void originaliDocumento.refetch()}>Riprova</button>
+                    {t("Originale non disponibile.")}{" "}
+                    <button type="button" className="underline" onClick={() => void originaliDocumento.refetch()}>{t("Riprova")}</button>
                   </p>
                   : <OriginaliConfronto companyId={ddt.company_id} files={originaliDocumento.data ?? []} adatta />}
               </div>
@@ -884,11 +886,11 @@ function ContenutoDDTRicezioneDetail() {
             <div role="status" data-testid="avviso-magazzino-mancante" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
               <span className="flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
-                Merce per il magazzino: crea o scegli un magazzino per caricarla
+                {t("Merce per il magazzino: crea o scegli un magazzino per caricarla")}
               </span>
               <span className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={startEditHeader}>Scegli il magazzino</Button>
-                <Button size="sm" variant="ghost" asChild><Link to="/azienda/magazzino/gestione">Crea un magazzino</Link></Button>
+                <Button size="sm" variant="outline" onClick={startEditHeader}>{t("Scegli il magazzino")}</Button>
+                <Button size="sm" variant="ghost" asChild><Link to="/azienda/magazzino/gestione">{t("Crea un magazzino")}</Link></Button>
               </span>
             </div>
           )}
@@ -939,16 +941,16 @@ function ContenutoDDTRicezioneDetail() {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Package className="h-4 w-4" />
-                  Ricezioni merce per articolo
+                  {t("Ricezioni merce per articolo")}
                   <Badge variant="secondary" className="text-xs">
                     {receipts.length}
                   </Badge>
                 </CardTitle>
                 {totalReceivedInDDT > 0 && (
                   <span className="text-xs text-muted-foreground">
-                    Totale:{" "}
+                    {t("Totale:")}{" "}
                     <strong>
-                      {totalReceivedInDDT.toLocaleString("it-IT", {
+                      {totalReceivedInDDT.toLocaleString(intlCampo(), {
                         maximumFractionDigits: 2,
                       })}
                     </strong>
@@ -961,30 +963,17 @@ function ContenutoDDTRicezioneDetail() {
                   dedurre scorrendo venti articoli. */}
               {ddt?.destinazione !== "cantiere" && (scostamenti.mancanti > 0 || scostamenti.righeNonAbbinate > 0) && (
                 <div className="rounded-md border border-amber-200 bg-amber-50/70 p-2.5 text-xs text-amber-900 space-y-1">
-                  {scostamenti.nonAllineato && <p>Residuo da verificare: le ricezioni registrate e il riepilogo OdA non sono allineati. Non ripetere le ricezioni già presenti.</p>}
+                  {scostamenti.nonAllineato && <p>{t("Residuo da verificare: le ricezioni registrate e il riepilogo OdA non sono allineati. Non ripetere le ricezioni già presenti.")}</p>}
                   {!scostamenti.nonAllineato && scostamenti.mancanti > 0 && (
                     <p className="flex items-start gap-1.5">
                       <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                      Mancano ancora{" "}
-                      <strong>
-                        {scostamenti.mancanti.toLocaleString("it-IT", {
-                          maximumFractionDigits: 2,
-                        })}
-                      </strong>{" "}
-                      unità su {scostamenti.articoliIncompleti}{" "}
-                      {scostamenti.articoliIncompleti === 1 ? "articolo" : "articoli"}{" "}
-                      dell'ordine.
+                      {t(scostamenti.articoliIncompleti === 1 ? "Mancano ancora {mancanti} unità su {n} articolo dell'ordine." : "Mancano ancora {mancanti} unità su {n} articoli dell'ordine.", { mancanti: scostamenti.mancanti.toLocaleString(intlCampo(), { maximumFractionDigits: 2 }), n: scostamenti.articoliIncompleti })}
                     </p>
                   )}
                   {scostamenti.righeNonAbbinate > 0 && (
                     <p className="flex items-start gap-1.5">
                       <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                      {scostamenti.righeNonAbbinate}{" "}
-                      {scostamenti.righeNonAbbinate === 1 ? "riga" : "righe"} della bolla
-                      non {scostamenti.righeNonAbbinate === 1 ? "è" : "sono"} abbinat
-                      {scostamenti.righeNonAbbinate === 1 ? "a" : "e"} a un articolo
-                      dell'ordine. Verifica se è merce aggiuntiva oppure una riga da
-                      abbinare prima di registrare altre ricezioni.
+                      {t(scostamenti.righeNonAbbinate === 1 ? "{n} riga della bolla non è abbinata a un articolo dell'ordine. Verifica se è merce aggiuntiva oppure una riga da abbinare prima di registrare altre ricezioni." : "{n} righe della bolla non sono abbinate a un articolo dell'ordine. Verifica se è merce aggiuntiva oppure una riga da abbinare prima di registrare altre ricezioni.", { n: scostamenti.righeNonAbbinate })}
                     </p>
                   )}
                 </div>
@@ -996,13 +985,13 @@ function ContenutoDDTRicezioneDetail() {
                 </div>
               ) : isReceiptsError ? (
                 <p className="text-sm text-destructive" role="alert">
-                  Impossibile leggere le ricezioni. Ricarica la pagina prima di registrare altra merce.
+                  {t("Impossibile leggere le ricezioni. Ricarica la pagina prima di registrare altra merce.")}
                 </p>
               ) : receipts.length === 0 ? (
                 <div className="text-center py-4 text-sm text-muted-foreground">
                   {odaConQuantitaRicevute
-                    ? "Nessuna ricezione per articolo collegata a questa bolla. L’OdA riporta già quantità ricevute, anche tramite altri percorsi o altre bolle: verifica i Movimenti prima di registrare altra merce."
-                    : "Nessuna ricezione per articolo collegata a questa bolla. Prima di registrare un arrivo, verifica che la merce non sia già stata caricata da un altro percorso."}
+                    ? t("Nessuna ricezione per articolo collegata a questa bolla. L’OdA riporta già quantità ricevute, anche tramite altri percorsi o altre bolle: verifica i Movimenti prima di registrare altra merce.")
+                    : t("Nessuna ricezione per articolo collegata a questa bolla. Prima di registrare un arrivo, verifica che la merce non sia già stata caricata da un altro percorso.")}
                 </div>
               ) : (
                 <div className="divide-y border rounded-md">
@@ -1014,7 +1003,7 @@ function ContenutoDDTRicezioneDetail() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-medium truncate">
-                            {r.order_items?.description || "Articolo"}
+                            {r.order_items?.description || t("Articolo")}
                           </span>
                           {r.quality_check_status && (
                             <Badge
@@ -1022,25 +1011,25 @@ function ContenutoDDTRicezioneDetail() {
                                 QUALITY_COLORS[r.quality_check_status] || ""
                               }`}
                             >
-                              {QUALITY_LABELS[r.quality_check_status] ||
-                                r.quality_check_status}
+                              {t(QUALITY_LABELS[r.quality_check_status] ||
+                                r.quality_check_status)}
                             </Badge>
                           )}
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">
                           {format(new Date(r.receipt_date), "dd/MM/yyyy HH:mm", {
-                            locale: it,
+                            locale: dateFnsCampo(),
                           })}
                           {r.notes ? ` · ${r.notes}` : ""}
                         </p>
                       </div>
                       <div className="text-right shrink-0">
                         <p className="font-semibold">
-                          {Number(r.quantity_received).toLocaleString("it-IT", {
+                          {Number(r.quantity_received).toLocaleString(intlCampo(), {
                             maximumFractionDigits: 2,
                           })}
                         </p>
-                        <p className="text-[10px] text-muted-foreground">unità</p>
+                        <p className="text-[10px] text-muted-foreground">{t("unità")}</p>
                       </div>
                       <Button
                         variant="ghost"
@@ -1059,7 +1048,7 @@ function ContenutoDDTRicezioneDetail() {
               <div className="pt-2 border-t">
                 <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
                   <FilePlus2 className="h-3.5 w-3.5" />
-                  Articoli OdA · quantità ricevute complessive
+                  {t("Articoli OdA · quantità ricevute complessive")}
                 </p>
                 {isItemsLoading ? (
                   <div className="flex justify-center py-4">
@@ -1067,7 +1056,7 @@ function ContenutoDDTRicezioneDetail() {
                   </div>
                 ) : poItems.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-4">
-                    Nessun articolo nell'ODA collegato.
+                    {t("Nessun articolo nell'ODA collegato.")}
                   </p>
                 ) : (
                   <div className="divide-y border rounded-md">
@@ -1093,15 +1082,7 @@ function ContenutoDDTRicezioneDetail() {
                                   </span>
                                 )}
                                 <span className="text-xs text-muted-foreground">
-                                  Registrato sull’OdA:{" "}
-                                  {recv.toLocaleString("it-IT", {
-                                    maximumFractionDigits: 2,
-                                  })}{" "}
-                                  /{" "}
-                                  {qty.toLocaleString("it-IT", {
-                                    maximumFractionDigits: 2,
-                                  })}{" "}
-                                  {it.unit_of_measure || "pz"}
+                                  {t("Registrato sull’OdA: {ricevuti} / {ordinati} {unita}", { ricevuti: recv.toLocaleString(intlCampo(), { maximumFractionDigits: 2 }), ordinati: qty.toLocaleString(intlCampo(), { maximumFractionDigits: 2 }), unita: it.unit_of_measure || t("pz") })}
                                 </span>
                                 <Badge
                                   variant={pct === 100 ? "default" : "secondary"}
@@ -1118,7 +1099,7 @@ function ContenutoDDTRicezioneDetail() {
                                     variant="outline"
                                     className="text-[10px] text-amber-700 border-amber-300"
                                   >
-                                    non collegato a un articolo della commessa
+                                    {t("non collegato a un articolo della commessa")}
                                   </Badge>
                                 )}
                               </div>
@@ -1131,7 +1112,7 @@ function ContenutoDDTRicezioneDetail() {
                                 disabled={isReceiptsLoading || isReceiptsError || nonAllineata || !po || !["inviato", "confermato", "parziale"].includes(po.status)}
                                 className="shrink-0"
                               >
-                                <Plus className="h-3.5 w-3.5 mr-1" /> Ricevi
+                                <Plus className="h-3.5 w-3.5 mr-1" /> {t("Ricevi")}
                               </Button>
                             )}
                             {!isReceiving && pending === 0 && (
@@ -1140,18 +1121,18 @@ function ContenutoDDTRicezioneDetail() {
                           </div>
 
                           {po && !["inviato", "confermato", "parziale"].includes(po.status) && <p className="mt-2 text-sm text-amber-700" role="status">{po.status === "ricevuto"
-                            ? "Ordine già ricevuto: consulta le ricezioni e i movimenti registrati prima di effettuare altre operazioni."
+                            ? t("Ordine già ricevuto: consulta le ricezioni e i movimenti registrati prima di effettuare altre operazioni.")
                             : po.status === "annullato"
-                              ? "Ordine annullato: non è possibile registrare nuove ricezioni."
-                              : `Ordine in stato ${po.status}: verifica e conferma l’ordine prima di registrare nuove ricezioni.`}</p>}
-                          {nonAllineata && <p className="mt-2 text-sm text-amber-700" role="status">La ricezione è già registrata, ma il riepilogo OdA non è allineato{po?.status === "bozza" ? " perché l’ordine è ancora in bozza" : ""}. Controlla le ricezioni qui sopra e lo stato dell’ordine prima di aggiungere altra merce: ripetere la ricezione può duplicare la giacenza.</p>}
-                          {isReceiptsError && <p className="mt-2 text-sm text-destructive" role="alert">Impossibile verificare le ricezioni esistenti. Ricarica la pagina prima di registrare altra merce.</p>}
+                              ? t("Ordine annullato: non è possibile registrare nuove ricezioni.")
+                              : t("Ordine in stato {status}: verifica e conferma l’ordine prima di registrare nuove ricezioni.", { status: String(po.status ?? "") })}</p>}
+                          {nonAllineata && <p className="mt-2 text-sm text-amber-700" role="status">{po?.status === "bozza" ? t("La ricezione è già registrata, ma il riepilogo OdA non è allineato perché l’ordine è ancora in bozza. Controlla le ricezioni qui sopra e lo stato dell’ordine prima di aggiungere altra merce: ripetere la ricezione può duplicare la giacenza.") : t("La ricezione è già registrata, ma il riepilogo OdA non è allineato. Controlla le ricezioni qui sopra e lo stato dell’ordine prima di aggiungere altra merce: ripetere la ricezione può duplicare la giacenza.")}</p>}
+                          {isReceiptsError && <p className="mt-2 text-sm text-destructive" role="alert">{t("Impossibile verificare le ricezioni esistenti. Ricarica la pagina prima di registrare altra merce.")}</p>}
                           {isReceiving && (
                             <div className="mt-3 p-3 rounded-md bg-muted/30 space-y-3">
                               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                                 <div className="space-y-1">
                                   <Label className="text-xs">
-                                    Quantità ricevuta
+                                    {t("Quantità ricevuta")}
                                   </Label>
                                   <Input
                                     type="number"
@@ -1162,12 +1143,10 @@ function ContenutoDDTRicezioneDetail() {
                                     onChange={(e) => setReceiveQty(e.target.value)}
                                     placeholder={String(pending)}
                                   />
-                                  <p className="text-[10px] text-muted-foreground">
-                                    Max da ricevere: {pending}
-                                  </p>
+                                  <p className="text-[10px] text-muted-foreground">{t("Max da ricevere: {pending}", { pending: String(pending ?? "") })}</p>
                                 </div>
                                 <div className="space-y-1">
-                                  <Label className="text-xs">Qualità</Label>
+                                  <Label className="text-xs">{t("Qualità")}</Label>
                                   <Select
                                     value={receiveQuality}
                                     onValueChange={(v) =>
@@ -1180,25 +1159,25 @@ function ContenutoDDTRicezioneDetail() {
                                     <SelectContent>
                                       <SelectItem value="ok">OK</SelectItem>
                                       <SelectItem value="partial">
-                                        Parziale
+                                        {t("Parziale")}
                                       </SelectItem>
                                       <SelectItem value="damaged">
-                                        Danneggiato
+                                        {t("Danneggiato")}
                                       </SelectItem>
                                       <SelectItem value="pending">
-                                        In verifica
+                                        {t("In verifica")}
                                       </SelectItem>
                                     </SelectContent>
                                   </Select>
                                 </div>
                                 <div className="space-y-1">
-                                  <Label className="text-xs">Note</Label>
+                                  <Label className="text-xs">{t("Note")}</Label>
                                   <Input
                                     value={receiveNotes}
                                     onChange={(e) =>
                                       setReceiveNotes(e.target.value)
                                     }
-                                    placeholder="Opzionale"
+                                    placeholder={t("Opzionale")}
                                   />
                                 </div>
                               </div>
@@ -1215,7 +1194,7 @@ function ContenutoDDTRicezioneDetail() {
                                   ) : (
                                     <>
                                       <CheckCircle2 className="h-3.5 w-3.5 mr-1" />{" "}
-                                      Conferma ricezione
+                                      {t("Conferma ricezione")}
                                     </>
                                   )}
                                 </Button>
@@ -1224,7 +1203,7 @@ function ContenutoDDTRicezioneDetail() {
                                   variant="ghost"
                                   onClick={() => setReceiveItemId(null)}
                                 >
-                                  <X className="h-3.5 w-3.5 mr-1" /> Annulla
+                                  <X className="h-3.5 w-3.5 mr-1" /> {t("Annulla")}
                                 </Button>
                               </div>
                             </div>
@@ -1257,12 +1236,12 @@ function ContenutoDDTRicezioneDetail() {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Truck className="h-4 w-4" />
-                  {ritiro ? "Ritirata da noi" : "Chi ha portato la merce"}
+                  {ritiro ? t("Ritirata da noi") : t("Chi ha portato la merce")}
                 </CardTitle>
                 {!isEditingConsegna ? (
                   <Button size="sm" variant="ghost" onClick={startEditConsegna}>
                     <Edit3 className="h-3.5 w-3.5 sm:mr-1" />
-                    <span className="hidden sm:inline">Modifica</span>
+                    <span className="hidden sm:inline">{t("Modifica")}</span>
                   </Button>
                 ) : (
                   <div className="flex gap-1">
@@ -1285,7 +1264,7 @@ function ContenutoDDTRicezioneDetail() {
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       ) : (
                         <>
-                          <Save className="h-3.5 w-3.5 mr-1" /> Salva
+                          <Save className="h-3.5 w-3.5 mr-1" /> {t("Salva")}
                         </>
                       )}
                     </Button>
@@ -1296,7 +1275,7 @@ function ContenutoDDTRicezioneDetail() {
             <CardContent className="pt-0">
               {!isEditingConsegna && (ddt.trasporto_a_cura_di || ddt.porto) && (
                 <p className="mb-2 text-xs text-muted-foreground">
-                  {[ddt.trasporto_a_cura_di ? TRASPORTO_ETICHETTA[ddt.trasporto_a_cura_di] : null, ddt.porto ? `porto ${ddt.porto}` : null].filter(Boolean).join(" · ")}
+                  {[ddt.trasporto_a_cura_di ? t(TRASPORTO_ETICHETTA[ddt.trasporto_a_cura_di]) : null, ddt.porto ? t("porto {porto}", { porto: ddt.porto }) : null].filter(Boolean).join(" · ")}
                 </p>
               )}
               {!isEditingConsegna ? (
@@ -1307,14 +1286,14 @@ function ContenutoDDTRicezioneDetail() {
                   {!ritiro && (
                     <MetaCell
                       icon={Truck}
-                      label={ddt.trasporto_a_cura_di === "terzi" ? "Corriere" : "Chi l'ha portata"}
+                      label={ddt.trasporto_a_cura_di === "terzi" ? t("Corriere") : t("Chi l'ha portata")}
                       value={ddt.corriere || "—"}
                       muted={!ddt.corriere}
                     />
                   )}
                   <MetaCell
                     icon={MapPin}
-                    label={ritiro ? "Il nostro mezzo" : "Targa mezzo"}
+                    label={ritiro ? t("Il nostro mezzo") : t("Targa mezzo")}
                     value={
                       ddt.targa_mezzo ? (
                         <span className="font-mono">{ddt.targa_mezzo}</span>
@@ -1326,14 +1305,14 @@ function ContenutoDDTRicezioneDetail() {
                   />
                   <MetaCell
                     icon={User}
-                    label={ritiro ? "Chi è andato a ritirarla" : "Autista"}
+                    label={ritiro ? t("Chi è andato a ritirarla") : t("Autista")}
                     value={ddt.autista_nome || "—"}
                     muted={!ddt.autista_nome}
                   />
                   {!ritiro && (
                     <MetaCell
                       icon={Phone}
-                      label="Telefono"
+                      label={t("Telefono")}
                       value={
                         ddt.autista_telefono ? (
                           <a
@@ -1351,20 +1330,20 @@ function ContenutoDDTRicezioneDetail() {
                   )}
                   <MetaCell
                     icon={Clock}
-                    label="Ora arrivo"
+                    label={t("Ora arrivo")}
                     value={
                       ddt.ora_arrivo
-                        ? format(new Date(ddt.ora_arrivo), "HH:mm", { locale: it })
+                        ? format(new Date(ddt.ora_arrivo), "HH:mm", { locale: dateFnsCampo() })
                         : "—"
                     }
                     muted={!ddt.ora_arrivo}
                   />
                   <MetaCell
                     icon={Clock}
-                    label="Ora partenza"
+                    label={t("Ora partenza")}
                     value={
                       ddt.ora_partenza
-                        ? format(new Date(ddt.ora_partenza), "HH:mm", { locale: it })
+                        ? format(new Date(ddt.ora_partenza), "HH:mm", { locale: dateFnsCampo() })
                         : "—"
                     }
                     muted={!ddt.ora_partenza}
@@ -1377,7 +1356,7 @@ function ContenutoDDTRicezioneDetail() {
                       modifica, il ritiro si poteva dire solo alla creazione. */}
                   <div className="space-y-1">
                     <Label className="text-xs flex items-center gap-1">
-                      <Truck className="h-3.5 w-3.5" /> Chi ha portato la merce
+                      <Truck className="h-3.5 w-3.5" /> {t("Chi ha portato la merce")}
                     </Label>
                     <Select
                       value={editConsegna.trasporto_a_cura_di || "non_so"}
@@ -1392,15 +1371,15 @@ function ContenutoDDTRicezioneDetail() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="non_so">Non si sa</SelectItem>
-                        <SelectItem value="fornitore">L'ha portata il fornitore</SelectItem>
-                        <SelectItem value="noi">Siamo andati a ritirarla</SelectItem>
-                        <SelectItem value="terzi">Un corriere</SelectItem>
+                        <SelectItem value="non_so">{t("Non si sa")}</SelectItem>
+                        <SelectItem value="fornitore">{t("L'ha portata il fornitore")}</SelectItem>
+                        <SelectItem value="noi">{t("Siamo andati a ritirarla")}</SelectItem>
+                        <SelectItem value="terzi">{t("Un corriere")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Il trasporto chi lo paga</Label>
+                    <Label className="text-xs">{t("Il trasporto chi lo paga")}</Label>
                     <Select
                       value={editConsegna.porto || "non_so"}
                       onValueChange={(v) =>
@@ -1411,27 +1390,27 @@ function ContenutoDDTRicezioneDetail() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="non_so">Non si sa</SelectItem>
-                        <SelectItem value="franco">Compreso nel prezzo (franco)</SelectItem>
-                        <SelectItem value="assegnato">A nostro carico (assegnato)</SelectItem>
+                        <SelectItem value="non_so">{t("Non si sa")}</SelectItem>
+                        <SelectItem value="franco">{t("Compreso nel prezzo (franco)")}</SelectItem>
+                        <SelectItem value="assegnato">{t("A nostro carico (assegnato)")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1 sm:col-span-2">
                     <Label className="text-xs flex items-center gap-1">
-                      <Truck className="h-3.5 w-3.5" /> Corriere / trasportatore
+                      <Truck className="h-3.5 w-3.5" /> {t("Corriere / trasportatore")}
                     </Label>
                     <Input
                       value={editConsegna.corriere}
                       onChange={(e) =>
                         setEditConsegna({ ...editConsegna, corriere: e.target.value })
                       }
-                      placeholder="es. GLS, DHL, SDA"
+                      placeholder={t("es. GLS, DHL, SDA")}
                     />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs flex items-center gap-1">
-                      <MapPin className="h-3.5 w-3.5" /> Targa mezzo
+                      <MapPin className="h-3.5 w-3.5" /> {t("Targa mezzo")}
                     </Label>
                     <Input
                       value={editConsegna.targa_mezzo}
@@ -1441,13 +1420,13 @@ function ContenutoDDTRicezioneDetail() {
                           targa_mezzo: e.target.value.toUpperCase(),
                         })
                       }
-                      placeholder="AB123CD"
+                      placeholder={t("AB123CD")}
                       className="font-mono uppercase"
                     />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs flex items-center gap-1">
-                      <User className="h-3.5 w-3.5" /> Nome autista
+                      <User className="h-3.5 w-3.5" /> {t("Nome autista")}
                     </Label>
                     <Input
                       value={editConsegna.autista_nome}
@@ -1457,12 +1436,12 @@ function ContenutoDDTRicezioneDetail() {
                           autista_nome: e.target.value,
                         })
                       }
-                      placeholder="Mario Rossi"
+                      placeholder={t("Mario Rossi")}
                     />
                   </div>
                   <div className="space-y-1 sm:col-span-2">
                     <Label className="text-xs flex items-center gap-1">
-                      <Phone className="h-3.5 w-3.5" /> Telefono autista
+                      <Phone className="h-3.5 w-3.5" /> {t("Telefono autista")}
                     </Label>
                     <Input
                       type="tel"
@@ -1478,7 +1457,7 @@ function ContenutoDDTRicezioneDetail() {
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs flex items-center gap-1">
-                      <Clock className="h-3.5 w-3.5" /> Ora arrivo
+                      <Clock className="h-3.5 w-3.5" /> {t("Ora arrivo")}
                     </Label>
                     <Input
                       type="time"
@@ -1493,7 +1472,7 @@ function ContenutoDDTRicezioneDetail() {
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs flex items-center gap-1">
-                      <Clock className="h-3.5 w-3.5" /> Ora partenza
+                      <Clock className="h-3.5 w-3.5" /> {t("Ora partenza")}
                     </Label>
                     <Input
                       type="time"
@@ -1517,12 +1496,12 @@ function ContenutoDDTRicezioneDetail() {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
                   <ShieldCheck className="h-4 w-4" />
-                  Ricevente & controllo qualità
+                  {t("Ricevente & controllo qualità")}
                 </CardTitle>
                 {!isEditingQC ? (
                   <Button size="sm" variant="ghost" onClick={startEditQC}>
                     <Edit3 className="h-3.5 w-3.5 sm:mr-1" />
-                    <span className="hidden sm:inline">Modifica</span>
+                    <span className="hidden sm:inline">{t("Modifica")}</span>
                   </Button>
                 ) : (
                   <div className="flex gap-1">
@@ -1542,7 +1521,7 @@ function ContenutoDDTRicezioneDetail() {
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       ) : (
                         <>
-                          <Save className="h-3.5 w-3.5 mr-1" /> Salva
+                          <Save className="h-3.5 w-3.5 mr-1" /> {t("Salva")}
                         </>
                       )}
                     </Button>
@@ -1556,13 +1535,13 @@ function ContenutoDDTRicezioneDetail() {
                 <div className="grid grid-cols-2 gap-3">
                   <MetaCell
                     icon={User}
-                    label="Ricevuto da"
+                    label={t("Ricevuto da")}
                     value={ddt.ricevuto_da_nome || "—"}
                     muted={!ddt.ricevuto_da_nome}
                   />
                   <div>
                     <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <PenLine className="h-3 w-3" /> Firma
+                      <PenLine className="h-3 w-3" /> {t("Firma")}
                     </p>
                     {ddt.signature_url ? (
                       <a
@@ -1573,7 +1552,7 @@ function ContenutoDDTRicezioneDetail() {
                       >
                         <img loading="lazy"
                           src={ddt.signature_url}
-                          alt="Firma"
+                          alt={t("Firma")}
                           className="h-10 bg-white border rounded-md px-1 group-hover:border-primary transition"
                         />
                         <ExternalLink className="h-3 w-3 text-muted-foreground" />
@@ -1581,7 +1560,7 @@ function ContenutoDDTRicezioneDetail() {
                     ) : (
                       <div className="flex flex-wrap items-center gap-2 mt-0.5">
                         <span className="text-sm text-muted-foreground italic">
-                          Nessuna
+                          {t("Nessuna")}
                         </span>
                         <input
                           ref={signatureRef}
@@ -1608,7 +1587,7 @@ function ContenutoDDTRicezioneDetail() {
                           disabled={uploadSignature.isPending}
                           className="h-7 text-xs gap-1"
                         >
-                          <Camera className="h-3 w-3" /> Acquisisci
+                          <Camera className="h-3 w-3" /> {t("Acquisisci")}
                         </Button>
                       </div>
                     )}
@@ -1617,11 +1596,11 @@ function ContenutoDDTRicezioneDetail() {
               ) : (
                 <div className="space-y-3">
                   <div className="space-y-1">
-                    <Label className="text-xs">Nome ricevente</Label>
+                    <Label className="text-xs">{t("Nome ricevente")}</Label>
                     <Input
                       value={editRicevutoDa}
                       onChange={(e) => setEditRicevutoDa(e.target.value)}
-                      placeholder="es. Luca Bianchi (magazziniere)"
+                      placeholder={t("es. Luca Bianchi (magazziniere)")}
                     />
                   </div>
                 </div>
@@ -1648,14 +1627,14 @@ function ContenutoDDTRicezioneDetail() {
                     />
                     <div className="min-w-0">
                       <p className="text-sm font-medium">
-                        Presenza di danni o difformità
+                        {t("Presenza di danni o difformità")}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {isEditingQC
-                          ? "Attiva se la merce presenta difformità rispetto all'ODA."
+                          ? t("Attiva se la merce presenta difformità rispetto all'ODA.")
                           : ddt.has_damages
-                            ? "Sì, segnalate"
-                            : "Nessuna difformità segnalata"}
+                            ? t("Sì, segnalate")
+                            : t("Nessuna difformità segnalata")}
                       </p>
                     </div>
                   </div>
@@ -1674,7 +1653,7 @@ function ContenutoDDTRicezioneDetail() {
                       onChange={(e) => setEditNonConf(e.target.value)}
                       rows={3}
                       className="mt-3 text-sm bg-white"
-                      placeholder="Descrivi la non conformità: pezzi mancanti, articoli danneggiati, imballo rotto, errori di quantità…"
+                      placeholder={t("Descrivi la non conformità: pezzi mancanti, articoli danneggiati, imballo rotto, errori di quantità…")}
                     />
                   )
                 ) : ddt.non_conformita ? (

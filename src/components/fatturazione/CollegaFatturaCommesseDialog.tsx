@@ -29,6 +29,7 @@ import { leggiXmlRicevuta } from "@/lib/fatturazione/originaleRicevuta";
 import { leggiRiferimentiFattura } from "../../../shared/acquisti/riferimentiFattura";
 import { bolleDellaFattura, DESTINAZIONE_MAGAZZINO, magazzinoDaVoci, magazzinoInNetto, problemaRipartizione, quotaMagazzinoDelCosto, righeMagazzinoDelCosto, quoteDaVoci, quoteDelCosto, quoteLordeInNette, residuoDaAssegnare, vociFattura, type QuotaCommessa, type RigaFatturaXml } from "@/lib/fatturazione/ripartizioneFattura";
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -44,6 +45,7 @@ const testoImporto = (n: number) => (Math.round(n * 100) / 100).toString().repla
 export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onScegliOrdine, commessaIniziale, suImponibile = false }: {
   fattura: FatturaDaCollegare; companyId: string; onChiudi: () => void; onScegliOrdine?: () => void; commessaIniziale?: string; suImponibile?: boolean;
 }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const imponibile = Math.abs(Number(fattura.imponibile ?? fattura.totale ?? 0));
   const totale = suImponibile ? imponibile : Math.abs(Number(fattura.totale ?? imponibile));
@@ -223,28 +225,28 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
       if (error) throw error;
       if (registraBolle && bolleDaRegistrare.length > 0) {
         const { data: esito, error: errBolle } = await db.rpc("fattura_crea_bolle", { p_fattura: fattura.id, p_bolle: bolleDaRegistrare });
-        if (errBolle) toast.error("Bolle non registrate", { description: errBolle.message });
+        if (errBolle) toast.error(t("Bolle non registrate"), { description: errBolle.message });
         else {
           const e = (esito ?? {}) as { create?: number; saltate?: Array<{ motivo: string }> };
           const giaCi = (e.saltate ?? []).filter((x) => x.motivo === "esiste_gia").length;
-          if (e.create) toast.success(e.create === 1 ? "1 bolla registrata dalla fattura" : `${e.create} bolle registrate dalla fattura`,
-            { description: giaCi ? `${giaCi} c'erano già: collegale dalla fattura.` : "L'originale di ogni bolla è da allegare." });
+          if (e.create) toast.success(e.create === 1 ? t("1 bolla registrata dalla fattura") : t("{create} bolle registrate dalla fattura", { create: String(e.create ?? "") }),
+            { description: giaCi ? t("{giaCi} c'erano già: collegale dalla fattura.", { giaCi: String(giaCi ?? "") }) : t("L'originale di ogni bolla è da allegare.") });
           for (const k of ["ddt-ricezione", "fattura-ddt-riepilogo", "commessa-fatture-fornitori"]) void queryClient.invalidateQueries({ queryKey: [k] });
         }
       }
       toast.success(
-        quote.length === 0 && inMagazzino === 0 ? "Fattura scollegata dalle commesse"
-        : quote.length === 0 ? "Fattura messa tutta a magazzino"
-        : quote.length === 1 && inMagazzino === 0 ? "Fattura collegata alla commessa"
-        : quote.length === 1 ? "Fattura divisa fra una commessa e il magazzino"
-        : inMagazzino > 0 ? `Fattura divisa su ${quote.length} commesse e il magazzino`
-        : `Fattura divisa su ${quote.length} commesse`,
+        quote.length === 0 && inMagazzino === 0 ? t("Fattura scollegata dalle commesse")
+        : quote.length === 0 ? t("Fattura messa tutta a magazzino")
+        : quote.length === 1 && inMagazzino === 0 ? t("Fattura collegata alla commessa")
+        : quote.length === 1 ? t("Fattura divisa fra una commessa e il magazzino")
+        : inMagazzino > 0 ? t("Fattura divisa su {n} commesse e il magazzino", { n: quote.length })
+        : t("Fattura divisa su {n} commesse", { n: quote.length }),
       );
       refreshFinancialQueries(queryClient);
       for (const k of ["fattura-collega-commesse", "fatture-ricevute", "fatture-costi-commesse", "fattura-ricevuta-riepilogo", "margin"]) void queryClient.invalidateQueries({ queryKey: [k] });
       onChiudi();
     } catch (e) {
-      toast.error("Collegamento non salvato", { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Collegamento non salvato"), { description: e instanceof Error ? e.message : String(e) });
     } finally {
       setSalvataggio(false);
     }
@@ -260,18 +262,18 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
                     <div className="flex items-center gap-2">
                       <div className="flex min-w-0 flex-1 items-center gap-2 rounded-md border border-dashed px-3 py-1.5 text-sm">
                         <Package className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                        <span className="min-w-0 truncate">Resta a magazzino</span>
+                        <span className="min-w-0 truncate">{t("Resta a magazzino")}</span>
                       </div>
                       <Button type="button" variant="ghost" size="sm" className="shrink-0"
-                        onClick={() => setScelte({ ...scelte, [v.numero]: undefined })}>Scegli una commessa</Button>
+                        onClick={() => setScelte({ ...scelte, [v.numero]: undefined })}>{t("Scegli una commessa")}</Button>
                     </div>
                   ) : (
                     <div className="flex items-center gap-2">
                       <div className="min-w-0 flex-1">
-                        <OrderSelectCombobox filtroIniziale="all" generaliSempre companyId={companyId} value={scelte[v.numero]} placeholder="Commessa…" onChange={(id: string) => setScelte({ ...scelte, [v.numero]: id })} />
+                        <OrderSelectCombobox filtroIniziale="all" generaliSempre companyId={companyId} value={scelte[v.numero]} placeholder={t("Commessa…")} onChange={(id: string) => setScelte({ ...scelte, [v.numero]: id })} />
                       </div>
-                      <Button type="button" variant="ghost" size="sm" className="shrink-0" aria-label={`Manda a magazzino: ${v.descrizione}`}
-                        onClick={() => setScelte({ ...scelte, [v.numero]: DESTINAZIONE_MAGAZZINO })}>A magazzino</Button>
+                      <Button type="button" variant="ghost" size="sm" className="shrink-0" aria-label={t("Manda a magazzino: {descrizione}", { descrizione: v.descrizione ?? "" })}
+                        onClick={() => setScelte({ ...scelte, [v.numero]: DESTINAZIONE_MAGAZZINO })}>{t("A magazzino")}</Button>
                     </div>
                   )}
                 </li>
@@ -285,24 +287,24 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
           «Voce per voce» mostra una riga per voce e resta comodo anche così. */}
       <DialogContent ampiezza="conferma" struttura="scorrevole" className="max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>A quale commessa va?</DialogTitle>
-          <DialogDescription>{fattura.fornitore ?? "Fornitore"} · n. {fattura.numero ?? "—"} · <span className="font-medium text-foreground">{formatCurrency(totale)}</span> {suImponibile ? "imponibile" : "IVA inclusa"}</DialogDescription>
+          <DialogTitle>{t("A quale commessa va?")}</DialogTitle>
+          <DialogDescription>{fattura.fornitore ?? t("Fornitore")} · n. {fattura.numero ?? "—"} · <span className="font-medium text-foreground">{formatCurrency(totale)}</span> {suImponibile ? t("imponibile") : t("IVA inclusa")}</DialogDescription>
         </DialogHeader>
         {suOrdine ? (
           <p role="status" className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-            È su un ordine d’acquisto: la commessa viene da lì. Per sceglierla qui, scollegala prima dall’ordine.
+            {t("È su un ordine d’acquisto: la commessa viene da lì. Per sceglierla qui, scollegala prima dall’ordine.")}
           </p>
         ) : data?.condiviso ? (
-          <p role="status">Il costo contabilizzato raggruppa più fatture. Una ripartizione su questo costo coinvolgerebbe anche gli altri documenti.</p>
+          <p role="status">{t("Il costo contabilizzato raggruppa più fatture. Una ripartizione su questo costo coinvolgerebbe anche gli altri documenti.")}</p>
         ) : isError ? (
-          <p role="alert">Impossibile caricare le quote salvate. Riapri il dettaglio per riprovare.</p>
+          <p role="alert">{t("Impossibile caricare le quote salvate. Riapri il dettaglio per riprovare.")}</p>
         ) : isLoading ? (
-          <p role="status" className="text-sm text-muted-foreground">Caricamento…</p>
+          <p role="status" className="text-sm text-muted-foreground">{t("Caricamento…")}</p>
         ) : perVoci ? (
           <div className="space-y-2">
             {perBolla ? (
               <>
-                <ul className="divide-y rounded-md border" aria-label="Bolle della fattura">
+                <ul className="divide-y rounded-md border" aria-label={t("Bolle della fattura")}>
                   {gruppi.bolle.map((b) => {
                     const scelteBolla = [...new Set(b.voci.map((n) => scelte[n] ?? ""))];
                     const unica = scelteBolla.length === 1 ? scelteBolla[0] || undefined : undefined;
@@ -312,28 +314,28 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
                         <div className="flex items-baseline justify-between gap-2">
                           <span className="min-w-0">
                             <span className="font-medium">DDT {b.numero}</span>
-                            <span className="text-muted-foreground">{b.data ? ` · ${b.data.split("-").reverse().join("/")}` : ""} · {b.voci.length} {b.voci.length === 1 ? "voce" : "voci"}</span>
-                            {b.ddtId && b.commessaProposta && unica === b.commessaProposta && <span className="ml-1 text-xs text-emerald-700 dark:text-emerald-400">dalla bolla caricata</span>}
+                            <span className="text-muted-foreground">{b.data ? ` · ${b.data.split("-").reverse().join("/")}` : ""} · {t(b.voci.length === 1 ? "{n} voce" : "{n} voci", { n: b.voci.length })}</span>
+                            {b.ddtId && b.commessaProposta && unica === b.commessaProposta && <span className="ml-1 text-xs text-emerald-700 dark:text-emerald-400">{t("dalla bolla caricata")}</span>}
                           </span>
                           <span className="shrink-0 tabular-nums text-muted-foreground">{formatCurrency(b.imponibile * (imponibile ? totale / imponibile : 1))}</span>
                         </div>
                         {scelteBolla.length > 1 ? (
-                          <p className="text-xs text-muted-foreground">Voci divise su più destinazioni. <button type="button" className="underline" onClick={() => assegna(undefined)}>Ricomincia</button></p>
+                          <p className="text-xs text-muted-foreground">{t("Voci divise su più destinazioni.")} <button type="button" className="underline" onClick={() => assegna(undefined)}>{t("Ricomincia")}</button></p>
                         ) : unica === DESTINAZIONE_MAGAZZINO ? (
                           <div className="flex items-center gap-2">
                             <div className="flex min-w-0 flex-1 items-center gap-2 rounded-md border border-dashed px-3 py-1.5 text-sm">
                               <Package className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                              <span className="min-w-0 truncate">Resta a magazzino</span>
+                              <span className="min-w-0 truncate">{t("Resta a magazzino")}</span>
                             </div>
-                            <Button type="button" variant="ghost" size="sm" className="shrink-0" onClick={() => assegna(undefined)}>Scegli una commessa</Button>
+                            <Button type="button" variant="ghost" size="sm" className="shrink-0" onClick={() => assegna(undefined)}>{t("Scegli una commessa")}</Button>
                           </div>
                         ) : (
                           <div className="flex items-center gap-2">
                             <div className="min-w-0 flex-1">
-                              <OrderSelectCombobox filtroIniziale="all" generaliSempre companyId={companyId} value={unica} placeholder="Commessa…" onChange={(id: string) => assegna(id)} />
+                              <OrderSelectCombobox filtroIniziale="all" generaliSempre companyId={companyId} value={unica} placeholder={t("Commessa…")} onChange={(id: string) => assegna(id)} />
                             </div>
-                            <Button type="button" variant="ghost" size="sm" className="shrink-0" aria-label={`Manda a magazzino: DDT ${b.numero}`}
-                              onClick={() => assegna(DESTINAZIONE_MAGAZZINO)}>A magazzino</Button>
+                            <Button type="button" variant="ghost" size="sm" className="shrink-0" aria-label={t("Manda a magazzino: DDT {numero}", { numero: b.numero ?? "" })}
+                              onClick={() => assegna(DESTINAZIONE_MAGAZZINO)}>{t("A magazzino")}</Button>
                           </div>
                         )}
                       </li>
@@ -342,8 +344,8 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
                 </ul>
                 {gruppi.vociSenzaBolla.length > 0 && (
                   <>
-                    <p className="pt-1 text-xs text-muted-foreground">Voci senza bolla, o citate da più bolle:</p>
-                    <ul className="divide-y rounded-md border" aria-label="Voci senza bolla">
+                    <p className="pt-1 text-xs text-muted-foreground">{t("Voci senza bolla, o citate da più bolle:")}</p>
+                    <ul className="divide-y rounded-md border" aria-label={t("Voci senza bolla")}>
                       {voci.filter((v) => gruppi.vociSenzaBolla.includes(v.numero)).map(rigaVoce)}
                     </ul>
                   </>
@@ -351,33 +353,33 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
                 {bolleDaRegistrare.length > 0 && (
                   <label className="flex items-start gap-2 rounded-md bg-muted/40 p-2 text-xs">
                     <input type="checkbox" className="mt-0.5" checked={registraBolle} onChange={(e) => setRegistraBolle(e.target.checked)} />
-                    <span>Registra anche {bolleDaRegistrare.length === 1 ? "la bolla mancante" : `le ${bolleDaRegistrare.length} bolle mancanti`} sulla commessa scelta, con righe e prezzi della fattura. L’originale si allega dopo.</span>
+                    <span>{bolleDaRegistrare.length === 1 ? t("Registra anche la bolla mancante sulla commessa scelta, con righe e prezzi della fattura. L’originale si allega dopo.") : t("Registra anche le {n} bolle mancanti sulla commessa scelta, con righe e prezzi della fattura. L’originale si allega dopo.", { n: bolleDaRegistrare.length })}</span>
                   </label>
                 )}
-                <button type="button" className={linkDiscreto} onClick={() => setVistaBolle(false)}>Voce per voce</button>
+                <button type="button" className={linkDiscreto} onClick={() => setVistaBolle(false)}>{t("Voce per voce")}</button>
               </>
             ) : (
               <>
-            <ul className="divide-y rounded-md border" aria-label="Voci della fattura">
+            <ul className="divide-y rounded-md border" aria-label={t("Voci della fattura")}>
               {voci.map(rigaVoce)}
             </ul>
-            {gruppi.bolle.length > 0 && <button type="button" className={linkDiscreto} onClick={apriPerBolla}>Bolla per bolla</button>}
+            {gruppi.bolle.length > 0 && <button type="button" className={linkDiscreto} onClick={apriPerBolla}>{t("Bolla per bolla")}</button>}
               </>
             )}
-            <button type="button" className={linkDiscreto} onClick={() => setPerVoci(false)}>Torna a dividere per importi</button>
+            <button type="button" className={linkDiscreto} onClick={() => setPerVoci(false)}>{t("Torna a dividere per importi")}</button>
           </div>
         ) : (
           <div className="space-y-2">
-            {suImponibile && <div className="flex items-center gap-1" role="group" aria-label="Unità delle quote">
+            {suImponibile && <div className="flex items-center gap-1" role="group" aria-label={t("Unità delle quote")}>
               {(["Importi", "Percentuali"] as const).map((label) => <Button key={label} type="button" size="sm"
                 variant={percentuali === (label === "Percentuali") ? "secondary" : "ghost"}
                 aria-pressed={percentuali === (label === "Percentuali")} onClick={() => {
                   setPercentuali(label === "Percentuali"); setSoloUnaParte(true); setPercentualeEditata(null);
-                }}>{label}</Button>)}
+                }}>{t(label)}</Button>)}
             </div>}
             {generali.length > 0 && righe.length === 1 && !righe[0].order_id && (
               <div className="space-y-1.5 rounded-md border bg-muted/30 p-2.5">
-                <p className="text-xs font-medium text-muted-foreground">Su tutta l’operazione (costo comune, si divide tra le unità)</p>
+                <p className="text-xs font-medium text-muted-foreground">{t("Su tutta l’operazione (costo comune, si divide tra le unità)")}</p>
                 <div className="flex flex-wrap gap-1.5">
                   {generali.map((g) => (
                     <Button key={g.id} type="button" variant="outline" size="sm" className="h-auto max-w-full justify-start gap-1.5 py-1 text-left"
@@ -387,21 +389,21 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
                     </Button>
                   ))}
                 </div>
-                <p className="text-xs text-muted-foreground">Oppure scegli qui sotto una singola commessa o unità.</p>
+                <p className="text-xs text-muted-foreground">{t("Oppure scegli qui sotto una singola commessa o unità.")}</p>
               </div>
             )}
             {righe.map((r, i) => (
               <div key={r.chiave} className="space-y-1">
               <div className="flex items-center gap-2">
                 <div className="min-w-0 flex-1">
-                  <OrderSelectCombobox filtroIniziale="all" generaliSempre companyId={companyId} value={r.order_id || undefined} placeholder="Cerca la commessa…"
+                  <OrderSelectCombobox filtroIniziale="all" generaliSempre companyId={companyId} value={r.order_id || undefined} placeholder={t("Cerca la commessa…")}
                     esclusi={righe.filter((x) => x.chiave !== r.chiave).map((x) => x.order_id).filter(Boolean)}
                     onChange={(id: string) => scegliCommessa(r.chiave, id)} />
                 </div>
                 {mostraImporti && (
                   <div className="relative w-28 shrink-0">
                     <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">{percentuali ? "%" : "€"}</span>
-                    <Input aria-label={`${percentuali ? "Percentuale" : "Importo"} della commessa ${i + 1}`} inputMode="decimal" className="pl-6 text-right" value={percentuali
+                    <Input aria-label={percentuali ? t("Percentuale della commessa {i}", { i: i + 1 }) : t("Importo della commessa {i}", { i: i + 1 })} inputMode="decimal" className="pl-6 text-right" value={percentuali
                       ? percentualeEditata?.chiave === r.chiave ? percentualeEditata.testo : imponibile && r.importo ? testoImporto(leggiImporto(r.importo) * 100 / imponibile) : ""
                       : r.importo}
                       onBlur={() => setPercentualeEditata(null)}
@@ -415,21 +417,21 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
                   </div>
                 )}
                 {righe.length > 1 && (
-                  <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label={`Togli la commessa ${i + 1}`} onClick={() => togli(r.chiave)}><X className="h-4 w-4" /></Button>
+                  <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label={t("Togli la commessa {i}", { i: i + 1 })} onClick={() => togli(r.chiave)}><X className="h-4 w-4" /></Button>
                 )}
               </div>
               {(() => {
                 const o = gerarchia.find((x) => x.id === r.order_id);
                 if (!o) return null;
                 if (o.workflow_kind === "generale") {
-                  return <p className="text-xs text-muted-foreground">Costo comune di tutta l’operazione: il piano lo divide tra le unità (millesimi, m² o importo).</p>;
+                  return <p className="text-xs text-muted-foreground">{t("Costo comune di tutta l’operazione: il piano lo divide tra le unità (millesimi, m² o importo).")}</p>;
                 }
                 const g = o.commessa_generale_id && !righe.some((x) => x.order_id === o.commessa_generale_id) ? nomeGenerale(o.commessa_generale_id) : null;
                 return g ? (
                   <p className="text-xs text-muted-foreground">
-                    Fa parte di {g}.{" "}
+                    {t("Fa parte di {gruppo}.", { gruppo: g })}{" "}
                     <button type="button" className="font-medium text-primary hover:underline" onClick={() => scegliCommessa(r.chiave, o.commessa_generale_id!)}>
-                      Mettila su tutta l’operazione
+                      {t("Mettila su tutta l’operazione")}
                     </button>
                   </p>
                 ) : null;
@@ -440,52 +442,52 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
               <div className="flex items-center gap-2">
                 <div className="flex min-w-0 flex-1 items-center gap-2 rounded-md border border-dashed px-3 py-2 text-sm">
                   <Package className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                  <span className="min-w-0 truncate">A magazzino</span>
+                  <span className="min-w-0 truncate">{t("A magazzino")}</span>
                 </div>
                 <div className="relative w-28 shrink-0">
                   <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">€</span>
-                  <Input aria-label="Importo che resta a magazzino" inputMode="decimal" className="pl-6 text-right" value={magazzino} onChange={(e) => setMagazzino(e.target.value)} />
+                  <Input aria-label={t("Importo che resta a magazzino")} inputMode="decimal" className="pl-6 text-right" value={magazzino} onChange={(e) => setMagazzino(e.target.value)} />
                 </div>
-                <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label="Togli la quota a magazzino" onClick={() => setMagazzino("")}><X className="h-4 w-4" /></Button>
+                <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label={t("Togli la quota a magazzino")} onClick={() => setMagazzino("")}><X className="h-4 w-4" /></Button>
               </div>
             )}
             {magazzino !== "" && (
               <p className="text-xs text-muted-foreground">
-                Non è costo di nessuna commessa: lo diventa quando la merce esce dal magazzino, col suo costo medio.
+                {t("Non è costo di nessuna commessa: lo diventa quando la merce esce dal magazzino, col suo costo medio.")}
               </p>
             )}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-1">
               <button type="button" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline" onClick={aggiungi}>
-                <Plus className="h-4 w-4" />Dividi su un’altra commessa
+                <Plus className="h-4 w-4" />{t("Dividi su un’altra commessa")}
               </button>
               {magazzino === "" && (
                 <button type="button" className={linkDiscreto} onClick={apriMagazzino}>
-                  Una parte resta in magazzino
+                  {t("Una parte resta in magazzino")}
                 </button>
               )}
-              {gruppi.bolle.length > 0 && <button type="button" className={linkDiscreto} onClick={apriPerBolla}>Bolla per bolla ({gruppi.bolle.length})</button>}
-              {voci.length > 1 && <button type="button" className={linkDiscreto} onClick={() => { setVistaBolle(false); setPerVoci(true); }}>Voce per voce</button>}
-              {righe.length === 1 && !soloUnaParte && <button type="button" className={linkDiscreto} onClick={() => setSoloUnaParte(true)}>Solo una parte</button>}
+              {gruppi.bolle.length > 0 && <button type="button" className={linkDiscreto} onClick={apriPerBolla}>{t("Bolla per bolla ({n})", { n: gruppi.bolle.length })}</button>}
+              {voci.length > 1 && <button type="button" className={linkDiscreto} onClick={() => { setVistaBolle(false); setPerVoci(true); }}>{t("Voce per voce")}</button>}
+              {righe.length === 1 && !soloUnaParte && <button type="button" className={linkDiscreto} onClick={() => setSoloUnaParte(true)}>{t("Solo una parte")}</button>}
             </div>
           </div>
         )}
         {!suOrdine && !isLoading && Math.abs(residuo) > 0.009 && (perVoci || mostraImporti) && (
           <p className={residuo < 0 ? "text-sm text-destructive" : "text-sm text-muted-foreground"}>
             {residuo > 0
-              ? `Restano ${formatCurrency(residuo)} fuori dalle commesse${magazzinoNetto > 0 ? " e dal magazzino" : ""}: vanno nelle spese generali.`
-              : `Hai assegnato ${formatCurrency(-residuo)} di troppo.`}
+              ? (magazzinoNetto > 0 ? t("Restano {valore} fuori dalle commesse e dal magazzino: vanno nelle spese generali.", { valore: formatCurrency(residuo) }) : t("Restano {valore} fuori dalle commesse: vanno nelle spese generali.", { valore: formatCurrency(residuo) }))
+              : t("Hai assegnato {valore} di troppo.", { valore: formatCurrency(-residuo) })}
           </p>
         )}
         {/* Una riga ancora vuota non è un errore: basta che «Salva» aspetti. */}
         {problema && dasalvare.every((q) => q.order_id) && <p role="alert" className="text-sm text-destructive">{problema}</p>}
         <DialogFooter className="items-center gap-2 sm:justify-between">
           <div className="flex flex-wrap gap-x-4 gap-y-1">
-            {onScegliOrdine && <button type="button" className={linkDiscreto} onClick={onScegliOrdine}>{suOrdine ? "Cambia ordine d’acquisto" : "Va su un ordine d’acquisto"}</button>}
-            {!suOrdine && !data?.condiviso && (salvate.length > 0 || quotaMagazzinoDelCosto(data?.costo) > 0) && <button type="button" className={linkDiscreto} disabled={salvataggio} onClick={() => void salva([], 0)}>Scollega</button>}
+            {onScegliOrdine && <button type="button" className={linkDiscreto} onClick={onScegliOrdine}>{suOrdine ? t("Cambia ordine d’acquisto") : t("Va su un ordine d’acquisto")}</button>}
+            {!suOrdine && !data?.condiviso && (salvate.length > 0 || quotaMagazzinoDelCosto(data?.costo) > 0) && <button type="button" className={linkDiscreto} disabled={salvataggio} onClick={() => void salva([], 0)}>{t("Scollega")}</button>}
           </div>
           {!suOrdine && !data?.condiviso && (
             <Button type="button" disabled={salvataggio || isLoading || isError || !!problema || residuo < 0 || (dasalvare.length === 0 && magazzinoNetto === 0)} onClick={() => void salva(dasalvare, magazzinoNetto)}>
-              {salvataggio && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}Salva
+              {salvataggio && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}{t("Salva")}
             </Button>
           )}
         </DialogFooter>

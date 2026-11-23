@@ -2,7 +2,6 @@ import { pagatoSal, residuoSal } from "@/lib/subappaltatori/importiSal";
 import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState, useRef, type ReactNode } from "react";
 import { format, parseISO, differenceInCalendarDays } from "date-fns";
-import { it } from "date-fns/locale";
 import { ArrowUpRight, FileText, ShieldCheck, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +21,7 @@ import type {
   RitenutaGaranzia,
   StatoSALSub,
 } from "@/types/subappaltatori";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 
 const statiSAL: Record<StatoSALSub, string> = {
@@ -38,7 +38,7 @@ const statiRitenuta = {
 };
 const data = (valore: string | null) =>
   valore
-    ? format(parseISO(valore), "dd MMM yyyy", { locale: it })
+    ? format(parseISO(valore), "dd MMM yyyy", { locale: dateFnsCampo() })
     : "Da indicare";
 
 function Stato({ stato, children }: { stato: string; children: ReactNode }) {
@@ -94,28 +94,29 @@ function Filtri({
   onStato: (v: string) => void;
   stati: Record<string, string>;
 }) {
+  const t = useT();
   return (
     <div className="flex flex-col gap-2 rounded-lg border bg-background p-3 sm:flex-row">
       <div className="relative min-w-0 flex-1">
         <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
         <Input
-          aria-label="Cerca nella contabilità"
-          placeholder="Cerca numero, data o note…"
+          aria-label={t("Cerca nella contabilità")}
+          placeholder={t("Cerca numero, data o note…")}
           className="pl-9"
           value={ricerca}
           onChange={(e) => onRicerca(e.target.value)}
         />
       </div>
       <UniformSelect
-        aria-label="Filtra per stato"
+        aria-label={t("Filtra per stato")}
         className="h-10 rounded-md border bg-background px-3 text-sm"
         value={stato}
         onChange={(e) => onStato(e.target.value)}
       >
-        <option value="tutti">Tutti gli stati</option>
+        <option value="tutti">{t("Tutti gli stati")}</option>
         {Object.entries(stati).map(([v, label]) => (
           <option key={v} value={v}>
-            {label}
+            {t(label)}
           </option>
         ))}
       </UniformSelect>
@@ -124,13 +125,14 @@ function Filtri({
 }
 
 function NessunRisultato({ onReset }: { onReset: () => void }) {
+  const t = useT();
   return (
     <div className="rounded-lg border border-dashed p-8 text-center">
       <p className="text-sm text-muted-foreground">
-        Nessun risultato con questi filtri.
+        {t("Nessun risultato con questi filtri.")}
       </p>
       <Button variant="link" onClick={onReset}>
-        Reimposta filtri
+        {t("Reimposta filtri")}
       </Button>
     </div>
   );
@@ -155,6 +157,7 @@ export function SALContabilita({
   onContesta: (sal: SALSubappaltatore) => void;
   onPagamento: (sal: SALSubappaltatore) => void;
 }) {
+  const t = useT();
   const [selezionato, setSelezionato] = useState<string | null>(null);
   const apertura = useRef<HTMLButtonElement | null>(null);
   const [ricerca, setRicerca] = useState("");
@@ -181,10 +184,10 @@ export function SALContabilita({
   return (
     <div className="space-y-4">
       <dl className="grid grid-cols-2 gap-3 rounded-md border bg-muted/20 p-3 sm:grid-cols-4">
-        <Numero titolo="Lordo SAL" valore={somma(validi, "importo_lordo")} nota="Esclusi i contestati" />
-        <Numero titolo="Ritenute" valore={somma(validi, "ritenuta_importo")} />
-        <Numero titolo="Pagato" valore={validi.reduce((sum, s) => sum + pagatoSal(s), 0)} />
-        <Numero titolo="Da pagare" valore={validi.reduce((sum, s) => sum + residuoSal(s), 0)} evidenza />
+        <Numero titolo={t("Lordo SAL")} valore={somma(validi, "importo_lordo")} nota={t("Esclusi i contestati")} />
+        <Numero titolo={t("Ritenute")} valore={somma(validi, "ritenuta_importo")} />
+        <Numero titolo={t("Pagato")} valore={validi.reduce((sum, s) => sum + pagatoSal(s), 0)} />
+        <Numero titolo={t("Da pagare")} valore={validi.reduce((sum, s) => sum + residuoSal(s), 0)} evidenza />
       </dl>
       {/* Con uno o due SAL cercare non serve: si leggono a colpo d'occhio. */}
       {sal.length > 2 && <>
@@ -195,7 +198,7 @@ export function SALContabilita({
           onStato={setStato}
           stati={statiSAL}
         />
-        <p className="text-xs text-muted-foreground">{filtrati.length} di {sal.length} SAL</p>
+        <p className="text-xs text-muted-foreground">{t("{n} di {n2} SAL", { n: filtrati.length, n2: sal.length })}</p>
       </>}
       {filtrati.length === 0 ? (
         <NessunRisultato
@@ -205,32 +208,32 @@ export function SALContabilita({
           }}
         />
       ) : (
-        <TabellaCommessa etichetta="SAL del contratto" righe={filtrati} chiave={(s) => s.id} colonne={[
+        <TabellaCommessa etichetta={t("SAL del contratto")} righe={filtrati} chiave={(s) => s.id} colonne={[
           { titolo: "SAL", principale: true, cella: (s) => (
             <button
               type="button"
-              aria-label={`Apri SAL ${s.numero_sal}`}
+              aria-label={t("Apri SAL {numero_sal}", { numero_sal: String(s.numero_sal ?? "") })}
               className="inline-flex items-center gap-1 font-semibold text-primary underline-offset-2 hover:underline"
               onClick={(event) => {
                 apertura.current = event.currentTarget;
                 setSelezionato(s.id);
               }}
             >
-              SAL #{s.numero_sal}<ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+              {t("SAL #{numero_sal}", { numero_sal: String(s.numero_sal ?? "") })}<ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
           ) },
-          { titolo: "Data", cella: (s) => <span className="whitespace-nowrap">{data(s.data_emissione)}</span> },
-          { titolo: "Lordo", destra: true, cella: (s) => euroSub(Number(s.importo_lordo)) },
-          { titolo: "Ritenuta", destra: true, cella: (s) => <>{euroSub(Number(s.ritenuta_importo))}<span className="block text-xs text-muted-foreground">{s.ritenuta_pct}%</span></> },
-          { titolo: "Netto", destra: true, cella: (s) => <span className="font-medium">{euroSub(Number(s.importo_netto))}</span> },
-          { titolo: "Pagato", destra: true, cella: (s) => euroSub(pagatoSal(s)) },
-          { titolo: "Da pagare", destra: true, cella: (s) => s.stato === "contestato" ? "—" : <span className="font-medium">{euroSub(residuoSal(s))}</span> },
-          { titolo: "Stato", cella: (s) => <Stato stato={s.stato}>{statiSAL[s.stato]}</Stato> },
-          { titolo: "Azioni", destra: true, cella: (s) => (
+          { titolo: t("Data"), cella: (s) => <span className="whitespace-nowrap">{data(s.data_emissione)}</span> },
+          { titolo: t("Lordo"), destra: true, cella: (s) => euroSub(Number(s.importo_lordo)) },
+          { titolo: t("Ritenuta"), destra: true, cella: (s) => <>{euroSub(Number(s.ritenuta_importo))}<span className="block text-xs text-muted-foreground">{s.ritenuta_pct}%</span></> },
+          { titolo: t("Netto"), destra: true, cella: (s) => <span className="font-medium">{euroSub(Number(s.importo_netto))}</span> },
+          { titolo: t("Pagato"), destra: true, cella: (s) => euroSub(pagatoSal(s)) },
+          { titolo: t("Da pagare"), destra: true, cella: (s) => s.stato === "contestato" ? "—" : <span className="font-medium">{euroSub(residuoSal(s))}</span> },
+          { titolo: t("Stato"), cella: (s) => <Stato stato={s.stato}>{t(statiSAL[s.stato])}</Stato> },
+          { titolo: t("Azioni"), destra: true, cella: (s) => (
             <div className="flex flex-wrap justify-end gap-1">
-              <Button size="sm" variant="ghost" aria-label={`Verbale del SAL ${s.numero_sal}`} onClick={() => onVerbale(s)}><FileText className="h-4 w-4" /></Button>
-              {canWrite && s.stato === "ricevuto" && <Button size="sm" variant="outline" disabled={approvazioneInCorso} onClick={() => onApprova(s)}>Approva</Button>}
-              {canWrite && s.stato === "verificato" && <Button size="sm" variant="outline" onClick={() => onPagamento(s)}>Paga</Button>}
+              <Button size="sm" variant="ghost" aria-label={t("Verbale del SAL {numero_sal}", { numero_sal: String(s.numero_sal ?? "") })} onClick={() => onVerbale(s)}><FileText className="h-4 w-4" /></Button>
+              {canWrite && s.stato === "ricevuto" && <Button size="sm" variant="outline" disabled={approvazioneInCorso} onClick={() => onApprova(s)}>{t("Approva")}</Button>}
+              {canWrite && s.stato === "verificato" && <Button size="sm" variant="outline" onClick={() => onPagamento(s)}>{t("Paga")}</Button>}
             </div>
           ) },
         ]} />
@@ -249,7 +252,7 @@ export function SALContabilita({
           className="flex max-h-[90dvh] max-w-2xl flex-col gap-0 overflow-hidden p-0"
         >
           <DialogHeader className="border-b p-5 pr-12">
-            <DialogTitle>SAL #{corrente?.numero_sal}</DialogTitle>
+            <DialogTitle>{t("SAL #{numero_sal}", { numero_sal: String(corrente?.numero_sal ?? "") })}</DialogTitle>
             <DialogDescription>
               {contratto} · {corrente && data(corrente.data_emissione)}
             </DialogDescription>
@@ -257,39 +260,37 @@ export function SALContabilita({
           {corrente && (
             <>
               <div className="space-y-5 overflow-y-auto p-5">
-                <Stato stato={corrente.stato}>{statiSAL[corrente.stato]}</Stato>
+                <Stato stato={corrente.stato}>{t(statiSAL[corrente.stato])}</Stato>
                 <div className="grid gap-3 sm:grid-cols-3">
                   <Importo
-                    titolo="Lordo"
+                    titolo={t("Lordo")}
                     valore={Number(corrente.importo_lordo)}
                   />
                   <Importo
-                    titolo={`Ritenuta di garanzia (${corrente.ritenuta_pct}%)`}
+                    titolo={t("Ritenuta di garanzia ({ritenuta_pct}%)", { ritenuta_pct: String(corrente.ritenuta_pct ?? "") })}
                     valore={Number(corrente.ritenuta_importo)}
                   />
                   <Importo
-                    titolo="Netto SAL"
+                    titolo={t("Netto SAL")}
                     valore={Number(corrente.importo_netto)}
                   />
                 </div>
-                {pagatoSal(corrente)>0 && corrente.stato!=="pagato" && <p className="rounded-lg border bg-blue-50 p-3 text-sm">Pagato {euroSub(pagatoSal(corrente))} · Residuo {euroSub(residuoSal(corrente))}</p>}
+                {pagatoSal(corrente)>0 && corrente.stato!=="pagato" && <p className="rounded-lg border bg-blue-50 p-3 text-sm">{t("Pagato {valore} · Residuo {valore2}", { valore: euroSub(pagatoSal(corrente)), valore2: euroSub(residuoSal(corrente)) })}</p>}
                 {corrente.stato === "pagato" ? (
                   <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-900">
-                    <p className="font-medium">
-                      Pagamento registrato · {data(corrente.data_pagamento)}
-                    </p>
+                    <p className="font-medium">{t("Pagamento registrato · {data_pagamento}", { data_pagamento: String(data(corrente.data_pagamento) ?? "") })}</p>
                     <dl className="mt-3 space-y-2">
                       <div>
-                        <dt className="text-xs">Modalità</dt>
+                        <dt className="text-xs">{t("Modalità")}</dt>
                         <dd>
                           {corrente.payment_method?.replaceAll("_", " ") ||
-                            "Non indicata"}
+                            t("Non indicata")}
                         </dd>
                       </div>
                       <div>
-                        <dt className="text-xs">Riferimento</dt>
+                        <dt className="text-xs">{t("Riferimento")}</dt>
                         <dd className="break-words">
-                          {corrente.payment_reference || "Non indicato"}
+                          {corrente.payment_reference || t("Non indicato")}
                         </dd>
                       </div>
                     </dl>
@@ -297,13 +298,13 @@ export function SALContabilita({
                 ) : (
                   <p className="rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">
                     {corrente.stato === "contestato"
-                      ? "SAL contestato: escluso dai totali del maturato e del netto non pagato."
-                      : "Il netto SAL è distinto da fatture, esigibilità e pagamento. Registra soltanto pagamenti già eseguiti."}
+                      ? t("SAL contestato: escluso dai totali del maturato e del netto non pagato.")
+                      : t("Il netto SAL è distinto da fatture, esigibilità e pagamento. Registra soltanto pagamenti già eseguiti.")}
                   </p>
                 )}
                 {corrente.note && (
                   <section>
-                    <h3 className="text-sm font-medium">Note</h3>
+                    <h3 className="text-sm font-medium">{t("Note")}</h3>
                     <p className="mt-2 whitespace-pre-wrap break-words text-sm text-muted-foreground">
                       {corrente.note}
                     </p>
@@ -312,12 +313,12 @@ export function SALContabilita({
               </div>
               <DialogFooter className="flex-wrap gap-2 border-t bg-background p-4 sm:justify-between">
                 <Button variant="outline" onClick={() => setSelezionato(null)}>
-                  Torna ai SAL
+                  {t("Torna ai SAL")}
                 </Button>
                 <div className="flex flex-wrap gap-2">
                   <Button variant="outline" onClick={() => onVerbale(corrente)}>
                     <FileText className="mr-2 h-4 w-4" />
-                    Verbale e allegati
+                    {t("Verbale e allegati")}
                   </Button>
                   {canWrite && corrente.stato === "ricevuto" && (
                     <>
@@ -325,19 +326,19 @@ export function SALContabilita({
                         variant="outline"
                         onClick={() => onContesta(corrente)}
                       >
-                        Contesta
+                        {t("Contesta")}
                       </Button>
                       <Button
                         disabled={approvazioneInCorso}
                         onClick={() => onApprova(corrente)}
                       >
-                        {approvazioneInCorso ? "Verifica…" : "Approva SAL"}
+                        {approvazioneInCorso ? t("Verifica…") : t("Approva SAL")}
                       </Button>
                     </>
                   )}
                   {canWrite && corrente.stato === "verificato" && (
                     <Button onClick={() => onPagamento(corrente)}>
-                      Registra pagamento
+                      {t("Registra pagamento")}
                     </Button>
                   )}
                 </div>
@@ -365,6 +366,7 @@ export function RitenuteContabilita({
   onSvincola: (id: string) => void;
   onVerbale: (sal: SALSubappaltatore) => void;
 }) {
+  const t = useT();
   const [selezionato, setSelezionato] = useState<string | null>(null);
   const apertura = useRef<HTMLButtonElement | null>(null);
   const [ricerca, setRicerca] = useState("");
@@ -391,24 +393,24 @@ export function RitenuteContabilita({
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-3">
         <Importo
-          titolo="Registro: trattenute"
+          titolo={t("Registro: trattenute")}
           valore={trattenute.reduce((a, r) => a + Number(r.importo), 0)}
-          nota={`${trattenute.length} registrazioni`}
+          nota={t("{n} registrazioni", { n: trattenute.length })}
         />
         <Importo
-          titolo="Registro: svincolate"
+          titolo={t("Registro: svincolate")}
           valore={ritenute
             .filter((r) => r.stato === "svincolata")
             .reduce((a, r) => a + Number(r.importo), 0)}
-          nota="Lo svincolo non è un pagamento"
+          nota={t("Lo svincolo non è un pagamento")}
         />
         <div className="rounded-lg border bg-background p-3">
           <p className="text-xs text-muted-foreground">
-            Date previste da verificare
+            {t("Date previste da verificare")}
           </p>
           <p className="mt-1 text-lg font-semibold">{imminenti.length}</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Entro 30 giorni o già trascorse · nessun automatismo
+            {t("Entro 30 giorni o già trascorse · nessun automatismo")}
           </p>
         </div>
       </div>
@@ -419,10 +421,7 @@ export function RitenuteContabilita({
         onStato={setStato}
         stati={statiRitenuta}
       />
-      <p className="text-xs text-muted-foreground">
-        {filtrate.length} di {ritenute.length} registrazioni · seleziona una
-        ritenuta per i dettagli
-      </p>
+      <p className="text-xs text-muted-foreground">{t("{n} di {n2} registrazioni · seleziona una ritenuta per i dettagli", { n: filtrate.length, n2: ritenute.length })}</p>
       {filtrate.length === 0 ? (
         <NessunRisultato
           onReset={() => {
@@ -445,7 +444,7 @@ export function RitenuteContabilita({
               <button
                 type="button"
                 key={r.id}
-                aria-label={`Apri ritenuta ${collegato ? `SAL ${collegato.numero_sal}` : euroSub(Number(r.importo))}`}
+                aria-label={t("Apri ritenuta {rif}", { rif: collegato ? `SAL ${collegato.numero_sal}` : euroSub(Number(r.importo)) })}
                 onClick={(event) => {
                   apertura.current = event.currentTarget;
                   setSelezionato(r.id);
@@ -456,12 +455,12 @@ export function RitenuteContabilita({
                   <p className="text-lg font-semibold tabular-nums">
                     {euroSub(Number(r.importo))}
                   </p>
-                  <Stato stato={r.stato}>{statiRitenuta[r.stato]}</Stato>
+                  <Stato stato={r.stato}>{t(statiRitenuta[r.stato])}</Stato>
                 </div>
                 <p className="mt-2 text-sm">
                   {collegato
-                    ? `SAL #${collegato.numero_sal} · ${data(collegato.data_emissione)}`
-                    : "SAL di origine non disponibile"}
+                    ? t("SAL #{numero_sal} · {data_emissione}", { numero_sal: String(collegato.numero_sal ?? ""), data_emissione: String(data(collegato.data_emissione) ?? "") })
+                    : t("SAL di origine non disponibile")}
                 </p>
                 <div className="mt-3 flex items-center justify-between gap-2 border-t pt-3 text-xs">
                   <span
@@ -470,8 +469,8 @@ export function RitenuteContabilita({
                     }
                   >
                     {r.stato === "svincolata"
-                      ? `Svincolata · ${data(r.data_svincolo_effettiva)}`
-                      : `Data prevista · ${data(r.data_svincolo_prevista)}${scaduta ? " · da verificare" : ""}`}
+                      ? t("Svincolata · {data_svincolo_effettiva}", { data_svincolo_effettiva: String(data(r.data_svincolo_effettiva) ?? "") })
+                      : `${t("Data prevista · {data}", { data: data(r.data_svincolo_prevista) })}${scaduta ? ` ${t("· da verificare")}` : ""}`}
                   </span>
                   <ArrowUpRight className="h-4 w-4 shrink-0" />
                 </div>
@@ -494,10 +493,10 @@ export function RitenuteContabilita({
           className="flex max-h-[90dvh] max-w-xl flex-col gap-0 overflow-hidden p-0"
         >
           <DialogHeader className="border-b p-5 pr-12">
-            <DialogTitle>Ritenuta di garanzia</DialogTitle>
+            <DialogTitle>{t("Ritenuta di garanzia")}</DialogTitle>
             <DialogDescription>
               {contratto}
-              {salCollegato ? ` · SAL #${salCollegato.numero_sal}` : ""}
+              {salCollegato ? ` ${t("· SAL #{numero_sal}", { numero_sal: String(salCollegato.numero_sal ?? "") })}` : ""}
             </DialogDescription>
           </DialogHeader>
           {corrente && (
@@ -508,13 +507,13 @@ export function RitenuteContabilita({
                     {euroSub(Number(corrente.importo))}
                   </p>
                   <Stato stato={corrente.stato}>
-                    {statiRitenuta[corrente.stato]}
+                    {t(statiRitenuta[corrente.stato])}
                   </Stato>
                 </div>
                 <dl className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <dt className="text-xs text-muted-foreground">
-                      Data di svincolo prevista
+                      {t("Data di svincolo prevista")}
                     </dt>
                     <dd className="mt-1 text-sm">
                       {data(corrente.data_svincolo_prevista)}
@@ -522,7 +521,7 @@ export function RitenuteContabilita({
                   </div>
                   <div>
                     <dt className="text-xs text-muted-foreground">
-                      Data di svincolo effettiva
+                      {t("Data di svincolo effettiva")}
                     </dt>
                     <dd className="mt-1 text-sm">
                       {data(corrente.data_svincolo_effettiva)}
@@ -530,7 +529,7 @@ export function RitenuteContabilita({
                   </div>
                   <div>
                     <dt className="text-xs text-muted-foreground">
-                      Registrata il
+                      {t("Registrata il")}
                     </dt>
                     <dd className="mt-1 text-sm">
                       {data(corrente.created_at)}
@@ -539,21 +538,19 @@ export function RitenuteContabilita({
                 </dl>
                 {corrente.note && (
                   <section>
-                    <h3 className="text-sm font-medium">Note e riferimenti</h3>
+                    <h3 className="text-sm font-medium">{t("Note e riferimenti")}</h3>
                     <p className="mt-2 whitespace-pre-wrap break-words text-sm text-muted-foreground">
                       {corrente.note}
                     </p>
                   </section>
                 )}
                 <p className="rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">
-                  Lo svincolo richiede la verifica dei presupposti e un
-                  riferimento documentale. La data prevista non autorizza lo
-                  svincolo e non registra un pagamento.
+                  {t("Lo svincolo richiede la verifica dei presupposti e un riferimento documentale. La data prevista non autorizza lo svincolo e non registra un pagamento.")}
                 </p>
               </div>
               <DialogFooter className="flex-wrap gap-2 border-t p-4 sm:justify-between">
                 <Button variant="outline" onClick={() => setSelezionato(null)}>
-                  Torna alle ritenute
+                  {t("Torna alle ritenute")}
                 </Button>
                 <div className="flex flex-wrap gap-2">
                   {salCollegato && (
@@ -562,13 +559,13 @@ export function RitenuteContabilita({
                       onClick={() => onVerbale(salCollegato)}
                     >
                       <FileText className="mr-2 h-4 w-4" />
-                      Verbale SAL
+                      {t("Verbale SAL")}
                     </Button>
                   )}
                   {canRelease && corrente.stato === "trattenuta" && (
                     <Button onClick={() => onSvincola(corrente.id)}>
                       <ShieldCheck className="mr-2 h-4 w-4" />
-                      Gestisci svincolo
+                      {t("Gestisci svincolo")}
                     </Button>
                   )}
                 </div>

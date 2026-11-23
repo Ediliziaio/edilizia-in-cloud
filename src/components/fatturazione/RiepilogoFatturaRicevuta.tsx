@@ -51,6 +51,7 @@ import { useExpensePaymentDetail } from "@/hooks/useExpensePaymentDetail";
 import { VerificaPrimaDelPagamento } from "@/components/operazioni/VerificaPrimaDelPagamento";
 import { PrezziListinoFattura } from "@/components/fatturazione/PrezziListinoFattura";
 import { ExpensePaymentSummary } from "@/components/orders/ExpensePaymentSummary";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 import "./riepilogo-ricevuta.css";
 
 /**
@@ -272,6 +273,7 @@ function ContenutoRiepilogo({
   apriConfronto = false,
   analisiDaAprire,
 }: PropsRiepilogo) {
+  const t = useT();
   const aspettoGenerale = useAspettoOperativo();
   const isMobile = useIsMobile();
   // In mezzo allo schermo come gli altri documenti; da telefono resta il foglio dal basso.
@@ -333,9 +335,9 @@ function ContenutoRiepilogo({
     },
     onSuccess: (n) => {
       aggiorna();
-      toast.success(n > 1 ? `Collegate al fornitore ${n} fatture` : "Fattura collegata al fornitore");
+      toast.success(n > 1 ? t("Collegate al fornitore {n} fatture", { n: String(n ?? "") }) : t("Fattura collegata al fornitore"));
     },
-    onError: (e: Error) => toast.error("Collegamento non riuscito", { description: e.message }),
+    onError: (e: Error) => toast.error(t("Collegamento non riuscito"), { description: e.message }),
   });
   // Il cedente non è in anagrafica: la scheda nasce dai dati della fattura.
   const aggiungiFornitore = useMutation({
@@ -353,13 +355,13 @@ function ContenutoRiepilogo({
         country: x.cedente_paese || null,
       }).select("id").single();
       if (error) {
-        if (error.code === "42501") throw new Error("Non hai il permesso di aggiungere fornitori: chiedi all'amministratore.");
+        if (error.code === "42501") throw new Error(t("Non hai il permesso di aggiungere fornitori: chiedi all'amministratore."));
         throw error;
       }
       return String(data.id);
     },
     onSuccess: (id) => collegaFornitore.mutate(id),
-    onError: (e: Error) => toast.error("Fornitore non aggiunto", { description: e.message }),
+    onError: (e: Error) => toast.error(t("Fornitore non aggiunto"), { description: e.message }),
   });
   // La commessa senza ordine d'acquisto: commessa_collega_fattura_ricevuta (la stessa
   // della scheda commessa) contabilizza se serve e porta il costo sulla commessa.
@@ -372,9 +374,9 @@ function ContenutoRiepilogo({
     onSuccess: (esito) => {
       aggiorna();
       queryClient.invalidateQueries({ queryKey: ["oda-contabilita"] });
-      toast.success(esito?.esito === "contabilizzata_e_collegata" ? "Fattura contabilizzata e messa sulla commessa" : "Fattura messa sulla commessa");
+      toast.success(esito?.esito === "contabilizzata_e_collegata" ? t("Fattura contabilizzata e messa sulla commessa") : t("Fattura messa sulla commessa"));
     },
-    onError: (e: Error) => toast.error("Commessa non collegata", { description: e.message }),
+    onError: (e: Error) => toast.error(t("Commessa non collegata"), { description: e.message }),
   });
   const occupato = collegaFornitore.isPending || aggiungiFornitore.isPending || collegaCommessa.isPending;
 
@@ -423,7 +425,7 @@ function ContenutoRiepilogo({
   const chiudiRiepilogo = () => {
     if (contiRighe.salvando) return;
     if (contiRighe.modificati) {
-      toast.info("Ci sono conti non salvati", { description: "Usa «Salva conti della fattura» oppure «Annulla modifiche ai conti» prima di chiudere." });
+      toast.info(t("Ci sono conti non salvati"), { description: t("Usa «Salva conti della fattura» oppure «Annulla modifiche ai conti» prima di chiudere.") });
       return;
     }
     onClose();
@@ -441,12 +443,12 @@ function ContenutoRiepilogo({
     const vista = typeof f?.xml_raw === "string" ? fatturaRicevutaHtml(f.xml_raw, new DOMParser(), { indiceCorpo: Number(f.indice_corpo ?? 0) }) : null;
     if (vista) setVistaCompleta(vista);
     else if (azioni.onVersioneCompleta) azioni.onVersioneCompleta();
-    else toast.error("Il file non è una fattura elettronica leggibile", { description: "Scarica il file originale per consultarlo." });
+    else toast.error(t("Il file non è una fattura elettronica leggibile"), { description: t("Scarica il file originale per consultarlo.") });
   };
   const scaricaOriginale = async () => {
     if (!f?.xml_raw && !f?.xml_url && azioni.onScaricaOriginale) { azioni.onScaricaOriginale(); return; }
     try { if (f) await scaricaOriginaleRicevuta(f); }
-    catch (e) { toast.error("Impossibile scaricare il file originale", { description: e instanceof Error ? e.message : undefined }); }
+    catch (e) { toast.error(t("Impossibile scaricare il file originale"), { description: e instanceof Error ? e.message : undefined }); }
   };
   const imponibile = f?.imponibile_totale != null ? Number(f.imponibile_totale) : aliquote.reduce((s, a) => s + a.imponibile, 0);
   const iva = f?.iva_totale != null ? Number(f.iva_totale) : aliquote.reduce((s, a) => s + a.imposta, 0);
@@ -482,7 +484,7 @@ function ContenutoRiepilogo({
           <div className="ricevuta-testata-riga">
             <div className="ricevuta-identita">
               <SheetTitle className="ricevuta-fornitore text-lg leading-tight">{String(f?.cedente_ragione_sociale || "Fattura ricevuta")}</SheetTitle>
-              {f && (f.cedente_piva || f.cedente_cf || indirizzo) ? <div aria-label="Dati del fornitore" className="ricevuta-anagrafica text-muted-foreground">
+              {f && (f.cedente_piva || f.cedente_cf || indirizzo) ? <div aria-label={t("Dati del fornitore")} className="ricevuta-anagrafica text-muted-foreground">
                 <div className="flex flex-wrap gap-x-3">
                   {f.cedente_piva ? <span>P.IVA {String(f.cedente_piva)}</span> : null}
                   {f.cedente_cf && f.cedente_cf !== f.cedente_piva ? <span>C.F. {String(f.cedente_cf)}</span> : null}
@@ -490,24 +492,24 @@ function ContenutoRiepilogo({
                 {indirizzo ? <p>{indirizzo}</p> : null}
               </div> : null}
             </div>
-            {f && <div role="group" aria-label="Azioni della fattura" className="ricevuta-azioni">
+            {f && <div role="group" aria-label={t("Azioni della fattura")} className="ricevuta-azioni">
               {haXml && <>
-                <Button variant="outline" size="sm" title="Versione completa e stampa" aria-label="Versione completa e stampa" onClick={apriCompleta}><FileText />Versione completa</Button>
-                <Button variant="outline" size="sm" title="Scarica il file originale" aria-label="Scarica il file originale" onClick={() => void scaricaOriginale()}><Download />Originale</Button>
+                <Button variant="outline" size="sm" title={t("Versione completa e stampa")} aria-label={t("Versione completa e stampa")} onClick={apriCompleta}><FileText />{t("Versione completa")}</Button>
+                <Button variant="outline" size="sm" title={t("Scarica il file originale")} aria-label={t("Scarica il file originale")} onClick={() => void scaricaOriginale()}><Download />{t("Originale")}</Button>
               </>}
-              {permessi.canViewCosts && <Button variant="outline" size="sm" title="Confronta con DDT e ordini" aria-label="Confronta con DDT e ordini" onClick={() => setConfronto(true)}><ArrowLeftRight />DDT e ordini</Button>}
+              {permessi.canViewCosts && <Button variant="outline" size="sm" title={t("Confronta con DDT e ordini")} aria-label={t("Confronta con DDT e ordini")} onClick={() => setConfronto(true)}><ArrowLeftRight />{t("DDT e ordini")}</Button>}
             </div>}
           </div>
           <SheetDescription className="text-sm">
-            {f ? <>{nomeTipoDocumento(String(f.tipo_documento ?? ""))} n. {String(f.numero_fattura ?? "—")} · emessa il {formatDateShort(String(f.data_fattura ?? ""))}
-              {f.data_ricezione_sdi ? ` · arrivata dallo SDI il ${formatDateShort(String(f.data_ricezione_sdi))}` : ""}</> : "Caricamento del documento"}
+            {f ? <>{nomeTipoDocumento(String(f.tipo_documento ?? ""))} n. {String(f.numero_fattura ?? "—")} · {t("emessa il {data}", { data: formatDateShort(String(f.data_fattura ?? "")) })}
+              {f.data_ricezione_sdi ? ` · ${t("arrivata dallo SDI il {data}", { data: formatDateShort(String(f.data_ricezione_sdi)) })}` : ""}</> : t("Caricamento del documento")}
           </SheetDescription>
         </SheetHeader>
         <div className="commessa-modal-body">
         {isLoading || !f ? (
           <div className="space-y-3 pt-6">
             {error ? (
-              <p className="text-sm text-destructive">Non riesco a leggere la fattura: {(error as Error).message}</p>
+              <p className="text-sm text-destructive">{t("Non riesco a leggere la fattura: {message}", { message: String((error as Error).message ?? "") })}</p>
             ) : (
               <>
                 <Skeleton className="h-6 w-2/3" />
@@ -532,7 +534,7 @@ function ContenutoRiepilogo({
 
             {anomalie.length > 0 && (
               <section className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
-                <p className="flex items-center gap-1.5 font-medium"><AlertTriangle className="h-4 w-4" /> Da controllare</p>
+                <p className="flex items-center gap-1.5 font-medium"><AlertTriangle className="h-4 w-4" /> {t("Da controllare")}</p>
                 <ul className="mt-1 list-disc pl-5">{anomalie.map((a) => <li key={a}>{a}</li>)}</ul>
               </section>
             )}
@@ -540,9 +542,9 @@ function ContenutoRiepilogo({
             <div className="ricevuta-overview">
             {/* Collegamenti */}
             <section className="ricevuta-collegamenti rounded-lg border p-3 space-y-2">
-              <h3 className="text-sm font-semibold flex items-center gap-1.5"><Link2 className="h-4 w-4" /> A cosa è collegata</h3>
+              <h3 className="text-sm font-semibold flex items-center gap-1.5"><Link2 className="h-4 w-4" /> {t("A cosa è collegata")}</h3>
               <dl className="grid grid-cols-[6.5rem_1fr] items-baseline gap-x-3 gap-y-2 text-sm sm:grid-cols-[8.5rem_1fr]">
-                <dt className="text-muted-foreground">Fornitore</dt>
+                <dt className="text-muted-foreground">{t("Fornitore")}</dt>
                 <dd>
                   {d.fornitore ? (
                     <span className="flex flex-wrap items-center gap-1.5">
@@ -550,81 +552,79 @@ function ContenutoRiepilogo({
                       {isTipoFornitore(d.fornitore.tipo) ? (
                         <Badge variant="secondary" className="text-[11px]">{INFO_TIPO_FORNITORE[d.fornitore.tipo].etichetta}</Badge>
                       ) : (
-                        <Link to="/azienda/documenti/tipi-fornitori" className="text-xs text-primary underline-offset-2 hover:underline">Dai un tipo</Link>
+                        <Link to="/azienda/documenti/tipi-fornitori" className="text-xs text-primary underline-offset-2 hover:underline">{t("Dai un tipo")}</Link>
                       )}
                     </span>
                   ) : (
                     <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span className="text-muted-foreground">Non in anagrafica</span>
+                      <span className="text-muted-foreground">{t("Non in anagrafica")}</span>
                       {d.candidatiFornitore.length === 1 ? (
                         <Button variant="link" size="sm" className="h-auto min-h-0 min-w-0 p-0 text-xs" disabled={occupato}
                           onClick={() => collegaFornitore.mutate(d.candidatiFornitore[0].id)}>
-                          Collega a {d.candidatiFornitore[0].name}
-                          {d.daCollegareStessoCedente.length > 1 ? ` (con le altre ${d.daCollegareStessoCedente.length - 1})` : ""}
+                          {t("Collega a {nome}", { nome: String(d.candidatiFornitore[0].name ?? "") })}
+                          {d.daCollegareStessoCedente.length > 1 ? ` ${t("(con le altre {n})", { n: d.daCollegareStessoCedente.length - 1 })}` : ""}
                         </Button>
                       ) : d.candidatiFornitore.length === 0 && d.schedeDiscordanti.length > 0 ? (
-                        <span className="text-xs text-muted-foreground">
-                          C'è già «{d.schedeDiscordanti[0].name}» con questa partita IVA ma un codice fiscale diverso: correggi la scheda in Anagrafiche
-                        </span>
+                        <span className="text-xs text-muted-foreground">{t("C'è già «{name}» con questa partita IVA ma un codice fiscale diverso: correggi la scheda in Anagrafiche", { name: String(d.schedeDiscordanti[0].name ?? "") })}</span>
                       ) : d.candidatiFornitore.length > 1 ? (
-                        <span className="text-xs text-muted-foreground">{d.candidatiFornitore.length} schede con questa partita IVA: scegli in Anagrafiche</span>
+                        <span className="text-xs text-muted-foreground">{t("{n} schede con questa partita IVA: scegli in Anagrafiche", { n: d.candidatiFornitore.length })}</span>
                       ) : (
                         <Button variant="link" size="sm" className="h-auto min-h-0 min-w-0 p-0 text-xs" disabled={occupato}
                           onClick={() => aggiungiFornitore.mutate()}>
-                          Aggiungi ai fornitori
-                          {d.daCollegareStessoCedente.length > 1 ? ` (e collega le sue ${d.daCollegareStessoCedente.length} fatture)` : ""}
+                          {t("Aggiungi ai fornitori")}
+                          {d.daCollegareStessoCedente.length > 1 ? ` ${t("(e collega le sue {n} fatture)", { n: d.daCollegareStessoCedente.length })}` : ""}
                         </Button>
                       )}
                     </span>
                   )}
                 </dd>
 
-                <dt className="text-muted-foreground">Ordini d'acquisto</dt>
+                <dt className="text-muted-foreground">{t("Ordini d'acquisto")}</dt>
                 <dd className="flex flex-wrap items-center gap-1.5">
-                  {d.ordini.length === 0 ? <span className="text-muted-foreground">Nessuno</span> : d.ordini.map((o) => (
+                  {d.ordini.length === 0 ? <span className="text-muted-foreground">{t("Nessuno")}</span> : d.ordini.map((o) => (
                     <Link key={o.id} to={percorsoDocumentoGenerale(`/azienda/ordini-acquisto/${o.id}`, aspettoGenerale?.generaleId)} className="min-w-0 max-w-full underline-offset-2 hover:underline">
                       <Badge variant="outline" className="max-w-full whitespace-normal text-left [overflow-wrap:anywhere]">{o.oda_number}{o.importo != null ? ` · ${formatCurrency(o.importo)}` : ""}</Badge>
                     </Link>
                   ))}
                   {azioni.onCollegaOrdine && f.stato !== "contabilizzata" ? (
                     <Button variant="link" size="sm" className="h-auto min-h-0 min-w-0 p-0 text-xs" onClick={azioni.onCollegaOrdine}>
-                      {d.ordini.length ? "Cambia" : "Collega"}
+                      {d.ordini.length ? t("Cambia") : t("Collega")}
                     </Button>
                   ) : null}
                 </dd>
 
                 {permessi.canViewCosts && <>
-                  <dt className="text-muted-foreground">Conto di costo</dt>
+                  <dt className="text-muted-foreground">{t("Conto di costo")}</dt>
                   <dd>{f.stato !== "rifiutata" && !nota && !permessi.solaLettura ? (<ContoDiCosto
                         companyId={companyId!}
                         fatturaId={String(f.id)}
                         costoId={d.costo?.id ?? null}
                         attuale={d.costo ? d.costo.category : (f.categoria_ai ? String(f.categoria_ai) : null)}
                         onCambiato={aggiorna}
-                      />) : <span>{d.costo?.category || String(f.categoria_ai || "Non indicato")}</span>}</dd>
+                      />) : <span>{d.costo?.category || String(f.categoria_ai || t("Non indicato"))}</span>}</dd>
                 </>}
-                <dt className="text-muted-foreground">Commessa</dt>
+                <dt className="text-muted-foreground">{t("Commessa")}</dt>
                 <dd className="min-w-0 space-y-1">
                   {permessi.canViewCosts && riparto.length > 0 ? (
-                    <table aria-label="Quote per destinazione" className="ricevuta-quote text-sm">
+                    <table aria-label={t("Quote per destinazione")} className="ricevuta-quote text-sm">
                       <tbody>{riparto.map(r => <tr key={r.id ?? r.nome}>
                         <td className="pr-3">{r.id ? <Link title={r.nome} className="text-primary hover:underline" to={`/azienda/ordini/${r.id}`}>
                           {r.nome.split(" · ")[0]} · <span>{r.codice}</span>
                         </Link> : r.nome}</td>
-                        <td className="pr-3 text-right whitespace-nowrap tabular-nums text-muted-foreground">{r.percentuale == null ? "—" : r.percentuale.toLocaleString("it-IT", { maximumFractionDigits: 2 }) + "%"}</td>
+                        <td className="pr-3 text-right whitespace-nowrap tabular-nums text-muted-foreground">{r.percentuale == null ? "—" : r.percentuale.toLocaleString(intlCampo(), { maximumFractionDigits: 2 }) + "%"}</td>
                         <td className="text-right whitespace-nowrap tabular-nums">{formatCurrency(r.centesimi / 100)}</td>
                       </tr>)}</tbody>
                     </table>
-                  ) : <span>{[...new Set([d.costo?.commessa?.order_code, ...d.ordini.map(o => o.commessa?.order_code)].filter(Boolean))].join(", ") || "Nessuna"}</span>}
+                  ) : <span>{[...new Set([d.costo?.commessa?.order_code, ...d.ordini.map(o => o.commessa?.order_code)].filter(Boolean))].join(", ") || t("Nessuna")}</span>}
                   {permessi.canViewCosts && !permessi.solaLettura && !nota && f.stato !== "rifiutata" && !d.ordini.length && <>
                     <Button variant="link" size="sm" className="ml-1 h-auto min-h-0 p-0 text-xs" onClick={() => setModificaQuote(true)}>
-                      {riparto.some(r => r.id) ? "Modifica ripartizione" : "Ripartisci imponibile"}
+                      {riparto.some(r => r.id) ? t("Modifica ripartizione") : t("Ripartisci imponibile")}
                     </Button>
                     {d.suggerita && !riparto.some(r => r.id) && !(isTipoFornitore(d.fornitore?.tipo) && INFO_TIPO_FORNITORE[d.fornitore!.tipo as keyof typeof INFO_TIPO_FORNITORE].commessa === "no") && (
                       <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                        <Sparkles className="h-3.5 w-3.5 text-primary" /><span>{f.order_suggerito_motivo ? "Riferimento trovato" : "L'AI suggerisce"}</span>
+                        <Sparkles className="h-3.5 w-3.5 text-primary" /><span>{f.order_suggerito_motivo ? t("Riferimento trovato") : t("L'AI suggerisce")}</span>
                         <Badge variant="outline">{d.suggerita.order_code}{d.suggerita.nome ? ` · ${d.suggerita.nome}` : ""}</Badge>
-                        <Button variant="link" size="sm" className="h-auto min-h-0 p-0 text-xs" disabled={occupato} onClick={() => collegaCommessa.mutate(d.suggerita!.id)}>Collega</Button>
+                        <Button variant="link" size="sm" className="h-auto min-h-0 p-0 text-xs" disabled={occupato} onClick={() => collegaCommessa.mutate(d.suggerita!.id)}>{t("Collega")}</Button>
                       </div>
                     )}
                   </>}
@@ -640,7 +640,7 @@ function ContenutoRiepilogo({
                     primaNotaId={f.prima_nota_id ? String(f.prima_nota_id) : null} costoId={f.company_cost_id ? String(f.company_cost_id) : null}
                     vaiPrimaNota={permessi.canViewPrimaNota} vaiTesoreria={permessi.canViewTesoreria} vaiEmail={permessi.canViewMarketingEmail} />
                 )}
-                <dt className="text-muted-foreground">Verifica</dt>
+                <dt className="text-muted-foreground">{t("Verifica")}</dt>
                 <dd>
                   <VerificaFatturaPill id={String(f.id)} numero={f.numero_fattura ? String(f.numero_fattura) : null} puoCambiare={!!permessi.canViewCosts && !permessi.solaLettura}
                     verificata={fatturaVerificata({ stato: String(f.stato ?? ""), verifica_manuale: f.verifica_manuale ? String(f.verifica_manuale) : null })}
@@ -648,15 +648,15 @@ function ContenutoRiepilogo({
                   {f.verifica_manuale === "da_rettificare" && f.rettifica_motivo ? <p className="mt-1 text-xs text-muted-foreground">{String(f.rettifica_motivo)}</p> : null}
                 </dd>
 
-                <dt className="text-muted-foreground">Nei costi</dt>
+                <dt className="text-muted-foreground">{t("Nei costi")}</dt>
                 <dd>
                   {d.costo ? (
-                    <span>Sì, contabilizzata{d.costo.amount != null ? ` (${formatCurrency(d.costo.amount)})` : ""}</span>
+                    <span>{t("Sì, contabilizzata")}{d.costo.amount != null ? ` (${formatCurrency(d.costo.amount)})` : ""}</span>
                   ) : (
                     <span className="flex flex-wrap items-center gap-2">
-                      <span className="text-muted-foreground">Non ancora contabilizzata</span>
+                      <span className="text-muted-foreground">{t("Non ancora contabilizzata")}</span>
                       {azioni.onContabilizza && f.stato !== "rifiutata" ? (
-                        <Button variant="link" size="sm" className="h-auto min-h-0 min-w-0 p-0 text-xs" onClick={azioni.onContabilizza}>Contabilizza</Button>
+                        <Button variant="link" size="sm" className="h-auto min-h-0 min-w-0 p-0 text-xs" onClick={azioni.onContabilizza}>{t("Contabilizza")}</Button>
                       ) : null}
                     </span>
                   )}
@@ -670,37 +670,37 @@ function ContenutoRiepilogo({
               {azioni.extraCollegamenti?.(d)}
             </section>
 
-            <section ref={sezionePagamenti} aria-label="Pagamenti della fattura" className="ricevuta-pagamenti rounded-lg border p-3 space-y-3 scroll-mt-4">
-              <h3 className="text-sm font-semibold">Pagamenti e residuo</h3>
+            <section ref={sezionePagamenti} aria-label={t("Pagamenti della fattura")} className="ricevuta-pagamenti rounded-lg border p-3 space-y-3 scroll-mt-4">
+              <h3 className="text-sm font-semibold">{t("Pagamenti e residuo")}</h3>
               {statoPagamento && <ExpensePaymentSummary totale={Number(statoPagamento.totale)} pagato={Number(statoPagamento.pagato)} residuo={Number(statoPagamento.residuo)} />}
-              {pagamentoCosto.isError && <p role="alert" className="text-xs text-destructive">Pagamenti non disponibili. <Button variant="link" size="sm" onClick={() => void pagamentoCosto.refetch()}>Riprova</Button></p>}
-              {statoPagamento?.da_verificare && <p role="status" className="text-xs text-amber-800">Ci sono registrazioni storiche da confrontare prima di aggiungere un pagamento.</p>}
+              {pagamentoCosto.isError && <p role="alert" className="text-xs text-destructive">{t("Pagamenti non disponibili.")} <Button variant="link" size="sm" onClick={() => void pagamentoCosto.refetch()}>{t("Riprova")}</Button></p>}
+              {statoPagamento?.da_verificare && <p role="status" className="text-xs text-amber-800">{t("Ci sono registrazioni storiche da confrontare prima di aggiungere un pagamento.")}</p>}
               <dl className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
                 {!nonSiPaga(String(f.tipo_documento ?? "")) && <>
-                  <dt className="text-muted-foreground">{scadenze.length > 1 && !saldata ? "Prossima scadenza" : "Scadenza pagamento"}</dt>
+                  <dt className="text-muted-foreground">{scadenze.length > 1 && !saldata ? t("Prossima scadenza") : t("Scadenza pagamento")}</dt>
                   <dd>{scadenza?.data ? <>
                     <strong>{formatDateShort(scadenza.data)}</strong>
                     {scadenza.importo != null && ` · ${formatCurrency(scadenza.importo)}`}
                     {scadenza.metodo && ` · ${/^(riba|ri\.ba\.?)$/i.test(scadenza.metodo) ? "Ri.Ba." : scadenza.metodo}`}
-                  </> : "Non indicata"}</dd>
+                  </> : t("Non indicata")}</dd>
                 </>}
-                <dt className="text-muted-foreground">Pagamento</dt>
+                <dt className="text-muted-foreground">{t("Pagamento")}</dt>
                 <dd>
-                  <span>{statoPagamento ? (statoPagamento.da_verificare ? "Da verificare" : statoPagamento.residuo <= 0 ? "Saldata" : statoPagamento.pagato > 0 ? "Pagamento parziale" : "Non saldata") : f.pagata_il ? `Pagata il ${formatDateShort(String(f.pagata_il))}` :
-                    Number(f.rate_pagate) > 0 ? `Pagate ${f.rate_pagate} rate su ${f.rate_totali}` : saldata ? "Pagata" : "Non saldata"}</span>
+                  <span>{statoPagamento ? (statoPagamento.da_verificare ? t("Da verificare") : statoPagamento.residuo <= 0 ? t("Saldata") : statoPagamento.pagato > 0 ? t("Pagamento parziale") : t("Non saldata")) : f.pagata_il ? t("Pagata il {data}", { data: formatDateShort(String(f.pagata_il)) }) :
+                    Number(f.rate_pagate) > 0 ? t("Pagate {pagate} rate su {totali}", { pagate: String(f.rate_pagate ?? ""), totali: String(f.rate_totali ?? "") }) : saldata ? t("Pagata") : t("Non saldata")}</span>
                   {!nonSiPaga(String(f.tipo_documento ?? "")) && rateRegistrate.length > 0 && <div className="space-y-1">
-                    {!statoPagamento && <div className="font-medium">Residuo fattura · {rateNonSaldate.some(r => r.importo == null) ? "Da verificare" : formatCurrency(rateNonSaldate.reduce((somma,r) => somma + Math.round((r.importo ?? 0) * 100), 0) / 100)}</div>}
+                    {!statoPagamento && <div className="font-medium">{t("Residuo fattura")} · {rateNonSaldate.some(r => r.importo == null) ? t("Da verificare") : formatCurrency(rateNonSaldate.reduce((somma,r) => somma + Math.round((r.importo ?? 0) * 100), 0) / 100)}</div>}
                     {!saldata && rateNonSaldate.map(r => <div key={r.id || r.numero} className="flex flex-wrap items-center gap-2 text-xs">
-                      <span>Rata {r.numero} · {r.scadenza ? formatDateShort(r.scadenza) : "senza scadenza"}{r.importo != null && ` · ${formatCurrency(r.importo)}`}</span>
-                      {r.stato === "da_bloccare" && <span className="text-muted-foreground">Da bloccare</span>}
-                      {r.stato === "richiamata" && <span className="text-muted-foreground">Richiamata</span>}
+                      <span>{t("Rata {numero}", { numero: String(r.numero ?? "") })} · {r.scadenza ? formatDateShort(r.scadenza) : t("senza scadenza")}{r.importo != null && ` · ${formatCurrency(r.importo)}`}</span>
+                      {r.stato === "da_bloccare" && <span className="text-muted-foreground">{t("Da bloccare")}</span>}
+                      {r.stato === "richiamata" && <span className="text-muted-foreground">{t("Richiamata")}</span>}
                       {!d.costo && !siPagaNelPannello && permessi.canViewCosts && !permessi.solaLettura && r.id && r.importo != null && r.updated_at && statoConsentePagamentoRata(r.stato) &&
-                        <Button size="sm" variant="link" className="h-auto min-h-0 p-0 text-xs" aria-label={`Segna pagata la rata ${r.numero}`}
+                        <Button size="sm" variant="link" className="h-auto min-h-0 p-0 text-xs" aria-label={t("Segna pagata la rata {numero}", { numero: String(r.numero ?? "") })}
                           onClick={() => setRataScelta({ id: r.id, stato: r.stato, importo: r.importo!, updated_at: r.updated_at,
-                            titolo: `Rata ${r.numero} · ${f.numero_fattura ?? ""} · ${formatCurrency(r.importo!)}` })}>Segna pagata</Button>}
+                            titolo: `Rata ${r.numero} · ${f.numero_fattura ?? ""} · ${formatCurrency(r.importo!)}` })}>{t("Segna pagata")}</Button>}
                     </div>)}
                   </div>}
-                  {rateRegistrate.filter(r => r.stato === "pagata" || r.pagata_il).map(r => <div key={r.numero} className="text-xs text-muted-foreground">Rata {r.numero} · pagata{r.pagata_il ? ` il ${formatDateShort(r.pagata_il)}` : ""}</div>)}
+                  {rateRegistrate.filter(r => r.stato === "pagata" || r.pagata_il).map(r => <div key={r.numero} className="text-xs text-muted-foreground">{t("Rata {numero}", { numero: String(r.numero ?? "") })} · {r.pagata_il ? t("pagata il {data}", { data: formatDateShort(r.pagata_il) }) : t("pagata")}</div>)}
                 </dd>
 
 
@@ -709,8 +709,8 @@ function ContenutoRiepilogo({
                 ? <ExpensePaymentDialog inline key={pagamenti} costId={pagamenti} onClose={() => { setPagamenti(null); aggiorna(); }} />
                 : siPagaNelPannello && <div className="space-y-1">
                   <Button variant="outline" size="sm" disabled={perPagare.isPending} onClick={pagaFattura}>
-                    {perPagare.isPending ? "Preparo il pagamento…" : "Vedi movimenti e registra pagamento"}</Button>
-                  {!d.costo && <p className="text-xs text-muted-foreground">Non ancora contabilizzata: aprendo i pagamenti la fattura viene contabilizzata.</p>}
+                    {perPagare.isPending ? t("Preparo il pagamento…") : t("Vedi movimenti e registra pagamento")}</Button>
+                  {!d.costo && <p className="text-xs text-muted-foreground">{t("Non ancora contabilizzata: aprendo i pagamenti la fattura viene contabilizzata.")}</p>}
                 </div>}
             {/* Pagamento (01/11/2026): rate, metodo e quello che cambia quanto si paga al fornitore. */}
             {(() => {
@@ -719,31 +719,33 @@ function ContenutoRiepilogo({
               const giorno = (d: string | null) => (d ? d.slice(0, 10).split("-").reverse().join("/") : "senza data");
               return (
                 <details className="ricevuta-piano space-y-2 border-t pt-3 text-sm" open={!rateRegistrate.length}>
-                  <summary className="cursor-pointer font-medium">Scadenze indicate in fattura{p.condizioni ? <span className="font-normal text-muted-foreground"> · {p.condizioni}</span> : null}</summary>
-                  <p className="text-xs text-muted-foreground">Importi e date previsti nel documento. I versamenti effettivi si consultano dalla barra delle azioni.</p>
+                  <summary className="cursor-pointer font-medium">{t("Scadenze indicate in fattura")}{p.condizioni ? <span className="font-normal text-muted-foreground"> · {p.condizioni}</span> : null}</summary>
+                  <p className="text-xs text-muted-foreground">{t("Importi e date previsti nel documento. I versamenti effettivi si consultano dalla barra delle azioni.")}</p>
                   {p.rate.length > 0 && (
                     <ul className="divide-y">
                       {p.rate.map((r, i) => (
                         <li key={i} className="flex flex-wrap justify-between gap-x-3 py-1">
-                          <span>{p.rate.length > 1 ? `Rata ${i + 1} · ` : ""}{giorno(r.scadenza)}{r.metodo === "RiBa" ? " · Ri.Ba. (ricevuta bancaria)" : r.metodo ? ` · ${r.metodo}` : ""}{r.pagataIl ? <span className="text-emerald-700"> · pagata il {giorno(r.pagataIl)}</span> : null}</span>
+                          <span>{p.rate.length > 1 ? `${t("Rata {numero}", { numero: i + 1 })} · ` : ""}{giorno(r.scadenza)}{r.metodo === "RiBa" ? ` · ${t("Ri.Ba. (ricevuta bancaria)")}` : r.metodo ? ` · ${r.metodo}` : ""}{r.pagataIl ? <span className="text-emerald-700">{" · "}{t("pagata il {data}", { data: String(giorno(r.pagataIl) ?? "") })}</span> : null}</span>
                           <span className="tabular-nums">{r.importo != null ? formatCurrency(r.importo) : "—"}</span>
                         </li>
                       ))}
                     </ul>
                   )}
-                  {p.cassa ? <p className="flex justify-between text-muted-foreground"><span>Cassa previdenziale (nell'imponibile)</span><span className="tabular-nums">{formatCurrency(p.cassa)}</span></p> : null}
-                  {p.bollo ? <p className="flex justify-between text-muted-foreground"><span>Bollo</span><span className="tabular-nums">{formatCurrency(p.bollo)}</span></p> : null}
+                  {p.cassa ? <p className="flex justify-between text-muted-foreground"><span>{t("Cassa previdenziale (nell'imponibile)")}</span><span className="tabular-nums">{formatCurrency(p.cassa)}</span></p> : null}
+                  {p.bollo ? <p className="flex justify-between text-muted-foreground"><span>{t("Bollo")}</span><span className="tabular-nums">{formatCurrency(p.bollo)}</span></p> : null}
                   {p.ritenuta ? (
                     <p className="flex justify-between text-amber-800">
-                      <span>Ritenuta d'acconto{p.ritenuta.aliquota ? ` ${p.ritenuta.aliquota.toLocaleString("it-IT")}%` : ""}: la versi tu con F24 (1040) il 16 del mese dopo il pagamento</span>
+                      <span>{p.ritenuta.aliquota
+                        ? t("Ritenuta d'acconto {aliquota}%: la versi tu con F24 (1040) il 16 del mese dopo il pagamento", { aliquota: p.ritenuta.aliquota.toLocaleString(intlCampo()) })
+                        : t("Ritenuta d'acconto: la versi tu con F24 (1040) il 16 del mese dopo il pagamento")}</span>
                       <span className="tabular-nums">− {formatCurrency(p.ritenuta.importo)}</span>
                     </p>
                   ) : null}
                   {p.garanzia ? (
-                    <p className="flex justify-between text-amber-800"><span>Trattenuta a garanzia: si paga allo svincolo</span><span className="tabular-nums">{formatCurrency(p.garanzia)}</span></p>
+                    <p className="flex justify-between text-amber-800"><span>{t("Trattenuta a garanzia: si paga allo svincolo")}</span><span className="tabular-nums">{formatCurrency(p.garanzia)}</span></p>
                   ) : null}
                   {p.netto != null && (p.ritenuta || p.rate.length > 1) ? (
-                    <p className="flex justify-between border-t pt-1 font-semibold"><span>Da pagare al fornitore</span><span className="tabular-nums">{formatCurrency(p.netto)}</span></p>
+                    <p className="flex justify-between border-t pt-1 font-semibold"><span>{t("Da pagare al fornitore")}</span><span className="tabular-nums">{formatCurrency(p.netto)}</span></p>
                   ) : null}
                 </details>
               );
@@ -751,18 +753,18 @@ function ContenutoRiepilogo({
 
             </section>
             </div>
-            <dl className="ricevuta-totali-documento grid grid-cols-3 gap-2" aria-label="Importi del documento">
+            <dl className="ricevuta-totali-documento grid grid-cols-3 gap-2" aria-label={t("Importi del documento")}>
               {[["Imponibile", imponibile], ["IVA", iva], ["Totale documento", totale]].map(([titolo, valore]) => <div key={String(titolo)} className="rounded-lg bg-muted/40 p-3"><dt className="text-xs text-muted-foreground">{titolo}</dt><dd className="font-semibold tabular-nums">{formatCurrency(Number(valore))}</dd></div>)}
             </dl>
             {xmlFattura && <RiferimentiXmlRicevuta fattura={xmlFattura} />}
-            {f.errore_xml ? <p role="status" className="text-xs text-muted-foreground">{String(f.errore_xml)} <Button variant="link" size="sm" onClick={aggiorna}>Riprova XML</Button></p> : null}
-            {typeof f.xml_raw === "string" && f.xml_raw.trim() && !xmlFattura && <p role="status" className="text-xs text-muted-foreground">I dettagli dell’XML non sono leggibili. Consulta il file originale.</p>}
+            {f.errore_xml ? <p role="status" className="text-xs text-muted-foreground">{String(f.errore_xml)} <Button variant="link" size="sm" onClick={aggiorna}>{t("Riprova XML")}</Button></p> : null}
+            {typeof f.xml_raw === "string" && f.xml_raw.trim() && !xmlFattura && <p role="status" className="text-xs text-muted-foreground">{t("I dettagli dell’XML non sono leggibili. Consulta il file originale.")}</p>}
 
             {/* Righe */}
             <section className="space-y-2">
-              <h3 className="text-sm font-semibold flex items-center gap-1.5"><Receipt className="h-4 w-4" /> Cosa fattura</h3>
+              <h3 className="text-sm font-semibold flex items-center gap-1.5"><Receipt className="h-4 w-4" /> {t("Cosa fattura")}</h3>
               {righe.length === 0 ? (
-                <p className="text-sm text-muted-foreground">{righeXmlNonAssociate.length ? "Il dettaglio è disponibile nelle righe dell’XML." : "Il dettaglio delle righe non è arrivato con questa fattura: ci sono solo i totali."}</p>
+                <p className="text-sm text-muted-foreground">{righeXmlNonAssociate.length ? t("Il dettaglio è disponibile nelle righe dell’XML.") : t("Il dettaglio delle righe non è arrivato con questa fattura: ci sono solo i totali.")}</p>
               ) : (
                 <>
                 {contiPerRiga ? <ProposteContiRighe conti={contiRighe} /> : null}
@@ -777,7 +779,7 @@ function ContenutoRiepilogo({
                           {righeXmlPerChiave.get(r.chiave)
                             ? `${righeXmlPerChiave.get(r.chiave)!.quantita} ${righeXmlPerChiave.get(r.chiave)!.unitaMisura} × ${monetaXml(righeXmlPerChiave.get(r.chiave)!.prezzoUnitario)}`
                             : r.quantita != null && r.prezzoUnitario != null
-                            ? `${r.quantita.toLocaleString("it-IT", { maximumFractionDigits: 3 })} × ${formatCurrency(r.prezzoUnitario)}`
+                            ? `${r.quantita.toLocaleString(intlCampo(), { maximumFractionDigits: 3 })} × ${formatCurrency(r.prezzoUnitario)}`
                             : ""}
                           {righeXmlPerChiave.get(r.chiave) ? ` · IVA ${righeXmlPerChiave.get(r.chiave)!.iva}` : ` · ${r.aliquota ? `IVA ${String(r.aliquota).replace(".", ",")}%` : nomeNatura(r.natura) ?? "IVA 0%"}`}
                         </span>
@@ -791,15 +793,15 @@ function ContenutoRiepilogo({
                   ))}
                 </ul>
                 <div className="hidden overflow-x-auto rounded-lg border sm:block">
-                  <table aria-label="Cosa fattura" className="w-full text-sm">
+                  <table aria-label={t("Cosa fattura")} className="w-full text-sm">
                     <thead className="bg-muted/50 text-xs text-muted-foreground">
                       <tr>
-                        <th className="px-2 py-1.5 text-left font-medium">Descrizione</th>
-                        <th className="px-2 py-1.5 text-right font-medium">Q.tà</th>
-                        <th className="px-2 py-1.5 text-right font-medium">Prezzo</th>
-                        <th className="px-2 py-1.5 text-right font-medium">Importo</th>
+                        <th className="px-2 py-1.5 text-left font-medium">{t("Descrizione")}</th>
+                        <th className="px-2 py-1.5 text-right font-medium">{t("Q.tà")}</th>
+                        <th className="px-2 py-1.5 text-right font-medium">{t("Prezzo")}</th>
+                        <th className="px-2 py-1.5 text-right font-medium">{t("Importo")}</th>
                         <th className="px-2 py-1.5 text-right font-medium">IVA</th>
-                        {contiPerRiga ? <th className="px-2 py-1.5 text-left font-medium">Conto di costo</th> : null}
+                        {contiPerRiga ? <th className="px-2 py-1.5 text-left font-medium">{t("Conto di costo")}</th> : null}
                         {cespitiPerRiga ? <th className="px-2 py-1.5" /> : null}
                       </tr>
                     </thead>
@@ -809,7 +811,7 @@ function ContenutoRiepilogo({
                           <td className="px-2 py-1.5 whitespace-pre-line">{righeXmlPerChiave.get(r.chiave)?.descrizione || r.descrizione || "—"}
                             <CampiXmlRicevuta campi={righeXmlPerChiave.get(r.chiave)?.dettagli ?? []} />
                           </td>
-                          <td className="px-2 py-1.5 text-right tabular-nums">{righeXmlPerChiave.get(r.chiave) ? `${righeXmlPerChiave.get(r.chiave)!.quantita} ${righeXmlPerChiave.get(r.chiave)!.unitaMisura}` : r.quantita != null ? r.quantita.toLocaleString("it-IT", { maximumFractionDigits: 3 }) : ""}</td>
+                          <td className="px-2 py-1.5 text-right tabular-nums">{righeXmlPerChiave.get(r.chiave) ? `${righeXmlPerChiave.get(r.chiave)!.quantita} ${righeXmlPerChiave.get(r.chiave)!.unitaMisura}` : r.quantita != null ? r.quantita.toLocaleString(intlCampo(), { maximumFractionDigits: 3 }) : ""}</td>
                           <td className="px-2 py-1.5 text-right tabular-nums">{righeXmlPerChiave.get(r.chiave) ? monetaXml(righeXmlPerChiave.get(r.chiave)!.prezzoUnitario) : r.prezzoUnitario != null ? formatCurrency(r.prezzoUnitario) : ""}</td>
                           <td className="px-2 py-1.5 text-right tabular-nums">{righeXmlPerChiave.get(r.chiave) ? monetaXml(righeXmlPerChiave.get(r.chiave)!.importo) : formatCurrency(r.imponibile)}</td>
                           <td className="px-2 py-1.5 text-right text-muted-foreground" title={nomeNatura(r.natura) ?? undefined}>
@@ -835,10 +837,10 @@ function ContenutoRiepilogo({
 
             {/* Totali */}
             <section className="ml-auto w-full max-w-xs space-y-1 text-sm">
-              <div className="flex justify-between"><span className="text-muted-foreground">Imponibile</span><span className="tabular-nums">{formatCurrency(imponibile)}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">{t("Imponibile")}</span><span className="tabular-nums">{formatCurrency(imponibile)}</span></div>
               {aliquote.map((a, i) => (
                 <div key={i} className="flex justify-between text-muted-foreground">
-                  <span>{etichettaAliquota(a)} su {formatCurrency(a.imponibile)}</span>
+                  <span>{t("{aliquota} su {imponibile}", { aliquota: String(etichettaAliquota(a) ?? ""), imponibile: formatCurrency(a.imponibile) })}</span>
                   <span className="tabular-nums">{formatCurrency(a.imposta)}</span>
                 </div>
               ))}
@@ -846,7 +848,7 @@ function ContenutoRiepilogo({
                 <div className="flex justify-between"><span className="text-muted-foreground">IVA</span><span className="tabular-nums">{formatCurrency(iva)}</span></div>
               ) : null}
               <div className="flex justify-between border-t pt-1 text-base font-semibold">
-                <span>{nota ? "Totale nota di credito" : "Totale"}</span>
+                <span>{nota ? t("Totale nota di credito") : t("Totale")}</span>
                 <span className="tabular-nums">{formatCurrency(totale)}</span>
               </div>
             </section>
@@ -854,7 +856,7 @@ function ContenutoRiepilogo({
             {/* La contabile del bonifico, il DDT, il contratto: si ritrovano dalla fattura. */}
             <AllegatiFattura companyId={companyId} madre={{ fatturaRicevutaId: String(f.id) }} />
 
-            {f.note ? <p className="text-sm"><span className="text-muted-foreground">Note: </span>{String(f.note)}</p> : null}
+            {f.note ? <p className="text-sm"><span className="text-muted-foreground">{t("Note:")} </span>{String(f.note)}</p> : null}
             <NoteInterneFattura tabella="fatture_ricevute" id={String(f.id)} companyId={companyId} valore={typeof f.note_interne === "string" ? f.note_interne : null}
               puoModificare={!permessi.solaLettura} chiaviDaAggiornare={["fatture-ricevute", "fattura-ricevuta-riepilogo"]} />
 
@@ -864,11 +866,11 @@ function ContenutoRiepilogo({
         </div>
         <DialogFooter>
           {d && fatturaId && <Button variant="outline" size="sm" disabled={lettura.isPending} onClick={() => lettura.mutate({ id: fatturaId, daLeggere: !ricevutaDaLeggere({ stato: String(d.fattura.stato ?? ''), da_leggere: d.fattura.da_leggere as boolean | null | undefined }) })}>
-            {ricevutaDaLeggere({ stato: String(d.fattura.stato ?? ''), da_leggere: d.fattura.da_leggere as boolean | null | undefined }) ? 'Segna come letta' : 'Segna come non letta'}
+            {ricevutaDaLeggere({ stato: String(d.fattura.stato ?? ''), da_leggere: d.fattura.da_leggere as boolean | null | undefined }) ? t("Segna come letta") : t("Segna come non letta")}
           </Button>}
 
-          <Button variant="outline" onClick={chiudiRiepilogo}>Chiudi riepilogo</Button>
-          {!isLoading && d && f && (siPagaNelPannello ? <Button disabled={perPagare.isPending} onClick={pagaFattura}>Pagamenti e residuo</Button> : <PagamentoRicevutaCella forma="pulsante" id={String(f.id)} numero={String(f.numero_fattura??'')} tipo={String(f.tipo_documento??'')} pagataIl={f.pagata_il?String(f.pagata_il):null} />)}
+          <Button variant="outline" onClick={chiudiRiepilogo}>{t("Chiudi riepilogo")}</Button>
+          {!isLoading && d && f && (siPagaNelPannello ? <Button disabled={perPagare.isPending} onClick={pagaFattura}>{t("Pagamenti e residuo")}</Button> : <PagamentoRicevutaCella forma="pulsante" id={String(f.id)} numero={String(f.numero_fattura??'')} tipo={String(f.tipo_documento??'')} pagataIl={f.pagata_il?String(f.pagata_il):null} />)}
         </DialogFooter>
       </Contenuto>
     </Radice>}

@@ -10,6 +10,7 @@ import { Check, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { vociPerMovimento, type VoceCatalogo } from "@/lib/finance/cassaVoci";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function ScegliVoceCassa({
   catalogo,
@@ -29,6 +30,7 @@ export function ScegliVoceCassa({
   altezza?: string;
   autoFocus?: boolean;
 }) {
+  const t = useT();
   const [cerca, setCerca] = useState("");
   const gruppi = useMemo(() => vociPerMovimento(catalogo ?? [], importo, cerca), [catalogo, importo, cerca]);
   const [aperta, setAperta] = useState<string | null>(null);
@@ -36,19 +38,19 @@ export function ScegliVoceCassa({
     <div className="space-y-2">
       <Input
         autoFocus={autoFocus}
-        placeholder={importo >= 0 ? "Cerca una voce di entrata…" : "Cerca una voce di uscita…"}
+        placeholder={importo >= 0 ? t("Cerca una voce di entrata…") : t("Cerca una voce di uscita…")}
         value={cerca}
         onChange={(e) => setCerca(e.target.value)}
-        aria-label="Cerca una categoria"
+        aria-label={t("Cerca una categoria")}
       />
-      <div className={cn("overflow-y-auto rounded-md border", altezza)} role="listbox" aria-label="Categorie">
+      <div className={cn("overflow-y-auto rounded-md border", altezza)} role="listbox" aria-label={t("Categorie")}>
         {!catalogo ? (
           <p className="flex items-center gap-2 p-3 text-sm text-muted-foreground" role="status">
-            <Loader2 className="h-4 w-4 animate-spin" /> Caricamento catalogo…
+            <Loader2 className="h-4 w-4 animate-spin" /> {t("Caricamento catalogo…")}
           </p>
         ) : gruppi.length === 0 ? (
           <p className="p-3 text-sm text-muted-foreground">
-            Nessuna voce trovata. Le voci si attivano o si aggiungono in Controllo di gestione → Configurazione.
+            {t("Nessuna voce trovata. Le voci si attivano o si aggiungono in Controllo di gestione → Configurazione.")}
           </p>
         ) : (
           gruppi.map((g) => (

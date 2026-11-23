@@ -1,4 +1,5 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Pipeline {
   id: string;
@@ -10,10 +11,11 @@ export function PipelineSelector({ pipelines, value, onChange }: {
   value: string | null;
   onChange: (id: string) => void;
 }) {
+  const t = useT();
   return (
     <Select value={value || ""} onValueChange={onChange}>
-      <SelectTrigger aria-label="Pipeline commerciale" className="h-11 w-full min-w-0 text-base md:h-9 md:w-[220px] md:text-sm">
-        <SelectValue placeholder="Seleziona pipeline" />
+      <SelectTrigger aria-label={t("Pipeline commerciale")} className="h-11 w-full min-w-0 text-base md:h-9 md:w-[220px] md:text-sm">
+        <SelectValue placeholder={t("Seleziona pipeline")} />
       </SelectTrigger>
       <SelectContent>
         {pipelines.map((p) => (

@@ -7,6 +7,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { shouldSuggestBollo } from "@/lib/fatturazione/calcoli";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import type { EditorState } from "./useEditorState";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   state: EditorState;
@@ -15,6 +16,7 @@ interface Props {
 }
 
 export function EditorOpzioniAvanzateSection({ state, dispatch, disabled }: Props) {
+  const t = useT();
   const [open, setOpen] = useState(false);
 
   function setField(field: string, value: unknown) {
@@ -56,11 +58,11 @@ export function EditorOpzioniAvanzateSection({ state, dispatch, disabled }: Prop
             <div className="flex items-center gap-2">
               <Settings2 className="h-4 w-4 text-violet-500" />
               <span className="text-[11px] font-bold uppercase tracking-wider text-violet-600/80 dark:text-violet-400/80">
-                Opzioni avanzate
+                {t("Opzioni avanzate")}
               </span>
               {hasAdvancedActive && (
                 <span className="ml-1 inline-flex items-center justify-center h-4 min-w-[1rem] px-1 rounded-full bg-violet-100 dark:bg-violet-900/40 text-[9px] font-bold text-violet-700 dark:text-violet-300">
-                  attive
+                  {t("attive")}
                 </span>
               )}
             </div>
@@ -74,7 +76,7 @@ export function EditorOpzioniAvanzateSection({ state, dispatch, disabled }: Prop
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2 flex-1">
                   <Stamp className="h-3.5 w-3.5 text-muted-foreground" />
-                  <Label className="text-xs font-medium">Imposta di bollo virtuale</Label>
+                  <Label className="text-xs font-medium">{t("Imposta di bollo virtuale")}</Label>
                 </div>
                 <Switch
                   checked={state.bollo_virtuale ?? false}
@@ -88,7 +90,7 @@ export function EditorOpzioniAvanzateSection({ state, dispatch, disabled }: Prop
               </div>
               {state.bollo_virtuale && (
                 <div className="pl-6">
-                  <Label className="text-[10px] text-muted-foreground">Importo bollo</Label>
+                  <Label className="text-[10px] text-muted-foreground">{t("Importo bollo")}</Label>
                   <Input
                     type="number"
                     step="0.01"
@@ -102,7 +104,7 @@ export function EditorOpzioniAvanzateSection({ state, dispatch, disabled }: Prop
               {suggestBollo && (
                 <div className="flex items-center gap-1.5 text-[10px] text-amber-600 bg-amber-50 dark:bg-amber-950/20 rounded px-2 py-1.5 ml-6">
                   <Stamp className="h-3 w-3 shrink-0" />
-                  <span>Bollo obbligatorio per operazioni esenti/escluse &gt; €77,47</span>
+                  <span>{t("Bollo obbligatorio per operazioni esenti/escluse > €77,47")}</span>
                 </div>
               )}
             </div>
@@ -111,11 +113,11 @@ export function EditorOpzioniAvanzateSection({ state, dispatch, disabled }: Prop
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <Percent className="h-3.5 w-3.5 text-muted-foreground" />
-                <Label className="text-xs font-medium">Sconto / Maggiorazione globale</Label>
+                <Label className="text-xs font-medium">{t("Sconto / Maggiorazione globale")}</Label>
               </div>
               <div className="grid grid-cols-2 gap-3 pl-6">
                 <div>
-                  <Label className="text-[10px] text-muted-foreground">Sconto %</Label>
+                  <Label className="text-[10px] text-muted-foreground">{t("Sconto %")}</Label>
                   <Input
                     type="number"
                     step="0.01"
@@ -126,7 +128,7 @@ export function EditorOpzioniAvanzateSection({ state, dispatch, disabled }: Prop
                   />
                 </div>
                 <div>
-                  <Label className="text-[10px] text-muted-foreground">Arrotondamento (€)</Label>
+                  <Label className="text-[10px] text-muted-foreground">{t("Arrotondamento (€)")}</Label>
                   <Input
                     type="number"
                     step="0.01"
@@ -144,21 +146,21 @@ export function EditorOpzioniAvanzateSection({ state, dispatch, disabled }: Prop
               <div className="space-y-2 pt-2 border-t">
                 <div className="flex items-center gap-2">
                   <Truck className="h-3.5 w-3.5 text-muted-foreground" />
-                  <Label className="text-xs font-medium">Trasporto</Label>
+                  <Label className="text-xs font-medium">{t("Trasporto")}</Label>
                 </div>
                 <div className="grid grid-cols-2 gap-3 pl-6">
                   <div>
-                    <Label className="text-[10px] text-muted-foreground">Causale trasporto</Label>
+                    <Label className="text-[10px] text-muted-foreground">{t("Causale trasporto")}</Label>
                     <Input
                       value={state.ddt_causale_trasporto ?? ""}
                       onChange={(e) => setField("ddt_causale_trasporto", e.target.value)}
                       className="h-7 text-xs"
-                      placeholder="Vendita"
+                      placeholder={t("Vendita")}
                       disabled={disabled}
                     />
                   </div>
                   <div>
-                    <Label className="text-[10px] text-muted-foreground">N. colli</Label>
+                    <Label className="text-[10px] text-muted-foreground">{t("N. colli")}</Label>
                     <Input
                       type="number"
                       value={state.ddt_numero_colli ?? ""}
@@ -168,7 +170,7 @@ export function EditorOpzioniAvanzateSection({ state, dispatch, disabled }: Prop
                     />
                   </div>
                   <div>
-                    <Label className="text-[10px] text-muted-foreground">Peso (kg)</Label>
+                    <Label className="text-[10px] text-muted-foreground">{t("Peso (kg)")}</Label>
                     <Input
                       value={state.ddt_peso ?? ""}
                       onChange={(e) => setField("ddt_peso", e.target.value)}
@@ -177,12 +179,12 @@ export function EditorOpzioniAvanzateSection({ state, dispatch, disabled }: Prop
                     />
                   </div>
                   <div>
-                    <Label className="text-[10px] text-muted-foreground">Aspetto beni</Label>
+                    <Label className="text-[10px] text-muted-foreground">{t("Aspetto beni")}</Label>
                     <Input
                       value={state.ddt_aspetto_beni ?? ""}
                       onChange={(e) => setField("ddt_aspetto_beni", e.target.value)}
                       className="h-7 text-xs"
-                      placeholder="Scatole"
+                      placeholder={t("Scatole")}
                       disabled={disabled}
                     />
                   </div>

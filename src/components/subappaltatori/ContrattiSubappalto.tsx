@@ -47,6 +47,7 @@ import { chiavePiva, imponibileFattura, testoFattura, type SalCtrl } from "@/lib
 import { fatturePerSalSub, valoriPivaSub, type FatturaContrattoSub } from "@/lib/subappaltatori/fattureSalContratto";
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { CollegaFatturaSalSubDialog, type ConfermaFatturaSalSub } from "./CollegaFatturaSalSubDialog";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface ContrattoCompleto {
   id: string;
@@ -107,7 +108,7 @@ const STATI: Record<ContrattoCompleto["stato"], { label: string; cls: string }> 
   risolto: { label: "Risolto", cls: "bg-red-100 text-red-800" },
 };
 
-const euro = (v: number) => (Number(v) || 0).toLocaleString("it-IT", { style: "currency", currency: "EUR", useGrouping: true });
+const euro = (v: number) => (Number(v) || 0).toLocaleString(intlCampo(), { style: "currency", currency: "EUR", useGrouping: true });
 const dataIT = (d: string | null) => (d ? d.slice(0, 10).split("-").reverse().join("/") : "—");
 const oggi = () => new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
 
@@ -226,6 +227,7 @@ export function ContrattiSubappalto({
   onApriContabilita: (id: string) => void;
   onApriAnagrafica: () => void;
 }) {
+  const t = useT();
   const qc = useQueryClient();
   const [dettaglioLocale, setDettaglio] = useState<string | null>(null);
   const dettaglio = richiestaApertura ?? dettaglioLocale;
@@ -338,7 +340,7 @@ export function ContrattiSubappalto({
     const nuove = firmate.filter((r) => !viste.has(r.id));
     if (!nuove.length) return;
     void qc.invalidateQueries({ queryKey: chiaviContratti.elenco(sub.id) });
-    toast.success(nuove.length === 1 ? `${nuove[0].signer_name ?? "La ditta"} ha firmato il contratto.` : `${nuove.length} contratti firmati.`);
+    toast.success(nuove.length === 1 ? t("{nome} ha firmato il contratto.", { nome: nuove[0].signer_name ?? t("La ditta") }) : t("{n} contratti firmati.", { n: nuove.length }));
   }, [richieste, caricoFirme, erroreFirme, qc, sub.id]);
 
   const { data: azienda } = useQuery({
@@ -499,7 +501,7 @@ export function ContrattiSubappalto({
     },
     onMutate: () => { varianteFatta.current = false; },
     onSuccess: (id) => {
-      toast.success(dialog?.id ? (varianteFatta.current ? "Contratto aggiornato, con la variante registrata" : "Contratto aggiornato") : "Contratto creato");
+      toast.success(dialog?.id ? (varianteFatta.current ? t("Contratto aggiornato, con la variante registrata") : t("Contratto aggiornato")) : t("Contratto creato"));
       invalida(); qc.invalidateQueries({ queryKey: ["contratti-con-misure"] }); qc.invalidateQueries({ queryKey: ["contratto-varianti"] });
       setDialog(null); onSeleziona(id); setDettaglio(id);
     },
@@ -536,8 +538,8 @@ export function ContrattiSubappalto({
     },
     onSuccess: (esito) => {
       toast.success(esito?.quadro_da_riscrivere
-        ? "Variante registrata. Importo ridotto: aggiorna le voci da «Lavori e quantità»."
-        : "Variante registrata: importo e oneri aggiornati, storico salvato.");
+        ? t("Variante registrata. Importo ridotto: aggiorna le voci da «Lavori e quantità».")
+        : t("Variante registrata: importo e oneri aggiornati, storico salvato."));
       setVariante(null); invalida();
       qc.invalidateQueries({ queryKey: ["contratti-base-registrata"] });
       qc.invalidateQueries({ queryKey: ["contratto-varianti"] });
@@ -553,7 +555,7 @@ export function ContrattiSubappalto({
       return Number((data as { annullate?: number } | null)?.annullate ?? 0);
     },
     onSuccess: (n) => {
-      toast.success(n > 0 ? "Richiesta di firma annullata: il link non vale più" : "Non c'era nessuna richiesta di firma da annullare");
+      toast.success(n > 0 ? t("Richiesta di firma annullata: il link non vale più") : t("Non c'era nessuna richiesta di firma da annullare"));
       invalida(); qc.invalidateQueries({ queryKey: ["firme-subappalto", sub.id] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -566,7 +568,7 @@ export function ContrattiSubappalto({
       if (error) throw new Error("Stato non aggiornato. Riprova.");
       if (!data?.length) throw new Error("Stato non aggiornato: non hai il permesso di modificare questo contratto.");
     },
-    onSuccess: () => { toast.success("Stato del contratto aggiornato"); invalida(); },
+    onSuccess: () => { toast.success(t("Stato del contratto aggiornato")); invalida(); },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -606,9 +608,9 @@ export function ContrattiSubappalto({
       void qc.invalidateQueries({ queryKey: ["fatture-sub", sub.id] });
       void qc.invalidateQueries({ queryKey: ["fattura-controllo-subappalto", companyId] });
       refreshFinancialQueries(qc);
-      if (esito === "contabilizzata_e_collegata") toast.success("Fattura collegata e contabilizzata");
-      else if (esito === "collegata") toast.success("Fattura collegata");
-      else toast.success("Fattura scollegata");
+      if (esito === "contabilizzata_e_collegata") toast.success(t("Fattura collegata e contabilizzata"));
+      else if (esito === "collegata") toast.success(t("Fattura collegata"));
+      else toast.success(t("Fattura scollegata"));
     },
   });
 
@@ -667,7 +669,7 @@ export function ContrattiSubappalto({
       }
       if (!data?.length) throw new Error("Contratto non eliminato: non hai il permesso, o è già stato tolto.");
     },
-    onSuccess: () => { toast.success("Contratto eliminato"); invalida(); setDettaglio(null); },
+    onSuccess: () => { toast.success(t("Contratto eliminato")); invalida(); setDettaglio(null); },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -705,7 +707,7 @@ export function ContrattiSubappalto({
         },
       });
       if (error) {
-        let messaggio = "Invio non riuscito. Riprova tra poco.";
+        let messaggio = t("Invio non riuscito. Riprova tra poco.");
         try {
           const corpo = await (error as { context?: Response }).context?.json?.();
           if (typeof corpo?.error === "string" && corpo.error.length < 200) messaggio = corpo.error;
@@ -725,7 +727,7 @@ export function ContrattiSubappalto({
       return data as { otp_inviato?: boolean };
     },
     onSuccess: () => {
-      toast.success("Contratto inviato per la firma", { description: "Il subappaltatore riceve il link per leggerlo e firmarlo con un codice." });
+      toast.success(t("Contratto inviato per la firma"), { description: t("Il subappaltatore riceve il link per leggerlo e firmarlo con un codice.") });
       setInvio(null);
       invalida();
       qc.invalidateQueries({ queryKey: ["firme-subappalto", sub.id] });
@@ -750,7 +752,7 @@ export function ContrattiSubappalto({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-muted-foreground">Un contratto per ogni commessa su cui lavora questa impresa.</p>
+        <p className="text-sm text-muted-foreground">{t("Un contratto per ogni commessa su cui lavora questa impresa.")}</p>
         <Button size="sm" disabled={permessiLavori.solaLettura || !permessiLavori.canEditOrders} onClick={() => {
           if (sub.campo_subappaltatore_id && permessiLavori.canViewCosts) {
             setCommessaScelta(sub.order_id ?? "");
@@ -760,31 +762,31 @@ export function ContrattiSubappalto({
             setDialog({ id: null });
           }
         }}>
-          <Plus className="mr-1 h-4 w-4" />Nuovo contratto
+          <Plus className="mr-1 h-4 w-4" />{t("Nuovo contratto")}
         </Button>
       </div>
 
       <Dialog open={scegliCommessa} onOpenChange={setScegliCommessa}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Nuovo contratto di subappalto</DialogTitle>
-            <DialogDescription>Scegli la commessa per aprire le lavorazioni di {sub.ragione_sociale || "questa ditta"}.</DialogDescription>
+            <DialogTitle>{t("Nuovo contratto di subappalto")}</DialogTitle>
+            <DialogDescription>{t("Scegli la commessa per aprire le lavorazioni di {nome}.", { nome: sub.ragione_sociale || t("questa ditta") })}</DialogDescription>
           </DialogHeader>
-          {commesseContratto.isError ? <p role="alert" className="text-sm text-destructive">Commesse non disponibili.
-            <Button variant="link" onClick={() => void commesseContratto.refetch()}>Riprova</Button>
-          </p> : <OfficeSelect label="Commessa del nuovo contratto" value={commessaScelta} onValueChange={setCommessaScelta}
-            placeholder={commesseContratto.isLoading ? "Carico le commesse…" : "Scegli la commessa"}
+          {commesseContratto.isError ? <p role="alert" className="text-sm text-destructive">{t("Commesse non disponibili.")}
+            <Button variant="link" onClick={() => void commesseContratto.refetch()}>{t("Riprova")}</Button>
+          </p> : <OfficeSelect label={t("Commessa del nuovo contratto")} value={commessaScelta} onValueChange={setCommessaScelta}
+            placeholder={commesseContratto.isLoading ? t("Carico le commesse…") : t("Scegli la commessa")}
             options={commesse.map(o => ({ value: o.id, label: [o.order_code, o.description].filter(Boolean).join(" · ") }))} />}
           <DialogFooter className="gap-2">
             <Button variant="outline" disabled={!commesse.some(o => o.id === commessaScelta)} onClick={() => {
               setForm(formVuoto(commessaScelta, sub.responsabile ?? ""));
               setScegliCommessa(false);
               setDialog({ id: null });
-            }}>Usa importo complessivo</Button>
+            }}>{t("Usa importo complessivo")}</Button>
             <Button disabled={!commesse.some(o => o.id === commessaScelta)} onClick={() => {
               setScegliCommessa(false);
               setCreaDaCommessa(commessaScelta);
-            }}>Apri lavorazioni</Button>
+            }}>{t("Apri lavorazioni")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -796,14 +798,14 @@ export function ContrattiSubappalto({
           onSeleziona(id);
         }} />}
 
-      {erroreContratti ? <p role="alert" className="rounded-lg border p-4 text-sm">Contratti non disponibili. <Button variant="outline" onClick={() => void ricaricaContratti()}>Riprova</Button></p> : isLoading ? (
+      {erroreContratti ? <p role="alert" className="rounded-lg border p-4 text-sm">{t("Contratti non disponibili.")} <Button variant="outline" onClick={() => void ricaricaContratti()}>{t("Riprova")}</Button></p> : isLoading ? (
         <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
       ) : contratti.length === 0 ? (
         <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">
-          Nessun contratto. Creane uno per la commessa: servirà per SAL, ritenute e pagamenti, e lo potrai stampare e far firmare.
+          {t("Nessun contratto. Creane uno per la commessa: servirà per SAL, ritenute e pagamenti, e lo potrai stampare e far firmare.")}
         </CardContent></Card>
-      ) : erroreSal || erroreRitenute || erroreFatture ? <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm">Riepilogo dei contratti non disponibile. Non mostriamo importi parziali.<Button variant="outline" className="ml-3" onClick={invalida}>Riprova</Button></div> : caricoSal || caricoRitenute || caricoFatture ? <p role="status" className="p-4 text-sm text-muted-foreground">Caricamento riepilogo dei contratti…</p> : <ElencoContrattiSub righe={contratti.map(c => ({contratto:c, riepilogo:riepiloghi.get(c.id)!, firma:c.firmato_il ? 'firmato' : caricoFirme || erroreFirme ? 'non_disponibile' : ['pending','otp_verified','signed'].includes(richiestaDi(c.id)?.status || '') ? 'in_attesa' : 'da_firmare'}))} onApri={cid => {ritornoDettaglio.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;onAperturaGestita?.();setDettaglio(cid); onSeleziona(cid);}}/>}
-      {erroreFirme && <p role="alert" className="text-sm text-amber-800">Stato delle richieste di firma non disponibile. <Button variant="link" onClick={() => void qc.invalidateQueries({queryKey:['firme-subappalto',sub.id]})}>Riprova</Button></p>}
+      ) : erroreSal || erroreRitenute || erroreFatture ? <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm">{t("Riepilogo dei contratti non disponibile. Non mostriamo importi parziali.")}<Button variant="outline" className="ml-3" onClick={invalida}>{t("Riprova")}</Button></div> : caricoSal || caricoRitenute || caricoFatture ? <p role="status" className="p-4 text-sm text-muted-foreground">{t("Caricamento riepilogo dei contratti…")}</p> : <ElencoContrattiSub righe={contratti.map(c => ({contratto:c, riepilogo:riepiloghi.get(c.id)!, firma:c.firmato_il ? 'firmato' : caricoFirme || erroreFirme ? 'non_disponibile' : ['pending','otp_verified','signed'].includes(richiestaDi(c.id)?.status || '') ? 'in_attesa' : 'da_firmare'}))} onApri={cid => {ritornoDettaglio.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;onAperturaGestita?.();setDettaglio(cid); onSeleziona(cid);}}/>}
+      {erroreFirme && <p role="alert" className="text-sm text-amber-800">{t("Stato delle richieste di firma non disponibile.")} <Button variant="link" onClick={() => void qc.invalidateQueries({queryKey:['firme-subappalto',sub.id]})}>{t("Riprova")}</Button></p>}
       <Dialog open={!!dettaglio} onOpenChange={open => { if (!open) chiudiDettaglio(); }}>
         <DialogContent
           onCloseAutoFocus={event => {
@@ -830,17 +832,17 @@ export function ContrattiSubappalto({
               && !erroreSal && !erroreRitenute && !erroreFatture;
             const accessiLavori = [
               {
-                titolo: "Lavori e quantità", testo: "Registra le misure e prepara un SAL",
+                titolo: t("Lavori e quantità"), testo: t("Registra le misure e prepara un SAL"),
                 Icona: Ruler, visibile: puoConsultareSalSub(permessiLavori), apri: () => setLavoriMisure(c),
                 principale: true,
               },
               {
-                titolo: "Computo del contratto", testo: "Voci, quantità e prezzi concordati",
+                titolo: t("Computo del contratto"), testo: t("Voci, quantità e prezzi concordati"),
                 Icona: ClipboardList, visibile: !!c.elenco_lavori?.length, apri: () => setComputo(c),
               },
               {
-                titolo: "SAL e verbali", testo: suoiSal.length === 1 ? "1 SAL registrato"
-                  : suoiSal.length > 1 ? `${suoiSal.length} SAL registrati` : "Consulta lo storico dei SAL",
+                titolo: t("SAL e verbali"), testo: suoiSal.length === 1 ? t("1 SAL registrato")
+                  : suoiSal.length > 1 ? t("{n} SAL registrati", { n: suoiSal.length }) : t("Consulta lo storico dei SAL"),
                 Icona: FileText, visibile: true, apri: () => onApriContabilita(c.id),
               },
             ];
@@ -853,28 +855,28 @@ export function ContrattiSubappalto({
                       <FileText aria-hidden="true" className="size-5" />
                     </div>
                     <div className="min-w-0 space-y-1">
-                      <DialogTitle className="break-words text-lg sm:text-xl">{c.numero_contratto || "Contratto di subappalto"}</DialogTitle>
+                      <DialogTitle className="break-words text-lg sm:text-xl">{c.numero_contratto || t("Contratto di subappalto")}</DialogTitle>
                       <DialogDescription className="break-words">
-                        {[c.commessa?.order_code, c.commessa?.description].filter(Boolean).join(" · ") || "Contratto di subappalto"}
+                        {[c.commessa?.order_code, c.commessa?.description].filter(Boolean).join(" · ") || t("Contratto di subappalto")}
                       </DialogDescription>
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-wrap items-center gap-2">
-                    <Badge variant="secondary" className={STATI[c.stato]?.cls}>{STATI[c.stato]?.label ?? c.stato}</Badge>
+                    <Badge variant="secondary" className={STATI[c.stato]?.cls}>{STATI[c.stato] ? t(STATI[c.stato].label) : c.stato}</Badge>
                     {c.firmato_il
-                      ? <Badge variant="outline" className="border-emerald-300 bg-emerald-50 text-emerald-800">Firmato · {dataIT(c.firmato_il)}</Badge>
-                      : !caricoFirme && !erroreFirme && <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800">{firmaInCorso ? "In attesa di firma" : "Da firmare"}</Badge>}
+                      ? <Badge variant="outline" className="border-emerald-300 bg-emerald-50 text-emerald-800">{t("Firmato · {firmato_il}", { firmato_il: String(dataIT(c.firmato_il) ?? "") })}</Badge>
+                      : !caricoFirme && !erroreFirme && <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800">{firmaInCorso ? t("In attesa di firma") : t("Da firmare")}</Badge>}
                   </div>
                 </DialogHeader>
 
                 <div className="shrink-0 border-b px-4 py-2 sm:px-6">
-                  <TabsList aria-label="Sezioni del contratto" className="grid h-auto w-full grid-cols-3 sm:inline-grid sm:w-auto">
-                    <TabsTrigger value="panoramica" className="px-2 sm:px-4">Panoramica</TabsTrigger>
+                  <TabsList aria-label={t("Sezioni del contratto")} className="grid h-auto w-full grid-cols-3 sm:inline-grid sm:w-auto">
+                    <TabsTrigger value="panoramica" className="px-2 sm:px-4">{t("Panoramica")}</TabsTrigger>
                     <TabsTrigger value="documenti" className="gap-2 px-2 sm:px-4">
-                      <FilePenLine aria-hidden="true" className="hidden size-4 sm:block" />Documenti
+                      <FilePenLine aria-hidden="true" className="hidden size-4 sm:block" />{t("Documenti")}
                     </TabsTrigger>
                     <TabsTrigger value="fatture" className="gap-2 px-2 sm:px-4">
-                      <ReceiptText aria-hidden="true" className="hidden size-4 sm:block" />Fatture
+                      <ReceiptText aria-hidden="true" className="hidden size-4 sm:block" />{t("Fatture")}
                       {suoFatture.length > 0 && <span className="rounded-full bg-muted px-1.5 text-xs tabular-nums">{suoFatture.length}</span>}
                     </TabsTrigger>
                   </TabsList>
@@ -883,7 +885,7 @@ export function ContrattiSubappalto({
                 <div className="min-h-0 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5">
                   <TabsContent value="panoramica" className="mt-0 space-y-4">
                     {datiContabiliDisponibili && (
-                      <section aria-label="Riepilogo economico del contratto" className="overflow-hidden rounded-xl border">
+                      <section aria-label={t("Riepilogo economico del contratto")} className="overflow-hidden rounded-xl border">
                         <dl className="grid grid-cols-2 gap-px bg-border sm:grid-cols-4">
                           {([
                             ["Contratto con oneri", r.valore],
@@ -892,30 +894,30 @@ export function ContrattiSubappalto({
                             ["Ritenute trattenute", r.ritenuteTrattenute],
                           ] as const).map(([label, amount]) => (
                             <div key={label} className={cn("bg-muted px-3 py-2.5 sm:px-4", label === "Netto SAL da pagare" && "bg-blue-50 dark:bg-blue-950")}>
-                              <dt className="text-xs text-muted-foreground">{label}</dt>
+                              <dt className="text-xs text-muted-foreground">{t(label)}</dt>
                               <dd className={cn("mt-0.5 text-base font-semibold tabular-nums sm:text-lg", label === "Netto SAL da pagare" && "text-primary")}>{euro(amount)}</dd>
                             </div>
                           ))}
                         </dl>
                         <div className="space-y-2 border-t px-3 py-2.5 sm:px-4">
                           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                            <span>Avanzamento SAL <span className="ml-1.5 font-semibold tabular-nums text-foreground">{r.avanzamento}%</span></span>
-                            <span>Residuo contratto <span className="ml-1.5 font-medium tabular-nums text-foreground">{euro(r.residuo)}</span></span>
+                            <span>{t("Avanzamento SAL")} <span className="ml-1.5 font-semibold tabular-nums text-foreground">{r.avanzamento}%</span></span>
+                            <span>{t("Residuo contratto")} <span className="ml-1.5 font-medium tabular-nums text-foreground">{euro(r.residuo)}</span></span>
                           </div>
-                          <div role="progressbar" aria-label="Avanzamento SAL" aria-valuenow={r.avanzamento} className="h-1.5 overflow-hidden rounded-full bg-muted">
+                          <div role="progressbar" aria-label={t("Avanzamento SAL")} aria-valuenow={r.avanzamento} className="h-1.5 overflow-hidden rounded-full bg-muted">
                             <div className="h-full rounded-full bg-primary" style={{ width: `${r.avanzamento}%` }} />
                           </div>
                         </div>
                       </section>
                     )}
                     {(erroreSal || erroreRitenute || erroreFatture) && (
-                      <p role="alert" className="text-sm text-destructive">Riepilogo economico non disponibile. <Button variant="link" onClick={riprovaRiepilogo}>Riprova</Button></p>
+                      <p role="alert" className="text-sm text-destructive">{t("Riepilogo economico non disponibile.")} <Button variant="link" onClick={riprovaRiepilogo}>{t("Riprova")}</Button></p>
                     )}
                     {!datiContabiliDisponibili && (caricoSal || caricoRitenute || caricoFatture) && (
-                      <p role="status" className="text-sm text-muted-foreground">Caricamento riepilogo economico…</p>
+                      <p role="status" className="text-sm text-muted-foreground">{t("Caricamento riepilogo economico…")}</p>
                     )}
 
-                    <section aria-label="Lavorazioni del contratto">
+                    <section aria-label={t("Lavorazioni del contratto")}>
                       {c.descrizione_lavori && <p className="mb-2 break-words text-sm font-medium">{c.descrizione_lavori}</p>}
                       <div className="divide-y overflow-hidden rounded-xl border">
                         {accessiLavori.filter(accesso => accesso.visibile).map(({ titolo, testo, Icona, apri, principale }) => (
@@ -937,40 +939,40 @@ export function ContrattiSubappalto({
 
                     <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">Stato lavori</span>
+                        <span className="text-xs text-muted-foreground">{t("Stato lavori")}</span>
                         <Select disabled={cambiaStato.isPending || !puoGestire} value={c.stato} onValueChange={v => cambiaStato.mutate({ id: c.id, stato: v as ContrattoCompleto["stato"] })}>
-                          <SelectTrigger aria-label="Stato lavori del contratto" className="h-8 w-28 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectTrigger aria-label={t("Stato lavori del contratto")} className="h-8 w-28 text-xs"><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            {(Object.keys(STATI) as ContrattoCompleto["stato"][]).map(s => <SelectItem key={s} value={s}>{STATI[s].label}</SelectItem>)}
+                            {(Object.keys(STATI) as ContrattoCompleto["stato"][]).map(s => <SelectItem key={s} value={s}>{t(STATI[s].label)}</SelectItem>)}
                           </SelectContent>
                         </Select>
                       </div>
                       <DropdownMenu modal={false}>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="outline" size="sm" className="gap-2"><Ellipsis aria-hidden="true" className="size-4" />Gestisci contratto</Button>
+                          <Button variant="outline" size="sm" className="gap-2"><Ellipsis aria-hidden="true" className="size-4" />{t("Gestisci contratto")}</Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem className="gap-2" disabled={!puoGestire} onSelect={() => {
                             setForm(daContratto(c));
                             setMotivoVariante("");
                             setDialog({ id: c.id });
-                          }}><Pencil aria-hidden="true" className="size-4" />Modifica</DropdownMenuItem>
+                          }}><Pencil aria-hidden="true" className="size-4" />{t("Modifica")}</DropdownMenuItem>
                           <DropdownMenuItem className="gap-2" onSelect={() => setCondizioni(c)}>
-                            <FileText aria-hidden="true" className="size-4" />Condizioni
+                            <FileText aria-hidden="true" className="size-4" />{t("Condizioni")}
                           </DropdownMenuItem>
                           {(haBaseLavori || c.firmato_il) && (
                             <DropdownMenuItem className="gap-2" disabled={!puoGestire || firmaInCorso}
-                              title={firmaInCorso ? "Annulla la richiesta di firma per aggiungere una variante" : undefined}
+                              title={firmaInCorso ? t("Annulla la richiesta di firma per aggiungere una variante") : undefined}
                               onSelect={() => setVariante({ c, importo: String(c.importo_contrattuale ?? ""), oneri: String(c.oneri_sicurezza ?? 0), motivo: "" })}>
-                              <FilePenLine aria-hidden="true" className="size-4" />Variante
+                              <FilePenLine aria-hidden="true" className="size-4" />{t("Variante")}
                             </DropdownMenuItem>
                           )}
                           {puoEliminare && datiContabiliDisponibili && (
                             <>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem className="gap-2 text-destructive focus:text-destructive" disabled={eliminaContratto.isPending}
-                                onSelect={() => { if (window.confirm("Eliminare questo contratto?")) eliminaContratto.mutate(c); }}>
-                                <Trash2 aria-hidden="true" className="size-4" />Elimina contratto
+                                onSelect={() => { if (window.confirm(t("Eliminare questo contratto?"))) eliminaContratto.mutate(c); }}>
+                                <Trash2 aria-hidden="true" className="size-4" />{t("Elimina contratto")}
                               </DropdownMenuItem>
                             </>
                           )}
@@ -980,18 +982,18 @@ export function ContrattiSubappalto({
                   </TabsContent>
 
                   <TabsContent value="documenti" className="mt-0 space-y-3">
-                    {erroreFirme && <p role="alert" className="text-sm text-amber-800">Stato firma non disponibile. <Button variant="link" onClick={() => void qc.invalidateQueries({ queryKey: ["firme-subappalto", sub.id] })}>Riprova</Button></p>}
+                    {erroreFirme && <p role="alert" className="text-sm text-amber-800">{t("Stato firma non disponibile.")} <Button variant="link" onClick={() => void qc.invalidateQueries({ queryKey: ["firme-subappalto", sub.id] })}>{t("Riprova")}</Button></p>}
                     {richiesta && !c.firmato_il && (
                       <div className={cn("flex items-start gap-2 rounded-lg border px-3 py-2.5 text-sm",
                         richiesta.status === "refused" ? "border-red-200 bg-red-50 text-red-800"
                           : firmaInCorso ? "border-sky-200 bg-sky-50 text-sky-900" : "bg-muted/25 text-muted-foreground")}>
                         {richiesta.status === "refused" ? <XCircle aria-hidden="true" className="mt-0.5 size-4 shrink-0" /> : <Clock aria-hidden="true" className="mt-0.5 size-4 shrink-0" />}
                         <span className="min-w-0 break-words">
-                          {richiesta.status === "refused" ? `${richiesta.signer_name ?? "Il subappaltatore"} ha rifiutato la firma.`
-                            : richiesta.status === "expired" ? "Il link per firmare è scaduto."
-                            : richiesta.status === "cancelled" ? "La richiesta di firma è stata annullata."
-                            : richiesta.status === "signed" ? "Firma completata. Registrazione in aggiornamento."
-                            : `Inviato il ${dataIT(richiesta.created_at)} a ${richiesta.signer_name || richiesta.signer_email || "chi deve firmare"}.`}
+                          {richiesta.status === "refused" ? t("{nome} ha rifiutato la firma.", { nome: richiesta.signer_name ?? t("Il subappaltatore") })
+                            : richiesta.status === "expired" ? t("Il link per firmare è scaduto.")
+                            : richiesta.status === "cancelled" ? t("La richiesta di firma è stata annullata.")
+                            : richiesta.status === "signed" ? t("Firma completata. Registrazione in aggiornamento.")
+                            : t("Inviato il {data} a {nome}.", { data: String(dataIT(richiesta.created_at) ?? ""), nome: richiesta.signer_name || richiesta.signer_email || t("chi deve firmare") })}
                         </span>
                       </div>
                     )}
@@ -999,35 +1001,35 @@ export function ContrattiSubappalto({
                       <ContrattoCarta companyId={companyId} contratto={c} firmaElettronica={firmaInCorso || richiesta?.status === "signed"} onSaved={invalida}>
                         {c.firmato_il && richiesta?.status === "signed" && (
                           <Button size="sm" variant="outline" onClick={() => scaricaFirmato(richiesta.id)}>
-                            <Download className="size-4" />Contratto firmato
+                            <Download className="size-4" />{t("Contratto firmato")}
                           </Button>
                         )}
                         <Button size="sm" variant="outline" disabled={caricoIva} onClick={() => stampaContratto(c)}>
-                          <Printer className="size-4" />{c.firmato_il ? "Anteprima contratto" : "Contratto da firmare"}
+                          <Printer className="size-4" />{c.firmato_il ? t("Anteprima contratto") : t("Contratto da firmare")}
                         </Button>
                         {Array.isArray(c.elenco_lavori) && c.elenco_lavori.length > 0 && (
-                          <Button size="sm" variant="outline" onClick={() => stampaElencoCantiere(c)} title="Elenco delle lavorazioni con quantità, senza prezzi">
-                            <FileText className="size-4" />Elenco lavori per il cantiere
+                          <Button size="sm" variant="outline" onClick={() => stampaElencoCantiere(c)} title={t("Elenco delle lavorazioni con quantità, senza prezzi")}>
+                            <FileText className="size-4" />{t("Elenco lavori per il cantiere")}
                           </Button>
                         )}
                         {!c.firmato_il && (
                           <Button size="sm" disabled={!puoGestire || caricoIva || caricoModello || erroreModello}
-                            title={caricoIva || caricoModello ? "Caricamento IVA e condizioni dell’azienda" : erroreModello ? "Condizioni standard non disponibili: ricarica la pagina" : undefined}
+                            title={caricoIva || caricoModello ? t("Caricamento IVA e condizioni dell’azienda") : erroreModello ? t("Condizioni standard non disponibili: ricarica la pagina") : undefined}
                             onClick={() => setInvio({
                               c, nome: c.referente_subappaltatore || sub.responsabile || "",
                               email: sub.pec || sub.email || "", telefono: sub.telefono || "",
                             })}>
-                            <Send className="size-4" />{firmaInCorso ? "Invia di nuovo" : "Invia per la firma"}
+                            <Send className="size-4" />{firmaInCorso ? t("Invia di nuovo") : t("Invia per la firma")}
                           </Button>
                         )}
                         {!c.firmato_il && firmaInCorso && (
                           <Button size="sm" variant="ghost" disabled={annullaFirma.isPending || !puoGestire}
-                            onClick={() => { if (window.confirm("Annullare la richiesta di firma? Il link inviato smette di funzionare.")) annullaFirma.mutate(c.id); }}>
-                            <XCircle className="size-4" />Annulla richiesta di firma
+                            onClick={() => { if (window.confirm(t("Annullare la richiesta di firma? Il link inviato smette di funzionare."))) annullaFirma.mutate(c.id); }}>
+                            <XCircle className="size-4" />{t("Annulla richiesta di firma")}
                           </Button>
                         )}
                       </ContrattoCarta>
-                    ) : <p className="text-sm text-muted-foreground">Documenti e firma richiedono l’accesso ai contratti di subappalto.</p>}
+                    ) : <p className="text-sm text-muted-foreground">{t("Documenti e firma richiedono l’accesso ai contratti di subappalto.")}</p>}
                   </TabsContent>
 
                   <TabsContent value="fatture" className="mt-0 space-y-3">
@@ -1035,17 +1037,17 @@ export function ContrattiSubappalto({
                       <dl className="grid grid-cols-3 gap-px overflow-hidden rounded-xl border bg-border">
                         {([["SAL approvati", r.approvato], ["Fatturato", r.fatturato], ["Pagato", r.pagato]] as const).map(([label, amount]) => (
                           <div key={label} className="bg-muted px-2.5 py-2 sm:px-4 sm:py-3">
-                            <dt className="text-xs text-muted-foreground">{label}</dt>
+                            <dt className="text-xs text-muted-foreground">{t(label)}</dt>
                             <dd className="mt-0.5 text-sm font-semibold tabular-nums sm:text-base">{euro(amount)}</dd>
                           </div>
                         ))}
                       </dl>
                     )}
                     {datiContabiliDisponibili && (
-                      <section aria-label="Fatture per SAL" className="overflow-hidden rounded-xl border">
+                      <section aria-label={t("Fatture per SAL")} className="overflow-hidden rounded-xl border">
                         <div className="border-b bg-muted px-3 py-2.5 sm:px-4">
-                          <h3 className="text-sm font-semibold">Fatture per SAL</h3>
-                          <p className="text-xs text-muted-foreground">L’imponibile atteso è il netto del SAL, dopo ritenuta e recuperi.</p>
+                          <h3 className="text-sm font-semibold">{t("Fatture per SAL")}</h3>
+                          <p className="text-xs text-muted-foreground">{t("L’imponibile atteso è il netto del SAL, dopo ritenuta e recuperi.")}</p>
                         </div>
                         {coperturaSal.length ? (
                           <ul className="divide-y">
@@ -1053,7 +1055,7 @@ export function ContrattiSubappalto({
                               <li key={s.id} className="grid gap-2 px-3 py-2.5 sm:grid-cols-[minmax(10rem,1fr)_minmax(15rem,1.5fr)_auto] sm:items-center sm:gap-3 sm:px-4">
                                 <div>
                                   <p className="text-sm font-medium">SAL {s.numero_sal}</p>
-                                  <p className="text-xs text-muted-foreground">Lordo {euro(s.importo_lordo)} · Ritenuta {euro(s.ritenuta_importo ?? 0)}</p>
+                                  <p className="text-xs text-muted-foreground">{t("Lordo {importo_lordo} · Ritenuta {valore}", { importo_lordo: euro(s.importo_lordo), valore: euro(s.ritenuta_importo ?? 0) })}</p>
                                 </div>
                                 <dl className="grid grid-cols-3 gap-2 text-xs">
                                   {([
@@ -1061,67 +1063,67 @@ export function ContrattiSubappalto({
                                     ["Collegato", euro(fatturato)],
                                     [differenza < 0 ? "Eccedenza" : "Da fatturare", euro(Math.abs(differenza))],
                                   ] as const).map(([label, value]) => (
-                                    <div key={label}><dt className="text-muted-foreground">{label}</dt><dd className="font-medium tabular-nums">{value}</dd></div>
+                                    <div key={label}><dt className="text-muted-foreground">{t(label)}</dt><dd className="font-medium tabular-nums">{value}</dd></div>
                                   ))}
                                 </dl>
                                 <div className="flex flex-wrap items-center gap-1.5 sm:justify-end">
                                   {differenza === 0 && fatturato > 0 && (
-                                    <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-800">Coperto</Badge>
+                                    <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-800">{t("Coperto")}</Badge>
                                   )}
                                   {puoConsultareSalSub(permessiLavori) && (
-                                    <Button variant="ghost" size="sm" aria-label={`Verbale SAL ${s.numero_sal}`}
-                                      onClick={() => void apriVerbaleSal(s.id, c.id).catch((e: Error) => toast.error(e.message))}>Verbale</Button>
+                                    <Button variant="ghost" size="sm" aria-label={t("Verbale SAL {numero_sal}", { numero_sal: String(s.numero_sal ?? "") })}
+                                      onClick={() => void apriVerbaleSal(s.id, c.id).catch((e: Error) => toast.error(e.message))}>{t("Verbale")}</Button>
                                   )}
                                   {differenza > 0 && puoCollegareFatture && fattureLibere.length > 0 && (
-                                    <Button variant="outline" size="sm" aria-label={`Collega fattura al SAL ${s.numero_sal}`}
-                                      onClick={() => setCollega({ contrattoId: c.id, salId: s.id })}><Link2 className="size-4" />Collega</Button>
+                                    <Button variant="outline" size="sm" aria-label={t("Collega fattura al SAL {numero_sal}", { numero_sal: String(s.numero_sal ?? "") })}
+                                      onClick={() => setCollega({ contrattoId: c.id, salId: s.id })}><Link2 className="size-4" />{t("Collega")}</Button>
                                   )}
                                 </div>
                               </li>
                             ))}
                           </ul>
-                        ) : <p className="px-3 py-3 text-sm text-muted-foreground sm:px-4">I SAL verificati compariranno qui con l’imponibile da fatturare.</p>}
+                        ) : <p className="px-3 py-3 text-sm text-muted-foreground sm:px-4">{t("I SAL verificati compariranno qui con l’imponibile da fatturare.")}</p>}
                       </section>
                     )}
                     {datiContabiliDisponibili && r.acconto > 0 && (
                       <p className="text-xs leading-relaxed text-muted-foreground" data-testid="acconto-contratto">
-                        Acconto {euro(r.acconto)} · Fatturato {euro(r.accontoFatturato)} · Recuperato nei SAL {euro(r.accontoRecuperato)} ·{" "}
-                        <span className={r.accontoDaRecuperare > 0 ? "font-medium text-amber-800" : undefined}>Da recuperare {euro(r.accontoDaRecuperare)}</span>
+                        {t("Acconto {acconto} · Fatturato {fatturato} · Recuperato nei SAL {recuperato}", { acconto: euro(r.acconto), fatturato: euro(r.accontoFatturato), recuperato: euro(r.accontoRecuperato) })} ·{" "}
+                        <span className={r.accontoDaRecuperare > 0 ? "font-medium text-amber-800" : undefined}>{t("Da recuperare {accontoDaRecuperare}", { accontoDaRecuperare: euro(r.accontoDaRecuperare) })}</span>
                       </p>
                     )}
                     {datiContabiliDisponibili && r.avvisi.length > 0 && (
                       <details className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
                         <summary className="cursor-pointer font-medium">
                           <AlertTriangle aria-hidden="true" className="mr-1.5 inline size-4 align-text-bottom" />
-                          {r.avvisi.length === 1 ? "1 verifica contabile da completare" : `${r.avvisi.length} verifiche contabili da completare`}
+                          {r.avvisi.length === 1 ? t("1 verifica contabile da completare") : t("{n} verifiche contabili da completare", { n: r.avvisi.length })}
                         </summary>
                         <ul className="mt-2 list-disc space-y-1 pl-5">{r.avvisi.map(a => <li key={a}>{a}</li>)}</ul>
                       </details>
                     )}
-                    {erroreFatture ? <p role="alert" className="text-sm text-destructive">Fatture non disponibili. <Button variant="link" onClick={riprovaRiepilogo}>Riprova</Button></p>
-                      : caricoFatture ? <p role="status" className="text-sm text-muted-foreground">Caricamento fatture…</p>
-                        : <section aria-label="Fatture collegate" className="rounded-xl border">
+                    {erroreFatture ? <p role="alert" className="text-sm text-destructive">{t("Fatture non disponibili.")} <Button variant="link" onClick={riprovaRiepilogo}>{t("Riprova")}</Button></p>
+                      : caricoFatture ? <p role="status" className="text-sm text-muted-foreground">{t("Caricamento fatture…")}</p>
+                        : <section aria-label={t("Fatture collegate")} className="rounded-xl border">
                           <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2 sm:px-4">
-                            <h3 className="text-sm font-medium">Fatture collegate</h3>
+                            <h3 className="text-sm font-medium">{t("Fatture collegate")}</h3>
                             {datiContabiliDisponibili && puoCollegareFatture && fattureLibere.length > 0 && (
                               <Button size="sm" variant="outline" onClick={() => setCollega({ contrattoId: c.id })}>
-                                <Link2 className="size-4" />Collega fattura
+                                <Link2 className="size-4" />{t("Collega fattura")}
                               </Button>
                             )}
                           </div>
                           {suoFatture.length === 0 ? (
                             <div className="space-y-1 px-3 py-3 text-sm text-muted-foreground sm:px-4">
-                              <p>Nessuna fattura collegata a questo contratto.</p>
+                              <p>{t("Nessuna fattura collegata a questo contratto.")}</p>
                               {puoCollegareFatture && !fattureLibere.length && (pivaSub ? (
                                 <div className="flex flex-wrap items-center gap-x-2">
-                                  <span>Nessuna fattura ricevuta disponibile per la partita IVA {sub.piva}.</span>
-                                  {permessiLavori.canViewBilling && <Link className="font-medium text-primary underline-offset-2 hover:underline" to="/azienda/documenti/fatture-ricevute">Apri fatture ricevute</Link>}
+                                  <span>{t("Nessuna fattura ricevuta disponibile per la partita IVA {piva}.", { piva: String(sub.piva ?? "") })}</span>
+                                  {permessiLavori.canViewBilling && <Link className="font-medium text-primary underline-offset-2 hover:underline" to="/azienda/documenti/fatture-ricevute">{t("Apri fatture ricevute")}</Link>}
                                 </div>
                               ) : (
                                 <div className="flex flex-wrap items-center gap-x-2">
-                                  <span>Aggiungi la partita IVA per trovare le fatture di questa ditta.</span>
+                                  <span>{t("Aggiungi la partita IVA per trovare le fatture di questa ditta.")}</span>
                                   <button type="button" className="font-medium text-primary underline-offset-2 hover:underline"
-                                    onClick={() => { chiudiDettaglio(); onApriAnagrafica(); }}>Completa anagrafica</button>
+                                    onClick={() => { chiudiDettaglio(); onApriAnagrafica(); }}>{t("Completa anagrafica")}</button>
                                 </div>
                               ))}
                             </div>
@@ -1132,16 +1134,16 @@ export function ContrattiSubappalto({
                                 return (
                                   <li key={f.id} className="flex items-center gap-2 px-3 py-2 sm:gap-3 sm:px-4">
                                     <div className="min-w-0 flex-1 space-y-0.5">
-                                      <p className="break-words text-sm font-medium">{f.tipo_documento === "TD04" ? "Nota di credito" : "Fattura"} {f.numero_fattura ?? ""}</p>
-                                      <p className="text-xs text-muted-foreground">{dataIT(f.data_fattura)} · {suoSal ? `SAL n. ${suoSal.numero_sal}` : f.subappalto_acconto ? "Acconto" : "SAL non assegnato"}</p>
+                                      <p className="break-words text-sm font-medium">{f.tipo_documento === "TD04" ? t("Nota di credito") : t("Fattura")} {f.numero_fattura ?? ""}</p>
+                                      <p className="text-xs text-muted-foreground">{dataIT(f.data_fattura)} · {suoSal ? t("SAL n. {numero_sal}", { numero_sal: String(suoSal.numero_sal ?? "") }) : f.subappalto_acconto ? t("Acconto") : t("SAL non assegnato")}</p>
                                     </div>
                                     <span className="shrink-0 text-sm font-medium tabular-nums">{euro(imponibileFattura(f))}</span>
                                     {!suoSal && !f.subappalto_acconto && coperturaSal.length > 0 && puoCollegareFatture && f.stato !== "rifiutata" && (
-                                      <Button variant="ghost" size="sm" onClick={() => setCollega({ contrattoId: c.id, fattura: f })}>Assegna SAL</Button>
+                                      <Button variant="ghost" size="sm" onClick={() => setCollega({ contrattoId: c.id, fattura: f })}>{t("Assegna SAL")}</Button>
                                     )}
                                     <Button size="icon" variant="ghost" className="size-8 shrink-0" aria-label={`Scollega la fattura ${f.numero_fattura ?? ""}`.trim()}
                                       disabled={!puoCollegareFatture || collegaFattura.isPending} onClick={() => {
-                                        if (window.confirm("Scollegare la fattura dal contratto e dal SAL? La fattura e l’eventuale costo restano registrati.")) {
+                                        if (window.confirm(t("Scollegare la fattura dal contratto e dal SAL? La fattura e l’eventuale costo restano registrati."))) {
                                           collegaFattura.mutate({ fatturaId: f.id, contrattoId: null }, { onError: (e: Error) => toast.error(e.message) });
                                         }
                                       }}>
@@ -1160,8 +1162,8 @@ export function ContrattiSubappalto({
           })}
           {!contratti.some(c => c.id === dettaglio) && (
             <DialogHeader className="p-4 pr-12 text-left">
-              <DialogTitle>Contratto di subappalto</DialogTitle>
-              <DialogDescription>{isLoading ? "Caricamento contratto…" : "Contratto non disponibile."}</DialogDescription>
+              <DialogTitle>{t("Contratto di subappalto")}</DialogTitle>
+              <DialogDescription>{isLoading ? t("Caricamento contratto…") : t("Contratto non disponibile.")}</DialogDescription>
             </DialogHeader>
           )}
         </DialogContent>
@@ -1176,9 +1178,9 @@ export function ContrattiSubappalto({
           modello={modelloArticoli}
           personalizzati={unisciArticoliPersonalizzati({}, condizioni.articoli_personalizzati)}
           bloccato={condizioni.firmato_il
-            ? "Contratto firmato: le sue condizioni non si cambiano più. Puoi ancora aggiornare lo standard dell'azienda."
+            ? t("Contratto firmato: le sue condizioni non si cambiano più. Puoi ancora aggiornare lo standard dell'azienda.")
             : ["pending", "otp_verified"].includes(richiestaDi(condizioni.id)?.status ?? "")
-              ? "Il contratto è in firma: annulla la richiesta di firma prima di cambiarne le condizioni."
+              ? t("Il contratto è in firma: annulla la richiesta di firma prima di cambiarne le condizioni.")
               : null}
           puoScrivere={!permessiLavori.solaLettura && permessiLavori.canEditOrders}
           onClose={() => setCondizioni(null)}
@@ -1190,34 +1192,30 @@ export function ContrattiSubappalto({
       <Dialog open={!!variante} onOpenChange={(v) => { if (!v && !registraVariante.isPending) setVariante(null); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Variante del contratto</DialogTitle>
+            <DialogTitle>{t("Variante del contratto")}</DialogTitle>
             <DialogDescription>
-              Cambia importo lavori e oneri della sicurezza. Resta lo storico (prima, dopo, motivo, chi e quando).
-              Se l'importo sale, nell'elenco lavori si aggiunge una voce «Variante» a corpo per la differenza;
-              per ridurlo non devono esserci misure né SAL.
+              {t("Cambia importo lavori e oneri della sicurezza. Resta lo storico (prima, dopo, motivo, chi e quando). Se l'importo sale, nell'elenco lavori si aggiunge una voce «Variante» a corpo per la differenza; per ridurlo non devono esserci misure né SAL.")}
             </DialogDescription>
           </DialogHeader>
           {variante && (
             <div className="space-y-3">
-              <p className="text-xs text-muted-foreground">
-                Oggi: lavori {euro(Number(variante.c.importo_contrattuale))} · oneri {euro(Number(variante.c.oneri_sicurezza ?? 0))}
-              </p>
+              <p className="text-xs text-muted-foreground">{t("Oggi: lavori {valore} · oneri {valore2}", { valore: euro(Number(variante.c.importo_contrattuale)), valore2: euro(Number(variante.c.oneri_sicurezza ?? 0)) })}</p>
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1"><Label>Nuovo importo lavori (€)</Label>
+                <div className="space-y-1"><Label>{t("Nuovo importo lavori (€)")}</Label>
                   <Input inputMode="decimal" value={variante.importo} onChange={(e) => setVariante((p) => p && { ...p, importo: e.target.value })} /></div>
-                <div className="space-y-1"><Label>Nuovi oneri sicurezza (€)</Label>
+                <div className="space-y-1"><Label>{t("Nuovi oneri sicurezza (€)")}</Label>
                   <Input inputMode="decimal" value={variante.oneri} onChange={(e) => setVariante((p) => p && { ...p, oneri: e.target.value })} /></div>
               </div>
-              <div className="space-y-1"><Label>Motivo *</Label>
-                <Textarea rows={2} value={variante.motivo} placeholder="es. Lavori aggiuntivi al bagno richiesti dal cliente"
+              <div className="space-y-1"><Label>{t("Motivo *")}</Label>
+                <Textarea rows={2} value={variante.motivo} placeholder={t("es. Lavori aggiuntivi al bagno richiesti dal cliente")}
                   onChange={(e) => setVariante((p) => p && { ...p, motivo: e.target.value })} /></div>
               {storicoVarianti.length > 0 && (
                 <div className="space-y-1">
-                  <p className="text-xs font-medium">Varianti già registrate</p>
+                  <p className="text-xs font-medium">{t("Varianti già registrate")}</p>
                   <ul className="max-h-40 space-y-1 overflow-y-auto text-xs text-muted-foreground">
                     {storicoVarianti.map((v) => (
-                      <li key={v.id}>{new Date(v.created_at).toLocaleDateString("it-IT")}: lavori {euro(Number(v.importo_prima))} → {euro(Number(v.importo_dopo))}
-                        {Number(v.oneri_prima) !== Number(v.oneri_dopo) ? `, oneri ${euro(Number(v.oneri_prima))} → ${euro(Number(v.oneri_dopo))}` : ""} · {v.motivo}</li>
+                      <li key={v.id}>{t("{data}: lavori {prima} → {dopo}", { data: new Date(v.created_at).toLocaleDateString(intlCampo()), prima: euro(Number(v.importo_prima)), dopo: euro(Number(v.importo_dopo)) })}
+                        {Number(v.oneri_prima) !== Number(v.oneri_dopo) ? t(", oneri {valore} → {valore2}", { valore: euro(Number(v.oneri_prima)), valore2: euro(Number(v.oneri_dopo)) }) : ""} · {v.motivo}</li>
                     ))}
                   </ul>
                 </div>
@@ -1225,9 +1223,9 @@ export function ContrattiSubappalto({
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" disabled={registraVariante.isPending} onClick={() => setVariante(null)}>Annulla</Button>
+            <Button variant="outline" disabled={registraVariante.isPending} onClick={() => setVariante(null)}>{t("Annulla")}</Button>
             <Button disabled={registraVariante.isPending} onClick={() => registraVariante.mutate()}>
-              {registraVariante.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Registra variante
+              {registraVariante.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{t("Registra variante")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1237,50 +1235,50 @@ export function ContrattiSubappalto({
       <Dialog open={!!dialog} onOpenChange={(v) => { if (!v && !salva.isPending) setDialog(null); }}>
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{dialog?.id ? "Modifica contratto" : "Nuovo contratto di subappalto"}</DialogTitle>
-            <DialogDescription>I dati finiscono nel contratto da stampare e firmare; quello che scrivi negli ultimi campi prende il posto del testo standard.</DialogDescription>
+            <DialogTitle>{dialog?.id ? t("Modifica contratto") : t("Nuovo contratto di subappalto")}</DialogTitle>
+            <DialogDescription>{t("I dati finiscono nel contratto da stampare e firmare; quello che scrivi negli ultimi campi prende il posto del testo standard.")}</DialogDescription>
           </DialogHeader>
           {baseCongelata && <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-            <p>Questo contratto ha già misure o SAL registrati: la commessa resta quella. Se cambi importo o oneri, al salvataggio si registra una variante con lo storico (prima, dopo, motivo).</p>
-            <Input className="h-8 bg-white text-xs" placeholder="Motivo della variante (es. lavori aggiuntivi richiesti dal cliente)" value={motivoVariante} onChange={(e) => setMotivoVariante(e.target.value)} />
+            <p>{t("Questo contratto ha già misure o SAL registrati: la commessa resta quella. Se cambi importo o oneri, al salvataggio si registra una variante con lo storico (prima, dopo, motivo).")}</p>
+            <Input className="h-8 bg-white text-xs" placeholder={t("Motivo della variante (es. lavori aggiuntivi richiesti dal cliente)")} value={motivoVariante} onChange={(e) => setMotivoVariante(e.target.value)} />
           </div>}
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1 sm:col-span-2">
-              <Label>Commessa *</Label>
+              <Label>{t("Commessa *")}</Label>
               <Select disabled={baseCongelata} value={form.order_id} onValueChange={(v) => setForm((p) => ({ ...p, order_id: v }))}>
-                <SelectTrigger><SelectValue placeholder="Scegli la commessa" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t("Scegli la commessa")} /></SelectTrigger>
                 <SelectContent>{commesse.map((o) => <SelectItem key={o.id} value={o.id}>{o.order_code ? `${o.order_code} · ` : ""}{o.description ?? ""}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="space-y-1 sm:col-span-2"><Label>Lavori affidati *</Label><Textarea rows={2} {...campo("descrizione_lavori")} placeholder="es. Montaggio e smontaggio del ponteggio di facciata" /></div>
-            <div className="space-y-1"><Label>Numero contratto</Label><Input {...campo("numero_contratto")} /></div>
-            <div className="space-y-1"><Label>Data di stipula</Label><Input type="date" {...campo("data_stipula")} /></div>
-            <div className="space-y-1"><Label>Importo lavori (€) *</Label><Input inputMode="decimal" {...campo("importo_contrattuale")} placeholder="0,00" /></div>
-            <div className="space-y-1"><Label>Oneri della sicurezza (€)</Label><Input inputMode="decimal" {...campo("oneri_sicurezza")} placeholder="Non soggetti a ribasso" /></div>
-            <div className="space-y-1"><Label>Ritenuta di garanzia (%)</Label><Input inputMode="decimal" {...campo("ritenuta_garanzia_pct")} /></div>
-            <div className="space-y-1"><Label>Acconto (€)</Label><Input inputMode="decimal" {...campo("acconto_importo")} placeholder="Se il contratto lo prevede" />
-              <p className="text-[11px] text-muted-foreground">Si fattura senza SAL e si scala dai SAL, in proporzione al valore del contratto; l'ultimo SAL recupera il resto.</p></div>
-            <div className="space-y-1"><Label>Garanzia (mesi dalla fine lavori)</Label><Input inputMode="numeric" {...campo("durata_garanzia_mesi")} /></div>
-            <div className="space-y-1"><Label>Inizio lavori</Label><Input type="date" {...campo("data_inizio")} /></div>
-            <div className="space-y-1"><Label>Fine lavori prevista</Label><Input type="date" {...campo("data_fine_prevista")} /></div>
-            <div className="space-y-1"><Label>Rappresentante legale della tua impresa</Label><Input {...campo("responsabile_impresa")} placeholder="Chi firma il contratto per te (compare come «rappresentata da»)" /></div>
-            <div className="space-y-1"><Label>Responsabile in cantiere del subappaltatore</Label><Input {...campo("referente_subappaltatore")} /></div>
+            <div className="space-y-1 sm:col-span-2"><Label>{t("Lavori affidati *")}</Label><Textarea rows={2} {...campo("descrizione_lavori")} placeholder={t("es. Montaggio e smontaggio del ponteggio di facciata")} /></div>
+            <div className="space-y-1"><Label>{t("Numero contratto")}</Label><Input {...campo("numero_contratto")} /></div>
+            <div className="space-y-1"><Label>{t("Data di stipula")}</Label><Input type="date" {...campo("data_stipula")} /></div>
+            <div className="space-y-1"><Label>{t("Importo lavori (€) *")}</Label><Input inputMode="decimal" {...campo("importo_contrattuale")} placeholder="0,00" /></div>
+            <div className="space-y-1"><Label>{t("Oneri della sicurezza (€)")}</Label><Input inputMode="decimal" {...campo("oneri_sicurezza")} placeholder={t("Non soggetti a ribasso")} /></div>
+            <div className="space-y-1"><Label>{t("Ritenuta di garanzia (%)")}</Label><Input inputMode="decimal" {...campo("ritenuta_garanzia_pct")} /></div>
+            <div className="space-y-1"><Label>{t("Acconto (€)")}</Label><Input inputMode="decimal" {...campo("acconto_importo")} placeholder={t("Se il contratto lo prevede")} />
+              <p className="text-[11px] text-muted-foreground">{t("Si fattura senza SAL e si scala dai SAL, in proporzione al valore del contratto; l'ultimo SAL recupera il resto.")}</p></div>
+            <div className="space-y-1"><Label>{t("Garanzia (mesi dalla fine lavori)")}</Label><Input inputMode="numeric" {...campo("durata_garanzia_mesi")} /></div>
+            <div className="space-y-1"><Label>{t("Inizio lavori")}</Label><Input type="date" {...campo("data_inizio")} /></div>
+            <div className="space-y-1"><Label>{t("Fine lavori prevista")}</Label><Input type="date" {...campo("data_fine_prevista")} /></div>
+            <div className="space-y-1"><Label>{t("Rappresentante legale della tua impresa")}</Label><Input {...campo("responsabile_impresa")} placeholder={t("Chi firma il contratto per te (compare come «rappresentata da»)")} /></div>
+            <div className="space-y-1"><Label>{t("Responsabile in cantiere del subappaltatore")}</Label><Input {...campo("referente_subappaltatore")} /></div>
             <div className="space-y-1">
-              <Label>Stato</Label>
+              <Label>{t("Stato")}</Label>
               <Select value={form.stato} onValueChange={(v) => setForm((p) => ({ ...p, stato: v as ContrattoCompleto["stato"] }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{(Object.keys(STATI) as ContrattoCompleto["stato"][]).map((s) => <SelectItem key={s} value={s}>{STATI[s].label}</SelectItem>)}</SelectContent>
+                <SelectContent>{(Object.keys(STATI) as ContrattoCompleto["stato"][]).map((s) => <SelectItem key={s} value={s}>{t(STATI[s].label)}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="space-y-1 sm:col-span-2"><Label>Obblighi e responsabilità specifici</Label><Textarea rows={2} {...campo("obblighi")} placeholder="es. fornitura dei materiali, pulizia giornaliera, smaltimento dei rifiuti" /></div>
-            <div className="space-y-1 sm:col-span-2"><Label>Pagamenti</Label><Textarea rows={2} {...campo("modalita_pagamento")} placeholder="Vuoto = standard: SAL dall'elenco pagamenti, fattura pagata entro 7 giorni lavorativi" /></div>
-            <div className="space-y-1"><Label>Penali</Label><Textarea rows={2} {...campo("penali")} placeholder="Vuoto = standard: 200 €/giorno fino al 10° giorno, poi 400 €/giorno" /></div>
-            <div className="space-y-1"><Label>Garanzie e polizze</Label><Textarea rows={2} {...campo("garanzie")} placeholder="Si aggiunge alle garanzie di legge (polizza RC minimo 500.000 €)" /></div>
-            <div className="space-y-1 sm:col-span-2"><Label>Altre pattuizioni</Label><Textarea rows={2} {...campo("note")} /></div>
+            <div className="space-y-1 sm:col-span-2"><Label>{t("Obblighi e responsabilità specifici")}</Label><Textarea rows={2} {...campo("obblighi")} placeholder={t("es. fornitura dei materiali, pulizia giornaliera, smaltimento dei rifiuti")} /></div>
+            <div className="space-y-1 sm:col-span-2"><Label>{t("Pagamenti")}</Label><Textarea rows={2} {...campo("modalita_pagamento")} placeholder={t("Vuoto = standard: SAL dall'elenco pagamenti, fattura pagata entro 7 giorni lavorativi")} /></div>
+            <div className="space-y-1"><Label>{t("Penali")}</Label><Textarea rows={2} {...campo("penali")} placeholder={t("Vuoto = standard: 200 €/giorno fino al 10° giorno, poi 400 €/giorno")} /></div>
+            <div className="space-y-1"><Label>{t("Garanzie e polizze")}</Label><Textarea rows={2} {...campo("garanzie")} placeholder={t("Si aggiunge alle garanzie di legge (polizza RC minimo 500.000 €)")} /></div>
+            <div className="space-y-1 sm:col-span-2"><Label>{t("Altre pattuizioni")}</Label><Textarea rows={2} {...campo("note")} /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialog(null)} disabled={salva.isPending}>Annulla</Button>
-            <Button onClick={() => salva.mutate()} disabled={salva.isPending}>{salva.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Salva</Button>
+            <Button variant="outline" onClick={() => setDialog(null)} disabled={salva.isPending}>{t("Annulla")}</Button>
+            <Button onClick={() => salva.mutate()} disabled={salva.isPending}>{salva.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{t("Salva")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1307,29 +1305,28 @@ export function ContrattiSubappalto({
       <Dialog open={!!invio} onOpenChange={(v) => { if (!v && !inviaInFirma.isPending) setInvio(null); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Invia il contratto per la firma</DialogTitle>
+            <DialogTitle>{t("Invia il contratto per la firma")}</DialogTitle>
             <DialogDescription>
-              Il subappaltatore riceve per email il link al contratto in PDF: lo legge, accetta con una spunta e firma con un codice
-              che gli arriva per email o, se metti il cellulare, per SMS. A firma fatta il contratto risulta firmato da solo.
+              {t("Il subappaltatore riceve per email il link al contratto in PDF: lo legge, accetta con una spunta e firma con un codice che gli arriva per email o, se metti il cellulare, per SMS. A firma fatta il contratto risulta firmato da solo.")}
             </DialogDescription>
           </DialogHeader>
           {invio && (
             <div className="space-y-3">
-              <div className="space-y-1"><Label>Chi firma per il subappaltatore</Label>
-                <Input value={invio.nome} onChange={(e) => setInvio({ ...invio, nome: e.target.value })} placeholder="Nome e cognome del legale rappresentante" /></div>
+              <div className="space-y-1"><Label>{t("Chi firma per il subappaltatore")}</Label>
+                <Input value={invio.nome} onChange={(e) => setInvio({ ...invio, nome: e.target.value })} placeholder={t("Nome e cognome del legale rappresentante")} /></div>
               <div className="space-y-1"><Label>Email</Label>
-                <Input type="email" value={invio.email} onChange={(e) => setInvio({ ...invio, email: e.target.value })} placeholder="email o PEC del subappaltatore" /></div>
-              <div className="space-y-1"><Label>Cellulare (per il codice via SMS)</Label>
-                <Input type="tel" value={invio.telefono} onChange={(e) => setInvio({ ...invio, telefono: e.target.value })} placeholder="Facoltativo" /></div>
+                <Input type="email" value={invio.email} onChange={(e) => setInvio({ ...invio, email: e.target.value })} placeholder={t("email o PEC del subappaltatore")} /></div>
+              <div className="space-y-1"><Label>{t("Cellulare (per il codice via SMS)")}</Label>
+                <Input type="tel" value={invio.telefono} onChange={(e) => setInvio({ ...invio, telefono: e.target.value })} placeholder={t("Facoltativo")} /></div>
               <p className="text-xs text-muted-foreground">
-                Si manda il contratto così com'è adesso: se devi cambiare qualcosa, modificalo prima di inviarlo.
+                {t("Si manda il contratto così com'è adesso: se devi cambiare qualcosa, modificalo prima di inviarlo.")}
               </p>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setInvio(null)} disabled={inviaInFirma.isPending}>Annulla</Button>
+            <Button variant="outline" onClick={() => setInvio(null)} disabled={inviaInFirma.isPending}>{t("Annulla")}</Button>
             <Button onClick={() => inviaInFirma.mutate()} disabled={inviaInFirma.isPending}>
-              {inviaInFirma.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Send className="mr-1 h-4 w-4" />}Invia
+              {inviaInFirma.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Send className="mr-1 h-4 w-4" />}{t("Invia")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1362,6 +1359,7 @@ export function LavoriSubappaltatore({ subId, onApriCommessa, onApriContratto }:
   onApriCommessa: (orderId: string) => void;
   onApriContratto: (contrattoId: string) => void;
 }) {
+  const t = useT();
   const { data: contratti = [], isLoading, isError, refetch } = useContrattiSubappaltatore(subId);
   const ids = contratti.map((c) => c.id);
   const [lavorazioni, mostraLavorazioni] = useState<ContrattoCompleto | null>(null);
@@ -1399,9 +1397,9 @@ export function LavoriSubappaltatore({ subId, onApriCommessa, onApriContratto }:
   });
   const {data: firme = [], isLoading: caricoFirme, isError: erroreFirme} = useFirmeSubappalto(subId, ids);
   const righe: RigaContrattoSub[] = contratti.map(c => ({contratto:c, riepilogo:{...riepilogoContratto(c, sal.filter(s => s.contratto_id === c.id), fatture.filter(f => f.contratto_subappalto_id === c.id), ritenute.filter(r => r.contratto_id === c.id)), avvisi:[] as string[]}, firma:c.firmato_il ? 'firmato' : caricoFirme || erroreFirme ? 'non_disponibile' : ['pending','otp_verified','signed'].includes(firme.find(f => f.contratto_subappalto_id === c.id)?.status || '') ? 'in_attesa' : 'da_firmare'}));
-  if (isError || erroreSal || erroreRitenute || erroreFatture) return <div role="alert" className="rounded-lg border p-4 text-sm">Commesse e riepiloghi non disponibili. <Button variant="outline" onClick={() => {void refetch();void ricaricaSal();}}>Riprova</Button></div>;
-  if (isLoading || caricoSal || caricoRitenute || caricoFatture) return <p role="status" className="p-4 text-sm text-muted-foreground">Caricamento commesse e contratti…</p>;
-  if (!righe.length) return <p className="rounded-lg border p-6 text-sm text-muted-foreground">Nessun contratto collegato. Crea un contratto per ogni commessa nella scheda Contratti.</p>;
+  if (isError || erroreSal || erroreRitenute || erroreFatture) return <div role="alert" className="rounded-lg border p-4 text-sm">{t("Commesse e riepiloghi non disponibili.")} <Button variant="outline" onClick={() => {void refetch();void ricaricaSal();}}>{t("Riprova")}</Button></div>;
+  if (isLoading || caricoSal || caricoRitenute || caricoFatture) return <p role="status" className="p-4 text-sm text-muted-foreground">{t("Caricamento commesse e contratti…")}</p>;
+  if (!righe.length) return <p className="rounded-lg border p-6 text-sm text-muted-foreground">{t("Nessun contratto collegato. Crea un contratto per ogni commessa nella scheda Contratti.")}</p>;
   return <>
     <ElencoContrattiSub righe={righe} contesto="commesse" onApri={onApriContratto}
       onCommessa={onApriCommessa} onLavorazioni={mostraLavorazioni} />

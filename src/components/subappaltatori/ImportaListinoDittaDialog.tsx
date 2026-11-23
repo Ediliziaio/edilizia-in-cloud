@@ -23,6 +23,7 @@ import {
   daSalvareImport, numeroListino, proponiImport, righeDaTabella, tabellaDaFile,
   type PropostaImport, type RigaListinoImportata, type SceltaImport, type VoceListinoConCosto,
 } from "@/lib/subappaltatori/importaListinoDitta";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -36,6 +37,7 @@ export function ImportaListinoDittaDialog({ companyId, anagraficaId, nomeDitta, 
   voci: VoceListinoConCosto[];
   validoDal: string; onChiudi: () => void; onFatto: () => void;
 }) {
+  const t = useT();
   const { user } = useAuth();
   const [proposte, setProposte] = useState<PropostaImport[] | null>(null);
   const [nomeFile, setNomeFile] = useState("");
@@ -66,7 +68,7 @@ export function ImportaListinoDittaDialog({ companyId, anagraficaId, nomeDitta, 
       return proponiImport(righe, voci, anagraficaId);
     },
     onSuccess: (p) => setProposte(p),
-    onError: (e: Error) => toast.error(e.message || "Il file non si è potuto leggere."),
+    onError: (e: Error) => toast.error(e.message || t("Il file non si è potuto leggere.")),
   });
 
   const conto = useMemo(() => {
@@ -110,10 +112,10 @@ export function ImportaListinoDittaDialog({ companyId, anagraficaId, nomeDitta, 
       }
     },
     onSuccess: (r) => {
-      toast.success(`Listino di ${nomeDitta} caricato: ${r.scritti} prezzi${r.nuove ? `, di cui ${r.nuove} su voci nuove della ditta` : ""}.`);
+      toast.success(r.nuove ? t("Listino di {nomeDitta} caricato: {scritti} prezzi, di cui {nuove} su voci nuove della ditta.", { nomeDitta, scritti: r.scritti, nuove: r.nuove }) : t("Listino di {nomeDitta} caricato: {scritti} prezzi.", { nomeDitta, scritti: r.scritti }));
       onFatto();
     },
-    onError: (e: Error) => toast.error(e.message || "Listino non caricato."),
+    onError: (e: Error) => toast.error(e.message || t("Listino non caricato.")),
   });
 
   const cambia = (i: number, v: string) => setProposte((p) => p && p.map((x, j) => (j === i ? { ...x, scelta: daValore(v) } : x)));
@@ -124,34 +126,31 @@ export function ImportaListinoDittaDialog({ companyId, anagraficaId, nomeDitta, 
     <Dialog open onOpenChange={(o) => !o && !salva.isPending && onChiudi()}>
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-4xl">
         <DialogHeader>
-          <DialogTitle>Carica il listino di {nomeDitta}</DialogTitle>
-          <DialogDescription>
-            Excel o CSV con descrizione e prezzo (codice e unità se ci sono), oppure un PDF letto con l'AI. Ogni riga va su una voce del
-            listino dell'azienda o diventa una voce della ditta. I prezzi valgono dal {validoDal.split("-").reverse().join("/")}; i contratti già fatti non cambiano.
-          </DialogDescription>
+          <DialogTitle>{t("Carica il listino di {nomeDitta}", { nomeDitta: String(nomeDitta ?? "") })}</DialogTitle>
+          <DialogDescription>{t("Excel o CSV con descrizione e prezzo (codice e unità se ci sono), oppure un PDF letto con l'AI. Ogni riga va su una voce del listino dell'azienda o diventa una voce della ditta. I prezzi valgono dal {valore}; i contratti già fatti non cambiano.", { valore: validoDal.split("-").reverse().join("/") })}</DialogDescription>
         </DialogHeader>
 
         {!proposte ? (
           <label className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border border-dashed p-8 text-sm text-muted-foreground hover:bg-muted/40">
             {leggi.isPending ? <Loader2 className="h-6 w-6 animate-spin" /> : <FileUp className="h-6 w-6" />}
-            {leggi.isPending ? `Leggo ${nomeFile}…` : "Scegli il file del listino (.xlsx, .csv, .pdf)"}
-            <input type="file" accept=".xlsx,.xlsm,.csv,.tsv,.pdf,.docx" className="sr-only" aria-label="File del listino" disabled={leggi.isPending}
+            {leggi.isPending ? t("Leggo {nomeFile}…", { nomeFile: String(nomeFile ?? "") }) : t("Scegli il file del listino (.xlsx, .csv, .pdf)")}
+            <input type="file" accept=".xlsx,.xlsm,.csv,.tsv,.pdf,.docx" className="sr-only" aria-label={t("File del listino")} disabled={leggi.isPending}
               onChange={(e) => { const f = e.target.files?.[0]; if (f) { setNomeFile(f.name); leggi.mutate(f); } e.target.value = ""; }} />
           </label>
         ) : (
           <>
             <p className="text-sm" role="status">
-              {nomeFile}: <strong>{proposte.length}</strong> righe · {conto.voce} su voci del listino · {conto.nuove} {conto.nuove === 1 ? "voce nuova" : "voci nuove"} della ditta · {conto.fuori} {conto.fuori === 1 ? "riga fuori" : "righe fuori"}
-              {conto.daGuardare > 0 && <span className="text-amber-800"> ({conto.daGuardare} da guardare)</span>}
+              {nomeFile}: <strong>{proposte.length}</strong> {t("righe ·")} {t("{voce} su voci del listino ·", { voce: conto.voce })} {t(conto.nuove === 1 ? "{nuove} voce nuova della ditta ·" : "{nuove} voci nuove della ditta ·", { nuove: conto.nuove })} {t(conto.fuori === 1 ? "{fuori} riga fuori" : "{fuori} righe fuori", { fuori: conto.fuori })}
+              {conto.daGuardare > 0 && <span className="text-amber-800">{" "}{t("({daGuardare} da guardare)", { daGuardare: String(conto.daGuardare ?? "") })}</span>}
             </p>
-            <Input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder="Cerca nelle righe del file" aria-label="Cerca nelle righe del file" className="h-9" />
+            <Input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder={t("Cerca nelle righe del file")} aria-label={t("Cerca nelle righe del file")} className="h-9" />
             <div className="overflow-x-auto rounded-lg border">
               <table className="w-full min-w-[680px] text-sm">
                 <thead className="bg-muted/50 text-xs text-muted-foreground">
                   <tr>
-                    <th className="px-2 py-1.5 text-left font-medium">Riga del file</th>
-                    <th className="w-20 px-1 py-1.5 text-right font-medium">Prezzo</th>
-                    <th className="w-72 px-2 py-1.5 text-left font-medium">Va su</th>
+                    <th className="px-2 py-1.5 text-left font-medium">{t("Riga del file")}</th>
+                    <th className="w-20 px-1 py-1.5 text-right font-medium">{t("Prezzo")}</th>
+                    <th className="w-72 px-2 py-1.5 text-left font-medium">{t("Va su")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -175,10 +174,10 @@ export function ImportaListinoDittaDialog({ companyId, anagraficaId, nomeDitta, 
                         </td>
                         <td className="px-1 py-1 text-right tabular-nums">{p.riga.prezzo == null ? "—" : formatCurrency(p.riga.prezzo)}</td>
                         <td className="px-2 py-1">
-                          <UniformSelect aria-label={`Dove va la riga ${p.riga.riga}`} className="h-8 w-full rounded-md border bg-background px-1 text-xs"
+                          <UniformSelect aria-label={t("Dove va la riga {riga}", { riga: String(p.riga.riga ?? "") })} className="h-8 w-full rounded-md border bg-background px-1 text-xs"
                             value={valoreScelta(p.scelta)} onChange={(e) => cambia(i, e.target.value)} disabled={p.riga.prezzo == null || p.riga.prezzo < 0}>
-                            <option value="salta">Non caricare</option>
-                            <option value="nuova">Voce nuova della ditta</option>
+                            <option value="salta">{t("Non caricare")}</option>
+                            <option value="nuova">{t("Voce nuova della ditta")}</option>
                             {opzioniVoci.map((v) => <option key={v.id} value={`v:${v.id}`}>{v.codice ? `${v.codice} · ` : ""}{v.nome} ({unitaDelListino(v.unita)})</option>)}
                           </UniformSelect>
                         </td>
@@ -191,20 +190,20 @@ export function ImportaListinoDittaDialog({ companyId, anagraficaId, nomeDitta, 
             {esito.errori.length > 0 && (
               <ul role="alert" className="space-y-0.5 rounded-md bg-red-50 px-2 py-1 text-xs text-red-900">
                 {esito.errori.slice(0, 5).map((e) => <li key={e}>{e}</li>)}
-                {esito.errori.length > 5 && <li>…e altri {esito.errori.length - 5}.</li>}
+                {esito.errori.length > 5 && <li>{t("…e altri {n}.", { n: esito.errori.length - 5 })}</li>}
               </ul>
             )}
           </>
         )}
 
         <DialogFooter>
-          <Button variant="ghost" disabled={salva.isPending} onClick={onChiudi}>Annulla</Button>
+          <Button variant="ghost" disabled={salva.isPending} onClick={onChiudi}>{t("Annulla")}</Button>
           {proposte && (
             <>
-              <Button variant="outline" disabled={salva.isPending} onClick={() => setProposte(null)}>Altro file</Button>
+              <Button variant="outline" disabled={salva.isPending} onClick={() => setProposte(null)}>{t("Altro file")}</Button>
               <Button disabled={salva.isPending || esito.errori.length > 0 || (!esito.prezzi.length && !esito.nuove.length)} onClick={() => salva.mutate()}>
                 {salva.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
-                Carica {esito.prezzi.length + esito.nuove.length} {esito.prezzi.length + esito.nuove.length === 1 ? "prezzo" : "prezzi"}
+                {t(esito.prezzi.length + esito.nuove.length === 1 ? "Carica {n} prezzo" : "Carica {n} prezzi", { n: esito.prezzi.length + esito.nuove.length })}
               </Button>
             </>
           )}

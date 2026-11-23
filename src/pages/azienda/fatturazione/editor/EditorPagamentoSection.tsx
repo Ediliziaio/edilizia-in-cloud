@@ -11,13 +11,13 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, parseISO, addDays } from "date-fns";
-import { it } from "date-fns/locale";
 import { METODI_PAGAMENTO_SDI } from "@/types/fatturazione";
 import { parseDecimalIT } from "@/lib/parseDecimalIT";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import type { ScadenzaPagamento } from "@/types/fatturazione";
 import type { EditorState } from "./useEditorState";
 import { scadenze30_30_40 } from "@/lib/fatturazione/scadenzeFattura";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   state: EditorState;
@@ -50,6 +50,7 @@ function validateIBAN(iban: string): boolean {
 const pulisciIban = (v: string): string => String(v ?? "").replace(/\s+/g, "").toUpperCase();
 
 export function EditorPagamentoSection({ state, dispatch, disabled }: Props) {
+  const t = useT();
   const { data: azienda } = useAnagraficaAzienda();
   const scadenze = state.scadenze_pagamento ?? [];
   // Il menu mostra «Bonifico» quando il metodo non è scelto: i «Dettagli bancari» devono
@@ -164,7 +165,7 @@ export function EditorPagamentoSection({ state, dispatch, disabled }: Props) {
 
   return (
     <div className="rounded-lg border bg-card p-4 space-y-3 border-l-[3px] border-l-emerald-400/60 shadow-sm">
-      <Label className="text-[11px] font-bold uppercase tracking-wider text-emerald-600/80 dark:text-emerald-400/80">Metodo di pagamento</Label>
+      <Label className="text-[11px] font-bold uppercase tracking-wider text-emerald-600/80 dark:text-emerald-400/80">{t("Metodo di pagamento")}</Label>
 
       {/* Metodo pagamento */}
       <Select
@@ -194,7 +195,7 @@ export function EditorPagamentoSection({ state, dispatch, disabled }: Props) {
         <div className="flex gap-1 flex-wrap">
           {PRESET_DAYS.map((p) => (
             <Button key={p.label} variant="outline" size="sm" className="h-5 text-[9px] px-1.5" onClick={() => applyPreset(p.days)}>
-              {p.label}
+              {t(p.label)}
             </Button>
           ))}
           <Button type="button" variant="outline" size="sm" className="h-5 text-[9px] px-1.5" onClick={() => dispatch({
@@ -217,7 +218,7 @@ export function EditorPagamentoSection({ state, dispatch, disabled }: Props) {
                 <PopoverTrigger asChild>
                   <Button variant="outline" className="h-6 w-[5.5rem] justify-start text-left text-[10px] font-normal px-1.5" disabled={disabled}>
                     <CalendarIcon className="mr-0.5 h-2.5 w-2.5" />
-                    {sc.data_scadenza ? format(parseISO(sc.data_scadenza), "dd/MM/yy", { locale: it }) : "Data"}
+                    {sc.data_scadenza ? format(parseISO(sc.data_scadenza), "dd/MM/yy", { locale: dateFnsCampo() }) : t("Data")}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
@@ -239,7 +240,7 @@ export function EditorPagamentoSection({ state, dispatch, disabled }: Props) {
                 disabled={disabled}
               />
               {!disabled && (
-                <Button variant="ghost" size="icon" aria-label="Rimuovi la scadenza" className="h-5 w-5" onClick={() => dispatch({ type: "REMOVE_SCADENZA", index: i })}>
+                <Button variant="ghost" size="icon" aria-label={t("Rimuovi la scadenza")} className="h-5 w-5" onClick={() => dispatch({ type: "REMOVE_SCADENZA", index: i })}>
                   <Trash2 className="h-2.5 w-2.5 text-destructive" />
                 </Button>
               )}
@@ -248,9 +249,9 @@ export function EditorPagamentoSection({ state, dispatch, disabled }: Props) {
           {mismatch && (
             <div className="flex items-center gap-1 text-[9px] text-amber-600 bg-amber-50 dark:bg-amber-950/20 rounded px-1.5 py-1">
               <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
-              <span>Somma ≠ totale</span>
+              <span>{t("Somma ≠ totale")}</span>
               {!disabled && (
-                <button className="ml-auto underline text-[9px]" onClick={distribuisciAutomaticamente}>Correggi</button>
+                <button className="ml-auto underline text-[9px]" onClick={distribuisciAutomaticamente}>{t("Correggi")}</button>
               )}
             </div>
           )}
@@ -260,7 +261,7 @@ export function EditorPagamentoSection({ state, dispatch, disabled }: Props) {
       {!disabled && (
         <Button variant="ghost" size="sm" className="text-[10px] h-5 px-1.5" onClick={addScadenza}>
           <Plus className="h-2.5 w-2.5 mr-0.5" />
-          Scadenza
+          {t("Scadenza")}
         </Button>
       )}
 
@@ -270,18 +271,18 @@ export function EditorPagamentoSection({ state, dispatch, disabled }: Props) {
           <CollapsibleTrigger asChild>
             <button className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground w-full justify-center transition-colors">
               <ChevronDown className={`h-2.5 w-2.5 transition-transform ${detailsOpen ? "rotate-180" : ""}`} />
-              Dettagli bancari
+              {t("Dettagli bancari")}
             </button>
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-1.5 pt-1">
             {azienda?.iban_principale && !disabled && (
               <Button variant="ghost" size="sm" className="h-5 text-[9px] w-full" onClick={autoFillBanca}>
-                Auto-compila da azienda
+                {t("Auto-compila da azienda")}
               </Button>
             )}
             {conti.length > 1 && (
               <div>
-                <Label className="text-[10px] text-muted-foreground" htmlFor="conto-fattura">Conto su cui incassare</Label>
+                <Label className="text-[10px] text-muted-foreground" htmlFor="conto-fattura">{t("Conto su cui incassare")}</Label>
                 <select
                   id="conto-fattura"
                   className="h-6 w-full rounded-md border bg-background px-2 text-[10px]"
@@ -289,10 +290,10 @@ export function EditorPagamentoSection({ state, dispatch, disabled }: Props) {
                   onChange={(e) => scegliConto(e.target.value)}
                   disabled={disabled}
                 >
-                  {!contoScelto && <option value="">IBAN scritto a mano</option>}
+                  {!contoScelto && <option value="">{t("IBAN scritto a mano")}</option>}
                   {conti.map((c) => (
                     <option key={c.iban} value={c.iban}>
-                      {nomeConto(c)} · ···{c.ultime}{c.principale ? " · principale" : ""}
+                      {nomeConto(c)} · ···{c.ultime}{c.principale ? ` ${t("· principale")}` : ""}
                     </option>
                   ))}
                 </select>
@@ -304,10 +305,10 @@ export function EditorPagamentoSection({ state, dispatch, disabled }: Props) {
                 value={ibanValue}
                 onChange={(e) => setField("iban_pagamento", pulisciIban(e.target.value))}
                 className={cn("h-6 text-[10px] font-mono", !ibanValid && "border-destructive")}
-                placeholder="IT60X0542811101..."
+                placeholder={t("IT60X0542811101...")}
                 disabled={disabled}
               />
-              {!ibanValid && <p className="mt-0.5 text-[9px] text-destructive">IBAN non valido: 27 caratteri, IT + 2 cifre + lettera + 22 tra cifre e lettere.</p>}
+              {!ibanValid && <p className="mt-0.5 text-[9px] text-destructive">{t("IBAN non valido: 27 caratteri, IT + 2 cifre + lettera + 22 tra cifre e lettere.")}</p>}
             </div>
             <div className="grid grid-cols-2 gap-1.5">
               <div>
@@ -320,7 +321,7 @@ export function EditorPagamentoSection({ state, dispatch, disabled }: Props) {
                 />
               </div>
               <div>
-                <Label className="text-[10px] text-muted-foreground">Banca</Label>
+                <Label className="text-[10px] text-muted-foreground">{t("Banca")}</Label>
                 <Input
                   value={state.nome_banca ?? ""}
                   onChange={(e) => setField("nome_banca", e.target.value)}

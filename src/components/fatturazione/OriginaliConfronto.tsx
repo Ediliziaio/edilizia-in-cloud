@@ -10,10 +10,12 @@ import { scalaDocumento, useDimensioniDocumento, type AdattamentoDocumento } fro
 import { apriOriginaleConfronto, type OriginaleConfronto } from "@/lib/fatturazione/originaliConfronto";
 import { messaggioSalvataggio } from "@/lib/fatturazione/salvataggioFattura";
 import { PdfRigaConfronto } from "./PdfRigaConfronto";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const FOTO_VISIBILE = /^image\/(jpeg|png|webp|gif|bmp|avif)$/;
 
 function FotoOriginale({ src, nome }: { src: string; nome: string }) {
+  const t = useT();
   const superficie = useRef<HTMLDivElement>(null);
   const spazio = useDimensioniDocumento(superficie);
   const [dimensioni, setDimensioni] = useState<{ width: number; height: number } | null>(null);
@@ -24,7 +26,7 @@ function FotoOriginale({ src, nome }: { src: string; nome: string }) {
     ? dimensioni.width * scalaDocumento(dimensioni, spazio, adatta) * zoom
     : 1;
 
-  if (errore) return <p role="alert" className="rounded-lg border bg-muted/30 p-4 text-sm">Anteprima della foto non disponibile. Puoi aprire o scaricare l’originale.</p>;
+  if (errore) return <p role="alert" className="rounded-lg border bg-muted/30 p-4 text-sm">{t("Anteprima della foto non disponibile. Puoi aprire o scaricare l’originale.")}</p>;
   return (
     <>
       <ComandiDocumento ordine={20}>
@@ -37,7 +39,7 @@ function FotoOriginale({ src, nome }: { src: string; nome: string }) {
         <div className="flex w-max min-w-full justify-center p-2">
           <img
             src={src}
-            alt={`Originale ${nome}`}
+            alt={t("Originale {nome}", { nome: String(nome ?? "") })}
             referrerPolicy="no-referrer"
             className="block h-auto max-w-none shrink-0 bg-white shadow-sm"
             style={{ width: larghezza }}
@@ -59,6 +61,7 @@ export function OriginaliConfronto({ files, companyId, adatta = false, ricerca, 
   ricerca?: string;
   paginaIniziale?: number;
 }) {
+  const t = useT();
   const nelConfronto = useDocumentoAffiancato();
   const [id, setId] = useState("");
   const file = files.find(f => f.id === id) ?? files[0];
@@ -72,7 +75,7 @@ export function OriginaliConfronto({ files, companyId, adatta = false, ricerca, 
 
   if (!file) return (
     <div className="rounded-lg border border-dashed p-5 text-center text-sm text-muted-foreground">
-      Nessun file originale conservato per questo documento. Puoi caricarlo dalla sua scheda.
+      {t("Nessun file originale conservato per questo documento. Puoi caricarlo dalla sua scheda.")}
     </div>
   );
 
@@ -84,7 +87,7 @@ export function OriginaliConfronto({ files, companyId, adatta = false, ricerca, 
       <ComandiDocumento>
         <div className="flex min-w-0 items-center gap-1 rounded-md border bg-muted/30 p-1">
           {files.length > 1 ? (
-            <UniformSelect aria-label="Scegli il file originale" value={file.id} onChange={e => setId(e.target.value)}
+            <UniformSelect aria-label={t("Scegli il file originale")} value={file.id} onChange={e => setId(e.target.value)}
               className="h-8 min-w-0 flex-1 rounded-md border bg-background px-2 text-xs">
               {files.map(f => <option key={f.id} value={f.id}>{[f.etichetta, f.nome].filter(Boolean).join(" · ")}</option>)}
             </UniformSelect>
@@ -97,17 +100,17 @@ export function OriginaliConfronto({ files, companyId, adatta = false, ricerca, 
           {anteprima && (
             <>
               <Button asChild size="icon" variant="ghost" className="h-8 w-8 shrink-0">
-                <a href={anteprima.url} target="_blank" rel="noreferrer" title="Apri originale" aria-label="Apri originale">
+                <a href={anteprima.url} target="_blank" rel="noreferrer" title={t("Apri originale")} aria-label={t("Apri originale")}>
                   <ExternalLink className="size-4" aria-hidden="true" />
                 </a>
               </Button>
               <Button asChild size="icon" variant="ghost" className="h-8 w-8 shrink-0">
-                <a href={anteprima.url} download={file.nome} title="Scarica" aria-label="Scarica" target="_blank" rel="noreferrer">
+                <a href={anteprima.url} download={file.nome} title={t("Scarica")} aria-label={t("Scarica")} target="_blank" rel="noreferrer">
                   <Download className="size-4" aria-hidden="true" />
                 </a>
               </Button>
               <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0"
-                aria-label="Rinnova collegamento al file" title="Rinnova collegamento al file"
+                aria-label={t("Rinnova collegamento al file")} title={t("Rinnova collegamento al file")}
                 disabled={q.isFetching} onClick={() => void q.refetch()}>
                 <RefreshCw className="size-4" aria-hidden="true" />
               </Button>
@@ -115,11 +118,11 @@ export function OriginaliConfronto({ files, companyId, adatta = false, ricerca, 
           )}
         </div>
       </ComandiDocumento>
-      {q.isLoading && <p role="status" className="p-3 text-sm text-muted-foreground">Apertura originale…</p>}
+      {q.isLoading && <p role="status" className="p-3 text-sm text-muted-foreground">{t("Apertura originale…")}</p>}
       {q.isError && (
         <p role="alert" className="p-3 text-sm text-destructive">
           {messaggioSalvataggio(q.error)}{" "}
-          <button className="underline" onClick={() => void q.refetch()}>Riprova</button>
+          <button className="underline" onClick={() => void q.refetch()}>{t("Riprova")}</button>
         </p>
       )}
       {anteprima?.mime === "application/pdf" && (
@@ -135,8 +138,8 @@ export function OriginaliConfronto({ files, companyId, adatta = false, ricerca, 
       {anteprima && anteprima.mime !== "application/pdf" && !FOTO_VISIBILE.test(anteprima.mime) && (
         <p className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
           {/image\/hei[cf]/.test(anteprima.mime)
-            ? "Foto HEIC originale conservata. Aprila sul dispositivo o scaricala."
-            : "Anteprima non disponibile per questo file. Puoi aprire o scaricare l’originale."}
+            ? t("Foto HEIC originale conservata. Aprila sul dispositivo o scaricala.")
+            : t("Anteprima non disponibile per questo file. Puoi aprire o scaricare l’originale.")}
         </p>
       )}
     </div>

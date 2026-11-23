@@ -13,6 +13,7 @@ import { invalidaFornitori } from "@/lib/suppliers/cacheFornitori";
 import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
 import { supabase } from "@/integrations/supabase/client";
 import type { BollaLetta } from "@/lib/ddt/importBolle";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function NuovoFornitoreDaBolla({
   bolla,
@@ -27,6 +28,7 @@ export function NuovoFornitoreDaBolla({
   onChiudi: () => void;
   onCreato: (fornitore: Supplier) => void;
 }) {
+  const t = useT();
   const [salvando, setSalvando] = useState(false);
   const client = useQueryClient();
   const salva = async (dati: SupplierFormData) => {
@@ -58,7 +60,7 @@ export function NuovoFornitoreDaBolla({
             normalizzaPiva(esistente.vat_number)
         ) {
           toast.error(
-            "Esiste un fornitore con lo stesso nome ma partita IVA diversa. Verifica l’anagrafica prima di collegarlo.",
+            t("Esiste un fornitore con lo stesso nome ma partita IVA diversa. Verifica l’anagrafica prima di collegarlo."),
           );
           return;
         }
@@ -66,7 +68,7 @@ export function NuovoFornitoreDaBolla({
           (esistenti ?? []).find((f) => f.id === trovato.id) as Supplier,
         );
         toast.info(
-          "Fornitore già presente: collegato senza creare un duplicato.",
+          t("Fornitore già presente: collegato senza creare un duplicato."),
         );
         return;
       }
@@ -78,10 +80,10 @@ export function NuovoFornitoreDaBolla({
       if (error) throw error;
       await invalidaFornitori(client);
       onCreato(data as Supplier);
-      toast.success("Fornitore creato e collegato alle bolle riconosciute.");
+      toast.success(t("Fornitore creato e collegato alle bolle riconosciute."));
     } catch {
       toast.error(
-        "Fornitore non creato. Controlla i dati e i permessi; le bolle restano disponibili.",
+        t("Fornitore non creato. Controlla i dati e i permessi; le bolle restano disponibili."),
       );
     } finally {
       setSalvando(false);

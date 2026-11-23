@@ -12,6 +12,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function ScegliMezzoFattura({
   companyId,
@@ -26,6 +27,7 @@ export function ScegliMezzoFattura({
   onSelect: (id: string) => void;
   ricercaIniziale?: string;
 }) {
+  const t = useT();
   const [cerca, setCerca] = useState(ricercaIniziale);
   const termine = useDebounce(cerca, 250);
   const q = useQuery({
@@ -53,16 +55,16 @@ export function ScegliMezzoFattura({
   return (
     <Command shouldFilter={false}>
       <CommandInput
-        aria-label="Cerca mezzo per nome o targa"
-        placeholder="Cerca nome o targa…"
+        aria-label={t("Cerca mezzo per nome o targa")}
+        placeholder={t("Cerca nome o targa…")}
         value={cerca}
         onValueChange={setCerca}
         disabled={occupato}
       />
-      <CommandList aria-label="Mezzi disponibili" className="max-h-64">
+      <CommandList aria-label={t("Mezzi disponibili")} className="max-h-64">
         {q.isFetching ? (
           <p role="status" className="p-3 text-xs text-muted-foreground">
-            Cerco i mezzi…
+            {t("Cerco i mezzi…")}
           </p>
         ) : q.isError ? (
           <p role="alert" className="p-3 text-xs text-destructive">
@@ -72,12 +74,12 @@ export function ScegliMezzoFattura({
               className="underline"
               onClick={() => void q.refetch()}
             >
-              Riprova
+              {t("Riprova")}
             </button>
           </p>
         ) : !voci.length ? (
           <p className="p-3 text-xs text-muted-foreground">
-            Nessun mezzo disponibile per questa ricerca.
+            {t("Nessun mezzo disponibile per questa ricerca.")}
           </p>
         ) : (
           voci.map((m) => {
@@ -100,7 +102,7 @@ export function ScegliMezzoFattura({
                 </span>
                 {gia && (
                   <span className="shrink-0 text-xs text-muted-foreground">
-                    già collegato
+                    {t("già collegato")}
                   </span>
                 )}
               </CommandItem>
@@ -110,8 +112,7 @@ export function ScegliMezzoFattura({
       </CommandList>
       {(q.data?.length ?? 0) > 100 && (
         <p className="border-t p-2 text-xs text-muted-foreground">
-          Primi 100 risultati. Scrivi il nome o la targa per restringere la
-          ricerca.
+          {t("Primi 100 risultati. Scrivi il nome o la targa per restringere la ricerca.")}
         </p>
       )}
     </Command>

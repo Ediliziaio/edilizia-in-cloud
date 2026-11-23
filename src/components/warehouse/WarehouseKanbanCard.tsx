@@ -1,6 +1,5 @@
 import { useDraggable } from "@dnd-kit/core";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { Calendar, FileText, GripVertical, Package, StickyNote, User } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { getDaysUntilPosa, isItemUrgent, isItemCritical, isItemOverdue, getUrgencyLabel, STATUS_CONFIG } from "@/types/warehouse";
 import type { WarehouseItem } from "@/types/warehouse";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface WarehouseKanbanCardProps {
   item: WarehouseItem;
@@ -19,6 +19,7 @@ interface WarehouseKanbanCardProps {
 }
 
 export default function WarehouseKanbanCard({ item, supplierName, onSelect, isSelected = false, onToggleSelection, readOnly = false }: WarehouseKanbanCardProps) {
+  const t = useT();
   const {
     attributes,
     listeners,
@@ -31,10 +32,10 @@ export default function WarehouseKanbanCard({ item, supplierName, onSelect, isSe
   const isCritical = isItemCritical(item);
   const overdue = isItemOverdue(item);
 
-  const customerName = `${item.order.customer?.first_name ?? ""} ${item.order.customer?.last_name ?? ""}`.trim() || "Cliente non disponibile";
+  const customerName = `${item.order.customer?.first_name ?? ""} ${item.order.customer?.last_name ?? ""}`.trim() || t("Cliente non disponibile");
   const expectedDate = item.order.expected_date || item.order.work_start_date;
   const formattedDate = expectedDate
-    ? format(new Date(expectedDate), "d MMM", { locale: it })
+    ? format(new Date(expectedDate), "d MMM", { locale: dateFnsCampo() })
     : null;
 
   const config = STATUS_CONFIG[item.status] ?? STATUS_CONFIG.da_ordinare;
@@ -94,13 +95,13 @@ export default function WarehouseKanbanCard({ item, supplierName, onSelect, isSe
                     !isCritical && !overdue && "bg-amber-500 text-white hover:bg-amber-600"
                   )}
                 >
-                  {overdue ? `${Math.abs(daysUntil)}g ritardo` : getUrgencyLabel(daysUntil)}
+                  {overdue ? t("{valore}g ritardo", { valore: Math.abs(daysUntil) }) : getUrgencyLabel(daysUntil)}
                 </Badge>
               )}
               {item.notes && (
                 <Badge variant="outline" className="gap-1 px-1.5 py-0 text-[10px] text-amber-700">
                   <StickyNote className="h-3 w-3" aria-hidden="true" />
-                  note
+                  {t("note")}
                 </Badge>
               )}
             </div>
@@ -126,7 +127,7 @@ export default function WarehouseKanbanCard({ item, supplierName, onSelect, isSe
 
         {formattedDate && (
           <div className="flex items-center justify-between gap-2 border-t pt-2 text-xs">
-            <span className="text-muted-foreground">Lavori</span>
+            <span className="text-muted-foreground">{t("Lavori")}</span>
             <span className={cn("flex items-center gap-1 font-medium", overdue && "text-destructive")}>
               <Calendar className="h-3 w-3" />
               {formattedDate}

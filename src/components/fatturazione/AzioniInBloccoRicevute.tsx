@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { OrderSelectCombobox } from "@/components/warehouse/OrderSelectCombobox";
 import { dataAllaScadenza, dividiPerAzione, eseguiInBlocco, type AzioneRicevute, type Esito, type RicevutaInBlocco } from "@/lib/fatturazione/azioniInBlocco";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -50,7 +51,7 @@ const confermaMezzi = async (fatturaId: string, companyId: string): Promise<numb
   return (data ?? []).length;
 };
 
-const fatture = (n: number) => `${n} fattur${n === 1 ? "a" : "e"}`;
+const fatture = (n: number, t: (testo: string, valori?: Record<string, string | number>) => string) => t(n === 1 ? "{n} fattura" : "{n} fatture", { n });
 
 export function AzioniInBloccoRicevute({ companyId, righe, filtrate, onSelezionaTutte, onSvuota }: {
   companyId: string;
@@ -60,6 +61,7 @@ export function AzioniInBloccoRicevute({ companyId, righe, filtrate, onSeleziona
   onSelezionaTutte: () => void;
   onSvuota: () => void;
 }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const [azione, setAzione] = useState<AzioneRicevute | null>(null);
   const [modoData, setModoData] = useState<"data" | "scadenza">("data");
@@ -112,12 +114,12 @@ export function AzioniInBloccoRicevute({ companyId, righe, filtrate, onSeleziona
     const conAnnullamento = a === "pagate" ? riuscite.filter((r) => saldi.has(r.id)) : riuscite;
     if (!inverso || !conAnnullamento.length) return undefined;
     return {
-      label: "Annulla",
+      label: t("Annulla"),
       onClick: () => {
         void eseguiInBlocco(conAnnullamento, inverso).then((e) => {
           aggiorna();
-          if (e.fallite.length) toast.error(`${fatture(e.fallite.length)} non riportate indietro`, { description: e.fallite[0].motivo });
-          else toast.success(`${fatture(e.riuscite.length)} riportate a com'erano`);
+          if (e.fallite.length) toast.error(t("{fatture} non riportate indietro", { fatture: fatture(e.fallite.length, t) }), { description: e.fallite[0].motivo });
+          else toast.success(t("{fatture} riportate a com'erano", { fatture: fatture(e.riuscite.length, t) }));
         });
       },
     };
@@ -133,10 +135,10 @@ export function AzioniInBloccoRicevute({ companyId, righe, filtrate, onSeleziona
     aggiorna();
     if (azione === "mezzi" && esito.riuscite.length) {
       const n = mezziConfermati.current;
-      toast.success(n ? `${n} mezz${n === 1 ? "o confermato" : "i confermati"} su ${fatture(esito.riuscite.length)}` : "Nessun mezzo da confermare sulle fatture scelte");
+      toast.success(n ? t(n === 1 ? "{n} mezzo confermato su {fatture}" : "{n} mezzi confermati su {fatture}", { n, fatture: fatture(esito.riuscite.length, t) }) : t("Nessun mezzo da confermare sulle fatture scelte"));
     } else if (esito.riuscite.length) {
       const fatto = esito.riuscite.length === 1 ? AZIONI[azione].fatto.replace(/^segnate pagate$/, "segnata pagata").replace(/^verificate$/, "verificata").replace(/^contabilizzate$/, "contabilizzata").replace(/^messe /, "messa ") : AZIONI[azione].fatto;
-      toast.success(`${fatture(esito.riuscite.length)} ${fatto}`, { action: annullamento(azione, esito.riuscite, saldi), duration: 10_000 });
+      toast.success(`${fatture(esito.riuscite.length, t)} ${t(fatto)}`, { action: annullamento(azione, esito.riuscite, saldi), duration: 10_000 });
     }
     if (esito.fallite.length) {
       setFallite(esito.fallite);
@@ -151,10 +153,10 @@ export function AzioniInBloccoRicevute({ companyId, righe, filtrate, onSeleziona
 
   return (
     <>
-      <div role="toolbar" aria-label="Modifiche in blocco" className="fixed bottom-4 left-1/2 z-40 flex w-[min(60rem,calc(100vw-2rem))] -translate-x-1/2 flex-wrap items-center gap-2 rounded-lg border bg-background px-3 py-2 shadow-lg max-md:bottom-[calc(env(safe-area-inset-bottom)+5.5rem)]">
-        <span className="text-sm font-medium">{righe.length} selezionat{righe.length === 1 ? "a" : "e"}</span>
+      <div role="toolbar" aria-label={t("Modifiche in blocco")} className="fixed bottom-4 left-1/2 z-40 flex w-[min(60rem,calc(100vw-2rem))] -translate-x-1/2 flex-wrap items-center gap-2 rounded-lg border bg-background px-3 py-2 shadow-lg max-md:bottom-[calc(env(safe-area-inset-bottom)+5.5rem)]">
+        <span className="text-sm font-medium">{t(righe.length === 1 ? "{n} selezionata" : "{n} selezionate", { n: righe.length })}</span>
         {righe.length < filtrate && (
-          <Button variant="link" size="sm" className="h-auto min-h-0 p-0 text-xs" onClick={onSelezionaTutte}>Seleziona tutte le {filtrate}</Button>
+          <Button variant="link" size="sm" className="h-auto min-h-0 p-0 text-xs" onClick={onSelezionaTutte}>{t("Seleziona tutte le {filtrate}", { filtrate })}</Button>
         )}
         <span className="hidden h-5 w-px bg-border sm:block" />
         {/* Su telefono una fila sola che scorre: a capo la barra copriva mezzo schermo e finiva sotto il menu dell'app. */}
@@ -164,28 +166,28 @@ export function AzioniInBloccoRicevute({ companyId, righe, filtrate, onSeleziona
             const Icona = AZIONI[a].icona;
             return (
               <Button key={a} variant="outline" size="sm" className="shrink-0" disabled={!quante} onClick={() => apri(a)}>
-                <Icona className="mr-1.5 h-3.5 w-3.5" />{AZIONI[a].etichetta}{quante ? ` (${quante})` : ""}
+                <Icona className="mr-1.5 h-3.5 w-3.5" />{t(AZIONI[a].etichetta)}{quante ? ` (${quante})` : ""}
               </Button>
             );
           })}
         </div>
-        <Button variant="ghost" size="sm" className="ml-auto" aria-label="Togli la selezione" onClick={onSvuota}><X className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="sm" className="ml-auto" aria-label={t("Togli la selezione")} onClick={onSvuota}><X className="h-4 w-4" /></Button>
       </div>
 
       <Dialog open={!!azione} onOpenChange={(aperta) => { if (!aperta && !inCorso) setAzione(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{azione ? AZIONI[azione].titolo : ""}</DialogTitle>
+            <DialogTitle>{azione ? t(AZIONI[azione].titolo) : ""}</DialogTitle>
             <DialogDescription>
-              {selezione ? (azione === "mezzi" ? fatture(selezione.idonee.length) : `${fatture(selezione.idonee.length)} · ${formatCurrency(totale)}`) : ""}
+              {selezione ? (azione === "mezzi" ? fatture(selezione.idonee.length, t) : `${fatture(selezione.idonee.length, t)} · ${formatCurrency(totale)}`) : ""}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 text-sm">
             {!!selezione?.escluse.length && (
               <div className="rounded-md border bg-muted/40 p-2.5 text-xs">
-                <p className="font-medium">Restano fuori:</p>
+                <p className="font-medium">{t("Restano fuori:")}</p>
                 <ul className="mt-1 space-y-0.5 text-muted-foreground">
-                  {selezione.escluse.map((e) => <li key={e.motivo}>{fatture(e.quante)}: {e.motivo}</li>)}
+                  {selezione.escluse.map((e) => <li key={e.motivo}>{fatture(e.quante, t)}: {t(e.motivo)}</li>)}
                 </ul>
               </div>
             )}
@@ -193,24 +195,24 @@ export function AzioniInBloccoRicevute({ companyId, righe, filtrate, onSeleziona
               <RadioGroup value={modoData} onValueChange={(v) => setModoData(v as "data" | "scadenza")} className="space-y-2">
                 <div className="flex items-center gap-2">
                   <RadioGroupItem value="data" id="blocco-data" />
-                  <Label htmlFor="blocco-data" className="font-normal">Pagate il</Label>
-                  <Input type="date" aria-label="Data di pagamento" className="h-8 w-40" max={oggi()} value={data} disabled={modoData !== "data"} onChange={(e) => setData(e.target.value)} />
+                  <Label htmlFor="blocco-data" className="font-normal">{t("Pagate il")}</Label>
+                  <Input type="date" aria-label={t("Data di pagamento")} className="h-8 w-40" max={oggi()} value={data} disabled={modoData !== "data"} onChange={(e) => setData(e.target.value)} />
                 </div>
                 <div className="flex items-center gap-2">
                   <RadioGroupItem value="scadenza" id="blocco-scadenza" />
-                  <Label htmlFor="blocco-scadenza" className="font-normal">Ognuna alla sua scadenza (se è futura o manca, oggi)</Label>
+                  <Label htmlFor="blocco-scadenza" className="font-normal">{t("Ognuna alla sua scadenza (se è futura o manca, oggi)")}</Label>
                 </div>
               </RadioGroup>
             )}
             {azione === "commessa" && (
-              <OrderSelectCombobox filtroIniziale="all" generaliSempre companyId={companyId} value={commessa} placeholder="Cerca la commessa…" onChange={(id) => setCommessa(id)} />
+              <OrderSelectCombobox filtroIniziale="all" generaliSempre companyId={companyId} value={commessa} placeholder={t("Cerca la commessa…")} onChange={(id) => setCommessa(id)} />
             )}
-            {azione === "contabilizza" && <p className="text-muted-foreground">Crea un costo per ogni fattura. Non si annulla in blocco.</p>}
-            {azione === "mezzi" && <p className="text-muted-foreground">Conferma i mezzi che la targa ha trovato nelle righe: il loro importo entra nel costo del mezzo. Le fatture senza proposte restano come sono.</p>}
-            {inCorso && selezione && <p className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> {fatte} di {selezione.idonee.length}…</p>}
+            {azione === "contabilizza" && <p className="text-muted-foreground">{t("Crea un costo per ogni fattura. Non si annulla in blocco.")}</p>}
+            {azione === "mezzi" && <p className="text-muted-foreground">{t("Conferma i mezzi che la targa ha trovato nelle righe: il loro importo entra nel costo del mezzo. Le fatture senza proposte restano come sono.")}</p>}
+            {inCorso && selezione && <p className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> {t("{fatte} di {n}…", { fatte, n: selezione.idonee.length })}</p>}
             {fallite.length > 0 && (
               <div className="rounded-md border border-destructive/40 p-2.5 text-xs">
-                <p className="font-medium text-destructive">{fatture(fallite.length)} non riuscite: le altre sono a posto.</p>
+                <p className="font-medium text-destructive">{t("{fatture} non riuscite: le altre sono a posto.", { fatture: fatture(fallite.length, t) })}</p>
                 <ul className="mt-1 max-h-40 space-y-0.5 overflow-y-auto text-muted-foreground">
                   {fallite.map((f) => <li key={f.riga.id}>{f.riga.numero}: {f.motivo}</li>)}
                 </ul>
@@ -218,10 +220,10 @@ export function AzioniInBloccoRicevute({ companyId, righe, filtrate, onSeleziona
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" disabled={inCorso} onClick={() => setAzione(null)}>{fallite.length ? "Chiudi" : "Annulla"}</Button>
+            <Button variant="outline" disabled={inCorso} onClick={() => setAzione(null)}>{fallite.length ? t("Chiudi") : t("Annulla")}</Button>
             {!fallite.length && (
               <Button disabled={!pronta} onClick={() => void parti()}>
-                <FileCheck2 className="mr-1.5 h-4 w-4" />{azione ? AZIONI[azione].conferma : ""}
+                <FileCheck2 className="mr-1.5 h-4 w-4" />{azione ? t(AZIONI[azione].conferma) : ""}
               </Button>
             )}
           </DialogFooter>

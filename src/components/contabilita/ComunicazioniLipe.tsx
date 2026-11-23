@@ -12,6 +12,7 @@ import { fiscalDate } from "@/lib/fatturazione/fiscalInsights";
 import { controlliLipe, moduloLipeConDati, nomeFileLipe, scadenzaLipe, stessiRighiLipe, xmlLipe, type ComunicazioneLipe, type ModuloLipe } from "@/lib/contabilita/lipeXml";
 import { cn } from "@/lib/utils";
 import type { CalcoloLiquidazioneIVA, LiquidazioneIVAConfermata } from "./LiquidazioniIVA";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   company: string;
@@ -26,6 +27,7 @@ interface Props {
 }
 
 function TrimestreLipe({ q, anno, oggi, company, confermate, impostazioni, partitaIva, puoScrivere, onApriImpostazioni, onCambiato }: Props & { q: number }) {
+  const t = useT();
   const id = useId();
   const [diretta, setDiretta] = useState(false);
   const [impegno, setImpegno] = useState<1 | 2 | undefined>();
@@ -93,7 +95,7 @@ function TrimestreLipe({ q, anno, oggi, company, confermate, impostazioni, parti
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 0);
     },
-    onError: (e) => toast.error("File non generato", { description: e.message }),
+    onError: (e) => toast.error(t("File non generato"), { description: e.message }),
   });
   const segna = useMutation({
     mutationFn: async () => {
@@ -102,54 +104,54 @@ function TrimestreLipe({ q, anno, oggi, company, confermate, impostazioni, parti
       });
       if (error) throw new Error(error.message);
     },
-    onSuccess: () => { toast.success("Protocollo registrato"); onCambiato(); },
-    onError: (e) => toast.error("Protocollo non salvato", { description: e.message }),
+    onSuccess: () => { toast.success(t("Protocollo registrato")); onCambiato(); },
+    onError: (e) => toast.error(t("Protocollo non salvato"), { description: e.message }),
   });
 
   return (
     <section className="space-y-2 px-4 py-3 text-sm">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <span className="w-24 font-medium">{q}° trimestre</span>
+        <span className="w-24 font-medium">{t("{q}° trimestre", { q })}</span>
         <span className={cn("w-36 text-xs", scadenza < oggi && !inviata && !(pronto && !conDati)
-          ? "font-medium text-red-700" : "text-muted-foreground")}>Entro il {fiscalDate(scadenza)}</span>
+          ? "font-medium text-red-700" : "text-muted-foreground")}>{t("Entro il {scadenza}", { scadenza: String(fiscalDate(scadenza) ?? "") })}</span>
         <div className="min-w-40 flex-1 text-xs text-muted-foreground">
-          {inviata ? <span className="text-emerald-700">Inviata · protocollo {[...protocolli][0] ?? "da verificare"}</span>
-            : incoerente ? "Verifica periodi e protocolli delle liquidazioni del trimestre."
-            : scartata ? "Comunicazione scartata. Verifica la ricevuta e riapri i periodi da correggere."
-            : mancanti.length ? (mensile ? `Mancano ${mancanti.length} mesi da confermare` : "Da confermare")
-            : pronto && !conDati ? "Nessun dato da comunicare nel quadro VP." : null}
+          {inviata ? <span className="text-emerald-700">{t("Inviata · protocollo {protocollo}", { protocollo: [...protocolli][0] ?? t("da verificare") })}</span>
+            : incoerente ? t("Verifica periodi e protocolli delle liquidazioni del trimestre.")
+            : scartata ? t("Comunicazione scartata. Verifica la ricevuta e riapri i periodi da correggere.")
+            : mancanti.length ? (mensile ? t("Mancano {n} mesi da confermare", { n: mancanti.length }) : t("Da confermare"))
+            : pronto && !conDati ? t("Nessun dato da comunicare nel quadro VP.") : null}
         </div>
         {pronto && conDati && (
           <Button size="sm" variant={inviata ? "outline" : "default"} disabled={!!errori.length || scarica.isPending} onClick={() => scarica.mutate()}>
             {scarica.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1.5 h-3.5 w-3.5" />}
-            Scarica XML
+            {t("Scarica XML")}
           </Button>
         )}
         {pronto && conDati && !inviata && puoScrivere && !segnando && (
-          <Button size="sm" variant="ghost" onClick={() => setSegnando(true)}>Registra protocollo</Button>
+          <Button size="sm" variant="ghost" onClick={() => setSegnando(true)}>{t("Registra protocollo")}</Button>
         )}
       </div>
       {pronto && conDati && impostazioni.cf_intermediario && (
         <div className="grid gap-2 sm:grid-cols-3">
           <div className="space-y-1">
-            <Label htmlFor={`${id}-invio`}>Presentazione</Label>
+            <Label htmlFor={`${id}-invio`}>{t("Presentazione")}</Label>
             <UniformSelect id={`${id}-invio`} value={diretta ? "diretta" : "intermediario"} onChange={(e) => setDiretta(e.target.value === "diretta")}>
-              <option value="intermediario">Tramite intermediario</option>
-              <option value="diretta">Diretta</option>
+              <option value="intermediario">{t("Tramite intermediario")}</option>
+              <option value="diretta">{t("Diretta")}</option>
             </UniformSelect>
           </div>
           {intermediario && (
             <>
               <div className="space-y-1">
-                <Label htmlFor={`${id}-predisposta`}>Comunicazione predisposta da</Label>
+                <Label htmlFor={`${id}-predisposta`}>{t("Comunicazione predisposta da")}</Label>
                 <UniformSelect id={`${id}-predisposta`} value={impegno ?? ""} onChange={(e) => setImpegno(e.target.value === "1" ? 1 : e.target.value === "2" ? 2 : undefined)}>
-                  <option value="">Seleziona</option>
-                  <option value="1">Contribuente</option>
-                  <option value="2">Intermediario</option>
+                  <option value="">{t("Seleziona")}</option>
+                  <option value="1">{t("Contribuente")}</option>
+                  <option value="2">{t("Intermediario")}</option>
                 </UniformSelect>
               </div>
               <div className="space-y-1">
-                <Label htmlFor={`${id}-impegno`}>Data dell'impegno</Label>
+                <Label htmlFor={`${id}-impegno`}>{t("Data dell'impegno")}</Label>
                 <Input id={`${id}-impegno`} type="date" max={oggi} value={dataImpegno} onChange={(e) => setDataImpegno(e.target.value)} />
               </div>
             </>
@@ -160,18 +162,18 @@ function TrimestreLipe({ q, anno, oggi, company, confermate, impostazioni, parti
         <div className="text-xs text-destructive">
           <ul>{errori.map((e) => <li key={e}>{e}</li>)}</ul>
           {errori.some((e) => /codice fiscale|partita iva|codice carica/i.test(e)) && (
-            <button type="button" className="font-medium underline" onClick={onApriImpostazioni}>Verifica le impostazioni IVA</button>
+            <button type="button" className="font-medium underline" onClick={onApriImpostazioni}>{t("Verifica le impostazioni IVA")}</button>
           )}
         </div>
       )}
       {pronto && conDati && !inviata && puoScrivere && segnando && (
         <div className="flex flex-wrap items-end gap-2">
           <div className="space-y-1">
-            <Label htmlFor={`${id}-protocollo`}>Protocollo della ricevuta di acquisizione</Label>
+            <Label htmlFor={`${id}-protocollo`}>{t("Protocollo della ricevuta di acquisizione")}</Label>
             <Input id={`${id}-protocollo`} maxLength={80} value={protocollo} onChange={(e) => setProtocollo(e.target.value)} />
           </div>
-          <Button size="sm" disabled={!protocollo.trim() || segna.isPending} onClick={() => segna.mutate()}>Salva</Button>
-          <Button size="sm" variant="ghost" onClick={() => setSegnando(false)}>Annulla</Button>
+          <Button size="sm" disabled={!protocollo.trim() || segna.isPending} onClick={() => segna.mutate()}>{t("Salva")}</Button>
+          <Button size="sm" variant="ghost" onClick={() => setSegnando(false)}>{t("Annulla")}</Button>
         </div>
       )}
     </section>
@@ -179,14 +181,15 @@ function TrimestreLipe({ q, anno, oggi, company, confermate, impostazioni, parti
 }
 
 export function ComunicazioniLipe(props: Props) {
+  const t = useT();
   const { regime, attivita_separate } = props.impostazioni;
   const motivo = regime === "forfettario" ? "Per il regime forfettario non è prevista la comunicazione periodica."
     : regime === "altro" || attivita_separate ? "Per le contabilità separate e i regimi IVA speciali, predisponi la comunicazione con il consulente." : null;
   return (
     <div className="overflow-hidden rounded-xl border bg-white">
       <div className="px-4 py-3">
-        <h3 className="font-semibold">Comunicazione LIPE</h3>
-        <p className="mt-0.5 text-xs text-muted-foreground">{motivo ?? "Controlla l’XML con il modulo IVP18, poi presentalo tramite i canali telematici dell’Agenzia. Registra il protocollo dopo la ricevuta."}</p>
+        <h3 className="font-semibold">{t("Comunicazione LIPE")}</h3>
+        <p className="mt-0.5 text-xs text-muted-foreground">{motivo ? t(motivo) : t("Controlla l’XML con il modulo IVP18, poi presentalo tramite i canali telematici dell’Agenzia. Registra il protocollo dopo la ricevuta.")}</p>
       </div>
       {!motivo && <div className="divide-y border-t">{[1, 2, 3, 4].map((q) => <TrimestreLipe key={q} q={q} {...props} />)}</div>}
     </div>

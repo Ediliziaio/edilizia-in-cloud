@@ -13,7 +13,6 @@ import { UniformSelect } from "@/components/ui/uniform-select";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { Banknote, Building2, Calendar, Check, FileImage, Loader2, ShoppingBag, User, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -27,6 +26,7 @@ import { MODALITA, euro, numeroDocumento, type ModalitaAcquisto, type RigaAcquis
 import { messaggioErrore } from "@/lib/campo/messaggioErrore";
 import { ODA_STATUS_LABELS } from "@/lib/odaStatus";
 import { refreshCampoAcquistoQueries } from "@/lib/orders/refreshCommessaCampoQueries";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface AcquistoUfficio {
   id: string;
@@ -56,6 +56,7 @@ const NESSUN_ORDINE = "__nessuno__";
 
 /** Senza `orderId`: tutta la merce da verificare (Magazzino). Con `orderId`: solo quella della commessa. */
 export function AcquistiCampoCard({ orderId }: { orderId?: string } = {}) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const qc = useQueryClient();
   const companyId = effectiveCompany?.id ?? null;
@@ -101,11 +102,11 @@ export function AcquistiCampoCard({ orderId }: { orderId?: string } = {}) {
     onSuccess: (data, v, context) => {
       void refreshCampoAcquistoQueries(qc, context?.orderId, context?.companyId);
       setAperto(null);
-      toast.success(v.azione === "registra" ? "Registrata" : v.azione === "rifiuta" ? "Rifiutata: l’operaio è avvisato" : "Rimborso segnato", {
+      toast.success(v.azione === "registra" ? t("Registrata") : v.azione === "rifiuta" ? t("Rifiutata: l’operaio è avvisato") : t("Rimborso segnato"), {
         description: v.azione === "registra" ? data?.messaggio : undefined,
       });
     },
-    onError: (e: unknown) => toast.error("Operazione non riuscita", { description: messaggioErrore(e, "Riprova.") }),
+    onError: (e: unknown) => toast.error(t("Operazione non riuscita"), { description: messaggioErrore(e, "Riprova.") }),
   });
 
   if (!puoDecidere || (!isLoading && !isError && acquisti.length === 0)) return null;
@@ -115,19 +116,19 @@ export function AcquistiCampoCard({ orderId }: { orderId?: string } = {}) {
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <ShoppingBag className="h-5 w-5 text-orange-600" aria-hidden="true" />
-          {orderId ? "Bolle e merce presa" : "Merce presa in negozio"}
+          {orderId ? t("Bolle e merce presa") : t("Merce presa in negozio")}
           <Badge className="bg-orange-100 text-orange-700">{acquisti.length}</Badge>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {isError && <p role="alert" className="text-sm text-destructive">Non riesco a caricare la merce da verificare. <button type="button" className="underline" onClick={() => void refetch()}>Riprova</button></p>}
+        {isError && <p role="alert" className="text-sm text-destructive">{t("Non riesco a caricare la merce da verificare.")} <button type="button" className="underline" onClick={() => void refetch()}>{t("Riprova")}</button></p>}
         {isLoading ? (
           <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
         ) : (
           <>
             {daVerificare.length > 0 && (
               <div className="space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Da verificare</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("Da verificare")}</p>
                 {daVerificare.map(a => (
                   <Verifica key={a.id} a={a} aperto={aperto === a.id} onApri={() => setAperto(aperto === a.id ? null : a.id)}
                     occupato={azione.isPending && azione.variables?.id === a.id}
@@ -138,13 +139,13 @@ export function AcquistiCampoCard({ orderId }: { orderId?: string } = {}) {
             )}
             {daRimborsare.length > 0 && (
               <div className="space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Da rimborsare agli operai</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("Da rimborsare agli operai")}</p>
                 {daRimborsare.map(a => (
                   <div key={a.id} className="rounded-xl border p-3">
                     <Testa a={a} />
                     <Button size="sm" className="mt-3 w-full gap-1.5" disabled={azione.isPending && azione.variables?.id === a.id}
                       onClick={() => azione.mutate({ id: a.id, azione: "rimborsato" })}>
-                      <Banknote className="h-4 w-4" aria-hidden="true" />Segna rimborsato · {euro(a.totale)}
+                      <Banknote className="h-4 w-4" aria-hidden="true" />{t("Segna rimborsato · {totale}", { totale: euro(a.totale) })}
                     </Button>
                   </div>
                 ))}
@@ -163,6 +164,7 @@ function nomeOperaio(a: AcquistoUfficio) {
 }
 
 function Testa({ a }: { a: AcquistoUfficio }) {
+  const t = useT();
   const modalita = MODALITA.find(m => m.key === a.modalita)?.titolo ?? a.modalita;
   const [apertura, setApertura] = useState(false);
   const [documento, setDocumento] = useState<string | null>(null);
@@ -175,18 +177,18 @@ function Testa({ a }: { a: AcquistoUfficio }) {
       // Anteprima dentro l'app: i browser mobili bloccano window.open dopo una richiesta asincrona.
       setDocumento(data.signedUrl);
     } catch {
-      toast.error("Non riesco ad aprire la foto.");
+      toast.error(t("Non riesco ad aprire la foto."));
     } finally { setApertura(false); }
   };
   return (
     <>
       <div className="flex items-start justify-between gap-2">
-        <p className="min-w-0 text-sm font-semibold">{a.fornitore || "Negozio"}{a.numero_documento ? ` · n. ${a.numero_documento}` : ""}</p>
+        <p className="min-w-0 text-sm font-semibold">{a.fornitore || t("Negozio")}{a.numero_documento ? ` · n. ${a.numero_documento}` : ""}</p>
         <span className="shrink-0 text-sm font-bold tabular-nums">{euro(a.totale)}</span>
       </div>
       <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-        <span className="inline-flex items-center gap-1"><User className="h-3 w-3" aria-hidden="true" />{nomeOperaio(a)}{a.fonte === "whatsapp" ? " · da WhatsApp" : ""}</span>
-        <span className="inline-flex items-center gap-1"><Calendar className="h-3 w-3" aria-hidden="true" />{format(new Date(a.created_at), "d MMM HH:mm", { locale: it })}</span>
+        <span className="inline-flex items-center gap-1"><User className="h-3 w-3" aria-hidden="true" />{nomeOperaio(a)}{a.fonte === "whatsapp" ? ` ${t("· da WhatsApp")}` : ""}</span>
+        <span className="inline-flex items-center gap-1"><Calendar className="h-3 w-3" aria-hidden="true" />{format(new Date(a.created_at), "d MMM HH:mm", { locale: dateFnsCampo() })}</span>
         {a.order?.order_code && <span className="inline-flex items-center gap-1"><Building2 className="h-3 w-3" aria-hidden="true" />{a.order.order_code}</span>}
         <Badge variant="outline" className="text-[11px]">{modalita}</Badge>
       </div>
@@ -198,21 +200,21 @@ function Testa({ a }: { a: AcquistoUfficio }) {
               <span className="shrink-0 tabular-nums text-muted-foreground">× {r.quantita}{r.unita ? ` ${r.unita}` : ""}</span>
             </li>
           ))}
-          {(a.righe ?? []).length > 6 && <li className="text-xs text-muted-foreground">+ {(a.righe ?? []).length - 6} altri prodotti</li>}
+          {(a.righe ?? []).length > 6 && <li className="text-xs text-muted-foreground">{t("+ {n} altri prodotti", { n: (a.righe ?? []).length - 6 })}</li>}
         </ul>
       )}
-      {a.note && <p className="mt-1 text-xs text-muted-foreground">Nota: {a.note}</p>}
+      {a.note && <p className="mt-1 text-xs text-muted-foreground">{t("Nota: {note}", { note: String(a.note ?? "") })}</p>}
       {a.foto_path && (
         <button type="button" onClick={() => void vediFoto()} disabled={apertura} className="mt-2 inline-flex min-h-9 items-center gap-1.5 text-xs text-primary underline">
-          {apertura ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> : <FileImage className="h-3 w-3" aria-hidden="true" />}Vedi il documento
+          {apertura ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> : <FileImage className="h-3 w-3" aria-hidden="true" />}{t("Vedi il documento")}
         </button>
       )}
       <Dialog open={!!documento} onOpenChange={open => { if (!open) setDocumento(null); }}>
         <DialogContent className="max-h-[90dvh] max-w-3xl overflow-y-auto">
-          <DialogHeader><DialogTitle>Documento · {a.fornitore || "Negozio"}{a.numero_documento ? ` · ${a.numero_documento}` : ""}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t("Documento · {fornitore}", { fornitore: a.fornitore || t("Negozio") })}{a.numero_documento ? ` · ${a.numero_documento}` : ""}</DialogTitle></DialogHeader>
           {documento && <>
-            <img src={documento} alt="Bolla o ricevuta allegata" className="h-auto w-full rounded-lg" />
-            <a href={documento} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center text-sm text-primary underline">Apri documento a dimensione intera</a>
+            <img src={documento} alt={t("Bolla o ricevuta allegata")} className="h-auto w-full rounded-lg" />
+            <a href={documento} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center text-sm text-primary underline">{t("Apri documento a dimensione intera")}</a>
           </>}
         </DialogContent>
       </Dialog>
@@ -225,6 +227,7 @@ function Verifica({ a, aperto, onApri, occupato, onRegistra, onRifiuta }: {
   onRegistra: (totale: number | null, ordineAcquisto: string | null) => void;
   onRifiuta: (motivo: string) => void;
 }) {
+  const t = useT();
   const [totale, setTotale] = useState(a.totale != null ? String(a.totale).replace(".", ",") : "");
   const [ordine, setOrdine] = useState(a.purchase_order_id ?? NESSUN_ORDINE);
   const [rifiuto, setRifiuto] = useState(false);
@@ -253,48 +256,48 @@ function Verifica({ a, aperto, onApri, occupato, onRegistra, onRifiuta }: {
     <div className="rounded-xl border p-3">
       <Testa a={a} />
       {!aperto ? (
-        <Button size="sm" variant="outline" className="mt-3 w-full" onClick={onApri}>Verifica</Button>
+        <Button size="sm" variant="outline" className="mt-3 w-full" onClick={onApri}>{t("Verifica")}</Button>
       ) : (
         <div className="mt-3 space-y-3 border-t pt-3">
           {a.modalita === "ritiro_ordine" && (
             <div className="space-y-1">
-              <label htmlFor={`oda-${a.id}`} className="text-xs font-semibold">A quale ordine d’acquisto corrisponde?</label>
+              <label htmlFor={`oda-${a.id}`} className="text-xs font-semibold">{t("A quale ordine d’acquisto corrisponde?")}</label>
               <UniformSelect id={`oda-${a.id}`} value={ordine} onChange={e => setOrdine(e.target.value)} className="h-10 w-full rounded-lg border bg-background px-2 text-sm">
-                {!a.purchase_order_id && <option value={NESSUN_ORDINE}>Nessuno: registra come costo diretto</option>}
-                {ordini.map(o => <option key={o.id} value={o.id}>{o.oda_number ?? "Ordine"} · {o.suppliers?.name ?? "Fornitore"} · {ODA_STATUS_LABELS[o.status] ?? o.status}</option>)}
-                {a.purchase_order_id && !ordini.some(o => o.id === a.purchase_order_id) && <option value={a.purchase_order_id}>Ordine proposto</option>}
+                {!a.purchase_order_id && <option value={NESSUN_ORDINE}>{t("Nessuno: registra come costo diretto")}</option>}
+                {ordini.map(o => <option key={o.id} value={o.id}>{o.oda_number ?? t("Ordine")} · {o.suppliers?.name ?? t("Fornitore")} · {ODA_STATUS_LABELS[o.status] ?? o.status}</option>)}
+                {a.purchase_order_id && !ordini.some(o => o.id === a.purchase_order_id) && <option value={a.purchase_order_id}>{t("Ordine proposto")}</option>}
               </UniformSelect>
-              {caricoOrdini && <p role="status" className="text-xs">Carico gli ordini del cantiere…</p>}
-              {erroreOrdini && <p role="alert" className="text-xs text-destructive">Non riesco a leggere gli ordini: non registro un costo diretto per errore. <button type="button" className="underline" onClick={() => void ricaricaOrdini()}>Riprova</button></p>}
-              {collegaOrdine && <p className="text-xs text-muted-foreground">Il costo è già nell’ordine: non si crea un costo nuovo. La merce si carica dall’arrivo merce dell’ordine.</p>}
+              {caricoOrdini && <p role="status" className="text-xs">{t("Carico gli ordini del cantiere…")}</p>}
+              {erroreOrdini && <p role="alert" className="text-xs text-destructive">{t("Non riesco a leggere gli ordini: non registro un costo diretto per errore.")} <button type="button" className="underline" onClick={() => void ricaricaOrdini()}>{t("Riprova")}</button></p>}
+              {collegaOrdine && <p className="text-xs text-muted-foreground">{t("Il costo è già nell’ordine: non si crea un costo nuovo. La merce si carica dall’arrivo merce dell’ordine.")}</p>}
             </div>
           )}
           {!collegaOrdine && (
             <div className="space-y-1">
-              <label htmlFor={`tot-${a.id}`} className="text-xs font-semibold">Totale da registrare (€, IVA inclusa)</label>
+              <label htmlFor={`tot-${a.id}`} className="text-xs font-semibold">{t("Totale da registrare (€, IVA inclusa)")}</label>
               <input id={`tot-${a.id}`} inputMode="decimal" value={totale} onChange={e => setTotale(e.target.value)} className="h-10 w-full rounded-lg border bg-background px-3 text-sm" />
-              {!totaleValido && <p className="text-xs text-destructive">Indica un totale maggiore di zero e non superiore a 1.000.000 €.</p>}
+              {!totaleValido && <p className="text-xs text-destructive">{t("Indica un totale maggiore di zero e non superiore a 1.000.000 €.")}</p>}
               <p className="text-xs text-muted-foreground">
-                {a.modalita === "pagato_da_me" ? "Diventa un costo del cantiere e il rimborso all’operaio nello scadenzario." : "Diventa un costo del cantiere, da pagare entro 30 giorni."}
+                {a.modalita === "pagato_da_me" ? t("Diventa un costo del cantiere e il rimborso all’operaio nello scadenzario.") : t("Diventa un costo del cantiere, da pagare entro 30 giorni.")}
               </p>
             </div>
           )}
           {rifiuto ? (
             <div className="space-y-2">
-              <input aria-label="Motivo del rifiuto" value={motivo} onChange={e => setMotivo(e.target.value)} placeholder="Motivo (l’operaio lo legge)" className="h-10 w-full rounded-lg border bg-background px-3 text-sm" />
+              <input aria-label={t("Motivo del rifiuto")} value={motivo} onChange={e => setMotivo(e.target.value)} placeholder={t("Motivo (l’operaio lo legge)")} className="h-10 w-full rounded-lg border bg-background px-3 text-sm" />
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" className="flex-1" onClick={() => setRifiuto(false)}>Annulla</Button>
-                <Button size="sm" variant="destructive" className="flex-1" disabled={occupato} onClick={() => onRifiuta(motivo.trim())}>Rifiuta</Button>
+                <Button size="sm" variant="outline" className="flex-1" onClick={() => setRifiuto(false)}>{t("Annulla")}</Button>
+                <Button size="sm" variant="destructive" className="flex-1" disabled={occupato} onClick={() => onRifiuta(motivo.trim())}>{t("Rifiuta")}</Button>
               </div>
             </div>
           ) : (
             <div className="flex gap-2">
               <Button size="sm" variant="outline" className="flex-1 gap-1.5 text-destructive" disabled={occupato} onClick={() => setRifiuto(true)}>
-                <X className="h-4 w-4" aria-hidden="true" />Rifiuta
+                <X className="h-4 w-4" aria-hidden="true" />{t("Rifiuta")}
               </Button>
               <Button size="sm" className="flex-1 gap-1.5" disabled={occupato || !ordiniPronti || !ordineValido || !totaleValido}
                 onClick={() => onRegistra(collegaOrdine ? null : importo, collegaOrdine ? ordine : null)}>
-                {occupato ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Check className="h-4 w-4" aria-hidden="true" />}Registra
+                {occupato ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Check className="h-4 w-4" aria-hidden="true" />}{t("Registra")}
               </Button>
             </div>
           )}

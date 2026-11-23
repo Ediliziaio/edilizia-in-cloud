@@ -5,6 +5,7 @@ import WarehouseItemDetailDialog from "./WarehouseItemDetailDialog";
 import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
 import { isItemOverdue, isItemUrgent } from "@/types/warehouse";
 import type { OrderItemStatus, WarehouseItem } from "@/types/warehouse";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface WarehouseKanbanViewProps {
   items: WarehouseItem[];
@@ -29,6 +30,7 @@ export default function WarehouseKanbanView({
   onToggleSelection,
   readOnly = false,
 }: WarehouseKanbanViewProps) {
+  const t = useT();
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
   // Always resolve fresh item reference so workflow mutations propagate into
@@ -65,11 +67,11 @@ export default function WarehouseKanbanView({
     <>
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-2 sm:gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          <OperationalKpiCard icon={PackageCheck} label="Totale" value={String(summary.total)} tone="slate" />
-          <OperationalKpiCard icon={Clock} label="Attivi" value={String(summary.active)} hint="non installati" tone="blue" />
-          <OperationalKpiCard icon={AlertTriangle} label="In ritardo" value={String(summary.overdue)} hint="posa superata" tone="red" />
-          <OperationalKpiCard icon={Flame} label="Urgenti" value={String(summary.urgent)} hint="posa entro 7gg" tone="amber" />
-          <OperationalKpiCard icon={CheckCircle2} label="Installati" value={String(summary.installed)} tone="green" />
+          <OperationalKpiCard icon={PackageCheck} label={t("Totale")} value={String(summary.total)} tone="slate" />
+          <OperationalKpiCard icon={Clock} label={t("Attivi")} value={String(summary.active)} hint={t("non installati")} tone="blue" />
+          <OperationalKpiCard icon={AlertTriangle} label={t("In ritardo")} value={String(summary.overdue)} hint={t("posa superata")} tone="red" />
+          <OperationalKpiCard icon={Flame} label={t("Urgenti")} value={String(summary.urgent)} hint={t("posa entro 7gg")} tone="amber" />
+          <OperationalKpiCard icon={CheckCircle2} label={t("Installati")} value={String(summary.installed)} tone="green" />
         </div>
 
         <div className="overflow-x-auto pb-2">

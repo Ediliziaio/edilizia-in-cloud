@@ -75,6 +75,7 @@ import { documentiDb } from "@/lib/ddt/documentiPersistenti";
 import {
   avvisaEsitoCarico, caricaAlSalvataggio, mostraSpuntaCarico,
 } from "@/lib/ddt/caricoAlSalvataggio";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Chi ha portato la merce. Con «noi» non c'è corriere: siamo andati a ritirarla
@@ -131,6 +132,7 @@ export function NewDDTDialog({
   restaQui,
   onCreated,
 }: NewDDTDialogProps) {
+  const tr = useT();
   const navigate = useNavigaDocumento();
   const { orders } = usePurchaseOrders();
   const { effectiveCompany } = useAuth();
@@ -390,8 +392,8 @@ export function NewDDTDialog({
     onCreated?.(id);
     onOpenChange(false);
     if (restaQui) {
-      toast.success(`Bolla ${etichetta} caricata`, {
-        action: { label: "Apri", onClick: () => navigate(`/azienda/ddt/${id}`) },
+      toast.success(tr("Bolla {etichetta} caricata", { etichetta: String(etichetta ?? "") }), {
+        action: { label: tr("Apri"), onClick: () => navigate(`/azienda/ddt/${id}`) },
       });
     } else {
       navigate(`/azienda/ddt/${id}`);
@@ -511,18 +513,18 @@ export function NewDDTDialog({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
               <FileCheck className="h-5 w-5 text-primary" />
-              Nuovo DDT fornitore
+              {tr("Nuovo DDT fornitore")}
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Carica la bolla, poi registrala subito col solo documento o compilala ora guardando la foto.
+              {tr("Carica la bolla, poi registrala subito col solo documento o compilala ora guardando la foto.")}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
             {pagine.length === 0 ? (
               <DDTAttachmentUploader
-                title="Carica la bolla"
-                description="Foto (anche più pagine) o PDF."
+                title={tr("Carica la bolla")}
+                description={tr("Foto (anche più pagine) o PDF.")}
                 defaultKind="ddt"
                 multiple
                 onFilesSelected={(nuovi) =>
@@ -530,7 +532,7 @@ export function NewDDTDialog({
                 }
               />
             ) : (
-              <ul className="space-y-1" aria-label="Pagine della bolla">
+              <ul className="space-y-1" aria-label={tr("Pagine della bolla")}>
                 {pagine.map((p, i) => (
                   <li key={p.id} className="flex items-center gap-2 rounded-md border bg-primary/5 px-2 py-1.5 text-sm">
                     <FileText className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
@@ -538,7 +540,7 @@ export function NewDDTDialog({
                     <span className="text-[11px] text-muted-foreground">{(p.file.size / 1024 / 1024).toFixed(1)} MB</span>
                     <Button
                       type="button" size="icon" variant="ghost" className="h-7 w-7"
-                      aria-label={`Togli ${p.file.name}`}
+                      aria-label={tr("Togli {name}", { name: String(p.file.name ?? "") })}
                       onClick={() => {
                         setPagine((x) => x.filter((_, j) => j !== i).map((f, j) => ({ ...f, kind: j === 0 ? "ddt" : "bolla" })));
                         setLettura("no");
@@ -555,33 +557,33 @@ export function NewDDTDialog({
               <label className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm">
                 <span className="flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" />
-                  Leggi con l'AI
-                  <span className="text-xs text-muted-foreground">compila i campi da sola</span>
+                  {tr("Leggi con l'AI")}
+                  <span className="text-xs text-muted-foreground">{tr("compila i campi da sola")}</span>
                 </span>
-                <Switch checked={conAI} onCheckedChange={setConAI} aria-label="Leggi con l'AI" />
+                <Switch checked={conAI} onCheckedChange={setConAI} aria-label={tr("Leggi con l'AI")} />
               </label>
             )}
 
             {selectedPO ? (
               <p className="rounded-md bg-muted/50 px-3 py-2 text-xs">
-                Dall'ordine <span className="font-medium">{selectedPO.oda_number}</span>
+                {tr("Dall'ordine")} <span className="font-medium">{selectedPO.oda_number}</span>
                 {selectedPO.suppliers?.name ? ` · ${selectedPO.suppliers.name}` : ""}
               </p>
             ) : null}
 
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <div className="space-y-1">
-                <Label className="text-xs">Numero DDT</Label>
-                <Input aria-label="Numero DDT" value={numero} onChange={(e) => setNumero(e.target.value)} placeholder="Se lo sai" className="h-9 font-mono" />
+                <Label className="text-xs">{tr("Numero DDT")}</Label>
+                <Input aria-label={tr("Numero DDT")} value={numero} onChange={(e) => setNumero(e.target.value)} placeholder={tr("Se lo sai")} className="h-9 font-mono" />
               </div>
               {!poId && (
                 <div className="space-y-1">
-                  <Label className="text-xs">Fornitore</Label>
+                  <Label className="text-xs">{tr("Fornitore")}</Label>
                   <SupplierSelect
                     searchable
                     value={supplierId}
                     onValueChange={(v) => setSupplierId(v)}
-                    placeholder="Se lo sai"
+                    placeholder={tr("Se lo sai")}
                     fallbackCompanyId={companyId ?? undefined}
                   />
                 </div>
@@ -593,14 +595,14 @@ export function NewDDTDialog({
 
           <DialogFooter className="flex-row flex-wrap justify-end gap-2 sm:justify-end">
             <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={isSubmitting} className="mr-auto text-muted-foreground">
-              Annulla
+              {tr("Annulla")}
             </Button>
             <Button variant="outline" onClick={() => void salvaDopo()} disabled={!documento || isSubmitting}>
               {isSubmitting && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />}
-              Salva e compila dopo
+              {tr("Salva e compila dopo")}
             </Button>
             <Button onClick={compilaOra} disabled={isSubmitting}>
-              Compila ora
+              {tr("Compila ora")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -609,7 +611,7 @@ export function NewDDTDialog({
       <FinestraBollaFotoRighe
         open={open && fase === "compila"}
         onOpenChange={(v) => { if (!v) setFase("scelta"); }}
-        titolo="Nuovo DDT fornitore"
+        titolo={tr("Nuovo DDT fornitore")}
         files={files}
         companyId={companyId}
         testata={{ numero, data, supplierId: supplierId ?? null, orderId: commessaEffettiva, destinazione: destinazioneEffettiva }}
@@ -626,16 +628,16 @@ export function NewDDTDialog({
         testataExtra={<>
           {!prefillPurchaseOrderId && availablePOs.length > 0 && (
             <div className="col-span-2 space-y-1 text-xs font-medium text-muted-foreground sm:col-span-4">
-              Ordine d'acquisto (facoltativo)
+              {tr("Ordine d'acquisto (facoltativo)")}
               <Select value={poId || "nessuno"} onValueChange={(v) => setPoId(v === "nessuno" ? "" : v)}>
-                <SelectTrigger className="h-9 text-sm text-foreground" aria-label="Ordine d'acquisto">
+                <SelectTrigger className="h-9 text-sm text-foreground" aria-label={tr("Ordine d'acquisto")}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="max-h-[300px]">
-                  <SelectItem value="nessuno">Nessun ordine</SelectItem>
+                  <SelectItem value="nessuno">{tr("Nessun ordine")}</SelectItem>
                   {availablePOs.map((o) => (
                     <SelectItem key={o.id} value={o.id}>
-                      {o.oda_number} · {o.suppliers?.name || "Fornitore ignoto"}{o.orders?.order_code ? ` · ${o.orders.order_code}` : ""}
+                      {o.oda_number} · {o.suppliers?.name || tr("Fornitore ignoto")}{o.orders?.order_code ? ` · ${o.orders.order_code}` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -655,40 +657,38 @@ export function NewDDTDialog({
             </p>
           )}
           <div className="col-span-2 space-y-1 sm:col-span-4">
-            <Label htmlFor="ddt-ordini-citati">Riferimenti ordini d’acquisto</Label>
+            <Label htmlFor="ddt-ordini-citati">{tr("Riferimenti ordini d’acquisto")}</Label>
             <Input id="ddt-ordini-citati" value={riferimentiOrdini} onChange={e => setRiferimentiOrdini(e.target.value)}
-              placeholder="Numeri degli ordini sulla bolla, separati da virgole" />
+              placeholder={tr("Numeri degli ordini sulla bolla, separati da virgole")} />
             {citati.ordini.length > 0 && <>
               <label className="flex items-center gap-2 text-xs">
                 <input type="checkbox" checked={collegaCitati} onChange={e => setCollegaCitati(e.target.checked)} />
-                Collega {citati.ordini.map(o => o.numero).join(", ")}
+                {tr("Collega {ordini}", { ordini: citati.ordini.map(o => o.numero).join(", ") })}
               </label>
-              {righeOrdiniCitati.isFetching && <p role="status" className="text-xs">Verifica delle righe d’ordine in corso.</p>}
-              {righeOrdiniCitati.isError && <p role="alert" className="text-xs">Righe d’ordine da verificare dopo il salvataggio.</p>}
+              {righeOrdiniCitati.isFetching && <p role="status" className="text-xs">{tr("Verifica delle righe d’ordine in corso.")}</p>}
+              {righeOrdiniCitati.isError && <p role="alert" className="text-xs">{tr("Righe d’ordine da verificare dopo il salvataggio.")}</p>}
               {collegaCitati && abbinamentiCitati.some(Boolean) && <ul className="text-xs text-muted-foreground">
                 {abbinamentiCitati.map((o, i) => o && (
                   <li key={i}>{righe[i].codice_articolo} · {citati.ordini.find(p => p.id === o.purchase_order_id)?.numero}</li>
                 ))}
               </ul>}
             </>}
-            {citati.pendenti.length > 0 && <p role="alert" className="text-xs text-amber-800 dark:text-amber-300">
-              Ordini da verificare. {citati.pendenti.join(", ")}
-            </p>}
-            {citati.citati && <p className="text-xs text-muted-foreground">Conferma le quantità in Consegne dopo il salvataggio.</p>}
+            {citati.pendenti.length > 0 && <p role="alert" className="text-xs text-amber-800 dark:text-amber-300">{tr("Ordini da verificare. {pendenti}", { pendenti: citati.pendenti.join(", ") })}</p>}
+            {citati.citati && <p className="text-xs text-muted-foreground">{tr("Conferma le quantità in Consegne dopo il salvataggio.")}</p>}
           </div>
         </>}
         stato={
           lettura === "in_corso" ? (
             <p role="status" className="flex items-center gap-2 rounded-md bg-primary/5 px-3 py-2 text-xs">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> Sto leggendo la bolla: i campi si riempiono da soli. Intanto puoi scrivere.
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> {tr("Sto leggendo la bolla: i campi si riempiono da soli. Intanto puoi scrivere.")}
             </p>
           ) : lettura === "fatta" ? (
             <p role="status" className="rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200">
-              Letta dall'AI: {righe.length} {righe.length === 1 ? "riga" : "righe"}. Controlla e correggi guardando l'originale.
+              {tr(righe.length === 1 ? "Letta dall'AI: {n} riga. Controlla e correggi guardando l'originale." : "Letta dall'AI: {n} righe. Controlla e correggi guardando l'originale.", { n: righe.length })}
             </p>
           ) : lettura === "errore" ? (
             <p role="status" className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
-              Lettura non riuscita: scrivi i dati guardando l'originale.
+              {tr("Lettura non riuscita: scrivi i dati guardando l'originale.")}
             </p>
           ) : null
         }
@@ -696,133 +696,133 @@ export function NewDDTDialog({
         conferma={{ etichetta: "Registra DDT", onConferma: () => void registra(), inCorso: isSubmitting, bloccata }}
         etichettaChiudi="Indietro"
       >
-        <SezioneBolla titolo="Trasporto">
-          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Chi ha portato la merce">
+        <SezioneBolla titolo={tr("Trasporto")}>
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label={tr("Chi ha portato la merce")}>
             {TRASPORTI.map((t) => (
               <button key={t.key} type="button" aria-pressed={trasportoACuraDi === t.key} className={bottoneScelta(trasportoACuraDi === t.key)}
                 onClick={() => setTrasportoACuraDi(trasportoACuraDi === t.key ? null : t.key)}>
-                {t.label}
+                {tr(t.label)}
               </button>
             ))}
-            <span className="mx-1 self-center text-xs text-muted-foreground">Porto</span>
+            <span className="mx-1 self-center text-xs text-muted-foreground">{tr("Porto")}</span>
             {(["franco", "assegnato"] as const).map((p) => (
               <button key={p} type="button" aria-pressed={porto === p} className={bottoneScelta(porto === p)}
-                title={p === "franco" ? "Compreso nel prezzo: in fattura non arriva" : "A nostro carico: in fattura c'è anche il trasporto"}
+                title={p === "franco" ? tr("Compreso nel prezzo: in fattura non arriva") : tr("A nostro carico: in fattura c'è anche il trasporto")}
                 onClick={() => setPorto(porto === p ? null : p)}>
-                {p === "franco" ? "Franco" : "Assegnato"}
+                {p === "franco" ? tr("Franco") : tr("Assegnato")}
               </button>
             ))}
           </div>
           <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
             {trasportoACuraDi !== "noi" && (
               <label className="col-span-2 space-y-1 text-xs text-muted-foreground">
-                {trasportoACuraDi === "terzi" ? "Corriere" : "Chi l'ha portata"}
-                <Input aria-label="Corriere" value={corriere} onChange={(e) => setCorriere(e.target.value)} placeholder="GLS, DHL, il fornitore…" className="h-9 text-sm text-foreground" />
+                {trasportoACuraDi === "terzi" ? tr("Corriere") : tr("Chi l'ha portata")}
+                <Input aria-label={tr("Corriere")} value={corriere} onChange={(e) => setCorriere(e.target.value)} placeholder={tr("GLS, DHL, il fornitore…")} className="h-9 text-sm text-foreground" />
               </label>
             )}
             <div className="space-y-1 text-xs text-muted-foreground">
-              {trasportoACuraDi === "noi" ? "Targa del nostro mezzo" : "Targa mezzo"}
+              {trasportoACuraDi === "noi" ? tr("Targa del nostro mezzo") : tr("Targa mezzo")}
               <CampoConProposte
-                ariaLabel="Targa mezzo"
+                ariaLabel={tr("Targa mezzo")}
                 valore={targaMezzo}
                 onChange={setTargaMezzo}
                 proposte={trasportoACuraDi === "noi" ? proposte.data?.mezzi ?? [] : []}
-                placeholder={trasportoACuraDi === "noi" ? "Cerca fra i mezzi o scrivi" : "AB123CD"}
+                placeholder={trasportoACuraDi === "noi" ? tr("Cerca fra i mezzi o scrivi") : tr("AB123CD")}
                 maiuscolo
               />
             </div>
             <div className="space-y-1 text-xs text-muted-foreground">
-              {trasportoACuraDi === "noi" ? "Chi è andato" : "Autista"}
+              {trasportoACuraDi === "noi" ? tr("Chi è andato") : tr("Autista")}
               <CampoConProposte
-                ariaLabel="Autista"
+                ariaLabel={tr("Autista")}
                 valore={autistaNome}
                 onChange={setAutistaNome}
                 proposte={trasportoACuraDi === "noi" ? proposte.data?.autisti ?? [] : []}
-                placeholder={trasportoACuraDi === "noi" ? "Cerca fra il personale o scrivi" : "Mario Rossi"}
+                placeholder={trasportoACuraDi === "noi" ? tr("Cerca fra il personale o scrivi") : tr("Mario Rossi")}
               />
             </div>
             {trasportoACuraDi !== "noi" && (
               <label className="space-y-1 text-xs text-muted-foreground">
-                Telefono autista
-                <Input type="tel" aria-label="Telefono autista" value={autistaTelefono} onChange={(e) => setAutistaTelefono(e.target.value)} className="h-9 text-sm text-foreground" />
+                {tr("Telefono autista")}
+                <Input type="tel" aria-label={tr("Telefono autista")} value={autistaTelefono} onChange={(e) => setAutistaTelefono(e.target.value)} className="h-9 text-sm text-foreground" />
               </label>
             )}
             <label className="space-y-1 text-xs text-muted-foreground">
-              Ora arrivo
-              <Input type="time" aria-label="Ora arrivo" value={oraArrivo} onChange={(e) => setOraArrivo(e.target.value)} className="h-9 text-sm text-foreground" />
+              {tr("Ora arrivo")}
+              <Input type="time" aria-label={tr("Ora arrivo")} value={oraArrivo} onChange={(e) => setOraArrivo(e.target.value)} className="h-9 text-sm text-foreground" />
             </label>
             <label className="space-y-1 text-xs text-muted-foreground">
-              Ora partenza
-              <Input type="time" aria-label="Ora partenza" value={oraPartenza} onChange={(e) => setOraPartenza(e.target.value)} className="h-9 text-sm text-foreground" />
+              {tr("Ora partenza")}
+              <Input type="time" aria-label={tr("Ora partenza")} value={oraPartenza} onChange={(e) => setOraPartenza(e.target.value)} className="h-9 text-sm text-foreground" />
             </label>
           </div>
         </SezioneBolla>
 
-        <SezioneBolla titolo="Dove va la merce">
-          <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Dove va la merce">
+        <SezioneBolla titolo={tr("Dove va la merce")}>
+          <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={tr("Dove va la merce")}>
             <button type="button" aria-pressed={destinazioneEffettiva === "magazzino"} className={bottoneScelta(destinazioneEffettiva === "magazzino")} onClick={() => setDestinazione("magazzino")}>
-              In magazzino
+              {tr("In magazzino")}
             </button>
             <button type="button" aria-pressed={destinazioneEffettiva === "cantiere"} disabled={!commessaNota} className={cn(bottoneScelta(destinazioneEffettiva === "cantiere"), "disabled:opacity-40")}
-              title={commessaNota ? "Non passa dal magazzino: è già sul posto" : "Serve prima la commessa"} onClick={() => setDestinazione("cantiere")}>
-              Direttamente in cantiere
+              title={commessaNota ? tr("Non passa dal magazzino: è già sul posto") : tr("Serve prima la commessa")} onClick={() => setDestinazione("cantiere")}>
+              {tr("Direttamente in cantiere")}
             </button>
-            {!commessaNota && <span className="text-[11px] text-muted-foreground">Per il cantiere scegli prima la commessa.</span>}
+            {!commessaNota && <span className="text-[11px] text-muted-foreground">{tr("Per il cantiere scegli prima la commessa.")}</span>}
           </div>
           {destinazioneEffettiva === "magazzino" && (
             <div className="mt-2">
               {!nessunMagazzino ? (
-                <WarehouseSelect value={warehouseId} onChange={setWarehouseId} placeholder="Default (dal fornitore o dall'ODA)" />
+                <WarehouseSelect value={warehouseId} onChange={setWarehouseId} placeholder={tr("Default (dal fornitore o dall'ODA)")} />
               ) : warehouseId ? (
-                <p className="text-xs text-emerald-800 dark:text-emerald-300">Magazzino creato: la merce entra lì.</p>
+                <p className="text-xs text-emerald-800 dark:text-emerald-300">{tr("Magazzino creato: la merce entra lì.")}</p>
               ) : permessi.isAdmin ? (
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="w-full text-xs text-muted-foreground">Non hai ancora un magazzino: crealo ora, oppure registra la bolla e il carico resta in sospeso.</p>
-                  <Input aria-label="Nome del magazzino" value={nomeMagazzino} onChange={(e) => setNomeMagazzino(e.target.value)} className="h-9 max-w-xs text-sm" />
+                  <p className="w-full text-xs text-muted-foreground">{tr("Non hai ancora un magazzino: crealo ora, oppure registra la bolla e il carico resta in sospeso.")}</p>
+                  <Input aria-label={tr("Nome del magazzino")} value={nomeMagazzino} onChange={(e) => setNomeMagazzino(e.target.value)} className="h-9 max-w-xs text-sm" />
                   <Button type="button" size="sm" variant="outline" disabled={creandoMagazzino} onClick={() => void creaMagazzino()}>
                     {creandoMagazzino && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden="true" />}
-                    Crea il magazzino
+                    {tr("Crea il magazzino")}
                   </Button>
                 </div>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  Non hai magazzini: la bolla si registra lo stesso, e il carico resta in sospeso finché l'amministratore non ne crea uno (Impostazioni, Magazzini). Poi lo confermi dalla pagina della bolla.
+                  {tr("Non hai magazzini: la bolla si registra lo stesso, e il carico resta in sospeso finché l'amministratore non ne crea uno (Impostazioni, Magazzini). Poi lo confermi dalla pagina della bolla.")}
                 </p>
               )}
             </div>
           )}
         </SezioneBolla>
 
-        <SezioneBolla titolo="Ricevimento">
+        <SezioneBolla titolo={tr("Ricevimento")}>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <label className="space-y-1 text-xs text-muted-foreground">
-              Stato
+              {tr("Stato")}
               <Select value={stato} onValueChange={(v) => setStato(v as DDTStato)}>
-                <SelectTrigger className="h-9 text-sm text-foreground" aria-label="Stato DDT"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-9 text-sm text-foreground" aria-label={tr("Stato DDT")}><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {STATI.map((s) => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}
+                  {STATI.map((s) => <SelectItem key={s.key} value={s.key}>{tr(s.label)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </label>
             <label className="space-y-1 text-xs text-muted-foreground">
-              Quantità ricevuta
-              <Input type="number" min="0" step="0.01" aria-label="Quantità ricevuta" value={qty} onChange={(e) => setQty(e.target.value)}
+              {tr("Quantità ricevuta")}
+              <Input type="number" min="0" step="0.01" aria-label={tr("Quantità ricevuta")} value={qty} onChange={(e) => setQty(e.target.value)}
                 placeholder={righe.length ? String(quantitaTotale(righe)) : "0"} className="h-9 text-right text-sm text-foreground" />
             </label>
             <label className="col-span-2 space-y-1 text-xs text-muted-foreground">
-              Ricevuto da
-              <Input aria-label="Ricevuto da" value={ricevutoDaNome} onChange={(e) => setRicevutoDaNome(e.target.value)} placeholder="Chi ha preso la merce" className="h-9 text-sm text-foreground" />
+              {tr("Ricevuto da")}
+              <Input aria-label={tr("Ricevuto da")} value={ricevutoDaNome} onChange={(e) => setRicevutoDaNome(e.target.value)} placeholder={tr("Chi ha preso la merce")} className="h-9 text-sm text-foreground" />
             </label>
           </div>
           <label className="mt-2 flex items-center gap-2 text-sm">
-            <Switch checked={hasDamages} onCheckedChange={setHasDamages} aria-label="Danni o non conformità" />
-            Danni o non conformità
+            <Switch checked={hasDamages} onCheckedChange={setHasDamages} aria-label={tr("Danni o non conformità")} />
+            {tr("Danni o non conformità")}
           </label>
           {hasDamages && (
-            <Textarea aria-label="Descrizione non conformità" value={nonConformita} onChange={(e) => setNonConformita(e.target.value)} rows={2}
-              placeholder="Pezzi mancanti, articoli danneggiati, imballo rotto…" className="mt-2 text-sm" />
+            <Textarea aria-label={tr("Descrizione non conformità")} value={nonConformita} onChange={(e) => setNonConformita(e.target.value)} rows={2}
+              placeholder={tr("Pezzi mancanti, articoli danneggiati, imballo rotto…")} className="mt-2 text-sm" />
           )}
-          <Textarea aria-label="Note" value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Note interne (facoltative)" className="mt-2 text-sm" />
+          <Textarea aria-label={tr("Note")} value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder={tr("Note interne (facoltative)")} className="mt-2 text-sm" />
         </SezioneBolla>
       </FinestraBollaFotoRighe>
     </>
@@ -831,21 +831,22 @@ export function NewDDTDialog({
 
 // ─── Allegati in più: packing list, foto dei danni, firma ──────────────────
 function AltriAllegati({ files, onChange }: { files: LocalFile[]; onChange: (f: LocalFile[]) => void }) {
+  const t = useT();
   const [pickerKind, setPickerKind] = useState<DDTAttachmentKind>("packing_list");
   return (
     <details className="rounded-md border bg-muted/10">
       <summary className="flex cursor-pointer select-none items-center gap-2 px-3 py-2 text-xs font-medium">
         <Paperclip className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-        Altri allegati (facoltativi){files.length > 0 ? ` · ${files.length}` : ""}
+        {t("Altri allegati (facoltativi)")}{files.length > 0 ? ` · ${files.length}` : ""}
       </summary>
       <div className="space-y-2 border-t p-3">
         <Select value={pickerKind} onValueChange={(v) => setPickerKind(v as DDTAttachmentKind)}>
-          <SelectTrigger className="h-8 text-xs" aria-label="Tipo di allegato"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-8 text-xs" aria-label={t("Tipo di allegato")}><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="packing_list">Packing list</SelectItem>
-            <SelectItem value="danni">Foto danni / non conformità</SelectItem>
-            <SelectItem value="firma">Firma ricevente</SelectItem>
-            <SelectItem value="altro">Altro</SelectItem>
+            <SelectItem value="packing_list">{t("Packing list")}</SelectItem>
+            <SelectItem value="danni">{t("Foto danni / non conformità")}</SelectItem>
+            <SelectItem value="firma">{t("Firma ricevente")}</SelectItem>
+            <SelectItem value="altro">{t("Altro")}</SelectItem>
           </SelectContent>
         </Select>
         <DDTAttachmentUploader
@@ -857,7 +858,7 @@ function AltriAllegati({ files, onChange }: { files: LocalFile[]; onChange: (f: 
         {files.map((f) => (
           <p key={f.id} className="flex items-center gap-2 text-xs">
             <span className="min-w-0 flex-1 truncate">{f.file.name} · {f.kind}</span>
-            <button type="button" className="text-rose-600 hover:underline" onClick={() => onChange(files.filter((x) => x.id !== f.id))}>Rimuovi</button>
+            <button type="button" className="text-rose-600 hover:underline" onClick={() => onChange(files.filter((x) => x.id !== f.id))}>{t("Rimuovi")}</button>
           </p>
         ))}
       </div>

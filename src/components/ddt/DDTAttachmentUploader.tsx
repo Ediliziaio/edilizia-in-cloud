@@ -20,6 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { DDTAttachmentKind } from "@/hooks/useDDTRicezione";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface DDTAttachmentUploaderProps {
   /** Tipologia default per i file caricati (ddt, bolla, danni, ecc.) */
@@ -58,6 +59,7 @@ export function DDTAttachmentUploader({
   description,
   className,
 }: DDTAttachmentUploaderProps) {
+  const t = useT();
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -196,13 +198,11 @@ export function DDTAttachmentUploader({
             <div className="space-y-0.5">
               <p className="text-sm font-medium">
                 <span className="hidden sm:inline">
-                  Trascina qui i file o scegli una sorgente
+                  {t("Trascina qui i file o scegli una sorgente")}
                 </span>
-                <span className="sm:hidden">Scegli una sorgente</span>
+                <span className="sm:hidden">{t("Scegli una sorgente")}</span>
               </p>
-              <p className="text-xs text-muted-foreground">
-                Foto (JPG/PNG/HEIC) o PDF · max {maxSizeMB} MB per file
-              </p>
+              <p className="text-xs text-muted-foreground">{t("Foto (JPG/PNG/HEIC) o PDF · max {maxSizeMB} MB per file", { maxSizeMB: String(maxSizeMB ?? "") })}</p>
             </div>
           )}
 
@@ -223,7 +223,7 @@ export function DDTAttachmentUploader({
               className="gap-1.5 sm:hidden flex-1 min-w-[120px]"
             >
               <Camera className="h-4 w-4" />
-              Scatta foto
+              {t("Scatta foto")}
             </Button>
 
             {/* Gallery mobile */}
@@ -236,7 +236,7 @@ export function DDTAttachmentUploader({
               className="gap-1.5 sm:hidden flex-1 min-w-[120px]"
             >
               <ImageIcon className="h-4 w-4" />
-              Galleria
+              {t("Galleria")}
             </Button>
 
             {/* Desktop/file picker — visibile su mobile come fallback PDF */}
@@ -249,8 +249,8 @@ export function DDTAttachmentUploader({
               className="gap-1.5 flex-1 sm:flex-none min-w-[120px]"
             >
               <FileText className="h-4 w-4" />
-              <span className="hidden sm:inline">Scegli file</span>
-              <span className="sm:hidden">PDF / file</span>
+              <span className="hidden sm:inline">{t("Scegli file")}</span>
+              <span className="sm:hidden">{t("PDF / file")}</span>
             </Button>
 
             {/* Desktop-only: camera (se supportata nel browser) */}
@@ -263,7 +263,7 @@ export function DDTAttachmentUploader({
               className="gap-1.5 hidden sm:flex"
             >
               <Camera className="h-4 w-4" />
-              Fotocamera
+              {t("Fotocamera")}
             </Button>
           </div>
 
@@ -271,7 +271,7 @@ export function DDTAttachmentUploader({
           {isUploading && (
             <div className="flex items-center gap-1.5 text-xs text-primary animate-pulse">
               <div className="h-1.5 w-1.5 rounded-full bg-primary animate-ping" />
-              Caricamento in corso…
+              {t("Caricamento in corso…")}
             </div>
           )}
         </div>
@@ -282,7 +282,7 @@ export function DDTAttachmentUploader({
         <div className="rounded-md border border-amber-200 bg-amber-50 p-2.5 space-y-1">
           <div className="flex items-center gap-1.5 text-xs font-medium text-amber-800">
             <AlertCircle className="h-3.5 w-3.5" />
-            File rifiutati:
+            {t("File rifiutati:")}
           </div>
           {rejected.map((msg, i) => (
             <p key={i} className="text-xs text-amber-700 pl-5">{msg}</p>
@@ -292,7 +292,7 @@ export function DDTAttachmentUploader({
             onClick={() => setRejected([])}
             className="text-[10px] text-amber-600 hover:text-amber-800 underline pl-5"
           >
-            Nascondi
+            {t("Nascondi")}
           </button>
         </div>
       )}

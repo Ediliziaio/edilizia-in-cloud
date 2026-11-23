@@ -65,6 +65,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useQuery } from "@tanstack/react-query";
 import type { TipoDocumento, DocumentoFiscale } from "@/types/fatturazione";
 import { sottoLarghezza } from "@/hooks/useSottoLarghezza";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // Un'istanza per documento: l'editor si inizializza una volta sola, e passando da
 // un documento all'altro (Duplica, Converti) sarebbe rimasto sul primo, salvando lì.
@@ -81,6 +82,7 @@ export default function EditorDocumento({ popup }: { popup?: EditorDocumentoInPo
 }
 
 function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocumentoInPopup }) {
+  const t = useT();
   const [searchParams] = useSearchParams();
   const navigaPagina = useNavigate();
   const navigate = useCallback((destinazione: To | number, opzioni?: NavigateOptions) => {
@@ -165,7 +167,7 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
     }
 
     if (fromDdtParam && (ddtErrore || !ddtData)) {
-      toast.error("DDT non letto: la fattura non è stata creata");
+      toast.error(t("DDT non letto: la fattura non è stata creata"));
       navigate(-1);
       return;
     }
@@ -187,7 +189,7 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
             // La bozza è nata: se l'aggancio non riesce non si butta via il
             // documento, si dice che il rendiconto è rimasto scollegato.
             if (error) {
-              toast.error("Fattura creata, ma non agganciata al rendiconto", { description: error.message });
+              toast.error(t("Fattura creata, ma non agganciata al rendiconto"), { description: error.message });
             }
           }
           const newUrl = fromDdtParam && doc.stato !== "bozza"
@@ -199,7 +201,7 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
         },
         onError: (err) => {
           console.error("[EditorDocumento] Create mutation failed:", err);
-          toast.error("Impossibile creare il documento", {
+          toast.error(t("Impossibile creare il documento"), {
             description: (err as Error).message,
           });
           createdRef.current = false;
@@ -236,8 +238,8 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
     if (!modificabile || isSaving) return false;
     try {
       await saveNow();
-      toast.success(isBozza ? "Bozza salvata" : "Modifiche salvate", {
-        description: isBozza && eFattura ? "La trovi in Fatturazione, sotto Fatture in bozza." : undefined,
+      toast.success(isBozza ? t("Bozza salvata") : t("Modifiche salvate"), {
+        description: isBozza && eFattura ? t("La trovi in Fatturazione, sotto Fatture in bozza.") : undefined,
       });
       return true;
     } catch {
@@ -252,10 +254,10 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
     setIsConvertLoading(true);
     try {
       const fattura = await convertiProformaInFattura(state.id);
-      toast.success("Convertito in fattura", { description: "È una bozza: prende il numero quando la emetti." });
+      toast.success(t("Convertito in fattura"), { description: t("È una bozza: prende il numero quando la emetti.") });
       navigate(`/azienda/documenti/${fattura.id}`);
     } catch (err: any) {
-      toast.error("Errore nella conversione", { description: err.message });
+      toast.error(t("Errore nella conversione"), { description: err.message });
     } finally {
       setIsConvertLoading(false);
     }
@@ -273,7 +275,7 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
     try {
       await saveNow();
     } catch (err) {
-      toast.error("Correzioni non salvate: la fattura non è partita", { description: (err as Error).message });
+      toast.error(t("Correzioni non salvate: la fattura non è partita"), { description: (err as Error).message });
       return;
     }
     invioSdi.mutate(state.id);
@@ -300,14 +302,14 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
     try {
       await scaricaXmlFattura(state as unknown as DocumentoFiscale, aziendaAnagrafica);
     } catch (err) {
-      toast.error("XML non scaricato", { description: (err as Error).message });
+      toast.error(t("XML non scaricato"), { description: (err as Error).message });
     }
   }, [state, aziendaAnagrafica]);
 
   const handleDownloadPDF = useCallback(async () => {
     if (!state.id) return;
-    try { await downloadNativePDF(state.id, state.numero); toast.info("Stampa richiesta", { description: "Per salvare il file scegli «Salva come PDF» nel dialogo del browser. Il file non viene scaricato automaticamente.", duration: 12000 }); }
-    catch (err: any) { toast.error("Errore download PDF", { description: err.message }); }
+    try { await downloadNativePDF(state.id, state.numero); toast.info(t("Stampa richiesta"), { description: t("Per salvare il file scegli «Salva come PDF» nel dialogo del browser. Il file non viene scaricato automaticamente."), duration: 12000 }); }
+    catch (err: any) { toast.error(t("Errore download PDF"), { description: err.message }); }
   }, [state.id, state.numero]);
 
   // Duplicate document as new draft
@@ -320,7 +322,7 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
         try {
           await saveNow();
         } catch (err) {
-          toast.error("Modifiche non salvate: il documento non è stato duplicato", { description: (err as Error).message });
+          toast.error(t("Modifiche non salvate: il documento non è stato duplicato"), { description: (err as Error).message });
           return;
         }
       }
@@ -413,7 +415,7 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
   // Handle navigation when leaving with unsaved changes
   const handleBack = useCallback(() => {
     if (isSaving) {
-      toast.info("Salvataggio in corso. Attendi prima di uscire.");
+      toast.info(t("Salvataggio in corso. Attendi prima di uscire."));
       return;
     }
     // Draft vuoto → elimina silenziosamente senza dialog (no spreco numerazione)
@@ -505,16 +507,16 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
   if (isCreate && richiestaCopia && erroreCopia) {
     return (
       <div role="alert" className="m-4 space-y-3 rounded-lg border p-4">
-        <p>Non siamo riusciti a confermare la copia. Riprova per riaprire la stessa bozza.</p>
-        <Button onClick={apriCopiaPrecompilata} disabled={copiaInCorso}>Riprova</Button>
+        <p>{t("Non siamo riusciti a confermare la copia. Riprova per riaprire la stessa bozza.")}</p>
+        <Button onClick={apriCopiaPrecompilata} disabled={copiaInCorso}>{t("Riprova")}</Button>
       </div>
     );
   }
   if (!isCreate && erroreLettura && !loadedDoc) {
     return (
       <div role="alert" className="m-4 space-y-3 rounded-lg border p-4">
-        <p>Il documento non si è caricato.</p>
-        <Button onClick={() => void rileggiEditor()} disabled={letturaInCorso}>Riprova lettura</Button>
+        <p>{t("Il documento non si è caricato.")}</p>
+        <Button onClick={() => void rileggiEditor()} disabled={letturaInCorso}>{t("Riprova lettura")}</Button>
       </div>
     );
   }
@@ -544,7 +546,7 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
           try {
             await saveNow();
           } catch (err) {
-            toast.error("Modifiche non salvate: il documento non è stato emesso", { description: (err as Error).message });
+            toast.error(t("Modifiche non salvate: il documento non è stato emesso"), { description: (err as Error).message });
             return;
           }
           emittiMutation.mutate(state.id, {
@@ -569,7 +571,7 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
         onEmissioneBloccata={() => {
           setTentatoEmissione(true);
           vaiAlRiepilogo();
-          toast.error(criticalErrorCount === 1 ? "Manca ancora un dato per emettere" : `Mancano ancora ${criticalErrorCount} dati per emettere`, { description: "Li trovi nel riepilogo: un clic porta al campo." });
+          toast.error(criticalErrorCount === 1 ? t("Manca ancora un dato per emettere") : t("Mancano ancora {criticalErrorCount} dati per emettere", { criticalErrorCount: String(criticalErrorCount ?? "") }), { description: t("Li trovi nel riepilogo: un clic porta al campo.") });
         }}
         onPreview={() => setPreviewOpen(true)}
         onBack={handleBack}
@@ -592,7 +594,7 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
           <div className="-mb-3 hidden justify-end xl:flex">
             <button type="button" onClick={cambiaAnteprima} className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
               <PanelRight className="h-3.5 w-3.5" />
-              {anteprimaAccanto ? "Nascondi anteprima" : "Mostra anteprima"}
+              {anteprimaAccanto ? t("Nascondi anteprima") : t("Mostra anteprima")}
             </button>
           </div>
 
@@ -601,7 +603,7 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
             <div className="flex items-start gap-3 p-3 rounded-md bg-amber-50 border border-amber-200 text-sm">
               <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
               <div>
-                <p className="font-medium text-amber-800">Nota di Credito</p>
+                <p className="font-medium text-amber-800">{t("Nota di Credito")}</p>
                 <p className="text-amber-700 text-xs mt-0.5">{state.note_documento}</p>
                 <div className="mt-2">
                   <Select
@@ -610,14 +612,14 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
                     disabled={!isBozza}
                   >
                     <SelectTrigger className="h-8 w-48">
-                      <SelectValue placeholder="Motivo storno" />
+                      <SelectValue placeholder={t("Motivo storno")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="reso">Reso</SelectItem>
-                      <SelectItem value="annullamento">Annullamento</SelectItem>
-                      <SelectItem value="errore">Errore</SelectItem>
-                      <SelectItem value="sconto_postvendita">Sconto post-vendita</SelectItem>
-                      <SelectItem value="altro">Altro</SelectItem>
+                      <SelectItem value="reso">{t("Reso")}</SelectItem>
+                      <SelectItem value="annullamento">{t("Annullamento")}</SelectItem>
+                      <SelectItem value="errore">{t("Errore")}</SelectItem>
+                      <SelectItem value="sconto_postvendita">{t("Sconto post-vendita")}</SelectItem>
+                      <SelectItem value="altro">{t("Altro")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -629,9 +631,9 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
             <div className="flex items-start gap-3 p-3 rounded-md bg-blue-50 border border-blue-200 text-sm">
               <AlertTriangle className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
               <div>
-                <p className="font-medium text-blue-800">Integrazione TD16 — Reverse charge interno</p>
+                <p className="font-medium text-blue-800">{t("Integrazione TD16 — Reverse charge interno")}</p>
                 <p className="text-blue-700 text-xs mt-0.5">
-                  Il <strong>Fornitore</strong> è il cedente della fattura ricevuta senza IVA. Il destinatario sei tu: qui si aggiunge l'IVA che quella fattura non ha.
+                  {t("Il Fornitore è il cedente della fattura ricevuta senza IVA. Il destinatario sei tu: qui si aggiunge l'IVA che quella fattura non ha.")}
                 </p>
               </div>
             </div>
@@ -643,13 +645,12 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
               <AlertTriangle className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
               <div>
                 <p className="font-medium text-blue-800">
-                  {state.tipo === "integrazione_servizi_estero" ? "Autofattura TD17 — Acquisto servizi dall'estero" :
-                   state.tipo === "integrazione_beni_ue" ? "Integrazione TD18 — Acquisto beni intracomunitari (UE)" :
-                   "Integrazione TD19 — Acquisto beni extra-UE (art.17 c.2)"}
+                  {state.tipo === "integrazione_servizi_estero" ? t("Autofattura TD17 — Acquisto servizi dall'estero") :
+                   state.tipo === "integrazione_beni_ue" ? t("Integrazione TD18 — Acquisto beni intracomunitari (UE)") :
+                   t("Integrazione TD19 — Acquisto beni extra-UE (art.17 c.2)")}
                 </p>
                 <p className="text-blue-700 text-xs mt-0.5">
-                  Il campo <strong>Fornitore Estero</strong> rappresenta il cedente nella fattura originale ricevuta.
-                  Inserisci i dati del fornitore straniero. Il destinatario (Cessionario) sarà automaticamente la tua azienda.
+                  {t("Il campo Fornitore Estero rappresenta il cedente nella fattura originale ricevuta. Inserisci i dati del fornitore straniero. Il destinatario (Cessionario) sarà automaticamente la tua azienda.")}
                 </p>
               </div>
             </div>
@@ -742,12 +743,12 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
                 compattaSeVuota
               />
             ) : (
-              <p className="text-xs text-muted-foreground">Allegati: si possono aggiungere appena la bozza è salvata.</p>
+              <p className="text-xs text-muted-foreground">{t("Allegati: si possono aggiungere appena la bozza è salvata.")}</p>
             )}
           </div>
         </div>
         {anteprimaAccanto && (
-          <aside aria-label="Anteprima del documento" className="sticky top-4 mt-6 hidden max-h-[calc(100vh-8rem)] w-[380px] shrink-0 flex-col overflow-y-auto overflow-x-hidden rounded-lg border bg-muted/30 xl:flex">
+          <aside aria-label={t("Anteprima del documento")} className="sticky top-4 mt-6 hidden max-h-[calc(100vh-8rem)] w-[380px] shrink-0 flex-col overflow-y-auto overflow-x-hidden rounded-lg border bg-muted/30 xl:flex">
             {xmlDisponibile && (
               <div className="sticky top-0 z-10 flex gap-1 border-b bg-background/95 p-1.5 backdrop-blur">
                 {([["pdf", "PDF"], ["xml", "XML allo SDI"]] as const).map(([v, etichetta]) => (
@@ -758,7 +759,7 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
                     aria-pressed={vistaAnteprima === v}
                     className={`flex-1 rounded px-2 py-1 text-[11px] font-medium transition-colors ${vistaAnteprima === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
                   >
-                    {etichetta}
+                    {t(etichetta)}
                   </button>
                 ))}
               </div>
@@ -794,9 +795,9 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
       <AlertDialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{isBozza ? "Salvare come bozza?" : "Salvare le modifiche?"}</AlertDialogTitle>
+            <AlertDialogTitle>{isBozza ? t("Salvare come bozza?") : t("Salvare le modifiche?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Hai modifiche non salvate. Desideri salvarle prima di uscire?
+              {t("Hai modifiche non salvate. Desideri salvarle prima di uscire?")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -804,7 +805,7 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
               setShowLeaveDialog(false);
               setPendingNavigation(null);
             }}>
-              Annulla
+              {t("Annulla")}
             </AlertDialogCancel>
             <button
               onClick={() => {
@@ -815,7 +816,7 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
               disabled={isSaving}
               className="text-destructive hover:text-destructive/80 text-sm font-medium"
             >
-              Esci senza salvare
+              {t("Esci senza salvare")}
             </button>
             <Button type="button" disabled={isSaving} onClick={async () => {
               if (!(await salvaManualmente())) return;
@@ -823,7 +824,7 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
               navigate(pendingNavigation ?? percorsoRitorno);
               setPendingNavigation(null);
             }}>
-              {isBozza ? "Salva bozza" : "Salva modifiche"}
+              {isBozza ? t("Salva bozza") : t("Salva modifiche")}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

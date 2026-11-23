@@ -79,13 +79,14 @@ import {
   type RigaBozza,
   type Scrittura,
 } from "@/lib/contabilita/libroGiornale";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // Le tabelle sono nuove: i tipi generati non le conoscono ancora.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
 // «always»: in italiano 4000 resterebbe senza il punto delle migliaia.
-const euro = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" } as Intl.NumberFormatOptions).format(n);
+const euro = (n: number) => new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", useGrouping: "always" } as Intl.NumberFormatOptions).format(n);
 const dataIt = (d: string) => d.split("-").reverse().join("/");
 const oggi = () => new Date().toLocaleDateString("en-CA");
 const rigaVuota = (): RigaBozza => ({ conto_id: "", dare: "", avere: "", descrizione: "" });
@@ -156,6 +157,7 @@ function useScritture(companyId: string | undefined, anno: number) {
 }
 
 export default function ContabilitaGenerale() {
+  const t = useT();
   const p = useFiscalPeriod();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -167,20 +169,20 @@ export default function ContabilitaGenerale() {
   return (
     <div className="space-y-4">
       <FiscalSectionHeader
-        title="Contabilità generale"
+        title={t("Contabilità generale")}
         actions={
           <Select value={String(p.anno)} onValueChange={(v) => p.set({ anno: v })}>
-            <SelectTrigger className="h-9 w-40" aria-label="Esercizio"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-9 w-40" aria-label={t("Esercizio")}><SelectValue /></SelectTrigger>
             <SelectContent>
               {Array.from({ length: 6 }, (_, i) => new Date().getFullYear() + 1 - i).map((a) => (
-                <SelectItem key={a} value={String(a)}>Esercizio {a}</SelectItem>
+                <SelectItem key={a} value={String(a)}>{t("Esercizio {a}", { a })}</SelectItem>
               ))}
             </SelectContent>
           </Select>
         }
       />
       {/* Le viste su una riga sola, come linguette (16/11/2026): prima andavano a capo e sembravano pulsanti d'azione. */}
-      <div role="tablist" aria-label="Viste della contabilità" className="flex gap-1 overflow-x-auto rounded-xl border bg-card p-1">
+      <div role="tablist" aria-label={t("Viste della contabilità")} className="flex gap-1 overflow-x-auto rounded-xl border bg-card p-1">
         {([["scritture", "Scritture"], ["giornale", "Libro giornale"], ["mastrini", "Mastrini e partitari"], ["iva", "IVA"], ["bilancio", "Bilancio"], ["fine", "Fine anno e chiusura"], ["conti", "Piano dei conti"]] as const).map(([k, l]) => (
           <button
             key={k}
@@ -190,7 +192,7 @@ export default function ContabilitaGenerale() {
             onClick={() => p.set({ vista: k })}
             className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm transition-colors ${vista === k ? "bg-primary font-medium text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
           >
-            {l}
+            {t(l)}
           </button>
         ))}
       </div>
@@ -217,6 +219,7 @@ export default function ContabilitaGenerale() {
 }
 
 function PianoVuoto({ companyId }: { companyId: string }) {
+  const t = useT();
   const qc = useQueryClient();
   const carica = useMutation({
     mutationFn: async () => {
@@ -225,26 +228,26 @@ function PianoVuoto({ companyId }: { companyId: string }) {
       return data as number;
     },
     onSuccess: (n) => {
-      toast.success(`Piano dei conti caricato: ${n} conti`);
+      toast.success(t("Piano dei conti caricato: {n} conti", { n: String(n ?? "") }));
       void qc.invalidateQueries({ queryKey: chiave(companyId) });
     },
-    onError: (e) => toast.error("Piano dei conti non caricato", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Piano dei conti non caricato"), { description: e instanceof Error ? e.message : String(e) }),
   });
   return (
     <div className="rounded-xl border p-6 text-sm space-y-3">
-      <p className="font-medium">Il piano dei conti è vuoto.</p>
+      <p className="font-medium">{t("Il piano dei conti è vuoto.")}</p>
       <p className="text-muted-foreground">
-        Carica il piano standard per l'edilizia: mastri e conti già collegati alle voci del bilancio CEE
-        (artt. 2424 e 2425 del codice civile). Dopo puoi aggiungere i conti che ti servono.
+        {t("Carica il piano standard per l'edilizia: mastri e conti già collegati alle voci del bilancio CEE (artt. 2424 e 2425 del codice civile). Dopo puoi aggiungere i conti che ti servono.")}
       </p>
       <Button size="sm" onClick={() => carica.mutate()} disabled={carica.isPending}>
-        {carica.isPending ? "Caricamento…" : "Carica il piano standard"}
+        {carica.isPending ? t("Caricamento…") : t("Carica il piano standard")}
       </Button>
     </div>
   );
 }
 
 function PianoDeiConti({ companyId, conti }: { companyId: string; conti: ContoContabile[] }) {
+  const t = useT();
   const qc = useQueryClient();
   const [apri, setApri] = useState(false);
   const [codice, setCodice] = useState("");
@@ -271,47 +274,47 @@ function PianoDeiConti({ companyId, conti }: { companyId: string; conti: ContoCo
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Conto creato");
+      toast.success(t("Conto creato"));
       setApri(false);
       setCodice(""); setDescrizione(""); setVoce(""); setMastro("");
       void qc.invalidateQueries({ queryKey: chiave(companyId, "conti") });
     },
-    onError: (e) => toast.error("Conto non creato", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Conto non creato"), { description: e instanceof Error ? e.message : String(e) }),
   });
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <Input type="search" className="h-8 w-full sm:w-64" aria-label="Cerca nel piano dei conti" placeholder="Cerca codice, descrizione o voce CEE…" value={ricerca} onChange={e => setRicerca(e.target.value)} />
+        <Input type="search" className="h-8 w-full sm:w-64" aria-label={t("Cerca nel piano dei conti")} placeholder={t("Cerca codice, descrizione o voce CEE…")} value={ricerca} onChange={e => setRicerca(e.target.value)} />
         {daConfermare.length > 0 ? (
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={soloDaConfermare} onChange={(e) => setSoloDaConfermare(e.target.checked)} />
-            Solo i conti da confermare ({daConfermare.length})
+            {t("Solo i conti da confermare ({n})", { n: daConfermare.length })}
           </label>
         ) : null}
         <div className="ml-auto flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">{visibili.length} conti</span>
-          <Button size="sm" variant="outline" onClick={() => scaricaCsv("piano-dei-conti", csvPianoDeiConti(conti))}><Download className="mr-1 h-4 w-4" />Esporta</Button>
-          <Button size="sm" onClick={() => setApri(true)}><Plus className="mr-1 h-4 w-4" />Nuovo conto</Button>
+          <span className="text-xs text-muted-foreground">{t("{n} conti", { n: visibili.length })}</span>
+          <Button size="sm" variant="outline" onClick={() => scaricaCsv("piano-dei-conti", csvPianoDeiConti(conti))}><Download className="mr-1 h-4 w-4" />{t("Esporta")}</Button>
+          <Button size="sm" onClick={() => setApri(true)}><Plus className="mr-1 h-4 w-4" />{t("Nuovo conto")}</Button>
         </div>
       </div>
       <TabellaContabile>
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
-            <tr><th className="p-2">Codice</th><th className="p-2">Descrizione</th><th className="p-2">Natura</th><th className="p-2">Voce CEE</th><th className="p-2" /></tr>
+            <tr><th className="p-2">{t("Codice")}</th><th className="p-2">{t("Descrizione")}</th><th className="p-2">{t("Natura")}</th><th className="p-2">{t("Voce CEE")}</th><th className="p-2" /></tr>
           </thead>
           <tbody>
-            {visibili.length === 0 && <tr><td colSpan={5} className="p-4 text-center text-muted-foreground">Nessun conto con questi filtri.</td></tr>}
+            {visibili.length === 0 && <tr><td colSpan={5} className="p-4 text-center text-muted-foreground">{t("Nessun conto con questi filtri.")}</td></tr>}
             {visibili.map((c) => (
               <tr key={c.id} className={c.movimentabile ? "border-t" : "border-t bg-muted/30 font-semibold"}>
                 <td className="p-2 font-mono text-xs">{c.codice}</td>
                 <td className="p-2">
                   {c.descrizione}
-                  {c.codice_standard ? <span className="ml-2 rounded bg-blue-50 px-1.5 text-xs font-normal text-blue-800" title="Lo usano le scritture dai documenti">ruolo {c.codice_standard}</span> : null}
+                  {c.codice_standard ? <span className="ml-2 rounded bg-blue-50 px-1.5 text-xs font-normal text-blue-800" title={t("Lo usano le scritture dai documenti")}>{t("ruolo {codice_standard}", { codice_standard: String(c.codice_standard ?? "") })}</span> : null}
                   {c.nota ? <p className="text-xs font-normal text-amber-700">{c.nota}</p> : null}
                 </td>
                 <td className="p-2 text-muted-foreground">{c.natura}</td>
-                <td className="p-2 text-muted-foreground">{c.sezione_cee ? `${c.sezione_cee === "SPA" ? "Attivo" : c.sezione_cee === "SPP" ? "Passivo" : "C.E."} ${c.voce_cee ?? ""}` : ""}</td>
-                <td className="p-2 text-right"><Button size="sm" variant="ghost" onClick={() => setModifica(c)}>Modifica</Button></td>
+                <td className="p-2 text-muted-foreground">{c.sezione_cee ? `${c.sezione_cee === "SPA" ? t("Attivo") : c.sezione_cee === "SPP" ? t("Passivo") : "C.E."} ${c.voce_cee ?? ""}` : ""}</td>
+                <td className="p-2 text-right"><Button size="sm" variant="ghost" onClick={() => setModifica(c)}>{t("Modifica")}</Button></td>
               </tr>
             ))}
           </tbody>
@@ -319,36 +322,36 @@ function PianoDeiConti({ companyId, conti }: { companyId: string; conti: ContoCo
       </TabellaContabile>
       <Dialog open={apri} onOpenChange={setApri}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Nuovo conto</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t("Nuovo conto")}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-3 gap-2">
-              <div className="space-y-1"><Label>Codice</Label><Input value={codice} onChange={(e) => setCodice(e.target.value)} placeholder="30.08" /></div>
-              <div className="col-span-2 space-y-1"><Label>Descrizione</Label><Input value={descrizione} onChange={(e) => setDescrizione(e.target.value)} /></div>
+              <div className="space-y-1"><Label>{t("Codice")}</Label><Input value={codice} onChange={(e) => setCodice(e.target.value)} placeholder="30.08" /></div>
+              <div className="col-span-2 space-y-1"><Label>{t("Descrizione")}</Label><Input value={descrizione} onChange={(e) => setDescrizione(e.target.value)} /></div>
             </div>
             <div className="space-y-1">
-              <Label>Natura</Label>
+              <Label>{t("Natura")}</Label>
               <Select value={natura} onValueChange={(v) => setNatura(v as ContoContabile["natura"])}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{NATURE.map((n) => <SelectItem key={n.value} value={n.value}>{n.label}</SelectItem>)}</SelectContent>
+                <SelectContent>{NATURE.map((n) => <SelectItem key={n.value} value={n.value}>{t(n.label)}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <Label>Mastro</Label>
+                <Label>{t("Mastro")}</Label>
                 <Select value={mastro || "nessuno"} onValueChange={(v) => setMastro(v === "nessuno" ? "" : v)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="nessuno">Nessuno</SelectItem>
+                    <SelectItem value="nessuno">{t("Nessuno")}</SelectItem>
                     {mastri.map((m) => <SelectItem key={m.id} value={m.id}>{nomeMastro.get(m.id)}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1"><Label>Voce CEE</Label><Input value={voce} onChange={(e) => setVoce(e.target.value)} placeholder="B.7" /></div>
+              <div className="space-y-1"><Label>{t("Voce CEE")}</Label><Input value={voce} onChange={(e) => setVoce(e.target.value)} placeholder="B.7" /></div>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setApri(false)}>Annulla</Button>
-            <Button onClick={() => crea.mutate()} disabled={crea.isPending || !codice.trim() || !descrizione.trim()}>Crea</Button>
+            <Button variant="outline" onClick={() => setApri(false)}>{t("Annulla")}</Button>
+            <Button onClick={() => crea.mutate()} disabled={crea.isPending || !codice.trim() || !descrizione.trim()}>{t("Crea")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -374,6 +377,7 @@ function gruppoDi(origine: string | null | undefined): Exclude<GruppoOrigine, "t
 }
 
 function Scritture({ companyId, anno, conti, giornale }: { companyId: string; anno: number; conti: ContoContabile[]; giornale: boolean }) {
+  const tTesto = useT();
   const periodo = useFiscalPeriod();
   const qc = useQueryClient();
   const scritture = useScritture(companyId, anno);
@@ -392,8 +396,8 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
       const { error } = await db.rpc("contabilita_elimina_scrittura", { p_scrittura: daEliminare.id, p_revisione: daEliminare.revisione ?? 1, p_motivo: motivoEliminazione.trim() });
       if (error) throw error;
     },
-    onSuccess: () => { setDaEliminare(null); setMotivoEliminazione(""); toast.success("Scrittura provvisoria eliminata"); void qc.invalidateQueries({ queryKey: chiave(companyId) }); },
-    onError: (e) => toast.error("Scrittura non eliminata", { description: messaggioErroreOperazione(e) }),
+    onSuccess: () => { setDaEliminare(null); setMotivoEliminazione(""); toast.success(tTesto("Scrittura provvisoria eliminata")); void qc.invalidateQueries({ queryKey: chiave(companyId) }); },
+    onError: (e) => toast.error(tTesto("Scrittura non eliminata"), { description: messaggioErroreOperazione(e) }),
   });
   const [storniAperti, setStorniAperti] = useState(false);
   const [dataStorni, setDataStorni] = useState(oggi());
@@ -425,22 +429,22 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
     onSuccess: (r) => {
       const nuove = r.fatture_emesse + r.fatture_ricevute + r.incassi + r.pagamenti + (r.altre ?? 0) + (r.movimenti ?? 0) + (r.cedolini ?? 0);
       const dettagli = [
-        `${r.fatture_emesse} fatture emesse, ${r.fatture_ricevute} ricevute, ${r.incassi} incassi, ${r.pagamenti} pagamenti${r.altre ? `, ${r.altre} ritenute subite` : ""}${r.movimenti ? `, ${r.movimenti} movimenti di prima nota e F24` : ""}${r.cedolini ? `, ${r.cedolini} mesi di cedolini` : ""}`,
-        r.giroconti_saltati ? `${r.giroconti_saltati} giroconti fra conti propri non registrati` : "",
-        r.gia_generate ? `${r.gia_generate} già registrati` : "",
-        r.riallineate ? `${r.riallineate} scritture aggiornate: revisione delle provvisorie, storno nei periodi definitivi o per documenti annullati` : "",
-        r.saltate_solo_testata ? `${r.saltate_solo_testata} saltati: senza imponibile (solo testata) o senza la loro fattura in contabilità` : "",
-        r.errori.length ? `${r.errori.length} non registrati: ${r.errori.slice(0, 3).join("; ")}` : "",
-        r.avvisi?.length ? `${r.avvisi.length} cose da guardare (elenco sopra le scritture)` : "",
+        `${tTesto("{emesse} fatture emesse, {ricevute} ricevute, {incassi} incassi, {pagamenti} pagamenti", { emesse: r.fatture_emesse, ricevute: r.fatture_ricevute, incassi: r.incassi, pagamenti: r.pagamenti })}${r.altre ? `, ${tTesto("{n} ritenute subite", { n: r.altre })}` : ""}${r.movimenti ? `, ${tTesto("{n} movimenti di prima nota e F24", { n: r.movimenti })}` : ""}${r.cedolini ? `, ${tTesto("{n} mesi di cedolini", { n: r.cedolini })}` : ""}`,
+        r.giroconti_saltati ? tTesto("{n} giroconti fra conti propri non registrati", { n: r.giroconti_saltati }) : "",
+        r.gia_generate ? tTesto("{n} già registrati", { n: r.gia_generate }) : "",
+        r.riallineate ? tTesto("{n} scritture aggiornate: revisione delle provvisorie, storno nei periodi definitivi o per documenti annullati", { n: r.riallineate }) : "",
+        r.saltate_solo_testata ? tTesto("{n} saltati: senza imponibile (solo testata) o senza la loro fattura in contabilità", { n: r.saltate_solo_testata }) : "",
+        r.errori.length ? tTesto("{n} non registrati: {elenco}", { n: r.errori.length, elenco: r.errori.slice(0, 3).join("; ") }) : "",
+        r.avvisi?.length ? tTesto("{n} cose da guardare (elenco sopra le scritture)", { n: r.avvisi.length }) : "",
       ].filter(Boolean).join(" · ");
-      (r.errori.length || r.avvisi?.length ? toast.warning : toast.success)(`${nuove} scritture generate`, { description: dettagli, duration: 12000 });
+      (r.errori.length || r.avvisi?.length ? toast.warning : toast.success)(tTesto("{n} scritture generate", { n: nuove }), { description: dettagli, duration: 12000 });
       // Tutta la contabilità: scritture, liquidazioni, fine anno e chiusura leggono le stesse scritture.
       void qc.invalidateQueries({ queryKey: chiave(companyId) });
       // L'ora dell'ultimo aggiornamento la scrive il giro automatico; quello a mano la mostra subito.
       qc.setQueryData<StatoEsercizioRiga | null>(chiave(companyId, "esercizio", anno),
         (e) => e ? { ...e, generato_il: new Date().toISOString(), generato_esito: { ...(e.generato_esito ?? {}), avvisi: r.avvisi ?? [], errori: r.errori, saltate_solo_testata: r.saltate_solo_testata } } : e);
     },
-    onError: (e) => toast.error("Scritture non generate", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(tTesto("Scritture non generate"), { description: e instanceof Error ? e.message : String(e) }),
   });
   const stornate = useMemo(() => new Set((scritture.data ?? []).flatMap((s) => [...(s.storno_di ? [s.storno_di] : []), ...(s.stornata ? [s.id] : [])])), [scritture.data]);
   const elenco = scritture.data ?? [];
@@ -478,8 +482,8 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
       selezione.mantieni(errori.map((e) => e.riga.id));
       setErroriStorni(errori.map((e) => ({ nome: `${e.riga.numero}/${e.riga.esercizio}`, motivo: e.motivo })));
       setStorniAperti(false);
-      if (completate.length) toast.success(`${completate.length} scritture stornate`);
-      else toast.error("Nessuna scrittura stornata");
+      if (completate.length) toast.success(tTesto("{n} scritture stornate", { n: completate.length }));
+      else toast.error(tTesto("Nessuna scrittura stornata"));
     },
   });
   const quante = (k: GruppoOrigine) => (k === "tutte" ? filtrate.length : filtrate.filter((s) => gruppoDi(s.origine) === k).length);
@@ -507,25 +511,25 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
     <div className="space-y-3">
       {stampa && (
         <PrintPreviewModal open onOpenChange={(v) => { if (!v) setStampa(null); }} htmlContent={stampa}
-          title="Libro giornale — anteprima di stampa" fileName={`libro-giornale-${anno}`} soloPdf />
+          title={tTesto("Libro giornale — anteprima di stampa")} fileName={`libro-giornale-${anno}`} soloPdf />
       )}
       <DaGuardare esito={esercizio?.generato_esito} />
       {/* 14/11/2026: i numeri dell'esercizio in riquadri, con le scritture mese per mese. */}
       {!giornale && elenco.length > 0 && (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <RiquadroNumero
-            etichetta="Scritture dell'esercizio"
-            valore={elenco.length.toLocaleString("it-IT")}
-            periodo={ultima ? `Ultima del ${new Date(`${ultima}T12:00:00`).toLocaleDateString("it-IT", { day: "numeric", month: "short" })}` : `Esercizio ${anno}`}
+            etichetta={tTesto("Scritture dell'esercizio")}
+            valore={elenco.length.toLocaleString(intlCampo())}
+            periodo={ultima ? tTesto("Ultima del {data}", { data: new Date(`${ultima}T12:00:00`).toLocaleDateString(intlCampo(), { day: "numeric", month: "short" }) }) : tTesto("Esercizio {a}", { a: anno })}
             tendenza={perMese}
-            etichettaTendenza="Scritture registrate mese per mese"
+            etichettaTendenza={tTesto("Scritture registrate mese per mese")}
           />
-          <RiquadroNumero etichetta="Da fatture ricevute" valore={quante("ricevute").toLocaleString("it-IT")} periodo="Costi" />
-          <RiquadroNumero etichetta="Da fatture emesse" valore={quante("emesse").toLocaleString("it-IT")} periodo="Ricavi" />
+          <RiquadroNumero etichetta={tTesto("Da fatture ricevute")} valore={quante("ricevute").toLocaleString(intlCampo())} periodo={tTesto("Costi")} />
+          <RiquadroNumero etichetta={tTesto("Da fatture emesse")} valore={quante("emesse").toLocaleString(intlCampo())} periodo={tTesto("Ricavi")} />
           <RiquadroNumero
-            etichetta="Da guardare"
+            etichetta={tTesto("Da guardare")}
             valore={String((esercizio?.generato_esito?.avvisi?.length ?? 0) + (esercizio?.generato_esito?.errori?.length ?? 0) + (esercizio?.generato_esito?.saltate_solo_testata ?? 0))}
-            periodo="Dall'ultimo aggiornamento"
+            periodo={tTesto("Dall'ultimo aggiornamento")}
             tono={(esercizio?.generato_esito?.errori?.length ?? 0) > 0 ? "male" : ((esercizio?.generato_esito?.avvisi?.length ?? 0) + (esercizio?.generato_esito?.saltate_solo_testata ?? 0)) > 0 ? "attenzione" : "buono"}
           />
         </div>
@@ -534,73 +538,73 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-[220px] flex-1 sm:max-w-sm">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
-            <Input value={cerca} onChange={(e) => { setCerca(e.target.value); setMostra(300); }} placeholder="Cerca numero, causale, conto, cliente…" aria-label="Cerca nelle scritture" className="h-9 pl-8" />
+            <Input value={cerca} onChange={(e) => { setCerca(e.target.value); setMostra(300); }} placeholder={tTesto("Cerca numero, causale, conto, cliente…")} aria-label={tTesto("Cerca nelle scritture")} className="h-9 pl-8" />
           </div>
           <Select value={mese || "tutti"} onValueChange={(v) => { setMese(v === "tutti" ? "" : v); setMostra(300); }}>
-            <SelectTrigger className="h-9 w-40" aria-label="Mese"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-9 w-40" aria-label={tTesto("Mese")}><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="tutti">Tutto il {anno}</SelectItem>
-              {MESI.map((m, i) => <SelectItem key={m} value={String(i + 1).padStart(2, "0")}>{m.charAt(0).toUpperCase() + m.slice(1)}</SelectItem>)}
+              <SelectItem value="tutti">{tTesto("Tutto il {anno}", { anno })}</SelectItem>
+              {MESI.map((m, i) => <SelectItem key={m} value={String(i + 1).padStart(2, "0")}>{nomeMese(anno, i, true)}</SelectItem>)}
             </SelectContent>
           </Select>
-          {conFiltri && <Button size="sm" variant="ghost" className="h-9 text-muted-foreground" onClick={() => { setCerca(""); setMese(""); }}><X className="mr-1 h-3.5 w-3.5" />Azzera</Button>}
+          {conFiltri && <Button size="sm" variant="ghost" className="h-9 text-muted-foreground" onClick={() => { setCerca(""); setMese(""); }}><X className="mr-1 h-3.5 w-3.5" />{tTesto("Azzera")}</Button>}
         </div>
       )}
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
         <span className="text-muted-foreground">
-          {anno}: {g.scritture} scritture{conFiltri ? ` su ${elenco.length}` : ""} · dare {euro(g.totaleDare)} · avere {euro(g.totaleAvere)}
-          {esercizio?.generato_il ? <> · {aggiornataAlle(esercizio.generato_il)}</> : null}
+          {conFiltri ? tTesto("{anno}: {n} scritture su {totale}", { anno, n: g.scritture, totale: elenco.length }) : tTesto("{anno}: {n} scritture", { anno, n: g.scritture })} · {tTesto("dare {importo}", { importo: euro(g.totaleDare) })} · {tTesto("avere {importo}", { importo: euro(g.totaleAvere) })}
+          {esercizio?.generato_il ? <> · {aggiornataAlle(esercizio.generato_il, tTesto)}</> : null}
         </span>
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" onClick={() => apriStampa()}><Printer className="mr-1 h-4 w-4" />Stampa libro giornale · esercizio</Button>
-          <Button size="sm" variant="outline" onClick={() => periodo.set({ vista: "iva", iva: "registri" })} title="Registri IVA vendite e acquisti: stampa, Excel e CSV">
-            <ReceiptText className="mr-1 h-4 w-4" />Stampa registri IVA
+          <Button size="sm" variant="outline" onClick={() => apriStampa()}><Printer className="mr-1 h-4 w-4" />{tTesto("Stampa libro giornale · esercizio")}</Button>
+          <Button size="sm" variant="outline" onClick={() => periodo.set({ vista: "iva", iva: "registri" })} title={tTesto("Registri IVA vendite e acquisti: stampa, Excel e CSV")}>
+            <ReceiptText className="mr-1 h-4 w-4" />{tTesto("Stampa registri IVA")}
           </Button>
           {giornale ? (
             <>
               {conFiltri && <>
-                <Button size="sm" variant="outline" onClick={() => apriStampa(true)}>Stampa vista filtrata</Button>
-                <Button size="sm" variant="outline" onClick={() => scaricaCsv(`libro-giornale-${anno}-filtrato`, csvGiornale(elenco, conti, filtroGiornale))}>Esporta vista filtrata</Button>
+                <Button size="sm" variant="outline" onClick={() => apriStampa(true)}>{tTesto("Stampa vista filtrata")}</Button>
+                <Button size="sm" variant="outline" onClick={() => scaricaCsv(`libro-giornale-${anno}-filtrato`, csvGiornale(elenco, conti, filtroGiornale))}>{tTesto("Esporta vista filtrata")}</Button>
               </>}
-              <Button size="sm" variant="outline" onClick={() => setDefinitiva(true)}><Lock className="mr-1 h-4 w-4" />Stampa definitiva</Button>
+              <Button size="sm" variant="outline" onClick={() => setDefinitiva(true)}><Lock className="mr-1 h-4 w-4" />{tTesto("Stampa definitiva")}</Button>
               <Button size="sm" variant="outline" onClick={() => scaricaCsv(`libro-giornale-${anno}`, csvGiornale(elenco, conti))}
-                title="Una riga per movimento, col codice del conto: per il programma dello studio">
-                <Download className="mr-1 h-4 w-4" />Esporta esercizio
+                title={tTesto("Una riga per movimento, col codice del conto: per il programma dello studio")}>
+                <Download className="mr-1 h-4 w-4" />{tTesto("Esporta esercizio")}
               </Button>
             </>
           ) : null}
           <Button size="sm" variant="outline" onClick={() => genera.mutate()} disabled={genera.isPending}>
-            <FileInput className="mr-1 h-4 w-4" />{genera.isPending ? "Aggiornamento…" : "Aggiorna adesso"}
+            <FileInput className="mr-1 h-4 w-4" />{genera.isPending ? tTesto("Aggiornamento…") : tTesto("Aggiorna adesso")}
           </Button>
-          <Button size="sm" onClick={() => setNuova(true)}><Plus className="mr-1 h-4 w-4" />Nuova scrittura</Button>
+          <Button size="sm" onClick={() => setNuova(true)}><Plus className="mr-1 h-4 w-4" />{tTesto("Nuova scrittura")}</Button>
         </div>
       </div>
 
-      {!giornale && <label className="flex items-center gap-2 text-sm text-muted-foreground"><Checkbox checked={mostraStorico} onCheckedChange={v => setMostraStorico(v === true)} />Mostra anche storni e scritture stornate</label>}
-      {(giornale || mostraStorico) && elenco.some(s => s.storno_di) && <p className="rounded-lg border p-3 text-sm text-muted-foreground">Uno storno inverte una registrazione precedente. Se segue una nuova scrittura della stessa fattura, resta il saldo della versione aggiornata. Il libro giornale conserva la sequenza; nell’elenco delle scritture puoi consultare solo quelle attive.</p>}
-      {!giornale && visibili.length > 0 && <BarraSelezioneRighe nome="le scritture" selezionate={selezione.selezionate.length} consentite={stornabili.length}
+      {!giornale && <label className="flex items-center gap-2 text-sm text-muted-foreground"><Checkbox checked={mostraStorico} onCheckedChange={v => setMostraStorico(v === true)} />{tTesto("Mostra anche storni e scritture stornate")}</label>}
+      {(giornale || mostraStorico) && elenco.some(s => s.storno_di) && <p className="rounded-lg border p-3 text-sm text-muted-foreground">{tTesto("Uno storno inverte una registrazione precedente. Se segue una nuova scrittura della stessa fattura, resta il saldo della versione aggiornata. Il libro giornale conserva la sequenza; nell’elenco delle scritture puoi consultare solo quelle attive.")}</p>}
+      {!giornale && visibili.length > 0 && <BarraSelezioneRighe nome={tTesto("le scritture")} selezionate={selezione.selezionate.length} consentite={stornabili.length}
         tutte={selezione.tutte} parziale={selezione.parziale}
         entrate={stornabili.reduce((n, s) => n + s.contabilita_righe.reduce((t, r) => t + Number(r.dare || 0), 0), 0)}
         uscite={stornabili.reduce((n, s) => n + s.contabilita_righe.reduce((t, r) => t + Number(r.avere || 0), 0), 0)}
-        entrateLabel="Dare" usciteLabel="Avere" azione="Storna selezionate" inCorso={stornaSelezionate.isPending}
+        entrateLabel={tTesto("Dare")} usciteLabel={tTesto("Avere")} azione={tTesto("Storna selezionate")} inCorso={stornaSelezionate.isPending}
         escluse={escluse} onPagina={selezione.pagina} onAzione={() => setStorniAperti(true)} />}
       <ErroriOperazioneRighe errori={erroriStorni} />
       {giornale ? (
         <TabellaContabile>
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
-              <tr><th className="p-2">N.</th><th className="p-2">Data</th><th className="p-2">Causale</th><th className="p-2">Conto</th><th className="p-2">Descrizione</th><th className="p-2 text-right">Dare</th><th className="p-2 text-right">Avere</th></tr>
+              <tr><th className="p-2">N.</th><th className="p-2">{tTesto("Data")}</th><th className="p-2">{tTesto("Causale")}</th><th className="p-2">{tTesto("Conto")}</th><th className="p-2">{tTesto("Descrizione")}</th><th className="p-2 text-right">{tTesto("Dare")}</th><th className="p-2 text-right">{tTesto("Avere")}</th></tr>
             </thead>
             <tbody>
               {g.righe.length === 0 ? (
-                <tr><td colSpan={7} className="p-4 text-center text-muted-foreground">{conFiltri ? "Nessuna scrittura con questi filtri." : `Nessuna scrittura nel ${anno}.`}</td></tr>
+                <tr><td colSpan={7} className="p-4 text-center text-muted-foreground">{conFiltri ? tTesto("Nessuna scrittura con questi filtri.") : tTesto("Nessuna scrittura nel {anno}.", { anno })}</td></tr>
               ) : g.righe.slice(0, mostra * 5).map((r) => (
                 <tr key={r.progressivo} className={`cursor-pointer ${r.primaDellaScrittura ? "border-t" : ""}`}
                   onClick={e => { e.currentTarget.querySelector<HTMLButtonElement>("button[aria-haspopup]")?.focus(); setDettaglioId(r.scritturaId); }}>
                   <td className="p-2 font-mono text-xs">{r.primaDellaScrittura ? r.numero : ""}</td>
                   <td className="p-2">{r.primaDellaScrittura ? dataIt(r.data) : ""}</td>
                   <td className="p-2">{r.primaDellaScrittura ? r.causale : ""}</td>
-                  <td className="p-2"><button type="button" aria-haspopup="dialog" aria-label={`Apri scrittura ${r.registrazione}, ${r.conto}`} className="text-left text-primary hover:underline">{r.conto}</button></td>
+                  <td className="p-2"><button type="button" aria-haspopup="dialog" aria-label={tTesto("Apri scrittura {registrazione}, {conto}", { registrazione: String(r.registrazione ?? ""), conto: String(r.conto ?? "") })} className="text-left text-primary hover:underline">{r.conto}</button></td>
                   <td className="max-w-xs truncate p-2 text-muted-foreground" title={r.descrizione || undefined}>{r.descrizione || "—"}</td>
                   <td className="p-2 text-right tabular-nums">{r.dare !== null ? euro(r.dare) : ""}</td>
                   <td className="p-2 text-right tabular-nums">{r.avere !== null ? euro(r.avere) : ""}</td>
@@ -612,35 +616,34 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
       ) : (
         <div className="space-y-2">
           {elenco.length > 0 ? (
-            <div className="flex flex-wrap gap-1" role="group" aria-label="Da dove vengono le scritture">
+            <div className="flex flex-wrap gap-1" role="group" aria-label={tTesto("Da dove vengono le scritture")}>
               {([["tutte", "Tutte"], ...GRUPPI_ORIGINE.map(([k, l]) => [k, l] as const), ["altre", "Altre"]] as Array<readonly [GruppoOrigine, string]>).map(([k, l]) => (
                 <button key={k} type="button" aria-pressed={filtro === k} onClick={() => { setFiltro(k); setMostra(300); }}
                   className={`rounded-full border px-2.5 py-0.5 text-xs ${filtro === k ? "border-primary bg-primary/10 font-medium text-primary" : "text-muted-foreground hover:bg-muted"}`}>
-                  {l} <span className="tabular-nums">{quante(k)}</span>
+                  {tTesto(l)} <span className="tabular-nums">{quante(k)}</span>
                 </button>
               ))}
             </div>
           ) : null}
           {elenco.length === 0 ? (
-            <p className="rounded-xl border p-4 text-sm text-muted-foreground">Nessuna scrittura nel {anno}. Fatture, incassi e pagamenti si registrano da soli ogni quarto d'ora («Aggiorna adesso» per non aspettare); le altre operazioni si registrano con «Nuova scrittura».</p>
+            <p className="rounded-xl border p-4 text-sm text-muted-foreground">{tTesto("Nessuna scrittura nel {anno}. Fatture, incassi e pagamenti si registrano da soli ogni quarto d'ora («Aggiorna adesso» per non aspettare); le altre operazioni si registrano con «Nuova scrittura».", { anno })}</p>
           ) : visibili.length === 0 ? (
-            <p className="rounded-xl border p-4 text-sm text-muted-foreground">{conFiltri ? "Nessuna scrittura con questi filtri." : `Nessuna scrittura di questo tipo nel ${anno}.`}</p>
+            <p className="rounded-xl border p-4 text-sm text-muted-foreground">{conFiltri ? tTesto("Nessuna scrittura con questi filtri.") : tTesto("Nessuna scrittura di questo tipo nel {anno}.", { anno })}</p>
           ) : <>
           <p className="text-xs text-muted-foreground">
-            «N. scrittura» è il numero della registrazione in contabilità, progressivo nell'esercizio, nell'ordine in cui sono state registrate (di solito il n. 1 è l'apertura dei conti del 1° gennaio).
-            Il numero della fattura è nella colonna «Documento». Il libro giornale stampato rinumera le scritture in ordine di data.
+            {tTesto("«N. scrittura» è il numero della registrazione in contabilità, progressivo nell'esercizio, nell'ordine in cui sono state registrate (di solito il n. 1 è l'apertura dei conti del 1° gennaio). Il numero della fattura è nella colonna «Documento». Il libro giornale stampato rinumera le scritture in ordine di data.")}
           </p>
           <TabellaContabile>
             <table className="w-full whitespace-nowrap text-sm">
               <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
                 <tr>
-                  <th className="relative w-10 p-2"><span className="sr-only">Selezione</span></th>
-                  <th className="p-2" title="Numero di registrazione in contabilità: progressivo dell'esercizio, non il numero della fattura">N. scrittura</th>
-                  <th className="p-2">Data</th>
-                  <th className="p-2">Causale</th>
-                  <th className="p-2" title="Numero e data della fattura o del documento da cui viene la scrittura">Documento</th>
-                  <th className="p-2">Descrizione</th>
-                  <th className="p-2 text-right">Importo</th>
+                  <th className="relative w-10 p-2"><span className="sr-only">{tTesto("Selezione")}</span></th>
+                  <th className="p-2" title={tTesto("Numero di registrazione in contabilità: progressivo dell'esercizio, non il numero della fattura")}>{tTesto("N. scrittura")}</th>
+                  <th className="p-2">{tTesto("Data")}</th>
+                  <th className="p-2">{tTesto("Causale")}</th>
+                  <th className="p-2" title={tTesto("Numero e data della fattura o del documento da cui viene la scrittura")}>{tTesto("Documento")}</th>
+                  <th className="p-2">{tTesto("Descrizione")}</th>
+                  <th className="p-2 text-right">{tTesto("Importo")}</th>
                 </tr>
               </thead>
               <tbody>{visibili.slice(0, mostra).map(s => (
@@ -648,10 +651,10 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
                   e.currentTarget.querySelector<HTMLButtonElement>("button[aria-haspopup]")?.focus();
                   setDettaglioId(s.id);
                 }}>
-                  <td className="px-2" onClick={e => e.stopPropagation()}><Checkbox aria-label={`Seleziona scrittura ${s.numero}/${s.esercizio}`} checked={selezione.ids.has(s.id)} disabled={stornaSelezionate.isPending} onCheckedChange={() => selezione.alterna(s.id)} /></td>
-                  <td className="px-2"><button type="button" aria-haspopup="dialog" aria-label={`Apri scrittura ${s.numero}/${s.esercizio}`} className="py-2 font-mono text-xs text-primary hover:underline">{s.numero}/{s.esercizio}</button></td>
+                  <td className="px-2" onClick={e => e.stopPropagation()}><Checkbox aria-label={tTesto("Seleziona scrittura {numero}/{esercizio}", { numero: String(s.numero ?? ""), esercizio: String(s.esercizio ?? "") })} checked={selezione.ids.has(s.id)} disabled={stornaSelezionate.isPending} onCheckedChange={() => selezione.alterna(s.id)} /></td>
+                  <td className="px-2"><button type="button" aria-haspopup="dialog" aria-label={tTesto("Apri scrittura {numero}/{esercizio}", { numero: String(s.numero ?? ""), esercizio: String(s.esercizio ?? "") })} className="py-2 font-mono text-xs text-primary hover:underline">{s.numero}/{s.esercizio}</button></td>
                   <td className="px-2">{dataIt(s.data_registrazione)}</td>
-                  <td className="px-2">{s.causale}{s.storno_di || stornate.has(s.id) ? <span className="ml-2 text-xs text-muted-foreground">{s.storno_di ? "storno" : "stornata"}</span> : null}</td>
+                  <td className="px-2">{s.causale}{s.storno_di || stornate.has(s.id) ? <span className="ml-2 text-xs text-muted-foreground">{s.storno_di ? tTesto("storno") : tTesto("stornata")}</span> : null}</td>
                   <td className="px-2 font-medium">{riferimentoDocumento(s) || <span className="font-normal text-muted-foreground">—</span>}</td>
                   <td className="max-w-xs truncate px-2 text-muted-foreground" title={s.descrizione || undefined}>{s.descrizione || "—"}</td>
                   <td className="px-2 text-right tabular-nums">{euro(s.contabilita_righe.reduce((t, r) => t + Number(r.dare || 0), 0))}</td>
@@ -664,8 +667,8 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
       )}
       {(giornale ? g.righe.length > mostra * 5 : visibili.length > mostra) ? (
         <div className="flex items-center justify-center gap-3 text-sm text-muted-foreground">
-          <span>{giornale ? `Righe ${mostra * 5} di ${g.righe.length}` : `Scritture ${mostra} di ${visibili.length}`}: la stampa le contiene tutte.</span>
-          <Button size="sm" variant="outline" onClick={() => setMostra((n) => n + 300)}>Mostra altre</Button>
+          <span>{giornale ? tTesto("Righe {mostra} di {n}: la stampa le contiene tutte.", { mostra: mostra * 5, n: g.righe.length }) : tTesto("Scritture {mostra} di {n}: la stampa le contiene tutte.", { mostra, n: visibili.length })}</span>
+          <Button size="sm" variant="outline" onClick={() => setMostra((n) => n + 300)}>{tTesto("Mostra altre")}</Button>
         </div>
       ) : null}
 
@@ -683,15 +686,15 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
       <StornaScrittura scrittura={storno} onClose={() => setStorno(null)}
         onFatto={() => void qc.invalidateQueries({ queryKey: chiave(companyId) })} />
       <Dialog open={!!daEliminare} onOpenChange={(v) => { if (!v && !elimina.isPending) { setDaEliminare(null); setMotivoEliminazione(""); } }}><DialogContent>
-        <DialogHeader><DialogTitle>Elimina scrittura provvisoria</DialogTitle><DialogDescription>La scrittura {daEliminare?.numero}/{daEliminare?.esercizio} verrà rimossa e i saldi seguiranno le registrazioni rimaste. Il motivo e la copia precedente restano nello storico delle revisioni.</DialogDescription></DialogHeader>
-        <Label htmlFor="motivo-eliminazione-scrittura">Motivo dell’eliminazione</Label><Input id="motivo-eliminazione-scrittura" value={motivoEliminazione} disabled={elimina.isPending} onChange={e => setMotivoEliminazione(e.target.value)} />
-        <DialogFooter><Button variant="outline" disabled={elimina.isPending} onClick={() => { setDaEliminare(null); setMotivoEliminazione(""); }}>Annulla</Button><Button variant="destructive" disabled={elimina.isPending || !motivoEliminazione.trim()} onClick={() => elimina.mutate()}>{elimina.isPending ? "Eliminazione…" : "Elimina scrittura"}</Button></DialogFooter>
+        <DialogHeader><DialogTitle>{tTesto("Elimina scrittura provvisoria")}</DialogTitle><DialogDescription>{tTesto("La scrittura {numero}/{esercizio} verrà rimossa e i saldi seguiranno le registrazioni rimaste. Il motivo e la copia precedente restano nello storico delle revisioni.", { numero: String(daEliminare?.numero ?? ""), esercizio: String(daEliminare?.esercizio ?? "") })}</DialogDescription></DialogHeader>
+        <Label htmlFor="motivo-eliminazione-scrittura">{tTesto("Motivo dell’eliminazione")}</Label><Input id="motivo-eliminazione-scrittura" value={motivoEliminazione} disabled={elimina.isPending} onChange={e => setMotivoEliminazione(e.target.value)} />
+        <DialogFooter><Button variant="outline" disabled={elimina.isPending} onClick={() => { setDaEliminare(null); setMotivoEliminazione(""); }}>{tTesto("Annulla")}</Button><Button variant="destructive" disabled={elimina.isPending || !motivoEliminazione.trim()} onClick={() => elimina.mutate()}>{elimina.isPending ? tTesto("Eliminazione…") : tTesto("Elimina scrittura")}</Button></DialogFooter>
       </DialogContent></Dialog>
       <Dialog open={storniAperti} onOpenChange={(v) => { if (!stornaSelezionate.isPending) setStorniAperti(v); }}><DialogContent>
-        <DialogHeader><DialogTitle>Storna {stornabili.length} scritture manuali</DialogTitle><DialogDescription>Per ogni scrittura viene registrato lo storno in Dare/Avere. Gli originali e il loro storico restano nel giornale.</DialogDescription></DialogHeader>
-        <Label htmlFor="storni-data">Data degli storni</Label><Input id="storni-data" type="date" value={dataStorni} disabled={stornaSelezionate.isPending} onChange={(e) => setDataStorni(e.target.value)} />
-        <Label htmlFor="storni-motivo">Motivo</Label><Input id="storni-motivo" value={motivoStorni} disabled={stornaSelezionate.isPending} onChange={(e) => setMotivoStorni(e.target.value)} />
-        <DialogFooter><Button variant="outline" disabled={stornaSelezionate.isPending} onClick={() => setStorniAperti(false)}>Annulla</Button><Button variant="destructive" disabled={stornaSelezionate.isPending || !dataStorni || !motivoStorni.trim() || !stornabili.length} onClick={() => stornaSelezionate.mutate()}>{stornaSelezionate.isPending ? "Storno in corso…" : "Conferma storni"}</Button></DialogFooter>
+        <DialogHeader><DialogTitle>{tTesto("Storna {n} scritture manuali", { n: stornabili.length })}</DialogTitle><DialogDescription>{tTesto("Per ogni scrittura viene registrato lo storno in Dare/Avere. Gli originali e il loro storico restano nel giornale.")}</DialogDescription></DialogHeader>
+        <Label htmlFor="storni-data">{tTesto("Data degli storni")}</Label><Input id="storni-data" type="date" value={dataStorni} disabled={stornaSelezionate.isPending} onChange={(e) => setDataStorni(e.target.value)} />
+        <Label htmlFor="storni-motivo">{tTesto("Motivo")}</Label><Input id="storni-motivo" value={motivoStorni} disabled={stornaSelezionate.isPending} onChange={(e) => setMotivoStorni(e.target.value)} />
+        <DialogFooter><Button variant="outline" disabled={stornaSelezionate.isPending} onClick={() => setStorniAperti(false)}>{tTesto("Annulla")}</Button><Button variant="destructive" disabled={stornaSelezionate.isPending || !dataStorni || !motivoStorni.trim() || !stornabili.length} onClick={() => stornaSelezionate.mutate()}>{stornaSelezionate.isPending ? tTesto("Storno in corso…") : tTesto("Conferma storni")}</Button></DialogFooter>
       </DialogContent></Dialog>
     </div>
   );
@@ -710,30 +713,31 @@ function DettaglioScrittura({ dettaglio, companyId, nomi, numeroGiornale, onClos
   onElimina?: (scrittura: Scrittura) => void;
   modificabile?: boolean;
 }) {
+  const tTesto = useT();
   return (
     <Dialog open={!!dettaglio} onOpenChange={open => { if (!open) onClose(); }}>
         {dettaglio && <DialogContent className="max-h-[88dvh] w-[calc(100%-2rem)] overflow-y-auto sm:max-w-4xl">
           <DialogHeader>
-            <DialogTitle>Scrittura {dettaglio.numero}/{dettaglio.esercizio}{riferimentoDocumento(dettaglio) ? ` · ${riferimentoDocumento(dettaglio)}` : ""}</DialogTitle>
+            <DialogTitle>{tTesto("Scrittura {numero}/{esercizio}", { numero: dettaglio.numero, esercizio: dettaglio.esercizio })}{riferimentoDocumento(dettaglio) ? ` · ${riferimentoDocumento(dettaglio)}` : ""}</DialogTitle>
             <p className="text-sm text-muted-foreground">
               {dataIt(dettaglio.data_registrazione)} · {dettaglio.causale}
-              {numeroGiornale && numeroGiornale !== dettaglio.numero ? ` · n. ${numeroGiornale}/${dettaglio.esercizio} nel libro giornale` : ""}
+              {numeroGiornale && numeroGiornale !== dettaglio.numero ? ` · ${tTesto("n. {numeroGiornale}/{esercizio} nel libro giornale", { numeroGiornale, esercizio: dettaglio.esercizio })}` : ""}
             </p>
           </DialogHeader>
           {dettaglio.descrizione && <p className="break-words text-sm">{dettaglio.descrizione}</p>}
           <div className="flex flex-wrap items-baseline gap-2 border-y py-3 text-sm">
-            <span className="text-muted-foreground">Documento collegato</span>
+            <span className="text-muted-foreground">{tTesto("Documento collegato")}</span>
             <DocumentoScrittura companyId={companyId} scrittura={dettaglio} />
-            {dettaglio.documento_data && <span>del {dataIt(dettaglio.documento_data)}</span>}
+            {dettaglio.documento_data && <span>{tTesto("del {data}", { data: String(dataIt(dettaglio.documento_data) ?? "") })}</span>}
           </div>
           <TabellaContabile>
             <table className="w-full text-sm">
-              <thead className="bg-muted/50 text-left text-xs"><tr><th className="p-2">Conto</th><th className="p-2">Descrizione</th><th className="p-2 text-right">Dare</th><th className="p-2 text-right">Avere</th></tr></thead>
+              <thead className="bg-muted/50 text-left text-xs"><tr><th className="p-2">{tTesto("Conto")}</th><th className="p-2">{tTesto("Descrizione")}</th><th className="p-2 text-right">{tTesto("Dare")}</th><th className="p-2 text-right">{tTesto("Avere")}</th></tr></thead>
               <tbody>{[...dettaglio.contabilita_righe].sort((a,b) => a.riga-b.riga).map(r => (
-                <tr key={r.riga} className="border-t"><td className="p-2">{nomi.has(r.conto_id) ? <button className="text-left text-primary hover:underline" title="Apri mastrino" onClick={() => onConto(r.conto_id)}>{nomi.get(r.conto_id)}</button> : "Conto non disponibile"}</td><td className="p-2 text-muted-foreground">{r.descrizione || "—"}</td>
+                <tr key={r.riga} className="border-t"><td className="p-2">{nomi.has(r.conto_id) ? <button className="text-left text-primary hover:underline" title={tTesto("Apri mastrino")} onClick={() => onConto(r.conto_id)}>{nomi.get(r.conto_id)}</button> : tTesto("Conto non disponibile")}</td><td className="p-2 text-muted-foreground">{r.descrizione || "—"}</td>
                   {(["dare", "avere"] as const).map(lato => <td key={lato} className="p-2 text-right tabular-nums">{Number(r[lato]) ? euro(Number(r[lato])) : "—"}</td>)}</tr>
               ))}</tbody>
-              <tfoot className="border-t bg-muted/30 font-semibold"><tr><td colSpan={2} className="p-2">Totali</td>
+              <tfoot className="border-t bg-muted/30 font-semibold"><tr><td colSpan={2} className="p-2">{tTesto("Totali")}</td>
                 {(["dare", "avere"] as const).map(lato => <td key={lato} className="p-2 text-right tabular-nums">{euro(dettaglio.contabilita_righe.reduce((t,r) => t + Number(r[lato] || 0), 0))}</td>)}
               </tr></tfoot>
             </table>
@@ -742,10 +746,10 @@ function DettaglioScrittura({ dettaglio, companyId, nomi, numeroGiornale, onClos
             <RaccordoControlloGestione companyId={companyId} scritturaId={dettaglio.id} puoScrivere={!!onRettifica || !!onStorno} />
           )}
           <DialogFooter>
-            {onElimina && <Button variant="destructive" onClick={() => { onClose(); onElimina(dettaglio); }}>Elimina scrittura</Button>}
-            {onRettifica && <Button variant="outline" onClick={() => { onClose(); onRettifica(dettaglio); }}>{modificabile ? "Modifica scrittura" : "Rettifica con storno"}</Button>}
-            {onStorno && <Button variant="outline" onClick={() => { onClose(); onStorno(dettaglio); }}><Undo2 className="mr-1 h-4 w-4" />Storna</Button>}
-            <Button onClick={onClose}>Chiudi</Button>
+            {onElimina && <Button variant="destructive" onClick={() => { onClose(); onElimina(dettaglio); }}>{tTesto("Elimina scrittura")}</Button>}
+            {onRettifica && <Button variant="outline" onClick={() => { onClose(); onRettifica(dettaglio); }}>{modificabile ? tTesto("Modifica scrittura") : tTesto("Rettifica con storno")}</Button>}
+            {onStorno && <Button variant="outline" onClick={() => { onClose(); onStorno(dettaglio); }}><Undo2 className="mr-1 h-4 w-4" />{tTesto("Storna")}</Button>}
+            <Button onClick={onClose}>{tTesto("Chiudi")}</Button>
           </DialogFooter>
         </DialogContent>}
       </Dialog>
@@ -755,6 +759,7 @@ function DettaglioScrittura({ dettaglio, companyId, nomi, numeroGiornale, onClos
 function RaccordoControlloGestione({ companyId, scritturaId, puoScrivere }: {
   companyId: string; scritturaId: string; puoScrivere: boolean;
 }) {
+  const t = useT();
   const qc = useQueryClient();
   const key = chiave(companyId, "raccordo-cdg", scritturaId);
   const call = async (includi?: boolean) => {
@@ -778,16 +783,17 @@ function RaccordoControlloGestione({ companyId, scritturaId, puoScrivere }: {
       <label className="flex items-center gap-2">
         <Checkbox checked={q.data ?? false} disabled={!puoScrivere || aggiorna.isPending || q.isError}
           onCheckedChange={(v) => aggiorna.mutate(v === true)} />
-        Includi nel Controllo di gestione
+        {t("Includi nel Controllo di gestione")}
       </label>
-      <p className="text-xs text-muted-foreground">Usa questa opzione per gli assestamenti economici non ancora rilevati da fatture, costi o cedolini.</p>
-      {q.isError && <p role="alert" className="text-xs text-destructive">Raccordo non disponibile. <button className="underline" onClick={() => void q.refetch()}>Riprova</button></p>}
+      <p className="text-xs text-muted-foreground">{t("Usa questa opzione per gli assestamenti economici non ancora rilevati da fatture, costi o cedolini.")}</p>
+      {q.isError && <p role="alert" className="text-xs text-destructive">{t("Raccordo non disponibile.")} <button className="underline" onClick={() => void q.refetch()}>{t("Riprova")}</button></p>}
       {aggiorna.isError && <p role="alert" className="text-xs text-destructive">{aggiorna.error.message}</p>}
     </div>
   );
 }
 
 function DocumentoScrittura({ companyId, scrittura }: { companyId: string; scrittura: Scrittura }) {
+  const t = useT();
   const { origine, origine_id: id, documento_numero: numero } = scrittura;
   const daMovimento = origine === "incasso_documento" || origine === "prima_nota";
   const indiretto = daMovimento || origine === "incasso";
@@ -805,22 +811,23 @@ function DocumentoScrittura({ companyId, scrittura }: { companyId: string; scrit
       return data?.invoice_id ?? null;
     },
   });
-  if (id && indiretto && documento.isLoading) return <span role="status">Caricamento…</span>;
-  if (documento.isError) return <Button size="sm" variant="outline" onClick={() => void documento.refetch()}>Riprova a caricare il documento</Button>;
+  if (id && indiretto && documento.isLoading) return <span role="status">{t("Caricamento…")}</span>;
+  if (documento.isError) return <Button size="sm" variant="outline" onClick={() => void documento.refetch()}>{t("Riprova a caricare il documento")}</Button>;
   if (origine === "f24" && id) return <VersamentoCollegato companyId={companyId} id={id} />;
   if (origine === "cedolini") {
     const periodo = scrittura.descrizione?.match(/\b(0[1-9]|1[0-2])\/(\d{4})\b/);
-    if (periodo) return <Link className="font-medium text-primary hover:underline" to={`/azienda/personale?tab=cedolini&anno=${periodo[2]}&mese=${Number(periodo[1])}`}>Cedolini di {periodo[1]}/{periodo[2]}</Link>;
+    if (periodo) return <Link className="font-medium text-primary hover:underline" to={`/azienda/personale?tab=cedolini&anno=${periodo[2]}&mese=${Number(periodo[1])}`}>{t("Cedolini di {mese}/{anno}", { mese: periodo[1], anno: periodo[2] })}</Link>;
   }
   const acquisto = origine === "fattura_ricevuta" || origine === "pagamento";
   const vendita = origine === "fattura_emessa" || origine === "ritenuta_subita" || origine === "incasso_fattura";
   const documentoId = indiretto ? documento.data : acquisto || vendita ? id : null;
   return documentoId
-    ? <FiscalSourceViewer id={documentoId} type={acquisto ? "acquisti" : "vendite"} label={numero || "Apri documento"} />
-    : <span>{numero || "Nessun documento collegato"}</span>;
+    ? <FiscalSourceViewer id={documentoId} type={acquisto ? "acquisti" : "vendite"} label={numero || t("Apri documento")} />
+    : <span>{numero || t("Nessun documento collegato")}</span>;
 }
 
 function VersamentoCollegato({ companyId, id }: { companyId: string; id: string }) {
+  const t = useT();
   const q = useQuery({
     queryKey: chiave(companyId, "versamento", id),
     queryFn: async () => {
@@ -829,11 +836,11 @@ function VersamentoCollegato({ companyId, id }: { companyId: string; id: string 
       return data;
     },
   });
-  if (q.isLoading) return <span role="status">Caricamento F24…</span>;
-  if (q.isError) return <Button variant="outline" size="sm" onClick={() => void q.refetch()}>Riprova a caricare il versamento</Button>;
-  if (!q.data) return <span>Versamento F24 non disponibile</span>;
+  if (q.isLoading) return <span role="status">{t("Caricamento F24…")}</span>;
+  if (q.isError) return <Button variant="outline" size="sm" onClick={() => void q.refetch()}>{t("Riprova a caricare il versamento")}</Button>;
+  if (!q.data) return <span>{t("Versamento F24 non disponibile")}</span>;
   const f = q.data;
-  return <details><summary className="cursor-pointer text-primary">Versamento F24 · {f.tributo_code}</summary>
+  return <details><summary className="cursor-pointer text-primary">{t("Versamento F24 · {tributo_code}", { tributo_code: String(f.tributo_code ?? "") })}</summary>
     <p className="mt-2">{f.tributo_descrizione} · {euro(f.importo)} · {f.stato}{f.data_pagamento && ` · ${dataIt(f.data_pagamento)}`}</p>
   </details>;
 }
@@ -841,6 +848,7 @@ function VersamentoCollegato({ companyId, id }: { companyId: string; id: string 
 function NuovaScrittura({ open, onOpenChange, companyId, conti, onFatto, daRettificare, modificaProvvisoria = false }: {
   open: boolean; onOpenChange: (v: boolean) => void; companyId: string; conti: ContoContabile[]; onFatto: () => void; daRettificare?: Scrittura | null; modificaProvvisoria?: boolean;
 }) {
+  const t = useT();
   const [data, setData] = useState(daRettificare?.data_registrazione ?? oggi());
   const [causale, setCausale] = useState(daRettificare?.causale ?? "Giroconto");
   const [descrizione, setDescrizione] = useState(daRettificare?.descrizione ?? "");
@@ -862,51 +870,51 @@ function NuovaScrittura({ open, onOpenChange, companyId, conti, onFatto, daRetti
       });
       if (error) throw error;
     },
-    onSuccess: () => { toast.success(daRettificare ? modificaProvvisoria ? "Scrittura provvisoria modificata" : "Scrittura rettificata: originale stornato e nuova registrazione salvata" : "Scrittura registrata"); reset(); onOpenChange(false); onFatto(); },
-    onError: (e) => toast.error("Scrittura non registrata", { description: messaggioErroreOperazione(e) }),
+    onSuccess: () => { toast.success(daRettificare ? modificaProvvisoria ? t("Scrittura provvisoria modificata") : t("Scrittura rettificata: originale stornato e nuova registrazione salvata") : t("Scrittura registrata")); reset(); onOpenChange(false); onFatto(); },
+    onError: (e) => toast.error(t("Scrittura non registrata"), { description: messaggioErroreOperazione(e) }),
   });
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!registra.isPending) onOpenChange(v); }}>
       <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>{daRettificare ? modificaProvvisoria ? "Modifica scrittura provvisoria" : "Rettifica scrittura" : "Nuova scrittura Dare/Avere"}</DialogTitle><DialogDescription>{daRettificare ? modificaProvvisoria ? "La scrittura conserva il suo numero. La versione precedente resta nello storico delle revisioni." : `La scrittura ${daRettificare.numero}/${daRettificare.esercizio} viene stornata e sostituita con questa registrazione.` : "Registra anche stipendi, costi senza fattura, ratei, risconti e altre rilevazioni di competenza. Le righe Dare e Avere devono quadrare; il documento è facoltativo."}</DialogDescription></DialogHeader>
+        <DialogHeader><DialogTitle>{daRettificare ? modificaProvvisoria ? t("Modifica scrittura provvisoria") : t("Rettifica scrittura") : t("Nuova scrittura Dare/Avere")}</DialogTitle><DialogDescription>{daRettificare ? modificaProvvisoria ? t("La scrittura conserva il suo numero. La versione precedente resta nello storico delle revisioni.") : t("La scrittura {numero}/{esercizio} viene stornata e sostituita con questa registrazione.", { numero: String(daRettificare.numero ?? ""), esercizio: String(daRettificare.esercizio ?? "") }) : t("Registra anche stipendi, costi senza fattura, ratei, risconti e altre rilevazioni di competenza. Le righe Dare e Avere devono quadrare; il documento è facoltativo.")}</DialogDescription></DialogHeader>
         <fieldset disabled={registra.isPending} className="space-y-3">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <div className="space-y-1"><Label>Data</Label><Input type="date" value={data} onChange={(e) => setData(e.target.value)} /></div>
+            <div className="space-y-1"><Label>{t("Data")}</Label><Input type="date" value={data} onChange={(e) => setData(e.target.value)} /></div>
             <div className="space-y-1">
-              <Label>Causale</Label>
+              <Label>{t("Causale")}</Label>
               <Input list="causali-contabili" value={causale} onChange={(e) => setCausale(e.target.value)} />
               <datalist id="causali-contabili">{CAUSALI.map((c) => <option key={c} value={c} />)}</datalist>
             </div>
-            <div className="space-y-1"><Label>Documento</Label><Input value={docNumero} onChange={(e) => setDocNumero(e.target.value)} placeholder="n." /></div>
-            <div className="space-y-1"><Label>Descrizione</Label><Input value={descrizione} onChange={(e) => setDescrizione(e.target.value)} /></div>
+            <div className="space-y-1"><Label>{t("Documento")}</Label><Input value={docNumero} onChange={(e) => setDocNumero(e.target.value)} placeholder="n." /></div>
+            <div className="space-y-1"><Label>{t("Descrizione")}</Label><Input value={descrizione} onChange={(e) => setDescrizione(e.target.value)} /></div>
           </div>
           <div className="space-y-2">
             {righe.map((r, i) => (
               <div key={i} className="grid grid-cols-12 items-end gap-2">
                 <div className="col-span-12 space-y-1 sm:col-span-5">
-                  {i === 0 ? <Label>Conto</Label> : null}
+                  {i === 0 ? <Label>{t("Conto")}</Label> : null}
                   <Select value={r.conto_id || undefined} onValueChange={(v) => cambia(i, "conto_id", v)}>
-                    <SelectTrigger><SelectValue placeholder="Scegli il conto" /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder={t("Scegli il conto")} /></SelectTrigger>
                     <SelectContent className="max-h-72">
                       {movimentabili.map((c) => <SelectItem key={c.id} value={c.id}>{c.codice} {c.descrizione}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="col-span-4 space-y-1 sm:col-span-2">{i === 0 ? <Label>Dare</Label> : null}<Input inputMode="decimal" value={r.dare} onChange={(e) => cambia(i, "dare", e.target.value)} /></div>
-                <div className="col-span-4 space-y-1 sm:col-span-2">{i === 0 ? <Label>Avere</Label> : null}<Input inputMode="decimal" value={r.avere} onChange={(e) => cambia(i, "avere", e.target.value)} /></div>
-                <div className="col-span-3 space-y-1 sm:col-span-2">{i === 0 ? <Label>Nota</Label> : null}<Input value={r.descrizione} onChange={(e) => cambia(i, "descrizione", e.target.value)} /></div>
+                <div className="col-span-4 space-y-1 sm:col-span-2">{i === 0 ? <Label>{t("Dare")}</Label> : null}<Input inputMode="decimal" value={r.dare} onChange={(e) => cambia(i, "dare", e.target.value)} /></div>
+                <div className="col-span-4 space-y-1 sm:col-span-2">{i === 0 ? <Label>{t("Avere")}</Label> : null}<Input inputMode="decimal" value={r.avere} onChange={(e) => cambia(i, "avere", e.target.value)} /></div>
+                <div className="col-span-3 space-y-1 sm:col-span-2">{i === 0 ? <Label>{t("Nota")}</Label> : null}<Input value={r.descrizione} onChange={(e) => cambia(i, "descrizione", e.target.value)} /></div>
                 <div className="col-span-1">
-                  <Button variant="ghost" size="icon" aria-label="Togli riga" disabled={righe.length <= 2} onClick={() => setRighe((rr) => rr.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="icon" aria-label={t("Togli riga")} disabled={righe.length <= 2} onClick={() => setRighe((rr) => rr.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" /></Button>
                 </div>
               </div>
             ))}
-            <Button size="sm" variant="outline" onClick={() => setRighe((rr) => [...rr, rigaVuota()])}><Plus className="mr-1 h-4 w-4" />Riga</Button>
+            <Button size="sm" variant="outline" onClick={() => setRighe((rr) => [...rr, rigaVuota()])}><Plus className="mr-1 h-4 w-4" />{t("Riga")}</Button>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/40 p-2 text-sm">
-            <span>Dare {euro(esito.dare)} · Avere {euro(esito.avere)}</span>
+            <span>{t("Dare {dare} · Avere {avere}", { dare: euro(esito.dare), avere: euro(esito.avere) })}</span>
             <span className={esito.differenza === 0 ? "text-emerald-700 dark:text-emerald-400" : "text-destructive"}>
-              {esito.differenza === 0 ? "Quadra" : `Differenza ${euro(Math.abs(esito.differenza))}`}
+              {esito.differenza === 0 ? t("Quadra") : t("Differenza {valore}", { valore: euro(Math.abs(esito.differenza)) })}
             </span>
           </div>
           {esito.problemi.length > 0 && righe.some((r) => r.conto_id || r.dare || r.avere) ? (
@@ -914,9 +922,9 @@ function NuovaScrittura({ open, onOpenChange, companyId, conti, onFatto, daRetti
           ) : null}
         </fieldset>
         <DialogFooter>
-          <Button variant="outline" disabled={registra.isPending} onClick={() => onOpenChange(false)}>Annulla</Button>
+          <Button variant="outline" disabled={registra.isPending} onClick={() => onOpenChange(false)}>{t("Annulla")}</Button>
           <Button onClick={() => registra.mutate()} disabled={registra.isPending || esito.problemi.length > 0 || !causale.trim() || !data}>
-            {registra.isPending ? "Registrazione…" : daRettificare ? modificaProvvisoria ? "Salva modifiche" : "Salva rettifica" : "Registra"}
+            {registra.isPending ? t("Registrazione…") : daRettificare ? modificaProvvisoria ? t("Salva modifiche") : t("Salva rettifica") : t("Registra")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -925,6 +933,7 @@ function NuovaScrittura({ open, onOpenChange, companyId, conti, onFatto, daRetti
 }
 
 function StornaScrittura({ scrittura, onClose, onFatto }: { scrittura: Scrittura | null; onClose: () => void; onFatto: () => void }) {
+  const t = useT();
   const [data, setData] = useState(oggi());
   const [motivo, setMotivo] = useState("");
   const storna = useMutation({
@@ -932,23 +941,23 @@ function StornaScrittura({ scrittura, onClose, onFatto }: { scrittura: Scrittura
       const { error } = await db.rpc("contabilita_storna_scrittura", { p_scrittura: scrittura!.id, p_data: data, p_motivo: motivo });
       if (error) throw error;
     },
-    onSuccess: () => { toast.success("Scrittura stornata"); setMotivo(""); onClose(); onFatto(); },
-    onError: (e) => toast.error("Storno non registrato", { description: messaggioErroreOperazione(e) }),
+    onSuccess: () => { toast.success(t("Scrittura stornata")); setMotivo(""); onClose(); onFatto(); },
+    onError: (e) => toast.error(t("Storno non registrato"), { description: messaggioErroreOperazione(e) }),
   });
   return (
     <Dialog open={!!scrittura} onOpenChange={(v) => { if (!v) onClose(); }}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader><DialogTitle>Storna la scrittura {scrittura ? `${scrittura.numero}/${scrittura.esercizio}` : ""}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{t("Storna la scrittura {numero}", { numero: scrittura ? `${scrittura.numero}/${scrittura.esercizio}` : "" })}</DialogTitle></DialogHeader>
         <p className="text-sm text-muted-foreground">
-          Una scrittura registrata non si cancella: si registra quella inversa, con la data dello storno. Poi, se serve, si registra quella giusta.
+          {t("Una scrittura registrata non si cancella: si registra quella inversa, con la data dello storno. Poi, se serve, si registra quella giusta.")}
         </p>
         <div className="grid grid-cols-3 gap-2">
-          <div className="space-y-1"><Label>Data</Label><Input type="date" value={data} onChange={(e) => setData(e.target.value)} /></div>
-          <div className="col-span-2 space-y-1"><Label>Motivo</Label><Input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="es. conto sbagliato" /></div>
+          <div className="space-y-1"><Label>{t("Data")}</Label><Input type="date" value={data} onChange={(e) => setData(e.target.value)} /></div>
+          <div className="col-span-2 space-y-1"><Label>{t("Motivo")}</Label><Input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder={t("es. conto sbagliato")} /></div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Annulla</Button>
-          <Button onClick={() => storna.mutate()} disabled={storna.isPending || !motivo.trim()}>Storna</Button>
+          <Button variant="outline" onClick={onClose}>{t("Annulla")}</Button>
+          <Button onClick={() => storna.mutate()} disabled={storna.isPending || !motivo.trim()}>{t("Storna")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -965,6 +974,7 @@ function intestazioneDa(a: ReturnType<typeof useAnagraficaAzienda>["data"]): Azi
 
 /** Bilancio di verifica e bilancio CEE dell'esercizio, dalle scritture. */
 function Bilancio({ companyId, anno, conti }: { companyId: string; anno: number; conti: ContoContabile[] }) {
+  const t = useT();
   const scritture = useScritture(companyId, anno);
   const isMobile = useIsMobile();
   const anagrafica = useAnagraficaAzienda();
@@ -983,93 +993,94 @@ function Bilancio({ companyId, anno, conti }: { companyId: string; anno: number;
   const sezioni = bilancioASezioni(saldi, conti, { dettaglioPartitari });
   const azienda = intestazioneDa(anagrafica.data);
   const periodo = `Dal 01/01/${anno} al ${dataIt(dataBilancio)}`;
+  const periodoVista = t("Dal 01/01/{anno} al {data}", { anno, data: dataIt(dataBilancio) });
   const sbilancio = Math.round((cee.totaleAttivo - cee.totalePassivo) * 100) / 100;
   const mesi = ricaviECostiPerMese((scritture.data ?? []).filter(s => s.data_registrazione <= dataBilancio), conti, anno);
   return (
     <div className="space-y-4">
       {stampa && (
         <PrintPreviewModal open onOpenChange={(v) => { if (!v) setStampa(null); }} htmlContent={stampa.html}
-          title={`${stampa.nome} — anteprima di stampa`} fileName={`${stampa.nome.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${anno}`} soloPdf />
+          title={t("{nome} — anteprima di stampa", { nome: String(stampa.nome ?? "") })} fileName={`${stampa.nome.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${anno}`} soloPdf />
       )}
       <div className="flex flex-wrap gap-2">
-        <div className="flex items-center gap-2"><Label htmlFor="bilancio-al">Bilancio al</Label><Input id="bilancio-al" type="date" className="h-9 w-40" min={`${anno}-01-01`} max={`${anno}-12-31`} value={dataBilancio} onChange={e => { if (e.target.value) setFinoAl(e.target.value); }} /></div>
-        <label className="flex items-center gap-2 text-sm"><Checkbox checked={dettaglioPartitari} onCheckedChange={v => setDettaglioPartitari(v === true)} />Dettaglio clienti e fornitori</label>
+        <div className="flex items-center gap-2"><Label htmlFor="bilancio-al">{t("Bilancio al")}</Label><Input id="bilancio-al" type="date" className="h-9 w-40" min={`${anno}-01-01`} max={`${anno}-12-31`} value={dataBilancio} onChange={e => { if (e.target.value) setFinoAl(e.target.value); }} /></div>
+        <label className="flex items-center gap-2 text-sm"><Checkbox checked={dettaglioPartitari} onCheckedChange={v => setDettaglioPartitari(v === true)} />{t("Dettaglio clienti e fornitori")}</label>
         <div className="mr-2 flex rounded-md border p-0.5">
           {([["sezioni", "Stato patrimoniale e conto economico"], ["verifica", "Bilancio di verifica"]] as const).map(([k, l]) => (
             <button key={k} type="button" aria-pressed={vista === k} onClick={() => setVista(k)}
-              className={`rounded px-2.5 py-1 text-xs ${vista === k ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}>{l}</button>
+              className={`rounded px-2.5 py-1 text-xs ${vista === k ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}>{t(l)}</button>
           ))}
         </div>
         <Button size="sm" variant="outline" onClick={() => setStampa({ html: htmlBilancioSezioni({ azienda, bilancio: sezioni, periodo }), nome: "Bilancio a sezioni" })}>
-          <Printer className="mr-1 h-4 w-4" />Stampa stato patrimoniale e conto economico
+          <Printer className="mr-1 h-4 w-4" />{t("Stampa stato patrimoniale e conto economico")}
         </Button>
         <Button size="sm" variant="outline" onClick={() => setStampa({ html: htmlBilancioVerifica({ azienda, verifica, periodo }), nome: "Bilancio di verifica" })}>
-          <Printer className="mr-1 h-4 w-4" />Stampa bilancio di verifica
+          <Printer className="mr-1 h-4 w-4" />{t("Stampa bilancio di verifica")}
         </Button>
         <Button size="sm" variant="outline" onClick={() => setStampa({ html: htmlBilancioCee({ azienda, bilancio: cee, periodo }), nome: "Bilancio CEE" })}>
-          <Printer className="mr-1 h-4 w-4" />Stampa bilancio CEE
+          <Printer className="mr-1 h-4 w-4" />{t("Stampa bilancio CEE")}
         </Button>
       </div>
       {/* 14/11/2026: i tre numeri col colore dello stato (attivo e passivo
           ambra se non pareggiano, utile verde, perdita rossa) e ricavi e
           costi mese per mese. */}
       <div className="grid gap-3 sm:grid-cols-3">
-        <RiquadroNumero etichetta="Totale attivo" valore={euro(cee.totaleAttivo)} periodo={periodo} tono={sbilancio !== 0 ? "attenzione" : "neutro"} />
+        <RiquadroNumero etichetta={t("Totale attivo")} valore={euro(cee.totaleAttivo)} periodo={periodoVista} tono={sbilancio !== 0 ? "attenzione" : "neutro"} />
         <RiquadroNumero
-          etichetta="Totale passivo e netto"
+          etichetta={t("Totale passivo e netto")}
           valore={euro(cee.totalePassivo)}
-          periodo={periodo}
+          periodo={periodoVista}
           tono={sbilancio !== 0 ? "attenzione" : "neutro"}
-          contesto={sbilancio !== 0 ? `Non pareggia con l'attivo: ${euro(sbilancio)} di differenza` : "Pareggia con l'attivo"}
+          contesto={sbilancio !== 0 ? t("Non pareggia con l'attivo: {importo} di differenza", { importo: euro(sbilancio) }) : t("Pareggia con l'attivo")}
         />
         <RiquadroNumero
-          etichetta={cee.utile >= 0 ? "Utile dell'esercizio" : "Perdita dell'esercizio"}
+          etichetta={cee.utile >= 0 ? t("Utile dell'esercizio") : t("Perdita dell'esercizio")}
           valore={euro(cee.utile)}
-          periodo={periodo}
+          periodo={periodoVista}
           tono={cee.utile > 0 ? "buono" : cee.utile < 0 ? "male" : "neutro"}
           tendenza={mesi.some((m) => m.ricavi !== 0 || m.costi !== 0) ? mesi.reduce<number[]>((acc, m) => [...acc, (acc[acc.length - 1] ?? 0) + m.ricavi - m.costi], []) : undefined}
-          etichettaTendenza="Utile progressivo mese per mese"
+          etichettaTendenza={t("Utile progressivo mese per mese")}
         />
       </div>
       {!isMobile && (sezioni.attivo.totale > 0 || sezioni.passivo.totale > 0 || mesi.some(m => m.ricavi !== 0 || m.costi !== 0)) && <details className="rounded-xl border p-3">
-        <summary className="cursor-pointer text-sm font-medium">Grafici di bilancio</summary><div className="mt-3 space-y-3">
+        <summary className="cursor-pointer text-sm font-medium">{t("Grafici di bilancio")}</summary><div className="mt-3 space-y-3">
       {!isMobile && (sezioni.attivo.totale > 0 || sezioni.passivo.totale > 0) && (
         <div className="grid gap-3 lg:grid-cols-2">
-          <ComposizioneLato titolo="Com'è fatto l'attivo" lato={sezioni.attivo} />
-          <ComposizioneLato titolo="Com'è fatto il passivo e netto" lato={sezioni.passivo} extra={sezioni.utile > 0 ? { nome: "Utile dell'esercizio", valore: sezioni.utile } : undefined} />
+          <ComposizioneLato titolo={t("Com'è fatto l'attivo")} lato={sezioni.attivo} />
+          <ComposizioneLato titolo={t("Com'è fatto il passivo e netto")} lato={sezioni.passivo} extra={sezioni.utile > 0 ? { nome: t("Utile dell'esercizio"), valore: sezioni.utile } : undefined} />
         </div>
       )}
       {!isMobile && mesi.some((m) => m.ricavi !== 0 || m.costi !== 0) && (
-        <section aria-label="Ricavi e costi mese per mese" className="rounded-2xl border bg-card p-4 shadow-sm">
-          <h3 className="mb-3 text-sm font-semibold">Ricavi e costi mese per mese</h3>
+        <section aria-label={t("Ricavi e costi mese per mese")} className="rounded-2xl border bg-card p-4 shadow-sm">
+          <h3 className="mb-3 text-sm font-semibold">{t("Ricavi e costi mese per mese")}</h3>
           <GraficoRicaviCosti righe={mesi.map((m) => ({ mese: m.mese, ricavi: m.ricavi, costi_var: m.costi, costi_fissi: 0 }))} />
         </section>
       )}
       </div></details>}
       {!verifica.quadra || sbilancio !== 0 || cee.vociNonIndicate.length > 0 ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
-          {!verifica.quadra ? <p>Il bilancio di verifica non quadra: dare {euro(verifica.totaleDare)}, avere {euro(verifica.totaleAvere)}.</p> : null}
-          {sbilancio !== 0 ? <p>Attivo e passivo differiscono di {euro(sbilancio)}: un conto ha la natura sbagliata nel piano dei conti.</p> : null}
-          {cee.vociNonIndicate.length > 0 ? <p>Conti senza una voce CEE riconosciuta: {cee.vociNonIndicate.join(", ")}.</p> : null}
+          {!verifica.quadra ? <p>{t("Il bilancio di verifica non quadra: dare {totaleDare}, avere {totaleAvere}.", { totaleDare: euro(verifica.totaleDare), totaleAvere: euro(verifica.totaleAvere) })}</p> : null}
+          {sbilancio !== 0 ? <p>{t("Attivo e passivo differiscono di {sbilancio}: un conto ha la natura sbagliata nel piano dei conti.", { sbilancio: euro(sbilancio) })}</p> : null}
+          {cee.vociNonIndicate.length > 0 ? <p>{t("Conti senza una voce CEE riconosciuta: {vociNonIndicate}.", { vociNonIndicate: cee.vociNonIndicate.join(", ") })}</p> : null}
         </div>
       ) : null}
       {vista === "sezioni" ? (
         <div className="space-y-4">
-          <section aria-label="Stato patrimoniale" className="space-y-2">
-            <h3 className="text-sm font-semibold">Stato patrimoniale</h3>
+          <section aria-label={t("Stato patrimoniale")} className="space-y-2">
+            <h3 className="text-sm font-semibold">{t("Stato patrimoniale")}</h3>
             <div className="grid gap-3 lg:grid-cols-2">
-              <LatoDelBilancio titolo="Attivo" lato={sezioni.attivo} />
-              <LatoDelBilancio titolo="Passivo e netto" lato={sezioni.passivo}
-                chiusura={{ etichetta: sezioni.utile >= 0 ? "Utile dell'esercizio" : "Perdita dell'esercizio", importo: sezioni.utile }} />
+              <LatoDelBilancio titolo={t("Attivo")} lato={sezioni.attivo} />
+              <LatoDelBilancio titolo={t("Passivo e netto")} lato={sezioni.passivo}
+                chiusura={{ etichetta: sezioni.utile >= 0 ? t("Utile dell'esercizio") : t("Perdita dell'esercizio"), importo: sezioni.utile }} />
             </div>
           </section>
-          <section aria-label="Conto economico" className="space-y-2">
-            <h3 className="text-sm font-semibold">Conto economico</h3>
+          <section aria-label={t("Conto economico")} className="space-y-2">
+            <h3 className="text-sm font-semibold">{t("Conto economico")}</h3>
             <div className="grid gap-3 lg:grid-cols-2">
-              <LatoDelBilancio titolo="Costi" lato={sezioni.costi}
-                chiusura={sezioni.utile > 0 ? { etichetta: "Utile dell'esercizio", importo: sezioni.utile } : undefined} />
-              <LatoDelBilancio titolo="Ricavi" lato={sezioni.ricavi}
-                chiusura={sezioni.utile < 0 ? { etichetta: "Perdita dell'esercizio", importo: -sezioni.utile } : undefined} />
+              <LatoDelBilancio titolo={t("Costi")} lato={sezioni.costi}
+                chiusura={sezioni.utile > 0 ? { etichetta: t("Utile dell'esercizio"), importo: sezioni.utile } : undefined} />
+              <LatoDelBilancio titolo={t("Ricavi")} lato={sezioni.ricavi}
+                chiusura={sezioni.utile < 0 ? { etichetta: t("Perdita dell'esercizio"), importo: -sezioni.utile } : undefined} />
             </div>
           </section>
         </div>
@@ -1077,11 +1088,11 @@ function Bilancio({ companyId, anno, conti }: { companyId: string; anno: number;
       <TabellaContabile>
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
-            <tr><th className="p-2">Conto</th><th className="p-2 text-right">Dare</th><th className="p-2 text-right">Avere</th><th className="p-2 text-right">Saldo</th></tr>
+            <tr><th className="p-2">{t("Conto")}</th><th className="p-2 text-right">{t("Dare")}</th><th className="p-2 text-right">{t("Avere")}</th><th className="p-2 text-right">{t("Saldo")}</th></tr>
           </thead>
           <tbody>
             {saldi.length === 0 ? (
-              <tr><td colSpan={4} className="p-4 text-center text-muted-foreground">Nessun conto movimentato nel {anno}.</td></tr>
+              <tr><td colSpan={4} className="p-4 text-center text-muted-foreground">{t("Nessun conto movimentato nel {anno}.", { anno })}</td></tr>
             ) : saldi.map((x) => (
               <tr key={x.conto.id} className="border-t">
                 <td className="p-2"><span className="font-mono text-xs mr-2">{x.conto.codice}</span>{x.conto.descrizione}</td>
@@ -1106,11 +1117,12 @@ const COLORI_MASTRI = [COLORI_GRAFICO.blu, COLORI_GRAFICO.arancio, COLORI_GRAFIC
  * gli altri insieme) con la legenda in euro e percentuale.
  */
 function ComposizioneLato({ titolo, lato, extra }: { titolo: string; lato: LatoBilancio; extra?: { nome: string; valore: number } }) {
+  const t = useT();
   const fermo = usePreferisceMenoMovimento();
   const positivi = lato.mastri.filter((m) => m.totale > 0).sort((a, b) => b.totale - a.totale);
-  const fette = positivi.slice(0, 5).map((m) => ({ nome: m.descrizione || m.codice || "Senza mastro", valore: m.totale }));
+  const fette = positivi.slice(0, 5).map((m) => ({ nome: m.descrizione || m.codice || t("Senza mastro"), valore: m.totale }));
   const resto = positivi.slice(5).reduce((s, m) => s + m.totale, 0);
-  if (resto > 0) fette.push({ nome: "Altri mastri", valore: resto });
+  if (resto > 0) fette.push({ nome: t("Altri mastri"), valore: resto });
   // Il passivo si legge con l'utile, come nella tabella: così il totale torna con l'attivo.
   if (extra && extra.valore > 0) fette.push(extra);
   const tot = fette.reduce((s, f) => s + f.valore, 0);
@@ -1129,7 +1141,7 @@ function ComposizioneLato({ titolo, lato, extra }: { titolo: string; lato: LatoB
             </PieChart>
           </ResponsiveContainer>
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Totale</span>
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{t("Totale")}</span>
             <span className="text-xs font-bold tabular-nums">{euroAsse(tot)}</span>
           </div>
         </div>
@@ -1149,13 +1161,14 @@ function ComposizioneLato({ titolo, lato, extra }: { titolo: string; lato: LatoB
 }
 
 function LatoDelBilancio({ titolo, lato, chiusura }: { titolo: string; lato: LatoBilancio; chiusura?: { etichetta: string; importo: number } }) {
+  const t = useT();
   const totale = lato.totale + (chiusura?.importo ?? 0);
   return (
     <div className="overflow-hidden rounded-xl border">
       <div className="flex items-center justify-between bg-muted/50 px-3 py-2 text-xs font-semibold uppercase text-muted-foreground">
         <span>{titolo}</span><span className="tabular-nums">{euro(totale)}</span>
       </div>
-      {lato.mastri.length === 0 && !chiusura ? <p className="p-3 text-sm text-muted-foreground">Nessun conto movimentato.</p> : null}
+      {lato.mastri.length === 0 && !chiusura ? <p className="p-3 text-sm text-muted-foreground">{t("Nessun conto movimentato.")}</p> : null}
       <ul className="divide-y text-sm">
         {lato.mastri.map((m) => (
           <li key={`${m.codice}-${m.descrizione}`}>
@@ -1187,6 +1200,7 @@ function LatoDelBilancio({ titolo, lato, chiusura }: { titolo: string; lato: Lat
 
 /** Cambia la classificazione di un conto: descrizione, natura, voce CEE, ruolo e nota. I movimenti restano. */
 function ModificaConto({ conto, onClose, onFatto }: { conto: ContoContabile | null; onClose: () => void; onFatto: () => void }) {
+  const t = useT();
   const [descrizione, setDescrizione] = useState("");
   const [natura, setNatura] = useState<ContoContabile["natura"]>("costo");
   const [voce, setVoce] = useState("");
@@ -1210,35 +1224,35 @@ function ModificaConto({ conto, onClose, onFatto }: { conto: ContoContabile | nu
       });
       if (error) throw error;
     },
-    onSuccess: () => { toast.success("Conto aggiornato"); setPer(null); onClose(); onFatto(); },
-    onError: (e) => toast.error("Conto non aggiornato", { description: e instanceof Error ? e.message : String(e) }),
+    onSuccess: () => { toast.success(t("Conto aggiornato")); setPer(null); onClose(); onFatto(); },
+    onError: (e) => toast.error(t("Conto non aggiornato"), { description: e instanceof Error ? e.message : String(e) }),
   });
   return (
     <Dialog open={!!conto} onOpenChange={(v) => { if (!v) { setPer(null); onClose(); } }}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader><DialogTitle>Conto {conto?.codice}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{t("Conto {codice}", { codice: String(conto?.codice ?? "") })}</DialogTitle></DialogHeader>
         <div className="space-y-3">
-          <div className="space-y-1"><Label>Descrizione</Label><Input value={descrizione} onChange={(e) => setDescrizione(e.target.value)} /></div>
+          <div className="space-y-1"><Label>{t("Descrizione")}</Label><Input value={descrizione} onChange={(e) => setDescrizione(e.target.value)} /></div>
           <div className="space-y-1">
-            <Label>Natura</Label>
+            <Label>{t("Natura")}</Label>
             <Select value={natura} onValueChange={(v) => setNatura(v as ContoContabile["natura"])}>
               <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{NATURE.map((n) => <SelectItem key={n.value} value={n.value}>{n.label}</SelectItem>)}</SelectContent>
+              <SelectContent>{NATURE.map((n) => <SelectItem key={n.value} value={n.value}>{t(n.label)}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1"><Label>Voce CEE</Label><Input value={voce} onChange={(e) => setVoce(e.target.value)} placeholder="C.II.1" /></div>
-            <div className="space-y-1"><Label>Ruolo (piano standard)</Label><Input value={ruolo} onChange={(e) => setRuolo(e.target.value)} placeholder="es. 05.01" /></div>
+            <div className="space-y-1"><Label>{t("Voce CEE")}</Label><Input value={voce} onChange={(e) => setVoce(e.target.value)} placeholder="C.II.1" /></div>
+            <div className="space-y-1"><Label>{t("Ruolo (piano standard)")}</Label><Input value={ruolo} onChange={(e) => setRuolo(e.target.value)} placeholder={t("es. 05.01")} /></div>
           </div>
           <div className="space-y-1">
-            <Label>Nota</Label>
-            <Input value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Vuota quando la classificazione è confermata" />
+            <Label>{t("Nota")}</Label>
+            <Input value={nota} onChange={(e) => setNota(e.target.value)} placeholder={t("Vuota quando la classificazione è confermata")} />
           </div>
-          <p className="text-xs text-muted-foreground">Il ruolo dice alle scritture dai documenti quale conto usare: 05.01 clienti, 13.04 fornitori, 06.01 banca, 05.10 e 13.10 IVA, 20.01 ricavi, 30.01 acquisti.</p>
+          <p className="text-xs text-muted-foreground">{t("Il ruolo dice alle scritture dai documenti quale conto usare: 05.01 clienti, 13.04 fornitori, 06.01 banca, 05.10 e 13.10 IVA, 20.01 ricavi, 30.01 acquisti.")}</p>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => { setPer(null); onClose(); }}>Annulla</Button>
-          <Button onClick={() => salva.mutate()} disabled={salva.isPending || !descrizione.trim()}>Salva</Button>
+          <Button variant="outline" onClick={() => { setPer(null); onClose(); }}>{t("Annulla")}</Button>
+          <Button onClick={() => salva.mutate()} disabled={salva.isPending || !descrizione.trim()}>{t("Salva")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -1247,6 +1261,7 @@ function ModificaConto({ conto, onClose, onFatto }: { conto: ContoContabile | nu
 
 /** Mastrino di un conto e, per clienti e fornitori, il partitario: quanto deve o avanza ognuno. */
 function Mastrini({ companyId, anno, conti }: { companyId: string; anno: number; conti: ContoContabile[] }) {
+  const tTesto = useT();
   const [dettaglioId, setDettaglioId] = useState<string | null>(null);
   const nomi = useMemo(() => new Map(conti.map(c => [c.id, `${c.codice} ${c.descrizione}`])), [conti]);
   const scritture = useScritture(companyId, anno);
@@ -1267,7 +1282,7 @@ function Mastrini({ companyId, anno, conti }: { companyId: string; anno: number;
   }
   const elenco = scritture.data ?? [];
   const conto = movimentati.find((c) => c.id === contoId) ?? movimentati.find((c) => contoAPartite(c)) ?? movimentati[0];
-  if (!conto) return <p className="rounded-xl border p-4 text-sm text-muted-foreground">Nessun conto movimentato nel {anno}.</p>;
+  if (!conto) return <p className="rounded-xl border p-4 text-sm text-muted-foreground">{tTesto("Nessun conto movimentato nel {anno}.", { anno })}</p>;
   const aPartite = contoAPartite(conto) && soggetto === null;
   const qm = cercaM.trim().toLowerCase();
   const partiteTutte = aPartite ? partitario(elenco, conto.id) : [];
@@ -1291,42 +1306,42 @@ function Mastrini({ companyId, anno, conti }: { companyId: string; anno: number;
         onConto={id => { setDettaglioId(null); if (id !== conto.id) cambiaConto(id); }} />
       {stampa && (
         <PrintPreviewModal open onOpenChange={(v) => { if (!v) setStampa(null); }} htmlContent={stampa}
-          title="Mastrino — anteprima di stampa" fileName={`mastrino-${conto.codice}-${anno}`} soloPdf />
+          title={tTesto("Mastrino — anteprima di stampa")} fileName={`mastrino-${conto.codice}-${anno}`} soloPdf />
       )}
       <div className="flex flex-wrap items-center gap-2">
         <Select value={conto.id} onValueChange={cambiaConto}>
-          <SelectTrigger className="h-8 w-full sm:w-80" aria-label="Conto"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-8 w-full sm:w-80" aria-label={tTesto("Conto")}><SelectValue /></SelectTrigger>
           <SelectContent>
             {movimentati.map((c) => <SelectItem key={c.id} value={c.id}>{c.codice} {c.descrizione}</SelectItem>)}
           </SelectContent>
         </Select>
         {soggetto !== null ? (
-          <Button size="sm" variant="outline" onClick={() => { setSoggetto(null); setCercaM(""); }}>← Tutti i soggetti</Button>
+          <Button size="sm" variant="outline" onClick={() => { setSoggetto(null); setCercaM(""); }}>{tTesto("← Tutti i soggetti")}</Button>
         ) : null}
         <div className="relative w-full sm:w-64">
           <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" aria-hidden="true" />
           <Input type="search" value={cercaM} onChange={(e) => { setCercaM(e.target.value); setMostra(500); }}
-            placeholder={aPartite ? "Cerca cliente o fornitore…" : "Cerca nei movimenti…"} aria-label="Cerca nel mastrino" className="h-8 pl-8" />
+            placeholder={aPartite ? tTesto("Cerca cliente o fornitore…") : tTesto("Cerca nei movimenti…")} aria-label={tTesto("Cerca nel mastrino")} className="h-8 pl-8" />
         </div>
         {!aPartite ? (
           <Button size="sm" variant="outline" className="ml-auto" onClick={() => setStampa(htmlMastrino({
             azienda: intestazioneDa(anagrafica.data), scritture: elenco, conto, soggetto: soggetto ?? undefined,
             dal: `${anno}-01-01`, al: `${anno}-12-31`,
-          }))}><Printer className="mr-1 h-4 w-4" />Stampa {soggetto ? "scheda" : "mastrino"}</Button>
+          }))}><Printer className="mr-1 h-4 w-4" />{soggetto ? tTesto("Stampa scheda") : tTesto("Stampa mastrino")}</Button>
         ) : null}
       </div>
       {aPartite ? (
         <TabellaContabile>
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
-              <tr><th className="p-2">{conto.codice_standard === "13.04" || /fornitor/i.test(conto.descrizione) ? "Fornitore" : "Cliente"}</th><th className="p-2 text-right">Movimenti</th><th className="p-2 text-right">Dare</th><th className="p-2 text-right">Avere</th><th className="p-2 text-right">Saldo</th></tr>
+              <tr><th className="p-2">{conto.codice_standard === "13.04" || /fornitor/i.test(conto.descrizione) ? tTesto("Fornitore") : tTesto("Cliente")}</th><th className="p-2 text-right">{tTesto("Movimenti")}</th><th className="p-2 text-right">{tTesto("Dare")}</th><th className="p-2 text-right">{tTesto("Avere")}</th><th className="p-2 text-right">{tTesto("Saldo")}</th></tr>
             </thead>
             <tbody>
               {partite.length === 0 && (
-                <tr><td colSpan={5} className="p-4 text-center text-muted-foreground">Nessun soggetto con «{cercaM}».</td></tr>
+                <tr><td colSpan={5} className="p-4 text-center text-muted-foreground">{tTesto("Nessun soggetto con «{cercaM}».", { cercaM: String(cercaM ?? "") })}</td></tr>
               )}
               {partite.map((x) => (
-                <tr key={x.soggetto} className="cursor-pointer border-t hover:bg-muted/40" title="Apri la scheda di questo soggetto" onClick={() => { setSoggetto(x.soggetto); setCercaM(""); }}>
+                <tr key={x.soggetto} className="cursor-pointer border-t hover:bg-muted/40" title={tTesto("Apri la scheda di questo soggetto")} onClick={() => { setSoggetto(x.soggetto); setCercaM(""); }}>
                   <td className="p-2"><button type="button" className="text-left text-primary hover:underline">{x.soggetto}</button></td>
                   <td className="p-2 text-right tabular-nums text-muted-foreground">{x.movimenti}</td>
                   <td className="p-2 text-right tabular-nums">{euro(x.dare)}</td>
@@ -1338,7 +1353,7 @@ function Mastrini({ companyId, anno, conti }: { companyId: string; anno: number;
             {partite.length > 1 && (
               <tfoot className="border-t-2 bg-muted/40 font-medium">
                 <tr>
-                  <td className="p-2">Totale {qm ? "dei trovati" : "del conto"} · {partite.length} soggetti</td>
+                  <td className="p-2">{qm ? tTesto("Totale dei trovati · {n} soggetti", { n: partite.length }) : tTesto("Totale del conto · {n} soggetti", { n: partite.length })}</td>
                   <td className="p-2 text-right tabular-nums text-muted-foreground">{totPartite.movimenti}</td>
                   <td className="p-2 text-right tabular-nums">{euro(totPartite.dare)}</td>
                   <td className="p-2 text-right tabular-nums">{euro(totPartite.avere)}</td>
@@ -1351,12 +1366,12 @@ function Mastrini({ companyId, anno, conti }: { companyId: string; anno: number;
       ) : m ? (
         <>
           <p className="text-sm text-muted-foreground">
-            {soggetto ? `${soggetto} · ` : ""}{m.movimenti.length} movimenti · dare {euro(m.dare)} · avere {euro(m.avere)} · saldo {saldoTesto(m.saldo)}
+            {soggetto ? `${soggetto} · ` : ""}{tTesto("{n} movimenti · dare {dare} · avere {avere} · saldo {saldo}", { n: m.movimenti.length, dare: euro(m.dare), avere: euro(m.avere), saldo: saldoTesto(m.saldo) })}
           </p>
           <TabellaContabile>
             <table className="w-full text-sm">
               <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
-                <tr><th className="p-2">Data</th><th className="p-2">N.</th><th className="p-2">Causale</th><th className="p-2">Descrizione</th><th className="p-2 text-right">Dare</th><th className="p-2 text-right">Avere</th><th className="p-2 text-right">Saldo</th></tr>
+                <tr><th className="p-2">{tTesto("Data")}</th><th className="p-2">N.</th><th className="p-2">{tTesto("Causale")}</th><th className="p-2">{tTesto("Descrizione")}</th><th className="p-2 text-right">{tTesto("Dare")}</th><th className="p-2 text-right">{tTesto("Avere")}</th><th className="p-2 text-right">{tTesto("Saldo")}</th></tr>
               </thead>
               <tbody>
                 {m.movimenti.slice(0, mostra).map((x, i) => (
@@ -1365,7 +1380,7 @@ function Mastrini({ companyId, anno, conti }: { companyId: string; anno: number;
                     setDettaglioId(x.scritturaId);
                   }}>
                     <td className="p-2">{dataIt(x.data)}</td>
-                    <td className="p-2 font-mono text-xs"><button type="button" aria-haspopup="dialog" aria-label={`Apri scrittura ${x.numero}`} className="text-primary hover:underline">{x.numero}</button></td>
+                    <td className="p-2 font-mono text-xs"><button type="button" aria-haspopup="dialog" aria-label={tTesto("Apri scrittura {numero}", { numero: String(x.numero ?? "") })} className="text-primary hover:underline">{x.numero}</button></td>
                     <td className="p-2">{x.causale}</td>
                     <td className="p-2 text-muted-foreground">{x.descrizione}</td>
                     <td className="p-2 text-right tabular-nums">{x.dare ? euro(x.dare) : ""}</td>
@@ -1378,8 +1393,8 @@ function Mastrini({ companyId, anno, conti }: { companyId: string; anno: number;
           </TabellaContabile>
           {m.movimenti.length > mostra ? (
             <div className="flex items-center justify-center gap-3 text-sm text-muted-foreground">
-              <span>Movimenti {mostra} di {m.movimenti.length}: la stampa li contiene tutti.</span>
-              <Button size="sm" variant="outline" onClick={() => setMostra((n) => n + 500)}>Mostra altri</Button>
+              <span>{tTesto("Movimenti {mostra} di {n}: la stampa li contiene tutti.", { mostra, n: m.movimenti.length })}</span>
+              <Button size="sm" variant="outline" onClick={() => setMostra((n) => n + 500)}>{tTesto("Mostra altri")}</Button>
             </div>
           ) : null}
         </>
@@ -1391,12 +1406,17 @@ function Mastrini({ companyId, anno, conti }: { companyId: string; anno: number;
 const MESI = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];
 
 /** I periodi IVA dell'anno: dodici mesi o quattro trimestri. */
-function periodiIva(anno: number, trimestrale: boolean) {
+function nomeMese(anno: number, i: number, maiuscolo = false): string {
+  const n = new Date(Date.UTC(anno, i, 15)).toLocaleDateString(intlCampo(), { month: "long", timeZone: "UTC" });
+  return maiuscolo ? n.charAt(0).toUpperCase() + n.slice(1) : n;
+}
+
+function periodiIva(anno: number, trimestrale: boolean, t: (testo: string, valori?: Record<string, string | number>) => string) {
   const fine = (m: number) => new Date(Date.UTC(anno, m, 0)).toISOString().slice(0, 10);
   const mm = (m: number) => String(m).padStart(2, "0");
   return trimestrale
-    ? [1, 2, 3, 4].map((t) => ({ dal: `${anno}-${mm(t * 3 - 2)}-01`, al: fine(t * 3), nome: `${t}° trimestre ${anno}` }))
-    : MESI.map((nome, i) => ({ dal: `${anno}-${mm(i + 1)}-01`, al: fine(i + 1), nome: `${nome} ${anno}` }));
+    ? [1, 2, 3, 4].map((q) => ({ dal: `${anno}-${mm(q * 3 - 2)}-01`, al: fine(q * 3), nome: t("{q}° trimestre {anno}", { q, anno }) }))
+    : MESI.map((_, i) => ({ dal: `${anno}-${mm(i + 1)}-01`, al: fine(i + 1), nome: `${nomeMese(anno, i)} ${anno}` }));
 }
 
 
@@ -1406,6 +1426,7 @@ function periodiIva(anno: number, trimestrale: boolean) {
  * anteprime della tabella sotto: nessuna lettura in più.
  */
 function GraficoIva({ periodi, esiti }: { periodi: Array<{ nome: string; dal: string }>; esiti: EsitoLiquidazione[] }) {
+  const t = useT();
   const id = idSvg(useId());
   const fermo = usePreferisceMenoMovimento();
   const dati = periodi.map((p, i) => ({ nome: p.nome, vendite: esiti[i]?.iva_vendite ?? 0, acquisti: esiti[i]?.iva_acquisti ?? 0 }));
@@ -1415,11 +1436,11 @@ function GraficoIva({ periodi, esiti }: { periodi: Array<{ nome: string; dal: st
   const conMovimenti = esiti.filter((r) => r.iva_vendite !== 0 || r.iva_acquisti !== 0);
   const registrati = conMovimenti.filter((r) => r.gia_liquidato).length;
   return (
-    <section aria-label="IVA per periodo" className="rounded-2xl border bg-card p-4 shadow-sm">
+    <section aria-label={t("IVA per periodo")} className="rounded-2xl border bg-card p-4 shadow-sm">
       <div className="mb-3 grid grid-cols-3 gap-3 rounded-xl border bg-muted/30 px-3 py-2">
-        <StatGrafico etichetta="Da versare nell'anno" valore={euro(daVersare)} nota="somma dei periodi" tono={daVersare > 0 ? "cattivo" : "neutro"} />
-        <StatGrafico etichetta="A credito" valore={euro(aCredito)} nota="all'ultimo periodo" tono={aCredito > 0 ? "buono" : "neutro"} />
-        <StatGrafico etichetta="Periodi registrati" valore={`${registrati} su ${conMovimenti.length}`} nota="con movimenti IVA" tono={registrati === conMovimenti.length ? "buono" : "neutro"} />
+        <StatGrafico etichetta={t("Da versare nell'anno")} valore={euro(daVersare)} nota={t("somma dei periodi")} tono={daVersare > 0 ? "cattivo" : "neutro"} />
+        <StatGrafico etichetta={t("A credito")} valore={euro(aCredito)} nota={t("all'ultimo periodo")} tono={aCredito > 0 ? "buono" : "neutro"} />
+        <StatGrafico etichetta={t("Periodi registrati")} valore={t("{n} su {totale}", { n: registrati, totale: conMovimenti.length })} nota={t("con movimenti IVA")} tono={registrati === conMovimenti.length ? "buono" : "neutro"} />
       </div>
       <div className="h-[200px]">
         <ResponsiveContainer width="100%" height="100%">
@@ -1444,8 +1465,8 @@ function GraficoIva({ periodi, esiti }: { periodi: Array<{ nome: string; dal: st
         </ResponsiveContainer>
       </div>
       <div className="mt-2 flex flex-wrap justify-end gap-4 text-[11px] text-muted-foreground">
-        <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: COLORI_GRAFICO.rosso }} />IVA sulle vendite</span>
-        <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: COLORI_GRAFICO.verde }} />IVA sugli acquisti</span>
+        <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: COLORI_GRAFICO.rosso }} />{t("IVA sulle vendite")}</span>
+        <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: COLORI_GRAFICO.verde }} />{t("IVA sugli acquisti")}</span>
       </div>
     </section>
   );
@@ -1466,6 +1487,7 @@ type SottovistaIva = (typeof SOTTOVISTE_IVA)[number][0];
  * di Fiscalità; il giroconto su Erario c/IVA è quello della partita doppia.
  */
 function IvaContabilita({ companyId, anno }: { companyId: string; anno: number }) {
+  const t = useT();
   const p = useFiscalPeriod();
   const permessi = usePermissions();
   const documenti = useFeatureAccess("documenti");
@@ -1494,21 +1516,21 @@ function IvaContabilita({ companyId, anno }: { companyId: string; anno: number }
     <div className="space-y-3">
       <PercorsoIva stato={controllo.data} anno={anno} oggi={oggi()} onVai={vai} />
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div role="group" aria-label="Strumenti IVA" className="flex flex-wrap gap-1">
+        <div role="group" aria-label={t("Strumenti IVA")} className="flex flex-wrap gap-1">
           {SOTTOVISTE_IVA.map(([k, l]) => (
-            <Button key={k} size="sm" variant={sotto === k ? "default" : "outline"} aria-pressed={sotto === k} onClick={() => p.set({ iva: k })}>{l}</Button>
+            <Button key={k} size="sm" variant={sotto === k ? "default" : "outline"} aria-pressed={sotto === k} onClick={() => p.set({ iva: k })}>{t(l)}</Button>
           ))}
         </div>
         {conPeriodo && <FiscalPeriodFilters anno={p.anno} mese={p.mese} trimestre={p.trimestre} tipo={p.tipo} showPeriod onChange={p.set} />}
       </div>
-      <Suspense fallback={<p role="status" className="p-6 text-sm text-muted-foreground">Caricamento…</p>}>
+      <Suspense fallback={<p role="status" className="p-6 text-sm text-muted-foreground">{t("Caricamento…")}</p>}>
         {sotto === "registri" ? (
           permessi.isLoading || documenti.isLoading ? (
-            <p role="status" className="p-6 text-sm text-muted-foreground">Verifica accesso ai registri…</p>
+            <p role="status" className="p-6 text-sm text-muted-foreground">{t("Verifica accesso ai registri…")}</p>
           ) : registriAperti ? (
             <RegistroIVA embedded onApriLiquidazione={() => p.set({ iva: "liquidazione", iva_vista: "iva" })} />
           ) : (
-            <p className="rounded-xl border p-4 text-sm text-muted-foreground">I registri IVA leggono le fatture: servono il permesso di vedere la fatturazione e la sezione Documenti attiva nel piano.</p>
+            <p className="rounded-xl border p-4 text-sm text-muted-foreground">{t("I registri IVA leggono le fatture: servono il permesso di vedere la fatturazione e la sezione Documenti attiva nel piano.")}</p>
           )
         ) : sotto === "liquidazione" ? (
           <LiquidazioneIvaEF24 chiaveVista="iva_vista" onApriRegistro={() => p.set({ iva: "registri" })} />
@@ -1532,13 +1554,14 @@ function LiquidazioneIva({ companyId, anno, senzaImporti = [], periodicita, onAp
   periodicita?: "mensile" | "trimestrale" | null;
   onApriLipe?: () => void;
 }) {
+  const t = useT();
   const qc = useQueryClient();
   const isMobile = useIsMobile();
   const anagrafica = useAnagraficaAzienda();
   const [stampa, setStampa] = useState<string | null>(null);
   const [sceltaTrimestrale, setTrimestrale] = useState(false);
   const trimestrale = periodicita ? periodicita === "trimestrale" : sceltaTrimestrale;
-  const periodi = periodiIva(anno, trimestrale);
+  const periodi = periodiIva(anno, trimestrale, t);
   const incompleti = incompletiPerPeriodo(senzaImporti, periodi);
   const esiti = useQuery({
     queryKey: chiave(companyId, "liquidazioni-iva", anno, trimestrale),
@@ -1561,47 +1584,44 @@ function LiquidazioneIva({ companyId, anno, senzaImporti = [], periodicita, onAp
       return data as EsitoLiquidazione;
     },
     onSuccess: (r) => {
-      toast.success("Liquidazione registrata dalla LIPE", {
-        description: r.da_versare > 0 ? `IVA da versare ${euro(r.da_versare)}: il pagamento dell'F24 la chiude.` : `IVA a credito ${euro(r.a_credito)}.`,
+      toast.success(t("Liquidazione registrata dalla LIPE"), {
+        description: r.da_versare > 0 ? t("IVA da versare {da_versare}: il pagamento dell'F24 la chiude.", { da_versare: euro(r.da_versare) }) : t("IVA a credito {a_credito}.", { a_credito: euro(r.a_credito) }),
       });
       void qc.invalidateQueries({ queryKey: chiave(companyId) });
     },
-    onError: (e) => toast.error("Liquidazione non registrata", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Liquidazione non registrata"), { description: e instanceof Error ? e.message : String(e) }),
   });
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-3 text-sm">
         {periodicita ? (
-          <span className="text-muted-foreground">Periodicità <span className="font-medium text-foreground">{periodicita}</span>, dalle Impostazioni IVA</span>
+          <span className="text-muted-foreground">{t("Periodicità")} <span className="font-medium text-foreground">{periodicita}</span>, {t("dalle Impostazioni IVA")}</span>
         ) : (
           <Select value={trimestrale ? "t" : "m"} onValueChange={(v) => setTrimestrale(v === "t")}>
-            <SelectTrigger className="h-8 w-40" aria-label="Periodicità"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 w-40" aria-label={t("Periodicità")}><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="m">Mensile</SelectItem>
-              <SelectItem value="t">Trimestrale</SelectItem>
+              <SelectItem value="m">{t("Mensile")}</SelectItem>
+              <SelectItem value="t">{t("Trimestrale")}</SelectItem>
             </SelectContent>
           </Select>
         )}
-        <details className="text-xs text-muted-foreground"><summary className="cursor-pointer font-medium">Come si calcola la liquidazione</summary><p className="mt-2 max-w-prose">
-          L'IVA si calcola una volta sola, nella liquidazione periodica (LIPE): quando la confermi, qui la registri e la contabilità gira su Erario c/IVA
-          l'IVA esigibile (VP4), quella detratta (VP5) e gli interessi (VP12). Finché non è confermata vedi un'anteprima dai saldi delle scritture.
-          Se le scritture hanno più IVA della LIPE (fatture registrate in un mese e ricevute nel successivo), la differenza resta sui conti IVA per il periodo giusto.
-          Sotto la soglia (100 € dal 2024) il debito si registra lo stesso e si versa col periodo dopo.
+        <details className="text-xs text-muted-foreground"><summary className="cursor-pointer font-medium">{t("Come si calcola la liquidazione")}</summary><p className="mt-2 max-w-prose">
+          {t("L'IVA si calcola una volta sola, nella liquidazione periodica (LIPE): quando la confermi, qui la registri e la contabilità gira su Erario c/IVA l'IVA esigibile (VP4), quella detratta (VP5) e gli interessi (VP12). Finché non è confermata vedi un'anteprima dai saldi delle scritture. Se le scritture hanno più IVA della LIPE (fatture registrate in un mese e ricevute nel successivo), la differenza resta sui conti IVA per il periodo giusto. Sotto la soglia (100 € dal 2024) il debito si registra lo stesso e si versa col periodo dopo.")}
         </p></details>
         {mostrati && (
           <div className="ml-auto flex flex-wrap gap-2">
             <Button size="sm" variant="outline" onClick={() => setStampa(htmlLiquidazioneContabile({ azienda: intestazioneDa(anagrafica.data), anno, trimestrale, righe: righeLiquidazione(periodi, esiti.data!, incompleti) }))}>
-              <Printer className="mr-1 h-4 w-4" />Stampa liquidazioni
+              <Printer className="mr-1 h-4 w-4" />{t("Stampa liquidazioni")}
             </Button>
             <Button size="sm" variant="outline" onClick={() => scaricaCsv(`liquidazioni-iva-${anno}-${trimestrale ? "trimestrali" : "mensili"}`, csvLiquidazioneContabile(righeLiquidazione(periodi, esiti.data!, incompleti)))}>
-              <Download className="mr-1 h-4 w-4" />Esporta
+              <Download className="mr-1 h-4 w-4" />{t("Esporta")}
             </Button>
           </div>
         )}
       </div>
       {stampa && (
         <PrintPreviewModal open onOpenChange={(v) => { if (!v) setStampa(null); }} htmlContent={stampa}
-          title="Liquidazioni IVA — anteprima di stampa" fileName={`liquidazioni-iva-${anno}`} soloPdf />
+          title={t("Liquidazioni IVA — anteprima di stampa")} fileName={`liquidazioni-iva-${anno}`} soloPdf />
       )}
       {!isMobile && mostrati && <GraficoIva periodi={periodi} esiti={mostrati} />}
       {esiti.isLoading || esiti.isError ? (
@@ -1610,7 +1630,7 @@ function LiquidazioneIva({ companyId, anno, senzaImporti = [], periodicita, onAp
         <TabellaContabile>
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
-              <tr><th className="p-2">Periodo</th><th className="p-2 text-right">IVA vendite</th><th className="p-2 text-right">IVA acquisti</th><th className="p-2 text-right">Credito precedente usato</th><th className="p-2 text-right">Da versare</th><th className="p-2 text-right">A credito</th><th className="p-2" /></tr>
+              <tr><th className="p-2">{t("Periodo")}</th><th className="p-2 text-right">{t("IVA vendite")}</th><th className="p-2 text-right">{t("IVA acquisti")}</th><th className="p-2 text-right">{t("Credito precedente usato")}</th><th className="p-2 text-right">{t("Da versare")}</th><th className="p-2 text-right">{t("A credito")}</th><th className="p-2" /></tr>
             </thead>
             <tbody>
               {periodi.map((per, i) => {
@@ -1630,12 +1650,10 @@ function LiquidazioneIva({ companyId, anno, senzaImporti = [], periodicita, onAp
                     <td className="p-2">
                       <span className="capitalize">{per.nome}</span>
                       {!vuoto && !r.gia_liquidato ? (
-                        <span className="block text-[11px] text-muted-foreground">{dallaLipe ? "dalla LIPE confermata" : "anteprima dalle scritture"}</span>
+                        <span className="block text-[11px] text-muted-foreground">{dallaLipe ? t("dalla LIPE confermata") : t("anteprima dalle scritture")}</span>
                       ) : null}
                       {avvisoPeriodo(incompleti[i]) ? (
-                        <span className="block text-[11px] text-amber-700 dark:text-amber-300" title="Documenti col solo totale: la loro IVA non è nelle scritture">
-                          {avvisoPeriodo(incompleti[i])}: importi parziali nelle scritture
-                        </span>
+                        <span className="block text-[11px] text-amber-700 dark:text-amber-300" title={t("Documenti col solo totale: la loro IVA non è nelle scritture")}>{t("{valore}: importi parziali nelle scritture", { valore: String(avvisoPeriodo(incompleti[i]) ?? "") })}</span>
                       ) : null}
                       {differenza ? <span className="block max-w-md text-[11px] text-amber-700 dark:text-amber-300">{differenza}</span> : null}
                     </td>
@@ -1644,20 +1662,20 @@ function LiquidazioneIva({ companyId, anno, senzaImporti = [], periodicita, onAp
                     <td className="p-2 text-right tabular-nums text-muted-foreground">{!r.gia_liquidato && r.compensato ? euro(r.compensato) : ""}</td>
                     <td className="p-2 text-right font-medium tabular-nums">
                       {!r.gia_liquidato && r.da_versare ? euro(r.da_versare + (r.interessi ?? 0)) : ""}
-                      {!r.gia_liquidato && r.interessi ? <span className="block text-[11px] font-normal text-muted-foreground">di cui interessi 1%: {euro(r.interessi)}</span> : null}
-                      {!r.gia_liquidato && dallaLipe && r.sotto_minimo ? <span className="block text-[11px] font-normal text-muted-foreground">sotto la soglia: si versa col periodo dopo</span> : null}
+                      {!r.gia_liquidato && r.interessi ? <span className="block text-[11px] font-normal text-muted-foreground">{t("di cui interessi 1%: {interessi}", { interessi: euro(r.interessi) })}</span> : null}
+                      {!r.gia_liquidato && dallaLipe && r.sotto_minimo ? <span className="block text-[11px] font-normal text-muted-foreground">{t("sotto la soglia: si versa col periodo dopo")}</span> : null}
                     </td>
                     <td className="p-2 text-right tabular-nums">{!r.gia_liquidato && r.a_credito ? euro(r.a_credito) : ""}</td>
                     <td className="p-2 text-right">
                       {r.gia_liquidato ? (
-                        <span className="rounded bg-emerald-50 px-1.5 text-xs text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300">registrata</span>
+                        <span className="rounded bg-emerald-50 px-1.5 text-xs text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300">{t("registrata")}</span>
                       ) : vuoto ? null : !dallaLipe ? (
-                        onApriLipe ? <Button size="sm" variant="outline" onClick={onApriLipe} title="La contabilità registra la liquidazione periodica confermata">Conferma la LIPE</Button>
-                          : <span className="text-xs text-muted-foreground">da confermare nella LIPE</span>
+                        onApriLipe ? <Button size="sm" variant="outline" onClick={onApriLipe} title={t("La contabilità registra la liquidazione periodica confermata")}>{t("Conferma la LIPE")}</Button>
+                          : <span className="text-xs text-muted-foreground">{t("da confermare nella LIPE")}</span>
                       ) : (
                         <Button size="sm" variant="outline" disabled={registra.isPending || primaInSospeso}
-                          title={primaInSospeso ? "Prima registra i periodi precedenti" : undefined}
-                          onClick={() => registra.mutate(per)}>Registra</Button>
+                          title={primaInSospeso ? t("Prima registra i periodi precedenti") : undefined}
+                          onClick={() => registra.mutate(per)}>{t("Registra")}</Button>
                       )}
                     </td>
                   </tr>
@@ -1679,12 +1697,12 @@ interface StatoEsercizioRiga {
 }
 
 /** «Aggiornata alle 10:15» oggi, «Aggiornata il 09/11 alle 18:52» gli altri giorni (ora italiana). */
-function aggiornataAlle(iso: string, adesso: Date = new Date()): string {
+function aggiornataAlle(iso: string, t: (testo: string, valori?: Record<string, string | number>) => string, adesso: Date = new Date()): string {
   const d = new Date(iso);
-  const giorno = (x: Date) => x.toLocaleDateString("it-IT", { timeZone: "Europe/Rome", day: "2-digit", month: "2-digit" });
-  const ora = d.toLocaleTimeString("it-IT", { timeZone: "Europe/Rome", hour: "2-digit", minute: "2-digit" });
-  const stessoGiorno = d.toLocaleDateString("it-IT", { timeZone: "Europe/Rome" }) === adesso.toLocaleDateString("it-IT", { timeZone: "Europe/Rome" });
-  return stessoGiorno ? `aggiornata alle ${ora}` : `aggiornata il ${giorno(d)} alle ${ora}`;
+  const giorno = (x: Date) => x.toLocaleDateString(intlCampo(), { timeZone: "Europe/Rome", day: "2-digit", month: "2-digit" });
+  const ora = d.toLocaleTimeString(intlCampo(), { timeZone: "Europe/Rome", hour: "2-digit", minute: "2-digit" });
+  const stessoGiorno = d.toLocaleDateString(intlCampo(), { timeZone: "Europe/Rome" }) === adesso.toLocaleDateString(intlCampo(), { timeZone: "Europe/Rome" });
+  return stessoGiorno ? t("aggiornata alle {ora}", { ora }) : t("aggiornata il {giorno} alle {ora}", { giorno: giorno(d), ora });
 }
 
 /**
@@ -1692,6 +1710,7 @@ function aggiornataAlle(iso: string, adesso: Date = new Date()): string {
  * e imponibile più IVA, movimenti su «Partite da verificare»): va guardato, non resta nascosto.
  */
 function DaGuardare({ esito }: { esito: StatoEsercizioRiga["generato_esito"] }) {
+  const tr = useT();
   const avvisi = esito?.avvisi ?? [];
   const errori = esito?.errori ?? [];
   const incompleti = esito?.saltate_solo_testata ?? 0;
@@ -1699,11 +1718,11 @@ function DaGuardare({ esito }: { esito: StatoEsercizioRiga["generato_esito"] }) 
   return (
     <details className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
       <summary className="cursor-pointer font-medium">
-        Da guardare: {avvisi.length} {avvisi.length === 1 ? "cosa" : "cose"}{errori.length ? ` · ${errori.length} non registrati` : ""}
-        {incompleti > 0 ? ` · ${incompleti} documenti incompleti` : ""}
+        {tr(avvisi.length === 1 ? "Da guardare: {n} cosa" : "Da guardare: {n} cose", { n: avvisi.length })}{errori.length ? ` · ${tr("{n} non registrati", { n: errori.length })}` : ""}
+        {incompleti > 0 ? ` · ${tr("{n} documenti incompleti", { n: incompleti })}` : ""}
       </summary>
       <ul className="mt-2 max-h-64 list-disc space-y-0.5 overflow-y-auto pl-5 text-xs">
-        {incompleti > 0 && <li>{incompleti} documenti non hanno dati sufficienti o dipendono da una fattura non ancora registrata. Completa imponibile, IVA e righe nelle fatture ricevute o emesse, poi aggiorna le scritture.</li>}
+        {incompleti > 0 && <li>{tr("{incompleti} documenti non hanno dati sufficienti o dipendono da una fattura non ancora registrata. Completa imponibile, IVA e righe nelle fatture ricevute o emesse, poi aggiorna le scritture.", { incompleti })}</li>}
         {errori.map((t, i) => <li key={`e${i}`} className="text-destructive">{t}</li>)}
         {avvisi.map((t, i) => <li key={`a${i}`}>{t}</li>)}
       </ul>
@@ -1726,14 +1745,15 @@ function useEsercizio(companyId: string | undefined, anno: number) {
 
 /** Una riga sopra le viste: l'esercizio è chiuso, o il giornale è stampato in definitivo fino a…. */
 function StatoEsercizio({ companyId, anno }: { companyId: string | undefined; anno: number }) {
+  const t = useT();
   const e = useEsercizio(companyId, anno).data;
   if (!e || (!e.chiuso_il && !e.stampato_fino_al)) return null;
   return (
     <p className="flex items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm">
       <Lock className="h-4 w-4 text-muted-foreground" />
       {e.chiuso_il
-        ? `Esercizio ${anno} chiuso il ${dataIt(e.chiuso_il.slice(0, 10))}: non si registra più niente con data ${anno}.`
-        : `Libro giornale stampato in definitivo fino al ${dataIt(e.stampato_fino_al!)}: le nuove scritture vanno dopo quel giorno.`}
+        ? t("Esercizio {anno} chiuso il {data}: non si registra più niente con data {anno}.", { anno, data: dataIt(e.chiuso_il.slice(0, 10)) })
+        : t("Libro giornale stampato in definitivo fino al {data}: le nuove scritture vanno dopo quel giorno.", { data: dataIt(e.stampato_fino_al!) })}
     </p>
   );
 }
@@ -1742,6 +1762,7 @@ function StatoEsercizio({ companyId, anno }: { companyId: string | undefined; an
 function StampaDefinitiva({ open, onOpenChange, companyId, anno, onStampa }: {
   open: boolean; onOpenChange: (v: boolean) => void; companyId: string; anno: number; onStampa: (dal: string, al: string) => void;
 }) {
+  const t = useT();
   const qc = useQueryClient();
   const esercizio = useEsercizio(companyId, anno).data;
   const fineAnno = `${anno}-12-31`;
@@ -1756,36 +1777,35 @@ function StampaDefinitiva({ open, onOpenChange, companyId, anno, onStampa }: {
       return data as { dal: string; al: string; scritture: number };
     },
     onSuccess: (r) => {
-      toast.success("Libro giornale stampato in definitivo", { description: `${r.scritture} scritture dal ${dataIt(r.dal)} al ${dataIt(r.al)}: quei giorni ora sono bloccati.` });
+      toast.success(t("Libro giornale stampato in definitivo"), { description: t("{scritture} scritture dal {dal} al {al}: quei giorni ora sono bloccati.", { scritture: r.scritture, dal: dataIt(r.dal), al: dataIt(r.al) }) });
       void qc.invalidateQueries({ queryKey: chiave(companyId) });
       onOpenChange(false);
       onStampa(r.dal, r.al);
     },
-    onError: (e) => toast.error("Stampa definitiva non fatta", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Stampa definitiva non fatta"), { description: e instanceof Error ? e.message : String(e) }),
   });
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader><DialogTitle>Stampa definitiva del libro giornale</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{t("Stampa definitiva del libro giornale")}</DialogTitle></DialogHeader>
         <div className="space-y-3 text-sm">
           <p>
-            Si stampano le scritture dal <strong>{dataIt(dal)}</strong> al giorno che scegli, con la numerazione e il riporto
-            dall'inizio dell'esercizio. Dopo, <strong>nessuna scrittura potrà avere una data fino a quel giorno</strong>:
-            le correzioni andranno registrate dopo.
+            {t("Si stampano le scritture dal {data} al giorno che scegli, con la numerazione e il riporto dall'inizio dell'esercizio.", { data: dataIt(dal) })}{" "}
+            <strong>{t("Dopo, nessuna scrittura potrà avere una data fino a quel giorno: le correzioni andranno registrate dopo.")}</strong>
           </p>
           <div className="space-y-1">
-            <Label>Fino al</Label>
+            <Label>{t("Fino al")}</Label>
             <Input type="date" value={al} min={dal} max={oggi() < fineAnno ? oggi() : fineAnno} onChange={(e) => setAl(e.target.value)} />
           </div>
           {esercizio?.stampe?.length ? (
             <p className="text-xs text-muted-foreground">
-              Stampe già fatte: {esercizio.stampe.map((x) => `${dataIt(x.dal)}–${dataIt(x.al)}`).join(", ")}.
+              {t("Stampe già fatte: {elenco}.", { elenco: esercizio.stampe.map((x) => `${dataIt(x.dal)}–${dataIt(x.al)}`).join(", ") })}
             </p>
           ) : null}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
-          <Button onClick={() => fissa.mutate()} disabled={fissa.isPending || !al || al < dal}>Blocca e stampa</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t("Annulla")}</Button>
+          <Button onClick={() => fissa.mutate()} disabled={fissa.isPending || !al || al < dal}>{t("Blocca e stampa")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -1810,6 +1830,7 @@ interface EsitoChiusura {
  * cedolini, poi la chiusura dell'esercizio con la riapertura dei conti al 1° gennaio.
  */
 function FineAnno({ companyId, anno }: { companyId: string; anno: number }) {
+  const t = useT();
   const qc = useQueryClient();
   const esercizio = useEsercizio(companyId, anno);
   const chiuso = !!esercizio.data?.chiuso_il;
@@ -1841,10 +1862,10 @@ function FineAnno({ companyId, anno }: { companyId: string; anno: number }) {
       return data as EsitoFineAnno & { registrate: string[] };
     },
     onSuccess: (r) => {
-      toast.success(r.registrate.length ? `Registrati: ${r.registrate.join(" e ")}` : "Niente di nuovo da registrare");
+      toast.success(r.registrate.length ? t("Registrati: {registrate}", { registrate: r.registrate.join(", ") }) : t("Niente di nuovo da registrare"));
       aggiorna();
     },
-    onError: (e) => toast.error("Scritture di fine anno non registrate", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Scritture di fine anno non registrate"), { description: e instanceof Error ? e.message : String(e) }),
   });
   const chiudi = useMutation({
     mutationFn: async () => {
@@ -1853,23 +1874,23 @@ function FineAnno({ companyId, anno }: { companyId: string; anno: number }) {
       return data as EsitoChiusura & { apertura_registrata: boolean };
     },
     onSuccess: (r) => {
-      toast.success(`Esercizio ${anno} chiuso`, {
-        description: `${r.utile >= 0 ? "Utile" : "Perdita"} ${euro(Math.abs(r.utile))}. ${r.apertura_registrata
-          ? `Conti riaperti al 01/01/${anno + 1}.` : `Il ${anno + 1} aveva già una scrittura di apertura: non ne è stata fatta un'altra.`}`,
+      toast.success(t("Esercizio {anno} chiuso", { anno }), {
+        description: `${r.utile >= 0 ? t("Utile {importo}.", { importo: euro(Math.abs(r.utile)) }) : t("Perdita {importo}.", { importo: euro(Math.abs(r.utile)) })} ${r.apertura_registrata
+          ? t("Conti riaperti al 01/01/{anno}.", { anno: anno + 1 }) : t("Il {anno} aveva già una scrittura di apertura: non ne è stata fatta un'altra.", { anno: anno + 1 })}`,
         duration: 12000,
       });
       setConferma(false);
       aggiorna();
     },
-    onError: (e) => toast.error("Esercizio non chiuso", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Esercizio non chiuso"), { description: e instanceof Error ? e.message : String(e) }),
   });
   const riapriM = useMutation({
     mutationFn: async () => {
       const { error } = await db.rpc("contabilita_riapri_esercizio", { p_company: companyId, p_anno: anno, p_motivo: motivo });
       if (error) throw error;
     },
-    onSuccess: () => { toast.success(`Esercizio ${anno} riaperto: chiusura e apertura stornate`); setRiapri(false); setMotivo(""); aggiorna(); },
-    onError: (e) => toast.error("Esercizio non riaperto", { description: e instanceof Error ? e.message : String(e) }),
+    onSuccess: () => { toast.success(t("Esercizio {anno} riaperto: chiusura e apertura stornate", { anno })); setRiapri(false); setMotivo(""); aggiorna(); },
+    onError: (e) => toast.error(t("Esercizio non riaperto"), { description: e instanceof Error ? e.message : String(e) }),
   });
 
   if (fine.isLoading || fine.isError) {
@@ -1880,15 +1901,15 @@ function FineAnno({ companyId, anno }: { companyId: string; anno: number }) {
   const daRegistrare = (f.totale_ammortamenti > 0 && !f.ammortamenti_registrati) || !!f.ammortamenti_da_aggiornare || (f.tfr > 0 && !f.tfr_registrato) || !!f.tfr_da_aggiornare;
   // L'indice dei cinque passi in cima (16/11/2026): la pagina è lunga, così si salta al passo.
   const passi: Array<[string, string, boolean | null]> = [
-    ["fine-1", "Ammortamenti e TFR", !daRegistrare],
-    ["fine-2", "Rimanenze", null],
-    ["fine-3", "Ratei e risconti", null],
-    ["fine-4", "Imposte", null],
-    ["fine-5", "Chiusura", chiuso],
+    ["fine-1", t("Ammortamenti e TFR"), !daRegistrare],
+    ["fine-2", t("Rimanenze"), null],
+    ["fine-3", t("Ratei e risconti"), null],
+    ["fine-4", t("Imposte"), null],
+    ["fine-5", t("Chiusura"), chiuso],
   ];
   return (
     <div className="space-y-4">
-      <nav aria-label="Passi di fine anno" className="flex gap-1 overflow-x-auto rounded-xl border bg-muted/30 p-1">
+      <nav aria-label={t("Passi di fine anno")} className="flex gap-1 overflow-x-auto rounded-xl border bg-muted/30 p-1">
         {passi.map(([id, testo, fatto], i) => (
           <button key={id} type="button" onClick={() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
             className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm text-muted-foreground hover:bg-background hover:text-foreground">
@@ -1899,102 +1920,95 @@ function FineAnno({ companyId, anno }: { companyId: string; anno: number }) {
       </nav>
       <section id="fine-1" className="scroll-mt-20 space-y-2 border-t pt-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold">1. Ammortamenti e TFR al 31/12/{anno}</h3>
+          <h3 className="text-sm font-semibold">{t("1. Ammortamenti e TFR al 31/12/{anno}", { anno })}</h3>
           <Button size="sm" variant="outline" disabled={chiuso || !daRegistrare || registraFine.isPending} onClick={() => registraFine.mutate()}>
-            {registraFine.isPending ? "Registrazione…" : "Registra"}
+            {registraFine.isPending ? t("Registrazione…") : t("Registra")}
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
-          I cespiti sono quelli del registro in Controllo di gestione: quote costanti, metà nel primo anno, fino a esaurire il costo;
-          il fondo è la somma delle quote registrate. «Registra» scrive ammortamenti e TFR al 31/12, e li rifà se il registro cambia.
+          {t("I cespiti sono quelli del registro in Controllo di gestione: quote costanti, metà nel primo anno, fino a esaurire il costo; il fondo è la somma delle quote registrate. «Registra» scrive ammortamenti e TFR al 31/12, e li rifà se il registro cambia.")}
         </p>
         <RegistroCespiti companyId={companyId} anno={anno} chiuso={chiuso} />
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm font-medium">
-          <span>Accantonamento TFR {f.tfr_da_aggiornare ? <span className="text-amber-700">· da aggiornare: i cedolini sono cambiati</span> : f.tfr_registrato ? "· registrato" : ""}</span>
+          <span>{t("Accantonamento TFR")} {f.tfr_da_aggiornare ? <span className="text-amber-700">· {t("da aggiornare: i cedolini sono cambiati")}</span> : f.tfr_registrato ? `· ${t("registrato")}` : ""}</span>
           <span className="tabular-nums">{euro(f.tfr)}</span>
         </div>
         <ContiPerRuolo companyId={companyId} ruoli={RUOLI_TFR.filter((r) => (f.conti_mancanti_tfr ?? []).includes(r.ruolo))} chiuso={chiuso} />
-        <p className="text-xs text-muted-foreground">
-          Il TFR è un tredicesimo e mezzo delle retribuzioni lorde dei cedolini ({euro(f.retribuzioni)}), senza rivalutazione.
-        </p>
+        <p className="text-xs text-muted-foreground">{t("Il TFR è un tredicesimo e mezzo delle retribuzioni lorde dei cedolini ({retribuzioni}), senza rivalutazione.", { retribuzioni: euro(f.retribuzioni) })}</p>
       </section>
 
       <section id="fine-2" className="scroll-mt-20 space-y-2 border-t pt-3">
-        <h3 className="text-sm font-semibold">2. Rimanenze finali al 31/12/{anno}</h3>
+        <h3 className="text-sm font-semibold">{t("2. Rimanenze finali al 31/12/{anno}", { anno })}</h3>
         <RimanenzeFineAnno companyId={companyId} anno={anno} chiuso={chiuso} />
       </section>
 
       <section id="fine-3" className="scroll-mt-20 space-y-2 border-t pt-3">
-        <h3 className="text-sm font-semibold">3. Ratei e risconti al 31/12/{anno}</h3>
+        <h3 className="text-sm font-semibold">{t("3. Ratei e risconti al 31/12/{anno}", { anno })}</h3>
         <RateiRiscontiFineAnno companyId={companyId} anno={anno} chiuso={chiuso} />
       </section>
 
       <section id="fine-4" className="scroll-mt-20 space-y-2 border-t pt-3">
-        <h3 className="text-sm font-semibold">4. Imposte dell'esercizio (IRES e IRAP)</h3>
+        <h3 className="text-sm font-semibold">{t("4. Imposte dell'esercizio (IRES e IRAP)")}</h3>
         <ImposteFineAnno companyId={companyId} anno={anno} chiuso={chiuso} />
       </section>
 
       <section id="fine-5" className="scroll-mt-20 space-y-2 rounded-xl border p-4">
-        <h3 className="text-sm font-semibold">5. Chiusura dell'esercizio {anno}</h3>
+        <h3 className="text-sm font-semibold">{t("5. Chiusura dell'esercizio {anno}", { anno })}</h3>
         {chiuso ? (
           <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-            <span>Chiuso il {dataIt(esercizio.data!.chiuso_il!.slice(0, 10))}. Costi e ricavi sono girati sull'utile, i conti sono riaperti al 01/01/{anno + 1}.</span>
-            <Button size="sm" variant="outline" onClick={() => setRiapri(true)}>Riapri l'esercizio</Button>
+            <span>{t("Chiuso il {data}. Costi e ricavi sono girati sull'utile, i conti sono riaperti al 01/01/{anno}.", { data: dataIt(esercizio.data!.chiuso_il!.slice(0, 10)), anno: anno + 1 })}</span>
+            <Button size="sm" variant="outline" onClick={() => setRiapri(true)}>{t("Riapri l'esercizio")}</Button>
           </div>
         ) : chiusura.isLoading || chiusura.isError ? (
           <FiscalQueryState loading={chiusura.isLoading} error={chiusura.isError} onRetry={() => void chiusura.refetch()} />
         ) : (
           <div className="space-y-2 text-sm">
             <p>
-              {chiusura.data!.utile >= 0 ? "Utile" : "Perdita"} dell'esercizio: <strong>{euro(Math.abs(chiusura.data!.utile))}</strong>
-              {" "}· {chiusura.data!.conti_economici} conti economici da chiudere · {chiusura.data!.conti_patrimoniali} conti patrimoniali da riaprire
-              {chiusura.data!.apertura_gia_presente ? ` · il ${anno + 1} ha già la sua apertura (non se ne farà un'altra)` : ""}.
+              {chiusura.data!.utile >= 0 ? t("Utile dell'esercizio:") : t("Perdita dell'esercizio:")} <strong>{euro(Math.abs(chiusura.data!.utile))}</strong>
+              {" "}· {t("{n} conti economici da chiudere", { n: chiusura.data!.conti_economici })} · {t("{n} conti patrimoniali da riaprire", { n: chiusura.data!.conti_patrimoniali })}
+              {chiusura.data!.apertura_gia_presente ? ` · ${t("il {anno} ha già la sua apertura (non se ne farà un'altra)", { anno: anno + 1 })}` : ""}.
             </p>
             {/* Senza «utili portati a nuovo» il risultato riaperto si somma a quello dell'anno dopo, nella stessa voce A.IX. */}
             <ContiPerRuolo companyId={companyId} chiuso={chiuso}
               ruoli={[...(chiusura.data!.conto_utile_da_scegliere ? [RUOLI_UTILE] : []), ...(chiusura.data!.conto_utili_a_nuovo === false ? [RUOLI_UTILI_A_NUOVO] : [])]} />
             {(chiusura.data!.iva_non_liquidata ?? 0) !== 0 || chiusura.data!.ammortamenti_da_registrare || chiusura.data!.tfr_da_registrare || chiusura.data!.esercizio_precedente_aperto || chiusura.data!.imposte_da_stanziare ? (
               <ul className="list-disc rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 py-2 pl-6 pr-3 text-amber-900">
-                {chiusura.data!.esercizio_precedente_aperto ? <li>L'esercizio {chiusura.data!.esercizio_precedente_aperto} è ancora aperto: gli esercizi si chiudono in ordine, prima quello.</li> : null}
-                {(chiusura.data!.iva_non_liquidata ?? 0) !== 0 ? <li>C'è IVA non ancora liquidata: registra la liquidazione dell'ultimo periodo (la chiusura la rifiuta).</li> : null}
-                {chiusura.data!.ammortamenti_da_registrare ? <li>Ammortamenti non registrati.</li> : null}
-                {chiusura.data!.tfr_da_registrare ? <li>Accantonamento TFR non registrato.</li> : null}
-                {chiusura.data!.imposte_da_stanziare ? <li>Le imposte dell'esercizio (IRES e IRAP) non sono stanziate: l'utile è prima delle imposte.</li> : null}
+                {chiusura.data!.esercizio_precedente_aperto ? <li>{t("L'esercizio {esercizio_precedente_aperto} è ancora aperto: gli esercizi si chiudono in ordine, prima quello.", { esercizio_precedente_aperto: chiusura.data!.esercizio_precedente_aperto })}</li> : null}
+                {(chiusura.data!.iva_non_liquidata ?? 0) !== 0 ? <li>{t("C'è IVA non ancora liquidata: registra la liquidazione dell'ultimo periodo (la chiusura la rifiuta).")}</li> : null}
+                {chiusura.data!.ammortamenti_da_registrare ? <li>{t("Ammortamenti non registrati.")}</li> : null}
+                {chiusura.data!.tfr_da_registrare ? <li>{t("Accantonamento TFR non registrato.")}</li> : null}
+                {chiusura.data!.imposte_da_stanziare ? <li>{t("Le imposte dell'esercizio (IRES e IRAP) non sono stanziate: l'utile è prima delle imposte.")}</li> : null}
               </ul>
             ) : null}
             <p className="text-xs text-muted-foreground">
-              Prima di chiudere: tutto generato dai documenti, liquidazioni IVA registrate, ammortamenti, TFR e rimanenze registrati, ratei e risconti scritti.
-              Dopo, l'anno è bloccato: per correggere si riapre.
+              {t("Prima di chiudere: tutto generato dai documenti, liquidazioni IVA registrate, ammortamenti, TFR e rimanenze registrati, ratei e risconti scritti. Dopo, l'anno è bloccato: per correggere si riapre.")}
             </p>
-            <Button size="sm" onClick={() => setConferma(true)} disabled={chiudi.isPending || (chiusura.data!.iva_non_liquidata ?? 0) !== 0 || !!chiusura.data!.esercizio_precedente_aperto}>Chiudi l'esercizio {anno}</Button>
+            <Button size="sm" onClick={() => setConferma(true)} disabled={chiudi.isPending || (chiusura.data!.iva_non_liquidata ?? 0) !== 0 || !!chiusura.data!.esercizio_precedente_aperto}>{t("Chiudi l'esercizio {anno}", { anno })}</Button>
           </div>
         )}
       </section>
 
       <Dialog open={conferma} onOpenChange={setConferma}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Chiudere l'esercizio {anno}?</DialogTitle></DialogHeader>
-          <p className="text-sm">
-            Costi e ricavi del {anno} si girano sull'utile al 31/12, i conti patrimoniali si riaprono al 01/01/{anno + 1} (il risultato fra gli utili portati a nuovo) e
-            nel {anno} non si potrà più registrare niente finché non lo riapri.
-          </p>
+          <DialogHeader><DialogTitle>{t("Chiudere l'esercizio {anno}?", { anno })}</DialogTitle></DialogHeader>
+          <p className="text-sm">{t("Costi e ricavi del {anno} si girano sull'utile al 31/12, i conti patrimoniali si riaprono al 01/01/{anno2} (il risultato fra gli utili portati a nuovo) e nel {anno} non si potrà più registrare niente finché non lo riapri.", { anno, anno2: anno + 1 })}</p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setConferma(false)}>Annulla</Button>
-            <Button onClick={() => chiudi.mutate()} disabled={chiudi.isPending}>{chiudi.isPending ? "Chiusura…" : "Chiudi"}</Button>
+            <Button variant="outline" onClick={() => setConferma(false)}>{t("Annulla")}</Button>
+            <Button onClick={() => chiudi.mutate()} disabled={chiudi.isPending}>{chiudi.isPending ? t("Chiusura…") : t("Chiudi")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
       <Dialog open={riapri} onOpenChange={setRiapri}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Riaprire l'esercizio {anno}?</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t("Riaprire l'esercizio {anno}?", { anno })}</DialogTitle></DialogHeader>
           <div className="space-y-2 text-sm">
-            <p>Chiusura e apertura vengono stornate (restano nel giornale) e il {anno} torna modificabile.</p>
-            <Label>Motivo</Label>
-            <Input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Fattura arrivata dopo la chiusura" />
+            <p>{t("Chiusura e apertura vengono stornate (restano nel giornale) e il {anno} torna modificabile.", { anno })}</p>
+            <Label>{t("Motivo")}</Label>
+            <Input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder={t("Fattura arrivata dopo la chiusura")} />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRiapri(false)}>Annulla</Button>
-            <Button onClick={() => riapriM.mutate()} disabled={riapriM.isPending || !motivo.trim()}>Riapri</Button>
+            <Button variant="outline" onClick={() => setRiapri(false)}>{t("Annulla")}</Button>
+            <Button onClick={() => riapriM.mutate()} disabled={riapriM.isPending || !motivo.trim()}>{t("Riapri")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

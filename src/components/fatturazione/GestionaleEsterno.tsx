@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { AlertTriangle, Link2, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,6 +17,7 @@ import { ACCONTI_SU_FATTURE_IN_CLOUD, residuoDaIncassare } from "@/lib/fatturazi
 import { eseguiInBlocco } from "@/lib/fatturazione/azioniInBlocco";
 import { cn } from "@/lib/utils";
 import type { DocumentoFiscale } from "@/types/fatturazione";
+import { useT, intlCampo, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Chi fattura con un altro programma (Fatture in Cloud, Zucchetti, XML…) usa lo stesso
@@ -120,6 +120,7 @@ export function useIntegrazioneFatture(companyId: string | null | undefined) {
 
 /** Sincronizza (con l'ultimo giro accanto) o, senza gestionale collegato, «Collega gestionale». */
 export function GestionaleEsternoAzioni({ companyId }: { companyId: string }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const { data: integration, isLoading } = useIntegrazioneFatture(companyId);
   const [syncing, setSyncing] = useState(false);
@@ -140,25 +141,27 @@ export function GestionaleEsternoAzioni({ companyId }: { companyId: string }) {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       const rec = data?.received;
-      const recTxt = rec && (rec.imported || rec.updated) ? ` · ${(rec.imported || 0) + (rec.updated || 0)} ricevute` : "";
+      const recTxt = rec && (rec.imported || rec.updated) ? ` · ${t("{n} ricevute", { n: (rec.imported || 0) + (rec.updated || 0) })}` : "";
       if (data?.gia_in_corso) {
-        toast.info("Import già in corso", { description: data?.messaggio ?? "Prosegue da solo." });
+        toast.info(t("Import già in corso"), { description: data?.messaggio ?? t("Prosegue da solo.") });
       } else if (data?.in_corso) {
         const av = data?.avanzamento as { elaborati: number; totale: number | null } | undefined;
-        toast.success("Import in corso", {
+        toast.success(t("Import in corso"), {
           description: av
-            ? `${av.elaborati.toLocaleString("it-IT")}${av.totale ? ` di ${av.totale.toLocaleString("it-IT")}` : ""} documenti. Prosegue da solo, puoi chiudere la pagina.`
-            : "Prosegue da solo, puoi chiudere la pagina.",
+            ? (av.totale
+              ? t("{elaborati} di {totale} documenti. Prosegue da solo, puoi chiudere la pagina.", { elaborati: av.elaborati.toLocaleString(intlCampo()), totale: av.totale.toLocaleString(intlCampo()) })
+              : t("{elaborati} documenti. Prosegue da solo, puoi chiudere la pagina.", { elaborati: av.elaborati.toLocaleString(intlCampo()) }))
+            : t("Prosegue da solo, puoi chiudere la pagina."),
         });
       } else {
-        toast.success("Sincronizzazione completata", {
-          description: `${data?.imported || 0} importate, ${data?.updated || 0} aggiornate${data?.failed ? `, ${data.failed} fallite` : ""}${recTxt}`,
+        toast.success(t("Sincronizzazione completata"), {
+          description: t("{importate} importate, {aggiornate} aggiornate", { importate: data?.imported || 0, aggiornate: data?.updated || 0 }) + (data?.failed ? `, ${t("{n} fallite", { n: data.failed })}` : "") + recTxt,
         });
       }
       invalidaFattureImportate(queryClient, companyId);
       await queryClient.invalidateQueries({ queryKey: ["billing_integration"], refetchType: "all" });
     } catch (e) {
-      toast.error("Errore sincronizzazione", { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Errore sincronizzazione"), { description: e instanceof Error ? e.message : String(e) });
     } finally {
       setSyncing(false);
     }
@@ -171,8 +174,8 @@ export function GestionaleEsternoAzioni({ companyId }: { companyId: string }) {
 
   if (!integration) {
     return (
-      <Button asChild className={primario} title="Fatture in Cloud, Fattura24, Aruba, Zucchetti o Invoicetronic: le fatture arrivano da sole">
-        <Link to="/azienda/impostazioni/fatturazione"><Link2 className="h-4 w-4" /><span className="max-sm:hidden">Collega gestionale</span><span className="sm:hidden">Collega</span></Link>
+      <Button asChild className={primario} title={t("Fatture in Cloud, Fattura24, Aruba, Zucchetti o Invoicetronic: le fatture arrivano da sole")}>
+        <Link to="/azienda/impostazioni/fatturazione"><Link2 className="h-4 w-4" /><span className="max-sm:hidden">{t("Collega gestionale")}</span><span className="sm:hidden">{t("Collega")}</span></Link>
       </Button>
     );
   }
@@ -186,11 +189,11 @@ export function GestionaleEsternoAzioni({ companyId }: { companyId: string }) {
         title={`Ultima sincronizzazione con ${PROVIDER_LABELS[integration.provider] ?? integration.provider}${fresco ? ` (${fresco.label})` : ""}`}
       >
         {fresco?.stale && <AlertTriangle className="h-3 w-3 shrink-0" />}
-        {ultima ? `Sincronizzato ${ultima}` : "Mai sincronizzato"}
+        {ultima ? t("Sincronizzato {ultima}", { ultima: String(ultima ?? "") }) : t("Mai sincronizzato")}
       </span>
-      <Button onClick={() => void sincronizza()} disabled={syncing} className={primario} title={ultima ? `Ultima sincronizzazione ${ultima}` : undefined}>
+      <Button onClick={() => void sincronizza()} disabled={syncing} className={primario} title={ultima ? t("Ultima sincronizzazione {ultima}", { ultima: String(ultima ?? "") }) : undefined}>
         {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-        Sincronizza
+        {t("Sincronizza")}
       </Button>
     </>
   );
@@ -200,16 +203,17 @@ export function GestionaleEsternoAzioni({ companyId }: { companyId: string }) {
 export function oraSincronizzazione(iso: string, adesso = new Date()): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  const ora = format(d, "H:mm", { locale: it });
+  const ora = format(d, "H:mm", { locale: dateFnsCampo() });
   const giorno = (x: Date) => format(x, "yyyy-MM-dd");
   const ieri = new Date(adesso.getTime() - 86_400_000);
   if (giorno(d) === giorno(adesso)) return `alle ${ora}`;
   if (giorno(d) === giorno(ieri)) return `ieri alle ${ora}`;
-  return `il ${format(d, "dd/MM", { locale: it })} alle ${ora}`;
+  return `il ${format(d, "dd/MM", { locale: dateFnsCampo() })} alle ${ora}`;
 }
 
 /** Primo import (o aggiornamento lungo): senza, l'elenco sembra vuoto o incompleto. */
 export function ImportInCorsoBanner({ companyId }: { companyId: string }) {
+  const t = useT();
   const { data: integration } = useIntegrazioneFatture(companyId);
   const av = avanzamentoImport(integration?.import_stato ?? null);
   if (!av || !integration) return null;
@@ -218,12 +222,15 @@ export function ImportInCorsoBanner({ companyId }: { companyId: string }) {
     <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm max-sm:px-3 max-sm:py-2 max-sm:text-xs" role="status" aria-live="polite">
       <div className="flex items-center gap-2 font-medium text-sky-900">
         <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-        {integration.import_stato?.tipo === "aggiornamento" ? "Aggiornamento" : "Import"} da {PROVIDER_LABELS[integration.provider] ?? integration.provider} in corso
+        {integration.import_stato?.tipo === "aggiornamento"
+          ? t("Aggiornamento da {gestionale} in corso", { gestionale: PROVIDER_LABELS[integration.provider] ?? integration.provider })
+          : t("Import da {gestionale} in corso", { gestionale: PROVIDER_LABELS[integration.provider] ?? integration.provider })}
       </div>
       <p className="mt-1 text-sky-800 max-sm:hidden">
-        {av.elaborati.toLocaleString("it-IT")}
-        {av.totale ? ` di ${av.totale.toLocaleString("it-IT")}` : ""} documenti tra fatture, note di credito e ricevute.
-        Prosegue da solo ogni due minuti: le fatture compaiono qui man mano.
+        {av.totale
+          ? t("{elaborati} di {totale} documenti tra fatture, note di credito e ricevute.", { elaborati: av.elaborati.toLocaleString(intlCampo()), totale: av.totale.toLocaleString(intlCampo()) })
+          : t("{elaborati} documenti tra fatture, note di credito e ricevute.", { elaborati: av.elaborati.toLocaleString(intlCampo()) })}{" "}
+        {t("Prosegue da solo ogni due minuti: le fatture compaiono qui man mano.")}
       </p>
       {perc !== null && (
         <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-sky-100">
@@ -301,6 +308,7 @@ async function registraIncassoImportata(
 export function SegnaIncassateImportateDialog({ fatture, escluse, companyId, open, onOpenChange, onFatto }: {
   fatture: DocumentoFiscale[]; escluse: number; companyId: string; open: boolean; onOpenChange: (v: boolean) => void; onFatto: () => void;
 }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const [data, setData] = useState(() => new Date().toLocaleDateString("en-CA"));
   const [metodo, setMetodo] = useState("bank_transfer");
@@ -322,8 +330,8 @@ export function SegnaIncassateImportateDialog({ fatture, escluse, companyId, ope
     setFatte(null);
     invalidaFattureImportate(queryClient, companyId);
     if (esito.riuscite.length) {
-      toast.success(`${esito.riuscite.length} fattur${esito.riuscite.length === 1 ? "a segnata incassata" : "e segnate incassate"}`, nonAllineate
-        ? { description: `${nonAllineate} non aggiornate su Fatture in Cloud: vanno registrate anche lì.` }
+      toast.success(t(esito.riuscite.length === 1 ? "{n} fattura segnata incassata" : "{n} fatture segnate incassate", { n: esito.riuscite.length }), nonAllineate
+        ? { description: t("{nonAllineate} non aggiornate su Fatture in Cloud: vanno registrate anche lì.", { nonAllineate: String(nonAllineate ?? "") }) }
         : undefined);
     }
     if (esito.fallite.length) {
@@ -338,37 +346,37 @@ export function SegnaIncassateImportateDialog({ fatture, escluse, companyId, ope
     <Dialog open={open} onOpenChange={(v) => { if (fatte === null) { setFallite([]); onOpenChange(v); } }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Segna incassate</DialogTitle>
+          <DialogTitle>{t("Segna incassate")}</DialogTitle>
           <DialogDescription>
-            {fatture.length} fattur{fatture.length === 1 ? "a" : "e"} · {formatCurrency(totale)}, ognuna per quanto resta da incassare.
-            {escluse > 0 ? ` ${escluse} restano fuori: note di credito o già incassate.` : ""}
+            {t(fatture.length === 1 ? "{n} fattura · {totale}, ognuna per quanto resta da incassare." : "{n} fatture · {totale}, ognuna per quanto resta da incassare.", { n: fatture.length, totale: formatCurrency(totale) })}
+            {escluse > 0 ? ` ${t("{n} restano fuori: note di credito o già incassate.", { n: escluse })}` : ""}
           </DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-2 gap-3">
           <div className="grid gap-1.5">
-            <Label htmlFor="incassi-data">Data</Label>
+            <Label htmlFor="incassi-data">{t("Data")}</Label>
             <Input id="incassi-data" type="date" max={oggi} value={data} onChange={(e) => setData(e.target.value)} />
           </div>
           <div className="grid gap-1.5">
-            <Label htmlFor="incassi-metodo">Metodo</Label>
+            <Label htmlFor="incassi-metodo">{t("Metodo")}</Label>
             <UniformSelect id="incassi-metodo" value={metodo} onChange={(e) => setMetodo(e.target.value)} className="h-9 rounded-md border bg-background px-2 text-sm">
-              {METODI.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+              {METODI.map((m) => <option key={m.value} value={m.value}>{t(m.label)}</option>)}
             </UniformSelect>
           </div>
         </div>
-        {daFattureInCloud && <p className="text-xs text-muted-foreground">Il pagamento si registra anche su Fatture in Cloud.</p>}
-        {fatte !== null && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> {fatte} di {fatture.length}…</p>}
+        {daFattureInCloud && <p className="text-xs text-muted-foreground">{t("Il pagamento si registra anche su Fatture in Cloud.")}</p>}
+        {fatte !== null && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> {t("{fatte} di {n}…", { fatte, n: fatture.length })}</p>}
         {fallite.length > 0 && (
           <div className="rounded-md border border-destructive/40 p-2.5 text-xs">
-            <p className="font-medium text-destructive">{fallite.length} non riuscite: le altre sono a posto.</p>
+            <p className="font-medium text-destructive">{t("{n} non riuscite: le altre sono a posto.", { n: fallite.length })}</p>
             <ul className="mt-1 max-h-40 space-y-0.5 overflow-y-auto text-muted-foreground">
               {fallite.map((f) => <li key={f.numero}>{f.numero}: {f.motivo}</li>)}
             </ul>
           </div>
         )}
         <DialogFooter>
-          <Button variant="outline" disabled={fatte !== null} onClick={() => { setFallite([]); onOpenChange(false); }}>{fallite.length ? "Chiudi" : "Annulla"}</Button>
-          {!fallite.length && <Button disabled={!valido || fatte !== null} onClick={() => void parti()}>Segna incassate</Button>}
+          <Button variant="outline" disabled={fatte !== null} onClick={() => { setFallite([]); onOpenChange(false); }}>{fallite.length ? t("Chiudi") : t("Annulla")}</Button>
+          {!fallite.length && <Button disabled={!valido || fatte !== null} onClick={() => void parti()}>{t("Segna incassate")}</Button>}
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -376,6 +384,7 @@ export function SegnaIncassateImportateDialog({ fatture, escluse, companyId, ope
 }
 
 export function SegnaPagataImportataDialog({ fattura, companyId, onClose }: { fattura: DocumentoFiscale | null; companyId: string; onClose: () => void }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const residuo = fattura ? residuoImportata(fattura) : 0;
   const [importo, setImporto] = useState("");
@@ -399,51 +408,51 @@ export function SegnaPagataImportataDialog({ fattura, companyId, onClose }: { fa
       return registraIncassoImportata(fattura, companyId, { importo: valore, residuo, data, metodo });
     },
     onSuccess: (res) => {
-      const cosa = res.saldo ? "Fattura segnata come pagata" : "Acconto registrato";
-      if (res.writeback === "ok") toast.success(`${cosa} — aggiornata anche su Fatture in Cloud`);
-      else if (res.writeback === "problema") toast.warning(`${cosa} in Edilizia in Cloud, non su Fatture in Cloud`, { description: res.messaggio });
-      else if (res.writeback === "solo_qui") toast.success(cosa, { description: "Su Fatture in Cloud l'acconto va registrato a mano per ora." });
-      else if (res.writeback === "error") toast.warning(`${cosa} in Edilizia in Cloud`, { description: "Aggiornamento su Fatture in Cloud non riuscito, riprova più tardi." });
+      const cosa = res.saldo ? t("Fattura segnata come pagata") : t("Acconto registrato");
+      if (res.writeback === "ok") toast.success(t("{cosa} — aggiornata anche su Fatture in Cloud", { cosa: String(cosa ?? "") }));
+      else if (res.writeback === "problema") toast.warning(t("{cosa} in Edilizia in Cloud, non su Fatture in Cloud", { cosa: String(cosa ?? "") }), { description: res.messaggio });
+      else if (res.writeback === "solo_qui") toast.success(cosa, { description: t("Su Fatture in Cloud l'acconto va registrato a mano per ora.") });
+      else if (res.writeback === "error") toast.warning(t("{cosa} in Edilizia in Cloud", { cosa: String(cosa ?? "") }), { description: t("Aggiornamento su Fatture in Cloud non riuscito, riprova più tardi.") });
       else toast.success(cosa);
       invalidaFattureImportate(queryClient, companyId);
       onClose();
     },
-    onError: (e) => toast.error("Incasso non registrato", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Incasso non registrato"), { description: e instanceof Error ? e.message : String(e) }),
   });
 
   return (
     <Dialog open={!!fattura} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Registra incasso</DialogTitle>
+          <DialogTitle>{t("Registra incasso")}</DialogTitle>
           <DialogDescription>
-            Fattura {fattura?.numero} · resta da incassare <strong>{formatCurrency(residuo)}</strong>. Per un acconto scrivi solo la parte incassata.
+            {t("Fattura {numero} · resta da incassare", { numero: fattura?.numero ?? "" })} <strong>{formatCurrency(residuo)}</strong>. {t("Per un acconto scrivi solo la parte incassata.")}
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-3">
           <div className="grid gap-1.5">
-            <Label htmlFor="incasso-importo">Importo incassato</Label>
+            <Label htmlFor="incasso-importo">{t("Importo incassato")}</Label>
             <Input id="incasso-importo" inputMode="decimal" value={importo} onChange={(e) => setImporto(e.target.value)} />
-            {importo && !valido && valore > residuo + 0.005 && <p className="text-xs text-destructive">Supera quanto resta da incassare.</p>}
+            {importo && !valido && valore > residuo + 0.005 && <p className="text-xs text-destructive">{t("Supera quanto resta da incassare.")}</p>}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-1.5">
-              <Label htmlFor="incasso-data">Data</Label>
+              <Label htmlFor="incasso-data">{t("Data")}</Label>
               <Input id="incasso-data" type="date" value={data} onChange={(e) => setData(e.target.value)} />
             </div>
             <div className="grid gap-1.5">
-              <Label htmlFor="incasso-metodo">Metodo</Label>
+              <Label htmlFor="incasso-metodo">{t("Metodo")}</Label>
               <UniformSelect id="incasso-metodo" value={metodo} onChange={(e) => setMetodo(e.target.value)} className="h-9 rounded-md border border-input bg-background px-2 text-sm">
-                {METODI.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+                {METODI.map((m) => <option key={m.value} value={m.value}>{t(m.label)}</option>)}
               </UniformSelect>
             </div>
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Annulla</Button>
+          <Button variant="outline" onClick={onClose}>{t("Annulla")}</Button>
           <Button disabled={!valido || registra.isPending} onClick={() => registra.mutate()}>
             {registra.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-            {valore >= residuo - 0.005 ? "Segna pagata" : "Registra acconto"}
+            {valore >= residuo - 0.005 ? t("Segna pagata") : t("Registra acconto")}
           </Button>
         </DialogFooter>
       </DialogContent>

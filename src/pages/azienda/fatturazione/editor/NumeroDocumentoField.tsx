@@ -22,6 +22,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import type { EditorState, Action } from "./useEditorState";
 
 import { TIPI_BOZZA_SENZA_NUMERO as TIPI_NUMERO_SULLA_BOZZA, haSegnapostoBozza } from "@/lib/fatturazione/emissioneBozza";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   state: EditorState;
@@ -32,6 +33,7 @@ interface Props {
 type NumeroAssegnato = { numero?: string; numero_progressivo?: number; anno?: number };
 
 export function NumeroDocumentoField({ state, dispatch, disabled }: Props) {
+  const t = useT();
   const queryClient = useQueryClient();
   const [inModifica, setInModifica] = useState(false);
   const [valore, setValore] = useState("");
@@ -64,7 +66,7 @@ export function NumeroDocumentoField({ state, dispatch, disabled }: Props) {
   const salva = async () => {
     const n = Number(valore);
     if (!Number.isInteger(n) || n < 1) {
-      toast.error("Scrivi il numero progressivo (es. 73)");
+      toast.error(t("Scrivi il numero progressivo (es. 73)"));
       return;
     }
     setSalvando(true);
@@ -72,9 +74,9 @@ export function NumeroDocumentoField({ state, dispatch, disabled }: Props) {
       const r = await assegna(n);
       applica(r);
       setInModifica(false);
-      toast.success(`Numero cambiato: ${r.numero ?? n}`);
+      toast.success(t("Numero cambiato: {numero}", { numero: String((r.numero ?? n) ?? "") }));
     } catch (e) {
-      toast.error("Numero non cambiato", { description: (e as Error).message });
+      toast.error(t("Numero non cambiato"), { description: (e as Error).message });
     } finally {
       setSalvando(false);
     }
@@ -82,7 +84,7 @@ export function NumeroDocumentoField({ state, dispatch, disabled }: Props) {
 
   return (
     <div>
-      <Label className="text-[10px] text-muted-foreground">Numero</Label>
+      <Label className="text-[10px] text-muted-foreground">{t("Numero")}</Label>
       {inModifica ? (
         <div className="flex gap-1">
           <Input
@@ -96,14 +98,14 @@ export function NumeroDocumentoField({ state, dispatch, disabled }: Props) {
               if (e.key === "Escape") setInModifica(false);
             }}
             className="h-7 text-xs font-mono"
-            aria-label="Numero progressivo della fattura"
+            aria-label={t("Numero progressivo della fattura")}
             autoFocus
           />
           <Button size="sm" className="h-7 px-2 text-[11px]" onClick={() => void salva()} disabled={salvando}>
             {salvando ? <Loader2 className="h-3 w-3 animate-spin" /> : "OK"}
           </Button>
           <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => setInModifica(false)} disabled={salvando}>
-            Annulla
+            {t("Annulla")}
           </Button>
         </div>
       ) : (
@@ -119,8 +121,8 @@ export function NumeroDocumentoField({ state, dispatch, disabled }: Props) {
               variant="outline"
               className="h-7 w-7 shrink-0"
               onClick={apri}
-              aria-label="Cambia il numero della fattura"
-              title="Cambia il numero della fattura"
+              aria-label={t("Cambia il numero della fattura")}
+              title={t("Cambia il numero della fattura")}
             >
               <Pencil className="h-3 w-3" />
             </Button>

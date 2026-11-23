@@ -13,7 +13,6 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { CalendarIcon, Loader2, Trash2, Clock, Car, Pencil, AlertTriangle, CheckCircle2, Copy, MessageCircle, Video } from "lucide-react";
 import { format, getDay, addMinutes, parse } from "date-fns";
-import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import AddressAutocomplete, { type AddressData, emptyAddress } from "@/components/shared/AddressAutocomplete";
@@ -32,6 +31,7 @@ import {
   distanzaLineaAria, linkWhatsApp, scorciatoieData, testoKm, sovrapposizioni, testoConferma, titoloSuggerito,
 } from "@/lib/opportunita/appuntamentoPrecompilato";
 import { calcolaSlotLiberi, impegniEsterniInFascia, type Occupato } from "@/lib/opportunita/slotCalendario";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   contactId: string;
@@ -109,6 +109,7 @@ function diffMinutesTimeStr(start: string, end: string): number | null {
 }
 
 export function OpportunityAppointmentTab({ contactId, companyId, opportunityId, contactName }: Props) {
+  const tr = useT();
   // In sola lettura niente prenotazioni (policy RESTRICTIVE su appointments).
   const { solaLettura, onlyAssigned } = usePermissions();
   const { user } = useAuth();
@@ -598,15 +599,15 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
         }).eq("id", contactId);
         if (syncError) {
           console.error("Sync indirizzo contatto fallito:", syncError.message);
-          toast.warning("Appuntamento creato, ma indirizzo non sincronizzato sul contatto", {
-            description: "Aggiorna manualmente l'indirizzo nel contatto. Dettagli: " + syncError.message,
+          toast.warning(tr("Appuntamento creato, ma indirizzo non sincronizzato sul contatto"), {
+            description: tr("Aggiorna manualmente l'indirizzo nel contatto. Dettagli: {dettagli}", { dettagli: syncError.message }),
           });
         }
       }
       return { giorno: date, ora: startTime, luogo: isPlatformCrm ? "" : addressData.formatted_address || addressData.address_line || "", tipo: tipoEtichetta, videochiamata: linkVideochiamata };
     },
     onSuccess: (esito) => {
-      toast.success("Appuntamento prenotato");
+      toast.success(tr("Appuntamento prenotato"));
       try { window.localStorage.setItem(chiaveCalendario, calendarId); } catch { /* memoria locale non disponibile */ }
       if (esito) {
         const testo = testoConferma({ nome: contactInfo?.first_name || contactName, data: esito.giorno, ora: esito.ora, luogo: esito.luogo, tipo: esito.tipo, videochiamata: esito.videochiamata });
@@ -630,7 +631,7 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
       setStatus("confermato");
       setReminderMinutes(promemoriaPredefinito);
     },
-    onError: (e: any) => toast.error(e.message || "Errore nella prenotazione"),
+    onError: (e: any) => toast.error(e.message || tr("Errore nella prenotazione")),
   });
 
   const deleteMutation = useMutation({
@@ -640,7 +641,7 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Appuntamento annullato");
+      toast.success(tr("Appuntamento annullato"));
       queryClient.invalidateQueries({ queryKey: ["contact_future_appointment"] });
       queryClient.invalidateQueries({ queryKey: ["appointments_for_slot"] });
       aggiornaAgendaSchede(queryClient);
@@ -653,22 +654,22 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
       {conferma && (
         <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-3 space-y-2">
           <div className="flex items-center gap-2 text-sm font-semibold text-emerald-800">
-            <CheckCircle2 className="h-4 w-4" /> Appuntamento prenotato — vuoi confermarlo al cliente?
+            <CheckCircle2 className="h-4 w-4" /> {tr("Appuntamento prenotato — vuoi confermarlo al cliente?")}
           </div>
           <p className="whitespace-pre-wrap rounded-md bg-white/80 p-2 text-xs text-emerald-950">{conferma.testo}</p>
           <div className="flex flex-wrap gap-2">
             {conferma.link && (
               <Button asChild size="sm" className="h-8 gap-1.5 bg-emerald-600 hover:bg-emerald-700">
-                <a href={conferma.link} target="_blank" rel="noopener noreferrer"><MessageCircle className="h-3.5 w-3.5" /> Invia su WhatsApp</a>
+                <a href={conferma.link} target="_blank" rel="noopener noreferrer"><MessageCircle className="h-3.5 w-3.5" /> {tr("Invia su WhatsApp")}</a>
               </Button>
             )}
             <Button
               size="sm" variant="outline" className="h-8 gap-1.5"
-              onClick={() => { void navigator.clipboard?.writeText(conferma.testo).then(() => toast.success("Testo copiato")).catch(() => toast.error("Copia non riuscita")); }}
+              onClick={() => { void navigator.clipboard?.writeText(conferma.testo).then(() => toast.success(tr("Testo copiato"))).catch(() => toast.error(tr("Copia non riuscita"))); }}
             >
-              <Copy className="h-3.5 w-3.5" /> Copia testo
+              <Copy className="h-3.5 w-3.5" /> {tr("Copia testo")}
             </Button>
-            <Button size="sm" variant="ghost" className="h-8" onClick={() => setConferma(null)}>Chiudi</Button>
+            <Button size="sm" variant="ghost" className="h-8" onClick={() => setConferma(null)}>{tr("Chiudi")}</Button>
           </div>
         </div>
       )}
@@ -679,7 +680,7 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
           {appuntamentiInProgramma.length > 0 && (
             <h4 className="text-sm font-semibold flex items-center gap-2">
               <Clock className="h-4 w-4 text-primary" />
-              {appuntamentiInProgramma.length === 1 ? "Appuntamento già fissato" : `Appuntamenti in programma (${appuntamentiInProgramma.length})`}
+              {appuntamentiInProgramma.length === 1 ? tr("Appuntamento già fissato") : tr("Appuntamenti in programma ({n})", { n: appuntamentiInProgramma.length })}
             </h4>
           )}
           {appuntamentiInProgramma.map((appt) => (
@@ -692,16 +693,16 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
                 <div className="text-sm space-y-0.5 min-w-0">
                   <p className="font-semibold truncate">{appt.title}</p>
                   <p className="text-muted-foreground">
-                    {format(new Date(`${appt.appointment_date}T00:00:00`), "EEEE d MMMM yyyy", { locale: it })}
-                    {appt.appointment_time && ` alle ${appt.appointment_time.substring(0, 5)}`}
+                    {format(new Date(`${appt.appointment_date}T00:00:00`), "EEEE d MMMM yyyy", { locale: dateFnsCampo() })}
+                    {appt.appointment_time && ` ${tr("alle {ora}", { ora: appt.appointment_time.substring(0, 5) })}`}
                   </p>
-                  <p className="text-xs text-muted-foreground">Calendario: {(appt as any).marketing_calendars?.name || "—"}</p>
+                  <p className="text-xs text-muted-foreground">{tr("Calendario:")} {(appt as any).marketing_calendars?.name || "—"}</p>
                   <Badge variant="outline" className="mt-1">{appt.status}</Badge>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
-                  <span className="text-xs text-muted-foreground hidden sm:inline">Clicca per modificare</span>
+                  <span className="text-xs text-muted-foreground hidden sm:inline">{tr("Clicca per modificare")}</span>
                   <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(appt.id); }} disabled={deleteMutation.isPending || solaLettura} title={solaLettura ? "Sei in sola lettura" : "Annulla appuntamento"}>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(appt.id); }} disabled={deleteMutation.isPending || solaLettura} title={solaLettura ? tr("Sei in sola lettura") : tr("Annulla appuntamento")}>
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
@@ -711,7 +712,7 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
           {appuntamentiPassati.length > 0 && (
             <div>
               <button type="button" className="text-xs font-medium text-primary hover:underline" onClick={() => setMostraStorico((v) => !v)}>
-                {mostraStorico ? "Nascondi" : "Mostra"} lo storico ({appuntamentiPassati.length})
+                {mostraStorico ? tr("Nascondi lo storico ({n})", { n: appuntamentiPassati.length }) : tr("Mostra lo storico ({n})", { n: appuntamentiPassati.length })}
               </button>
               {mostraStorico && (
                 <ul className="mt-1.5 divide-y rounded-md border text-xs">
@@ -734,12 +735,12 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
 
       {/* Calendar select */}
       <div className="space-y-1.5">
-        <Label className="text-sm font-medium">Calendario <span className="text-destructive">*</span></Label>
+        <Label className="text-sm font-medium">{tr("Calendario")} <span className="text-destructive">*</span></Label>
         <Select value={calendarId} onValueChange={(v) => { setCalendarId(v); setSelectedSlot(""); }}>
-          <SelectTrigger className="h-9"><SelectValue placeholder="Seleziona un calendario..." /></SelectTrigger>
+          <SelectTrigger className="h-9"><SelectValue placeholder={tr("Seleziona un calendario...")} /></SelectTrigger>
           <SelectContent>
             {calendars.map((c) => (
-              <SelectItem key={c.id} value={c.id}>{c.name} ({c.duration_minutes} min)</SelectItem>
+              <SelectItem key={c.id} value={c.id}>{tr("{nome} ({n} min)", { nome: c.name ?? "", n: c.duration_minutes ?? "" })}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -747,28 +748,28 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
 
       {/* Title */}
       <div className="space-y-1.5">
-        <Label className="text-sm">Titolo dell'appuntamento</Label>
-        <Input value={titoloEffettivo} onChange={(e) => { setTitoloToccato(true); setTitle(e.target.value); }} placeholder={`Appuntamento con ${contactName}`} className="h-9" />
+        <Label className="text-sm">{tr("Titolo dell'appuntamento")}</Label>
+        <Input value={titoloEffettivo} onChange={(e) => { setTitoloToccato(true); setTitle(e.target.value); }} placeholder={tr("Appuntamento con {contactName}", { contactName: String(contactName ?? "") })} className="h-9" />
       </div>
 
       {isPlatformCrm ? (
         /* CRM di piattaforma: la demo è in videochiamata, niente indirizzo, mappa né chilometri. */
         <div className="rounded-lg border bg-muted/30 p-3 space-y-2 max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
-          <Label className="text-sm font-medium flex items-center gap-1.5"><Video className="h-3.5 w-3.5" /> Videochiamata</Label>
+          <Label className="text-sm font-medium flex items-center gap-1.5"><Video className="h-3.5 w-3.5" /> {tr("Videochiamata")}</Label>
           {linkVideochiamata ? (
             <div className="flex items-center gap-2 rounded-md border bg-background px-3 py-1.5 text-sm">
               <a href={linkVideochiamata.startsWith("http") ? linkVideochiamata : `https://${linkVideochiamata}`} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate text-primary underline-offset-2 hover:underline">{linkVideochiamata}</a>
-              <Button type="button" variant="ghost" size="sm" className="h-7 shrink-0 px-2" onClick={() => { void navigator.clipboard?.writeText(linkVideochiamata); toast.success("Link copiato"); }}>
+              <Button type="button" variant="ghost" size="sm" className="h-7 shrink-0 px-2" onClick={() => { void navigator.clipboard?.writeText(linkVideochiamata); toast.success(tr("Link copiato")); }}>
                 <Copy className="h-3.5 w-3.5" />
               </Button>
             </div>
           ) : (
             <p className="flex items-start gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-900">
               <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
-              <span>{selectedCalendar ? `Il calendario «${selectedCalendar.name}» non ha un link di videochiamata. Aggiungilo in Impostazioni → Appuntamenti e prenotazioni.` : "Scegli un calendario: il link della videochiamata arriva da lì."}</span>
+              <span>{selectedCalendar ? tr("Il calendario «{name}» non ha un link di videochiamata. Aggiungilo in Impostazioni → Appuntamenti e prenotazioni.", { name: String(selectedCalendar.name ?? "") }) : tr("Scegli un calendario: il link della videochiamata arriva da lì.")}</span>
             </p>
           )}
-          <p className="text-xs text-muted-foreground">Il link viene salvato nell'appuntamento e scritto nel messaggio di conferma al cliente.</p>
+          <p className="text-xs text-muted-foreground">{tr("Il link viene salvato nell'appuntamento e scritto nel messaggio di conferma al cliente.")}</p>
         </div>
       ) : (
         <>
@@ -778,7 +779,7 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
         <RilievoAppuntamentoCampo stato={rilievo} />
         {(addressData.formatted_address || addressData.address_line) && (addressData.lat == null || addressData.lng == null) && (
           <p className="text-xs text-muted-foreground">
-            Indirizzo senza posizione sulla mappa: tocca la X e cercalo di nuovo scegliendolo dai suggerimenti, così si calcolano i km.
+            {tr("Indirizzo senza posizione sulla mappa: tocca la X e cercalo di nuovo scegliendolo dai suggerimenti, così si calcolano i km.")}
           </p>
         )}
         {addressData.lat != null && addressData.lng != null && (
@@ -792,17 +793,14 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
                   {baseDistance.duration_text ? "- " : "≈ "}{baseDistance.distance_text}
                 </span>
                 <span className="text-xs text-muted-foreground ml-auto">
-                  {baseDistance.stima ? "in linea d'aria dalla base" : "dalla base calendario"}
+                  {baseDistance.stima ? tr("in linea d'aria dalla base") : tr("dalla base calendario")}
                 </span>
               </div>
             )}
             {selectedCalendar && !selectedCalendar.base_lat && (
               <p className="flex items-start gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-900">
                 <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
-                <span>
-                  Il calendario «{selectedCalendar.name}» non ha un indirizzo base, quindi non si possono calcolare i km.
-                  Impostalo in Impostazioni → Appuntamenti e prenotazioni.
-                </span>
+                <span>{tr("Il calendario «{name}» non ha un indirizzo base, quindi non si possono calcolare i km. Impostalo in Impostazioni → Appuntamenti e prenotazioni.", { name: String(selectedCalendar.name ?? "") })}</span>
               </p>
             )}
           </>
@@ -822,16 +820,14 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
       {/* Same-day appointments with distances */}
       {sameDayWithCoords.length > 0 && addressData.lat != null && (
         <div className="text-xs text-muted-foreground space-y-1">
-          <p className="font-medium text-foreground text-sm">Altri appuntamenti del giorno</p>
+          <p className="font-medium text-foreground text-sm">{tr("Altri appuntamenti del giorno")}</p>
           {sameDayWithCoords.map((a) => (
             <div key={a.id} className="flex items-center gap-2">
               <Clock className="h-3 w-3" />
               <span>
-                {a.appointment_time?.substring(0, 5)} — {a.title || a.formatted_address || "Appuntamento"}
+                {a.appointment_time?.substring(0, 5)} — {a.title || a.formatted_address || tr("Appuntamento")}
                 {addressData.lat != null && addressData.lng != null && a.lat != null && a.lng != null && (
-                  <span className="ml-1 text-muted-foreground">
-                    · ≈ {testoKm(distanzaLineaAria(addressData.lat, addressData.lng, a.lat, a.lng) * 1000)} da qui
-                  </span>
+                  <span className="ml-1 text-muted-foreground">{tr("· ≈ {distanza} da qui", { distanza: testoKm(distanzaLineaAria(addressData.lat, addressData.lng, a.lat, a.lng) * 1000) })}</span>
                 )}
               </span>
             </div>
@@ -844,12 +840,12 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
 
       {/* Date picker */}
       <div className="space-y-1.5">
-        <Label className="text-sm font-medium">Data <span className="text-destructive">*</span></Label>
+        <Label className="text-sm font-medium">{tr("Data")} <span className="text-destructive">*</span></Label>
         <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
           <PopoverTrigger asChild>
             <Button variant="outline" className={cn("w-full justify-start text-left font-normal h-9", !date && "text-muted-foreground")}>
               <CalendarIcon className="mr-2 h-4 w-4" />
-              {date ? format(date, "d MMMM yyyy", { locale: it }) : "Seleziona una data"}
+              {date ? format(date, "d MMMM yyyy", { locale: dateFnsCampo() }) : tr("Seleziona una data")}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">
@@ -867,7 +863,7 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
             className="h-7 px-2.5 text-xs"
             onClick={() => { setDate(sc.data); setSelectedSlot(""); }}
           >
-            {sc.etichetta}
+            {tr(sc.etichetta)}
           </Button>
         ))}
       </div>
@@ -875,20 +871,20 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
       {/* Available slots */}
       {calendarId && date && (
         <div className="space-y-2">
-          <Label className="text-sm font-medium">Slot disponibili</Label>
+          <Label className="text-sm font-medium">{tr("Slot disponibili")}</Label>
           {esitoSlot.fasce.length > 0 && (
             <p className="text-xs text-muted-foreground">
-              Orari del calendario «{selectedCalendar?.name}»: {esitoSlot.fasce.map((f) => `${f.da}–${f.a}`).join(", ")}
-              {occupatiEsterni.length > 0 ? ` · tolti ${occupatiEsterni.length} impegni del titolare sul suo calendario` : ""}
-              {(selectedCalendar?.min_notice_minutes ?? 0) > 0 ? ` · preavviso minimo ${selectedCalendar!.min_notice_minutes} min` : ""}
+              {tr("Orari del calendario «{nome}»: {fasce}", { nome: selectedCalendar?.name ?? "", fasce: esitoSlot.fasce.map((f) => `${f.da}–${f.a}`).join(", ") })}
+              {occupatiEsterni.length > 0 ? ` ${tr("· tolti {n} impegni del titolare sul suo calendario", { n: occupatiEsterni.length })}` : ""}
+              {(selectedCalendar?.min_notice_minutes ?? 0) > 0 ? ` ${tr("· preavviso minimo {n} min", { n: selectedCalendar!.min_notice_minutes ?? 0 })}` : ""}
             </p>
           )}
           {esitoSlot.motivoVuoto === "chiuso" ? (
-            <p className="text-sm text-muted-foreground py-2">Il calendario non lavora in questo giorno (nessuna disponibilità, o giornata chiusa).</p>
+            <p className="text-sm text-muted-foreground py-2">{tr("Il calendario non lavora in questo giorno (nessuna disponibilità, o giornata chiusa).")}</p>
           ) : esitoSlot.motivoVuoto === "tetto" ? (
-            <p className="text-sm text-muted-foreground py-2">Raggiunto il numero massimo di appuntamenti per questo giorno ({selectedCalendar?.max_per_day}). Puoi comunque scegliere un orario a mano qui sotto.</p>
+            <p className="text-sm text-muted-foreground py-2">{tr("Raggiunto il numero massimo di appuntamenti per questo giorno ({max_per_day}). Puoi comunque scegliere un orario a mano qui sotto.", { max_per_day: String(selectedCalendar?.max_per_day ?? "") })}</p>
           ) : esitoSlot.motivoVuoto === "pieno" ? (
-            <p className="text-sm text-muted-foreground py-2">Nessun orario libero per questa data: sono tutti occupati o troppo vicini. Puoi scegliere un orario a mano qui sotto.</p>
+            <p className="text-sm text-muted-foreground py-2">{tr("Nessun orario libero per questa data: sono tutti occupati o troppo vicini. Puoi scegliere un orario a mano qui sotto.")}</p>
           ) : (
             <div className="flex flex-wrap gap-2">
               {freeSlots.map((slot) => (
@@ -921,14 +917,14 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
           override (es. orari 14:23). */}
       <div className="space-y-3 rounded-lg border bg-muted/20 p-3 max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
         <div>
-          <Label className="text-sm font-medium">Orario appuntamento</Label>
+          <Label className="text-sm font-medium">{tr("Orario appuntamento")}</Label>
           <p className="text-[11px] text-muted-foreground mt-0.5 max-sm:hidden">
-            Imposta inizio e fine; la durata resta sincronizzata.
+            {tr("Imposta inizio e fine; la durata resta sincronizzata.")}
           </p>
         </div>
         <div className="grid grid-cols-3 gap-2">
           <div className="space-y-1">
-            <Label className="text-xs">Ora inizio</Label>
+            <Label className="text-xs">{tr("Ora inizio")}</Label>
             <Input
               type="time"
               step={900}
@@ -946,7 +942,7 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Ora fine</Label>
+            <Label className="text-xs">{tr("Ora fine")}</Label>
             <Input
               type="time"
               step={900}
@@ -963,7 +959,7 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Durata</Label>
+            <Label className="text-xs">{tr("Durata")}</Label>
             <Select
               value={manualDuration}
               onValueChange={(v) => {
@@ -974,7 +970,7 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
               <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {DURATION_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  <SelectItem key={o.value} value={o.value}>{tr(o.label)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -983,22 +979,22 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
 
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
-            <Label className="text-xs">Tipo</Label>
+            <Label className="text-xs">{tr("Tipo")}</Label>
             <Select value={appointmentType} onValueChange={setAppointmentType}>
               <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {appointmentTypes.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  <SelectItem key={o.value} value={o.value}>{tr(o.label)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Assegna a</Label>
+            <Label className="text-xs">{tr("Assegna a")}</Label>
             <Select value={assignedTo || "none"} onValueChange={(v) => { setAssegnatarioToccato(true); setAssignedTo(v === "none" ? "" : v); }}>
-              <SelectTrigger className="h-9"><SelectValue placeholder="Nessun assegnatario" /></SelectTrigger>
+              <SelectTrigger className="h-9"><SelectValue placeholder={tr("Nessun assegnatario")} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">Nessun assegnatario</SelectItem>
+                <SelectItem value="none">{tr("Nessun assegnatario")}</SelectItem>
                 {teamUsers.map((u) => (
                   <SelectItem key={u.id} value={u.id}>
                     {[u.first_name, u.last_name].filter(Boolean).join(" ") || "—"}
@@ -1012,23 +1008,23 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
         {/* Mobile no: stato e promemoria restano quelli predefiniti. */}
         <div className="grid grid-cols-2 gap-2 max-sm:hidden">
           <div className="space-y-1">
-            <Label className="text-xs">Stato</Label>
+            <Label className="text-xs">{tr("Stato")}</Label>
             <Select value={status} onValueChange={setStatus}>
               <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {STATUS_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  <SelectItem key={o.value} value={o.value}>{tr(o.label)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Promemoria</Label>
+            <Label className="text-xs">{tr("Promemoria")}</Label>
             <Select value={reminderMinutes} onValueChange={setReminderMinutes}>
               <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {REMINDER_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  <SelectItem key={o.value} value={o.value}>{tr(o.label)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -1040,7 +1036,7 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
       {date && orarioInizio && orarioFine && impegniEsterniInFascia(date, orarioInizio, orarioFine, occupatiEsterni).length > 0 && (
         <div className="flex items-start gap-2 rounded-md border border-amber-400 bg-amber-50 px-3 py-2 text-xs text-amber-900">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <p>Su questo orario il titolare del calendario ha già un impegno sul suo calendario (Google, Outlook o Apple). Puoi prenotare lo stesso, ma controlla.</p>
+          <p>{tr("Su questo orario il titolare del calendario ha già un impegno sul suo calendario (Google, Outlook o Apple). Puoi prenotare lo stesso, ma controlla.")}</p>
         </div>
       )}
 
@@ -1049,32 +1045,32 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
         <div className="flex items-start gap-2 rounded-md border border-amber-400 bg-amber-50 px-3 py-2 text-xs text-amber-900">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <div>
-            <p className="font-semibold">Hai già {conflitti.length === 1 ? "un impegno" : `${conflitti.length} impegni`} in questa fascia</p>
+            <p className="font-semibold">{conflitti.length === 1 ? tr("Hai già un impegno in questa fascia") : tr("Hai già {n} impegni in questa fascia", { n: conflitti.length })}</p>
             <ul className="mt-0.5 list-disc pl-4">
               {conflitti.map((c) => (
-                <li key={c.id}>{(c.inizio ?? "").substring(0, 5)}{c.fine ? `–${c.fine.substring(0, 5)}` : ""} · {c.titolo || "Appuntamento"}</li>
+                <li key={c.id}>{(c.inizio ?? "").substring(0, 5)}{c.fine ? `–${c.fine.substring(0, 5)}` : ""} · {c.titolo || tr("Appuntamento")}</li>
               ))}
             </ul>
-            <p className="mt-0.5">Puoi prenotare lo stesso, ma controlla che non si sovrappongano.</p>
+            <p className="mt-0.5">{tr("Puoi prenotare lo stesso, ma controlla che non si sovrappongano.")}</p>
           </div>
         </div>
       )}
 
       {/* Description */}
       <div className="space-y-1.5">
-        <Label className="text-sm">Descrizione</Label>
-        <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Note aggiuntive..." rows={3} />
+        <Label className="text-sm">{tr("Descrizione")}</Label>
+        <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder={tr("Note aggiuntive...")} rows={3} />
       </div>
 
       {/* Book button */}
       <Button
         className="w-full"
         disabled={solaLettura || !calendarId || !date || (!selectedSlot && !manualStartTime) || bookMutation.isPending}
-        title={solaLettura ? "Sei in sola lettura" : undefined}
+        title={solaLettura ? tr("Sei in sola lettura") : undefined}
         onClick={() => bookMutation.mutate()}
       >
         {bookMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-        Prenota appuntamento
+        {tr("Prenota appuntamento")}
       </Button>
       <MarketingAppointmentDialog
         open={dialogOpen}

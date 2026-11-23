@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -24,6 +25,7 @@ interface CaricoDaAbbinare {
 const dataIt = (iso?: string | null) => (iso ? iso.slice(0, 10).split("-").reverse().join("/") : "");
 
 export function RigheDaAbbinareCard() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const permissions = usePermissions();
   const qc = useQueryClient();
@@ -44,10 +46,10 @@ export function RigheDaAbbinareCard() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Righe segnate come sistemate");
+      toast.success(t("Righe segnate come sistemate"));
       void qc.invalidateQueries({ queryKey: ["magazzino-righe-da-abbinare"] });
     },
-    onError: (e) => toast.error("Non sono riuscito a salvare", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Non sono riuscito a salvare"), { description: e instanceof Error ? e.message : String(e) }),
   });
 
   const lista = carichi.data ?? [];
@@ -57,29 +59,29 @@ export function RigheDaAbbinareCard() {
   return (
     <section aria-labelledby="righe-da-abbinare" className="rounded-xl border border-amber-200 bg-card">
       <h2 id="righe-da-abbinare" className="flex items-center gap-2 border-b px-4 py-3 text-sm font-semibold">
-        <PackageSearch className="h-4 w-4 text-amber-600" aria-hidden="true" />Righe di bolla da sistemare
+        <PackageSearch className="h-4 w-4 text-amber-600" aria-hidden="true" />{t("Righe di bolla da sistemare")}
         <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">{totRighe}</span>
       </h2>
       <p className="px-4 pt-2 text-xs text-muted-foreground">
-        Merce arrivata ma non caricata in giacenza. Caricala a mano (o abbina l’articolo), poi segna «Fatto».
+        {t("Merce arrivata ma non caricata in giacenza. Caricala a mano (o abbina l’articolo), poi segna «Fatto».")}
       </p>
       <ul className="divide-y">
         {lista.map((c) => (
           <li key={c.id} className="space-y-1.5 px-4 py-3 text-sm">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="font-semibold">
-                Bolla {c.ddt_numero ?? "s.n."}{c.ddt_data ? ` del ${dataIt(c.ddt_data)}` : ""}{c.ordine ? ` · ordine ${c.ordine}` : ""}
+                {c.ddt_data ? t("Bolla {numero} del {ddt_data}", { numero: c.ddt_numero ?? "s.n.", ddt_data: String(dataIt(c.ddt_data) ?? "") }) : t("Bolla {numero}", { numero: c.ddt_numero ?? "s.n." })}{c.ordine ? " · " + t("ordine {ordine}", { ordine: String(c.ordine ?? "") }) : ""}
               </p>
               {permissions.canEditWarehouse && (
                 <Button size="sm" variant="outline" className="gap-1.5" disabled={chiudi.isPending} onClick={() => chiudi.mutate(c.id)}>
-                  <CheckCircle2 className="h-4 w-4" />Fatto
+                  <CheckCircle2 className="h-4 w-4" />{t("Fatto")}
                 </Button>
               )}
             </div>
             <ul className="space-y-0.5 text-muted-foreground">
               {c.righe.map((r, i) => (
                 <li key={i}>
-                  {r.descrizione || "Articolo senza descrizione"}{r.codice ? ` (cod. ${r.codice})` : ""} · {r.quantita} · <span className="text-amber-800">{r.motivo}</span>
+                  {r.descrizione || t("Articolo senza descrizione")}{r.codice ? ` (${t("cod. {codice}", { codice: String(r.codice ?? "") })})` : ""} · {r.quantita} · <span className="text-amber-800">{r.motivo}</span>
                 </li>
               ))}
             </ul>

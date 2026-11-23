@@ -13,7 +13,6 @@ import {
   startOfWeek,
   endOfWeek,
 } from "date-fns";
-import { it } from "date-fns/locale";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +25,7 @@ import {
 import { cn } from "@/lib/utils";
 import { WEEK_DAYS_IT } from "@/lib/calendarUtils";
 import type { WarehouseItem, OrderWithItems } from "@/types/warehouse";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface CalendarOrderGroup extends OrderWithItems {
   expectedDate: string; // override: non-null in calendar context
@@ -38,6 +38,7 @@ interface WarehouseCalendarViewProps {
 }
 
 export default function WarehouseCalendarView({ items }: WarehouseCalendarViewProps) {
+  const t = useT();
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
   // Group items by expected date
@@ -95,8 +96,8 @@ export default function WarehouseCalendarView({ items }: WarehouseCalendarViewPr
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
-  const calendarStart = startOfWeek(monthStart, { locale: it });
-  const calendarEnd = endOfWeek(monthEnd, { locale: it });
+  const calendarStart = startOfWeek(monthStart, { locale: dateFnsCampo() });
+  const calendarEnd = endOfWeek(monthEnd, { locale: dateFnsCampo() });
 
   const days = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
   const weekDays = WEEK_DAYS_IT;
@@ -110,11 +111,11 @@ export default function WarehouseCalendarView({ items }: WarehouseCalendarViewPr
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg">
-            {format(currentMonth, "MMMM yyyy", { locale: it })}
+            {format(currentMonth, "MMMM yyyy", { locale: dateFnsCampo() })}
           </CardTitle>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={goToToday}>
-              Oggi
+              {t("Oggi")}
             </Button>
             <Button variant="outline" size="icon" onClick={goToPrevMonth}>
               <ChevronLeft className="h-4 w-4" />
@@ -180,7 +181,7 @@ export default function WarehouseCalendarView({ items }: WarehouseCalendarViewPr
                               )}
                             >
                               <div className="font-medium truncate">
-                                {order.orderCode || "Ordine"}
+                                {order.orderCode || t("Ordine")}
                               </div>
                               <div className="flex gap-1">
                                 {order.readyCount > 0 && (
@@ -200,11 +201,9 @@ export default function WarehouseCalendarView({ items }: WarehouseCalendarViewPr
                         <TooltipContent side="right" className="max-w-[250px]">
                           <div className="space-y-1">
                             <p className="font-medium">
-                              {order.orderCode || "Ordine"} - {order.customerName}
+                              {order.orderCode || t("Ordine")} - {order.customerName === "Cliente non disponibile" ? t("Cliente non disponibile") : order.customerName}
                             </p>
-                            <p className="text-xs text-muted-foreground">
-                              {order.readyCount} pronti, {order.pendingCount} in attesa
-                            </p>
+                            <p className="text-xs text-muted-foreground">{t("{readyCount} pronti, {pendingCount} in attesa", { readyCount: String(order.readyCount ?? ""), pendingCount: String(order.pendingCount ?? "") })}</p>
                             <div className="text-xs">
                               {order.items.slice(0, 5).map((item) => (
                                 <div key={item.id} className="flex items-center gap-1">
@@ -219,9 +218,7 @@ export default function WarehouseCalendarView({ items }: WarehouseCalendarViewPr
                                 </div>
                               ))}
                               {order.items.length > 5 && (
-                                <div className="text-muted-foreground">
-                                  +{order.items.length - 5} altri
-                                </div>
+                                <div className="text-muted-foreground">{t("+{n} altri", { n: order.items.length - 5 })}</div>
                               )}
                             </div>
                           </div>
@@ -230,9 +227,7 @@ export default function WarehouseCalendarView({ items }: WarehouseCalendarViewPr
                     </TooltipProvider>
                   ))}
                   {ordersForDay.length > 3 && (
-                    <div className="text-xs text-muted-foreground text-center">
-                      +{ordersForDay.length - 3} altri
-                    </div>
+                    <div className="text-xs text-muted-foreground text-center">{t("+{n} altri", { n: ordersForDay.length - 3 })}</div>
                   )}
                 </div>
               </div>
@@ -244,23 +239,23 @@ export default function WarehouseCalendarView({ items }: WarehouseCalendarViewPr
         <div className="flex items-center gap-4 mt-4 text-xs text-muted-foreground justify-center">
           <div className="flex items-center gap-1">
             <span className="w-3 h-3 rounded bg-green-100 dark:bg-green-900/30"></span>
-            <span>Tutti pronti</span>
+            <span>{t("Tutti pronti")}</span>
           </div>
           <div className="flex items-center gap-1">
             <span className="w-3 h-3 rounded bg-amber-100 dark:bg-amber-900/30"></span>
-            <span>Articoli in attesa</span>
+            <span>{t("Articoli in attesa")}</span>
           </div>
           <div className="flex items-center gap-1">
             <span>🟢</span>
-            <span>Pronto</span>
+            <span>{t("Pronto")}</span>
           </div>
           <div className="flex items-center gap-1">
             <span>🔵</span>
-            <span>Ordinato</span>
+            <span>{t("Ordinato")}</span>
           </div>
           <div className="flex items-center gap-1">
             <span>🟠</span>
-            <span>Da ordinare</span>
+            <span>{t("Da ordinare")}</span>
           </div>
         </div>
       </CardContent>

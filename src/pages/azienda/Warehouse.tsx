@@ -3,7 +3,6 @@ import { useScopedStorage } from "@/hooks/warehouse/useScopedStorage";
 import { useState, useCallback, useMemo, useRef, lazy, Suspense } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import type { OrderItemStatus } from "@/types/warehouse";
 import {
   DndContext, DragOverlay, PointerSensor, TouchSensor, useSensor, useSensors,
@@ -130,6 +129,7 @@ import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 import { formatCurrency } from "@/lib/formatters";
 import { downloadFile, exportToCSV as exportCsvFile, type CsvColumn } from "@/lib/csvExport";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // Aperto solo quando l'arrivo è legato a un ordine: fuori dal bundle del magazzino.
 const ResoCantiereDialog = lazy(() => import("@/components/warehouse/ResoCantiereDialog").then((module) => ({ default: module.ResoCantiereDialog })));
@@ -216,15 +216,17 @@ const INVENTORY_METRIC_LABELS: Record<WarehouseInventoryMetricKey, string> = {
 
 const LocalWarehouseShell = import.meta.env.DEV ? lazy(() => import("../../../dev/magazzino-local/LocalWarehouseShell")) : null;
 export default function Warehouse() {
+  const t = useT();
   const { effectiveCompany, user } = useAuth();
   const scope = `${effectiveCompany?.id ?? "none"}:${user?.id ?? "none"}`;
   const local = import.meta.env.DEV && typeof window !== "undefined" && ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname)
     && (new URLSearchParams(window.location.search).get("warehouseLocal") === "1" || sessionStorage.getItem("eic-magazzino-local-preview") === "1");
-  if (local && LocalWarehouseShell) return <Suspense fallback={<p className="p-6">Collegamento al Magazzino locale…</p>}><LocalWarehouseShell><WarehousePage key={scope} /></LocalWarehouseShell></Suspense>;
+  if (local && LocalWarehouseShell) return <Suspense fallback={<p className="p-6">{t("Collegamento al Magazzino locale…")}</p>}><LocalWarehouseShell><WarehousePage key={scope} /></LocalWarehouseShell></Suspense>;
   return <WarehousePage key={scope} />;
 }
 
 function WarehousePage() {
+  const t = useT();
   const navigate = useNavigate();
   // «Gestisci magazzini» (creare, zone, magazzinieri assegnati) è
   // dell'amministratore, come la pagina: agli altri portava ad «Accesso riservato».
@@ -442,7 +444,7 @@ function WarehousePage() {
   if (!effectiveCompany) {
     return (
       <div className="text-center py-12 text-muted-foreground">
-        Seleziona un'azienda per visualizzare il magazzino.
+        {t("Seleziona un'azienda per visualizzare il magazzino.")}
       </div>
     );
   }
@@ -705,19 +707,19 @@ function WarehousePage() {
                 onValueChange={(value) => setWarehouseFilter(value === "__all__" ? null : value)}
                 disabled={warehousesLoading}
               >
-                <SelectTrigger aria-label="Filtra per magazzino" className="h-10 w-full min-w-0 max-sm:h-11 sm:w-[210px]">
-                  <SelectValue placeholder="Scegli magazzino" />
+                <SelectTrigger aria-label={t("Filtra per magazzino")} className="h-10 w-full min-w-0 max-sm:h-11 sm:w-[210px]">
+                  <SelectValue placeholder={t("Scegli magazzino")} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__all__">
-                    Tutti i magazzini
+                    {t("Tutti i magazzini")}
                   </SelectItem>
                   {warehouses.map((warehouse) => (
                     <SelectItem key={warehouse.id} value={warehouse.id}>
                       {warehouse.name}
-                      {warehouse.is_default ? " · default" : ""}
+                      {warehouse.is_default ? ` ${t("· default")}` : ""}
                       {" · "}
-                      {WAREHOUSE_TYPE_LABEL[warehouse.type] ?? warehouse.type}
+                      {t(WAREHOUSE_TYPE_LABEL[warehouse.type] ?? warehouse.type)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -725,11 +727,11 @@ function WarehousePage() {
   );
   const warehouseActions = (
     <>
-      {isReadOnly ? <Badge variant="outline" className="h-10 px-3">Sola lettura</Badge> : <>
-        <Button className="h-10 max-sm:h-11 gap-1.5 bg-orange-600 text-white hover:bg-orange-700" onClick={() => apriArrivoMerce()} aria-label="Carica merce"><ArrowDownToLine className="h-4 w-4" aria-hidden="true" />Carica</Button>
-        <Button className="h-10 max-sm:h-11 gap-1.5" variant="outline" onClick={() => openStockAction("ship")} aria-label="Preleva merce"><ArrowUpFromLine className="h-4 w-4" aria-hidden="true" />Preleva</Button>
+      {isReadOnly ? <Badge variant="outline" className="h-10 px-3">{t("Sola lettura")}</Badge> : <>
+        <Button className="h-10 max-sm:h-11 gap-1.5 bg-orange-600 text-white hover:bg-orange-700" onClick={() => apriArrivoMerce()} aria-label={t("Carica merce")}><ArrowDownToLine className="h-4 w-4" aria-hidden="true" />{t("Carica")}</Button>
+        <Button className="h-10 max-sm:h-11 gap-1.5" variant="outline" onClick={() => openStockAction("ship")} aria-label={t("Preleva merce")}><ArrowUpFromLine className="h-4 w-4" aria-hidden="true" />{t("Preleva")}</Button>
         {/* Telefono: «Reso» sta in «Altro» (Carica, Preleva, Altro su una riga — collaudo 23/11/2026). */}
-        {permissions.canEditOrders && <Button className="h-10 max-sm:hidden gap-1.5" variant="outline" onClick={() => setReturnOpen(true)} aria-label="Reso da cantiere"><Undo2 className="h-4 w-4" aria-hidden="true" />Reso</Button>}
+        {permissions.canEditOrders && <Button className="h-10 max-sm:hidden gap-1.5" variant="outline" onClick={() => setReturnOpen(true)} aria-label={t("Reso da cantiere")}><Undo2 className="h-4 w-4" aria-hidden="true" />{t("Reso")}</Button>}
       </>}
     </>
   );
@@ -737,69 +739,69 @@ function WarehousePage() {
                   {!isReadOnly && permissions.canEditOrders && (
                     <DropdownMenuItem className="sm:hidden" onClick={() => setReturnOpen(true)}>
                       <Undo2 className="h-4 w-4 mr-2" />
-                      Reso da cantiere
+                      {t("Reso da cantiere")}
                     </DropdownMenuItem>
                   )}
                   {!isReadOnly && (
                     <>
                       <DropdownMenuItem onClick={() => setTransferOpen(true)}>
                         <ArrowLeftRight className="h-4 w-4 mr-2" />
-                        Trasferisci tra magazzini
+                        {t("Trasferisci tra magazzini")}
                       </DropdownMenuItem>
                       {gestisceMagazzini && (
                         <DropdownMenuItem onClick={() => navigate("/azienda/magazzino/gestione")}>
                           <SettingsIcon className="h-4 w-4 mr-2" />
-                          Gestisci magazzini
+                          {t("Gestisci magazzini")}
                         </DropdownMenuItem>
                       )}
                     </>
                   )}
                   {!isReadOnly && <>
                     <DropdownMenuItem onClick={() => setReorderOpen(true)} disabled={lowStockAlerts.length === 0}>
-                      <ShoppingCart className="mr-2 h-4 w-4" />Riordina sotto scorta{lowStockAlerts.length > 0 ? ` (${lowStockAlerts.length})` : ""}
+                      <ShoppingCart className="mr-2 h-4 w-4" />{t("Riordina sotto scorta")}{lowStockAlerts.length > 0 ? ` (${lowStockAlerts.length})` : ""}
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setPrelievoSettingsOpen(true)}><Settings2 className="mr-2 h-4 w-4" />Impostazioni prelievi dal cantiere</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setPrelievoSettingsOpen(true)}><Settings2 className="mr-2 h-4 w-4" />{t("Impostazioni prelievi dal cantiere")}</DropdownMenuItem>
                   </>}
                   <DropdownMenuItem onClick={() => setMetricsDialogOpen(true)}>
                     <Settings2 className="h-4 w-4 mr-2" />
-                    Personalizza i riquadri
+                    {t("Personalizza i riquadri")}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuSub>
                     <DropdownMenuSubTrigger>
                       <Download className="h-4 w-4 mr-2" />
-                      Esporta
+                      {t("Esporta")}
                     </DropdownMenuSubTrigger>
                     <DropdownMenuSubContent className="w-64">
                   <DropdownMenuItem onClick={exportWorkflowCsv}>
                     <List className="h-4 w-4 mr-2" />
-                    Lista commesse CSV
+                    {t("Lista commesse CSV")}
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={exportPurchasesCsv}>
                     <ShoppingCart className="h-4 w-4 mr-2" />
-                    Lista acquisti CSV
+                    {t("Lista acquisti CSV")}
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={exportInventoryCsv} disabled={isStockLoading || isStockError}>
                     <Package className="h-4 w-4 mr-2" />
-                    Inventario del magazzino CSV
+                    {t("Inventario del magazzino CSV")}
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={exportWarehousesCsv}>
                     <WarehouseIcon className="h-4 w-4 mr-2" />
-                    Magazzini e zone CSV
+                    {t("Magazzini e zone CSV")}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={exportDocumentsManifest}>
                     <FileText className="h-4 w-4 mr-2" />
-                    Documenti e DDT JSON
+                    {t("Documenti e DDT JSON")}
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={exportCompletePackage} disabled={isStockLoading || isStockError}>
                     <Download className="h-4 w-4 mr-2" />
-                    Pacchetto completo JSON
+                    {t("Pacchetto completo JSON")}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => window.print()}>
                     <Printer className="h-4 w-4 mr-2" />
-                    Stampa lista
+                    {t("Stampa lista")}
                   </DropdownMenuItem>
                     </DropdownMenuSubContent>
                   </DropdownMenuSub>
@@ -810,35 +812,33 @@ function WarehousePage() {
       <WarehousePendingOperations />
       <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">Magazzino</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">Giacenze, materiali per le commesse e movimenti.</p>
+          <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">{t("Magazzino")}</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">{t("Giacenze, materiali per le commesse e movimenti.")}</p>
         </div>
       </div>
 
       {/* Print header */}
       <div className="hidden print:block">
-        <h1 className="text-2xl font-bold">Magazzino - {effectiveCompany.name}</h1>
-        <p className="text-sm text-muted-foreground">
-          Generato il {format(new Date(), "dd MMMM yyyy", { locale: it })}
-        </p>
+        <h1 className="text-2xl font-bold">{t("Magazzino - {name}", { name: String(effectiveCompany.name ?? "") })}</h1>
+        <p className="text-sm text-muted-foreground">{t("Generato il {valore}", { valore: format(new Date(), "dd MMMM yyyy", { locale: dateFnsCampo() }) })}</p>
       </div>
 
       {/* Error state */}
       {isError && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Errore di caricamento</AlertTitle>
+          <AlertTitle>{t("Errore di caricamento")}</AlertTitle>
           <AlertDescription className="flex items-center justify-between">
-            <span>Impossibile caricare i dati del magazzino.</span>
+            <span>{t("Impossibile caricare i dati del magazzino.")}</span>
             <Button variant="outline" size="sm" onClick={refetch} className="ml-4">
               <RefreshCw className="h-4 w-4 mr-2" />
-              Riprova
+              {t("Riprova")}
             </Button>
           </AlertDescription>
         </Alert>
       )}
 
-      {isStockError && <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>Inventario non disponibile</AlertTitle><AlertDescription>Articoli ed esportazione dell’inventario non sono aggiornati. <Button variant="outline" size="sm" onClick={() => void refetchStock()}>Riprova inventario</Button></AlertDescription></Alert>}
+      {isStockError && <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>{t("Inventario non disponibile")}</AlertTitle><AlertDescription>{t("Articoli ed esportazione dell’inventario non sono aggiornati.")} <Button variant="outline" size="sm" onClick={() => void refetchStock()}>{t("Riprova inventario")}</Button></AlertDescription></Alert>}
 
       {/* Banner avvisi RIMOSSI completamente — riducono il rumore visivo
           e duplicano informazioni già presenti nelle KPI cliccabili sotto. */}
@@ -856,11 +856,11 @@ function WarehousePage() {
         {/* «Personalizza i riquadri» sta nel menu ⋯ della testata: qui era una
             riga intera sopra i numeri per un bottone. */}
         <OperationalSummary
-          label="Riepilogo magazzino"
-          title={activeWarehouse?.name ?? "Tutti i magazzini"}
+          label={t("Riepilogo magazzino")}
+          title={activeWarehouse?.name ?? t("Tutti i magazzini")}
           icon={WarehouseIcon}
           error={riepilogoError}
-          note={<>{riepilogoFetching ? "Aggiornamento del riepilogo…" : "Totali del magazzino selezionato, indipendenti dai filtri dell’elenco."}{riepilogoError && <Button variant="ghost" size="sm" className="ml-2 text-white hover:bg-white/10 hover:text-white" onClick={() => void refetchRiepilogo()}>Riprova riepilogo</Button>}</>}
+          note={<>{riepilogoFetching ? t("Aggiornamento del riepilogo…") : t("Totali del magazzino selezionato, indipendenti dai filtri dell’elenco.")}{riepilogoError && <Button variant="ghost" size="sm" className="ml-2 text-white hover:bg-white/10 hover:text-white" onClick={() => void refetchRiepilogo()}>{t("Riprova riepilogo")}</Button>}</>}
         >
         <div className="col-span-full space-y-3">
           {gruppoAttivo === "preparare" ? (
@@ -880,7 +880,7 @@ function WarehousePage() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">
-                            Giacenza materiale
+                            {t("Giacenza materiale")}
                           </p>
                           <p className="truncate text-sm font-medium" title={card.item.name}>
                             {card.label || card.item.name}
@@ -892,7 +892,7 @@ function WarehousePage() {
                         {quantity}
                       </p>
                       <p className="text-[11px] text-muted-foreground mt-1">
-                        {canViewCosts && unitCost > 0 ? `${formatCurrency(quantity * unitCost)} valore` : "giacenza fisica"}
+                        {canViewCosts && unitCost > 0 ? t("{valore} valore", { valore: formatCurrency(quantity * unitCost) }) : t("giacenza fisica")}
                       </p>
                     </CardContent>
                   </Card>
@@ -905,23 +905,23 @@ function WarehousePage() {
       </div>
 
       <Dialog open={prelievoSettingsOpen} onOpenChange={setPrelievoSettingsOpen}>
-        <DialogContent><DialogHeader><DialogTitle>Prelievi dal cantiere</DialogTitle><DialogDescription>Scegli se le richieste di materiale devono essere approvate dall’ufficio.</DialogDescription></DialogHeader>{!isReadOnly && <ImpostazionePrelievoCampo />}</DialogContent>
+        <DialogContent><DialogHeader><DialogTitle>{t("Prelievi dal cantiere")}</DialogTitle><DialogDescription>{t("Scegli se le richieste di materiale devono essere approvate dall’ufficio.")}</DialogDescription></DialogHeader>{!isReadOnly && <ImpostazionePrelievoCampo />}</DialogContent>
       </Dialog>
 
       <Dialog open={metricsDialogOpen} onOpenChange={setMetricsDialogOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Personalizza card magazzino</DialogTitle>
+            <DialogTitle>{t("Personalizza card magazzino")}</DialogTitle>
             <DialogDescription>
-              Mostra solo le metriche utili e aggiungi card dedicate alla giacenza dei singoli materiali.
+              {t("Mostra solo le metriche utili e aggiungi card dedicate alla giacenza dei singoli materiali.")}
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-5 py-2 lg:grid-cols-2">
             <section className="space-y-3">
               <div>
-                <h3 className="text-sm font-semibold">Workflow commesse</h3>
-                <p className="text-xs text-muted-foreground">Card cliccabili che filtrano le commesse.</p>
+                <h3 className="text-sm font-semibold">{t("Workflow commesse")}</h3>
+                <p className="text-xs text-muted-foreground">{t("Card cliccabili che filtrano le commesse.")}</p>
               </div>
               <div className="space-y-2">
                 {DEFAULT_ORDER_METRICS.map((metric) => (
@@ -930,7 +930,7 @@ function WarehousePage() {
                       checked={metricPreferences.order.includes(metric)}
                       onCheckedChange={() => toggleOrderMetric(metric)}
                     />
-                    <span>{ORDER_METRIC_LABELS[metric]}</span>
+                    <span>{t(ORDER_METRIC_LABELS[metric])}</span>
                   </Label>
                 ))}
               </div>
@@ -938,8 +938,8 @@ function WarehousePage() {
 
             <section className="space-y-3">
               <div>
-                <h3 className="text-sm font-semibold">Inventario</h3>
-                <p className="text-xs text-muted-foreground">Metriche sintetiche su giacenze e valore.</p>
+                <h3 className="text-sm font-semibold">{t("Inventario")}</h3>
+                <p className="text-xs text-muted-foreground">{t("Metriche sintetiche su giacenze e valore.")}</p>
               </div>
               <div className="space-y-2">
                 {ALL_INVENTORY_METRICS.map((metric) => (
@@ -948,7 +948,7 @@ function WarehousePage() {
                       checked={metricPreferences.inventory.includes(metric)}
                       onCheckedChange={() => toggleInventoryMetric(metric)}
                     />
-                    <span>{INVENTORY_METRIC_LABELS[metric]}</span>
+                    <span>{t(INVENTORY_METRIC_LABELS[metric])}</span>
                   </Label>
                 ))}
               </div>
@@ -956,8 +956,8 @@ function WarehousePage() {
 
             <section className="space-y-3 lg:col-span-2">
               <div>
-                <h3 className="text-sm font-semibold">Card materiali</h3>
-                <p className="text-xs text-muted-foreground">Aggiungi una card per controllare la giacenza di un materiale preciso.</p>
+                <h3 className="text-sm font-semibold">{t("Card materiali")}</h3>
+                <p className="text-xs text-muted-foreground">{t("Aggiungi una card per controllare la giacenza di un materiale preciso.")}</p>
               </div>
 
               <div className="flex flex-col gap-2 sm:flex-row">
@@ -967,7 +967,7 @@ function WarehousePage() {
                   disabled={stockItems.length === 0}
                 >
                   <SelectTrigger className="min-w-0 flex-1">
-                    <SelectValue placeholder="Scegli materiale" />
+                    <SelectValue placeholder={t("Scegli materiale")} />
                   </SelectTrigger>
                   <SelectContent>
                     {stockItems.map((item) => (
@@ -988,7 +988,7 @@ function WarehousePage() {
                   className="gap-2"
                 >
                   <Plus className="h-4 w-4" aria-hidden="true" />
-                  Aggiungi card
+                  {t("Aggiungi card")}
                 </Button>
               </div>
 
@@ -998,16 +998,14 @@ function WarehousePage() {
                     <div key={card.id} className="flex items-center justify-between gap-3 rounded-md border p-3">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium">{card.item.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          Giacenza: {Number(card.item.quantity ?? 0)}
-                        </p>
+                        <p className="text-xs text-muted-foreground">{t("Giacenza: {valore}", { valore: Number(card.item.quantity ?? 0) })}</p>
                       </div>
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
                         onClick={() => removeMaterialMetricCard(card.id)}
-                        aria-label={`Rimuovi card ${card.item.name}`}
+                        aria-label={t("Rimuovi card {name}", { name: String(card.item.name ?? "") })}
                       >
                         <Trash2 className="h-4 w-4" aria-hidden="true" />
                       </Button>
@@ -1016,7 +1014,7 @@ function WarehousePage() {
                 </div>
               ) : (
                 <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-                  Nessuna card materiale aggiunta.
+                  {t("Nessuna card materiale aggiunta.")}
                 </div>
               )}
             </section>
@@ -1024,10 +1022,10 @@ function WarehousePage() {
 
           <DialogFooter className="gap-2 sm:justify-between">
             <Button type="button" variant="ghost" onClick={resetMetricPreferences}>
-              Ripristina riquadri predefiniti
+              {t("Ripristina riquadri predefiniti")}
             </Button>
             <Button type="button" onClick={() => setMetricsDialogOpen(false)}>
-              Fine
+              {t("Fine")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1054,13 +1052,13 @@ function WarehousePage() {
               {viewMode === "list" && (
                 <Select value={groupBy} onValueChange={(v) => setGroupBy(v as GroupBy)}>
                   <SelectTrigger className="w-full sm:w-[180px] max-sm:hidden">
-                    <SelectValue placeholder="Raggruppa per" />
+                    <SelectValue placeholder={t("Raggruppa per")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="order">Per commessa</SelectItem>
-                    <SelectItem value="date">Per data lavori</SelectItem>
-                    <SelectItem value="status">Per stato</SelectItem>
-                    <SelectItem value="supplier">Per fornitore</SelectItem>
+                    <SelectItem value="order">{t("Per commessa")}</SelectItem>
+                    <SelectItem value="date">{t("Per data lavori")}</SelectItem>
+                    <SelectItem value="status">{t("Per stato")}</SelectItem>
+                    <SelectItem value="supplier">{t("Per fornitore")}</SelectItem>
                   </SelectContent>
                 </Select>
               )}
@@ -1069,7 +1067,7 @@ function WarehousePage() {
             {viewMode !== "stock" && <div className="flex flex-wrap items-center gap-2">
               {warehouseSelect}
               <div className="flex flex-wrap items-center gap-2 sm:ml-auto">{warehouseActions}
-                <DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" className="h-10 max-sm:h-11 gap-1.5" aria-label="Altre azioni del magazzino"><MoreHorizontal className="h-4 w-4" />Altro</Button></DropdownMenuTrigger><DropdownMenuContent align="end" className="w-64">{warehouseMenuItems}</DropdownMenuContent></DropdownMenu>
+                <DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" className="h-10 max-sm:h-11 gap-1.5" aria-label={t("Altre azioni del magazzino")}><MoreHorizontal className="h-4 w-4" />{t("Altro")}</Button></DropdownMenuTrigger><DropdownMenuContent align="end" className="w-64">{warehouseMenuItems}</DropdownMenuContent></DropdownMenu>
               </div>
             </div>}
 
@@ -1084,7 +1082,7 @@ function WarehousePage() {
                 onClick={() => setQuickFilter("all")}
                 className="tap-compact shrink-0"
               >
-                Tutti
+                {t("Tutti")}
               </Button>
               <Button
                 variant={quickFilter === "active" ? "secondary" : "outline"}
@@ -1093,7 +1091,7 @@ function WarehousePage() {
                 className="tap-compact gap-1 shrink-0"
               >
                 <WarehouseIcon className="h-4 w-4" />
-                Da Lavorare
+                {t("Da Lavorare")}
                 {activeItemsCount > 0 && (
                   <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
                     {activeItemsCount}
@@ -1107,7 +1105,7 @@ function WarehousePage() {
                 className="tap-compact gap-1 shrink-0"
               >
                 <AlertTriangle className="h-4 w-4" />
-                Urgenti
+                {t("Urgenti")}
                 {urgentItemsCount > 0 && (
                   <span className="ml-1 bg-destructive-foreground text-destructive rounded-full px-1.5 py-0.5 text-xs font-bold">
                     {urgentItemsCount}
@@ -1120,20 +1118,20 @@ function WarehousePage() {
                 size="sm"
                 onClick={() => setQuickFilter("thisWeek")}
                 className="tap-compact gap-1 shrink-0"
-                title="Articoli con la posa in questa settimana (lunedì–domenica)"
+                title={t("Articoli con la posa in questa settimana (lunedì–domenica)")}
               >
                 <Clock className="h-4 w-4" />
-                Questa settimana
+                {t("Questa settimana")}
               </Button>
               <Button
                 variant={quickFilter === "nextWeek" ? "secondary" : "outline"}
                 size="sm"
                 onClick={() => setQuickFilter("nextWeek")}
                 className="gap-1 shrink-0 max-sm:hidden"
-                title="Articoli con la posa nella prossima settimana"
+                title={t("Articoli con la posa nella prossima settimana")}
               >
                 <Clock className="h-4 w-4" />
-                Prossima settimana
+                {t("Prossima settimana")}
               </Button>
             </div>
             )}
@@ -1147,7 +1145,7 @@ function WarehousePage() {
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Cerca articolo..."
+                  placeholder={t("Cerca articolo...")}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-9 max-sm:h-9"
@@ -1158,7 +1156,7 @@ function WarehousePage() {
                 size="icon"
                 className="tap-compact sm:hidden shrink-0 max-sm:h-9 max-sm:w-9"
                 onClick={() => setScannerOpen(true)}
-                title="Scansiona barcode"
+                title={t("Scansiona barcode")}
               >
                 <ScanLine className="h-4 w-4" />
               </Button>
@@ -1166,10 +1164,10 @@ function WarehousePage() {
                 variant="outline"
                 onClick={() => setFiltersSheetOpen(true)}
                 className="tap-compact shrink-0 gap-2 max-sm:h-9 max-sm:px-2.5"
-                title="Apri filtri avanzati"
+                title={t("Apri filtri avanzati")}
               >
                 <SlidersHorizontal className="h-4 w-4" />
-                <span className="hidden sm:inline">Filtri</span>
+                <span className="hidden sm:inline">{t("Filtri")}</span>
                 {hasActiveFilters && (
                   <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
                     {[
@@ -1186,10 +1184,10 @@ function WarehousePage() {
                 variant="outline"
                 onClick={() => setSerialsSheetOpen(true)}
                 className="shrink-0 gap-2 max-sm:hidden"
-                title="Cerca tra tutti i seriali del magazzino"
+                title={t("Cerca tra tutti i seriali del magazzino")}
               >
                 <Package className="h-4 w-4" />
-                <span className="hidden sm:inline">Seriali</span>
+                <span className="hidden sm:inline">{t("Seriali")}</span>
               </Button>
             </div>
             )}
@@ -1203,27 +1201,27 @@ function WarehousePage() {
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
               <SlidersHorizontal className="h-5 w-5" />
-              Filtri avanzati
+              {t("Filtri avanzati")}
             </SheetTitle>
             <SheetDescription>
-              Filtra gli articoli per stato, ordine, fornitore o zona del magazzino.
+              {t("Filtra gli articoli per stato, ordine, fornitore o zona del magazzino.")}
             </SheetDescription>
           </SheetHeader>
 
           <div className="flex-1 overflow-y-auto space-y-4 py-4">
             <div className="space-y-2">
               <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Stato
+                {t("Stato")}
               </label>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Stato" />
+                  <SelectValue placeholder={t("Stato")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tutti gli stati</SelectItem>
+                  <SelectItem value="all">{t("Tutti gli stati")}</SelectItem>
                   {Object.entries(STATUS_CONFIG).map(([status, config]) => (
                     <SelectItem key={status} value={status}>
-                      {config.label}
+                      {t(config.label)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1232,14 +1230,14 @@ function WarehousePage() {
 
             <div className="space-y-2">
               <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Ordine
+                {t("Ordine")}
               </label>
               <Select value={orderFilter} onValueChange={setOrderFilter}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Ordine" />
+                  <SelectValue placeholder={t("Ordine")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tutti gli ordini</SelectItem>
+                  <SelectItem value="all">{t("Tutti gli ordini")}</SelectItem>
                   {uniqueOrders.map((order) => (
                     <SelectItem key={order.id} value={order.id}>
                       {order.code} - {order.customer}
@@ -1251,14 +1249,14 @@ function WarehousePage() {
 
             <div className="space-y-2">
               <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Fornitore
+                {t("Fornitore")}
               </label>
               <Select value={supplierFilter} onValueChange={setSupplierFilter}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Fornitore" />
+                  <SelectValue placeholder={t("Fornitore")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tutti i fornitori</SelectItem>
+                  <SelectItem value="all">{t("Tutti i fornitori")}</SelectItem>
                   {suppliers.map((supplier) => (
                     <SelectItem key={supplier.id} value={supplier.id}>
                       {supplier.name}
@@ -1271,15 +1269,15 @@ function WarehousePage() {
             {sections.length > 0 && (
               <div className="space-y-2">
                 <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Zona magazzino
+                  {t("Zona magazzino")}
                 </label>
                 <Select value={sectionFilter} onValueChange={setSectionFilter}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Zona" />
+                    <SelectValue placeholder={t("Zona")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Tutte le zone</SelectItem>
-                    <SelectItem value="__none__">Nessuna zona</SelectItem>
+                    <SelectItem value="all">{t("Tutte le zone")}</SelectItem>
+                    <SelectItem value="__none__">{t("Nessuna zona")}</SelectItem>
                     {sections.map((section) => (
                       <SelectItem key={section.id} value={section.id}>
                         {section.name}
@@ -1296,14 +1294,14 @@ function WarehousePage() {
             {lotti.length > 0 && (
               <div className="space-y-2">
                 <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Lotto / Bancale
+                  {t("Lotto / Bancale")}
                 </label>
                 <Select value={lottoFilter} onValueChange={setLottoFilter}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Lotto" />
+                    <SelectValue placeholder={t("Lotto")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Tutti i lotti</SelectItem>
+                    <SelectItem value="all">{t("Tutti i lotti")}</SelectItem>
                     {lotti.map((l) => (
                       <SelectItem key={l.id} value={l.id}>
                         {l.codice_lotto}
@@ -1327,10 +1325,10 @@ function WarehousePage() {
               className="flex-1"
             >
               <X className="h-4 w-4 mr-2" />
-              Pulisci tutto
+              {t("Pulisci tutto")}
             </Button>
             <Button onClick={() => setFiltersSheetOpen(false)} className="flex-1">
-              Applica
+              {t("Applica")}
             </Button>
           </SheetFooter>
         </SheetContent>
@@ -1383,7 +1381,7 @@ function WarehousePage() {
           aria-live="polite"
         >
           <Loader2 className="h-6 w-6 animate-spin" aria-hidden="true" />
-          <span className="text-sm">Caricamento articoli…</span>
+          <span className="text-sm">{t("Caricamento articoli…")}</span>
         </div>
       ) : isError ? null : filteredItems.length === 0 ? (
         <Card>
@@ -1391,12 +1389,12 @@ function WarehousePage() {
             <Package className="h-12 w-12 text-muted-foreground/40" aria-hidden="true" />
             <div>
               <p className="text-sm font-medium text-foreground">
-                {hasActiveFilters ? "Nessun articolo trovato" : "Magazzino vuoto"}
+                {hasActiveFilters ? t("Nessun articolo trovato") : t("Magazzino vuoto")}
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
                 {hasActiveFilters
-                  ? "Prova a modificare i filtri o la ricerca."
-                  : "Aggiungi articoli dal catalogo per iniziare a gestire il magazzino."}
+                  ? t("Prova a modificare i filtri o la ricerca.")
+                  : t("Aggiungi articoli dal catalogo per iniziare a gestire il magazzino.")}
               </p>
             </div>
             {!hasActiveFilters && !isReadOnly && (
@@ -1405,7 +1403,7 @@ function WarehousePage() {
                 className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
               >
                 <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                Vai al catalogo articoli
+                {t("Vai al catalogo articoli")}
               </a>
             )}
           </CardContent>
@@ -1421,10 +1419,10 @@ function WarehousePage() {
             <Card className="border-primary/30 bg-primary/5">
               <CardContent className="py-3 flex items-center gap-3">
                 <span className="text-sm font-medium">
-                  {selectedItemIds.size} articol{selectedItemIds.size === 1 ? "o" : "i"} selezionat{selectedItemIds.size === 1 ? "o" : "i"}
+                  {selectedItemIds.size === 1 ? t("{n} articolo selezionato", { n: 1 }) : t("{n} articoli selezionati", { n: selectedItemIds.size })}
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  Trascina sulla mappa per assegnare zona
+                  {t("Trascina sulla mappa per assegnare zona")}
                 </span>
                 <Button
                   variant="ghost"
@@ -1433,7 +1431,7 @@ function WarehousePage() {
                   onClick={() => setSelectedItemIds(new Set())}
                 >
                   <X className="h-4 w-4 mr-1" />
-                  Deseleziona
+                  {t("Deseleziona")}
                 </Button>
               </CardContent>
             </Card>
@@ -1494,7 +1492,7 @@ function WarehousePage() {
       {isWorkflowView && totalPages > 1 && (
         <div className="flex items-center justify-between print:hidden">
           <p className="text-sm text-muted-foreground">
-            {totalCount} articol{totalCount === 1 ? "o" : "i"} totali — Pagina {page + 1} di {totalPages}
+            {t(totalCount === 1 ? "{n} articolo totali — Pagina {pagina} di {totale}" : "{n} articoli totali — Pagina {pagina} di {totale}", { n: totalCount, pagina: page + 1, totale: totalPages })}
           </p>
           <div className="flex items-center gap-2">
             <Button
@@ -1504,7 +1502,7 @@ function WarehousePage() {
               disabled={page === 0}
             >
               <ChevronLeft className="h-4 w-4 mr-1" />
-              Precedente
+              {t("Precedente")}
             </Button>
             <Button
               variant="outline"
@@ -1512,7 +1510,7 @@ function WarehousePage() {
               onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
               disabled={page >= totalPages - 1}
             >
-              Successiva
+              {t("Successiva")}
               <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
           </div>

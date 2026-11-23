@@ -69,6 +69,7 @@ import { puoModificareNota } from "@/lib/marketing/modificaNota";
 import { idModuloDaFonte, origineOpportunita, type DatiOrigine } from "@/lib/origineOpportunita";
 import { OpportunityPrintSheet } from "@/components/opportunities/OpportunityPrintSheet";
 import { costruisciSchedaStampa } from "@/lib/opportunita/schedaStampa";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   opportunity: any;
@@ -96,6 +97,7 @@ const SELECT_TRIGGER_CLS =
 const MOBILE_TABS = new Set<string>(["details", "registro", "notes", "sopralluoghi"]);
 
 export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stages, initialTab, canEdit = true }: Props) {
+  const tr = useT();
   const navigate = useNavigate();
   // Rotte relative al contesto: dall'hub admin si resta su /admin/marketing
   // (prima si finiva su /azienda/* perdendo il PlatformCompanyProvider).
@@ -460,19 +462,19 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
 
   const handleSave = async () => {
     if (!canEditOpportunity) {
-      toast.error("Non hai i permessi per modificare opportunità");
+      toast.error(tr("Non hai i permessi per modificare opportunità"));
       return;
     }
     if (!name.trim()) {
-      toast.error("Inserisci il nome dell'opportunità");
+      toast.error(tr("Inserisci il nome dell'opportunità"));
       return;
     }
     if (contact && !pendingContactId && !showNewContactForm && !contactFirstName.trim()) {
-      toast.error("Il nome del contatto non può restare vuoto");
+      toast.error(tr("Il nome del contatto non può restare vuoto"));
       return;
     }
     if (!stageId) {
-      toast.error("Seleziona una fase");
+      toast.error(tr("Seleziona una fase"));
       return;
     }
     // Persa: il motivo è obbligatorio. Prima «Aggiorna» diceva solo «Indica il
@@ -490,7 +492,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
     }
     const numericValue = value.trim() ? Number(value) : 0;
     if (!Number.isFinite(numericValue) || numericValue < 0) {
-      toast.error("Il valore economico deve essere un numero positivo");
+      toast.error(tr("Il valore economico deve essere un numero positivo"));
       return;
     }
     // Handle new contact creation if pending
@@ -592,10 +594,10 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
         for (const tag of removedTags) {
           await removeTagFromContact(finalContactId, tag, companyId);
         }
-        toast.success("Opportunità aggiornata con successo");
+        toast.success(tr("Opportunità aggiornata con successo"));
         onOpenChange(false);
       },
-      onError: (e: any) => toast.error(e.message || "Errore durante il salvataggio"),
+      onError: (e: any) => toast.error(e.message || tr("Errore durante il salvataggio")),
     });
   };
 
@@ -627,7 +629,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
 
   const handleDelete = () => {
     if (!canEditOpportunity) {
-      toast.error("Non hai i permessi per eliminare opportunità");
+      toast.error(tr("Non hai i permessi per eliminare opportunità"));
       return;
     }
     setConfirmDelete(true);
@@ -640,7 +642,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const handleAddNote = () => {
     if (!newNote.trim()) return;
     if (!canEditOpportunity) {
-      toast.error("Non hai i permessi per aggiungere appunti");
+      toast.error(tr("Non hai i permessi per aggiungere appunti"));
       return;
     }
     addNote.mutate({ opportunityId: opportunity.id, contactId: opportunity.contact_id, content: newNote.trim() }, { onSuccess: () => setNewNote("") });
@@ -672,7 +674,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
         <Label className="text-xs text-muted-foreground">{field.name}</Label>
         {field.field_type === "select" ? (
           <Select value={val || "none"} onValueChange={(v) => onChange(v === "none" ? "" : v)}>
-            <SelectTrigger className="h-10 sm:h-8 text-sm"><SelectValue placeholder="Seleziona..." /></SelectTrigger>
+            <SelectTrigger className="h-10 sm:h-8 text-sm"><SelectValue placeholder={tr("Seleziona...")} /></SelectTrigger>
             <SelectContent>
               <SelectItem value="none">—</SelectItem>
               {(field.options || []).map((opt: string) => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
@@ -737,16 +739,16 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   });
 
   const sidebarTabs: { key: Tab; label: string; mobileLabel?: string; icon: React.ReactNode; enabled: boolean }[] = [
-    { key: "details", label: "Dettagli dell'opportunità", mobileLabel: "Dettagli", icon: <FileText className="h-4 w-4" />, enabled: true },
-    { key: "appointments", label: "Prenota/aggiorna appuntamento", mobileLabel: "Appuntamento", icon: <CalendarDays className="h-4 w-4" />, enabled: true },
-    { key: "registro", label: "Registro attività", mobileLabel: "Registro", icon: <History className="h-4 w-4" />, enabled: true },
-    { key: "activities", label: "Attività", icon: <Activity className="h-4 w-4" />, enabled: true },
-    { key: "notes", label: totaleNote ? `Appunti (${totaleNote})` : "Appunti", mobileLabel: totaleNote ? `Appunti ${totaleNote}` : "Appunti", icon: <StickyNote className="h-4 w-4" />, enabled: true },
-    { key: "documents", label: "Documenti", icon: <Folder className="h-4 w-4" />, enabled: true },
+    { key: "details", label: tr("Dettagli dell'opportunità"), mobileLabel: tr("Dettagli"), icon: <FileText className="h-4 w-4" />, enabled: true },
+    { key: "appointments", label: tr("Prenota/aggiorna appuntamento"), mobileLabel: tr("Appuntamento"), icon: <CalendarDays className="h-4 w-4" />, enabled: true },
+    { key: "registro", label: tr("Registro attività"), mobileLabel: tr("Registro"), icon: <History className="h-4 w-4" />, enabled: true },
+    { key: "activities", label: tr("Attività"), icon: <Activity className="h-4 w-4" />, enabled: true },
+    { key: "notes", label: totaleNote ? tr("Appunti ({n})", { n: totaleNote }) : tr("Appunti"), mobileLabel: totaleNote ? tr("Appunti {n}", { n: totaleNote }) : tr("Appunti"), icon: <StickyNote className="h-4 w-4" />, enabled: true },
+    { key: "documents", label: tr("Documenti"), icon: <Folder className="h-4 w-4" />, enabled: true },
     // Nel CRM di piattaforma non si fanno preventivi con i preventivatori: niente scheda.
-    ...(isPlatformCrm ? [] : [{ key: "quotes" as Tab, label: "Preventivi", icon: <FileText className="h-4 w-4" />, enabled: true }]),
+    ...(isPlatformCrm ? [] : [{ key: "quotes" as Tab, label: tr("Preventivi"), icon: <FileText className="h-4 w-4" />, enabled: true }]),
     // Sopralluoghi nelle Vendite (piano sopralluoghi, lotto 3): commerciale e tecnico della trattativa.
-    ...(isPlatformCrm || !isFeatureEnabled("surveys_module") || !permissions.canViewSopralluoghi ? [] : [{ key: "sopralluoghi" as Tab, label: "Sopralluoghi", icon: <ClipboardCheck className="h-4 w-4" />, enabled: true }]),
+    ...(isPlatformCrm || !isFeatureEnabled("surveys_module") || !permissions.canViewSopralluoghi ? [] : [{ key: "sopralluoghi" as Tab, label: tr("Sopralluoghi"), icon: <ClipboardCheck className="h-4 w-4" />, enabled: true }]),
   ];
 
   const searchTrimmed = contactSearch.trim();
@@ -767,14 +769,14 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
               type="button"
               onClick={() => onOpenChange(false)}
               className="sm:hidden shrink-0 -ml-1 mt-0.5 h-9 w-9 inline-flex items-center justify-center rounded-full hover:bg-muted active:bg-muted/70 transition-colors"
-              aria-label="Chiudi"
+              aria-label={tr("Chiudi")}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
             </button>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <DialogTitle className="text-[15px] sm:text-lg font-semibold leading-tight truncate max-w-full">
-                  <span className="hidden sm:inline">Modifica "</span>{fullName}{cityPart}<span className="hidden sm:inline">"</span>
+                  <span className="hidden sm:inline">{tr("Modifica")} "</span>{fullName}{cityPart}<span className="hidden sm:inline">"</span>
                 </DialogTitle>
                 {/* SALES OS: Badge opportunità ferma */}
                 {(() => {
@@ -783,14 +785,12 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                     ? Math.floor((nowMs - new Date(stageTouchedAt).getTime()) / 86400000)
                     : 0;
                   return daysSince >= 14 && opportunity.status === "open" ? (
-                    <Badge variant="destructive" className="text-[10px] sm:text-xs h-5 px-1.5 shrink-0">
-                      ⚠ {daysSince}gg
-                    </Badge>
+                    <Badge variant="destructive" className="text-[10px] sm:text-xs h-5 px-1.5 shrink-0">{tr("⚠ {n}gg", { n: daysSince ?? "" })}</Badge>
                   ) : null;
                 })()}
               </div>
               <DialogDescription className="hidden sm:block text-xs text-muted-foreground mt-0.5">
-                Aggiorna dettagli, attività, appunti e appuntamenti dell'opportunità.
+                {tr("Aggiorna dettagli, attività, appunti e appuntamenti dell'opportunità.")}
               </DialogDescription>
             </div>
             {/* Trigger rapidi contatto: chiama (centralino) · email · whatsapp */}
@@ -806,8 +806,8 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                       else window.open(`tel:${contactPhone}`, "_self");
                     }}
                     className="tap-compact h-9 w-9 sm:h-8 sm:w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
-                    aria-label="Chiama contatto"
-                    title={`Chiama ${contactPhone}`}
+                    aria-label={tr("Chiama contatto")}
+                    title={tr("Chiama {contactPhone}", { contactPhone: String(contactPhone ?? "") })}
                   >
                     <Phone className="h-4 w-4" />
                   </button>
@@ -817,8 +817,8 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                     type="button"
                     onClick={() => setQuickSend({ open: true, channel: "email" })}
                     className="tap-compact h-9 w-9 sm:h-8 sm:w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-violet-50 hover:text-violet-600 transition-colors"
-                    aria-label="Invia email"
-                    title={`Email a ${contactEmail}`}
+                    aria-label={tr("Invia email")}
+                    title={tr("Email a {contactEmail}", { contactEmail: String(contactEmail ?? "") })}
                   >
                     <Mail className="h-4 w-4" />
                   </button>
@@ -828,8 +828,8 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                     type="button"
                     onClick={() => setQuickSend({ open: true, channel: "whatsapp" })}
                     className="tap-compact h-9 w-9 sm:h-8 sm:w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
-                    aria-label="Invia SMS o WhatsApp"
-                    title="Invia SMS o WhatsApp"
+                    aria-label={tr("Invia SMS o WhatsApp")}
+                    title={tr("Invia SMS o WhatsApp")}
                   >
                     <MessageCircle className="h-4 w-4" />
                   </button>
@@ -846,7 +846,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                   type="button"
                   onClick={() => setTab("appointments")}
                   className="tap-compact sm:hidden h-9 w-9 inline-flex items-center justify-center rounded-md text-muted-foreground active:bg-muted"
-                  aria-label="Appuntamento"
+                  aria-label={tr("Appuntamento")}
                 >
                   <CalendarDays className="h-4 w-4" />
                 </button>
@@ -858,7 +858,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                     opportunityId={opportunity.id}
                     contactId={opportunity.contact_id ?? null}
                     size="sm"
-                    label="Preventivo"
+                    label={tr("Preventivo")}
                     className="max-sm:flex-1 max-sm:shadow-none max-sm:hover:translate-y-0"
                   />
                 )}
@@ -871,8 +871,8 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
               size="icon"
               className="hidden lg:inline-flex shrink-0 h-8 w-8"
               onClick={() => window.print()}
-              title="Stampa tutta la scheda in formato A4"
-              aria-label="Stampa la scheda"
+              title={tr("Stampa tutta la scheda in formato A4")}
+              aria-label={tr("Stampa la scheda")}
             >
               <Printer className="h-4 w-4" />
             </Button>
@@ -880,7 +880,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
               type="button"
               onClick={() => onOpenChange(false)}
               className="hidden sm:inline-flex shrink-0 h-8 w-8 items-center justify-center rounded-md hover:bg-muted transition-colors"
-              aria-label="Chiudi"
+              aria-label={tr("Chiudi")}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
             </button>
@@ -897,7 +897,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                 <button
                   key={t.key}
                   onClick={() => {
-                    if (!t.enabled) { toast.info(`${t.label}: in arrivo`); return; }
+                    if (!t.enabled) { toast.info(tr("{label}: in arrivo", { label: String(t.label ?? "") })); return; }
                     setTab(t.key);
                   }}
                   // Mobile: tre schede a tutta larghezza (Dettagli, Registro,
@@ -930,11 +930,11 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                       telefono, l'anagrafica completa è nella scheda contatto. */}
                   <div className="max-lg:order-3">
                     <div className="flex items-center justify-between mb-2.5 sm:mb-3 gap-2">
-                      <h3 className="text-sm font-semibold">Contatto</h3>
+                      <h3 className="text-sm font-semibold">{tr("Contatto")}</h3>
                       <label className="flex items-center gap-1.5 text-[11px] sm:text-xs text-muted-foreground cursor-pointer shrink-0 max-sm:hidden">
                         <Checkbox checked={hideEmpty} onCheckedChange={(c) => setHideEmpty(!!c)} className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
-                        <span className="hidden sm:inline">Nascondi campi vuoti</span>
-                        <span className="sm:hidden">Nascondi vuoti</span>
+                        <span className="hidden sm:inline">{tr("Nascondi campi vuoti")}</span>
+                        <span className="sm:hidden">{tr("Nascondi vuoti")}</span>
                       </label>
                     </div>
 
@@ -942,7 +942,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                       {/* Contact name - with change button */}
                       {!changingContact ? (
                         <div className="space-y-1">
-                          <Label className="text-[11px] sm:text-xs text-muted-foreground">Nome contatto</Label>
+                          <Label className="text-[11px] sm:text-xs text-muted-foreground">{tr("Nome contatto")}</Label>
                           <div className="flex items-center gap-2">
                             <div className="flex items-center gap-2 h-10 sm:h-8 px-3 border rounded-md bg-muted/30 text-sm flex-1 min-w-0">
                               <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
@@ -951,7 +951,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                                   type="button"
                                   onClick={() => { navigate(`${routePrefix}/contatti/${opportunity.contact_id}`); onOpenChange(false); }}
                                   className="group/clink inline-flex items-center gap-1 min-w-0 text-left hover:text-primary transition-colors"
-                                  title="Apri scheda contatto"
+                                  title={tr("Apri scheda contatto")}
                                 >
                                   <span className="truncate group-hover/clink:underline">{fullName || "—"}</span>
                                   <ExternalLink className="h-3 w-3 shrink-0 opacity-50 group-hover/clink:opacity-100" />
@@ -970,19 +970,19 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                                 setShowNewContactForm(false);
                                 setPendingContactId(null);
                               }}
-                              aria-label="Cambia contatto"
+                              aria-label={tr("Cambia contatto")}
                             >
                               <RefreshCw className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
-                              <span className="hidden sm:inline text-xs">Cambia</span>
+                              <span className="hidden sm:inline text-xs">{tr("Cambia")}</span>
                             </Button>
                           </div>
                         </div>
                       ) : (
                         <div className="space-y-2">
-                          <Label className="text-xs text-muted-foreground">Cerca o crea contatto</Label>
+                          <Label className="text-xs text-muted-foreground">{tr("Cerca o crea contatto")}</Label>
                           <div className="relative">
                             <Input
-                              placeholder="Cerca contatto..."
+                              placeholder={tr("Cerca contatto...")}
                               value={contactSearch}
                               onChange={(e) => {
                                 setContactSearch(e.target.value);
@@ -1016,7 +1016,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                                 ) : (
                                   <div className="flex flex-col items-center py-4 text-muted-foreground">
                                     <DatabaseZap className="h-6 w-6 mb-1 opacity-40" />
-                                    <p className="text-xs">Nessun risultato</p>
+                                    <p className="text-xs">{tr("Nessun risultato")}</p>
                                   </div>
                                 )}
                                 <button
@@ -1031,7 +1031,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                                   }}
                                 >
                                   <UserPlus className="h-3.5 w-3.5" />
-                                  + {searchTrimmed || ""} (Crea nuovo contatto)
+                                  + {searchTrimmed || ""} {tr("(Crea nuovo contatto)")}
                                 </button>
                               </div>
                             )}
@@ -1043,7 +1043,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                               setPendingContactId(null);
                             }}
                           >
-                            Annulla
+                            {tr("Annulla")}
                           </button>
                         </div>
                       )}
@@ -1052,13 +1052,13 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                       {showNewContactForm && (
                         <div className="space-y-2 p-3 rounded-lg border border-dashed bg-muted/30">
                           <div className="flex items-center justify-between">
-                            <Label className="text-xs font-semibold flex items-center gap-1.5"><UserPlus className="h-3.5 w-3.5" /> Nuovo contatto</Label>
-                            <button className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setShowNewContactForm(false)}>Annulla</button>
+                            <Label className="text-xs font-semibold flex items-center gap-1.5"><UserPlus className="h-3.5 w-3.5" /> {tr("Nuovo contatto")}</Label>
+                            <button className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setShowNewContactForm(false)}>{tr("Annulla")}</button>
                           </div>
-                          <Input placeholder="Nome e cognome *" value={newContactName} onChange={(e) => setNewContactName(e.target.value)} className="h-10 sm:h-8 text-sm" />
+                          <Input placeholder={tr("Nome e cognome *")} value={newContactName} onChange={(e) => setNewContactName(e.target.value)} className="h-10 sm:h-8 text-sm" />
                           <div className="grid grid-cols-2 gap-2">
                             <Input placeholder="Email" value={newContactEmail} onChange={(e) => setNewContactEmail(e.target.value)} className="h-10 sm:h-8 text-sm" type="email" />
-                            <Input placeholder="Telefono" value={newContactPhone} onChange={(e) => setNewContactPhone(e.target.value)} className="h-10 sm:h-8 text-sm" type="tel" />
+                            <Input placeholder={tr("Telefono")} value={newContactPhone} onChange={(e) => setNewContactPhone(e.target.value)} className="h-10 sm:h-8 text-sm" type="tel" />
                           </div>
                         </div>
                       )}
@@ -1066,11 +1066,11 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                       {contact && !pendingContactId && !showNewContactForm && (
                         <div className="grid grid-cols-2 gap-2 max-sm:hidden">
                           <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">Nome</Label>
+                            <Label className="text-xs text-muted-foreground">{tr("Nome")}</Label>
                             <Input value={contactFirstName} onChange={(e) => setContactFirstName(e.target.value)} disabled={!canEditOpportunity} className="h-10 sm:h-8 text-sm" />
                           </div>
                           <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">Cognome</Label>
+                            <Label className="text-xs text-muted-foreground">{tr("Cognome")}</Label>
                             <Input value={contactLastName} onChange={(e) => setContactLastName(e.target.value)} disabled={!canEditOpportunity} className="h-10 sm:h-8 text-sm" />
                           </div>
                         </div>
@@ -1078,7 +1078,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
 
                       {(!hideEmpty || contactEmail) && !showNewContactForm && (
                         <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">Email primaria</Label>
+                          <Label className="text-xs text-muted-foreground">{tr("Email primaria")}</Label>
                           <div className="relative">
                             <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                             <Input value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} type="email" inputMode="email" className="h-10 sm:h-8 text-sm pl-8" />
@@ -1088,7 +1088,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
 
                       {(!hideEmpty || contactPhone) && !showNewContactForm && (
                         <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">Telefono primario</Label>
+                          <Label className="text-xs text-muted-foreground">{tr("Telefono primario")}</Label>
                           <div className="relative">
                             <Phone className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                             <Input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} type="tel" inputMode="tel" className="h-10 sm:h-8 text-sm pl-8" />
@@ -1098,7 +1098,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
 
                       {(!hideEmpty || contactAddress) && !showNewContactForm && (
                         <div className="space-y-1 max-sm:hidden">
-                          <Label htmlFor="opp-contatto-indirizzo" className="text-xs text-muted-foreground">Indirizzo</Label>
+                          <Label htmlFor="opp-contatto-indirizzo" className="text-xs text-muted-foreground">{tr("Indirizzo")}</Label>
                           <CampoIndirizzo
                             id="opp-contatto-indirizzo"
                             value={contactAddress}
@@ -1112,7 +1112,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                                 setContactRegion("");
                               }
                             }}
-                            placeholder="Via e numero civico"
+                            placeholder={tr("Via e numero civico")}
                             className="h-10 sm:h-8 text-sm"
                           />
                         </div>
@@ -1120,20 +1120,20 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
 
                       {(!hideEmpty || contactCity) && !showNewContactForm && (
                         <div className="space-y-1 max-sm:hidden">
-                          <Label className="text-xs text-muted-foreground">Città</Label>
+                          <Label className="text-xs text-muted-foreground">{tr("Città")}</Label>
                           <Input value={contactCity} onChange={(e) => setContactCity(e.target.value)} className="h-10 sm:h-8 text-sm" />
-                          <p className="text-[10px] text-muted-foreground">Provincia e regione si compilano da sole dalla città.</p>
+                          <p className="text-[10px] text-muted-foreground">{tr("Provincia e regione si compilano da sole dalla città.")}</p>
                         </div>
                       )}
 
                       {(!hideEmpty || contactProvince || contactRegion) && !showNewContactForm && (
                         <div className="grid grid-cols-2 gap-2 max-sm:hidden">
                           <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">Provincia</Label>
-                            <Input value={contactProvince} onChange={(e) => setContactProvince(e.target.value)} placeholder="Es: RM" className="h-10 sm:h-8 text-sm" />
+                            <Label className="text-xs text-muted-foreground">{tr("Provincia")}</Label>
+                            <Input value={contactProvince} onChange={(e) => setContactProvince(e.target.value)} placeholder={tr("Es: RM")} className="h-10 sm:h-8 text-sm" />
                           </div>
                           <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">Regione</Label>
+                            <Label className="text-xs text-muted-foreground">{tr("Regione")}</Label>
                             <Select value={contactRegion || "__none__"} onValueChange={(v) => setContactRegion(v === "__none__" ? "" : v)}>
                               <SelectTrigger className="h-10 sm:h-8 text-sm"><SelectValue placeholder="—" /></SelectTrigger>
                               <SelectContent>
@@ -1153,17 +1153,17 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
 
                   {/* Opportunità Dettagli */}
                   <div className="max-lg:order-1">
-                    <h3 className="text-sm font-semibold mb-2.5 sm:mb-3">Opportunità</h3>
+                    <h3 className="text-sm font-semibold mb-2.5 sm:mb-3">{tr("Opportunità")}</h3>
                     <div className="space-y-2.5 sm:space-y-3">
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">Nome opportunità</Label>
+                        <Label className="text-xs text-muted-foreground">{tr("Nome opportunità")}</Label>
                         <Input value={name} onChange={(e) => setName(e.target.value)} className="h-10 sm:h-8 text-sm" />
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {/* Mobile no: la sequenza (pipeline) si cambia dal computer. */}
                         <div className="space-y-1 max-sm:hidden">
-                          <Label className="text-xs text-muted-foreground">Sequenza</Label>
+                          <Label className="text-xs text-muted-foreground">{tr("Sequenza")}</Label>
                           {canEditOpportunity && pipelines.length > 1 ? (
                             <Select
                               value={pipelineId}
@@ -1179,7 +1179,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                                 }
                               }}
                             >
-                              <SelectTrigger className={SELECT_TRIGGER_CLS}><SelectValue placeholder="Sequenza" /></SelectTrigger>
+                              <SelectTrigger className={SELECT_TRIGGER_CLS}><SelectValue placeholder={tr("Sequenza")} /></SelectTrigger>
                               <SelectContent>
                                 {pipelines.map((p: any) => (
                                   <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
@@ -1193,7 +1193,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                           )}
                         </div>
                         <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">Fase</Label>
+                          <Label className="text-xs text-muted-foreground">{tr("Fase")}</Label>
                           <Select value={stageId} onValueChange={(newStageId) => {
                             setStageId(newStageId);
                             // Auto-update status based on stage's auto_status
@@ -1217,18 +1217,18 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                       {/* Stato e valore affiancati anche su telefono: due campi corti. */}
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">Stato</Label>
+                          <Label className="text-xs text-muted-foreground">{tr("Stato")}</Label>
                           <Select value={status} onValueChange={handleStatusChange}>
                             <SelectTrigger className={SELECT_TRIGGER_CLS}><SelectValue /></SelectTrigger>
                             <SelectContent>
                               {STATUS_OPTIONS.map((s) => (
-                                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                                <SelectItem key={s.value} value={s.value}>{tr(s.label)}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                         </div>
                         <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground"><span className="max-sm:hidden">Valore dell'opportunità (€)</span><span className="sm:hidden">Valore €</span></Label>
+                          <Label className="text-xs text-muted-foreground"><span className="max-sm:hidden">{tr("Valore dell'opportunità (€)")}</span><span className="sm:hidden">{tr("Valore €")}</span></Label>
                           <Input value={value} onChange={(e) => setValue(e.target.value)} type="number" inputMode="decimal" className="h-10 sm:h-8 text-sm" />
                         </div>
                       </div>
@@ -1239,9 +1239,9 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                       {(status === "lost" || status === "abandoned") && (
                         <div className="flex items-center justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2">
                           <div className="min-w-0">
-                            <p className="text-xs text-muted-foreground">Motivo della perdita</p>
+                            <p className="text-xs text-muted-foreground">{tr("Motivo della perdita")}</p>
                             <p className="truncate text-sm font-medium">
-                              {motivoPerditaScritto || "Non indicato"}
+                              {motivoPerditaScritto || tr("Non indicato")}
                             </p>
                           </div>
                           <Button
@@ -1252,39 +1252,39 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                             disabled={!canEditOpportunity}
                             onClick={() => apriMotivoPerdita(status === "abandoned" ? "abandoned" : "lost")}
                           >
-                            {motivoPerditaScritto ? "Cambia" : "Indica il motivo"}
+                            {motivoPerditaScritto ? tr("Cambia") : tr("Indica il motivo")}
                           </Button>
                         </div>
                       )}
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">Venditore</Label>
+                          <Label className="text-xs text-muted-foreground">{tr("Venditore")}</Label>
                           <Select value={salespeople.some((s: any) => s.id === assignedTo) ? assignedTo : "none"} onValueChange={(v) => setAssignedTo(v === "none" ? "" : v)}>
-                            <SelectTrigger className={SELECT_TRIGGER_CLS}><SelectValue placeholder="Non assegnato" /></SelectTrigger>
+                            <SelectTrigger className={SELECT_TRIGGER_CLS}><SelectValue placeholder={tr("Non assegnato")} /></SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="none">Non assegnato</SelectItem>
+                              <SelectItem value="none">{tr("Non assegnato")}</SelectItem>
                               {salespeople.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                             </SelectContent>
                           </Select>
                         </div>
                         {/* Mobile no: follower e call center si assegnano dal computer. */}
                         <div className="space-y-1 max-sm:hidden">
-                          <Label className="text-xs text-muted-foreground">Follower</Label>
+                          <Label className="text-xs text-muted-foreground">{tr("Follower")}</Label>
                           <Select value={staff.some((s: any) => s.id === followerId) ? followerId : "none"} onValueChange={(v) => setFollowerId(v === "none" ? "" : v)}>
-                            <SelectTrigger className={SELECT_TRIGGER_CLS}><SelectValue placeholder="Nessuno" /></SelectTrigger>
+                            <SelectTrigger className={SELECT_TRIGGER_CLS}><SelectValue placeholder={tr("Nessuno")} /></SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="none">Nessuno</SelectItem>
+                              <SelectItem value="none">{tr("Nessuno")}</SelectItem>
                               {staff.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                             </SelectContent>
                           </Select>
                         </div>
                         <div className="space-y-1 max-sm:hidden">
-                          <Label className="text-xs text-muted-foreground">Call Center</Label>
+                          <Label className="text-xs text-muted-foreground">{tr("Call Center")}</Label>
                           <Select value={callCenterUsers.some((s: any) => s.id === callCenterId) ? callCenterId : "none"} onValueChange={(v) => setCallCenterId(v === "none" ? "" : v)}>
-                            <SelectTrigger className={SELECT_TRIGGER_CLS}><SelectValue placeholder="Nessuno" /></SelectTrigger>
+                            <SelectTrigger className={SELECT_TRIGGER_CLS}><SelectValue placeholder={tr("Nessuno")} /></SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="none">Nessuno</SelectItem>
+                              <SelectItem value="none">{tr("Nessuno")}</SelectItem>
                               {callCenterUsers.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                             </SelectContent>
                           </Select>
@@ -1295,22 +1295,22 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                           gli appunti hanno la loro scheda. */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-sm:hidden">
                         <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">Nome dell'azienda</Label>
+                          <Label className="text-xs text-muted-foreground">{tr("Nome dell'azienda")}</Label>
                           <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} className="h-10 sm:h-8 text-sm" />
                         </div>
                         <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">Fonte dell'opportunità</Label>
+                          <Label className="text-xs text-muted-foreground">{tr("Fonte dell'opportunità")}</Label>
                           <Input value={source} onChange={(e) => setSource(e.target.value)} className="h-10 sm:h-8 text-sm" />
                         </div>
                       </div>
 
                       <div className="space-y-1 max-sm:hidden">
-                        <Label className="text-xs text-muted-foreground">Etichette</Label>
+                        <Label className="text-xs text-muted-foreground">{tr("Etichette")}</Label>
                         <TagSelector selectedTags={oppTags} onTagsChange={setOppTags} />
                       </div>
 
                       <div className="space-y-1 max-sm:hidden">
-                        <Label className="text-xs text-muted-foreground">Appunti</Label>
+                        <Label className="text-xs text-muted-foreground">{tr("Appunti")}</Label>
                         {/* Un posto solo (23/09/2026): gli appunti della sezione
                             «Appunti». Qui se ne vede l'ultimo e un clic porta a
                             tutti. Anche quello che scrivono i flussi automatici
@@ -1323,16 +1323,14 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                             onClick={() => setTab("notes")}
                             className="block w-full text-left text-[11px] text-muted-foreground hover:text-primary transition-colors"
                           >
-                            <span className="font-medium">
-                              Appunti: {notes.length}
-                            </span>
-                            {" · l'ultimo del "}
-                            {format(new Date(ultimaNotaRegistro.created_at), "d MMM yyyy", { locale: it })}
+                            <span className="font-medium">{tr("Appunti: {n}", { n: notes.length })}</span>
+                            {` ${tr("· l'ultimo del")} `}
+                            {format(new Date(ultimaNotaRegistro.created_at), "d MMM yyyy", { locale: dateFnsCampo() })}
                             {": "}
                             <span className="italic">
                               «{String(ultimaNotaRegistro.content ?? "").slice(0, 90)}{String(ultimaNotaRegistro.content ?? "").length > 90 ? "…" : ""}»
                             </span>
-                            <span className="text-primary"> · vedi tutti</span>
+                            <span className="text-primary"> {tr("· vedi tutti")}</span>
                           </button>
                         ) : (
                           <button
@@ -1340,7 +1338,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                             onClick={() => setTab("notes")}
                             className="block w-full text-left text-[11px] text-muted-foreground hover:text-primary transition-colors"
                           >
-                            Nessun appunto · <span className="text-primary">scrivine uno</span>
+                            {tr("Nessun appunto ·")} <span className="text-primary">{tr("scrivine uno")}</span>
                           </button>
                         )}
                       </div>
@@ -1362,7 +1360,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                     <CardHeader className="pb-3 pt-4 px-4 max-sm:px-0 max-sm:pt-0 max-sm:pb-2">
                       <CardTitle className="text-sm font-medium flex items-center gap-2">
                         <Target className="h-4 w-4 text-primary" />
-                        Avanzamento Commerciale
+                        {tr("Avanzamento Commerciale")}
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4 px-4 pb-4 max-sm:space-y-3 max-sm:px-0 max-sm:pb-0">
@@ -1371,8 +1369,8 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground flex items-center gap-1 max-sm:h-4">
-                            <span className="max-sm:hidden">Data chiusura prevista</span>
-                            <span className="sm:hidden">Chiusura prevista</span>
+                            <span className="max-sm:hidden">{tr("Data chiusura prevista")}</span>
+                            <span className="sm:hidden">{tr("Chiusura prevista")}</span>
                             {!opportunity.expected_close_date && (
                               <span className="text-destructive">*</span>
                             )}
@@ -1397,13 +1395,13 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                         </div>
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground max-sm:flex max-sm:h-4 max-sm:items-center">
-                            Probabilità %<span className="max-sm:hidden"> (override)</span>
+                            {tr("Probabilità %")}<span className="max-sm:hidden"> {tr("(override)")}</span>
                           </Label>
                           <Input
                             type="number"
                             min="0"
                             max="100"
-                            placeholder="Auto da stage"
+                            placeholder={tr("Auto da stage")}
                             defaultValue={opportunity.probability ?? ""}
                             className="h-10 sm:h-8 text-sm"
                             onBlur={(e) => {
@@ -1428,18 +1426,16 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                           className="w-full flex items-center justify-between gap-2 rounded-md border border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/40 px-2.5 py-2 text-xs text-green-800 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-950/70 transition-colors"
                         >
                           <span>
-                            Da questo deal è nata la commessa{" "}
+                            {tr("Da questo deal è nata la commessa")}{" "}
                             <span className="font-semibold">{catena.commessa.order_code ?? "—"}</span>
                           </span>
-                          <span className="underline shrink-0">Apri</span>
+                          <span className="underline shrink-0">{tr("Apri")}</span>
                         </button>
                       )}
                       {!catena?.commessa && catena?.preventivoAccettato && opportunity.status === "open" && (
                         <div className="flex items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40 px-2.5 py-2 text-xs text-amber-800 dark:text-amber-300">
                           <span>
-                            Il preventivo{" "}
-                            <span className="font-semibold">{catena.preventivoAccettato.quote_number ?? ""}</span>{" "}
-                            è stato accettato: questo deal è ancora aperto.
+                            {tr("Il preventivo {numero} è stato accettato: questo deal è ancora aperto.", { numero: catena.preventivoAccettato.quote_number ?? "" })}
                           </span>
                           <Button
                             type="button"
@@ -1455,7 +1451,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                               });
                             }}
                           >
-                            Segna come vinta
+                            {tr("Segna come vinta")}
                           </Button>
                         </div>
                       )}
@@ -1474,15 +1470,15 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                           {clienteServizio ? (
                             <div className="flex items-center justify-between gap-2 rounded-md border border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/40 px-2.5 py-2 text-xs text-emerald-800 dark:text-emerald-300">
                               <span>
-                                Da questo deal è nato il cliente-servizio{" "}
+                                {tr("Da questo deal è nato il cliente-servizio")}{" "}
                                 <span className="font-semibold">{clienteServizio.cliente_nome}</span>
                                 {clienteServizio.stato !== "attivo" && ` (${clienteServizio.stato})`}
                               </span>
-                              <a href="/admin/marketing/clienti-servizio" className="underline shrink-0">Apri</a>
+                              <a href="/admin/marketing/clienti-servizio" className="underline shrink-0">{tr("Apri")}</a>
                             </div>
                           ) : opportunity.status === "won" ? (
                             <div className="flex items-center justify-between gap-2 rounded-md border border-sky-200 bg-sky-50 dark:border-sky-900 dark:bg-sky-950/40 px-2.5 py-2 text-xs text-sky-800 dark:text-sky-300">
-                              <span>Trattativa vinta: manca la relazione ricorrente con i suoi incassi.</span>
+                              <span>{tr("Trattativa vinta: manca la relazione ricorrente con i suoi incassi.")}</span>
                               <Button
                                 type="button"
                                 size="sm"
@@ -1491,7 +1487,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                                 disabled={!canEditOpportunity}
                                 onClick={() => setConvertiOpen(true)}
                               >
-                                Crea cliente-servizio
+                                {tr("Crea cliente-servizio")}
                               </Button>
                             </div>
                           ) : null}
@@ -1509,9 +1505,9 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                         className="flex w-full items-center gap-1.5 text-left text-xs text-muted-foreground hover:text-foreground"
                       >
                         <AlertTriangle className="h-3 w-3 shrink-0 text-yellow-500" />
-                        <span className="shrink-0">Prossima azione</span>
+                        <span className="shrink-0">{tr("Prossima azione")}</span>
                         <span className="min-w-0 flex-1 truncate text-foreground">
-                          {opportunity.next_action || <span className="text-muted-foreground">da aggiungere</span>}
+                          {opportunity.next_action || <span className="text-muted-foreground">{tr("da aggiungere")}</span>}
                           {opportunity.next_action_date ? ` · ${opportunity.next_action_date}` : ""}
                         </span>
                         <ChevronDown className={`h-3 w-3 shrink-0 transition-transform ${prossimaAperta ? "rotate-180" : ""}`} />
@@ -1519,7 +1515,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                       {prossimaAperta && (
                         <>
                           <Textarea
-                            placeholder="Es: Inviare preventivo, Chiamare per follow-up..."
+                            placeholder={tr("Es: Inviare preventivo, Chiamare per follow-up...")}
                             defaultValue={opportunity.next_action ?? ""}
                             className="text-sm min-h-[60px] resize-none"
                             onBlur={(e) =>
@@ -1532,7 +1528,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                           <Input
                             type="date"
                             defaultValue={opportunity.next_action_date ?? ""}
-                            placeholder="Data scadenza azione"
+                            placeholder={tr("Data scadenza azione")}
                             className="mt-1 h-10 sm:h-8 text-sm"
                             // onBlur come gli altri campi (commit 5c9c21b9d): con
                             // onChange ogni keystroke della data lanciava una
@@ -1565,12 +1561,12 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                       confondevano. */}
                   {/* Mobile no: il titolo è la scheda stessa. */}
                   <div className="flex items-center gap-2 pt-1 max-sm:hidden">
-                    <span className="text-xs font-medium">Appunti</span>
-                    <span className="text-[11px] text-muted-foreground">ognuno con data e autore</span>
+                    <span className="text-xs font-medium">{tr("Appunti")}</span>
+                    <span className="text-[11px] text-muted-foreground">{tr("ognuno con data e autore")}</span>
                   </div>
                   <div className="flex gap-2">
                     <Textarea
-                      placeholder="Scrivi un appunto..."
+                      placeholder={tr("Scrivi un appunto...")}
                       value={newNote}
                       onChange={(e) => setNewNote(e.target.value)}
                       rows={2}
@@ -1582,15 +1578,15 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                       size="sm"
                       onClick={handleAddNote}
                       disabled={addNote.isPending || !newNote.trim() || !canEdit || !permissions.canEditMarketingContacts}
-                      title={!permissions.canEditMarketingContacts ? (permissions.solaLettura ? "Sei in sola lettura" : "Non hai il permesso di modifica") : undefined}
+                      title={!permissions.canEditMarketingContacts ? (permissions.solaLettura ? tr("Sei in sola lettura") : tr("Non hai il permesso di modifica")) : undefined}
                       className="self-end"
                     >
-                      {addNote.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Aggiungi"}
+                      {addNote.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : tr("Aggiungi")}
                     </Button>
                   </div>
                   <Separator className="max-sm:hidden" />
                   {notes.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-6 max-sm:py-3 max-sm:text-[13px]">Nessun appunto</p>
+                    <p className="text-sm text-muted-foreground text-center py-6 max-sm:py-3 max-sm:text-[13px]">{tr("Nessun appunto")}</p>
                   ) : (
                     <div className="space-y-3">
                       {notes.map((note: any) => (
@@ -1602,11 +1598,11 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                           intestazione={
                             <div className="flex items-center gap-2 mb-1">
                             {note.opportunity_id === opportunity.id ? (
-                              <Badge variant="secondary" className="text-[9px] h-4 px-1.5">Opportunità</Badge>
+                              <Badge variant="secondary" className="text-[9px] h-4 px-1.5">{tr("Opportunità")}</Badge>
                             ) : note.opportunity_id ? (
-                              <Badge variant="outline" className="text-[9px] h-4 px-1.5">Altra opp.</Badge>
+                              <Badge variant="outline" className="text-[9px] h-4 px-1.5">{tr("Altra opp.")}</Badge>
                             ) : (
-                              <Badge variant="outline" className="text-[9px] h-4 px-1.5">Contatto</Badge>
+                              <Badge variant="outline" className="text-[9px] h-4 px-1.5">{tr("Contatto")}</Badge>
                             )}
                           </div>
                           }
@@ -1688,8 +1684,8 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
               className="text-xs text-primary hover:underline flex items-center gap-1 shrink-0"
             >
               <Settings2 className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Aggiungi/gestisci campi</span>
-              <span className="sm:hidden">Gestisci campi</span>
+              <span className="hidden sm:inline">{tr("Aggiungi/gestisci campi")}</span>
+              <span className="sm:hidden">{tr("Gestisci campi")}</span>
             </button>
             {/* Va a capo invece di troncare: la fonte è in fondo alla riga ed è la parte che serve. */}
             <span className="text-[11px] leading-tight text-muted-foreground" title={testoCreazione}>
@@ -1697,14 +1693,14 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
             </span>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2 ml-auto max-sm:ml-0 max-sm:flex-1">
-            <Button variant="ghost" size="icon" onClick={handleDelete} disabled={deleteOpp.isPending || !canEditOpportunity} className="h-10 w-10 sm:h-9 sm:w-9 text-destructive hover:text-destructive shrink-0" aria-label="Elimina opportunità">
+            <Button variant="ghost" size="icon" onClick={handleDelete} disabled={deleteOpp.isPending || !canEditOpportunity} className="h-10 w-10 sm:h-9 sm:w-9 text-destructive hover:text-destructive shrink-0" aria-label={tr("Elimina opportunità")}>
               <Trash2 className="h-4 w-4" />
             </Button>
             {/* Mobile no: c'è la freccia in alto. */}
-            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="h-10 sm:h-9 px-3 sm:px-4 max-sm:hidden">Annulla</Button>
+            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="h-10 sm:h-9 px-3 sm:px-4 max-sm:hidden">{tr("Annulla")}</Button>
             <Button size="sm" onClick={handleSave} disabled={isSaving || !canEditOpportunity} className="h-10 sm:h-9 px-4 max-sm:flex-1">
               {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Aggiorna
+              {tr("Aggiorna")}
             </Button>
           </div>
         </div>
@@ -1724,13 +1720,13 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
     <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Eliminare questa opportunità?</AlertDialogTitle>
-          <AlertDialogDescription>Finisce nel cestino: la puoi ripristinare da Opportunità → Altre azioni → Cestino.</AlertDialogDescription>
+          <AlertDialogTitle>{tr("Eliminare questa opportunità?")}</AlertDialogTitle>
+          <AlertDialogDescription>{tr("Finisce nel cestino: la puoi ripristinare da Opportunità → Altre azioni → Cestino.")}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Annulla</AlertDialogCancel>
+          <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
           <AlertDialogAction onClick={confirmDeleteAction} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-            Elimina
+            {tr("Elimina")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
@@ -1742,27 +1738,27 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Trophy className="h-5 w-5 text-destructive" />
-            Perché hai perso questa opportunità?
+            {tr("Perché hai perso questa opportunità?")}
           </DialogTitle>
           <DialogDescription>
-            Queste informazioni migliorano le previsioni e aiutano il team.
+            {tr("Queste informazioni migliorano le previsioni e aiutano il team.")}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <MotivoPerditaSelect value={lostCategory} onChange={setLostCategory} />
           <div className="space-y-1">
-            <Label className="text-sm font-medium">Dettaglio (opzionale)</Label>
+            <Label className="text-sm font-medium">{tr("Dettaglio (opzionale)")}</Label>
             <Textarea
-              placeholder="Descrivi cosa è successo..."
+              placeholder={tr("Descrivi cosa è successo...")}
               value={lostReason}
               onChange={(e) => setLostReason(e.target.value)}
               className="mt-1 text-sm min-h-[80px] resize-none"
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-sm font-medium">Concorrente che ha vinto (opzionale)</Label>
+            <Label className="text-sm font-medium">{tr("Concorrente che ha vinto (opzionale)")}</Label>
             <Input
-              placeholder="Es: Competitor SpA, nessuno, cliente interno..."
+              placeholder={tr("Es: Competitor SpA, nessuno, cliente interno...")}
               value={competitorWon}
               onChange={(e) => setCompetitorWon(e.target.value)}
               className="mt-1"
@@ -1771,7 +1767,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => { setShowLostDialog(false); azzeraMotivoPerdita(); }}>
-            Annulla
+            {tr("Annulla")}
           </Button>
           <Button
             variant="destructive"
@@ -1801,7 +1797,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                       void handleSave();
                       return;
                     }
-                    toast.success("Opportunità aggiornata");
+                    toast.success(tr("Opportunità aggiornata"));
                   },
                 }
               );
@@ -1810,7 +1806,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
             {updateOpportunity.isPending ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : null}
-            Conferma perdita
+            {tr("Conferma perdita")}
           </Button>
         </DialogFooter>
       </DialogContent>

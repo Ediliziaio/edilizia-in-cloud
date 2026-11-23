@@ -8,9 +8,11 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { statoConsentePagamentoRata } from "@/lib/fatturazione/rateFornitoriScadenzario";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 export type RataDaPagare = { id: string; stato: string; importo: number; updated_at: string; titolo: string };
 
 export function PagaRataDialog({ companyId, scelta, onClose }: { companyId: string; scelta: RataDaPagare; onClose: () => void }) {
+  const t = useT();
   const oggi = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Rome" });
   const [data,setData] = useState(oggi);
   const [rataCambiata, setRataCambiata] = useState(false);
@@ -29,23 +31,23 @@ export function PagaRataDialog({ companyId, scelta, onClose }: { companyId: stri
       refreshFinancialQueries(client);
       if (!modificata) { setRataCambiata(true); return; }
       onClose();
-      toast.success("Rata segnata pagata");
+      toast.success(t("Rata segnata pagata"));
     },
-    onError: () => { refreshFinancialQueries(client); toast.error("Rata non aggiornata. Verifica lo stato e i permessi."); },
+    onError: () => { refreshFinancialQueries(client); toast.error(t("Rata non aggiornata. Verifica lo stato e i permessi.")); },
   });
   return (
     <Dialog open onOpenChange={open => { if (!open && !paga.isPending) onClose(); }}>
       <DialogContent className="sm:max-w-sm">
-        <DialogHeader><DialogTitle>Segna rata pagata</DialogTitle><DialogDescription>{scelta.titolo}</DialogDescription></DialogHeader>
+        <DialogHeader><DialogTitle>{t("Segna rata pagata")}</DialogTitle><DialogDescription>{scelta.titolo}</DialogDescription></DialogHeader>
         <form className="space-y-3" onSubmit={e => {
           e.preventDefault();
           if (confermabile && !paga.isPending) paga.mutate({ ...scelta, data });
         }}>
-          {rataCambiata && <p role="alert" className="text-sm text-destructive">La rata è cambiata o non è più modificabile. Chiudi e riapri il dettaglio aggiornato.</p>}
-          <Label htmlFor="data-rata-pagata">Data effettiva del pagamento</Label>
+          {rataCambiata && <p role="alert" className="text-sm text-destructive">{t("La rata è cambiata o non è più modificabile. Chiudi e riapri il dettaglio aggiornato.")}</p>}
+          <Label htmlFor="data-rata-pagata">{t("Data effettiva del pagamento")}</Label>
           <Input id="data-rata-pagata" type="date" required max={oggi} value={data} onChange={e => setData(e.target.value)} />
-          <DialogFooter><Button type="button" variant="outline" disabled={paga.isPending} onClick={() => onClose()}>Annulla</Button>
-            <Button type="submit" disabled={!confermabile || paga.isPending}>Conferma pagamento</Button></DialogFooter>
+          <DialogFooter><Button type="button" variant="outline" disabled={paga.isPending} onClick={() => onClose()}>{t("Annulla")}</Button>
+            <Button type="submit" disabled={!confermabile || paga.isPending}>{t("Conferma pagamento")}</Button></DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

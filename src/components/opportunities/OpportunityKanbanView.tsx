@@ -24,6 +24,7 @@ import type { FiltriServerOpportunita } from "@/lib/marketingOpportunities";
 import type { OpportunityStage } from "@/types/opportunities";
 import { hashColor, inferOpportunityStatusFromStage } from "@/types/opportunities";
 import { useCardFieldPreferences } from "@/hooks/useCardFieldPreferences";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * true dal primo momento in cui l'elemento entra nel riquadro visibile (e poi
@@ -57,6 +58,7 @@ function useVistaAlmenoUnaVolta(elemento: HTMLElement | null, radice: HTMLElemen
  * prima fase della pipeline scelta (18/09/2026, richiesta di Il Bagno Group).
  */
 function ZonaPipeline({ pipeline }: { pipeline: { id: string; name: string; marketing_pipeline_stages?: Array<{ id: string; name: string }> } }) {
+  const t = useT();
   const { setNodeRef, isOver } = useDroppable({ id: `pipeline:${pipeline.id}`, data: { pipelineDestinazione: pipeline.id } });
   const prima = pipeline.marketing_pipeline_stages?.[0]?.name;
   return (
@@ -69,7 +71,7 @@ function ZonaPipeline({ pipeline }: { pipeline: { id: string; name: string; mark
     >
       <span className="truncate text-xs font-semibold">{pipeline.name}</span>
       <span className="truncate text-[11px] text-muted-foreground">
-        {prima ? `entra in «${prima}»` : "nessuna fase"}
+        {prima ? t("entra in «{prima}»", { prima: String(prima ?? "") }) : t("nessuna fase")}
       </span>
     </div>
   );
@@ -103,6 +105,7 @@ const StageColumn = memo(function StageColumn({
   onCardClick, onDelete, selectedIds, onSelect, onSelectStage, canEdit = true, onQuickAdd,
   collapsed = false, onToggleCollapse,
 }: StageColumnProps) {
+  const t = useT();
   const { setNodeRef, isOver } = useDroppable({ id: stage.id, data: { stageId: stage.id } });
   const { layout } = useCardFieldPreferences();
   const [radice, setRadice] = useState<HTMLDivElement | null>(null);
@@ -161,7 +164,7 @@ const StageColumn = memo(function StageColumn({
       <div
         ref={(node) => { setNodeRef(node); setRadice(node); }}
         onClick={() => onToggleCollapse?.(stage.id)}
-        title={`Espandi "${stage.name}"`}
+        title={t("Espandi \"{name}\"", { name: String(stage.name ?? "") })}
         className={cn(
           "flex flex-col items-center shrink-0 w-11 h-full rounded-lg border bg-muted/40 hover:bg-muted/70 transition-colors cursor-pointer",
           isOver && "bg-primary/10 border-primary border-dashed"
@@ -170,7 +173,7 @@ const StageColumn = memo(function StageColumn({
       >
         <button
           type="button"
-          aria-label={`Espandi ${stage.name}`}
+          aria-label={t("Espandi {name}", { name: String(stage.name ?? "") })}
           className="mt-1.5 flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:text-primary"
         >
           <ChevronRight className="h-4 w-4" />
@@ -201,7 +204,7 @@ const StageColumn = memo(function StageColumn({
               <Checkbox
                 checked={allSelected ? true : someSelected ? "indeterminate" : false}
                 onCheckedChange={(v) => onSelectStage(stage.id, v === true)}
-                aria-label={`Seleziona tutte le opportunità in ${stage.name}`}
+                aria-label={t("Seleziona tutte le opportunità in {name}", { name: String(stage.name ?? "") })}
                 className="h-3.5 w-3.5 shrink-0"
               />
             )}
@@ -213,7 +216,7 @@ const StageColumn = memo(function StageColumn({
             <span
               className="text-xs font-bold tabular-nums rounded-full px-2 py-0.5 text-white shadow-sm"
               style={{ backgroundColor: hashColor(stage.name) }}
-              title={`${formatCount(totale)} opportunità in "${stage.name}"`}
+              title={t("{totale} opportunità in \"{name}\"", { totale: formatCount(totale), name: String(stage.name ?? "") })}
             >
               {formatCount(totale)}
             </span>
@@ -222,7 +225,7 @@ const StageColumn = memo(function StageColumn({
               // prima l'unico "Aggiungi" era globale in header.
               <button
                 type="button"
-                title={`Aggiungi opportunità in "${stage.name}"`}
+                title={t("Aggiungi opportunità in \"{name}\"", { name: String(stage.name ?? "") })}
                 onClick={() => onQuickAdd(stage.id)}
                 className="flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors text-sm leading-none"
               >
@@ -233,7 +236,7 @@ const StageColumn = memo(function StageColumn({
               // Freccia per comprimere la colonna (stile GHL).
               <button
                 type="button"
-                title={`Comprimi "${stage.name}"`}
+                title={t("Comprimi \"{name}\"", { name: String(stage.name ?? "") })}
                 onClick={() => onToggleCollapse(stage.id)}
                 className="flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
               >
@@ -244,12 +247,10 @@ const StageColumn = memo(function StageColumn({
         </div>
         {selectedInStage > 0 ? (
           <p className="text-[11px] font-medium text-primary mt-0.5">
-            {formatCount(selectedInStage)} selezionat{selectedInStage === 1 ? "a" : "e"}
+            {t(selectedInStage === 1 ? "{n} selezionata" : "{n} selezionate", { n: formatCount(selectedInStage) })}
           </p>
         ) : (
-          <p className="text-[11px] text-muted-foreground mt-0.5">
-            {formatCurrency(totalValue)} tot · {formatCurrency(avgValue)} avg
-          </p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">{t("{totalValue} tot · {avgValue} avg", { totalValue: formatCurrency(totalValue), avgValue: formatCurrency(avgValue) })}</p>
         )}
       </div>
       <div
@@ -299,7 +300,7 @@ const StageColumn = memo(function StageColumn({
           </div>
         </SortableContext>
         {(isLoading || (!vista && totale > 0)) && opportunities.length === 0 && (
-          <div className="space-y-2" aria-busy="true" aria-label={`Caricamento ${stage.name}`}>
+          <div className="space-y-2" aria-busy="true" aria-label={t("Caricamento {name}", { name: String(stage.name ?? "") })}>
             {Array.from({ length: Math.min(3, Math.max(1, totale)) }).map((_, i) => (
               <Skeleton key={i} className={cn("w-full rounded-lg", layout === "mini" ? "h-11" : "h-28")} />
             ))}
@@ -307,31 +308,29 @@ const StageColumn = memo(function StageColumn({
         )}
         {isError && opportunities.length === 0 && (
           <div className="flex flex-col items-center gap-2 py-6 text-center">
-            <p className="text-xs text-muted-foreground">Schede non caricate.</p>
+            <p className="text-xs text-muted-foreground">{t("Schede non caricate.")}</p>
             <button
               type="button"
               onClick={() => refetch()}
               className="inline-flex items-center gap-1 rounded-md border bg-background px-2 py-1 text-xs hover:bg-muted"
             >
-              <RefreshCw className="h-3 w-3" /> Riprova
+              <RefreshCw className="h-3 w-3" /> {t("Riprova")}
             </button>
           </div>
         )}
         {!isLoading && !isError && vista && totale === 0 && opportunities.length === 0 && (
-          <p className="text-xs text-muted-foreground text-center py-8">Nessuna opportunità</p>
+          <p className="text-xs text-muted-foreground text-center py-8">{t("Nessuna opportunità")}</p>
         )}
         {opportunities.length > 0 && (hasNextPage || isFetchingNextPage) && (
           <div className="flex items-center justify-center gap-2 py-2 text-[11px] text-muted-foreground">
             {isFetchingNextPage ? (
-              <><Loader2 className="h-3 w-3 animate-spin" /> Carico altre…</>
+              <><Loader2 className="h-3 w-3 animate-spin" /> {t("Carico altre…")}</>
             ) : (
               <button
                 type="button"
                 onClick={() => fetchNextPage()}
                 className="rounded-md px-2 py-1 hover:bg-muted hover:text-foreground"
-              >
-                Mostra altre · {formatCount(opportunities.length)} di {formatCount(totale)}
-              </button>
+              >{t("Mostra altre · {n} di {totale}", { n: formatCount(opportunities.length), totale: formatCount(totale) })}</button>
             )}
           </div>
         )}
@@ -363,6 +362,7 @@ export function OpportunityKanbanView({
   stages, pipelineId, filtri, sortField, sortDir, riepilogo, idsPerFase,
   selectedIds, onSelect, onSelectStage, canEdit = true, onQuickAdd,
 }: KanbanProps) {
+  const t = useT();
   const updateStage = useUpdateOpportunityStage();
   const deleteOpp = useDeleteOpportunity();
   const [selectedOpp, setSelectedOpp] = useState<any>(null);
@@ -450,7 +450,7 @@ export function OpportunityKanbanView({
       const destinazione = altrePipeline.find((p: { id: string }) => p.id === pipelineDestinazione);
       const primaFase = destinazione?.marketing_pipeline_stages?.[0];
       if (!primaFase) {
-        toast.error(`«${destinazione?.name ?? "La pipeline scelta"}» non ha nessuna fase`);
+        toast.error(t("«{pipeline}» non ha nessuna fase", { pipeline: destinazione?.name ?? t("La pipeline scelta") }));
         return;
       }
       updateStage.mutate(
@@ -460,7 +460,7 @@ export function OpportunityKanbanView({
           pipeline_id: pipelineDestinazione,
           auto_status: inferOpportunityStatusFromStage(primaFase, "open"),
         },
-        { onSuccess: () => toast.success(`Spostata in «${destinazione?.name}» — ${primaFase.name}`) },
+        { onSuccess: () => toast.success(t("Spostata in «{pipeline}» — {fase}", { pipeline: destinazione?.name ?? "", fase: primaFase.name ?? "" })) },
       );
       return;
     }
@@ -600,7 +600,7 @@ export function OpportunityKanbanView({
         {frecceVisibili.sinistra && (
           <button
             type="button"
-            aria-label="Fasi precedenti"
+            aria-label={t("Fasi precedenti")}
             onClick={() => scorriFasi(-1)}
             className="absolute left-1 top-1/2 -translate-y-1/2 z-20 h-8 w-8 flex items-center justify-center rounded-full border bg-background/95 shadow-md backdrop-blur hover:bg-muted transition-colors"
           >
@@ -610,7 +610,7 @@ export function OpportunityKanbanView({
         {frecceVisibili.destra && (
           <button
             type="button"
-            aria-label="Fasi successive"
+            aria-label={t("Fasi successive")}
             onClick={() => scorriFasi(1)}
             className="absolute right-1 top-1/2 -translate-y-1/2 z-20 h-8 w-8 flex items-center justify-center rounded-full border bg-background/95 shadow-md backdrop-blur hover:bg-muted transition-colors"
           >
@@ -664,7 +664,7 @@ export function OpportunityKanbanView({
           {activeItem && canEdit && altrePipeline.length > 0 && (
             <div className="sticky bottom-0 left-0 z-30 mx-1 mb-1 rounded-xl border bg-background/95 p-2 shadow-lg backdrop-blur">
               <p className="px-1 pb-1.5 text-[11px] font-medium text-muted-foreground">
-                Lascia qui per spostare in un'altra pipeline
+                {t("Lascia qui per spostare in un'altra pipeline")}
               </p>
               <div className="flex gap-2 overflow-x-auto">
                 {altrePipeline.map((p) => <ZonaPipeline key={p.id} pipeline={p} />)}
@@ -696,7 +696,7 @@ export function OpportunityKanbanView({
           >
             <div
               role="scrollbar"
-              aria-label="Scorri le fasi"
+              aria-label={t("Scorri le fasi")}
               aria-orientation="horizontal"
               onPointerDown={iniziaTrascinaBarra}
               onPointerMove={muoviTrascinaBarra}

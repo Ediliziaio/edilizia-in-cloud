@@ -5,6 +5,7 @@ import { messaggioSalvataggio } from "@/lib/fatturazione/salvataggioFattura";
 import { SCENARI_RICONCILIAZIONE } from "../../../supabase/functions/_shared/riconciliazioneFattureScenari.ts";
 import type { EsitoRigaConfronto } from "@/lib/fatturazione/confrontoDocumenti";
 import type { PropostaRiconciliazione } from "../../../supabase/functions/_shared/riconciliazioneFattureAI.ts";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Banco di prova locale: usa chiamate reali, senza registrare fatture o documenti fittizi. */
 export function SimulazioniRiconciliazioneAI({
@@ -16,6 +17,7 @@ export function SimulazioniRiconciliazioneAI({
   documenti: { ddt: string[]; oda: string[] };
   disabled: boolean;
 }) {
+  const t = useT();
   const [esiti, setEsiti] = useState<
     {
       scenario: string;
@@ -79,7 +81,7 @@ export function SimulazioniRiconciliazioneAI({
   return (
     <details className="shrink-0 border-b bg-slate-50 px-4 py-1 text-xs">
       <summary className="cursor-pointer text-muted-foreground">
-        Simulazioni locali su dati di esempio
+        {t("Simulazioni locali su dati di esempio")}
       </summary>
       <div className="flex items-center gap-3 py-2">
         <Button
@@ -89,8 +91,8 @@ export function SimulazioniRiconciliazioneAI({
           onClick={() => void esegui()}
         >
           {inCorso
-            ? `Simulazione ${esiti.length + 1}/9…`
-            : "Esegui 9 simulazioni AI"}
+            ? t("Simulazione {n}/9…", { n: esiti.length + 1 })
+            : t("Esegui 9 simulazioni AI")}
         </Button>
         <Button
           variant="outline"
@@ -98,17 +100,16 @@ export function SimulazioniRiconciliazioneAI({
           disabled={disabled || inCorso}
           onClick={() => void esegui(true)}
         >
-          Prova 90 voci
+          {t("Prova 90 voci")}
         </Button>
         <span role="status">{progresso}</span>
         <span>
-          Chiamate AI reali con crediti dell’azienda. Nessuna fattura viene
-          creata o verificata.
+          {t("Chiamate AI reali con crediti dell’azienda. Nessuna fattura viene creata o verificata.")}
         </span>
       </div>
       {esiti.length > 0 && (
         <pre
-          aria-label="Esiti simulazioni AI"
+          aria-label={t("Esiti simulazioni AI")}
           className="max-h-52 overflow-auto whitespace-pre-wrap rounded border bg-white p-3 text-[11px]"
         >
           {JSON.stringify(

@@ -11,9 +11,11 @@ import {
   datiIntegrazione, tipoProposto, TIPI_INTEGRAZIONE,
   type RicevutaDaIntegrare, type TipoIntegrazione,
 } from "@/lib/fatturazione/integrazioneRicevuta";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Il tipo e l'aliquota li conferma una persona: sono scelte fiscali. */
 export function IntegrazioneRicevutaDialog({ fattura, onClose }: { fattura: RicevutaDaIntegrare | null; onClose: () => void }) {
+  const tr = useT();
   const navigate = useNavigate();
   const [tipo, setTipo] = useState<TipoIntegrazione>("reverse_charge_interno");
   const [aliquota, setAliquota] = useState("22");
@@ -46,19 +48,17 @@ export function IntegrazioneRicevutaDialog({ fattura, onClose }: { fattura: Rice
     <Dialog open={!!fattura} onOpenChange={(o) => !o && onClose()}>
       <DialogContent struttura="scorrevole" ampiezza="modulo" className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Integrazione della fattura</DialogTitle>
-          <DialogDescription>
-            {fattura?.cedente_ragione_sociale} · n. {fattura?.numero_fattura}. Si crea una bozza da controllare prima dell'invio allo SDI.
-          </DialogDescription>
+          <DialogTitle>{tr("Integrazione della fattura")}</DialogTitle>
+          <DialogDescription>{tr("{fornitore} · n. {numero}. Si crea una bozza da controllare prima dell'invio allo SDI.", { fornitore: String(fattura?.cedente_ragione_sociale ?? ""), numero: String(fattura?.numero_fattura ?? "") })}</DialogDescription>
         </DialogHeader>
         {esistente ? (
           <p className="text-sm">
-            Esiste già: <Link className="underline" to={`/azienda/documenti/${esistente.id}`} onClick={onClose}>{esistente.numero}</Link>.
+            {tr("Esiste già:")} <Link className="underline" to={`/azienda/documenti/${esistente.id}`} onClick={onClose}>{esistente.numero}</Link>.
           </p>
         ) : (
           <div className="space-y-3">
             <div className="space-y-1.5">
-              <Label htmlFor="tipo-integrazione">Tipo</Label>
+              <Label htmlFor="tipo-integrazione">{tr("Tipo")}</Label>
               <Select value={tipo} onValueChange={(v) => setTipo(v as TipoIntegrazione)}>
                 <SelectTrigger id="tipo-integrazione"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -67,7 +67,7 @@ export function IntegrazioneRicevutaDialog({ fattura, onClose }: { fattura: Rice
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="aliquota-integrazione">Aliquota IVA da integrare</Label>
+              <Label htmlFor="aliquota-integrazione">{tr("Aliquota IVA da integrare")}</Label>
               <Select value={aliquota} onValueChange={setAliquota}>
                 <SelectTrigger id="aliquota-integrazione"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -78,8 +78,8 @@ export function IntegrazioneRicevutaDialog({ fattura, onClose }: { fattura: Rice
           </div>
         )}
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Chiudi</Button>
-          {!esistente && <Button onClick={crea}>Crea bozza</Button>}
+          <Button variant="outline" onClick={onClose}>{tr("Chiudi")}</Button>
+          {!esistente && <Button onClick={crea}>{tr("Crea bozza")}</Button>}
         </DialogFooter>
       </DialogContent>
     </Dialog>

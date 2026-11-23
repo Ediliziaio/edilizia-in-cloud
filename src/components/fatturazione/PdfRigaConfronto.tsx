@@ -11,6 +11,7 @@ import type {
   PDFDocumentLoadingTask,
   RenderTask,
 } from "pdfjs-dist";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 interface Occorrenza extends RigaPdfTrovata {
   pagina: number;
 }
@@ -29,6 +30,7 @@ export function PdfRigaConfronto(props: PropsPdfOriginale) {
   );
 }
 function PdfOriginaleCanvas({ url, nome, ricerca = "",paginaIniziale=1 }: PropsPdfOriginale) {
+  const tr = useT();
   const affiancato = useDocumentoAffiancato();
   const scrollArea = useRef<HTMLDivElement>(null);
   const spazio = useDimensioniDocumento(scrollArea);
@@ -78,7 +80,7 @@ function PdfOriginaleCanvas({ url, nome, ricerca = "",paginaIniziale=1 }: PropsP
         setPronto(true);
       } catch {
         if (!annullato)
-          setErrore("Anteprima PDF non disponibile. Puoi aprire l’originale.");
+          setErrore(tr("Anteprima PDF non disponibile. Puoi aprire l’originale."));
       }
     })();
     return () => {
@@ -114,7 +116,7 @@ function PdfOriginaleCanvas({ url, nome, ricerca = "",paginaIniziale=1 }: PropsP
       } catch {
         if (!annullato)
           setAvvisoRicerca(
-            "Non è stato possibile cercare su tutte le pagine. Puoi comunque sfogliare il PDF.",
+            tr("Non è stato possibile cercare su tutte le pagine. Puoi comunque sfogliare il PDF."),
           );
       }
     })();
@@ -170,7 +172,7 @@ function PdfOriginaleCanvas({ url, nome, ricerca = "",paginaIniziale=1 }: PropsP
           !annullato &&
           !(e instanceof Error && e.name === "RenderingCancelledException")
         )
-          setErrore("Anteprima non disponibile. Apri il PDF originale.");
+          setErrore(tr("Anteprima non disponibile. Apri il PDF originale."));
       }
     })();
     return () => {
@@ -183,7 +185,7 @@ function PdfOriginaleCanvas({ url, nome, ricerca = "",paginaIniziale=1 }: PropsP
     if (!box) return;
     const frame = requestAnimationFrame(() => {
       const viewport = scrollArea.current;
-      const riga = viewport?.querySelector<HTMLElement>('[aria-label="Riga trovata nel PDF"]');
+      const riga = viewport?.querySelector<HTMLElement>("[data-riga-trovata]");
       if (viewport && riga) viewport.scrollTop += riga.getBoundingClientRect().top - viewport.getBoundingClientRect().top - 16;
     });
     return () => cancelAnimationFrame(frame);
@@ -198,23 +200,19 @@ function PdfOriginaleCanvas({ url, nome, ricerca = "",paginaIniziale=1 }: PropsP
         {ricerca ? (
           <>
             <Search className="h-3.5 w-3.5" />
-            <span className="min-w-0 flex-1 truncate" title={ricerca}>
-              Voce: {ricerca}
-            </span>
+            <span className="min-w-0 flex-1 truncate" title={ricerca}>{tr("Voce: {ricerca}", { ricerca: String(ricerca ?? "") })}</span>
           </>
         ) : (
-          <span className="min-w-0 flex-1 truncate">Anteprima PDF</span>
+          <span className="min-w-0 flex-1 truncate">{tr("Anteprima PDF")}</span>
         )}
         {pronto && !attiva && (
           <>
-            <span>
-              Pagina {visualizzata} di {totale}
-            </span>
+            <span>{tr("Pagina {visualizzata} di {totale}", { visualizzata: String(visualizzata ?? ""), totale: String(totale ?? "") })}</span>
             <Button
               size="icon"
               variant="ghost"
               className="h-7 w-7"
-              aria-label="Pagina PDF precedente"
+              aria-label={tr("Pagina PDF precedente")}
               disabled={visualizzata <= 1}
               onClick={() => setPaginaPdf((p) => p - 1)}
             >
@@ -224,7 +222,7 @@ function PdfOriginaleCanvas({ url, nome, ricerca = "",paginaIniziale=1 }: PropsP
               size="icon"
               variant="ghost"
               className="h-7 w-7"
-              aria-label="Pagina PDF successiva"
+              aria-label={tr("Pagina PDF successiva")}
               disabled={visualizzata >= totale}
               onClick={() => setPaginaPdf((p) => p + 1)}
             >
@@ -235,19 +233,17 @@ function PdfOriginaleCanvas({ url, nome, ricerca = "",paginaIniziale=1 }: PropsP
         {ricerca && !finita && !errore && !avvisoRicerca && (
           <span role="status" className="flex items-center gap-1">
             <Loader2 className="h-3 w-3 animate-spin" />
-            Ricerca {paginaLetta}/{totale || "…"}
+            {tr("Ricerca {pagina}/{totale}", { pagina: paginaLetta, totale: totale || "…" })}
           </span>
         )}
         {risultati.length > 0 && (
           <>
-            <span>
-              Pagina {attiva?.pagina} · {indice + 1}/{risultati.length}
-            </span>
+            <span>{tr("Pagina {pagina} · {indice}/{n}", { pagina: String(attiva?.pagina ?? ""), indice: indice + 1, n: risultati.length })}</span>
             <Button
               size="icon"
               variant="ghost"
               className="h-7 w-7"
-              aria-label="Occorrenza precedente"
+              aria-label={tr("Occorrenza precedente")}
               disabled={indice === 0}
               onClick={() => setIndice((i) => i - 1)}
             >
@@ -257,7 +253,7 @@ function PdfOriginaleCanvas({ url, nome, ricerca = "",paginaIniziale=1 }: PropsP
               size="icon"
               variant="ghost"
               className="h-7 w-7"
-              aria-label="Occorrenza successiva"
+              aria-label={tr("Occorrenza successiva")}
               disabled={indice >= risultati.length - 1}
               onClick={() => setIndice((i) => i + 1)}
             >
@@ -280,8 +276,7 @@ function PdfOriginaleCanvas({ url, nome, ricerca = "",paginaIniziale=1 }: PropsP
       )}
       {ricerca && finita && !risultati.length && !errore && !avvisoRicerca && (
         <p role="status" className="text-xs text-muted-foreground">
-          Voce non trovata nel testo del PDF. Se è una scansione senza testo,
-          confronta l’immagine originale.
+          {tr("Voce non trovata nel testo del PDF. Se è una scansione senza testo, confronta l’immagine originale.")}
         </p>
       )}
       </div></ComandiDocumento>
@@ -293,11 +288,12 @@ function PdfOriginaleCanvas({ url, nome, ricerca = "",paginaIniziale=1 }: PropsP
             <canvas
               ref={canvas}
               className="block h-auto w-full max-w-none bg-white"
-              aria-label={`Pagina ${visualizzata} di ${nome}`}
+              aria-label={tr("Pagina {visualizzata} di {nome}", { visualizzata: String(visualizzata ?? ""), nome: String(nome ?? "") })}
             />
             {box && (
               <div
-                aria-label="Riga trovata nel PDF"
+                data-riga-trovata=""
+                aria-label={tr("Riga trovata nel PDF")}
                 className="pointer-events-none absolute border-2 border-amber-500 bg-yellow-300/30"
                 style={{
                   left: `${box.left}%`,
@@ -316,7 +312,7 @@ function PdfOriginaleCanvas({ url, nome, ricerca = "",paginaIniziale=1 }: PropsP
             className="flex items-center gap-2 p-4 text-sm text-muted-foreground"
           >
             <Loader2 className="h-4 w-4 animate-spin" />
-            Caricamento PDF…
+            {tr("Caricamento PDF…")}
           </p>
         )
       )}

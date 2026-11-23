@@ -12,8 +12,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function ImpostazionePrelievoCampo() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const permissions = usePermissions();
   const qc = useQueryClient();
@@ -45,9 +47,9 @@ export function ImpostazionePrelievoCampo() {
     },
     onError: (e, _v, ctx) => {
       if (ctx?.prev !== undefined) qc.setQueryData(["magazzino-prelievo-conferma", companyId], ctx.prev);
-      toast.error("Non salvato", { description: e instanceof Error ? e.message : "Riprova." });
+      toast.error(t("Non salvato"), { description: e instanceof Error ? e.message : t("Riprova.") });
     },
-    onSuccess: (_d, val) => toast.success(val ? "Prelievo dal cantiere: a conferma" : "Prelievo dal cantiere: libero"),
+    onSuccess: (_d, val) => toast.success(val ? t("Prelievo dal cantiere: a conferma") : t("Prelievo dal cantiere: libero")),
   });
 
   if (!puoGestire) return null;
@@ -58,18 +60,18 @@ export function ImpostazionePrelievoCampo() {
         <div className="flex min-w-0 items-start gap-2.5">
           <PackageCheck className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
           <div className="min-w-0">
-            <p className="text-sm font-semibold">Prelievo dal cantiere a conferma</p>
+            <p className="text-sm font-semibold">{t("Prelievo dal cantiere a conferma")}</p>
             <p className="text-xs text-muted-foreground">
               {conferma
-                ? "L'operaio richiede il materiale; tu approvi e la giacenza si scarica dopo la conferma."
-                : "Libero: l'operaio scarica subito la giacenza, senza passare da te (azienda senza magazziniere)."}
+                ? t("L'operaio richiede il materiale; tu approvi e la giacenza si scarica dopo la conferma.")
+                : t("Libero: l'operaio scarica subito la giacenza, senza passare da te (azienda senza magazziniere).")}
             </p>
           </div>
         </div>
         {isLoading ? (
           <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
         ) : (
-          <Switch aria-label="Prelievo dal cantiere a conferma" checked={!!conferma} onCheckedChange={(v) => salva.mutate(v)} disabled={salva.isPending} />
+          <Switch aria-label={t("Prelievo dal cantiere a conferma")} checked={!!conferma} onCheckedChange={(v) => salva.mutate(v)} disabled={salva.isPending} />
         )}
       </CardContent>
     </Card>

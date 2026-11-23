@@ -5,6 +5,7 @@ import { calculateDealHealth, buildDealHealthInput } from "@/lib/dealHealthScore
 import { CheckCircle, AlertTriangle, XCircle, Skull } from "lucide-react";
 import { salesOSKeys } from "@/hooks/useSalesOS";
 import { Ciambella } from "@/components/charts/grafici/Ciambella";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface DealHealthOverviewProps {
   companyId: string;
@@ -13,6 +14,7 @@ interface DealHealthOverviewProps {
 }
 
 export const DealHealthOverview = memo(function DealHealthOverview({ companyId, pipelineId }: DealHealthOverviewProps) {
+  const t = useT();
   const { data: opportunities } = useQuery({
     queryKey: [...salesOSKeys.all, 'deal-health', companyId, pipelineId ?? 'tutte'],
     enabled: !!companyId,
@@ -97,10 +99,10 @@ export const DealHealthOverview = memo(function DealHealthOverview({ companyId, 
   if (total === 0) return null;
 
   const items = [
-    { label: 'In salute', count: counts.healthy, icon: CheckCircle, bgClass: 'bg-emerald-50 dark:bg-emerald-950/20', iconClass: 'text-emerald-600', valueClass: 'text-emerald-700 dark:text-emerald-400' },
-    { label: 'A rischio', count: counts.at_risk, icon: AlertTriangle, bgClass: 'bg-amber-50 dark:bg-amber-950/20', iconClass: 'text-amber-600', valueClass: 'text-amber-700 dark:text-amber-400' },
-    { label: 'Critici', count: counts.critical, icon: XCircle, bgClass: 'bg-red-50 dark:bg-red-950/20', iconClass: 'text-red-600', valueClass: 'text-red-700 dark:text-red-400' },
-    { label: 'Da recuperare', count: counts.dead, icon: Skull, bgClass: 'bg-slate-100 dark:bg-slate-900/30', iconClass: 'text-slate-500', valueClass: 'text-slate-700 dark:text-slate-400' },
+    { label: t("In salute"), count: counts.healthy, icon: CheckCircle, bgClass: 'bg-emerald-50 dark:bg-emerald-950/20', iconClass: 'text-emerald-600', valueClass: 'text-emerald-700 dark:text-emerald-400' },
+    { label: t("A rischio"), count: counts.at_risk, icon: AlertTriangle, bgClass: 'bg-amber-50 dark:bg-amber-950/20', iconClass: 'text-amber-600', valueClass: 'text-amber-700 dark:text-amber-400' },
+    { label: t("Critici"), count: counts.critical, icon: XCircle, bgClass: 'bg-red-50 dark:bg-red-950/20', iconClass: 'text-red-600', valueClass: 'text-red-700 dark:text-red-400' },
+    { label: t("Da recuperare"), count: counts.dead, icon: Skull, bgClass: 'bg-slate-100 dark:bg-slate-900/30', iconClass: 'text-slate-500', valueClass: 'text-slate-700 dark:text-slate-400' },
   ];
 
   // 14/11/2026: da computer una ciambella con la quota di ogni stato accanto ai
@@ -119,12 +121,12 @@ export const DealHealthOverview = memo(function DealHealthOverview({ companyId, 
     </div>
     <div className="grid gap-4 rounded-2xl border bg-card p-4 shadow-sm max-sm:hidden lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
       <div>
-        <p className="text-sm font-semibold text-foreground">Salute delle trattative aperte</p>
+        <p className="text-sm font-semibold text-foreground">{t("Salute delle trattative aperte")}</p>
         <p className="mb-3 text-xs text-muted-foreground">
-          {total} aperte · {daSistemare > 0 ? `${daSistemare} da riprendere` : 'nessuna critica'}
+          {t("{n} aperte ·", { n: total })} {daSistemare > 0 ? t("{n} da riprendere", { n: daSistemare }) : t("nessuna critica")}
         </p>
         <Ciambella
-          titolo="Salute delle trattative"
+          titolo={t("Salute delle trattative")}
           etichettaCentro="Aperte"
           dimensione={130}
           formato={(v) => String(v)}

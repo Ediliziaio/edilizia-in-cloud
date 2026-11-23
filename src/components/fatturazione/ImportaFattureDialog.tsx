@@ -52,6 +52,7 @@ import {
 import { chiaveEmessa, chiaveRicevuta, errorePassaggero, inParallelo, tempoRimanente } from "@/lib/fatturazione/importMassivo";
 import { tutteLePagine } from "@/lib/fatturazione/registroVendite";
 import { bytesToBase64 } from "../../../supabase/functions/_shared/base64";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Fase = "scelta" | "lettura" | "elenco" | "importa" | "fine";
 
@@ -119,6 +120,7 @@ export function ImportaFattureDialog(props: Props) {
 interface Controllo { occupato: boolean; pulisci: () => void }
 
 function CorpoImport({ companyId, partitaIvaAzienda, onChiudi, onImportate, onPdfAMano, annota }: Props & { annota: (c: Controllo) => void }) {
+  const t = useT();
   const [file, setFile] = useState<File[]>([]);
   const [sopra, setSopra] = useState(false);
   const [fase, setFase] = useState<Fase>("scelta");
@@ -162,7 +164,7 @@ function CorpoImport({ companyId, partitaIvaAzienda, onChiudi, onImportate, onPd
         continue;
       }
       if (!companyId) {
-        out.push({ id, nome: f.name, origine: "pdf", dati: null, stato: "errore", inclusa: false, pdf: f, motivo: "Nessuna azienda selezionata." });
+        out.push({ id, nome: f.name, origine: "pdf", dati: null, stato: "errore", inclusa: false, pdf: f, motivo: t("Nessuna azienda selezionata.") });
         continue;
       }
       const percorso = `${companyId}/import-fatture/${crypto.randomUUID()}.pdf`;
@@ -180,7 +182,7 @@ function CorpoImport({ companyId, partitaIvaAzienda, onChiudi, onImportate, onPd
           // Il file caricato per la lettura non serve più: non lo si lascia in giro.
           void supabase.storage.from("documenti-smart").remove([percorso]);
           out.push({ id, nome: f.name, origine: "pdf", dati: null, stato: "errore", inclusa: false, pdf: f,
-            motivo: "L'AI non ha ricavato numero e data dal PDF: va compilato a mano." });
+            motivo: t("L'AI non ha ricavato numero e data dal PDF: va compilato a mano.") });
           continue;
         }
         const duplicata = Boolean(data?.gia_registrata);
@@ -199,7 +201,7 @@ function CorpoImport({ companyId, partitaIvaAzienda, onChiudi, onImportate, onPd
         });
       } catch (e) {
         out.push({ id, nome: f.name, origine: "pdf", dati: null, stato: "errore", inclusa: false, pdf: f,
-          motivo: e instanceof Error ? e.message : "Lettura del PDF non riuscita." });
+          motivo: e instanceof Error ? e.message : t("Lettura del PDF non riuscita.") });
       }
       const ultima = out[out.length - 1];
       if (ultima) pdfLetti.current.set(chiaveFile, ultima);
@@ -223,7 +225,7 @@ function CorpoImport({ companyId, partitaIvaAzienda, onChiudi, onImportate, onPd
     const tutte = [...daXml, ...daPdf];
     setVoci(tutte);
     setFase("elenco");
-    if (tutte.length === 0) toast.error("Nessuna fattura trovata nei file scelti");
+    if (tutte.length === 0) toast.error(t("Nessuna fattura trovata nei file scelti"));
   };
 
   // ─── Importazione ─────────────────────────────────────────────────────
@@ -256,9 +258,9 @@ function CorpoImport({ companyId, partitaIvaAzienda, onChiudi, onImportate, onPd
       if (resp.data?.duplicate || resp.data?.success) {
         return { nome: v.nome, stato: "importata", direzione, ...(resp.data.warning ? { avviso: String(resp.data.warning) } : {}) };
       }
-      return { nome: v.nome, stato: "errore", motivo: resp.data?.error ?? "Fattura rifiutata dal sistema.", direzione };
+      return { nome: v.nome, stato: "errore", motivo: resp.data?.error ?? t("Fattura rifiutata dal sistema."), direzione };
     } catch (err) {
-      return { nome: v.nome, stato: "errore", motivo: err instanceof Error ? err.message : "Errore imprevisto.", direzione };
+      return { nome: v.nome, stato: "errore", motivo: err instanceof Error ? err.message : t("Errore imprevisto."), direzione };
     }
   };
 
@@ -304,7 +306,7 @@ function CorpoImport({ companyId, partitaIvaAzienda, onChiudi, onImportate, onPd
       }
       return { nome: v.nome, stato: "importata", direzione: "passiva" };
     } catch (err) {
-      return { nome: v.nome, stato: "errore", motivo: err instanceof Error ? err.message : "Errore imprevisto.", direzione: "passiva" };
+      return { nome: v.nome, stato: "errore", motivo: err instanceof Error ? err.message : t("Errore imprevisto."), direzione: "passiva" };
     }
   };
 
@@ -333,8 +335,8 @@ function CorpoImport({ companyId, partitaIvaAzienda, onChiudi, onImportate, onPd
     if (temporanei.length > 0) void supabase.storage.from("documenti-smart").remove(temporanei);
     onImportate();
     const r = riepilogoEsiti(fatti);
-    if (r.errori > 0) toast.warning("Importazione completata con eccezioni", { description: descriviRiepilogo(r) });
-    else toast.success("Importazione completata", { description: descriviRiepilogo(r) });
+    if (r.errori > 0) toast.warning(t("Importazione completata con eccezioni"), { description: descriviRiepilogo(r) });
+    else toast.success(t("Importazione completata"), { description: descriviRiepilogo(r) });
   };
 
   /** Chiudere senza importare non deve lasciare nello storage i PDF letti. */
@@ -358,10 +360,9 @@ function CorpoImport({ companyId, partitaIvaAzienda, onChiudi, onImportate, onPd
   return (
     <DialogContent struttura="scorrevole" ampiezza="spazio" className="max-w-4xl">
         <DialogHeader>
-          <DialogTitle>Importa fatture</DialogTitle>
+          <DialogTitle>{t("Importa fatture")}</DialogTitle>
           <DialogDescription>
-            Trascina qui i file o scegli dal disco: XML, file firmati .p7m, archivi .zip e PDF. Prima di scrivere
-            qualcosa vedi cosa c'è dentro e decidi quali importare.
+            {t("Trascina qui i file o scegli dal disco: XML, file firmati .p7m, archivi .zip e PDF. Prima di scrivere qualcosa vedi cosa c'è dentro e decidi quali importare.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -382,8 +383,8 @@ function CorpoImport({ companyId, partitaIvaAzienda, onChiudi, onImportate, onPd
               }`}
             >
               <Upload className="h-8 w-8 text-muted-foreground" />
-              <p className="font-medium">{sopra ? "Lascia qui i file" : "Trascina qui le fatture"}</p>
-              <p className="text-xs text-muted-foreground">oppure fai clic per sceglierle dal disco · XML, p7m, zip, PDF</p>
+              <p className="font-medium">{sopra ? t("Lascia qui i file") : t("Trascina qui le fatture")}</p>
+              <p className="text-xs text-muted-foreground">{t("oppure fai clic per sceglierle dal disco · XML, p7m, zip, PDF")}</p>
             </div>
             <input
               ref={inputRef}
@@ -391,7 +392,7 @@ function CorpoImport({ companyId, partitaIvaAzienda, onChiudi, onImportate, onPd
               accept=".xml,.p7m,.zip,.pdf"
               multiple
               className="hidden"
-              aria-label="Scegli i file da importare"
+              aria-label={t("Scegli i file da importare")}
               onChange={(e) => { aggiungi(Array.from(e.target.files ?? [])); if (inputRef.current) inputRef.current.value = ""; }}
             />
 
@@ -405,7 +406,7 @@ function CorpoImport({ companyId, partitaIvaAzienda, onChiudi, onImportate, onPd
                     <Badge variant="outline" className="shrink-0 text-[11px]">{etichettaTipoFile(riconosciTipoFile(f.name))}</Badge>
                     <Button
                       variant="ghost" size="icon" className="h-6 w-6 shrink-0"
-                      aria-label={`Togli ${f.name}`}
+                      aria-label={t("Togli {name}", { name: String(f.name ?? "") })}
                       disabled={fase === "lettura"}
                       onClick={(e) => { e.stopPropagation(); setFile((p) => p.filter((x) => x !== f)); }}
                     >
@@ -419,14 +420,14 @@ function CorpoImport({ companyId, partitaIvaAzienda, onChiudi, onImportate, onPd
             {file.some((f) => riconosciTipoFile(f.name) === "pdf") && (
               <p className="flex items-start gap-2 text-xs text-muted-foreground">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
-                I PDF non sono fatture elettroniche: li legge l'AI, che consuma credito, e i dati vanno controllati.
+                {t("I PDF non sono fatture elettroniche: li legge l'AI, che consuma credito, e i dati vanno controllati.")}
               </p>
             )}
 
             {fase === "lettura" && (
               <p className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                {lette ? `Lettura dei PDF ${lette.fatti} di ${lette.totale}…` : "Lettura dei file…"}
+                {lette ? t("Lettura dei PDF {fatti} di {totale}…", { fatti: String(lette.fatti ?? ""), totale: String(lette.totale ?? "") }) : t("Lettura dei file…")}
               </p>
             )}
           </div>
@@ -435,29 +436,28 @@ function CorpoImport({ companyId, partitaIvaAzienda, onChiudi, onImportate, onPd
         {fase === "elenco" && (
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2 text-sm">
-              <Badge variant="default">{conto.incluse} da importare</Badge>
-              {conto.daCompletare > 0 && <Badge variant="secondary">{conto.daCompletare} da completare</Badge>}
-              {conto.duplicate > 0 && <Badge variant="secondary">{conto.duplicate} già a sistema</Badge>}
-              {conto.errori > 0 && <Badge variant="destructive">{conto.errori} {conto.errori === 1 ? "non leggibile" : "non leggibili"}</Badge>}
+              <Badge variant="default">{t("{incluse} da importare", { incluse: String(conto.incluse ?? "") })}</Badge>
+              {conto.daCompletare > 0 && <Badge variant="secondary">{t("{daCompletare} da completare", { daCompletare: String(conto.daCompletare ?? "") })}</Badge>}
+              {conto.duplicate > 0 && <Badge variant="secondary">{t("{duplicate} già a sistema", { duplicate: String(conto.duplicate ?? "") })}</Badge>}
+              {conto.errori > 0 && <Badge variant="destructive">{t(conto.errori === 1 ? "{n} non leggibile" : "{n} non leggibili", { n: conto.errori })}</Badge>}
               {conto.incluse > 0 && (
-                <span className="text-muted-foreground">
-                  per {formatCurrency(totaleIncluse)} in tutto
-                </span>
+                <span className="text-muted-foreground">{t("per {totaleIncluse} in tutto", { totaleIncluse: formatCurrency(totaleIncluse) })}</span>
               )}
               {conto.importabili > 0 && (
                 <Button
                   variant="ghost" size="sm"
                   onClick={() => setVoci((p) => p.map((v) => (puoSpuntare(v) ? { ...v, inclusa: conto.incluse < conto.importabili } : v)))}
                 >
-                  {conto.incluse < conto.importabili ? "Spunta tutte" : "Togli tutte"}
+                  {conto.incluse < conto.importabili ? t("Spunta tutte") : t("Togli tutte")}
                 </Button>
               )}
             </div>
 
             {conto.daCompletare > 0 && (
               <p className="text-xs text-muted-foreground">
-                «Da completare»: {conto.daCompletare === 1 ? "una fattura è già registrata" : `${conto.daCompletare} fatture sono già registrate`} senza
-                il file. Importandole, alla riga che c'è già viene attaccato l'originale.
+                {conto.daCompletare === 1
+                  ? t("«Da completare»: una fattura è già registrata senza il file. Importandole, alla riga che c'è già viene attaccato l'originale.")
+                  : t("«Da completare»: {n} fatture sono già registrate senza il file. Importandole, alla riga che c'è già viene attaccato l'originale.", { n: conto.daCompletare })}
               </p>
             )}
 
@@ -465,14 +465,14 @@ function CorpoImport({ companyId, partitaIvaAzienda, onChiudi, onImportate, onPd
               <Input
                 value={cerca}
                 onChange={(e) => setCerca(e.target.value)}
-                placeholder="Cerca per numero, fornitore o nome del file"
+                placeholder={t("Cerca per numero, fornitore o nome del file")}
                 className="h-9"
               />
             )}
 
             <div className="max-h-[50vh] overflow-y-auto rounded-md border">
               {inElenco.length === 0 && (
-                <p className="p-4 text-center text-sm text-muted-foreground">Nessuna riga con «{cerca}».</p>
+                <p className="p-4 text-center text-sm text-muted-foreground">{t("Nessuna riga con «{cerca}».", { cerca: String(cerca ?? "") })}</p>
               )}
               {inElenco.map((v) => (
                 <div key={v.id} className="flex items-start gap-3 border-b p-2 text-sm last:border-b-0">
@@ -480,7 +480,7 @@ function CorpoImport({ companyId, partitaIvaAzienda, onChiudi, onImportate, onPd
                     className="mt-1"
                     checked={v.inclusa}
                     disabled={!puoSpuntare(v)}
-                    aria-label={`Importa ${v.nome}`}
+                    aria-label={t("Importa {nome}", { nome: String(v.nome ?? "") })}
                     onCheckedChange={(c) => setVoci((p) => p.map((x) => (x.id === v.id ? { ...x, inclusa: c === true } : x)))}
                   />
                   <div className="min-w-0 flex-1">
@@ -489,16 +489,16 @@ function CorpoImport({ companyId, partitaIvaAzienda, onChiudi, onImportate, onPd
                         {v.dati ? `${v.dati.numero} · ${formatDateShort(v.dati.data)}` : v.nome}
                       </span>
                       {v.dati && <span className="truncate text-muted-foreground">{v.dati.soggetto}</span>}
-                      {v.dati?.direzione === "attiva" && <Badge variant="outline">emessa</Badge>}
-                      {v.dati?.direzione === "passiva" && <Badge variant="outline">ricevuta</Badge>}
-                      {v.origine === "pdf" && <Badge variant="outline">da PDF</Badge>}
-                      {v.stato === "completa" && <Badge variant="secondary">da completare</Badge>}
-                      {v.stato === "duplicata" && <Badge variant="secondary">già a sistema</Badge>}
-                      {v.stato === "errore" && <Badge variant="destructive">non importabile</Badge>}
+                      {v.dati?.direzione === "attiva" && <Badge variant="outline">{t("emessa")}</Badge>}
+                      {v.dati?.direzione === "passiva" && <Badge variant="outline">{t("ricevuta")}</Badge>}
+                      {v.origine === "pdf" && <Badge variant="outline">{t("da PDF")}</Badge>}
+                      {v.stato === "completa" && <Badge variant="secondary">{t("da completare")}</Badge>}
+                      {v.stato === "duplicata" && <Badge variant="secondary">{t("già a sistema")}</Badge>}
+                      {v.stato === "errore" && <Badge variant="destructive">{t("non importabile")}</Badge>}
                     </div>
                     {v.dati && (
                       <p className="text-xs text-muted-foreground">
-                        Imponibile {formatCurrency(v.dati.imponibile)} · IVA {formatCurrency(v.dati.iva)} · Totale{" "}
+                        {t("Imponibile {imponibile} · IVA {iva} · Totale", { imponibile: formatCurrency(v.dati.imponibile), iva: formatCurrency(v.dati.iva) })}{" "}
                         <span className="font-medium text-foreground">{formatCurrency(v.dati.totale)}</span> · {v.nome}
                       </p>
                     )}
@@ -508,7 +508,7 @@ function CorpoImport({ companyId, partitaIvaAzienda, onChiudi, onImportate, onPd
                         {v.origine === "pdf" && v.pdf && onPdfAMano && (
                           <Button variant="link" size="sm" className="h-auto px-1 py-0 text-xs"
                             onClick={() => { onPdfAMano(v.pdf!); chiudiEPulisci(); }}>
-                            Inseriscila a mano
+                            {t("Inseriscila a mano")}
                           </Button>
                         )}
                       </p>
@@ -523,10 +523,10 @@ function CorpoImport({ companyId, partitaIvaAzienda, onChiudi, onImportate, onPd
         {fase === "importa" && avanzamento && (
           <div className="space-y-3 py-6 text-center">
             <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />
-            <p className="font-medium">Importazione {avanzamento.fatte} di {avanzamento.totale}</p>
+            <p className="font-medium">{t("Importazione {fatte} di {totale}", { fatte: String(avanzamento.fatte ?? ""), totale: String(avanzamento.totale ?? "") })}</p>
             <Progress value={Math.round((avanzamento.fatte / Math.max(1, avanzamento.totale)) * 100)} className="mx-auto h-2 w-2/3 bg-muted" />
             <p className="text-xs text-muted-foreground">
-              {tempoRimanente(avanzamento.fatte, avanzamento.totale, avanzamento.aggiornato - avanzamento.inizio) ?? "Tieni aperta questa finestra fino alla fine."}
+              {tempoRimanente(avanzamento.fatte, avanzamento.totale, avanzamento.aggiornato - avanzamento.inizio) ?? t("Tieni aperta questa finestra fino alla fine.")}
             </p>
           </div>
         )}
@@ -534,14 +534,14 @@ function CorpoImport({ companyId, partitaIvaAzienda, onChiudi, onImportate, onPd
         {fase === "fine" && riepilogo && esiti && (
           <div className="space-y-3">
             <div className="flex flex-wrap gap-2">
-              <Badge variant="default">{riepilogo.importate} {riepilogo.importate === 1 ? "importata" : "importate"}</Badge>
-              {riepilogo.duplicate > 0 && <Badge variant="secondary">{riepilogo.duplicate} già presenti</Badge>}
-              {riepilogo.errori > 0 && <Badge variant="destructive">{riepilogo.errori} non riuscite</Badge>}
+              <Badge variant="default">{t(riepilogo.importate === 1 ? "{n} importata" : "{n} importate", { n: riepilogo.importate })}</Badge>
+              {riepilogo.duplicate > 0 && <Badge variant="secondary">{t("{duplicate} già presenti", { duplicate: String(riepilogo.duplicate ?? "") })}</Badge>}
+              {riepilogo.errori > 0 && <Badge variant="destructive">{t("{errori} non riuscite", { errori: String(riepilogo.errori ?? "") })}</Badge>}
               {esiti.some((e) => e.direzione === "attiva" && e.stato !== "errore") && (
-                <Badge variant="outline">{esiti.filter((e) => e.direzione === "attiva" && e.stato !== "errore").length} emesse</Badge>
+                <Badge variant="outline">{t("{n} emesse", { n: esiti.filter((e) => e.direzione === "attiva" && e.stato !== "errore").length })}</Badge>
               )}
               {esiti.some((e) => e.direzione === "passiva" && e.stato !== "errore") && (
-                <Badge variant="outline">{esiti.filter((e) => e.direzione === "passiva" && e.stato !== "errore").length} ricevute</Badge>
+                <Badge variant="outline">{t("{n} ricevute", { n: esiti.filter((e) => e.direzione === "passiva" && e.stato !== "errore").length })}</Badge>
               )}
             </div>
             {esiti.some((e) => e.stato === "errore" || e.avviso) && (
@@ -560,23 +560,23 @@ function CorpoImport({ companyId, partitaIvaAzienda, onChiudi, onImportate, onPd
         <DialogFooter>
           {fase === "scelta" && (
             <>
-              <Button variant="outline" onClick={chiudiEPulisci}>Annulla</Button>
+              <Button variant="outline" onClick={chiudiEPulisci}>{t("Annulla")}</Button>
               <Button disabled={file.length === 0} onClick={() => void leggi()}>
-                Leggi {file.length > 0 ? `${file.length} file` : "i file"}
+                {file.length > 0 ? t("Leggi {n} file", { n: file.length }) : t("Leggi i file")}
               </Button>
             </>
           )}
-          {fase === "lettura" && <Button disabled>Lettura in corso…</Button>}
+          {fase === "lettura" && <Button disabled>{t("Lettura in corso…")}</Button>}
           {fase === "elenco" && (
             <>
-              <Button variant="outline" onClick={() => setFase("scelta")}>Indietro</Button>
+              <Button variant="outline" onClick={() => setFase("scelta")}>{t("Indietro")}</Button>
               <Button disabled={conto.incluse === 0} onClick={() => void importa()}>
-                {conto.incluse === 0 ? "Importa" : conto.incluse === 1 ? "Importa 1 fattura" : `Importa ${conto.incluse} fatture`}
+                {conto.incluse === 0 ? t("Importa") : conto.incluse === 1 ? t("Importa 1 fattura") : t("Importa {incluse} fatture", { incluse: String(conto.incluse ?? "") })}
               </Button>
             </>
           )}
-          {fase === "importa" && <Button disabled>Importazione in corso…</Button>}
-          {fase === "fine" && <Button onClick={onChiudi}>Chiudi</Button>}
+          {fase === "importa" && <Button disabled>{t("Importazione in corso…")}</Button>}
+          {fase === "fine" && <Button onClick={onChiudi}>{t("Chiudi")}</Button>}
         </DialogFooter>
     </DialogContent>
   );

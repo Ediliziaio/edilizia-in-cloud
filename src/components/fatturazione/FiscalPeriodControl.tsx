@@ -6,6 +6,7 @@ import { fiscalCommand } from "@/lib/fatturazione/fiscalCommands";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FiscalQueryState } from "./FiscalQueryState";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export function FiscalHistory({
   companyId,
@@ -16,6 +17,7 @@ export function FiscalHistory({
   table: string;
   recordId: string;
 }) {
+  const t = useT();
   const q = useQuery({
     queryKey: ["fiscal-history", companyId, table, recordId],
     queryFn: async ({ signal }) => {
@@ -42,7 +44,7 @@ export function FiscalHistory({
   });
   return (
     <details className="rounded-lg border p-3 text-sm">
-      <summary>Storico delle ultime 20 operazioni</summary>
+      <summary>{t("Storico delle ultime 20 operazioni")}</summary>
       {q.isLoading || q.isError ? (
         <FiscalQueryState
           loading={q.isLoading}
@@ -51,24 +53,21 @@ export function FiscalHistory({
         />
       ) : !q.data?.length ? (
         <p className="mt-2 text-muted-foreground">
-          Nessuna operazione tracciata dal nuovo registro. Lo storico precedente
-          non viene ricostruito.
+          {t("Nessuna operazione tracciata dal nuovo registro. Lo storico precedente non viene ricostruito.")}
         </p>
       ) : (
         <ul className="mt-2 space-y-3">
           {q.data.map((r) => (
             <li key={r.id}>
               <p>
-                {new Date(r.registrato_il).toLocaleString("it-IT")} ·{" "}
-                {r.azione === "INSERT" ? "Creazione" : "Aggiornamento"} ·{" "}
+                {new Date(r.registrato_il).toLocaleString(intlCampo())} ·{" "}
+                {r.azione === "INSERT" ? t("Creazione") : t("Aggiornamento")} ·{" "}
                 {String(r.prima?.stato ?? "—")} → {String(r.dopo.stato ?? "—")}
               </p>
               <p className="break-words text-muted-foreground">
                 {String(r.dopo.motivo ?? r.dopo.note ?? "")}
               </p>
-              <p className="text-xs text-muted-foreground">
-                Utente: {r.attore}
-              </p>
+              <p className="text-xs text-muted-foreground">{t("Utente: {attore}", { attore: r.attore ?? "" })}</p>
             </li>
           ))}
         </ul>
@@ -86,6 +85,7 @@ export function FiscalPeriodControl({
   mese: number;
   canManage: boolean;
 }) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const date = `${anno}-${String(mese).padStart(2, "0")}-01`;
@@ -148,7 +148,7 @@ export function FiscalPeriodControl({
       setError(
         e instanceof Error
           ? e.message
-          : "Operazione non riuscita. Aggiorna e verifica lo stato.",
+          : t("Operazione non riuscita. Aggiorna e verifica lo stato."),
       );
     } finally {
       setPending(false);
@@ -157,21 +157,18 @@ export function FiscalPeriodControl({
   return (
     <details className="rounded-xl border bg-white p-4">
       <summary className="cursor-pointer text-sm font-medium">
-        Gestione del mese ·{" "}
+        {t("Gestione del mese")} ·{" "}
         {q.isLoading
-          ? "Verifica…"
+          ? t("Verifica…")
           : q.isError
-            ? "Stato non disponibile"
+            ? t("Stato non disponibile")
             : closed
-              ? "Chiuso"
-              : "Aperto"}
+              ? t("Chiuso")
+              : t("Aperto")}
       </summary>
       <div className="mt-4 space-y-3">
         <p className="text-sm text-muted-foreground">
-          Chiusura amministrativa, non certificazione fiscale. Blocca rettifiche
-          agli importi e alle date del mese: una rettifica tardiva richiede
-          riapertura autorizzata, con motivo e storico. Occorrono registrazioni
-          F24 verificate; non si chiude un mese ancora in corso.
+          {t("Chiusura amministrativa, non certificazione fiscale. Blocca rettifiche agli importi e alle date del mese: una rettifica tardiva richiede riapertura autorizzata, con motivo e storico. Occorrono registrazioni F24 verificate; non si chiude un mese ancora in corso.")}
         </p>
         {q.isLoading || q.isError ? (
           <FiscalQueryState
@@ -182,17 +179,15 @@ export function FiscalPeriodControl({
         ) : (
           <>
             {q.data && (
-              <p className="text-sm">
-                Revisione {q.data.revisione}: {q.data.motivo}
-              </p>
+              <p className="text-sm">{t("Revisione {revisione}: {motivo}", { revisione: q.data.revisione ?? "", motivo: q.data.motivo ?? "" })}</p>
             )}
             <label className="block text-sm">
-              Motivo e riferimento della verifica
+              {t("Motivo e riferimento della verifica")}
               <Input
                 value={reason}
                 maxLength={2000}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder="Riferimento al controllo del consulente…"
+                placeholder={t("Riferimento al controllo del consulente…")}
               />
             </label>
             <Button
@@ -203,10 +198,10 @@ export function FiscalPeriodControl({
               onClick={() => void change()}
             >
               {pending
-                ? "Verifica in corso…"
+                ? t("Verifica in corso…")
                 : closed
-                  ? "Riapri mese con motivo"
-                  : "Conferma chiusura mese"}
+                  ? t("Riapri mese con motivo")
+                  : t("Conferma chiusura mese")}
             </Button>
             {error && (
               <p role="alert" className="text-sm text-destructive">

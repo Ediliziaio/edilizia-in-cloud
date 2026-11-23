@@ -8,12 +8,14 @@ import type { FatturaRicevutaVista } from '@/lib/fatturazione/fatturaRicevutaHtm
 import { scaricaAllegatoXml } from '@/lib/fatturazione/downloadAllegatoXml';
 import { stampaPreventivoNativo } from '@/lib/fotovoltaico/htmlToPdf';
 import { generaPdfFatturaXml, type VersionePdfFatturaXml } from '@/lib/fatturazione/fatturaXmlTabellare';
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function FatturaRicevutaCompletaDialog({ vista, onClose, onScaricaOriginale }: {
   vista: FatturaRicevutaVista | null;
   onClose: () => void;
   onScaricaOriginale: () => void | Promise<void>;
 }) {
+  const t = useT();
   const [pdfInCorso, setPdfInCorso] = useState(false);
   const scaricaPdf = async (versione: VersionePdfFatturaXml) => {
     if (!vista?.xmlOriginale || pdfInCorso) return;
@@ -30,7 +32,7 @@ export function FatturaRicevutaCompletaDialog({ vista, onClose, onScaricaOrigina
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 30_000);
     } catch (e) {
-      toast.error('Impossibile generare il PDF', { description: e instanceof Error ? e.message : undefined });
+      toast.error(t("Impossibile generare il PDF"), { description: e instanceof Error ? e.message : undefined });
     } finally {
       setPdfInCorso(false);
     }
@@ -42,38 +44,38 @@ export function FatturaRicevutaCompletaDialog({ vista, onClose, onScaricaOrigina
         <DialogTitle className="flex items-start gap-2 text-sm font-medium">
           <FileText className="h-4 w-4 shrink-0" /><span className="min-w-0 break-words">{vista?.titolo}</span>
         </DialogTitle>
-        <DialogDescription className="sr-only">Fattura con i dati dell’XML originale, pronta da stampare. Il file originale e tutti gli allegati si scaricano da questa finestra.</DialogDescription>
+        <DialogDescription className="sr-only">{t("Fattura con i dati dell’XML originale, pronta da stampare. Il file originale e tutti gli allegati si scaricano da questa finestra.")}</DialogDescription>
         <div className="flex flex-wrap items-center gap-2">
           {vista?.xmlOriginale && <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="h-8 text-xs" disabled={pdfInCorso}>
                 {pdfInCorso ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Download className="h-3.5 w-3.5 mr-1.5" />}
-                {pdfInCorso ? 'Generazione PDF…' : 'Scarica PDF'}
+                {pdfInCorso ? t("Generazione PDF…") : t("Scarica PDF")}
                 <ChevronDown aria-hidden className="ml-1 h-3 w-3" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
-              <DropdownMenuItem onSelect={() => void scaricaPdf('sintetico')}>PDF sintetico</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => void scaricaPdf('completo')}>PDF completo</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void scaricaPdf('sintetico')}>{t("PDF sintetico")}</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void scaricaPdf('completo')}>{t("PDF completo")}</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>}
           <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => void onScaricaOriginale()}>
-            <Download className="h-3.5 w-3.5 mr-1.5" /> Scarica originale
+            <Download className="h-3.5 w-3.5 mr-1.5" /> {t("Scarica originale")}
           </Button>
           {allegati.length > 0 && <DropdownMenu>
-            <DropdownMenuTrigger asChild><Button variant="outline" size="sm" className="h-8 text-xs"><Paperclip className="h-3.5 w-3.5 mr-1.5" /> Allegati ({allegati.length})</Button></DropdownMenuTrigger>
+            <DropdownMenuTrigger asChild><Button variant="outline" size="sm" className="h-8 text-xs"><Paperclip className="h-3.5 w-3.5 mr-1.5" /> {t("Allegati ({n})", { n: allegati.length })}</Button></DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="max-h-80 max-w-[min(90vw,28rem)] overflow-auto">
               {allegati.map((a, i) => <DropdownMenuItem key={`${i}:${a.nome}`} title={a.descrizione || a.nome} onClick={() => {
                 try { scaricaAllegatoXml(a); }
-                catch { toast.error('Allegato non leggibile', { description: 'Scarica il file originale per recuperare il contenuto completo.' }); }
+                catch { toast.error(t("Allegato non leggibile"), { description: t("Scarica il file originale per recuperare il contenuto completo.") }); }
               }}>
                 <Download className="h-4 w-4 mr-2 shrink-0" /><span className="min-w-0 break-words">{a.nome}{(a.formato || a.compressione) && <span className="block text-xs text-muted-foreground">{[a.formato, a.compressione ? `Compresso ${a.compressione}` : ''].filter(Boolean).join(' · ')}</span>}</span>
               </DropdownMenuItem>)}
             </DropdownMenuContent>
           </DropdownMenu>}
           <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => {
-            if (vista) stampaPreventivoNativo(vista.html, vista.titolo).catch((e: unknown) => toast.error('Impossibile preparare la stampa', { description: e instanceof Error ? e.message : undefined }));
-          }}><Printer className="h-3.5 w-3.5 mr-1.5" /> Stampa / Salva PDF</Button>
+            if (vista) stampaPreventivoNativo(vista.html, vista.titolo).catch((e: unknown) => toast.error(t("Impossibile preparare la stampa"), { description: e instanceof Error ? e.message : undefined }));
+          }}><Printer className="h-3.5 w-3.5 mr-1.5" /> {t("Stampa / Salva PDF")}</Button>
         </div>
       </DialogHeader>
       {vista && <iframe title={vista.titolo} srcDoc={vista.html} sandbox="" className="flex-1 min-h-0 w-full bg-white border-0" />}

@@ -10,6 +10,7 @@ import {
   chiavePiva, controllaFatturaSubappalto, testoFattura,
   type ContrattoCtrl, type FatturaCtrl, type RisultatoControllo, type SalCtrl,
 } from "@/lib/subappaltatori/controlloFatturaSubappalto";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -65,6 +66,7 @@ export function EsitoControlloSubappalto({ risultato, contratti, sal, giaCollega
   risultato: RisultatoControllo; contratti: ContrattoCtrl[]; sal: SalCtrl[]; giaCollegata: boolean;
   puoModificare: boolean; occupato: boolean; onCollega: (contrattoId: string, salId: string | null, acconto: boolean) => void;
 }) {
+  const t = useT();
   const { esito, problemi, contrattoId, salId } = risultato;
   const c = contratti.find((x) => x.id === contrattoId);
   // Un SAL non ancora verificato non si collega (lo rifiuta subappalto_collega_fattura): si propone
@@ -72,16 +74,16 @@ export function EsitoControlloSubappalto({ risultato, contratti, sal, giaCollega
   const salDaVerificare = problemi.some((p) => p.codice === "sal_non_verificato");
   const s = salDaVerificare ? undefined : sal.find((x) => x.id === salId);
   const acconto = risultato.acconto;
-  const nomeProposta = c ? `contratto ${c.numero_contratto || "senza numero"}${s ? ` · SAL ${s.numero_sal}` : acconto ? " · fattura d'acconto, senza SAL" : ""}` : "";
+  const nomeProposta = c ? `${t("contratto {numero}", { numero: c.numero_contratto || t("senza numero") })}${s ? ` · SAL ${s.numero_sal}` : acconto ? ` · ${t("fattura d'acconto, senza SAL")}` : ""}` : "";
   const proponibile = !giaCollegata && !!c && (esito === "automatico" || esito === "proposta");
   return (
     <span className="basis-full text-xs" data-testid="controllo-subappalto">
-      {giaCollegata && esito === "automatico" && <span className={COLORE.automatico}>Controllo: contratto e SAL coerenti con la fattura.</span>}
+      {giaCollegata && esito === "automatico" && <span className={COLORE.automatico}>{t("Controllo: contratto e SAL coerenti con la fattura.")}</span>}
       {proponibile && (
         <span className={COLORE[esito]}>
-          {esito === "automatico" ? "Riconosciuta" : "Proposta"}: {nomeProposta}{salDaVerificare ? " (il SAL si collega dopo la verifica)" : ""}.{" "}
+          {esito === "automatico" ? t("Riconosciuta") : t("Proposta")}: {nomeProposta}{salDaVerificare ? ` ${t("(il SAL si collega dopo la verifica)")}` : ""}.{" "}
           {puoModificare && (
-            <button type="button" className="underline underline-offset-2" disabled={occupato} onClick={() => onCollega(c!.id, s?.id ?? null, acconto && !s)}>Collega</button>
+            <button type="button" className="underline underline-offset-2" disabled={occupato} onClick={() => onCollega(c!.id, s?.id ?? null, acconto && !s)}>{t("Collega")}</button>
           )}
         </span>
       )}
@@ -89,7 +91,7 @@ export function EsitoControlloSubappalto({ risultato, contratti, sal, giaCollega
       {esito === "da_gestire" && !giaCollegata && <span className={COLORE.da_gestire}>{risultato.regola}</span>}
       {problemi.length > 0 && (
         <ul className="mt-0.5 space-y-0.5">
-          {problemi.map((p) => <li key={p.codice + p.testo} className={p.blocca ? "text-destructive" : "text-amber-700 dark:text-amber-400"}>{p.blocca ? "Bloccata: " : ""}{p.testo}</li>)}
+          {problemi.map((p) => <li key={p.codice + p.testo} className={p.blocca ? "text-destructive" : "text-amber-700 dark:text-amber-400"}>{p.blocca ? `${t("Bloccata:")} ` : ""}{p.testo}</li>)}
         </ul>
       )}
     </span>

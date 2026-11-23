@@ -18,6 +18,7 @@ import {
   partitionFiscalMonths,
 } from "@/lib/fatturazione/fiscalWorkspace";
 import { formatCurrency } from "@/lib/formatters";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 const RitenuteBonificiPanel = lazy(
   () => import("@/components/fatturazione/RitenuteBonificiPanel"),
 );
@@ -55,6 +56,7 @@ function Content({
   chiaveVista?: string;
   onApriRegistro?: () => void;
 }) {
+  const t = useT();
   const p = useFiscalPeriod(),
     f = useF24(p.anno);
   const requestedView = p.params.get(chiaveVista);
@@ -71,13 +73,13 @@ function Content({
   return (
     <div className="space-y-4">
       <FiscalSectionHeader
-        title="Liquidazione IVA e F24"
+        title={t("Liquidazione IVA e F24")}
         actions={
           <Link
             className="text-sm text-blue-700 underline"
             to="/azienda/prima-nota"
           >
-            Apri Prima Nota →
+            {t("Apri Prima Nota →")}
           </Link>
         }
       />
@@ -87,28 +89,28 @@ function Content({
           variant={view === "iva" ? "default" : "outline"}
           onClick={() => p.set({ [chiaveVista]: "iva" })}
         >
-          Liquidazione IVA
+          {t("Liquidazione IVA")}
         </Button>
         <Button
           size="sm"
           variant={view === "f24" ? "default" : "outline"}
           onClick={() => p.set({ [chiaveVista]: "f24" })}
         >
-          Registro F24
+          {t("Registro F24")}
         </Button>
         <Button
           size="sm"
           variant={view === "ritenute_bancarie" ? "default" : "outline"}
           onClick={() => p.set({ [chiaveVista]: "ritenute_bancarie" })}
         >
-          Ritenute bancarie
+          {t("Ritenute bancarie")}
         </Button>
         <Button
           size="sm"
           variant={view === "impostazioni_iva" ? "default" : "outline"}
           onClick={() => p.set({ [chiaveVista]: "impostazioni_iva" })}
         >
-          Impostazioni IVA
+          {t("Impostazioni IVA")}
         </Button>
       </div>
       {p.tipo === "mensile" && (view === "f24" || view === "ritenute_bancarie") && (
@@ -121,7 +123,7 @@ function Content({
       )}
       {view === "ritenute_bancarie" ? (
         <Suspense
-          fallback={<p role="status">Caricamento registro ritenute…</p>}
+          fallback={<p role="status">{t("Caricamento registro ritenute…")}</p>}
         >
           <RitenuteBonificiPanel />
         </Suspense>
@@ -136,8 +138,7 @@ function Content({
       ) : (
         <>
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">
-            Qui registri gli F24 pagati o comunicati dal consulente: non è la delega
-            trasmessa all'Agenzia.
+            {t("Qui registri gli F24 pagati o comunicati dal consulente: non è la delega trasmessa all'Agenzia.")}
           </div>
           {f.isLoading || f.isError ? (
             <FiscalQueryState
@@ -150,29 +151,24 @@ function Content({
               {unassigned.length > 0 && (
                 <details className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">
                   <summary className="cursor-pointer font-medium">
-                    {unassigned.length}{" "}
-                    {unassigned.length === 1
-                      ? "registrazione"
-                      : "registrazioni"}{" "}
-                    del {p.anno} senza mese valido
+                    {t(unassigned.length === 1 ? "{n} registrazione del {anno} senza mese valido" : "{n} registrazioni del {anno} senza mese valido", { n: unassigned.length, anno: String(p.anno ?? "") })}
                   </summary>
                   <p className="mt-2 text-muted-foreground">
-                    Non incluse nei totali del periodo. Occorre verificare il
-                    mese di riferimento con il consulente.
+                    {t("Non incluse nei totali del periodo. Occorre verificare il mese di riferimento con il consulente.")}
                   </p>
                   <ul className="mt-3 space-y-2">
                     {unassigned.map((entry) => (
                       <li key={entry.id}>
-                        Codice {entry.tributo_code} ·{" "}
+                        {t("Codice {codice}", { codice: String(entry.tributo_code ?? "") })} ·{" "}
                         {fiscalAmountTotal([entry.importo]) === null
-                          ? "Importo da verificare"
+                          ? t("Importo da verificare")
                           : formatCurrency(entry.importo)}{" "}
                         ·{" "}
                         {entry.stato === "da_pagare"
-                          ? "Da pagare"
+                          ? t("Da pagare")
                           : entry.stato === "pagato"
-                            ? "Pagato"
-                            : "Annullato"}
+                            ? t("Pagato")
+                            : t("Annullato")}
                       </li>
                     ))}
                   </ul>

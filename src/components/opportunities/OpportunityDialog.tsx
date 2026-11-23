@@ -25,6 +25,7 @@ import { STATUS_OPTIONS, inferOpportunityStatusFromStage } from "@/types/opportu
 import { cleanPhone } from "@/lib/contactUtils";
 import { usePermissions } from "@/hooks/usePermissions";
 import { normalizeTagList } from "@/lib/marketingTags";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   open: boolean;
@@ -59,6 +60,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^\+?[0-9\s().-]{6,20}$/;
 
 export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName, stages, initialStageId, initialContactId }: Props) {
+  const t = useT();
   const fieldId = useId();
   const submittingRef = useRef(false);
   const [submitting, setSubmitting] = useState(false);
@@ -235,9 +237,9 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
   };
 
   const validateContactPayload = (email: string | null, phone: string | null) => {
-    if (!email && !phone) return "Inserisci almeno email o telefono del contatto";
-    if (email && !EMAIL_RE.test(email)) return "Email del contatto non valida";
-    if (phone && !PHONE_RE.test(phone)) return "Telefono del contatto non valido";
+    if (!email && !phone) return t("Inserisci almeno email o telefono del contatto");
+    if (email && !EMAIL_RE.test(email)) return t("Email del contatto non valida");
+    if (phone && !PHONE_RE.test(phone)) return t("Telefono del contatto non valido");
     return null;
   };
 
@@ -279,22 +281,22 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
 
   const submitOpportunity = async () => {
     if (!canEditOpportunities) {
-      toast.error("Non hai i permessi per creare opportunità");
+      toast.error(t("Non hai i permessi per creare opportunità"));
       return;
     }
     if (!companyId) {
-      toast.error("Azienda non selezionata");
+      toast.error(t("Azienda non selezionata"));
       return;
     }
     let contactId = selectedContactId;
 
     if (showNewContact) {
       if (!canEditContacts) {
-        toast.error("Non hai i permessi per creare contatti");
+        toast.error(t("Non hai i permessi per creare contatti"));
         return;
       }
       if (!newContactFirstName.trim()) {
-        toast.error("Inserisci il nome del contatto");
+        toast.error(t("Inserisci il nome del contatto"));
         return;
       }
       const { email, phone } = normalizeContactPayload();
@@ -305,7 +307,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
       }
       const duplicate = await findDuplicateContact(email, phone);
       if (duplicate) {
-        toast.error("Contatto già presente", { description: "Seleziona il contatto esistente per evitare duplicati nel CRM." });
+        toast.error(t("Contatto già presente"), { description: t("Seleziona il contatto esistente per evitare duplicati nel CRM.") });
         return;
       }
       const firstName = newContactFirstName.trim();
@@ -337,9 +339,9 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
       // Scritto un nome senza sceglierlo: si apre la creazione con quel nome.
       if (contactSearch.trim() && canEditContacts) {
         apriNuovoContatto();
-        toast.info("Contatto non trovato", { description: "Completa i dati per crearlo: basta email o telefono." });
+        toast.info(t("Contatto non trovato"), { description: t("Completa i dati per crearlo: basta email o telefono.") });
       } else {
-        toast.error("Seleziona o crea un contatto");
+        toast.error(t("Seleziona o crea un contatto"));
       }
       return;
     }
@@ -348,7 +350,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
       const { email: nextEmail, phone: nextPhone } = normalizeContactPayload();
       if ((selectedContact.email || null) !== nextEmail || (selectedContact.phone || null) !== nextPhone) {
         if (!canEditContacts) {
-          toast.error("Non hai i permessi per modificare i contatti");
+          toast.error(t("Non hai i permessi per modificare i contatti"));
           return;
         }
         const contactError = validateContactPayload(nextEmail, nextPhone);
@@ -358,7 +360,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
         }
         const duplicate = await findDuplicateContact(nextEmail, nextPhone, selectedContactId);
         if (duplicate) {
-          toast.error("Email o telefono già usati da un altro contatto");
+          toast.error(t("Email o telefono già usati da un altro contatto"));
           return;
         }
         const { error } = await supabase
@@ -371,23 +373,23 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
           .eq("id", selectedContactId)
           .eq("company_id", companyId!);
         if (error) {
-          toast.error("Contatto non aggiornato", { description: error.message });
+          toast.error(t("Contatto non aggiornato"), { description: error.message });
           return;
         }
       }
     }
 
     if (!stageId) {
-      toast.error("Seleziona una fase");
+      toast.error(t("Seleziona una fase"));
       return;
     }
     if (!oppName.trim()) {
-      toast.error("Inserisci il nome dell'opportunità");
+      toast.error(t("Inserisci il nome dell'opportunità"));
       return;
     }
     const numericValue = value.trim() ? Number(value) : 0;
     if (!Number.isFinite(numericValue) || numericValue < 0) {
-      toast.error("Il valore economico deve essere un numero positivo");
+      toast.error(t("Il valore economico deve essere un numero positivo"));
       return;
     }
 
@@ -418,7 +420,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
           .eq("id", oppId)
           .eq("company_id", companyId!);
         if (svcErr) {
-          toast.error("Opportunità creata, ma il servizio non è stato salvato", { description: svcErr.message });
+          toast.error(t("Opportunità creata, ma il servizio non è stato salvato"), { description: svcErr.message });
         }
       }
       // Save tags and sync to contact
@@ -426,7 +428,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
       if (normalizedTags.length > 0) {
         const { error: tagsErr } = await supabase.from("marketing_opportunities").update({ tags: normalizedTags }).eq("id", oppId).eq("company_id", companyId!);
         if (tagsErr) {
-          toast.error("Opportunità creata, ma i tag non sono stati salvati", { description: tagsErr.message });
+          toast.error(t("Opportunità creata, ma i tag non sono stati salvati"), { description: tagsErr.message });
         } else {
           await syncTagsToContact(contactId, normalizedTags, companyId);
         }
@@ -438,7 +440,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
           .map(([fieldId, val]) => ({ opportunity_id: oppId, field_id: fieldId, value: val }));
         if (rows.length > 0) {
           const { error: cfErr } = await supabase.from("marketing_opportunity_field_values").insert(rows);
-          if (cfErr) toast.error("Opportunità creata, ma i campi personalizzati non sono stati salvati", { description: cfErr.message });
+          if (cfErr) toast.error(t("Opportunità creata, ma i campi personalizzati non sono stati salvati"), { description: cfErr.message });
         }
       }
       // Ri-invalida DOPO tag/campi custom: l'onSuccess del hook aveva
@@ -458,7 +460,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
     try {
       await submitOpportunity();
     } catch {
-      setSubmitError("Impossibile completare il salvataggio. Controlla i dati e riprova.");
+      setSubmitError(t("Impossibile completare il salvataggio. Controlla i dati e riprova."));
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
@@ -474,8 +476,8 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
       <DialogContent className="max-w-2xl max-h-[92vh] flex flex-col p-0 gap-0">
         {/* Header */}
         <div className="border-b px-4 py-4 sm:px-6">
-          <DialogTitle className="text-lg font-bold">Nuova opportunità</DialogTitle>
-          <DialogDescription className="text-sm text-muted-foreground">Scegli il contatto e compila i dettagli dell'opportunità.</DialogDescription>
+          <DialogTitle className="text-lg font-bold">{t("Nuova opportunità")}</DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground">{t("Scegli il contatto e compila i dettagli dell'opportunità.")}</DialogDescription>
         </div>
 
         {/* Body */}
@@ -485,19 +487,19 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
               {submitError && <p role="alert" className="text-sm text-destructive">{submitError}</p>}
               {/* Section 1: Contatto Dettagli */}
               <div className="space-y-4">
-                <h3 className="text-sm font-bold text-foreground border-b pb-2">Dettagli contatto</h3>
+                <h3 className="text-sm font-bold text-foreground border-b pb-2">{t("Dettagli contatto")}</h3>
 
                 {/* Contact combobox */}
                 <div className="space-y-1.5">
                   <Label htmlFor={`${fieldId}-contact`} className="text-xs font-medium">
-                    Nome del contatto primario <span className="text-red-500">*</span>
+                    {t("Nome del contatto primario")} <span className="text-red-500">*</span>
                   </Label>
                   {!showNewContact && (
                   <div className="flex gap-2">
                   <div className="relative flex-1">
                     <Input
                       id={`${fieldId}-contact`}
-                      placeholder="Cerca per nome o email..."
+                      placeholder={t("Cerca per nome o email...")}
                       value={contactSearch}
                       onChange={(e) => {
                         setContactSearch(e.target.value);
@@ -515,11 +517,11 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                       <div className="absolute z-50 w-full mt-1 border rounded-lg bg-popover shadow-lg max-h-[220px] overflow-y-auto">
                         {contactsError ? (
                           <div role="alert" className="p-3 text-sm">
-                            <p>Impossibile caricare i contatti.</p>
-                            <Button type="button" variant="outline" size="sm" onClick={() => refetchContacts()}>Riprova</Button>
+                            <p>{t("Impossibile caricare i contatti.")}</p>
+                            <Button type="button" variant="outline" size="sm" onClick={() => refetchContacts()}>{t("Riprova")}</Button>
                           </div>
                         ) : contactsLoading ? (
-                          <p role="status" className="p-3 text-sm text-muted-foreground">Caricamento contatti…</p>
+                          <p role="status" className="p-3 text-sm text-muted-foreground">{t("Caricamento contatti…")}</p>
                         ) : contacts.length > 0 ? (
                           contacts.map((c) => (
                             <button
@@ -541,7 +543,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                         ) : (
                           <div className="flex flex-col items-center py-6 text-muted-foreground">
                             <DatabaseZap className="h-8 w-8 mb-2 opacity-40" />
-                            <p className="text-xs">Nessun contatto trovato</p>
+                            <p className="text-xs">{t("Nessun contatto trovato")}</p>
                           </div>
                         )}
                         {/* Create new contact option */}
@@ -551,7 +553,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                           onClick={apriNuovoContatto}
                         >
                           <UserPlus className="h-3.5 w-3.5" />
-                          + {searchTrimmed || ""} (Crea nuovo contatto)
+                          + {searchTrimmed || ""} {t("(Crea nuovo contatto)")}
                         </button>
                       </div>
                     )}
@@ -563,8 +565,8 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                       size="icon"
                       className="h-9 w-9 shrink-0"
                       onClick={apriNuovoContatto}
-                      title="Crea un nuovo contatto"
-                      aria-label="Crea un nuovo contatto"
+                      title={t("Crea un nuovo contatto")}
+                      aria-label={t("Crea un nuovo contatto")}
                     >
                       <Plus className="h-4 w-4" />
                     </Button>
@@ -577,16 +579,16 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                 {showNewContact && (
                   <div className="space-y-2 p-3 rounded-lg border border-dashed bg-muted/30">
                     <div className="flex items-center justify-between">
-                      <Label className="text-xs font-semibold flex items-center gap-1.5"><UserPlus className="h-3.5 w-3.5" /> Nuovo contatto</Label>
-                      <button type="button" className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setShowNewContact(false)}>Cerca un contatto esistente</button>
+                      <Label className="text-xs font-semibold flex items-center gap-1.5"><UserPlus className="h-3.5 w-3.5" /> {t("Nuovo contatto")}</Label>
+                      <button type="button" className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setShowNewContact(false)}>{t("Cerca un contatto esistente")}</button>
                     </div>
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      <Input aria-label="Nome *" placeholder="Nome *" value={newContactFirstName} onChange={(e) => setNewContactFirstName(e.target.value)} className="h-8 text-sm" autoFocus />
-                      <Input aria-label="Cognome" placeholder="Cognome" value={newContactLastName} onChange={(e) => setNewContactLastName(e.target.value)} className="h-8 text-sm" />
+                      <Input aria-label={t("Nome *")} placeholder={t("Nome *")} value={newContactFirstName} onChange={(e) => setNewContactFirstName(e.target.value)} className="h-8 text-sm" autoFocus />
+                      <Input aria-label={t("Cognome")} placeholder={t("Cognome")} value={newContactLastName} onChange={(e) => setNewContactLastName(e.target.value)} className="h-8 text-sm" />
                       <Input aria-label="Email" placeholder="Email" value={newContactEmail} onChange={(e) => setNewContactEmail(e.target.value)} className="h-8 text-sm" type="email" />
-                      <Input aria-label="Telefono" placeholder="Telefono" value={newContactPhone} onChange={(e) => setNewContactPhone(e.target.value)} className="h-8 text-sm" type="tel" />
+                      <Input aria-label={t("Telefono")} placeholder={t("Telefono")} value={newContactPhone} onChange={(e) => setNewContactPhone(e.target.value)} className="h-8 text-sm" type="tel" />
                     </div>
-                    <p className="text-[11px] text-muted-foreground">Email o telefono: ne basta uno.</p>
+                    <p className="text-[11px] text-muted-foreground">{t("Email o telefono: ne basta uno.")}</p>
                   </div>
                 )}
 
@@ -594,21 +596,21 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                 {selectedContactId && selectedContact && (
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <Label htmlFor={`${fieldId}-primary-email`} className="text-xs font-medium">Email primaria</Label>
+                      <Label htmlFor={`${fieldId}-primary-email`} className="text-xs font-medium">{t("Email primaria")}</Label>
                       <Input id={`${fieldId}-primary-email`}
                         value={newContactEmail}
                         onChange={(e) => setNewContactEmail(e.target.value)}
-                        placeholder="Inserisci email"
+                        placeholder={t("Inserisci email")}
                         className="h-9 text-sm"
                         type="email"
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor={`${fieldId}-primary-phone`} className="text-xs font-medium">Telefono primario</Label>
+                      <Label htmlFor={`${fieldId}-primary-phone`} className="text-xs font-medium">{t("Telefono primario")}</Label>
                       <Input id={`${fieldId}-primary-phone`}
                         value={newContactPhone}
                         onChange={(e) => setNewContactPhone(e.target.value)}
-                        placeholder="Telefono"
+                        placeholder={t("Telefono")}
                         className="h-9 text-sm"
                         type="tel"
                       />
@@ -619,17 +621,17 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
 
               {/* Section 2: Opportunità Dettagli */}
               <div className="space-y-4">
-                <h3 className="text-sm font-bold text-foreground border-b pb-2">Dettagli opportunità</h3>
+                <h3 className="text-sm font-bold text-foreground border-b pb-2">{t("Dettagli opportunità")}</h3>
 
                 <div className="space-y-1.5">
                   <Label htmlFor={`${fieldId}-name`} className="text-xs font-medium">
-                    Nome opportunità <span className="text-red-500">*</span>
+                    {t("Nome opportunità")} <span className="text-red-500">*</span>
                   </Label>
                   <Input
                     id={`${fieldId}-name`}
                     value={oppName}
                     onChange={(e) => { setOppName(e.target.value); setNameManuallySet(true); }}
-                    placeholder="Auto: nome e cognome del contatto"
+                    placeholder={t("Auto: nome e cognome del contatto")}
                     className="h-9 text-sm"
                   />
                 </div>
@@ -637,7 +639,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                 {/* Pipeline + Stage */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label htmlFor={`${fieldId}-pipeline`} className="text-xs font-medium">Sequenza</Label>
+                    <Label htmlFor={`${fieldId}-pipeline`} className="text-xs font-medium">{t("Sequenza")}</Label>
                     <Input id={`${fieldId}-pipeline`}
                       value={pipelineName || "Pipeline"}
                       readOnly
@@ -645,7 +647,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor={`${fieldId}-stage`} className="text-xs font-medium">Fase</Label>
+                    <Label htmlFor={`${fieldId}-stage`} className="text-xs font-medium">{t("Fase")}</Label>
                     <Select value={stageId} onValueChange={(v) => {
                       setStageId(v);
                       const stage = stages.find((s) => s.id === v);
@@ -662,16 +664,16 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                 {/* Status + Value */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label htmlFor={`${fieldId}-status`} className="text-xs font-medium">Stato</Label>
+                    <Label htmlFor={`${fieldId}-status`} className="text-xs font-medium">{t("Stato")}</Label>
                     <Select value={status} onValueChange={setStatus}>
                       <SelectTrigger id={`${fieldId}-status`} className="h-9 text-sm"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {statusOptions.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                        {statusOptions.map((s) => <SelectItem key={s.value} value={s.value}>{t(s.label)}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor={`${fieldId}-value`} className="text-xs font-medium">Valore dell'opportunità</Label>
+                    <Label htmlFor={`${fieldId}-value`} className="text-xs font-medium">{t("Valore dell'opportunità")}</Label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">EUR</span>
                       <Input id={`${fieldId}-value`}
@@ -700,13 +702,13 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                     schiacciava i select troncando "Non assegnato" in "Non…"). */}
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <div className="space-y-1">
-                    <Label htmlFor={`${fieldId}-owner`} className="flex items-center gap-1 text-xs font-medium"><Briefcase className="h-3.5 w-3.5 text-muted-foreground" /> Venditore</Label>
+                    <Label htmlFor={`${fieldId}-owner`} className="flex items-center gap-1 text-xs font-medium"><Briefcase className="h-3.5 w-3.5 text-muted-foreground" /> {t("Venditore")}</Label>
                     <Select value={assignedTo || "none"} onValueChange={(v) => setAssignedTo(v === "none" ? "" : v)}>
-                      <SelectTrigger id={`${fieldId}-owner`} className="h-9 text-sm"><SelectValue placeholder="Non assegnato" /></SelectTrigger>
+                      <SelectTrigger id={`${fieldId}-owner`} className="h-9 text-sm"><SelectValue placeholder={t("Non assegnato")} /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">Non assegnato</SelectItem>
+                        <SelectItem value="none">{t("Non assegnato")}</SelectItem>
                         {salespeople.length > 0 && salespeople[0]?.source === "all" && (
-                          <div className="px-2 py-1 text-[10px] text-amber-600 font-medium">⚠ Nessun venditore configurato — mostro tutto lo staff</div>
+                          <div className="px-2 py-1 text-[10px] text-amber-600 font-medium">{t("⚠ Nessun venditore configurato — mostro tutto lo staff")}</div>
                         )}
                         {salespeople.map((s: { id: string; name: string; source?: string }) => (
                           <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
@@ -715,11 +717,11 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor={`${fieldId}-follower`} className="flex items-center gap-1 text-xs font-medium"><Users className="h-3.5 w-3.5 text-muted-foreground" /> Follower</Label>
+                    <Label htmlFor={`${fieldId}-follower`} className="flex items-center gap-1 text-xs font-medium"><Users className="h-3.5 w-3.5 text-muted-foreground" /> {t("Follower")}</Label>
                     <Select value={followerId || "none"} onValueChange={(v) => setFollowerId(v === "none" ? "" : v)}>
-                      <SelectTrigger id={`${fieldId}-follower`} className="h-9 text-sm"><SelectValue placeholder="Nessuno" /></SelectTrigger>
+                      <SelectTrigger id={`${fieldId}-follower`} className="h-9 text-sm"><SelectValue placeholder={t("Nessuno")} /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">Nessuno</SelectItem>
+                        <SelectItem value="none">{t("Nessuno")}</SelectItem>
                         {staff.map((s: { id: string; name: string }) => (
                           <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                         ))}
@@ -727,13 +729,13 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor={`${fieldId}-callcenter`} className="flex items-center gap-1 text-xs font-medium"><Headset className="h-3.5 w-3.5 text-muted-foreground" /> Call Center</Label>
+                    <Label htmlFor={`${fieldId}-callcenter`} className="flex items-center gap-1 text-xs font-medium"><Headset className="h-3.5 w-3.5 text-muted-foreground" /> {t("Call Center")}</Label>
                     <Select value={callCenterId || "none"} onValueChange={(v) => setCallCenterId(v === "none" ? "" : v)}>
-                      <SelectTrigger id={`${fieldId}-callcenter`} className="h-9 text-sm"><SelectValue placeholder="Nessuno" /></SelectTrigger>
+                      <SelectTrigger id={`${fieldId}-callcenter`} className="h-9 text-sm"><SelectValue placeholder={t("Nessuno")} /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">Nessuno</SelectItem>
+                        <SelectItem value="none">{t("Nessuno")}</SelectItem>
                         {callCenterUsers.length > 0 && callCenterUsers[0]?.source === "all" && (
-                          <div className="px-2 py-1 text-[10px] text-amber-600 font-medium">⚠ Nessun call center configurato — mostro tutto lo staff</div>
+                          <div className="px-2 py-1 text-[10px] text-amber-600 font-medium">{t("⚠ Nessun call center configurato — mostro tutto lo staff")}</div>
                         )}
                         {callCenterUsers.map((s: { id: string; name: string; source?: string }) => (
                           <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
@@ -746,18 +748,18 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                 {/* Company + Source */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label htmlFor={`${fieldId}-company`} className="text-xs font-medium">Nome dell'azienda</Label>
-                    <Input id={`${fieldId}-company`} value={oppCompanyName} onChange={(e) => setOppCompanyName(e.target.value)} placeholder="Nome azienda" className="h-9 text-sm" />
+                    <Label htmlFor={`${fieldId}-company`} className="text-xs font-medium">{t("Nome dell'azienda")}</Label>
+                    <Input id={`${fieldId}-company`} value={oppCompanyName} onChange={(e) => setOppCompanyName(e.target.value)} placeholder={t("Nome azienda")} className="h-9 text-sm" />
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor={`${fieldId}-source`} className="text-xs font-medium">Fonte dell'opportunità</Label>
-                    <Input id={`${fieldId}-source`} value={source} onChange={(e) => setSource(e.target.value)} placeholder="es. Passaparola" className="h-9 text-sm" />
+                    <Label htmlFor={`${fieldId}-source`} className="text-xs font-medium">{t("Fonte dell'opportunità")}</Label>
+                    <Input id={`${fieldId}-source`} value={source} onChange={(e) => setSource(e.target.value)} placeholder={t("es. Passaparola")} className="h-9 text-sm" />
                   </div>
                 </div>
 
                 {/* Tags */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-medium">Etichette</Label>
+                  <Label className="text-xs font-medium">{t("Etichette")}</Label>
                   <TagSelector selectedTags={tags} onTagsChange={setTags} />
                 </div>
 
@@ -768,7 +770,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                     e textbox generica, ignorando 11 tipi. */}
                 {customFields && customFields.length > 0 && (
                   <div className="space-y-3 pt-2 border-t">
-                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Campi personalizzati dell'opportunità</Label>
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("Campi personalizzati dell'opportunità")}</Label>
                     {(customFields as OpportunityCustomField[]).map((field) => (
                       <CustomFieldInput
                         key={field.id}
@@ -801,13 +803,13 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
             }}
           >
             <Settings2 className="h-3.5 w-3.5" />
-            Aggiungi/gestisci campi
+            {t("Aggiungi/gestisci campi")}
           </button>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={submitting} onClick={() => { resetForm(); onOpenChange(false); }}>Annulla</Button>
+            <Button variant="outline" size="sm" disabled={submitting} onClick={() => { resetForm(); onOpenChange(false); }}>{t("Annulla")}</Button>
             <Button size="sm" onClick={handleSubmit} disabled={submitting || createOpportunity.isPending || !canEditOpportunities}>
               {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Crea
+              {t("Crea")}
             </Button>
           </div>
         </div>

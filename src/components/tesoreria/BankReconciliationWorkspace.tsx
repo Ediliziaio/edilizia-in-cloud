@@ -53,6 +53,7 @@ import {
   syncBankExternalPayments,
   type BankBatchResult,
 } from "@/lib/finance/bankExternalPayments";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Account = {
   id: string;
@@ -94,6 +95,7 @@ export function BankReconciliationWorkspace({
   accounts: Account[];
   onClose: () => void;
 }) {
+  const tr = useT();
   const perms = usePermissions();
   const client = useQueryClient();
   const [filters, setFilters] = useState<BankFilters>(() => ({
@@ -134,7 +136,7 @@ export function BankReconciliationWorkspace({
   try {
     bankFiltersPayload(filters);
   } catch (e) {
-    validation = e instanceof Error ? e.message : "Filtri non validi";
+    validation = e instanceof Error ? e.message : tr("Filtri non validi");
   }
   const movements = useQuery({
     queryKey: [
@@ -244,10 +246,10 @@ export function BankReconciliationWorkspace({
       );
       setProposals((p) => ({ ...p, ...result }));
       toast.success(
-        "Proposte aggiornate per questa pagina. Seleziona quelle da confermare.",
+        tr("Proposte aggiornate per questa pagina. Seleziona quelle da confermare."),
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Analisi non riuscita");
+      setError(e instanceof Error ? e.message : tr("Analisi non riuscita"));
     } finally {
       setScanning(false);
     }
@@ -293,17 +295,17 @@ export function BankReconciliationWorkspace({
       await client.invalidateQueries({
         queryKey: ["bank-lotto-movimenti", company],
       });
-      toast.success(`${result.count} movimenti confermati`);
+      toast.success(tr("{n} movimenti confermati", { n: String(result.count ?? "") }));
       const failed = await syncBankExternalPayments(result.items);
       if (failed.length)
         toast.warning(
-          `Registrazioni salvate; sincronizzazione esterna da riprovare: ${failed.join(", ")}`,
+          tr("Registrazioni salvate; sincronizzazione esterna da riprovare: {elenco}", { elenco: failed.join(", ") }),
         );
     } catch (e) {
       setError(
         e instanceof Error
           ? e.message
-          : "Conferma non riuscita. Le selezioni sono conservate.",
+          : tr("Conferma non riuscita. Le selezioni sono conservate."),
       );
     } finally {
       setBusy(false);
@@ -337,11 +339,10 @@ export function BankReconciliationWorkspace({
       >
         <DialogHeader className="max-sm:max-h-[32dvh] max-sm:overflow-y-auto shrink-0 border-b bg-background px-5 pb-4 pt-5 pr-12">
           <DialogTitle className="text-xl">
-            Riconcilia movimenti bancari
+            {tr("Riconcilia movimenti bancari")}
           </DialogTitle>
           <DialogDescription>
-            Confronta documenti e movimenti, prepara le quote e conferma
-            insieme. Le selezioni restano quando cambi conto, sezione o filtri.
+            {tr("Confronta documenti e movimenti, prepara le quote e conferma insieme. Le selezioni restano quando cambi conto, sezione o filtri.")}
           </DialogDescription>
           <fieldset
             disabled={busy}
@@ -349,7 +350,7 @@ export function BankReconciliationWorkspace({
           >
             <div
               className="flex rounded-lg border p-1"
-              aria-label="Direzione movimenti"
+              aria-label={tr("Direzione movimenti")}
             >
               {[
                 ["credit", "Incassi"],
@@ -371,44 +372,44 @@ export function BankReconciliationWorkspace({
               ))}
             </div>
             <label className="text-xs">
-              Conto
+              {tr("Conto")}
               <UniformSelect
-                aria-label="Conto da riconciliare"
+                aria-label={tr("Conto da riconciliare")}
                 className="mt-1 block h-9 max-w-60 rounded-md border bg-background px-2 text-sm"
                 value={filters.account}
                 onChange={(e) => change("account", e.target.value)}
               >
-                <option value="all">Tutti i conti</option>
+                <option value="all">{tr("Tutti i conti")}</option>
                 {accounts.map((a) => (
                   <option key={a.id} value={a.id}>
-                    {a.display_name || a.account_name || "Conto"}
+                    {a.display_name || a.account_name || tr("Conto")}
                   </option>
                 ))}
               </UniformSelect>
             </label>
             <label className="text-xs">
-              Dal
+              {tr("Dal")}
               <Input
                 type="date"
-                aria-label="Lotto dal"
+                aria-label={tr("Lotto dal")}
                 value={filters.from}
                 onChange={(e) => change("from", e.target.value)}
                 className="mt-1 h-9 w-36"
               />
             </label>
             <label className="text-xs">
-              Al
+              {tr("Al")}
               <Input
                 type="date"
-                aria-label="Lotto al"
+                aria-label={tr("Lotto al")}
                 value={filters.to}
                 onChange={(e) => change("to", e.target.value)}
                 className="mt-1 h-9 w-36"
               />
             </label>
             <Input
-              aria-label="Cerca movimenti nel lotto"
-              placeholder="Cerca controparte, causale, importo…"
+              aria-label={tr("Cerca movimenti nel lotto")}
+              placeholder={tr("Cerca controparte, causale, importo…")}
               className="h-9 min-w-48 flex-1"
               value={filters.search}
               onChange={(e) => change("search", e.target.value)}
@@ -424,7 +425,7 @@ export function BankReconciliationWorkspace({
               ) : (
                 <Search className="mr-2 h-4 w-4" />
               )}
-              Trova proposte
+              {tr("Trova proposte")}
             </Button>
             <Button
               variant="outline"
@@ -435,20 +436,20 @@ export function BankReconciliationWorkspace({
               }
             >
               <CheckCheck className="mr-2 h-4 w-4" />
-              Seleziona riscontri forti
+              {tr("Seleziona riscontri forti")}
             </Button>
           </fieldset>
           <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
             {movements.data?.totals.map((t) => (
               <span key={t.currency}>
-                {t.unreconciled_count ?? t.n} da riconciliare ·{" "}
+                {tr("{n} da riconciliare", { n: Number(t.unreconciled_count ?? t.n) })} ·{" "}
                 <strong className="text-foreground">
                   {money(t.unreconciled_amount ?? 0, "—", t.currency)}
                 </strong>
               </span>
             ))}
             <span>
-              Nessuna conferma automatica · fino a 100 movimenti per lotto
+              {tr("Nessuna conferma automatica · fino a 100 movimenti per lotto")}
             </span>
           </div>
         </DialogHeader>
@@ -462,13 +463,13 @@ export function BankReconciliationWorkspace({
         )}
         <div className="grid min-h-0 flex-1 grid-cols-1 overflow-auto lg:grid-cols-[43%_57%] lg:overflow-hidden">
           <section
-            aria-label="Movimenti da riconciliare"
+            aria-label={tr("Movimenti da riconciliare")}
             className="max-lg:max-h-[42dvh] flex min-h-0 flex-col border-r"
           >
             <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-muted/50 px-4 py-3 text-sm font-semibold">
-              Movimenti bancari{" "}
+              {tr("Movimenti bancari")}{" "}
               <span className="font-normal text-muted-foreground">
-                {movements.data?.count ?? 0} risultati
+                {tr("{n} risultati", { n: movements.data?.count ?? 0 })}
               </span>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">
@@ -479,18 +480,18 @@ export function BankReconciliationWorkspace({
                     variant="link"
                     onClick={() => void movements.refetch()}
                   >
-                    Riprova
+                    {tr("Riprova")}
                   </Button>
                 </p>
               )}
               {movements.isPending && (
                 <p role="status" className="p-6 text-sm">
-                  Caricamento movimenti…
+                  {tr("Caricamento movimenti…")}
                 </p>
               )}
               {!movements.isPending && !rows.length && (
                 <p className="p-8 text-center text-sm text-muted-foreground">
-                  Nessun movimento da riconciliare con questi filtri.
+                  {tr("Nessun movimento da riconciliare con questi filtri.")}
                 </p>
               )}
               {rows.map((m) => {
@@ -503,7 +504,7 @@ export function BankReconciliationWorkspace({
                     className={`flex gap-3 border-b p-4 ${focus === m.id ? "bg-primary/5" : "hover:bg-muted/30"}`}
                   >
                     <Checkbox
-                      aria-label={`Seleziona movimento ${m.id}`}
+                      aria-label={tr("Seleziona movimento {id}", { id: String(m.id ?? "") })}
                       checked={drafts[m.id]?.reviewed ?? false}
                       disabled={busy || !eligible}
                       onCheckedChange={() => toggle(m)}
@@ -518,7 +519,7 @@ export function BankReconciliationWorkspace({
                         <strong className="text-sm">
                           {(m.transaction_type === "credit"
                             ? m.debtor_name
-                            : m.creditor_name) || "Controparte non indicata"}
+                            : m.creditor_name) || tr("Controparte non indicata")}
                         </strong>
                         <strong
                           className={`shrink-0 tabular-nums ${m.amount >= 0 ? "text-emerald-700" : "text-red-700"}`}
@@ -536,24 +537,24 @@ export function BankReconciliationWorkspace({
                       <div className="mt-2 flex flex-wrap gap-1">
                         {transfer ? (
                           <Badge variant="outline">
-                            Giroconto tra conti aziendali
+                            {tr("Giroconto tra conti aziendali")}
                           </Badge>
                         ) : strong ? (
                           <Badge className="bg-emerald-50 text-emerald-800 hover:bg-emerald-50">
                             <ShieldCheck className="mr-1 h-3 w-3" />
-                            Riscontri forti
+                            {tr("Riscontri forti")}
                           </Badge>
                         ) : proposals[m.id] ? (
                           <Badge variant="outline">
                             {proposals[m.id].some(
                               (c) => (c.punteggio ?? 0) > 30,
                             )
-                              ? "Da verificare singolarmente"
-                              : "Nessuna corrispondenza forte"}
+                              ? tr("Da verificare singolarmente")
+                              : tr("Nessuna corrispondenza forte")}
                           </Badge>
                         ) : null}
                         {drafts[m.id]?.reviewed && (
-                          <Badge variant="outline">Nel lotto</Badge>
+                          <Badge variant="outline">{tr("Nel lotto")}</Badge>
                         )}
                       </div>
                     </button>
@@ -568,10 +569,9 @@ export function BankReconciliationWorkspace({
                 disabled={page === 0 || busy || movements.isFetching}
                 onClick={() => setPage((p) => p - 1)}
               >
-                Precedenti
+                {tr("Precedenti")}
               </Button>
-              Pagina {page + 1} di{" "}
-              {Math.max(1, Math.ceil((movements.data?.count ?? 0) / 50))}
+              {tr("Pagina {pagina} di {pagine}", { pagina: page + 1, pagine: Math.max(1, Math.ceil((movements.data?.count ?? 0) / 50)) })}
               <Button
                 size="sm"
                 variant="outline"
@@ -582,22 +582,21 @@ export function BankReconciliationWorkspace({
                 }
                 onClick={() => setPage((p) => p + 1)}
               >
-                Successivi
+                {tr("Successivi")}
               </Button>
             </div>
           </section>
           <section
-            aria-label="Documenti e quote"
+            aria-label={tr("Documenti e quote")}
             id="bank-lotto-editor"
             className="min-h-0 overflow-y-auto bg-muted/10 p-5"
           >
             {!focused || !draft ? (
               <div className="flex h-full min-h-48 flex-col items-center justify-center gap-3 text-center text-muted-foreground">
                 <FileText className="h-10 w-10" />
-                <p>Scegli un movimento per confrontare documenti e quote.</p>
+                <p>{tr("Scegli un movimento per confrontare documenti e quote.")}</p>
                 <p className="max-w-md text-sm">
-                  Puoi lavorare su più pagine e su incassi e pagamenti nello
-                  stesso lotto. La conferma resta in basso.
+                  {tr("Puoi lavorare su più pagine e su incassi e pagamenti nello stesso lotto. La conferma resta in basso.")}
                 </p>
               </div>
             ) : (
@@ -613,10 +612,10 @@ export function BankReconciliationWorkspace({
                         {bankCausale(focused)}
                       </p>
                       <p className="mt-2 text-xs text-muted-foreground">
-                        IBAN controparte:{" "}
+                        {tr("IBAN controparte:")}{" "}
                         {(focused.transaction_type === "credit"
                           ? focused.debtor_iban
-                          : focused.creditor_iban) || "Non disponibile"}
+                          : focused.creditor_iban) || tr("Non disponibile")}
                       </p>
                     </div>
                     <span className="shrink-0 font-semibold tabular-nums">
@@ -629,15 +628,12 @@ export function BankReconciliationWorkspace({
                     className="mt-2 h-auto p-0"
                     onClick={() => setDetail(focused.id)}
                   >
-                    Dettagli, pagamenti già registrati e annullamento
+                    {tr("Dettagli, pagamenti già registrati e annullamento")}
                   </Button>
                 </div>
                 {ownAccountTransfer(focused, accounts) && (
                   <p className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm">
-                    L’IBAN appartiene a un altro conto della stessa azienda.
-                    Classifica come giroconto: non genera ricavi o costi.
-                    Seleziona anche l’altro movimento per chiudere entrambe le
-                    operazioni.
+                    {tr("L’IBAN appartiene a un altro conto della stessa azienda. Classifica come giroconto: non genera ricavi o costi. Seleziona anche l’altro movimento per chiudere entrambe le operazioni.")}
                   </p>
                 )}
                 <div className="flex flex-wrap gap-2">
@@ -664,16 +660,16 @@ export function BankReconciliationWorkspace({
                         }))
                       }
                     >
-                      {l}
+                      {tr(l)}
                     </Button>
                   ))}
                 </div>
                 {draft.mode === "none" ? (
                   <div className="space-y-3 rounded-xl border bg-background p-4">
                     <label className="text-sm font-medium">
-                      Tipo di operazione
+                      {tr("Tipo di operazione")}
                       <UniformSelect
-                        aria-label="Categoria senza fattura"
+                        aria-label={tr("Categoria senza fattura")}
                         className="mt-2 block h-10 w-full rounded-md border bg-background px-2"
                         value={draft.category}
                         onChange={(e) =>
@@ -684,7 +680,7 @@ export function BankReconciliationWorkspace({
                           }))
                         }
                       >
-                        <option value="">Scegli una categoria</option>
+                        <option value="">{tr("Scegli una categoria")}</option>
                         {categories
                           .filter(([v]) =>
                             focused.transaction_type === "debit"
@@ -693,39 +689,34 @@ export function BankReconciliationWorkspace({
                           )
                           .map(([v, l]) => (
                             <option key={v} value={v}>
-                              {l}
+                              {tr(l)}
                             </option>
                           ))}
                       </UniformSelect>
                     </label>
                     <p className="text-xs text-muted-foreground">
-                      Commissioni e altre spese diventano costi già pagati. F24,
-                      stipendi, finanziamenti e giroconti vengono classificati
-                      senza duplicare i costi già registrati.
+                      {tr("Commissioni e altre spese diventano costi già pagati. F24, stipendi, finanziamenti e giroconti vengono classificati senza duplicare i costi già registrati.")}
                     </p>
                   </div>
                 ) : (
                   <>
                     {draft.mode === "withholding" && (
                       <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
-                        Scegli una sola fattura interna. La procedura fiscale
-                        verifica lordo, aliquota prevista e commissioni,
-                        registra la ritenuta e aggiorna il residuo. Non inserire
-                        una ritenuta ordinaria o un abbuono in questo percorso.
+                        {tr("Scegli una sola fattura interna. La procedura fiscale verifica lordo, aliquota prevista e commissioni, registra la ritenuta e aggiorna il residuo. Non inserire una ritenuta ordinaria o un abbuono in questo percorso.")}
                       </p>
                     )}
                     <Input
-                      aria-label="Ricerca documenti nel lotto"
+                      aria-label={tr("Ricerca documenti nel lotto")}
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Ragione sociale, numero, importo o data (AAAA-MM-GG)…"
+                      placeholder={tr("Ragione sociale, numero, importo o data (AAAA-MM-GG)…")}
                     />
                     {candidates.isFetching && (
                       <p
                         role="status"
                         className="text-xs text-muted-foreground"
                       >
-                        Ricerca documenti…
+                        {tr("Ricerca documenti…")}
                       </p>
                     )}
                     {candidates.isError && (
@@ -735,7 +726,7 @@ export function BankReconciliationWorkspace({
                           variant="link"
                           onClick={() => void candidates.refetch()}
                         >
-                          Riprova
+                          {tr("Riprova")}
                         </Button>
                       </p>
                     )}
@@ -749,7 +740,7 @@ export function BankReconciliationWorkspace({
                           >
                             <div className="flex gap-3">
                               <Checkbox
-                                aria-label={`Scegli documento ${c.titolo}`}
+                                aria-label={tr("Scegli documento {titolo}", { titolo: String(c.titolo ?? "") })}
                                 checked={!!picked}
                                 disabled={
                                   draft.mode === "withholding" &&
@@ -779,14 +770,14 @@ export function BankReconciliationWorkspace({
                               </div>
                               <div className="shrink-0 text-right">
                                 <p className="text-xs text-muted-foreground">
-                                  Residuo documento
+                                  {tr("Residuo documento")}
                                 </p>
                                 <strong className="tabular-nums">
                                   {money(c.residuo)}
                                 </strong>
                                 {picked && draft.mode === "documents" && (
                                   <Input
-                                    aria-label={`Quota per ${c.titolo}`}
+                                    aria-label={tr("Quota per {titolo}", { titolo: String(c.titolo ?? "") })}
                                     inputMode="decimal"
                                     className="mt-2 h-8 w-28 text-right tabular-nums"
                                     value={picked.amount}
@@ -814,8 +805,7 @@ export function BankReconciliationWorkspace({
                         !candidates.isError &&
                         !visibleCandidates.length && (
                           <p className="py-5 text-center text-sm text-muted-foreground">
-                            Nessun documento trovato. Modifica la ricerca o usa
-                            “Senza fattura”.
+                            {tr("Nessun documento trovato. Modifica la ricerca o usa “Senza fattura”.")}
                           </p>
                         )}
                     </div>
@@ -823,22 +813,22 @@ export function BankReconciliationWorkspace({
                       Object.keys(draft.rows).length > 0 && (
                         <div className="rounded-lg border bg-background p-3 text-sm">
                           <p className="flex justify-between">
-                            Attribuito ai documenti{" "}
+                            {tr("Attribuito ai documenti")}{" "}
                             <strong className="tabular-nums">
                               {money(draftAllocated(draft))}
                             </strong>
                           </p>
                           <p className="mt-1 flex justify-between">
-                            Differenza residua{" "}
+                            {tr("Differenza residua")}{" "}
                             <strong className="tabular-nums">
                               {money(draftDifference(draft))}
                             </strong>
                           </p>
                           {draftDifference(draft) > 0 && (
                             <label className="mt-3 block text-xs">
-                              Gestione della differenza
+                              {tr("Gestione della differenza")}
                               <UniformSelect
-                                aria-label="Gestione differenza"
+                                aria-label={tr("Gestione differenza")}
                                 className="mt-1 block h-9 w-full rounded-md border bg-background px-2 text-sm"
                                 value={draft.differenceReason}
                                 onChange={(e) =>
@@ -848,40 +838,32 @@ export function BankReconciliationWorkspace({
                                   }))
                                 }
                               >
-                                <option value="">Scegli come procedere</option>
+                                <option value="">{tr("Scegli come procedere")}</option>
                                 <option value="Acconto o pagamento parziale">
-                                  Acconto / pagamento parziale: mantieni aperto
-                                  il residuo
+                                  {tr("Acconto / pagamento parziale: mantieni aperto il residuo")}
                                 </option>
                                 {focused.transaction_type === "debit" && (
                                   <>
                                     <option value="commissioni">
-                                      Commissioni: registra il costo e
-                                      riconcilia la differenza
+                                      {tr("Commissioni: registra il costo e riconcilia la differenza")}
                                     </option>
                                     <option value="arrotondamento">
-                                      Arrotondamento fino a 1 €: registra e
-                                      riconcilia
+                                      {tr("Arrotondamento fino a 1 €: registra e riconcilia")}
                                     </option>
                                   </>
                                 )}
                                 <option value="Commissioni da verificare">
-                                  Commissioni: mantieni aperto e verifica la
-                                  registrazione
+                                  {tr("Commissioni: mantieni aperto e verifica la registrazione")}
                                 </option>
                                 <option value="Arrotondamento da verificare">
-                                  Arrotondamento: mantieni aperto e verifica la
-                                  registrazione
+                                  {tr("Arrotondamento: mantieni aperto e verifica la registrazione")}
                                 </option>
                                 <option value="Ritenuta da verificare">
-                                  Ritenuta ordinaria: mantieni aperto e verifica
-                                  il trattamento fiscale
+                                  {tr("Ritenuta ordinaria: mantieni aperto e verifica il trattamento fiscale")}
                                 </option>
                               </UniformSelect>
                               <span className="mt-2 block text-muted-foreground">
-                                Se scegli di registrare la differenza, viene
-                                creato il costo con il suo pagamento. Negli
-                                altri casi il residuo resta aperto.
+                                {tr("Se scegli di registrare la differenza, viene creato il costo con il suo pagamento. Negli altri casi il residuo resta aperto.")}
                               </span>
                             </label>
                           )}
@@ -890,9 +872,9 @@ export function BankReconciliationWorkspace({
                   </>
                 )}
                 <label className="block text-xs text-muted-foreground">
-                  Nota per la registrazione
+                  {tr("Nota per la registrazione")}
                   <Input
-                    aria-label="Nota riconciliazione"
+                    aria-label={tr("Nota riconciliazione")}
                     className="mt-1"
                     value={draft.note}
                     onChange={(e) =>
@@ -905,8 +887,8 @@ export function BankReconciliationWorkspace({
                   onClick={() => toggle(focused)}
                 >
                   {draft.reviewed
-                    ? "Rimuovi dal lotto"
-                    : "Aggiungi al lotto dopo verifica"}
+                    ? tr("Rimuovi dal lotto")
+                    : tr("Aggiungi al lotto dopo verifica")}
                 </Button>
               </fieldset>
             )}
@@ -916,26 +898,26 @@ export function BankReconciliationWorkspace({
           {invalid.length > 0 && (
             <p role="status" className="mb-3 flex gap-2 text-xs text-amber-800">
               <AlertTriangle className="h-4 w-4 shrink-0" />
-              {invalid.length} movimenti da completare: {invalid[0].problem}
+              {tr("{n} movimenti da completare: {problema}", { n: invalid.length, problema: String(invalid[0].problem ?? "") })}
             </p>
           )}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
-              <strong>{selected.length} movimenti selezionati</strong>
+              <strong>{tr("{n} movimenti selezionati", { n: selected.length })}</strong>
               <span>
-                Totale <b className="tabular-nums">{money(total)}</b>
+                {tr("Totale")} <b className="tabular-nums">{money(total)}</b>
               </span>
               <span>
-                Attribuito <b className="tabular-nums">{money(allocated)}</b>
+                {tr("Attribuito")} <b className="tabular-nums">{money(allocated)}</b>
               </span>
               <span>
-                Differenza{" "}
+                {tr("Differenza")}{" "}
                 <b className="tabular-nums">{money(total - allocated)}</b>
               </span>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" disabled={busy} onClick={exit}>
-                Chiudi riconciliazione
+                {tr("Chiudi riconciliazione")}
               </Button>
               <Button
                 disabled={
@@ -948,7 +930,7 @@ export function BankReconciliationWorkspace({
                 onClick={() => void confirm()}
               >
                 {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Conferma {selected.length > 0 ? selected.length : ""} movimenti
+                {selected.length > 0 ? tr("Conferma {n} movimenti", { n: selected.length }) : tr("Conferma movimenti")}
               </Button>
             </div>
           </div>
@@ -958,7 +940,7 @@ export function BankReconciliationWorkspace({
               className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm"
             >
               <span>
-                Hai operazioni non confermate. Chiudendo verranno scartate.
+                {tr("Hai operazioni non confermate. Chiudendo verranno scartate.")}
               </span>
               <div className="flex gap-2">
                 <Button
@@ -966,10 +948,10 @@ export function BankReconciliationWorkspace({
                   variant="outline"
                   onClick={() => setCloseWarning(false)}
                 >
-                  Continua a lavorare
+                  {tr("Continua a lavorare")}
                 </Button>
                 <Button size="sm" variant="destructive" onClick={onClose}>
-                  Scarta e chiudi
+                  {tr("Scarta e chiudi")}
                 </Button>
               </div>
             </div>

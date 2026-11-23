@@ -14,6 +14,7 @@ import {
   type FileDocumentiCliente,
 } from "@/lib/clienti/documentiCliente";
 import { fmtBytes } from "@/components/orders/filePreviewUtils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function DocumentiClienteInput({
   value,
@@ -27,6 +28,7 @@ export function DocumentiClienteInput({
   idPrefisso: string;
   compatto?: boolean;
 }) {
+  const t = useT();
   return (
     <div className="space-y-2">
       {TIPI_DOCUMENTO_CLIENTE.map(({ tipo, etichetta, aiuto }) => {
@@ -37,10 +39,10 @@ export function DocumentiClienteInput({
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <p className={`${compatto ? "text-xs" : "text-sm"} font-medium`}>
-                  {etichetta}
+                  {t(etichetta)}
                   {lista.length > 0 && <span className="ml-1.5 text-muted-foreground tabular-nums">({lista.length})</span>}
                 </p>
-                {!compatto && <p className="text-xs text-muted-foreground">{aiuto}</p>}
+                {!compatto && <p className="text-xs text-muted-foreground">{t(aiuto)}</p>}
               </div>
               <input
                 id={id}
@@ -50,14 +52,14 @@ export function DocumentiClienteInput({
                 className="hidden"
                 onChange={(e) => {
                   const { valore, scartati } = aggiungiFileCliente(value, tipo, Array.from(e.target.files ?? []));
-                  scartati.forEach((s) => toast.error("File escluso", { description: s }));
+                  scartati.forEach((s) => toast.error(t("File escluso"), { description: s }));
                   onChange(valore);
                   e.target.value = "";
                 }}
               />
               <Button asChild type="button" variant="outline" size="sm" className={compatto ? "h-8 px-2 text-xs shrink-0" : "shrink-0"}>
                 <label htmlFor={id} className="cursor-pointer">
-                  <Plus className="h-3.5 w-3.5 mr-1" /> Aggiungi
+                  <Plus className="h-3.5 w-3.5 mr-1" /> {t("Aggiungi")}
                 </label>
               </Button>
             </div>
@@ -74,7 +76,7 @@ export function DocumentiClienteInput({
                       size="icon"
                       className="h-6 w-6 shrink-0"
                       onClick={() => onChange(togliFileCliente(value, tipo, i))}
-                      aria-label={`Togli ${f.name}`}
+                      aria-label={t("Togli {name}", { name: String(f.name ?? "") })}
                     >
                       <X className="h-3.5 w-3.5" />
                     </Button>

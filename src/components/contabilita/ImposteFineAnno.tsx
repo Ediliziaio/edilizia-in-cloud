@@ -15,8 +15,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { leggiImportoItaliano } from "@/lib/orders/salCertificato";
 import { ContiPerRuolo, type RuoloConto } from "./ContiPerRuolo";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
-const euro = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" } as Intl.NumberFormatOptions).format(n);
+const euro = (n: number) => new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", useGrouping: "always" } as Intl.NumberFormatOptions).format(n);
 
 export const RUOLI_IMPOSTE: readonly RuoloConto[] = [
   { ruolo: "50.01", etichetta: "Imposte sul reddito dell'esercizio (conto economico, 20)", natura: "costo" },
@@ -39,6 +40,7 @@ export function leggiEsitoImposte(j: Json): EsitoImposte {
 }
 
 export function ImposteFineAnno({ companyId, anno, chiuso }: { companyId: string; anno: number; chiuso: boolean }) {
+  const tr = useT();
   const qc = useQueryClient();
   const [ires, setIres] = useState<string | null>(null);
   const [irap, setIrap] = useState<string | null>(null);
@@ -63,15 +65,15 @@ export function ImposteFineAnno({ companyId, anno, chiuso }: { companyId: string
       return leggiEsitoImposte(data);
     },
     onSuccess: (r) => {
-      toast.success(r.registrata ? `Imposte registrate al 31/12/${anno}` : "Nessuna imposta da registrare");
+      toast.success(r.registrata ? tr("Imposte registrate al 31/12/{anno}", { anno: String(anno ?? "") }) : tr("Nessuna imposta da registrare"));
       setIres(null); setIrap(null);
       void qc.invalidateQueries({ queryKey: ["contabilita-generale", companyId] });
     },
-    onError: (err) => toast.error("Imposte non registrate", { description: err instanceof Error ? err.message : String(err) }),
+    onError: (err) => toast.error(tr("Imposte non registrate"), { description: err instanceof Error ? err.message : String(err) }),
   });
 
-  if (esito.isLoading) return <p role="status" className="text-sm text-muted-foreground">Carico le imposte…</p>;
-  if (esito.isError || !e) return <p role="alert" className="text-sm text-destructive">Imposte non disponibili. <Button variant="link" className="h-auto p-0" onClick={() => void esito.refetch()}>Riprova</Button></p>;
+  if (esito.isLoading) return <p role="status" className="text-sm text-muted-foreground">{tr("Carico le imposte…")}</p>;
+  if (esito.isError || !e) return <p role="alert" className="text-sm text-destructive">{tr("Imposte non disponibili.")} <Button variant="link" className="h-auto p-0" onClick={() => void esito.refetch()}>{tr("Riprova")}</Button></p>;
   const mancanti = RUOLI_IMPOSTE.filter((r) => e.conti_mancanti.includes(r.ruolo));
   const totale = numIres + numIrap;
 
@@ -80,30 +82,30 @@ export function ImposteFineAnno({ companyId, anno, chiuso }: { companyId: string
       <ContiPerRuolo companyId={companyId} ruoli={mancanti} chiuso={chiuso} />
       <div className="grid gap-2 sm:grid-cols-3">
         <div className="space-y-1">
-          <Label htmlFor="imp-ires" className="text-xs">IRES di competenza</Label>
-          <Input id="imp-ires" inputMode="decimal" placeholder="Dallo studio" className="h-8 text-right tabular-nums" disabled={chiuso}
+          <Label htmlFor="imp-ires" className="text-xs">{tr("IRES di competenza")}</Label>
+          <Input id="imp-ires" inputMode="decimal" placeholder={tr("Dallo studio")} className="h-8 text-right tabular-nums" disabled={chiuso}
             value={testo(ires, e.ires)} onChange={(ev) => setIres(ev.target.value)} />
         </div>
         <div className="space-y-1">
-          <Label htmlFor="imp-irap" className="text-xs">IRAP di competenza</Label>
-          <Input id="imp-irap" inputMode="decimal" placeholder="Dallo studio" className="h-8 text-right tabular-nums" disabled={chiuso}
+          <Label htmlFor="imp-irap" className="text-xs">{tr("IRAP di competenza")}</Label>
+          <Input id="imp-irap" inputMode="decimal" placeholder={tr("Dallo studio")} className="h-8 text-right tabular-nums" disabled={chiuso}
             value={testo(irap, e.irap)} onChange={(ev) => setIrap(ev.target.value)} />
         </div>
         <div className="space-y-1 text-sm">
-          <p className="text-xs text-muted-foreground">Acconti versati nel {anno} (F24 2001, 2002, 3812, 3813)</p>
+          <p className="text-xs text-muted-foreground">{tr("Acconti versati nel {anno} (F24 2001, 2002, 3812, 3813)", { anno: String(anno ?? "") })}</p>
           <p className="tabular-nums">{euro(e.acconti)}</p>
         </div>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">
-          {e.da_aggiornare ? <strong className="text-amber-700">Da aggiornare: gli importi o gli acconti sono cambiati dopo la registrazione. </strong>
-            : e.registrata ? "Registrate. " : "Non ancora registrate. "}
+          {e.da_aggiornare ? <strong className="text-amber-700">{tr("Da aggiornare: gli importi o gli acconti sono cambiati dopo la registrazione.")} </strong>
+            : e.registrata ? `${tr("Registrate.")} ` : `${tr("Non ancora registrate.")} `}
           {totale > 0 ? (totale >= e.acconti
-            ? `Saldo da versare: ${euro(totale - e.acconti)}.`
-            : `Acconti oltre l'imposta: ${euro(e.acconti - totale)} restano a credito.`) : ""}
+            ? tr("Saldo da versare: {valore}.", { valore: euro(totale - e.acconti) })
+            : tr("Acconti oltre l'imposta: {valore} restano a credito.", { valore: euro(e.acconti - totale) })) : ""}
         </p>
         <Button size="sm" variant="outline" disabled={chiuso || !validi || mancanti.length > 0 || registra.isPending} onClick={() => registra.mutate()}>
-          {registra.isPending ? "Registrazione…" : "Registra le imposte"}
+          {registra.isPending ? tr("Registrazione…") : tr("Registra le imposte")}
         </Button>
       </div>
     </div>

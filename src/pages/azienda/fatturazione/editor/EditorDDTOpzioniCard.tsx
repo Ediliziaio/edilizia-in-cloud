@@ -23,6 +23,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import type { EditorState, Action } from "./useEditorState";
 import { CAUSALI_TRASPORTO as CAUSALI, codiceCausale } from "@/lib/ddt/causaliTrasporto";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   state: EditorState;
@@ -40,6 +41,7 @@ interface SubOption {
 }
 
 export function EditorDDTOpzioniCard({ state, dispatch, disabled }: Props) {
+  const tr = useT();
   const { effectiveCompany } = useAuth();
 
   const setField = useCallback(
@@ -180,21 +182,21 @@ export function EditorDDTOpzioniCard({ state, dispatch, disabled }: Props) {
     const targa = dv.targa_mezzo as string | undefined;
     const parts = [
       ragione,
-      cond ? `Conducente: ${cond}` : null,
-      targa ? `Targa ${targa}` : null,
+      cond ? tr("Conducente: {nome}", { nome: cond }) : null,
+      targa ? tr("Targa {targa}", { targa }) : null,
     ].filter(Boolean);
     return parts.join(" — ");
-  }, [state.ddt_vettore]);
+  }, [state.ddt_vettore, tr]);
 
   return (
     <div className="rounded-lg border bg-card p-4 space-y-3 border-l-[3px] border-l-sky-400/60 shadow-sm">
       <Label className="text-[11px] font-bold uppercase tracking-wider text-sky-600/80 dark:text-sky-400/80">
-        Opzioni avanzate
+        {tr("Opzioni avanzate")}
       </Label>
 
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <Label className="text-[10px] text-muted-foreground">Colli</Label>
+          <Label className="text-[10px] text-muted-foreground">{tr("Colli")}</Label>
           <Input
             type="number"
             min={0}
@@ -205,9 +207,9 @@ export function EditorDDTOpzioniCard({ state, dispatch, disabled }: Props) {
           />
         </div>
         <div>
-          <Label className="text-[10px] text-muted-foreground">Peso</Label>
+          <Label className="text-[10px] text-muted-foreground">{tr("Peso")}</Label>
           <Input
-            placeholder="0 kg"
+            placeholder={tr("0 kg")}
             value={state.ddt_peso ?? ""}
             onChange={(e) => setField("ddt_peso", e.target.value)}
             disabled={disabled}
@@ -217,14 +219,14 @@ export function EditorDDTOpzioniCard({ state, dispatch, disabled }: Props) {
       </div>
 
       <div>
-        <Label className="text-[10px] text-muted-foreground">Causale trasporto</Label>
+        <Label className="text-[10px] text-muted-foreground">{tr("Causale trasporto")}</Label>
         <Select
           value={codiceCausale(state.ddt_causale_trasporto)}
           onValueChange={(v) => setField("ddt_causale_trasporto", v)}
           disabled={disabled}
         >
           <SelectTrigger className="h-7 text-xs">
-            <SelectValue placeholder="Seleziona causale" />
+            <SelectValue placeholder={tr("Seleziona causale")} />
           </SelectTrigger>
           <SelectContent>
             {CAUSALI.map((c) => (
@@ -236,9 +238,9 @@ export function EditorDDTOpzioniCard({ state, dispatch, disabled }: Props) {
 
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <Label className="text-[10px] text-muted-foreground">Aspetto dei beni</Label>
+          <Label className="text-[10px] text-muted-foreground">{tr("Aspetto dei beni")}</Label>
           <Input
-            placeholder="Scatola, bancale…"
+            placeholder={tr("Scatola, bancale…")}
             value={state.ddt_aspetto_beni ?? ""}
             onChange={(e) => setField("ddt_aspetto_beni", e.target.value)}
             disabled={disabled}
@@ -246,9 +248,9 @@ export function EditorDDTOpzioniCard({ state, dispatch, disabled }: Props) {
           />
         </div>
         <div>
-          <Label className="text-[10px] text-muted-foreground">Mezzo trasporto</Label>
+          <Label className="text-[10px] text-muted-foreground">{tr("Mezzo trasporto")}</Label>
           <Input
-            placeholder="Furgone, autocarro…"
+            placeholder={tr("Furgone, autocarro…")}
             value={state.ddt_mezzo_trasporto ?? ""}
             onChange={(e) => setField("ddt_mezzo_trasporto", e.target.value)}
             disabled={disabled}
@@ -258,7 +260,7 @@ export function EditorDDTOpzioniCard({ state, dispatch, disabled }: Props) {
       </div>
 
       <div>
-        <Label className="text-[10px] text-muted-foreground">Porto</Label>
+        <Label className="text-[10px] text-muted-foreground">{tr("Porto")}</Label>
         <RadioGroup
           value={state.ddt_porto ?? "Franco"}
           onValueChange={(v) => setField("ddt_porto", v)}
@@ -267,17 +269,17 @@ export function EditorDDTOpzioniCard({ state, dispatch, disabled }: Props) {
         >
           <div className="flex items-center gap-1.5">
             <RadioGroupItem value="Franco" id="opz-porto-franco" />
-            <Label htmlFor="opz-porto-franco" className="text-xs">Franco</Label>
+            <Label htmlFor="opz-porto-franco" className="text-xs">{tr("Franco")}</Label>
           </div>
           <div className="flex items-center gap-1.5">
             <RadioGroupItem value="Assegnato" id="opz-porto-assegnato" />
-            <Label htmlFor="opz-porto-assegnato" className="text-xs">Assegnato</Label>
+            <Label htmlFor="opz-porto-assegnato" className="text-xs">{tr("Assegnato")}</Label>
           </div>
         </RadioGroup>
       </div>
 
       <div>
-        <Label htmlFor="ddt-luogo-destinazione" className="text-[10px] text-muted-foreground">Luogo di destinazione</Label>
+        <Label htmlFor="ddt-luogo-destinazione" className="text-[10px] text-muted-foreground">{tr("Luogo di destinazione")}</Label>
         <CampoIndirizzo
           id="ddt-luogo-destinazione"
           value={indirizzoConsegnaFreeText}
@@ -285,12 +287,12 @@ export function EditorDDTOpzioniCard({ state, dispatch, disabled }: Props) {
           onScegli={handleLuogoScelto}
           disabled={disabled}
           className="text-xs"
-          placeholder="Indirizzo cantiere o luogo consegna…"
+          placeholder={tr("Indirizzo cantiere o luogo consegna…")}
         />
       </div>
 
       <div>
-        <Label className="text-[10px] text-muted-foreground">Trasporto a cura di</Label>
+        <Label className="text-[10px] text-muted-foreground">{tr("Trasporto a cura di")}</Label>
         <RadioGroup
           value={vettoreTipo}
           onValueChange={handleVettoreTipoChange}
@@ -299,19 +301,19 @@ export function EditorDDTOpzioniCard({ state, dispatch, disabled }: Props) {
         >
           <div className="flex items-center gap-1.5">
             <RadioGroupItem value="mittente" id="opz-vett-mitt" />
-            <Label htmlFor="opz-vett-mitt" className="text-xs">Mittente</Label>
+            <Label htmlFor="opz-vett-mitt" className="text-xs">{tr("Mittente")}</Label>
           </div>
           <div className="flex items-center gap-1.5">
             <RadioGroupItem value="destinatario" id="opz-vett-dest" />
-            <Label htmlFor="opz-vett-dest" className="text-xs">Destinatario</Label>
+            <Label htmlFor="opz-vett-dest" className="text-xs">{tr("Destinatario")}</Label>
           </div>
           <div className="flex items-center gap-1.5">
             <RadioGroupItem value="subappaltatore" id="opz-vett-sub" />
-            <Label htmlFor="opz-vett-sub" className="text-xs">Subappaltatore</Label>
+            <Label htmlFor="opz-vett-sub" className="text-xs">{tr("Subappaltatore")}</Label>
           </div>
           <div className="flex items-center gap-1.5">
             <RadioGroupItem value="terzo" id="opz-vett-terzo" />
-            <Label htmlFor="opz-vett-terzo" className="text-xs">Vettore terzo</Label>
+            <Label htmlFor="opz-vett-terzo" className="text-xs">{tr("Vettore terzo")}</Label>
           </div>
         </RadioGroup>
 
@@ -322,7 +324,7 @@ export function EditorDDTOpzioniCard({ state, dispatch, disabled }: Props) {
             disabled={disabled}
           >
             <SelectTrigger className="h-7 text-xs mt-2">
-              <SelectValue placeholder={subappaltatori.length ? "Scegli subappaltatore" : "Nessun subappaltatore attivo"} />
+              <SelectValue placeholder={subappaltatori.length ? tr("Scegli subappaltatore") : tr("Nessun subappaltatore attivo")} />
             </SelectTrigger>
             <SelectContent>
               {subappaltatori.map((s) => (
@@ -338,9 +340,9 @@ export function EditorDDTOpzioniCard({ state, dispatch, disabled }: Props) {
         {vettoreTipo === "terzo" && (
           <div className="grid grid-cols-2 gap-2 mt-2 p-2 rounded bg-muted/40">
             <div className="col-span-2">
-              <Label className="text-[10px] text-muted-foreground">Denominazione vettore</Label>
+              <Label className="text-[10px] text-muted-foreground">{tr("Denominazione vettore")}</Label>
               <Input
-                placeholder="Ragione sociale"
+                placeholder={tr("Ragione sociale")}
                 value={
                   (state.ddt_vettore as Record<string, unknown> | null | undefined)?.ragione_sociale as string ||
                   (state.ddt_vettore as Record<string, unknown> | null | undefined)?.denominazione as string ||
@@ -366,10 +368,10 @@ export function EditorDDTOpzioniCard({ state, dispatch, disabled }: Props) {
               />
             </div>
             <div>
-              <Label htmlFor="ddt-vettore-indirizzo" className="text-[10px] text-muted-foreground">Indirizzo</Label>
+              <Label htmlFor="ddt-vettore-indirizzo" className="text-[10px] text-muted-foreground">{tr("Indirizzo")}</Label>
               <CampoIndirizzo
                 id="ddt-vettore-indirizzo"
-                placeholder="Via, comune"
+                placeholder={tr("Via, comune")}
                 value={(state.ddt_vettore as Record<string, unknown> | null | undefined)?.address as string ?? ""}
                 onChange={(v) => setVettoreField({ address: v })}
                 disabled={disabled}
@@ -382,9 +384,9 @@ export function EditorDDTOpzioniCard({ state, dispatch, disabled }: Props) {
         {vettoreNeedsDetails && (
           <div className="grid grid-cols-2 gap-2 mt-2">
             <div>
-              <Label className="text-[10px] text-muted-foreground">Conducente</Label>
+              <Label className="text-[10px] text-muted-foreground">{tr("Conducente")}</Label>
               <Input
-                placeholder="Nome e cognome"
+                placeholder={tr("Nome e cognome")}
                 value={(state.ddt_vettore as Record<string, unknown> | null | undefined)?.conducente_nome as string ?? ""}
                 onChange={(e) => setVettoreField({ conducente_nome: e.target.value })}
                 disabled={disabled}
@@ -392,7 +394,7 @@ export function EditorDDTOpzioniCard({ state, dispatch, disabled }: Props) {
               />
             </div>
             <div>
-              <Label className="text-[10px] text-muted-foreground">Telefono</Label>
+              <Label className="text-[10px] text-muted-foreground">{tr("Telefono")}</Label>
               <Input
                 placeholder="+39…"
                 value={(state.ddt_vettore as Record<string, unknown> | null | undefined)?.conducente_telefono as string ?? ""}
@@ -402,9 +404,9 @@ export function EditorDDTOpzioniCard({ state, dispatch, disabled }: Props) {
               />
             </div>
             <div>
-              <Label className="text-[10px] text-muted-foreground">Targa</Label>
+              <Label className="text-[10px] text-muted-foreground">{tr("Targa")}</Label>
               <Input
-                placeholder="AB123CD"
+                placeholder={tr("AB123CD")}
                 value={(state.ddt_vettore as Record<string, unknown> | null | undefined)?.targa_mezzo as string ?? ""}
                 onChange={(e) => setVettoreField({ targa_mezzo: e.target.value.toUpperCase() })}
                 disabled={disabled}
@@ -412,9 +414,9 @@ export function EditorDDTOpzioniCard({ state, dispatch, disabled }: Props) {
               />
             </div>
             <div>
-              <Label className="text-[10px] text-muted-foreground">N. patente</Label>
+              <Label className="text-[10px] text-muted-foreground">{tr("N. patente")}</Label>
               <Input
-                placeholder="Patente"
+                placeholder={tr("Patente")}
                 value={(state.ddt_vettore as Record<string, unknown> | null | undefined)?.patente as string ?? ""}
                 onChange={(e) => setVettoreField({ patente: e.target.value })}
                 disabled={disabled}
@@ -430,7 +432,7 @@ export function EditorDDTOpzioniCard({ state, dispatch, disabled }: Props) {
       </div>
 
       <div>
-        <Label className="text-[10px] text-muted-foreground">Data/Ora consegna</Label>
+        <Label className="text-[10px] text-muted-foreground">{tr("Data/Ora consegna")}</Label>
         <Input
           type="datetime-local"
           value={state.ddt_data_ora_consegna ?? ""}
@@ -441,7 +443,7 @@ export function EditorDDTOpzioniCard({ state, dispatch, disabled }: Props) {
       </div>
 
       <div>
-        <Label className="text-[10px] text-muted-foreground">Annotazioni</Label>
+        <Label className="text-[10px] text-muted-foreground">{tr("Annotazioni")}</Label>
         <Textarea
           rows={2}
           value={state.note_documento ?? ""}

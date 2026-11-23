@@ -35,6 +35,7 @@ import { Copy, Download, ExternalLink, Check, FileText } from "lucide-react";
 import { toast } from "sonner";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 export interface WarrantyExportItem {
   serial_number: string;
   articolo?: string | null;
@@ -77,6 +78,7 @@ export function WarrantyExportDialog({
   supplierName,
   supplierPortalUrl,
 }: WarrantyExportDialogProps) {
+  const t = useT();
   const isMobile = useIsMobile();
   const [copied, setCopied] = useState<"text" | "csv" | "json" | null>(null);
 
@@ -112,10 +114,10 @@ export function WarrantyExportDialog({
       const content = format === "text" ? plainText : format === "csv" ? csvText : jsonText;
       await navigator.clipboard.writeText(content);
       setCopied(format);
-      toast.success("Copiato negli appunti");
+      toast.success(t("Copiato negli appunti"));
       setTimeout(() => setCopied(null), 2000);
     } catch {
-      toast.error("Impossibile copiare. Seleziona il testo manualmente.");
+      toast.error(t("Impossibile copiare. Seleziona il testo manualmente."));
     }
   };
 
@@ -141,31 +143,32 @@ export function WarrantyExportDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5 text-orange-600" />
-            Esporta seriali per garanzia
+            {t("Esporta seriali per garanzia")}
           </DialogTitle>
           <DialogDescription>
-            {items.length} {items.length === 1 ? "seriale" : "seriali"} pronti per registrazione sul portale
-            {supplierName ? <> di <strong>{supplierName}</strong></> : " fornitore"}.
+            {supplierName
+              ? t(items.length === 1 ? "{n} seriale pronto per registrazione sul portale di {fornitore}." : "{n} seriali pronti per registrazione sul portale di {fornitore}.", { n: items.length, fornitore: supplierName })
+              : t(items.length === 1 ? "{n} seriale pronto per registrazione sul portale fornitore." : "{n} seriali pronti per registrazione sul portale fornitore.", { n: items.length })}
           </DialogDescription>
         </DialogHeader>
 
         {items.length === 0 ? (
           <Alert>
             <AlertDescription>
-              Nessun seriale da esportare. Assegna prima i seriali ai pezzi tramite "Gestisci seriali".
+              {t("Nessun seriale da esportare. Assegna prima i seriali ai pezzi tramite \"Gestisci seriali\".")}
             </AlertDescription>
           </Alert>
         ) : (
           <Tabs defaultValue="text" className="w-full">
             <TabsList className="grid grid-cols-3 w-full">
-              <TabsTrigger value="text">Plain text</TabsTrigger>
+              <TabsTrigger value="text">{t("Plain text")}</TabsTrigger>
               <TabsTrigger value="csv">CSV</TabsTrigger>
               <TabsTrigger value="json">JSON</TabsTrigger>
             </TabsList>
 
             <TabsContent value="text" className="space-y-2">
               <p className="text-xs text-muted-foreground">
-                Un seriale per riga. Ideale per portali che accettano paste in textarea.
+                {t("Un seriale per riga. Ideale per portali che accettano paste in textarea.")}
               </p>
               <Textarea
                 readOnly
@@ -181,14 +184,14 @@ export function WarrantyExportDialog({
                   ) : (
                     <Copy className="h-3.5 w-3.5 mr-1" />
                   )}
-                  Copia
+                  {t("Copia")}
                 </Button>
                 {/* Niente download su telefono: «Copia» resta,
                     quella non scarica niente. */}
                 {!isMobile && (
                   <Button size="sm" variant="outline" onClick={() => download("text")}>
                     <Download className="h-3.5 w-3.5 mr-1" />
-                    Scarica .txt
+                    {t("Scarica .txt")}
                   </Button>
                 )}
               </div>
@@ -196,8 +199,7 @@ export function WarrantyExportDialog({
 
             <TabsContent value="csv" className="space-y-2">
               <p className="text-xs text-muted-foreground">
-                Colonne: serial_number, articolo, codice_interno, lotto, data_acquisto, garanzia_mesi.
-                Compatibile con Excel / Google Sheets / portali con upload CSV.
+                {t("Colonne: serial_number, articolo, codice_interno, lotto, data_acquisto, garanzia_mesi. Compatibile con Excel / Google Sheets / portali con upload CSV.")}
               </p>
               <Textarea
                 readOnly
@@ -213,14 +215,14 @@ export function WarrantyExportDialog({
                   ) : (
                     <Copy className="h-3.5 w-3.5 mr-1" />
                   )}
-                  Copia
+                  {t("Copia")}
                 </Button>
                 {/* Niente download su telefono: «Copia» resta,
                     quella non scarica niente. */}
                 {!isMobile && (
                   <Button size="sm" variant="outline" onClick={() => download("csv")}>
                     <Download className="h-3.5 w-3.5 mr-1" />
-                    Scarica .csv
+                    {t("Scarica .csv")}
                   </Button>
                 )}
               </div>
@@ -228,7 +230,7 @@ export function WarrantyExportDialog({
 
             <TabsContent value="json" className="space-y-2">
               <p className="text-xs text-muted-foreground">
-                Formato JSON per integrazioni API o automation.
+                {t("Formato JSON per integrazioni API o automation.")}
               </p>
               <Textarea
                 readOnly
@@ -244,14 +246,14 @@ export function WarrantyExportDialog({
                   ) : (
                     <Copy className="h-3.5 w-3.5 mr-1" />
                   )}
-                  Copia
+                  {t("Copia")}
                 </Button>
                 {/* Niente download su telefono: «Copia» resta,
                     quella non scarica niente. */}
                 {!isMobile && (
                   <Button size="sm" variant="outline" onClick={() => download("json")}>
                     <Download className="h-3.5 w-3.5 mr-1" />
-                    Scarica .json
+                    {t("Scarica .json")}
                   </Button>
                 )}
               </div>
@@ -265,12 +267,12 @@ export function WarrantyExportDialog({
             <AlertDescription className="flex items-center justify-between gap-3">
               <span className="text-xs">
                 {supplierPortalUrl
-                  ? `Apri il portale ${supplierName ?? "fornitore"} per registrare i seriali.`
-                  : `Cerca il portale ${supplierName ?? "fornitore"} su Google.`}
+                  ? t("Apri il portale {fornitore} per registrare i seriali.", { fornitore: supplierName ?? t("fornitore") })
+                  : t("Cerca il portale {fornitore} su Google.", { fornitore: supplierName ?? t("fornitore") })}
               </span>
               <Button asChild size="sm" variant="default">
                 <a href={portalHref} target="_blank" rel="noopener noreferrer">
-                  Apri portale <ExternalLink className="h-3 w-3 ml-1" />
+                  {t("Apri portale")} <ExternalLink className="h-3 w-3 ml-1" />
                 </a>
               </Button>
             </AlertDescription>
@@ -279,10 +281,10 @@ export function WarrantyExportDialog({
 
         <DialogFooter>
           <Badge variant="outline" className="mr-auto text-xs">
-            {items.length} {items.length === 1 ? "seriale" : "seriali"}
+            {items.length === 1 ? t("{n} seriale", { n: 1 }) : t("{n} seriali", { n: items.length })}
           </Badge>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Chiudi
+            {t("Chiudi")}
           </Button>
         </DialogFooter>
       </DialogContent>

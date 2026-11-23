@@ -6,6 +6,7 @@ import { useInstallation } from '@/hooks/warehouse/useInstallation';
 import { Camera, X } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface InstallationPhotoCaptureModalProps {
   open: boolean;
@@ -22,6 +23,7 @@ export function InstallationPhotoCaptureModal({
   orderItemName = 'Articolo',
   siteDeliveryId,
 }: InstallationPhotoCaptureModalProps) {
+  const tr = useT();
   const { recordInstallation, isRecording, uploadProgress } = useInstallation();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -46,7 +48,7 @@ export function InstallationPhotoCaptureModal({
       setCameraMode(mode);
     } catch (err) {
       console.error('Camera error:', err);
-      toast.error('Impossibile accedere alla fotocamera. Verifica i permessi del browser.');
+      toast.error(tr("Impossibile accedere alla fotocamera. Verifica i permessi del browser."));
     }
   };
 
@@ -125,38 +127,38 @@ export function InstallationPhotoCaptureModal({
     <Dialog open={open} onOpenChange={(o) => { if (!o) stopCamera(); onOpenChange(o); }}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>🔧 Installa — {orderItemName}</DialogTitle>
+          <DialogTitle>{tr("🔧 Installa — {orderItemName}", { orderItemName: String(orderItemName ?? "") })}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Posizione */}
           <div className="space-y-2">
-            <label className="block text-sm font-medium">Posizione installazione</label>
+            <label className="block text-sm font-medium">{tr("Posizione installazione")}</label>
             <Input
               type="text"
               value={installationLocation}
               onChange={(e) => setInstallationLocation(e.target.value)}
-              placeholder="Es. Sala, Cucina, Camera"
+              placeholder={tr("Es. Sala, Cucina, Camera")}
               disabled={isRecording}
             />
           </div>
 
           {/* Foto PRIMA (facoltativa) */}
           <div className="space-y-2">
-            <label className="block text-sm font-medium">📷 Foto PRIMA <span className="font-normal text-muted-foreground">· facoltativa</span></label>
+            <label className="block text-sm font-medium">{tr("📷 Foto PRIMA")} <span className="font-normal text-muted-foreground">{tr("· facoltativa")}</span></label>
 
             {photoBeforePreview ? (
               <div className="relative w-full bg-gray-100 rounded border">
-                <img loading="lazy" src={photoBeforePreview} alt="Anteprima foto PRIMA dell'installazione" className="w-full h-auto rounded" />
+                <img loading="lazy" src={photoBeforePreview} alt={tr("Anteprima foto PRIMA dell'installazione")} className="w-full h-auto rounded" />
                 <div className="absolute top-2 right-2 bg-green-500 text-white px-2 py-1 rounded text-xs font-medium">
-                  ✓ Caricata
+                  {tr("✓ Caricata")}
                 </div>
                 <button
                   type="button"
                   onClick={() => { setPhotoBefore(null); setPhotoBeforePreview(null); }}
                   className="absolute bottom-2 right-2 bg-red-500 text-white p-1 rounded"
                   disabled={isRecording}
-                  aria-label="Rimuovi foto Prima"
+                  aria-label={tr("Rimuovi foto Prima")}
                 >
                   <X size={16} />
                 </button>
@@ -170,7 +172,7 @@ export function InstallationPhotoCaptureModal({
                   disabled={isRecording}
                 >
                   <Camera size={16} className="mr-2" />
-                  {cameraMode === 'before' ? 'Chiudi' : 'Scatta foto'}
+                  {cameraMode === 'before' ? tr("Chiudi") : tr("Scatta foto")}
                 </Button>
                 <Button
                   type="button"
@@ -178,7 +180,7 @@ export function InstallationPhotoCaptureModal({
                   onClick={() => fileInputBeforeRef.current?.click()}
                   disabled={isRecording}
                 >
-                  Seleziona file
+                  {tr("Seleziona file")}
                 </Button>
                 <input
                   ref={fileInputBeforeRef}
@@ -198,7 +200,7 @@ export function InstallationPhotoCaptureModal({
                 <video ref={videoRef} autoPlay playsInline className="w-full rounded" />
                 <canvas ref={canvasRef} className="hidden" />
                 <Button type="button" onClick={() => handleCameraCapture('before')} disabled={isRecording} className="w-full">
-                  Scatta foto PRIMA
+                  {tr("Scatta foto PRIMA")}
                 </Button>
               </div>
             )}
@@ -207,27 +209,27 @@ export function InstallationPhotoCaptureModal({
           {/* Indicatore step intermedio */}
           {photoBeforePreview && !photoAfterPreview && (
             <div className="bg-blue-50 p-4 rounded border border-blue-200 text-center">
-              <p className="text-sm font-medium text-blue-800">✓ Foto prima acquisita</p>
-              <p className="text-xs text-blue-600 mt-1">Puoi ora procedere con l'installazione, poi scatta la foto DOPO</p>
+              <p className="text-sm font-medium text-blue-800">{tr("✓ Foto prima acquisita")}</p>
+              <p className="text-xs text-blue-600 mt-1">{tr("Puoi ora procedere con l'installazione, poi scatta la foto DOPO")}</p>
             </div>
           )}
 
           {/* Foto DOPO (facoltativa) */}
           <div className="space-y-2">
-            <label className="block text-sm font-medium">📷 Foto DOPO <span className="font-normal text-muted-foreground">· facoltativa</span></label>
+            <label className="block text-sm font-medium">{tr("📷 Foto DOPO")} <span className="font-normal text-muted-foreground">{tr("· facoltativa")}</span></label>
 
             {photoAfterPreview ? (
               <div className="relative w-full bg-gray-100 rounded border">
-                <img loading="lazy" src={photoAfterPreview} alt="Anteprima foto DOPO l'installazione" className="w-full h-auto rounded" />
+                <img loading="lazy" src={photoAfterPreview} alt={tr("Anteprima foto DOPO l'installazione")} className="w-full h-auto rounded" />
                 <div className="absolute top-2 right-2 bg-green-500 text-white px-2 py-1 rounded text-xs font-medium">
-                  ✓ Caricata
+                  {tr("✓ Caricata")}
                 </div>
                 <button
                   type="button"
                   onClick={() => { setPhotoAfter(null); setPhotoAfterPreview(null); }}
                   className="absolute bottom-2 right-2 bg-red-500 text-white p-1 rounded"
                   disabled={isRecording}
-                  aria-label="Rimuovi foto Dopo"
+                  aria-label={tr("Rimuovi foto Dopo")}
                 >
                   <X size={16} />
                 </button>
@@ -241,7 +243,7 @@ export function InstallationPhotoCaptureModal({
                   disabled={isRecording}
                 >
                   <Camera size={16} className="mr-2" />
-                  {cameraMode === 'after' ? 'Chiudi' : 'Scatta foto'}
+                  {cameraMode === 'after' ? tr("Chiudi") : tr("Scatta foto")}
                 </Button>
                 <Button
                   type="button"
@@ -249,7 +251,7 @@ export function InstallationPhotoCaptureModal({
                   onClick={() => fileInputAfterRef.current?.click()}
                   disabled={isRecording}
                 >
-                  Seleziona file
+                  {tr("Seleziona file")}
                 </Button>
                 <input
                   ref={fileInputAfterRef}
@@ -269,7 +271,7 @@ export function InstallationPhotoCaptureModal({
                 <video ref={videoRef} autoPlay playsInline className="w-full rounded" />
                 <canvas ref={canvasRef} className="hidden" />
                 <Button type="button" onClick={() => handleCameraCapture('after')} disabled={isRecording} className="w-full">
-                  Scatta foto DOPO
+                  {tr("Scatta foto DOPO")}
                 </Button>
               </div>
             )}
@@ -277,12 +279,12 @@ export function InstallationPhotoCaptureModal({
 
           {/* Note */}
           <div className="space-y-2">
-            <label className="block text-sm font-medium">Note installazione</label>
+            <label className="block text-sm font-medium">{tr("Note installazione")}</label>
             <Input
               type="text"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Es. Sigillato, verniciato"
+              placeholder={tr("Es. Sigillato, verniciato")}
               disabled={isRecording}
             />
           </div>
@@ -290,7 +292,7 @@ export function InstallationPhotoCaptureModal({
           {/* Upload Progress */}
           {uploadProgress > 0 && uploadProgress < 100 && (
             <div className="space-y-2">
-              <div className="text-xs text-gray-600">Upload foto... {uploadProgress}%</div>
+              <div className="text-xs text-gray-600">{tr("Upload foto... {uploadProgress}%", { uploadProgress: String(uploadProgress ?? "") })}</div>
               <Progress value={uploadProgress} />
             </div>
           )}
@@ -303,10 +305,10 @@ export function InstallationPhotoCaptureModal({
               onClick={() => { stopCamera(); onOpenChange(false); }}
               disabled={isRecording}
             >
-              Annulla
+              {tr("Annulla")}
             </Button>
             <Button type="submit" disabled={isRecording}>
-              {isRecording ? 'Registrando...' : '✓ Installazione completata'}
+              {isRecording ? tr("Registrando...") : tr("✓ Installazione completata")}
             </Button>
           </div>
         </form>

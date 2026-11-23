@@ -31,7 +31,6 @@ import { useParams, Link } from "react-router-dom";
 import { useDentroPopupDocumento, useIdDocumento, useNavigaDocumento, useParametriDocumento } from "@/lib/orders/documentoPopup";
 import { useVociListinoFornitore } from "@/hooks/useListinoFornitore";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -75,6 +74,7 @@ import { nomeFileDocumento, type DocumentoOperativo } from "@/lib/documentiOpera
 import { scaricaBlob } from "@/components/orders/generali/vendita/scarica";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
+import { useT, intlCampo, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // MP2 P1a: ricezione via scansione QR/barcode (lazy: trascina @zxing solo on-demand).
 const OdaArrivoMerceSheet = lazy(() =>
@@ -99,6 +99,7 @@ export default function PurchaseOrderDetail() {
 }
 
 function ContenutoPurchaseOrderDetail() {
+  const t = useT();
   const sezioneDdt = useRef<HTMLElement>(null);
   const { odaId: odaIdIndirizzo } = useParams();
   const odaId = useIdDocumento(odaIdIndirizzo);
@@ -156,7 +157,7 @@ function ContenutoPurchaseOrderDetail() {
     if (order?.status !== "bozza") { poi(); return; }
     const { data, error } = await (supabase.rpc as unknown as (f: string, a: object) => Promise<{ data: MisuraAperta[] | null; error: { message: string } | null }>)(
       "oda_misure_da_confermare", { p_po: order.id });
-    if (error) { toast.error("Non riesco a controllare le misure", { description: error.message }); return; }
+    if (error) { toast.error(t("Non riesco a controllare le misure"), { description: error.message }); return; }
     if (data?.length) setMisureAperte({ righe: data, poi });
     else poi();
   };
@@ -219,8 +220,8 @@ function ContenutoPurchaseOrderDetail() {
   if (!order) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground mb-4">Ordine non trovato</p>
-        <Button variant="outline" onClick={() => navigate("/azienda/ordini?tab=acquisto")}>Torna alla lista</Button>
+        <p className="text-muted-foreground mb-4">{t("Ordine non trovato")}</p>
+        <Button variant="outline" onClick={() => navigate("/azienda/ordini?tab=acquisto")}>{t("Torna alla lista")}</Button>
       </div>
     );
   }
@@ -292,8 +293,8 @@ function ContenutoPurchaseOrderDetail() {
       const blob = await generaPdfOperativo(documentoInvio, effectiveCompany);
       scaricaBlob(blob, nomeFileDocumento(documentoInvio));
     } catch (error) {
-      toast.error("Impossibile scaricare il PDF", {
-        description: error instanceof Error ? error.message : "Riprova tra qualche secondo.",
+      toast.error(t("Impossibile scaricare il PDF"), {
+        description: error instanceof Error ? error.message : t("Riprova tra qualche secondo."),
       });
     } finally {
       setDownloadingPdf(false);
@@ -323,7 +324,7 @@ function ContenutoPurchaseOrderDetail() {
             .update({ order_id: nuovaCommessa })
             .eq("purchase_order_id", order.id).eq("company_id", order.company_id);
           if (error) {
-            toast.error("Commessa aggiornata, ma il costo collegato no", {
+            toast.error(t("Commessa aggiornata, ma il costo collegato no"), {
               description: error.message,
             });
           } else {
@@ -360,8 +361,8 @@ function ContenutoPurchaseOrderDetail() {
           queryClient.invalidateQueries({ queryKey: ["oda-contabilita", order.id] });
           // il costo nasce solo con l'ordine completo: con righe mancanti non c'è
           if (Number(order.subtotal) > 0 && (esito as { completo?: boolean } | undefined)?.completo !== false) {
-            toast.success("Merce ricevuta", {
-              description: "Costo registrato in Costi Aziendali con la scadenza dei termini di pagamento.",
+            toast.success(t("Merce ricevuta"), {
+              description: t("Costo registrato in Costi Aziendali con la scadenza dei termini di pagamento."),
             });
           }
         }
@@ -375,35 +376,35 @@ function ContenutoPurchaseOrderDetail() {
   const attendeConferma = order.status === "inviato" && canEdit;
   const registraConferma = async () => {
     const ricevuta = await confirm({
-      title: "Conferma ricevuta dal fornitore?",
-      description: `Registra la conferma dell’ordine ${order.oda_number} dopo aver verificato prezzi, quantità e consegna.`,
-      confirmLabel: "Registra conferma",
-      cancelLabel: "Indietro",
+      title: t("Conferma ricevuta dal fornitore?"),
+      description: t("Registra la conferma dell’ordine {oda_number} dopo aver verificato prezzi, quantità e consegna.", { oda_number: String(order.oda_number ?? "") }),
+      confirmLabel: t("Registra conferma"),
+      cancelLabel: t("Indietro"),
     });
     if (ricevuta) await handleStatusChange("confermato");
   };
   const puoAnnullare = nextStatuses.includes("annullato");
   const chiediAnnullo = async () => {
     if (await confirm({
-      title: "Annullare l'ordine?",
-      description: `${order.oda_number} non sarà più valido e le righe tornano da ordinare.`,
-      confirmLabel: "Annulla l'ordine",
-      cancelLabel: "Tienilo",
+      title: t("Annullare l'ordine?"),
+      description: t("{oda_number} non sarà più valido e le righe tornano da ordinare.", { oda_number: String(order.oda_number ?? "") }),
+      confirmLabel: t("Annulla l'ordine"),
+      cancelLabel: t("Tienilo"),
       variant: "destructive",
     })) handleStatusChange("annullato");
   };
   const vociMenu: Array<{ id: string; etichetta: string; icona: React.ReactNode; azione: () => void }> = [
     ...(!attendeConferma && order.status !== "bozza" && order.status !== "annullato"
-      ? [{ id: "verifica", etichetta: "Confronta conferma", icona: <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />, azione: () => setVerifyDialogOpen(true) }]
+      ? [{ id: "verifica", etichetta: t("Confronta conferma"), icona: <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />, azione: () => setVerifyDialogOpen(true) }]
       : []),
     ...(arrivoPossibile
-      ? [{ id: "scansione", etichetta: "Ricevi via scansione", icona: <ScanLine className="h-3.5 w-3.5" aria-hidden="true" />, azione: () => setReceiveScanOpen(true) }]
+      ? [{ id: "scansione", etichetta: t("Ricevi via scansione"), icona: <ScanLine className="h-3.5 w-3.5" aria-hidden="true" />, azione: () => setReceiveScanOpen(true) }]
       : []),
     ...(nextStatuses.includes("inviato") && origine === "email"
-      ? [{ id: "voce", etichetta: "Già ordinato a voce", icona: STATUS_ICONS.inviato, azione: (): void => { void handleStatusChange("inviato"); } }]
+      ? [{ id: "voce", etichetta: t("Già ordinato a voce"), icona: STATUS_ICONS.inviato, azione: (): void => { void handleStatusChange("inviato"); } }]
       : []),
     ...(order.status !== "bozza"
-      ? statiPrincipali.filter(ns => ns !== "confermato").map((ns) => ({ id: ns, etichetta: `Segna: ${String(STATUS_LABELS[ns] ?? ns).toLowerCase()}`, icona: STATUS_ICONS[ns], azione: (): void => { void handleStatusChange(ns); } }))
+      ? statiPrincipali.filter(ns => ns !== "confermato").map((ns) => ({ id: ns, etichetta: t("Segna: {valore}", { valore: String(STATUS_LABELS[ns] ?? ns).toLowerCase() }), icona: STATUS_ICONS[ns], azione: (): void => { void handleStatusChange(ns); } }))
       : []),
   ];
 
@@ -425,11 +426,11 @@ function ContenutoPurchaseOrderDetail() {
           variant="ghost"
           size="sm"
           onClick={() => navigate("/azienda/ordini?tab=acquisto")}
-          aria-label="Torna alla lista Ordini d'Acquisto"
+          aria-label={t("Torna alla lista Ordini d'Acquisto")}
         >
           <ArrowLeft className="h-4 w-4 mr-1" />
-          <span className="hidden sm:inline">Ordini Acquisto</span>
-          <span className="sm:hidden">Indietro</span>
+          <span className="hidden sm:inline">{t("Ordini Acquisto")}</span>
+          <span className="sm:hidden">{t("Indietro")}</span>
         </Button>
       </div>}
 
@@ -438,7 +439,7 @@ function ContenutoPurchaseOrderDetail() {
         numeroSoloDaComputer
         stato={
           <QuoteChip variant={STATUS_CHIP_VARIANT[order.status] || "default"}>
-            {STATUS_LABELS[order.status] || order.status}
+            {t(STATUS_LABELS[order.status] || order.status)}
           </QuoteChip>
         }
         chips={
@@ -448,24 +449,24 @@ function ContenutoPurchaseOrderDetail() {
             {order.orders?.order_code ? (
               <Link to={`/azienda/ordini/${order.order_id}`} className="inline-flex">
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-800 hover:bg-blue-200 transition-colors">
-                  Ord. {order.orders.order_code} <ExternalLink className="h-3 w-3" />
+                  {t("Ord.")} {order.orders.order_code} <ExternalLink className="h-3 w-3" />
                 </span>
               </Link>
             ) : null}
-            {!order.order_id && <span className="text-xs">Magazzino</span>}
+            {!order.order_id && <span className="text-xs">{t("Magazzino")}</span>}
             {order.expected_delivery_date && <span className="text-xs">
-              Consegna {format(new Date(order.expected_delivery_date), "dd/MM/yyyy")}
+              {t("Consegna")} {format(new Date(order.expected_delivery_date), "dd/MM/yyyy")}
               {order.expected_delivery_date < format(new Date(), "yyyy-MM-dd") && !["bozza", "ricevuto", "annullato"].includes(order.status) && " · In ritardo"}
             </span>}
             {/* Come e' stato comprato: spiega perche' i pulsanti sono quelli
                 e non altri. Sugli ordini vecchi e' sempre "Email". */}
             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600">
-              {ODA_ORIGINE_LABELS[origine] ?? origine}
+              {t(ODA_ORIGINE_LABELS[origine] ?? origine)}
             </span>
           </>
         }
         title={<NumeroOdaModificabile odaId={order.id} companyId={order.company_id} numero={order.oda_number} puoModificare={canEdit} />}
-        subtitle={supplier?.name ? `Fornitore: ${supplier.name}` : undefined}
+        subtitle={supplier?.name ? t("Fornitore: {name}", { name: String(supplier.name ?? "") }) : undefined}
         icon={<ClipboardList className="h-5 w-5" />}
         actions={
           <>
@@ -475,30 +476,30 @@ function ContenutoPurchaseOrderDetail() {
                 else sezioneDdt.current?.scrollIntoView({ block: "start" });
               }}>
                 <ArrowLeftRight className="size-4" aria-hidden="true" />
-                {ddtList.length === 1 ? "Confronta DDT" : `DDT collegati (${ddtList.length})`}
+                {ddtList.length === 1 ? t("Confronta DDT") : t("DDT collegati ({n})", { n: ddtList.length })}
               </Button>
             )}
             {ddtList.length === 0 && puoRegistrareDDT && order.status !== "annullato" && (
               <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setDdtDialogOpen(true)}>
-                <FileCheck className="size-4" aria-hidden="true" /> Registra DDT
+                <FileCheck className="size-4" aria-hidden="true" /> {t("Registra DDT")}
               </Button>
             )}
             {canEdit && order.status !== "bozza" && (
               <Button variant="outline" size="sm" disabled={righeInSalvataggio} onClick={() => setEditingOrderId(isEditable ? null : order.id)}>
                 <Pencil className="h-3.5 w-3.5 mr-1" />
-                {isEditable ? "Termina modifica" : "Modifica ordine"}
+                {isEditable ? t("Termina modifica") : t("Modifica ordine")}
               </Button>
             )}
             {attendeConferma && (
               <QuotePrimaryButton size="sm" disabled={updateStatus.isPending || documentBusy}
                 onClick={() => void registraConferma()}>
-                {STATUS_ICONS.confermato} Registra conferma fornitore
+                {STATUS_ICONS.confermato} {t("Registra conferma fornitore")}
               </QuotePrimaryButton>
             )}
             {arrivoPossibile && (
               <Button size="sm" variant={attendeConferma ? "outline" : "default"} aria-expanded={arrivoOpen} onClick={() => setArrivoOpen((a) => !a)}>
                 <PackageCheck className="h-3.5 w-3.5 mr-1" />
-                Arrivata merce
+                {t("Arrivata merce")}
               </Button>
             )}
             {order.status === "bozza" && statiPrincipali.map((ns) => (
@@ -512,7 +513,7 @@ function ContenutoPurchaseOrderDetail() {
             {vociMenu.length + (puoAnnullare ? 1 : 0) > 0 && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm"><MoreHorizontal className="h-3.5 w-3.5 mr-1" aria-hidden="true" />Altre azioni</Button>
+                  <Button variant="outline" size="sm"><MoreHorizontal className="h-3.5 w-3.5 mr-1" aria-hidden="true" />{t("Altre azioni")}</Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   {vociMenu.map((v) => (
@@ -521,7 +522,7 @@ function ContenutoPurchaseOrderDetail() {
                   {puoAnnullare && vociMenu.length > 0 && <DropdownMenuSeparator />}
                   {puoAnnullare && (
                     <DropdownMenuItem className="text-destructive focus:text-destructive" disabled={updateStatus.isPending} onSelect={() => void chiediAnnullo()}>
-                      <XCircle className="h-3.5 w-3.5" aria-hidden="true" /><span className="ml-2">Annulla ordine</span>
+                      <XCircle className="h-3.5 w-3.5" aria-hidden="true" /><span className="ml-2">{t("Annulla ordine")}</span>
                     </DropdownMenuItem>
                   )}
                 </DropdownMenuContent>
@@ -544,32 +545,32 @@ function ContenutoPurchaseOrderDetail() {
         </Suspense>
       )}
 
-      {!senzaPrezzi && <section aria-label="Azioni rapide ordine" className="rounded-xl border bg-card p-3 sm:px-4">
+      {!senzaPrezzi && <section aria-label={t("Azioni rapide ordine")} className="rounded-xl border bg-card p-3 sm:px-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold">Documenti e invio</h2>
+          <h2 className="text-sm font-semibold">{t("Documenti e invio")}</h2>
           <div className="flex w-full flex-wrap gap-2 sm:w-auto">
             <Button variant="outline" size="sm" disabled={documentBusy || !effectiveCompany} onClick={() => setPreviewOpen(true)}>
-              <Eye className="mr-1.5 size-4" aria-hidden="true" /> Anteprima PDF
+              <Eye className="mr-1.5 size-4" aria-hidden="true" /> {t("Anteprima PDF")}
             </Button>
             <Button variant="outline" size="sm" disabled={downloadingPdf || documentBusy || !effectiveCompany} onClick={downloadPdf}>
               {downloadingPdf ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <FileDown className="h-3.5 w-3.5 mr-1" />}
-              {downloadingPdf ? "Preparazione PDF…" : "Scarica PDF"}
+              {downloadingPdf ? t("Preparazione PDF…") : t("Scarica PDF")}
             </Button>
-            <Button size="sm" variant={order.status === "bozza" ? "default" : "outline"} disabled={documentBusy} onClick={() => openSend("pdf")}><Paperclip className="mr-1.5 h-4 w-4" />{order.status === "bozza" && origine === "email" ? "Invia ordine al fornitore" : "Email con PDF"}</Button>
+            <Button size="sm" variant={order.status === "bozza" ? "default" : "outline"} disabled={documentBusy} onClick={() => openSend("pdf")}><Paperclip className="mr-1.5 h-4 w-4" />{order.status === "bozza" && origine === "email" ? t("Invia ordine al fornitore") : t("Email con PDF")}</Button>
             {(attendeConferma || !!order.attachment_url) && <Button size="sm" variant="outline" onClick={() => setVerifyDialogOpen(true)}>
-              <ShieldCheck className="mr-1 h-4 w-4" /> Confronta conferma
+              <ShieldCheck className="mr-1 h-4 w-4" /> {t("Confronta conferma")}
             </Button>}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" className="h-9 w-9" aria-label="Altri documenti"><MoreHorizontal className="h-4 w-4" aria-hidden="true" /></Button>
+                <Button variant="outline" size="icon" className="h-9 w-9" aria-label={t("Altri documenti")}><MoreHorizontal className="h-4 w-4" aria-hidden="true" /></Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem disabled={documentBusy} onSelect={() => openSend("testo")}><Mail className="h-3.5 w-3.5" aria-hidden="true" /><span className="ml-2">Email con testo</span></DropdownMenuItem>
+                <DropdownMenuItem disabled={documentBusy} onSelect={() => openSend("testo")}><Mail className="h-3.5 w-3.5" aria-hidden="true" /><span className="ml-2">{t("Email con testo")}</span></DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
         </div>
-        {(editingDetails || editingNotesId === order.id) && <p role="status" className="mt-3 text-xs text-amber-700">Salva o annulla le modifiche aperte prima di preparare il PDF o l’email.</p>}
+        {(editingDetails || editingNotesId === order.id) && <p role="status" className="mt-3 text-xs text-amber-700">{t("Salva o annulla le modifiche aperte prima di preparare il PDF o l’email.")}</p>}
       </section>}
 
       <FornituraOrdineCard
@@ -595,11 +596,11 @@ function ContenutoPurchaseOrderDetail() {
               <h3 className="text-[15px] font-bold text-slate-900 flex items-center gap-2.5">
                 <span className="block w-1 h-4 rounded-sm bg-gradient-to-b from-orange-500 to-eic-amber" />
                 <span className="text-orange-500"><Package className="h-4 w-4" /></span>
-                Articoli
+                {t("Articoli")}
               </h3>
               {mostraRicezione && <Button variant="outline" size="sm" aria-pressed={soloResidui}
                 onClick={() => setOrdineFiltroResidui(soloResidui ? null : order.id)}>
-                Solo righe da ricevere
+                {t("Solo righe da ricevere")}
               </Button>}
               {isEditable && (
                 <Button
@@ -615,25 +616,25 @@ function ContenutoPurchaseOrderDetail() {
                     vat_rate: documentoInvio.inversioneContabile ? 0 : 22,
                   })}
                 >
-                  <Plus className="h-3.5 w-3.5 mr-1" /> Aggiungi
+                  <Plus className="h-3.5 w-3.5 mr-1" /> {t("Aggiungi")}
                 </Button>
               )}
             </div>
-            {!senzaPrezzi && <p className="px-5 pb-3 text-xs text-slate-500 max-sm:hidden">Prezzi di acquisto IVA esclusa. Puoi lasciare il prezzo vuoto e indicarlo come «Da confermare» in attesa del fornitore. Su schermi stretti puoi scorrere la tabella orizzontalmente.</p>}
-            {totaliRighe.daConfermare > 0 && <p role="status" className="mx-5 mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">{totaliRighe.daConfermare} {totaliRighe.daConfermare === 1 ? "voce con prezzo da confermare" : "voci con prezzi da confermare"}. Gli importi visibili comprendono solo le voci già valorizzate.</p>}
+            {!senzaPrezzi && <p className="px-5 pb-3 text-xs text-slate-500 max-sm:hidden">{t("Prezzi di acquisto IVA esclusa. Puoi lasciare il prezzo vuoto e indicarlo come «Da confermare» in attesa del fornitore. Su schermi stretti puoi scorrere la tabella orizzontalmente.")}</p>}
+            {totaliRighe.daConfermare > 0 && <p role="status" className="mx-5 mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">{totaliRighe.daConfermare === 1 ? t("{n} voce con prezzo da confermare. Gli importi visibili comprendono solo le voci già valorizzate.", { n: 1 }) : t("{n} voci con prezzi da confermare. Gli importi visibili comprendono solo le voci già valorizzate.", { n: totaliRighe.daConfermare })}</p>}
             {isEditable && (
               <p className="px-5 sm:px-6 pb-3 text-xs text-muted-foreground max-sm:hidden" role="status">
-                Le modifiche si salvano automaticamente uscendo dal campo. Le righe già ricevute non possono essere eliminate o sostituite.
-                {order.status !== "bozza" && " Se l’ordine cambia, prepara una nuova email dalle azioni rapide."}
+                {t("Le modifiche si salvano automaticamente uscendo dal campo. Le righe già ricevute non possono essere eliminate o sostituite.")}
+                {order.status !== "bozza" && ` ${t("Se l’ordine cambia, prepara una nuova email dalle azioni rapide.")}`}
               </p>
             )}
             <div className="border-t border-slate-100">
               {isItemsLoading ? (
                 <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
               ) : items.length === 0 ? (
-                <p className="text-center py-8 text-muted-foreground text-sm">Nessun articolo. Clicca "Aggiungi" per iniziare.</p>
+                <p className="text-center py-8 text-muted-foreground text-sm">{t("Nessun articolo. Clicca \"Aggiungi\" per iniziare.")}</p>
               ) : articoliVisibili.length === 0 ? (
-                <p className="p-5 text-sm">Tutti gli articoli sono stati ricevuti.</p>
+                <p className="p-5 text-sm">{t("Tutti gli articoli sono stati ricevuti.")}</p>
               ) : (
                 <>
                 {/* Telefono (collaudo 23/11/2026): l'elenco da leggere — cosa, quanto, cosa manca
@@ -641,21 +642,21 @@ function ContenutoPurchaseOrderDetail() {
                     «Modifica articoli» per chi deve correggere prezzi o quantità da qui. */}
                 {!tabellaSuTelefono && (
                   <div className="sm:hidden">
-                    <ul aria-label="Articoli dell’ordine" className="divide-y">
+                    <ul aria-label={t("Articoli dell’ordine")} className="divide-y">
                       {articoliVisibili.map((item) => {
                         const mancano = Math.max(0, Number(item.quantity) - Number(item.quantity_received ?? 0));
                         return (
                           <li key={item.id} className="flex items-start gap-3 px-4 py-2.5">
                             <span className="min-w-0 flex-1">
-                              <span className="block text-sm font-medium leading-snug">{item.description || "Articolo senza nome"}</span>
+                              <span className="block text-sm font-medium leading-snug">{item.description || t("Articolo senza nome")}</span>
                               <span className="block text-xs text-muted-foreground">
-                                {Number(item.quantity).toLocaleString("it-IT")} {item.unit_of_measure || ""}
-                                {mostraRicezione && (mancano > 0 ? ` · da ricevere ${mancano.toLocaleString("it-IT")}` : " · ricevuto")}
+                                {Number(item.quantity).toLocaleString(intlCampo())} {item.unit_of_measure || ""}
+                                {mostraRicezione && (mancano > 0 ? " · " + t("da ricevere {mancano}", { mancano: mancano.toLocaleString(intlCampo()) }) : ` ${t("· ricevuto")}`)}
                               </span>
                             </span>
                             {!senzaPrezzi && (
                               <span className="shrink-0 text-right text-sm font-semibold tabular-nums">
-                                {item.price_pending ? <span className="text-xs font-medium text-amber-700">Da confermare</span> : fmtEur(Number(item.line_total ?? 0))}
+                                {item.price_pending ? <span className="text-xs font-medium text-amber-700">{t("Da confermare")}</span> : fmtEur(Number(item.line_total ?? 0))}
                               </span>
                             )}
                           </li>
@@ -664,29 +665,29 @@ function ContenutoPurchaseOrderDetail() {
                     </ul>
                     {!senzaPrezzi && (
                       <p className="flex items-baseline justify-between border-t px-4 py-2.5 text-sm font-bold">
-                        <span>{totaliRighe.daConfermare ? "Totale parziale" : "Totale"}</span>
-                        <span className="tabular-nums">{importiInAttesa ? "Da confermare" : fmtEur(totaliRighe.totale)}</span>
+                        <span>{totaliRighe.daConfermare ? t("Totale parziale") : t("Totale")}</span>
+                        <span className="tabular-nums">{importiInAttesa ? t("Da confermare") : fmtEur(totaliRighe.totale)}</span>
                       </p>
                     )}
                     {isEditable && (
                       <div className="border-t px-4 py-2.5">
-                        <Button variant="outline" className="w-full" onClick={() => setTabellaSuTelefono(true)}>Modifica articoli</Button>
+                        <Button variant="outline" className="w-full" onClick={() => setTabellaSuTelefono(true)}>{t("Modifica articoli")}</Button>
                       </div>
                     )}
                   </div>
                 )}
-                <div className={cn("overflow-x-auto", !tabellaSuTelefono && "max-sm:hidden")} role="region" aria-label="Articoli dell’ordine" tabIndex={0}>
+                <div className={cn("overflow-x-auto", !tabellaSuTelefono && "max-sm:hidden")} role="region" aria-label={t("Articoli dell’ordine")} tabIndex={0}>
                   <table className="w-full min-w-[790px] text-sm">
                     <thead><tr className="border-b bg-muted/50">
-                      <th className="text-left p-2 pl-4 font-medium">Descrizione</th>
-                      <th className="text-right p-2 font-medium w-20">Ordinato</th>
+                      <th className="text-left p-2 pl-4 font-medium">{t("Descrizione")}</th>
+                      <th className="text-right p-2 font-medium w-20">{t("Ordinato")}</th>
                       <th className="text-left p-2 font-medium w-16">UM</th>
-                      {mostraRicezione && <><th className="p-2 text-right font-medium"><a href="#ddt-ricezione-oda" className="hover:underline" title="Apri le ricezioni per registrare o rettificare la merce">Ricevuto</a></th><th className="p-2 text-right font-medium">Da ricevere</th></>}
-                      {!senzaPrezzi && <th className="text-right p-2 font-medium w-24">Prezzo acquisto</th>}
-                      {!senzaPrezzi && <th className="text-right p-2 font-medium w-16">Sc.%</th>}
-                      {!senzaPrezzi && <th className="text-right p-2 font-medium w-16">IVA%</th>}
-                      {!senzaPrezzi && <th className="text-right p-2 font-medium w-24">Totale netto</th>}
-                      {isEditable && <th className="p-2" aria-label="Stato prezzo e azioni"></th>}
+                      {mostraRicezione && <><th className="p-2 text-right font-medium"><a href="#ddt-ricezione-oda" className="hover:underline" title={t("Apri le ricezioni per registrare o rettificare la merce")}>{t("Ricevuto")}</a></th><th className="p-2 text-right font-medium">{t("Da ricevere")}</th></>}
+                      {!senzaPrezzi && <th className="text-right p-2 font-medium w-24">{t("Prezzo acquisto")}</th>}
+                      {!senzaPrezzi && <th className="text-right p-2 font-medium w-16">{t("Sc.%")}</th>}
+                      {!senzaPrezzi && <th className="text-right p-2 font-medium w-16">{t("IVA%")}</th>}
+                      {!senzaPrezzi && <th className="text-right p-2 font-medium w-24">{t("Totale netto")}</th>}
+                      {isEditable && <th className="p-2" aria-label={t("Stato prezzo e azioni")}></th>}
 
                     </tr></thead>
                     <tbody>
@@ -713,20 +714,20 @@ function ContenutoPurchaseOrderDetail() {
                         />
                       ))}
                     </tbody>
-                    {!senzaPrezzi && <tfoot aria-label="Totali intero ordine">
+                    {!senzaPrezzi && <tfoot aria-label={t("Totali intero ordine")}>
                       <tr className="border-t bg-muted/30">
-                        <td colSpan={mostraRicezione ? 8 : 6} className="p-2 pl-4 text-right font-medium">{soloResidui ? "Imponibile intero ordine:" : "Imponibile:"}</td>
-                        <td className="p-2 text-right font-medium">{importiInAttesa ? "Da confermare" : fmtEur(totaliRighe.imponibile)}</td>
+                        <td colSpan={mostraRicezione ? 8 : 6} className="p-2 pl-4 text-right font-medium">{soloResidui ? t("Imponibile intero ordine:") : t("Imponibile:")}</td>
+                        <td className="p-2 text-right font-medium">{importiInAttesa ? t("Da confermare") : fmtEur(totaliRighe.imponibile)}</td>
                         {isEditable && <td></td>}
                       </tr>
                       <tr className="bg-muted/30">
-                        <td colSpan={mostraRicezione ? 8 : 6} className="p-2 pl-4 text-right text-muted-foreground">IVA:</td>
-                        <td className="p-2 text-right text-muted-foreground">{documentoInvio.inversioneContabile ? "Inversione contabile" : importiInAttesa ? "Da confermare" : fmtEur(totaliRighe.iva)}</td>
+                        <td colSpan={mostraRicezione ? 8 : 6} className="p-2 pl-4 text-right text-muted-foreground">{t("IVA:")}</td>
+                        <td className="p-2 text-right text-muted-foreground">{documentoInvio.inversioneContabile ? t("Inversione contabile") : importiInAttesa ? t("Da confermare") : fmtEur(totaliRighe.iva)}</td>
                         {isEditable && <td></td>}
                       </tr>
                       <tr className="bg-muted/30 border-t">
-                        <td colSpan={mostraRicezione ? 8 : 6} className="p-2 pl-4 text-right font-bold">{totaliRighe.daConfermare ? "Totale parziale:" : "Totale:"}</td>
-                        <td className="p-2 text-right font-bold">{importiInAttesa ? "Da confermare" : fmtEur(totaliRighe.totale)}</td>
+                        <td colSpan={mostraRicezione ? 8 : 6} className="p-2 pl-4 text-right font-bold">{totaliRighe.daConfermare ? t("Totale parziale:") : t("Totale:")}</td>
+                        <td className="p-2 text-right font-bold">{importiInAttesa ? t("Da confermare") : fmtEur(totaliRighe.totale)}</td>
                         {isEditable && <td></td>}
                       </tr>
                     </tfoot>}
@@ -746,44 +747,44 @@ function ContenutoPurchaseOrderDetail() {
         <div className="space-y-4">
           <OdaFornitoreCard key={order.supplier_id} supplier={supplier} />
 
-          <QuoteCard title="Info ordine" icon={<CalendarClock className="h-4 w-4" />}>
+          <QuoteCard title={t("Info ordine")} icon={<CalendarClock className="h-4 w-4" />}>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-slate-500">Data emissione</span>
-                <span className="font-medium text-slate-900">{format(new Date(order.issue_date), "dd/MM/yyyy", { locale: it })}</span>
+                <span className="text-slate-500">{t("Data emissione")}</span>
+                <span className="font-medium text-slate-900">{format(new Date(order.issue_date), "dd/MM/yyyy", { locale: dateFnsCampo() })}</span>
               </div>
               {order.expected_delivery_date && (
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Consegna prevista</span>
-                  <span className="font-medium text-slate-900">{format(new Date(order.expected_delivery_date), "dd/MM/yyyy", { locale: it })}</span>
+                  <span className="text-slate-500">{t("Consegna prevista")}</span>
+                  <span className="font-medium text-slate-900">{format(new Date(order.expected_delivery_date), "dd/MM/yyyy", { locale: dateFnsCampo() })}</span>
                 </div>
               )}
               {order.actual_delivery_date && (
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Consegna effettiva</span>
-                  <span className="font-medium text-slate-900">{format(new Date(order.actual_delivery_date), "dd/MM/yyyy", { locale: it })}</span>
+                  <span className="text-slate-500">{t("Consegna effettiva")}</span>
+                  <span className="font-medium text-slate-900">{format(new Date(order.actual_delivery_date), "dd/MM/yyyy", { locale: dateFnsCampo() })}</span>
                 </div>
               )}
               {/* Commessa: collegabile e cambiabile anche DOPO la creazione —
                   gli ordini dimenticati "generici" sono la regola, non
                   l'eccezione. Cambiandola, il costo gia' generato la segue. */}
               <div className="space-y-1 pt-1">
-                <span className="text-slate-500">Commessa (facoltativa)</span>
-                {!order.order_id && <div className="rounded-lg border border-orange-100 bg-orange-50 px-3 py-2 text-xs text-orange-900"><p className="font-semibold">Acquisto per magazzino / materiali di consumo</p><p className="mt-1">Nessuna commessa necessaria. Potrai collegarla anche in seguito.</p></div>}
+                <span className="text-slate-500">{t("Commessa (facoltativa)")}</span>
+                {!order.order_id && <div className="rounded-lg border border-orange-100 bg-orange-50 px-3 py-2 text-xs text-orange-900"><p className="font-semibold">{t("Acquisto per magazzino / materiali di consumo")}</p><p className="mt-1">{t("Nessuna commessa necessaria. Potrai collegarla anche in seguito.")}</p></div>}
                 <CommessaCombobox
                   value={order.order_id}
                   disabled={!permissions.canEditOrders || update.isPending || editingDetails}
                   onChange={handleCommessaChange}
-                  nessunaLabel="Magazzino / consumo (senza commessa)"
+                  nessunaLabel={t("Magazzino / consumo (senza commessa)")}
                   className="h-8 text-xs"
                 />
-                {order.order_id && permissions.canEditOrders && <Button size="sm" variant="ghost" className="h-auto w-full justify-start whitespace-normal py-2 text-xs text-slate-600" disabled={update.isPending || editingDetails} onClick={()=>handleCommessaChange(null)}><Package className="mr-1.5 h-3.5 w-3.5 shrink-0" />Acquisto per magazzino / materiali di consumo</Button>}
+                {order.order_id && permissions.canEditOrders && <Button size="sm" variant="ghost" className="h-auto w-full justify-start whitespace-normal py-2 text-xs text-slate-600" disabled={update.isPending || editingDetails} onClick={()=>handleCommessaChange(null)}><Package className="mr-1.5 h-3.5 w-3.5 shrink-0" />{t("Acquisto per magazzino / materiali di consumo")}</Button>}
               </div>
 
               {!senzaPrezzi && <div className="rounded-lg bg-gradient-to-br from-slate-50 to-white border border-slate-200 px-3 py-2 mt-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs uppercase tracking-wider font-semibold text-slate-500">{totaliRighe.daConfermare ? "Totale parziale" : "Totale"}</span>
-                  <span className="text-xl font-bold text-orange-600 tabular-nums">{importiInAttesa ? "Da confermare" : fmtEur(totaliRighe.totale)}</span>
+                  <span className="text-xs uppercase tracking-wider font-semibold text-slate-500">{totaliRighe.daConfermare ? t("Totale parziale") : t("Totale")}</span>
+                  <span className="text-xl font-bold text-orange-600 tabular-nums">{importiInAttesa ? t("Da confermare") : fmtEur(totaliRighe.totale)}</span>
                 </div>
               </div>}
             </div>
@@ -798,9 +799,9 @@ function ContenutoPurchaseOrderDetail() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-slate-500 flex items-center gap-1.5">
-                      <Package className="h-3.5 w-3.5 text-orange-500" /> Ricezione merce
+                      <Package className="h-3.5 w-3.5 text-orange-500" /> {t("Ricezione merce")}
                     </span>
-                    <span className="font-semibold text-slate-900 tabular-nums">{avanzamento.complete}/{avanzamento.totali} articoli completi ({pct}%)</span>
+                    <span className="font-semibold text-slate-900 tabular-nums">{t("{complete}/{totali} articoli completi ({pct}%)", { complete: String(avanzamento.complete ?? ""), totali: String(avanzamento.totali ?? ""), pct: String(pct ?? "") })}</span>
                   </div>
                   <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                     <div
@@ -812,7 +813,7 @@ function ContenutoPurchaseOrderDetail() {
                   </div>
                   {pct === 100 && (
                     <p className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
-                      <CheckCircle2 className="h-3 w-3" /> Tutti gli articoli ricevuti
+                      <CheckCircle2 className="h-3 w-3" /> {t("Tutti gli articoli ricevuti")}
                     </p>
                   )}
                 </div>
@@ -824,12 +825,12 @@ function ContenutoPurchaseOrderDetail() {
         </div>
       </div>
 
-      <section id="ddt-ricezione-oda" aria-label="Ricezione, documenti e contabilità" className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-2 [&>*]:min-w-0">
-          <section ref={sezioneDdt} aria-label="DDT collegati all’ordine" className="scroll-mt-4">
+      <section id="ddt-ricezione-oda" aria-label={t("Ricezione, documenti e contabilità")} className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-2 [&>*]:min-w-0">
+          <section ref={sezioneDdt} aria-label={t("DDT collegati all’ordine")} className="scroll-mt-4">
           <QuoteCard
             title={
               <span className="flex items-center gap-2">
-                DDT collegati
+                {t("DDT collegati")}
                 {ddtList.length > 0 && (
                   <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">{ddtList.length}</span>
                 )}
@@ -838,7 +839,7 @@ function ContenutoPurchaseOrderDetail() {
             icon={<FileCheck className="h-4 w-4" />}
             action={puoRegistrareDDT && order.status !== "annullato" && (
               <Button size="sm" variant="default" className="h-7 text-xs gap-1" onClick={() => setDdtDialogOpen(true)}>
-                <Plus className="h-3.5 w-3.5" aria-hidden="true" /> Registra
+                <Plus className="h-3.5 w-3.5" aria-hidden="true" /> {t("Registra")}
               </Button>
             )}
           >
@@ -855,23 +856,21 @@ function ContenutoPurchaseOrderDetail() {
                         {counts.verificato ? (
                           <Badge className="bg-emerald-100 text-emerald-800 text-[10px]">
                             <ShieldCheck className="h-2.5 w-2.5 mr-0.5" />
-                            {counts.verificato} verificat{counts.verificato === 1 ? "o" : "i"}
+                            {counts.verificato === 1 ? t("{n} verificato", { n: 1 }) : t("{n} verificati", { n: counts.verificato })}
                           </Badge>
                         ) : null}
                         {counts.ricevuto ? (
-                          <Badge className="bg-rose-100 text-rose-800 text-[10px]">
-                            {counts.ricevuto} da verificare
-                          </Badge>
+                          <Badge className="bg-rose-100 text-rose-800 text-[10px]">{t("{ricevuto} da verificare", { ricevuto: String(counts.ricevuto ?? "") })}</Badge>
                         ) : null}
                         {counts.parziale ? (
                           <Badge className="bg-amber-100 text-amber-800 text-[10px]">
-                            {counts.parziale} parzial{counts.parziale === 1 ? "e" : "i"}
+                            {counts.parziale === 1 ? t("{n} parziale", { n: 1 }) : t("{n} parziali", { n: counts.parziale })}
                           </Badge>
                         ) : null}
                         {counts.non_conforme ? (
                           <Badge className="bg-rose-100 text-rose-800 text-[10px]">
                             <AlertTriangle className="h-2.5 w-2.5 mr-0.5" />
-                            {counts.non_conforme} non conform{counts.non_conforme === 1 ? "e" : "i"}
+                            {counts.non_conforme === 1 ? t("{n} non conforme", { n: 1 }) : t("{n} non conformi", { n: counts.non_conforme })}
                           </Badge>
                         ) : null}
                       </>
@@ -880,11 +879,11 @@ function ContenutoPurchaseOrderDetail() {
                 </div>
               )}
               {ddtOrdine.isError ? (
-                <p role="alert" className="py-3 text-xs text-destructive">DDT non disponibili. <button type="button" className="underline" onClick={() => void ddtOrdine.refetch()}>Riprova</button></p>
+                <p role="alert" className="py-3 text-xs text-destructive">{t("DDT non disponibili.")} <button type="button" className="underline" onClick={() => void ddtOrdine.refetch()}>{t("Riprova")}</button></p>
               ) : ddtOrdine.isLoading ? (
-                <p role="status" className="py-3 text-xs text-muted-foreground">Caricamento DDT…</p>
+                <p role="status" className="py-3 text-xs text-muted-foreground">{t("Caricamento DDT…")}</p>
               ) : ddtList.length === 0 ? (
-                <p className="py-3 text-center text-xs text-slate-500">Nessun DDT registrato</p>
+                <p className="py-3 text-center text-xs text-slate-500">{t("Nessun DDT registrato")}</p>
               ) : (
                 <div className="space-y-1.5 mt-2 max-h-80 overflow-y-auto pr-1">
                   {(ddtList as {
@@ -916,9 +915,9 @@ function ContenutoPurchaseOrderDetail() {
                           </div>
                           <p className="text-slate-500 mt-0.5">
                             {ddt.data_ricezione?.split("-").reverse().join("/")} ·{" "}
-                            {Number(ddt.quantita_ricevuta).toLocaleString("it-IT", { maximumFractionDigits: 2 })} unità
+                            {Number(ddt.quantita_ricevuta).toLocaleString(intlCampo(), { maximumFractionDigits: 2 })} {t("unità")}
                             {/* Dove è andata la merce: in magazzino (giacenza) o dritta in cantiere. */}
-                            {ddt.destinazione && ` · ${ddt.destinazione === "cantiere" ? "in cantiere" : "in magazzino"}`}
+                            {ddt.destinazione && ` · ${ddt.destinazione === "cantiere" ? t("in cantiere") : t("in magazzino")}`}
                           </p>
                           {(attachCount > 0 || ddt.has_damages) && (
                             <div className="flex items-center gap-1.5 mt-1">
@@ -931,7 +930,7 @@ function ContenutoPurchaseOrderDetail() {
                               {ddt.has_damages && (
                                 <span className="text-[10px] text-rose-600 flex items-center gap-0.5">
                                   <AlertTriangle className="h-2.5 w-2.5" />
-                                  danni
+                                  {t("danni")}
                                 </span>
                               )}
                             </div>
@@ -941,7 +940,7 @@ function ContenutoPurchaseOrderDetail() {
                         <DDTStatusBadge stato={ddt.stato} size="sm" className="shrink-0" />
                       </button>
                       <Button type="button" variant="ghost" size="icon" className="mr-1 size-8 shrink-0 text-primary"
-                        aria-label={`Confronta DDT ${ddt.numero_ddt}`} title="Confronta con l’ordine"
+                        aria-label={t("Confronta DDT {numero_ddt}", { numero_ddt: String(ddt.numero_ddt ?? "") })} title={t("Confronta con l’ordine")}
                         onClick={() => apriConfrontoDdt(ddt.id)}>
                         <ArrowLeftRight className="size-4" aria-hidden="true" />
                       </Button>
@@ -960,7 +959,7 @@ function ContenutoPurchaseOrderDetail() {
             <OdaDocumentoCard
               odaId={order.id}
               commessaId={order.order_id ?? null}
-              label={infoOrigine.documentoLabel ?? "Conferma originale del fornitore"}
+              label={infoOrigine.documentoLabel ?? t("Conferma originale del fornitore")}
               attachmentUrl={(order as { attachment_url?: string | null }).attachment_url}
               riferimento={(order as { supplier_reference?: string | null }).supplier_reference}
               riferimentoLabel={infoOrigine.riferimentoLabel}
@@ -994,7 +993,7 @@ function ContenutoPurchaseOrderDetail() {
       {originaleFornitoreAperto && <Dialog open onOpenChange={aperto => { if (!aperto) setOriginaleFornitoreAperto(false); }}>
         <DialogContent className={`${CLASSE_DIALOG_CONFRONTO} max-w-5xl`}>
           <DialogHeader className="shrink-0 border-b px-4 py-3 pr-12">
-            <DialogTitle>Documento originale del fornitore</DialogTitle>
+            <DialogTitle>{t("Documento originale del fornitore")}</DialogTitle>
             <DialogDescription>{order.oda_number}</DialogDescription>
           </DialogHeader>
           <div className="flex min-h-0 flex-1 flex-col p-3 sm:p-4">

@@ -67,6 +67,7 @@ import { AnagraficaSelectCombobox, type AnagraficaOption, anagraficaDisplayName 
 import { CreaDdtDaUscitaDialog } from "./CreaDdtDaUscitaDialog";
 import { validaRigheUscita } from "@/lib/magazzino/validaRigheUscita";
 import type { UscitaPerDdt } from "@/lib/magazzino/usciteDdt";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const BatchBarcodeScanner = lazy(() =>
   import("./BatchBarcodeScanner").then((m) => ({ default: m.BatchBarcodeScanner })),
@@ -134,6 +135,7 @@ function StepHead({ n, label }: { n: number; label: string }) {
 }
 
 export function UscitaMerceSheet({ open, onOpenChange, initialOrder, initialWarehouseId, initialStockItem }: UscitaMerceSheetProps) {
+  const tr = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const register = useRegisterUscita();
@@ -338,7 +340,7 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder, initialWare
   const erroreRighe = validaRigheUscita(entries);
   const canRegister = canWrite && !outcomeUnknown && !warehousesError && warehouses.some((warehouse) => warehouse.id === warehouseId) && destinatarioValid && !erroreRighe;
   const availability = useMovementAvailability(companyId, warehouseId, entries, destTipo === "cantiere" ? orderId : undefined, step === "review");
-  const availabilityProblem = step !== "review" ? null : availability.isLoading || availability.isFetching ? "Verifica della disponibilità in corso…" : availability.isError ? "Disponibilità non verificabile. Torna alle righe e riprova; i dati inseriti sono conservati." : movementAvailabilityError(entries, availability.data);
+  const availabilityProblem = step !== "review" ? null : availability.isLoading || availability.isFetching ? tr("Verifica della disponibilità in corso…") : availability.isError ? tr("Disponibilità non verificabile. Torna alle righe e riprova; i dati inseriti sono conservati.") : movementAvailabilityError(entries, availability.data);
   const requestReview = () => { setSubmitError(null); setStep("review"); };
 
   function buildDestinatario(): UscitaDestinatario {
@@ -413,7 +415,7 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder, initialWare
     }
     const scans = entriesToScans(entries);
     if (scans.length === 0) {
-      toast.error("Nessun articolo valido da scaricare");
+      toast.error(tr("Nessun articolo valido da scaricare"));
       return;
     }
     commitInFlight.current = true;
@@ -423,7 +425,7 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder, initialWare
     try {
       if (!replay) {
       const fresh = await availability.refetch();
-      if (fresh.isError) throw new Error("Impossibile verificare il disponibile. Le righe sono conservate.");
+      if (fresh.isError) throw new Error(tr("Impossibile verificare il disponibile. Le righe sono conservate."));
       const shortage = movementAvailabilityError(entries, fresh.data);
       if (shortage) throw new Error(shortage);
       }
@@ -437,8 +439,8 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder, initialWare
         note: note.trim() || null,
       });
       const errCount = Array.isArray(res.errors) ? res.errors.length : 0;
-      (errCount ? toast.warning : toast.success)(`Uscita ${res.numero} registrata`, {
-        description: `${res.created_movements} articoli scaricati${res.updated_units ? ` · ${res.updated_units} seriali` : ""}${errCount ? ` · ${errCount} avvisi` : ""}.`,
+      (errCount ? toast.warning : toast.success)(tr("Uscita {numero} registrata", { numero: res.numero }), {
+        description: [tr("{n} articoli scaricati", { n: res.created_movements }), res.updated_units ? tr("{n} seriali", { n: res.updated_units }) : "", errCount ? tr("{n} avvisi", { n: errCount }) : ""].filter(Boolean).join(" · ") + ".",
       });
       setRegistrata({
         id: res.uscita_id,
@@ -451,7 +453,7 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder, initialWare
       if (replay && (e as { code?: string }).code) setOutcomeUnknown(false);
       if (requestSent && /fetch|network|connessione|timeout|timed out|esito uscita non disponibile/i.test((e as Error).message)) setOutcomeUnknown(true);
       setSubmitError((e as Error).message);
-      toast.error("Prelievo non confermato", { description: (e as Error).message });
+      toast.error(tr("Prelievo non confermato"), { description: (e as Error).message });
     } finally { commitInFlight.current = false; setSubmitting(false); }
   }
 
@@ -469,7 +471,7 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder, initialWare
     );
   }
 
-  if (step === "review") return <MovementReviewDialog open={open} operation="prelievo" balances={balances.data} balancesLoading={balances.isFetching} balancesUnavailable={balances.isError} ownReservations={ownReservations} warehouse={warehouseObj?.name ?? "Magazzino"} counterpart={destTipo === "cantiere" ? selectedOrder?.order_code : destTipo === "cliente" && selectedAnagrafica ? anagraficaDisplayName(selectedAnagrafica) : liberoRagione} entries={entries} onBack={() => setStep("context")} onConfirm={() => void handleRegister()} onOpenChange={onOpenChange} pending={submitting || register.isPending} onRecover={outcomeUnknown && register.canReplay ? () => void handleRegister(true) : undefined} blocked={outcomeUnknown ? "Esito da verificare: la richiesta potrebbe essere già stata elaborata. Usa la verifica esito se disponibile oppure controlla la scheda Uscite prima di registrare di nuovo." : !canWrite ? "Non hai il permesso di registrare movimenti." : erroreRighe || availabilityProblem} error={submitError} />;
+  if (step === "review") return <MovementReviewDialog open={open} operation="prelievo" balances={balances.data} balancesLoading={balances.isFetching} balancesUnavailable={balances.isError} ownReservations={ownReservations} warehouse={warehouseObj?.name ?? tr("Magazzino")} counterpart={destTipo === "cantiere" ? selectedOrder?.order_code : destTipo === "cliente" && selectedAnagrafica ? anagraficaDisplayName(selectedAnagrafica) : liberoRagione} entries={entries} onBack={() => setStep("context")} onConfirm={() => void handleRegister()} onOpenChange={onOpenChange} pending={submitting || register.isPending} onRecover={outcomeUnknown && register.canReplay ? () => void handleRegister(true) : undefined} blocked={outcomeUnknown ? tr("Esito da verificare: la richiesta potrebbe essere già stata elaborata. Usa la verifica esito se disponibile oppure controlla la scheda Uscite prima di registrare di nuovo.") : !canWrite ? tr("Non hai il permesso di registrare movimenti.") : erroreRighe || availabilityProblem} error={submitError} />;
 
   // ── Step 'scan' ───────────────────────────────────────────────
   if (step === "scan") {
@@ -481,11 +483,11 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder, initialWare
     }));
     const contextLabel =
       destTipo === "cantiere" && selectedOrder
-        ? `Cantiere ${selectedOrder.order_code}${warehouseObj ? ` · Da: ${warehouseObj.name}` : ""}`
+        ? `${tr("Cantiere {codice}", { codice: selectedOrder.order_code })}${warehouseObj ? ` · ${tr("Da: {magazzino}", { magazzino: warehouseObj.name })}` : ""}`
         : destTipo === "cliente" && selectedAnagrafica
-          ? `Cliente ${anagraficaDisplayName(selectedAnagrafica)}${warehouseObj ? ` · Da: ${warehouseObj.name}` : ""}`
+          ? `${tr("Cliente {nome}", { nome: anagraficaDisplayName(selectedAnagrafica) })}${warehouseObj ? ` · ${tr("Da: {magazzino}", { magazzino: warehouseObj.name })}` : ""}`
           : warehouseObj
-            ? `Da: ${warehouseObj.name}`
+            ? tr("Da: {magazzino}", { magazzino: warehouseObj.name })
             : "";
     return (
       <Suspense fallback={null}>
@@ -500,7 +502,7 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder, initialWare
           initialEntries={entries}
           onEntriesChange={setEntries}
           onConfirm={requestReview}
-          confirmLabel="Controlla prelievo"
+          confirmLabel={tr("Controlla prelievo")}
           isConfirming={register.isPending}
         />
       </Suspense>
@@ -508,24 +510,24 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder, initialWare
   }
 
   const DEST_TABS: { key: DestTipo; label: string; icon: typeof User }[] = [
-    { key: "cliente", label: "Cliente", icon: User },
-    { key: "cantiere", label: "Cantiere", icon: HardHat },
-    { key: "libero", label: "Libero", icon: PencilLine },
+    { key: "cliente", label: tr("Cliente"), icon: User },
+    { key: "cantiere", label: tr("Cantiere"), icon: HardHat },
+    { key: "libero", label: tr("Libero"), icon: PencilLine },
   ];
 
   // Riepilogo del trasportatore mostrato quando la sezione dettagli è chiusa.
   const vettoreSummary =
     vettoreTipo === "subappaltatore"
-      ? subappaltatori.find((s) => s.id === vettoreSubId)?.ragione_sociale || "Subappaltatore"
+      ? subappaltatori.find((s) => s.id === vettoreSubId)?.ragione_sociale || tr("Subappaltatore")
       : vettoreTipo === "terzo"
-        ? vettoreTerzoNome.trim() || "Vettore terzo"
-        : "Mittente (azienda)";
+        ? vettoreTerzoNome.trim() || tr("Vettore terzo")
+        : tr("Mittente (azienda)");
 
   // Cosa manca per poter registrare (mostrato sopra il footer).
   const missingReason = !destinatarioValid
-    ? "Scegli il destinatario"
+    ? tr("Scegli il destinatario")
     : !warehouseId
-      ? "Scegli il magazzino di partenza"
+      ? tr("Scegli il magazzino di partenza")
       : erroreRighe;
 
   return (
@@ -534,18 +536,18 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder, initialWare
         <DialogHeader className="shrink-0 px-5 py-4 border-b">
           <DialogTitle className="flex items-center gap-2 text-base">
             <ArrowUpFromLine className="h-5 w-5 text-primary" />
-            Uscita merce
+            {tr("Uscita merce")}
           </DialogTitle>
           <DialogDescription className="text-xs">
-            Compili l'uscita e la <strong>registri</strong>. Il DDT lo crei dopo, come passo separato, dalla scheda <strong>Uscite</strong> (doppio controllo).
+            {tr("Compili l'uscita e la registri. Il DDT lo crei dopo, come passo separato, dalla scheda Uscite (doppio controllo).")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-5 sm:py-4 space-y-3">
-          {warehousesError && <Alert variant="destructive"><AlertDescription>Magazzini non disponibili. <Button variant="link" onClick={() => void refetchWarehouses()}>Riprova magazzini</Button></AlertDescription></Alert>}
+          {warehousesError && <Alert variant="destructive"><AlertDescription>{tr("Magazzini non disponibili.")} <Button variant="link" onClick={() => void refetchWarehouses()}>{tr("Riprova magazzini")}</Button></AlertDescription></Alert>}
           {/* 1 · Destinatario */}
           <section className="rounded-xl border bg-card p-3 sm:p-4 space-y-3">
-            <StepHead n={1} label="A chi esce la merce" />
+            <StepHead n={1} label={tr("A chi esce la merce")} />
             <div className="grid grid-cols-3 gap-1.5">
               {DEST_TABS.map(({ key, label, icon: Icon }) => (
                 <button
@@ -571,10 +573,10 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder, initialWare
                   companyId={companyId}
                   value={anagraficaId}
                   onChange={handleAnagraficaChange}
-                  placeholder="Cerca il cliente per nome o P.IVA…"
+                  placeholder={tr("Cerca il cliente per nome o P.IVA…")}
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  I dati anagrafici del cliente vengono ripresi nel DDT (ragione sociale, P.IVA, indirizzo).
+                  {tr("I dati anagrafici del cliente vengono ripresi nel DDT (ragione sociale, P.IVA, indirizzo).")}
                 </p>
               </div>
             )}
@@ -585,11 +587,11 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder, initialWare
                   companyId={companyId}
                   value={orderId}
                   onChange={handleOrderChange}
-                  placeholder="Cerca per codice, cliente o indirizzo cantiere…"
+                  placeholder={tr("Cerca per codice, cliente o indirizzo cantiere…")}
                 />
                 {orderId && entries.length === 0 && proposedEntries.length > 0 && (
                   <p className="text-[11px] text-emerald-600">
-                    {proposedEntries.length} {proposedEntries.length === 1 ? "articolo prenotato disponibile" : "articoli prenotati disponibili"}. Aggiungili con il pulsante qui sotto.
+                    {proposedEntries.length === 1 ? tr("{n} articolo prenotato disponibile. Aggiungili con il pulsante qui sotto.", { n: 1 }) : tr("{n} articoli prenotati disponibili. Aggiungili con il pulsante qui sotto.", { n: proposedEntries.length })}
                   </p>
                 )}
               </div>
@@ -601,21 +603,21 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder, initialWare
                   <Input
                     value={liberoRagione}
                     onChange={(e) => setLiberoRagione(e.target.value)}
-                    placeholder="Ragione sociale / nominativo destinatario *"
+                    placeholder={tr("Ragione sociale / nominativo destinatario *")}
                     maxLength={160}
                   />
                 </div>
                 <CampoIndirizzo
-                  aria-label="Indirizzo del destinatario"
+                  aria-label={tr("Indirizzo del destinatario")}
                   value={liberoIndirizzo}
                   onChange={setLiberoIndirizzo}
-                  placeholder="Indirizzo (via, città)"
+                  placeholder={tr("Indirizzo (via, città)")}
                   maxLength={200}
                 />
                 <Input
                   value={liberoPiva}
                   onChange={(e) => setLiberoPiva(e.target.value)}
-                  placeholder="P.IVA / CF (opzionale)"
+                  placeholder={tr("P.IVA / CF (opzionale)")}
                   maxLength={20}
                 />
               </div>
@@ -624,22 +626,22 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder, initialWare
 
           {/* 2 · Magazzino sorgente */}
           <section className="rounded-xl border bg-card p-3 sm:p-4 space-y-2">
-            <StepHead n={2} label="Da quale magazzino" />
+            <StepHead n={2} label={tr("Da quale magazzino")} />
             {warehousesLoading ? (
               <div className="h-10 border rounded-md flex items-center justify-center text-xs text-muted-foreground">
                 <Loader2 className="h-3 w-3 animate-spin mr-2" />
-                Caricamento...
+                {tr("Caricamento...")}
               </div>
             ) : warehouses.length === 0 ? (
               <Alert>
                 <AlertDescription className="text-xs">
-                  Nessun magazzino attivo. Crea un magazzino da <strong>Magazzino → Impostazioni</strong>.
+                  {tr("Nessun magazzino attivo. Crea un magazzino da Magazzino → Impostazioni.")}
                 </AlertDescription>
               </Alert>
             ) : (
               <Select value={warehouseId} onValueChange={setWarehouseId} disabled={entries.length > 0}>
                 <SelectTrigger id="um-warehouse">
-                  <SelectValue placeholder="Scegli un magazzino..." />
+                  <SelectValue placeholder={tr("Scegli un magazzino...")} />
                 </SelectTrigger>
                 <SelectContent>
                   {warehouses.map((w) => (
@@ -647,7 +649,7 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder, initialWare
                       <div className="flex items-center gap-2">
                         {w.name}
                         {w.is_default && (
-                          <span className="text-[9px] uppercase bg-muted px-1.5 py-0.5 rounded">default</span>
+                          <span className="text-[9px] uppercase bg-muted px-1.5 py-0.5 rounded">{tr("default")}</span>
                         )}
                       </div>
                     </SelectItem>
@@ -657,20 +659,20 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder, initialWare
             )}
           </section>
 
-          {entries.length > 0 && <p className="text-xs text-muted-foreground">Per cambiare magazzino, rimuovi prima gli articoli selezionati: le giacenze e i seriali appartengono al magazzino di partenza.</p>}
+          {entries.length > 0 && <p className="text-xs text-muted-foreground">{tr("Per cambiare magazzino, rimuovi prima gli articoli selezionati: le giacenze e i seriali appartengono al magazzino di partenza.")}</p>}
 
           {/* 3 · Articoli */}
           <section className="rounded-xl border bg-card p-3 sm:p-4 space-y-2.5">
             <div className="flex items-center justify-between gap-2">
-              <StepHead n={3} label="Cosa esce" />
+              <StepHead n={3} label={tr("Cosa esce")} />
               {entries.length > 0 && (
                 <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
-                  {entries.length} {entries.length === 1 ? "articolo" : "articoli"}
+                  {entries.length === 1 ? tr("{n} articolo", { n: 1 }) : tr("{n} articoli", { n: entries.length })}
                 </span>
               )}
             </div>
-            {destTipo === "cantiere" && entries.length === 0 && proposedEntries.length > 0 && <Button variant="outline" size="sm" onClick={handleApplyOrderPrefill}>Proponi materiali prenotati</Button>}
-            {prefillError && <p role="alert" className="text-xs text-destructive">Non è stato possibile leggere i materiali della commessa. Puoi cercare gli articoli manualmente.</p>}
+            {destTipo === "cantiere" && entries.length === 0 && proposedEntries.length > 0 && <Button variant="outline" size="sm" onClick={handleApplyOrderPrefill}>{tr("Proponi materiali prenotati")}</Button>}
+            {prefillError && <p role="alert" className="text-xs text-destructive">{tr("Non è stato possibile leggere i materiali della commessa. Puoi cercare gli articoli manualmente.")}</p>}
             <ManualArticleAdder
               key={`${companyId}:${warehouseId}`}
               mode="scarico"
@@ -689,16 +691,16 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder, initialWare
                 className="w-full h-11 gap-2"
               >
                 <Camera className="h-4 w-4" />
-                Scansiona codici a barre
+                {tr("Scansiona codici a barre")}
               </Button>
             ) : (
               <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                 <Camera className="h-3.5 w-3.5 shrink-0" />
-                Scansione disponibile da <strong>telefono o tablet</strong>. Da computer aggiungi gli articoli a mano qui sopra.
+                {tr("Scansione disponibile da telefono o tablet. Da computer aggiungi gli articoli a mano qui sopra.")}
               </p>
             )}
             <p className="text-[11px] leading-relaxed text-muted-foreground">
-              Articoli serializzati (codice univoco per pezzo, es. pannelli FV): aggiungi i <strong>seriali</strong> nella riga dell'articolo{isMobile ? ", oppure scansionali" : ""}.
+              {isMobile ? tr("Articoli serializzati (codice univoco per pezzo, es. pannelli FV): aggiungi i seriali nella riga dell'articolo, oppure scansionali.") : tr("Articoli serializzati (codice univoco per pezzo, es. pannelli FV): aggiungi i seriali nella riga dell'articolo.")}
             </p>
           </section>
 
@@ -711,11 +713,11 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder, initialWare
               className="flex w-full items-center justify-between gap-3 px-3 py-3 sm:px-4 text-left hover:bg-muted/40 transition-colors"
             >
               <span className="min-w-0">
-                <span className="block text-sm font-semibold">Trasportatore e note</span>
+                <span className="block text-sm font-semibold">{tr("Trasportatore e note")}</span>
                 <span className="block truncate text-[11px] text-muted-foreground">
                   {vettoreSummary}
-                  {note.trim() ? " · nota presente" : ""}
-                  {orderContract?.subappaltatore_id && vettoreTipo === "subappaltatore" && !vettoreManuallyChanged ? " · auto" : ""}
+                  {note.trim() ? ` ${tr("· nota presente")}` : ""}
+                  {orderContract?.subappaltatore_id && vettoreTipo === "subappaltatore" && !vettoreManuallyChanged ? ` ${tr("· auto")}` : ""}
                 </span>
               </span>
               <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${detailsOpen ? "rotate-180" : ""}`} />
@@ -725,7 +727,7 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder, initialWare
               <div className="space-y-3 border-t px-3 py-3 sm:px-4">
                 {/* Trasportatore */}
                 <div className="space-y-2">
-                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Trasportatore</Label>
+                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{tr("Trasportatore")}</Label>
                   <div className="grid grid-cols-3 gap-1.5">
                     {(["mittente", "subappaltatore", "terzo"] as const).map((t) => (
                       <button
@@ -739,16 +741,16 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder, initialWare
                             : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
                         }`}
                       >
-                        {t === "mittente" && "Mittente"}
-                        {t === "subappaltatore" && "Subappalto"}
-                        {t === "terzo" && "Terzo"}
+                        {t === "mittente" && tr("Mittente")}
+                        {t === "subappaltatore" && tr("Subappalto")}
+                        {t === "terzo" && tr("Terzo")}
                       </button>
                     ))}
                   </div>
                   {vettoreTipo === "subappaltatore" && (
                     <Select value={vettoreSubId} onValueChange={(v) => { setVettoreSubId(v); setVettoreManuallyChanged(true); }}>
                       <SelectTrigger>
-                        <SelectValue placeholder={subappaltatori.length ? "Scegli subappaltatore dal registro" : "Nessun subappaltatore attivo"} />
+                        <SelectValue placeholder={subappaltatori.length ? tr("Scegli subappaltatore dal registro") : tr("Nessun subappaltatore attivo")} />
                       </SelectTrigger>
                       <SelectContent>
                         {subappaltatori.map((s) => (
@@ -756,7 +758,7 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder, initialWare
                             <div className="flex flex-col items-start gap-0.5">
                               <span className="font-medium">{s.ragione_sociale}</span>
                               <span className="text-[10px] text-muted-foreground">
-                                {s.piva ? `P.IVA ${s.piva}` : <span className="text-amber-600">⚠ P.IVA mancante</span>}
+                                {s.piva ? `P.IVA ${s.piva}` : <span className="text-amber-600">{tr("⚠ P.IVA mancante")}</span>}
                                 {s.indirizzo ? ` · ${s.indirizzo}` : ""}
                               </span>
                             </div>
@@ -768,29 +770,28 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder, initialWare
                   {vettoreTipo === "terzo" && (
                     <div className="grid grid-cols-2 gap-2">
                       <div className="col-span-2">
-                        <Input value={vettoreTerzoNome} onChange={(e) => setVettoreTerzoNome(e.target.value)} placeholder="Ragione sociale vettore terzo" maxLength={120} />
+                        <Input value={vettoreTerzoNome} onChange={(e) => setVettoreTerzoNome(e.target.value)} placeholder={tr("Ragione sociale vettore terzo")} maxLength={120} />
                       </div>
                       <Input value={vettoreTerzoPiva} onChange={(e) => setVettoreTerzoPiva(e.target.value)} placeholder="P.IVA" maxLength={20} />
-                      <CampoIndirizzo aria-label="Sede legale del vettore" value={vettoreTerzoIndirizzo} onChange={setVettoreTerzoIndirizzo} placeholder="Sede legale (via, città)" maxLength={200} />
+                      <CampoIndirizzo aria-label={tr("Sede legale del vettore")} value={vettoreTerzoIndirizzo} onChange={setVettoreTerzoIndirizzo} placeholder={tr("Sede legale (via, città)")} maxLength={200} />
                     </div>
                   )}
                 </div>
 
                 {/* Note */}
                 <div className="space-y-2">
-                  <Label htmlFor="um-note" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Note interne</Label>
-                  <Input id="um-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note interne sull'uscita…" maxLength={300} />
+                  <Label htmlFor="um-note" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{tr("Note interne")}</Label>
+                  <Input id="um-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder={tr("Note interne sull'uscita…")} maxLength={300} />
                 </div>
               </div>
             )}
           </section>
 
-          {outcomeUnknown && <Alert variant="destructive"><AlertDescription>Esito da verificare: controlla la scheda Uscite prima di registrare nuovamente il prelievo.</AlertDescription></Alert>}
+          {outcomeUnknown && <Alert variant="destructive"><AlertDescription>{tr("Esito da verificare: controlla la scheda Uscite prima di registrare nuovamente il prelievo.")}</AlertDescription></Alert>}
           <Alert>
             <PackageCheck className="h-4 w-4" />
             <AlertDescription className="text-xs">
-              <strong>Registri l'uscita</strong> (scarico merce + giacenza). Subito dopo ti proponiamo il <strong>DDT</strong>
-              con causale e dati di trasporto: puoi crearlo lì o più tardi dalla scheda <strong>Uscite</strong>.
+              {tr("Registri l'uscita (scarico merce + giacenza). Subito dopo ti proponiamo il DDT con causale e dati di trasporto: puoi crearlo lì o più tardi dalla scheda Uscite.")}
             </AlertDescription>
           </Alert>
         </div>
@@ -798,12 +799,12 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder, initialWare
         <DialogFooter className="shrink-0 border-t p-3 bg-card flex-col gap-2">
           {missingReason && (
             <p className="w-full text-center text-[11px] text-muted-foreground">
-              Per registrare manca: <strong className="text-foreground">{missingReason}</strong>
+              {tr("Per registrare manca:")} <strong className="text-foreground">{missingReason}</strong>
             </p>
           )}
           <div className="flex w-full gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1 h-11">
-              Annulla
+              {tr("Annulla")}
             </Button>
             <Button
               onClick={requestReview}
@@ -813,11 +814,11 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder, initialWare
               {register.isPending ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Registrazione…
+                  {tr("Registrazione…")}
                 </>
               ) : (
                 <>
-                  Controlla prelievo{entries.length ? ` (${entries.length})` : ""}
+                  {tr("Controlla prelievo")}{entries.length ? ` (${entries.length})` : ""}
                   <ArrowRight className="h-4 w-4" />
                 </>
               )}

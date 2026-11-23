@@ -19,6 +19,7 @@ import {
 } from "../../../../shared/cassaInCloud";
 import ChiusureGiornaliereCassa from "./ChiusureGiornaliereCassa";
 import { FattureDaScontrinoCassa } from "./FattureDaScontrinoCassa";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const PER_PAGINA = 50;
 const METODI: Record<string, string> = {
@@ -31,12 +32,13 @@ const METODI: Record<string, string> = {
 
 function importo(n: number, valuta: string | null) {
   if (valuta === "EUR") return formatCurrency(n);
-  return new Intl.NumberFormat("it-IT", valuta
+  return new Intl.NumberFormat(intlCampo(), valuta
     ? { style: "currency", currency: valuta }
     : { minimumFractionDigits: 2, maximumFractionDigits: 6 }).format(n);
 }
 
 function ArchivioCassa({ companyId }: { companyId: string }) {
+  const t = useT();
   const permessi = usePermissions();
   const puoImportare = !permessi.isLoading && permessi.canEditSettingsIntegrations && !permessi.solaLettura;
   const mobile = useIsMobile();
@@ -98,7 +100,7 @@ function ArchivioCassa({ companyId }: { companyId: string }) {
     let completati = 0;
     try {
       for (const intervallo of intervalli) {
-        setAvanzamento(`Importazione ${completati + 1} di ${intervalli.length}…`);
+        setAvanzamento(t("Importazione {n} di {totale}…", { n: completati + 1, totale: intervalli.length }));
         const risultato = await invocaCassa<EsitoImportCassa>(companyId, chiusure ? "importa_chiusure" : "importa", {
           ...intervallo, punto_vendita_id: daImportare,
         }, inCorso.signal);
@@ -109,9 +111,9 @@ function ArchivioCassa({ companyId }: { companyId: string }) {
       }
     } catch (error) {
       if (inCorso.signal.aborted) return;
-      const messaggio = error instanceof Error ? error.message : "Importazione non riuscita.";
+      const messaggio = error instanceof Error ? error.message : t("Importazione non riuscita.");
       setErroreImport(completati
-        ? `Importazione interrotta dal ${formatDateShort(intervalli[completati].dal)}. ${messaggio}`
+        ? t("Importazione interrotta dal {data}. {messaggio}", { data: formatDateShort(intervalli[completati].dal), messaggio })
         : messaggio);
     } finally {
       controller.current = null;
@@ -119,7 +121,7 @@ function ArchivioCassa({ companyId }: { companyId: string }) {
       if (!inCorso.signal.aborted) {
         if (completati) {
           setPagina(0);
-          setEsito(`${formatCount(importati)} scontrini letti da Cassa in Cloud.${assenti ? ` ${formatCount(assenti)} scontrini assenti nell’ultima importazione.` : ""}${chiusure ? " Confronto chiusure aggiornato." : ""}`);
+          setEsito(`${t("{n} scontrini letti da Cassa in Cloud.", { n: formatCount(importati) })}${assenti ? ` ${t("{n} scontrini assenti nell’ultima importazione.", { n: formatCount(assenti) })}` : ""}${chiusure ? ` ${t("Confronto chiusure aggiornato.")}` : ""}`);
         }
         setAvanzamento(null);
       }
@@ -134,18 +136,18 @@ function ArchivioCassa({ companyId }: { companyId: string }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <Link to="/azienda/documenti" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:underline">
-            <ChevronLeft className="h-4 w-4" />Fatturazione
+            <ChevronLeft className="h-4 w-4" />{t("Fatturazione")}
           </Link>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold"><ReceiptText className="h-6 w-6" />Scontrini</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Documenti commerciali e pagamenti registrati in Cassa in Cloud.</p>
+          <h1 className="flex items-center gap-2 text-2xl font-semibold"><ReceiptText className="h-6 w-6" />{t("Scontrini")}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t("Documenti commerciali e pagamenti registrati in Cassa in Cloud.")}</p>
         </div>
         {puoImportare && !mobile && (
           <Button variant="outline" size="sm" asChild>
-            <Link to={IMPOSTAZIONI_CASSA}><Settings2 className="mr-2 h-4 w-4" />Collegamenti Cassa in Cloud</Link>
+            <Link to={IMPOSTAZIONI_CASSA}><Settings2 className="mr-2 h-4 w-4" />{t("Collegamenti Cassa in Cloud")}</Link>
           </Button>
         )}
       </div>
-      <div className="flex flex-wrap gap-2" aria-label="Viste Cassa in Cloud">
+      <div className="flex flex-wrap gap-2" aria-label={t("Viste Cassa in Cloud")}>
         {["scontrini", "chiusure"].map((v) => (
           <Button type="button" key={v} size="sm" variant={(v === "chiusure") === chiusure ? "secondary" : "ghost"}
             aria-pressed={(v === "chiusure") === chiusure} disabled={!!avanzamento} onClick={() => {
@@ -154,46 +156,46 @@ function ArchivioCassa({ companyId }: { companyId: string }) {
               setEsito(null);
               setErroreImport(null);
               setParams(next, { replace: true });
-            }}>{v === "chiusure" ? "Chiusure giornaliere" : "Scontrini"}</Button>
+            }}>{v === "chiusure" ? t("Chiusure giornaliere") : t("Scontrini")}</Button>
         ))}
       </div>
       <Card>
         <CardContent className="space-y-3 p-4">
           <div className="flex flex-wrap items-end gap-3">
             <div className="space-y-1">
-              <Label htmlFor="cassa-dal">Dal</Label>
+              <Label htmlFor="cassa-dal">{t("Dal")}</Label>
               <Input id="cassa-dal" type="date" max={oggi} value={dal} disabled={!!avanzamento}
                 onChange={(e) => aggiornaFiltro(setDal, e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="cassa-al">Al</Label>
+              <Label htmlFor="cassa-al">{t("Al")}</Label>
               <Input id="cassa-al" type="date" min={dal} max={oggi} value={al} disabled={!!avanzamento}
                 onChange={(e) => aggiornaFiltro(setAl, e.target.value)} />
             </div>
             {punti.length > 0 && (
               <div className="min-w-40 space-y-1">
-                <Label htmlFor="cassa-filtro-punto">Punto vendita</Label>
+                <Label htmlFor="cassa-filtro-punto">{t("Punto vendita")}</Label>
                 <select id="cassa-filtro-punto" className="block h-10 w-full rounded-md border bg-background px-3 text-sm"
                   value={filtro} disabled={!!avanzamento}
                   onChange={(e) => aggiornaFiltro(setPunto, e.target.value)}>
-                  <option value="">Tutti i punti vendita</option>
+                  <option value="">{t("Tutti i punti vendita")}</option>
                   {punti.map((p) => <option key={p.punto_vendita_id} value={p.punto_vendita_id}>{p.nome} · {p.punto_vendita_id}</option>)}
                 </select>
               </div>
             )}
             {puoImportare && punti.length > 0 && (
               <Button type="button" disabled={!!avanzamento || !dateValide || !intervalli.length || !daImportare} onClick={() => void importa()}>
-                <Download className="mr-2 h-4 w-4" />{chiusure ? "Importa chiusure e scontrini" : "Importa scontrini"}
+                <Download className="mr-2 h-4 w-4" />{chiusure ? t("Importa chiusure e scontrini") : t("Importa scontrini")}
               </Button>
             )}
           </div>
-          {!dateValide && <p className="text-sm text-muted-foreground">Scegli un intervallo valido, fino a oggi.</p>}
-          {collegamenti.isError && <p role="alert" className="text-sm text-destructive">Impossibile verificare i punti vendita. <button className="underline" onClick={() => void collegamenti.refetch()}>Riprova</button></p>}
-          {collegamenti.isSuccess && !punti.length && <p className="text-sm text-muted-foreground">Per importare nuovi scontrini, collega un punto vendita in Impostazioni → Fatturazione → Cassa in Cloud.</p>}
+          {!dateValide && <p className="text-sm text-muted-foreground">{t("Scegli un intervallo valido, fino a oggi.")}</p>}
+          {collegamenti.isError && <p role="alert" className="text-sm text-destructive">{t("Impossibile verificare i punti vendita.")} <button className="underline" onClick={() => void collegamenti.refetch()}>{t("Riprova")}</button></p>}
+          {collegamenti.isSuccess && !punti.length && <p className="text-sm text-muted-foreground">{t("Per importare nuovi scontrini, collega un punto vendita in Impostazioni → Fatturazione → Cassa in Cloud.")}</p>}
           {puoImportare && punti.length > 0 && dateValide && !intervalli.length && (
-            <p className="text-sm text-muted-foreground">Per l’importazione puoi selezionare fino a {GIORNI_IMPORT_CASSA} giorni alla volta.</p>
+            <p className="text-sm text-muted-foreground">{t("Per l’importazione puoi selezionare fino a {GIORNI_IMPORT_CASSA} giorni alla volta.", { GIORNI_IMPORT_CASSA: String(GIORNI_IMPORT_CASSA ?? "") })}</p>
           )}
-          {puoImportare && punti.length > 1 && !daImportare && <p className="text-sm text-muted-foreground">Seleziona un punto vendita per importare.</p>}
+          {puoImportare && punti.length > 1 && !daImportare && <p className="text-sm text-muted-foreground">{t("Seleziona un punto vendita per importare.")}</p>}
           {(avanzamento || esito) && <p role="status" className="text-sm text-muted-foreground">{avanzamento ?? esito}</p>}
           {erroreImport && <p role="alert" className="text-sm text-destructive">{erroreImport}</p>}
         </CardContent>
@@ -204,18 +206,18 @@ function ArchivioCassa({ companyId }: { companyId: string }) {
         <Card>
           <Table>
             <TableHeader><TableRow>
-              <TableHead>Data</TableHead><TableHead>Scontrino</TableHead><TableHead>Punto vendita</TableHead>
-              <TableHead className="text-right">Totale documento</TableHead><TableHead>Pagamenti</TableHead>
+              <TableHead>{t("Data")}</TableHead><TableHead>{t("Scontrino")}</TableHead><TableHead>{t("Punto vendita")}</TableHead>
+              <TableHead className="text-right">{t("Totale documento")}</TableHead><TableHead>{t("Pagamenti")}</TableHead>
             </TableRow></TableHeader>
             <TableBody>
               {archivio.isError && (
                 <TableRow><TableCell colSpan={5} className="p-6 text-center text-destructive">
-                  Impossibile leggere l’archivio. <button className="underline" onClick={() => void archivio.refetch()}>Riprova</button>
+                  {t("Impossibile leggere l’archivio.")} <button className="underline" onClick={() => void archivio.refetch()}>{t("Riprova")}</button>
                 </TableCell></TableRow>
               )}
               {!archivio.isError && !righe.length && (
                 <TableRow><TableCell colSpan={5} className="p-6 text-center text-muted-foreground">
-                  {archivio.isPending ? "Caricamento scontrini…" : "Nessuno scontrino importato per questi filtri."}
+                  {archivio.isPending ? t("Caricamento scontrini…") : t("Nessuno scontrino importato per questi filtri.")}
                 </TableCell></TableRow>
               )}
               {righe.map((r) => (
@@ -226,24 +228,24 @@ function ArchivioCassa({ companyId }: { companyId: string }) {
                   <TableCell>
                     <div className="whitespace-nowrap font-medium">{r.numero ? `N. ${r.numero}` : r.esterno_id}{r.numero_z && ` · Z ${r.numero_z}`}</div>
                     <div className="flex flex-wrap gap-1">
-                      {!r.presente_in_cassa && <Badge variant="outline">Assente nell’ultimo import</Badge>}
-                      {r.confermato === false && <Badge variant="outline">Bozza</Badge>}
-                      {r.con_reso && <Badge variant="outline">Contiene resi</Badge>}
-                      {r.con_fattura && <Badge variant="outline">Fattura collegata</Badge>}
+                      {!r.presente_in_cassa && <Badge variant="outline">{t("Assente nell’ultimo import")}</Badge>}
+                      {r.confermato === false && <Badge variant="outline">{t("Bozza")}</Badge>}
+                      {r.con_reso && <Badge variant="outline">{t("Contiene resi")}</Badge>}
+                      {r.con_fattura && <Badge variant="outline">{t("Fattura collegata")}</Badge>}
                     </div>
                     {Array.isArray(r.fatture) && <FattureDaScontrinoCassa companyId={companyId} fatture={r.fatture as unknown as FatturaDaCassa[]} />}
                   </TableCell>
-                  <TableCell>{r.punto_vendita_nome}{r.cassa_id && <div className="text-xs text-muted-foreground">Cassa {r.cassa_id}</div>}</TableCell>
+                  <TableCell>{r.punto_vendita_nome}{r.cassa_id && <div className="text-xs text-muted-foreground">{t("Cassa {cassa_id}", { cassa_id: String(r.cassa_id ?? "") })}</div>}</TableCell>
                   <TableCell className="whitespace-nowrap text-right font-medium tabular-nums">
                     {importo(r.totale, r.valuta)}
-                    {!!r.resto && <div className="text-xs font-normal text-muted-foreground">Resto {importo(r.resto, r.valuta)}</div>}
+                    {!!r.resto && <div className="text-xs font-normal text-muted-foreground">{t("Resto {resto}", { resto: String(importo(r.resto, r.valuta) ?? "") })}</div>}
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
                     {(r.pagamenti as unknown as PagamentoCassa[]).map((p, i) => (
                       <div key={i} className="text-sm">
-                        {p.descrizione || METODI[p.tipo] || p.tipo} · {importo(p.importo, r.valuta)}
-                        {p.differito && <span className="ml-1 text-xs text-muted-foreground">(differito)</span>}
-                        {!!p.resto && !r.resto && <span className="ml-1 text-xs text-muted-foreground">resto {importo(p.resto, r.valuta)}</span>}
+                        {p.descrizione || (METODI[p.tipo] ? t(METODI[p.tipo]) : p.tipo)} · {importo(p.importo, r.valuta)}
+                        {p.differito && <span className="ml-1 text-xs text-muted-foreground">{t("(differito)")}</span>}
+                        {!!p.resto && !r.resto && <span className="ml-1 text-xs text-muted-foreground">{t("resto {resto}", { resto: String(importo(p.resto, r.valuta) ?? "") })}</span>}
                       </div>
                     ))}
                     {Array.isArray(r.pagamenti) && !r.pagamenti.length && <span className="text-muted-foreground">—</span>}
@@ -254,10 +256,10 @@ function ArchivioCassa({ companyId }: { companyId: string }) {
           </Table>
           {(totale > PER_PAGINA || pagina > 0) && (
             <div className="flex flex-wrap items-center justify-between gap-2 border-t p-3">
-              <span className="text-sm text-muted-foreground">{formatCount(totale)} scontrini</span>
+              <span className="text-sm text-muted-foreground">{t("{totale} scontrini", { totale: formatCount(totale) })}</span>
               <div className="flex items-center gap-2">
-                <Button size="sm" variant="outline" disabled={!pagina} onClick={() => setPagina(pagina - 1)}>Precedente</Button>
-                <Button size="sm" variant="outline" disabled={(pagina + 1) * PER_PAGINA >= totale} onClick={() => setPagina(pagina + 1)}>Successiva</Button>
+                <Button size="sm" variant="outline" disabled={!pagina} onClick={() => setPagina(pagina - 1)}>{t("Precedente")}</Button>
+                <Button size="sm" variant="outline" disabled={(pagina + 1) * PER_PAGINA >= totale} onClick={() => setPagina(pagina + 1)}>{t("Successiva")}</Button>
               </div>
             </div>
           )}

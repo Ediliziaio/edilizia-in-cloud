@@ -22,6 +22,7 @@ import {
 } from "@/lib/fatturazione/abbinaBanca";
 import { useAbbinaBonifico, useMovimentiBancaPerFattura } from "@/hooks/useIncassiFattura";
 import type { DocumentoFiscale } from "@/types/fatturazione";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // «Abbina al movimento della banca» dalla fattura (30/10/2026): gli accrediti
 // non ancora abbinati della banca collegata, prima i più probabili. Se il
@@ -98,6 +99,7 @@ export interface SceltaBonificoProps {
  * suoi accrediti e la sua azione di abbinamento. Va dentro un DialogContent.
  */
 export function SceltaBonifico({ fattura, incassi, banca, inCorso, onAbbina, onChiudi }: SceltaBonificoProps) {
+  const t = useT();
   const [cerca, setCerca] = useState("");
   const [scelto, setScelto] = useState<Proposta | null>(null);
   const [destinazione, setDestinazione] = useState<Destinazione>("nuovo");
@@ -144,10 +146,11 @@ export function SceltaBonifico({ fattura, incassi, banca, inCorso, onAbbina, onC
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Abbina al movimento della banca</DialogTitle>
+        <DialogTitle>{t("Abbina al movimento della banca")}</DialogTitle>
         <DialogDescription className="max-sm:sr-only">
-          Fattura n. {fattura.numero}
-          {residuo > 0 ? ` · da incassare ${formatCurrency(residuo)}` : " · già incassata"}. Scegli l'accredito che la paga.
+          {residuo > 0
+            ? t("Fattura n. {numero} · da incassare {residuo}. Scegli l'accredito che la paga.", { numero: fattura.numero ?? "", residuo: formatCurrency(residuo) })
+            : t("Fattura n. {numero} · già incassata. Scegli l'accredito che la paga.", { numero: fattura.numero ?? "" })}
         </DialogDescription>
       </DialogHeader>
       <CorpoDialogOperativo>
@@ -157,22 +160,22 @@ export function SceltaBonifico({ fattura, incassi, banca, inCorso, onAbbina, onC
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
       ) : banca.isError ? (
-        <p className="text-sm text-destructive">{banca.error instanceof Error ? banca.error.message : "Movimenti della banca non disponibili"}</p>
+        <p className="text-sm text-destructive">{banca.error instanceof Error ? banca.error.message : t("Movimenti della banca non disponibili")}</p>
       ) : !banca.data?.bancaCollegata ? (
         <div className="rounded-lg border border-dashed p-4 text-sm">
-          <p className="font-medium">Nessuna banca collegata</p>
+          <p className="font-medium">{t("Nessuna banca collegata")}</p>
           <p className="mt-1 text-muted-foreground">
-            Collega il conto in Tesoreria: i bonifici in entrata arrivano da soli e si abbinano alle fatture.
+            {t("Collega il conto in Tesoreria: i bonifici in entrata arrivano da soli e si abbinano alle fatture.")}
           </p>
           <Button asChild size="sm" variant="outline" className="mt-3">
             <Link to="/azienda/tesoreria" onClick={onChiudi}>
-              <Landmark className="mr-1.5 h-4 w-4" /> Vai a Tesoreria
+              <Landmark className="mr-1.5 h-4 w-4" /> {t("Vai a Tesoreria")}
             </Link>
           </Button>
         </div>
       ) : proposte.length === 0 ? (
         <p className="py-6 text-center text-sm text-muted-foreground">
-          Nessun accredito da abbinare dopo la data della fattura.
+          {t("Nessun accredito da abbinare dopo la data della fattura.")}
         </p>
       ) : (
         <div className="space-y-2">
@@ -181,12 +184,12 @@ export function SceltaBonifico({ fattura, incassi, banca, inCorso, onAbbina, onC
             <Input
               value={cerca}
               onChange={(e) => setCerca(e.target.value)}
-              placeholder="Cerca per causale, ordinante o importo"
+              placeholder={t("Cerca per causale, ordinante o importo")}
               className="pl-8"
-              aria-label="Cerca movimento"
+              aria-label={t("Cerca movimento")}
             />
           </div>
-          <ul className="max-h-72 space-y-1 overflow-y-auto pr-1" aria-label="Movimenti della banca">
+          <ul className="max-h-72 space-y-1 overflow-y-auto pr-1" aria-label={t("Movimenti della banca")}>
             {filtrate.map((p) => {
               const m = p.movimento;
               const attivo = scelto?.movimento.id === m.id;
@@ -209,7 +212,7 @@ export function SceltaBonifico({ fattura, incassi, banca, inCorso, onAbbina, onC
                       </span>
                     </div>
                     <p className="line-clamp-2 text-xs text-muted-foreground">
-                      {[m.controparte, m.descrizione].filter(Boolean).join(" — ") || "Senza causale"}
+                      {[m.controparte, m.descrizione].filter(Boolean).join(" — ") || t("Senza causale")}
                     </p>
                     {p.motivi.length > 0 && (
                       <div className="mt-1 flex flex-wrap gap-1">
@@ -233,49 +236,41 @@ export function SceltaBonifico({ fattura, incassi, banca, inCorso, onAbbina, onC
           value={destinazione}
           onValueChange={setDestinazione}
           className="gap-2 rounded-lg bg-muted/50 p-3"
-          aria-label="Cosa è questo bonifico"
+          aria-label={t("Cosa è questo bonifico")}
         >
           {liberi.map((i) => (
             <div key={i.id} className="flex items-start gap-2">
               <RadioGroupItem value={i.id} id={`dest-${i.id}`} className="mt-0.5" />
-              <Label htmlFor={`dest-${i.id}`} className="text-xs font-normal leading-snug">
-                È l'incasso già registrato il {formatDateShort(i.data_movimento)} ({formatCurrency(i.importo)}): lo
-                abbino, senza contarlo due volte
-              </Label>
+              <Label htmlFor={`dest-${i.id}`} className="text-xs font-normal leading-snug">{t("È l'incasso già registrato il {data_movimento} ({importo}): lo abbino, senza contarlo due volte", { data_movimento: formatDateShort(i.data_movimento), importo: formatCurrency(i.importo) })}</Label>
             </div>
           ))}
           <div className="flex items-start gap-2">
             <RadioGroupItem value="nuovo" id="dest-nuovo" disabled={!nuovoPossibile} className="mt-0.5" />
-            <Label htmlFor="dest-nuovo" className={cn("text-xs font-normal leading-snug", !nuovoPossibile && "opacity-50")}>
-              È un pagamento nuovo: registra l'incasso di {formatCurrency(Math.min(scelto.movimento.importo, Math.max(residuo, 0)))}
-            </Label>
+            <Label htmlFor="dest-nuovo" className={cn("text-xs font-normal leading-snug", !nuovoPossibile && "opacity-50")}>{t("È un pagamento nuovo: registra l'incasso di {valore}", { valore: formatCurrency(Math.min(scelto.movimento.importo, Math.max(residuo, 0))) })}</Label>
           </div>
         </RadioGroup>
       )}
 
       {scelto?.parlante && destinazione === "nuovo" && (
         <p className="rounded-lg bg-sky-50 p-3 text-xs leading-snug text-sky-900">
-          Bonifico parlante: la fattura si salda per {formatCurrency(scelto.parlante.lordo)}. La banca ha trattenuto la
-          ritenuta del {scelto.parlante.aliquota}% ({formatCurrency(scelto.parlante.ritenuta)}), che diventa un credito
-          d'imposta registrato{scelto.parlante.commissioni > 0 ? `, e ${formatCurrency(scelto.parlante.commissioni)} di commissioni` : ""}.
-          In prima nota entra l'accredito vero, {formatCurrency(scelto.movimento.importo)}.
+          {scelto.parlante.commissioni > 0
+            ? t("Bonifico parlante: la fattura si salda per {lordo}. La banca ha trattenuto la ritenuta del {aliquota}% ({ritenuta}), che diventa un credito d'imposta registrato, e {commissioni} di commissioni. In prima nota entra l'accredito vero, {accredito}.", { lordo: formatCurrency(scelto.parlante.lordo), aliquota: scelto.parlante.aliquota, ritenuta: formatCurrency(scelto.parlante.ritenuta), commissioni: formatCurrency(scelto.parlante.commissioni), accredito: formatCurrency(scelto.movimento.importo) })
+            : t("Bonifico parlante: la fattura si salda per {lordo}. La banca ha trattenuto la ritenuta del {aliquota}% ({ritenuta}), che diventa un credito d'imposta registrato. In prima nota entra l'accredito vero, {accredito}.", { lordo: formatCurrency(scelto.parlante.lordo), aliquota: scelto.parlante.aliquota, ritenuta: formatCurrency(scelto.parlante.ritenuta), accredito: formatCurrency(scelto.movimento.importo) })}
         </p>
       )}
 
       {scelto && liberi.length === 0 && nuovoPossibile && scelto.movimento.importo > residuo + 0.01 && (
-        <p className="text-xs text-muted-foreground">
-          L'accredito è più alto del residuo: si registra l'incasso di {formatCurrency(residuo)}.
-        </p>
+        <p className="text-xs text-muted-foreground">{t("L'accredito è più alto del residuo: si registra l'incasso di {residuo}.", { residuo: formatCurrency(residuo) })}</p>
       )}
 
       </CorpoDialogOperativo>
       <DialogFooter>
         <Button variant="outline" onClick={onChiudi} disabled={inCorso} className="max-sm:hidden">
-          Annulla
+          {t("Annulla")}
         </Button>
         <Button onClick={conferma} disabled={!confermabile || inCorso}>
           {inCorso && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-          Abbina
+          {t("Abbina")}
         </Button>
       </DialogFooter>
     </>

@@ -44,6 +44,7 @@ import {
 } from '@/lib/subappaltatori/gruppi';
 import { DurcPastiglia, VistaCantieri, VistaPerLavoro, VistaPerZona, type InfoDitta } from '@/components/subappaltatori/VisteDitte';
 import { cn } from '@/lib/utils';
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Le viste della pagina (06/10/2026): da telefono solo le due raggruppate. */
 const VISTE: Array<{ v: VistaDitte; etichetta: string }> = [
@@ -61,9 +62,10 @@ function oggiLocale() {
 }
 
 function AttivoBadge({ attivo }: { attivo: boolean | null }) {
+  const t = useT();
   return attivo
-    ? <Badge className="whitespace-nowrap text-xs bg-green-600 text-white">Attivo</Badge>
-    : <Badge variant="secondary" className="whitespace-nowrap text-xs">Non attivo</Badge>;
+    ? <Badge className="whitespace-nowrap text-xs bg-green-600 text-white">{t("Attivo")}</Badge>
+    : <Badge variant="secondary" className="whitespace-nowrap text-xs">{t("Non attivo")}</Badge>;
 }
 
 function isMissingCampoLinkColumn(error: unknown) {
@@ -80,6 +82,7 @@ function isMissingCampoLinkColumn(error: unknown) {
  * contiene; qui restano la frase e il bottone.
  */
 export default function SubappaltatoriPage({ incorporata = false }: { incorporata?: boolean } = {}) {
+  const tr = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id ?? '';
   const queryClient = useQueryClient();
@@ -356,8 +359,8 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
   // ── Mutation nuovo subappaltatore ────────────────────────────────────────
   const createMutation = useMutation({
     mutationFn: async () => {
-      if (!form.ragione_sociale.trim()) throw new Error('Ragione sociale obbligatoria');
-      if (!dataPlausibile(form.durc_scadenza)) throw new Error('Scadenza DURC non valida: controlla l\'anno');
+      if (!form.ragione_sociale.trim()) throw new Error(tr("Ragione sociale obbligatoria"));
+      if (!dataPlausibile(form.durc_scadenza)) throw new Error(tr("Scadenza DURC non valida: controlla l'anno"));
       const campoSubappaltatoreId = await findOrCreateCampoSubappaltatore();
       const payload: Record<string, unknown> = {
           company_id: companyId,
@@ -389,7 +392,7 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
       if (error) throw new Error(error.message || error.details || error.hint || "Errore");
     },
     onSuccess: () => {
-      toast.success('Subappaltatore aggiunto con successo');
+      toast.success(tr("Subappaltatore aggiunto con successo"));
       queryClient.invalidateQueries({ queryKey: ['subappaltatori-page', companyId] });
       setDialogOpen(false);
       setForm({
@@ -419,10 +422,10 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
         .eq('id', subappaltatoreId)
         .select('id');
       if (error) throw new Error(error.message || error.details || error.hint || 'Errore');
-      if (!data?.length) throw new Error('Stato non cambiato: non hai il permesso o il subappaltatore non esiste più.');
+      if (!data?.length) throw new Error(tr("Stato non cambiato: non hai il permesso o il subappaltatore non esiste più."));
     },
     onSuccess: (_data, vars) => {
-      toast.success(vars.attivo ? 'Subappaltatore attivato' : 'Subappaltatore disattivato');
+      toast.success(vars.attivo ? tr("Subappaltatore attivato") : tr("Subappaltatore disattivato"));
       queryClient.invalidateQueries({ queryKey: ['subappaltatori-page', companyId] });
     },
     onError: (err: Error) => toast.error(err.message),
@@ -455,7 +458,7 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
       const { data, error } = await (supabase as any)
         .from('subappaltatori').update({ is_active: attivo }).in('id', campoIds).select('id');
       if (error) throw new Error(error.message || 'Errore');
-      if (!data?.length) throw new Error('Nessun subappaltatore aggiornato: non hai il permesso.');
+      if (!data?.length) throw new Error(tr("Nessun subappaltatore aggiornato: non hai il permesso."));
       return data.length as number;
     },
     onSuccess: (n, attivo) => {
@@ -481,21 +484,21 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
       const nContratti = (contratti as number | null) ?? 0;
       if (nContratti > 0) {
         throw new Error(
-          `${nContratti === 1 ? 'C\'è 1 contratto di subappalto collegato' : `Ci sono ${nContratti} contratti di subappalto collegati`}: eliminarlo cancellerebbe anche i contratti. Chiudili o eliminali prima.`
+          nContratti === 1 ? tr("C'è 1 contratto di subappalto collegato: eliminarlo cancellerebbe anche i contratti. Chiudili o eliminali prima.") : tr("Ci sono {n} contratti di subappalto collegati: eliminarlo cancellerebbe anche i contratti. Chiudili o eliminali prima.", { n: nContratti })
         );
       }
       const { data, error } = await (supabase as any)
         .from('subappaltatori_sicurezza').delete().in('id', schedaIds).select('id');
       if (error) {
         // Contratti (guardia del database) oppure operai e incarichi registrati: messaggio leggibile, non quello tecnico.
-        if (error.code === '23503') throw new Error(/contratt/i.test(error.message ?? '') ? error.message : 'Ci sono operai o incarichi registrati su questa ditta: non si elimina. Disattivala invece.');
+        if (error.code === '23503') throw new Error(/contratt/i.test(error.message ?? '') ? error.message : tr("Ci sono operai o incarichi registrati su questa ditta: non si elimina. Disattivala invece."));
         throw new Error(error.message || 'Errore');
       }
-      if (!data?.length) throw new Error('Nessuna scheda eliminata: non hai il permesso.');
+      if (!data?.length) throw new Error(tr("Nessuna scheda eliminata: non hai il permesso."));
       return data.length as number;
     },
     onSuccess: (n) => {
-      toast.success(`${n} ${n === 1 ? 'subappaltatore rimosso' : 'subappaltatori rimossi'} dalla lista`);
+      toast.success(n === 1 ? tr("{n} subappaltatore rimosso dalla lista", { n }) : tr("{n} subappaltatori rimossi dalla lista", { n }));
       queryClient.invalidateQueries({ queryKey: ['subappaltatori-page', companyId] });
       clearSelezione();
       setConfermaEliminaBulk(false);
@@ -505,6 +508,7 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
 
   // Toggle riutilizzabile (tabella desktop + card mobile).
   function AttivoToggle({ sub }: { sub: SubappaltatoreConDashboard }) {
+  const t = useT();
     const linkId = sub.campo_subappaltatore_id;
     const pending = toggleAttivoMutation.isPending
       && toggleAttivoMutation.variables?.subappaltatoreId === linkId;
@@ -516,7 +520,7 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
           if (!linkId) return;
           toggleAttivoMutation.mutate({ subappaltatoreId: linkId, attivo: v });
         }}
-        aria-label={sub.campo_is_active ? 'Disattiva subappaltatore' : 'Attiva subappaltatore'}
+        aria-label={sub.campo_is_active ? t("Disattiva subappaltatore") : t("Attiva subappaltatore")}
       />
     );
     if (linkId) return sw;
@@ -527,7 +531,7 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
           {/* span wrapper: un elemento disabled non emette eventi hover */}
           <span data-row-control className="inline-flex cursor-not-allowed">{sw}</span>
         </TooltipTrigger>
-        <TooltipContent>Collega prima l'anagrafica</TooltipContent>
+        <TooltipContent>{t("Collega prima l'anagrafica")}</TooltipContent>
       </Tooltip>
     );
   }
@@ -540,7 +544,7 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
       {incorporata ? (
         <div className="flex items-center justify-between gap-3">
           {/* Le ditte divise per lavoro, zona o cantiere, come gli operai nelle squadre (06/10/2026) */}
-          <div role="group" aria-label="Vista" className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm max-sm:gap-1.5 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
+          <div role="group" aria-label={tr("Vista")} className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm max-sm:gap-1.5 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
             {visteDisponibili.map(({ v, etichetta }) => (
               <button
                 key={v}
@@ -552,7 +556,7 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
                   vista === v ? 'bg-orange-50 text-orange-700 max-sm:border-orange-200' : 'text-slate-600 hover:text-slate-900 max-sm:border-border max-sm:bg-background',
                 )}
               >
-                {etichetta}
+                {tr(etichetta)}
               </button>
             ))}
           </div>
@@ -560,10 +564,10 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
             size="sm"
             onClick={() => setDialogOpen(true)}
             className="ml-auto gap-1.5 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-9 max-sm:w-9 max-sm:rounded-full max-sm:p-0"
-            aria-label="Nuovo subappaltatore"
+            aria-label={tr("Nuovo subappaltatore")}
           >
             <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">Nuovo subappaltatore</span>
+            <span className="hidden sm:inline">{tr("Nuovo subappaltatore")}</span>
           </Button>
         </div>
       ) : (
@@ -574,8 +578,8 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
               <HardHat className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Subappaltatori</h1>
-              <p className="mt-0.5 text-sm text-slate-500">Gestione contratti, SAL, DURC e ritenute operative.</p>
+              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">{tr("Subappaltatori")}</h1>
+              <p className="mt-0.5 text-sm text-slate-500">{tr("Gestione contratti, SAL, DURC e ritenute operative.")}</p>
             </div>
           </div>
           <Button
@@ -584,8 +588,8 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
             className="self-start gap-1.5 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 sm:self-auto"
           >
             <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">Nuovo Subappaltatore</span>
-            <span className="sm:hidden">Nuovo</span>
+            <span className="hidden sm:inline">{tr("Nuovo Subappaltatore")}</span>
+            <span className="sm:hidden">{tr("Nuovo")}</span>
           </Button>
         </div>
       </div>
@@ -593,11 +597,11 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
 
       {/* Mobile: solo i due numeri che chiedono di fare qualcosa, e fanno da filtro. */}
       {!incorporata && (
-        <div role="group" aria-label="Vista" className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm max-sm:gap-1.5 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
+        <div role="group" aria-label={tr("Vista")} className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm max-sm:gap-1.5 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
           {visteDisponibili.map(({ v, etichetta }) => (
             <button key={v} type="button" aria-pressed={vista === v} onClick={() => cambiaVista(v)}
               className={cn('tap-compact rounded-md px-3 py-1.5 text-sm font-medium transition-colors max-sm:h-9 max-sm:rounded-full max-sm:border max-sm:px-3.5 max-sm:py-0', vista === v ? 'bg-orange-50 text-orange-700 max-sm:border-orange-200' : 'text-slate-600 hover:text-slate-900 max-sm:border-border max-sm:bg-background')}>
-              {etichetta}
+              {tr(etichetta)}
             </button>
           ))}
         </div>
@@ -606,14 +610,14 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
         className="sm:hidden"
         voci={[
           {
-            label: 'Fascicolo da completare',
+            label: tr("Fascicolo da completare"),
             valore: String(stats.senzaDocumenti),
             tono: stats.senzaDocumenti > 0 ? 'text-amber-600' : undefined,
             onClick: () => setFiltroDoc(filtroDoc === '__senza__' ? '__all__' : '__senza__'),
             attivo: filtroDoc === '__senza__',
           },
           {
-            label: 'DURC da controllare',
+            label: tr("DURC da controllare"),
             valore: String(stats.durcScaduti),
             tono: stats.durcScaduti > 0 ? 'text-red-600' : undefined,
             onClick: () => setSoloDurcInScadenza(v => !v),
@@ -626,13 +630,13 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
       {/* I riquadri fanno da filtro, come negli operai: «Attivi» (l'app di cantiere
           accesa) non diceva niente a chi guarda le ditte, e stava quasi sempre a 0. */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 max-sm:hidden">
-        <OperationalKpiCard icon={Building2} label="Ditte" value={stats.ditte} hint="in subappalto" tone="blue" isLoading={isLoading}
+        <OperationalKpiCard icon={Building2} label={tr("Ditte")} value={stats.ditte} hint={tr("in subappalto")} tone="blue" isLoading={isLoading}
           active={!soloAlLavoro && !soloDurcInScadenza && filtroDoc === '__all__'} onClick={togliFiltri} />
-        <OperationalKpiCard icon={HardHat} label="Al lavoro" value={stats.alLavoro} hint="con un contratto in corso" tone="green" isLoading={isLoading}
+        <OperationalKpiCard icon={HardHat} label={tr("Al lavoro")} value={stats.alLavoro} hint={tr("con un contratto in corso")} tone="green" isLoading={isLoading}
           active={soloAlLavoro} onClick={() => setSoloAlLavoro(v => !v)} />
-        <OperationalKpiCard icon={AlertTriangle} label="DURC da controllare" value={stats.durcScaduti} hint={stats.durcScaduti > 0 ? "scaduti, in scadenza o mancanti" : "tutti in regola"} tone={stats.durcScaduti > 0 ? "red" : "green"} isLoading={isLoading}
+        <OperationalKpiCard icon={AlertTriangle} label={tr("DURC da controllare")} value={stats.durcScaduti} hint={stats.durcScaduti > 0 ? tr("scaduti, in scadenza o mancanti") : tr("tutti in regola")} tone={stats.durcScaduti > 0 ? "red" : "green"} isLoading={isLoading}
           active={soloDurcInScadenza} onClick={() => setSoloDurcInScadenza(v => !v)} />
-        <OperationalKpiCard icon={FileX2} label="Fascicolo da completare" value={stats.senzaDocumenti} hint={stats.senzaDocumenti > 0 ? "manca almeno un documento" : "tutti in regola"} tone={stats.senzaDocumenti > 0 ? "amber" : "green"} isLoading={isLoading}
+        <OperationalKpiCard icon={FileX2} label={tr("Fascicolo da completare")} value={stats.senzaDocumenti} hint={stats.senzaDocumenti > 0 ? tr("manca almeno un documento") : tr("tutti in regola")} tone={stats.senzaDocumenti > 0 ? "amber" : "green"} isLoading={isLoading}
           active={filtroDoc === '__senza__'} onClick={() => setFiltroDoc(filtroDoc === '__senza__' ? '__all__' : '__senza__')} />
       </div>
 
@@ -651,34 +655,34 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             className="pl-9"
-            placeholder="Cerca ditta, referente, contatto o tipo lavori…"
+            placeholder={tr("Cerca ditta, referente, contatto o tipo lavori…")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
         <Select value={filtroDoc} onValueChange={setFiltroDoc}>
           <SelectTrigger className="sm:w-48">
-            <SelectValue placeholder="Documenti" />
+            <SelectValue placeholder={tr("Documenti")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="__all__">Tutti i documenti</SelectItem>
-            <SelectItem value="__con__">Con documenti</SelectItem>
-            <SelectItem value="__senza__">Fascicolo da completare</SelectItem>
+            <SelectItem value="__all__">{tr("Tutti i documenti")}</SelectItem>
+            <SelectItem value="__con__">{tr("Con documenti")}</SelectItem>
+            <SelectItem value="__senza__">{tr("Fascicolo da completare")}</SelectItem>
           </SelectContent>
         </Select>
         <Select value={filtroStato} onValueChange={setFiltroStato}>
           <SelectTrigger className="sm:w-36">
-            <SelectValue placeholder="Tutti gli stati" />
+            <SelectValue placeholder={tr("Tutti gli stati")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="__all__">Tutti gli stati</SelectItem>
-            <SelectItem value="__active__">Solo attivi</SelectItem>
-            <SelectItem value="__inactive__">Solo non attivi</SelectItem>
-            <SelectItem value="bozza">Bozza</SelectItem>
-            <SelectItem value="attivo">Contratto attivo</SelectItem>
-            <SelectItem value="completato">Completato</SelectItem>
-            <SelectItem value="risolto">Risolto</SelectItem>
-            <SelectItem value="sospeso">Sospeso</SelectItem>
+            <SelectItem value="__all__">{tr("Tutti gli stati")}</SelectItem>
+            <SelectItem value="__active__">{tr("Solo attivi")}</SelectItem>
+            <SelectItem value="__inactive__">{tr("Solo non attivi")}</SelectItem>
+            <SelectItem value="bozza">{tr("Bozza")}</SelectItem>
+            <SelectItem value="attivo">{tr("Contratto attivo")}</SelectItem>
+            <SelectItem value="completato">{tr("Completato")}</SelectItem>
+            <SelectItem value="risolto">{tr("Risolto")}</SelectItem>
+            <SelectItem value="sospeso">{tr("Sospeso")}</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -686,19 +690,19 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
       {/* Barra azioni in blocco */}
       {vista === 'elenco' && selected.size > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-orange-300 bg-orange-50 px-3 py-2">
-          <span className="text-sm font-semibold text-orange-800">{selected.size} selezionati</span>
+          <span className="text-sm font-semibold text-orange-800">{tr("{size} selezionati", { size: String(selected.size ?? "") })}</span>
           <div className="flex-1" />
           <Button size="sm" variant="outline" onClick={() => bulkAttivoMutation.mutate(true)} disabled={bulkAttivoMutation.isPending}>
-            <CheckCircle2 className="h-4 w-4 mr-1.5" />Attiva
+            <CheckCircle2 className="h-4 w-4 mr-1.5" />{tr("Attiva")}
           </Button>
           <Button size="sm" variant="outline" onClick={() => bulkAttivoMutation.mutate(false)} disabled={bulkAttivoMutation.isPending}>
-            <XCircle className="h-4 w-4 mr-1.5" />Disattiva
+            <XCircle className="h-4 w-4 mr-1.5" />{tr("Disattiva")}
           </Button>
           <Button size="sm" variant="outline" className="text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => setConfermaEliminaBulk(true)} disabled={bulkDeleteMutation.isPending}>
-            <Trash2 className="h-4 w-4 mr-1.5" />Elimina
+            <Trash2 className="h-4 w-4 mr-1.5" />{tr("Elimina")}
           </Button>
           <Button size="sm" variant="ghost" onClick={clearSelezione}>
-            <X className="h-4 w-4 mr-1.5" />Deseleziona
+            <X className="h-4 w-4 mr-1.5" />{tr("Deseleziona")}
           </Button>
         </div>
       )}
@@ -713,14 +717,14 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
           <CardContent className="flex flex-col items-center justify-center py-16 text-center space-y-4 max-sm:space-y-2 max-sm:py-8">
             <HardHat className="h-16 w-16 text-muted-foreground/40 max-sm:h-10 max-sm:w-10" />
             <div>
-              <p className="font-semibold text-lg max-sm:text-sm">Nessun subappaltatore</p>
+              <p className="font-semibold text-lg max-sm:text-sm">{tr("Nessun subappaltatore")}</p>
               <p className="text-sm text-muted-foreground mt-1">
                 {search || filtroDoc !== '__all__' || filtroStato !== '__all__' || soloAlLavoro || soloDurcInScadenza
-                  ? 'Nessun risultato per i filtri selezionati.'
-                  : 'Aggiungi il primo subappaltatore con il pulsante in alto.'}
+                  ? tr("Nessun risultato per i filtri selezionati.")
+                  : tr("Aggiungi il primo subappaltatore con il pulsante in alto.")}
               </p>
               {(search || filtroDoc !== '__all__' || filtroStato !== '__all__' || soloAlLavoro || soloDurcInScadenza) && (
-                <button type="button" className="mt-2 text-sm font-medium text-orange-700 hover:underline" onClick={togliFiltri}>Togli i filtri</button>
+                <button type="button" className="mt-2 text-sm font-medium text-orange-700 hover:underline" onClick={togliFiltri}>{tr("Togli i filtri")}</button>
               )}
             </div>
           </CardContent>
@@ -736,7 +740,7 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
         {/* ── Tabella desktop (md+) ─────────────────────────────────────── */}
         <Card className="hidden md:block">
           <CardContent className="p-0">
-            {erroreContratti && <div role="alert" className="p-2 text-sm">Commesse e importi non disponibili. <Button variant="link" onClick={() => void rileggiContratti()}>Riprova</Button></div>}
+            {erroreContratti && <div role="alert" className="p-2 text-sm">{tr("Commesse e importi non disponibili.")} <Button variant="link" onClick={() => void rileggiContratti()}>{tr("Riprova")}</Button></div>}
             <BarraScorrimentoOrizzontale contenitore={contenitore} className="mx-3" />
             <div>
               <Table wrapperRef={setContenitore} className="whitespace-nowrap [&_td]:px-3 [&_td]:py-1.5 [&_th]:px-3">
@@ -746,17 +750,17 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
                       <Checkbox
                         checked={allVisibleSelected}
                         onCheckedChange={toggleAllVisible}
-                        aria-label="Seleziona tutti"
+                        aria-label={tr("Seleziona tutti")}
                       />
                     </TableHead>
-                    <TableHead>Ditta</TableHead>
-                    <TableHead>Commesse</TableHead>
-                    {canViewCosts && <><TableHead className="text-right">SAL pagati (€)</TableHead><TableHead className="text-right">SAL da pagare (€)</TableHead></>}
-                    {["Referente", "Telefono", "Email", "PEC", "Tipo lavori", "P.IVA", "Codice fiscale", "Sede"].map(label => <TableHead key={label}>{label}</TableHead>)}
+                    <TableHead>{tr("Ditta")}</TableHead>
+                    <TableHead>{tr("Commesse")}</TableHead>
+                    {canViewCosts && <><TableHead className="text-right">{tr("SAL pagati (€)")}</TableHead><TableHead className="text-right">{tr("SAL da pagare (€)")}</TableHead></>}
+                    {["Referente", "Telefono", "Email", "PEC", "Tipo lavori", "P.IVA", "Codice fiscale", "Sede"].map(label => <TableHead key={label}>{tr(label)}</TableHead>)}
                     <TableHead>DURC</TableHead>
-                    <TableHead className="hidden lg:table-cell">Documenti</TableHead>
-                    <TableHead title="Accesso della ditta all'app di cantiere">App cantiere</TableHead>
-                    <TableHead className="text-right">Azioni</TableHead>
+                    <TableHead className="hidden lg:table-cell">{tr("Documenti")}</TableHead>
+                    <TableHead title={tr("Accesso della ditta all'app di cantiere")}>{tr("App cantiere")}</TableHead>
+                    <TableHead className="text-right">{tr("Azioni")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -771,7 +775,7 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
                         <Checkbox
                           checked={selected.has(sub.id)}
                           onCheckedChange={() => toggleOne(sub.id)}
-                          aria-label={`Seleziona ${sub.ragione_sociale}`}
+                          aria-label={tr("Seleziona {ragione_sociale}", { ragione_sociale: String(sub.ragione_sociale ?? "") })}
                         />
                       </TableCell>
                       {/* Ditta */}
@@ -798,7 +802,7 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
                           </Badge>
                         ) : (
                           <Badge variant="outline" className="text-xs text-amber-700 border-amber-200">
-                            <FileX2 className="h-3 w-3 mr-1" />Nessuno
+                            <FileX2 className="h-3 w-3 mr-1" />{tr("Nessuno")}
                           </Badge>
                         )}
                       </TableCell>
@@ -813,8 +817,8 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
                       <TableCell className="text-right">
                         {/* Icona: il bottone «Dettaglio» con la scritta, uguale su
                             ogni riga, era la colonna più larga dopo la ditta. */}
-                        <Button asChild variant="ghost" size="icon" className="h-8 w-8" title="Apri il dettaglio">
-                          <Link to={`/azienda/subappaltatori/${sub.id}`} aria-label={`Apri ${sub.ragione_sociale}`}>
+                        <Button asChild variant="ghost" size="icon" className="h-8 w-8" title={tr("Apri il dettaglio")}>
+                          <Link to={`/azienda/subappaltatori/${sub.id}`} aria-label={tr("Apri {ragione_sociale}", { ragione_sociale: String(sub.ragione_sociale ?? "") })}>
                             <ExternalLink className="h-4 w-4" />
                           </Link>
                         </Button>
@@ -836,7 +840,7 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <HardHat className="h-5 w-5 text-orange-500 max-sm:hidden" />
-              Nuovo Subappaltatore
+              {tr("Nuovo Subappaltatore")}
             </DialogTitle>
           </DialogHeader>
 
@@ -845,15 +849,15 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
           <div className="space-y-4 max-sm:space-y-3">
             <div className="grid gap-4 sm:grid-cols-2 max-sm:grid-cols-2 max-sm:gap-3">
               <div className="space-y-1.5 sm:col-span-2 max-sm:col-span-2">
-              <Label>Ragione sociale <span className="text-destructive">*</span></Label>
+              <Label>{tr("Ragione sociale")} <span className="text-destructive">*</span></Label>
               <Input
                 value={form.ragione_sociale}
                 onChange={(e) => setForm(f => ({ ...f, ragione_sociale: e.target.value }))}
-                placeholder="Es. Rossi Costruzioni S.r.l."
+                placeholder={tr("Es. Rossi Costruzioni S.r.l.")}
               />
               </div>
               <div className="space-y-1.5">
-                <Label>P.IVA / Codice fiscale</Label>
+                <Label>{tr("P.IVA / Codice fiscale")}</Label>
                 <Input
                   value={form.piva}
                   onChange={(e) => setForm(f => ({ ...f, piva: e.target.value }))}
@@ -861,13 +865,13 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
                 />
               </div>
               <div className="space-y-1.5">
-              <Label>Tipo lavori</Label>
+              <Label>{tr("Tipo lavori")}</Label>
               {/* I suggerimenti tengono insieme le ditte dello stesso lavoro nella vista «Per lavoro» */}
               <Input
                 list="tipi-lavoro-suggeriti"
                 value={form.tipo_lavori}
                 onChange={(e) => setForm(f => ({ ...f, tipo_lavori: e.target.value }))}
-                placeholder="Es. Impianti elettrici"
+                placeholder={tr("Es. Impianti elettrici")}
               />
               <datalist id="tipi-lavoro-suggeriti">
                 {CATEGORIE_SUGGERITE.map((c) => <option key={c} value={c} />)}
@@ -876,15 +880,15 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Responsabile</Label>
+                <Label>{tr("Responsabile")}</Label>
                 <Input
                   value={form.responsabile}
                   onChange={(e) => setForm(f => ({ ...f, responsabile: e.target.value }))}
-                  placeholder="Nome cognome"
+                  placeholder={tr("Nome cognome")}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Telefono</Label>
+                <Label>{tr("Telefono")}</Label>
                 <Input
                   value={form.telefono}
                   onChange={(e) => setForm(f => ({ ...f, telefono: e.target.value }))}
@@ -912,7 +916,7 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
                 />
               </div>
               <div className="space-y-1.5 sm:hidden">
-                <Label>Scadenza DURC</Label>
+                <Label>{tr("Scadenza DURC")}</Label>
                 <Input
                   type="date"
                   max={DATA_MASSIMA}
@@ -922,24 +926,24 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
               </div>
             </div>
             <div className="space-y-1.5 max-sm:hidden">
-              <Label>Codice Fiscale</Label>
+              <Label>{tr("Codice Fiscale")}</Label>
               <Input
                 value={form.codice_fiscale}
                 onChange={(e) => setForm(f => ({ ...f, codice_fiscale: e.target.value }))}
-                placeholder="Es. RSSMRA80A01H501U (utile per ditte individuali)"
+                placeholder={tr("Es. RSSMRA80A01H501U (utile per ditte individuali)")}
               />
             </div>
             <div className="space-y-1.5 max-sm:hidden">
-              <Label htmlFor="subappaltatore-indirizzo">Indirizzo sede</Label>
+              <Label htmlFor="subappaltatore-indirizzo">{tr("Indirizzo sede")}</Label>
               <CampoIndirizzo
                 id="subappaltatore-indirizzo"
                 value={form.indirizzo}
                 onChange={(v) => setForm(f => ({ ...f, indirizzo: v }))}
-                placeholder="Via Roma 1, 35100 Padova (PD)"
+                placeholder={tr("Via Roma 1, 35100 Padova (PD)")}
               />
             </div>
             <div className="space-y-1.5 max-sm:hidden">
-              <Label>Scadenza DURC</Label>
+              <Label>{tr("Scadenza DURC")}</Label>
               <Input
                 type="date"
                 max={DATA_MASSIMA}
@@ -948,14 +952,14 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
               />
             </div>
             <div className="space-y-1.5 max-sm:hidden">
-              <Label>Cantiere / Ordine</Label>
+              <Label>{tr("Cantiere / Ordine")}</Label>
               <Select
                 value={form.ordine_id || 'none'}
                 onValueChange={(v) => setForm(f => ({ ...f, ordine_id: v === 'none' ? '' : v }))}
               >
-                <SelectTrigger><SelectValue placeholder="Nessun ordine" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={tr("Nessun ordine")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Nessun ordine</SelectItem>
+                  <SelectItem value="none">{tr("Nessun ordine")}</SelectItem>
                   {ordini.map((o: any) => (
                     <SelectItem key={o.id} value={o.id}>
                       {o.order_code ? `#${o.order_code} — ` : ''}{o.description?.substring(0, 40)}
@@ -965,25 +969,25 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
               </Select>
             </div>
             <div className="space-y-1.5 max-sm:hidden">
-              <Label>Note</Label>
+              <Label>{tr("Note")}</Label>
               <Input
                 value={form.note}
                 onChange={(e) => setForm(f => ({ ...f, note: e.target.value }))}
-                placeholder="Note operative, condizioni, referente amministrativo..."
+                placeholder={tr("Note operative, condizioni, referente amministrativo...")}
               />
             </div>
           </div>
 
           <DialogFooter>
             <Button variant="outline" className="max-sm:hidden" onClick={() => setDialogOpen(false)} disabled={createMutation.isPending}>
-              Annulla
+              {tr("Annulla")}
             </Button>
             <Button
               onClick={() => createMutation.mutate()}
               disabled={createMutation.isPending || !form.ragione_sociale.trim()}
             >
               {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Aggiungi
+              {tr("Aggiungi")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -998,13 +1002,13 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
         risultati={filtered.length}
       >
         <PilloleFiltro
-          titolo="Documenti"
+          titolo={tr("Documenti")}
           valore={filtroDoc}
           onScegli={setFiltroDoc}
           scelte={[
-            { value: '__all__', label: 'Tutti' },
-            { value: '__con__', label: 'Con documenti' },
-            { value: '__senza__', label: 'Da completare' },
+            { value: '__all__', label: tr("Tutti") },
+            { value: '__con__', label: tr("Con documenti") },
+            { value: '__senza__', label: tr("Da completare") },
           ]}
         />
         <PilloleFiltro
@@ -1012,21 +1016,21 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
           valore={soloDurcInScadenza ? 'scadenza' : 'tutti'}
           onScegli={(v) => setSoloDurcInScadenza(v === 'scadenza')}
           scelte={[
-            { value: 'tutti', label: 'Tutti' },
-            { value: 'scadenza', label: 'Scaduto o in scadenza' },
+            { value: 'tutti', label: tr("Tutti") },
+            { value: 'scadenza', label: tr("Scaduto o in scadenza") },
           ]}
         />
         <PilloleFiltro
-          titolo="Stato"
+          titolo={tr("Stato")}
           valore={filtroStato}
           onScegli={setFiltroStato}
           scelte={[
-            { value: '__all__', label: 'Tutti' },
-            { value: '__active__', label: 'Attivi' },
-            { value: '__inactive__', label: 'Non attivi' },
-            { value: 'attivo', label: 'Contratto attivo' },
-            { value: 'sospeso', label: 'Sospeso' },
-            { value: 'completato', label: 'Completato' },
+            { value: '__all__', label: tr("Tutti") },
+            { value: '__active__', label: tr("Attivi") },
+            { value: '__inactive__', label: tr("Non attivi") },
+            { value: 'attivo', label: tr("Contratto attivo") },
+            { value: 'sospeso', label: tr("Sospeso") },
+            { value: 'completato', label: tr("Completato") },
           ]}
         />
       </PannelloFiltri>
@@ -1035,22 +1039,19 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
       <Dialog open={confermaEliminaBulk} onOpenChange={setConfermaEliminaBulk}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Eliminare {selected.size} subappaltatori?</DialogTitle>
+            <DialogTitle>{tr("Eliminare {size} subappaltatori?", { size: String(selected.size ?? "") })}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Verranno rimossi dalla lista subappaltatori. L'anagrafica resta salvata;
-            i documenti caricati sulla scheda vengono eliminati con lei. Se ci sono
-            contratti di subappalto collegati la cancellazione si ferma.
-            L'azione non è annullabile.
+            {tr("Verranno rimossi dalla lista subappaltatori. L'anagrafica resta salvata; i documenti caricati sulla scheda vengono eliminati con lei. Se ci sono contratti di subappalto collegati la cancellazione si ferma. L'azione non è annullabile.")}
           </p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setConfermaEliminaBulk(false)}>Annulla</Button>
+            <Button variant="outline" onClick={() => setConfermaEliminaBulk(false)}>{tr("Annulla")}</Button>
             <Button
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => bulkDeleteMutation.mutate()}
               disabled={bulkDeleteMutation.isPending}
             >
-              {bulkDeleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Trash2 className="h-4 w-4 mr-1.5" />Elimina</>}
+              {bulkDeleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Trash2 className="h-4 w-4 mr-1.5" />{tr("Elimina")}</>}
             </Button>
           </DialogFooter>
         </DialogContent>

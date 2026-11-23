@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { voceSenzaFatturaProposta, vociSenzaFattura, type VoceSenzaFattura } from "@/lib/finance/movimentoSenzaFattura";
 import { prettyTxDesc } from "./txLabel";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -36,6 +37,7 @@ export function MovimentoSenzaFattura({ tx, companyId, onFatto }: {
   companyId: string;
   onFatto: () => void;
 }) {
+  const t = useT();
   const uscita = Number(tx.amount) < 0;
   const voci = vociSenzaFattura(uscita);
   const [voce, setVoce] = useState<VoceSenzaFattura | null>(() => voceSenzaFatturaProposta(tx.category, uscita));
@@ -79,14 +81,14 @@ export function MovimentoSenzaFattura({ tx, companyId, onFatto }: {
       });
       if (error) {
         const { titolo, testo } = erroreSenzaFattura(error);
-        toast.error(titolo, { description: testo, duration: 12_000 });
+        toast.error(t(titolo), { description: t(testo), duration: 12_000 });
         return;
       }
       if (data?.costo_id) {
-        toast.success("Spesa registrata e pagata: ora puoi allegare la ricevuta");
+        toast.success(t("Spesa registrata e pagata: ora puoi allegare la ricevuta"));
         setCostoCreato(data.costo_id as string);
       } else {
-        toast.success(`Movimento chiuso: ${voce.etichetta}`);
+        toast.success(t("Movimento chiuso: {etichetta}", { etichetta: String(voce.etichetta ?? "") }));
         onFatto();
       }
     } finally {
@@ -97,9 +99,9 @@ export function MovimentoSenzaFattura({ tx, companyId, onFatto }: {
   if (costoCreato) {
     return (
       <div className="space-y-3">
-        <p className="text-sm text-muted-foreground">Spesa registrata. Allega la ricevuta, il verbale o quello che serve.</p>
-        <AllegatiFattura companyId={companyId} madre={{ costoId: costoCreato }} titolo="Ricevuta e documenti" />
-        <div className="flex justify-end"><Button size="sm" onClick={onFatto}>Fine</Button></div>
+        <p className="text-sm text-muted-foreground">{t("Spesa registrata. Allega la ricevuta, il verbale o quello che serve.")}</p>
+        <AllegatiFattura companyId={companyId} madre={{ costoId: costoCreato }} titolo={t("Ricevuta e documenti")} />
+        <div className="flex justify-end"><Button size="sm" onClick={onFatto}>{t("Fine")}</Button></div>
       </div>
     );
   }
@@ -107,7 +109,7 @@ export function MovimentoSenzaFattura({ tx, companyId, onFatto }: {
   return (
     <div className="space-y-3">
       <div className="space-y-1">
-        <Label className="text-xs">Di cosa si tratta</Label>
+        <Label className="text-xs">{t("Di cosa si tratta")}</Label>
         <div className="flex flex-wrap gap-1.5">
           {voci.map((v) => (
             <button
@@ -129,42 +131,42 @@ export function MovimentoSenzaFattura({ tx, companyId, onFatto }: {
       {voce && (
         <p className="text-xs text-muted-foreground">
           {spesa
-            ? "Diventa un costo senza fattura, già pagato con questo movimento. Non entra nel registro IVA."
-            : "Il movimento si chiude con questa categoria. Non crea un costo: non lo conta due volte."}
+            ? t("Diventa un costo senza fattura, già pagato con questo movimento. Non entra nel registro IVA.")
+            : t("Il movimento si chiude con questa categoria. Non crea un costo: non lo conta due volte.")}
         </p>
       )}
 
       <div className="space-y-1">
-        <Label htmlFor="sf-desc" className="text-xs">Descrizione</Label>
+        <Label htmlFor="sf-desc" className="text-xs">{t("Descrizione")}</Label>
         <Input id="sf-desc" value={descrizione} maxLength={200} onChange={(e) => setDescrizione(e.target.value)} className="h-8 text-sm" />
       </div>
 
       {spesa && (
         <div className="grid gap-2 sm:grid-cols-3">
           <div className="space-y-1">
-            <Label htmlFor="sf-rif" className="text-xs">N. ricevuta o verbale</Label>
+            <Label htmlFor="sf-rif" className="text-xs">{t("N. ricevuta o verbale")}</Label>
             <Input id="sf-rif" value={riferimento} maxLength={120} onChange={(e) => setRiferimento(e.target.value)} className="h-8 text-sm" />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Commessa</Label>
+            <Label className="text-xs">{t("Commessa")}</Label>
             <Select value={commessa} onValueChange={setCommessa}>
-              <SelectTrigger className="h-8 text-xs" aria-label="Commessa"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs" aria-label={t("Commessa")}><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value={NESSUNO}>Nessuna</SelectItem>
+                <SelectItem value={NESSUNO}>{t("Nessuna")}</SelectItem>
                 {(scelte?.commesse ?? []).map((o) => (
-                  <SelectItem key={o.id} value={o.id}>{[o.order_code, o.description].filter(Boolean).join(" · ") || "Commessa"}</SelectItem>
+                  <SelectItem key={o.id} value={o.id}>{[o.order_code, o.description].filter(Boolean).join(" · ") || t("Commessa")}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Mezzo</Label>
+            <Label className="text-xs">{t("Mezzo")}</Label>
             <Select value={mezzo} onValueChange={setMezzo}>
-              <SelectTrigger className="h-8 text-xs" aria-label="Mezzo"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs" aria-label={t("Mezzo")}><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value={NESSUNO}>Nessuno</SelectItem>
+                <SelectItem value={NESSUNO}>{t("Nessuno")}</SelectItem>
                 {(scelte?.mezzi ?? []).map((m) => (
-                  <SelectItem key={m.id} value={m.id}>{[m.nome, m.targa].filter(Boolean).join(" · ") || "Mezzo"}</SelectItem>
+                  <SelectItem key={m.id} value={m.id}>{[m.nome, m.targa].filter(Boolean).join(" · ") || t("Mezzo")}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -175,7 +177,7 @@ export function MovimentoSenzaFattura({ tx, companyId, onFatto }: {
       <div className="flex justify-end border-t pt-3">
         <Button size="sm" onClick={conferma} disabled={!voce || salvando || (spesa && !descrizione.trim())}>
           {salvando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {spesa ? "Registra la spesa" : "Chiudi il movimento"}
+          {spesa ? t("Registra la spesa") : t("Chiudi il movimento")}
         </Button>
       </div>
     </div>

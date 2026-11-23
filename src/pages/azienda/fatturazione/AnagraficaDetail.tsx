@@ -19,6 +19,7 @@ import { useUfficiPa } from "@/hooks/useUfficiPa";
 import { etichettaTipoCliente, formDaAnagrafica } from "@/lib/clienti/clienteFiscale";
 import type { AnagraficaNative } from "@/types/fatturazione";
 import { formatCurrency } from "@/lib/formatters";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 function useMovimentiCassaByDocIds(docIds: string[]) {
   const companyId = useEffectiveCompanyId();
@@ -44,6 +45,7 @@ function getInitials(name?: string | null): string {
 }
 
 export default function AnagraficaDetail() {
+  const t = useT();
   const { id } = useParams();
   const navigate = useNavigate();
   const { data: rawData, isLoading } = useAnagraficaNative(id);
@@ -84,7 +86,7 @@ export default function AnagraficaDetail() {
     <div className="space-y-6 p-6 max-w-5xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" aria-label="Torna indietro" className="hidden md:inline-flex" onClick={() => navigate(-1)}>
+        <Button variant="ghost" size="icon" aria-label={t("Torna indietro")} className="hidden md:inline-flex" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <Avatar className="h-14 w-14">
@@ -97,18 +99,18 @@ export default function AnagraficaDetail() {
             <h1 className="text-xl font-semibold">{displayName}</h1>
             <Badge variant="secondary">{etichettaTipoCliente(anagrafica.tipo_cliente)}</Badge>
             <Badge variant={anagrafica.attivo ? "default" : "secondary"}>
-              {anagrafica.attivo ? "Attivo" : "Inattivo"}
+              {anagrafica.attivo ? t("Attivo") : t("Inattivo")}
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground font-mono">{anagrafica.partita_iva ?? "—"}</p>
         </div>
         {puoModificare && (
           <Button size="sm" variant="outline" onClick={() => setModifica(true)}>
-            <Pencil className="h-4 w-4 mr-1" /> Modifica
+            <Pencil className="h-4 w-4 mr-1" /> {t("Modifica")}
           </Button>
         )}
         <Button size="sm" onClick={() => navigate(`/azienda/documenti/nuovo?tipo=fattura`)}>
-          <FileText className="h-4 w-4 mr-1" /> Nuova fattura
+          <FileText className="h-4 w-4 mr-1" /> {t("Nuova fattura")}
         </Button>
       </div>
 
@@ -125,19 +127,19 @@ export default function AnagraficaDetail() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Fatturato totale</p>
+            <p className="text-xs text-muted-foreground">{t("Fatturato totale")}</p>
             <p className="text-lg font-semibold">{formatCurrency(fatturato)}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Pagato</p>
+            <p className="text-xs text-muted-foreground">{t("Pagato")}</p>
             <p className="text-lg font-semibold text-emerald-600">{formatCurrency(pagato)}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Saldo aperto</p>
+            <p className="text-xs text-muted-foreground">{t("Saldo aperto")}</p>
             <p className={`text-lg font-semibold ${saldoAperto > 0 ? "text-destructive" : ""}`}>
               {formatCurrency(saldoAperto)}
             </p>
@@ -145,7 +147,7 @@ export default function AnagraficaDetail() {
         </Card>
         <Card>
           <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">N. fatture</p>
+            <p className="text-xs text-muted-foreground">{t("N. fatture")}</p>
             <p className="text-lg font-semibold">{anagrafica.numero_fatture ?? 0}</p>
           </CardContent>
         </Card>
@@ -156,8 +158,8 @@ export default function AnagraficaDetail() {
         <Card className="border-emerald-200 bg-emerald-50/50">
           <CardContent className="pt-4 pb-3 flex items-center justify-between">
             <div className="text-sm">
-              <span className="font-medium">Posizione finanziaria:</span>{" "}
-              Fatturato YTD {formatCurrency(fatturato)} — Pagato {formatCurrency(pagato)} — Aperto{" "}
+              <span className="font-medium">{t("Posizione finanziaria:")}</span>{" "}
+              {t("Fatturato YTD {fatturato} — Pagato {pagato} — Aperto", { fatturato: formatCurrency(fatturato), pagato: formatCurrency(pagato) })}{" "}
               <span className="font-semibold text-destructive">{formatCurrency(saldoAperto)}</span>
             </div>
           </CardContent>
@@ -167,63 +169,63 @@ export default function AnagraficaDetail() {
       {/* Tabs */}
       <Tabs defaultValue="dati">
         <TabsList>
-          <TabsTrigger value="dati">Dati</TabsTrigger>
-          <TabsTrigger value="fatture">Fatture ({fatture.length})</TabsTrigger>
-          <TabsTrigger value="ddt">DDT ({ddts.length})</TabsTrigger>
-          <TabsTrigger value="movimenti">Movimenti ({movimentiFiltered.length})</TabsTrigger>
+          <TabsTrigger value="dati">{t("Dati")}</TabsTrigger>
+          <TabsTrigger value="fatture">{t("Fatture ({n})", { n: fatture.length })}</TabsTrigger>
+          <TabsTrigger value="ddt">{t("DDT ({n})", { n: ddts.length })}</TabsTrigger>
+          <TabsTrigger value="movimenti">{t("Movimenti ({n})", { n: movimentiFiltered.length })}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="dati" className="mt-4">
           <div className="grid sm:grid-cols-2 gap-6">
             <Card>
-              <CardHeader className="pb-3"><CardTitle className="text-sm">Dati anagrafici</CardTitle></CardHeader>
+              <CardHeader className="pb-3"><CardTitle className="text-sm">{t("Dati anagrafici")}</CardTitle></CardHeader>
               <CardContent className="space-y-2 text-sm">
-                <Row label="Ragione sociale" value={anagrafica.ragione_sociale} />
-                <Row label="Nome" value={anagrafica.nome} />
-                <Row label="Cognome" value={anagrafica.cognome} />
-                <Row label="Forma giuridica" value={anagrafica.forma_giuridica} />
-                <Row label="Tipo cliente" value={etichettaTipoCliente(anagrafica.tipo_cliente)} />
+                <Row label={t("Ragione sociale")} value={anagrafica.ragione_sociale} />
+                <Row label={t("Nome")} value={anagrafica.nome} />
+                <Row label={t("Cognome")} value={anagrafica.cognome} />
+                <Row label={t("Forma giuridica")} value={anagrafica.forma_giuridica} />
+                <Row label={t("Tipo cliente")} value={etichettaTipoCliente(anagrafica.tipo_cliente)} />
               </CardContent>
             </Card>
             <Card>
-              <CardHeader className="pb-3"><CardTitle className="text-sm">Dati fiscali</CardTitle></CardHeader>
+              <CardHeader className="pb-3"><CardTitle className="text-sm">{t("Dati fiscali")}</CardTitle></CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <Row label="P.IVA" value={anagrafica.partita_iva} mono />
-                <Row label="Codice fiscale" value={anagrafica.codice_fiscale} mono />
+                <Row label={t("Codice fiscale")} value={anagrafica.codice_fiscale} mono />
                 <Row
-                  label={anaPa ? "Codice univoco ufficio (predefinito)" : "Codice destinatario"}
+                  label={anaPa ? t("Codice univoco ufficio (predefinito)") : t("Codice destinatario")}
                   value={anagrafica.codice_sdi}
                   mono
                 />
                 <Row label="PEC" value={anagrafica.pec} />
-                {anaPa && <Row label="Codice IPA dell'ente" value={anagrafica.codice_ipa} mono />}
+                {anaPa && <Row label={t("Codice IPA dell'ente")} value={anagrafica.codice_ipa} mono />}
                 {anaPa && (
                   <Row
-                    label="Split payment"
+                    label={t("Split payment")}
                     value={anagrafica.split_payment == null ? "Come l'impostazione dell'azienda" : anagrafica.split_payment ? "Sì" : "No"}
                   />
                 )}
               </CardContent>
             </Card>
             <Card>
-              <CardHeader className="pb-3"><CardTitle className="text-sm">Indirizzo</CardTitle></CardHeader>
+              <CardHeader className="pb-3"><CardTitle className="text-sm">{t("Indirizzo")}</CardTitle></CardHeader>
               <CardContent className="space-y-2 text-sm">
-                <Row label="Via" value={anagrafica.indirizzo_via} />
+                <Row label={t("Via")} value={anagrafica.indirizzo_via} />
                 <Row label="CAP" value={anagrafica.indirizzo_cap} />
-                <Row label="Comune" value={anagrafica.indirizzo_comune} />
-                <Row label="Provincia" value={anagrafica.indirizzo_provincia} />
-                <Row label="Nazione" value={anagrafica.indirizzo_nazione} />
+                <Row label={t("Comune")} value={anagrafica.indirizzo_comune} />
+                <Row label={t("Provincia")} value={anagrafica.indirizzo_provincia} />
+                <Row label={t("Nazione")} value={anagrafica.indirizzo_nazione} />
               </CardContent>
             </Card>
             <Card>
-              <CardHeader className="pb-3"><CardTitle className="text-sm">Contatti & Banca</CardTitle></CardHeader>
+              <CardHeader className="pb-3"><CardTitle className="text-sm">{t("Contatti & Banca")}</CardTitle></CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <Row label="Email" value={anagrafica.email} />
-                <Row label="Telefono" value={anagrafica.telefono} />
-                <Row label="Referente amministrativo" value={anagrafica.referente_amministrativo} />
-                <Row label="Email amministrazione" value={anagrafica.email_fatture} />
+                <Row label={t("Telefono")} value={anagrafica.telefono} />
+                <Row label={t("Referente amministrativo")} value={anagrafica.referente_amministrativo} />
+                <Row label={t("Email amministrazione")} value={anagrafica.email_fatture} />
                 <Row label="IBAN" value={anagrafica.iban_cliente} mono />
-                <Row label="Sito web" value={anagrafica.sito_web} />
+                <Row label={t("Sito web")} value={anagrafica.sito_web} />
               </CardContent>
             </Card>
             {anaPa && (
@@ -240,11 +242,11 @@ export default function AnagraficaDetail() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/50">
-                    <th className="p-3 text-left font-medium">Numero</th>
-                    <th className="p-3 text-left font-medium">Tipo</th>
-                    <th className="p-3 text-left font-medium">Data</th>
-                    <th className="p-3 text-right font-medium">Totale</th>
-                    <th className="p-3 text-left font-medium">Stato</th>
+                    <th className="p-3 text-left font-medium">{t("Numero")}</th>
+                    <th className="p-3 text-left font-medium">{t("Tipo")}</th>
+                    <th className="p-3 text-left font-medium">{t("Data")}</th>
+                    <th className="p-3 text-right font-medium">{t("Totale")}</th>
+                    <th className="p-3 text-left font-medium">{t("Stato")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -264,7 +266,7 @@ export default function AnagraficaDetail() {
                     </tr>
                   ))}
                   {fatture.length === 0 && (
-                    <tr><td colSpan={5} className="p-8 text-center text-muted-foreground">Nessuna fattura</td></tr>
+                    <tr><td colSpan={5} className="p-8 text-center text-muted-foreground">{t("Nessuna fattura")}</td></tr>
                   )}
                 </tbody>
               </table>
@@ -278,10 +280,10 @@ export default function AnagraficaDetail() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/50">
-                    <th className="p-3 text-left font-medium">Numero</th>
-                    <th className="p-3 text-left font-medium">Data</th>
-                    <th className="p-3 text-right font-medium">Articoli</th>
-                    <th className="p-3 text-left font-medium">Stato</th>
+                    <th className="p-3 text-left font-medium">{t("Numero")}</th>
+                    <th className="p-3 text-left font-medium">{t("Data")}</th>
+                    <th className="p-3 text-right font-medium">{t("Articoli")}</th>
+                    <th className="p-3 text-left font-medium">{t("Stato")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -296,13 +298,13 @@ export default function AnagraficaDetail() {
                       <td className="p-3 text-right">{d.righe?.length ?? 0}</td>
                       <td className="p-3">
                         <Badge variant={d.ddt_fatturato ? "default" : "outline"}>
-                          {d.ddt_fatturato ? "Fatturato" : "Da fatturare"}
+                          {d.ddt_fatturato ? t("Fatturato") : t("Da fatturare")}
                         </Badge>
                       </td>
                     </tr>
                   ))}
                   {ddts.length === 0 && (
-                    <tr><td colSpan={4} className="p-8 text-center text-muted-foreground">Nessun DDT</td></tr>
+                    <tr><td colSpan={4} className="p-8 text-center text-muted-foreground">{t("Nessun DDT")}</td></tr>
                   )}
                 </tbody>
               </table>
@@ -316,10 +318,10 @@ export default function AnagraficaDetail() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/50">
-                    <th className="p-3 text-left font-medium">Data</th>
-                    <th className="p-3 text-right font-medium">Importo</th>
-                    <th className="p-3 text-left font-medium">Metodo</th>
-                    <th className="p-3 text-left font-medium">Riferimento</th>
+                    <th className="p-3 text-left font-medium">{t("Data")}</th>
+                    <th className="p-3 text-right font-medium">{t("Importo")}</th>
+                    <th className="p-3 text-left font-medium">{t("Metodo")}</th>
+                    <th className="p-3 text-left font-medium">{t("Riferimento")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -332,7 +334,7 @@ export default function AnagraficaDetail() {
                     </tr>
                   ))}
                   {movimentiFiltered.length === 0 && (
-                    <tr><td colSpan={4} className="p-8 text-center text-muted-foreground">Nessun movimento</td></tr>
+                    <tr><td colSpan={4} className="p-8 text-center text-muted-foreground">{t("Nessun movimento")}</td></tr>
                   )}
                 </tbody>
               </table>

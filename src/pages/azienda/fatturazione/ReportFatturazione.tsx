@@ -11,8 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Loader2, Download } from "lucide-react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { format, parseISO, subMonths } from "date-fns";
-import { it } from "date-fns/locale";
 import { toast } from "sonner";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Fetches ALL invoices for reporting by paginating through results.
@@ -30,6 +30,7 @@ function useAllDocumentiForReport() {
 }
 
 export default function ReportFatturazione() {
+  const t = useT();
   const { data: docs = [], isLoading, isError, refetch } = useAllDocumentiForReport();
   const registrate = useMemo(() => docs.filter(documentoNelRegistro), [docs]);
   const importate = registrate.filter(d => d.origine === "importata").length;
@@ -53,7 +54,7 @@ export default function ReportFatturazione() {
     });
 
     return Object.entries(months).map(([key, val]) => ({
-      mese: format(parseISO(`${key}-01`), "MMM yy", { locale: it }),
+      mese: format(parseISO(`${key}-01`), "MMM yy", { locale: dateFnsCampo() }),
       ...val,
     }));
   }, [docs]);
@@ -105,32 +106,32 @@ export default function ReportFatturazione() {
       })
       .join("\n");
     scaricaFileOriginale(new Blob(["\uFEFF", header, rows], { type: "text/csv;charset=utf-8" }), "registro-iva.csv");
-    toast.success("CSV esportato");
+    toast.success(t("CSV esportato"));
   };
 
   if (isLoading) {
     return <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
   }
-  if (isError) return <div role="alert" className="p-6">Non riesco a caricare il registro completo. Nessun totale parziale viene mostrato. <Button variant="outline" onClick={() => void refetch()}>Riprova</Button></div>;
+  if (isError) return <div role="alert" className="p-6">{t("Non riesco a caricare il registro completo. Nessun totale parziale viene mostrato.")} <Button variant="outline" onClick={() => void refetch()}>{t("Riprova")}</Button></div>;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Report Fatturazione</h1>
-          <p className="text-muted-foreground">{registrate.length} documenti emessi, di cui {importate} importati. Bozze escluse e note di credito sottratte.</p>
+          <h1 className="text-2xl font-bold tracking-tight">{t("Report Fatturazione")}</h1>
+          <p className="text-muted-foreground">{t("{n} documenti emessi, di cui {importate} importati. Bozze escluse e note di credito sottratte.", { n: registrate.length, importate: String(importate ?? "") })}</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={handleExportCSV}>
-            <Download className="h-4 w-4 mr-1" /> Registro IVA CSV
+            <Download className="h-4 w-4 mr-1" /> {t("Registro IVA CSV")}
           </Button>
         </div>
       </div>
-      <p className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">Fatturato al netto dell’IVA. Gli incassi registrati sono raggruppati per mese di emissione della fattura, non per data del pagamento.{importate > 0 && " L’XML non certifica gli incassi: lo storico dei pagamenti importati va verificato separatamente."}</p>
+      <p className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">{t("Fatturato al netto dell’IVA. Gli incassi registrati sono raggruppati per mese di emissione della fattura, non per data del pagamento.")}{importate > 0 && ` ${t("L’XML non certifica gli incassi: lo storico dei pagamenti importati va verificato separatamente.")}`}</p>
 
       {/* Fatturato mensile */}
       <Card>
-        <CardHeader><CardTitle className="text-sm">Fatturato mensile (ultimi 12 mesi)</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-sm">{t("Fatturato mensile (ultimi 12 mesi)")}</CardTitle></CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
             <AreaChart data={monthlyData}>
@@ -149,7 +150,7 @@ export default function ReportFatturazione() {
       <div className="grid gap-6 md:grid-cols-2">
         {/* Top clients */}
         <Card>
-          <CardHeader><CardTitle className="text-sm">Top 10 Clienti per Fatturato</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-sm">{t("Top 10 Clienti per Fatturato")}</CardTitle></CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={topClients} layout="vertical">
@@ -165,27 +166,27 @@ export default function ReportFatturazione() {
 
         {/* IVA summary */}
         <Card>
-          <CardHeader><CardTitle className="text-sm">Riepilogo IVA vendite · tutto lo storico</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-sm">{t("Riepilogo IVA vendite · tutto lo storico")}</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-3">
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">IVA a debito (vendite)</span>
+                <span className="text-muted-foreground">{t("IVA a debito (vendite)")}</span>
                 <span className="font-mono font-semibold">{formatCurrency(ivaSummary.debito)}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">IVA a credito (NC)</span>
+                <span className="text-muted-foreground">{t("IVA a credito (NC)")}</span>
                 <span className="font-mono font-semibold">{formatCurrency(ivaSummary.credito)}</span>
               </div>
               <hr />
               <div className="flex justify-between text-sm">
-                <span className="font-medium">Saldo IVA</span>
+                <span className="font-medium">{t("Saldo IVA")}</span>
                 <span className={`font-mono font-bold ${ivaSummary.saldo > 0 ? "text-destructive" : "text-emerald-600"}`}>
                   {formatCurrency(ivaSummary.saldo)}
                 </span>
               </div>
             </div>
             <div className="bg-muted/50 rounded-lg p-3 text-xs text-muted-foreground">
-              ⚠️ Per la liquidazione definitiva consultare il proprio commercialista. I dati sono indicativi.
+              {t("⚠️ Per la liquidazione definitiva consultare il proprio commercialista. I dati sono indicativi.")}
             </div>
           </CardContent>
         </Card>

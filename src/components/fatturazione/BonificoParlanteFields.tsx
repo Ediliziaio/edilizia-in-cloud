@@ -8,6 +8,7 @@ import {
   type BonificoForm,
 } from "@/lib/fatturazione/bonificiParlanti";
 import { formatCurrency } from "@/lib/formatters";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function BonificoParlanteFields({
   lordo,
@@ -22,6 +23,7 @@ export function BonificoParlanteFields({
   value: BonificoForm;
   onChange: (value: BonificoForm) => void;
 }) {
+  const t = useT();
   const forecast = previsioneBonifico(lordo, data);
   const edit = (key: keyof BonificoForm, next: string) =>
     onChange({ ...value, [key]: next, confermato: false });
@@ -38,19 +40,18 @@ export function BonificoParlanteFields({
   return (
     <section
       className="space-y-3 rounded-xl border border-blue-200 bg-blue-50/40 p-3 max-sm:col-span-2"
-      aria-label="Dettaglio bonifico parlante"
+      aria-label={t("Dettaglio bonifico parlante")}
     >
       <p className="text-sm font-medium">
-        Lordo cliente e netto bancario separati
+        {t("Lordo cliente e netto bancario separati")}
       </p>
       <p className="text-xs text-muted-foreground">
-        La fattura si salda per il lordo. Verifica ritenuta e commissioni sulla
-        contabile; non modificano l’IVA della fattura.
+        {t("La fattura si salda per il lordo. Verifica ritenuta e commissioni sulla contabile; non modificano l’IVA della fattura.")}
       </p>
       {forecast ? (
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
           <span>
-            Previsione {forecast.aliquota}% su lordo ÷ 1,22:{" "}
+            {t("Previsione {aliquota}% su lordo ÷ 1,22:", { aliquota: forecast.aliquota })}{" "}
             <strong>{formatCurrency(forecast.ritenuta)}</strong>
           </span>
           <Button
@@ -68,13 +69,12 @@ export function BonificoParlanteFields({
               })
             }
           >
-            Usa come proposta
+            {t("Usa come proposta")}
           </Button>
         </div>
       ) : (
         <p className="text-xs text-amber-800">
-          Inserisci importo e data validi. Regimi prima del 2015: verifica
-          storica necessaria.
+          {t("Inserisci importo e data validi. Regimi prima del 2015: verifica storica necessaria.")}
         </p>
       )}
       <div className="grid grid-cols-2 gap-3">
@@ -86,7 +86,7 @@ export function BonificoParlanteFields({
           ] as const
         ).map(([key, label]) => (
           <div key={key}>
-            <Label htmlFor={`bp-${key}`}>{label}</Label>
+            <Label htmlFor={`bp-${key}`}>{t(label)}</Label>
             <Input
               id={`bp-${key}`}
               type="number"
@@ -98,7 +98,7 @@ export function BonificoParlanteFields({
           </div>
         ))}
         <div>
-          <Label htmlFor="bp-banca">Banca accreditante</Label>
+          <Label htmlFor="bp-banca">{t("Banca accreditante")}</Label>
           <Input
             id="bp-banca"
             maxLength={160}
@@ -111,8 +111,7 @@ export function BonificoParlanteFields({
         value.ritenuta &&
         Math.abs(Number(value.ritenuta) - forecast.ritenuta) > 0.01 && (
           <p className="text-xs text-amber-800">
-            Ritenuta diversa dalla previsione: conserva il riscontro bancario.
-            Si registrerà l’importo effettivo, non quello stimato.
+            {t("Ritenuta diversa dalla previsione: conserva il riscontro bancario. Si registrerà l’importo effettivo, non quello stimato.")}
           </p>
         )}
       {error && (
@@ -128,8 +127,7 @@ export function BonificoParlanteFields({
             onChange({ ...value, confermato: checked === true })
           }
         />
-        Ho confrontato lordo, ritenuta, commissioni e netto con la contabile
-        bancaria.
+        {t("Ho confrontato lordo, ritenuta, commissioni e netto con la contabile bancaria.")}
       </Label>
     </section>
   );

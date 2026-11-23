@@ -36,6 +36,7 @@ import {
   type CambioRiferimento, type ConflittoRiferimento, type RiferimentoPaFattura,
 } from "../../../../../supabase/functions/_shared/riferimentiPaFattura";
 import type { EditorState } from "./useEditorState";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   state: EditorState;
@@ -70,6 +71,7 @@ async function propostePer(commessa: CommessaBreve, anagraficaId: string | null 
 }
 
 export function EditorCommessaRiferimentiSection({ state, dispatch, disabled }: Props) {
+  const tr = useT();
   const companyId = useEffectiveCompanyId();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
@@ -128,7 +130,7 @@ export function EditorCommessaRiferimentiSection({ state, dispatch, disabled }: 
     if (!c.customer_id || !companyId) return null;
     const { data } = await supabase.from("anagrafiche_native").select("id, ragione_sociale").eq("company_id", companyId).eq("cliente_id", c.customer_id).maybeSingle();
     if (!data || !state.anagrafica_id || data.id === state.anagrafica_id) return null;
-    return `La commessa ${c.order_code ?? ""} è intestata a ${data.ragione_sociale ?? "un altro cliente"}, la fattura a ${snap?.ragione_sociale ?? "un altro"}. Se non è voluto, cambia il cliente o scegli un'altra commessa.`;
+    return tr("La commessa {commessa} è intestata a {cliente}, la fattura a {destinatario}. Se non è voluto, cambia il cliente o scegli un'altra commessa.", { commessa: c.order_code ?? "", cliente: data.ragione_sociale ?? tr("un altro cliente"), destinatario: snap?.ragione_sociale ?? tr("un altro") });
   }
 
   /** Sceglie la commessa (principale) o ne aggiunge un'altra. */
@@ -144,7 +146,7 @@ export function EditorCommessaRiferimentiSection({ state, dispatch, disabled }: 
         const { risultato, tolti } = togliCommessa(base, state.ordine_id);
         base = risultato;
         if (tolti.length) {
-          toast.warning(`Tolti ${tolti.length === 1 ? "il riferimento" : `${tolti.length} riferimenti`} della commessa ${principale?.order_code ?? "precedente"}`, {
+          toast.warning(tolti.length === 1 ? tr("Tolti il riferimento della commessa {commessa}", { commessa: principale?.order_code ?? tr("precedente") }) : tr("Tolti {n} riferimenti della commessa {commessa}", { n: tolti.length, commessa: principale?.order_code ?? tr("precedente") }), {
             description: tolti.map(etichettaRiferimento).join(" — "),
           });
         }
@@ -162,7 +164,7 @@ export function EditorCommessaRiferimentiSection({ state, dispatch, disabled }: 
       }
       await applica(c, comePrincipale, collegaCommessa(base, proposti, c.id));
     } catch (e) {
-      toast.error("Non riesco a leggere i riferimenti della commessa", { description: e instanceof Error ? e.message : String(e) });
+      toast.error(tr("Non riesco a leggere i riferimenti della commessa"), { description: e instanceof Error ? e.message : String(e) });
     } finally {
       setLavoro(false);
     }
@@ -179,11 +181,11 @@ export function EditorCommessaRiferimentiSection({ state, dispatch, disabled }: 
     } else {
       if (fatturaId && companyId && !idsCommesse.includes(c.id)) {
         const { error } = await supabase.from("fattura_ordine").insert({ company_id: companyId, fattura_id: fatturaId, ordine_id: c.id });
-        if (error) { toast.error("Collegamento non riuscito", { description: error.message }); return; }
+        if (error) { toast.error(tr("Collegamento non riuscito"), { description: error.message }); return; }
       }
       dispatch({ type: "SET_RIFERIMENTI_PA", riferimenti: nuovi });
       if (nuovi.some((r) => r.order_id === c.id)) {
-        toast.info("Fattura su più commesse", { description: "Indica in ogni riferimento a quali righe si applica (Vale per…): altrimenti vale per tutta la fattura." });
+        toast.info(tr("Fattura su più commesse"), { description: tr("Indica in ogni riferimento a quali righe si applica (Vale per…): altrimenti vale per tutta la fattura.") });
       }
     }
     void queryClient.invalidateQueries({ queryKey: ["fattura-ordini-pa", fatturaId] });
@@ -196,7 +198,7 @@ export function EditorCommessaRiferimentiSection({ state, dispatch, disabled }: 
     if (id === state.ordine_id) dispatch({ type: "SET_COMMESSA", ordine_id: null, riferimenti: risultato });
     else dispatch({ type: "SET_RIFERIMENTI_PA", riferimenti: risultato });
     if (fatturaId && altreLegate.includes(id)) await supabase.from("fattura_ordine").delete().eq("fattura_id", fatturaId).eq("ordine_id", id);
-    if (tolti.length) toast.warning(`Tolti i riferimenti della commessa ${commesse.find((c) => c.id === id)?.order_code ?? ""}`, { description: tolti.map(etichettaRiferimento).join(" — ") });
+    if (tolti.length) toast.warning(tr("Tolti i riferimenti della commessa {order_code}", { order_code: String((commesse.find((c) => c.id === id)?.order_code ?? "") ?? "") }), { description: tolti.map(etichettaRiferimento).join(" — ") });
     void queryClient.invalidateQueries({ queryKey: ["fattura-ordini-pa", fatturaId] });
     void queryClient.invalidateQueries({ queryKey: ["contesto-controlli-pa"] });
   }
@@ -208,7 +210,7 @@ export function EditorCommessaRiferimentiSection({ state, dispatch, disabled }: 
       const esito = aggiornaDallaCommessa(riferimenti, proposti, c.id);
       setAggiornamento({ commessa: c, ...esito });
     } catch (e) {
-      toast.error("Non riesco a leggere la commessa", { description: e instanceof Error ? e.message : String(e) });
+      toast.error(tr("Non riesco a leggere la commessa"), { description: e instanceof Error ? e.message : String(e) });
     } finally {
       setLavoro(false);
     }
@@ -256,17 +258,17 @@ export function EditorCommessaRiferimentiSection({ state, dispatch, disabled }: 
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-80 p-2" align="start">
-        <Input placeholder="Cerca per codice o descrizione…" value={cerca} onChange={(e) => setCerca(e.target.value)} className="mb-2 h-8 text-xs" autoFocus />
+        <Input placeholder={tr("Cerca per codice o descrizione…")} value={cerca} onChange={(e) => setCerca(e.target.value)} className="mb-2 h-8 text-xs" autoFocus />
         <div className="max-h-56 space-y-1 overflow-y-auto">
           {risultati.filter((o) => !idsCommesse.includes(o.id)).map((o) => (
             <button key={o.id} type="button" className="w-full space-y-0.5 rounded-md p-2 text-left text-xs hover:bg-accent"
               onClick={() => void scegli({ id: o.id, order_code: o.order_code, description: o.description, customer_id: o.customer?.id ?? null }, modo === "cambia")}>
-              <span className="font-medium">{o.order_code ?? "Senza codice"}</span>
+              <span className="font-medium">{o.order_code ?? tr("Senza codice")}</span>
               <p className="truncate text-muted-foreground">{o.description?.slice(0, 60)}</p>
               {o.customer && <p className="text-muted-foreground">{o.customer.first_name} {o.customer.last_name}</p>}
             </button>
           ))}
-          {risultati.length === 0 && <p className="py-3 text-center text-xs text-muted-foreground">{cerca ? "Nessuna commessa trovata" : "Scrivi per cercare"}</p>}
+          {risultati.length === 0 && <p className="py-3 text-center text-xs text-muted-foreground">{cerca ? tr("Nessuna commessa trovata") : tr("Scrivi per cercare")}</p>}
         </div>
       </PopoverContent>
     </Popover>
@@ -288,14 +290,14 @@ export function EditorCommessaRiferimentiSection({ state, dispatch, disabled }: 
             <div className="flex flex-wrap items-center gap-2">
               <FileSignature className="h-4 w-4 text-blue-500" />
               <span className="text-[11px] font-bold uppercase tracking-wider text-blue-600/80 dark:text-blue-400/80">
-                Commessa e riferimenti PA
+                {tr("Commessa e riferimenti PA")}
               </span>
               {quante > 0 && (
                 <span className="ml-1 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-blue-100 px-1 text-[9px] font-bold text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
                   {quante}
                 </span>
               )}
-              {!isBozza && <Badge variant="outline" className="text-[10px]">fattura emessa: non si modifica</Badge>}
+              {!isBozza && <Badge variant="outline" className="text-[10px]">{tr("fattura emessa: non si modifica")}</Badge>}
             </div>
             <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${inVista ? "rotate-180" : ""}`} />
           </button>
@@ -306,23 +308,23 @@ export function EditorCommessaRiferimentiSection({ state, dispatch, disabled }: 
       {/* Commesse */}
       <div className="space-y-1.5">
         {commesse.length === 0 && !state.ordine_id && (
-          <p className="text-xs text-muted-foreground">Nessuna commessa collegata: i riferimenti si scrivono qui sotto, a mano.</p>
+          <p className="text-xs text-muted-foreground">{tr("Nessuna commessa collegata: i riferimenti si scrivono qui sotto, a mano.")}</p>
         )}
         {[...commesse].sort((a, b) => (a.id === state.ordine_id ? -1 : b.id === state.ordine_id ? 1 : 0)).map((c) => (
           <div key={c.id} className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 p-2 text-xs">
             <Badge variant="outline">{c.order_code ?? "—"}</Badge>
             <span className="min-w-0 flex-1 truncate">{c.description}</span>
-            {c.id === state.ordine_id && commesse.length > 1 && <span className="text-[10px] text-muted-foreground">principale</span>}
+            {c.id === state.ordine_id && commesse.length > 1 && <span className="text-[10px] text-muted-foreground">{tr("principale")}</span>}
             {isBozza && !disabled && (
               <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" disabled={lavoro} onClick={() => void aggiorna(c)}>
-                <RefreshCw className="mr-1 h-3 w-3" /> Aggiorna dalla commessa
+                <RefreshCw className="mr-1 h-3 w-3" /> {tr("Aggiorna dalla commessa")}
               </Button>
             )}
-            <Button type="button" variant="ghost" size="icon" className="h-7 w-7" asChild aria-label="Apri la commessa">
+            <Button type="button" variant="ghost" size="icon" className="h-7 w-7" asChild aria-label={tr("Apri la commessa")}>
               <Link to={`/azienda/ordini/${c.id}`}><ExternalLink className="h-3.5 w-3.5" /></Link>
             </Button>
             {!disabled && (
-              <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" aria-label={`Scollega la commessa ${c.order_code ?? ""}`} onClick={() => void scollega(c.id)}>
+              <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" aria-label={tr("Scollega la commessa {order_code}", { order_code: String((c.order_code ?? "") ?? "") })} onClick={() => void scollega(c.id)}>
                 <X className="h-3.5 w-3.5" />
               </Button>
             )}
@@ -330,8 +332,8 @@ export function EditorCommessaRiferimentiSection({ state, dispatch, disabled }: 
         ))}
         {!disabled && (
           <div className="flex flex-wrap gap-2">
-            {ricerca("cambia", state.ordine_id ? "Cambia commessa" : "Scegli la commessa")}
-            {state.ordine_id && ricerca("aggiungi", "Aggiungi un'altra commessa")}
+            {ricerca("cambia", state.ordine_id ? tr("Cambia commessa") : tr("Scegli la commessa"))}
+            {state.ordine_id && ricerca("aggiungi", tr("Aggiungi un'altra commessa"))}
           </div>
         )}
       </div>
@@ -339,7 +341,7 @@ export function EditorCommessaRiferimentiSection({ state, dispatch, disabled }: 
       {/* Ufficio PA */}
       {isPA && state.anagrafica_id && (
         <div className="space-y-1">
-          <Label htmlFor="ed-ufficio-pa" className="text-[11px] text-muted-foreground">Ufficio destinatario (Codice Univoco Ufficio)</Label>
+          <Label htmlFor="ed-ufficio-pa" className="text-[11px] text-muted-foreground">{tr("Ufficio destinatario (Codice Univoco Ufficio)")}</Label>
           <SelettoreUfficioPa
             id="ed-ufficio-pa"
             anagraficaId={state.anagrafica_id}
@@ -354,9 +356,9 @@ export function EditorCommessaRiferimentiSection({ state, dispatch, disabled }: 
           />
           {snap?.ufficio_pa && (
             <p className="text-[11px] text-muted-foreground" data-testid="origine-ufficio">
-              Codice <span className="font-mono">{snap.ufficio_pa.codice}</span> ·{" "}
-              {snap.ufficio_pa.origine === "manuale" ? "scelto qui" : snap.ufficio_pa.origine === "commessa" ? "dalla commessa" : "dall'anagrafica (predefinito)"}
-              {codice(snap.codice_sdi) !== snap.ufficio_pa.codice && <span className="text-amber-700"> — il codice destinatario scritto è {codice(snap.codice_sdi) || "vuoto"}</span>}
+              {tr("Codice")} <span className="font-mono">{snap.ufficio_pa.codice}</span> ·{" "}
+              {snap.ufficio_pa.origine === "manuale" ? tr("scelto qui") : snap.ufficio_pa.origine === "commessa" ? tr("dalla commessa") : tr("dall'anagrafica (predefinito)")}
+              {codice(snap.codice_sdi) !== snap.ufficio_pa.codice && <span className="text-amber-700"> {tr("— il codice destinatario scritto è {codice}", { codice: codice(snap.codice_sdi) || tr("vuoto") })}</span>}
             </p>
           )}
         </div>
@@ -366,12 +368,11 @@ export function EditorCommessaRiferimentiSection({ state, dispatch, disabled }: 
       {legacy && (
         <div className="rounded-md border border-dashed p-2 text-xs">
           <p>
-            Questa fattura usa i campi di prima: {[state.cig && `CIG ${state.cig}`, state.cup && `CUP ${state.cup}`, state.codice_commessa_convenzione && `codice ${state.codice_commessa_convenzione}`].filter(Boolean).join(", ") || "riferimenti d'ordine"}.
-            L'XML li scrive come sempre.
+            {tr("Questa fattura usa i campi di prima: {campi}. L'XML li scrive come sempre.", { campi: [state.cig && `CIG ${state.cig}`, state.cup && `CUP ${state.cup}`, state.codice_commessa_convenzione && tr("codice {codice}", { codice: state.codice_commessa_convenzione })].filter(Boolean).join(", ") || tr("riferimenti d'ordine") })}
           </p>
           {!disabled && (
             <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs" onClick={convertiLegacy}>
-              Trasformali in riferimenti (contratto, ordine, righe)
+              {tr("Trasformali in riferimenti (contratto, ordine, righe)")}
             </Button>
           )}
         </div>
@@ -382,7 +383,7 @@ export function EditorCommessaRiferimentiSection({ state, dispatch, disabled }: 
         onChange={(next) => dispatch({ type: "SET_RIFERIMENTI_PA", riferimenti: next })}
         righe={righe}
         disabled={disabled}
-        vuoto={state.ordine_id ? "La commessa non ha riferimenti PA. Aggiungili qui (valgono solo per questa fattura) o nella Panoramica della commessa, poi «Aggiorna dalla commessa»." : undefined}
+        vuoto={state.ordine_id ? tr("La commessa non ha riferimenti PA. Aggiungili qui (valgono solo per questa fattura) o nella Panoramica della commessa, poi «Aggiorna dalla commessa».") : undefined}
       />
           </div>
         </CollapsibleContent>
@@ -392,29 +393,29 @@ export function EditorCommessaRiferimentiSection({ state, dispatch, disabled }: 
       <Dialog open={!!conflitti} onOpenChange={(o) => !o && setConflitti(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Commessa {conflitti?.commessa.order_code}: controlla prima di collegarla</DialogTitle>
-            <DialogDescription>Niente si sostituisce da solo. Scegli quali riferimenti tenere.</DialogDescription>
+            <DialogTitle>{tr("Commessa {order_code}: controlla prima di collegarla", { order_code: String(conflitti?.commessa.order_code ?? "") })}</DialogTitle>
+            <DialogDescription>{tr("Niente si sostituisce da solo. Scegli quali riferimenti tenere.")}</DialogDescription>
           </DialogHeader>
           {conflitti?.avvisoCliente && <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">{conflitti.avvisoCliente}</p>}
           <div className="space-y-2">
             {conflitti?.lista.map((c) => (
               <div key={c.fattura.chiave} className="space-y-1 rounded-md border p-2 text-xs" data-testid="conflitto-riferimento">
-                <p>Sulla fattura: <b>{etichettaRiferimento(c.fattura)}</b></p>
-                <p>Dalla commessa: <b>{etichettaRiferimento(c.commessa)}</b></p>
+                <p>{tr("Sulla fattura:")} <b>{etichettaRiferimento(c.fattura)}</b></p>
+                <p>{tr("Dalla commessa:")} <b>{etichettaRiferimento(c.commessa)}</b></p>
                 <label className="flex items-center gap-2">
                   <Checkbox checked={tieni.includes(c.fattura.chiave)} onCheckedChange={(v) => setTieni((t) => (v ? [...t, c.fattura.chiave] : t.filter((k) => k !== c.fattura.chiave)))} />
-                  Tieni anche quello della fattura (altrimenti vale quello della commessa)
+                  {tr("Tieni anche quello della fattura (altrimenti vale quello della commessa)")}
                 </label>
               </div>
             ))}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setConflitti(null)}>Annulla</Button>
+            <Button variant="outline" onClick={() => setConflitti(null)}>{tr("Annulla")}</Button>
             <Button onClick={() => {
               if (!conflitti) return;
               void applica(conflitti.commessa, conflitti.principale, collegaCommessa(conflitti.base, conflitti.proposti, conflitti.commessa.id, tieni));
               setConflitti(null);
-            }}>Collega la commessa</Button>
+            }}>{tr("Collega la commessa")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -423,28 +424,28 @@ export function EditorCommessaRiferimentiSection({ state, dispatch, disabled }: 
       <Dialog open={!!aggiornamento} onOpenChange={(o) => !o && setAggiornamento(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Aggiorna dalla commessa {aggiornamento?.commessa.order_code}</DialogTitle>
-            <DialogDescription>Ciò che hai cambiato a mano su questa fattura resta com'è.</DialogDescription>
+            <DialogTitle>{tr("Aggiorna dalla commessa {order_code}", { order_code: String(aggiornamento?.commessa.order_code ?? "") })}</DialogTitle>
+            <DialogDescription>{tr("Ciò che hai cambiato a mano su questa fattura resta com'è.")}</DialogDescription>
           </DialogHeader>
-          {aggiornamento && aggiornamento.cambi.length === 0 && <p className="text-sm">Nessuna differenza: la fattura dice già quello che dice la commessa.</p>}
+          {aggiornamento && aggiornamento.cambi.length === 0 && <p className="text-sm">{tr("Nessuna differenza: la fattura dice già quello che dice la commessa.")}</p>}
           <div className="max-h-80 space-y-2 overflow-y-auto">
             {aggiornamento?.cambi.map((c) => (
               <div key={c.chiave} className="rounded-md border p-2 text-xs" data-testid="cambio-riferimento">
                 <p className="font-medium">
-                  {c.esito === "aggiunto" ? "Si aggiunge" : c.esito === "tolto" ? "Si toglie (non c'è più sulla commessa)" : c.esito === "aggiornato" ? "Si aggiorna" : "Resta com'è (cambiato a mano qui)"}: {c.etichetta}
+                  {c.esito === "aggiunto" ? tr("Si aggiunge") : c.esito === "tolto" ? tr("Si toglie (non c'è più sulla commessa)") : c.esito === "aggiornato" ? tr("Si aggiorna") : tr("Resta com'è (cambiato a mano qui)")}: {c.etichetta}
                 </p>
                 {c.differenze.map((d) => (
-                  <p key={d.campo} className="text-muted-foreground">{ETICHETTA_CAMPO[d.campo] ?? d.campo}: fattura {mostra(d.fattura)} → commessa {mostra(d.commessa)}</p>
+                  <p key={d.campo} className="text-muted-foreground">{tr("{valore}: fattura {fattura} → commessa {commessa}", { valore: ETICHETTA_CAMPO[d.campo] ? tr(ETICHETTA_CAMPO[d.campo]) : d.campo, fattura: String(mostra(d.fattura) ?? ""), commessa: String(mostra(d.commessa) ?? "") })}</p>
                 ))}
               </div>
             ))}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAggiornamento(null)}>Annulla</Button>
+            <Button variant="outline" onClick={() => setAggiornamento(null)}>{tr("Annulla")}</Button>
             <Button disabled={!aggiornamento?.cambi.some((c) => c.esito !== "tenuto_modificato")} onClick={() => {
               if (aggiornamento) dispatch({ type: "SET_RIFERIMENTI_PA", riferimenti: aggiornamento.risultato });
               setAggiornamento(null);
-            }}>Applica</Button>
+            }}>{tr("Applica")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

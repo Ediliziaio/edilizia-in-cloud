@@ -8,6 +8,7 @@ import { formatDateShort } from "@/lib/formatters";
 import { queryKeys } from "@/lib/queryKeys";
 import { eNotaDiCredito, nonSiPaga } from "@/lib/fatturazione/noteDiCredito";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * «L'ho pagata» sulle fatture dei fornitori, con un clic. La data sta sulla fattura
@@ -48,6 +49,7 @@ export function isNotaCreditoRicevuta(tipo: string | null | undefined): boolean 
 }
 
 export function useSegnaRicevutaPagata() {
+  const t = useT();
   const queryClient = useQueryClient();
   const invalida = () => {
     refreshFinancialQueries(queryClient);
@@ -68,21 +70,21 @@ export function useSegnaRicevutaPagata() {
     onSuccess: (annullamento, { id, pagata, numero }) => {
       invalida();
       if (pagata && !annullamento) {
-        toast.success(`Fattura ${numero ?? ""} già saldata`);
+        toast.success(t("Fattura {numero} già saldata", { numero: numero ?? "" }));
         return;
       }
-      const messaggio = pagata ? `Fattura ${numero ?? ""}: pagata` : `Fattura ${numero ?? ""}: saldo annullato`;
+      const messaggio = pagata ? t("Fattura {numero}: pagata", { numero: numero ?? "" }) : t("Fattura {numero}: saldo annullato", { numero: numero ?? "" });
       toast.success(messaggio, annullamento ? {
         action: {
-          label: "Annulla",
+          label: t("Annulla"),
           onClick: () => {
             void annullaSaldoRicevuta(id, annullamento).then(invalida)
-              .catch((e) => toast.error("Non annullato", { description: messaggioPagamentoRicevuta(e) }));
+              .catch((e) => toast.error(t("Non annullato"), { description: messaggioPagamentoRicevuta(e) }));
           },
         },
       } : undefined);
     },
-    onError: (e) => toast.error("Pagamento non aggiornato", { description: messaggioPagamentoRicevuta(e) }),
+    onError: (e) => toast.error(t("Pagamento non aggiornato"), { description: messaggioPagamentoRicevuta(e) }),
   });
 }
 
@@ -98,6 +100,7 @@ export const PAROLE_PAGAMENTO_RICEVUTA = { fatto: "Pagata", azione: "Segna pagat
 export function PagamentoRicevutaCella({
   id, numero, tipo, pagataIl, forma = "pulsante",
 }: { id: string; numero: string; tipo: string; pagataIl: string | null | undefined; forma?: "chip" | "icona" | "pulsante" }) {
+  const t = useT();
   const segna = useSegnaRicevutaPagata();
   const inCorso = segna.isPending && segna.variables?.id === id;
   if (nonSiPaga(tipo)) return null;
@@ -109,12 +112,12 @@ export function PagamentoRicevutaCella({
         type="button"
         disabled={inCorso}
         onClick={() => segna.mutate({ id, pagata: false, numero })}
-        title={`${P.fatto} · ${P.annulla}`}
+        title={`${t(P.fatto)} · ${t(P.annulla)}`}
         className="group inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-emerald-50 px-1.5 py-px text-[10px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200 hover:bg-emerald-100"
       >
         {inCorso ? <Loader2 className="h-2.5 w-2.5 shrink-0 animate-spin" /> : <Check className="h-2.5 w-2.5 shrink-0 group-hover:hidden" />}
         {!inCorso && <Undo2 className="hidden h-2.5 w-2.5 shrink-0 group-hover:inline" />}
-        {P.fatto} {formatDateShort(pagataIl)}
+        {t(P.fatto)} {formatDateShort(pagataIl)}
       </button>
     );
   }
@@ -127,8 +130,8 @@ export function PagamentoRicevutaCella({
         className="h-7 w-7 shrink-0"
         disabled={inCorso}
         onClick={() => segna.mutate({ id, pagata: true, numero })}
-        title={P.azione}
-        aria-label={`${P.azione}: fattura ${numero}`}
+        title={t(P.azione)}
+        aria-label={t("{azione}: fattura {numero}", { azione: t(P.azione), numero: String(numero ?? "") })}
       >
         {inCorso ? <Loader2 className="h-4 w-4 animate-spin" /> : <Banknote className="h-4 w-4" />}
       </Button>
@@ -143,7 +146,7 @@ export function PagamentoRicevutaCella({
       className={cn("h-8 gap-1 px-2.5 text-xs")}
     >
       {inCorso ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-      {P.azione}
+      {t(P.azione)}
     </Button>
   );
 }

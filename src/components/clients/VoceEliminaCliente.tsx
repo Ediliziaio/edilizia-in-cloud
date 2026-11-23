@@ -13,6 +13,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function VoceEliminaCliente({
   id,
@@ -31,19 +32,20 @@ export function VoceEliminaCliente({
   avviso?: string;
   disabled?: boolean;
 }) {
+  const t = useT();
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [inCorso, setInCorso] = useState(false);
   const permissions = usePermissions();
   const bloccato = disabled || permissions.isLoading || permissions.solaLettura;
-  const Chi = chi === "cliente" ? "Cliente" : "Committente";
-  const quanteCommesse = `${commesse} ${commesse === 1 ? "ordine associato" : "ordini associati"}`;
+  const cli = chi === "cliente";
+  const ordini = t(commesse === 1 ? "{n} ordine associato" : "{n} ordini associati", { n: commesse });
 
   const elimina = async () => {
     if (bloccato || inCorso) return;
     if (commesse > 0) {
-      toast({ title: "Impossibile eliminare", description: `Il ${chi} ha ${quanteCommesse}. Elimina prima gli ordini.`, variant: "destructive" });
+      toast({ title: t("Impossibile eliminare"), description: (cli ? t("Il cliente ha {ordini}. Elimina prima gli ordini.", { ordini }) : t("Il committente ha {ordini}. Elimina prima gli ordini.", { ordini })), variant: "destructive" });
       return;
     }
     setInCorso(true);
@@ -65,11 +67,11 @@ export function VoceEliminaCliente({
       }
       if (res.data?.error) throw new Error(res.data.error);
       queryClient.invalidateQueries({ queryKey: queryKeys.customersList.all });
-      toast({ title: `${Chi} eliminato`, description: `Il ${chi} è stato eliminato con successo.` });
+      toast({ title: cli ? t("Cliente eliminato") : t("Committente eliminato"), description: cli ? t("Il cliente è stato eliminato con successo.") : t("Il committente è stato eliminato con successo.") });
       navigate(tornaA);
     } catch (error: unknown) {
       logger.error("Error deleting customer:", error);
-      toast({ title: "Errore", description: error instanceof Error ? error.message : `Impossibile eliminare il ${chi}.`, variant: "destructive" });
+      toast({ title: t("Errore"), description: error instanceof Error ? error.message : (cli ? t("Impossibile eliminare il cliente.") : t("Impossibile eliminare il committente.")), variant: "destructive" });
     } finally {
       setInCorso(false);
     }
@@ -79,24 +81,24 @@ export function VoceEliminaCliente({
     <AlertDialog>
       <AlertDialogTrigger asChild>
         <DropdownMenuItem onSelect={(e) => e.preventDefault()} disabled={bloccato || inCorso} className="text-destructive focus:text-destructive">
-          <Trash2 className="h-3.5 w-3.5 mr-2" /> Elimina {chi}
+          <Trash2 className="h-3.5 w-3.5 mr-2" /> {cli ? t("Elimina cliente") : t("Elimina committente")}
         </DropdownMenuItem>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Eliminare questo {chi}?</AlertDialogTitle>
+          <AlertDialogTitle>{cli ? t("Eliminare questo cliente?") : t("Eliminare questo committente?")}</AlertDialogTitle>
           <AlertDialogDescription>
             {commesse > 0
-              ? `Impossibile eliminare: il ${chi} ha ${quanteCommesse}. Elimina prima gli ordini.`
-              : `Questa azione è irreversibile. Il ${chi} e il suo account verranno eliminati permanentemente.${avviso ? ` ${avviso}` : ""}`}
+              ? (cli ? t("Impossibile eliminare: il cliente ha {ordini}. Elimina prima gli ordini.", { ordini }) : t("Impossibile eliminare: il committente ha {ordini}. Elimina prima gli ordini.", { ordini }))
+              : `${cli ? t("Questa azione è irreversibile. Il cliente e il suo account verranno eliminati permanentemente.") : t("Questa azione è irreversibile. Il committente e il suo account verranno eliminati permanentemente.")}${avviso ? ` ${avviso}` : ""}`}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Annulla</AlertDialogCancel>
+          <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
           {commesse === 0 && (
             <AlertDialogAction disabled={bloccato || inCorso} onClick={elimina} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               {inCorso ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Elimina
+              {t("Elimina")}
             </AlertDialogAction>
           )}
         </AlertDialogFooter>

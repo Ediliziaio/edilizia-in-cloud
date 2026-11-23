@@ -19,7 +19,6 @@ import { useState, type ElementType, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import {
   Edit3, FileText, Link2, Loader2, Receipt, Save, ShoppingCart, Truck, Warehouse, X,
 } from "lucide-react";
@@ -43,6 +42,7 @@ import { documentiDb as db } from "@/lib/ddt/documentiPersistenti";
 import { bloccoCollegamento, commesseDellaBolla, nomePersona, statoCaricoMagazzino, type StatoBolla } from "@/lib/ddt/collegamentiBolla";
 import { messaggioPrezzoBolla, salvaCollegamentoDdt } from "@/lib/fatturazione/collegaDdt";
 import { cn } from "@/lib/utils";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const NESSUNO = "__nessuno__";
 const selectCls = "h-9 w-full rounded-md border bg-background px-2 text-sm disabled:opacity-60";
@@ -71,6 +71,7 @@ export function CollegamentiDDTCard({
   /** Porta alle consegne, dove le righe si dividono fra più commesse. */
   onApriConsegne?: () => void;
 }) {
+  const t = useT();
   const permessi = usePermissions();
   const modificabile =
     !permessi.solaLettura &&
@@ -186,10 +187,10 @@ export function CollegamentiDDTCard({
     onSuccess: (cambiato) => {
       setBozza(null);
       if (!cambiato) return;
-      toast.success("Collegamenti aggiornati");
+      toast.success(t("Collegamenti aggiornati"));
       refreshMaterialQueries(qc);
     },
-    onError: (e: Error) => toast.error("Collegamenti non salvati", { description: e.message }),
+    onError: (e: Error) => toast.error(t("Collegamenti non salvati"), { description: e.message }),
   });
 
   const apriModifica = () =>
@@ -220,12 +221,12 @@ export function CollegamentiDDTCard({
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="flex items-center gap-2 text-base">
-            <Link2 className="h-4 w-4 text-primary" /> Collegamenti
+            <Link2 className="h-4 w-4 text-primary" /> {t("Collegamenti")}
           </CardTitle>
           {modificabile && datiPronti && qualcosaModificabile && !bozza && (
             <Button size="sm" variant="ghost" onClick={apriModifica}>
               <Edit3 className="h-3.5 w-3.5 sm:mr-1" />
-              <span className="hidden sm:inline">Modifica</span>
+              <span className="hidden sm:inline">{t("Modifica")}</span>
             </Button>
           )}
         </div>
@@ -246,9 +247,9 @@ export function CollegamentiDDTCard({
           />
         ) : (
           <dl className="divide-y text-sm">
-            <Voce icona={ShoppingCart} etichetta={ordini.length > 1 ? "Ordini al fornitore" : "Ordine al fornitore"}>
+            <Voce icona={ShoppingCart} etichetta={ordini.length > 1 ? t("Ordini al fornitore") : t("Ordine al fornitore")}>
               {ordini.length === 0 ? (
-                <Vuoto>Nessun ordine: la merce è arrivata senza</Vuoto>
+                <Vuoto>{t("Nessun ordine: la merce è arrivata senza")}</Vuoto>
               ) : (
                 <ul className="space-y-0.5">
                   {ordini.map((o) => (
@@ -258,31 +259,31 @@ export function CollegamentiDDTCard({
                       </Link>
                       <span className="text-xs text-muted-foreground">{o.status}</span>
                       {ordini.length > 1 && o.id === ordinePrincipale && (
-                        <Badge variant="secondary" className="px-1.5 text-[10px] font-normal">principale</Badge>
+                        <Badge variant="secondary" className="px-1.5 text-[10px] font-normal">{t("principale")}</Badge>
                       )}
                     </li>
                   ))}
                 </ul>
               )}
             </Voce>
-            <Voce icona={Truck} etichetta="Fornitore">
-              {fornitoreNome ? <span className="font-medium">{fornitoreNome}</span> : <Vuoto>Da indicare</Vuoto>}
+            <Voce icona={Truck} etichetta={t("Fornitore")}>
+              {fornitoreNome ? <span className="font-medium">{fornitoreNome}</span> : <Vuoto>{t("Da indicare")}</Vuoto>}
             </Voce>
-            <Voce icona={FileText} etichetta={commesse.length > 1 ? `Commesse (${commesse.length})` : "Commessa"}>
+            <Voce icona={FileText} etichetta={commesse.length > 1 ? t("Commesse ({n})", { n: commesse.length }) : t("Commessa")}>
               {commesse.length === 0 ? (
-                <Vuoto>Nessuna commessa: merce per il magazzino o da assegnare</Vuoto>
+                <Vuoto>{t("Nessuna commessa: merce per il magazzino o da assegnare")}</Vuoto>
               ) : (
                 <ul className="space-y-0.5">
                   {commesse.map((c) => (
                     <li key={c.id} className="flex flex-wrap items-center gap-1.5">
                       <Link to={`/azienda/ordini/${c.id}`} className="font-medium text-primary hover:underline">
-                        {c.codice || "Commessa"}
+                        {c.codice || t("Commessa")}
                       </Link>
                       {commesse.length > 1 && (
                         <span className="text-xs text-muted-foreground">
-                          {c.principale ? "della bolla" : ""}
+                          {c.principale ? t("della bolla") : ""}
                           {c.principale && c.consegne > 0 ? " · " : ""}
-                          {c.consegne > 0 ? `${c.consegne} ${c.consegne === 1 ? "riga consegnata" : "righe consegnate"}` : ""}
+                          {c.consegne > 0 ? t(c.consegne === 1 ? "{n} riga consegnata" : "{n} righe consegnate", { n: c.consegne }) : ""}
                         </span>
                       )}
                     </li>
@@ -291,46 +292,46 @@ export function CollegamentiDDTCard({
               )}
               {modificabile && onApriConsegne && righeAperte > 0 && (
                 <button type="button" onClick={onApriConsegne} className="mt-1 text-xs text-primary hover:underline">
-                  Dividi le righe su più commesse
+                  {t("Dividi le righe su più commesse")}
                 </button>
               )}
             </Voce>
-            <Voce icona={ddt.destinazione === "cantiere" ? Truck : Warehouse} etichetta="Dove va la merce">
+            <Voce icona={ddt.destinazione === "cantiere" ? Truck : Warehouse} etichetta={t("Dove va la merce")}>
               <span className="font-medium">
                 {destinazioneMista
-                  ? "In parte in cantiere, in parte in magazzino"
+                  ? t("In parte in cantiere, in parte in magazzino")
                   : ddt.destinazione === "cantiere"
-                    ? "Direttamente in cantiere"
+                    ? t("Direttamente in cantiere")
                     : `Magazzino${ddt.warehouses?.name ? ` · ${ddt.warehouses.name}` : ""}`}
               </span>
               <p className="text-xs text-muted-foreground">
                 {ddt.destinazione === "cantiere" && !destinazioneMista && !entrataInMagazzino ? (
-                  "Non entra in giacenza."
+                  t("Non entra in giacenza.")
                 ) : !datiPronti ? null : carico.tipo === "caricata" ? (
-                  `Caricata in magazzino il ${format(new Date(carico.il), "dd/MM/yyyy", { locale: it })}`
+                  t("Caricata in magazzino il {valore}", { valore: format(new Date(carico.il), "dd/MM/yyyy", { locale: dateFnsCampo() }) })
                 ) : carico.tipo === "da_caricare" ? (
                   <>
-                    {carico.righe === 1 ? "1 riga da caricare: " : `${carico.righe} righe da caricare: `}
+                    {carico.righe === 1 ? `${t("1 riga da caricare:")} ` : `${t("{righe} righe da caricare:", { righe: String(carico.righe ?? "") })} `}
                     {onApriConsegne ? (
                       <button type="button" onClick={onApriConsegne} className="text-primary hover:underline">
-                        {carico.righe === 1 ? "confermala qui sotto" : "confermale qui sotto"}
+                        {carico.righe === 1 ? t("confermala qui sotto") : t("confermale qui sotto")}
                       </button>
                     ) : carico.righe === 1 ? (
-                      "confermala qui sotto"
+                      t("confermala qui sotto")
                     ) : (
-                      "confermale qui sotto"
+                      t("confermale qui sotto")
                     )}
                   </>
                 ) : (
-                  "Carico non ancora confermato da questa bolla."
+                  t("Carico non ancora confermato da questa bolla.")
                 )}
               </p>
             </Voce>
-            <Voce icona={Receipt} etichetta="Fattura del fornitore">
+            <Voce icona={Receipt} etichetta={t("Fattura del fornitore")}>
               {fatture.isError ? (
-                <span className="text-xs text-destructive">Non riesco a leggere le fatture.</span>
+                <span className="text-xs text-destructive">{t("Non riesco a leggere le fatture.")}</span>
               ) : (fatture.data ?? []).length === 0 ? (
-                <Vuoto>Non ancora arrivata</Vuoto>
+                <Vuoto>{t("Non ancora arrivata")}</Vuoto>
               ) : (
                 <ul className="space-y-0.5">
                   {(fatture.data ?? []).map((f) => (
@@ -342,7 +343,7 @@ export function CollegamentiDDTCard({
                         n. {f.fatture_ricevute?.numero_fattura ?? "—"}
                       </Link>
                       {f.fatture_ricevute?.data_fattura && (
-                        <span className="text-xs text-muted-foreground"> del {format(new Date(f.fatture_ricevute.data_fattura), "dd/MM/yyyy")}</span>
+                        <span className="text-xs text-muted-foreground">{" "}{t("del {valore}", { valore: format(new Date(f.fatture_ricevute.data_fattura), "dd/MM/yyyy") })}</span>
                       )}
                     </li>
                   ))}
@@ -357,10 +358,10 @@ export function CollegamentiDDTCard({
                   modificabile && !collegaFattura ? (
                     ddt.supplier_id ? (
                       <button type="button" onClick={() => setCollegaFattura(true)} className="text-xs text-primary hover:underline">
-                        Collega una fattura
+                        {t("Collega una fattura")}
                       </button>
                     ) : (
-                      <span className="text-xs text-muted-foreground">Indica il fornitore per collegare la fattura.</span>
+                      <span className="text-xs text-muted-foreground">{t("Indica il fornitore per collegare la fattura.")}</span>
                     )
                   ) : null
                 }
@@ -410,6 +411,7 @@ function FormCollegamenti({
   onSalva: () => void;
   onAnnulla: () => void;
 }) {
+  const t = useT();
   // L'ordine attuale resta nell'elenco anche se è di un altro fornitore.
   const opzioniOrdine = ordiniDisponibili.some((o) => o.id === bozza.purchase_order_id) || !bozza.purchase_order_id || !ddt.purchase_orders
     ? ordiniDisponibili
@@ -417,7 +419,7 @@ function FormCollegamenti({
   return (
     <fieldset disabled={inCorso} className="space-y-3">
       <div className="space-y-1">
-        <Label className="text-xs">Fornitore</Label>
+        <Label className="text-xs">{t("Fornitore")}</Label>
         {blocco.fornitore ? (
           <><p className="text-sm font-medium">{ddt.suppliers?.name ?? ddt.purchase_orders?.suppliers?.name ?? "—"}</p><Bloccato motivo={blocco.fornitore} /></>
         ) : (
@@ -430,9 +432,9 @@ function FormCollegamenti({
         )}
       </div>
       <div className="space-y-1">
-        <Label className="text-xs" htmlFor="ddt-collega-ordine">Ordine al fornitore</Label>
+        <Label className="text-xs" htmlFor="ddt-collega-ordine">{t("Ordine al fornitore")}</Label>
         {blocco.ordine ? (
-          <><p className="font-mono text-sm font-medium">{ddt.purchase_orders?.oda_number ?? "Nessuno"}</p><Bloccato motivo={blocco.ordine} /></>
+          <><p className="font-mono text-sm font-medium">{ddt.purchase_orders?.oda_number ?? t("Nessuno")}</p><Bloccato motivo={blocco.ordine} /></>
         ) : (
           <>
             <UniformSelect
@@ -452,35 +454,35 @@ function FormCollegamenti({
                 });
               }}
             >
-              <option value={NESSUNO}>Nessun ordine</option>
+              <option value={NESSUNO}>{t("Nessun ordine")}</option>
               {opzioniOrdine.map((o) => (
                 <option key={o.id} value={o.id}>{o.oda_number} · {o.status}</option>
               ))}
             </UniformSelect>
-            <p className="text-xs text-muted-foreground">Se la bolla porta più ordini, aggiungili con «Collega ordine» nel controllo ordini.</p>
+            <p className="text-xs text-muted-foreground">{t("Se la bolla porta più ordini, aggiungili con «Collega ordine» nel controllo ordini.")}</p>
           </>
         )}
       </div>
       <div className="space-y-1">
-        <Label className="text-xs">Commessa della bolla</Label>
+        <Label className="text-xs">{t("Commessa della bolla")}</Label>
         <OrderSelectCombobox
           companyId={ddt.company_id}
           value={bozza.order_id ?? undefined}
           filtroIniziale="all"
-          ariaLabel="Commessa della bolla"
+          ariaLabel={t("Commessa della bolla")}
           onChange={(id) => setBozza({ ...bozza, order_id: id })}
         />
         <div className="flex items-start justify-between gap-2">
-          <p className="text-xs text-muted-foreground">Vale per le righe ancora da consegnare; quelle già consegnate tengono la loro.</p>
+          <p className="text-xs text-muted-foreground">{t("Vale per le righe ancora da consegnare; quelle già consegnate tengono la loro.")}</p>
           {bozza.order_id && (
             <button type="button" className="shrink-0 text-xs text-primary hover:underline" onClick={() => setBozza({ ...bozza, order_id: null })}>
-              Nessuna
+              {t("Nessuna")}
             </button>
           )}
         </div>
       </div>
       <div className="space-y-1">
-        <Label className="text-xs" htmlFor="ddt-collega-destinazione">Dove va la merce</Label>
+        <Label className="text-xs" htmlFor="ddt-collega-destinazione">{t("Dove va la merce")}</Label>
         {blocco.destinazione ? (
           <Bloccato motivo={blocco.destinazione} />
         ) : (
@@ -491,8 +493,8 @@ function FormCollegamenti({
               value={bozza.destinazione}
               onChange={(e) => setBozza({ ...bozza, destinazione: e.target.value as Bozza["destinazione"] })}
             >
-              <option value="cantiere">Direttamente in cantiere</option>
-              {(puoMagazzino || ddt.destinazione === "magazzino") && <option value="magazzino">In magazzino</option>}
+              <option value="cantiere">{t("Direttamente in cantiere")}</option>
+              {(puoMagazzino || ddt.destinazione === "magazzino") && <option value="magazzino">{t("In magazzino")}</option>}
             </UniformSelect>
             {bozza.destinazione === "magazzino" && (
               <WarehouseSelect value={bozza.warehouse_id} onChange={(v) => setBozza({ ...bozza, warehouse_id: v ?? null })} />
@@ -502,10 +504,10 @@ function FormCollegamenti({
       </div>
       <div className="flex justify-end gap-2 pt-1">
         <Button type="button" size="sm" variant="ghost" onClick={onAnnulla}>
-          <X className="mr-1 h-3.5 w-3.5" /> Annulla
+          <X className="mr-1 h-3.5 w-3.5" /> {t("Annulla")}
         </Button>
         <Button type="button" size="sm" onClick={onSalva}>
-          {inCorso ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Save className="mr-1 h-3.5 w-3.5" /> Salva</>}
+          {inCorso ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Save className="mr-1 h-3.5 w-3.5" /> {t("Salva")}</>}
         </Button>
       </div>
     </fieldset>
@@ -514,6 +516,7 @@ function FormCollegamenti({
 
 /** Collega una fattura già registrata del fornitore della bolla. */
 function ScegliFattura({ ddt, onChiudi }: { ddt: DDTRicezioneWithJoins; onChiudi: () => void }) {
+  const t = useT();
   const qc = useQueryClient();
   const [cerca, setCerca] = useState("");
   const termine = useDebounce(cerca.trim(), 300);
@@ -529,29 +532,29 @@ function ScegliFattura({ ddt, onChiudi }: { ddt: DDTRicezioneWithJoins; onChiudi
     mutationFn: (fatturaId: string) =>
       salvaCollegamentoDdt({ companyId: ddt.company_id, fatturaId, ddtId: ddt.id, numero: ddt.numero_ddt, data: ddt.data_ricezione }),
     onSuccess: (esito) => {
-      toast.success("Fattura collegata alla bolla", { description: messaggioPrezzoBolla(esito?.prezzo) ?? undefined });
+      toast.success(t("Fattura collegata alla bolla"), { description: messaggioPrezzoBolla(esito?.prezzo) ?? undefined });
       refreshMaterialQueries(qc);
       void qc.invalidateQueries({ queryKey: ["ddt-valorizzazioni", ddt.company_id, ddt.id] });
       void qc.invalidateQueries({ queryKey: ["ddt-fatture-collegate", ddt.company_id, ddt.id] });
       onChiudi();
     },
-    onError: (e: Error) => toast.error("Fattura non collegata", { description: e.message }),
+    onError: (e: Error) => toast.error(t("Fattura non collegata"), { description: e.message }),
   });
   return (
     <div className="mt-2 space-y-2 rounded-md border bg-muted/20 p-2">
       <Input
-        aria-label="Cerca la fattura del fornitore"
-        placeholder="Numero o data della fattura"
+        aria-label={t("Cerca la fattura del fornitore")}
+        placeholder={t("Numero o data della fattura")}
         className="h-8 text-sm"
         value={cerca}
         onChange={(e) => setCerca(e.target.value)}
       />
       {elenco.isLoading ? (
-        <p className="text-xs text-muted-foreground">Cerco…</p>
+        <p className="text-xs text-muted-foreground">{t("Cerco…")}</p>
       ) : elenco.isError ? (
-        <p className="text-xs text-destructive">Fatture non disponibili.</p>
+        <p className="text-xs text-destructive">{t("Fatture non disponibili.")}</p>
       ) : (elenco.data ?? []).length === 0 ? (
-        <p className="text-xs text-muted-foreground">Nessuna fattura di questo fornitore da collegare.</p>
+        <p className="text-xs text-muted-foreground">{t("Nessuna fattura di questo fornitore da collegare.")}</p>
       ) : (
         <ul className="max-h-48 divide-y overflow-y-auto rounded border bg-background">
           {(elenco.data ?? []).map((f) => (
@@ -571,7 +574,7 @@ function ScegliFattura({ ddt, onChiudi }: { ddt: DDTRicezioneWithJoins; onChiudi
       )}
       <div className="flex justify-end">
         <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" onClick={onChiudi}>
-          Chiudi
+          {t("Chiudi")}
         </Button>
       </div>
     </div>
@@ -580,6 +583,7 @@ function ScegliFattura({ ddt, onChiudi }: { ddt: DDTRicezioneWithJoins; onChiudi
 
 /** Quando è nata la bolla, chi l'ha registrata, quando è stata verificata. */
 export function TimelineBolla({ ddt }: { ddt: DDTRicezione }) {
+  const t = useT();
   const autore = useQuery({
     queryKey: ["profilo-nome", ddt.created_by],
     enabled: !!ddt.created_by,
@@ -598,21 +602,21 @@ export function TimelineBolla({ ddt }: { ddt: DDTRicezione }) {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">Storia della bolla</CardTitle>
+        <CardTitle className="text-base">{t("Storia della bolla")}</CardTitle>
       </CardHeader>
       <CardContent className="pt-0">
         <ol className="space-y-2 text-sm">
           <li className="flex items-start gap-2">
             <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-sky-500" />
             <span>
-              Registrata il {format(new Date(ddt.created_at), "dd/MM/yyyy 'alle' HH:mm", { locale: it })}
-              {nome && <span className="text-muted-foreground"> da {nome}</span>}
+              {t("Registrata il {data} alle {ora}", { data: format(new Date(ddt.created_at), "dd/MM/yyyy"), ora: format(new Date(ddt.created_at), "HH:mm") })}
+              {nome && <span className="text-muted-foreground">{" "}{t("da {nome}", { nome: String(nome ?? "") })}</span>}
             </span>
           </li>
           {ddt.verified_at && (
             <li className="flex items-start gap-2">
               <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-emerald-600" />
-              <span>Verificata il {format(new Date(ddt.verified_at), "dd/MM/yyyy 'alle' HH:mm", { locale: it })}</span>
+              <span>{t("Verificata il {data} alle {ora}", { data: format(new Date(ddt.verified_at), "dd/MM/yyyy"), ora: format(new Date(ddt.verified_at), "HH:mm") })}</span>
             </li>
           )}
         </ol>

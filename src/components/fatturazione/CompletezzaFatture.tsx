@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { formatDateShort } from "@/lib/formatters";
 import { tutteLePagine } from "@/lib/fatturazione/registroVendite";
 import { buchiNumerazione, fatturePerMese, fuoriSequenza, testoIntervalli, totaleMancanti, type DocumentoNumerato } from "@/lib/fatturazione/completezzaFatture";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * «Ho controllato»: l'avviso si può togliere, e torna se i numeri cambiano (16/11/2026).
@@ -25,9 +26,10 @@ function segnaVisto(companyId: string, firma: string): void {
   try { localStorage.setItem(CHIAVE_VISTO(companyId), firma); } catch { /* niente: l'avviso resta */ }
 }
 
-const ETICHETTA_MESE = (k: string) => new Date(`${k}-15`).toLocaleDateString("it-IT", { month: "short", year: "2-digit" });
+const ETICHETTA_MESE = (k: string) => new Date(`${k}-15`).toLocaleDateString(intlCampo(), { month: "short", year: "2-digit" });
 
 function Mesi({ titolo, date, oggi }: { titolo: string; date: Array<string | null>; oggi: string }) {
+  const t = useT();
   const mesi = useMemo(() => fatturePerMese(date, oggi), [date, oggi]);
   if (!mesi.length) return null;
   return (
@@ -35,7 +37,7 @@ function Mesi({ titolo, date, oggi }: { titolo: string; date: Array<string | nul
       <p className="mb-1 text-sm font-medium">{titolo}</p>
       <div className="flex flex-wrap gap-1.5">
         {mesi.map((m) => (
-          <span key={m.mese} title={m.sospetto ? "Molto sotto la media: controlla se mancano fatture" : undefined}
+          <span key={m.mese} title={m.sospetto ? t("Molto sotto la media: controlla se mancano fatture") : undefined}
             className={`rounded border px-1.5 py-0.5 text-xs tabular-nums ${m.sospetto ? "border-amber-400 bg-amber-50 font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300" : "text-muted-foreground"}`}>
             {ETICHETTA_MESE(m.mese)} · {m.quante}
           </span>
@@ -46,6 +48,7 @@ function Mesi({ titolo, date, oggi }: { titolo: string; date: Array<string | nul
 }
 
 export function CompletezzaFatture({ companyId }: { companyId: string }) {
+  const t = useT();
   const [aperto, setAperto] = useState(false);
   const oggi = useMemo(() => new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Rome" }), []);
   const { data } = useQuery({
@@ -86,7 +89,7 @@ export function CompletezzaFatture({ companyId }: { companyId: string }) {
           {tuttoOk ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />}
           <span className="flex-1">
             {tuttoOk
-              ? "Fatture complete: nessun numero saltato"
+              ? t("Fatture complete: nessun numero saltato")
               : [mancanti > 0 ? `Mancano ${mancanti} numeri nelle emesse` : null, mesiSospetti > 0 ? `${mesiSospetti} mesi da controllare` : null, fuori.length > 0 ? `${fuori.length} fuori ordine` : null].filter(Boolean).join(" · ")}
           </span>
           <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${aperto ? "rotate-180" : ""}`} />
@@ -94,23 +97,23 @@ export function CompletezzaFatture({ companyId }: { companyId: string }) {
         {aperto && (
           <div className="mt-3 space-y-3 text-sm">
             {buchi.filter((b) => b.mancanti.length > 0).map((b) => (
-              <p key={`${b.anno}${b.serie}`}><span className="font-medium">Emesse {b.anno}, {b.mancanti.length} mancanti:</span> {testoIntervalli(b)}</p>
+              <p key={`${b.anno}${b.serie}`}><span className="font-medium">{t("Emesse {anno}, {n} mancanti:", { anno: b.anno, n: b.mancanti.length })}</span> {testoIntervalli(b)}</p>
             ))}
             {fuori.length > 0 && (
-              <p><span className="font-medium">Numero alto ma data vecchia:</span> {fuori.slice(0, 20).map((d) => `${d.numero} del ${d.data ? formatDateShort(d.data) : "?"}`).join(", ")}</p>
+              <p><span className="font-medium">{t("Numero alto ma data vecchia:")}</span> {fuori.slice(0, 20).map((d) => t("{numero} del {data}", { numero: d.numero ?? "", data: d.data ? formatDateShort(d.data) : "?" })).join(", ")}</p>
             )}
-            <Mesi titolo="Emesse per mese" date={dateEmesse} oggi={oggi} />
-            <Mesi titolo="Ricevute per mese" date={dateRicevute} oggi={oggi} />
+            <Mesi titolo={t("Emesse per mese")} date={dateEmesse} oggi={oggi} />
+            <Mesi titolo={t("Ricevute per mese")} date={dateRicevute} oggi={oggi} />
             <p className="text-xs text-muted-foreground">
-              Un numero saltato può essere una fattura non caricata, o annullata. Sulle ricevute la numerazione è di ogni fornitore: si può solo segnalare il mese sospetto, la prova certa è il cassetto fiscale.
+              {t("Un numero saltato può essere una fattura non caricata, o annullata. Sulle ricevute la numerazione è di ogni fornitore: si può solo segnalare il mese sospetto, la prova certa è il cassetto fiscale.")}
             </p>
           </div>
         )}
         </div>
         <button
           type="button"
-          aria-label="Ho controllato, non mostrare più questo avviso"
-          title="Ho controllato: torna solo se i numeri cambiano"
+          aria-label={t("Ho controllato, non mostrare più questo avviso")}
+          title={t("Ho controllato: torna solo se i numeri cambiano")}
           className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
           onClick={() => { segnaVisto(companyId, firma); setVisto(firma); }}
         >

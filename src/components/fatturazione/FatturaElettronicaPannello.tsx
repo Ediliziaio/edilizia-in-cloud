@@ -30,6 +30,7 @@ import type { AnagraficaAzienda, DocumentoFiscale } from "@/types/fatturazione";
 import { avvisoEmissione } from "@/lib/fatturazione/emissioneBozza";
 import { annoDelDocumento } from "@/lib/fatturazione/primaEmissione";
 import { AvvisoNumerazione } from "@/components/fatturazione/AvvisoNumerazione";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   doc: DocumentoFiscale;
@@ -93,6 +94,7 @@ const PASSI: Record<FaseSdi | "bozza", string[]> = {
 };
 
 export function FatturaElettronicaPannello({ doc, azienda, tipoLabel, onInvia, isInvio, onAggiorna, isAggiorna, onEsportaXml, onEmetti, isEmitting }: Props) {
+  const t = useT();
   const [cosaFare, setCosaFare] = useState(false);
   const [vista, setVista] = useState<{ html: string; titolo: string } | null>(null);
   const [verifica, setVerifica] = useState<RisultatoVerifica | null>(null);
@@ -105,11 +107,11 @@ export function FatturaElettronicaPannello({ doc, azienda, tipoLabel, onInvia, i
   const fase: FaseSdi | "bozza" = f?.fase ?? "bozza";
   const tono = TONI[f ? f.tono : "neutro"];
   const Icona = !f ? Info : f.tono === "ok" ? CheckCircle2 : f.tono === "errore" ? XCircle : f.fase === "invio_in_corso" ? Loader2 : f.tono === "lavoro" ? Clock : Send;
-  const titolo = !f ? "Bozza" : ({
+  const titolo = t(!f ? "Bozza" : ({
     da_inviare: "Da inviare allo SDI", invio_in_corso: "Invio in corso…", in_elaborazione: "In elaborazione allo SDI",
     inviata: "Inviata", accettata: "Accettata", scartata: "Scartata dallo SDI", rifiutata_ente: "Rifiutata dall'ente", manuale: "XML da caricare a mano",
-  } as Record<FaseSdi, string>)[f.fase];
-  const sottotitolo = !f ? "Non è ancora stata emessa né inviata: è modificabile." : f.spiegazione;
+  } as Record<FaseSdi, string>)[f.fase]);
+  const sottotitolo = !f ? t("Non è ancora stata emessa né inviata: è modificabile.") : t(f.spiegazione);
   const motivo = f?.fase === "scartata" ? motivoSdi(doc.sdi_errori) : null;
   const erroreInvio = f?.fase === "da_inviare" ? motivoSdi(doc.sdi_errori) : null;
   const inviabile = !!f && puoInviare(doc as never) && !!onInvia;
@@ -122,10 +124,10 @@ export function FatturaElettronicaPannello({ doc, azienda, tipoLabel, onInvia, i
     try {
       const { xml } = await leggiXmlFattura(doc, azienda);
       const v = fatturaXmlTabellareHtml(xml, { direzione: 'emessa', dentroIframe: true });
-      if (!v) throw new Error("L'XML non è leggibile come fattura: lancia «Verifica formale».");
+      if (!v) throw new Error(t("L'XML non è leggibile come fattura: lancia «Verifica formale»."));
       setVista(v);
     } catch (e) {
-      toast.error("Impossibile mostrare la fattura elettronica", { description: e instanceof Error ? e.message : undefined });
+      toast.error(t("Impossibile mostrare la fattura elettronica"), { description: e instanceof Error ? e.message : undefined });
     } finally {
       setLavoro(null);
     }
@@ -140,8 +142,8 @@ export function FatturaElettronicaPannello({ doc, azienda, tipoLabel, onInvia, i
       const a = document.createElement("a");
       a.href = url; a.download = `Fattura_elettronica_${String(doc.numero || "anteprima").replace(/[^a-zA-Z0-9_-]/g,"_")}.pdf`;
       document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30_000);
-      toast.success(partito ? "PDF dall’XML originale preparato" : "PDF di anteprima preparato", { description: partito ? "Il PDF rappresenta il file XML archiviato." : "La fattura non risulta ancora trasmessa allo SDI." });
-    } catch(e) { toast.error("PDF da XML non disponibile", { description: e instanceof Error ? e.message : undefined }); }
+      toast.success(partito ? t("PDF dall’XML originale preparato") : t("PDF di anteprima preparato"), { description: partito ? t("Il PDF rappresenta il file XML archiviato.") : t("La fattura non risulta ancora trasmessa allo SDI.") });
+    } catch(e) { toast.error(t("PDF da XML non disponibile"), { description: e instanceof Error ? e.message : undefined }); }
     finally { setLavoro(null); }
   };
 
@@ -162,38 +164,38 @@ export function FatturaElettronicaPannello({ doc, azienda, tipoLabel, onInvia, i
     <>
       <section
         className={cn("mx-auto w-full max-w-4xl rounded-xl border px-4 py-4 text-center shadow-sm max-sm:px-3 max-sm:py-3", tono.riquadro, tono.testo)}
-        role="status" aria-live="polite" aria-label="Stato fattura elettronica"
+        role="status" aria-live="polite" aria-label={t("Stato fattura elettronica")}
       >
         <div className="flex items-center justify-center gap-2">
           <Icona className={cn("h-5 w-5", f?.fase === "invio_in_corso" && "animate-spin")} aria-hidden="true" />
           <p className="text-base font-semibold max-sm:text-sm">
-            <span className="font-normal opacity-80">Stato fattura elettronica: </span>{titolo}
+            <span className="font-normal opacity-80">{t("Stato fattura elettronica:")} </span>{titolo}
           </p>
         </div>
         <p className="mx-auto mt-1 max-w-2xl text-sm opacity-90 max-md:hidden">{sottotitolo}</p>
-        {motivo && <p className="mt-1 text-sm font-medium">Motivo: {motivo}</p>}
-        {erroreInvio && <p className="mt-1 text-sm font-medium">Ultimo tentativo non riuscito: {erroreInvio}</p>}
+        {motivo && <p className="mt-1 text-sm font-medium">{t("Motivo: {motivo}", { motivo })}</p>}
+        {erroreInvio && <p className="mt-1 text-sm font-medium">{t("Ultimo tentativo non riuscito: {erroreInvio}", { erroreInvio })}</p>}
 
         <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
           <Button variant="outline" size="sm" className={cn(btn, "max-sm:hidden")} onClick={() => setCosaFare(true)}>
-            <HelpCircle className="h-4 w-4" /> Cosa fare
+            <HelpCircle className="h-4 w-4" /> {t("Cosa fare")}
           </Button>
           <Button variant="outline" size="sm" className={btn} onClick={() => void scaricaPdfXml()} disabled={!!lavoro}>
-            {lavoro === "pdf" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />} Scarica PDF da XML
+            {lavoro === "pdf" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />} {t("Scarica PDF da XML")}
           </Button>
           <Button variant="outline" size="sm" className={btn} onClick={() => void apriVista()} disabled={!!lavoro}>
-            {lavoro === "vista" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSearch className="h-4 w-4" />} Visualizza fattura elettronica
+            {lavoro === "vista" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSearch className="h-4 w-4" />} {t("Visualizza fattura elettronica")}
           </Button>
           <Button variant="outline" size="sm" className={cn(btn, "max-sm:hidden")} onClick={() => void apriVerifica()} disabled={!!lavoro}>
-            {lavoro === "verifica" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardCheck className="h-4 w-4" />} Verifica formale
+            {lavoro === "verifica" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardCheck className="h-4 w-4" />} {t("Verifica formale")}
           </Button>
           <Button variant="outline" size="sm" className={cn(btn, "max-sm:hidden")} onClick={onEsportaXml}>
-            <FileDown className="h-4 w-4" /> Esporta XML
+            <FileDown className="h-4 w-4" /> {t("Esporta XML")}
           </Button>
 
           {f?.fase === "in_elaborazione" && onAggiorna && (
             <Button variant="outline" size="sm" className={btn} onClick={onAggiorna} disabled={isAggiorna}>
-              {isAggiorna ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Aggiorna stato
+              {isAggiorna ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} {t("Aggiorna stato")}
             </Button>
           )}
 
@@ -202,22 +204,20 @@ export function FatturaElettronicaPannello({ doc, azienda, tipoLabel, onInvia, i
               <AlertDialogTrigger asChild>
                 <Button size="sm" className="h-9 gap-1.5 text-xs font-medium shadow-sm max-sm:h-8" disabled={isEmitting}>
                   {isEmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                  {isEmitting ? "Emissione…" : "Emetti"}
+                  {isEmitting ? t("Emissione…") : t("Emetti")}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Emetti documento</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Emetti questa {tipoLabel}? {avvisoEmissione(doc)} L'emissione non può essere annullata.
-                  </AlertDialogDescription>
+                  <AlertDialogTitle>{t("Emetti documento")}</AlertDialogTitle>
+                  <AlertDialogDescription>{t("Emetti questa {tipoLabel}? {avviso} L'emissione non può essere annullata.", { tipoLabel: t(tipoLabel), avviso: t(avvisoEmissione(doc)) })}</AlertDialogDescription>
                   {/* La numerazione, finché si è in tempo (16/11/2026). */}
                   <AvvisoNumerazione companyId={doc.company_id} tipo={doc.tipo} anno={annoDelDocumento(doc)} />
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Annulla</AlertDialogCancel>
+                  <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
                   <AlertDialogAction onClick={onEmetti} disabled={isEmitting}>
-                    {isEmitting ? "Emissione in corso…" : "Emetti documento"}
+                    {isEmitting ? t("Emissione in corso…") : t("Emetti documento")}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -229,21 +229,21 @@ export function FatturaElettronicaPannello({ doc, azienda, tipoLabel, onInvia, i
               <AlertDialogTrigger asChild>
                 <Button size="sm" className="h-9 gap-1.5 bg-blue-600 text-xs font-medium text-white shadow-sm hover:bg-blue-700 max-sm:h-8" disabled={isInvio}>
                   {isInvio ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  {scartata ? "Rimanda allo SDI" : "Invia allo SDI"}
+                  {scartata ? t("Rimanda allo SDI") : t("Invia allo SDI")}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>{scartata ? "Rimandare la fattura corretta?" : "Inviare la fattura allo SDI?"}</AlertDialogTitle>
+                  <AlertDialogTitle>{scartata ? t("Rimandare la fattura corretta?") : t("Inviare la fattura allo SDI?")}</AlertDialogTitle>
                   <AlertDialogDescription>
                     {scartata
-                      ? `${tipoLabel} n. ${doc.numero ?? ""} riparte con lo stesso numero e la stessa data, con i dati come sono adesso. Controlla di aver corretto il motivo dello scarto.`
-                      : `${tipoLabel} n. ${doc.numero ?? ""} parte verso il Sistema di Interscambio. Dopo l'invio non si modifica più: se lo SDI la scarta, potrai correggerla e rimandarla.`}
+                      ? t("{tipo} n. {numero} riparte con lo stesso numero e la stessa data, con i dati come sono adesso. Controlla di aver corretto il motivo dello scarto.", { tipo: t(tipoLabel), numero: doc.numero ?? "" })
+                      : t("{tipo} n. {numero} parte verso il Sistema di Interscambio. Dopo l'invio non si modifica più: se lo SDI la scarta, potrai correggerla e rimandarla.", { tipo: t(tipoLabel), numero: doc.numero ?? "" })}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Annulla</AlertDialogCancel>
-                  <AlertDialogAction onClick={onInvia} className="bg-blue-600 hover:bg-blue-700">{scartata ? "Rimanda" : "Invia"}</AlertDialogAction>
+                  <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
+                  <AlertDialogAction onClick={onInvia} className="bg-blue-600 hover:bg-blue-700">{scartata ? t("Rimanda") : t("Invia")}</AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
@@ -255,11 +255,11 @@ export function FatturaElettronicaPannello({ doc, azienda, tipoLabel, onInvia, i
       <Dialog open={cosaFare} onOpenChange={setCosaFare}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><HelpCircle className="h-5 w-5" /> Cosa fare adesso</DialogTitle>
+            <DialogTitle className="flex items-center gap-2"><HelpCircle className="h-5 w-5" /> {t("Cosa fare adesso")}</DialogTitle>
             <DialogDescription>{titolo}</DialogDescription>
           </DialogHeader>
           <ol className="list-decimal space-y-2 pl-5 text-sm marker:font-semibold">
-            {PASSI[fase].map((p) => <li key={p}>{p}</li>)}
+            {PASSI[fase].map((p) => <li key={p}>{t(p)}</li>)}
           </ol>
         </DialogContent>
       </Dialog>
@@ -274,13 +274,13 @@ export function FatturaElettronicaPannello({ doc, azienda, tipoLabel, onInvia, i
               onClick={() => {
                 if (!vista) return;
                 stampaPreventivoNativo(vista.html, vista.titolo).catch((e: unknown) =>
-                  toast.error("Impossibile preparare la stampa", { description: e instanceof Error ? e.message : undefined }));
+                  toast.error(t("Impossibile preparare la stampa"), { description: e instanceof Error ? e.message : undefined }));
               }}
             >
-              <Printer className="mr-1.5 h-3.5 w-3.5" /> Stampa / Salva PDF
+              <Printer className="mr-1.5 h-3.5 w-3.5" /> {t("Stampa / Salva PDF")}
             </Button>
           </DialogHeader>
-          <DialogDescription className="sr-only">Dati della fattura elettronica letti dal file XML.</DialogDescription>
+          <DialogDescription className="sr-only">{t("Dati della fattura elettronica letti dal file XML.")}</DialogDescription>
           {vista && <iframe title={vista.titolo} srcDoc={vista.html} sandbox="" className="min-h-0 w-full flex-1 border-0 bg-white" />}
         </DialogContent>
       </Dialog>
@@ -289,24 +289,24 @@ export function FatturaElettronicaPannello({ doc, azienda, tipoLabel, onInvia, i
       <Dialog open={!!verifica} onOpenChange={(o) => { if (!o) setVerifica(null); }}>
         <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><ClipboardCheck className="h-5 w-5" /> Verifica formale</DialogTitle>
+            <DialogTitle className="flex items-center gap-2"><ClipboardCheck className="h-5 w-5" /> {t("Verifica formale")}</DialogTitle>
             <DialogDescription>
               {verifica && (verifica.errori === 0
-                ? (verifica.avvisi === 0 ? "Tutto a posto: non risultano problemi." : `Nessun errore, ${verifica.avvisi} da guardare.`)
-                : `${verifica.errori} ${verifica.errori === 1 ? "problema da correggere" : "problemi da correggere"} prima dell'invio.`)}
+                ? (verifica.avvisi === 0 ? t("Tutto a posto: non risultano problemi.") : t("Nessun errore, {avvisi} da guardare.", { avvisi: verifica.avvisi }))
+                : t(verifica.errori === 1 ? "{n} problema da correggere prima dell'invio." : "{n} problemi da correggere prima dell'invio.", { n: verifica.errori }))}
             </DialogDescription>
           </DialogHeader>
           <ul className="space-y-1.5 text-sm">
             {verifica?.voci.map((v, i) => (
               <li key={`${i}-${v.testo}`} className="flex items-start gap-2">
-                {v.esito === "ok" && <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" aria-label="a posto" />}
-                {v.esito === "avviso" && <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-label="attenzione" />}
-                {v.esito === "errore" && <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" aria-label="errore" />}
+                {v.esito === "ok" && <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" aria-label={t("a posto")} />}
+                {v.esito === "avviso" && <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-label={t("attenzione")} />}
+                {v.esito === "errore" && <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" aria-label={t("errore")} />}
                 <span className={cn(v.esito === "errore" && "font-medium text-red-700 dark:text-red-300")}>{v.testo}</span>
               </li>
             ))}
           </ul>
-          <p className="text-xs text-muted-foreground">Controllo sui dati che abbiamo. Il verdetto definitivo lo dà lo SDI.</p>
+          <p className="text-xs text-muted-foreground">{t("Controllo sui dati che abbiamo. Il verdetto definitivo lo dà lo SDI.")}</p>
         </DialogContent>
       </Dialog>
     </>

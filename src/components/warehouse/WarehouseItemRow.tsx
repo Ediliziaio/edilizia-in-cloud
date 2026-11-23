@@ -25,6 +25,7 @@ import { MapPin, StickyNote, PackageCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { STATUS_CONFIG } from "@/types/warehouse";
 import type { OrderItemStatus, WarehouseItem } from "@/types/warehouse";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface WarehouseSection {
   id: string;
@@ -56,6 +57,7 @@ function ItemNotePopover({
   item: WarehouseItem;
   onUpdateNotes?: (itemId: string, notes: string | null) => void;
 }) {
+  const t = useT();
   const [noteText, setNoteText] = useState(item.notes || "");
   const [open, setOpen] = useState(false);
 
@@ -75,16 +77,16 @@ function ItemNotePopover({
         <Textarea
           value={noteText}
           onChange={(e) => setNoteText(e.target.value)}
-          placeholder="Aggiungi nota..."
+          placeholder={t("Aggiungi nota...")}
           className="text-sm min-h-[60px]"
         />
         <div className="flex justify-end gap-2 mt-2">
           {item.notes && (
             <Button variant="ghost" size="sm" onClick={() => { onUpdateNotes?.(item.id, null); setOpen(false); }}>
-              Cancella
+              {t("Cancella")}
             </Button>
           )}
-          <Button size="sm" onClick={handleSave}>Salva</Button>
+          <Button size="sm" onClick={handleSave}>{t("Salva")}</Button>
         </div>
       </PopoverContent>
     </Popover>
@@ -107,6 +109,7 @@ const WarehouseItemRow = React.memo(function WarehouseItemRow({
   onSectionChange,
   readOnly = false,
 }: WarehouseItemRowProps) {
+  const t = useT();
   const statusConfig = STATUS_CONFIG[item.status] ?? STATUS_CONFIG.da_ordinare;
 
   return (
@@ -143,18 +146,18 @@ const WarehouseItemRow = React.memo(function WarehouseItemRow({
                 <TooltipTrigger asChild>
                   <Badge variant="outline" className="bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400 text-xs shrink-0 gap-1">
                     <PackageCheck className="h-3 w-3" />
-                    {fmt(stockMatch.quantity)} in giacenza
+                    {t("{n} in giacenza", { n: fmt(stockMatch.quantity) })}
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent>
-                  Giacenza fisica dell’articolo associato: {stockMatch.name} ({fmt(stockMatch.quantity)} {item.unita_misura ?? ""}). Include le quantità impegnate per altre commesse.
+                  {t("Giacenza fisica dell’articolo associato: {nome} ({quantita} {unita}). Include le quantità impegnate per altre commesse.", { nome: stockMatch.name, quantita: fmt(stockMatch.quantity), unita: item.unita_misura ?? "" })}
                 </TooltipContent>
               </Tooltip>
             )}
           </div>
-          {preparation ? <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-4" aria-label={`Quantità commessa ${item.name}`}>
-            {[["Previsti", preparation.previsti],["Prenotati",preparation.impegnato],["Fuori deposito",preparation.fuori],["Da coprire",preparation.daCoprire]].map(([label, quantity]) => <div key={label}><dt className="text-muted-foreground">{label}</dt><dd className="font-semibold tabular-nums">{fmt(Number(quantity))} {item.unita_misura ?? ""}</dd></div>)}
-          </dl> : <p className="mt-1 text-xs text-muted-foreground">{item.stock_item_id ? "Quantità da verificare" : "Associa un articolo per verificare prenotazioni e prelievi"}</p>}
+          {preparation ? <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-4" aria-label={t("Quantità commessa {name}", { name: String(item.name ?? "") })}>
+            {[["Previsti", preparation.previsti],["Prenotati",preparation.impegnato],["Fuori deposito",preparation.fuori],["Da coprire",preparation.daCoprire]].map(([label, quantity]) => <div key={label}><dt className="text-muted-foreground">{t(String(label))}</dt><dd className="font-semibold tabular-nums">{fmt(Number(quantity))} {item.unita_misura ?? ""}</dd></div>)}
+          </dl> : <p className="mt-1 text-xs text-muted-foreground">{item.stock_item_id ? t("Quantità da verificare") : t("Associa un articolo per verificare prenotazioni e prelievi")}</p>}
           {(supplierName || (isSupplierGroup && item.order.order_code)) && (
             <p className="text-xs text-muted-foreground truncate">
               {isSupplierGroup
@@ -176,10 +179,10 @@ const WarehouseItemRow = React.memo(function WarehouseItemRow({
           >
             <SelectTrigger className="tap-compact h-8 w-[38%] shrink-0 gap-1 border-dashed text-xs sm:hidden">
               <MapPin className="h-3 w-3 shrink-0 text-muted-foreground" />
-              <span className="truncate">{sections.find((z) => z.id === item.section_id)?.name ?? "Zona"}</span>
+              <span className="truncate">{sections.find((z) => z.id === item.section_id)?.name ?? t("Zona")}</span>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="__none__">Nessuna zona</SelectItem>
+              <SelectItem value="__none__">{t("Nessuna zona")}</SelectItem>
               {sections.map((z) => (
                 <SelectItem key={z.id} value={z.id}>{z.name}</SelectItem>
               ))}
@@ -195,7 +198,7 @@ const WarehouseItemRow = React.memo(function WarehouseItemRow({
               statusConfig.color,
             )}
           >
-            {statusConfig.label}
+            {t(statusConfig.label)}
           </Badge>
         ) : (
           <Select
@@ -210,12 +213,12 @@ const WarehouseItemRow = React.memo(function WarehouseItemRow({
                 statusConfig.color
               )}
             >
-              <span className="truncate">{statusConfig.label}</span>
+              <span className="truncate">{t(statusConfig.label)}</span>
             </SelectTrigger>
             <SelectContent>
               {Object.entries(STATUS_CONFIG).map(([status, config]) => (
                 <SelectItem key={status} value={status}>
-                  {config.label}
+                  {t(config.label)}
                 </SelectItem>
               ))}
             </SelectContent>

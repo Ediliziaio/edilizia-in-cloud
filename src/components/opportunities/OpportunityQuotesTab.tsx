@@ -47,6 +47,7 @@ import { allegaSchedeTecniche, avvisoSchedeNonAllegate } from "@/lib/quotes/alle
 import {
   gruppoPreventivo as gruppoDi, ordinaPreventivi, riepilogoPreventivi, scadenzaPreventivo, valoreProposto, visioneCliente,
 } from "@/lib/quotes/riepilogoPreventivi";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   contactId: string | null;
@@ -122,6 +123,7 @@ const emptyItem = (vat_rate = 22): QuoteItemRow => ({
 });
 
 export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Props) {
+  const t = useT();
   const navigate = useNavigate();
   // Rotte relative al contesto: dall'hub admin si resta su /admin/marketing
   // (prima si finiva su /azienda/* perdendo il PlatformCompanyProvider).
@@ -186,8 +188,8 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
     const { error } = await supabase.from("marketing_opportunities")
       .update({ value: proposto.valore }).eq("company_id", companyId).eq("id", opportunityId);
     setSalvandoValore(false);
-    if (error) { toast.error("Valore non aggiornato"); return; }
-    toast.success("Valore dell'opportunità aggiornato");
+    if (error) { toast.error(t("Valore non aggiornato")); return; }
+    toast.success(t("Valore dell'opportunità aggiornato"));
     queryClient.invalidateQueries({ queryKey: ["quotes_tab_opp_value"] });
     queryClient.invalidateQueries({ queryKey: ["opportunities"] });
   };
@@ -361,7 +363,7 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
     if (!companyId || !user || !contactId) return;
     const validItems = items.filter((it) => it.name.trim());
     if (validItems.length === 0) {
-      toast.error("Aggiungi almeno un prodotto");
+      toast.error(t("Aggiungi almeno un prodotto"));
       return;
     }
 
@@ -450,9 +452,9 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
       queryClient.invalidateQueries({ queryKey: ["quotes_by_contact", contactId, companyId] });
       const avviso = avvisoSchedeNonAllegate(nonAllegate);
       if (avviso) {
-        toast.warning(`Preventivo creato in bozza: ${avviso.conteggio}`, { description: avviso.descrizione, duration: 10000 });
+        toast.warning(t("Preventivo creato in bozza: {conteggio}", { conteggio: String(avviso.conteggio ?? "") }), { description: avviso.descrizione, duration: 10000 });
       } else {
-        toast.success("Preventivo creato in bozza");
+        toast.success(t("Preventivo creato in bozza"));
       }
       resetForm();
     } catch (err: any) {
@@ -464,13 +466,13 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
         const mancano = selectedMaterials.length > 0 ? "I prodotti e le schede tecniche" : "I prodotti";
         queryClient.invalidateQueries({ queryKey: ["quotes_by_contact", contactId, companyId] });
         resetForm();
-        toast.error("Preventivo creato, ma senza i prodotti", {
-          description: `${mancano} non sono stati salvati: apri il preventivo per aggiungerli, invece di crearne un altro.`,
+        toast.error(t("Preventivo creato, ma senza i prodotti"), {
+          description: t("{mancano} non sono stati salvati: apri il preventivo per aggiungerli, invece di crearne un altro.", { mancano: String(mancano ?? "") }),
           duration: 10000,
-          action: { label: "Apri preventivo", onClick: () => navigate(`${routePrefix}/preventivi/${creato}`) },
+          action: { label: t("Apri preventivo"), onClick: () => navigate(`${routePrefix}/preventivi/${creato}`) },
         });
       } else {
-        toast.error(err.message || "Errore durante il salvataggio");
+        toast.error(err.message || t("Errore durante il salvataggio"));
       }
     } finally {
       setSaving(false);
@@ -482,8 +484,8 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
       <div className="flex flex-col items-center justify-center py-12 text-center gap-3">
         <AlertTriangle className="h-8 w-8 text-muted-foreground" />
         <p className="text-sm text-muted-foreground">
-          Nessun contatto collegato a questa opportunità.<br />
-          Collega un contatto per creare preventivi.
+          {t("Nessun contatto collegato a questa opportunità.")}<br />
+          {t("Collega un contatto per creare preventivi.")}
         </p>
       </div>
     );
@@ -503,10 +505,10 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <h3 className="text-sm font-semibold">Preventivi</h3>
+        <h3 className="text-sm font-semibold">{t("Preventivi")}</h3>
         <div className="flex gap-2 flex-wrap">
           {/* Scelta del modello come nell'elenco Preventivi (prima: solo il preventivo «avanzato»/classico). */}
-          <NewPreventivoMenu contactId={contactId} opportunityId={opportunityId} size="sm" label="Nuovo preventivo" />
+          <NewPreventivoMenu contactId={contactId} opportunityId={opportunityId} size="sm" label={t("Nuovo preventivo")} />
         </div>
       </div>
 
@@ -515,9 +517,9 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
         <div className="space-y-2">
           <div className="grid grid-cols-3 gap-2">
             {([
-              { chiave: "aperti", etichetta: "Aperti", d: riepilogo.aperti, colore: "text-blue-700" },
-              { chiave: "accettati", etichetta: "Accettati", d: riepilogo.accettati, colore: "text-green-700" },
-              { chiave: "chiusi", etichetta: "Rifiutati / scaduti", d: riepilogo.chiusi, colore: "text-muted-foreground" },
+              { chiave: "aperti", etichetta: t("Aperti"), d: riepilogo.aperti, colore: "text-blue-700" },
+              { chiave: "accettati", etichetta: t("Accettati"), d: riepilogo.accettati, colore: "text-green-700" },
+              { chiave: "chiusi", etichetta: t("Rifiutati / scaduti"), d: riepilogo.chiusi, colore: "text-muted-foreground" },
             ] as const).map((c) => (
               <button
                 key={c.chiave}
@@ -534,10 +536,10 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
           {proposto && opportunityId && (valoreOpp ?? 0) === 0 && (
             <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
               <span className="flex-1">
-                Il valore dell'opportunità è 0 €. Il preventivo {proposto.da === "accettato" ? "accettato" : "aperto"} più recente è di <strong>{fmt(proposto.valore)}</strong>.
+                {proposto.da === "accettato" ? t("Il valore dell'opportunità è 0 €. Il preventivo accettato più recente è di {importo}.", { importo: fmt(proposto.valore) }) : t("Il valore dell'opportunità è 0 €. Il preventivo aperto più recente è di {importo}.", { importo: fmt(proposto.valore) })}
               </span>
               <Button size="sm" variant="outline" className="h-7" disabled={salvandoValore} onClick={impostaValoreOpportunita}>
-                {salvandoValore ? <Loader2 className="h-3 w-3 animate-spin" /> : "Usalo come valore"}
+                {salvandoValore ? <Loader2 className="h-3 w-3 animate-spin" /> : t("Usalo come valore")}
               </Button>
             </div>
           )}
@@ -550,7 +552,7 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
           <div className="flex items-center gap-2">
             <RectangleVertical className="h-3.5 w-3.5 text-orange-600" />
             <h4 className="text-xs font-semibold text-orange-700 uppercase tracking-wide">
-              Preventivi Serramenti
+              {t("Preventivi Serramenti")}
             </h4>
             <span className="text-[10px] text-muted-foreground max-md:text-[11px]">
               ({srLoading ? "…" : srProgetti.length})
@@ -572,11 +574,11 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-xs font-semibold text-orange-700">{p.code}</span>
                       <Badge className="text-[10px] px-1.5 py-0 bg-orange-100 text-orange-700 border-0 max-md:text-[11px]">
-                        {SR_STATO_LABELS[p.stato] ?? p.stato}
+                        {SR_STATO_LABELS[p.stato] ? t(SR_STATO_LABELS[p.stato]) : p.stato}
                       </Badge>
                       {!p.opportunita_id && opportunityId && (
-                        <span className="text-[9px] text-muted-foreground max-md:text-[11px]" title="Collegato solo per contatto, non a questa opportunità">
-                          via contatto
+                        <span className="text-[9px] text-muted-foreground max-md:text-[11px]" title={t("Collegato solo per contatto, non a questa opportunità")}>
+                          {t("via contatto")}
                         </span>
                       )}
                     </div>
@@ -591,7 +593,7 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
                         : "—"}
                     </p>
                     <p className="text-[10px] text-muted-foreground max-md:text-[11px]">
-                      {format(new Date(p.created_at), "dd MMM yyyy", { locale: it })}
+                      {format(new Date(p.created_at), "dd MMM yyyy", { locale: dateFnsCampo() })}
                     </p>
                   </div>
                 </button>
@@ -607,7 +609,7 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
           <div className="flex items-center gap-2">
             <Sun className="h-3.5 w-3.5 text-amber-500" />
             <h4 className="text-xs font-semibold text-amber-700 uppercase tracking-wide">
-              Preventivi Fotovoltaico
+              {t("Preventivi Fotovoltaico")}
             </h4>
             <span className="text-[10px] text-muted-foreground max-md:text-[11px]">
               ({fvLoading ? "…" : fvProgetti.length})
@@ -629,11 +631,11 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-xs font-semibold text-amber-700">{p.numero ?? "—"}</span>
                       <Badge className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-700 border-0 max-md:text-[11px]">
-                        {FV_STATO_LABELS[p.stato] ?? p.stato}
+                        {FV_STATO_LABELS[p.stato] ? t(FV_STATO_LABELS[p.stato]) : p.stato}
                       </Badge>
                       {!p.opportunita_crm_id && opportunityId && (
-                        <span className="text-[9px] text-muted-foreground max-md:text-[11px]" title="Collegato solo per contatto, non a questa opportunità">
-                          via contatto
+                        <span className="text-[9px] text-muted-foreground max-md:text-[11px]" title={t("Collegato solo per contatto, non a questa opportunità")}>
+                          {t("via contatto")}
                         </span>
                       )}
                     </div>
@@ -646,7 +648,7 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
                         : "—"}
                     </p>
                     <p className="text-[10px] text-muted-foreground max-md:text-[11px]">
-                      {format(new Date(p.created_at), "dd MMM yyyy", { locale: it })}
+                      {format(new Date(p.created_at), "dd MMM yyyy", { locale: dateFnsCampo() })}
                     </p>
                   </div>
                 </button>
@@ -663,12 +665,12 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
             {showForm ? (
               <>
                 <ChevronUp className="h-4 w-4 mr-1" />
-                Chiudi creazione rapida
+                {t("Chiudi creazione rapida")}
               </>
             ) : (
               <>
                 <Zap className="h-4 w-4 mr-1" />
-                Crea Preventivo Rapido
+                {t("Crea Preventivo Rapido")}
               </>
             )}
           </Button>
@@ -678,11 +680,11 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
           {/* Title + Validity */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-xs">Titolo</Label>
-              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Preventivo" />
+              <Label className="text-xs">{t("Titolo")}</Label>
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("Preventivo")} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Validità (giorni)</Label>
+              <Label className="text-xs">{t("Validità (giorni)")}</Label>
               <Input
                 type="number"
                 value={validityDays}
@@ -695,10 +697,10 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
           {/* Products Table */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label className="text-xs font-semibold">Prodotti / Servizi</Label>
+              <Label className="text-xs font-semibold">{t("Prodotti / Servizi")}</Label>
               <Button size="sm" variant="ghost" onClick={() => setItems((prev) => [...prev, emptyItem(ivaVoceNuova(prev))])}>
                 <Plus className="h-3.5 w-3.5 mr-1" />
-                Riga
+                {t("Riga")}
               </Button>
             </div>
 
@@ -711,7 +713,7 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
                       <ArticleCombobox
                         value={item.name}
                         onValueChange={(name, tpl) => handleArticleSelect(idx, name, tpl)}
-                        placeholder="Seleziona articolo..."
+                        placeholder={t("Seleziona articolo...")}
                       />
                     </div>
                     <Button
@@ -728,7 +730,7 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
                   {/* Row 2: Qty, Price, IVA, Sconto, UM */}
                   <div className="grid grid-cols-5 gap-2">
                     <div className="space-y-1">
-                      <Label className="text-[10px] text-muted-foreground max-md:text-[11px]">Qtà</Label>
+                      <Label className="text-[10px] text-muted-foreground max-md:text-[11px]">{t("Qtà")}</Label>
                       <Input
                         type="number"
                         value={item.quantity}
@@ -738,7 +740,7 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[10px] text-muted-foreground max-md:text-[11px]">Prezzo €</Label>
+                      <Label className="text-[10px] text-muted-foreground max-md:text-[11px]">{t("Prezzo €")}</Label>
                       <Input
                         type="number"
                         value={item.unit_price}
@@ -749,7 +751,7 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[10px] text-muted-foreground max-md:text-[11px]">IVA %</Label>
+                      <Label className="text-[10px] text-muted-foreground max-md:text-[11px]">{t("IVA %")}</Label>
                       <Input
                         type="number"
                         value={item.vat_rate}
@@ -759,7 +761,7 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[10px] text-muted-foreground max-md:text-[11px]">Sconto %</Label>
+                      <Label className="text-[10px] text-muted-foreground max-md:text-[11px]">{t("Sconto %")}</Label>
                       <Input
                         type="number"
                         value={item.discount_percent}
@@ -776,21 +778,19 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="pz">pz</SelectItem>
-                          <SelectItem value="mq">mq</SelectItem>
-                          <SelectItem value="ml">ml</SelectItem>
+                          <SelectItem value="pz">{t("pz")}</SelectItem>
+                          <SelectItem value="mq">{t("mq")}</SelectItem>
+                          <SelectItem value="ml">{t("ml")}</SelectItem>
                           <SelectItem value="kg">kg</SelectItem>
-                          <SelectItem value="ore">ore</SelectItem>
-                          <SelectItem value="corpo">corpo</SelectItem>
+                          <SelectItem value="ore">{t("ore")}</SelectItem>
+                          <SelectItem value="corpo">{t("corpo")}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                   </div>
 
                   {/* Line total */}
-                  <p className="text-xs text-right text-muted-foreground">
-                    Riga: {fmt(item.quantity * item.unit_price * (1 - item.discount_percent / 100))}
-                  </p>
+                  <p className="text-xs text-right text-muted-foreground">{t("Riga: {importo}", { importo: fmt(item.quantity * item.unit_price * (1 - item.discount_percent / 100)) })}</p>
                 </div>
               ))}
             </div>
@@ -799,7 +799,7 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
           {/* Global Discount */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-xs">Sconto globale %</Label>
+              <Label className="text-xs">{t("Sconto globale %")}</Label>
               <Input
                 type="number"
                 value={discountPercent}
@@ -813,12 +813,12 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
           {/* Summary */}
           <div className="bg-background rounded-md p-3 space-y-1 text-sm">
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Subtotale</span>
+              <span className="text-muted-foreground">{t("Subtotale")}</span>
               <span>{fmt(calculations.subtotal)}</span>
             </div>
             {discountPercent > 0 && (
               <div className="flex justify-between text-destructive">
-                <span>Sconto ({discountPercent}%)</span>
+                <span>{t("Sconto ({n}%)", { n: discountPercent })}</span>
                 <span>-{fmt(calculations.discountAmt)}</span>
               </div>
             )}
@@ -827,7 +827,7 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
               <span>{fmt(calculations.vatAmount)}</span>
             </div>
             <div className="flex justify-between font-semibold border-t pt-1">
-              <span>Totale</span>
+              <span>{t("Totale")}</span>
               <span>{fmt(calculations.total)}</span>
             </div>
           </div>
@@ -835,7 +835,7 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
           {/* PDF Materials */}
           {materials.length > 0 && (
             <div className="space-y-2">
-              <Label className="text-xs font-semibold">Materiali PDF da allegare</Label>
+              <Label className="text-xs font-semibold">{t("Materiali PDF da allegare")}</Label>
               <div className="space-y-1.5">
                 {materials.map((m: any) => (
                   <label key={m.id} className="flex items-center gap-2 text-sm cursor-pointer">
@@ -859,11 +859,11 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
 
           {/* Notes */}
           <div className="space-y-1.5">
-            <Label className="text-xs">Note (opzionale)</Label>
+            <Label className="text-xs">{t("Note (opzionale)")}</Label>
             <Textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Note per il cliente..."
+              placeholder={t("Note per il cliente...")}
               rows={2}
             />
           </div>
@@ -873,12 +873,12 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
             {saving ? (
               <>
                 <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                Salvataggio...
+                {t("Salvataggio...")}
               </>
             ) : (
               <>
                 <Plus className="h-4 w-4 mr-1" />
-                Salva Bozza Preventivo
+                {t("Salva Bozza Preventivo")}
               </>
             )}
           </Button>
@@ -889,15 +889,15 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
       {quotes.length === 0 && !showForm ? (
         <div className="flex flex-col items-center justify-center py-8 text-center gap-3">
           <FileText className="h-8 w-8 text-muted-foreground" />
-          <p className="text-sm font-medium">Nessun preventivo per questo contatto</p>
+          <p className="text-sm font-medium">{t("Nessun preventivo per questo contatto")}</p>
           <div className="grid w-full max-w-md grid-cols-2 gap-2 text-left">
             <div className="rounded-lg border p-3">
-              <p className="text-xs font-semibold">Preventivo rapido</p>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">Poche righe e un totale: una bozza pronta in un minuto, da rifinire poi.</p>
+              <p className="text-xs font-semibold">{t("Preventivo rapido")}</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">{t("Poche righe e un totale: una bozza pronta in un minuto, da rifinire poi.")}</p>
             </div>
             <div className="rounded-lg border p-3">
-              <p className="text-xs font-semibold">Preventivo avanzato</p>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">Articoli a listino, sconti, clausole e PDF completo da inviare per la firma.</p>
+              <p className="text-xs font-semibold">{t("Preventivo avanzato")}</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">{t("Articoli a listino, sconti, clausole e PDF completo da inviare per la firma.")}</p>
             </div>
           </div>
         </div>
@@ -917,7 +917,7 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium truncate">{q.quote_number || "—"}</span>
                     <Badge className={`text-[10px] px-1.5 py-0 ${st.className} border-0`}>
-                      {st.label}
+                      {t(st.label)}
                     </Badge>
                   </div>
                   {q.title && (
@@ -937,7 +937,7 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
                       : "—"}
                   </p>
                   <p className="text-[10px] text-muted-foreground max-md:text-[11px]">
-                    {format(new Date(q.created_at), "dd MMM yyyy", { locale: it })}
+                    {format(new Date(q.created_at), "dd MMM yyyy", { locale: dateFnsCampo() })}
                   </p>
                 </div>
               </button>

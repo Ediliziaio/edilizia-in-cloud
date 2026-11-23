@@ -6,9 +6,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { UscitaMerceSheet } from "./UscitaMerceSheet";
 import type { OrderOption } from "./OrderSelectCombobox";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Apre il flusso transazionale esistente, senza creare righe o movimenti all'apertura. */
 export default function UscitaCommessaDialog({ orderId, onClose }: { orderId: string; onClose: () => void }) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const { canViewWarehouse, canEditWarehouse } = usePermissions();
   const companyId = effectiveCompany?.id;
@@ -38,16 +40,16 @@ export default function UscitaCommessaDialog({ orderId, onClose }: { orderId: st
   }
   return <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
     <DialogContent>
-      <DialogHeader><DialogTitle>Uscita merce della commessa</DialogTitle>
-        <DialogDescription>Verifica della commessa e dei permessi prima di scegliere i materiali.</DialogDescription></DialogHeader>
+      <DialogHeader><DialogTitle>{t("Uscita merce della commessa")}</DialogTitle>
+        <DialogDescription>{t("Verifica della commessa e dei permessi prima di scegliere i materiali.")}</DialogDescription></DialogHeader>
       <p role={query.isError || !allowed ? "alert" : "status"}>
-        {!allowed ? "Per registrare un’uscita serve il permesso di modifica del magazzino nell’azienda selezionata."
-          : query.isPending ? "Caricamento della commessa…"
-            : query.isError ? "Non riesco a caricare la commessa. Riprova."
-              : "Commessa non disponibile nell’azienda selezionata."}
+        {!allowed ? t("Per registrare un’uscita serve il permesso di modifica del magazzino nell’azienda selezionata.")
+          : query.isPending ? t("Caricamento della commessa…")
+            : query.isError ? t("Non riesco a caricare la commessa. Riprova.")
+              : t("Commessa non disponibile nell’azienda selezionata.")}
       </p>
-      {allowed && query.isError && <Button onClick={() => void query.refetch()} disabled={query.isFetching}>Riprova</Button>}
-      <Button variant="outline" onClick={onClose}>Chiudi</Button>
+      {allowed && query.isError && <Button onClick={() => void query.refetch()} disabled={query.isFetching}>{t("Riprova")}</Button>}
+      <Button variant="outline" onClick={onClose}>{t("Chiudi")}</Button>
     </DialogContent>
   </Dialog>;
 }

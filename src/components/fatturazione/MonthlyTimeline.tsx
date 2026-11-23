@@ -4,6 +4,13 @@ import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { MonthSummary } from "@/hooks/billing/useMonthlyTimeline";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+
+/** Nome del mese nella lingua scelta (in italiano resta «Gennaio», «Febbraio»…). */
+function nomeMese(m: MonthSummary): string {
+  const nome = new Date(m.year, m.month - 1, 1).toLocaleDateString(intlCampo(), { month: "long" });
+  return nome ? nome.charAt(0).toUpperCase() + nome.slice(1) : m.label;
+}
 
 interface MonthlyTimelineProps {
   months: MonthSummary[];
@@ -14,6 +21,7 @@ interface MonthlyTimelineProps {
 }
 
 export function MonthlyTimeline({ months, selectedMonth, onSelectMonth, year, onYearChange }: MonthlyTimelineProps) {
+  const t = useT();
   const currentMonthKey = useMemo(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -42,7 +50,7 @@ export function MonthlyTimeline({ months, selectedMonth, onSelectMonth, year, on
           variant="ghost"
           size="sm"
           className="h-6 w-6 p-0"
-          aria-label="Anno precedente"
+          aria-label={t("Anno precedente")}
           onClick={() => onYearChange(year - 1)}
         >
           <ChevronLeft className="h-4 w-4" />
@@ -55,16 +63,14 @@ export function MonthlyTimeline({ months, selectedMonth, onSelectMonth, year, on
             {year}
           </span>
           {yearTotals.docs > 0 && (
-            <span className="text-xs text-muted-foreground">
-              {yearTotals.docs} doc · {formatCurrencyCompact(yearTotals.amount)}
-            </span>
+            <span className="text-xs text-muted-foreground">{t("{docs} doc · {amount}", { docs: String(yearTotals.docs ?? ""), amount: formatCurrencyCompact(yearTotals.amount) })}</span>
           )}
         </div>
         <Button
           variant="ghost"
           size="sm"
           className="h-6 w-6 p-0"
-          aria-label="Anno successivo"
+          aria-label={t("Anno successivo")}
           onClick={() => onYearChange(year + 1)}
           disabled={year >= currentYear}
         >
@@ -75,7 +81,7 @@ export function MonthlyTimeline({ months, selectedMonth, onSelectMonth, year, on
       {/* Month grid — su mobile scorre in orizzontale: con grid-cols-12 fisse le celle
           scendevano a ~31px (testo su 3-4 righe, tap impossibile). In fondo, la colonna
           del totale dell'anno con imponibile e IVA (16/11/2026). */}
-      <div role="group" aria-label="Filtra documenti per mese" className="flex overflow-x-auto scrollbar-none sm:grid sm:grid-cols-[repeat(12,minmax(0,1fr))_minmax(0,1.7fr)]">
+      <div role="group" aria-label={t("Filtra documenti per mese")} className="flex overflow-x-auto scrollbar-none sm:grid sm:grid-cols-[repeat(12,minmax(0,1fr))_minmax(0,1.7fr)]">
         {months.map((month) => {
           const isSelected = selectedMonth === month.key;
           const isCurrent = month.key === currentMonthKey;
@@ -85,8 +91,8 @@ export function MonthlyTimeline({ months, selectedMonth, onSelectMonth, year, on
               key={month.key}
               aria-pressed={isSelected}
               title={month.docCount > 0
-                ? `${month.label} ${month.year}: ${month.docCount} doc · totale ${formatCurrency(month.totalAmount)} · imponibile ${formatCurrency(month.imponibile)} · IVA ${formatCurrency(month.iva)}`
-                : `${month.label} ${month.year}: nessun documento`}
+                ? t("{label} {year}: {docCount} doc · totale {totalAmount} · imponibile {imponibile} · IVA {iva}", { label: nomeMese(month), year: String(month.year ?? ""), docCount: String(month.docCount ?? ""), totalAmount: formatCurrency(month.totalAmount), imponibile: formatCurrency(month.imponibile), iva: formatCurrency(month.iva) })
+                : t("{label} {year}: nessun documento", { label: nomeMese(month), year: String(month.year ?? "") })}
               onClick={() => onSelectMonth(isSelected ? null : month.key)}
               className={cn(
                 "min-w-[64px] flex-1 shrink-0 sm:min-w-0 border-r last:border-r-0 border-border px-1 py-2.5 text-center transition-colors hover:bg-accent/50 relative",
@@ -98,15 +104,13 @@ export function MonthlyTimeline({ months, selectedMonth, onSelectMonth, year, on
                 "text-[10px] font-medium uppercase tracking-wide",
                 isSelected ? "text-primary" : "text-muted-foreground"
               )}>
-                {month.label.substring(0, 3).toUpperCase()} '{String(month.year).slice(2)}
+                {nomeMese(month).substring(0, 3).toUpperCase()} '{String(month.year).slice(2)}
               </p>
 
               <p className={cn(
                 "text-xs mt-0.5",
                 month.docCount > 0 ? "text-foreground font-medium" : "text-muted-foreground"
-              )}>
-                {month.docCount} doc
-              </p>
+              )}>{t("{docCount} doc", { docCount: String(month.docCount ?? "") })}</p>
 
               <p className={cn(
                 "text-[10px] mt-0.5 font-mono",
@@ -125,15 +129,13 @@ export function MonthlyTimeline({ months, selectedMonth, onSelectMonth, year, on
         })}
         <div
           className="min-w-[132px] shrink-0 bg-muted/40 px-2 py-2.5 text-center sm:min-w-0"
-          aria-label={`Totale ${year}`}
+          aria-label={t("Totale {year}", { year: String(year ?? "") })}
         >
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Totale {year}</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{t("Totale {year}", { year: String(year ?? "") })}</p>
           <p className="mt-0.5 text-sm font-bold tabular-nums leading-tight" title={formatCurrency(yearTotals.amount)}>
             {formatCurrencyCompact(yearTotals.amount)}
           </p>
-          <p className="mt-0.5 truncate text-[10px] tabular-nums text-muted-foreground" title={`Imponibile ${formatCurrency(yearTotals.imponibile)}`}>
-            Imp. {formatCurrencyCompact(yearTotals.imponibile)}
-          </p>
+          <p className="mt-0.5 truncate text-[10px] tabular-nums text-muted-foreground" title={t("Imponibile {imponibile}", { imponibile: formatCurrency(yearTotals.imponibile) })}>{t("Imp. {imponibile}", { imponibile: formatCurrencyCompact(yearTotals.imponibile) })}</p>
           <p className="truncate text-[10px] tabular-nums text-muted-foreground" title={`IVA ${formatCurrency(yearTotals.iva)}`}>
             IVA {formatCurrencyCompact(yearTotals.iva)}
           </p>
@@ -146,7 +148,7 @@ export function MonthlyTimeline({ months, selectedMonth, onSelectMonth, year, on
             onClick={() => onSelectMonth(null)}
             className="text-xs text-primary font-medium hover:underline"
           >
-            Mostra tutti i mesi
+            {t("Mostra tutti i mesi")}
           </button>
         </div>
       )}

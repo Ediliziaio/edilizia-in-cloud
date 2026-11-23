@@ -86,6 +86,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { eventiCommittente, type RendicontoNelDiario } from "@/lib/appalto/diarioCommittente";
 import { PreventiviCommittente, type PreventivoScheda } from "@/components/committenti/PreventiviCommittente";
 import { preventivoDaRichiamare } from "@/lib/preventivi/preventiviCommittente";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const EmailComposeDialog = lazy(() =>
   import("@/pages/azienda/email/components/EmailComposeDialog").then((m) => ({ default: m.EmailComposeDialog }))
@@ -179,6 +180,7 @@ const SEZIONI: SezioneLaterale[] = [
 /* ─── Pagina ───────────────────────────────────────────────────────── */
 
 export default function CommittenteDetail() {
+  const tr = useT();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
@@ -366,7 +368,7 @@ export default function CommittenteDetail() {
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 10_000);
     },
-    onError: (e) => toast({ title: "PDF non generato", description: e instanceof Error ? e.message : "Riprova", variant: "destructive" }),
+    onError: (e) => toast({ title: tr("PDF non generato"), description: e instanceof Error ? e.message : tr("Riprova"), variant: "destructive" }),
   });
 
   const salvaTariffa = useMutation({
@@ -398,11 +400,11 @@ export default function CommittenteDetail() {
       setTariffaForm(null);
       setPrezzoGrezzo("");
       queryClient.invalidateQueries({ queryKey: ["appalto-tariffe", contrattoAttivo?.id] });
-      toast({ title: "Tariffa salvata" });
+      toast({ title: tr("Tariffa salvata") });
     },
     onError: (e) => {
       logger.error("salvaTariffa", e);
-      toast({ title: "Tariffa non salvata", description: e instanceof Error ? e.message : "Riprova", variant: "destructive" });
+      toast({ title: tr("Tariffa non salvata"), description: e instanceof Error ? e.message : tr("Riprova"), variant: "destructive" });
     },
   });
 
@@ -420,11 +422,11 @@ export default function CommittenteDetail() {
       } else {
         queryClient.invalidateQueries({ queryKey: ["appalto-tariffe", contrattoAttivo?.id] });
       }
-      toast({ title: x.tipo === "contratto" ? "Contratto eliminato" : "Tariffa eliminata" });
+      toast({ title: x.tipo === "contratto" ? tr("Contratto eliminato") : tr("Tariffa eliminata") });
     },
     onError: (e) => {
       logger.error("elimina appalto", e);
-      toast({ title: "Non eliminato", description: e instanceof Error ? e.message : "Riprova", variant: "destructive" });
+      toast({ title: tr("Non eliminato"), description: e instanceof Error ? e.message : tr("Riprova"), variant: "destructive" });
     },
   });
 
@@ -440,7 +442,7 @@ export default function CommittenteDetail() {
       <Alert variant="destructive">
         <AlertTriangle className="h-4 w-4" />
         <AlertDescription>
-          Committente non trovato. <Link className="underline" to="/azienda/clienti?tipo=committenti">Torna all'elenco</Link>
+          {tr("Committente non trovato.")} <Link className="underline" to="/azienda/clienti?tipo=committenti">{tr("Torna all'elenco")}</Link>
         </AlertDescription>
       </Alert>
     );
@@ -451,9 +453,9 @@ export default function CommittenteDetail() {
       <Alert>
         <AlertTriangle className="h-4 w-4" />
         <AlertDescription className="flex flex-wrap items-center gap-2">
-          <span>Questo contatto è un cliente, non un committente.</span>
+          <span>{tr("Questo contatto è un cliente, non un committente.")}</span>
           <Button size="sm" variant="outline" onClick={() => navigate(`/azienda/clienti/${c.id}`)}>
-            Apri la scheda cliente
+            {tr("Apri la scheda cliente")}
           </Button>
         </AlertDescription>
       </Alert>
@@ -481,17 +483,17 @@ export default function CommittenteDetail() {
     <>
       {puoPreventivi && (
         <Button variant="outline" size="sm" className="h-9 gap-1.5 max-md:flex-1" onClick={nuovoPreventivo}>
-          <FilePen className="h-3.5 w-3.5" /> Nuovo preventivo
+          <FilePen className="h-3.5 w-3.5" /> {tr("Nuovo preventivo")}
         </Button>
       )}
       {puoCreareLavori && (
         <Button variant="outline" size="sm" className="h-9 gap-1.5 max-md:flex-1" onClick={nuovoLavoro}>
-          <ClipboardList className="h-3.5 w-3.5" /> Nuovo lavoro
+          <ClipboardList className="h-3.5 w-3.5" /> {tr("Nuovo lavoro")}
         </Button>
       )}
       {puoModificare && (
         <Button size="sm" className="h-9 gap-1.5 max-md:flex-1" onClick={nuovoContratto}>
-          <Plus className="h-3.5 w-3.5" /> Nuovo contratto
+          <Plus className="h-3.5 w-3.5" /> {tr("Nuovo contratto")}
         </Button>
       )}
     </>
@@ -511,7 +513,7 @@ export default function CommittenteDetail() {
   const menuCommittente = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" aria-label="Altre azioni">
+        <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" aria-label={tr("Altre azioni")}>
           <ChevronDown className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
@@ -519,7 +521,7 @@ export default function CommittenteDetail() {
         {c.phone && (
           <>
             <DropdownMenuItem onClick={() => setChiamataAi(true)}>
-              <Phone className="mr-2 h-3.5 w-3.5" /> Chiama con agente AI
+              <Phone className="mr-2 h-3.5 w-3.5" /> {tr("Chiama con agente AI")}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
           </>
@@ -532,7 +534,7 @@ export default function CommittenteDetail() {
             commesse={elencoLavori.length}
             chi="committente"
             tornaA="/azienda/clienti?tipo=committenti"
-            avviso={elencoContratti.length > 0 ? "Spariscono anche i suoi contratti e i listini." : undefined}
+            avviso={elencoContratti.length > 0 ? tr("Spariscono anche i suoi contratti e i listini.") : undefined}
           />
         )}
       </DropdownMenuContent>
@@ -543,15 +545,14 @@ export default function CommittenteDetail() {
     <div className="space-y-3 p-1">
       {puoModificare && (
         <Button size="sm" variant="outline" className="w-full" onClick={nuovoContratto}>
-          <Plus className="mr-1.5 h-3.5 w-3.5" /> Nuovo contratto
+          <Plus className="mr-1.5 h-3.5 w-3.5" /> {tr("Nuovo contratto")}
         </Button>
       )}
       {contratti.isLoading ? (
         <Skeleton className="h-28 w-full" />
       ) : elencoContratti.length === 0 ? (
         <p className="text-sm text-slate-500">
-          Nessun contratto. È qui che si scrivono le condizioni concordate e il listino:
-          senza, una commessa in appalto non sa a quanto fatturarti il lavoro.
+          {tr("Nessun contratto. È qui che si scrivono le condizioni concordate e il listino: senza, una commessa in appalto non sa a quanto fatturarti il lavoro.")}
         </p>
       ) : (
         <>
@@ -561,7 +562,7 @@ export default function CommittenteDetail() {
               <SelectContent>
                 {elencoContratti.map((k) => (
                   <SelectItem key={k.id} value={k.id}>
-                    {k.nome} · dal {giornoIT(k.valido_dal)}{k.attivo ? "" : " (non attivo)"}
+                    {tr("{nome} · dal {data}", { nome: k.nome, data: giornoIT(k.valido_dal) })}{k.attivo ? "" : ` ${tr("(non attivo)")}`}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -572,8 +573,9 @@ export default function CommittenteDetail() {
               <div>
                 <p className="break-words font-semibold text-slate-900">{contrattoAttivo.nome}</p>
                 <p className="text-xs text-slate-500">
-                  Dal {giornoIT(contrattoAttivo.valido_dal)}
-                  {contrattoAttivo.valido_al ? ` al ${giornoIT(contrattoAttivo.valido_al)}` : " — senza scadenza"}
+                  {contrattoAttivo.valido_al
+                    ? tr("Dal {inizio} al {fine}", { inizio: giornoIT(contrattoAttivo.valido_dal), fine: giornoIT(contrattoAttivo.valido_al) })
+                    : tr("Dal {inizio} — senza scadenza", { inizio: giornoIT(contrattoAttivo.valido_dal) })}
                 </p>
                 <div className="mt-2 flex items-center gap-1">
                   <Button variant="outline" size="sm" className="gap-1" disabled={pdfAccordo.isPending} onClick={() => pdfAccordo.mutate()}>
@@ -581,10 +583,10 @@ export default function CommittenteDetail() {
                   </Button>
                   {puoModificare && (
                     <>
-                      <Button variant="ghost" size="icon" aria-label="Modifica contratto" onClick={() => navigate(`/azienda/committenti/${id}/contratto/${contrattoAttivo.id}`)}>
+                      <Button variant="ghost" size="icon" aria-label={tr("Modifica contratto")} onClick={() => navigate(`/azienda/committenti/${id}/contratto/${contrattoAttivo.id}`)}>
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
-                      <Button variant="ghost" size="icon" aria-label="Elimina contratto"
+                      <Button variant="ghost" size="icon" aria-label={tr("Elimina contratto")}
                         onClick={() => setDaEliminare({ tipo: "contratto", id: contrattoAttivo.id, nome: contrattoAttivo.nome })}>
                         <Trash2 className="h-3.5 w-3.5 text-destructive" />
                       </Button>
@@ -597,9 +599,9 @@ export default function CommittenteDetail() {
                 <Voce t="Ritenuta a garanzia" v={`${formatDecimalIT(contrattoAttivo.ritenuta_pct, { minDecimals: 0 })} %`} />
                 <Voce t="Straordinario" v={`+${formatDecimalIT(contrattoAttivo.maggiorazione_straordinario_pct, { minDecimals: 0 })} %`} />
                 <Voce t="Festivo" v={`+${formatDecimalIT(contrattoAttivo.maggiorazione_festivo_pct, { minDecimals: 0 })} %`} />
-                <Voce t="Fatturazione" v={contrattoAttivo.modo_fatturazione === "mensile_cumulativa" ? "Mensile, tutte le commesse" : "Per commessa"} />
-                <Voce t="Fornitura" v={contrattoAttivo.include_fornitura ? "Compresa" : "Sola manodopera"} />
-                <Voce t="IVA" v={contrattoAttivo.regime_iva === "reverse_charge" ? "Reverse charge (N6.3)" : "Ordinaria"} />
+                <Voce t="Fatturazione" v={contrattoAttivo.modo_fatturazione === "mensile_cumulativa" ? tr("Mensile, tutte le commesse") : tr("Per commessa")} />
+                <Voce t="Fornitura" v={contrattoAttivo.include_fornitura ? tr("Compresa") : tr("Sola manodopera")} />
+                <Voce t="IVA" v={contrattoAttivo.regime_iva === "reverse_charge" ? "Reverse charge (N6.3)" : tr("Ordinaria")} />
                 {contrattoAttivo.riferimento_committente && (
                   <Voce t="Loro riferimento" v={contrattoAttivo.riferimento_committente} />
                 )}
@@ -609,7 +611,7 @@ export default function CommittenteDetail() {
               )}
               {contrattoAttivo.condizioni && (
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Condizioni</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{tr("Condizioni")}</p>
                   <p className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-600">{contrattoAttivo.condizioni}</p>
                 </div>
               )}
@@ -625,10 +627,10 @@ export default function CommittenteDetail() {
       {!vedeImporti ? (
         <p className="flex items-center gap-2 text-sm text-slate-500">
           <Lock className="h-4 w-4 shrink-0" />
-          I prezzi concordati col committente li vede chi ha il permesso «Importi delle commesse».
+          {tr("I prezzi concordati col committente li vede chi ha il permesso «Importi delle commesse».")}
         </p>
       ) : !contrattoAttivo ? (
-        <p className="text-sm text-slate-500">Prima serve un contratto: il listino appartiene a quello.</p>
+        <p className="text-sm text-slate-500">{tr("Prima serve un contratto: il listino appartiene a quello.")}</p>
       ) : (
         <>
           <div className="flex items-center justify-between gap-2">
@@ -636,11 +638,11 @@ export default function CommittenteDetail() {
             {puoModificare && (
               <div className="flex shrink-0 gap-1">
               <Button size="sm" variant="outline" onClick={() => setCaricaListino(true)}>
-                <Upload className="mr-1.5 h-3.5 w-3.5" /> Carica
+                <Upload className="mr-1.5 h-3.5 w-3.5" /> {tr("Carica")}
               </Button>
               <Button size="sm" variant="outline"
                 onClick={() => { setTariffaForm({ tipo: "manodopera", unita_misura: "ora", attivo: true, ordine: (tariffe.data?.length ?? 0) }); setPrezzoGrezzo(""); }}>
-                <Plus className="mr-1.5 h-3.5 w-3.5" /> Tariffa
+                <Plus className="mr-1.5 h-3.5 w-3.5" /> {tr("Tariffa")}
               </Button>
               </div>
             )}
@@ -649,8 +651,7 @@ export default function CommittenteDetail() {
             <Skeleton className="h-32 w-full" />
           ) : tariffeInUso.length === 0 && tariffeFuoriUso.length === 0 ? (
             <p className="text-sm text-slate-500">
-              Listino vuoto. Aggiungi quello che a questo committente fatturi davvero: la giornata
-              uomo, il viaggio, il metro quadro di posa. Se ce l'hai in Excel, caricalo.
+              {tr("Listino vuoto. Aggiungi quello che a questo committente fatturi davvero: la giornata uomo, il viaggio, il metro quadro di posa. Se ce l'hai in Excel, caricalo.")}
             </p>
           ) : (
             <>
@@ -666,11 +667,11 @@ export default function CommittenteDetail() {
                   <span className="shrink-0 text-sm font-semibold tabular-nums">{euro(t.prezzo_unitario, true)}</span>
                   {puoModificare && (
                     <div className="flex shrink-0">
-                      <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Modifica tariffa"
+                      <Button variant="ghost" size="icon" className="h-7 w-7" aria-label={tr("Modifica tariffa")}
                         onClick={() => { setTariffaForm(t); setPrezzoGrezzo(formatDecimalIT(t.prezzo_unitario)); }}>
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Elimina tariffa"
+                      <Button variant="ghost" size="icon" className="h-7 w-7" aria-label={tr("Elimina tariffa")}
                         onClick={() => setDaEliminare({ tipo: "tariffa", id: t.id, nome: t.descrizione })}>
                         <Trash2 className="h-3.5 w-3.5 text-destructive" />
                       </Button>
@@ -681,7 +682,7 @@ export default function CommittenteDetail() {
             </ul>
             {tariffeFuoriUso.length > 0 && (
               <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setVediFuoriUso(!vediFuoriUso)}>
-                {vediFuoriUso ? "Nascondi le voci fuori uso" : `Mostra ${tariffeFuoriUso.length} ${tariffeFuoriUso.length === 1 ? "voce fuori uso" : "voci fuori uso"}`}
+                {vediFuoriUso ? tr("Nascondi le voci fuori uso") : tr(tariffeFuoriUso.length === 1 ? "Mostra {n} voce fuori uso" : "Mostra {n} voci fuori uso", { n: tariffeFuoriUso.length })}
               </Button>
             )}
             </>
@@ -696,9 +697,9 @@ export default function CommittenteDetail() {
   ) : elencoLavori.length === 0 ? (
     <div className="flex flex-col items-center py-8 text-center">
       <HardHat className="mb-2 h-8 w-8 text-muted-foreground/30" />
-      <p className="text-sm text-slate-500">Nessun lavoro da questo committente.</p>
+      <p className="text-sm text-slate-500">{tr("Nessun lavoro da questo committente.")}</p>
       <Button asChild variant="outline" size="sm" className="mt-3">
-        <Link to={`/azienda/ordini/nuovo-lavoro-appaltatore?committente=${id}`}>Nuovo lavoro</Link>
+        <Link to={`/azienda/ordini/nuovo-lavoro-appaltatore?committente=${id}`}>{tr("Nuovo lavoro")}</Link>
       </Button>
     </div>
   ) : (
@@ -713,11 +714,11 @@ export default function CommittenteDetail() {
                     rendiconti. Scriverci «€ 0,00» farebbe sembrare
                     inutile un cantiere di tre mesi. */}
                 {l.valorizzazione === "a_misura"
-                  ? <span className="font-normal text-slate-500">a misura</span>
+                  ? <span className="font-normal text-slate-500">{tr("a misura")}</span>
                   : Number(l.total_amount) > 0
                     ? euro(l.total_amount, true)
                     : l.tetto_importo
-                      ? <span className="font-normal text-slate-500">max {euro(l.tetto_importo, true)}</span>
+                      ? <span className="font-normal text-slate-500">{tr("max {importo}", { importo: euro(l.tetto_importo, true) })}</span>
                       : "—"}
               </span>
             )}
@@ -742,36 +743,36 @@ export default function CommittenteDetail() {
   const inAttesa = numeriCommittente.isLoading ? "…" : "—";
   const quanto = (v: number | null | undefined) => (v == null ? inAttesa : euro(Number(v)));
   // Finché i numeri non ci sono, la riga sotto non deve dire niente: «rendiconti chiusi» accanto a «—» sembrerebbe zero.
-  const sotto = (testo: string) => (numeriCommittente.isError ? "non disponibile, riprova" : nC ? testo : undefined);
+  const sotto = (testo: string) => (numeriCommittente.isError ? tr("non disponibile, riprova") : nC ? testo : undefined);
   const numeroContratto = {
-    label: "Contratto", icon: FileSignature, iconColor: "text-orange-500", largo: true,
-    value: contratti.isLoading ? "…" : contrattoInCorso?.nome ?? "Nessuno",
-    sub: !contrattoInCorso ? "Da scrivere"
-      : [contrattoInCorso.valido_al ? `scade il ${giornoIT(contrattoInCorso.valido_al)}` : "senza scadenza",
-         elencoContratti.length > 1 ? `${elencoContratti.length} contratti` : ""].filter(Boolean).join(" · "),
+    label: tr("Contratto"), icon: FileSignature, iconColor: "text-orange-500", largo: true,
+    value: contratti.isLoading ? "…" : contrattoInCorso?.nome ?? tr("Nessuno"),
+    sub: !contrattoInCorso ? tr("Da scrivere")
+      : [contrattoInCorso.valido_al ? tr("scade il {data}", { data: giornoIT(contrattoInCorso.valido_al) }) : tr("senza scadenza"),
+         elencoContratti.length > 1 ? tr("{n} contratti", { n: elencoContratti.length }) : ""].filter(Boolean).join(" · "),
     onClick: () => apriSezione("contratti"),
   };
-  const commesseTesto = elencoLavori.length === 1 ? "1 commessa" : `${elencoLavori.length} commesse`;
+  const commesseTesto = elencoLavori.length === 1 ? tr("1 commessa") : tr("{n} commesse", { n: elencoLavori.length });
   const numeri: Array<NumeroScheda & { icon: typeof Euro; iconColor: string }> = vedeImporti ? [
     numeroContratto,
-    { label: "Rendicontato", icon: ClipboardList, iconColor: "text-blue-500", value: quanto(nC?.rendicontato), sub: lavori.isLoading ? undefined : commesseTesto, onClick: () => apriSezione("commesse") },
+    { label: tr("Rendicontato"), icon: ClipboardList, iconColor: "text-blue-500", value: quanto(nC?.rendicontato), sub: lavori.isLoading ? undefined : commesseTesto, onClick: () => apriSezione("commesse") },
     {
-      label: "Da fatturare", icon: Receipt, iconColor: "text-indigo-500", value: quanto(nC?.da_fatturare),
-      sub: sotto(Number(nC?.da_rendicontare ?? 0) > 0 ? `+ ${euro(Number(nC?.da_rendicontare))} da rendicontare` : "rendiconti chiusi"),
+      label: tr("Da fatturare"), icon: Receipt, iconColor: "text-indigo-500", value: quanto(nC?.da_fatturare),
+      sub: sotto(Number(nC?.da_rendicontare ?? 0) > 0 ? tr("+ {importo} da rendicontare", { importo: euro(Number(nC?.da_rendicontare)) }) : tr("rendiconti chiusi")),
       onClick: () => apriSezione("rendiconti"),
     },
     {
-      label: "Da incassare", icon: CreditCard, iconColor: Number(nC?.scaduto ?? 0) > 0 ? "text-red-500" : "text-emerald-500", value: quanto(nC?.da_incassare),
-      sub: nC && nC.da_incassare == null ? "serve il permesso sulla fatturazione" : sotto(Number(nC?.scaduto ?? 0) > 0 ? `di cui ${euro(Number(nC?.scaduto))} scaduti` : "fatture emesse"),
+      label: tr("Da incassare"), icon: CreditCard, iconColor: Number(nC?.scaduto ?? 0) > 0 ? "text-red-500" : "text-emerald-500", value: quanto(nC?.da_incassare),
+      sub: nC && nC.da_incassare == null ? tr("serve il permesso sulla fatturazione") : sotto(Number(nC?.scaduto ?? 0) > 0 ? tr("di cui {importo} scaduti", { importo: euro(Number(nC?.scaduto)) }) : tr("fatture emesse")),
       tono: Number(nC?.scaduto ?? 0) > 0 ? "rosso" : undefined,
       onClick: () => apriSezione("documenti"),
     },
-    { label: "Ritenute", icon: Euro, iconColor: "text-violet-500", value: quanto(nC?.ritenute), sub: sotto("trattenute a garanzia"), onClick: () => apriSezione("rendiconti") },
+    { label: tr("Ritenute"), icon: Euro, iconColor: "text-violet-500", value: quanto(nC?.ritenute), sub: sotto(tr("trattenute a garanzia")), onClick: () => apriSezione("rendiconti") },
   ] : [
     numeroContratto,
-    { label: "Pagamento", icon: CreditCard, iconColor: "text-emerald-500", value: contrattoInCorso ? `${contrattoInCorso.giorni_pagamento} gg` : "—", sub: contrattoInCorso ? `ritenuta ${formatDecimalIT(contrattoInCorso.ritenuta_pct, { minDecimals: 0 })} %` : "Dal contratto", onClick: () => apriSezione("contratti") },
-    { label: "Commesse", icon: ClipboardList, iconColor: "text-blue-500", value: lavori.isLoading ? "…" : elencoLavori.length, sub: elencoLavori.length === 0 ? "Nessun lavoro" : `l'ultima del ${new Date(elencoLavori[0].created_at).toLocaleDateString("it-IT")}`, onClick: () => apriSezione("commesse") },
-    { label: "Listino", icon: Euro, iconColor: "text-violet-500", value: "—", sub: "Prezzi riservati", onClick: () => apriSezione("listino") },
+    { label: tr("Pagamento"), icon: CreditCard, iconColor: "text-emerald-500", value: contrattoInCorso ? `${contrattoInCorso.giorni_pagamento} gg` : "—", sub: contrattoInCorso ? tr("ritenuta {pct} %", { pct: formatDecimalIT(contrattoInCorso.ritenuta_pct, { minDecimals: 0 }) }) : tr("Dal contratto"), onClick: () => apriSezione("contratti") },
+    { label: tr("Commesse"), icon: ClipboardList, iconColor: "text-blue-500", value: lavori.isLoading ? "…" : elencoLavori.length, sub: elencoLavori.length === 0 ? tr("Nessun lavoro") : tr("l'ultima del {data}", { data: new Date(elencoLavori[0].created_at).toLocaleDateString(intlCampo()) }), onClick: () => apriSezione("commesse") },
+    { label: tr("Listino"), icon: Euro, iconColor: "text-violet-500", value: "—", sub: tr("Prezzi riservati"), onClick: () => apriSezione("listino") },
   ];
   const oggi = oggiRoma();
   const daRichiamare = preventivoDaRichiamare(preventivi.data ?? [], oggi, vedeImporti);
@@ -811,7 +812,7 @@ export default function CommittenteDetail() {
         return (
           <p className="flex items-center gap-2 p-1 text-sm text-slate-500">
             <Lock className="h-4 w-4 shrink-0" />
-            I rendiconti al committente li vede chi ha il permesso «Importi delle commesse».
+            {tr("I rendiconti al committente li vede chi ha il permesso «Importi delle commesse».")}
           </p>
         );
       }
@@ -853,19 +854,19 @@ export default function CommittenteDetail() {
       <div className="rounded-2xl border bg-card p-3 shadow-sm md:p-4">
         <TestataScheda
           onIndietro={() => navigate("/azienda/clienti?tipo=committenti")}
-          etichettaIndietro="Torna ai committenti"
+          etichettaIndietro={tr("Torna ai committenti")}
           iniziali={iniziali}
           coloreAvatar="bg-gradient-to-br from-slate-800 to-slate-500"
           nome={nome}
           accantoAlNome={
             <>
-              <Badge variant="outline" className="h-5 shrink-0 px-1.5 text-[10px]">Committente</Badge>
+              <Badge variant="outline" className="h-5 shrink-0 px-1.5 text-[10px]">{tr("Committente")}</Badge>
               {menuCommittente}
             </>
           }
           contatti={
             <>
-              {referente && <span>Referente: <span className="font-medium text-foreground">{referente}</span></span>}
+              {referente && <span>{tr("Referente:")} <span className="font-medium text-foreground">{referente}</span></span>}
               {email && (
                 <a href={`mailto:${email}`} className="inline-flex min-w-0 max-w-full items-center gap-1 transition-colors hover:text-primary">
                   <Mail className="h-3 w-3 shrink-0" />
@@ -886,7 +887,7 @@ export default function CommittenteDetail() {
           }
           azioni={
             <>
-              <IconaScheda etichetta="Chiedi a Silvio">
+              <IconaScheda etichetta={tr("Chiedi a Silvio")}>
                 <ChiediASilvio
                   soloIcona
                   size="icon"
@@ -970,7 +971,7 @@ export default function CommittenteDetail() {
         <Tabs id="sezioni-committente" value={sezione ?? "contratti"} onValueChange={setSezione} className="scroll-mt-16 lg:hidden">
           <TabsList className="flex h-auto w-full justify-start overflow-x-auto">
             {SEZIONI.map((s) => (
-              <TabsTrigger key={s.key} value={s.key} className="shrink-0 px-2 py-2 text-xs">{s.label}</TabsTrigger>
+              <TabsTrigger key={s.key} value={s.key} className="shrink-0 px-2 py-2 text-xs">{tr(s.label)}</TabsTrigger>
             ))}
           </TabsList>
           {SEZIONI.map((s) => (
@@ -985,36 +986,36 @@ export default function CommittenteDetail() {
       <Dialog open={!!tariffaForm} onOpenChange={(o) => !o && setTariffaForm(null)}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{tariffaForm?.id ? "Modifica tariffa" : "Nuova tariffa"}</DialogTitle>
-            <DialogDescription>Il prezzo che fatturi a questo committente, non il tuo costo.</DialogDescription>
+            <DialogTitle>{tariffaForm?.id ? tr("Modifica tariffa") : tr("Nuova tariffa")}</DialogTitle>
+            <DialogDescription>{tr("Il prezzo che fatturi a questo committente, non il tuo costo.")}</DialogDescription>
           </DialogHeader>
           {tariffaForm && (
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="sm:col-span-2">
-                <Label>Descrizione</Label>
+                <Label>{tr("Descrizione")}</Label>
                 <Input value={tariffaForm.descrizione ?? ""} onChange={(e) => setTariffaForm({ ...tariffaForm, descrizione: e.target.value })}
-                  placeholder="Giornata uomo — operaio specializzato" />
+                  placeholder={tr("Giornata uomo — operaio specializzato")} />
               </div>
               <div>
-                <Label>Tipo</Label>
+                <Label>{tr("Tipo")}</Label>
                 <Select value={tariffaForm.tipo ?? "manodopera"} onValueChange={(v) => setTariffaForm({ ...tariffaForm, tipo: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {TIPI_TARIFFA.map((t) => <SelectItem key={t.v} value={t.v}>{t.label}</SelectItem>)}
+                    {TIPI_TARIFFA.map((t) => <SelectItem key={t.v} value={t.v}>{tr(t.label)}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label>Unità di misura</Label>
+                <Label>{tr("Unità di misura")}</Label>
                 <Select value={tariffaForm.unita_misura ?? "ora"} onValueChange={(v) => setTariffaForm({ ...tariffaForm, unita_misura: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {UNITA.map((u) => <SelectItem key={u.v} value={u.v}>{u.label}</SelectItem>)}
+                    {UNITA.map((u) => <SelectItem key={u.v} value={u.v}>{tr(u.label)}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label>Prezzo</Label>
+                <Label>{tr("Prezzo")}</Label>
                 {/* Testo grezzo e parse all'uscita dal campo: riscrivere il numero a
                     ogni tasto cancella il separatore appena digitato (lezione 25/07). */}
                 <Input
@@ -1026,34 +1027,34 @@ export default function CommittenteDetail() {
                 />
               </div>
               <div>
-                <Label>Codice</Label>
+                <Label>{tr("Codice")}</Label>
                 <Input value={tariffaForm.codice ?? ""} onChange={(e) => setTariffaForm({ ...tariffaForm, codice: e.target.value })} />
               </div>
               {tariffaForm.tipo === "manodopera" && (
                 <div className="sm:col-span-2">
-                  <Label>Qualifica</Label>
+                  <Label>{tr("Qualifica")}</Label>
                   <Input value={tariffaForm.qualifica ?? ""} onChange={(e) => setTariffaForm({ ...tariffaForm, qualifica: e.target.value })}
-                    placeholder="Operaio specializzato, 3° livello…" />
+                    placeholder={tr("Operaio specializzato, 3° livello…")} />
                 </div>
               )}
               <div className="sm:col-span-2">
-                <Label>Note</Label>
+                <Label>{tr("Note")}</Label>
                 <Textarea rows={2} value={tariffaForm.note ?? ""} onChange={(e) => setTariffaForm({ ...tariffaForm, note: e.target.value })} />
               </div>
               <div className="flex items-center justify-between rounded-lg border p-3 sm:col-span-2">
-                <Label className="cursor-pointer">In uso</Label>
+                <Label className="cursor-pointer">{tr("In uso")}</Label>
                 <Switch checked={tariffaForm.attivo !== false} onCheckedChange={(v) => setTariffaForm({ ...tariffaForm, attivo: v })} />
               </div>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setTariffaForm(null)}>Annulla</Button>
+            <Button variant="outline" onClick={() => setTariffaForm(null)}>{tr("Annulla")}</Button>
             <Button
               disabled={!tariffaForm?.descrizione?.trim() || salvaTariffa.isPending}
               onClick={() => tariffaForm && salvaTariffa.mutate(tariffaForm)}
             >
               {salvaTariffa.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-              Salva
+              {tr("Salva")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1063,20 +1064,20 @@ export default function CommittenteDetail() {
       <AlertDialog open={!!daEliminare} onOpenChange={(o) => !o && setDaEliminare(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare «{daEliminare?.nome}»?</AlertDialogTitle>
+            <AlertDialogTitle>{tr("Eliminare «{nome}»?", { nome: String(daEliminare?.nome ?? "") })}</AlertDialogTitle>
             <AlertDialogDescription>
               {daEliminare?.tipo === "contratto"
-                ? "Sparisce anche tutto il listino di questo contratto. Se l'accordo è solo scaduto, conviene spegnerlo invece di cancellarlo."
-                : "La tariffa sparisce dal listino."}
+                ? tr("Sparisce anche tutto il listino di questo contratto. Se l'accordo è solo scaduto, conviene spegnerlo invece di cancellarlo.")
+                : tr("La tariffa sparisce dal listino.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => daEliminare && elimina.mutate({ tipo: daEliminare.tipo, id: daEliminare.id })}
             >
-              Elimina
+              {tr("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1122,9 +1123,10 @@ export default function CommittenteDetail() {
 }
 
 function Voce({ t, v }: { t: string; v: string }) {
+  const tr = useT();
   return (
     <div className="min-w-0">
-      <dt className="text-xs uppercase tracking-wide text-slate-500">{t}</dt>
+      <dt className="text-xs uppercase tracking-wide text-slate-500">{tr(t)}</dt>
       <dd className="truncate font-medium text-slate-900">{v}</dd>
     </div>
   );

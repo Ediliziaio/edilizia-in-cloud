@@ -6,6 +6,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { CheckCircle2, Clock, FileDown, Loader2, RefreshCw, Send, XCircle } from "lucide-react";
 import { faseSdi, motivoSdi, puoInviare, type DocFaseSdi, type StatoSdiVisibile } from "@/lib/fatturazione/sdiCassetto";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // Il riquadro della fattura verso lo SDI, in editor e dettaglio (24/09/2026):
 // dice in che fase è, cosa vuol dire e cosa fare adesso. Le tre fasi normali
@@ -45,12 +46,13 @@ const TITOLI: Record<StatoSdiVisibile["fase"], string> = {
 function quando(iso: string | null | undefined): string | null {
   if (!iso) return null;
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? null : d.toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" });
+  return Number.isNaN(d.getTime()) ? null : d.toLocaleString(intlCampo(), { dateStyle: "short", timeStyle: "short" });
 }
 
 export function SdiStatoBanner({
   doc, tipoLabel, onInvia, isInvio, onAggiorna, isAggiorna, onScaricaXml, variante = "barra",
 }: Props) {
+  const t = useT();
   const f = faseSdi(doc);
   if (!f) return null;
 
@@ -79,13 +81,13 @@ export function SdiStatoBanner({
       <div className="flex items-start gap-2 flex-1 min-w-0">
         <Icona className={cn("h-4 w-4 mt-0.5 shrink-0", f.fase === "invio_in_corso" && "animate-spin")} />
         <div className="min-w-0 space-y-0.5">
-          <p className="text-sm font-medium">{TITOLI[f.fase]}</p>
-          {motivo && <p className="text-sm">Motivo: {motivo}</p>}
-          {erroreInvio && <p className="text-sm">Ultimo tentativo non riuscito: {erroreInvio}</p>}
+          <p className="text-sm font-medium">{t(TITOLI[f.fase])}</p>
+          {motivo && <p className="text-sm">{t("Motivo: {motivo}", { motivo: String(motivo ?? "") })}</p>}
+          {erroreInvio && <p className="text-sm">{t("Ultimo tentativo non riuscito: {errore}", { errore: String(erroreInvio ?? "") })}</p>}
           <p className="text-xs opacity-80 max-sm:hidden">
             {f.spiegazione}
-            {consegna && ` Esito arrivato il ${consegna}.`}
-            {scartata && " I campi qui sotto sono di nuovo modificabili, tranne numero e data."}
+            {consegna && ` ${t("Esito arrivato il {data}.", { data: String(consegna ?? "") })}`}
+            {scartata && ` ${t("I campi qui sotto sono di nuovo modificabili, tranne numero e data.")}`}
           </p>
         </div>
       </div>
@@ -93,14 +95,14 @@ export function SdiStatoBanner({
       <div className="flex gap-2 flex-wrap shrink-0">
         {onScaricaXml && (f.fase === "da_inviare" || f.fase === "manuale" || f.fase === "inviata" || f.fase === "accettata") && (
           <Button variant="outline" size="sm" className="h-8 text-xs bg-background max-sm:hidden" onClick={onScaricaXml}>
-            <FileDown className="h-3.5 w-3.5 mr-1" /> Scarica XML
+            <FileDown className="h-3.5 w-3.5 mr-1" /> {t("Scarica XML")}
           </Button>
         )}
 
         {f.fase === "in_elaborazione" && onAggiorna && (
           <Button variant="outline" size="sm" className="tap-compact h-8 text-xs bg-background" onClick={onAggiorna} disabled={isAggiorna}>
             {isAggiorna ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
-            Aggiorna stato
+            {t("Aggiorna stato")}
           </Button>
         )}
 
@@ -109,22 +111,22 @@ export function SdiStatoBanner({
             <AlertDialogTrigger asChild>
               <Button size="sm" className="tap-compact h-8 text-xs gap-1 bg-blue-600 hover:bg-blue-700 text-white" disabled={isInvio}>
                 {isInvio ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                {scartata ? "Rimanda allo SDI" : "Invia allo SDI"}
+                {scartata ? t("Rimanda allo SDI") : t("Invia allo SDI")}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>{scartata ? "Rimandare la fattura corretta?" : "Inviare la fattura allo SDI?"}</AlertDialogTitle>
+                <AlertDialogTitle>{scartata ? t("Rimandare la fattura corretta?") : t("Inviare la fattura allo SDI?")}</AlertDialogTitle>
                 <AlertDialogDescription>
                   {scartata
-                    ? `${tipoLabel} n. ${doc.numero ?? ""} riparte con lo stesso numero e la stessa data, con i dati come sono adesso. Controlla di aver corretto il motivo dello scarto.`
-                    : `${tipoLabel} n. ${doc.numero ?? ""} parte verso il Sistema di Interscambio. Dopo l'invio non si modifica più: se lo SDI la scarta, potrai correggerla e rimandarla.`}
+                    ? t("{tipo} n. {numero} riparte con lo stesso numero e la stessa data, con i dati come sono adesso. Controlla di aver corretto il motivo dello scarto.", { tipo: tipoLabel, numero: doc.numero ?? "" })
+                    : t("{tipo} n. {numero} parte verso il Sistema di Interscambio. Dopo l'invio non si modifica più: se lo SDI la scarta, potrai correggerla e rimandarla.", { tipo: tipoLabel, numero: doc.numero ?? "" })}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Annulla</AlertDialogCancel>
+                <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
                 <AlertDialogAction onClick={onInvia} className="bg-blue-600 hover:bg-blue-700">
-                  {scartata ? "Rimanda" : "Invia"}
+                  {scartata ? t("Rimanda") : t("Invia")}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

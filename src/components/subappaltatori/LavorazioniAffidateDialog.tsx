@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { formatCurrency } from "@/lib/formatters";
 import { quantitaContratto, totaleElencoLavori, type RigaElencoLavori } from "@/lib/subappaltatori/contrattoSubappaltoHtml";
 import { MacrofasiSubappalto } from "./MacrofasiSubappalto";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function LavorazioniAffidateDialog({
   titolo, righe, oneri = 0, importoPattuito, onApriContratto, onPdf, etichettaPdf = "PDF contratto", pdfInCorso, onClose,
@@ -19,10 +20,11 @@ export function LavorazioniAffidateDialog({
   pdfInCorso?: boolean;
   onClose: () => void;
 }) {
+  const t = useT();
   const [attiva, setAttiva] = useState("");
   const fasi = new Map<string, { id: string; nome: string; righe: RigaElencoLavori[] }>();
   for (const riga of righe) {
-    const nome = riga.fase || "Altri lavori";
+    const nome = riga.fase || t("Altri lavori");
     const id = riga.fase_id || nome;
     const gruppo = fasi.get(id) ?? { id, nome, righe: [] };
     gruppo.righe.push(riga);
@@ -47,17 +49,17 @@ export function LavorazioniAffidateDialog({
         <table className="w-full table-fixed text-sm">
           <thead className="hidden bg-muted/20 text-xs text-muted-foreground sm:table-header-group">
             <tr className="border-b">
-              <th scope="col" className="px-4 py-2 text-left font-medium">Lavorazione</th>
-              <th scope="col" className="w-28 px-3 py-2 text-right font-medium">Quantità</th>
-              <th scope="col" className="w-28 px-3 py-2 text-right font-medium">Prezzo unitario</th>
-              <th scope="col" className="w-32 px-4 py-2 text-right font-medium">Importo</th>
+              <th scope="col" className="px-4 py-2 text-left font-medium">{t("Lavorazione")}</th>
+              <th scope="col" className="w-28 px-3 py-2 text-right font-medium">{t("Quantità")}</th>
+              <th scope="col" className="w-28 px-3 py-2 text-right font-medium">{t("Prezzo unitario")}</th>
+              <th scope="col" className="w-32 px-4 py-2 text-right font-medium">{t("Importo")}</th>
             </tr>
           </thead>
           <tbody className="block divide-y sm:table-row-group">
             {fase.righe.map((riga, indice) => {
               const aCorpo = riga.unita?.trim().toLowerCase() === "a corpo";
-              const misura = aCorpo ? "A corpo" : `${quantitaContratto(riga.quantita)} ${riga.unita ?? ""}`.trim();
-              const prezzo = riga.prezzo > 0 ? formatCurrency(riga.prezzo) : "Da definire";
+              const misura = aCorpo ? t("A corpo") : `${quantitaContratto(riga.quantita)} ${riga.unita ?? ""}`.trim();
+              const prezzo = riga.prezzo > 0 ? formatCurrency(riga.prezzo) : t("Da definire");
               return (
                 <tr key={riga.affidamento_id ?? indice} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 px-3 py-2.5 sm:table-row sm:px-0 sm:py-0">
                   <th scope="row" className="min-w-0 break-words text-left font-medium sm:px-4 sm:py-3">
@@ -83,7 +85,7 @@ export function LavorazioniAffidateDialog({
         <DialogHeader className="border-b px-5 pb-4 pt-5 pr-12 text-left sm:px-6 sm:pr-14">
           <DialogTitle className="flex items-center gap-2">
             <Layers3 className="size-[18px] shrink-0 text-primary" aria-hidden="true" />
-            Lavorazioni affidate
+            {t("Lavorazioni affidate")}
           </DialogTitle>
           <DialogDescription className="break-words">{titolo}</DialogDescription>
         </DialogHeader>
@@ -93,19 +95,19 @@ export function LavorazioniAffidateDialog({
               id: fase.id, nome: fase.nome, voci: fase.righe.length, dettaglio: formatCurrency(totaleElencoLavori(fase.righe)),
             }))} attiva={attiva} onSeleziona={setAttiva}>{dettaglio}</MacrofasiSubappalto>
           ) : elenco.length === 1 ? dettaglio : (
-            <p className="rounded-lg border bg-background p-4 text-sm text-muted-foreground">Nessuna lavorazione registrata.</p>
+            <p className="rounded-lg border bg-background p-4 text-sm text-muted-foreground">{t("Nessuna lavorazione registrata.")}</p>
           )}
         </div>
         <footer className="flex flex-wrap items-center justify-between gap-3 border-t px-5 py-3 sm:px-6">
           <div>
             <div className="flex flex-wrap items-baseline gap-x-2">
-              <span className="text-xs font-medium text-muted-foreground">{pattuito == null ? "Totale lavorazioni" : "Totale contratto"}</span>
+              <span className="text-xs font-medium text-muted-foreground">{pattuito == null ? t("Totale lavorazioni") : t("Totale contratto")}</span>
               <strong className="text-lg font-semibold tabular-nums text-primary">{formatCurrency(totale)}</strong>
-              <span className="text-xs text-muted-foreground">IVA esclusa</span>
+              <span className="text-xs text-muted-foreground">{t("IVA esclusa")}</span>
             </div>
             {(oneri > 0 || mostraDifferenza) && (
               <p className="text-xs text-muted-foreground">
-                {mostraDifferenza && `Voci elencate ${formatCurrency(totaleLavori)}`}
+                {mostraDifferenza && t("Voci elencate {totaleLavori}", { totaleLavori: formatCurrency(totaleLavori) })}
                 {oneri > 0 && `${mostraDifferenza ? " · " : ""}Oneri di sicurezza ${formatCurrency(oneri)}`}
               </p>
             )}
@@ -116,7 +118,7 @@ export function LavorazioniAffidateDialog({
             </Button>
           ) : onApriContratto && (
             <Button size="sm" variant="outline" onClick={onApriContratto}>
-              Apri contratto <ArrowUpRight className="ml-1.5 size-4" />
+              {t("Apri contratto")} <ArrowUpRight className="ml-1.5 size-4" />
             </Button>
           )}
         </footer>

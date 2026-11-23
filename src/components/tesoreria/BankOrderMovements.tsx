@@ -5,6 +5,7 @@ import { bankRpc, type BankPage } from "@/lib/finance/bankWorkspace";
 import { formatDateIt } from "@/lib/formatters";
 import { formatTreasuryCurrency as money } from "@/lib/treasury";
 import { prettyTxDesc } from "./txLabel";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 export function BankOrderMovements({
   company,
   order,
@@ -14,6 +15,7 @@ export function BankOrderMovements({
   order: string;
   richiudibile?: boolean;
 }) {
+  const t = useT();
   const q = useQuery({
     queryKey: ["bank-contesto-movimenti", company, "commessa", order],
     queryFn: () =>
@@ -28,18 +30,18 @@ export function BankOrderMovements({
   if (q.isPending)
     return (
       <p role="status" className="text-sm text-muted-foreground">
-        Caricamento riferimenti bancari…
+        {t("Caricamento riferimenti bancari…")}
       </p>
     );
   if (q.isError)
     return (
       <div role="alert" className="rounded-xl border p-4 text-sm">
-        Riferimenti bancari non disponibili.{" "}
+        {t("Riferimenti bancari non disponibili.")}{" "}
         <button
           className="text-primary underline"
           onClick={() => void q.refetch()}
         >
-          Riprova
+          {t("Riprova")}
         </button>
       </div>
     );
@@ -47,24 +49,23 @@ export function BankOrderMovements({
   const Container = richiudibile ? "details" : "section";
   return (
     <Container className="income-bank-movements rounded-xl border bg-card p-4">
-      {richiudibile ? <summary className="cursor-pointer text-sm font-semibold">Movimenti bancari collegati <span className="text-muted-foreground">({q.data.count})</span><span className="mt-1 block text-xs font-normal text-muted-foreground">Bonifici e quote attribuite alla commessa. Apri per controllare i movimenti.</span></summary> : <h3 className="font-semibold">
-        Movimenti bancari collegati{" "}
+      {richiudibile ? <summary className="cursor-pointer text-sm font-semibold">{t("Movimenti bancari collegati")} <span className="text-muted-foreground">({q.data.count})</span><span className="mt-1 block text-xs font-normal text-muted-foreground">{t("Bonifici e quote attribuite alla commessa. Apri per controllare i movimenti.")}</span></summary> : <h3 className="font-semibold">
+        {t("Movimenti bancari collegati")}{" "}
         <span className="text-muted-foreground">({q.data.count})</span>
       </h3>}
       <p className="mt-3 text-xs text-muted-foreground">
-        Il bonifico può comprendere più commesse. La quota attribuita è indicata
-        soltanto quando è stata specificata.
+        {t("Il bonifico può comprendere più commesse. La quota attribuita è indicata soltanto quando è stata specificata.")}
       </p>
       <div className="mt-3 overflow-auto">
         <table className="w-full text-sm">
           <thead className="text-xs text-muted-foreground">
             <tr>
-              <th className="py-2 text-left">Data</th>
-              <th className="px-3 text-left">Movimento</th>
-              <th className="px-3 text-right">Bonifico complessivo</th>
-              <th className="px-3 text-right">Quota commessa</th>
+              <th className="py-2 text-left">{t("Data")}</th>
+              <th className="px-3 text-left">{t("Movimento")}</th>
+              <th className="px-3 text-right">{t("Bonifico complessivo")}</th>
+              <th className="px-3 text-right">{t("Quota commessa")}</th>
               <th>
-                <span className="sr-only">Apri</span>
+                <span className="sr-only">{t("Apri")}</span>
               </th>
             </tr>
           </thead>
@@ -91,12 +92,12 @@ export function BankOrderMovements({
                         "—",
                         m.currency,
                       )
-                    : "Non specificata"}
+                    : t("Non specificata")}
                 </td>
                 <td>
                   <Link
                     to={`/azienda/tesoreria?tab=transazioni&movimento=${m.id}`}
-                    aria-label={`Apri bonifico ${prettyTxDesc(m)}`}
+                    aria-label={t("Apri bonifico {descrizione}", { descrizione: String(prettyTxDesc(m) ?? "") })}
                     className="inline-flex p-2 text-primary"
                   >
                     <ExternalLink className="h-4 w-4" />
@@ -108,10 +109,7 @@ export function BankOrderMovements({
         </table>
       </div>
       {q.data.count > 10 && (
-        <p className="mt-2 text-xs text-muted-foreground">
-          Ultimi 10 di {q.data.count} movimenti. Per la ricerca completa apri
-          Tesoreria e cerca il codice della commessa.
-        </p>
+        <p className="mt-2 text-xs text-muted-foreground">{t("Ultimi 10 di {n} movimenti. Per la ricerca completa apri Tesoreria e cerca il codice della commessa.", { n: String(q.data.count ?? "") })}</p>
       )}
     </Container>
   );

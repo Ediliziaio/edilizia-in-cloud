@@ -10,6 +10,7 @@ import {
 import { Download, ChevronDown } from "lucide-react";
 import type { DocumentoFiscale } from "@/types/fatturazione";
 import { nomeCliente } from "@/lib/fatturazione/clienteSnapshot";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface DocumentiFooterProps {
   total: number;
@@ -61,20 +62,19 @@ export function DocumentiFooter({
   totalIva,
   totalDocumento,
 }: DocumentiFooterProps) {
+  const t = useT();
   return (
     <div className="flex items-center justify-between border-t border-border bg-muted/30 rounded-b-lg px-4 py-3">
       <p className="text-sm text-muted-foreground">
-        {total} {total === 1 ? "documento" : "documenti"}
-        {total > documenti.length && <span className="block text-xs">{documenti.length} in questa pagina</span>}
+        {t(total === 1 ? "{n} documento" : "{n} documenti", { n: total })}
+        {total > documenti.length && <span className="block text-xs">{t("{n} in questa pagina", { n: documenti.length })}</span>}
       </p>
 
       <div className="flex items-center gap-4">
         <div className="text-right">
-          {total > documenti.length && <p className="text-[11px] text-muted-foreground">Totale pagina corrente</p>}
+          {total > documenti.length && <p className="text-[11px] text-muted-foreground">{t("Totale pagina corrente")}</p>}
           <p className="text-sm font-semibold">{formatCurrency(totalDocumento)}</p>
-          <p className="text-[11px] text-muted-foreground">
-            Imponibile {formatCurrency(totalImponibile)} + IVA {formatCurrency(totalIva)}
-          </p>
+          <p className="text-[11px] text-muted-foreground">{t("Imponibile {totalImponibile} + IVA {totalIva}", { totalImponibile: formatCurrency(totalImponibile), totalIva: formatCurrency(totalIva) })}</p>
         </div>
 
         <DropdownMenu>
@@ -87,7 +87,7 @@ export function DocumentiFooter({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={() => exportToXLS(documenti, "documenti-pagina")}>
-              Esporta pagina corrente
+              {t("Esporta pagina corrente")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

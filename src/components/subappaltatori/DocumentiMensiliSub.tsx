@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/dialog";
 import { Loader2, Shield } from "lucide-react";
 import { toast } from "sonner";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 type Contratto = {
   id: string;
   data_inizio?: string | null;
@@ -64,6 +65,7 @@ export function DocumentiMensiliSub({
   subId: string;
   contratti: Contratto[];
 }) {
+  const t = useT();
   const p = usePermissions();
   const [contrattoId, setContrattoId] = useState(() =>
     contratti.length === 1 ? contratti[0].id : "",
@@ -78,8 +80,7 @@ export function DocumentiMensiliSub({
   if (!p.canViewSubappaltatoriAmministrazione)
     return (
       <p className="rounded-lg border p-4 text-sm text-muted-foreground">
-        Serve il permesso Documenti mensili subappaltatori per consultare questo
-        fascicolo riservato.
+        {t("Serve il permesso Documenti mensili subappaltatori per consultare questo fascicolo riservato.")}
       </p>
     );
   const scrive = !p.solaLettura;
@@ -110,21 +111,21 @@ export function DocumentiMensiliSub({
     setForm((f) => (f ? { ...f, [k]: v || null } : f));
   const errore = (e: unknown) =>
     toast.error(
-      e instanceof Error ? e.message : "Operazione non riuscita. Riprova.",
+      e instanceof Error ? e.message : t("Operazione non riuscita. Riprova."),
     );
   const salvaForm = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form) return;
     if (form.stato === "non_applicabile" && !form.note?.trim()) {
-      toast.error("Motiva la non applicabilità per questo contratto e mese.");
+      toast.error(t("Motiva la non applicabilità per questo contratto e mese."));
       return;
     }
     if (form.stato === "ricevuto" && !form.file_path && !file) {
-      toast.error("Allega il documento prima di registrarlo come ricevuto.");
+      toast.error(t("Allega il documento prima di registrarlo come ricevuto."));
       return;
     }
     if (form.stato === "verificato" && !form.file_path) {
-      toast.error("Carica e salva il documento prima di verificarlo.");
+      toast.error(t("Carica e salva il documento prima di verificarlo."));
       return;
     }
     setPending(true);
@@ -159,7 +160,7 @@ export function DocumentiMensiliSub({
         });
       setForm(null);
       setFile(null);
-      toast.success("Documento mensile salvato nel fascicolo amministrativo");
+      toast.success(t("Documento mensile salvato nel fascicolo amministrativo"));
     } catch (e) {
       errore(e);
     } finally {
@@ -171,19 +172,17 @@ export function DocumentiMensiliSub({
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <Shield className="h-4 w-4" />
-          Documenti amministrativi mensili
+          {t("Documenti amministrativi mensili")}
         </CardTitle>
         <p className="text-sm text-muted-foreground">
-          Controlli per impresa, contratto e mese. Configura l’applicabilità in
-          base al contratto; queste sei voci dell’Excel non diventano obblighi
-          universali. I file non entrano nel POS.
+          {t("Controlli per impresa, contratto e mese. Configura l’applicabilità in base al contratto; queste sei voci dell’Excel non diventano obblighi universali. I file non entrano nel POS.")}
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_12rem]">
           <div>
             <Label htmlFor="mensile-contratto">
-              Contratto del subappaltatore
+              {t("Contratto del subappaltatore")}
             </Label>
             <UniformSelect
               id="mensile-contratto"
@@ -191,18 +190,18 @@ export function DocumentiMensiliSub({
               value={contrattoId}
               onChange={(e) => setContrattoId(e.target.value)}
             >
-              <option value="">Scegli il contratto</option>
+              <option value="">{t("Scegli il contratto")}</option>
               {contratti.map((c) => (
                 <option key={c.id} value={c.id}>
                   {[c.commessa?.order_code, c.numero_contratto]
                     .filter(Boolean)
-                    .join(" · ") || `Contratto ${c.id.slice(0, 8)}`}
+                    .join(" · ") || t("Contratto {id}", { id: c.id.slice(0, 8) })}
                 </option>
               ))}
             </UniformSelect>
           </div>
           <div>
-            <Label htmlFor="mensile-mese">Mese di competenza</Label>
+            <Label htmlFor="mensile-mese">{t("Mese di competenza")}</Label>
             <Input
               id="mensile-mese"
               className="mt-1"
@@ -214,16 +213,16 @@ export function DocumentiMensiliSub({
         </div>
         {selezionato && (
           <p className="text-xs text-muted-foreground">
-            {selezionato.stato ? `Contratto ${selezionato.stato} · ` : ""}
+            {selezionato.stato ? `${t("Contratto {stato} ·", { stato: String(selezionato.stato ?? "") })} ` : ""}
             {selezionato.data_inizio
-              ? `Dal ${selezionato.data_inizio}`
-              : "Inizio non indicato"}{" "}
+              ? t("Dal {data_inizio}", { data_inizio: String(selezionato.data_inizio ?? "") })
+              : t("Inizio non indicato")}{" "}
             ·{" "}
             {selezionato.data_fine_effettiva
-              ? `fine effettiva ${selezionato.data_fine_effettiva}`
+              ? t("fine effettiva {data_fine_effettiva}", { data_fine_effettiva: String(selezionato.data_fine_effettiva ?? "") })
               : selezionato.data_fine_prevista
-                ? `fine prevista ${selezionato.data_fine_prevista}`
-                : "fine non indicata"}
+                ? t("fine prevista {data_fine_prevista}", { data_fine_prevista: String(selezionato.data_fine_prevista ?? "") })
+                : t("fine non indicata")}
           </p>
         )}
         {fuoriPeriodo && (
@@ -231,36 +230,31 @@ export function DocumentiMensiliSub({
             role="status"
             className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
           >
-            Il mese scelto è fuori dal periodo contrattuale registrato. Verifica
-            la competenza prima di preparare i controlli; puoi comunque
-            registrare una raccolta retroattiva.
+            {t("Il mese scelto è fuori dal periodo contrattuale registrato. Verifica la competenza prima di preparare i controlli; puoi comunque registrare una raccolta retroattiva.")}
           </p>
         )}
         {!contratti.length ? (
           <p className="rounded-lg border border-dashed p-4 text-sm">
-            Collega prima un contratto alla commessa dalla scheda Contratti.
+            {t("Collega prima un contratto alla commessa dalla scheda Contratti.")}
           </p>
         ) : !contrattoId || !mese ? (
           <p className="text-sm text-muted-foreground">
-            Scegli contratto e mese per consultare o preparare i controlli.
+            {t("Scegli contratto e mese per consultare o preparare i controlli.")}
           </p>
         ) : q.isError ? (
           <p role="alert" className="text-sm text-destructive">
-            Fascicolo mensile non disponibile.{" "}
+            {t("Fascicolo mensile non disponibile.")}{" "}
             <Button variant="link" onClick={() => void q.refetch()}>
-              Riprova
+              {t("Riprova")}
             </Button>
           </p>
         ) : q.isLoading ? (
-          <p>Caricamento documenti mensili…</p>
+          <p>{t("Caricamento documenti mensili…")}</p>
         ) : (
           <>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm text-muted-foreground">
-                {riepilogo.configurati}/6 voci configurate ·{" "}
-                {6 - riepilogo.configurati} da configurare ·{" "}
-                {riepilogo.verificati} verificate · {riepilogo.aperti} da
-                gestire · {riepilogo.nonApplicabili} non applicabili
+                {t("{configurati}/6 voci configurate · {daConfigurare} da configurare · {verificati} verificate · {aperti} da gestire · {nonApplicabili} non applicabili", { configurati: riepilogo.configurati, daConfigurare: 6 - riepilogo.configurati, verificati: riepilogo.verificati, aperti: riepilogo.aperti, nonApplicabili: riepilogo.nonApplicabili })}
               </p>
               {scrive && correnti.length < 6 && (
                 <Button
@@ -279,7 +273,7 @@ export function DocumentiMensiliSub({
                       })
                       .then(() =>
                         toast.success(
-                          "Voci preparate: nessuna richiesta è stata inviata",
+                          t("Voci preparate: nessuna richiesta è stata inviata"),
                         ),
                       )
                       .catch(errore)
@@ -288,7 +282,7 @@ export function DocumentiMensiliSub({
                   {prepara.isPending && (
                     <Loader2 className="mr-1 h-4 w-4 animate-spin" />
                   )}
-                  Prepara le voci dell’Excel
+                  {t("Prepara le voci dell’Excel")}
                 </Button>
               )}
             </div>
@@ -301,24 +295,17 @@ export function DocumentiMensiliSub({
                       <div className="flex flex-wrap justify-between gap-2">
                         <h3 className="text-sm font-medium">{label}</h3>
                         <Badge variant="outline">
-                          {d ? STATO_EVIDENZA[d.stato] : "Da configurare"}
+                          {d ? t(STATO_EVIDENZA[d.stato]) : t("Da configurare")}
                         </Badge>
                       </div>
                       {d?.termine && (
-                        <p className="mt-2 text-xs text-muted-foreground">
-                          Termine: {d.termine}
-                        </p>
+                        <p className="mt-2 text-xs text-muted-foreground">{t("Termine: {termine}", { termine: String(d.termine ?? "") })}</p>
                       )}
                       {d?.referente && (
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Referente: {d.referente}
-                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">{t("Referente: {referente}", { referente: String(d.referente ?? "") })}</p>
                       )}
                       {d?.verificato_il && (
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Verifica registrata il{" "}
-                          {new Date(d.verificato_il).toLocaleString("it-IT")}
-                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">{t("Verifica registrata il {valore}", { valore: new Date(d.verificato_il).toLocaleString(intlCampo()) })}</p>
                       )}
                       {d?.stato === "non_applicabile" && (
                         <p className="mt-2 text-sm">{d.note}</p>
@@ -335,7 +322,7 @@ export function DocumentiMensiliSub({
                               ).catch(errore)
                             }
                           >
-                            Apri file
+                            {t("Apri file")}
                           </Button>
                         )}
                         {scrive && (
@@ -344,7 +331,7 @@ export function DocumentiMensiliSub({
                             variant="outline"
                             onClick={() => apri(tipo, d)}
                           >
-                            {d ? "Gestisci" : "Configura"}
+                            {d ? t("Gestisci") : t("Configura")}
                           </Button>
                         )}
                       </div>
@@ -355,9 +342,7 @@ export function DocumentiMensiliSub({
             </div>
             {!!storico.length && (
               <details className="rounded-lg border p-3">
-                <summary className="cursor-pointer text-sm">
-                  Versioni superate · {storico.length}
-                </summary>
+                <summary className="cursor-pointer text-sm">{t("Versioni superate · {n}", { n: storico.length })}</summary>
                 <ul className="mt-2 space-y-2">
                   {storico.map((d) => (
                     <li
@@ -366,7 +351,7 @@ export function DocumentiMensiliSub({
                     >
                       <span>
                         {TIPI_MENSILI[d.tipo]} ·{" "}
-                        {d.file_name ?? "Senza allegato"}
+                        {d.file_name ?? t("Senza allegato")}
                       </span>
                       {d.file_path && (
                         <Button
@@ -379,7 +364,7 @@ export function DocumentiMensiliSub({
                             ).catch(errore)
                           }
                         >
-                          Apri file
+                          {t("Apri file")}
                         </Button>
                       )}
                     </li>
@@ -397,16 +382,12 @@ export function DocumentiMensiliSub({
         <DialogContent className="max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{form && TIPI_MENSILI[form.tipo]}</DialogTitle>
-            <DialogDescription>
-              Competenza {form?.competenza}. La registrazione di una richiesta
-              non invia messaggi. Per sostituire un file conserva la voce come
-              Superato e prepara la nuova evidenza.
-            </DialogDescription>
+            <DialogDescription>{t("Competenza {competenza}. La registrazione di una richiesta non invia messaggi. Per sostituire un file conserva la voce come Superato e prepara la nuova evidenza.", { competenza: String(form?.competenza ?? "") })}</DialogDescription>
           </DialogHeader>
           {form && (
             <form onSubmit={salvaForm} className="space-y-3">
               <div>
-                <Label htmlFor="mensile-stato">Stato</Label>
+                <Label htmlFor="mensile-stato">{t("Stato")}</Label>
                 <UniformSelect
                   id="mensile-stato"
                   className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm"
@@ -421,22 +402,22 @@ export function DocumentiMensiliSub({
                 </UniformSelect>
               </div>
               <div>
-                <Label htmlFor="mensile-origine">Origine del requisito</Label>
+                <Label htmlFor="mensile-origine">{t("Origine del requisito")}</Label>
                 <UniformSelect
                   id="mensile-origine"
                   className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm"
                   value={form.origine_requisito}
                   onChange={(e) => campo("origine_requisito", e.target.value)}
                 >
-                  <option value="da_verificare">Da verificare</option>
-                  <option value="contratto">Contratto / committente</option>
-                  <option value="interna">Procedura interna</option>
-                  <option value="normativa">Normativa da indicare</option>
+                  <option value="da_verificare">{t("Da verificare")}</option>
+                  <option value="contratto">{t("Contratto / committente")}</option>
+                  <option value="interna">{t("Procedura interna")}</option>
+                  <option value="normativa">{t("Normativa da indicare")}</option>
                 </UniformSelect>
               </div>
               <div>
                 <Label htmlFor="mensile-riferimento">
-                  Clausola o riferimento
+                  {t("Clausola o riferimento")}
                 </Label>
                 <Input
                   id="mensile-riferimento"
@@ -448,7 +429,7 @@ export function DocumentiMensiliSub({
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label htmlFor="mensile-termine">Termine di raccolta</Label>
+                  <Label htmlFor="mensile-termine">{t("Termine di raccolta")}</Label>
                   <Input
                     id="mensile-termine"
                     type="date"
@@ -457,7 +438,7 @@ export function DocumentiMensiliSub({
                   />
                 </div>
                 <div>
-                  <Label htmlFor="mensile-referente">Referente</Label>
+                  <Label htmlFor="mensile-referente">{t("Referente")}</Label>
                   <Input
                     id="mensile-referente"
                     value={form.referente ?? ""}
@@ -466,13 +447,11 @@ export function DocumentiMensiliSub({
                 </div>
               </div>
               {form.file_path ? (
-                <p className="rounded-lg border p-3 text-sm">
-                  File conservato: {form.file_name}
-                </p>
+                <p className="rounded-lg border p-3 text-sm">{t("File conservato: {file_name}", { file_name: String(form.file_name ?? "") })}</p>
               ) : (
                 <div>
                   <Label htmlFor="mensile-file">
-                    File PDF o immagine (fino a 20 MB)
+                    {t("File PDF o immagine (fino a 20 MB)")}
                   </Label>
                   <Input
                     id="mensile-file"
@@ -484,7 +463,7 @@ export function DocumentiMensiliSub({
               )}
               <div>
                 <Label htmlFor="mensile-note">
-                  Note / motivazione della non applicabilità
+                  {t("Note / motivazione della non applicabilità")}
                 </Label>
                 <Textarea
                   id="mensile-note"
@@ -499,11 +478,11 @@ export function DocumentiMensiliSub({
                   disabled={pending}
                   onClick={() => setForm(null)}
                 >
-                  Annulla
+                  {t("Annulla")}
                 </Button>
                 <Button disabled={pending}>
                   {pending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
-                  Salva documento mensile
+                  {t("Salva documento mensile")}
                 </Button>
               </DialogFooter>
             </form>

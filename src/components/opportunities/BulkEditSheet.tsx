@@ -11,6 +11,7 @@ import {
 } from "@/hooks/useOpportunitiesData";
 import { STATUS_OPTIONS } from "@/types/opportunities";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface BulkEditSheetProps {
   open: boolean;
@@ -47,6 +48,7 @@ function parseTags(raw: string): string[] {
 }
 
 export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone, canEdit = true }: BulkEditSheetProps) {
+  const t = useT();
   const [selectedField, setSelectedField] = useState<Field | null>(null);
   const [fieldValue, setFieldValue] = useState("");
   const [search, setSearch] = useState("");
@@ -67,7 +69,7 @@ export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone,
 
   const handleApply = () => {
     if (!canEdit) {
-      toast.error("Non hai i permessi per modificare opportunità");
+      toast.error(t("Non hai i permessi per modificare opportunità"));
       return;
     }
     if (!selectedField || !fieldValue) return;
@@ -76,7 +78,7 @@ export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone,
     if (selectedField === "add_tags" || selectedField === "remove_tags") {
       const tags = parseTags(fieldValue);
       if (tags.length === 0) {
-        toast.error("Inserisci almeno un'etichetta");
+        toast.error(t("Inserisci almeno un'etichetta"));
         return;
       }
       bulkTag.mutate(
@@ -98,12 +100,12 @@ export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone,
     if (selectedField === "value") {
       const numericValue = Number(fieldValue);
       if (!Number.isFinite(numericValue) || numericValue < 0) {
-        toast.error("Il valore economico deve essere un numero positivo");
+        toast.error(t("Il valore economico deve essere un numero positivo"));
         return;
       }
       data.value = numericValue;
     } else if (selectedField === "status" && (fieldValue === "lost" || fieldValue === "abandoned")) {
-      toast.error("Per segnare opportunità perse o abbandonate serve indicare il motivo dal dettaglio opportunità");
+      toast.error(t("Per segnare opportunità perse o abbandonate serve indicare il motivo dal dettaglio opportunità"));
       return;
     } else if (selectedField === "assigned_to" || selectedField === "call_center_id" || selectedField === "follower_id") {
       data[selectedField] = fieldValue === "none" ? null : fieldValue;
@@ -121,7 +123,7 @@ export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone,
       // regola del bulk-lost: serve il motivo, quindi si blocca.
       const targetStage = stages.find((st) => st.id === fieldValue);
       if (targetStage?.auto_status === "lost" || targetStage?.auto_status === "abandoned") {
-        toast.error("La fase scelta segna le opportunità come perse o abbandonate: serve il motivo, fallo dal dettaglio");
+        toast.error(t("La fase scelta segna le opportunità come perse o abbandonate: serve il motivo, fallo dal dettaglio"));
         return;
       }
       data.stage_id = fieldValue;
@@ -149,7 +151,7 @@ export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone,
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:w-[400px]">
         <SheetHeader>
-          <SheetTitle>Modifica in blocco ({selectedIds.length})</SheetTitle>
+          <SheetTitle>{t("Modifica in blocco ({n})", { n: selectedIds.length })}</SheetTitle>
         </SheetHeader>
 
         <div className="mt-4 space-y-4">
@@ -158,7 +160,7 @@ export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone,
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Cerca campo..."
+                  placeholder={t("Cerca campo...")}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="pl-9"
@@ -171,7 +173,7 @@ export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone,
                     onClick={() => { setSelectedField(f.key); setFieldValue(""); }}
                     className="w-full flex items-center justify-between px-3 py-2.5 rounded-md hover:bg-muted transition-colors text-sm"
                   >
-                    {f.label}
+                    {t(f.label)}
                     <ChevronRight className="h-4 w-4 text-muted-foreground" />
                   </button>
                 ))}
@@ -180,17 +182,17 @@ export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone,
           ) : (
             <>
               <Button variant="ghost" size="sm" onClick={handleBack} className="text-xs">
-                ← Torna alla lista
+                {t("← Torna alla lista")}
               </Button>
 
               <div className="space-y-3">
                 <Label className="text-sm font-medium">
-                  {FIELDS.find((f) => f.key === selectedField)?.label}
+                  {t(FIELDS.find((f) => f.key === selectedField)?.label ?? "")}
                 </Label>
 
                 {selectedField === "stage_id" && (
                   <Select value={fieldValue} onValueChange={setFieldValue}>
-                    <SelectTrigger><SelectValue placeholder="Seleziona fase..." /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder={t("Seleziona fase...")} /></SelectTrigger>
                     <SelectContent>
                       {stages.map((s) => (
                         <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
@@ -201,10 +203,10 @@ export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone,
 
                 {selectedField === "status" && (
                   <Select value={fieldValue} onValueChange={setFieldValue}>
-                    <SelectTrigger><SelectValue placeholder="Seleziona stato..." /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder={t("Seleziona stato...")} /></SelectTrigger>
                     <SelectContent>
                       {STATUS_OPTIONS.map((s) => (
-                        <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                        <SelectItem key={s.value} value={s.value}>{t(s.label)}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -214,7 +216,7 @@ export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone,
                   <Input
                     type="number"
                     min="0"
-                    placeholder="Nuovo valore..."
+                    placeholder={t("Nuovo valore...")}
                     value={fieldValue}
                     onChange={(e) => setFieldValue(e.target.value)}
                   />
@@ -222,9 +224,9 @@ export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone,
 
                 {(selectedField === "assigned_to" || selectedField === "call_center_id" || selectedField === "follower_id") && (
                   <Select value={fieldValue} onValueChange={setFieldValue}>
-                    <SelectTrigger><SelectValue placeholder="Seleziona persona..." /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder={t("Seleziona persona...")} /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Nessuno</SelectItem>
+                      <SelectItem value="none">{t("Nessuno")}</SelectItem>
                       {personePerCampo(selectedField).map((s: any) => (
                         <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                       ))}
@@ -234,7 +236,7 @@ export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone,
 
                 {selectedField === "source" && (
                   <Input
-                    placeholder="Nuova fonte..."
+                    placeholder={t("Nuova fonte...")}
                     value={fieldValue}
                     onChange={(e) => setFieldValue(e.target.value)}
                   />
@@ -250,7 +252,7 @@ export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone,
 
                 {selectedField === "next_action" && (
                   <Input
-                    placeholder="Es. Richiamare, inviare preventivo..."
+                    placeholder={t("Es. Richiamare, inviare preventivo...")}
                     value={fieldValue}
                     onChange={(e) => setFieldValue(e.target.value)}
                   />
@@ -259,15 +261,15 @@ export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone,
                 {(selectedField === "add_tags" || selectedField === "remove_tags") && (
                   <div className="space-y-1.5">
                     <Input
-                      placeholder="Es. urgente, da-richiamare"
+                      placeholder={t("Es. urgente, da-richiamare")}
                       value={fieldValue}
                       onChange={(e) => setFieldValue(e.target.value)}
                     />
                     <p className="text-[11px] text-muted-foreground">
-                      Più etichette separate da virgola.{" "}
+                      {t("Più etichette separate da virgola.")}{" "}
                       {selectedField === "add_tags"
-                        ? "Vengono aggiunte a quelle esistenti."
-                        : "Vengono rimosse solo se presenti."}
+                        ? t("Vengono aggiunte a quelle esistenti.")
+                        : t("Vengono rimosse solo se presenti.")}
                     </p>
                   </div>
                 )}
@@ -278,7 +280,7 @@ export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone,
                   className="w-full"
                 >
                   {(bulkUpdate.isPending || bulkTag.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Applica a {selectedIds.length} opportunità
+                  {t("Applica a {n} opportunità", { n: selectedIds.length })}
                 </Button>
               </div>
             </>

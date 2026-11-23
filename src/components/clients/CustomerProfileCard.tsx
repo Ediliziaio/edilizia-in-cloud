@@ -38,7 +38,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   ChevronDown, Search, User, ExternalLink, Calendar, Lock, Building2, ClipboardCheck, X as XIcon } from "lucide-react";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { InlineField } from "@/components/marketing/contacts/InlineField";
 import type { IndirizzoTrovato } from "@/lib/indirizzi/ricercaIndirizzi";
 import { validatePartitaIva, validateCodiceFiscale } from "@/lib/italianFiscalValidation";
@@ -49,6 +48,7 @@ import { DatiFatturaCliente } from "@/components/clients/DatiFatturaCliente";
 import { useAnagraficaFiscaleCliente } from "@/hooks/useAnagraficaFiscaleCliente";
 import { etichettaTipoCliente, formDaAnagrafica, problemiClienteFiscale, type ClienteFiscaleForm } from "@/lib/clienti/clienteFiscale";
 import { salvaClienteFiscale } from "@/lib/clienti/salvaClienteFiscale";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Valore della voce «Non assegnato»: Radix Select non accetta la stringa vuota. */
 const NESSUN_AGENTE = "__nessuno";
@@ -110,6 +110,7 @@ interface CustomerProfileCardProps {
 }
 
 export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommittente = false, onChiudi, dopoDatiFattura }: CustomerProfileCardProps) {
+  const t = useT();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -149,7 +150,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
   const agentiInTendina = salespeople.filter((s) => s.is_active || s.id === customer.salesperson_id);
   const agenteAssegnato = salespeople.find((s) => s.id === customer.salesperson_id);
   const nomeAgente = (s: { first_name: string | null; last_name: string | null }) =>
-    [s.first_name, s.last_name].filter(Boolean).join(" ") || "Senza nome";
+    [s.first_name, s.last_name].filter(Boolean).join(" ") || t("Senza nome");
 
   // L'anagrafica fiscale collegata, se c'è, fa fede per tipo, codice fiscale e partita IVA
   // (15/11/2026): la sezione «Anagrafica» mostrava «—» e «azienda» per un Comune che nei
@@ -176,7 +177,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
       queryClient.invalidateQueries({ queryKey: queryKeys.anagraficheNative.all });
       onSaved?.();
     },
-    onError: (e) => toast({ title: "Errore salvataggio", description: e instanceof Error ? e.message : "Riprova", variant: "destructive" }),
+    onError: (e) => toast({ title: t("Errore salvataggio"), description: e instanceof Error ? e.message : t("Riprova"), variant: "destructive" }),
   });
 
   // Update singolo campo (pattern marketing updateField)
@@ -231,8 +232,8 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
     },
     onError: (e) => {
       toast({
-        title: "Errore salvataggio",
-        description: e instanceof Error ? e.message : "Riprova",
+        title: t("Errore salvataggio"),
+        description: e instanceof Error ? e.message : t("Riprova"),
         variant: "destructive",
       });
     },
@@ -257,9 +258,9 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
       queryClient.invalidateQueries({ queryKey: ["company-customer-detail", customer.id] });
       queryClient.invalidateQueries({ queryKey: queryKeys.customersList.all });
       onSaved?.();
-      toast({ title: "Segnato come azienda", description: "Il nome è la ragione sociale. Aggiungi la partita IVA per fatturare." });
+      toast({ title: t("Segnato come azienda"), description: t("Il nome è la ragione sociale. Aggiungi la partita IVA per fatturare.") });
     },
-    onError: (e) => toast({ title: "Errore salvataggio", description: e instanceof Error ? e.message : "Riprova", variant: "destructive" }),
+    onError: (e) => toast({ title: t("Errore salvataggio"), description: e instanceof Error ? e.message : t("Riprova"), variant: "destructive" }),
   });
   // Cosa manca per chiamare, scrivere e fatturare: un tocco filtra la scheda su quel campo.
   const mancano = campiDaCompletare(customer, anaFiscale);
@@ -276,10 +277,10 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
       <div className="flex items-center justify-between gap-2 px-3 py-2.5 border-b sticky top-0 bg-card z-10 rounded-t-2xl">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
           <User className="h-3 w-3" />
-          Anagrafica completa
+          {t("Anagrafica completa")}
         </h3>
         {onChiudi && (
-          <Button variant="ghost" size="icon" className="hidden h-6 w-6 lg:inline-flex" onClick={onChiudi} aria-label="Chiudi l'anagrafica">
+          <Button variant="ghost" size="icon" className="hidden h-6 w-6 lg:inline-flex" onClick={onChiudi} aria-label={t("Chiudi l'anagrafica")}>
             <XIcon className="h-3.5 w-3.5" />
           </Button>
         )}
@@ -290,7 +291,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
           {solaLettura && !permessi.isLoading && (
             <p className="flex items-start gap-1.5 rounded-md border bg-muted/40 px-2 py-1.5 text-[11px] leading-4 text-muted-foreground">
               <Lock className="mt-0.5 h-3 w-3 shrink-0" />
-              Non hai il permesso di modificare i dati {perCommittente ? "del committente" : "del cliente"}
+              {perCommittente ? t("Non hai il permesso di modificare i dati del committente") : t("Non hai il permesso di modificare i dati del cliente")}
             </p>
           )}
 
@@ -298,10 +299,10 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
             <div className="rounded-md border border-sky-200 bg-sky-50 px-2.5 py-2 text-xs dark:border-sky-900/50 dark:bg-sky-950/20">
               <p className="flex items-start gap-1.5 text-sky-900 dark:text-sky-200">
                 <Building2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                «{nomeIntero}» sembra un condominio o un'azienda, ma è salvato come persona.
+                {t("«{nome}» sembra un condominio o un'azienda, ma è salvato come persona.", { nome: nomeIntero })}
               </p>
               <Button size="sm" variant="outline" className="mt-1.5 h-7 w-full text-xs" disabled={segnaAzienda.isPending} onClick={() => segnaAzienda.mutate()}>
-                Segna come azienda
+                {t("Segna come azienda")}
               </Button>
             </div>
           )}
@@ -309,7 +310,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
           {mancano.length > 0 && !solaLettura && (
             <div className="rounded-md border border-amber-200 bg-amber-50/70 px-2.5 py-2 text-xs dark:border-amber-900/50 dark:bg-amber-950/20">
               <p className="flex items-center gap-1.5 font-medium text-amber-900 dark:text-amber-200">
-                <ClipboardCheck className="h-3.5 w-3.5 shrink-0" /> Da completare
+                <ClipboardCheck className="h-3.5 w-3.5 shrink-0" /> {t("Da completare")}
               </p>
               <div className="mt-1.5 flex flex-wrap gap-1">
                 {mancano.map((campo) => (
@@ -330,13 +331,13 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
           <div>
             <div className="flex items-center gap-1 mb-0.5">
               <User className="h-3 w-3 text-muted-foreground" />
-              <Label className="text-xs text-muted-foreground">Titolare</Label>
+              <Label className="text-xs text-muted-foreground">{t("Titolare")}</Label>
             </div>
             {solaLettura ? (
               <p className="text-xs min-h-7 flex items-center px-1">
                 {agenteAssegnato
                   ? nomeAgente(agenteAssegnato)
-                  : <span className="text-muted-foreground">{customer.salesperson_id ? "—" : "Non assegnato"}</span>}
+                  : <span className="text-muted-foreground">{customer.salesperson_id ? "—" : t("Non assegnato")}</span>}
               </p>
             ) : (
               <Select
@@ -347,20 +348,20 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
                 })}
               >
                 <SelectTrigger className="h-7 text-xs border-dashed">
-                  <SelectValue placeholder="Non assegnato" />
+                  <SelectValue placeholder={t("Non assegnato")} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NESSUN_AGENTE} className="text-xs">
-                    <span className="text-muted-foreground">Non assegnato</span>
+                    <span className="text-muted-foreground">{t("Non assegnato")}</span>
                   </SelectItem>
                   {agentiInTendina.length === 0 && (
                     <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                      Nessun agente: aggiungili in Impostazioni → Utenti e permessi → Venditori
+                      {t("Nessun agente: aggiungili in Impostazioni → Utenti e permessi → Venditori")}
                     </div>
                   )}
                   {agentiInTendina.map((s) => (
                     <SelectItem key={s.id} value={s.id} className="text-xs">
-                      {nomeAgente(s)}{s.is_active ? "" : " (non attivo)"}
+                      {nomeAgente(s)}{s.is_active ? "" : ` ${t("(non attivo)")}`}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -370,18 +371,18 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
 
           {/* ─── Data cliente badge ─── */}
           <div>
-            <Label className="text-xs text-muted-foreground block mb-1">{perCommittente ? "Committente dal" : "Cliente dal"}</Label>
+            <Label className="text-xs text-muted-foreground block mb-1">{perCommittente ? t("Committente dal") : t("Cliente dal")}</Label>
             <Badge variant="outline" className="text-[11px] gap-1 font-normal">
               <Calendar className="h-3 w-3" />
-              {format(new Date(customer.created_at), "dd MMM yyyy", { locale: it })}
+              {format(new Date(customer.created_at), "dd MMM yyyy", { locale: dateFnsCampo() })}
             </Badge>
           </div>
 
           {/* ─── Tabs Tutti i campi | Azioni ─── */}
           <Tabs defaultValue="all_fields" className="w-full">
             <TabsList className="w-full h-8 p-0.5">
-              <TabsTrigger value="all_fields" className="flex-1 text-xs h-7">Tutti i campi</TabsTrigger>
-              <TabsTrigger value="actions" className="flex-1 text-xs h-7">Azioni</TabsTrigger>
+              <TabsTrigger value="all_fields" className="flex-1 text-xs h-7">{t("Tutti i campi")}</TabsTrigger>
+              <TabsTrigger value="actions" className="flex-1 text-xs h-7">{t("Azioni")}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="all_fields" className="mt-2 space-y-2">
@@ -389,7 +390,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
               <div className="relative max-sm:hidden">
                 <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
                 <Input
-                  placeholder="Cerca campi"
+                  placeholder={t("Cerca campi")}
                   value={fieldSearch}
                   onChange={(e) => setFieldSearch(e.target.value)}
                   className="h-7 text-[11px] pl-7"
@@ -400,13 +401,13 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
               <Collapsible defaultOpen={!isMobile}>
                 <CollapsibleTrigger className="flex items-center gap-1 text-xs font-semibold w-full group py-1 hover:bg-muted/50 rounded px-1">
                   <ChevronDown className="h-3 w-3 transition-transform group-data-[state=closed]:-rotate-90" />
-                  Anagrafica
+                  {t("Anagrafica")}
                 </CollapsibleTrigger>
                 <CollapsibleContent className="px-1 space-y-0">
                   {customer.is_business && matchesSearch("Ragione sociale") && (
                     <InlineField
                       disabled={solaLettura}
-                      label="Ragione sociale"
+                      label={t("Ragione sociale")}
                       value={customer.business_name || ""}
                       onSave={(v) => updateField.mutate({ field: "business_name", value: v || null })}
                     />
@@ -414,7 +415,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
                   {matchesSearch("Nome") && (
                     <InlineField
                       disabled={solaLettura}
-                      label={customer.is_business ? "Referente: nome" : "Nome"}
+                      label={customer.is_business ? t("Referente: nome") : t("Nome")}
                       value={customer.first_name === "—" ? "" : customer.first_name || ""}
                       onSave={(v) => updateField.mutate({ field: "first_name", value: v || null })}
                     />
@@ -422,7 +423,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
                   {matchesSearch("Cognome") && (
                     <InlineField
                       disabled={solaLettura}
-                      label={customer.is_business ? "Referente: cognome" : "Cognome"}
+                      label={customer.is_business ? t("Referente: cognome") : t("Cognome")}
                       value={customer.last_name === "—" ? "" : customer.last_name || ""}
                       onSave={(v) => updateField.mutate({ field: "last_name", value: v || null })}
                     />
@@ -439,7 +440,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
                   {matchesSearch("Telefono") && (
                     <InlineField
                       disabled={solaLettura}
-                      label="Telefono"
+                      label={t("Telefono")}
                       value={customer.phone || ""}
                       onSave={(v) => updateField.mutate({ field: "phone", value: v || null })}
                       type="tel"
@@ -453,7 +454,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
                   {matchesSearch("Codice fiscale") && (
                     <InlineField
                       disabled={solaLettura}
-                      label="Codice fiscale"
+                      label={t("Codice fiscale")}
                       value={codiceFiscaleVisto}
                       validate={(v) => {
                         const esito = validateCodiceFiscale(v);
@@ -467,7 +468,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
                   {matchesSearch("Partita IVA") && (
                     <InlineField
                       disabled={solaLettura}
-                      label="Partita IVA"
+                      label={t("Partita IVA")}
                       value={partitaIvaVista}
                       validate={(v) => {
                         const esito = validatePartitaIva(v);
@@ -485,14 +486,14 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
                     // Il tipo vero è quello fiscale: si cambia da «Dati per la fattura», che
                     // chiede i dati che il nuovo tipo vuole (un ente, un'azienda, un privato).
                     <div>
-                      <InlineField disabled label="Tipo cliente" value={etichettaTipoCliente(anaFiscale.tipo_cliente)} onSave={() => {}} />
-                      {!solaLettura && <p className="px-1 text-[10px] text-muted-foreground">Si cambia da «Dati per la fattura» → Modifica.</p>}
+                      <InlineField disabled label={t("Tipo cliente")} value={etichettaTipoCliente(anaFiscale.tipo_cliente)} onSave={() => {}} />
+                      {!solaLettura && <p className="px-1 text-[10px] text-muted-foreground">{t("Si cambia da «Dati per la fattura» → Modifica.")}</p>}
                     </div>
                   )}
                   {!perCommittente && matchesSearch("Tipo cliente") && !anaFiscale && (
                     <InlineField
                       disabled={solaLettura}
-                      label="Tipo cliente"
+                      label={t("Tipo cliente")}
                       value={customer.is_business ? "azienda" : "persona"}
                       onSave={(v) => updateField.mutate({ field: "is_business", value: (v === "azienda") as never })}
                       type={solaLettura ? "text" : "select"}
@@ -506,7 +507,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
               <Collapsible defaultOpen={!isMobile}>
                 <CollapsibleTrigger className="flex items-center gap-1 text-xs font-semibold w-full group py-1 hover:bg-muted/50 rounded px-1">
                   <ChevronDown className="h-3 w-3 transition-transform group-data-[state=closed]:-rotate-90" />
-                  Dati per la fattura
+                  {t("Dati per la fattura")}
                 </CollapsibleTrigger>
                 <CollapsibleContent className="pt-1">
                   <DatiFatturaCliente customer={customer} puoModificare={puoModificare} />
@@ -519,13 +520,13 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
               <Collapsible defaultOpen={!isMobile}>
                 <CollapsibleTrigger className="flex items-center gap-1 text-xs font-semibold w-full group py-1 hover:bg-muted/50 rounded px-1">
                   <ChevronDown className="h-3 w-3 transition-transform group-data-[state=closed]:-rotate-90" />
-                  {customer.is_business ? "Sede legale" : "Indirizzo residenza"}
+                  {customer.is_business ? t("Sede legale") : t("Indirizzo residenza")}
                 </CollapsibleTrigger>
                 <CollapsibleContent className="px-1 space-y-0">
                   {matchesSearch("Indirizzo") && (
                     <InlineField
                       disabled={solaLettura}
-                      label="Indirizzo"
+                      label={t("Indirizzo")}
                       value={customer.address || ""}
                       onSave={(v) => updateField.mutate({ field: "address", value: v || null })}
                       indirizzo
@@ -535,7 +536,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
                   {matchesSearch("Città") && (
                     <InlineField
                       disabled={solaLettura}
-                      label="Città"
+                      label={t("Città")}
                       value={customer.city || ""}
                       onSave={(v) => updateField.mutate({ field: "city", value: v || null })}
                       comuneMode="comune"
@@ -563,7 +564,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
                   {matchesSearch("Provincia") && (
                     <InlineField
                       disabled={solaLettura}
-                      label="Provincia"
+                      label={t("Provincia")}
                       value={customer.province || ""}
                       onSave={(v) => updateField.mutate({ field: "province", value: v ? v.toUpperCase() : null })}
                     />
@@ -571,7 +572,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
                   {matchesSearch("Paese") && (
                     <InlineField
                       disabled={solaLettura}
-                      label="Paese"
+                      label={t("Paese")}
                       value={customer.country || ""}
                       onSave={(v) => updateField.mutate({ field: "country", value: v || null })}
                     />
@@ -583,13 +584,13 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
               {!perCommittente && <Collapsible defaultOpen={!isMobile}>
                 <CollapsibleTrigger className="flex items-center gap-1 text-xs font-semibold w-full group py-1 hover:bg-muted/50 rounded px-1">
                   <ChevronDown className="h-3 w-3 transition-transform group-data-[state=closed]:-rotate-90" />
-                  Indirizzo cantiere
+                  {t("Indirizzo cantiere")}
                 </CollapsibleTrigger>
                 <CollapsibleContent className="px-1 space-y-0">
                   {matchesSearch("Indirizzo cantiere") && (
                     <InlineField
                       disabled={solaLettura}
-                      label="Indirizzo"
+                      label={t("Indirizzo")}
                       value={customer.site_address || ""}
                       onSave={(v) => updateField.mutate({ field: "site_address", value: v || null })}
                       indirizzo
@@ -599,7 +600,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
                   {matchesSearch("Città cantiere") && (
                     <InlineField
                       disabled={solaLettura}
-                      label="Città"
+                      label={t("Città")}
                       value={customer.site_city || ""}
                       onSave={(v) => updateField.mutate({ field: "site_city", value: v || null })}
                       comuneMode="comune"
@@ -627,7 +628,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
                   {matchesSearch("Provincia cantiere") && (
                     <InlineField
                       disabled={solaLettura}
-                      label="Provincia"
+                      label={t("Provincia")}
                       value={customer.site_province || ""}
                       onSave={(v) => updateField.mutate({ field: "site_province", value: v ? v.toUpperCase() : null })}
                     />
@@ -639,12 +640,12 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
               <Collapsible>
                 <CollapsibleTrigger className="flex items-center gap-1 text-xs font-semibold w-full group py-1 hover:bg-muted/50 rounded px-1">
                   <ChevronDown className="h-3 w-3 transition-transform group-data-[state=closed]:-rotate-90" />
-                  Note interne
+                  {t("Note interne")}
                 </CollapsibleTrigger>
                 <CollapsibleContent className="px-1 space-y-0">
                   <InlineField
                     disabled={solaLettura}
-                    label="Note"
+                    label={t("Note")}
                     value={customer.notes || ""}
                     onSave={(v) => updateField.mutate({ field: "notes", value: v || null })}
                   />
@@ -656,30 +657,30 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
                 <Collapsible>
                   <CollapsibleTrigger className="flex items-center gap-1 text-xs font-semibold w-full group py-1 hover:bg-muted/50 rounded px-1">
                     <ChevronDown className="h-3 w-3 transition-transform group-data-[state=closed]:-rotate-90" />
-                    Origine Marketing
+                    {t("Origine Marketing")}
                   </CollapsibleTrigger>
                   <CollapsibleContent className="px-1 space-y-1.5 pt-1.5">
                     {linkedContact.source && (
                       <div className="grid grid-cols-[100px_1fr] items-center gap-1 py-0.5">
-                        <Label className="text-xs text-muted-foreground truncate">Fonte</Label>
+                        <Label className="text-xs text-muted-foreground truncate">{t("Fonte")}</Label>
                         <Badge variant="secondary" className="text-[11px] w-fit">{linkedContact.source}</Badge>
                       </div>
                     )}
                     {linkedContact.lead_score != null && (
                       <div className="grid grid-cols-[100px_1fr] items-center gap-1 py-0.5">
-                        <Label className="text-xs text-muted-foreground truncate">Lead score</Label>
+                        <Label className="text-xs text-muted-foreground truncate">{t("Lead score")}</Label>
                         <span className="text-xs font-semibold">{linkedContact.lead_score}/100</span>
                       </div>
                     )}
                     {linkedContact.attr_campaign && (
                       <div className="grid grid-cols-[100px_1fr] items-center gap-1 py-0.5">
-                        <Label className="text-xs text-muted-foreground truncate">Campagna</Label>
+                        <Label className="text-xs text-muted-foreground truncate">{t("Campagna")}</Label>
                         <span className="text-xs truncate">{linkedContact.attr_campaign}</span>
                       </div>
                     )}
                     {linkedContact.tags && linkedContact.tags.length > 0 && (
                       <div className="grid grid-cols-[100px_1fr] items-start gap-1 py-0.5">
-                        <Label className="text-xs text-muted-foreground truncate mt-0.5">Tag</Label>
+                        <Label className="text-xs text-muted-foreground truncate mt-0.5">{t("Tag")}</Label>
                         <div className="flex flex-wrap gap-1">
                           {linkedContact.tags.slice(0, 5).map((tag) => (
                             <Badge key={tag} variant="outline" className="text-[10px] h-4 px-1">{tag}</Badge>
@@ -695,7 +696,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
                         onClick={() => navigate(`/azienda/marketing/contatti/${customer.marketing_contact_id}`)}
                       >
                         <ExternalLink className="h-3 w-3 mr-1.5" />
-                        Apri contatto marketing
+                        {t("Apri contatto marketing")}
                       </Button>
                     )}
                   </CollapsibleContent>
@@ -709,7 +710,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
                   variant="outline" size="sm" className="w-full justify-start h-8 text-xs"
                   onClick={() => navigate(`/azienda/ordini/nuovo-lavoro-appaltatore?committente=${customer.id}`)}
                 >
-                  Nuovo lavoro in appalto
+                  {t("Nuovo lavoro in appalto")}
                 </Button>
               ) : (
                 <>
@@ -717,19 +718,19 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
                   variant="outline" size="sm" className="w-full justify-start h-8 text-xs"
                   onClick={() => navigate(`/azienda/ordini/nuovo?customer_id=${customer.id}`)}
                 >
-                  Crea ordine
+                  {t("Crea ordine")}
                 </Button>
                 <Button
                   variant="outline" size="sm" className="w-full justify-start h-8 text-xs"
                   onClick={() => navigate(`/azienda/marketing/preventivi/nuovo?customer_id=${customer.id}`)}
                 >
-                  Crea preventivo
+                  {t("Crea preventivo")}
                 </Button>
                 <Button
                   variant="outline" size="sm" className="w-full justify-start h-8 text-xs"
                   onClick={() => navigate(`/azienda/assistenza/nuovo?customer_id=${customer.id}`)}
                 >
-                  Apri ticket assistenza
+                  {t("Apri ticket assistenza")}
                 </Button>
                 </>
               )}
@@ -737,7 +738,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
                 variant="outline" size="sm" className="w-full justify-start h-8 text-xs"
                 onClick={() => navigate(`/azienda/calendario?customer_id=${customer.id}`)}
               >
-                Nuovo appuntamento
+                {t("Nuovo appuntamento")}
               </Button>
             </TabsContent>
           </Tabs>

@@ -20,6 +20,7 @@ import { BannerSenzaIncasso, useEmesseSenzaIncasso, type SenzaIncasso } from "@/
 const NESSUNA = new Map<string, SenzaIncasso>();
 import type { DocumentoFiscale } from "@/types/fatturazione";
 import { importoConSegno, isNotaCredito, isDocumentoEmesso, isTipoVendita, tutteLePagine } from "@/lib/fatturazione/registroVendite";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const dataBreve = (s: string | null) => {
   if (!s) return "—";
@@ -32,6 +33,7 @@ const dataBreve = (s: string | null) => {
  * da XML, mese per mese: si consultano e si segna se sono state incassate.
  */
 export default function FattureEmesseImportate() {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const [cerca, setCerca] = useState("");
   const [selezionata, setSelezionata] = useState<{ id: string; xml: boolean } | null>(null);
@@ -92,17 +94,17 @@ export default function FattureEmesseImportate() {
     <div className="space-y-4 p-4 sm:p-6">
       <div className="flex flex-wrap items-center gap-3">
         <Button variant="ghost" size="sm" asChild className="gap-1.5">
-          <Link to="/azienda/documenti"><ArrowLeft className="h-4 w-4" /> Fatture</Link>
+          <Link to="/azienda/documenti"><ArrowLeft className="h-4 w-4" /> {t("Fatture")}</Link>
         </Button>
         <div>
-          <h1 className="text-xl font-bold">Fatture emesse importate</h1>
+          <h1 className="text-xl font-bold">{t("Fatture emesse importate")}</h1>
           <p className="text-sm text-muted-foreground">
-            Dati cliente, descrizioni e scadenze direttamente nell’elenco. Apri «Dettagli» per consultare tutte le righe e l’XML collegato.
+            {t("Dati cliente, descrizioni e scadenze direttamente nell’elenco. Apri «Dettagli» per consultare tutte le righe e l’XML collegato.")}
           </p>
         </div>
         <div className="relative ml-auto w-full sm:w-72">
           <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder="Numero, cliente, CF/P.IVA o indirizzo…" aria-label="Cerca fatture importate" className="h-9 pl-8" />
+          <Input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder={t("Numero, cliente, CF/P.IVA o indirizzo…")} aria-label={t("Cerca fatture importate")} className="h-9 pl-8" />
         </div>
       </div>
 
@@ -111,58 +113,56 @@ export default function FattureEmesseImportate() {
       {isLoading ? (
         <div className="space-y-2"><Skeleton className="h-16" /><Skeleton className="h-16" /><Skeleton className="h-16" /></div>
       ) : isError ? (
-        <p className="text-sm text-destructive">Non riesco a caricare le fatture. Riprova tra poco.</p>
+        <p className="text-sm text-destructive">{t("Non riesco a caricare le fatture. Riprova tra poco.")}</p>
       ) : mesi.length === 0 ? (
-        <Card><CardContent className="p-8 text-center text-sm text-muted-foreground">Nessuna fattura importata{cerca ? " con questa ricerca" : ""}.</CardContent></Card>
+        <Card><CardContent className="p-8 text-center text-sm text-muted-foreground">{cerca ? t("Nessuna fattura importata con questa ricerca.") : t("Nessuna fattura importata.")}</CardContent></Card>
       ) : (
         <>
           <p className="text-sm text-muted-foreground">
-            {filtrate.length} documenti · totale al netto delle note di credito <span className="font-semibold tabular-nums text-foreground">{formatCurrency(totale)}</span>
+            {t("{n} documenti · totale al netto delle note di credito", { n: filtrate.length })} <span className="font-semibold tabular-nums text-foreground">{formatCurrency(totale)}</span>
           </p>
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-3">
-            <p className="text-sm text-muted-foreground">{filtrate.filter(f => f.order_id).length} collegati a commesse · {filtrate.filter(f => !f.order_id).length} da verificare. Incassi storici non certificati dall’XML.</p>
+            <p className="text-sm text-muted-foreground">{t("{n} collegati a commesse · {n2} da verificare. Incassi storici non certificati dall’XML.", { n: filtrate.filter(f => f.order_id).length, n2: filtrate.filter(f => !f.order_id).length })}</p>
             {companyId && <RecuperaClientiImportati key={companyId} companyId={companyId} invoiceIds={filtrate.map(f => f.id)} />}
           </div>
           {mesi.map((m, i) => (
             <details key={m.chiave} open={i < 3 || !!cerca} className="rounded-xl border bg-card">
               <summary className="flex cursor-pointer flex-wrap items-center gap-x-4 gap-y-1 rounded-xl px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 <span className="font-semibold">{m.etichetta}</span>
-                <span className="text-xs text-muted-foreground">{m.fatture.length} fatture</span>
+                <span className="text-xs text-muted-foreground">{t("{n} fatture", { n: m.fatture.length })}</span>
                 <span className="ml-auto text-sm font-semibold tabular-nums">{formatCurrency(m.totale)}</span>
-                <span className="w-full text-xs text-muted-foreground sm:w-auto">
-                  Imponibile {formatCurrency(m.imponibile)} · IVA {formatCurrency(m.iva)}
-                </span>
+                <span className="w-full text-xs text-muted-foreground sm:w-auto">{t("Imponibile {imponibile} · IVA {iva}", { imponibile: formatCurrency(m.imponibile), iva: formatCurrency(m.iva) })}</span>
               </summary>
               <div className="overflow-x-auto border-t">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Numero</TableHead>
-                      <TableHead>Cliente</TableHead>
-                      <TableHead>Descrizione</TableHead>
-                      <TableHead>Emissione / scadenza</TableHead>
-                      <TableHead className="text-right">Imponibile</TableHead>
+                      <TableHead>{t("Numero")}</TableHead>
+                      <TableHead>{t("Cliente")}</TableHead>
+                      <TableHead>{t("Descrizione")}</TableHead>
+                      <TableHead>{t("Emissione / scadenza")}</TableHead>
+                      <TableHead className="text-right">{t("Imponibile")}</TableHead>
                       <TableHead className="text-right">IVA</TableHead>
-                      <TableHead className="text-right">Totale</TableHead>
-                      <TableHead className="text-right">Incassato</TableHead>
-                      <TableHead>XML originale</TableHead>
-                      <TableHead><span className="sr-only">Dettagli</span></TableHead>
+                      <TableHead className="text-right">{t("Totale")}</TableHead>
+                      <TableHead className="text-right">{t("Incassato")}</TableHead>
+                      <TableHead>{t("XML originale")}</TableHead>
+                      <TableHead><span className="sr-only">{t("Dettagli")}</span></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {m.fatture.map((f) => (
                       <TableRow key={f.id}>
                         <TableCell className="whitespace-nowrap font-mono text-xs font-semibold text-orange-600">
-                          <button type="button" onClick={() => apriDettaglio(f.id)} className="rounded underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Apri fattura ${f.invoice_number}`}>
-                            {f.invoice_number}{isNotaCredito(f.document_type) ? " · NC" : ""}
+                          <button type="button" onClick={() => apriDettaglio(f.id)} className="rounded underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={t("Apri fattura {invoice_number}", { invoice_number: String(f.invoice_number ?? "") })}>
+                            {f.invoice_number}{isNotaCredito(f.document_type) ? ` ${t("· NC")}` : ""}
                           </button>
                         </TableCell>
                         <TableCell className="min-w-56 max-w-80 text-xs">
                           <div className="font-medium break-words">{f.client_company_name || "—"}</div>
                           <div className="mt-1 space-y-0.5 text-muted-foreground">
-                            {f.client_fiscal_code && <div className="break-all">CF: {f.client_fiscal_code}</div>}
-                            {f.client_vat_number && <div>P.IVA: {f.client_vat_number}</div>}
-                            {!f.client_fiscal_code && !f.client_vat_number && <div>CF / P.IVA non archiviati</div>}
+                            {f.client_fiscal_code && <div className="break-all">{t("CF: {client_fiscal_code}", { client_fiscal_code: String(f.client_fiscal_code ?? "") })}</div>}
+                            {f.client_vat_number && <div>{t("P.IVA: {client_vat_number}", { client_vat_number: String(f.client_vat_number ?? "") })}</div>}
+                            {!f.client_fiscal_code && !f.client_vat_number && <div>{t("CF / P.IVA non archiviati")}</div>}
                             {[f.client_address, [f.client_zip, f.client_city].filter(Boolean).join(" ")].filter(Boolean).length > 0 &&
                               <div className="break-words">{[f.client_address, [f.client_zip, f.client_city].filter(Boolean).join(" ")].filter(Boolean).join(" · ")}</div>}
                           </div>
@@ -170,12 +170,12 @@ export default function FattureEmesseImportate() {
                         <TableCell className="min-w-52 max-w-72 text-xs">
                           {f.invoice_lines?.[0]?.description ? <>
                             <p className="line-clamp-2 whitespace-pre-wrap break-words">{f.invoice_lines[0].description.slice(0, 200)}{f.invoice_lines[0].description.length > 200 ? "…" : ""}</p>
-                            <button type="button" className="mt-1 rounded text-muted-foreground underline underline-offset-4 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => apriDettaglio(f.id)} aria-label={`Vedi tutte le righe della fattura ${f.invoice_number}`}>Vedi tutte le righe</button>
-                          </> : <span className="text-muted-foreground">Descrizione non archiviata</span>}
+                            <button type="button" className="mt-1 rounded text-muted-foreground underline underline-offset-4 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => apriDettaglio(f.id)} aria-label={t("Vedi tutte le righe della fattura {invoice_number}", { invoice_number: String(f.invoice_number ?? "") })}>{t("Vedi tutte le righe")}</button>
+                          </> : <span className="text-muted-foreground">{t("Descrizione non archiviata")}</span>}
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-xs">
                           <div>{dataBreve(f.issue_date)}</div>
-                          <div className="mt-1 text-muted-foreground">{f.due_date ? `Scad. ${dataBreve(f.due_date)}` : "Scadenza non archiviata"}</div>
+                          <div className="mt-1 text-muted-foreground">{f.due_date ? t("Scad. {due_date}", { due_date: String(dataBreve(f.due_date) ?? "") }) : t("Scadenza non archiviata")}</div>
                         </TableCell>
                         <TableCell className="text-right text-xs tabular-nums">{formatCurrency(importoConSegno(f.document_type, f.subtotal))}</TableCell>
                         <TableCell className="text-right text-xs tabular-nums">{formatCurrency(importoConSegno(f.document_type, f.tax_amount))}</TableCell>
@@ -185,31 +185,31 @@ export default function FattureEmesseImportate() {
                             <button
                               type="button"
                               onClick={() => setDaRiaprire({ id: f.id, numero: f.invoice_number })}
-                              title={`Segnata ${f.status === "paid" ? "incassata" : "incassata in parte"} senza un incasso registrato: clic per riportarla da incassare`}
-                              aria-label={`Senza incasso registrato: riporta da incassare la fattura ${f.invoice_number}`}
+                              title={f.status === "paid" ? t("Segnata incassata senza un incasso registrato: clic per riportarla da incassare") : t("Segnata incassata in parte senza un incasso registrato: clic per riportarla da incassare")}
+                              aria-label={t("Senza incasso registrato: riporta da incassare la fattura {invoice_number}", { invoice_number: String(f.invoice_number ?? "") })}
                               className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-amber-50 px-1.5 py-px text-[10px] font-medium text-amber-800 ring-1 ring-inset ring-amber-300 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-amber-950 dark:text-amber-300 dark:ring-amber-800 dark:hover:bg-amber-900"
                             >
-                              {f.status === "paid" ? "Pagata" : formatCurrency(Number(f.paid_amount ?? 0))} · senza incasso
+                              {f.status === "paid" ? t("Pagata") : formatCurrency(Number(f.paid_amount ?? 0))} {t("· senza incasso")}
                             </button>
                           ) : f.status === "paid" && !isNotaCredito(f.document_type) && f.external_provider === "xml_import" ? (
                             <button
                               type="button"
                               onClick={() => setDaRiaprire({ id: f.id, numero: f.invoice_number })}
-                              title="Incassata: clic per riportarla da incassare"
-                              aria-label={`Riporta da incassare la fattura ${f.invoice_number}`}
+                              title={t("Incassata: clic per riportarla da incassare")}
+                              aria-label={t("Riporta da incassare la fattura {invoice_number}", { invoice_number: String(f.invoice_number ?? "") })}
                               className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-px text-[10px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200 hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-emerald-950 dark:text-emerald-300 dark:ring-emerald-800 dark:hover:bg-emerald-900"
                             >
-                              <Check className="h-2.5 w-2.5" /> Incassata
+                              <Check className="h-2.5 w-2.5" /> {t("Incassata")}
                             </button>
                           ) : aperte.get(f.id) ? (
                             <span className="inline-flex items-center justify-end gap-1">
-                              {Number(f.paid_amount ?? 0) > 0 ? formatCurrency(Number(f.paid_amount)) : <span className="whitespace-nowrap text-amber-700 dark:text-amber-400">Da incassare</span>}
+                              {Number(f.paid_amount ?? 0) > 0 ? formatCurrency(Number(f.paid_amount)) : <span className="whitespace-nowrap text-amber-700 dark:text-amber-400">{t("Da incassare")}</span>}
                               <Button
                                 variant="ghost"
                                 size="icon"
                                 className="h-7 w-7"
-                                title="Segna incassata"
-                                aria-label={`Segna incassata la fattura ${f.invoice_number}`}
+                                title={t("Segna incassata")}
+                                aria-label={t("Segna incassata la fattura {invoice_number}", { invoice_number: String(f.invoice_number ?? "") })}
                                 onClick={() => setDaIncassare(aperte.get(f.id) ?? null)}
                               >
                                 <CreditCard className="h-4 w-4" />
@@ -218,10 +218,10 @@ export default function FattureEmesseImportate() {
                           ) : Number(f.paid_amount ?? 0) > 0 ? formatCurrency(Number(f.paid_amount)) : "—"}
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
-                          {f.external_xml_url ? <Button variant="outline" size="sm" onClick={() => apriDettaglio(f.id, true)} aria-label={`Visualizza XML della fattura ${f.invoice_number}`}><FileCode className="mr-1.5 h-4 w-4" />XML</Button> :
-                            <span className="text-xs text-muted-foreground">Non archiviato</span>}
+                          {f.external_xml_url ? <Button variant="outline" size="sm" onClick={() => apriDettaglio(f.id, true)} aria-label={t("Visualizza XML della fattura {invoice_number}", { invoice_number: String(f.invoice_number ?? "") })}><FileCode className="mr-1.5 h-4 w-4" />XML</Button> :
+                            <span className="text-xs text-muted-foreground">{t("Non archiviato")}</span>}
                         </TableCell>
-                        <TableCell><Button variant="outline" size="sm" onClick={() => apriDettaglio(f.id)} aria-label={`Dettagli della fattura ${f.invoice_number}`}>Dettagli</Button></TableCell>
+                        <TableCell><Button variant="outline" size="sm" onClick={() => apriDettaglio(f.id)} aria-label={t("Dettagli della fattura {invoice_number}", { invoice_number: String(f.invoice_number ?? "") })}>{t("Dettagli")}</Button></TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

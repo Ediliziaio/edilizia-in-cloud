@@ -16,6 +16,7 @@ import {
 import type { FiscalDocument } from "@/lib/fatturazione/fiscalWorkspace";
 import { fiscalDate } from "@/lib/fatturazione/fiscalInsights";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Da dove viene la data di ricezione degli acquisti del periodo, e la
@@ -29,6 +30,7 @@ export function RicezioneAcquisti({
   company: string;
   acquisti: FiscalDocument[];
 }) {
+  const t = useT();
   const qc = useQueryClient();
   const permessi = usePermissions();
   const puo = permessi.isAdmin && !permessi.solaLettura && !permessi.isLoading;
@@ -83,10 +85,10 @@ export function RicezioneAcquisti({
       const msg = e instanceof Error ? e.message : "";
       toast.error(
         /chiuso/i.test(msg)
-          ? "Il periodo fiscale è chiuso: va riaperto prima di cambiare la data."
+          ? t("Il periodo fiscale è chiuso: va riaperto prima di cambiare la data.")
           : /futuro|precedere|SDI/i.test(msg)
             ? msg
-            : "Data non salvata. Riprova.",
+            : t("Data non salvata. Riprova."),
       );
     } finally {
       setInvio(false);
@@ -98,23 +100,22 @@ export function RicezioneAcquisti({
     <div className="rounded-xl border bg-white p-4 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="font-medium">Data di ricezione degli acquisti</p>
+          <p className="font-medium">{t("Data di ricezione degli acquisti")}</p>
           <p className="text-muted-foreground">
-            {conti.sdi} dallo SDI · {conti.dichiarata} dichiarate · {conti.presunta} presunte alla data della fattura
+            {t("{sdi} dallo SDI · {dichiarate} dichiarate · {presunte} presunte alla data della fattura", { sdi: Number(conti.sdi), dichiarate: Number(conti.dichiarata), presunte: Number(conti.presunta) })}
             {conti.da_verificare > 0 && (
-              <strong className="text-amber-700"> · {conti.da_verificare} di fine dicembre da verificare</strong>
+              <strong className="text-amber-700">{" · "}{t("{n} di fine dicembre da verificare", { n: String(conti.da_verificare ?? "") })}</strong>
             )}
           </p>
           {conti.presunta + conti.da_verificare > 0 && (
             <p className="mt-1 text-xs text-muted-foreground">
-              Le importate non hanno la data di consegna dello SDI. Se una è arrivata dopo il 15 del mese
-              successivo, o una di fine dicembre a gennaio, dichiarane la data: l'IVA passa al periodo giusto.
+              {t("Le importate non hanno la data di consegna dello SDI. Se una è arrivata dopo il 15 del mese successivo, o una di fine dicembre a gennaio, dichiarane la data: l'IVA passa al periodo giusto.")}
             </p>
           )}
         </div>
         {senzaSdi.length > 0 && puo && (
           <Button variant="outline" onClick={apri}>
-            Dichiara data di ricezione
+            {t("Dichiara data di ricezione")}
           </Button>
         )}
       </div>
@@ -122,10 +123,9 @@ export function RicezioneAcquisti({
       <Dialog open={aperto} onOpenChange={setAperto}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Dichiara la data di ricezione</DialogTitle>
+            <DialogTitle>{t("Dichiara la data di ricezione")}</DialogTitle>
             <DialogDescription>
-              Per le fatture senza data SDI. La dichiarazione resta firmata con il tuo nome; se poi arriva la
-              data dello SDI, vince quella.
+              {t("Per le fatture senza data SDI. La dichiarazione resta firmata con il tuo nome; se poi arriva la data dello SDI, vince quella.")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -134,7 +134,7 @@ export function RicezioneAcquisti({
                 checked={tutte}
                 onCheckedChange={(x) => setScelte(new Set(x ? senzaSdi.map((d) => d.id) : []))}
               />
-              Seleziona tutte ({senzaSdi.length})
+              {t("Seleziona tutte ({n})", { n: senzaSdi.length })}
             </label>
             <ul className="max-h-72 space-y-1 overflow-auto rounded-lg border p-2">
               {senzaSdi.map((d) => (
@@ -152,13 +152,13 @@ export function RicezioneAcquisti({
                       }
                     />
                     <span>
-                      {d.numero_fattura} · {d.cedente_ragione_sociale} · fattura del {fiscalDate(d.data_fattura)}
+                      {d.numero_fattura} · {d.cedente_ragione_sociale} · {t("fattura del {data}", { data: String(fiscalDate(d.data_fattura) ?? "") })}
                       <span className="block text-xs text-muted-foreground">
                         {d.ricezione_origine === "dichiarata"
-                          ? `Ricevuta il ${fiscalDate(d.ricezione_dichiarata_il)} (dichiarata)`
+                          ? t("Ricevuta il {data} (dichiarata)", { data: String(fiscalDate(d.ricezione_dichiarata_il) ?? "") })
                           : d.ricezione_origine === "da_verificare"
-                            ? "Fine dicembre: da verificare"
-                            : "Presunta alla data della fattura"}
+                            ? t("Fine dicembre: da verificare")
+                            : t("Presunta alla data della fattura")}
                       </span>
                     </span>
                   </label>
@@ -168,14 +168,11 @@ export function RicezioneAcquisti({
             <div className="flex flex-wrap items-end gap-3">
               <div>
                 <label htmlFor="ricezione-data" className="text-sm font-medium">
-                  Arrivata il
+                  {t("Arrivata il")}
                 </label>
                 <Input id="ricezione-data" type="date" value={data} onChange={(e) => setData(e.target.value)} />
               </div>
-              <p className="flex-1 text-xs text-muted-foreground">
-                Vale per le {scelte.size} selezionate. Quelle con data SDI o con data della fattura successiva
-                vengono saltate.
-              </p>
+              <p className="flex-1 text-xs text-muted-foreground">{t("Vale per le {n} selezionate. Quelle con data SDI o con data della fattura successiva vengono saltate.", { n: scelte.size })}</p>
             </div>
           </div>
           <DialogFooter className="gap-2">
@@ -184,10 +181,10 @@ export function RicezioneAcquisti({
               disabled={invio || !scelte.size}
               onClick={() => void conferma(null)}
             >
-              Togli la data dichiarata
+              {t("Togli la data dichiarata")}
             </Button>
             <Button disabled={invio || !scelte.size || !data} onClick={() => void conferma(data)}>
-              {invio ? "Salvataggio…" : "Conferma data"}
+              {invio ? t("Salvataggio…") : t("Conferma data")}
             </Button>
           </DialogFooter>
         </DialogContent>

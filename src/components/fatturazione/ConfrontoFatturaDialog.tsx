@@ -69,11 +69,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const quantita = (n: number | null) =>
-  n == null ? "—" : n.toLocaleString("it-IT", { maximumFractionDigits: 4 });
-const euro = (n: number | null) =>
-  n == null ? "Da definire" : formatCurrency(n);
+  n == null ? "—" : n.toLocaleString(intlCampo(), { maximumFractionDigits: 4 });
+const euro = (n: number | null, daDefinire = "Da definire") =>
+  n == null ? daDefinire : formatCurrency(n);
 const titoli = {
   coerente: "Coerente",
   scostamento: "Scostamento",
@@ -102,6 +103,7 @@ function TabellaDocumenti({
   allinea: boolean;
   disponibilita?: ReadonlyMap<string, RigaBollaConfronto>;
 }) {
+  const t = useT();
   const visualizzate = useMemo(
     () =>
       !allinea
@@ -119,7 +121,7 @@ function TabellaDocumenti({
   if (!righe.length)
     return (
       <p className="rounded-lg border border-dashed p-5 text-sm text-muted-foreground">
-        Nessuna riga strutturata disponibile. Controlla il file originale.
+        {t("Nessuna riga strutturata disponibile. Controlla il file originale.")}
       </p>
     );
   return (
@@ -129,15 +131,15 @@ function TabellaDocumenti({
           <tr>
             <th
               className="p-2 text-left"
-              title="Voci della fattura abbinate per codice, descrizione o proposta AI da confermare"
+              title={t("Voci della fattura abbinate per codice, descrizione o proposta AI da confermare")}
             >
-              Voce fattura
+              {t("Voce fattura")}
             </th>
-            <th className="p-2 text-left">Articolo</th>
-            <th className="p-2 text-right">Quantità</th>
+            <th className="p-2 text-left">{t("Articolo")}</th>
+            <th className="p-2 text-right">{t("Quantità")}</th>
             <th className="p-2 text-left">UM</th>
-            <th className="p-2 text-right">Prezzo netto</th>
-            <th className="p-2 text-right">Importo</th>
+            <th className="p-2 text-right">{t("Prezzo netto")}</th>
+            <th className="p-2 text-right">{t("Importo")}</th>
           </tr>
         </thead>
         <tbody>
@@ -153,8 +155,8 @@ function TabellaDocumenti({
                       <button
                         key={i}
                         type="button"
-                        aria-label={`Metti a confronto la voce F${i + 1}`}
-                        title={`Voce F${i + 1} della fattura: confronta quantità e prezzi`}
+                        aria-label={t("Metti a confronto la voce F{i}", { i: i + 1 })}
+                        title={t("Voce F{i} della fattura: confronta quantità e prezzi", { i: i + 1 })}
                         onClick={() => onSeleziona(i)}
                         className="rounded border border-blue-200 bg-blue-50 px-1.5 py-1 font-semibold text-blue-800 hover:bg-blue-100"
                       >
@@ -164,7 +166,7 @@ function TabellaDocumenti({
                   ) : (
                     <span
                       className="text-muted-foreground"
-                      title="Nessun abbinamento attivo per questa voce"
+                      title={t("Nessun abbinamento attivo per questa voce")}
                     >
                       —
                     </span>
@@ -173,7 +175,7 @@ function TabellaDocumenti({
               </td>
               <td className="min-w-44 p-2">
                 <p className="line-clamp-2 font-medium" title={r.descrizione}>
-                  {r.descrizione || "Senza descrizione"}
+                  {r.descrizione || t("Senza descrizione")}
                 </p>
                 {r.codice && (
                   <p className="mt-0.5 text-muted-foreground">{r.codice}</p>
@@ -184,22 +186,22 @@ function TabellaDocumenti({
                 {disponibilita && (
                   <div className="mt-1 whitespace-nowrap text-[10px] text-muted-foreground">
                     {(disponibilita.get(r.id)?.giaFatturata ?? 0) > 0 && (
-                      <p>Già fatturati: {quantita(disponibilita.get(r.id)!.giaFatturata)}</p>
+                      <p>{t("Già fatturati: {giaFatturata}", { giaFatturata: String(quantita(disponibilita.get(r.id)!.giaFatturata) ?? "") })}</p>
                     )}
-                    <p title="Quantità del DDT non attribuita ad altre fatture, al netto delle note di credito registrate.">
+                    <p title={t("Quantità del DDT non attribuita ad altre fatture, al netto delle note di credito registrate.")}>
                       {!disponibilita.has(r.id) || disponibilita.get(r.id)!.residuoIncerto || r.quantita == null
-                        ? "Residuo da verificare"
-                        : `Residuo: ${quantita(Math.max(0, r.quantita - disponibilita.get(r.id)!.giaFatturata))}`}
+                        ? t("Residuo da verificare")
+                        : t("Residuo: {valore}", { valore: String(quantita(Math.max(0, r.quantita - disponibilita.get(r.id)!.giaFatturata)) ?? "") })}
                     </p>
                   </div>
                 )}
               </td>
               <td className="p-2">{r.um || "—"}</td>
               <td className="whitespace-nowrap p-2 text-right tabular-nums">
-                {euro(r.prezzo)}
+                {euro(r.prezzo, t("Da definire"))}
               </td>
               <td className="whitespace-nowrap p-2 text-right tabular-nums">
-                {r.importo == null ? "—" : euro(r.importo)}
+                {r.importo == null ? "—" : euro(r.importo, t("Da definire"))}
               </td>
             </tr>
           ))}
@@ -229,6 +231,7 @@ export function ConfrontoFatturaDialog({
   onClose: () => void;
   onVersioneCompleta?: () => void;
 }) {
+  const t = useT();
   const [parametri] = useSearchParams();
   const id = String(fattura.id),
     q = useConfrontoFattura(companyId, id, ordineIds);
@@ -272,10 +275,10 @@ export function ConfrontoFatturaDialog({
           "fattura-ricevuta-riepilogo",
         ].map((k) => qc.invalidateQueries({ queryKey: [k] })),
       );
-      toast.success("Bolla collegata alla fattura", { description: messaggioPrezzoBolla(esito?.prezzo) ?? undefined });
+      toast.success(t("Bolla collegata alla fattura"), { description: messaggioPrezzoBolla(esito?.prezzo) ?? undefined });
     },
     onError: (e) =>
-      toast.error("Bolla non collegata", {
+      toast.error(t("Bolla non collegata"), {
         description: messaggioSalvataggio(e),
       }),
   });
@@ -516,18 +519,13 @@ export function ConfrontoFatturaDialog({
         <DialogHeader className="shrink-0 border-b px-4 py-3 pr-12 sm:px-5">
           <DialogTitle className="flex items-center gap-2 text-lg">
             <ArrowLeftRight className="h-5 w-5 text-orange-600" />
-            Confronto fattura, DDT e ordini
+            {t("Confronto fattura, DDT e ordini")}
           </DialogTitle>
-          <DialogDescription className="text-xs">
-            {String(fattura.cedente_ragione_sociale ?? "Fornitore")} · Fattura{" "}
-            {String(fattura.numero_fattura ?? "")} del{" "}
-            {formatDateShort(String(fattura.data_fattura ?? ""))}
-          </DialogDescription>
+          <DialogDescription className="text-xs">{t("{fornitore} · Fattura {numero} del {data}", { fornitore: String(fattura.cedente_ragione_sociale ?? t("Fornitore")), numero: String(fattura.numero_fattura ?? ""), data: formatDateShort(String(fattura.data_fattura ?? "")) })}</DialogDescription>
         </DialogHeader>
         <div className="flex shrink-0 flex-wrap items-center gap-2 border-b bg-muted/20 px-4 py-2 sm:px-5">
           <span className="mr-auto text-xs text-muted-foreground">
-            Seleziona i documenti da confrontare e apri le rispettive righe o
-            gli originali.
+            {t("Seleziona i documenti da confrontare e apri le rispettive righe o gli originali.")}
           </span>
           <Button
             variant="outline"
@@ -541,7 +539,7 @@ export function ConfrontoFatturaDialog({
             }}
           >
             <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-            Aggiorna
+            {t("Aggiorna")}
           </Button>
           <Button
             size="sm"
@@ -551,7 +549,7 @@ export function ConfrontoFatturaDialog({
             onClick={() => setControllo(true)}
           >
             <CheckCircle2 className="mr-1.5 h-4 w-4" />
-            Controlla quantità e prezzi
+            {t("Controlla quantità e prezzi")}
           </Button>
           <Button
             size="sm"
@@ -569,7 +567,7 @@ export function ConfrontoFatturaDialog({
               ai.dati.data?.puo_modificare === false ||
               ai.analizza.isPending
             }
-            title="Propone corrispondenze tra articoli con descrizioni diverse. Usa i crediti AI dell’azienda; la conferma resta tua."
+            title={t("Propone corrispondenze tra articoli con descrizioni diverse. Usa i crediti AI dell’azienda; la conferma resta tua.")}
             onClick={() => {
               setRevisioneAperta(true);
               if (!analisiAI) {
@@ -584,18 +582,18 @@ export function ConfrontoFatturaDialog({
               <Sparkles className="mr-1.5 h-4 w-4" />
             )}
             {ai.analizza.isPending
-              ? "Analisi AI…"
+              ? t("Analisi AI…")
               : analisiAI
-                ? "Riapri analisi AI"
+                ? t("Riapri analisi AI")
                 : ai.dati.data?.lotto?.indice
-                  ? `Riprendi AI (${ai.dati.data.lotto.indice}/${ai.dati.data.lotto.totale})`
-                  : "Analizza con AI"}
+                  ? t("Riprendi AI ({indice}/{totale})", { indice: ai.dati.data.lotto.indice ?? "", totale: ai.dati.data.lotto.totale ?? "" })
+                  : t("Analizza con AI")}
           </Button>
         </div>
         <div className="shrink-0 border-b px-4 py-2 sm:px-5"><RiepilogoConfronto indicatori={[
-          {label:"Voci coerenti",valore:esiti.filter(e=>e.stato==="coerente").length,tono:"verde",attivo:filtroRighe==="coerenti",onClick:()=>setFiltroRighe(filtroRighe==="coerenti"?"tutte":"coerenti")},
-          {label:"Da verificare",valore:esiti.filter(e=>e.stato!=="coerente").length,tono:"ambra",attivo:filtroRighe==="differenze",onClick:()=>setFiltroRighe(filtroRighe==="differenze"?"tutte":"differenze")},
-          {label:"Documenti selezionati",valore:scelti.size,onClick:()=>setFiltroRighe("tutte")},
+          {label:t("Voci coerenti"),valore:esiti.filter(e=>e.stato==="coerente").length,tono:"verde",attivo:filtroRighe==="coerenti",onClick:()=>setFiltroRighe(filtroRighe==="coerenti"?"tutte":"coerenti")},
+          {label:t("Da verificare"),valore:esiti.filter(e=>e.stato!=="coerente").length,tono:"ambra",attivo:filtroRighe==="differenze",onClick:()=>setFiltroRighe(filtroRighe==="differenze"?"tutte":"differenze")},
+          {label:t("Documenti selezionati"),valore:scelti.size,onClick:()=>setFiltroRighe("tutte")},
         ]}/></div>
         {import.meta.env.DEV && parametri.has("qa_riconciliazione") && (
           <SimulazioniRiconciliazioneAI
@@ -617,17 +615,14 @@ export function ConfrontoFatturaDialog({
             role="status"
             className="flex items-center gap-3 border-b px-5 py-2 text-xs"
           >
-            <span>
-              Analisi: {ai.avanzamento.completati}/{ai.avanzamento.totale} lotti
-              completati
-            </span>
+            <span>{t("Analisi: {completati}/{totale} lotti completati", { completati: ai.avanzamento.completati ?? "", totale: ai.avanzamento.totale ?? "" })}</span>
             <progress
               className="h-2 flex-1"
               value={ai.avanzamento.completati}
               max={ai.avanzamento.totale}
             />
             <Button variant="ghost" size="sm" onClick={ai.interrompi}>
-              Interrompi
+              {t("Interrompi")}
             </Button>
           </div>
         )}
@@ -650,26 +645,26 @@ export function ConfrontoFatturaDialog({
             role="alert"
             className="m-6 rounded-xl border border-destructive/30 p-5 text-sm text-destructive"
           >
-            Documenti non disponibili: {messaggioSalvataggio(q.error)}{" "}
+            {t("Documenti non disponibili:")} {messaggioSalvataggio(q.error)}{" "}
             <button className="underline" onClick={() => void q.refetch()}>
-              Riprova
+              {t("Riprova")}
             </button>
           </div>
         ) : (
-          <div className="contents"><PannelliConfrontoMobile valore={pannelloMobile} onChange={setPannelloMobile} sinistra="Fattura" destra="DDT e ordini"/>
+          <div className="contents"><PannelliConfrontoMobile valore={pannelloMobile} onChange={setPannelloMobile} sinistra={t("Fattura")} destra={t("DDT e ordini")}/>
           <ConfrontoDocumentiLayout>
-            <Tabs value={vistaFattura} onValueChange={setVistaFattura} className="contents"><PannelloDocumento nome="Fattura ricevuta" lato="sinistra" attivo={pannelloMobile==="sinistra"} testata={<div className="space-y-2 border-b bg-background px-4 py-3 sm:px-5">
+            <Tabs value={vistaFattura} onValueChange={setVistaFattura} className="contents"><PannelloDocumento nome={t("Fattura ricevuta")} lato="sinistra" attivo={pannelloMobile==="sinistra"} testata={<div className="space-y-2 border-b bg-background px-4 py-3 sm:px-5">
                 <div className="flex min-h-8 items-center justify-between gap-3">
                   <h2 className="flex items-center gap-2 text-sm font-semibold">
                     <FileText className="h-4 w-4 text-blue-600" />
-                    Fattura ricevuta
+                    {t("Fattura ricevuta")}
                   </h2>
                   <Badge variant="secondary">
                     {fattura.xml_url || fattura.xml_bytes
                       ? "XML"
                       : fileFattura
-                        ? "PDF / foto"
-                        : "Dati documento"}
+                        ? t("PDF / foto")
+                        : t("Dati documento")}
                   </Badge>
                 </div>
                 <div className="flex h-10 items-center justify-between gap-3 rounded-md border px-3 text-sm">
@@ -677,7 +672,7 @@ export function ConfrontoFatturaDialog({
                     className="truncate font-medium"
                     title={String(fattura.numero_fattura ?? "")}
                   >
-                    {String(fattura.numero_fattura ?? "Fattura")}
+                    {String(fattura.numero_fattura ?? t("Fattura"))}
                   </span>
                   <span className="shrink-0 text-xs text-muted-foreground">
                     {formatDateShort(String(fattura.data_fattura ?? ""))}
@@ -688,14 +683,14 @@ export function ConfrontoFatturaDialog({
                     className="truncate"
                     title={String(fattura.cedente_ragione_sociale ?? "")}
                   >
-                    {String(fattura.cedente_ragione_sociale ?? "Fornitore")}
+                    {String(fattura.cedente_ragione_sociale ?? t("Fornitore"))}
                   </span>
-                  <span className="shrink-0">{righe.length} voci</span>
+                  <span className="shrink-0">{t("{n} voci", { n: righe.length })}</span>
                 </div>
               </div>} viste={<div className="flex flex-wrap items-center gap-2 px-4 py-2 sm:px-5">
                   <TabsList className="h-8">
-                    <TabsTrigger value="righe">Righe e importi</TabsTrigger>
-                    <TabsTrigger value="originale">File originale</TabsTrigger>
+                    <TabsTrigger value="righe">{t("Righe e importi")}</TabsTrigger>
+                    <TabsTrigger value="originale">{t("File originale")}</TabsTrigger>
                   </TabsList>
                   {rigaAttiva != null && (
                     <Button
@@ -703,9 +698,7 @@ export function ConfrontoFatturaDialog({
                       variant="ghost"
                       className="ml-auto h-8 text-xs"
                       onClick={() => setRigaAttiva(null)}
-                    >
-                      F{rigaAttiva + 1} selezionata · mostra tutte
-                    </Button>
+                    >{t("F{rigaAttiva} selezionata · mostra tutte", { rigaAttiva: rigaAttiva + 1 })}</Button>
                   )}
                 </div>}>
 <TabsContent
@@ -726,8 +719,7 @@ export function ConfrontoFatturaDialog({
                   ) : (
                     <div className="space-y-3 rounded-xl border border-dashed p-5 text-sm text-muted-foreground">
                       <p>
-                        Il PDF o la foto della fattura non sono presenti. I dati
-                        disponibili sono riportati in “Righe e importi”.
+                        {t("Il PDF o la foto della fattura non sono presenti. I dati disponibili sono riportati in “Righe e importi”.")}
                       </p>
                       {onVersioneCompleta && (
                         <Button
@@ -735,7 +727,7 @@ export function ConfrontoFatturaDialog({
                           size="sm"
                           onClick={onVersioneCompleta}
                         >
-                          Apri fattura XML e stampa
+                          {t("Apri fattura XML e stampa")}
                         </Button>
                       )}
                     </div>
@@ -747,18 +739,18 @@ export function ConfrontoFatturaDialog({
                 >
                   {!righe.length ? (
                     <p className="text-sm text-muted-foreground">
-                      Righe non disponibili: consulta il documento originale.
+                      {t("Righe non disponibili: consulta il documento originale.")}
                     </p>
                   ) : (
                     <div className="overflow-x-auto rounded-xl border">
                       <table className="w-full text-xs">
                         <thead className="h-12 bg-muted/50 text-muted-foreground">
                           <tr>
-                            <th className="p-2 text-left">Voce</th>
-                            <th className="p-2 text-left">Descrizione</th>
-                            <th className="p-2 text-right">Qtà / UM</th>
-                            <th className="p-2 text-right">Prezzo netto</th>
-                            <th className="p-2 text-right">Imponibile</th>
+                            <th className="p-2 text-left">{t("Voce")}</th>
+                            <th className="p-2 text-left">{t("Descrizione")}</th>
+                            <th className="p-2 text-right">{t("Qtà / UM")}</th>
+                            <th className="p-2 text-right">{t("Prezzo netto")}</th>
+                            <th className="p-2 text-right">{t("Imponibile")}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -775,7 +767,7 @@ export function ConfrontoFatturaDialog({
                               <td className="p-2">
                                 <button
                                   type="button"
-                                  aria-label={`Seleziona voce F${i + 1} della fattura`}
+                                  aria-label={t("Seleziona voce F{i} della fattura", { i: i + 1 })}
                                   aria-pressed={rigaAttiva === i}
                                   onClick={() => selezionaRiga(i)}
                                   className={`rounded border px-1.5 py-1 text-[11px] font-semibold ${rigaAttiva === i ? "border-blue-400 bg-blue-100 text-blue-900" : "border-slate-200 bg-slate-50 text-slate-600 hover:border-blue-300"}`}
@@ -799,25 +791,25 @@ export function ConfrontoFatturaDialog({
                                       {r.codice} ·{" "}
                                     </span>
                                   )}
-                                  {r.descrizione || "Senza descrizione"}
+                                  {r.descrizione || t("Senza descrizione")}
                                 </button>
                                 {controllo && (
                                   <span
-                                    title={esiti[i].motivo}
+                                    title={t(esiti[i].motivo)}
                                     className={`mt-1 inline-block rounded border px-1.5 py-0.5 text-[11px] ${colori[esiti[i].stato]}`}
                                   >
-                                    {titoli[esiti[i].stato]}
+                                    {t(titoli[esiti[i].stato])}
                                   </span>
                                 )}
                               </td>
                               <td className="whitespace-nowrap p-2 text-right tabular-nums">
-                                {quantita(r.quantita)} {r.um || "· UM assente"}
+                                {quantita(r.quantita)} {r.um || `· ${t("UM assente")}`}
                               </td>
                               <td className="whitespace-nowrap p-2 text-right tabular-nums">
-                                {euro(r.prezzo)}
+                                {euro(r.prezzo, t("Da definire"))}
                               </td>
                               <td className="whitespace-nowrap p-2 text-right tabular-nums">
-                                {r.importo == null ? "—" : euro(r.importo)}
+                                {r.importo == null ? "—" : euro(r.importo, t("Da definire"))}
                               </td>
                             </tr>
                           ))}
@@ -836,71 +828,61 @@ export function ConfrontoFatturaDialog({
                         r = righe[i];
                       return (
                         <div className="space-y-2 rounded-xl border border-blue-200 bg-blue-50/50 p-4 text-xs">
-                          <p className="font-semibold text-blue-900">
-                            Esito voce F{i + 1} · {r.descrizione}
-                          </p>
-                          <p>{e.motivo}</p>
+                          <p className="font-semibold text-blue-900">{t("Esito voce F{i} · {descrizione}", { i: i + 1, descrizione: String(r.descrizione ?? "") })}</p>
+                          <p>{t(e.motivo)}</p>
                           {e.quantitaDisponibile != null && (
-                            <p>
-                              Disponibili: {quantita(e.quantitaDisponibile)}{" "}
-                              {r.um}
-                            </p>
+                            <p>{t("Disponibili: {quantitaDisponibile} {um}", { quantitaDisponibile: String(quantita(e.quantitaDisponibile) ?? ""), um: String(r.um ?? "") })}</p>
                           )}
                           {e.prezzoConcordato != null && (
                             <p>
-                              Ordine: {euro(e.prezzoConcordato)}
+                              {t("Ordine: {prezzo}", { prezzo: euro(e.prezzoConcordato, t("Da definire")) })}
                               {e.deltaPrezzo
-                                ? ` · differenza ${euro(e.deltaPrezzo)}`
+                                ? ` · ${t("differenza {deltaPrezzo}", { deltaPrezzo: euro(e.deltaPrezzo, t("Da definire")) })}`
                                 : ""}
                             </p>
                           )}
                           <p className="text-muted-foreground">
-                            Clicca una voce F1, F2… per seguire le righe
-                            corrispondenti. Una voce può riguardare più righe e
-                            più DDT.
+                            {t("Clicca una voce F1, F2… per seguire le righe corrispondenti. Una voce può riguardare più righe e più DDT.")}
                           </p>
                         </div>
                       );
                     })()}
                   <div className="ml-auto max-w-xs space-y-2 rounded-xl bg-muted/30 p-4 text-sm">
                     <div className="flex justify-between gap-4">
-                      <span className="text-muted-foreground">Imponibile</span>
+                      <span className="text-muted-foreground">{t("Imponibile")}</span>
                       <span>
-                        {euro(numeroDocumento(fattura.imponibile_totale))}
+                        {euro(numeroDocumento(fattura.imponibile_totale), t("Da definire"))}
                       </span>
                     </div>
                     <div className="flex justify-between gap-4">
-                      <span className="text-muted-foreground">IVA</span>
-                      <span>{euro(numeroDocumento(fattura.iva_totale))}</span>
+                      <span className="text-muted-foreground">{t("IVA")}</span>
+                      <span>{euro(numeroDocumento(fattura.iva_totale), t("Da definire"))}</span>
                     </div>
                     <div className="flex justify-between gap-4 border-t pt-2 font-semibold">
-                      <span>Totale fattura</span>
+                      <span>{t("Totale fattura")}</span>
                       <span>
-                        {euro(numeroDocumento(fattura.totale_documento))}
+                        {euro(numeroDocumento(fattura.totale_documento), t("Da definire"))}
                       </span>
                     </div>
                   </div>
                   {controllo && (
                     <p className="rounded-lg bg-blue-50 p-3 text-xs leading-relaxed text-blue-900">
-                      Controllo per codice o descrizione uguale, unità di misura
-                      e quantità residue dei confronti registrati. Descrizioni
-                      diverse, conversioni di unità, servizi e prezzi mancanti
-                      richiedono il tuo controllo sugli originali.
+                      {t("Controllo per codice o descrizione uguale, unità di misura e quantità residue dei confronti registrati. Descrizioni diverse, conversioni di unità, servizi e prezzi mancanti richiedono il tuo controllo sugli originali.")}
                     </p>
                   )}
                 </TabsContent>
 </PannelloDocumento></Tabs>
-            <Tabs value={doc ? doc.tipo==="oda"&&vistaDocumento==="originale"?"fornitore":doc.tipo==="ddt"&&["inviato","fornitore"].includes(vistaDocumento)?"originale":vistaDocumento : "righe"} onValueChange={setVistaDocumento} className="contents"><PannelloDocumento nome="DDT e ordini di confronto" lato="destra" attivo={pannelloMobile==="destra"} testata={<div className="shrink-0 space-y-2 border-b bg-background px-4 py-3 sm:px-5">
+            <Tabs value={doc ? doc.tipo==="oda"&&vistaDocumento==="originale"?"fornitore":doc.tipo==="ddt"&&["inviato","fornitore"].includes(vistaDocumento)?"originale":vistaDocumento : "righe"} onValueChange={setVistaDocumento} className="contents"><PannelloDocumento nome={t("DDT e ordini di confronto")} lato="destra" attivo={pannelloMobile==="destra"} testata={<div className="shrink-0 space-y-2 border-b bg-background px-4 py-3 sm:px-5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h2 className="flex items-center gap-2 text-sm font-semibold">
                     <ClipboardList className="h-4 w-4 text-orange-600" />
-                    Documento da visualizzare
+                    {t("Documento da visualizzare")}
                   </h2>
                   {puoModificare && (
                     <Popover open={aggiungi} onOpenChange={setAggiungi}>
                       <PopoverTrigger asChild>
                         <Button variant="outline" size="sm" className="h-8">
-                          Collega DDT
+                          {t("Collega DDT")}
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent
@@ -923,7 +905,7 @@ export function ConfrontoFatturaDialog({
                 {!!documenti.length && (
                   <>
                     <UniformSelect
-                      aria-label="Documento da visualizzare"
+                      aria-label={t("Documento da visualizzare")}
                       value={doc?.id ?? ""}
                       onChange={(e) => {
                         setAttivo(e.target.value);
@@ -934,7 +916,7 @@ export function ConfrontoFatturaDialog({
                     >
                       {documenti.map((d) => (
                         <option key={d.id} value={d.id}>
-                          {d.tipo === "ddt" ? "DDT" : "Ordine"} · {d.numero}
+                          {d.tipo === "ddt" ? "DDT" : t("Ordine")} · {d.numero}
                           {d.data ? ` · ${formatDateShort(d.data)}` : ""}
                         </option>
                       ))}
@@ -949,33 +931,25 @@ export function ConfrontoFatturaDialog({
                             variant="outline"
                             size="sm"
                             className="h-7 text-xs"
-                          >
-                            Nel controllo (
-                            {
-                              documenti.filter(
+                          >{t("Nel controllo ({n}/{n2})", { n: documenti.filter(
                                 (d) =>
                                   scelti.has(d.id) &&
                                   documentoCompatibileConFornitore(
                                     fornitoreId,
                                     d.dati.supplier_id,
                                   ),
-                              ).length
-                            }
-                            /{documenti.length})
-                          </Button>
+                              ).length, n2: documenti.length })}</Button>
                         </PopoverTrigger>
                         <PopoverContent
                           align="start"
                           className="w-96 max-w-[calc(100vw-2rem)] space-y-3"
                         >
                           <p className="text-xs text-muted-foreground">
-                            Scegli quali DDT e ordini usare nel controllo di
-                            quantità e prezzi. La selezione vale per questo
-                            confronto.
+                            {t("Scegli quali DDT e ordini usare nel controllo di quantità e prezzi. La selezione vale per questo confronto.")}
                           </p>
                           <div
                             className="max-h-64 space-y-2 overflow-y-auto"
-                            aria-label="Documenti disponibili"
+                            aria-label={t("Documenti disponibili")}
                           >
                             {documenti.map((d) => (
                               <div
@@ -984,7 +958,7 @@ export function ConfrontoFatturaDialog({
                               >
                                 <input
                                   type="checkbox"
-                                  aria-label={`Confronta ${d.tipo === "ddt" ? "DDT" : "ordine"} ${d.numero}`}
+                                  aria-label={d.tipo === "ddt" ? t("Confronta DDT {numero}", { numero: d.numero }) : t("Confronta ordine {numero}", { numero: d.numero })}
                                   checked={
                                     scelti.has(d.id) &&
                                     documentoCompatibileConFornitore(
@@ -1019,9 +993,7 @@ export function ConfrontoFatturaDialog({
                                     )}
                                     {d.numero}
                                   </span>
-                                  <span className="mt-1 block truncate text-muted-foreground">
-                                    {d.fornitore} · {d.righe.length} voci
-                                  </span>
+                                  <span className="mt-1 block truncate text-muted-foreground">{t("{fornitore} · {n} voci", { fornitore: String(d.fornitore ?? ""), n: d.righe.length })}</span>
                                 </button>
                               </div>
                             ))}
@@ -1032,13 +1004,13 @@ export function ConfrontoFatturaDialog({
                         <label className="inline-flex items-center gap-1.5">
                           <input
                             type="checkbox"
-                            aria-label={`Includi ${doc.numero} nel controllo`}
+                            aria-label={t("Includi {numero} nel controllo", { numero: String(doc.numero ?? "") })}
                             checked={scelti.has(doc.id) && !fornitoreDiverso}
                             disabled={fornitoreDiverso}
                             onChange={(e) => scegli(doc.id, e.target.checked)}
                             className="h-3.5 w-3.5 accent-blue-600"
                           />
-                          Includi nel controllo
+                          {t("Includi nel controllo")}
                         </label>
                       )}
                       {doc && (
@@ -1050,19 +1022,19 @@ export function ConfrontoFatturaDialog({
                               : `/azienda/ordini-acquisto/${doc.id}`
                           }
                         >
-                          Apri scheda
+                          {t("Apri scheda")}
                         </Link>
                       )}
                       {doc && (
                         <>
                           {doc.collegato ? (
                             <span className="text-emerald-700">
-                              Collegato alla fattura
+                              {t("Collegato alla fattura")}
                             </span>
                           ) : (
                             <>
                               <span className="text-amber-800">
-                                Da collegare
+                                {t("Da collegare")}
                               </span>
                               {puoModificare && doc.tipo === "ddt" && (
                                 <button
@@ -1074,8 +1046,8 @@ export function ConfrontoFatturaDialog({
                                   onClick={() => collegaBolla.mutate(doc.id)}
                                 >
                                   {collegaBolla.isPending
-                                    ? "Collegamento…"
-                                    : "Collega questa bolla"}
+                                    ? t("Collegamento…")
+                                    : t("Collega questa bolla")}
                                 </button>
                               )}
                             </>
@@ -1093,17 +1065,17 @@ export function ConfrontoFatturaDialog({
                 )}
               </div>} viste={doc && <div className="flex shrink-0 flex-wrap items-center gap-2 px-4 py-2 sm:px-5">
                     <TabsList className="h-8">
-                      <TabsTrigger value="righe">Righe</TabsTrigger>
-                      {doc.tipo==="oda"?<><TabsTrigger value="inviato">PDF nostro</TabsTrigger><TabsTrigger value="fornitore">Conferma fornitore</TabsTrigger></>:<TabsTrigger value="originale">PDF / foto originali</TabsTrigger>}
+                      <TabsTrigger value="righe">{t("Righe")}</TabsTrigger>
+                      {doc.tipo==="oda"?<><TabsTrigger value="inviato">{t("PDF nostro")}</TabsTrigger><TabsTrigger value="fornitore">{t("Conferma fornitore")}</TabsTrigger></>:<TabsTrigger value="originale">{t("PDF / foto originali")}</TabsTrigger>}
                     </TabsList>
                     {vistaDocumento === "righe" && (
                       <Button
                         size="sm"
                         variant={allineaVoci ? "secondary" : "ghost"}
                         className="h-8 w-8 shrink-0 p-0"
-                        aria-label="Allinea righe alla fattura"
+                        aria-label={t("Allinea righe alla fattura")}
                         aria-pressed={allineaVoci}
-                        title="Ordina le righe con codice o descrizione uguali seguendo le voci della fattura. Gli originali mantengono il loro ordine."
+                        title={t("Ordina le righe con codice o descrizione uguali seguendo le voci della fattura. Gli originali mantengono il loro ordine.")}
                         onClick={() => setAllineaVoci((v) => !v)}
                       >
                         <ArrowLeftRight className="h-3.5 w-3.5" />
@@ -1115,10 +1087,10 @@ export function ConfrontoFatturaDialog({
                           variant="ghost"
                           size="sm"
                           className="ml-auto h-8 w-8 shrink-0 p-0"
-                          aria-label="Info e associazioni"
-                          title="Info e associazioni"
+                          aria-label={t("Info e associazioni")}
+                          title={t("Info e associazioni")}
                         >
-                          <Info className="h-3.5 w-3.5"/><span className="sr-only">Info e associazioni
+                          <Info className="h-3.5 w-3.5"/><span className="sr-only">{t("Info e associazioni")}
                           {q.data?.riferimenti.length
                             ? ` (${q.data.riferimenti.length})`
                             : ""}</span>
@@ -1138,7 +1110,7 @@ export function ConfrontoFatturaDialog({
                         {!!q.data?.riferimenti.length && (
                           <div className="space-y-2">
                             <p className="font-medium">
-                              Riferimenti DDT da abbinare
+                              {t("Riferimenti DDT da abbinare")}
                             </p>
                             <ul className="max-h-40 space-y-1 overflow-y-auto">
                               {q.data.riferimenti.map((r) => (
@@ -1151,9 +1123,7 @@ export function ConfrontoFatturaDialog({
                               ))}
                             </ul>
                             <p className="text-muted-foreground">
-                              Il numero è registrato. Collega la bolla caricata
-                              per conservarne anche l’associazione alle righe e
-                              agli originali.
+                              {t("Il numero è registrato. Collega la bolla caricata per conservarne anche l’associazione alle righe e agli originali.")}
                             </p>
                           </div>
                         )}
@@ -1162,12 +1132,11 @@ export function ConfrontoFatturaDialog({
                   </div>}>
 {q.isLoading ? (
                 <p role="status" className="p-5 text-sm">
-                  Caricamento documenti…
+                  {t("Caricamento documenti…")}
                 </p>
               ) : !doc ? (
                 <p className="m-4 rounded-xl border border-dashed p-5 text-sm text-muted-foreground">
-                  Nessun DDT o ordine collegato. Aggiungi una bolla caricata o
-                  collega un ordine dalla scheda fattura.
+                  {t("Nessun DDT o ordine collegato. Aggiungi una bolla caricata o collega un ordine dalla scheda fattura.")}
                 </p>
               ) : (
                 <>
@@ -1175,15 +1144,11 @@ export function ConfrontoFatturaDialog({
                     <p
                       role="alert"
                       className="mx-4 mb-2 text-xs text-destructive"
-                    >
-                      {q.data.nonDisponibili} DDT collegati non leggibili. Il
-                      confronto è incompleto.
-                    </p>
+                    >{t("{nonDisponibili} DDT collegati non leggibili. Il confronto è incompleto.", { nonDisponibili: q.data.nonDisponibili ?? "" })}</p>
                   )}
 {fornitoreDiverso && (
                     <p role="alert" className="text-xs text-destructive">
-                      Fornitore diverso dalla fattura: controlla l’associazione.
-                      Questo documento è escluso dal controllo automatico.
+                      {t("Fornitore diverso dalla fattura: controlla l’associazione. Questo documento è escluso dal controllo automatico.")}
                     </p>
                   )}
 </div></ComandiDocumento>}
@@ -1202,15 +1167,15 @@ export function ConfrontoFatturaDialog({
                     />
                     {doc.tipo === "ddt" && (
                       <p className="text-xs text-muted-foreground">
-                        Destinazione:{" "}
+                        {t("Destinazione:")}{" "}
                         {doc.dati.destinazione === "cantiere"
-                          ? "consegna diretta in cantiere"
+                          ? t("consegna diretta in cantiere")
                           : doc.dati.destinazione === "magazzino"
-                            ? "magazzino"
-                            : "da verificare"}
+                            ? t("magazzino")
+                            : t("da verificare")}
                         .
                         {doc.righe.some((r) => (disponibilitaDDT.get(r.id)?.giaFatturata ?? 0) > 0) &&
-                          " Parte delle quantità è già presente in precedenti confronti fattura."}
+                          ` ${t("Parte delle quantità è già presente in precedenti confronti fattura.")}`}
                       </p>
                     )}
                   </TabsContent>
@@ -1222,17 +1187,17 @@ export function ConfrontoFatturaDialog({
                   >
                     {doc.tipo==="oda"?<OriginaliOrdineConfronto companyId={companyId} ordineId={doc.id} numero={doc.numero} attachmentUrl={typeof doc.dati.attachment_url==="string"?doc.dati.attachment_url:undefined} tipo={vista==="inviato"?"inviato":"fornitore"} adatta/>:originali.isLoading ? (
                       <p role="status" className="text-sm">
-                        Cerco gli originali…
+                        {t("Cerco gli originali…")}
                       </p>
                     ) : originali.isError ? (
                       <p role="alert" className="text-sm text-destructive">
-                        Non riesco a recuperare gli originali.{" "}
+                        {t("Non riesco a recuperare gli originali.")}{" "}
                         {messaggioSalvataggio(originali.error)}{" "}
                         <button
                           className="underline"
                           onClick={() => void originali.refetch()}
                         >
-                          Riprova
+                          {t("Riprova")}
                         </button>
                       </p>
                     ) : (
@@ -1259,8 +1224,7 @@ export function ConfrontoFatturaDialog({
         )}
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t bg-background px-4 py-3 sm:px-5">
           <div className="text-xs text-muted-foreground">
-            La verifica salva lo stato della fattura. Controlla gli scostamenti
-            prima di confermarla.
+            {t("La verifica salva lo stato della fattura. Controlla gli scostamenti prima di confermarla.")}
           </div>
           <div className="flex items-center gap-3">
             <VerificaFatturaPill
@@ -1281,7 +1245,7 @@ export function ConfrontoFatturaDialog({
               puoCambiare={puoModificare}
             />
             <Button variant="outline" size="sm" onClick={onClose}>
-              Chiudi confronto
+              {t("Chiudi confronto")}
             </Button>
           </div>
         </div>

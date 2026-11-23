@@ -10,7 +10,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { formatTreasuryCurrency as money } from "@/lib/treasury";
 import type { ScadenzarioSummary } from "@/hooks/useScadenzario";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 export function TreasuryDueSummary({ company }: { company: string }) {
+  const t = useT();
   const q = useQuery({
     queryKey: [...queryKeys.scadenzario.summary(company), null, null],
     queryFn: async () => {
@@ -28,18 +30,18 @@ export function TreasuryDueSummary({ company }: { company: string }) {
   if (q.isPending)
     return (
       <p role="status" className="text-sm text-muted-foreground">
-        Caricamento scadenze…
+        {t("Caricamento scadenze…")}
       </p>
     );
   if (q.isError)
     return (
       <div role="alert" className="rounded-xl border p-4 text-sm">
-        Scadenze non disponibili.{" "}
+        {t("Scadenze non disponibili.")}{" "}
         <button
           className="text-primary underline"
           onClick={() => void q.refetch()}
         >
-          Riprova
+          {t("Riprova")}
         </button>
       </div>
     );
@@ -50,43 +52,42 @@ export function TreasuryDueSummary({ company }: { company: string }) {
         <div>
           <h3 className="flex items-center gap-2 font-semibold">
             <CalendarClock className="h-4 w-4 text-primary" />
-            Scadenze e impegni
+            {t("Scadenze e impegni")}
           </h3>
           <p className="mt-1 text-xs text-muted-foreground">
-            Tutta l’azienda · importi ancora aperti in scadenzario, separati dai
-            saldi bancari.
+            {t("Tutta l’azienda · importi ancora aperti in scadenzario, separati dai saldi bancari.")}
           </p>
         </div>
         <Link
           to="/azienda/scadenzario"
           className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
         >
-          Apri scadenzario
+          {t("Apri scadenzario")}
           <ArrowRight className="h-3 w-3" />
         </Link>
       </div>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
           {
-            label: "Da incassare",
+            label: t("Da incassare"),
             value: s.entrate_previste,
             tone: "text-emerald-700",
             icon: ArrowDownLeft,
           },
           {
-            label: "Da pagare",
+            label: t("Da pagare"),
             value: s.uscite_previste,
             tone: "text-rose-700",
             icon: ArrowUpRight,
           },
           {
-            label: "Incassi scaduti",
+            label: t("Incassi scaduti"),
             value: s.scadute_entrata_amount,
             tone: "text-amber-700",
             icon: CalendarClock,
           },
           {
-            label: "Pagamenti scaduti",
+            label: t("Pagamenti scaduti"),
             value: s.scadute_uscita_amount,
             tone: "text-rose-700",
             icon: CalendarClock,
@@ -98,7 +99,7 @@ export function TreasuryDueSummary({ company }: { company: string }) {
               {c.label}
             </p>
             <p className={`mt-2 text-lg font-semibold tabular-nums ${c.tone}`}>
-              {c.value === undefined ? "Non disponibile" : money(c.value)}
+              {c.value === undefined ? t("Non disponibile") : money(c.value)}
             </p>
           </div>
         ))}

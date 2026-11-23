@@ -14,6 +14,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { useDebounce } from "@/hooks/useDebounce";
 import { refreshMaterialQueries } from "@/lib/orders/refreshMaterialQueries";
 import { proponiPrezziFattura, righeDocumentoFattura, righePrezzoDiQuestoDdt } from "@/lib/ddt/proponiPrezziFattura";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Fattura {
   id: string;
@@ -38,7 +39,7 @@ interface PrezzoDiverso {
   /** true: la fattura copre tutta la riga e il suo prezzo ha preso il posto di quello della bolla. */
   sostituito: boolean;
 }
-const euro = (n: number) => Number(n).toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 4 });
+const euro = (n: number) => Number(n).toLocaleString(intlCampo(), { style: "currency", currency: "EUR", maximumFractionDigits: 4 });
 function descriviDifferenza(d: PrezzoDiverso) {
   const cosa = d.descrizione?.trim() || "Riga";
   return d.sostituito
@@ -84,6 +85,7 @@ function PrezziDaFatturaForm({
   /** Azioni da mettere sulla stessa riga del pulsante (es. «Collega una fattura»). */
   altreAzioni?: ReactNode;
 }) {
+  const t = useT();
   const p = usePermissions();
   const qc = useQueryClient();
   const visibile = p.canViewCosts || p.canManagePurchasing;
@@ -197,7 +199,7 @@ function PrezziDaFatturaForm({
         )
       )
         throw new Error(
-          "Inserisci quantità e prezzo presenti nella fattura, IVA esclusa",
+          t("Inserisci quantità e prezzo presenti nella fattura, IVA esclusa"),
         );
       const { data, error } = await db.rpc("ddt_valorizza_da_fattura", {
         p_ddt: ddt.id,
@@ -212,7 +214,7 @@ function PrezziDaFatturaForm({
       setBozze({});
       setConfermo(false);
       toast.success(
-        "Prezzi confrontati con la fattura, nessun nuovo arrivo registrato",
+        t("Prezzi confrontati con la fattura, nessun nuovo arrivo registrato"),
       );
       refreshMaterialQueries(qc);
       void qc.invalidateQueries({ queryKey: ["fattura-ddt-riepilogo", ddt.company_id, fattura] });
@@ -221,7 +223,7 @@ function PrezziDaFatturaForm({
       // altrimenti resta quello della bolla: in entrambi i casi lo si dice.
       if (diversi.length > 0)
         toast.warning(
-          diversi.length === 1 ? "Un prezzo della bolla è diverso dalla fattura" : `${diversi.length} prezzi della bolla sono diversi dalla fattura`,
+          diversi.length === 1 ? t("Un prezzo della bolla è diverso dalla fattura") : t("{n} prezzi della bolla sono diversi dalla fattura", { n: diversi.length }),
           { description: diversi.map(descriviDifferenza).join(" · "), duration: 12_000 },
         );
       for (const key of [
@@ -231,7 +233,7 @@ function PrezziDaFatturaForm({
         void qc.invalidateQueries({ queryKey: key });
     },
     onError: (e: Error) =>
-      toast.error("Prezzi non aggiornati", { description: e.message }),
+      toast.error(t("Prezzi non aggiornati"), { description: e.message }),
   });
   if (!visibile)
     return incorporato && altreAzioni ? (
@@ -244,8 +246,8 @@ function PrezziDaFatturaForm({
           {valori.data.map((v) => (
             <li key={v.id} className="py-2 text-xs">
               {righe.data?.find((r) => r.id === v.riga_id)?.descrizione} ·{" "}
-              {Number(v.quantita).toLocaleString("it-IT")} ×{" "}
-              {Number(v.prezzo_unitario).toLocaleString("it-IT", {
+              {Number(v.quantita).toLocaleString(intlCampo())} ×{" "}
+              {Number(v.prezzo_unitario).toLocaleString(intlCampo(), {
                 style: "currency",
                 currency: "EUR",
               })}{" "}
@@ -254,7 +256,7 @@ function PrezziDaFatturaForm({
                 className="underline"
                 to={`/azienda/documenti/fatture-ricevute?cerca=${encodeURIComponent(v.fatture_ricevute?.numero_fattura ?? "")}`}
               >
-                Fattura
+                {t("Fattura")}
               </Link>
             </li>
           ))}
@@ -262,9 +264,9 @@ function PrezziDaFatturaForm({
       )}
       {valori.isError && (
         <p role="alert" className="text-destructive">
-          Confronti precedenti non disponibili.{" "}
+          {t("Confronti precedenti non disponibili.")}{" "}
           <button className="underline" onClick={() => void valori.refetch()}>
-            Riprova
+            {t("Riprova")}
           </button>
         </p>
       )}
@@ -278,18 +280,18 @@ function PrezziDaFatturaForm({
           className="space-y-3"
         >
           <label className="block space-y-1 text-xs">
-            Cerca per numero o data
+            {t("Cerca per numero o data")}
             <Input
               value={ricerca}
               onChange={(e) => {
                 setRicerca(e.target.value);
                 setFattura("");
               }}
-              placeholder="Numero della fattura"
+              placeholder={t("Numero della fattura")}
             />
           </label>
           <label className="block space-y-1 text-xs">
-            Fattura dello stesso fornitore
+            {t("Fattura dello stesso fornitore")}
             <UniformSelect
               className="h-10 w-full rounded-md border bg-background px-2 text-sm"
               value={fattura}
@@ -298,7 +300,7 @@ function PrezziDaFatturaForm({
               }}
             >
               <option value="">
-                {fatture.isLoading ? "Caricamento…" : "Seleziona la fattura"}
+                {fatture.isLoading ? t("Caricamento…") : t("Seleziona la fattura")}
               </option>
               {elencoFatture.map((f) => (
                 <option key={f.id} value={f.id}>
@@ -310,40 +312,38 @@ function PrezziDaFatturaForm({
           </label>
           {(fatture.data?.length ?? 0) >= 100 && (
             <p className="text-xs text-muted-foreground">
-              Mostrate le prime 100 fatture del fornitore. Cerca il numero o la
-              data per trovare quelle precedenti.
+              {t("Mostrate le prime 100 fatture del fornitore. Cerca il numero o la data per trovare quelle precedenti.")}
             </p>
           )}
           {fatture.isError && (
             <p className="text-destructive">
-              Fatture non disponibili.{" "}
+              {t("Fatture non disponibili.")}{" "}
               <button
                 type="button"
                 className="underline"
                 onClick={() => void fatture.refetch()}
               >
-                Riprova
+                {t("Riprova")}
               </button>
             </p>
           )}
           {!ddt.supplier_id && (
             <p className="text-amber-800">
-              Associa prima il fornitore della bolla.
+              {t("Associa prima il fornitore della bolla.")}
             </p>
           )}
           {fatture.isSuccess && !fatture.data?.length && (
             <p className="text-muted-foreground">
-              Nessuna fattura trovata per questo fornitore. Importa prima
-              l’originale nella sezione Fatture ricevute.
+              {t("Nessuna fattura trovata per questo fornitore. Importa prima l’originale nella sezione Fatture ricevute.")}
             </p>
           )}
-          {!!fattura && documento.isPending && <p role="status">Leggo quantità e prezzi della fattura…</p>}
-          {!!fattura && documento.isError && <p role="alert">Non riesco a leggere le righe della fattura. Puoi compilare il confronto a mano oppure <button type="button" className="underline" onClick={() => void documento.refetch()}>riprovare</button>.</p>}
+          {!!fattura && documento.isPending && <p role="status">{t("Leggo quantità e prezzi della fattura…")}</p>}
+          {!!fattura && documento.isError && <p role="alert">{t("Non riesco a leggere le righe della fattura. Puoi compilare il confronto a mano oppure")} <button type="button" className="underline" onClick={() => void documento.refetch()}>{t("riprovare")}</button>.</p>}
           {!!fattura && documento.isSuccess && <div className="rounded-lg border bg-muted/20 p-3 text-xs">
             <p>{Object.keys(proposte).length > 0
               ? `${Object.keys(proposte).length === 1 ? '1 riga proposta' : `${Object.keys(proposte).length} righe proposte`} dalla fattura, con quantità e prezzi netti dopo gli sconti. Controlla i dati prima di confermare.`
-              : 'Nessun abbinamento univoco con unità compatibili: scegli le righe e verifica quantità e prezzo sulla fattura.'}</p>
-            {Object.keys(proposte).length > 0 && <Button type="button" size="sm" variant="outline" className="mt-2" onClick={() => { setBozze(proposte); setSelezionate(new Set(Object.keys(proposte))); setConfermo(false); }}>Riprendi righe dalla fattura</Button>}
+              : t("Nessun abbinamento univoco con unità compatibili: scegli le righe e verifica quantità e prezzo sulla fattura.")}</p>
+            {Object.keys(proposte).length > 0 && <Button type="button" size="sm" variant="outline" className="mt-2" onClick={() => { setBozze(proposte); setSelezionate(new Set(Object.keys(proposte))); setConfermo(false); }}>{t("Riprendi righe dalla fattura")}</Button>}
           </div>}
           <ul className="space-y-2" aria-busy={!!fattura && documento.isPending}>
             {righe.data?.map((r) => {
@@ -372,9 +372,9 @@ function PrezziDaFatturaForm({
                   {selezionate.has(r.id) && (
                     <div className="grid grid-cols-2 items-end gap-2">
                       <label className="text-xs">
-                        Quantità fatturata ({r.unita_misura})
+                        {t("Quantità fatturata ({unita_misura})", { unita_misura: String(r.unita_misura ?? "") })}
                         <Input
-                          aria-label={`Quantità fatturata ${r.descrizione}`}
+                          aria-label={t("Quantità fatturata {descrizione}", { descrizione: String(r.descrizione ?? "") })}
                           inputMode="decimal"
                           value={v?.q ?? String(r.quantita ?? "")}
                           onChange={(e) => {
@@ -390,12 +390,12 @@ function PrezziDaFatturaForm({
                         />
                       </label>
                       <label className="text-xs">
-                        Prezzo unitario IVA esclusa
+                        {t("Prezzo unitario IVA esclusa")}
                         <Input
-                          aria-label={`Prezzo in fattura ${r.descrizione}`}
+                          aria-label={t("Prezzo in fattura {descrizione}", { descrizione: String(r.descrizione ?? "") })}
                           inputMode="decimal"
                           value={v?.prezzo ?? ""}
-                          placeholder="Da fattura"
+                          placeholder={t("Da fattura")}
                           onChange={(e) => {
                             setBozze((p) => ({
                               ...p,
@@ -420,8 +420,7 @@ function PrezziDaFatturaForm({
               checked={confermo}
               onChange={(e) => setConfermo(e.target.checked)}
             />
-            Ho confrontato le righe con la fattura originale. I prezzi sono
-            unitari e al netto dell’IVA.
+            {t("Ho confrontato le righe con la fattura originale. I prezzi sono unitari e al netto dell’IVA.")}
           </label>
           <Button
             disabled={
@@ -432,7 +431,7 @@ function PrezziDaFatturaForm({
             {salva.isPending && (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             )}
-            Salva il confronto prezzi
+            {t("Salva il confronto prezzi")}
           </Button>
         </fieldset>
       )}
@@ -446,20 +445,20 @@ function PrezziDaFatturaForm({
             {valori.data.map((v) => (
               <li key={v.id} className="truncate">
                 {righe.data?.find((r) => r.id === v.riga_id)?.descrizione} ·{" "}
-                {Number(v.quantita).toLocaleString("it-IT")} ×{" "}
-                {Number(v.prezzo_unitario).toLocaleString("it-IT", {
+                {Number(v.quantita).toLocaleString(intlCampo())} ×{" "}
+                {Number(v.prezzo_unitario).toLocaleString(intlCampo(), {
                   style: "currency",
                   currency: "EUR",
-                })}{v.origine === "automatico" && " · Automatico"}
+                })}{v.origine === "automatico" && ` ${t("· Automatico")}`}
               </li>
             ))}
           </ul>
         )}
         {valori.isError && (
           <p role="alert" className="text-xs text-destructive">
-            Confronti precedenti non disponibili.{" "}
+            {t("Confronti precedenti non disponibili.")}{" "}
             <button className="underline" onClick={() => void valori.refetch()}>
-              Riprova
+              {t("Riprova")}
             </button>
           </p>
         )}
@@ -472,7 +471,7 @@ function PrezziDaFatturaForm({
               aria-expanded={aperto}
               onClick={() => setAperto((v) => !v)}
             >
-              {aperto ? "Chiudi confronto" : "Confronta una fattura"}
+              {aperto ? t("Chiudi confronto") : t("Confronta una fattura")}
             </button>
           )}
         </div>
@@ -488,15 +487,12 @@ function PrezziDaFatturaForm({
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-base">
           <Receipt className="h-4 w-4 text-orange-600" />
-          Prezzi e fattura del fornitore
+          {t("Prezzi e fattura del fornitore")}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         <p className="text-muted-foreground">
-          La bolla può rimanere senza prezzi. Quando arriva la fattura,
-          confronta le quantità e completa i prezzi degli articoli della
-          commessa e dei carichi di magazzino. La contabilizzazione e la
-          ripartizione del costo restano nella fattura.
+          {t("La bolla può rimanere senza prezzi. Quando arriva la fattura, confronta le quantità e completa i prezzi degli articoli della commessa e dei carichi di magazzino. La contabilizzazione e la ripartizione del costo restano nella fattura.")}
         </p>
         {precedenti}
         {modificabile && (
@@ -505,7 +501,7 @@ function PrezziDaFatturaForm({
             size="sm"
             onClick={() => setAperto((v) => !v)}
           >
-            {aperto ? "Chiudi confronto" : "Confronta una fattura"}
+            {aperto ? t("Chiudi confronto") : t("Confronta una fattura")}
           </Button>
         )}
         {confronto}

@@ -12,8 +12,10 @@ import { DatiFiscaliClienteDialog } from "@/components/clients/DatiFiscaliClient
 import { UfficiPaCard } from "@/components/clients/UfficiPaCard";
 import { useUfficiPa } from "@/hooks/useUfficiPa";
 import { etichettaTipoCliente, formDaAnagrafica, formDaProfilo, type ClienteBase } from "@/lib/clienti/clienteFiscale";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function DatiFatturaCliente({ customer, puoModificare }: { customer: ClienteBase; puoModificare: boolean }) {
+  const t = useT();
   const [aperto, setAperto] = useState(false);
   const { data: ana, isLoading } = useAnagraficaFiscaleCliente(customer.id);
   const pa = ana?.tipo_cliente === "PA";
@@ -35,30 +37,30 @@ export function DatiFatturaCliente({ customer, puoModificare }: { customer: Clie
   return (
     <div className="space-y-1.5 px-1">
       <div className="flex items-center gap-2">
-        {ana ? <Badge variant="secondary">{etichettaTipoCliente(ana.tipo_cliente)}</Badge> : <Badge variant="outline">Da completare</Badge>}
+        {ana ? <Badge variant="secondary">{etichettaTipoCliente(ana.tipo_cliente)}</Badge> : <Badge variant="outline">{t("Da completare")}</Badge>}
         {puoModificare && (
           <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px] ml-auto" onClick={() => setAperto(true)}>
-            <Pencil className="h-3 w-3 mr-1" /> {ana ? "Modifica" : "Completa"}
+            <Pencil className="h-3 w-3 mr-1" /> {ana ? t("Modifica") : t("Completa")}
           </Button>
         )}
       </div>
-      {!ana && <p className="text-[11px] text-muted-foreground">Mancano i dati per fatturare a questo cliente.</p>}
+      {!ana && <p className="text-[11px] text-muted-foreground">{t("Mancano i dati per fatturare a questo cliente.")}</p>}
       {disallineato && (
         <p className="text-[11px] text-amber-700">
-          La scheda dice «{customer.is_business ? "azienda" : "persona"}», i dati per la fattura «{etichettaTipoCliente(ana?.tipo_cliente)}»: controlla con «Modifica».
+          {t("La scheda dice «{scheda}», i dati per la fattura «{fattura}»: controlla con «Modifica».", { scheda: customer.is_business ? t("azienda") : t("persona"), fattura: etichettaTipoCliente(ana?.tipo_cliente) })}
         </p>
       )}
       {ana && (
         <div>
           {riga("P.IVA", ana.partita_iva, true)}
           {riga("Codice fiscale", ana.codice_fiscale, true)}
-          {riga(pa ? "Ufficio predefinito" : "Codice destinatario", ana.codice_sdi, true)}
+          {riga(pa ? t("Ufficio predefinito") : "Codice destinatario", ana.codice_sdi, true)}
           {riga("PEC", ana.pec)}
           {pa && riga("Codice IPA", ana.codice_ipa, true)}
-          {pa && riga("Split payment", ana.split_payment == null ? "come l'azienda" : ana.split_payment ? "sì" : "no")}
-          {riga("Referente amm.", ana.referente_amministrativo)}
+          {pa && riga("Split payment", ana.split_payment == null ? t("come l'azienda") : ana.split_payment ? t("sì") : t("no"))}
+          {riga(t("Referente amm."), ana.referente_amministrativo)}
           <Link to={`/azienda/documenti/anagrafiche/${ana.id}`} className="text-[11px] text-primary hover:underline">
-            Apri la scheda fiscale
+            {t("Apri la scheda fiscale")}
           </Link>
         </div>
       )}

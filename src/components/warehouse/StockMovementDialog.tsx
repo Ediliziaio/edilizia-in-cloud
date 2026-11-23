@@ -23,6 +23,7 @@ import { format } from "date-fns";
 
 import { COST_CATEGORIES } from "@/types/warehouse";
 import { CommessaCombobox } from "@/components/orders/CommessaCombobox";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface StockMovementDialogProps {
   open: boolean;
@@ -58,6 +59,7 @@ function StockMovementDialogSession({
   canViewCosts = true,
   serialized = false,
 }: StockMovementDialogProps) {
+  const t = useT();
   const [quantity, setQuantity] = useState("1");
   const [notes, setNotes] = useState("");
   const [registerCost, setRegisterCost] = useState(false);
@@ -84,18 +86,18 @@ function StockMovementDialogSession({
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle>
-            {type === "carico" ? "Carico Magazzino" : "Scarico Magazzino"}
+            {type === "carico" ? t("Carico Magazzino") : t("Scarico Magazzino")}
           </DialogTitle>
           <DialogDescription>
             {type === "carico"
-              ? `Aggiungi quantità per "${itemName}"`
-              : `Rimuovi quantità da "${itemName}"${maxQuantity !== undefined ? ` (disponibili: ${maxQuantity})` : ""}`}
+              ? t("Aggiungi quantità per \"{itemName}\"", { itemName: String(itemName ?? "") })
+              : maxQuantity !== undefined ? t("Rimuovi quantità da \"{itemName}\" (disponibili: {max})", { itemName: String(itemName ?? ""), max: maxQuantity }) : t("Rimuovi quantità da \"{itemName}\"", { itemName: String(itemName ?? "") })}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label>Quantità *</Label>
+            <Label>{t("Quantità *")}</Label>
             <Input
               type="number"
               min="0"
@@ -109,16 +111,16 @@ function StockMovementDialogSession({
               costo non finiva su nessun cantiere. Resta facoltativa (scarti, uso interno). */}
           {type === "scarico" && (
             <div className="space-y-2">
-              <Label>Per quale commessa? <span className="font-normal text-muted-foreground">(facoltativo)</span></Label>
-              <CommessaCombobox value={orderId} onChange={setOrderId} nessunaLabel="Nessuna commessa (scarto, uso interno)" />
+              <Label>{t("Per quale commessa?")} <span className="font-normal text-muted-foreground">{t("(facoltativo)")}</span></Label>
+              <CommessaCombobox value={orderId} onChange={setOrderId} nessunaLabel={t("Nessuna commessa (scarto, uso interno)")} />
             </div>
           )}
           <div className="space-y-2">
-            <Label>Note</Label>
+            <Label>{t("Note")}</Label>
             <Textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Motivo del movimento..."
+              placeholder={t("Motivo del movimento...")}
               rows={2}
             />
           </div>
@@ -133,13 +135,13 @@ function StockMovementDialogSession({
                   onCheckedChange={(checked) => setRegisterCost(checked === true)}
                 />
                 <Label htmlFor="register-movement-cost" className="text-sm font-medium cursor-pointer">
-                  Registra costo acquisto nei Costi Aziendali
+                  {t("Registra costo acquisto nei Costi Aziendali")}
                 </Label>
               </div>
               {registerCost && (
                 <div className="grid grid-cols-2 gap-3 pt-1">
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Data pagamento</Label>
+                    <Label className="text-xs">{t("Data pagamento")}</Label>
                     <Input
                       type="date"
                       value={costPaidDate}
@@ -147,7 +149,7 @@ function StockMovementDialogSession({
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Categoria</Label>
+                    <Label className="text-xs">{t("Categoria")}</Label>
                     <Select value={costCategory} onValueChange={setCostCategory}>
                       <SelectTrigger>
                         <SelectValue />
@@ -167,14 +169,14 @@ function StockMovementDialogSession({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button
             onClick={handleSave}
             disabled={!Number.isFinite(Number(quantity)) || Number(quantity) <= 0 || (serialized && !Number.isInteger(Number(quantity))) || isPending || (type === "scarico" && maxQuantity !== undefined && Number(quantity) > maxQuantity)}
             variant={type === "scarico" ? "destructive" : "default"}
           >
-            {isPending ? "..." : type === "carico" ? "Carica" : "Scarica"}
+            {isPending ? "..." : type === "carico" ? t("Carica") : t("Scarica")}
           </Button>
         </DialogFooter>
       </DialogContent>

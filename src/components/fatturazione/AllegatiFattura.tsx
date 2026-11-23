@@ -8,6 +8,7 @@ import { formatDateShort } from "@/lib/formatters";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Gli allegati di una fattura (30/10/2026), come in Fatture in Cloud: la contabile
@@ -119,8 +120,8 @@ export async function caricaAllegati({ companyId, madre, tipo, files }: { compan
 
 export function dimensioneLeggibile(bytes: number | null | undefined): string {
   const b = Number(bytes) || 0;
-  if (b >= 1024 * 1024) return `${(b / 1024 / 1024).toLocaleString("it-IT", { maximumFractionDigits: 1 })} MB`;
-  return `${Math.max(1, Math.round(b / 1024)).toLocaleString("it-IT")} KB`;
+  if (b >= 1024 * 1024) return `${(b / 1024 / 1024).toLocaleString(intlCampo(), { maximumFractionDigits: 1 })} MB`;
+  return `${Math.max(1, Math.round(b / 1024)).toLocaleString(intlCampo())} KB`;
 }
 
 export function AllegatiFattura({
@@ -143,6 +144,7 @@ export function AllegatiFattura({
   scegliTipo?: boolean;
   compattaSeVuota?: boolean;
 }) {
+  const tr = useT();
   const [aperta, setAperta] = useState(false);
   const queryClient = useQueryClient();
   const input = useRef<HTMLInputElement>(null);
@@ -169,8 +171,8 @@ export function AllegatiFattura({
 
   const carica = useMutation({
     mutationFn: (files: File[]) => caricaAllegati({ companyId, madre, tipo: tipoNuovo, files }),
-    onSuccess: (n) => { aggiorna(); toast.success(n === 1 ? "File allegato" : `${n} file allegati`); },
-    onError: (e: Error) => { aggiorna(); toast.error("Allegato non caricato", { description: e.message }); },
+    onSuccess: (n) => { aggiorna(); toast.success(n === 1 ? tr("File allegato") : tr("{n} file allegati", { n })); },
+    onError: (e: Error) => { aggiorna(); toast.error(tr("Allegato non caricato"), { description: e.message }); },
   });
 
   const togli = useMutation({
@@ -179,8 +181,8 @@ export function AllegatiFattura({
       if (error) throw error;
       await supabase.storage.from("fatture-allegati").remove([a.storage_path]);
     },
-    onSuccess: () => { aggiorna(); toast.success("Allegato tolto"); },
-    onError: (e: Error) => toast.error("Non tolto", { description: e.message }),
+    onSuccess: () => { aggiorna(); toast.success(tr("Allegato tolto")); },
+    onError: (e: Error) => toast.error(tr("Non tolto"), { description: e.message }),
   });
 
   const cambia = useMutation({
@@ -189,13 +191,13 @@ export function AllegatiFattura({
       if (error) throw error;
     },
     onSuccess: aggiorna,
-    onError: (e: Error) => toast.error("Non salvato", { description: e.message }),
+    onError: (e: Error) => toast.error(tr("Non salvato"), { description: e.message }),
   });
 
   const apri = async (a: Allegato) => {
     const { data, error } = await supabase.storage.from("fatture-allegati").createSignedUrl(a.storage_path, 120, { download: a.mime_type?.startsWith("image/") || a.mime_type === "application/pdf" ? false : a.file_name });
-    if (error || !data?.signedUrl) { toast.error("Impossibile aprire il file", { description: error?.message }); return; }
-    if (!window.open(data.signedUrl, "_blank", "noopener")) toast.error("Il browser ha bloccato la nuova scheda: consenti i popup per questo sito.");
+    if (error || !data?.signedUrl) { toast.error(tr("Impossibile aprire il file"), { description: error?.message }); return; }
+    if (!window.open(data.signedUrl, "_blank", "noopener")) toast.error(tr("Il browser ha bloccato la nuova scheda: consenti i popup per questo sito."));
   };
 
   const pesoInvio = allegati.filter((a) => a.includi_nell_invio).reduce((s, a) => s + (Number(a.size_bytes) || 0), 0);
@@ -209,7 +211,7 @@ export function AllegatiFattura({
     if (sola_lettura) return null;
     return (
       <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setAperta(true)}>
-        <Paperclip className="mr-1 h-3 w-3" /> Allegati
+        <Paperclip className="mr-1 h-3 w-3" /> {tr("Allegati")}
       </Button>
     );
   }
@@ -222,56 +224,56 @@ export function AllegatiFattura({
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         {/* Senza titolo (riga già intitolata, come sul movimento) l'intestazione sparisce: resta solo «Allega». */}
-        {titolo ? <h3 className="flex items-center gap-1.5 text-sm font-semibold"><Paperclip className="h-4 w-4" /> {titolo}{allegati.length ? ` (${allegati.length})` : ""}</h3> : null}
+        {titolo ? <h3 className="flex items-center gap-1.5 text-sm font-semibold"><Paperclip className="h-4 w-4" /> {tr(titolo)}{allegati.length ? ` (${allegati.length})` : ""}</h3> : null}
         {!sola_lettura && (
           <div className="ml-auto flex items-center gap-1.5">
             {scegliTipo && (
               <Select value={tipoNuovo} onValueChange={setTipoNuovo}>
-                <SelectTrigger className="h-8 w-48 text-xs" aria-label="Tipo del file da allegare"><SelectValue /></SelectTrigger>
-                <SelectContent>{TIPI_ALLEGATO.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+                <SelectTrigger className="h-8 w-48 text-xs" aria-label={tr("Tipo del file da allegare")}><SelectValue /></SelectTrigger>
+                <SelectContent>{TIPI_ALLEGATO.map((t) => <SelectItem key={t.value} value={t.value}>{tr(t.label)}</SelectItem>)}</SelectContent>
               </Select>
             )}
             <Button size="sm" variant="outline" className="h-8" disabled={carica.isPending || !companyId} onClick={() => input.current?.click()}>
               {carica.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-1.5 h-3.5 w-3.5" />}
-              Allega
+              {tr("Allega")}
             </Button>
-            <input ref={input} type="file" multiple className="hidden" aria-label="File da allegare" onChange={(e) => scegliFile(e.target.files)} />
+            <input ref={input} type="file" multiple className="hidden" aria-label={tr("File da allegare")} onChange={(e) => scegliFile(e.target.files)} />
           </div>
         )}
       </div>
 
-      {isError ? <div className="rounded-lg border p-3 text-xs" role="alert">Impossibile caricare gli allegati. <Button variant="link" size="sm" onClick={() => void refetch()}>Riprova</Button></div> : isLoading ? <p className="text-xs text-muted-foreground">Caricamento allegati…</p> : allegati.length === 0 ? (
+      {isError ? <div className="rounded-lg border p-3 text-xs" role="alert">{tr("Impossibile caricare gli allegati.")} <Button variant="link" size="sm" onClick={() => void refetch()}>{tr("Riprova")}</Button></div> : isLoading ? <p className="text-xs text-muted-foreground">{tr("Caricamento allegati…")}</p> : allegati.length === 0 ? (
         <p className="rounded-lg border border-dashed px-3 py-3 text-center text-xs text-muted-foreground">
-          {sola_lettura ? "Nessun allegato." : "Nessun allegato: trascina qui un file o usa «Allega»."}
+          {sola_lettura ? tr("Nessun allegato.") : tr("Nessun allegato: trascina qui un file o usa «Allega».")}
         </p>
       ) : (
         <ul className="divide-y rounded-lg border">
           {allegati.map((a) => (
             <li key={a.id} className="flex items-center gap-2 px-3 py-2 text-sm">
               <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <button type="button" className="min-w-0 flex-1 text-left" onClick={() => void apri(a)} title="Apri il file">
+              <button type="button" className="min-w-0 flex-1 text-left" onClick={() => void apri(a)} title={tr("Apri il file")}>
                 <span className="block truncate hover:underline underline-offset-2">{a.file_name}</span>
                 <span className="block text-[11px] text-muted-foreground">
-                  {scegliTipo && `${TIPI_ALLEGATO.find((t) => t.value === a.tipo)?.label ?? "Altro"} · `}{dimensioneLeggibile(a.size_bytes)} · {formatDateShort(a.created_at)}
+                  {scegliTipo && `${tr(TIPI_ALLEGATO.find((t) => t.value === a.tipo)?.label ?? "Altro")} · `}{dimensioneLeggibile(a.size_bytes)} · {formatDateShort(a.created_at)}
                 </span>
               </button>
               {invioSdi && !sola_lettura ? (
-                <label className="flex shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground" title="Il file parte dentro l'XML della fattura, insieme a lei">
+                <label className="flex shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground" title={tr("Il file parte dentro l'XML della fattura, insieme a lei")}>
                   <Checkbox
                     checked={a.includi_nell_invio}
                     disabled={cambia.isPending || (!a.includi_nell_invio && pesoInvio + (Number(a.size_bytes) || 0) > MAX_BYTES_INVIO_SDI)}
                     onCheckedChange={(v) => cambia.mutate({ a, campi: { includi_nell_invio: v === true } })}
-                    aria-label={`Manda «${a.file_name}» allo SDI con la fattura`}
+                    aria-label={tr("Manda «{file_name}» allo SDI con la fattura", { file_name: String(a.file_name ?? "") })}
                   />
                   <Send className="h-3 w-3" /> SDI
                 </label>
-              ) : a.includi_nell_invio ? <span className="shrink-0 text-[11px] text-muted-foreground">Con la fattura allo SDI</span> : null}
-              <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => void apri(a)} aria-label={`Scarica ${a.file_name}`}>
+              ) : a.includi_nell_invio ? <span className="shrink-0 text-[11px] text-muted-foreground">{tr("Con la fattura allo SDI")}</span> : null}
+              <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => void apri(a)} aria-label={tr("Scarica {file_name}", { file_name: String(a.file_name ?? "") })}>
                 <Download className="h-4 w-4" />
               </Button>
               {!sola_lettura && (
                 <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive" disabled={togli.isPending}
-                  onClick={() => { if (window.confirm(`Togliere «${a.file_name}» dagli allegati?`)) togli.mutate(a); }} aria-label={`Togli ${a.file_name}`}>
+                  onClick={() => { if (window.confirm(tr("Togliere «{file_name}» dagli allegati?", { file_name: String(a.file_name ?? "") }))) togli.mutate(a); }} aria-label={tr("Togli {file_name}", { file_name: String(a.file_name ?? "") })}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
               )}
@@ -280,9 +282,7 @@ export function AllegatiFattura({
         </ul>
       )}
       {invioSdi && pesoInvio > 0 ? (
-        <p className="text-[11px] text-muted-foreground">
-          Partono con la fattura {dimensioneLeggibile(pesoInvio)} di allegati, al massimo 3,5 MB: lo SDI accetta file fino a 5 MB e gli allegati, dentro l'XML, crescono di un terzo.
-        </p>
+        <p className="text-[11px] text-muted-foreground">{tr("Partono con la fattura {pesoInvio} di allegati, al massimo 3,5 MB: lo SDI accetta file fino a 5 MB e gli allegati, dentro l'XML, crescono di un terzo.", { pesoInvio: dimensioneLeggibile(pesoInvio) })}</p>
       ) : null}
     </section>
   );

@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import type { EditorState } from "./useEditorState";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   state: EditorState;
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export function EditorNoteSection({ state, dispatch, disabled }: Props) {
+  const t = useT();
   const [causaleInput, setCausaleInput] = useState("");
   // Ogni campo si apre quando serve; se ha già un valore è aperto.
   const [aperti, setAperti] = useState<Set<string>>(new Set());
@@ -55,10 +57,10 @@ export function EditorNoteSection({ state, dispatch, disabled }: Props) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <Label className="text-[11px] font-bold uppercase tracking-wider text-foreground/70">Note e allegati</Label>
+        <Label className="text-[11px] font-bold uppercase tracking-wider text-foreground/70">{t("Note e allegati")}</Label>
         {!disabled && chiusi.map((c) => (
           <Button key={c.k} type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => apri(c.k)}>
-            <Plus className="mr-1 h-3 w-3" /> {c.etichetta}
+            <Plus className="mr-1 h-3 w-3" /> {t(c.etichetta)}
           </Button>
         ))}
       </div>
@@ -66,13 +68,13 @@ export function EditorNoteSection({ state, dispatch, disabled }: Props) {
       {/* Causali */}
       {causaleAperta && (
       <div>
-        <Label className="text-xs text-muted-foreground">Causali</Label>
+        <Label className="text-xs text-muted-foreground">{t("Causali")}</Label>
         <div className="flex flex-wrap gap-1.5 mb-2">
           {causali.map((c, i) => (
             <Badge key={`${c}-${i}`} variant="secondary" className="text-xs gap-1">
               {c}
               {!disabled && (
-                <button onClick={() => { apri("causale"); removeCausale(i); }} className="hover:text-destructive" aria-label={`Togli la causale ${c}`}>
+                <button onClick={() => { apri("causale"); removeCausale(i); }} className="hover:text-destructive" aria-label={t("Togli la causale {c}", { c: String(c ?? "") })}>
                   <X className="h-2.5 w-2.5" />
                 </button>
               )}
@@ -81,7 +83,7 @@ export function EditorNoteSection({ state, dispatch, disabled }: Props) {
         </div>
         {!disabled && (
           <Input
-            placeholder="Scrivi una causale e premi Invio..."
+            placeholder={t("Scrivi una causale e premi Invio...")}
             value={causaleInput}
             onChange={(e) => setCausaleInput(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -95,7 +97,7 @@ export function EditorNoteSection({ state, dispatch, disabled }: Props) {
       {/* Note documento */}
       {noteDocAperta && (
       <div>
-        <Label htmlFor="ed-note-documento" className="text-xs text-muted-foreground">Note documento (nel PDF e nell’XML allo SDI)</Label>
+        <Label htmlFor="ed-note-documento" className="text-xs text-muted-foreground">{t("Note documento (nel PDF e nell’XML allo SDI)")}</Label>
         <Textarea
           id="ed-note-documento"
           value={state.note_documento ?? ""}
@@ -111,7 +113,7 @@ export function EditorNoteSection({ state, dispatch, disabled }: Props) {
       {/* Note interne */}
       {noteIntAperta && (
       <div>
-        <Label htmlFor="ed-note-interne" className="text-xs text-muted-foreground">Note interne (non stampate)</Label>
+        <Label htmlFor="ed-note-interne" className="text-xs text-muted-foreground">{t("Note interne (non stampate)")}</Label>
         <Textarea
           id="ed-note-interne"
           value={state.note_interne ?? ""}

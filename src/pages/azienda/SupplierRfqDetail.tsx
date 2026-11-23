@@ -70,11 +70,13 @@ import {
 } from "@/lib/rdoStatus";
 import { formatCurrency } from "@/lib/formatters";
 import { toast } from "sonner";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const dataIt = (iso?: string | null) =>
   iso ? iso.slice(0, 10).split("-").reverse().join("/") : "—";
 
 export default function SupplierRfqDetail() {
+  const tTesto = useT();
   const { rfqId: rfqIdIndirizzo } = useParams();
   const rfqId = useIdDocumento(rfqIdIndirizzo);
   const navigate = useNavigaDocumento();
@@ -188,9 +190,9 @@ export default function SupplierRfqDetail() {
   if (!rfq) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground mb-4">Richiesta non trovata</p>
+        <p className="text-muted-foreground mb-4">{tTesto("Richiesta non trovata")}</p>
         <Button variant="outline" onClick={() => navigate("/azienda/ordini?tab=offerte")}>
-          Torna alla lista
+          {tTesto("Torna alla lista")}
         </Button>
       </div>
     );
@@ -254,7 +256,7 @@ export default function SupplierRfqDetail() {
     if(!effectiveCompany || downloadingFor)return;
     setDownloadingFor(f.id);
     try {const {generaPdfOperativo}=await import("@/lib/documentiOperativi/pdf");const documento=documentoInvio(f);scaricaBlob(await generaPdfOperativo(documento,effectiveCompany),nomeFileDocumento(documento));}
-    catch(e){toast.error("Impossibile scaricare il PDF",{description:e instanceof Error ? e.message : "Riprova."});}
+    catch(e){toast.error(tTesto("Impossibile scaricare il PDF"),{description:e instanceof Error ? e.message : tTesto("Riprova.")});}
     finally{setDownloadingFor(null);}
   };
   return (
@@ -263,7 +265,7 @@ export default function SupplierRfqDetail() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:flex-1">
           {!inPopup && (
-            <Button variant="ghost" size="sm" className="shrink-0" aria-label="Torna alle richieste d'offerta" onClick={() => navigate("/azienda/ordini?tab=offerte")}>
+            <Button variant="ghost" size="sm" className="shrink-0" aria-label={tTesto("Torna alle richieste d'offerta")} onClick={() => navigate("/azienda/ordini?tab=offerte")}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
           )}
@@ -273,19 +275,19 @@ export default function SupplierRfqDetail() {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="min-w-0 truncate text-lg font-bold sm:text-2xl">{rfq.titolo}</h1>
-              <Badge className={`${RDO_STATUS_COLORS[rfq.status] ?? ""} text-xs font-medium`}>{RDO_STATUS_LABELS[rfq.status] ?? rfq.status}</Badge>
+              <Badge className={`${RDO_STATUS_COLORS[rfq.status] ?? ""} text-xs font-medium`}>{tTesto(RDO_STATUS_LABELS[rfq.status] ?? rfq.status)}</Badge>
               {rfq.purchase_order_id && (
                 <Link to={`/azienda/ordini-acquisto/${rfq.purchase_order_id}`} className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800 hover:bg-emerald-200">
-                  Apri ordine <ExternalLink className="h-3 w-3" />
+                  {tTesto("Apri ordine")} <ExternalLink className="h-3 w-3" />
                 </Link>
               )}
             </div>
             <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
               <span className="font-mono">{rfq.rfq_number}</span>
-              <span>· {fornitori.filter(f => f.inviata_at || f.status === "inviata").length} richieste inviate</span>
-              <span>· {fornitori.filter(f => f.risposta_at || f.status === "risposta").length} risposte</span>
-              {rfq.scadenza_offerte && <span>· Scadenza {dataIt(rfq.scadenza_offerte)}</span>}
-              <span>· creata il {dataIt(rfq.created_at)}</span>
+              <span>{tTesto("· {n} richieste inviate", { n: fornitori.filter(f => f.inviata_at || f.status === "inviata").length })}</span>
+              <span>{tTesto("· {n} risposte", { n: fornitori.filter(f => f.risposta_at || f.status === "risposta").length })}</span>
+              {rfq.scadenza_offerte && <span>{tTesto("· Scadenza {scadenza_offerte}", { scadenza_offerte: String(dataIt(rfq.scadenza_offerte) ?? "") })}</span>}
+              <span>{tTesto("· creata il {created_at}", { created_at: String(dataIt(rfq.created_at) ?? "") })}</span>
               {rfq.orders?.order_code && <span>· {rfq.orders.order_code}</span>}
             </p>
           </div>
@@ -303,7 +305,7 @@ export default function SupplierRfqDetail() {
                 }}
               >
                 <Trophy className="h-4 w-4" />
-                Crea ordine da offerta
+                {tTesto("Crea ordine da offerta")}
               </Button>
             )}
             <Button
@@ -313,7 +315,7 @@ export default function SupplierRfqDetail() {
               onClick={() => updateRfq.mutate({ status: "annullata" })}
               disabled={updateRfq.isPending}
             >
-              Annulla richiesta
+              {tTesto("Annulla richiesta")}
             </Button>
           </div>
         )}
@@ -326,10 +328,10 @@ export default function SupplierRfqDetail() {
         onSave={patch=>updateRfq.mutateAsync(patch)}
         onEditingChange={editing=>setEditingRfqId(editing ? rfq.id : null)}
         riepilogo={[
-          { etichetta: "Voci", valore: `${items.length}` },
-          { etichetta: "Risposte", valore: fornitori.length === 0 ? "nessun fornitore" : `${fornitori.filter(f=>f.status==="risposta").length} su ${fornitori.length}` },
+          { etichetta: tTesto("Voci"), valore: `${items.length}` },
+          { etichetta: tTesto("Risposte"), valore: fornitori.length === 0 ? tTesto("nessun fornitore") : tTesto("{n} su {totale}", { n: fornitori.filter(f=>f.status==="risposta").length, totale: fornitori.length }) },
           ...(!senzaPrezzi && miglioreTotale && confronti[miglioreTotale]?.totale != null
-            ? [{ etichetta: "Offerta più bassa", valore: `${formatCurrency(confronti[miglioreTotale].totale ?? 0)} · ${fornitori.find(f=>f.id===miglioreTotale)?.suppliers?.name ?? ""}` }]
+            ? [{ etichetta: tTesto("Offerta più bassa"), valore: `${formatCurrency(confronti[miglioreTotale].totale ?? 0)} · ${fornitori.find(f=>f.id===miglioreTotale)?.suppliers?.name ?? ""}` }]
             : []),
         ]}
       />
@@ -338,11 +340,11 @@ export default function SupplierRfqDetail() {
         <div role="status" className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
           <div>
-            <p className="font-medium">Offerta su misure vecchie: {misureCambiate.length} {misureCambiate.length === 1 ? "posizione è cambiata" : "posizioni sono cambiate"} dopo la richiesta</p>
+            <p className="font-medium">{misureCambiate.length === 1 ? tTesto("Offerta su misure vecchie: {n} posizione è cambiata dopo la richiesta", { n: 1 }) : tTesto("Offerta su misure vecchie: {n} posizioni sono cambiate dopo la richiesta", { n: misureCambiate.length })}</p>
             <ul className="mt-1 space-y-0.5 text-xs">
-              {misureCambiate.map((m) => <li key={m.rfq_item_id}>{m.riferimento ?? m.descrizione}: chieste {m.chieste ?? "—"}, ora {m.attuali ?? "—"}</li>)}
+              {misureCambiate.map((m) => <li key={m.rfq_item_id}>{tTesto("{posizione}: chieste {chieste}, ora {attuali}", { posizione: m.riferimento ?? m.descrizione, chieste: m.chieste ?? "—", attuali: m.attuali ?? "—" })}</li>)}
             </ul>
-            <p className="mt-1 text-xs">L'ordine partirà con le misure di oggi: chiedi al fornitore di confermare il prezzo.</p>
+            <p className="mt-1 text-xs">{tTesto("L'ordine partirà con le misure di oggi: chiedi al fornitore di confermare il prezzo.")}</p>
           </div>
         </div>
       )}
@@ -361,7 +363,7 @@ export default function SupplierRfqDetail() {
               <div className="flex items-center justify-between gap-2">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <ClipboardList className="h-4 w-4 text-primary" />
-                  Cosa serve
+                  {tTesto("Cosa serve")}
                   <Badge variant="secondary" className="text-xs">{items.length}</Badge>
                 </CardTitle>
                 {modificabile && (
@@ -372,7 +374,7 @@ export default function SupplierRfqDetail() {
                     disabled={addItem.isPending}
                     onClick={() => addItem.mutate({ posizione: items.length })}
                   >
-                    <Plus className="h-3.5 w-3.5" /> Aggiungi voce
+                    <Plus className="h-3.5 w-3.5" /> {tTesto("Aggiungi voce")}
                   </Button>
                 )}
               </div>
@@ -380,7 +382,7 @@ export default function SupplierRfqDetail() {
             <CardContent className="pt-0">
             {items.length === 0 ? (
               <p className="text-center py-6 text-sm text-muted-foreground">
-                Nessuna voce. I fornitori devono sapere cosa quotare.
+                {tTesto("Nessuna voce. I fornitori devono sapere cosa quotare.")}
               </p>
             ) : (
               <div className="divide-y rounded-md border">
@@ -395,7 +397,7 @@ export default function SupplierRfqDetail() {
                         variant="ghost"
                         size="sm"
                         className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                        aria-label={`Elimina voce ${it.descrizione}`}
+                        aria-label={tTesto("Elimina voce {descrizione}", { descrizione: String(it.descrizione ?? "") })}
                         disabled={deleteItem.isPending}
                         onClick={() => deleteItem.mutate(it.id)}
                       >
@@ -416,17 +418,17 @@ export default function SupplierRfqDetail() {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <CardTitle className="flex items-center gap-2 text-base">
                     <Scale className="h-4 w-4 text-primary" />
-                    Confronto offerte
+                    {tTesto("Confronto offerte")}
                   </CardTitle>
                   {primaOffertaConFile && (
                     <Button type="button" size="sm" variant="outline" className="gap-1.5"
                       onClick={() => setOriginaleDa(primaOffertaConFile.id)}>
-                      <Eye className="size-4" aria-hidden="true" /> Originali delle offerte
+                      <Eye className="size-4" aria-hidden="true" /> {tTesto("Originali delle offerte")}
                     </Button>
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Prezzi IVA esclusa. In verde il prezzo più basso; il totale più basso vale solo fra offerte complete, valide e col trasporto chiaro.
+                  {tTesto("Prezzi IVA esclusa. In verde il prezzo più basso; il totale più basso vale solo fra offerte complete, valide e col trasporto chiaro.")}
                 </p>
               </CardHeader>
               <CardContent className="pt-0">
@@ -434,11 +436,11 @@ export default function SupplierRfqDetail() {
                 <table className="w-full text-sm">
                   <thead className="bg-muted/40 text-xs text-muted-foreground">
                     <tr className="border-b">
-                      <th className="text-left p-2 pl-3 font-medium min-w-[180px]">Voce</th>
-                      <th className="text-right p-2 font-medium w-20">Q.tà</th>
+                      <th className="text-left p-2 pl-3 font-medium min-w-[180px]">{tTesto("Voce")}</th>
+                      <th className="text-right p-2 font-medium w-20">{tTesto("Q.tà")}</th>
                       {fornitori.map((f) => (
                         <th key={f.id} className="text-right p-2 font-medium text-foreground min-w-[120px]">
-                          {f.suppliers?.name ?? "Fornitore"}
+                          {f.suppliers?.name ?? tTesto("Fornitore")}
                         </th>
                       ))}
                     </tr>
@@ -448,7 +450,7 @@ export default function SupplierRfqDetail() {
                       <tr key={it.id} className="border-b">
                         <td className="p-2 pl-3">{it.descrizione}{it.misure_testo && <span className="mt-0.5 block whitespace-pre-line text-xs text-muted-foreground">{it.misure_testo}</span>}</td>
                         <td className="p-2 text-right text-slate-500">
-                          {Number(it.quantita).toLocaleString("it-IT")} {it.unita_misura ?? "pz"}
+                          {Number(it.quantita).toLocaleString(intlCampo())} {it.unita_misura ?? tTesto("pz")}
                         </td>
                         {fornitori.map((f) => {
                           const q = quotes.find((x) => x.rfq_item_id === it.id && x.rfq_supplier_id === f.id);
@@ -470,7 +472,7 @@ export default function SupplierRfqDetail() {
                                 placeholder="—"
                                 disabled={chiusa}
                                 className={`h-8 min-w-0 text-sm text-right ${vince ? "font-semibold text-emerald-700" : ""}`}
-                                aria-label={`Prezzo offerto da ${f.suppliers?.name || "fornitore"} per ${it.descrizione}`}
+                                aria-label={tTesto("Prezzo offerto da {fornitore} per {voce}", { fornitore: f.suppliers?.name || tTesto("fornitore"), voce: it.descrizione })}
                                 min="0"
                                 onBlur={async (e) => {
                                   const input = e.currentTarget;
@@ -483,7 +485,7 @@ export default function SupplierRfqDetail() {
                                     });
                                   } catch (error) {
                                     if (input.value.trim() === raw) input.value = precedente == null ? "" : String(precedente);
-                                    toast.error(error instanceof Error ? error.message : "Prezzo non salvato");
+                                    toast.error(error instanceof Error ? error.message : tTesto("Prezzo non salvato"));
                                   }
                                 }}
                               />
@@ -492,7 +494,7 @@ export default function SupplierRfqDetail() {
                                   scelgono dal comando accanto al prezzo. */}
                               <StatoVoceCella
                                 stato={stato}
-                                etichettaAccessibile={`Disponibilità ${it.descrizione} da ${f.suppliers?.name ?? "fornitore"}`}
+                                etichettaAccessibile={tTesto("Disponibilità {voce} da {fornitore}", { voce: it.descrizione, fornitore: f.suppliers?.name ?? tTesto("fornitore") })}
                                 disabled={chiusa || setQuote.isPending}
                                 onChange={(nuovo) =>
                                   setQuote.mutate({
@@ -517,7 +519,7 @@ export default function SupplierRfqDetail() {
                   </tbody>
                   <tfoot>
                     <tr className="bg-muted/30 border-t">
-                      <td colSpan={2} className="p-2 pl-3 text-right font-bold">Somma righe confrontate</td>
+                      <td colSpan={2} className="p-2 pl-3 text-right font-bold">{tTesto("Somma righe confrontate")}</td>
                       {fornitori.map((f) => {
                         const t = totaliPerFornitore[f.id]?.totale;
                         const vince = miglioreTotale === f.id;
@@ -529,7 +531,7 @@ export default function SupplierRfqDetail() {
                             {t != null ? formatCurrency(t) : "—"}
                             {(
                               <span className="block text-xs font-normal text-slate-600">
-                                {totaliPerFornitore[f.id]?.righeCoperte ?? 0}/{items.length} voci quotate
+                                {tTesto("{coperte}/{totale} voci quotate", { coperte: totaliPerFornitore[f.id]?.righeCoperte ?? 0, totale: items.length })}
                               </span>
                             )}
                           </td>
@@ -541,7 +543,7 @@ export default function SupplierRfqDetail() {
                         non torna col PDF?" — il delta è proprio quella parte. */}
                     {fornitori.some((f) => f.totale_offerto != null) && (
                       <tr className="border-t text-xs text-slate-500">
-                        <td colSpan={2} className="p-2 pl-3 text-right">Totale documento (con imballo/trasporto)</td>
+                        <td colSpan={2} className="p-2 pl-3 text-right">{tTesto("Totale documento (con imballo/trasporto)")}</td>
                         {fornitori.map((f) => {
                           const doc = f.totale_offerto == null ? null : Number(f.totale_offerto);
                           const righe = totaliPerFornitore[f.id]?.totale;
@@ -551,7 +553,7 @@ export default function SupplierRfqDetail() {
                               {doc != null ? formatCurrency(doc) : "—"}
                               {delta != null && (
                                 <span className="block text-[10px] text-slate-400">
-                                  {delta > 0 ? "+" : "−"}{formatCurrency(Math.abs(delta))} extra righe
+                                  {tTesto("{delta} extra righe", { delta: (delta > 0 ? "+" : "−") + formatCurrency(Math.abs(delta)) })}
                                 </span>
                               )}
                             </td>
@@ -559,8 +561,8 @@ export default function SupplierRfqDetail() {
                         })}
                       </tr>
                     )}
-                    <tr className="border-t bg-blue-50/40"><th colSpan={2} className="p-2 pl-3 text-right text-xs">Totale complessivo noto</th>{fornitori.map(f=>{const c=confronti[f.id];return <td key={f.id} className={`p-2 text-right text-sm font-semibold ${miglioreTotale===f.id?"bg-emerald-50 text-emerald-800":""}`}>{c.totale==null?"—":formatCurrency(c.totale)}{miglioreTotale===f.id&&<span className="block text-[10px]">Più basso tra offerte confrontabili</span>}{!c.coerente&&<span className="block text-[10px] text-red-700">Totale documento da riconciliare</span>}{!c.trasportoNoto&&<span className="block text-[10px] text-amber-700">Trasporto da definire</span>}</td>;})}</tr>
-                    {(["Trasporto","Consegna","Pagamento","Validità","Disponibilità"] as const).map(label=><tr key={label} className="border-t text-xs"><th colSpan={2} className="p-2 pl-3 text-right font-medium">{label}</th>{fornitori.map(f=><td key={f.id} className="max-w-[18rem] break-words p-2 text-right text-slate-600">{label==="Trasporto"?<>{TRASPORTO_LABELS[f.trasporto_tipo??"da_confermare"]}{f.trasporto_tipo==="extra"&&f.costo_trasporto!=null?` · ${formatCurrency(Number(f.costo_trasporto))}`:""}</>:label==="Consegna"?f.giorni_consegna==null?"Da indicare":`${f.giorni_consegna} giorni`:label==="Pagamento"?f.condizioni_pagamento||"Da indicare":label==="Validità"?<span className={confronti[f.id].scaduta?"text-red-700 font-semibold":""}>{dataIt(f.validita_offerta)}{confronti[f.id].scaduta?" · Scaduta":""}</span>:<>{totaliPerFornitore[f.id]?.righeCoperte??0}/{items.length} voci{f.disponibilita_note&&<span className="mt-1 block whitespace-pre-wrap">{f.disponibilita_note}</span>}</>}</td>)}</tr>)}
+                    <tr className="border-t bg-blue-50/40"><th colSpan={2} className="p-2 pl-3 text-right text-xs">{tTesto("Totale complessivo noto")}</th>{fornitori.map(f=>{const c=confronti[f.id];return <td key={f.id} className={`p-2 text-right text-sm font-semibold ${miglioreTotale===f.id?"bg-emerald-50 text-emerald-800":""}`}>{c.totale==null?"—":formatCurrency(c.totale)}{miglioreTotale===f.id&&<span className="block text-[10px]">{tTesto("Più basso tra offerte confrontabili")}</span>}{!c.coerente&&<span className="block text-[10px] text-red-700">{tTesto("Totale documento da riconciliare")}</span>}{!c.trasportoNoto&&<span className="block text-[10px] text-amber-700">{tTesto("Trasporto da definire")}</span>}</td>;})}</tr>
+                    {(["Trasporto","Consegna","Pagamento","Validità","Disponibilità"] as const).map(label=><tr key={label} className="border-t text-xs"><th colSpan={2} className="p-2 pl-3 text-right font-medium">{tTesto(label)}</th>{fornitori.map(f=><td key={f.id} className="max-w-[18rem] break-words p-2 text-right text-slate-600">{label==="Trasporto"?<>{tTesto(TRASPORTO_LABELS[f.trasporto_tipo??"da_confermare"])}{f.trasporto_tipo==="extra"&&f.costo_trasporto!=null?` · ${formatCurrency(Number(f.costo_trasporto))}`:""}</>:label==="Consegna"?f.giorni_consegna==null?tTesto("Da indicare"):tTesto("{giorni_consegna} giorni", { giorni_consegna: String(f.giorni_consegna ?? "") }):label==="Pagamento"?f.condizioni_pagamento||tTesto("Da indicare"):label==="Validità"?<span className={confronti[f.id].scaduta?"text-red-700 font-semibold":""}>{dataIt(f.validita_offerta)}{confronti[f.id].scaduta?` ${tTesto("· Scaduta")}`:""}</span>:<>{tTesto("{coperte}/{totale} voci", { coperte: totaliPerFornitore[f.id]?.righeCoperte??0, totale: items.length })}{f.disponibilita_note&&<span className="mt-1 block whitespace-pre-wrap">{f.disponibilita_note}</span>}</>}</td>)}</tr>)}
                   </tfoot>
                 </table>
               </div>
@@ -576,15 +578,12 @@ export default function SupplierRfqDetail() {
             <Card className="border-emerald-200">
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600" /> Aggiudicata
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" /> {tTesto("Aggiudicata")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 pt-0 text-sm">
                 <p className="text-slate-600">
-                  Il {dataIt(rfq.aggiudicata_at)}, fornitore scelto:{" "}
-                  <strong>
-                    {fornitori.find((f) => f.supplier_id === rfq.supplier_id_aggiudicato)?.suppliers?.name ?? "—"}
-                  </strong>
+                  {tTesto("Il {data}, fornitore scelto: {fornitore}", { data: dataIt(rfq.aggiudicata_at), fornitore: fornitori.find((f) => f.supplier_id === rfq.supplier_id_aggiudicato)?.suppliers?.name ?? "—" })}
                 </p>
                 {rfq.motivazione_scelta && (
                   <p className="text-xs text-slate-500 italic">{rfq.motivazione_scelta}</p>
@@ -596,17 +595,16 @@ export default function SupplierRfqDetail() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
-                <Users className="h-4 w-4 text-primary" /> A chi lo chiedi
+                <Users className="h-4 w-4 text-primary" /> {tTesto("A chi lo chiedi")}
                 <Badge variant="secondary" className="text-xs">{fornitori.length}</Badge>
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
-            {erroreAnagrafiche && <p role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-800">Impossibile caricare i recapiti aggiornati dei fornitori. <Button variant="link" size="sm" onClick={()=>void ricaricaAnagrafiche()}>Riprova</Button></p>}
+            {erroreAnagrafiche && <p role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-800">{tTesto("Impossibile caricare i recapiti aggiornati dei fornitori.")} <Button variant="link" size="sm" onClick={()=>void ricaricaAnagrafiche()}>{tTesto("Riprova")}</Button></p>}
             <div className="space-y-2 [&>*]:min-w-0">
               {fornitori.length === 0 && (
                 <p className="text-xs text-slate-500">
-                  Nessun fornitore. Chiedere a due o tre è il modo più semplice per non
-                  pagare troppo.
+                  {tTesto("Nessun fornitore. Chiedere a due o tre è il modo più semplice per non pagare troppo.")}
                 </p>
               )}
               {fornitori.map((f) => {
@@ -618,7 +616,7 @@ export default function SupplierRfqDetail() {
                   c?.totale,
                   f.trasporto_tipo === "extra" ? Number(f.costo_trasporto ?? 0) : 0,
                 );
-                const nome = f.suppliers?.name ?? "Fornitore";
+                const nome = f.suppliers?.name ?? tTesto("Fornitore");
                 return (
                 <div key={f.id} className={`min-w-0 rounded-lg border ${aperto ? "border-slate-300" : "border-slate-200"}`} data-testid="riga-fornitore-rdo">
                   {/* 11/11/2026 — Una riga per fornitore: nome, stato, totale,
@@ -630,19 +628,19 @@ export default function SupplierRfqDetail() {
                       className="flex min-w-0 flex-1 items-center gap-2 rounded px-1 py-0.5 text-left hover:bg-slate-50"
                       aria-expanded={aperto}
                       aria-controls={`rdo-fornitore-${f.id}`}
-                      aria-label={`Dettagli ${nome}`}
+                      aria-label={tTesto("Dettagli {nome}", { nome: String(nome ?? "") })}
                       onClick={() => setFornitoreAperto(aperto ? null : f.id)}
                     >
                       <ChevronRight className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform ${aperto ? "rotate-90" : ""}`} />
                       <span className="min-w-0 flex-1">
                         <span className="flex min-w-0 items-center gap-1.5">
                           <span className="truncate text-sm font-semibold text-slate-900">{nome}</span>
-                          <Badge className={`${statoRiga.colore} shrink-0 px-1.5 py-0 text-[10px] font-medium`}>{statoRiga.etichetta}</Badge>
+                          <Badge className={`${statoRiga.colore} shrink-0 px-1.5 py-0 text-[10px] font-medium`}>{tTesto(statoRiga.etichetta)}</Badge>
                         </span>
                         <span className="block truncate text-[11px] tabular-nums text-slate-500">
-                          {senzaPrezzi ? null : c?.totale != null ? <span className="font-medium text-slate-800">{formatCurrency(c.totale)}</span> : "totale —"}
+                          {senzaPrezzi ? null : c?.totale != null ? <span className="font-medium text-slate-800">{formatCurrency(c.totale)}</span> : tTesto("totale —")}
                           {senzaPrezzi ? null : " · "}
-                          {f.giorni_consegna != null ? `consegna ${f.giorni_consegna} gg` : "consegna —"}
+                          {f.giorni_consegna != null ? tTesto("consegna {giorni_consegna} gg", { giorni_consegna: String(f.giorni_consegna ?? "") }) : tTesto("consegna —")}
                         </span>
                       </span>
                     </button>
@@ -654,7 +652,7 @@ export default function SupplierRfqDetail() {
                         disabled={editingOffers.some(id=>fornitori.some(f=>f.id===id)) || updateFornitore.isPending || setQuote.isPending}
                         onClick={() => setAggiudicaA(f)}
                       >
-                        <Trophy className="h-3 w-3 sm:mr-1" /><span className="hidden sm:inline">Scegli questo</span><span className="sr-only sm:hidden">Scegli {nome}</span>
+                        <Trophy className="h-3 w-3 sm:mr-1" /><span className="hidden sm:inline">{tTesto("Scegli questo")}</span><span className="sr-only sm:hidden">{tTesto("Scegli {nome}", { nome: String(nome ?? "") })}</span>
                       </Button>
                     )}
                   </div>
@@ -662,34 +660,33 @@ export default function SupplierRfqDetail() {
                   <div id={`rdo-fornitore-${f.id}`} className="space-y-2 border-t border-slate-100 px-2.5 pb-2.5 pt-2">
                   <p className="text-[11px] text-slate-500">
                         {f.inviata_at
-                          ? `Chiesta${f.inviata_via ? ` per ${CANALE_RICHIESTA_LABELS[f.inviata_via]}` : ""} il ${dataIt(f.inviata_at)}`
-                          : f.suppliers?.email ?? "nessuna email in anagrafica"}
+                          ? (f.inviata_via ? tTesto("Chiesta per {canale} il {data}", { canale: tTesto(CANALE_RICHIESTA_LABELS[f.inviata_via]), data: dataIt(f.inviata_at) }) : tTesto("Chiesta il {data}", { data: dataIt(f.inviata_at) }))
+                          : f.suppliers?.email ?? tTesto("nessuna email in anagrafica")}
                   </p>
                   <div className="flex flex-wrap gap-1.5">
-                    {!chiusa && f.status === "da_inviare" && (<Button size="sm" className="h-8 text-xs" disabled={editingOffers.some(id=>fornitori.some(f=>f.id===id)) || loadingAnagrafiche || erroreAnagrafiche || editingRfqId === rfq.id || items.length===0 || addItem.isPending || updateItem.isPending || deleteItem.isPending || updateRfq.isPending || updateFornitore.isPending} onClick={()=>{setSendMode("pdf");setInviaA(f);}} aria-label={`Email con PDF a ${f.suppliers?.name ?? "fornitore"}`}><Paperclip className="mr-1 h-3.5 w-3.5"/>Invia richiesta</Button>)}
+                    {!chiusa && f.status === "da_inviare" && (<Button size="sm" className="h-8 text-xs" disabled={editingOffers.some(id=>fornitori.some(f=>f.id===id)) || loadingAnagrafiche || erroreAnagrafiche || editingRfqId === rfq.id || items.length===0 || addItem.isPending || updateItem.isPending || deleteItem.isPending || updateRfq.isPending || updateFornitore.isPending} onClick={()=>{setSendMode("pdf");setInviaA(f);}} aria-label={tTesto("Email con PDF a {fornitore}", { fornitore: f.suppliers?.name ?? tTesto("fornitore") })}><Paperclip className="mr-1 h-3.5 w-3.5"/>{tTesto("Invia richiesta")}</Button>)}
                     <DropdownMenu>
-                      <DropdownMenuTrigger asChild><Button size="sm" variant="outline" aria-label={`Documenti e invio per ${f.suppliers?.name ?? "fornitore"}`}>Documenti e invio</Button></DropdownMenuTrigger>
+                      <DropdownMenuTrigger asChild><Button size="sm" variant="outline" aria-label={tTesto("Documenti e invio per {fornitore}", { fornitore: f.suppliers?.name ?? tTesto("fornitore") })}>{tTesto("Documenti e invio")}</Button></DropdownMenuTrigger>
                       <DropdownMenuContent align="start">
-                        <DropdownMenuItem disabled={loadingAnagrafiche || erroreAnagrafiche || editingOffers.some(id=>fornitori.some(f=>f.id===id)) || editingRfqId===rfq.id || updateRfq.isPending || updateFornitore.isPending || addItem.isPending || updateItem.isPending || deleteItem.isPending} onSelect={()=>setPreviewFor(f)} aria-label={`Anteprima PDF per ${f.suppliers?.name??"fornitore"}`}><Eye className="mr-1 h-3.5 w-3.5"/>Anteprima PDF</DropdownMenuItem>
-                        <DropdownMenuItem disabled={editingOffers.some(id=>fornitori.some(f=>f.id===id)) || !!downloadingFor || loadingAnagrafiche || erroreAnagrafiche || editingRfqId === rfq.id || updateRfq.isPending || updateFornitore.isPending || addItem.isPending || updateItem.isPending || deleteItem.isPending} onSelect={()=>void downloadPdf(f)} aria-label={`Scarica PDF per ${f.suppliers?.name ?? "fornitore"}`}>{downloadingFor === f.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin"/> : <FileDown className="mr-1 h-3.5 w-3.5"/>}Scarica PDF</DropdownMenuItem>
+                        <DropdownMenuItem disabled={loadingAnagrafiche || erroreAnagrafiche || editingOffers.some(id=>fornitori.some(f=>f.id===id)) || editingRfqId===rfq.id || updateRfq.isPending || updateFornitore.isPending || addItem.isPending || updateItem.isPending || deleteItem.isPending} onSelect={()=>setPreviewFor(f)} aria-label={tTesto("Anteprima PDF per {fornitore}", { fornitore: f.suppliers?.name ?? tTesto("fornitore") })}><Eye className="mr-1 h-3.5 w-3.5"/>{tTesto("Anteprima PDF")}</DropdownMenuItem>
+                        <DropdownMenuItem disabled={editingOffers.some(id=>fornitori.some(f=>f.id===id)) || !!downloadingFor || loadingAnagrafiche || erroreAnagrafiche || editingRfqId === rfq.id || updateRfq.isPending || updateFornitore.isPending || addItem.isPending || updateItem.isPending || deleteItem.isPending} onSelect={()=>void downloadPdf(f)} aria-label={tTesto("Scarica PDF per {fornitore}", { fornitore: f.suppliers?.name ?? tTesto("fornitore") })}>{downloadingFor === f.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin"/> : <FileDown className="mr-1 h-3.5 w-3.5"/>}{tTesto("Scarica PDF")}</DropdownMenuItem>
                         {!chiusa && <>
-                        <DropdownMenuItem disabled={editingOffers.some(id=>fornitori.some(f=>f.id===id)) || loadingAnagrafiche || erroreAnagrafiche || editingRfqId === rfq.id || items.length===0 || addItem.isPending || updateItem.isPending || deleteItem.isPending || updateRfq.isPending || updateFornitore.isPending} onSelect={()=>{setSendMode("testo");setInviaA(f);}} aria-label={`Email con testo a ${f.suppliers?.name ?? "fornitore"}`}><Mail className="mr-1 h-3.5 w-3.5"/>Email con testo</DropdownMenuItem>
-                        <DropdownMenuItem disabled={editingOffers.some(id=>fornitori.some(f=>f.id===id)) || loadingAnagrafiche || erroreAnagrafiche || editingRfqId === rfq.id || items.length===0 || addItem.isPending || updateItem.isPending || deleteItem.isPending || updateRfq.isPending || updateFornitore.isPending} onSelect={()=>{setSendMode("pdf");setInviaA(f);}} aria-label={`Email con PDF a ${f.suppliers?.name ?? "fornitore"}`}><Paperclip className="mr-1 h-3.5 w-3.5"/>Email con PDF</DropdownMenuItem>
+                        <DropdownMenuItem disabled={editingOffers.some(id=>fornitori.some(f=>f.id===id)) || loadingAnagrafiche || erroreAnagrafiche || editingRfqId === rfq.id || items.length===0 || addItem.isPending || updateItem.isPending || deleteItem.isPending || updateRfq.isPending || updateFornitore.isPending} onSelect={()=>{setSendMode("testo");setInviaA(f);}} aria-label={tTesto("Email con testo a {fornitore}", { fornitore: f.suppliers?.name ?? tTesto("fornitore") })}><Mail className="mr-1 h-3.5 w-3.5"/>{tTesto("Email con testo")}</DropdownMenuItem>
+                        <DropdownMenuItem disabled={editingOffers.some(id=>fornitori.some(f=>f.id===id)) || loadingAnagrafiche || erroreAnagrafiche || editingRfqId === rfq.id || items.length===0 || addItem.isPending || updateItem.isPending || deleteItem.isPending || updateRfq.isPending || updateFornitore.isPending} onSelect={()=>{setSendMode("pdf");setInviaA(f);}} aria-label={tTesto("Email con PDF a {fornitore}", { fornitore: f.suppliers?.name ?? tTesto("fornitore") })}><Paperclip className="mr-1 h-3.5 w-3.5"/>{tTesto("Email con PDF")}</DropdownMenuItem>
                         </>}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
-                  {f.status !== "risposta" && <div><Label className="text-[11px] text-slate-500">Pagamento per questa richiesta</Label><Input aria-label={`Pagamento richiesta ${f.suppliers?.name}`} className="h-8 text-xs" disabled={chiusa} key={`${f.id}:${f.condizioni_pagamento ?? documentoInvio(f).pagamento}`} defaultValue={f.condizioni_pagamento || documentoInvio(f).pagamento || ""} onBlur={e=>{const v=e.target.value.trim() || null;if(v !== (f.condizioni_pagamento || documentoInvio(f).pagamento || null))updateFornitore.mutate({id:f.id,updates:{condizioni_pagamento:v}});}}/></div>}
-                  {anagrafiche.find(s=>s.id===f.supplier_id) && <details className="rounded-lg border border-slate-100 bg-slate-50/50 p-2"><summary className="cursor-pointer text-xs font-medium text-slate-600">Anagrafica, referenti e pagamento</summary><div className="mt-2"><OdaFornitoreCard supplier={anagrafiche.find(s=>s.id===f.supplier_id)}/></div></details>}
+                  {f.status !== "risposta" && <div><Label className="text-[11px] text-slate-500">{tTesto("Pagamento per questa richiesta")}</Label><Input aria-label={tTesto("Pagamento richiesta {name}", { name: String(f.suppliers?.name ?? "") })} className="h-8 text-xs" disabled={chiusa} key={`${f.id}:${f.condizioni_pagamento ?? documentoInvio(f).pagamento}`} defaultValue={f.condizioni_pagamento || documentoInvio(f).pagamento || ""} onBlur={e=>{const v=e.target.value.trim() || null;if(v !== (f.condizioni_pagamento || documentoInvio(f).pagamento || null))updateFornitore.mutate({id:f.id,updates:{condizioni_pagamento:v}});}}/></div>}
+                  {anagrafiche.find(s=>s.id===f.supplier_id) && <details className="rounded-lg border border-slate-100 bg-slate-50/50 p-2"><summary className="cursor-pointer text-xs font-medium text-slate-600">{tTesto("Anagrafica, referenti e pagamento")}</summary><div className="mt-2"><OdaFornitoreCard supplier={anagrafiche.find(s=>s.id===f.supplier_id)}/></div></details>}
 
                   <RdoCondizioniOfferta fornitore={f} chiusa={chiusa} onSave={updates=>updateFornitore.mutateAsync({id:f.id,updates})} onEditingChange={editing=>setEditingOffers(ids=>editing?[...new Set([...ids,f.id])]:ids.filter(id=>id!==f.id))}/>
-                  {editingOffers.includes(f.id)&&<p role="status" className="text-xs text-amber-700">Salva o annulla le condizioni aperte prima di preparare PDF, email o aggiudicare.</p>}
+                  {editingOffers.includes(f.id)&&<p role="status" className="text-xs text-amber-700">{tTesto("Salva o annulla le condizioni aperte prima di preparare PDF, email o aggiudicare.")}</p>}
                   {f.aggancio_da_confermare && (
                     <div className="flex gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-800">
                       <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5 text-amber-600" />
                       <span>
-                        Risposta agganciata dal mittente, non dal codice: controlla che sia
-                        davvero per questa richiesta.
+                        {tTesto("Risposta agganciata dal mittente, non dal codice: controlla che sia davvero per questa richiesta.")}
                       </span>
                     </div>
                   )}
@@ -697,17 +694,17 @@ export default function SupplierRfqDetail() {
                   {f.status === "risposta" && (
                     <div className="grid grid-cols-2 gap-2 [&>*]:min-w-0">
                       <div>
-                        <Label className="text-[10px] text-slate-500">Consegna (gg)</Label>
+                        <Label className="text-[10px] text-slate-500">{tTesto("Consegna (gg)")}</Label>
                         <Input
                           type="number"
                           className="h-7 text-xs"
-                          aria-label={`Giorni consegna ${f.suppliers?.name}`}
+                          aria-label={tTesto("Giorni consegna {name}", { name: String(f.suppliers?.name ?? "") })}
                           min="0"
                           disabled={chiusa}
                           defaultValue={f.giorni_consegna ?? ""}
                           onBlur={(e) => {
                             const v = e.target.value === "" ? null : Number(e.target.value);
-                            if (v != null && (!Number.isFinite(v) || v < 0 || !Number.isInteger(v))) { e.target.value = f.giorni_consegna == null ? "" : String(f.giorni_consegna); toast.error("Indica un numero intero di giorni maggiore o uguale a zero."); return; }
+                            if (v != null && (!Number.isFinite(v) || v < 0 || !Number.isInteger(v))) { e.target.value = f.giorni_consegna == null ? "" : String(f.giorni_consegna); toast.error(tTesto("Indica un numero intero di giorni maggiore o uguale a zero.")); return; }
                             if (v !== f.giorni_consegna) {
                               updateFornitore.mutate({ id: f.id, updates: { giorni_consegna: v } });
                             }
@@ -715,11 +712,11 @@ export default function SupplierRfqDetail() {
                         />
                       </div>
                       <div>
-                        <Label className="text-[10px] text-slate-500">Offerta valida fino</Label>
+                        <Label className="text-[10px] text-slate-500">{tTesto("Offerta valida fino")}</Label>
                         <Input
                           type="date"
                           className="h-7 text-xs"
-                          aria-label={`Validità offerta ${f.suppliers?.name}`}
+                          aria-label={tTesto("Validità offerta {name}", { name: String(f.suppliers?.name ?? "") })}
                           disabled={chiusa}
                           defaultValue={f.validita_offerta ?? ""}
                           onBlur={(e) => {
@@ -733,14 +730,14 @@ export default function SupplierRfqDetail() {
                       {/* Offerta a corpo (o con trasporto/imballo): il totale
                           del documento, scritto a mano se non lo legge l'AI. */}
                       <div>
-                        <Label className="text-[10px] text-slate-500">Totale offerto (€)</Label>
+                        <Label className="text-[10px] text-slate-500">{tTesto("Totale offerto (€)")}</Label>
                         <Input
                           key={`${f.id}:${f.totale_offerto ?? ""}`}
                           type="number"
                           step="0.01"
                           className="h-7 text-xs"
                           disabled={chiusa}
-                          aria-label={`Totale offerto ${f.suppliers?.name}`}
+                          aria-label={tTesto("Totale offerto {name}", { name: String(f.suppliers?.name ?? "") })}
                           aria-describedby={proposto && proposto.origine !== "scritto" ? `rdo-totale-proposto-${f.id}` : undefined}
                           min="0"
                           // Non scritto a mano: si propone la somma delle voci,
@@ -749,7 +746,7 @@ export default function SupplierRfqDetail() {
                           defaultValue={f.totale_offerto ?? ""}
                           onBlur={(e) => {
                             const v = e.target.value === "" ? null : Number(e.target.value);
-                            if (v != null && (!Number.isFinite(v) || v < 0)) {e.target.value = f.totale_offerto == null ? "" : String(f.totale_offerto);toast.error("Il totale offerto non può essere negativo.");return;}
+                            if (v != null && (!Number.isFinite(v) || v < 0)) {e.target.value = f.totale_offerto == null ? "" : String(f.totale_offerto);toast.error(tTesto("Il totale offerto non può essere negativo."));return;}
                             if (v !== (f.totale_offerto == null ? null : Number(f.totale_offerto))) {
                               updateFornitore.mutate({ id: f.id, updates: { totale_offerto: v } });
                             }
@@ -757,17 +754,17 @@ export default function SupplierRfqDetail() {
                         />
                         {proposto && proposto.origine !== "scritto" && (
                           <p id={`rdo-totale-proposto-${f.id}`} className="mt-0.5 text-[10px] text-slate-500">
-                            {proposto.origine === "voci_e_trasporto" ? "dalla somma delle voci e del trasporto" : "dalla somma delle voci"}
+                            {proposto.origine === "voci_e_trasporto" ? tTesto("dalla somma delle voci e del trasporto") : tTesto("dalla somma delle voci")}
                           </p>
                         )}
                       </div>
                       {/* finisce nell'ordine fornitore all'aggiudicazione */}
                       <div>
-                        <Label className="text-[10px] text-slate-500">Pagamento</Label>
+                        <Label className="text-[10px] text-slate-500">{tTesto("Pagamento")}</Label>
                         <Input
                           className="h-7 text-xs"
                           disabled={chiusa}
-                          placeholder="Es. 60 gg d.f."
+                          placeholder={tTesto("Es. 60 gg d.f.")}
                           defaultValue={f.condizioni_pagamento ?? ""}
                           onBlur={(e) => {
                             const v = e.target.value.trim() || null;
@@ -781,41 +778,41 @@ export default function SupplierRfqDetail() {
                   )}
 
                   <div className="flex items-center gap-1">
-                    {!chiusa && f.status !== "risposta" && f.status !== "da_inviare" && <Button size="sm" variant="outline" className="h-7 flex-1 text-xs" disabled={registraOfferta.isPending} onClick={()=>registraOfferta.mutate(f)}><Inbox className="mr-1 h-3 w-3"/>Ho l’offerta</Button>}
+                    {!chiusa && f.status !== "risposta" && f.status !== "da_inviare" && <Button size="sm" variant="outline" className="h-7 flex-1 text-xs" disabled={registraOfferta.isPending} onClick={()=>registraOfferta.mutate(f)}><Inbox className="mr-1 h-3 w-3"/>{tTesto("Ho l’offerta")}</Button>}
                     {!chiusa && f.status !== "risposta" && (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-slate-500" aria-label="Altre azioni" title="Altre azioni">
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-slate-500" aria-label={tTesto("Altre azioni")} title={tTesto("Altre azioni")}>
                             <MoreHorizontal className="h-3.5 w-3.5" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-56">
                           {f.status === "da_inviare" ? (
                             <>
-                              <DropdownMenuLabel className="text-xs">L'ho già chiesta io</DropdownMenuLabel>
+                              <DropdownMenuLabel className="text-xs">{tTesto("L'ho già chiesta io")}</DropdownMenuLabel>
                               {(["telefono", "whatsapp", "email", "di_persona"] as CanaleRichiesta[]).map((via) => (
                                 <DropdownMenuItem key={via} onClick={() => segnaChiesta.mutate({ id: f.id, via })}>
-                                  {via === "email" ? "Con la mia email" : `Per ${CANALE_RICHIESTA_LABELS[via]}`}
+                                  {via === "email" ? tTesto("Con la mia email") : tTesto("Per {valore}", { valore: String(CANALE_RICHIESTA_LABELS[via] ?? "") })}
                                 </DropdownMenuItem>
                               ))}
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => registraOfferta.mutate(f)}>Ho già l'offerta</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => registraOfferta.mutate(f)}>{tTesto("Ho già l'offerta")}</DropdownMenuItem>
                             </>
                           ) : (
                             <DropdownMenuItem
                               onClick={() => {
                                 if (items.length === 0) {
-                                  toast.error("Aggiungi almeno una voce prima di chiedere l'offerta");
+                                  toast.error(tTesto("Aggiungi almeno una voce prima di chiedere l'offerta"));
                                   return;
                                 }
                                 setSendMode("testo");setInviaA(f);
                               }}
                             >
-                              Sollecita per email
+                              {tTesto("Sollecita per email")}
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuItem onClick={() => updateFornitore.mutate({ id: f.id, updates: { status: "rifiutata" } })}>
-                            Non fa l'offerta
+                            {tTesto("Non fa l'offerta")}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -827,10 +824,10 @@ export default function SupplierRfqDetail() {
                       size="sm"
                       variant="ghost"
                       className="h-7 w-7 p-0 text-orange-500 hover:text-orange-600"
-                      title="Leggi il preventivo con l'AI"
+                      title={tTesto("Leggi il preventivo con l'AI")}
                       onClick={() => {
                         if (items.length === 0) {
-                          toast.error("Aggiungi le voci della richiesta prima di leggere il preventivo");
+                          toast.error(tTesto("Aggiungi le voci della richiesta prima di leggere il preventivo"));
                           return;
                         }
                         setEstraiDa(f);
@@ -844,7 +841,7 @@ export default function SupplierRfqDetail() {
                     {!chiusa && f.status === "risposta" && !f.allegato_url && (
                       <label
                         className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-slate-500 hover:bg-accent hover:text-slate-700"
-                        title="Allega l'offerta (PDF o foto)"
+                        title={tTesto("Allega l'offerta (PDF o foto)")}
                       >
                         {allegaOfferta.isPending ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" /> : <Paperclip className="h-3.5 w-3.5" />}
                         <input
@@ -861,9 +858,9 @@ export default function SupplierRfqDetail() {
                     )}
                     {!senzaPrezzi && (f.allegato_url || f.email_inbox_id) && (
                       <Button type="button" size="sm" variant="outline" className="h-7 gap-1 text-xs"
-                        aria-label={`Vedi originale di ${f.suppliers?.name ?? "fornitore"}`}
+                        aria-label={tTesto("Vedi originale di {fornitore}", { fornitore: f.suppliers?.name ?? tTesto("fornitore") })}
                         onClick={() => setOriginaleDa(f.id)}>
-                        <Eye className="size-3.5" aria-hidden="true" /> Vedi originale
+                        <Eye className="size-3.5" aria-hidden="true" /> {tTesto("Vedi originale")}
                       </Button>
                     )}
                     {modificabile && (
@@ -890,7 +887,7 @@ export default function SupplierRfqDetail() {
                   <Button
                     size="sm"
                     className="h-8"
-                    aria-label="Aggiungi fornitore alla richiesta"
+                    aria-label={tTesto("Aggiungi fornitore alla richiesta")}
                     disabled={!nuovoFornitore || addFornitore.isPending}
                     onClick={() => {
                       addFornitore.mutate(nuovoFornitore, { onSuccess: () => setNuovoFornitore("") });
@@ -945,7 +942,7 @@ export default function SupplierRfqDetail() {
           open={!!estraiDa}
           onOpenChange={(o) => { if (!o) setEstraiDa(null); }}
           rfqSupplierId={estraiDa.id}
-          fornitoreNome={estraiDa.suppliers?.name ?? "Fornitore"}
+          fornitoreNome={estraiDa.suppliers?.name ?? tTesto("Fornitore")}
           haEmailAgganciata={!!estraiDa.email_inbox_id}
           onApplica={async (righe: RigaEstratta[], meta: PropostaEstratta) => {
             // I prezzi scelti finiscono nella griglia, riga per riga.
@@ -987,16 +984,16 @@ export default function SupplierRfqDetail() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Trophy className="h-4 w-4 text-orange-500" />
-              Aggiudica a {aggiudicaA?.suppliers?.name}
+              {tTesto("Aggiudica a {fornitore}", { fornitore: aggiudicaA?.suppliers?.name ?? "" })}
             </DialogTitle>
             <DialogDescription>
-              La scelta chiude la richiesta e apre l’ordine in bozza con le voci offerte. Dalla bozza puoi inviare l’ordine al fornitore e registrare la sua conferma quando arriva.
+              {tTesto("La scelta chiude la richiesta e apre l’ordine in bozza con le voci offerte. Dalla bozza puoi inviare l’ordine al fornitore e registrare la sua conferma quando arriva.")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             {aggiudicaA && totaliPerFornitore[aggiudicaA.id]?.totale != null && (
               <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 flex items-center justify-between text-sm">
-                <span className="text-slate-500">Totale offerto</span>
+                <span className="text-slate-500">{tTesto("Totale offerto")}</span>
                 <span className="font-bold text-slate-900">
                   {formatCurrency(confronti[aggiudicaA.id]?.totale ?? 0)}
                 </span>
@@ -1004,15 +1001,14 @@ export default function SupplierRfqDetail() {
             )}
             {senzaVociDisponibili && (
               <p role="alert" className="rounded-lg bg-red-50 p-3 text-xs text-red-700">
-                L’offerta ha voci indisponibili e nessuna voce disponibile con prezzo. Chiedi al fornitore quali voci può fornire.
+                {tTesto("L’offerta ha voci indisponibili e nessuna voce disponibile con prezzo. Chiedi al fornitore quali voci può fornire.")}
               </p>
             )}
             {aggiudicaA && !senzaVociDisponibili && (totaliPerFornitore[aggiudicaA.id]?.righeCoperte ?? 0) < items.length && (
               <div className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800">
                 <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
                 <span>
-                  Ha quotato {totaliPerFornitore[aggiudicaA.id]?.righeCoperte ?? 0} {(totaliPerFornitore[aggiudicaA.id]?.righeCoperte ?? 0) === 1 ? "voce" : "voci"} su {items.length}: nell'ordine
-                  entrano solo quelle, le altre vanno ordinate a parte.
+                  {tTesto((totaliPerFornitore[aggiudicaA.id]?.righeCoperte ?? 0) === 1 ? "Ha quotato {n} voce su {totale}: nell'ordine entrano solo quelle, le altre vanno ordinate a parte." : "Ha quotato {n} voci su {totale}: nell'ordine entrano solo quelle, le altre vanno ordinate a parte.", { n: totaliPerFornitore[aggiudicaA.id]?.righeCoperte ?? 0, totale: items.length })}
                 </span>
               </div>
             )}
@@ -1020,8 +1016,7 @@ export default function SupplierRfqDetail() {
               <div className="flex gap-2 rounded-lg border border-red-200 bg-red-50 p-2.5 text-xs text-red-800">
                 <AlertTriangle className="h-4 w-4 shrink-0 text-red-600" />
                 <span>
-                  Non c'è nessun prezzo: scrivi i prezzi delle voci o il totale offerto prima di
-                  scegliere. Un ordine da 0 € chiuderebbe la richiesta senza costo in commessa.
+                  {tTesto("Non c'è nessun prezzo: scrivi i prezzi delle voci o il totale offerto prima di scegliere. Un ordine da 0 € chiuderebbe la richiesta senza costo in commessa.")}
                 </span>
               </div>
             )}
@@ -1033,37 +1028,33 @@ export default function SupplierRfqDetail() {
               return (
                 <div className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800">
                   <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
-                  <span>
-                    Il documento dice {formatCurrency(doc)}, le voci {formatCurrency(daRighe)}: la differenza
-                    ({formatCurrency(doc - daRighe)}, trasporto o imballo) va indicata nelle condizioni di trasporto o riconciliata nelle voci prima di scegliere.
-                  </span>
+                  <span>{tTesto("Il documento dice {doc}, le voci {daRighe}: la differenza ({valore}, trasporto o imballo) va indicata nelle condizioni di trasporto o riconciliata nelle voci prima di scegliere.", { doc: formatCurrency(doc), daRighe: formatCurrency(daRighe), valore: formatCurrency(doc - daRighe) })}</span>
                 </div>
               );
             })()}
-            {aggiudicaA&&confronti[aggiudicaA.id]?.scaduta&&<p role="alert" className="rounded-lg bg-red-50 p-3 text-xs text-red-700">L’offerta è scaduta. Chiedi conferma al fornitore e aggiorna la validità prima di scegliere.</p>}
-            {aggiudicaA&&!confronti[aggiudicaA.id]?.coerente&&<p role="alert" className="rounded-lg bg-red-50 p-3 text-xs text-red-700">Il totale documento non coincide con voci e trasporto. Correggi gli importi prima di aggiudicare.</p>}
+            {aggiudicaA&&confronti[aggiudicaA.id]?.scaduta&&<p role="alert" className="rounded-lg bg-red-50 p-3 text-xs text-red-700">{tTesto("L’offerta è scaduta. Chiedi conferma al fornitore e aggiorna la validità prima di scegliere.")}</p>}
+            {aggiudicaA&&!confronti[aggiudicaA.id]?.coerente&&<p role="alert" className="rounded-lg bg-red-50 p-3 text-xs text-red-700">{tTesto("Il totale documento non coincide con voci e trasporto. Correggi gli importi prima di aggiudicare.")}</p>}
             {aggiudicaA && miglioreTotale && aggiudicaA.id !== miglioreTotale && (
               <div className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800">
                 <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
                 <span>
-                  Non è l'offerta più bassa. Se scegli comunque questo fornitore, scrivi
-                  perché: fra sei mesi nessuno se lo ricorderà.
+                  {tTesto("Non è l'offerta più bassa. Se scegli comunque questo fornitore, scrivi perché: fra sei mesi nessuno se lo ricorderà.")}
                 </span>
               </div>
             )}
             <div className="space-y-1.5">
-              <Label htmlFor="rdo-motivo">Perché questo fornitore (facoltativo)</Label>
+              <Label htmlFor="rdo-motivo">{tTesto("Perché questo fornitore (facoltativo)")}</Label>
               <Textarea
                 id="rdo-motivo"
                 rows={2}
                 value={motivazione}
                 onChange={(e) => setMotivazione(e.target.value)}
-                placeholder="Es. consegna in 3 giorni contro 15, ci serve per lunedì."
+                placeholder={tTesto("Es. consegna in 3 giorni contro 15, ci serve per lunedì.")}
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setAggiudicaA(null); setMotivazione(""); }}>Annulla</Button>
+            <Button variant="outline" onClick={() => { setAggiudicaA(null); setMotivazione(""); }}>{tTesto("Annulla")}</Button>
             <Button
               disabled={aggiudica.isPending || editingOffers.some(id=>fornitori.some(f=>f.id===id)) || updateFornitore.isPending || setQuote.isPending || !aggiudicaA || senzaVociDisponibili || !!confronti[aggiudicaA.id]?.scaduta || !confronti[aggiudicaA.id]?.coerente || (aggiudicaA.trasporto_tipo==="extra"&&aggiudicaA.costo_trasporto==null) || !((confronti[aggiudicaA.id]?.totale ?? 0) > 0)}
               onClick={() => {
@@ -1083,7 +1074,7 @@ export default function SupplierRfqDetail() {
               }}
             >
               <Send className="h-4 w-4 mr-1.5" />
-              {aggiudica.isPending ? "Creazione ordine..." : "Scegli fornitore e crea bozza"}
+              {aggiudica.isPending ? tTesto("Creazione ordine...") : tTesto("Scegli fornitore e crea bozza")}
             </Button>
           </DialogFooter>
         </DialogContent>

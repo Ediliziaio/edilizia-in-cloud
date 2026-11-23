@@ -25,6 +25,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, ScanLine, X, AlertCircle, ListPlus } from "lucide-react";
 import { BarcodeScanner } from "@/components/warehouse/BarcodeScanner";
 import { useAssignSerialsToLotto } from "@/hooks/warehouse/useStockUnits";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface AssignSerialsToLottoDialogProps {
   open: boolean;
@@ -43,6 +44,7 @@ export function AssignSerialsToLottoDialog({
   lottoCode,
   articolo,
 }: AssignSerialsToLottoDialogProps) {
+  const t = useT();
   const [scannerOpen, setScannerOpen] = useState(false);
   const [serialInput, setSerialInput] = useState("");
   const [pending, setPending] = useState<string[]>([]);
@@ -106,7 +108,7 @@ export function AssignSerialsToLottoDialog({
       <Dialog open={open} onOpenChange={handleClose}>
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Assegna seriali al lotto</DialogTitle>
+            <DialogTitle>{t("Assegna seriali al lotto")}</DialogTitle>
             <DialogDescription>
               {lottoCode && <span className="font-mono font-medium block">{lottoCode}</span>}
               {articolo && <span className="text-xs">{articolo}</span>}
@@ -117,26 +119,24 @@ export function AssignSerialsToLottoDialog({
             <div className="flex gap-2">
               <form onSubmit={handleManualSubmit} className="flex-1 flex gap-2">
                 <Input
-                  placeholder="Digita o incolla seriale e premi Invio"
+                  placeholder={t("Digita o incolla seriale e premi Invio")}
                   value={serialInput}
                   onChange={(e) => setSerialInput(e.target.value)}
                   autoFocus
                 />
                 <Button type="submit" variant="outline" size="sm" disabled={!serialInput.trim()}>
-                  Aggiungi
+                  {t("Aggiungi")}
                 </Button>
               </form>
               <Button type="button" variant="outline" size="sm" onClick={() => setScannerOpen(true)}>
                 <ScanLine className="h-4 w-4 mr-1" />
-                Scannerizza
+                {t("Scannerizza")}
               </Button>
             </div>
 
             {pendingUnique.length > 0 && (
               <div className="border rounded-md p-2 space-y-1">
-                <p className="text-xs text-muted-foreground mb-1">
-                  Da confermare ({pendingUnique.length}):
-                </p>
+                <p className="text-xs text-muted-foreground mb-1">{t("Da confermare ({n}):", { n: pendingUnique.length })}</p>
                 <div className="flex flex-wrap gap-1">
                   {pendingUnique.map((s) => (
                     <Badge key={s} variant="secondary" className="gap-1 font-mono text-xs">
@@ -145,7 +145,7 @@ export function AssignSerialsToLottoDialog({
                         type="button"
                         onClick={() => setPending((prev) => prev.filter((p) => p !== s))}
                         className="hover:text-destructive"
-                        aria-label={`Rimuovi ${s}`}
+                        aria-label={t("Rimuovi {s}", { s: String(s ?? "") })}
                       >
                         <X className="h-3 w-3" />
                       </button>
@@ -161,14 +161,13 @@ export function AssignSerialsToLottoDialog({
                 <AlertDescription className="space-y-1 text-xs">
                   {lastResult.notFound.length > 0 && (
                     <div>
-                      <strong>{lastResult.notFound.length}</strong> seriali non in magazzino:{" "}
+                      <strong>{lastResult.notFound.length}</strong> {t("seriali non in magazzino:")}{" "}
                       <span className="font-mono">{lastResult.notFound.join(", ")}</span>
                     </div>
                   )}
                   {lastResult.alreadyOther.length > 0 && (
                     <div>
-                      <strong>{lastResult.alreadyOther.length}</strong> già appartenenti ad altri lotti
-                      (non spostati):{" "}
+                      <strong>{lastResult.alreadyOther.length}</strong> {t("già appartenenti ad altri lotti (non spostati):")}{" "}
                       <span className="font-mono">{lastResult.alreadyOther.join(", ")}</span>
                     </div>
                   )}
@@ -179,7 +178,7 @@ export function AssignSerialsToLottoDialog({
 
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => handleClose(false)}>
-              Chiudi
+              {t("Chiudi")}
             </Button>
             <Button
               onClick={handleConfirm}
@@ -187,7 +186,7 @@ export function AssignSerialsToLottoDialog({
             >
               {assignMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               <ListPlus className="h-4 w-4 mr-1" />
-              Conferma {pendingUnique.length > 0 ? `(${pendingUnique.length})` : ""}
+              {t("Conferma")} {pendingUnique.length > 0 ? `(${pendingUnique.length})` : ""}
             </Button>
           </DialogFooter>
         </DialogContent>

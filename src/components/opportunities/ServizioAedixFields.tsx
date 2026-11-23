@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Package } from "lucide-react";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const sb = () => supabase as any;
 
@@ -81,6 +82,7 @@ interface Props {
 }
 
 export function ServizioAedixFields({ productLineId, packageId, onChange, disabled }: Props) {
+  const t = useT();
   const { data: lines = [] } = useAedixProductLines(true);
   const { data: packages = [] } = useAedixPackages(productLineId, true);
 
@@ -88,7 +90,7 @@ export function ServizioAedixFields({ productLineId, packageId, onChange, disabl
     <div className="grid gap-3 sm:grid-cols-2">
       <div className="space-y-1.5">
         <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
-          <Package className="h-3.5 w-3.5" /> Servizio venduto
+          <Package className="h-3.5 w-3.5" /> {t("Servizio venduto")}
         </Label>
         <Select
           value={productLineId ?? NESSUN_SERVIZIO}
@@ -98,9 +100,9 @@ export function ServizioAedixFields({ productLineId, packageId, onChange, disabl
             onChange({ productLineId: v === NESSUN_SERVIZIO ? null : v, packageId: null })
           }
         >
-          <SelectTrigger><SelectValue placeholder="Nessuno" /></SelectTrigger>
+          <SelectTrigger><SelectValue placeholder={t("Nessuno")} /></SelectTrigger>
           <SelectContent>
-            <SelectItem value={NESSUN_SERVIZIO}>Nessuno</SelectItem>
+            <SelectItem value={NESSUN_SERVIZIO}>{t("Nessuno")}</SelectItem>
             {lines.map((l) => (
               <SelectItem key={l.id} value={l.id}>
                 <span className="flex items-center gap-2">
@@ -114,28 +116,28 @@ export function ServizioAedixFields({ productLineId, packageId, onChange, disabl
       </div>
 
       <div className="space-y-1.5">
-        <Label className="text-xs text-muted-foreground">Pacchetto</Label>
+        <Label className="text-xs text-muted-foreground">{t("Pacchetto")}</Label>
         <Select
           value={packageId ?? NESSUN_SERVIZIO}
           disabled={disabled || !productLineId}
           onValueChange={(v) => onChange({ productLineId, packageId: v === NESSUN_SERVIZIO ? null : v })}
         >
           <SelectTrigger>
-            <SelectValue placeholder={!productLineId ? "Scegli prima il servizio" : "Nessuno"} />
+            <SelectValue placeholder={!productLineId ? t("Scegli prima il servizio") : t("Nessuno")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={NESSUN_SERVIZIO}>Nessuno</SelectItem>
+            <SelectItem value={NESSUN_SERVIZIO}>{t("Nessuno")}</SelectItem>
             {packages.map((p) => (
               <SelectItem key={p.id} value={p.id}>
                 {p.nome}
-                {p.prezzo ? ` — ${new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(Number(p.prezzo))}` : ""}
+                {p.prezzo ? ` — ${new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR" }).format(Number(p.prezzo))}` : ""}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
         {productLineId && packages.length === 0 && (
           <p className="text-[10px] text-muted-foreground">
-            Nessun pacchetto per questo servizio. Si creano in Impostazioni → Prodotti &amp; Servizi.
+            {t("Nessun pacchetto per questo servizio. Si creano in Impostazioni → Prodotti & Servizi.")}
           </p>
         )}
       </div>

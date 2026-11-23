@@ -44,6 +44,7 @@ import { Plus, Trash2, Package, Loader2, AlertTriangle, Clock, ListPlus, Eye, Sc
 import { differenceInDays, parseISO, format } from "date-fns";
 import { StockUnitsDrilldownSheet } from "@/components/warehouse/StockUnitsDrilldownSheet";
 import { AssignSerialsToLottoDialog } from "@/components/warehouse/AssignSerialsToLottoDialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Lotto {
   id: string;
@@ -124,6 +125,7 @@ interface WarehouseLottiTabProps {
 }
 
 export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTabProps) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -228,18 +230,18 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
   // ── Mutations ────────────────────────────────────────────────────────────
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      if(readOnly||!companyId)throw new Error("Non puoi modificare i lotti.");
+      if(readOnly||!companyId)throw new Error(t("Non puoi modificare i lotti."));
       const { error } = await supabase.from("stock_lotti").delete().eq("id", id).eq("company_id",companyId);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Lotto eliminato");
+      toast.success(t("Lotto eliminato"));
       queryClient.invalidateQueries({ queryKey: ["warehouse-lotti-list-full", companyId] });
       queryClient.invalidateQueries({ queryKey: ["warehouse-lotti-list", companyId] });
       setDeleteTarget(null);
     },
     onError: (e: Error) => {
-      toast.error(e.message || "Errore nell'eliminazione del lotto");
+      toast.error(e.message || t("Errore nell'eliminazione del lotto"));
       setDeleteTarget(null);
     },
   });
@@ -247,8 +249,8 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
   // Aggiunge/cambia la foto a un lotto ESISTENTE (dalla tabella).
   const setFotoMutation = useMutation({
     mutationFn: async ({ lottoId, file }: { lottoId: string; file: File }) => {
-      if (readOnly||!companyId) throw new Error("Modifica del lotto non autorizzata");
-      if (!file.type.startsWith("image/")) throw new Error("Seleziona un'immagine");
+      if (readOnly||!companyId) throw new Error(t("Modifica del lotto non autorizzata"));
+      if (!file.type.startsWith("image/")) throw new Error(t("Seleziona un'immagine"));
       const url = await uploadLottoFoto(companyId, lottoId, file);
       const { error } = await supabase
         .from("stock_lotti")
@@ -258,10 +260,10 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
       return url;
     },
     onSuccess: () => {
-      toast.success("Foto del lotto aggiornata");
+      toast.success(t("Foto del lotto aggiornata"));
       queryClient.invalidateQueries({ queryKey: ["warehouse-lotti-list-full", companyId] });
     },
-    onError: (e: Error) => toast.error(e.message || "Errore caricamento foto"),
+    onError: (e: Error) => toast.error(e.message || t("Errore caricamento foto")),
   });
 
   const handlePickFotoFor = (lottoId: string) => {
@@ -284,15 +286,15 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
     // settato in modo SINCRONO prima dell'await, quindi il 2° click è bloccato qui.
     if (creatingRef.current) return;
     if (!form.codice_lotto.trim()) {
-      toast.error("Inserisci il codice lotto");
+      toast.error(t("Inserisci il codice lotto"));
       return;
     }
     if (!form.articolo.trim() && !form.stock_item_id) {
-      toast.error("Seleziona un articolo dal catalogo o inserisci il nome");
+      toast.error(t("Seleziona un articolo dal catalogo o inserisci il nome"));
       return;
     }
     if (!form.quantita || isNaN(Number(form.quantita)) || Number(form.quantita) < 0) {
-      toast.error("Inserisci una quantità valida");
+      toast.error(t("Inserisci una quantità valida"));
       return;
     }
     creatingRef.current = true;
@@ -334,10 +336,10 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
           const {error: photoError}=await supabase.from("stock_lotti").update({ foto_url: url } as never).eq("id", createdId).eq("company_id",companyId);
           if(photoError)throw photoError;
         } catch {
-          toast.error("Lotto creato, ma foto non caricata");
+          toast.error(t("Lotto creato, ma foto non caricata"));
         }
       }
-      toast.success("Lotto creato");
+      toast.success(t("Lotto creato"));
       setDialogOpen(false);
       setForm(emptyForm);
       setFotoFile(null);
@@ -365,7 +367,7 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
     );
   }
 
-  if (isError) return <div role="alert" className="rounded-lg border border-destructive/30 p-4 text-sm">Impossibile verificare i lotti. <Button variant="outline" size="sm" onClick={()=>void refetch()}>Riprova lotti</Button></div>;
+  if (isError) return <div role="alert" className="rounded-lg border border-destructive/30 p-4 text-sm">{t("Impossibile verificare i lotti.")} <Button variant="outline" size="sm" onClick={()=>void refetch()}>{t("Riprova lotti")}</Button></div>;
 
   const today = new Date();
   const expiredLotti = lotti.filter(
@@ -383,12 +385,12 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Package className="h-5 w-5 text-primary" />
-          <h2 className="font-semibold text-lg">Lotti</h2>
+          <h2 className="font-semibold text-lg">{t("Lotti")}</h2>
           <Badge variant="outline">{lotti.length}</Badge>
         </div>
         {!readOnly && (
           <Button size="sm" onClick={() => setDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" /> Nuovo lotto
+            <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" /> {t("Nuovo lotto")}
           </Button>
         )}
       </div>
@@ -400,7 +402,7 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
             <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-medium text-destructive">
-                {expiredLotti.length} lott{expiredLotti.length === 1 ? "o" : "i"} scadut{expiredLotti.length === 1 ? "o" : "i"}
+                {expiredLotti.length === 1 ? t("{n} lotto scaduto", { n: 1 }) : t("{n} lotti scaduti", { n: expiredLotti.length })}
               </p>
               <p className="text-xs text-destructive/80">
                 {expiredLotti.map((l) => `${l.codice_lotto} (${l.articolo || "—"})`).join(", ")}
@@ -415,7 +417,7 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
             <Clock className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
-                {expiringLotti.length} lott{expiringLotti.length === 1 ? "o" : "i"} in scadenza entro 30 giorni
+                {expiringLotti.length === 1 ? t("{n} lotto in scadenza entro 30 giorni", { n: 1 }) : t("{n} lotti in scadenza entro 30 giorni", { n: expiringLotti.length })}
               </p>
             </div>
           </CardContent>
@@ -427,14 +429,14 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
           <CardContent className="py-14 flex flex-col items-center justify-center gap-3 text-center">
             <Package className="h-12 w-12 text-muted-foreground/30" aria-hidden="true" />
             <div>
-              <p className="text-sm font-medium">Nessun lotto registrato</p>
+              <p className="text-sm font-medium">{t("Nessun lotto registrato")}</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Tieni traccia di numeri lotto, scadenze, fornitori e magazzino per ogni materiale.
+                {t("Tieni traccia di numeri lotto, scadenze, fornitori e magazzino per ogni materiale.")}
               </p>
             </div>
             {!readOnly && (
               <Button size="sm" variant="outline" onClick={() => setDialogOpen(true)}>
-                <Plus className="h-3.5 w-3.5 mr-1" aria-hidden="true" /> Crea primo lotto
+                <Plus className="h-3.5 w-3.5 mr-1" aria-hidden="true" /> {t("Crea primo lotto")}
               </Button>
             )}
           </CardContent>
@@ -445,11 +447,11 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>N° Lotto</TableHead>
-                  <TableHead>Articolo</TableHead>
-                  <TableHead>Fornitore</TableHead>
-                  <TableHead className="text-right">Quantità</TableHead>
-                  <TableHead>Scadenza</TableHead>
+                  <TableHead>{t("N° Lotto")}</TableHead>
+                  <TableHead>{t("Articolo")}</TableHead>
+                  <TableHead>{t("Fornitore")}</TableHead>
+                  <TableHead className="text-right">{t("Quantità")}</TableHead>
+                  <TableHead>{t("Scadenza")}</TableHead>
                   <TableHead className="w-24" />
                 </TableRow>
               </TableHeader>
@@ -473,7 +475,7 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
                     <TableCell>{lotto.articolo || "—"}</TableCell>
                     <TableCell className="text-muted-foreground text-sm">{lotto.fornitore || "—"}</TableCell>
                     <TableCell className="text-right font-medium">
-                      {lotto.quantita} {lotto.unita_misura || "pz"}
+                      {lotto.quantita} {lotto.unita_misura || t("pz")}
                     </TableCell>
                     <TableCell>
                       <ScadenzaBadge data={lotto.data_scadenza} />
@@ -486,8 +488,8 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
                             size="icon"
                             className="h-7 w-7"
                             onClick={() => handlePickFotoFor(lotto.id)}
-                            aria-label="Foto del lotto"
-                            title={lotto.foto_url ? "Cambia foto del lotto" : "Aggiungi foto del lotto"}
+                            aria-label={t("Foto del lotto")}
+                            title={lotto.foto_url ? t("Cambia foto del lotto") : t("Aggiungi foto del lotto")}
                           >
                             <Camera className={`h-3.5 w-3.5 ${lotto.foto_url ? "text-emerald-600" : "text-muted-foreground"}`} />
                           </Button>
@@ -498,8 +500,8 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
                             size="icon"
                             className="h-7 w-7"
                             onClick={() => setAssignLottoId(lotto.id)}
-                            aria-label="Assegna seriali al lotto"
-                            title="Assegna seriali al lotto"
+                            aria-label={t("Assegna seriali al lotto")}
+                            title={t("Assegna seriali al lotto")}
                           >
                             <ScanLine className="h-3.5 w-3.5 text-orange-600" />
                           </Button>
@@ -509,8 +511,8 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
                           size="icon"
                           className="h-7 w-7"
                           onClick={() => setDrilldownLottoId(lotto.id)}
-                          aria-label="Vedi seriali del lotto"
-                          title="Vedi seriali del lotto"
+                          aria-label={t("Vedi seriali del lotto")}
+                          title={t("Vedi seriali del lotto")}
                         >
                           <Eye className="h-3.5 w-3.5" />
                         </Button>
@@ -520,7 +522,7 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
                             size="icon"
                             className="h-7 w-7"
                             onClick={() => setDeleteTarget(lotto)}
-                            aria-label={`Elimina lotto ${lotto.codice_lotto}`}
+                            aria-label={t("Elimina lotto {codice_lotto}", { codice_lotto: String(lotto.codice_lotto ?? "") })}
                           >
                             <Trash2 className="h-3.5 w-3.5 text-destructive" />
                           </Button>
@@ -539,9 +541,9 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Nuovo Lotto</DialogTitle>
+            <DialogTitle>{t("Nuovo Lotto")}</DialogTitle>
             <DialogDescription>
-              Crea un nuovo lotto associandolo al catalogo articoli, fornitore e magazzino di destinazione.
+              {t("Crea un nuovo lotto associandolo al catalogo articoli, fornitore e magazzino di destinazione.")}
             </DialogDescription>
           </DialogHeader>
 
@@ -549,13 +551,13 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
             {/* Codice lotto */}
             <div className="space-y-1">
               <Label htmlFor="lotto-codice">
-                Codice lotto <span className="text-destructive">*</span>
+                {t("Codice lotto")} <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="lotto-codice"
                 value={form.codice_lotto}
                 onChange={(e) => setField("codice_lotto")(e.target.value)}
-                placeholder="LOT-2026-001"
+                placeholder={t("LOT-2026-001")}
                 className="font-mono"
               />
             </div>
@@ -563,7 +565,7 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
             {/* Articolo: catalogo o libero */}
             <div className="space-y-1">
               <Label>
-                Articolo <span className="text-destructive">*</span>
+                {t("Articolo")} <span className="text-destructive">*</span>
               </Label>
               {stockItems.length > 0 ? (
                 <>
@@ -582,10 +584,10 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
                     }}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Scegli dal catalogo..." />
+                      <SelectValue placeholder={t("Scegli dal catalogo...")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="__free__">— Inserimento libero (testo) —</SelectItem>
+                      <SelectItem value="__free__">{t("— Inserimento libero (testo) —")}</SelectItem>
                       {stockItems.map((it) => (
                         <SelectItem key={it.id} value={it.id}>
                           <div className="flex items-center gap-2">
@@ -607,14 +609,13 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
                     <Input
                       value={form.articolo}
                       onChange={(e) => setField("articolo")(e.target.value)}
-                      placeholder="Nome articolo (es. Cemento Portland)"
+                      placeholder={t("Nome articolo (es. Cemento Portland)")}
                       className="mt-1"
                     />
                   )}
                   {selectedStockItem?.tracking_mode === "serialized" && (
                     <p className="text-[11px] text-amber-700 bg-amber-50 dark:bg-amber-950/30 px-2 py-1 rounded">
-                      Articolo serializzato: dopo aver creato il lotto potrai assegnare i singoli seriali via{" "}
-                      <strong>"Gestisci seriali"</strong> nell'inventario o nella commessa.
+                      {t("Articolo serializzato: dopo aver creato il lotto potrai assegnare i singoli seriali via \"Gestisci seriali\" nell'inventario o nella commessa.")}
                     </p>
                   )}
                 </>
@@ -622,14 +623,14 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
                 <Input
                   value={form.articolo}
                   onChange={(e) => setField("articolo")(e.target.value)}
-                  placeholder="Nome articolo (es. Cemento Portland)"
+                  placeholder={t("Nome articolo (es. Cemento Portland)")}
                 />
               )}
             </div>
 
             {/* Fornitore: catalogo o libero */}
             <div className="space-y-1">
-              <Label>Fornitore</Label>
+              <Label>{t("Fornitore")}</Label>
               {suppliers.length > 0 ? (
                 <Select
                   value={form.supplier_id || "__free__"}
@@ -642,10 +643,10 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
                   }}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Scegli fornitore..." />
+                    <SelectValue placeholder={t("Scegli fornitore...")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__free__">— Nessuno / Libero —</SelectItem>
+                    <SelectItem value="__free__">{t("— Nessuno / Libero —")}</SelectItem>
                     {suppliers.map((s) => (
                       <SelectItem key={s.id} value={s.id}>
                         {s.name}
@@ -657,14 +658,14 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
                 <Input
                   value={form.fornitore_libero}
                   onChange={(e) => setField("fornitore_libero")(e.target.value)}
-                  placeholder="Italcementi S.p.A."
+                  placeholder={t("Italcementi S.p.A.")}
                 />
               )}
               {!form.supplier_id && suppliers.length > 0 && (
                 <Input
                   value={form.fornitore_libero}
                   onChange={(e) => setField("fornitore_libero")(e.target.value)}
-                  placeholder="Oppure inserisci manualmente"
+                  placeholder={t("Oppure inserisci manualmente")}
                   className="mt-1"
                 />
               )}
@@ -672,20 +673,20 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
 
             {/* Magazzino destinazione */}
             <div className="space-y-1">
-              <Label>Magazzino destinazione</Label>
+              <Label>{t("Magazzino destinazione")}</Label>
               <Select
                 value={form.warehouse_id || "__none__"}
                 onValueChange={(v) => setField("warehouse_id")(v === "__none__" ? "" : v)}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Scegli magazzino..." />
+                  <SelectValue placeholder={t("Scegli magazzino...")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">— Nessuno —</SelectItem>
+                  <SelectItem value="__none__">{t("— Nessuno —")}</SelectItem>
                   {warehouses.map((w) => (
                     <SelectItem key={w.id} value={w.id}>
                       {w.name}
-                      {w.is_default && <span className="ml-1 text-[9px] text-muted-foreground">(default)</span>}
+                      {w.is_default && <span className="ml-1 text-[9px] text-muted-foreground">{t("(default)")}</span>}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -696,7 +697,7 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label>
-                  Quantità <span className="text-destructive">*</span>
+                  {t("Quantità")} <span className="text-destructive">*</span>
                 </Label>
                 <Input
                   type="number"
@@ -712,7 +713,7 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
                 <Input
                   value={form.unita_misura}
                   onChange={(e) => setField("unita_misura")(e.target.value)}
-                  placeholder="pz"
+                  placeholder={t("pz")}
                 />
               </div>
             </div>
@@ -720,7 +721,7 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
             {/* Scadenza + Posizione */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>Data scadenza</Label>
+                <Label>{t("Data scadenza")}</Label>
                 <Input
                   type="date"
                   value={form.data_scadenza}
@@ -728,38 +729,38 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
                 />
               </div>
               <div className="space-y-1">
-                <Label>Posizione fisica</Label>
+                <Label>{t("Posizione fisica")}</Label>
                 <Input
                   value={form.posizione}
                   onChange={(e) => setField("posizione")(e.target.value)}
-                  placeholder="Scaffale A3 / Bay 12"
+                  placeholder={t("Scaffale A3 / Bay 12")}
                 />
               </div>
             </div>
 
             {/* Note */}
             <div className="space-y-1">
-              <Label>Note</Label>
+              <Label>{t("Note")}</Label>
               <Input
                 value={form.note}
                 onChange={(e) => setField("note")(e.target.value)}
-                placeholder="Opzionali..."
+                placeholder={t("Opzionali...")}
               />
             </div>
 
             {/* Foto bancale/lotto (opzionale) — su mobile apre la fotocamera */}
             <div className="space-y-1">
-              <Label>Foto bancale (opzionale)</Label>
+              <Label>{t("Foto bancale (opzionale)")}</Label>
               {fotoPreview ? (
                 <div className="relative w-fit">
-                  <img src={fotoPreview} alt="Anteprima foto lotto" className="h-24 w-24 rounded border object-cover" />
+                  <img src={fotoPreview} alt={t("Anteprima foto lotto")} className="h-24 w-24 rounded border object-cover" />
                   <Button
                     type="button"
                     variant="secondary"
                     size="icon"
                     className="absolute -right-2 -top-2 h-6 w-6"
                     onClick={() => { setFotoFile(null); setFotoPreview(null); }}
-                    aria-label="Rimuovi foto"
+                    aria-label={t("Rimuovi foto")}
                   >
                     <Trash2 className="h-3 w-3" />
                   </Button>
@@ -767,7 +768,7 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
               ) : (
                 <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed p-3 text-sm text-muted-foreground hover:bg-muted/40">
                   <Camera className="h-4 w-4" />
-                  Scatta o carica una foto del bancale
+                  {t("Scatta o carica una foto del bancale")}
                   <input
                     type="file"
                     accept="image/*"
@@ -786,12 +787,12 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={isSaving}>
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button onClick={handleCreate} disabled={isSaving}>
               {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               <ListPlus className="h-4 w-4 mr-1" />
-              {isSaving ? "Salvataggio..." : "Crea lotto"}
+              {isSaving ? t("Salvataggio...") : t("Crea lotto")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -801,20 +802,19 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Elimina lotto</AlertDialogTitle>
+            <AlertDialogTitle>{t("Elimina lotto")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Sei sicuro di voler eliminare il lotto <strong>{deleteTarget?.codice_lotto}</strong>?
-              Questa azione non è reversibile. I seriali assegnati al lotto resteranno ma perderanno il link.
+              {t("Sei sicuro di voler eliminare il lotto")} <strong>{deleteTarget?.codice_lotto}</strong>{t("? Questa azione non è reversibile. I seriali assegnati al lotto resteranno ma perderanno il link.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteMutation.isPending}>Annulla</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
               disabled={deleteMutation.isPending}
             >
-              {deleteMutation.isPending ? "Eliminazione..." : "Elimina"}
+              {deleteMutation.isPending ? t("Eliminazione...") : t("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -824,7 +824,7 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
       <StockUnitsDrilldownSheet
         open={!!drilldownLottoId}
         onOpenChange={(o) => !o && setDrilldownLottoId(null)}
-        title={drilldownLotto ? `Seriali del lotto ${drilldownLotto.codice_lotto}` : undefined}
+        title={drilldownLotto ? t("Seriali del lotto {codice_lotto}", { codice_lotto: String(drilldownLotto.codice_lotto ?? "") }) : undefined}
         lotti={lotti.map((l) => ({ id: l.id, codice_lotto: l.codice_lotto }))}
         // Pre-filtra sul lotto aperto → mostra esattamente i suoi seriali
         // (l'utente può allargare a "Tutti i lotti" dal dropdown). stockItemId
@@ -858,10 +858,10 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
       <Dialog open={!!fotoZoom} onOpenChange={(o) => !o && setFotoZoom(null)}>
         <DialogContent className="max-w-2xl p-2">
           <DialogHeader className="sr-only">
-            <DialogTitle>Foto lotto</DialogTitle>
-            <DialogDescription>Anteprima ingrandita della foto del lotto</DialogDescription>
+            <DialogTitle>{t("Foto lotto")}</DialogTitle>
+            <DialogDescription>{t("Anteprima ingrandita della foto del lotto")}</DialogDescription>
           </DialogHeader>
-          {fotoZoom && <img src={fotoZoom} alt="Foto lotto" className="w-full rounded" />}
+          {fotoZoom && <img src={fotoZoom} alt={t("Foto lotto")} className="w-full rounded" />}
         </DialogContent>
       </Dialog>
     </>

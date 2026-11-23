@@ -14,7 +14,6 @@ import { etichettaStatoDocumento, etichettaTipoDocumento } from "@/lib/fatturazi
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { format, isToday, isYesterday } from "date-fns";
-import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,6 +24,7 @@ import type {
   OrderRow, TicketRow, AppuntamentoRow, FatturaRow,
 } from "@/components/clients/CustomerBusinessTabs";
 import { euro } from "@/lib/clienti/schedaCliente";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // ── Types ──
 type FilterCategory = "all" | "email" | "messaggio" | "appointment" | "note" | "activity";
@@ -117,19 +117,19 @@ export function dataEvento(dateStr: string): Date {
   return new Date(dateStr);
 }
 
-function getDateLabel(dateStr: string): string {
+function getDateLabel(dateStr: string, tr: (testo: string) => string): string {
   const d = dataEvento(dateStr);
   if (Number.isNaN(d.getTime())) return "";
-  if (isToday(d)) return "Oggi";
-  if (isYesterday(d)) return "Ieri";
-  return format(d, "d MMMM yyyy", { locale: it });
+  if (isToday(d)) return tr("Oggi");
+  if (isYesterday(d)) return tr("Ieri");
+  return format(d, "d MMMM yyyy", { locale: dateFnsCampo() });
 }
 
 /** L'ora solo per gli eventi che ce l'hanno: una fattura ha il giorno, non l'ora. */
 export function getTimeLabel(dateStr: string): string {
   if (SOLO_DATA.test(dateStr)) return "";
   const d = new Date(dateStr);
-  return Number.isNaN(d.getTime()) ? "" : format(d, "HH:mm", { locale: it });
+  return Number.isNaN(d.getTime()) ? "" : format(d, "HH:mm", { locale: dateFnsCampo() });
 }
 
 const maiuscola = (t: string) => t ? t.charAt(0).toUpperCase() + t.slice(1) : t;
@@ -154,6 +154,7 @@ export function CustomerActivityTimeline({
   nascondiImporti = false,
   eventiExtra,
 }: CustomerActivityTimelineProps) {
+  const tr = useT();
   const navigate = useNavigate();
   const [filter, setFilter] = useState<FilterCategory>("all");
 
@@ -168,8 +169,8 @@ export function CustomerActivityTimeline({
         category: "activity",
         icon: <Activity className="h-3.5 w-3.5" />,
         iconBg: "bg-emerald-100 text-emerald-600",
-        title: perCommittente ? "Committente registrato" : "Cliente registrato",
-        description: "Anagrafica creata nel sistema",
+        title: perCommittente ? tr("Committente registrato") : tr("Cliente registrato"),
+        description: tr("Anagrafica creata nel sistema"),
         timestamp: customerCreatedAt,
       });
     }
@@ -181,8 +182,8 @@ export function CustomerActivityTimeline({
         category: "activity",
         icon: <ClipboardList className="h-3.5 w-3.5" />,
         iconBg: "bg-blue-100 text-blue-600",
-        title: `Commessa ${o.order_code ?? "—"}`,
-        description: o.description || `${o.order_statuses?.name ?? "Nuovo"}${o.total_amount && !nascondiImporti ? ` · ${euro(o.total_amount, true)}` : ""}`,
+        title: tr("Commessa {codice}", { codice: o.order_code ?? "—" }),
+        description: o.description || `${o.order_statuses?.name ?? tr("Nuovo")}${o.total_amount && !nascondiImporti ? ` · ${euro(o.total_amount, true)}` : ""}`,
         timestamp: o.created_at,
         href: `/azienda/ordini/${o.id}`,
       });
@@ -195,8 +196,8 @@ export function CustomerActivityTimeline({
         category: "activity",
         icon: <TicketIcon className="h-3.5 w-3.5" />,
         iconBg: "bg-amber-100 text-amber-600",
-        title: `Ticket: ${t.title || "Senza titolo"}`,
-        description: [STATO_TICKET[String(t.status ?? "")] ?? maiuscola(String(t.status ?? "").replace(/_/g, " ")), t.priority ? `priorità ${t.priority}` : ""].filter(Boolean).join(" · "),
+        title: tr("Ticket: {titolo}", { titolo: t.title || tr("Senza titolo") }),
+        description: [STATO_TICKET[String(t.status ?? "")] ? tr(STATO_TICKET[String(t.status ?? "")]) : maiuscola(String(t.status ?? "").replace(/_/g, " ")), t.priority ? tr("priorità {priorita}", { priorita: t.priority }) : ""].filter(Boolean).join(" · "),
         timestamp: t.created_at,
         href: `/azienda/assistenza/${t.id}`,
       });
@@ -210,8 +211,8 @@ export function CustomerActivityTimeline({
         category: "appointment",
         icon: <CalendarDays className="h-3.5 w-3.5" />,
         iconBg: "bg-violet-100 text-violet-600",
-        title: a.title || "Appuntamento",
-        description: a.status ? `Stato: ${a.status}` : undefined,
+        title: a.title || tr("Appuntamento"),
+        description: a.status ? tr("Stato: {stato}", { stato: a.status }) : undefined,
         timestamp: a.appointment_time ? `${a.appointment_date}T${a.appointment_time}` : a.appointment_date,
         href: "/azienda/calendario",
       });
@@ -237,7 +238,7 @@ export function CustomerActivityTimeline({
     // Email
     emailConversations.forEach((e) => {
       if (!e.received_at) return;
-      const senderName = e.from_name || e.from_email || "Sconosciuto";
+      const senderName = e.from_name || e.from_email || tr("Sconosciuto");
       const threadHref = e.thread_id
         ? `/azienda/email?thread_id=${encodeURIComponent(e.thread_id)}`
         : "/azienda/email";
@@ -246,8 +247,8 @@ export function CustomerActivityTimeline({
         category: "email",
         icon: <Mail className="h-3.5 w-3.5" />,
         iconBg: "bg-violet-100 text-violet-600",
-        title: e.subject || "(senza oggetto)",
-        description: `Da: ${senderName}${e.preview && !nascondiImporti ? ` — ${e.preview.substring(0, 80)}` : ""}`,
+        title: e.subject || tr("(senza oggetto)"),
+        description: `${tr("Da: {nome}", { nome: senderName })}${e.preview && !nascondiImporti ? ` — ${e.preview.substring(0, 80)}` : ""}`,
         timestamp: e.received_at,
         href: threadHref,
       });
@@ -260,7 +261,7 @@ export function CustomerActivityTimeline({
         category: "note",
         icon: <StickyNote className="h-3.5 w-3.5" />,
         iconBg: "bg-amber-100 text-amber-600",
-        title: m.author_name || "Nota",
+        title: m.author_name || tr("Nota"),
         description: m.content,
         timestamp: m.created_at,
       });
@@ -288,9 +289,9 @@ export function CustomerActivityTimeline({
             : "bg-violet-100 text-violet-600",
         title: m.oggetto || (isWa ? "WhatsApp" : isSms ? "SMS" : "Email"),
         description: isWa || isSms
-          ? `${out ? "Tu: " : ""}${(m.testo ?? "").substring(0, 120)}`
+          ? `${out ? `${tr("Tu:")} ` : ""}${(m.testo ?? "").substring(0, 120)}`
           : [
-              out ? "Inviata" : `Da: ${m.controparte ?? "—"}`,
+              out ? tr("Inviata") : tr("Da: {nome}", { nome: m.controparte ?? "—" }),
               // Un sollecito ha l'importo nelle prime righe: chi non vede gli importi non legge il testo.
               ...(nascondiImporti ? [] : [(m.testo ?? "").substring(0, 120)]),
             ].filter(Boolean).join(" — "),
@@ -314,7 +315,7 @@ export function CustomerActivityTimeline({
     // Sort by timestamp desc
     list.sort((a, b) => dataEvento(b.timestamp).getTime() - dataEvento(a.timestamp).getTime());
     return list;
-  }, [customerId, customerCreatedAt, orders, tickets, appuntamenti, fatture, emailConversations, diaryMessages, messaggi, perCommittente, nascondiImporti, eventiExtra]);
+  }, [customerId, customerCreatedAt, orders, tickets, appuntamenti, fatture, emailConversations, diaryMessages, messaggi, perCommittente, nascondiImporti, eventiExtra, tr]);
 
   // Filtra in base a tab attivo
   const filteredEvents = useMemo(() => {
@@ -342,12 +343,12 @@ export function CustomerActivityTimeline({
   const groupedEvents = useMemo(() => {
     const groups = new Map<string, TimelineEvent[]>();
     filteredEvents.forEach((e) => {
-      const label = getDateLabel(e.timestamp);
+      const label = getDateLabel(e.timestamp, tr);
       if (!groups.has(label)) groups.set(label, []);
       groups.get(label)!.push(e);
     });
     return Array.from(groups.entries());
-  }, [filteredEvents]);
+  }, [filteredEvents, tr]);
 
   return (
     <div className="flex flex-col h-full">
@@ -365,7 +366,7 @@ export function CustomerActivityTimeline({
             onClick={() => setFilter(opt.key)}
           >
             {opt.icon}
-            {opt.label}
+            {tr(opt.label)}
             <span className={cn(
               "ml-0.5 text-[10px] tabular-nums",
               filter === opt.key ? "opacity-90" : "opacity-60"
@@ -381,11 +382,11 @@ export function CustomerActivityTimeline({
         {filteredEvents.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <Activity className="h-10 w-10 text-muted-foreground/30 mb-3" />
-            <p className="text-sm font-medium text-muted-foreground">Nessuna attività da mostrare</p>
+            <p className="text-sm font-medium text-muted-foreground">{tr("Nessuna attività da mostrare")}</p>
             <p className="text-xs text-muted-foreground mt-1">
               {filter === "all"
-                ? `Le interazioni con questo ${perCommittente ? "committente" : "cliente"} appariranno qui.`
-                : `Nessuna attività di tipo "${FILTER_OPTIONS.find((o) => o.key === filter)?.label}".`}
+                ? (perCommittente ? tr("Le interazioni con questo committente appariranno qui.") : tr("Le interazioni con questo cliente appariranno qui."))
+                : tr("Nessuna attività di tipo \"{tipo}\".", { tipo: tr(FILTER_OPTIONS.find((o) => o.key === filter)?.label ?? "") })}
             </p>
           </div>
         ) : (

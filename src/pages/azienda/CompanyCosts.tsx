@@ -21,6 +21,7 @@ import CostsOverviewTab from "@/components/costi/CostsOverviewTab";
 import PersonnelCostsTab from "@/components/costi/PersonnelCostsTab";
 import UtenzeTab from "@/components/costi/UtenzeTab";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const VALID_TABS = ["panoramica", "personale", "spese-fisse", "spese-variabili", "pianificazione", "utenze"] as const;
 type CostsTab = (typeof VALID_TABS)[number];
@@ -31,6 +32,7 @@ type CostsTab = (typeof VALID_TABS)[number];
 const TABS_MOBILE: CostsTab[] = ["panoramica", "spese-fisse", "spese-variabili"];
 
 export default function CompanyCosts() {
+  const t = useT();
   const isMobile = useIsMobile();
   const [searchParams, setSearchParams] = useSearchParams();
   const rawTab = searchParams.get("tab");
@@ -73,7 +75,7 @@ export default function CompanyCosts() {
             <TrendingDown className="h-5 w-5" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-xl font-bold leading-tight tracking-tight text-foreground sm:text-2xl">Costi Aziendali</h1>
+            <h1 className="text-xl font-bold leading-tight tracking-tight text-foreground sm:text-2xl">{t("Costi Aziendali")}</h1>
           </div>
         </div>
       </div>
@@ -82,22 +84,22 @@ export default function CompanyCosts() {
         {/* Mobile: tre linguette affiancate da 32px, senza icone. */}
         <TabsList className="h-auto w-full flex-wrap justify-start gap-1 rounded-xl bg-muted/80 p-1 sm:w-auto max-sm:grid max-sm:grid-cols-3 max-sm:rounded-lg max-sm:[&_svg]:hidden">
           <TabsTrigger value="panoramica" className="tap-compact gap-1.5 rounded-lg max-sm:h-8 max-sm:rounded-md max-sm:text-xs">
-            <PieChart className="h-4 w-4" /> Panoramica
+            <PieChart className="h-4 w-4" /> {t("Panoramica")}
           </TabsTrigger>
           <TabsTrigger value="personale" className="gap-1.5 rounded-lg max-md:hidden">
-            <HardHat className="h-4 w-4" /> Personale
+            <HardHat className="h-4 w-4" /> {t("Personale")}
           </TabsTrigger>
           <TabsTrigger value="spese-fisse" className="tap-compact gap-1.5 rounded-lg max-sm:h-8 max-sm:rounded-md max-sm:text-xs">
-            <Landmark className="h-4 w-4" /> <span className="max-sm:hidden">Spese fisse</span><span className="sm:hidden">Fisse</span>
+            <Landmark className="h-4 w-4" /> <span className="max-sm:hidden">{t("Spese fisse")}</span><span className="sm:hidden">{t("Fisse")}</span>
           </TabsTrigger>
           <TabsTrigger value="spese-variabili" className="tap-compact gap-1.5 rounded-lg max-sm:h-8 max-sm:rounded-md max-sm:text-xs">
-            <ReceiptText className="h-4 w-4" /> <span className="max-sm:hidden">Spese variabili</span><span className="sm:hidden">Variabili</span>
+            <ReceiptText className="h-4 w-4" /> <span className="max-sm:hidden">{t("Spese variabili")}</span><span className="sm:hidden">{t("Variabili")}</span>
           </TabsTrigger>
           <TabsTrigger value="pianificazione" className="gap-1.5 rounded-lg max-md:hidden">
-            <Target className="h-4 w-4" /> Pianificazione
+            <Target className="h-4 w-4" /> {t("Pianificazione")}
           </TabsTrigger>
           <TabsTrigger value="utenze" className="gap-1.5 rounded-lg max-md:hidden">
-            <Plug className="h-4 w-4" /> Utenze
+            <Plug className="h-4 w-4" /> {t("Utenze")}
           </TabsTrigger>
         </TabsList>
 

@@ -49,6 +49,7 @@ export function countActiveFilters(f: OpportunityFilters): number {
 }
 
 import { STATUS_OPTIONS } from "@/types/opportunities";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   open: boolean;
@@ -75,6 +76,7 @@ function FilterSection({ title, children, defaultOpen = false }: { title: string
 }
 
 export function OpportunityFiltersSheet({ open, onOpenChange, filters, onApply, staff, availableTags }: Props) {
+  const tr = useT();
   const [local, setLocal] = useState<OpportunityFilters>(filters);
 
   // Sync when opening
@@ -108,15 +110,15 @@ export function OpportunityFiltersSheet({ open, onOpenChange, filters, onApply, 
     const max = normalized.valueMax ? Number(normalized.valueMax) : null;
 
     if ((min !== null && (!Number.isFinite(min) || min < 0)) || (max !== null && (!Number.isFinite(max) || max < 0))) {
-      toast.error("I valori economici dei filtri devono essere numeri positivi");
+      toast.error(tr("I valori economici dei filtri devono essere numeri positivi"));
       return;
     }
     if (min !== null && max !== null && min > max) {
-      toast.error("Il valore minimo non può essere maggiore del valore massimo");
+      toast.error(tr("Il valore minimo non può essere maggiore del valore massimo"));
       return;
     }
     if (normalized.dateFrom && normalized.dateTo && normalized.dateFrom > normalized.dateTo) {
-      toast.error("La data iniziale non può essere successiva alla data finale");
+      toast.error(tr("La data iniziale non può essere successiva alla data finale"));
       return;
     }
 
@@ -128,16 +130,16 @@ export function OpportunityFiltersSheet({ open, onOpenChange, filters, onApply, 
     <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent side="right" className="w-full sm:w-[380px] sm:max-w-[380px] flex flex-col p-4 sm:p-6">
         <SheetHeader>
-          <SheetTitle className="text-base">Filtri Avanzati</SheetTitle>
+          <SheetTitle className="text-base">{tr("Filtri Avanzati")}</SheetTitle>
         </SheetHeader>
 
         <div className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain mt-4">
           {/* Status */}
-          <FilterSection title="Stato" defaultOpen>
+          <FilterSection title={tr("Stato")} defaultOpen>
             <div className="space-y-2.5 sm:space-y-2">
               {local.statuses.length === 0 && (
                 <p className="text-xs text-muted-foreground">
-                  Nessuno spuntato: vedi le aperte. Vinte e perse compaiono solo nelle loro colonne di chiusura. Spunta uno stato per vederlo in tutte le fasi.
+                  {tr("Nessuno spuntato: vedi le aperte. Vinte e perse compaiono solo nelle loro colonne di chiusura. Spunta uno stato per vederlo in tutte le fasi.")}
                 </p>
               )}
               {STATUS_OPTIONS.map((opt) => (
@@ -147,49 +149,49 @@ export function OpportunityFiltersSheet({ open, onOpenChange, filters, onApply, 
                     onCheckedChange={() => toggleStatus(opt.value)}
                     className="h-5 w-5 sm:h-4 sm:w-4"
                   />
-                  {opt.label}
+                  {tr(opt.label)}
                 </label>
               ))}
             </div>
           </FilterSection>
 
           {/* Venditore */}
-          <FilterSection title="Venditore">
+          <FilterSection title={tr("Venditore")}>
             <Select value={local.assignedTo || "all"} onValueChange={(v) => setLocal((p) => ({ ...p, assignedTo: v === "all" ? "" : v }))}>
-              <SelectTrigger className="h-10 sm:h-8 text-sm"><SelectValue placeholder="Tutti" /></SelectTrigger>
+              <SelectTrigger className="h-10 sm:h-8 text-sm"><SelectValue placeholder={tr("Tutti")} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tutti</SelectItem>
+                <SelectItem value="all">{tr("Tutti")}</SelectItem>
                 {staff.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </FilterSection>
 
           {/* Follower */}
-          <FilterSection title="Follower">
+          <FilterSection title={tr("Follower")}>
             <Select value={local.followerId || "all"} onValueChange={(v) => setLocal((p) => ({ ...p, followerId: v === "all" ? "" : v }))}>
-              <SelectTrigger className="h-10 sm:h-8 text-sm"><SelectValue placeholder="Tutti" /></SelectTrigger>
+              <SelectTrigger className="h-10 sm:h-8 text-sm"><SelectValue placeholder={tr("Tutti")} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tutti</SelectItem>
+                <SelectItem value="all">{tr("Tutti")}</SelectItem>
                 {staff.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </FilterSection>
 
           {/* Call Center */}
-          <FilterSection title="Call Center">
+          <FilterSection title={tr("Call Center")}>
             <Select value={local.callCenterId || "all"} onValueChange={(v) => setLocal((p) => ({ ...p, callCenterId: v === "all" ? "" : v }))}>
-              <SelectTrigger className="h-10 sm:h-8 text-sm"><SelectValue placeholder="Tutti" /></SelectTrigger>
+              <SelectTrigger className="h-10 sm:h-8 text-sm"><SelectValue placeholder={tr("Tutti")} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tutti</SelectItem>
+                <SelectItem value="all">{tr("Tutti")}</SelectItem>
                 {staff.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </FilterSection>
 
           {/* Fonte */}
-          <FilterSection title="Fonte dell'opportunità">
+          <FilterSection title={tr("Fonte dell'opportunità")}>
             <Input
-              placeholder="Es: Facebook, Sito web..."
+              placeholder={tr("Es: Facebook, Sito web...")}
               value={local.source}
               onChange={(e) => setLocal((p) => ({ ...p, source: e.target.value }))}
               className="h-10 sm:h-8 text-sm"
@@ -197,10 +199,10 @@ export function OpportunityFiltersSheet({ open, onOpenChange, filters, onApply, 
           </FilterSection>
 
           {/* Valore */}
-          <FilterSection title="Valore dell'opportunità">
+          <FilterSection title={tr("Valore dell'opportunità")}>
             <div className="flex gap-2">
               <div className="flex-1">
-                <Label className="text-xs text-muted-foreground">Min (€)</Label>
+                <Label className="text-xs text-muted-foreground">{tr("Min (€)")}</Label>
                 <Input
                   type="number"
                   min="0"
@@ -212,7 +214,7 @@ export function OpportunityFiltersSheet({ open, onOpenChange, filters, onApply, 
                 />
               </div>
               <div className="flex-1">
-                <Label className="text-xs text-muted-foreground">Max (€)</Label>
+                <Label className="text-xs text-muted-foreground">{tr("Max (€)")}</Label>
                 <Input
                   type="number"
                   min="0"
@@ -227,10 +229,10 @@ export function OpportunityFiltersSheet({ open, onOpenChange, filters, onApply, 
           </FilterSection>
 
           {/* Data creazione */}
-          <FilterSection title="Creato il">
+          <FilterSection title={tr("Creato il")}>
             <div className="flex gap-2">
               <div className="flex-1">
-                <Label className="text-xs text-muted-foreground">Da</Label>
+                <Label className="text-xs text-muted-foreground">{tr("Da")}</Label>
                 <Input
                   type="date"
                   value={local.dateFrom}
@@ -252,7 +254,7 @@ export function OpportunityFiltersSheet({ open, onOpenChange, filters, onApply, 
 
           {/* Tags */}
           {availableTags.length > 0 && (
-            <FilterSection title="Tags">
+            <FilterSection title={tr("Tags")}>
               <div className="flex flex-wrap gap-1.5">
                 {availableTags.map((tag) => (
                   <button
@@ -284,14 +286,14 @@ export function OpportunityFiltersSheet({ open, onOpenChange, filters, onApply, 
               onOpenChange(false);
             }}
           >
-            <RotateCcw className="h-3.5 w-3.5" /> Resetta
+            <RotateCcw className="h-3.5 w-3.5" /> {tr("Resetta")}
           </Button>
           <Button
             size="sm"
             className="flex-1 h-11 sm:h-9"
             onClick={applyFilters}
           >
-            Applica filtri
+            {tr("Applica filtri")}
           </Button>
         </div>
       </SheetContent>

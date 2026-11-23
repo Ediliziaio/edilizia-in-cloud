@@ -12,6 +12,7 @@ import { OperationalSummaryMetric } from "@/components/shared/OperationalSummary
 import { formatCurrency } from "@/lib/formatters";
 import type { OrderItemStatus } from "@/types/warehouse";
 import type { MagazzinoRiepilogo } from "@/hooks/useMagazzinoRiepilogo";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type WarehouseStatsFilter =
   | { kind: "all" }
@@ -45,11 +46,12 @@ function isFilterActive(active: WarehouseStatsFilter, candidate: WarehouseStatsF
 }
 
 const vuoto = { count: 0, orders: 0, value: 0 };
-const commesse = (n: number) => `${n} ${n === 1 ? "commessa" : "commesse"}`;
 const da = (c?: { n: number; commesse: number; valore?: number }) =>
   c ? { count: c.n, orders: c.commesse, value: Number(c.valore ?? 0) } : vuoto;
 
 export default function WarehouseStats({ riepilogo, activeFilter, onCardClick, visibleCards, isLoading = false, canViewCosts = true }: WarehouseStatsProps) {
+  const t = useT();
+  const commesse = (n: number) => (n === 1 ? t("{n} commessa", { n }) : t("{n} commesse", { n }));
   const stats = {
     overdue: da(riepilogo?.in_ritardo),
     inMagazzino: da(riepilogo?.in_magazzino),
@@ -77,10 +79,10 @@ export default function WarehouseStats({ riepilogo, activeFilter, onCardClick, v
           active={isFilterActive(activeFilter, { kind: "quick", value: "overdue" })}
           onClick={() => handleClick({ kind: "quick", value: "overdue" })}
           accent={stats.overdue.count > 0 ? "destructive" : "muted"}
-          title="In Ritardo"
+          title={t("In Ritardo")}
           icon={AlertOctagon}
           value={stats.overdue.count}
-          primaryHint={stats.overdue.count > 0 ? `${commesse(stats.overdue.orders)} · scaduti` : "nessun ritardo"}
+          primaryHint={stats.overdue.count > 0 ? t("{commesse} · scaduti", { commesse: commesse(stats.overdue.orders) }) : t("nessun ritardo")}
           secondaryHint={null}
         />
       )}
@@ -92,13 +94,13 @@ export default function WarehouseStats({ riepilogo, activeFilter, onCardClick, v
           active={isFilterActive(activeFilter, { kind: "status", value: "in_magazzino" })}
           onClick={() => handleClick({ kind: "status", value: "in_magazzino" })}
           accent="emerald"
-          title="In Magazzino"
+          title={t("In Magazzino")}
           icon={Package}
           value={stats.inMagazzino.count}
           primaryHint={
             stats.inMagazzino.count > 0
               ? `${commesse(stats.inMagazzino.orders)}${canViewCosts ? ` · ${formatCurrency(stats.inMagazzino.value)}` : ""}`
-              : "nessuna riga pronta"
+              : t("nessuna riga pronta")
           }
           secondaryHint={null}
         />
@@ -111,13 +113,13 @@ export default function WarehouseStats({ riepilogo, activeFilter, onCardClick, v
           active={isFilterActive(activeFilter, { kind: "status", value: "ordinato" })}
           onClick={() => handleClick({ kind: "status", value: "ordinato" })}
           accent="blue"
-          title="In Transito"
+          title={t("In Transito")}
           icon={Truck}
           value={stats.ordinati.count}
           primaryHint={
             stats.ordinati.count > 0
               ? `${commesse(stats.ordinati.orders)}${canViewCosts ? ` · ${formatCurrency(stats.ordinati.value)}` : ""}`
-              : "nessun arrivo"
+              : t("nessun arrivo")
           }
           secondaryHint={null}
         />
@@ -130,13 +132,13 @@ export default function WarehouseStats({ riepilogo, activeFilter, onCardClick, v
           active={isFilterActive(activeFilter, { kind: "status", value: "da_ordinare" })}
           onClick={() => handleClick({ kind: "status", value: "da_ordinare" })}
           accent="amber"
-          title="Da Ordinare"
+          title={t("Da Ordinare")}
           icon={ShoppingCart}
           value={stats.daOrdinare.count}
           primaryHint={
             stats.daOrdinare.count > 0
               ? `${commesse(stats.daOrdinare.orders)}${canViewCosts ? ` · ${formatCurrency(stats.daOrdinare.value)}` : ""}`
-              : "lista vuota"
+              : t("lista vuota")
           }
           secondaryHint={null}
         />

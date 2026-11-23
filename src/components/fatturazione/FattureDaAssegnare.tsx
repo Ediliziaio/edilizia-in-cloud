@@ -21,6 +21,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { Button } from "@/components/ui/button";
 import { ChevronDown, FolderInput } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Riga {
   id: string;
@@ -46,6 +47,7 @@ export function eSpesaGenerale(tipo: string | null | undefined): boolean {
  * apre l'elenco in una finestra. La fascia gialla sopra l'elenco spingeva giù la tabella.
  */
 export function FattureDaAssegnare({ companyId, puoModificare, variante = "fascia" }: { companyId: string; puoModificare: boolean; variante?: "fascia" | "pillola" }) {
+  const tr = useT();
   const qc = useQueryClient();
   const [tutte, setTutte] = useState(false);
   const [aperto, setAperto] = useState(false);
@@ -82,10 +84,10 @@ export function FattureDaAssegnare({ companyId, puoModificare, variante = "fasci
         .is("order_id", null)
         .select("id");
       if (error) throw error;
-      if (!data?.length) throw new Error("Il costo ha già una commessa o non hai il permesso di modificarlo.");
+      if (!data?.length) throw new Error(tr("Il costo ha già una commessa o non hai il permesso di modificarlo."));
     },
     onSuccess: () => {
-      toast.success("Fattura assegnata alla commessa");
+      toast.success(tr("Fattura assegnata alla commessa"));
       qc.invalidateQueries({ queryKey: ["fatture-da-assegnare", companyId] });
       qc.invalidateQueries({ queryKey: queryKeys.costs.all });
     },
@@ -100,7 +102,7 @@ export function FattureDaAssegnare({ companyId, puoModificare, variante = "fasci
       return Number(data ?? 0);
     },
     onSuccess: (n: number) => {
-      toast.success(n ? `${n} fattur${n === 1 ? "a" : "e"} con la commessa riconosciuta da CUP, CIG o codice` : "Nessuna commessa riconosciuta da CUP, CIG o codice");
+      toast.success(n ? tr(n === 1 ? "{n} fattura con la commessa riconosciuta da CUP, CIG o codice" : "{n} fatture con la commessa riconosciuta da CUP, CIG o codice", { n }) : tr("Nessuna commessa riconosciuta da CUP, CIG o codice"));
       qc.invalidateQueries({ queryKey: ["fatture-da-assegnare", companyId] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -121,12 +123,12 @@ export function FattureDaAssegnare({ companyId, puoModificare, variante = "fasci
               <li key={r.id} className="flex flex-wrap items-center gap-2 px-3 py-1.5">
                 {/* Due righe: il nome può accorciarsi, il numero della fattura e il motivo no. */}
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate font-medium">{r.cedente_ragione_sociale ?? "Fornitore"}</span>
+                  <span className="block truncate font-medium">{r.cedente_ragione_sociale ?? tr("Fornitore")}</span>
                   <span className="block text-xs text-muted-foreground">
                     <span className="whitespace-nowrap">{r.numero_fattura ?? ""}{r.data_fattura ? ` · ${formatDateIt(r.data_fattura)}` : ""}</span>
                     {" · "}
-                    <span title={r.order_suggerito_motivo ? "Riconosciuta dai codici della fattura, senza AI" : "Proposta dall'AI"}>
-                      {r.order_suggerito_motivo ? `da ${r.order_suggerito_motivo}` : "proposta AI"}
+                    <span title={r.order_suggerito_motivo ? tr("Riconosciuta dai codici della fattura, senza AI") : tr("Proposta dall'AI")}>
+                      {r.order_suggerito_motivo ? tr("da {order_suggerito_motivo}", { order_suggerito_motivo: r.order_suggerito_motivo }) : tr("proposta AI")}
                     </span>
                   </span>
                 </span>
@@ -139,7 +141,7 @@ export function FattureDaAssegnare({ companyId, puoModificare, variante = "fasci
                     disabled={assegna.isPending}
                     onClick={() => assegna.mutate({ costoId: r.costo!.id, orderId: r.suggerito!.id })}
                   >
-                    Assegna a {r.suggerito.order_code ?? "commessa"}
+                    {tr("Assegna a {commessa}", { commessa: r.suggerito.order_code ?? tr("commessa") })}
                     {r.suggerito.client_name ? ` · ${r.suggerito.client_name}` : ""}
                   </Button>
                 )}
@@ -148,25 +150,26 @@ export function FattureDaAssegnare({ companyId, puoModificare, variante = "fasci
           </ul>
           {conProposta.length > 5 && (
             <Button size="sm" variant="link" className="h-auto p-0 text-xs" onClick={() => setTutte((v) => !v)}>
-              {tutte ? "Mostra meno" : `Mostra tutte le ${conProposta.length} con la commessa proposta`}
+              {tutte ? tr("Mostra meno") : tr("Mostra tutte le {n} con la commessa proposta", { n: conProposta.length })}
             </Button>
           )}
         </>
       ) : null}
       {righe.length > conProposta.length && (
         <p className="text-xs text-muted-foreground">
-          {righe.length - conProposta.length} senza proposta: apri la fattura e scegli la commessa, oppure segna il fornitore
-          come «Spese generali» nei tipi dei fornitori.
+          {tr("{n} senza proposta: apri la fattura e scegli la commessa, oppure segna il fornitore come «Spese generali» nei tipi dei fornitori.", { n: righe.length - conProposta.length })}
           {puoModificare && (
             <Button size="sm" variant="link" className="ml-1 h-auto p-0 text-xs" disabled={daCodici.isPending} onClick={() => daCodici.mutate()}>
-              Cerca da CUP, CIG e codici commessa
+              {tr("Cerca da CUP, CIG e codici commessa")}
             </Button>
           )}
         </p>
       )}
     </>
   );
-  const descrizione = `In tutti gli anni. ${conProposta.length > 0 ? `${conProposta.length} con la commessa proposta. ` : ""}Il margine non le conta finché non hanno la commessa.`;
+  const descrizione = conProposta.length > 0
+    ? tr("In tutti gli anni. {n} con la commessa proposta. Il margine non le conta finché non hanno la commessa.", { n: conProposta.length })
+    : tr("In tutti gli anni. Il margine non le conta finché non hanno la commessa.");
 
   if (variante === "pillola") {
     return (
@@ -174,18 +177,18 @@ export function FattureDaAssegnare({ companyId, puoModificare, variante = "fasci
         <button
           type="button"
           onClick={() => setAperto(true)}
-          title={`${righe.length} fatture senza commessa · ${formatCurrency(totale)}`}
+          title={tr("{n} fatture senza commessa · {totale}", { n: righe.length, totale: formatCurrency(totale) })}
           className="inline-flex h-7 items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-2.5 text-xs font-medium text-amber-900 hover:bg-amber-100 max-md:hidden dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
         >
           <FolderInput className="h-3.5 w-3.5" aria-hidden="true" />
-          Senza commessa
+          {tr("Senza commessa")}
           <span className="tabular-nums">{righe.length}</span>
         </button>
         <Dialog open={aperto} onOpenChange={setAperto}>
           <DialogContent className="max-h-[85vh] overflow-auto sm:max-w-4xl">
             <DialogHeader>
               <DialogTitle>
-                {righe.length} {righe.length === 1 ? "fattura registrata" : "fatture registrate"} senza commessa · {formatCurrency(totale)}
+                {tr(righe.length === 1 ? "{n} fattura registrata senza commessa · {totale}" : "{n} fatture registrate senza commessa · {totale}", { n: righe.length, totale: formatCurrency(totale) })}
               </DialogTitle>
               <DialogDescription>{descrizione}</DialogDescription>
             </DialogHeader>
@@ -202,7 +205,7 @@ export function FattureDaAssegnare({ companyId, puoModificare, variante = "fasci
       <button type="button" aria-expanded={aperto} onClick={() => setAperto((v) => !v)} className="flex w-full flex-wrap items-center gap-x-2 gap-y-0.5 text-left">
         <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${aperto ? "" : "-rotate-90"}`} aria-hidden="true" />
         <span className="text-sm font-semibold">
-          {righe.length} {righe.length === 1 ? "fattura registrata" : "fatture registrate"} senza commessa · {formatCurrency(totale)}
+          {tr(righe.length === 1 ? "{n} fattura registrata senza commessa · {totale}" : "{n} fatture registrate senza commessa · {totale}", { n: righe.length, totale: formatCurrency(totale) })}
         </span>
         <span className="text-xs text-muted-foreground">{descrizione}</span>
       </button>

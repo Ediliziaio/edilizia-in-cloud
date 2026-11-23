@@ -3,6 +3,7 @@ import {
   FileEdit, CheckCircle2, XCircle, AlertCircle, Ban, Send, Clock,
 } from "lucide-react";
 import type { StatoDocumento } from "@/types/fatturazione";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const CONFIG: Record<string, {
   label: string;
@@ -77,6 +78,7 @@ interface StatoBadgeProps {
 }
 
 export function StatoBadge({ stato, className }: StatoBadgeProps) {
+  const t = useT();
   const config = CONFIG[stato] ?? CONFIG.bozza;
   const Icon = config.icon;
 
@@ -89,7 +91,7 @@ export function StatoBadge({ stato, className }: StatoBadgeProps) {
       )}
     >
       <Icon className="h-3 w-3" />
-      {config.label}
+      {t(config.label)}
     </span>
   );
 }

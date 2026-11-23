@@ -42,6 +42,7 @@ import { avvisoEmissione } from "@/lib/fatturazione/emissioneBozza";
 import { emessaMaiUscita } from "@/lib/fatturazione/correggibile";
 import { annoDelDocumento } from "@/lib/fatturazione/primaEmissione";
 import { AvvisoNumerazione } from "@/components/fatturazione/AvvisoNumerazione";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const NC_ALLOWED_STATES = ["emessa", "consegnata", "inviata_sdi", "accettata", "pagata", "parzialmente_pagata"];
 const TIPI_PAGABILI = ["fattura", "fattura_pa", "parcella", "fattura_accompagnatoria", "nota_debito"];
@@ -73,6 +74,7 @@ const TIPO_LABELS: Record<string, string> = {
 };
 
 export default function DocumentoDetail() {
+  const t = useT();
   const { id: idIndirizzo } = useParams();
   const id = useIdDocumento(idIndirizzo);
   const inPopup = useDentroPopupDocumento();
@@ -111,7 +113,7 @@ export default function DocumentoDetail() {
 
   const canCreateNC = !fatturazioneEsterna && NC_ALLOWED_STATES.includes(doc.stato) && ["fattura", "fattura_pa", "parcella", "fattura_accompagnatoria"].includes(doc.tipo);
   const stato = STATO_LABELS[doc.stato] ?? { label: doc.stato, variant: "secondary" as const };
-  const tipoLabel = TIPO_LABELS[doc.tipo] ?? doc.tipo;
+  const tipoLabel = TIPO_LABELS[doc.tipo] && !/^TD\d/.test(TIPO_LABELS[doc.tipo]) ? t(TIPO_LABELS[doc.tipo]) : (TIPO_LABELS[doc.tipo] ?? doc.tipo);
   // Al netto delle note di credito, come l'incasso sul database.
   const residuo = residuoDaIncassare(doc);
   const credito = creditoCliente(doc);
@@ -136,7 +138,7 @@ export default function DocumentoDetail() {
       setNcLoading(true);
       const prefilled = await creaNotaCredito(doc.id, modalita);
       navigate("/azienda/documenti/nuovo?tipo=nota_credito", { state: { prefilled } });
-    } catch (err: unknown) { toast.error("Errore nella creazione della NC", { description: getErrorMessage(err) }); }
+    } catch (err: unknown) { toast.error(t("Errore nella creazione della NC"), { description: getErrorMessage(err) }); }
     finally { setNcLoading(false); }
   };
 
@@ -146,27 +148,27 @@ export default function DocumentoDetail() {
     if (pdfBusy) return;
     setPdfBusy(true);
     setPdfMessaggio(salva
-      ? "Preparazione della stampa. Per salvare il PDF scegli «Salva come PDF» nel dialogo del browser: non è un download automatico."
-      : "Preparazione del documento per la stampa…");
+      ? t("Preparazione della stampa. Per salvare il PDF scegli «Salva come PDF» nel dialogo del browser: non è un download automatico.")
+      : t("Preparazione del documento per la stampa…"));
     try {
       await downloadNativePDF(doc.id, doc.numero);
-      setPdfMessaggio("Stampa richiesta. Se il dialogo non compare nel browser integrato, apri il portale nel browser esterno e riprova. Nessun documento è stato emesso o inviato.");
+      setPdfMessaggio(t("Stampa richiesta. Se il dialogo non compare nel browser integrato, apri il portale nel browser esterno e riprova. Nessun documento è stato emesso o inviato."));
     } catch (err: unknown) {
-      setPdfMessaggio(`PDF non preparato: ${getErrorMessage(err)}`);
-      toast.error("Errore nella preparazione del PDF", { description: getErrorMessage(err) });
+      setPdfMessaggio(t("PDF non preparato: {errore}", { errore: t(getErrorMessage(err)) }));
+      toast.error(t("Errore nella preparazione del PDF"), { description: getErrorMessage(err) });
     } finally { setPdfBusy(false); }
   };
 
   const handleApriPdf = async () => {
     if (pdfBusy) return;
     setPdfBusy(true);
-    setPdfMessaggio("Apertura del documento in una nuova scheda…");
+    setPdfMessaggio(t("Apertura del documento in una nuova scheda…"));
     try {
       await apriDocumentoInScheda(doc.id);
-      setPdfMessaggio("Documento aperto nella nuova scheda. Per ottenere un PDF usa la stampa del browser.");
+      setPdfMessaggio(t("Documento aperto nella nuova scheda. Per ottenere un PDF usa la stampa del browser."));
     } catch (err: unknown) {
-      setPdfMessaggio(`Documento non aperto: ${getErrorMessage(err)}`);
-      toast.error("Impossibile aprire il PDF", { description: getErrorMessage(err) });
+      setPdfMessaggio(t("Documento non aperto: {errore}", { errore: t(getErrorMessage(err)) }));
+      toast.error(t("Impossibile aprire il PDF"), { description: getErrorMessage(err) });
     } finally { setPdfBusy(false); }
   };
 
@@ -177,7 +179,7 @@ export default function DocumentoDetail() {
   const handleDownloadXML = async () => {
     try {
       await scaricaXmlFattura(doc, azienda as AnagraficaAzienda | undefined);
-    } catch (err: unknown) { toast.error("XML non scaricato", { description: getErrorMessage(err) }); }
+    } catch (err: unknown) { toast.error(t("XML non scaricato"), { description: getErrorMessage(err) }); }
   };
 
   const handleInviaSDI = () => {
@@ -196,9 +198,9 @@ export default function DocumentoDetail() {
     try {
       setConvertLoading(true);
       const newDoc = await convertiProformaInFattura(doc.id);
-      toast.success("Convertito in fattura");
+      toast.success(t("Convertito in fattura"));
       navigate(`/azienda/documenti/${newDoc.id}`);
-    } catch (err: unknown) { toast.error(getErrorMessage(err)); }
+    } catch (err: unknown) { toast.error(t(getErrorMessage(err))); }
     finally { setConvertLoading(false); }
   };
 
@@ -214,43 +216,43 @@ export default function DocumentoDetail() {
       {isProforma && (
         <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 flex items-center gap-2 max-sm:p-2 max-sm:text-xs">
           <AlertTriangle className="h-5 w-5 text-destructive max-sm:hidden" />
-          <span className="font-medium text-destructive">DOCUMENTO NON FISCALE — Proforma</span>
+          <span className="font-medium text-destructive">{t("DOCUMENTO NON FISCALE — Proforma")}</span>
         </div>
       )}
 
       {/* Titolo e ritorno ai documenti. */}
       <div className="flex items-center justify-between gap-3 max-sm:flex-col max-sm:items-stretch max-sm:gap-1">
         {!inPopup && <Button variant="outline" size="sm" className="w-fit gap-1.5 max-sm:hidden" onClick={() => navigate("/azienda/documenti")}>
-          <ArrowLeft className="h-4 w-4" /> Torna ai documenti
+          <ArrowLeft className="h-4 w-4" /> {t("Torna ai documenti")}
         </Button>}
         <div className="sm:text-right">
           <div className="flex items-center gap-2 sm:justify-end max-sm:flex-wrap max-sm:gap-1.5">
-            <h1 className="text-xl font-semibold max-sm:text-lg max-sm:leading-tight">{tipoLabel} numero {doc.numero}</h1>
+            <h1 className="text-xl font-semibold max-sm:text-lg max-sm:leading-tight">{t("{tipoLabel} numero {numero}", { tipoLabel: String(tipoLabel ?? ""), numero: String(doc.numero ?? "") })}</h1>
             {(!fase || ["pagata", "parzialmente_pagata", "scaduta", "stornata"].includes(doc.stato)) && (
-              <Badge variant={stato.variant}>{stato.label}</Badge>
+              <Badge variant={stato.variant}>{t(stato.label)}</Badge>
             )}
             {fase && <FaseSdiBadge doc={doc} />}
           </div>
           <p className="text-sm text-muted-foreground max-sm:text-xs">
             {doc.cliente_snapshot?.ragione_sociale} — {formatDateShort(doc.data_emissione)}
             {/* Mobile: la scadenza sta qui (il riquadro Informazioni è nascosto). */}
-            {doc.data_scadenza && <span className="sm:hidden"> · scade {formatDateShort(doc.data_scadenza)}</span>}
+            {doc.data_scadenza && <span className="sm:hidden">{" "}{t("· scade {data_scadenza}", { data_scadenza: formatDateShort(doc.data_scadenza) })}</span>}
           </p>
         </div>
       </div>
 
-      {fatturazioneEsterna && <p role="status" className="mx-auto w-full max-w-4xl rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">L'azienda usa la fatturazione esterna. Puoi consultare e scaricare questo documento; per completare le bozze nell'editor verifica la <Link className="font-medium underline" to="/azienda/impostazioni/fatturazione">modalità di fatturazione</Link>.</p>}
+      {fatturazioneEsterna && <p role="status" className="mx-auto w-full max-w-4xl rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{t("L'azienda usa la fatturazione esterna. Puoi consultare e scaricare questo documento; per completare le bozze nell'editor verifica la")} <Link className="font-medium underline" to="/azienda/impostazioni/fatturazione">{t("modalità di fatturazione")}</Link>.</p>}
       {/* Le azioni sul documento, tutte in fila e con il loro nome. */}
       <div className="mx-auto flex w-full max-w-4xl flex-wrap items-center justify-center gap-2 max-sm:gap-1.5 max-sm:[&_a]:h-8 max-sm:[&_a]:text-xs max-sm:[&_button]:h-8 max-sm:[&_button]:px-2.5 max-sm:[&_button]:text-xs">
         {/* Modifica: finché non è uscita — bozza, scartata dallo SDI, oppure emessa e mai trasmessa. */}
         {!isPreventivo && !isProforma || doc.stato === "bozza" ? (
           modificabile && !fatturazioneEsterna ? (
             <Button size="sm" asChild className="gap-1.5">
-              <Link to={`/azienda/documenti/${doc.id}`}><Pencil className="h-4 w-4" />{fase === "scartata" ? "Correggi" : "Modifica"}</Link>
+              <Link to={`/azienda/documenti/${doc.id}`}><Pencil className="h-4 w-4" />{fase === "scartata" ? t("Correggi") : t("Modifica")}</Link>
             </Button>
           ) : (
-            <span title={fatturazioneEsterna ? "L'editor richiede la fatturazione nativa. Verifica la modalità nelle impostazioni di fatturazione." : "Questa fattura è già uscita (inviata allo SDI, incassata o con una nota collegata): non si modifica. Per correggerla emetti una nota di credito."} className="inline-flex">
-              <Button size="sm" disabled className="gap-1.5"><Lock className="h-4 w-4" />Modifica</Button>
+            <span title={fatturazioneEsterna ? t("L'editor richiede la fatturazione nativa. Verifica la modalità nelle impostazioni di fatturazione.") : t("Questa fattura è già uscita (inviata allo SDI, incassata o con una nota collegata): non si modifica. Per correggerla emetti una nota di credito.")} className="inline-flex">
+              <Button size="sm" disabled className="gap-1.5"><Lock className="h-4 w-4" />{t("Modifica")}</Button>
             </span>
           )
         ) : null}
@@ -260,56 +262,54 @@ export default function DocumentoDetail() {
             <AlertDialogTrigger asChild>
               <Button size="sm" className="gap-1.5" disabled={emittiMutation.isPending}>
                 {emittiMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-                {emittiMutation.isPending ? "Emissione…" : "Emetti"}
+                {emittiMutation.isPending ? t("Emissione…") : t("Emetti")}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Emetti documento</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Emetti questa {tipoLabel}? {avvisoEmissione(doc)} L'emissione non può essere annullata.
-                </AlertDialogDescription>
+                <AlertDialogTitle>{t("Emetti documento")}</AlertDialogTitle>
+                <AlertDialogDescription>{t("Emetti questa {tipoLabel}? {doc} L'emissione non può essere annullata.", { tipoLabel: String(tipoLabel ?? ""), doc: String(avvisoEmissione(doc) ?? "") })}</AlertDialogDescription>
                 {/* La numerazione, finché si è in tempo (16/11/2026). */}
                 <AvvisoNumerazione companyId={doc.company_id} tipo={doc.tipo} anno={annoDelDocumento(doc)} />
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Annulla</AlertDialogCancel>
+                <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
                 <AlertDialogAction onClick={handleEmetti} disabled={emittiMutation.isPending}>
-                  {emittiMutation.isPending ? "Emissione in corso…" : "Emetti documento"}
+                  {emittiMutation.isPending ? t("Emissione in corso…") : t("Emetti documento")}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
         )}
-        {!fatturazioneEsterna && siPuoDuplicare(doc.tipo) && <Button size="sm" variant="secondary" className="gap-1.5 max-md:hidden" onClick={handleDuplica}><Copy className="h-4 w-4" />Duplica</Button>}
-        <Button size="sm" variant="secondary" className="gap-1.5 max-sm:hidden" disabled={pdfBusy} onClick={() => void handleApriPdf()}><FileText className="h-4 w-4" />Apri PDF</Button>
-        <Button size="sm" variant="secondary" className="gap-1.5 max-sm:hidden" disabled={pdfBusy} onClick={() => void handleStampa(true)}><Save className="h-4 w-4" />Salva PDF</Button>
-        <Button size="sm" variant="secondary" className="gap-1.5 max-sm:hidden" disabled={pdfBusy} onClick={() => void handleStampa(false)}><Printer className="h-4 w-4" />Stampa</Button>
+        {!fatturazioneEsterna && siPuoDuplicare(doc.tipo) && <Button size="sm" variant="secondary" className="gap-1.5 max-md:hidden" onClick={handleDuplica}><Copy className="h-4 w-4" />{t("Duplica")}</Button>}
+        <Button size="sm" variant="secondary" className="gap-1.5 max-sm:hidden" disabled={pdfBusy} onClick={() => void handleApriPdf()}><FileText className="h-4 w-4" />{t("Apri PDF")}</Button>
+        <Button size="sm" variant="secondary" className="gap-1.5 max-sm:hidden" disabled={pdfBusy} onClick={() => void handleStampa(true)}><Save className="h-4 w-4" />{t("Salva PDF")}</Button>
+        <Button size="sm" variant="secondary" className="gap-1.5 max-sm:hidden" disabled={pdfBusy} onClick={() => void handleStampa(false)}><Printer className="h-4 w-4" />{t("Stampa")}</Button>
         {doc.stato !== "bozza" && (
-          <Button size="sm" variant="secondary" className="gap-1.5" onClick={() => setEmailAperta(true)}><Mail className="h-4 w-4" />Invia per e-mail</Button>
+          <Button size="sm" variant="secondary" className="gap-1.5" onClick={() => setEmailAperta(true)}><Mail className="h-4 w-4" />{t("Invia per e-mail")}</Button>
         )}
 
         {!fatturazioneEsterna && (isProforma || isPreventivo) && doc.stato !== "annullata" && (
           <Button size="sm" onClick={handleConvertToFattura} disabled={convertLoading} className="gap-1.5">
             {convertLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            Converti in Fattura
+            {t("Converti in Fattura")}
           </Button>
         )}
 
         {isPreventivo && doc.stato === "emessa" && (
           <>
             <Button size="sm" onClick={() => handleStatoPreventivo("accettata")} disabled={updateMutation.isPending} className="gap-1.5">
-              <CheckCircle className="h-4 w-4" /> Accettato
+              <CheckCircle className="h-4 w-4" /> {t("Accettato")}
             </Button>
             <Button size="sm" variant="destructive" onClick={() => handleStatoPreventivo("annullata")} disabled={updateMutation.isPending}>
-              Rifiutato
+              {t("Rifiutato")}
             </Button>
           </>
         )}
 
         {canSegnaPagata && (
           <Button variant="outline" size="sm" onClick={() => setPagaAperto(true)} className="gap-1.5">
-            <CreditCard className="h-4 w-4" /> Segna pagata
+            <CreditCard className="h-4 w-4" /> {t("Segna pagata")}
           </Button>
         )}
         {/* Un incasso vero (registra_incasso_atomico), non più la sola etichetta. */}
@@ -320,23 +320,23 @@ export default function DocumentoDetail() {
             <AlertDialogTrigger asChild>
               <Button variant="outline" size="sm" disabled={ncLoading} className="gap-1.5 max-md:hidden">
                 <FileWarning className="h-4 w-4" />
-                {ncLoading ? "Creazione..." : "Emetti NC"}
+                {ncLoading ? t("Creazione...") : t("Emetti NC")}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Crea Nota di Credito</AlertDialogTitle>
-                <AlertDialogDescription className="max-sm:sr-only">Scegli la modalità di storno per la fattura N° {doc.numero}</AlertDialogDescription>
+                <AlertDialogTitle>{t("Crea Nota di Credito")}</AlertDialogTitle>
+                <AlertDialogDescription className="max-sm:sr-only">{t("Scegli la modalità di storno per la fattura N° {numero}", { numero: String(doc.numero ?? "") })}</AlertDialogDescription>
               </AlertDialogHeader>
               <div className="space-y-3 py-2 max-sm:space-y-2 max-sm:py-0">
                 <Button variant="outline" className="w-full justify-start h-auto py-3 max-sm:py-2" onClick={() => handleCreaNC("totale")}>
-                  <div className="text-left"><div className="font-medium">Storno totale automatico</div><div className="text-xs text-muted-foreground">Tutte le righe della fattura, con sconti e contributi</div></div>
+                  <div className="text-left"><div className="font-medium">{t("Storno totale automatico")}</div><div className="text-xs text-muted-foreground">{t("Tutte le righe della fattura, con sconti e contributi")}</div></div>
                 </Button>
                 <Button variant="outline" className="w-full justify-start h-auto py-3 max-sm:py-2" onClick={() => handleCreaNC("parziale")}>
-                  <div className="text-left"><div className="font-medium">Storno parziale</div><div className="text-xs text-muted-foreground">Apri l'editor per inserire le righe</div></div>
+                  <div className="text-left"><div className="font-medium">{t("Storno parziale")}</div><div className="text-xs text-muted-foreground">{t("Apri l'editor per inserire le righe")}</div></div>
                 </Button>
               </div>
-              <AlertDialogFooter><AlertDialogCancel>Annulla</AlertDialogCancel></AlertDialogFooter>
+              <AlertDialogFooter><AlertDialogCancel>{t("Annulla")}</AlertDialogCancel></AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
         )}
@@ -371,9 +371,9 @@ export default function DocumentoDetail() {
         {!["ddt", "preventivo"].includes(doc.tipo) && (
           <KpiMobili
             voci={[
-              { label: "Totale", valore: formatCurrency(doc.totale_documento) },
-              { label: "Da incassare", valore: formatCurrency(Math.max(0, residuo)), tono: residuo > 0.005 ? "text-rose-600" : undefined },
-              ...(credito > 0.005 ? [{ label: "Credito del cliente", valore: formatCurrency(credito), tono: "text-amber-600" }] : []),
+              { label: t("Totale"), valore: formatCurrency(doc.totale_documento) },
+              { label: t("Da incassare"), valore: formatCurrency(Math.max(0, residuo)), tono: residuo > 0.005 ? "text-rose-600" : undefined },
+              ...(credito > 0.005 ? [{ label: t("Credito del cliente"), valore: formatCurrency(credito), tono: "text-amber-600" }] : []),
             ]}
           />
         )}
@@ -384,7 +384,7 @@ export default function DocumentoDetail() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[13px] font-medium leading-tight">{r.descrizione}</p>
                   <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground">
-                    {r.quantita} {r.unita_misura} × {formatCurrency(r.prezzo_unitario)}{doc.tipo !== "ddt" ? ` · IVA ${r.aliquota_iva}%` : ""}
+                    {r.quantita} {r.unita_misura} × {formatCurrency(r.prezzo_unitario)}{doc.tipo !== "ddt" ? ` · ${t("IVA {aliquota_iva}%", { aliquota_iva: String(r.aliquota_iva ?? "") })}` : ""}
                   </p>
                 </div>
                 {doc.tipo !== "ddt" && <span className="shrink-0 text-[13px] font-semibold tabular-nums">{formatCurrency(r.imponibile)}</span>}
@@ -396,21 +396,21 @@ export default function DocumentoDetail() {
 
       {/* L'anteprima, al centro, come sarà sul foglio. Mobile no: vedi sopra. */}
       {pdfMessaggio && <p role="status" className="rounded-md border p-3 text-sm">{pdfMessaggio}</p>}
-      <section className="max-sm:hidden" aria-label="Anteprima del documento">
+      <section className="max-sm:hidden" aria-label={t("Anteprima del documento")}>
         <div className="mb-3 text-center">
-          <h2 className="text-lg font-semibold">Anteprima del documento</h2>
-          <p className="text-sm text-muted-foreground">per vedere l'originale premi «Apri PDF»</p>
+          <h2 className="text-lg font-semibold">{t("Anteprima del documento")}</h2>
+          <p className="text-sm text-muted-foreground">{t("per vedere l'originale premi «Apri PDF»")}</p>
         </div>
         <div className="mx-auto flex max-w-4xl justify-end pb-1.5">
           <Link to="/azienda/impostazioni/fatturazione?tab=nativa&sezione=pdf" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
-            Personalizza lo stile delle tue fatture <Pencil className="h-3.5 w-3.5" />
+            {t("Personalizza lo stile delle tue fatture")} <Pencil className="h-3.5 w-3.5" />
           </Link>
         </div>
         <div className="mx-auto flex max-w-4xl justify-center overflow-x-auto rounded-xl border bg-muted/30 p-6 shadow-inner">
           <PreviewFattura documento={doc} azienda={azienda ?? null} logoAziendale={effectiveCompany?.logo_url} scale={0.9} />
         </div>
         <p className="mx-auto mt-2 max-w-4xl text-center text-xs text-muted-foreground">
-          Questa anteprima può differire leggermente dal PDF generato: premi «Apri PDF» per il documento reale.
+          {t("Questa anteprima può differire leggermente dal PDF generato: premi «Apri PDF» per il documento reale.")}
         </p>
       </section>
 
@@ -419,13 +419,13 @@ export default function DocumentoDetail() {
         <div className="contents">
           {/* Info Card. Mobile no: tipo, numero, data e cliente sono nel titolo. */}
           <Card className="max-sm:hidden">
-            <CardHeader className="pb-3"><CardTitle className="text-sm">Informazioni</CardTitle></CardHeader>
+            <CardHeader className="pb-3"><CardTitle className="text-sm">{t("Informazioni")}</CardTitle></CardHeader>
             <CardContent className="space-y-2 text-sm">
-              <div className="flex justify-between"><span className="text-muted-foreground">Tipo</span><span>{tipoLabel}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Numero</span><span className="font-mono">{doc.numero}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Data emissione</span><span>{formatDateShort(doc.data_emissione)}</span></div>
-              {doc.data_scadenza && <div className="flex justify-between"><span className="text-muted-foreground">Data scadenza</span><span>{formatDateShort(doc.data_scadenza)}</span></div>}
-              <div className="flex justify-between"><span className="text-muted-foreground">Cliente</span><span>{doc.cliente_snapshot?.ragione_sociale || "—"}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">{t("Tipo")}</span><span>{tipoLabel}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">{t("Numero")}</span><span className="font-mono">{doc.numero}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">{t("Data emissione")}</span><span>{formatDateShort(doc.data_emissione)}</span></div>
+              {doc.data_scadenza && <div className="flex justify-between"><span className="text-muted-foreground">{t("Data scadenza")}</span><span>{formatDateShort(doc.data_scadenza)}</span></div>}
+              <div className="flex justify-between"><span className="text-muted-foreground">{t("Cliente")}</span><span>{doc.cliente_snapshot?.ragione_sociale || "—"}</span></div>
               {doc.cliente_snapshot?.partita_iva && <div className="flex justify-between"><span className="text-muted-foreground">P.IVA</span><span className="font-mono">{doc.cliente_snapshot.partita_iva}</span></div>}
             </CardContent>
           </Card>
@@ -434,19 +434,19 @@ export default function DocumentoDetail() {
               si registra con «Segna pagata». */}
           {!["ddt", "preventivo"].includes(doc.tipo) && (
             <Card className="max-sm:hidden">
-              <CardHeader className="pb-3"><CardTitle className="text-sm">Pagamenti</CardTitle></CardHeader>
+              <CardHeader className="pb-3"><CardTitle className="text-sm">{t("Pagamenti")}</CardTitle></CardHeader>
               <CardContent className="space-y-3">
                 <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div><p className="text-xs text-muted-foreground">Totale</p><p className="font-semibold">{formatCurrency(doc.totale_documento)}</p></div>
-                  <div><p className="text-xs text-muted-foreground">Da pagare</p><p className="font-semibold">{formatCurrency(doc.totale_da_pagare)}</p></div>
-                  <div><p className="text-xs text-muted-foreground">Incassato</p><p className="font-semibold text-emerald-600">{formatCurrency(doc.importo_pagato)}</p></div>
-                  <div><p className="text-xs text-muted-foreground">Residuo</p><p className={`font-semibold ${residuo > 0 ? "text-destructive" : ""}`}>{formatCurrency(residuo)}</p></div>
+                  <div><p className="text-xs text-muted-foreground">{t("Totale")}</p><p className="font-semibold">{formatCurrency(doc.totale_documento)}</p></div>
+                  <div><p className="text-xs text-muted-foreground">{t("Da pagare")}</p><p className="font-semibold">{formatCurrency(doc.totale_da_pagare)}</p></div>
+                  <div><p className="text-xs text-muted-foreground">{t("Incassato")}</p><p className="font-semibold text-emerald-600">{formatCurrency(doc.importo_pagato)}</p></div>
+                  <div><p className="text-xs text-muted-foreground">{t("Residuo")}</p><p className={`font-semibold ${residuo > 0 ? "text-destructive" : ""}`}>{formatCurrency(residuo)}</p></div>
                 </div>
                 {credito > 0.005 && (
-                  <p className="text-xs text-amber-700">Il cliente ha pagato {formatCurrency(credito)} in più dopo la nota di credito: va rimborsato o compensato.</p>
+                  <p className="text-xs text-amber-700">{t("Il cliente ha pagato {credito} in più dopo la nota di credito: va rimborsato o compensato.", { credito: formatCurrency(credito) })}</p>
                 )}
                 <Progress value={paymentProgress} className="h-2" />
-                <p className="text-xs text-muted-foreground text-center">{Math.round(paymentProgress)}% incassato</p>
+                <p className="text-xs text-muted-foreground text-center">{t("{valore}% incassato", { valore: Math.round(paymentProgress) })}</p>
                 {/* Storico, annulla incasso, segna pagata, abbina al bonifico (30/10/2026). */}
                 {doc.stato !== "bozza" && <IncassiFattura doc={doc} pagabile={canSegnaPagata} />}
               </CardContent>
@@ -460,19 +460,19 @@ export default function DocumentoDetail() {
           {/* Mobile no: codici di trasmissione; fase e motivo sono nel riquadro in cima. */}
           {doc.sdi_id_trasmissione && (
             <Card className="max-sm:hidden">
-              <CardHeader className="pb-3"><CardTitle className="text-sm">Stato SDI</CardTitle></CardHeader>
+              <CardHeader className="pb-3"><CardTitle className="text-sm">{t("Stato SDI")}</CardTitle></CardHeader>
               <CardContent className="space-y-2 text-sm">
-                {fase && <div className="flex justify-between gap-2"><span className="text-muted-foreground">Fase</span><FaseSdiBadge doc={doc} /></div>}
-                {doc.sdi_identificativo && <div className="flex justify-between gap-2"><span className="text-muted-foreground">Identificativo SdI</span><span className="font-mono text-xs">{doc.sdi_identificativo}</span></div>}
-                <div className="flex justify-between gap-2"><span className="text-muted-foreground">Trasmissione</span><span className="font-mono text-xs truncate">{doc.sdi_id_trasmissione}</span></div>
+                {fase && <div className="flex justify-between gap-2"><span className="text-muted-foreground">{t("Fase")}</span><FaseSdiBadge doc={doc} /></div>}
+                {doc.sdi_identificativo && <div className="flex justify-between gap-2"><span className="text-muted-foreground">{t("Identificativo SdI")}</span><span className="font-mono text-xs">{doc.sdi_identificativo}</span></div>}
+                <div className="flex justify-between gap-2"><span className="text-muted-foreground">{t("Trasmissione")}</span><span className="font-mono text-xs truncate">{doc.sdi_id_trasmissione}</span></div>
                 {doc.sdi_data_consegna && (
                   <div className="flex justify-between gap-2">
-                    <span className="text-muted-foreground">Esito arrivato il</span>
-                    <span>{new Date(doc.sdi_data_consegna).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" })}</span>
+                    <span className="text-muted-foreground">{t("Esito arrivato il")}</span>
+                    <span>{new Date(doc.sdi_data_consegna).toLocaleString(intlCampo(), { dateStyle: "short", timeStyle: "short" })}</span>
                   </div>
                 )}
                 {fase === "scartata" && motivoSdi(doc.sdi_errori) && (
-                  <p className="text-xs text-destructive">Motivo dello scarto: {motivoSdi(doc.sdi_errori)}</p>
+                  <p className="text-xs text-destructive">{t("Motivo dello scarto: {sdi_errori}", { sdi_errori: String(motivoSdi(doc.sdi_errori) ?? "") })}</p>
                 )}
               </CardContent>
             </Card>
@@ -498,11 +498,11 @@ export default function DocumentoDetail() {
           {/* Linked Documents */}
           {doc.documento_correlato_id && (
             <Card className="max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none">
-              <CardHeader className="pb-3 max-sm:hidden"><CardTitle className="text-sm">Documenti collegati</CardTitle></CardHeader>
+              <CardHeader className="pb-3 max-sm:hidden"><CardTitle className="text-sm">{t("Documenti collegati")}</CardTitle></CardHeader>
               <CardContent className="max-sm:p-0">
                 <Button variant="outline" size="sm" asChild className="w-full max-sm:h-8 max-sm:text-xs">
                   <Link to={`/azienda/documenti/${doc.documento_correlato_id}/dettaglio`}>
-                    <ExternalLink className="h-4 w-4 mr-1" /> Visualizza documento originale
+                    <ExternalLink className="h-4 w-4 mr-1" /> {t("Visualizza documento originale")}
                   </Link>
                 </Button>
               </CardContent>

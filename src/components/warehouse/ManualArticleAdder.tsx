@@ -31,6 +31,7 @@ import { toast } from "sonner";
 import { erroreQuantitaMovimento, leggiQuantitaMovimento } from "@/lib/magazzino/quantitaMovimento";
 import { supabase } from "@/integrations/supabase/client";
 import type { BatchScanEntry } from "./BatchBarcodeScanner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface StockItem {
   id: string;
@@ -67,6 +68,7 @@ interface Props {
 }
 
 export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesChange, showPurchasePrice = false, mode = "scarico", availabilityOverrides }: Props) {
+  const tr = useT();
   const incoming = mode === "carico";
   const availableFor = useCallback((item: StockItem) => availabilityOverrides?.get(item.id) ?? Number(item.quantity_available ?? item.quantity), [availabilityOverrides]);
   const [adding, setAdding] = useState(false);
@@ -183,7 +185,7 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
     const qty = leggiQuantitaMovimento(pendingQty);
     const existingQuantity = entries.filter((e) => e.stockItemId === pendingItem.id).reduce((sum, e) => sum + e.quantity, 0);
     const error = erroreQuantitaMovimento(qty, pendingItem.tracking_mode === "serialized", incoming ? undefined : Math.max(0, availableFor(pendingItem) - existingQuantity));
-    if (error || qty == null) { toast.error(error || "Quantità non valida"); return; }
+    if (error || qty == null) { toast.error(error || tr("Quantità non valida")); return; }
 
     // v8.6.112 — Se l'item viene dal listino (no warehouse_stock yet),
     // crea lo stock_item al volo con i dati del listino.
@@ -212,7 +214,7 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
         if (error) throw error;
         realStockItemId = inserted.id;
       } catch (err) {
-        toast.error("Articolo non aggiunto", { description: (err as Error).message });
+        toast.error(tr("Articolo non aggiunto"), { description: (err as Error).message });
         return;
       } finally { setAdding(false); }
     }
@@ -311,7 +313,7 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
   if (!warehouseId) {
     return (
       <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-center text-xs text-muted-foreground">
-        Seleziona prima il magazzino per aggiungere gli articoli.
+        {tr("Seleziona prima il magazzino per aggiungere gli articoli.")}
       </div>
     );
   }
@@ -322,7 +324,7 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
           quantità + bottone su seconda riga. Su desktop torna 3-col compatto. */}
       <div className="grid grid-cols-1 md:grid-cols-[1fr_5rem_auto] gap-2 items-end">
         <div className="space-y-1 md:col-span-1">
-          <Label className="text-xs">Articolo</Label>
+          <Label className="text-xs">{tr("Articolo")}</Label>
           <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
             <div className="relative">
               <PopoverTrigger asChild>
@@ -337,7 +339,7 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
                     <>
                       <Plus className="h-3.5 w-3.5 mr-2 opacity-50 shrink-0" />
                       <span className="text-muted-foreground truncate">
-                        Cerca articolo per nome o codice…
+                        {tr("Cerca articolo per nome o codice…")}
                       </span>
                     </>
                   )}
@@ -353,7 +355,7 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
                     setSearch("");
                   }}
                   className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition"
-                  aria-label="Cancella selezione"
+                  aria-label={tr("Cancella selezione")}
                 >
                   <XCircle className="h-4 w-4" />
                 </button>
@@ -368,7 +370,7 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
             >
               <Command shouldFilter={false}>
                 <CommandInput
-                  placeholder="Filtra per nome o codice…"
+                  placeholder={tr("Filtra per nome o codice…")}
                   value={search}
                   onValueChange={setSearch}
                 />
@@ -384,13 +386,13 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
                   {isLoading ? (
                     <div className="flex items-center justify-center py-6 text-xs text-muted-foreground">
                       <Loader2 className="h-3 w-3 animate-spin mr-2" />
-                      Caricamento…
+                      {tr("Caricamento…")}
                     </div>
                   ) : items.length === 0 ? (
                     <CommandEmpty className="py-6 text-center text-xs text-muted-foreground">
                       {debouncedSearch
-                        ? `Nessun articolo trovato per "${debouncedSearch}"`
-                        : "Nessun articolo in questo magazzino"}
+                        ? tr("Nessun articolo trovato per \"{debouncedSearch}\"", { debouncedSearch: String(debouncedSearch ?? "") })
+                        : tr("Nessun articolo in questo magazzino")}
                     </CommandEmpty>
                   ) : (
                     <CommandGroup>
@@ -411,7 +413,7 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
                                   da articoli del listino prodotti (mai ricevuti). */}
                               {item.source === "listino" ? (
                                 <Badge variant="outline" className="text-[10px] h-4 shrink-0 ml-auto bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300">
-                                  📋 Listino
+                                  {tr("📋 Listino")}
                                 </Badge>
                               ) : item.internal_code ? (
                                 <Badge variant="outline" className="text-[10px] h-4 shrink-0 ml-auto">
@@ -424,7 +426,7 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
                                 <>
                                   <PackageCheck className="h-2.5 w-2.5 text-blue-600" />
                                   <span className="text-blue-700 dark:text-blue-300">
-                                    Da listino · l'articolo verrà creato a magazzino
+                                    {tr("Da listino · l'articolo verrà creato a magazzino")}
                                     {showPurchasePrice && item.suggested_unit_cost != null ? ` · ${item.suggested_unit_cost.toFixed(2)}€` : ""}
                                   </span>
                                 </>
@@ -432,12 +434,12 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
                                 <>
                                   <PackageCheck className={`h-2.5 w-2.5 ${noStock ? "text-destructive" : "text-emerald-600"}`} />
                                   <span className={noStock ? "text-destructive" : "text-muted-foreground"}>
-                                    {incoming ? "Giacenza attuale:" : "Disponibile:"}{" "}
+                                    {incoming ? tr("Giacenza attuale:") : tr("Disponibile:")}{" "}
                                     <span className="font-semibold tabular-nums">{incoming ? item.quantity : availableFor(item)}</span>{" "}
-                                    {item.unita_misura || "unità"}
+                                    {item.unita_misura || tr("unità")}
                                   </span>
                                   {noStock && (
-                                    <Badge variant="destructive" className="text-[9px] h-4">esaurito</Badge>
+                                    <Badge variant="destructive" className="text-[9px] h-4">{tr("esaurito")}</Badge>
                                   )}
                                   {item.tracking_mode === "serialized" && (
                                     <Badge variant="secondary" className="text-[9px] h-4">SN</Badge>
@@ -460,12 +462,12 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
             Su desktop: layout 3-col inline come prima. */}
         <div className="flex gap-2 items-end md:contents">
           <div className="space-y-1 flex-1 md:flex-none">
-            <Label className="text-xs">Qtà</Label>
+            <Label className="text-xs">{tr("Qtà")}</Label>
             <Input
               type="number"
               min="0"
               step={pendingItem?.tracking_mode === "serialized" ? "1" : "any"}
-              aria-label="Quantità da aggiungere"
+              aria-label={tr("Quantità da aggiungere")}
               value={pendingQty}
               onChange={(e) => setPendingQty(e.target.value)}
               disabled={!pendingItem}
@@ -481,17 +483,17 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
             className="h-11 shrink-0 flex-1 md:flex-none md:h-9"
           >
             <Plus className="h-4 w-4 mr-1" />
-            Aggiungi
+            {tr("Aggiungi")}
           </Button>
         </div>
       </div>
 
-      {priceInvalid && <p role="alert" className="text-xs text-destructive">Inserisci un prezzo valido maggiore o uguale a zero.</p>}
+      {priceInvalid && <p role="alert" className="text-xs text-destructive">{tr("Inserisci un prezzo valido maggiore o uguale a zero.")}</p>}
       {quantityError && <p role="alert" className="text-xs text-destructive">{quantityError}</p>}
-      {isError && <p role="alert" className="text-sm text-destructive">Articoli non disponibili. <Button variant="link" onClick={() => void refetch()}>Riprova articoli</Button></p>}
+      {isError && <p role="alert" className="text-sm text-destructive">{tr("Articoli non disponibili.")} <Button variant="link" onClick={() => void refetch()}>{tr("Riprova articoli")}</Button></p>}
       {showPurchasePrice && pendingItem && (
         <div className="flex items-center gap-2">
-          <Label className="text-xs shrink-0">Prezzo acquisto €</Label>
+          <Label className="text-xs shrink-0">{tr("Prezzo acquisto €")}</Label>
           <Input
             type="number"
             inputMode="decimal"
@@ -499,10 +501,10 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
             step="0.01"
             value={pendingPrice}
             onChange={(e) => setPendingPrice(e.target.value)}
-            placeholder="dal listino"
+            placeholder={tr("dal listino")}
             className="h-11 w-32 text-right tabular-nums sm:h-9"
           />
-          <span className="text-[11px] text-muted-foreground">precompilato dal listino, modificabile</span>
+          <span className="text-[11px] text-muted-foreground">{tr("precompilato dal listino, modificabile")}</span>
         </div>
       )}
 
@@ -511,10 +513,10 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
         <div className="rounded-lg border bg-muted/20 p-3 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-              {incoming ? "Articoli da caricare" : "Articoli da prelevare"} ({entries.length})
+              {incoming ? tr("Articoli da caricare") : tr("Articoli da prelevare")} ({entries.length})
             </span>
             <span className="text-xs text-muted-foreground tabular-nums">
-              Quantità separate per articolo
+              {tr("Quantità separate per articolo")}
             </span>
           </div>
           <div className="space-y-1.5 max-h-[200px] overflow-y-auto">
@@ -537,11 +539,11 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
                       type="number"
                       min="0"
                       step={isSerialized ? "1" : "any"}
-                      aria-label={`Quantità ${entry.itemName || "articolo"}`}
+                      aria-label={tr("Quantità {articolo}", { articolo: entry.itemName || tr("articolo") })}
                       value={entry.quantity}
                       onChange={(e) => handleUpdateQty(entry.clientUuid, leggiQuantitaMovimento(e.target.value) ?? 0)}
                       disabled={qtyLocked}
-                      title={qtyLocked ? "Quantità = numero di seriali inseriti" : undefined}
+                      title={qtyLocked ? tr("Quantità = numero di seriali inseriti") : undefined}
                       className="h-7 w-16 text-right tabular-nums text-xs disabled:opacity-70"
                     />
                     <Button
@@ -550,15 +552,15 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
                       size="icon"
                       className="h-7 w-7 shrink-0"
                       onClick={() => handleRemoveEntry(entry.clientUuid)}
-                      aria-label="Rimuovi"
+                      aria-label={tr("Rimuovi")}
                     >
                       <X className="h-3 w-3 text-destructive" />
                     </Button>
                   </div>
 
                   {showPurchasePrice && <div className="flex flex-wrap items-center gap-2">
-                    <Label htmlFor={`prezzo-riga-${entry.clientUuid}`} className="text-xs">Prezzo unitario d’acquisto €</Label>
-                    <Input id={`prezzo-riga-${entry.clientUuid}`} aria-label={`Prezzo unitario ${entry.itemName || "articolo"}`} type="number" min="0" step="any" className="h-9 w-28 text-right" value={entry.purchasePrice ?? ""} onChange={event => {
+                    <Label htmlFor={`prezzo-riga-${entry.clientUuid}`} className="text-xs">{tr("Prezzo unitario d’acquisto €")}</Label>
+                    <Input id={`prezzo-riga-${entry.clientUuid}`} aria-label={tr("Prezzo unitario {articolo}", { articolo: entry.itemName || tr("articolo") })} type="number" min="0" step="any" className="h-9 w-28 text-right" value={entry.purchasePrice ?? ""} onChange={event => {
                       const value=event.target.value.trim();
                       onEntriesChange(entries.map(row => row.clientUuid === entry.clientUuid ? {...row,purchasePrice:value === "" ? undefined : Number(value)} : row));
                     }} />
@@ -568,16 +570,14 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
                   {isSerialized && (
                     <div className="space-y-1.5 border-t pt-1.5">
                       <div className="flex flex-wrap items-center gap-1">
-                        <span className="text-[10px] text-muted-foreground">
-                          Seriali / codici univoci ({entry.serialNumbers.length})
-                        </span>
+                        <span className="text-[10px] text-muted-foreground">{tr("Seriali / codici univoci ({n})", { n: entry.serialNumbers.length })}</span>
                         {entry.serialNumbers.map((sn) => (
                           <span key={sn} className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono">
                             {sn}
                             <button
                               type="button"
                               onClick={() => removeSerial(entry, sn)}
-                              aria-label={`Rimuovi seriale ${sn}`}
+                              aria-label={tr("Rimuovi seriale {sn}", { sn: String(sn ?? "") })}
                               className="text-muted-foreground hover:text-destructive"
                             >
                               <X className="h-2.5 w-2.5" />
@@ -595,7 +595,7 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
                               addSerial(entry, serialDraft[entry.clientUuid] ?? "");
                             }
                           }}
-                          placeholder="Codice univoco del pezzo + Invio (oppure scansiona)"
+                          placeholder={tr("Codice univoco del pezzo + Invio (oppure scansiona)")}
                           className="h-7 text-xs font-mono"
                         />
                         <Button

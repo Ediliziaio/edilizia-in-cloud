@@ -37,6 +37,7 @@ import { DetraibilitaAcquisti } from "@/components/fatturazione/DetraibilitaAcqu
 import { fiscalDate, fiscalVatGroups } from "@/lib/fatturazione/fiscalInsights";
 import { chiaveProtocolloIva, useRegistriIva } from "@/hooks/useRegistriIva";
 import { AssegnaProtocolliIva, GestioneSezionaliIva } from "@/components/fatturazione/ProtocolliIva";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 function etichettaAliquota(r: { rate: string; nature: string }): string {
   const aliquota = r.rate || "Da verificare";
@@ -58,6 +59,7 @@ export default function RegistroIVA({
   );
 }
 function RegistroContent({ onApriLiquidazione }: { onApriLiquidazione?: () => void }) {
+  const tr = useT();
   const company = useEffectiveCompanyId(),
     p = useFiscalPeriod();
   const search = p.params.get("q_iva") ?? "";
@@ -160,7 +162,7 @@ function RegistroContent({ onApriLiquidazione }: { onApriLiquidazione?: () => vo
   const [stampa, setStampa] = useState<string | null>(null);
   const anagrafica = useAnagraficaAzienda();
   if (!company)
-    return <p>Seleziona un’azienda per consultare i dati fiscali.</p>;
+    return <p>{tr("Seleziona un’azienda per consultare i dati fiscali.")}</p>;
   if (
     sales.isPending ||
     purchases.isPending ||
@@ -279,22 +281,19 @@ function RegistroContent({ onApriLiquidazione }: { onApriLiquidazione?: () => vo
           open
           onOpenChange={(v) => { if (!v) setStampa(null); }}
           htmlContent={stampa}
-          title="Registro IVA — anteprima di stampa"
+          title={tr("Registro IVA — anteprima di stampa")}
           fileName={`registro-iva-${side}-${p.dal}-${p.al}`}
           soloPdf
         />
       )}
       <FiscalSectionHeader
-        title="Registro IVA documentale"
+        title={tr("Registro IVA documentale")}
         description={
-          <>
-            Dal {fiscalDate(p.dal)} al {fiscalDate(p.al)} · valori delle fatture
-            presenti, non una liquidazione fiscale approvata.
-          </>
+          <>{tr("Dal {dal} al {al} · valori delle fatture presenti, non una liquidazione fiscale approvata.", { dal: String(fiscalDate(p.dal) ?? ""), al: String(fiscalDate(p.al) ?? "") })}</>
         }
         actions={
           <Button size="sm" onClick={onApriLiquidazione ?? (() => p.set({ sezione: "contabilita", vista: "iva" }))}>
-            Vai alla liquidazione IVA
+            {tr("Vai alla liquidazione IVA")}
           </Button>
         }
       />
@@ -304,8 +303,8 @@ function RegistroContent({ onApriLiquidazione }: { onApriLiquidazione?: () => vo
           return (
             <FiscalMetric
               key={s}
-              label={`IVA documenti ${s}`}
-              value={money(t.tax)}
+              label={tr("IVA documenti {s}", { s: String(s ?? "") })}
+              value={tr(money(t.tax))}
               onClick={() => {
                 p.set({
                   registro: s,
@@ -318,15 +317,14 @@ function RegistroContent({ onApriLiquidazione }: { onApriLiquidazione?: () => vo
               active={side === s && !onlyIssues && !selectedGroup}
               description={
                 <>
-                  {t.count} {t.count === 1 ? "documento" : "documenti"} ·
-                  imponibile {money(t.base)} · proiezioni RC escluse
+                  {tr(t.count === 1 ? "{n} documento · imponibile {imponibile} · proiezioni RC escluse" : "{n} documenti · imponibile {imponibile} · proiezioni RC escluse", { n: t.count, imponibile: tr(money(t.base)) })}
                 </>
               }
             />
           );
         })}
         <FiscalMetric
-          label="Qualità dei dati"
+          label={tr("Qualità dei dati")}
           warning
           onClick={() => {
             p.set({
@@ -340,17 +338,16 @@ function RegistroContent({ onApriLiquidazione }: { onApriLiquidazione?: () => vo
           active={onlyIssues}
           value={
             <>
-              {issues.length} {issues.length === 1 ? "documento" : "documenti"}{" "}
-              da verificare
+              {tr(issues.length === 1 ? "{n} documento da verificare" : "{n} documenti da verificare", { n: issues.length })}
             </>
           }
-          description="Gli importi presenti non attestano detraibilità, esigibilità o adempimento."
+          description={tr("Gli importi presenti non attestano detraibilità, esigibilità o adempimento.")}
         />
       </div>
       {issues.length > 0 && (
         <details className="rounded-xl border bg-white p-4">
           <summary className="cursor-pointer text-sm font-medium">
-            Controlli e dati mancanti
+            {tr("Controlli e dati mancanti")}
           </summary>
           <ul className="mt-3 max-h-56 space-y-2 overflow-auto text-sm">
             {issues.map((r) => (
@@ -367,13 +364,13 @@ function RegistroContent({ onApriLiquidazione }: { onApriLiquidazione?: () => vo
         </details>
       )}
       <div className="flex flex-wrap items-center gap-2">
-        {(registri.protocolli.isError || registri.sezionali.isError) && <p role="alert" className="w-full text-sm text-destructive">Protocolli IVA non disponibili. <button className="underline" onClick={() => void registri.ricarica()}>Riprova</button></p>}
+        {(registri.protocolli.isError || registri.sezionali.isError) && <p role="alert" className="w-full text-sm text-destructive">{tr("Protocolli IVA non disponibili.")} <button className="underline" onClick={() => void registri.ricarica()}>{tr("Riprova")}</button></p>}
         <GestioneSezionaliIva company={company} registri={registri} />
         {registri.puoScrivere && side !== "tutti" && <AssegnaProtocolliIva righe={filtered} lato={side} registri={registri} />}
-        <UniformSelect aria-label="Sezionale IVA" className="h-9 rounded-md border bg-background px-2 text-sm" value={sezionale} onChange={e => { setSezionale(e.target.value); setPage(0); }}>
-          <option value="tutti">Tutti i sezionali</option><option value="non_assegnato">Senza protocollo</option>{(registri.sezionali.data ?? []).filter(s => side === "tutti" || s.lato === side).map(s => <option key={s.id} value={s.id}>{s.codice} · {s.nome}</option>)}
+        <UniformSelect aria-label={tr("Sezionale IVA")} className="h-9 rounded-md border bg-background px-2 text-sm" value={sezionale} onChange={e => { setSezionale(e.target.value); setPage(0); }}>
+          <option value="tutti">{tr("Tutti i sezionali")}</option><option value="non_assegnato">{tr("Senza protocollo")}</option>{(registri.sezionali.data ?? []).filter(s => side === "tutti" || s.lato === side).map(s => <option key={s.id} value={s.id}>{s.codice} · {s.nome}</option>)}
         </UniformSelect>
-        <div role="tablist" aria-label="Registri IVA" className="flex flex-wrap gap-1">
+        <div role="tablist" aria-label={tr("Registri IVA")} className="flex flex-wrap gap-1">
           {(["vendite", "acquisti", "tutti"] as const).map((s) => (
             <Button
               key={s}
@@ -387,12 +384,12 @@ function RegistroContent({ onApriLiquidazione }: { onApriLiquidazione?: () => vo
                 setPage(0);
               }}
             >
-              {s === "tutti" ? "Tutti i documenti" : `Registro ${s}`}
+              {s === "tutti" ? tr("Tutti i documenti") : tr("Registro {s}", { s: String(s ?? "") })}
             </Button>
           ))}
         </div>
         <UniformSelect
-          aria-label="Aliquota"
+          aria-label={tr("Aliquota")}
           className="h-9 rounded-md border bg-background px-2 text-sm"
           value={aliquota}
           onChange={(e) => {
@@ -400,15 +397,15 @@ function RegistroContent({ onApriLiquidazione }: { onApriLiquidazione?: () => vo
             setPage(0);
           }}
         >
-          <option value="tutte">Tutte le aliquote</option>
+          <option value="tutte">{tr("Tutte le aliquote")}</option>
           {aliquote.map((a) => (
             <option key={a} value={a}>{a}</option>
           ))}
         </UniformSelect>
         <Input
           className="h-9 min-w-40 flex-1"
-          aria-label="Cerca nel registro IVA"
-          placeholder="Numero o controparte…"
+          aria-label={tr("Cerca nel registro IVA")}
+          placeholder={tr("Numero o controparte…")}
           value={search}
           onChange={(e) => {
             p.set({ q_iva: e.target.value }, true);
@@ -416,7 +413,7 @@ function RegistroContent({ onApriLiquidazione }: { onApriLiquidazione?: () => vo
           }}
         />
         <Button size="sm" variant="outline" disabled={!filtered.length} onClick={apriStampa}>
-          <Printer className="mr-2 h-4 w-4" />Stampa
+          <Printer className="mr-2 h-4 w-4" />{tr("Stampa")}
         </Button>
         <Button size="sm" variant="outline" disabled={!filtered.length} onClick={() => { void scaricaExcel(); }}>
           <FileSpreadsheet className="mr-2 h-4 w-4" />Excel
@@ -429,14 +426,13 @@ function RegistroContent({ onApriLiquidazione }: { onApriLiquidazione?: () => vo
           }
           onClick={exportCsv}
         >
-          Esporta CSV
+          {tr("Esporta CSV")}
         </Button>
       </div>
       {(search || onlyIssues || selectedGroup) && (
         <p className="text-xs text-muted-foreground">
-          La ricerca filtra l’elenco; i riepiloghi in alto si riferiscono
-          all’intero periodo.{" "}
-          {onlyIssues ? "Solo righe con verifiche aperte. " : ""}
+          {tr("La ricerca filtra l’elenco; i riepiloghi in alto si riferiscono all’intero periodo.")}{" "}
+          {onlyIssues ? `${tr("Solo righe con verifiche aperte.")} ` : ""}
           <button
             className="ml-2 text-blue-700 underline"
             onClick={() => {
@@ -444,19 +440,16 @@ function RegistroContent({ onApriLiquidazione }: { onApriLiquidazione?: () => vo
               setPage(0);
             }}
           >
-            Azzera filtri del registro
+            {tr("Azzera filtri del registro")}
           </button>
         </p>
       )}
       <details open className="rounded-xl border bg-white p-4">
         <summary className="cursor-pointer text-sm font-medium">
-          Riepilogo per aliquota e natura · {groups.length}{" "}
-          {groups.length === 1 ? "gruppo" : "gruppi"}
+          {tr(groups.length === 1 ? "Riepilogo per aliquota e natura · {n} gruppo" : "Riepilogo per aliquota e natura · {n} gruppi", { n: groups.length })}
         </summary>
         <p className="mt-2 text-xs text-muted-foreground">
-          Righe documentali dei filtri correnti, senza proiezioni RC. Uno stesso
-          documento può contenere più aliquote: non sommare i conteggi dei
-          gruppi.
+          {tr("Righe documentali dei filtri correnti, senza proiezioni RC. Uno stesso documento può contenere più aliquote: non sommare i conteggi dei gruppi.")}
         </p>
         <div className="mt-3 space-y-2">
           {groups.map((group) => (
@@ -470,33 +463,32 @@ function RegistroContent({ onApriLiquidazione }: { onApriLiquidazione?: () => vo
               }}
             >
               <span>
-                {group.side === "vendite" ? "Vendite" : "Acquisti"} ·{" "}
+                {group.side === "vendite" ? tr("Vendite") : tr("Acquisti")} ·{" "}
                 {group.rate === null
-                  ? "Aliquota da verificare"
+                  ? tr("Aliquota da verificare")
                   : `${group.rate}%`}{" "}
                 ·{" "}
                 {group.nature ||
                   (Number(group.rate) > 0
-                    ? "Operazione imponibile"
-                    : "Natura non indicata")}{" "}
-                · Esigibilità{" "}
+                    ? tr("Operazione imponibile")
+                    : tr("Natura non indicata"))}{" "}
+                {tr("· Esigibilità")}{" "}
                 {group.exigibility === "I"
-                  ? "immediata"
+                  ? tr("immediata")
                   : group.exigibility === "D"
-                    ? "differita"
+                    ? tr("differita")
                     : group.exigibility === "S"
-                      ? "split payment"
-                      : "da verificare"}
+                      ? tr("split payment")
+                      : tr("da verificare")}
               </span>
               <span>
-                {group.count} {group.count === 1 ? "documento" : "documenti"} ·
-                Imponibile {money(group.base)} · IVA {money(group.tax)}
+                {tr(group.count === 1 ? "{n} documento · Imponibile {imponibile} · IVA {iva}" : "{n} documenti · Imponibile {imponibile} · IVA {iva}", { n: group.count, imponibile: tr(money(group.base)), iva: tr(money(group.tax)) })}
               </span>
             </button>
           ))}
           {!groups.length && (
             <p className="text-sm">
-              Nessuna riga documentale nei filtri correnti.
+              {tr("Nessuna riga documentale nei filtri correnti.")}
             </p>
           )}
         </div>
@@ -521,7 +513,7 @@ function RegistroContent({ onApriLiquidazione }: { onApriLiquidazione?: () => vo
                 "Verifica",
               ].map((h) => (
                 <th key={h} className="p-3 font-medium">
-                  {h}
+                  {tr(h)}
                 </th>
               ))}
             </tr>
@@ -539,13 +531,11 @@ function RegistroContent({ onApriLiquidazione }: { onApriLiquidazione?: () => vo
                     {r.counterparty}
                   </p>
                 </td>
-                <td className="p-3 whitespace-nowrap">{r.synthetic ? <span className="text-xs text-muted-foreground">Proiezione RC</span> : <><AssegnaProtocolliIva righe={[r]} lato={r.side} registri={registri} singolo /><p className="text-xs text-muted-foreground">{r.section}{r.registrationDate ? ` · ${fiscalDate(r.registrationDate)}` : ""}</p></>}</td>
+                <td className="p-3 whitespace-nowrap">{r.synthetic ? <span className="text-xs text-muted-foreground">{tr("Proiezione RC")}</span> : <><AssegnaProtocolliIva righe={[r]} lato={r.side} registri={registri} singolo /><p className="text-xs text-muted-foreground">{r.section}{r.registrationDate ? ` · ${fiscalDate(r.registrationDate)}` : ""}</p></>}</td>
                 <td className="p-3 whitespace-nowrap">
                   {fiscalDate(r.date)}
                   {r.periodDate !== r.date && (
-                    <p className="text-xs text-muted-foreground">
-                      Periodo {fiscalDate(r.periodDate)}
-                    </p>
+                    <p className="text-xs text-muted-foreground">{tr("Periodo {periodDate}", { periodDate: String(fiscalDate(r.periodDate) ?? "") })}</p>
                   )}
                   {r.side === "acquisti" && (
                     <p className="text-xs text-muted-foreground">
@@ -553,26 +543,26 @@ function RegistroContent({ onApriLiquidazione }: { onApriLiquidazione?: () => vo
                     </p>
                   )}
                 </td>
-                <td className="p-3 whitespace-nowrap">{money(r.base)}</td>
+                <td className="p-3 whitespace-nowrap">{tr(money(r.base))}</td>
                 <td className="p-3 whitespace-nowrap">
-                  {money(r.tax)}
-                  {r.deductible !== undefined && <p className="text-xs text-amber-700">Detraibile {r.deductible}%</p>}
+                  {tr(money(r.tax))}
+                  {r.deductible !== undefined && <p className="text-xs text-amber-700">{tr("Detraibile {deductible}%", { deductible: String(r.deductible ?? "") })}</p>}
                 </td>
                 <td className="p-3">
-                  {r.rate === null ? "Da verificare" : r.rate + "%"}
+                  {r.rate === null ? tr("Da verificare") : r.rate + "%"}
                   <p className="text-xs text-muted-foreground">
                     {r.nature || "—"}
-                    {r.exigibility === "S" ? " · Split payment" : ""}
+                    {r.exigibility === "S" ? ` ${tr("· Split payment")}` : ""}
                   </p>
                 </td>
                 <td className="max-w-xs p-3 text-xs text-muted-foreground">
                   {r.synthetic && r.id.startsWith("int-v:")
-                    ? "Integrazione ricevuta · la stessa IVA è anche a debito (conteggiata nel prospetto)"
+                    ? tr("Integrazione ricevuta · la stessa IVA è anche a debito (conteggiata nel prospetto)")
                     : r.synthetic
-                    ? "Proiezione RC · non contabilizzata"
+                    ? tr("Proiezione RC · non contabilizzata")
                     : r.issues.length
                       ? r.issues.join(" · ")
-                      : "Dato presente nel documento"}
+                      : tr("Dato presente nel documento")}
                 </td>
               </tr>
             ))}
@@ -580,28 +570,24 @@ function RegistroContent({ onApriLiquidazione }: { onApriLiquidazione?: () => vo
         </table>
         {!filtered.length && (
           <p className="p-8 text-center text-sm text-muted-foreground">
-            Nessun documento corrisponde al periodo e ai filtri selezionati. Non
-            certifica l’assenza di obblighi fiscali.
+            {tr("Nessun documento corrisponde al periodo e ai filtri selezionati. Non certifica l’assenza di obblighi fiscali.")}
           </p>
         )}
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
         <p>
-          {totals.count} {totals.count === 1 ? "documento" : "documenti"}
+          {tr(totals.count === 1 ? "{n} documento" : "{n} documenti", { n: totals.count })}
           {documentedRows !== totals.count && (
-            <> · {documentedRows} righe IVA</>
+            <>{" "}{tr("· {documentedRows} righe IVA", { documentedRows: String(documentedRows ?? "") })}</>
           )}
           {projectionRows > 0 && (
             <>
-              {" "}
-              · {projectionRows}{" "}
-              {projectionRows === 1
-                ? "proiezione RC non contabilizzata"
-                : "proiezioni RC non contabilizzate"}
+              {" · "}
+              {tr(projectionRows === 1 ? "{n} proiezione RC non contabilizzata" : "{n} proiezioni RC non contabilizzate", { n: projectionRows })}
             </>
           )}
           {(search || onlyIssues || selectedGroup) && (
-            <> · IVA dei risultati: {money(totals.tax)}</>
+            <>{" "}{tr("· IVA dei risultati: {tax}", { tax: String(tr(money(totals.tax)) ?? "") })}</>
           )}
         </p>
         <div className="flex items-center gap-2">
@@ -611,24 +597,22 @@ function RegistroContent({ onApriLiquidazione }: { onApriLiquidazione?: () => vo
             disabled={current === 0}
             onClick={() => setPage(current - 1)}
           >
-            Precedenti
+            {tr("Precedenti")}
           </Button>
-          <span aria-label="Pagina del registro">
-            Pagina {current + 1} di {pages}
-          </span>
+          <span aria-label={tr("Pagina del registro")}>{tr("Pagina {current} di {pages}", { current: current + 1, pages: String(pages ?? "") })}</span>
           <Button
             size="sm"
             variant="outline"
             disabled={current >= pages - 1}
             onClick={() => setPage(current + 1)}
           >
-            Successivi
+            {tr("Successivi")}
           </Button>
         </div>
       </div>
       <details className="rounded-xl border bg-white p-4">
         <summary className="cursor-pointer text-sm font-medium">
-          Confronto tra registro e liquidazione
+          {tr("Confronto tra registro e liquidazione")}
         </summary>
         <div className="mt-4">
           <LiquidazioneIVA

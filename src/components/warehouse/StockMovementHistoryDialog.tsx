@@ -18,7 +18,6 @@ import type { InArrivoArticolo } from "@/hooks/useMagazzinoRiepilogo";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { ArrowUpRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/formatters";
@@ -38,6 +37,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { StockItem } from "@/types/warehouse";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface RigaAndamento {
   movement_id: string;
@@ -70,6 +70,7 @@ export function StockMovementHistoryDialog({
   inArrivo,
   arriviUnavailable,
 }: StockMovementHistoryDialogProps) {
+  const t = useT();
   const permissions = usePermissions();
   const canViewCosts = !permissions.isLoading && permissions.canViewCosts;
   const { data: movements = [], isLoading, isError, refetch } = useQuery({
@@ -151,22 +152,22 @@ export function StockMovementHistoryDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Dettaglio articolo · {item?.name}</DialogTitle>
+          <DialogTitle>{t("Dettaglio articolo · {name}", { name: String(item?.name ?? "") })}</DialogTitle>
           <DialogDescription>
-            Giacenze, impegni, ordini in arrivo e storico di carico e scarico.
+            {t("Giacenze, impegni, ordini in arrivo e storico di carico e scarico.")}
           </DialogDescription>
         </DialogHeader>
 
         {item && <StockItemOverview item={item} supplierName={supplierName} sectionName={sectionName} inArrivo={inArrivo} arriviUnavailable={arriviUnavailable} canViewCosts={canViewCosts} />}
 
         {canViewCosts && andamento.length > 0 && (
-          <section className="space-y-2 rounded-md border p-3" aria-label="Andamento del prezzo d'acquisto">
+          <section className="space-y-2 rounded-md border p-3" aria-label={t("Andamento del prezzo d'acquisto")}>
             <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h3 className="text-sm font-medium">Andamento del prezzo d&apos;acquisto</h3>
+              <h3 className="text-sm font-medium">{t("Andamento del prezzo d'acquisto")}</h3>
               <span className="text-sm tabular-nums text-muted-foreground">
                 {andamento.length === 1
-                  ? `Un solo acquisto, a ${formatCurrency(andamento[0].prezzo_pagato)}`
-                  : `Dal primo (${formatCurrency(primo!.prezzo_pagato)}) all'ultimo (${formatCurrency(ultimo!.prezzo_pagato)})`}
+                  ? t("Un solo acquisto, a {prezzo_pagato}", { prezzo_pagato: formatCurrency(andamento[0].prezzo_pagato) })
+                  : t("Dal primo ({primo}) all'ultimo ({ultimo})", { primo: formatCurrency(primo!.prezzo_pagato), ultimo: formatCurrency(ultimo!.prezzo_pagato) })}
                 {variazione != null && variazione !== 0 && (
                   <span className={variazione > 0 ? "ml-1 font-medium text-amber-700 dark:text-amber-500" : "ml-1 font-medium text-emerald-700 dark:text-emerald-500"}>
                     {variazione > 0 ? "+" : "−"}{Math.abs(variazione).toFixed(1)}%
@@ -177,29 +178,27 @@ export function StockMovementHistoryDialog({
             {rincari > 0 && (
               <p className="text-xs text-amber-700 dark:text-amber-500">
                 {rincari === 1
-                  ? "Un acquisto è costato più del solito."
-                  : `${rincari} acquisti sono costati più del solito.`}{" "}
-                La soglia si cambia in Impostazioni → Approvazioni e avvisi.
+                  ? t("Un acquisto è costato più del solito.")
+                  : t("{rincari} acquisti sono costati più del solito.", { rincari: String(rincari ?? "") })}{" "}
+                {t("La soglia si cambia in Impostazioni → Approvazioni e avvisi.")}
               </p>
             )}
             <ul className="divide-y text-sm">
               {andamento.map((r) => (
                 <li key={r.movement_id} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 py-1.5">
                   <span className="whitespace-nowrap text-muted-foreground">
-                    {format(new Date(r.quando), "dd/MM/yyyy", { locale: it })}
+                    {format(new Date(r.quando), "dd/MM/yyyy", { locale: dateFnsCampo() })}
                   </span>
-                  <span className="tabular-nums text-muted-foreground">{formattaQuantitaMovimento(Number(r.quantita))} {item?.unita_misura || "unità"}</span>
+                  <span className="tabular-nums text-muted-foreground">{formattaQuantitaMovimento(Number(r.quantita))} {item?.unita_misura || t("unità")}</span>
                   <span className="tabular-nums font-medium">{formatCurrency(r.prezzo_pagato)}</span>
                   {r.e_rincaro ? (
                     <span className="inline-flex items-center gap-1 whitespace-nowrap text-xs font-medium text-amber-700 dark:text-amber-500">
                       <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
-                      +{Number(r.scostamento_perc ?? 0).toFixed(1)}% sul medio
-                      {r.spesa_in_piu != null && ` · ${formatCurrency(r.spesa_in_piu)} in più`}
+                      {t("+{perc}% sul medio", { perc: Number(r.scostamento_perc ?? 0).toFixed(1) })}
+                      {r.spesa_in_piu != null && " · " + t("{spesa_in_piu} in più", { spesa_in_piu: formatCurrency(r.spesa_in_piu) })}
                     </span>
                   ) : r.medio_prima != null ? (
-                    <span className="whitespace-nowrap text-xs text-muted-foreground">
-                      medio di allora {formatCurrency(r.medio_prima)}
-                    </span>
+                    <span className="whitespace-nowrap text-xs text-muted-foreground">{t("medio di allora {medio_prima}", { medio_prima: formatCurrency(r.medio_prima) })}</span>
                   ) : (
                     <span className="text-xs text-muted-foreground">—</span>
                   )}
@@ -210,29 +209,29 @@ export function StockMovementHistoryDialog({
         )}
 
         {isLoading ? (
-          <div className="text-center py-8 text-muted-foreground">Caricamento...</div>
+          <div className="text-center py-8 text-muted-foreground">{t("Caricamento...")}</div>
         ) : isError ? (
-          <div role="alert" className="rounded-lg border border-destructive/30 p-4 text-sm">Impossibile caricare i movimenti. <Button variant="outline" size="sm" onClick={() => void refetch()}>Riprova movimenti</Button></div>
+          <div role="alert" className="rounded-lg border border-destructive/30 p-4 text-sm">{t("Impossibile caricare i movimenti.")} <Button variant="outline" size="sm" onClick={() => void refetch()}>{t("Riprova movimenti")}</Button></div>
         ) : movements.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
-            Nessun movimento registrato per questo articolo.
+            {t("Nessun movimento registrato per questo articolo.")}
           </div>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Data</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead className="text-center">Qtà</TableHead>
-                <TableHead>Note</TableHead>
-                <TableHead>Ordine</TableHead>
+                <TableHead>{t("Data")}</TableHead>
+                <TableHead>{t("Tipo")}</TableHead>
+                <TableHead className="text-center">{t("Qtà")}</TableHead>
+                <TableHead>{t("Note")}</TableHead>
+                <TableHead>{t("Ordine")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {movements.map((m) => (
                 <TableRow key={m.id}>
                   <TableCell className="whitespace-nowrap text-sm">
-                    {format(new Date(m.created_at), "dd/MM/yyyy HH:mm", { locale: it })}
+                    {format(new Date(m.created_at), "dd/MM/yyyy HH:mm", { locale: dateFnsCampo() })}
                   </TableCell>
                   <TableCell>
                     <Badge
@@ -243,14 +242,14 @@ export function StockMovementHistoryDialog({
                           : ""
                       }
                     >
-                      {m.rientro_commessa ? "Reso da cantiere" : m.movement_type === "carico" ? "Carico" : "Scarico"}
+                      {m.rientro_commessa ? t("Reso da cantiere") : m.movement_type === "carico" ? t("Carico") : t("Scarico")}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-center font-medium">
                     {m.movement_type === "carico" ? "+" : "−"}{formattaQuantitaMovimento(Number(m.quantity))}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
-                    {m.rientro_commessa && /^Rientro dal cantiere · uscita [0-9a-f-]{36}$/.test(m.notes ?? "") ? "Reso da cantiere collegato all’uscita originale" : m.notes || "—"}
+                    {m.rientro_commessa && /^Rientro dal cantiere · uscita [0-9a-f-]{36}$/.test(m.notes ?? "") ? t("Reso da cantiere collegato all’uscita originale") : m.notes || "—"}
                   </TableCell>
                   <TableCell className="text-sm">
                     {m.orderCode || "—"}

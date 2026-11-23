@@ -34,6 +34,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { SALSubappaltatore } from "@/types/subappaltatori";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type Allegato = {
   id: string;
@@ -52,7 +53,7 @@ type Originale = {
 type Storico = { id: string; created_at: string; pdf_sha256: string; accettato_il?: string | null; accettato_da?: string | null; accettazione_modo?: string | null };
 const MODI_ACCETTAZIONE: Record<string, string> = { carta: "firmato su carta", email: "per email", pec: "per PEC", portale: "dal portale" };
 const euro = (v: number) =>
-  Number(v).toLocaleString("it-IT", { style: "currency", currency: "EUR" });
+  Number(v).toLocaleString(intlCampo(), { style: "currency", currency: "EUR" });
 async function invoca(body: Record<string, unknown>) {
   const r = await supabase.functions.invoke("genera-verbale-sal-sub", { body });
   if (r.error) {
@@ -89,6 +90,7 @@ export function VerbaleSalSubDialog({
   sal: SALSubappaltatore;
   onClose: () => void;
 }) {
+  const t = useT();
   const p = usePermissions();
   const qc = useQueryClient();
   const consentito = puoConsultareSalSub(p);
@@ -150,7 +152,7 @@ export function VerbaleSalSubDialog({
       const righe = (r.data ?? []) as unknown as Allegato[];
       if (righe.length > 100)
         throw new Error(
-          "Troppi documenti: usa il fascicolo per selezionare quelli pertinenti.",
+          t("Troppi documenti: usa il fascicolo per selezionare quelli pertinenti."),
         );
       return righe;
     },
@@ -169,7 +171,7 @@ export function VerbaleSalSubDialog({
       if (error) throw error;
       const righe = (data ?? []) as unknown as { data_rilievo: string }[];
       if (righe.length > 100)
-        throw Error("Rilevazioni oltre il limite del verbale");
+        throw Error(t("Rilevazioni oltre il limite del verbale"));
       return righe;
     },
   });
@@ -198,7 +200,7 @@ export function VerbaleSalSubDialog({
     try {
       await fn();
     } catch (e) {
-      setErrore(e instanceof Error ? e.message : "Operazione non riuscita");
+      setErrore(e instanceof Error ? e.message : t("Operazione non riuscita"));
     } finally {
       bloccato.current = false;
       setBusy(false);
@@ -227,7 +229,7 @@ export function VerbaleSalSubDialog({
         await qc.invalidateQueries({
           queryKey: ["verbali-sal-sub", companyId, sal.id],
         });
-        toast.success("Verbale e originali archiviati");
+        toast.success(t("Verbale e originali archiviati"));
       } else {
         if (!d.pdf_base64 || !d.anteprima_sha256)
           throw new Error("Anteprima non disponibile");
@@ -279,35 +281,34 @@ export function VerbaleSalSubDialog({
           onPointerDownOutside={(e) => e.preventDefault()}
         >
           <DialogHeader className="border-b p-4 pr-12">
-            <DialogTitle>Verbale SAL #{sal.numero_sal}</DialogTitle>
+            <DialogTitle>{t("Verbale SAL #{numero_sal}", { numero_sal: String(sal.numero_sal ?? "") })}</DialogTitle>
             <DialogDescription>
-              Periodo, riepilogo e documenti del subappalto. Il SAL e i
-              pagamenti restano invariati.
+              {t("Periodo, riepilogo e documenti del subappalto. Il SAL e i pagamenti restano invariati.")}
             </DialogDescription>
           </DialogHeader>
           {!consentito ? (
             <p role="alert" className="p-6">
-              Non hai il permesso di consultare questo documento economico.
+              {t("Non hai il permesso di consultare questo documento economico.")}
             </p>
           ) : (
             <>
               <div
                 className="flex shrink-0 gap-2 border-b px-4 py-2 lg:hidden"
-                aria-label="Sezioni del verbale"
+                aria-label={t("Sezioni del verbale")}
               >
                 <Button
                   size="sm"
                   variant={pannello === "dati" ? "default" : "outline"}
                   onClick={() => setPannello("dati")}
                 >
-                  Dati e documenti
+                  {t("Dati e documenti")}
                 </Button>
                 <Button
                   size="sm"
                   variant={pannello === "pdf" ? "default" : "outline"}
                   onClick={() => setPannello("pdf")}
                 >
-                  Anteprima PDF
+                  {t("Anteprima PDF")}
                 </Button>
               </div>
               <div className="grid min-h-0 flex-1 overflow-auto lg:grid-cols-[350px_1fr]">
@@ -316,26 +317,21 @@ export function VerbaleSalSubDialog({
                 >
                   <div className="rounded-lg bg-muted/40 p-3 text-sm">
                     <p>
-                      Lordo del periodo{" "}
+                      {t("Lordo del periodo")}{" "}
                       <strong>{euro(sal.importo_lordo)}</strong>
                     </p>
                     <p>
-                      Ritenuta <strong>{euro(sal.ritenuta_importo)}</strong>
+                      {t("Ritenuta")} <strong>{euro(sal.ritenuta_importo)}</strong>
                     </p>
                     <p>
-                      Netto registrato{" "}
+                      {t("Netto registrato")}{" "}
                       <strong>{euro(sal.importo_netto)}</strong>
                     </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Stato attuale: {sal.stato}. Quantità e misure non presenti
-                      nel SAL storico non saranno inventate.
-                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">{t("Stato attuale: {stato}. Quantità e misure non presenti nel SAL storico non saranno inventate.", { stato: String(sal.stato ?? "") })}</p>
                   </div>
                   {!!anteprima?.avvisi.length && (
                     <details className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
-                      <summary className="cursor-pointer font-medium">
-                        Garanzie da riconciliare ({anteprima.avvisi.length})
-                      </summary>
+                      <summary className="cursor-pointer font-medium">{t("Garanzie da riconciliare ({n})", { n: anteprima.avvisi.length })}</summary>
                       <ul className="mt-2 list-disc space-y-1 pl-4">
                         {anteprima.avvisi.map((v, i) => (
                           <li key={i}>{v}</li>
@@ -345,26 +341,25 @@ export function VerbaleSalSubDialog({
                   )}
                   {!!dateMisure.data?.length && (
                     <p className="text-xs text-muted-foreground">
-                      Date proposte dalle rilevazioni collegate: verifica il
-                      periodo prima di generare il verbale.
+                      {t("Date proposte dalle rilevazioni collegate: verifica il periodo prima di generare il verbale.")}
                     </p>
                   )}
                   {dateMisure.isError && (
                     <p className="text-xs text-amber-800">
-                      Date delle rilevazioni non disponibili.{" "}
+                      {t("Date delle rilevazioni non disponibili.")}{" "}
                       <button
                         type="button"
                         className="underline"
                         onClick={() => void dateMisure.refetch()}
                       >
-                        Riprova
+                        {t("Riprova")}
                       </button>
                     </p>
                   )}
                   <fieldset disabled={busy} className="space-y-3">
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <Label htmlFor="verbale-dal">Periodo dal</Label>
+                        <Label htmlFor="verbale-dal">{t("Periodo dal")}</Label>
                         <Input
                           id="verbale-dal"
                           type="date"
@@ -376,7 +371,7 @@ export function VerbaleSalSubDialog({
                         />
                       </div>
                       <div>
-                        <Label htmlFor="verbale-al">Al</Label>
+                        <Label htmlFor="verbale-al">{t("Al")}</Label>
                         <Input
                           id="verbale-al"
                           type="date"
@@ -390,7 +385,7 @@ export function VerbaleSalSubDialog({
                     </div>
                     <div>
                       <Label htmlFor="verbale-note">
-                        Osservazioni e riserve
+                        {t("Osservazioni e riserve")}
                       </Label>
                       <Textarea
                         id="verbale-note"
@@ -400,40 +395,34 @@ export function VerbaleSalSubDialog({
                           invalida();
                           setNote(e.target.value);
                         }}
-                        placeholder="Solo le integrazioni pertinenti a questo verbale"
+                        placeholder={t("Solo le integrazioni pertinenti a questo verbale")}
                       />
                     </div>
                     <details>
-                      <summary className="cursor-pointer text-sm font-medium">
-                        Documenti da includere ({allegati.length}/10)
-                      </summary>
+                      <summary className="cursor-pointer text-sm font-medium">{t("Documenti da includere ({n}/10)", { n: allegati.length })}</summary>
                       <p className="my-2 text-xs text-muted-foreground">
-                        Seleziona solo documenti pertinenti al destinatario. Le
-                        copie sono accodate al PDF e gli originali conservati
-                        nel pacchetto.
+                        {t("Seleziona solo documenti pertinenti al destinatario. Le copie sono accodate al PDF e gli originali conservati nel pacchetto.")}
                       </p>
                       {!p.canViewSicurezzaCantiere ? (
                         <p className="text-xs">
-                          Non hai accesso ai documenti del fascicolo.
+                          {t("Non hai accesso ai documenti del fascicolo.")}
                         </p>
                       ) : docs.isLoading ? (
-                        <p role="status">Caricamento documenti…</p>
+                        <p role="status">{t("Caricamento documenti…")}</p>
                       ) : docs.isError ? (
                         <p role="alert">
-                          Documenti non disponibili.{" "}
+                          {t("Documenti non disponibili.")}{" "}
                           <Button
                             size="sm"
                             variant="link"
                             onClick={() => void docs.refetch()}
                           >
-                            Riprova
+                            {t("Riprova")}
                           </Button>
                         </p>
                       ) : !docs.data?.length ? (
                         <p className="text-xs text-muted-foreground">
-                          Nessun documento aziendale pertinente restituito dal
-                          fascicolo della commessa. I documenti personali degli
-                          operai sono esclusi.
+                          {t("Nessun documento aziendale pertinente restituito dal fascicolo della commessa. I documenti personali degli operai sono esclusi.")}
                         </p>
                       ) : (
                         docs.data.map((a) => (
@@ -470,26 +459,26 @@ export function VerbaleSalSubDialog({
                   </fieldset>
                   <div>
                     <h3 className="text-sm font-medium">
-                      Originali già archiviati
+                      {t("Originali già archiviati")}
                     </h3>
                     {storico.isError ? (
                       <p role="alert" className="text-xs">
-                        Archivio non disponibile.{" "}
+                        {t("Archivio non disponibile.")}{" "}
                         <Button
                           variant="link"
                           size="sm"
                           onClick={() => void storico.refetch()}
                         >
-                          Riprova
+                          {t("Riprova")}
                         </Button>
                       </p>
                     ) : storico.isLoading ? (
                       <p role="status" className="text-xs">
-                        Caricamento archivio…
+                        {t("Caricamento archivio…")}
                       </p>
                     ) : !storico.data?.length ? (
                       <p className="text-xs text-muted-foreground">
-                        Nessun verbale archiviato per questo SAL.
+                        {t("Nessun verbale archiviato per questo SAL.")}
                       </p>
                     ) : (
                       storico.data.map((r) => (
@@ -503,10 +492,8 @@ export function VerbaleSalSubDialog({
                           >
                             <FileText className="mr-2 h-4 w-4 shrink-0" />
                             <span>
-                              {new Date(r.created_at).toLocaleString("it-IT")}
-                              <span className="block text-xs text-muted-foreground">
-                                Rif. {r.id.slice(0, 8)}
-                              </span>
+                              {new Date(r.created_at).toLocaleString(intlCampo())}
+                              <span className="block text-xs text-muted-foreground">{t("Rif. {id}", { id: r.id.slice(0, 8) })}</span>
                             </span>
                           </Button>
                           <AccettazioneVerbale
@@ -523,15 +510,11 @@ export function VerbaleSalSubDialog({
                   className={`${pannello === "pdf" ? "flex" : "hidden"} min-h-0 flex-col p-3 lg:flex`}
                 >
                   {originale && (
-                    <p className="mb-2 shrink-0 rounded bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-                      Originale archiviato · Rif. {originale.id.slice(0, 8)}. Il
-                      PDF conserva i dati acquisiti alla generazione;
-                      modificando il modulo prepari un nuovo verbale.
-                    </p>
+                    <p className="mb-2 shrink-0 rounded bg-muted/50 px-3 py-2 text-xs text-muted-foreground">{t("Originale archiviato · Rif. {id}. Il PDF conserva i dati acquisiti alla generazione; modificando il modulo prepari un nuovo verbale.", { id: originale.id.slice(0, 8) })}</p>
                   )}
                   {originale || anteprima ? (
                     <div
-                      title="PDF verbale SAL subappalto"
+                      title={t("PDF verbale SAL subappalto")}
                       className="h-full min-h-[260px] flex-1"
                     >
                       <PdfVerbale
@@ -543,14 +526,12 @@ export function VerbaleSalSubDialog({
                     <div className="flex min-h-[350px] flex-1 flex-col items-center justify-center gap-3 rounded border border-dashed p-6 text-center text-sm text-muted-foreground">
                       <FileText className="h-8 w-8" />
                       <p>
-                        Indica il periodo e prepara l’anteprima.
+                        {t("Indica il periodo e prepara l’anteprima.")}
                         <br />
-                        Parti, contratto e importi vengono recuperati dal
-                        server.
+                        {t("Parti, contratto e importi vengono recuperati dal server.")}
                       </p>
                       <p className="text-xs">
-                        I SAL ricevuti o contestati riportano la filigrana
-                        BOZZA. Nessuna firma viene aggiunta automaticamente.
+                        {t("I SAL ricevuti o contestati riportano la filigrana BOZZA. Nessuna firma viene aggiunta automaticamente.")}
                       </p>
                     </div>
                   )}
@@ -566,7 +547,7 @@ export function VerbaleSalSubDialog({
               )}
               <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t bg-background p-3">
                 <Button variant="outline" disabled={busy} onClick={chiudi}>
-                  Torna ai SAL
+                  {t("Torna ai SAL")}
                 </Button>
                 <div className="flex flex-wrap gap-2">
                   {originale ? (
@@ -584,7 +565,7 @@ export function VerbaleSalSubDialog({
                         }
                       >
                         <Download className="mr-2 h-4 w-4" />
-                        Scarica PDF
+                        {t("Scarica PDF")}
                       </Button>
                       {originale.zip_url && (
                         <Button
@@ -598,7 +579,7 @@ export function VerbaleSalSubDialog({
                             )
                           }
                         >
-                          Pacchetto con originali
+                          {t("Pacchetto con originali")}
                         </Button>
                       )}
                     </>
@@ -612,7 +593,7 @@ export function VerbaleSalSubDialog({
                         {busy && (
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         )}
-                        Anteprima
+                        {t("Anteprima")}
                       </Button>
                       <Button
                         disabled={
@@ -623,7 +604,7 @@ export function VerbaleSalSubDialog({
                         }
                         onClick={() => void prepara(true)}
                       >
-                        Archivia originale
+                        {t("Archivia originale")}
                       </Button>
                     </>
                   )}
@@ -636,17 +617,15 @@ export function VerbaleSalSubDialog({
       <AlertDialog open={confermaUscita} onOpenChange={setConfermaUscita}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Chiudere senza archiviare?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Chiudere senza archiviare?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Il periodo, le osservazioni e la selezione dei documenti di questa
-              prova non sono archiviati. Gli originali già presenti restano
-              conservati.
+              {t("Il periodo, le osservazioni e la selezione dei documenti di questa prova non sono archiviati. Gli originali già presenti restano conservati.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Continua modifica</AlertDialogCancel>
+            <AlertDialogCancel>{t("Continua modifica")}</AlertDialogCancel>
             <AlertDialogAction onClick={onClose}>
-              Chiudi senza archiviare
+              {t("Chiudi senza archiviare")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -656,6 +635,7 @@ export function VerbaleSalSubDialog({
 }
 
 function PdfVerbale({ fonte, numero }: { fonte: string; numero: number }) {
+  const t = useT();
   const render = useCallback(
     async () => createPdfPreviewUrl(await readPdfPreviewBlob(fonte)),
     [fonte],
@@ -666,7 +646,7 @@ function PdfVerbale({ fonte, numero }: { fonte: string; numero: number }) {
       depsKey={fonte}
       debounceMs={0}
       allowOpenInNewTab={false}
-      headerLabel="Verbale SAL · PDF"
+      headerLabel={t("Verbale SAL · PDF")}
       downloadFileName={`verbale-sal-${numero}.pdf`}
       showDownloadOnMobile
     />
@@ -680,6 +660,7 @@ function PdfVerbale({ fonte, numero }: { fonte: string; numero: number }) {
  * SAL dalla scheda del contratto.
  */
 function AccettazioneVerbale({ verbale, puoRegistrare, onSalvata }: { verbale: Storico; puoRegistrare: boolean; onSalvata: () => void }) {
+  const t = useT();
   const [aperto, setAperto] = useState(false);
   const [data, setData] = useState(() => new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" }));
   const [nome, setNome] = useState("");
@@ -693,11 +674,11 @@ function AccettazioneVerbale({ verbale, puoRegistrare, onSalvata }: { verbale: S
         p_verbale: verbale.id, p_data: togli ? null : data, p_nome: togli ? null : nome, p_modo: togli ? null : modo,
       });
       if (error) throw new Error(error.message);
-      toast.success(togli ? "Accettazione tolta" : "Accettazione registrata: il subappaltatore può emettere la fattura");
+      toast.success(togli ? t("Accettazione tolta") : t("Accettazione registrata: il subappaltatore può emettere la fattura"));
       setAperto(false);
       onSalvata();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Accettazione non registrata");
+      toast.error(e instanceof Error ? e.message : t("Accettazione non registrata"));
     } finally {
       setSalvando(false);
     }
@@ -705,32 +686,32 @@ function AccettazioneVerbale({ verbale, puoRegistrare, onSalvata }: { verbale: S
   if (verbale.accettato_il) {
     return (
       <p className="flex flex-wrap items-center gap-x-2 rounded bg-emerald-50 px-2 py-1 text-xs text-emerald-800">
-        Accettato da {verbale.accettato_da} il {verbale.accettato_il.split("-").reverse().join("/")}
+        {t("Accettato da {nome} il {data}", { nome: String(verbale.accettato_da ?? ""), data: verbale.accettato_il.split("-").reverse().join("/") })}
         {verbale.accettazione_modo ? ` · ${MODI_ACCETTAZIONE[verbale.accettazione_modo] ?? verbale.accettazione_modo}` : ""}
-        {puoRegistrare && <button type="button" className="ml-auto underline" disabled={salvando} onClick={() => void salva(true)}>Togli</button>}
+        {puoRegistrare && <button type="button" className="ml-auto underline" disabled={salvando} onClick={() => void salva(true)}>{t("Togli")}</button>}
       </p>
     );
   }
-  if (!puoRegistrare) return <p className="text-xs text-muted-foreground">Non ancora accettato dal subappaltatore.</p>;
+  if (!puoRegistrare) return <p className="text-xs text-muted-foreground">{t("Non ancora accettato dal subappaltatore.")}</p>;
   if (!aperto) {
     return (
       <button type="button" className="text-xs font-medium text-primary underline" onClick={() => setAperto(true)}>
-        Registra l’accettazione del subappaltatore
+        {t("Registra l’accettazione del subappaltatore")}
       </button>
     );
   }
   return (
     <div className="space-y-1.5 rounded border p-2 text-xs">
       <div className="grid grid-cols-2 gap-1.5">
-        <Input aria-label="Chi ha accettato" placeholder="Nome di chi firma" value={nome} onChange={(e) => setNome(e.target.value)} className="h-8 text-xs" />
-        <Input aria-label="Data dell'accettazione" type="date" value={data} onChange={(e) => setData(e.target.value)} className="h-8 text-xs" />
+        <Input aria-label={t("Chi ha accettato")} placeholder={t("Nome di chi firma")} value={nome} onChange={(e) => setNome(e.target.value)} className="h-8 text-xs" />
+        <Input aria-label={t("Data dell'accettazione")} type="date" value={data} onChange={(e) => setData(e.target.value)} className="h-8 text-xs" />
       </div>
-      <UniformSelect aria-label="Come è arrivata l'accettazione" value={modo} onChange={(e) => setModo(e.target.value)} className="h-8 w-full rounded-md border bg-background px-2 text-xs">
-        {Object.entries(MODI_ACCETTAZIONE).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+      <UniformSelect aria-label={t("Come è arrivata l'accettazione")} value={modo} onChange={(e) => setModo(e.target.value)} className="h-8 w-full rounded-md border bg-background px-2 text-xs">
+        {Object.entries(MODI_ACCETTAZIONE).map(([v, l]) => <option key={v} value={v}>{t(l)}</option>)}
       </UniformSelect>
       <div className="flex justify-end gap-1.5">
-        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setAperto(false)}>Annulla</Button>
-        <Button size="sm" className="h-7 text-xs" disabled={salvando || nome.trim().length < 2 || !data} onClick={() => void salva()}>Registra</Button>
+        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setAperto(false)}>{t("Annulla")}</Button>
+        <Button size="sm" className="h-7 text-xs" disabled={salvando || nome.trim().length < 2 || !data} onClick={() => void salva()}>{t("Registra")}</Button>
       </div>
     </div>
   );

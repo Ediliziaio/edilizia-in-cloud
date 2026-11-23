@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { leggiImporto } from "@/lib/finance/reconciliationAnalysis";
 import { stessiRighiLipe, type RighiLipe } from "@/lib/contabilita/lipeXml";
 import { ComunicazioniLipe } from "./ComunicazioniLipe";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -83,17 +84,18 @@ function periodiAnno(anno: number, mensile: boolean) {
   });
 }
 
-function esito(r?: RighiLipe) {
+function esito(r: RighiLipe | undefined, t: (testo: string, valori?: Record<string, string | number>) => string) {
   if (!r) return null;
-  if (r.vp14_debito > 0) return { testo: `Da versare ${formatCurrency(r.vp14_debito)}`, cls: "text-red-700" };
-  if (r.vp14_credito > 0) return { testo: `A credito ${formatCurrency(r.vp14_credito)}`, cls: "text-emerald-700" };
-  return { testo: "Nessun importo", cls: "text-muted-foreground" };
+  if (r.vp14_debito > 0) return { testo: t("Da versare {importo}", { importo: formatCurrency(r.vp14_debito) }), cls: "text-red-700" };
+  if (r.vp14_credito > 0) return { testo: t("A credito {importo}", { importo: formatCurrency(r.vp14_credito) }), cls: "text-emerald-700" };
+  return { testo: t("Nessun importo"), cls: "text-muted-foreground" };
 }
 
 function DettaglioPeriodo({ company, anno, periodo, mensile, confermata, puoScrivere, finito, onCambiato, onApriRegistro }: {
   company: string; anno: number; periodo: number; mensile: boolean; confermata?: LiquidazioneIVAConfermata; puoScrivere: boolean; finito: boolean;
   onCambiato: () => void; onApriRegistro: () => void;
 }) {
+  const t = useT();
   const qc = useQueryClient();
   const [manuali, setManuali] = useState<Record<string, string>>({});
   const [usaRegistro, setUsaRegistro] = useState(false);
@@ -133,8 +135,8 @@ function DettaglioPeriodo({ company, anno, periodo, mensile, confermata, puoScri
       const { error } = await db.rpc("liquidazione_iva_conferma", { p_company: company, p_anno: anno, p_periodo: periodo, p_manuali: valori });
       if (error) throw error;
     },
-    onSuccess: () => { toast.success("Liquidazione confermata"); onCambiato(); },
-    onError: (e: Error) => toast.error("Non confermata", { description: e.message }),
+    onSuccess: () => { toast.success(t("Liquidazione confermata")); onCambiato(); },
+    onError: (e: Error) => toast.error(t("Non confermata"), { description: e.message }),
   });
   const creaF24 = useMutation({
     mutationFn: async () => {
@@ -145,23 +147,23 @@ function DettaglioPeriodo({ company, anno, periodo, mensile, confermata, puoScri
     onSuccess: (d) => {
       void qc.invalidateQueries({ queryKey: ["f24"] });
       void qc.invalidateQueries({ queryKey: ["cashflow"] });
-      toast.success(d.gia_creato ? "F24 già presente nel Registro F24"
-        : d.aggiornato ? "F24 aggiornato con i dati della liquidazione"
-        : `F24 con codice ${d.codice} aggiunto al Registro F24`);
+      toast.success(d.gia_creato ? t("F24 già presente nel Registro F24")
+        : d.aggiornato ? t("F24 aggiornato con i dati della liquidazione")
+        : t("F24 con codice {codice} aggiunto al Registro F24", { codice: String(d.codice ?? "") }));
     },
-    onError: (e: Error) => toast.error("F24 non creato", { description: e.message }),
+    onError: (e: Error) => toast.error(t("F24 non creato"), { description: e.message }),
   });
   const riapri = useMutation({
     mutationFn: async () => {
       const { error } = await db.rpc("liquidazione_iva_riapri", { p_report: confermata!.id });
       if (error) throw error;
     },
-    onSuccess: () => { toast.success("Liquidazione riaperta"); onCambiato(); },
-    onError: (e: Error) => toast.error("Non riaperta", { description: e.message }),
+    onSuccess: () => { toast.success(t("Liquidazione riaperta")); onCambiato(); },
+    onError: (e: Error) => toast.error(t("Non riaperta"), { description: e.message }),
   });
 
-  if (!bloccata && calcolo.isPending) return <p className="p-3 text-sm text-muted-foreground">Calcolo…</p>;
-  if (!bloccata && calcolo.isError) return <p role="alert" className="p-3 text-sm text-destructive">Calcolo non riuscito: {(calcolo.error as Error).message}</p>;
+  if (!bloccata && calcolo.isPending) return <p className="p-3 text-sm text-muted-foreground">{t("Calcolo…")}</p>;
+  if (!bloccata && calcolo.isError) return <p role="alert" className="p-3 text-sm text-destructive">{t("Calcolo non riuscito: {message}", { message: String((calcolo.error as Error).message ?? "") })}</p>;
   const righi = r?.righi;
   const acconto = mensile ? periodo === 12 : periodo === 4;
   const ora = bloccata ? calcolo.data : undefined;
@@ -183,10 +185,10 @@ function DettaglioPeriodo({ company, anno, periodo, mensile, confermata, puoScri
       {!bloccata && puoScrivere && (usaRegistro || r?.richiede_registro || r?.calcolabile) && (
         <div className="space-y-1">
           <Button type="button" size="sm" variant="outline" onClick={() => setUsaRegistro((v) => !v)}>
-            {usaRegistro ? "Usa il calcolo dalle fatture" : "Inserisci i totali del registro IVA"}
+            {usaRegistro ? t("Usa il calcolo dalle fatture") : t("Inserisci i totali del registro IVA")}
           </Button>
-          {usaRegistro && <p className="text-xs text-muted-foreground">Riporta tutti e quattro i righi VP2–VP5 verificati, compresi eventuali zeri. Il VP5 deve già includere il pro-rata.</p>}
-          {r?.richiede_registro && <button type="button" className="ml-2 text-xs text-primary underline" onClick={onApriRegistro}>Apri il registro</button>}
+          {usaRegistro && <p className="text-xs text-muted-foreground">{t("Riporta tutti e quattro i righi VP2–VP5 verificati, compresi eventuali zeri. Il VP5 deve già includere il pro-rata.")}</p>}
+          {r?.richiede_registro && <button type="button" className="ml-2 text-xs text-primary underline" onClick={onApriRegistro}>{t("Apri il registro")}</button>}
         </div>
       )}
       {righiVisibili.length > 0 && <table className="w-full text-sm">
@@ -195,11 +197,11 @@ function DettaglioPeriodo({ company, anno, periodo, mensile, confermata, puoScri
             return (
               <tr key={k}>
                 <td className="w-12 py-1.5 font-mono text-xs text-muted-foreground">{rigo}</td>
-                <td className="py-1.5">{nome}</td>
+                <td className="py-1.5">{t(nome)}</td>
                 <td className="py-1 text-right tabular-nums">
                   {editabile(k) ? (
                     <Input
-                      aria-label={nome}
+                      aria-label={t(nome)}
                       inputMode="decimal"
                       aria-invalid={sbagliati.includes(k)}
                       className={cn("ml-auto h-7 w-28 text-right text-xs", sbagliati.includes(k) && "border-destructive")}
@@ -214,47 +216,47 @@ function DettaglioPeriodo({ company, anno, periodo, mensile, confermata, puoScri
           })}
           {righi && r?.trimestre !== 5 && <tr className="font-semibold">
             <td className="py-2 font-mono text-xs">VP14</td>
-            <td className="py-2">{righi.vp14_credito > 0 ? "A credito" : "Da versare"}</td>
+            <td className="py-2">{righi.vp14_credito > 0 ? t("A credito") : t("Da versare")}</td>
             <td className="py-2 text-right tabular-nums">{formatCurrency(righi.vp14_credito > 0 ? righi.vp14_credito : righi.vp14_debito)}</td>
           </tr>}
         </tbody>
       </table>}
       {!!r?.credito_anno_disponibile && !bloccata && (
-        <p className="text-xs text-muted-foreground">Credito dell'anno precedente ancora disponibile: {formatCurrency(r.credito_anno_disponibile!)}.</p>
+        <p className="text-xs text-muted-foreground">{t("Credito dell'anno precedente ancora disponibile: {valore}.", { valore: formatCurrency(r.credito_anno_disponibile!) })}</p>
       )}
       {r?.avvisi?.map((a) => (
         <p key={a} className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
           {a}{a.includes("Registro IVA") && (
-            <button type="button" className="ml-1 font-medium underline" onClick={onApriRegistro}>Apri il registro</button>
+            <button type="button" className="ml-1 font-medium underline" onClick={onApriRegistro}>{t("Apri il registro")}</button>
           )}
         </p>
       ))}
       {cambiati && (
         <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-800">
-          I dati o le regole di calcolo sono cambiati dopo la conferma.{" "}
-          {inviati ? "Verifica con il consulente se occorre una comunicazione sostitutiva." : "Riapri e riconferma il periodo."}
+          {t("I dati o le regole di calcolo sono cambiati dopo la conferma.")}{" "}
+          {inviati ? t("Verifica con il consulente se occorre una comunicazione sostitutiva.") : t("Riapri e riconferma il periodo.")}
         </p>
       )}
       {bloccata && !!righi?.vp14_debito && !versabile && r?.trimestre !== 5 && (
-        <p className="text-xs text-muted-foreground">Verifica la scadenza del versamento e l'eventuale rinvio dell'importo.</p>
+        <p className="text-xs text-muted-foreground">{t("Verifica la scadenza del versamento e l'eventuale rinvio dell'importo.")}</p>
       )}
       {versabile && r?.versamento?.scadenza && (
-        <p className="text-xs text-muted-foreground">Versamento entro il {formatDate(r.versamento.scadenza)} · Codice {r.versamento.codice}</p>
+        <p className="text-xs text-muted-foreground">{t("Versamento entro il {scadenza} · Codice {codice}", { scadenza: formatDate(r.versamento.scadenza), codice: String(r.versamento.codice ?? "") })}</p>
       )}
-      {!bloccata && !finito && <p className="text-xs text-muted-foreground">Periodo ancora in corso: si conferma quando è finito. Intanto vedi il calcolo a oggi.</p>}
-      {sbagliati.length > 0 && <p role="alert" className="text-xs text-destructive">Scrivi un importo valido, per esempio 1.234,50.</p>}
+      {!bloccata && !finito && <p className="text-xs text-muted-foreground">{t("Periodo ancora in corso: si conferma quando è finito. Intanto vedi il calcolo a oggi.")}</p>}
+      {sbagliati.length > 0 && <p role="alert" className="text-xs text-destructive">{t("Scrivi un importo valido, per esempio 1.234,50.")}</p>}
       {puoScrivere && (
         <div className="flex justify-end gap-2">
           {!bloccata && righi && (
             <Button size="sm" onClick={() => conferma.mutate()} disabled={!r?.calcolabile || conferma.isPending || calcolo.isFetching || !finito || sbagliati.length > 0}>
-              {conferma.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Conferma liquidazione
+              {conferma.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{t("Conferma liquidazione")}
             </Button>
           )}
           {bloccata && versabile && (
-            <Button size="sm" onClick={() => creaF24.mutate()} disabled={creaF24.isPending || (cambiati && !inviati)}>Crea F24 da questa liquidazione</Button>
+            <Button size="sm" onClick={() => creaF24.mutate()} disabled={creaF24.isPending || (cambiati && !inviati)}>{t("Crea F24 da questa liquidazione")}</Button>
           )}
           {bloccata && !inviati && (
-            <Button size="sm" variant="outline" onClick={() => riapri.mutate()} disabled={riapri.isPending}>Riapri</Button>
+            <Button size="sm" variant="outline" onClick={() => riapri.mutate()} disabled={riapri.isPending}>{t("Riapri")}</Button>
           )}
         </div>
       )}
@@ -263,6 +265,7 @@ function DettaglioPeriodo({ company, anno, periodo, mensile, confermata, puoScri
 }
 
 export function LiquidazioniIVA({ anno, onApriImpostazioni, onApriRegistro }: { anno: number; onApriImpostazioni: () => void; onApriRegistro?: () => void }) {
+  const tr = useT();
   const company = useEffectiveCompanyId();
   const qc = useQueryClient();
   const { isAdmin, solaLettura } = usePermissions();
@@ -289,16 +292,16 @@ export function LiquidazioniIVA({ anno, onApriImpostazioni, onApriRegistro }: { 
     void qc.invalidateQueries({ queryKey: ["cashflow"] });
   };
 
-  if (isLoading) return <p className="p-4 text-sm text-muted-foreground">Caricamento…</p>;
+  if (isLoading) return <p className="p-4 text-sm text-muted-foreground">{tr("Caricamento…")}</p>;
   if (isError) return <p role="alert" className="p-4 text-sm text-destructive">
-    Impossibile leggere le impostazioni IVA. <button type="button" className="underline" onClick={() => void refetch()}>Riprova</button>
+    {tr("Impossibile leggere le impostazioni IVA.")} <button type="button" className="underline" onClick={() => void refetch()}>{tr("Riprova")}</button>
   </p>;
   if (!impostazioni) {
     return (
       <div className="rounded-xl border bg-white p-5">
-        <h3 className="font-semibold">Liquidazione IVA {anno}</h3>
-        <p className="mt-1 text-sm text-muted-foreground">Per iniziare serve sapere se liquidi ogni mese o ogni trimestre.</p>
-        <Button size="sm" className="mt-3" onClick={onApriImpostazioni}>Compila le impostazioni IVA</Button>
+        <h3 className="font-semibold">{tr("Liquidazione IVA {anno}", { anno })}</h3>
+        <p className="mt-1 text-sm text-muted-foreground">{tr("Per iniziare serve sapere se liquidi ogni mese o ogni trimestre.")}</p>
+        <Button size="sm" className="mt-3" onClick={onApriImpostazioni}>{tr("Compila le impostazioni IVA")}</Button>
       </div>
     );
   }
@@ -342,44 +345,44 @@ export function LiquidazioniIVA({ anno, onApriImpostazioni, onApriRegistro }: { 
       <div className="overflow-hidden rounded-xl border bg-white">
         <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
           <div>
-            <h3 className="font-semibold">Liquidazione IVA {anno}</h3>
-            <p className="text-xs text-muted-foreground">{fatti} di {periodi.length} confermati · si confermano in ordine, poi si scarica il file</p>
+            <h3 className="font-semibold">{tr("Liquidazione IVA {anno}", { anno })}</h3>
+            <p className="text-xs text-muted-foreground">{tr("{fatti} di {n} confermati · si confermano in ordine, poi si scarica il file", { fatti, n: periodi.length })}</p>
           </div>
           <div className="flex items-center gap-3">
-          {fatti > 0 && <button type="button" onClick={esportaCsv} className="text-xs text-primary hover:underline">Esporta tabella</button>}
+          {fatti > 0 && <button type="button" onClick={esportaCsv} className="text-xs text-primary hover:underline">{tr("Esporta tabella")}</button>}
           <button type="button" onClick={onApriImpostazioni} className="text-xs text-muted-foreground hover:underline">
-            {mensile ? "Mensile" : impostazioni.periodicita === "trimestrale" ? "Trimestrale su opzione" : "Trimestrale speciale"} · cambia
+            {mensile ? tr("Mensile") : impostazioni.periodicita === "trimestrale" ? tr("Trimestrale su opzione") : tr("Trimestrale speciale")} · {tr("cambia")}
           </button>
           </div>
         </div>
         <div className="hidden grid-cols-[1.25rem_8rem_repeat(4,minmax(0,1fr))_minmax(0,1.2fr)_7rem] items-center gap-2 border-t bg-muted/40 px-4 py-1.5 text-xs font-medium text-muted-foreground md:grid">
-          <span /><span>Periodo</span>
-          <span className="text-right">Op. attive</span><span className="text-right">Op. passive</span>
-          <span className="text-right">IVA vendite</span><span className="text-right">IVA acquisti</span>
-          <span className="text-right">Risultato</span><span className="text-right">Stato</span>
+          <span /><span>{tr("Periodo")}</span>
+          <span className="text-right">{tr("Op. attive")}</span><span className="text-right">{tr("Op. passive")}</span>
+          <span className="text-right">{tr("IVA vendite")}</span><span className="text-right">{tr("IVA acquisti")}</span>
+          <span className="text-right">{tr("Risultato")}</span><span className="text-right">{tr("Stato")}</span>
         </div>
         <div className="divide-y border-t">
           {periodi.map((p) => {
             const c = confermate.get(p.dal);
             const es = c?.dati.trimestre === 5
-              ? { testo: "Saldo in dichiarazione annuale", cls: "text-muted-foreground" }
-              : esito(c?.dati.righi);
+              ? { testo: tr("Saldo in dichiarazione annuale"), cls: "text-muted-foreground" }
+              : esito(c?.dati.righi, tr);
             const isAperto = apertoOra === p.periodo;
             return (
               <div key={p.periodo}>
                 <button type="button" aria-expanded={isAperto} onClick={() => setAperto(isAperto ? null : p.periodo)}
                   className="grid w-full grid-cols-[1.25rem_1fr_auto] items-center gap-2 px-4 py-1.5 text-left text-sm hover:bg-accent/40 md:grid-cols-[1.25rem_8rem_repeat(4,minmax(0,1fr))_minmax(0,1.2fr)_7rem]">
                   <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", isAperto && "rotate-180")} />
-                  <span className="font-medium">{p.nome}</span>
+                  <span className="font-medium">{mensile ? tr(p.nome) : tr("{q}° trimestre", { q: p.periodo })}</span>
                   {([c?.dati.righi?.vp2, c?.dati.righi?.vp3, c?.dati.righi?.vp4, c?.dati.righi?.vp5] as Array<number | undefined>).map((v, i) => (
                     <span key={i} className="hidden text-right tabular-nums text-muted-foreground md:block">{v === undefined ? "—" : formatCurrency(Number(v))}</span>
                   ))}
                   <span className={cn("hidden text-right text-xs tabular-nums md:block", es?.cls)}>{es?.testo ?? "—"}</span>
                   <span className="text-right">{c ? (
                     <Badge variant="outline" className="gap-1 border-emerald-300 font-normal text-emerald-700">
-                      <CheckCircle2 className="h-3 w-3" />{statoLiquidazione(c)}
+                      <CheckCircle2 className="h-3 w-3" />{tr(statoLiquidazione(c))}
                     </Badge>
-                  ) : <span className="text-xs text-muted-foreground">{finito(p.dal) ? "Da confermare" : "In corso"}</span>}</span>
+                  ) : <span className="text-xs text-muted-foreground">{finito(p.dal) ? tr("Da confermare") : tr("In corso")}</span>}</span>
                 </button>
                 {isAperto && company && (
                   <DettaglioPeriodo key={`${company}:${anno}:${p.periodo}`} company={company} anno={anno} periodo={p.periodo}
@@ -392,7 +395,7 @@ export function LiquidazioniIVA({ anno, onApriImpostazioni, onApriRegistro }: { 
         </div>
         {fatti > 0 && (
           <div className="hidden grid-cols-[1.25rem_8rem_repeat(4,minmax(0,1fr))_minmax(0,1.2fr)_7rem] items-center gap-2 border-t bg-muted/40 px-4 py-1.5 text-xs font-semibold md:grid">
-            <span /><span>Totale confermati</span>
+            <span /><span>{tr("Totale confermati")}</span>
             {(["vp2", "vp3", "vp4", "vp5"] as const).map((k) => <span key={k} className="text-right tabular-nums">{formatCurrency(somma(k))}</span>)}
             <span /><span />
           </div>
@@ -401,7 +404,7 @@ export function LiquidazioniIVA({ anno, onApriImpostazioni, onApriRegistro }: { 
 
       {company && (lista.isError ? (
         <p role="alert" className="rounded-xl border p-4 text-sm text-destructive">
-          Impossibile leggere le liquidazioni confermate. <button type="button" className="underline" onClick={() => void lista.refetch()}>Riprova</button>
+          {tr("Impossibile leggere le liquidazioni confermate.")} <button type="button" className="underline" onClick={() => void lista.refetch()}>{tr("Riprova")}</button>
         </p>
       ) : lista.isSuccess && (
         <ComunicazioniLipe key={`${company}:${anno}`} company={company} anno={anno} oggi={oggi} impostazioni={impostazioni}

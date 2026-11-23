@@ -8,6 +8,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { formatCurrency } from "@/lib/formatters";
 import { CAUSALI_RITENUTA, TIPI_CASSA_PREVIDENZIALE, NATURE_IVA } from "@/types/fatturazione";
 import type { EditorState } from "./useEditorState";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   state: EditorState;
@@ -16,6 +17,7 @@ interface Props {
 }
 
 export function EditorContributiRitenuteSection({ state, dispatch, disabled }: Props) {
+  const t = useT();
   const [open, setOpen] = useState(false);
 
   function setField(field: string, value: unknown) {
@@ -44,11 +46,11 @@ export function EditorContributiRitenuteSection({ state, dispatch, disabled }: P
             <div className="flex items-center gap-2">
               <Receipt className="h-4 w-4 text-orange-500" />
               <span className="text-[11px] font-bold uppercase tracking-wider text-orange-600/80 dark:text-orange-400/80">
-                Contributi e Ritenute
+                {t("Contributi e Ritenute")}
               </span>
               {hasContributiActive && (
                 <span className="ml-1 inline-flex items-center justify-center h-4 min-w-[1rem] px-1 rounded-full bg-orange-100 dark:bg-orange-900/40 text-[9px] font-bold text-orange-700 dark:text-orange-300">
-                  attive
+                  {t("attive")}
                 </span>
               )}
             </div>
@@ -67,13 +69,13 @@ export function EditorContributiRitenuteSection({ state, dispatch, disabled }: P
                   disabled={disabled}
                   className="scale-75"
                 />
-                <Label className="text-xs text-muted-foreground">Cassa previdenziale</Label>
+                <Label className="text-xs text-muted-foreground">{t("Cassa previdenziale")}</Label>
               </div>
               {state.cassa_previdenziale && (
                 <div className="space-y-2 pl-5 border-l-2 border-muted ml-1">
                   <div className="grid grid-cols-3 gap-2">
                     <div>
-                      <Label className="text-[10px] text-muted-foreground">Tipo cassa</Label>
+                      <Label className="text-[10px] text-muted-foreground">{t("Tipo cassa")}</Label>
                       <Select value={state.cassa_tipo ?? "TC06"} onValueChange={(v) => setField("cassa_tipo", v)} disabled={disabled}>
                         <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
                         <SelectContent>
@@ -84,7 +86,7 @@ export function EditorContributiRitenuteSection({ state, dispatch, disabled }: P
                       </Select>
                     </div>
                     <div>
-                      <Label className="text-[10px] text-muted-foreground">Aliquota %</Label>
+                      <Label className="text-[10px] text-muted-foreground">{t("Aliquota %")}</Label>
                       <Input
                         type="number"
                         value={state.cassa_aliquota ?? 4}
@@ -94,16 +96,16 @@ export function EditorContributiRitenuteSection({ state, dispatch, disabled }: P
                       />
                     </div>
                     <div>
-                      <Label className="text-[10px] text-muted-foreground">Contributo</Label>
+                      <Label className="text-[10px] text-muted-foreground">{t("Contributo")}</Label>
                       <div className="h-7 flex items-center text-xs font-medium px-2 bg-muted/50 rounded border">
                         +{formatCurrency(state.cassa_importo ?? 0)}
                       </div>
                     </div>
                   </div>
                   <div>
-                    <Label className="text-[10px] text-muted-foreground">IVA del contributo cassa</Label>
+                    <Label className="text-[10px] text-muted-foreground">{t("IVA del contributo cassa")}</Label>
                     <Select value={state.cassa_aliquota_iva ?? "22"} onValueChange={v => setField("cassa_aliquota_iva", v)} disabled={disabled}>
-                      <SelectTrigger className="h-7 text-xs" aria-label="IVA del contributo cassa"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-7 text-xs" aria-label={t("IVA del contributo cassa")}><SelectValue /></SelectTrigger>
                       <SelectContent>{["22","10","5","4"].map(v => <SelectItem key={v} value={v}>{v}%</SelectItem>)}{Object.entries(NATURE_IVA).map(([k,v]) => <SelectItem key={k} value={k}>0% · {k.replace("_", ".")} · {v}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
@@ -114,7 +116,7 @@ export function EditorContributiRitenuteSection({ state, dispatch, disabled }: P
                       disabled={disabled}
                       className="scale-75"
                     />
-                    <Label className="text-[10px] text-muted-foreground">Soggetta a ritenuta</Label>
+                    <Label className="text-[10px] text-muted-foreground">{t("Soggetta a ritenuta")}</Label>
                   </div>
                 </div>
               )}
@@ -129,13 +131,13 @@ export function EditorContributiRitenuteSection({ state, dispatch, disabled }: P
                   disabled={disabled}
                   className="scale-75"
                 />
-                <Label className="text-xs text-muted-foreground">Rivalsa INPS (Gestione Separata)</Label>
+                <Label className="text-xs text-muted-foreground">{t("Rivalsa INPS (Gestione Separata)")}</Label>
               </div>
               {state.rivalsa_inps && (
                 <div className="space-y-2 pl-5 border-l-2 border-muted ml-1">
                   <div className="grid grid-cols-3 gap-2">
                     <div>
-                      <Label className="text-[10px] text-muted-foreground">Tipo</Label>
+                      <Label className="text-[10px] text-muted-foreground">{t("Tipo")}</Label>
                       <Select value={state.rivalsa_tipo ?? "TC22"} onValueChange={(v) => setField("rivalsa_tipo", v)} disabled={disabled}>
                         <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
                         <SelectContent>
@@ -146,7 +148,7 @@ export function EditorContributiRitenuteSection({ state, dispatch, disabled }: P
                       </Select>
                     </div>
                     <div>
-                      <Label className="text-[10px] text-muted-foreground">Aliquota %</Label>
+                      <Label className="text-[10px] text-muted-foreground">{t("Aliquota %")}</Label>
                       <Input
                         type="number"
                         value={state.rivalsa_aliquota ?? 4}
@@ -156,7 +158,7 @@ export function EditorContributiRitenuteSection({ state, dispatch, disabled }: P
                       />
                     </div>
                     <div>
-                      <Label className="text-[10px] text-muted-foreground">Rivalsa</Label>
+                      <Label className="text-[10px] text-muted-foreground">{t("Rivalsa")}</Label>
                       <div className="h-7 flex items-center text-xs font-medium px-2 bg-muted/50 rounded border">
                         +{formatCurrency(state.rivalsa_importo ?? 0)}
                       </div>
@@ -175,27 +177,27 @@ export function EditorContributiRitenuteSection({ state, dispatch, disabled }: P
                   disabled={disabled}
                   className="scale-75"
                 />
-                <Label className="text-xs text-muted-foreground">Ritenuta d'acconto</Label>
+                <Label className="text-xs text-muted-foreground">{t("Ritenuta d'acconto")}</Label>
               </div>
               {state.ritenuta_acconto && (
                 <div className="space-y-2 pl-5 border-l-2 border-muted ml-1">
                   <div className="grid grid-cols-3 gap-2">
                     <div>
-                      <Label className="text-[10px] text-muted-foreground">Tipo</Label>
+                      <Label className="text-[10px] text-muted-foreground">{t("Tipo")}</Label>
                       <Select value={state.ritenuta_tipo ?? "RT01"} onValueChange={(v) => setField("ritenuta_tipo", v)} disabled={disabled}>
                         <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="RT01" className="text-xs">RT01 – Persone fisiche</SelectItem>
-                          <SelectItem value="RT02" className="text-xs">RT02 – Persone giuridiche</SelectItem>
-                          <SelectItem value="RT03" className="text-xs">RT03 – Contributo INPS</SelectItem>
-                          <SelectItem value="RT04" className="text-xs">RT04 – Contributo ENASARCO</SelectItem>
-                          <SelectItem value="RT05" className="text-xs">RT05 – Contributo ENPAM</SelectItem>
-                          <SelectItem value="RT06" className="text-xs">RT06 – Altro contributo</SelectItem>
+                          <SelectItem value="RT01" className="text-xs">{t("RT01 – Persone fisiche")}</SelectItem>
+                          <SelectItem value="RT02" className="text-xs">{t("RT02 – Persone giuridiche")}</SelectItem>
+                          <SelectItem value="RT03" className="text-xs">{t("RT03 – Contributo INPS")}</SelectItem>
+                          <SelectItem value="RT04" className="text-xs">{t("RT04 – Contributo ENASARCO")}</SelectItem>
+                          <SelectItem value="RT05" className="text-xs">{t("RT05 – Contributo ENPAM")}</SelectItem>
+                          <SelectItem value="RT06" className="text-xs">{t("RT06 – Altro contributo")}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                     <div>
-                      <Label className="text-[10px] text-muted-foreground">Aliquota %</Label>
+                      <Label className="text-[10px] text-muted-foreground">{t("Aliquota %")}</Label>
                       <Input
                         type="number"
                         value={state.ritenuta_aliquota ?? 20}
@@ -205,14 +207,14 @@ export function EditorContributiRitenuteSection({ state, dispatch, disabled }: P
                       />
                     </div>
                     <div>
-                      <Label className="text-[10px] text-muted-foreground">Importo</Label>
+                      <Label className="text-[10px] text-muted-foreground">{t("Importo")}</Label>
                       <div className="h-7 flex items-center text-xs text-destructive font-medium px-2 bg-muted/50 rounded border">
                         -{formatCurrency(state.ritenuta_importo ?? 0)}
                       </div>
                     </div>
                   </div>
                   <div>
-                    <Label className="text-[10px] text-muted-foreground">Causale pagamento</Label>
+                    <Label className="text-[10px] text-muted-foreground">{t("Causale pagamento")}</Label>
                     <Select
                       value={state.ritenuta_causale ?? "A"}
                       onValueChange={(v) => {
@@ -243,25 +245,25 @@ export function EditorContributiRitenuteSection({ state, dispatch, disabled }: P
                   disabled={disabled}
                   className="scale-75"
                 />
-                <Label className="text-xs text-muted-foreground">Altra ritenuta</Label>
+                <Label className="text-xs text-muted-foreground">{t("Altra ritenuta")}</Label>
               </div>
               {state.altra_ritenuta && (
                 <div className="space-y-2 pl-5 border-l-2 border-muted ml-1">
                   <div className="grid grid-cols-3 gap-2">
                     <div>
-                      <Label className="text-[10px] text-muted-foreground">Tipo</Label>
+                      <Label className="text-[10px] text-muted-foreground">{t("Tipo")}</Label>
                       <Select value={state.altra_ritenuta_tipo ?? "RT03"} onValueChange={(v) => setField("altra_ritenuta_tipo", v)} disabled={disabled}>
                         <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="RT03" className="text-xs">RT03 – Contributo INPS</SelectItem>
-                          <SelectItem value="RT04" className="text-xs">RT04 – Contributo ENASARCO</SelectItem>
-                          <SelectItem value="RT05" className="text-xs">RT05 – Contributo ENPAM</SelectItem>
-                          <SelectItem value="RT06" className="text-xs">RT06 – Altro contributo</SelectItem>
+                          <SelectItem value="RT03" className="text-xs">{t("RT03 – Contributo INPS")}</SelectItem>
+                          <SelectItem value="RT04" className="text-xs">{t("RT04 – Contributo ENASARCO")}</SelectItem>
+                          <SelectItem value="RT05" className="text-xs">{t("RT05 – Contributo ENPAM")}</SelectItem>
+                          <SelectItem value="RT06" className="text-xs">{t("RT06 – Altro contributo")}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                     <div>
-                      <Label className="text-[10px] text-muted-foreground">Aliquota %</Label>
+                      <Label className="text-[10px] text-muted-foreground">{t("Aliquota %")}</Label>
                       <Input
                         type="number"
                         value={state.altra_ritenuta_aliquota ?? 0}
@@ -271,14 +273,14 @@ export function EditorContributiRitenuteSection({ state, dispatch, disabled }: P
                       />
                     </div>
                     <div>
-                      <Label className="text-[10px] text-muted-foreground">Importo</Label>
+                      <Label className="text-[10px] text-muted-foreground">{t("Importo")}</Label>
                       <div className="h-7 flex items-center text-xs text-destructive font-medium px-2 bg-muted/50 rounded border">
                         -{formatCurrency(state.altra_ritenuta_importo ?? 0)}
                       </div>
                     </div>
                   </div>
                   <div>
-                    <Label className="text-[10px] text-muted-foreground">Causale pagamento</Label>
+                    <Label className="text-[10px] text-muted-foreground">{t("Causale pagamento")}</Label>
                     <Select value={state.altra_ritenuta_causale ?? "A"} onValueChange={(v) => setField("altra_ritenuta_causale", v)} disabled={disabled}>
                       <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
                       <SelectContent>

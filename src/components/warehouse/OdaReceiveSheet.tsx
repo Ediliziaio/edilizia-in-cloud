@@ -51,8 +51,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { it as itLocale } from "date-fns/locale";
 import type { BatchScanEntry } from "./BatchBarcodeScanner";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const BarcodeScanner = lazy(() =>
   import("./BarcodeScanner").then((m) => ({ default: m.BarcodeScanner })),
@@ -75,6 +75,7 @@ export function OdaReceiveSheet(props: OdaReceiveSheetProps) {
   return props.open ? <OdaReceiveSheetSession key={`${effectiveCompany?.id}:${user?.id}:${props.lockedOdaId ?? "new"}`} {...props} /> : null;
 }
 function OdaReceiveSheetSession({ open, onOpenChange, lockedOdaId }: OdaReceiveSheetProps) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const { warehouses = [] } = useWarehouses(true);
@@ -152,9 +153,9 @@ function OdaReceiveSheetSession({ open, onOpenChange, lockedOdaId }: OdaReceiveS
           // Articolo non in anagrafica → non possiamo fare match ODA.
           // Feedback UX: toast esplicativo + suggerisce "Carico rapido" come
           // alternativa (l'utente può chiudere e usare quel flow).
-          toast.warning("Codice non riconosciuto", {
+          toast.warning(t("Codice non riconosciuto"), {
             description:
-              "Questo articolo non è in anagrafica: non posso suggerire un'ODA. Usa 'Carico rapido' per registrarlo come carico libero.",
+              t("Questo articolo non è in anagrafica: non posso suggerire un'ODA. Usa 'Carico rapido' per registrarlo come carico libero."),
           });
           return;
         }
@@ -223,7 +224,7 @@ function OdaReceiveSheetSession({ open, onOpenChange, lockedOdaId }: OdaReceiveS
           initialEntries={entries}
           onEntriesChange={setEntries}
           onConfirm={handleConfirm}
-          confirmLabel="Conferma ricezione"
+          confirmLabel={t("Conferma ricezione")}
           isConfirming={receive.isPending}
         />
       </Suspense>
@@ -236,12 +237,12 @@ function OdaReceiveSheetSession({ open, onOpenChange, lockedOdaId }: OdaReceiveS
         <SheetHeader className="px-4 py-3 border-b shrink-0">
           <SheetTitle className="flex items-center gap-2 text-base">
             <Package className="h-5 w-5 text-primary" />
-            Ricevi da ODA
+            {t("Ricevi da ODA")}
           </SheetTitle>
           <SheetDescription className="text-xs">
-            {step === "first-scan" && "Scansiona il primo articolo: ti suggerisco l'ODA pending."}
-            {step === "oda-suggestion" && "Scegli l'ODA su cui registrare la ricezione."}
-            {step === "warehouse-pick" && "Seleziona il magazzino di destinazione."}
+            {step === "first-scan" && t("Scansiona il primo articolo: ti suggerisco l'ODA pending.")}
+            {step === "oda-suggestion" && t("Scegli l'ODA su cui registrare la ricezione.")}
+            {step === "warehouse-pick" && t("Seleziona il magazzino di destinazione.")}
           </SheetDescription>
         </SheetHeader>
 
@@ -250,9 +251,9 @@ function OdaReceiveSheetSession({ open, onOpenChange, lockedOdaId }: OdaReceiveS
             <div className="space-y-3">
               <div className="rounded-lg border-2 border-dashed p-6 text-center">
                 <ScanLine className="h-12 w-12 mx-auto mb-3 text-muted-foreground/50" />
-                <p className="text-sm font-medium mb-1">Inquadra il primo QR / barcode</p>
+                <p className="text-sm font-medium mb-1">{t("Inquadra il primo QR / barcode")}</p>
                 <p className="text-xs text-muted-foreground mb-4">
-                  Cercheremo un'ODA pending compatibile con questo articolo.
+                  {t("Cercheremo un'ODA pending compatibile con questo articolo.")}
                 </p>
                 <Button onClick={() => setScannerOpen(true)} disabled={lookup.isPending || matcher.isPending}>
                   {(lookup.isPending || matcher.isPending) ? (
@@ -260,7 +261,7 @@ function OdaReceiveSheetSession({ open, onOpenChange, lockedOdaId }: OdaReceiveS
                   ) : (
                     <Camera className="h-4 w-4 mr-2" />
                   )}
-                  Scansiona primo articolo
+                  {t("Scansiona primo articolo")}
                 </Button>
               </div>
               <Suspense fallback={null}>
@@ -281,7 +282,7 @@ function OdaReceiveSheetSession({ open, onOpenChange, lockedOdaId }: OdaReceiveS
                 <Alert>
                   <Package className="h-4 w-4" />
                   <AlertDescription className="text-xs">
-                    Articolo identificato: <strong>{firstItemName}</strong>
+                    {t("Articolo identificato:")} <strong>{firstItemName}</strong>
                   </AlertDescription>
                 </Alert>
               )}
@@ -289,16 +290,13 @@ function OdaReceiveSheetSession({ open, onOpenChange, lockedOdaId }: OdaReceiveS
                 <Alert variant="destructive">
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription className="text-xs">
-                    Nessuna ODA pending contiene questo articolo. Usa "Carico rapido" per
-                    registrare comunque la ricezione.
+                    {t("Nessuna ODA pending contiene questo articolo. Usa \"Carico rapido\" per registrare comunque la ricezione.")}
                   </AlertDescription>
                 </Alert>
               ) : (
                 <>
                   <p className="text-xs text-muted-foreground">
-                    {matcher.data?.length ?? 0}{" "}
-                    {matcher.data?.length === 1 ? "ODA candidata" : "ODA candidate"}. Tocca per
-                    scegliere.
+                    {matcher.data?.length === 1 ? t("{n} ODA candidata. Tocca per scegliere.", { n: 1 }) : t("{n} ODA candidate. Tocca per scegliere.", { n: matcher.data?.length ?? 0 })}
                   </p>
                   <ScrollArea className="max-h-[40vh]">
                     <ul className="space-y-2">
@@ -326,16 +324,15 @@ function OdaReceiveSheetSession({ open, onOpenChange, lockedOdaId }: OdaReceiveS
                 <Alert>
                   <Package className="h-4 w-4" />
                   <AlertDescription className="text-xs">
-                    ODA <strong>{odaDetail.oda_number}</strong> · stato {odaDetail.status} ·{" "}
-                    {allowedOdaItems.length} righe pending
+                    ODA <strong>{odaDetail.oda_number}</strong> {t("· stato {stato} · {n} righe pending", { stato: odaDetail.status, n: allowedOdaItems.length })}
                   </AlertDescription>
                 </Alert>
               )}
               <div className="space-y-2">
-                <Label htmlFor="ord-warehouse">Magazzino destinazione *</Label>
+                <Label htmlFor="ord-warehouse">{t("Magazzino destinazione *")}</Label>
                 <Select value={warehouseId} onValueChange={setWarehouseId}>
                   <SelectTrigger id="ord-warehouse">
-                    <SelectValue placeholder="Scegli un magazzino..." />
+                    <SelectValue placeholder={t("Scegli un magazzino...")} />
                   </SelectTrigger>
                   <SelectContent>
                     {warehouses.map((w: any) => (
@@ -344,7 +341,7 @@ function OdaReceiveSheetSession({ open, onOpenChange, lockedOdaId }: OdaReceiveS
                           {w.name}
                           {w.is_default && (
                             <span className="text-[9px] uppercase bg-muted px-1.5 py-0.5 rounded">
-                              default
+                              {t("default")}
                             </span>
                           )}
                         </div>
@@ -360,7 +357,7 @@ function OdaReceiveSheetSession({ open, onOpenChange, lockedOdaId }: OdaReceiveS
         <div className="border-t p-3 flex gap-2 shrink-0 bg-card">
           <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1">
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Annulla
+            {t("Annulla")}
           </Button>
           {step === "warehouse-pick" && (
             <Button
@@ -368,7 +365,7 @@ function OdaReceiveSheetSession({ open, onOpenChange, lockedOdaId }: OdaReceiveS
               disabled={!selectedOdaId || !warehouseId || allowedOdaItems.length === 0}
               className="flex-[2]"
             >
-              Inizia scansione
+              {t("Inizia scansione")}
               <ArrowRight className="h-4 w-4 ml-2" />
             </Button>
           )}
@@ -379,6 +376,7 @@ function OdaReceiveSheetSession({ open, onOpenChange, lockedOdaId }: OdaReceiveS
 }
 
 function OdaCandidateCard({ oda }: { oda: OdaMatch }) {
+  const t = useT();
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
@@ -392,12 +390,12 @@ function OdaCandidateCard({ oda }: { oda: OdaMatch }) {
         {oda.expected_delivery_date && (
           <span className="flex items-center gap-1 text-muted-foreground">
             <Calendar className="h-3 w-3" />
-            {format(new Date(oda.expected_delivery_date), "dd MMM", { locale: itLocale })}
+            {format(new Date(oda.expected_delivery_date), "dd MMM", { locale: dateFnsCampo() })}
           </span>
         )}
         <span className="flex items-center gap-1 text-amber-700">
           <TrendingDown className="h-3 w-3" />
-          {oda.quantity_pending} pending / {oda.quantity_ordered}
+          {t("{pending} pending / {ordinati}", { pending: oda.quantity_pending, ordinati: oda.quantity_ordered })}
         </span>
       </div>
       <p className="text-[11px] text-muted-foreground italic truncate">{oda.item_description}</p>

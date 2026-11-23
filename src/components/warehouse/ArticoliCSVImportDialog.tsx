@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 import {
   Upload, FileSpreadsheet, CheckCircle2, AlertCircle, XCircle, Loader2,
 } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   trigger?: React.ReactNode;
@@ -79,6 +80,7 @@ interface ParsedRow {
 }
 
 export function ArticoliCSVImportDialog({ trigger, warehouseId = null, onComplete, open: controlledOpen, onOpenChange, hideTrigger = false, onCloseAutoFocus }: Props) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const protocol = useWarehouseProtocol(effectiveCompany?.id);
   const atomic = useWarehouseOperation("import");
@@ -203,7 +205,7 @@ export function ArticoliCSVImportDialog({ trigger, warehouseId = null, onComplet
       setStep("preview");
     } catch (e) {
       toast({
-        title: "Errore lettura file",
+        title: t("Errore lettura file"),
         description: String((e as Error).message ?? e),
         variant: "destructive",
       });
@@ -272,7 +274,7 @@ export function ArticoliCSVImportDialog({ trigger, warehouseId = null, onComplet
     },
     onError: (e: Error) => {
       toast({
-        title: "Errore import",
+        title: t("Errore import"),
         description: e.message,
         variant: "destructive",
       });
@@ -295,16 +297,15 @@ export function ArticoliCSVImportDialog({ trigger, warehouseId = null, onComplet
         {trigger ?? (
           <Button variant="outline" size="sm">
             <Upload className="mr-2 h-4 w-4" />
-            Importa CSV/XLSX
+            {t("Importa CSV/XLSX")}
           </Button>
         )}
       </DialogTrigger>}
       <DialogContent className="max-w-3xl" onCloseAutoFocus={onCloseAutoFocus}>
         <DialogHeader>
-          <DialogTitle>Importa articoli da file</DialogTitle>
+          <DialogTitle>{t("Importa articoli da file")}</DialogTitle>
           <DialogDescription>
-            Carica un file CSV o Excel con la lista articoli. Colonne riconosciute
-            in automatico (nome, codice, barcode, quantità, costo, scorta minima, qty di riordino, descrizione).
+            {t("Carica un file CSV o Excel con la lista articoli. Colonne riconosciute in automatico (nome, codice, barcode, quantità, costo, scorta minima, qty di riordino, descrizione).")}
           </DialogDescription>
         </DialogHeader>
 
@@ -321,20 +322,20 @@ export function ArticoliCSVImportDialog({ trigger, warehouseId = null, onComplet
             {loading ? (
               <>
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">Lettura file in corso…</p>
+                <p className="text-sm text-muted-foreground">{t("Lettura file in corso…")}</p>
               </>
             ) : (
               <>
                 <FileSpreadsheet className="h-10 w-10 text-muted-foreground" />
-                <p className="text-sm font-medium">Trascina qui un file CSV o XLSX</p>
-                <p className="text-xs text-muted-foreground">oppure</p>
+                <p className="text-sm font-medium">{t("Trascina qui un file CSV o XLSX")}</p>
+                <p className="text-xs text-muted-foreground">{t("oppure")}</p>
                 <Button onClick={() => inputRef.current?.click()}>
-                  Sfoglia file
+                  {t("Sfoglia file")}
                 </Button>
                 <input
                   ref={inputRef}
                   type="file"
-                  aria-label="File articoli CSV o XLSX"
+                  aria-label={t("File articoli CSV o XLSX")}
                   accept=".csv,.xlsx"
                   className="hidden"
                   onChange={(e) => {
@@ -343,7 +344,7 @@ export function ArticoliCSVImportDialog({ trigger, warehouseId = null, onComplet
                   }}
                 />
                 <p className="mt-3 text-[11px] text-muted-foreground">
-                  Massimo 10 MB e 500 righe. Esempio header CSV: <code>Codice;Articolo;Quantità;Unità;Costo;Scorta Min</code>
+                  {t("Massimo 10 MB e 500 righe. Esempio header CSV:")} <code>Codice;Articolo;Quantità;Unità;Costo;Scorta Min</code>
                 </p>
               </>
             )}
@@ -353,11 +354,11 @@ export function ArticoliCSVImportDialog({ trigger, warehouseId = null, onComplet
         {step === "preview" && (
           <>
             <div className="mb-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <Stat label="Righe totali" value={rows.length} />
-              <Stat label="Pronte" value={validCount} tone="green" />
-              <Stat label="Con errori" value={invalidCount} tone={invalidCount > 0 ? "red" : "neutral"} />
+              <Stat label={t("Righe totali")} value={rows.length} />
+              <Stat label={t("Pronte")} value={validCount} tone="green" />
+              <Stat label={t("Con errori")} value={invalidCount} tone={invalidCount > 0 ? "red" : "neutral"} />
               <Stat
-                label="Colonne riconosciute"
+                label={t("Colonne riconosciute")}
                 value={Object.keys(mapping).filter((k) => mapping[k as FieldKey]).length}
                 tone="blue"
               />
@@ -366,13 +367,13 @@ export function ArticoliCSVImportDialog({ trigger, warehouseId = null, onComplet
             {/* Mapping editor */}
             <div className="rounded-xl border p-3">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Mappa le colonne del file ai campi articolo
+                {t("Mappa le colonne del file ai campi articolo")}
               </p>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {FIELDS.map((f) => (
                   <div key={f.key} className="flex items-center gap-2">
                     <Label className={cn("w-32 shrink-0 text-xs", f.required && "font-semibold")}>
-                      {f.label}
+                      {t(f.label)}
                     </Label>
                     <Select
                       value={mapping[f.key] ?? "__none__"}
@@ -380,7 +381,7 @@ export function ArticoliCSVImportDialog({ trigger, warehouseId = null, onComplet
                     >
                       <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="__none__">— nessuna —</SelectItem>
+                        <SelectItem value="__none__">{t("— nessuna —")}</SelectItem>
                         {headers.map((h) => (
                           <SelectItem key={h} value={h}>{h}</SelectItem>
                         ))}
@@ -397,11 +398,11 @@ export function ArticoliCSVImportDialog({ trigger, warehouseId = null, onComplet
                 <thead className="sticky top-0 bg-muted/40">
                   <tr>
                     <th className="px-2 py-1.5 text-left">#</th>
-                    <th className="px-2 py-1.5 text-left">Nome</th>
-                    <th className="px-2 py-1.5 text-left">Codice</th>
-                    <th className="px-2 py-1.5 text-right">Qty</th>
-                    <th className="px-2 py-1.5 text-right">Costo</th>
-                    <th className="px-2 py-1.5 text-center">Stato</th>
+                    <th className="px-2 py-1.5 text-left">{t("Nome")}</th>
+                    <th className="px-2 py-1.5 text-left">{t("Codice")}</th>
+                    <th className="px-2 py-1.5 text-right">{t("Qty")}</th>
+                    <th className="px-2 py-1.5 text-right">{t("Costo")}</th>
+                    <th className="px-2 py-1.5 text-center">{t("Stato")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -425,9 +426,7 @@ export function ArticoliCSVImportDialog({ trigger, warehouseId = null, onComplet
                   ))}
                   {rows.length > 30 && (
                     <tr className="border-t bg-muted/20">
-                      <td colSpan={6} className="px-2 py-2 text-center text-muted-foreground">
-                        … e altre {rows.length - 30} righe
-                      </td>
+                      <td colSpan={6} className="px-2 py-2 text-center text-muted-foreground">{t("… e altre {n} righe", { n: rows.length - 30 })}</td>
                     </tr>
                   )}
                 </tbody>
@@ -437,23 +436,20 @@ export function ArticoliCSVImportDialog({ trigger, warehouseId = null, onComplet
             {invalidCount > 0 && (
               <div className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                <p>
-                  {invalidCount} righe verranno saltate per errori (es. nome mancante o
-                  numero non valido). Solo le {validCount} righe valide saranno importate.
-                </p>
+                <p>{t("{invalidCount} righe verranno saltate per errori (es. nome mancante o numero non valido). Solo le {validCount} righe valide saranno importate.", { invalidCount: String(invalidCount ?? ""), validCount: String(validCount ?? "") })}</p>
               </div>
             )}
 
             <DialogFooter>
               <Button variant="outline" onClick={() => setStep("upload")}>
-                Cambia file
+                {t("Cambia file")}
               </Button>
               <Button
                 disabled={validCount === 0 || importMutation.isPending}
                 onClick={() => importMutation.mutate()}
               >
                 {importMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Importa {validCount} articoli
+                {t("Importa {validCount} articoli", { validCount })}
               </Button>
             </DialogFooter>
           </>
@@ -463,12 +459,10 @@ export function ArticoliCSVImportDialog({ trigger, warehouseId = null, onComplet
           <div className="flex flex-col items-center gap-4 py-6">
             <CheckCircle2 className="h-12 w-12 text-emerald-600" />
             <div className="text-center">
-              <p className="text-lg font-semibold">Import completato</p>
-              <p className="text-sm text-muted-foreground">
-                {result.inserted} articoli aggiunti al magazzino.
-              </p>
+              <p className="text-lg font-semibold">{t("Import completato")}</p>
+              <p className="text-sm text-muted-foreground">{t("{inserted} articoli aggiunti al magazzino.", { inserted: String(result.inserted ?? "") })}</p>
             </div>
-            <Button onClick={() => { setOpen(false); onComplete?.(); }}>Chiudi</Button>
+            <Button onClick={() => { setOpen(false); onComplete?.(); }}>{t("Chiudi")}</Button>
           </div>
         )}
       </DialogContent>

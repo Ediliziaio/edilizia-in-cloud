@@ -15,6 +15,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { MessaggioPerUtente, motivoDelRifiuto, righeToccate } from "@/lib/impostazioni/erroriPerUtente";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const chiave = (companyId: string | undefined) => ["contabilita-generale-attiva", companyId];
 
@@ -36,6 +37,7 @@ export function useContabilitaGeneraleAttiva(): { attiva: boolean | undefined; c
 }
 
 export function ContabilitaInCasa({ inLinea = false }: { inLinea?: boolean }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const permessi = usePermissions();
   const { attiva, companyId } = useContabilitaGeneraleAttiva();
@@ -49,12 +51,12 @@ export function ContabilitaInCasa({ inLinea = false }: { inLinea?: boolean }) {
       const { data, error } = await supabase.from("companies")
         .update({ contabilita_generale_attiva: valore } as never).eq("id", companyId).select("id");
       if (error) throw error;
-      if (righeToccate(data) === 0) throw new MessaggioPerUtente("Il tuo utente non può cambiare le impostazioni dell'azienda: chiedi all'amministratore.");
+      if (righeToccate(data) === 0) throw new MessaggioPerUtente(t("Il tuo utente non può cambiare le impostazioni dell'azienda: chiedi all'amministratore."));
       queryClient.setQueryData(chiave(companyId), valore);
-      toast.success(valore ? "Contabilità generale accesa" : "Contabilità generale spenta",
-        { description: valore ? "La trovi nel menu Contabilità. Le scritture si fanno da sole ogni quarto d'ora." : "La voce sparisce dal menu; le scritture già fatte restano." });
+      toast.success(valore ? t("Contabilità generale accesa") : t("Contabilità generale spenta"),
+        { description: valore ? t("La trovi nel menu Contabilità. Le scritture si fanno da sole ogni quarto d'ora.") : t("La voce sparisce dal menu; le scritture già fatte restano.") });
     } catch (e) {
-      toast.error(motivoDelRifiuto(e, "Non sono riuscito a salvare: riprova."));
+      toast.error(motivoDelRifiuto(e, t("Non sono riuscito a salvare: riprova.")));
     } finally {
       setInSalvataggio(false);
     }
@@ -63,13 +65,11 @@ export function ContabilitaInCasa({ inLinea = false }: { inLinea?: boolean }) {
   return (
     <div className={inLinea ? "flex items-start justify-between gap-4" : "flex items-start justify-between gap-4 rounded-xl border bg-card p-4"}>
       <div className="min-w-0">
-        <Label htmlFor="contabilita-in-casa" className="text-sm font-medium">Contabilità generale in casa (partita doppia)</Label>
+        <Label htmlFor="contabilita-in-casa" className="text-sm font-medium">{t("Contabilità generale in casa (partita doppia)")}</Label>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          Per chi tiene la contabilità con Edilizia in Cloud: libro giornale, mastrini, liquidazione IVA, bilancio, chiusura
-          dell'esercizio. Le scritture nascono da sole da fatture, Prima nota, F24 e cedolini. Se i libri li tiene il
-          commercialista, lasciala spenta.
+          {t("Per chi tiene la contabilità con Edilizia in Cloud: libro giornale, mastrini, liquidazione IVA, bilancio, chiusura dell'esercizio. Le scritture nascono da sole da fatture, Prima nota, F24 e cedolini. Se i libri li tiene il commercialista, lasciala spenta.")}
         </p>
-        {!puo && <p className="mt-1 text-xs text-muted-foreground">La cambia chi può modificare il profilo dell'azienda.</p>}
+        {!puo && <p className="mt-1 text-xs text-muted-foreground">{t("La cambia chi può modificare il profilo dell'azienda.")}</p>}
       </div>
       <Switch
         id="contabilita-in-casa"

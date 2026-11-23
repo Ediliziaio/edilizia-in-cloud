@@ -8,6 +8,7 @@ import { percorsoDocumentoGenerale, useAspettoOperativo } from "@/components/ord
 import { messaggioSalvataggio } from "@/lib/fatturazione/salvataggioFattura";
 import { confermaConsegneFattura } from "@/lib/ddt/consegneFattura";
 import { refreshMaterialQueries } from "@/lib/orders/refreshMaterialQueries";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const db = supabase as unknown as {
   rpc(nome: string, args: { p_fattura: string }): PromiseLike<{ data: unknown; error: { message: string } | null }>;
@@ -59,6 +60,7 @@ export interface RiepilogoDdt {
 export function RiepilogoDdtFattura({ companyId, fatturaId, puoModificare, onCollegaDdt }: {
   companyId: string; fatturaId: string; puoModificare: boolean; onCollegaDdt?: () => void;
 }) {
+  const t = useT();
   const qc = useQueryClient();
   const aspetto = useAspettoOperativo();
   const q = useQuery({
@@ -78,11 +80,11 @@ export function RiepilogoDdtFattura({ companyId, fatturaId, puoModificare, onCol
       return data as string | null;
     },
     onSuccess: esito => {
-      if (esito === "allineata") toast.success("Commesse aggiornate dai DDT");
-      else toast.info("Controlla le destinazioni e le quote della fattura");
+      if (esito === "allineata") toast.success(t("Commesse aggiornate dai DDT"));
+      else toast.info(t("Controlla le destinazioni e le quote della fattura"));
       refreshFinancialQueries(qc);
     },
-    onError: e => toast.error("Commesse non aggiornate", { description: messaggioSalvataggio(e) }),
+    onError: e => toast.error(t("Commesse non aggiornate"), { description: messaggioSalvataggio(e) }),
   });
   // Con le bolle tutte caricate e l'interruttore spento, o una divisione fatta a mano che non torna:
   // il costo si divide come le bolle con un clic, e il clic è la conferma (23/11/2026).
@@ -92,37 +94,37 @@ export function RiepilogoDdtFattura({ companyId, fatturaId, puoModificare, onCol
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Costo diviso come le bolle");
+      toast.success(t("Costo diviso come le bolle"));
       refreshFinancialQueries(qc);
       void qc.invalidateQueries({ queryKey: ["fattura-ddt-riepilogo", companyId, fatturaId] });
       void qc.invalidateQueries({ queryKey: ["commessa-fatture-fornitori"] });
     },
-    onError: e => toast.error("Costo non diviso", { description: messaggioSalvataggio(e) }),
+    onError: e => toast.error(t("Costo non diviso"), { description: messaggioSalvataggio(e) }),
   });
   // Le consegne in cantiere di tutte le bolle della fattura, con un clic (23/11/2026).
   const consegne = useMutation({
     mutationFn: (ids: string[]) => confermaConsegneFattura(ids),
     onSuccess: (e) => {
       if (e.confermate > 0)
-        toast.success(e.confermate === 1 ? "Consegna confermata per 1 bolla" : `Consegne confermate per ${e.confermate} bolle`,
-          { description: `${e.righe} ${e.righe === 1 ? "riga" : "righe"} fra i materiali e i servizi delle commesse.` });
-      else if (!e.saltate.length) toast.info("Le consegne di queste bolle erano già confermate");
+        toast.success(e.confermate === 1 ? t("Consegna confermata per 1 bolla") : t("Consegne confermate per {confermate} bolle", { confermate: String(e.confermate ?? "") }),
+          { description: t(e.righe === 1 ? "{n} riga fra i materiali e i servizi delle commesse." : "{n} righe fra i materiali e i servizi delle commesse.", { n: e.righe }) });
+      else if (!e.saltate.length) toast.info(t("Le consegne di queste bolle erano già confermate"));
       if (e.saltate.length)
-        toast.warning(`${e.saltate.length} ${e.saltate.length === 1 ? "bolla da confermare" : "bolle da confermare"} dalla pagina della bolla`,
-          { description: e.saltate.slice(0, 4).map((x) => `${x.numero ? `DDT ${x.numero}` : "Bolla"}: ${x.motivo}`).join(" · "), duration: 12_000 });
+        toast.warning(t(e.saltate.length === 1 ? "{n} bolla da confermare dalla pagina della bolla" : "{n} bolle da confermare dalla pagina della bolla", { n: e.saltate.length }),
+          { description: e.saltate.slice(0, 4).map((x) => `${x.numero ? `DDT ${x.numero}` : t("Bolla")}: ${x.motivo}`).join(" · "), duration: 12_000 });
       refreshMaterialQueries(qc);
       void qc.invalidateQueries({ queryKey: ["fattura-ddt-riepilogo", companyId, fatturaId] });
       void qc.invalidateQueries({ queryKey: ["commessa-fatture-fornitori"] });
     },
-    onError: (e: Error) => toast.error("Consegne non confermate", { description: e.message }),
+    onError: (e: Error) => toast.error(t("Consegne non confermate"), { description: e.message }),
   });
   const bottoneBolle = (sostituisce: boolean) => puoModificare && (
     <Button variant="link" size="sm" className="h-auto p-0 text-xs" disabled={comeLeBolle.isPending}
-      onClick={() => { if (!sostituisce || window.confirm("Le quote scelte a mano vengono sostituite da quelle delle bolle. Continuare?")) comeLeBolle.mutate(); }}>
-      {comeLeBolle.isPending ? "Divido…" : "Dividi come le bolle"}
+      onClick={() => { if (!sostituisce || window.confirm(t("Le quote scelte a mano vengono sostituite da quelle delle bolle. Continuare?"))) comeLeBolle.mutate(); }}>
+      {comeLeBolle.isPending ? t("Divido…") : t("Dividi come le bolle")}
     </Button>
   );
-  if (q.isError) return <p role="alert" className="basis-full text-xs text-destructive">Verifica DDT non disponibile. <button className="underline" onClick={() => void q.refetch()}>Riprova</button></p>;
+  if (q.isError) return <p role="alert" className="basis-full text-xs text-destructive">{t("Verifica DDT non disponibile.")} <button className="underline" onClick={() => void q.refetch()}>{t("Riprova")}</button></p>;
   const p = q.data;
   const ddt = p?.ddt ?? [];
   if (!p || (!ddt.length && !p.prezzi)) return null;
@@ -145,77 +147,75 @@ export function RiepilogoDdtFattura({ companyId, fatturaId, puoModificare, onCol
   const percorsoPrezzi = ddtPrezzi && percorsoBolla(ddtPrezzi, prezzi?.motivo);
   const contestoPrezzi = [
     prezzi?.riferimento && `DDT ${prezzi.riferimento}`,
-    prezzi?.riga && `riga ${prezzi.riga} della fattura`,
+    prezzi?.riga && t("riga {n} della fattura", { n: prezzi.riga }),
   ].filter(Boolean).join(" · ");
-  return <div className="basis-full space-y-1.5 pt-1 text-xs [overflow-wrap:anywhere]" aria-label="Verifica DDT e commesse">
-    {ddt.length > 0 && <p className="flex flex-wrap items-baseline gap-x-2 text-muted-foreground">{trovati} di {ddt.length} DDT collegati
+  return <div className="basis-full space-y-1.5 pt-1 text-xs [overflow-wrap:anywhere]" aria-label={t("Verifica DDT e commesse")}>
+    {ddt.length > 0 && <p className="flex flex-wrap items-baseline gap-x-2 text-muted-foreground">{t("{trovati} di {n} DDT collegati", { trovati, n: ddt.length })}
       {puoModificare && idsCollegati.length > 0 && <Button variant="link" size="sm" className="h-auto p-0 text-xs" disabled={consegne.isPending}
-        onClick={() => { if (window.confirm(`Confermare le consegne in cantiere delle ${idsCollegati.length === 1 ? "bolla collegata" : `${idsCollegati.length} bolle collegate`}? Materiali e servizi entrano nelle commesse delle bolle.`)) consegne.mutate(idsCollegati); }}>
-        {consegne.isPending ? "Confermo…" : "Conferma le consegne"}
+        onClick={() => { if (window.confirm(idsCollegati.length === 1 ? t("Confermare le consegne in cantiere della bolla collegata? Materiali e servizi entrano nelle commesse delle bolle.") : t("Confermare le consegne in cantiere delle {n} bolle collegate? Materiali e servizi entrano nelle commesse delle bolle.", { n: idsCollegati.length }))) consegne.mutate(idsCollegati); }}>
+        {consegne.isPending ? t("Confermo…") : t("Conferma le consegne")}
       </Button>}</p>}
     {mancantiSenzaAvvisoPrezzi.length > 0 && (mancantiSenzaAvvisoPrezzi.length > 3
       ? <details role="alert" className="text-amber-800 dark:text-amber-300">
-          <summary className="cursor-pointer">{mancantiSenzaAvvisoPrezzi.length} DDT da collegare</summary>
+          <summary className="cursor-pointer">{t("{n} DDT da collegare", { n: mancantiSenzaAvvisoPrezzi.length })}</summary>
           <p className="mt-0.5">{nomi(mancantiSenzaAvvisoPrezzi)}.</p>
         </details>
-      : <p role="alert" className="text-amber-800 dark:text-amber-300">{mancantiSenzaAvvisoPrezzi.length} DDT da collegare: {nomi(mancantiSenzaAvvisoPrezzi)}.</p>)}
-    {senzaDestinazione.length > 0 && <p role="alert" className="text-amber-800 dark:text-amber-300">{senzaDestinazione.length} DDT senza cantiere o magazzino: {nomi(senzaDestinazione)}.</p>}
-    {daVerificare.length > 0 && <p role="alert" className="text-amber-800 dark:text-amber-300">Verifica fornitore e destinazione dei DDT: {nomi(daVerificare)}.</p>}
-    {destinazioni.length > 0 && <p className="flex flex-wrap gap-x-3 gap-y-1"><span className="text-muted-foreground">Destinazioni DDT:</span>{destinazioni.map(d =>
-      d.tipo === "commessa" && d.valida ? <Link key={d.id} className="underline underline-offset-2" to={percorsoDocumentoGenerale(`/azienda/ordini/${d.id}`, aspetto?.generaleId)}>{d.codice || "Commessa"}</Link>
-        : <span key={`${d.tipo}:${d.id}`}>{d.tipo === "magazzino" ? "Magazzino" : "Commessa non disponibile"}</span>)}</p>}
+      : <p role="alert" className="text-amber-800 dark:text-amber-300">{t("{n} DDT da collegare: {elenco}.", { n: mancantiSenzaAvvisoPrezzi.length, elenco: nomi(mancantiSenzaAvvisoPrezzi) })}</p>)}
+    {senzaDestinazione.length > 0 && <p role="alert" className="text-amber-800 dark:text-amber-300">{t("{n} DDT senza cantiere o magazzino: {elenco}.", { n: senzaDestinazione.length, elenco: nomi(senzaDestinazione) })}</p>}
+    {daVerificare.length > 0 && <p role="alert" className="text-amber-800 dark:text-amber-300">{t("Verifica fornitore e destinazione dei DDT: {elenco}.", { elenco: nomi(daVerificare) })}</p>}
+    {destinazioni.length > 0 && <p className="flex flex-wrap gap-x-3 gap-y-1"><span className="text-muted-foreground">{t("Destinazioni DDT:")}</span>{destinazioni.map(d =>
+      d.tipo === "commessa" && d.valida ? <Link key={d.id} className="underline underline-offset-2" to={percorsoDocumentoGenerale(`/azienda/ordini/${d.id}`, aspetto?.generaleId)}>{d.codice || t("Commessa")}</Link>
+        : <span key={`${d.tipo}:${d.id}`}>{d.tipo === "magazzino" ? t("Magazzino") : t("Commessa non disponibile")}</span>)}</p>}
     {ddt.length > 0 && !p.completo && !mancanti.length && !senzaDestinazione.length && !daVerificare.length && <p role="alert" className="text-amber-800 dark:text-amber-300">{p.motivo}</p>}
     {p.completo && <>
-      {p.allineata ? <p className="text-muted-foreground">Costi assegnati alle destinazioni dei DDT.</p>
-        : p.gestita_altrove ? <p className="text-muted-foreground">Il costo è gestito separatamente: verifica le quote nella sezione Commesse.</p>
-          : p.manuale ? <div role="alert" className="flex flex-wrap items-baseline gap-x-2 text-amber-800 dark:text-amber-300">Le commesse sono state scelte manualmente e non corrispondono ai DDT.{bottoneBolle(true)}</div>
-            : p.senza_costo ? <p className="text-muted-foreground">Destinazioni riconosciute. Il costo verrà ripartito dopo la contabilizzazione.</p>
-              : !p.automatico ? <div className="flex flex-wrap items-baseline gap-x-2 text-muted-foreground">Tutte le bolle sono caricate.{bottoneBolle(false)}</div>
-                : puoModificare && <Button variant="link" size="sm" className="h-auto p-0 text-xs" disabled={allinea.isPending} onClick={() => allinea.mutate()}>{allinea.isPending ? "Aggiornamento…" : "Aggiorna commesse dai DDT"}</Button>}
+      {p.allineata ? <p className="text-muted-foreground">{t("Costi assegnati alle destinazioni dei DDT.")}</p>
+        : p.gestita_altrove ? <p className="text-muted-foreground">{t("Il costo è gestito separatamente: verifica le quote nella sezione Commesse.")}</p>
+          : p.manuale ? <div role="alert" className="flex flex-wrap items-baseline gap-x-2 text-amber-800 dark:text-amber-300">{t("Le commesse sono state scelte manualmente e non corrispondono ai DDT.")}{bottoneBolle(true)}</div>
+            : p.senza_costo ? <p className="text-muted-foreground">{t("Destinazioni riconosciute. Il costo verrà ripartito dopo la contabilizzazione.")}</p>
+              : !p.automatico ? <div className="flex flex-wrap items-baseline gap-x-2 text-muted-foreground">{t("Tutte le bolle sono caricate.")}{bottoneBolle(false)}</div>
+                : puoModificare && <Button variant="link" size="sm" className="h-auto p-0 text-xs" disabled={allinea.isPending} onClick={() => allinea.mutate()}>{allinea.isPending ? t("Aggiornamento…") : t("Aggiorna commesse dai DDT")}</Button>}
     </>}
-    {prezzi?.stato === "in_verifica" && <p role="status" className="text-muted-foreground">Verifica automatica dei prezzi in corso.</p>}
-    {prezzi?.stato === "aggiornata" && <p role="status" className="text-muted-foreground">Prezzi aggiornati automaticamente in commessa.</p>}
-    {prezzi?.stato === "confermata" && <p className="text-muted-foreground">Prezzi confermati manualmente.</p>}
-    {!!prezzi?.ddt_valorizzati && <p role="status" className="text-muted-foreground">
-      {prezzi.ddt_valorizzati} di {prezzi.ddt_totali} DDT valorizzati.
-    </p>}
+    {prezzi?.stato === "in_verifica" && <p role="status" className="text-muted-foreground">{t("Verifica automatica dei prezzi in corso.")}</p>}
+    {prezzi?.stato === "aggiornata" && <p role="status" className="text-muted-foreground">{t("Prezzi aggiornati automaticamente in commessa.")}</p>}
+    {prezzi?.stato === "confermata" && <p className="text-muted-foreground">{t("Prezzi confermati manualmente.")}</p>}
+    {!!prezzi?.ddt_valorizzati && <p role="status" className="text-muted-foreground">{t("{ddt_valorizzati} di {ddt_totali} DDT valorizzati.", { ddt_valorizzati: String(prezzi.ddt_valorizzati ?? ""), ddt_totali: String(prezzi.ddt_totali ?? "") })}</p>}
     {prezzi?.attesa_materiale && <p className="text-muted-foreground">
-      Prezzo medio in attesa degli altri DDT del materiale.{" "}
-      <Link className="underline underline-offset-2" to={percorsoBolla(prezzi.attesa_materiale, "altre_consegne")}>Apri DDT</Link>
+      {t("Prezzo medio in attesa degli altri DDT del materiale.")}{" "}
+      <Link className="underline underline-offset-2" to={percorsoBolla(prezzi.attesa_materiale, "altre_consegne")}>{t("Apri DDT")}</Link>
     </p>}
     {pendenti.length > 0 && (
       <div className="space-y-1 rounded-md border border-amber-500/30 bg-amber-500/5 px-2 py-1.5">
-        <p role="alert" className="font-semibold text-amber-900 dark:text-amber-200">{pendenti.length} DDT da confermare</p>
+        <p role="alert" className="font-semibold text-amber-900 dark:text-amber-200">{t("{n} DDT da confermare", { n: pendenti.length })}</p>
         <ul className="space-y-1">
           {pendenti.map(r => <li key={r.posizione}>
-            <span className="font-medium">{r.numero ? `DDT ${r.numero}` : `Riferimento ${r.posizione}`}</span>{" "}
-            {r.riga ? <span className="text-muted-foreground">· Riga {r.riga} · </span> : "· "}
-            {motiviPrezzo[r.motivo] ?? motiviPrezzo.verifica_fallita}{" "}
+            <span className="font-medium">{r.numero ? `DDT ${r.numero}` : t("Riferimento {posizione}", { posizione: String(r.posizione ?? "") })}</span>{" "}
+            {r.riga ? <span className="text-muted-foreground">· {t("Riga {riga}", { riga: String(r.riga ?? "") })} ·{" "}</span> : "· "}
+            {t(motiviPrezzo[r.motivo] ?? motiviPrezzo.verifica_fallita)}{" "}
             {r.ddt_id && <Link className="text-primary underline underline-offset-2" to={percorsoBolla(r.ddt_id, r.motivo)}>
-              {verificaConsegna(r.motivo) ? "Apri DDT" : "Verifica sul DDT"}
+              {verificaConsegna(r.motivo) ? t("Apri DDT") : t("Verifica sul DDT")}
             </Link>}
           </li>)}
         </ul>
         {puoModificare && onCollegaDdt && pendenti.some(r => motiviCollegamento.includes(r.motivo)) && (
-          <button type="button" className="text-primary underline underline-offset-2" onClick={onCollegaDdt}>Collega DDT</button>
+          <button type="button" className="text-primary underline underline-offset-2" onClick={onCollegaDdt}>{t("Collega DDT")}</button>
         )}
       </div>
     )}
     {prezzi && pendenti.length === 0 && (prezzi.stato === "da_verificare" || prezzi.stato === "pronta") && (
       <div className="space-y-1 rounded-md border border-amber-500/30 bg-amber-500/5 px-2 py-1.5">
         <p role="status" className="text-amber-900 dark:text-amber-200">
-          <strong>Prezzi in commessa da confermare.</strong>{" "}
-          {prezzi.stato === "pronta" ? "Controlla e conferma il confronto sul DDT." : (motiviPrezzo[prezzi.motivo ?? ""] ?? motiviPrezzo.verifica_fallita)}
+          <strong>{t("Prezzi in commessa da confermare.")}</strong>{" "}
+          {prezzi.stato === "pronta" ? t("Controlla e conferma il confronto sul DDT.") : t(motiviPrezzo[prezzi.motivo ?? ""] ?? motiviPrezzo.verifica_fallita)}
           {contestoPrezzi && <> ({contestoPrezzi})</>}
         </p>
-        {!!prezzi.confermate && <p className="text-muted-foreground">Righe confermate manualmente: {prezzi.confermate}.</p>}
+        {!!prezzi.confermate && <p className="text-muted-foreground">{t("Righe confermate manualmente: {confermate}.", { confermate: String(prezzi.confermate ?? "") })}</p>}
         <div className="flex flex-wrap gap-x-3 gap-y-1">
           {puoModificare && motiviCollegamento.includes(prezzi.motivo ?? "") && onCollegaDdt && (
-            <button type="button" className="text-primary underline underline-offset-2" onClick={onCollegaDdt}>Collega DDT</button>
+            <button type="button" className="text-primary underline underline-offset-2" onClick={onCollegaDdt}>{t("Collega DDT")}</button>
           )}
           {percorsoPrezzi && prezzi.motivo !== "fornitore" && (
             <Link className="text-primary underline underline-offset-2" to={percorsoPrezzi}>
-              {consegnaDaControllare ? "Apri DDT" : "Verifica prezzi sul DDT"}
+              {consegnaDaControllare ? t("Apri DDT") : t("Verifica prezzi sul DDT")}
             </Link>
           )}
         </div>

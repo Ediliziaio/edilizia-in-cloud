@@ -63,6 +63,7 @@ import {
   type PickerReferente,
 } from "@/components/warehouse/WarehouseReferentiPicker";
 import { WarehouseSectionsManager } from "@/components/warehouse/WarehouseSectionsManager";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   main: <Building2 className="h-4 w-4" />,
@@ -102,6 +103,7 @@ const emptyForm = (): WarehouseInsert => ({
 });
 
 export default function WarehouseManager() {
+  const t = useT();
   const navigate = useNavigate();
   // Amministratore dell'azienda su cui si lavora (anche via accesso
   // multi-azienda) o super admin, come decide usePermissions: il ruolo grezzo
@@ -176,20 +178,20 @@ export default function WarehouseManager() {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} aria-label="Torna indietro">
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} aria-label={t("Torna indietro")}>
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           </Button>
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
               <WarehouseIcon className="h-6 w-6" aria-hidden="true" />
-              Gestione Magazzini
+              {t("Gestione Magazzini")}
             </h1>
-            <p className="text-muted-foreground">Verifica permessi in corso…</p>
+            <p className="text-muted-foreground">{t("Verifica permessi in corso…")}</p>
           </div>
         </div>
         <Card>
           <CardContent className="py-10 text-center text-muted-foreground" role="status" aria-live="polite">
-            Caricamento permessi…
+            {t("Caricamento permessi…")}
           </CardContent>
         </Card>
       </div>
@@ -200,12 +202,12 @@ export default function WarehouseManager() {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} aria-label="Torna indietro">
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} aria-label={t("Torna indietro")}>
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           </Button>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <WarehouseIcon className="h-6 w-6" aria-hidden="true" />
-            Gestione Magazzini
+            {t("Gestione Magazzini")}
           </h1>
         </div>
         <Card className="max-w-xl mx-auto">
@@ -219,11 +221,9 @@ export default function WarehouseManager() {
               aria-hidden="true"
             />
             <div>
-              <p className="font-medium">Accesso riservato</p>
+              <p className="font-medium">{t("Accesso riservato")}</p>
               <p className="text-sm text-muted-foreground mt-1">
-                Solo l&apos;amministratore dell&apos;azienda può creare o
-                gestire i magazzini e le assegnazioni magazzinieri. Contatta
-                l&apos;amministratore per richiedere l&apos;accesso.
+                {t("Solo l'amministratore dell'azienda può creare o gestire i magazzini e le assegnazioni magazzinieri. Contatta l'amministratore per richiedere l'accesso.")}
               </p>
             </div>
             <Button
@@ -231,7 +231,7 @@ export default function WarehouseManager() {
               onClick={() => navigate("/azienda/magazzino")}
             >
               <ArrowLeft className="h-4 w-4 mr-2" aria-hidden="true" />
-              Torna al magazzino
+              {t("Torna al magazzino")}
             </Button>
           </CardContent>
         </Card>
@@ -275,8 +275,8 @@ export default function WarehouseManager() {
       (w) => w.name.toLowerCase() === normalizedName.toLowerCase() && w.id !== editingId,
     );
     if (duplicate) {
-      toast.error("Nome magazzino già in uso", {
-        description: "Scegli un nome diverso per distinguerli nei selettori.",
+      toast.error(t("Nome magazzino già in uso"), {
+        description: t("Scegli un nome diverso per distinguerli nei selettori."),
       });
       return;
     }
@@ -320,21 +320,21 @@ export default function WarehouseManager() {
     <div className="space-y-4 sm:space-y-6">
       {/* Header */}
       <div className="flex items-center gap-2 sm:gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)} aria-label="Indietro">
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)} aria-label={t("Indietro")}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1 min-w-0">
           <h1 className="text-lg sm:text-2xl font-bold flex items-center gap-2">
             <WarehouseIcon className="h-5 w-5 sm:h-6 sm:w-6" />
-            <span className="truncate">Gestione Magazzini</span>
+            <span className="truncate">{t("Gestione Magazzini")}</span>
           </h1>
           <p className="hidden sm:block text-muted-foreground">
-            Crea e gestisci i magazzini fisici della tua azienda
+            {t("Crea e gestisci i magazzini fisici della tua azienda")}
           </p>
         </div>
-        <Button onClick={openCreate} className="shrink-0" aria-label="Nuovo magazzino">
+        <Button onClick={openCreate} className="shrink-0" aria-label={t("Nuovo magazzino")}>
           <Plus className="h-4 w-4 sm:mr-2" />
-          <span className="hidden sm:inline">Nuovo Magazzino</span>
+          <span className="hidden sm:inline">{t("Nuovo Magazzino")}</span>
         </Button>
       </div>
 
@@ -344,26 +344,26 @@ export default function WarehouseManager() {
           <CardContent className="py-10 text-center space-y-3" role="alert" aria-live="assertive">
             <ShieldAlert className="h-10 w-10 text-destructive mx-auto" aria-hidden="true" />
             <div>
-              <p className="font-medium text-destructive">Impossibile caricare i magazzini</p>
+              <p className="font-medium text-destructive">{t("Impossibile caricare i magazzini")}</p>
               <p className="text-sm text-muted-foreground mt-1">
-                {(warehousesError as Error).message || "Controlla permessi e connessione, poi riprova."}
+                {(warehousesError as Error).message || t("Controlla permessi e connessione, poi riprova.")}
               </p>
             </div>
             <Button variant="outline" onClick={() => window.location.reload()}>
-              Riprova
+              {t("Riprova")}
             </Button>
           </CardContent>
         </Card>
       ) : isLoading ? (
-        <p className="text-muted-foreground">Caricamento…</p>
+        <p className="text-muted-foreground">{t("Caricamento…")}</p>
       ) : warehouses.length === 0 ? (
         <Card>
           <CardContent className="py-8 sm:py-12 text-center px-4">
             <WarehouseIcon className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 sm:mb-4 text-muted-foreground/40" />
-            <p className="text-muted-foreground">Nessun magazzino configurato.</p>
+            <p className="text-muted-foreground">{t("Nessun magazzino configurato.")}</p>
             <Button className="mt-4 w-full sm:w-auto" onClick={openCreate}>
               <Plus className="h-4 w-4 mr-2" />
-              Crea il primo magazzino
+              {t("Crea il primo magazzino")}
             </Button>
           </CardContent>
         </Card>
@@ -384,7 +384,7 @@ export default function WarehouseManager() {
                       <Star className="h-4 w-4 text-amber-500 fill-amber-500" />
                     )}
                     <Badge className={TYPE_COLORS[w.type] + " text-xs"}>
-                      {TYPE_LABELS[w.type]}
+                      {t(TYPE_LABELS[w.type])}
                     </Badge>
                   </div>
                 </div>
@@ -425,8 +425,7 @@ export default function WarehouseManager() {
                         {extraCount > 0 && (
                           <p className="flex items-center gap-1.5 text-xs">
                             <Users className="h-3 w-3 shrink-0" />
-                            +{extraCount} altr{extraCount === 1 ? "o" : "i"} referent
-                            {extraCount === 1 ? "e" : "i"}
+                            {extraCount === 1 ? t("+{n} altro referente", { n: 1 }) : t("+{n} altri referenti", { n: extraCount })}
                           </p>
                         )}
                       </div>
@@ -446,7 +445,7 @@ export default function WarehouseManager() {
 
                 {!w.is_active && (
                   <Badge variant="outline" className="text-xs text-destructive border-destructive/50">
-                    Disattivato
+                    {t("Disattivato")}
                   </Badge>
                 )}
 
@@ -454,35 +453,35 @@ export default function WarehouseManager() {
                 <div className="flex items-center gap-2 pt-2 border-t flex-wrap">
                   <Button variant="outline" size="sm" onClick={() => openEdit(w)}>
                     <Pencil className="h-3.5 w-3.5 mr-1" />
-                    Modifica
+                    {t("Modifica")}
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setZoneTarget(w)}
-                    title="Carica planimetria e gestisci zone operative"
+                    title={t("Carica planimetria e gestisci zone operative")}
                   >
                     <MapPin className="h-3.5 w-3.5 mr-1" />
-                    Planimetria
+                    {t("Planimetria")}
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setAssignTarget(w)}
-                    title="Gestisci magazzinieri assegnati a questo magazzino"
+                    title={t("Gestisci magazzinieri assegnati a questo magazzino")}
                   >
                     <Users className="h-3.5 w-3.5 mr-1" />
-                    Magazzinieri
+                    {t("Magazzinieri")}
                   </Button>
                   {!w.is_default && w.is_active && (
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => setDefaultWarehouse(w.id)}
-                      title="Imposta come predefinito"
+                      title={t("Imposta come predefinito")}
                     >
                       <Star className="h-3.5 w-3.5 mr-1" />
-                      Default
+                      {t("Default")}
                     </Button>
                   )}
                   {w.is_active && !w.is_default && (
@@ -491,7 +490,7 @@ export default function WarehouseManager() {
                       size="sm"
                       className="text-destructive hover:text-destructive"
                       onClick={() => setDeactivateTarget(w)}
-                      title="Disattiva senza eliminare lo storico"
+                      title={t("Disattiva senza eliminare lo storico")}
                     >
                       <PowerOff className="h-3.5 w-3.5" />
                     </Button>
@@ -502,7 +501,7 @@ export default function WarehouseManager() {
                       size="sm"
                       className="text-destructive hover:text-destructive ml-auto"
                       onClick={() => setDeleteTarget(w)}
-                      title="Elimina definitivamente il magazzino"
+                      title={t("Elimina definitivamente il magazzino")}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
@@ -519,21 +518,21 @@ export default function WarehouseManager() {
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {editingId ? "Modifica Magazzino" : "Nuovo Magazzino"}
+              {editingId ? t("Modifica Magazzino") : t("Nuovo Magazzino")}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2 space-y-2">
-                <Label>Nome *</Label>
+                <Label>{t("Nome *")}</Label>
                 <Input
                   value={form.name}
                   onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-                  placeholder="es. Magazzino Nord"
+                  placeholder={t("es. Magazzino Nord")}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Tipo</Label>
+                <Label>{t("Tipo")}</Label>
                 <Select
                   value={form.type}
                   onValueChange={(v) => setForm((p) => ({ ...p, type: v as Warehouse["type"] }))}
@@ -542,15 +541,15 @@ export default function WarehouseManager() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="main">Principale</SelectItem>
-                    <SelectItem value="secondary">Secondario</SelectItem>
-                    <SelectItem value="site">Cantiere</SelectItem>
-                    <SelectItem value="vehicle">Veicolo</SelectItem>
+                    <SelectItem value="main">{t("Principale")}</SelectItem>
+                    <SelectItem value="secondary">{t("Secondario")}</SelectItem>
+                    <SelectItem value="site">{t("Cantiere")}</SelectItem>
+                    <SelectItem value="vehicle">{t("Veicolo")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Posizione (ordine)</Label>
+                <Label>{t("Posizione (ordine)")}</Label>
                 <Input
                   type="number"
                   min={0}
@@ -562,25 +561,25 @@ export default function WarehouseManager() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2 space-y-2">
-                <Label htmlFor="magazzino-indirizzo">Indirizzo</Label>
+                <Label htmlFor="magazzino-indirizzo">{t("Indirizzo")}</Label>
                 <CampoIndirizzo
                   id="magazzino-indirizzo"
                   value={form.address ?? ""}
                   onChange={(v) => f("address", v)}
                   onScegli={(a) => riempiCampi(a, (campo, valore) => f(({ via: "address", citta: "city", cap: "postal_code", provincia: "province" } as const)[campo], valore))}
-                  placeholder="Via Roma 1"
+                  placeholder={t("Via Roma 1")}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Città</Label>
+                <Label>{t("Città")}</Label>
                 <Input
                   value={form.city ?? ""}
                   onChange={(e) => f("city", e.target.value)}
-                  placeholder="Milano"
+                  placeholder={t("Milano")}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Prov.</Label>
+                <Label>{t("Prov.")}</Label>
                 <Input
                   value={form.province ?? ""}
                   onChange={(e) => f("province", e.target.value)}
@@ -595,12 +594,11 @@ export default function WarehouseManager() {
               <div className="flex items-center justify-between gap-2">
                 <Label className="flex items-center gap-1.5">
                   <Users className="h-3.5 w-3.5" />
-                  Referenti del magazzino
+                  {t("Referenti del magazzino")}
                 </Label>
                 {pickerValue.length > 0 && (
                   <Badge variant="secondary" className="text-[10px] h-5">
-                    {pickerValue.length}{" "}
-                    {pickerValue.length === 1 ? "assegnato" : "assegnati"}
+                    {pickerValue.length === 1 ? t("{n} assegnato", { n: 1 }) : t("{n} assegnati", { n: pickerValue.length })}
                   </Badge>
                 )}
               </div>
@@ -614,18 +612,18 @@ export default function WarehouseManager() {
               />
               {isLoadingReferenti && (
                 <p className="text-[11px] text-muted-foreground">
-                  Caricamento referenti esistenti…
+                  {t("Caricamento referenti esistenti…")}
                 </p>
               )}
             </div>
 
             <div className="space-y-2">
-              <Label>Note</Label>
+              <Label>{t("Note")}</Label>
               <Textarea
                 value={form.notes ?? ""}
                 onChange={(e) => f("notes", e.target.value)}
                 rows={2}
-                placeholder="Note interne…"
+                placeholder={t("Note interne…")}
               />
             </div>
 
@@ -633,9 +631,9 @@ export default function WarehouseManager() {
               <div className="rounded-lg border bg-muted/20 p-3">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="text-sm font-medium">Planimetria e zone operative</p>
+                    <p className="text-sm font-medium">{t("Planimetria e zone operative")}</p>
                     <p className="text-xs text-muted-foreground">
-                      Carica la piantina del magazzino e disegna aree come mobili, attrezzature, scorte o baie di carico.
+                      {t("Carica la piantina del magazzino e disegna aree come mobili, attrezzature, scorte o baie di carico.")}
                     </p>
                   </div>
                   <Button
@@ -652,7 +650,7 @@ export default function WarehouseManager() {
                     }}
                   >
                     <MapPin className="h-3.5 w-3.5" />
-                    Apri planimetria
+                    {t("Apri planimetria")}
                   </Button>
                 </div>
               </div>
@@ -660,7 +658,7 @@ export default function WarehouseManager() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button
               onClick={handleSave}
@@ -673,8 +671,8 @@ export default function WarehouseManager() {
               }
             >
               {isCreating || isUpdating || isSavingReferenti
-                ? "Salvataggio…"
-                : "Salva"}
+                ? t("Salvataggio…")
+                : t("Salva")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -708,14 +706,13 @@ export default function WarehouseManager() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Disattivare {deactivateTarget?.name}?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Disattivare {name}?", { name: String(deactivateTarget?.name ?? "") })}</AlertDialogTitle>
             <AlertDialogDescription>
-              Il magazzino verrà nascosto da tutti i selettori. Lo stock e i movimenti
-              esistenti non vengono eliminati. Potrai riattivarlo in futuro.
+              {t("Il magazzino verrà nascosto da tutti i selettori. Lo stock e i movimenti esistenti non vengono eliminati. Potrai riattivarlo in futuro.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={async () => {
@@ -725,7 +722,7 @@ export default function WarehouseManager() {
                 }
               }}
             >
-              Disattiva
+              {t("Disattiva")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -738,15 +735,13 @@ export default function WarehouseManager() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare definitivamente {deleteTarget?.name}?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Eliminare definitivamente {name}?", { name: String(deleteTarget?.name ?? "") })}</AlertDialogTitle>
             <AlertDialogDescription>
-              Si può eliminare solo un magazzino vuoto: se ha ancora articoli,
-              movimenti o ordini collegati l&apos;eliminazione si ferma e ti dice
-              cosa spostare prima.
+              {t("Si può eliminare solo un magazzino vuoto: se ha ancora articoli, movimenti o ordini collegati l'eliminazione si ferma e ti dice cosa spostare prima.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Annulla</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               disabled={isDeleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -757,7 +752,7 @@ export default function WarehouseManager() {
                 }
               }}
             >
-              {isDeleting ? "Eliminazione..." : "Elimina definitivamente"}
+              {isDeleting ? t("Eliminazione...") : t("Elimina definitivamente")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

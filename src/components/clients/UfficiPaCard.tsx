@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogD
 import { useToast } from "@/hooks/use-toast";
 import { useUfficiPa, messaggioErroreUfficio } from "@/hooks/useUfficiPa";
 import { problemiUfficioPa, type UfficioPa, type UfficioPaForm } from "@/lib/clienti/ufficiPa";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function UfficiPaCard({
   anagraficaId,
@@ -23,6 +24,7 @@ export function UfficiPaCard({
   /** Nella colonna stretta della scheda cliente: pulsanti a icona, meno margini. */
   compatta?: boolean;
 }) {
+  const t = useT();
   const { toast } = useToast();
   const { tutti, isLoading, aggiungi, modifica, rendiPredefinito, disattiva } = useUfficiPa(anagraficaId);
   const [aperto, setAperto] = useState<{ ufficio: UfficioPa | null } | null>(null);
@@ -32,7 +34,7 @@ export function UfficiPaCard({
       await azione();
       toast({ title: ok });
     } catch (e) {
-      toast({ title: "Non salvato", description: messaggioErroreUfficio(e), variant: "destructive" });
+      toast({ title: t("Non salvato"), description: messaggioErroreUfficio(e), variant: "destructive" });
     }
   };
 
@@ -40,11 +42,11 @@ export function UfficiPaCard({
     <Card className={compatta ? "shadow-none" : undefined}>
       <CardHeader className={`flex flex-row flex-wrap items-center justify-between gap-2 space-y-0 ${compatta ? "p-2 pb-1" : "pb-3"}`}>
         <CardTitle className={`flex items-center gap-2 ${compatta ? "text-xs" : "text-sm"}`}>
-          <Landmark className="h-4 w-4" /> {compatta ? "Uffici PA" : "Uffici di fatturazione (PA)"}
+          <Landmark className="h-4 w-4" /> {compatta ? t("Uffici PA") : t("Uffici di fatturazione (PA)")}
         </CardTitle>
         {puoModificare && (
           <Button size="sm" variant="outline" className={compatta ? "h-7 px-2 text-xs" : undefined} onClick={() => setAperto({ ufficio: null })}>
-            <Plus className="h-3.5 w-3.5 mr-1" /> {compatta ? "Aggiungi" : "Aggiungi ufficio"}
+            <Plus className="h-3.5 w-3.5 mr-1" /> {compatta ? t("Aggiungi") : t("Aggiungi ufficio")}
           </Button>
         )}
       </CardHeader>
@@ -52,15 +54,15 @@ export function UfficiPaCard({
         {isLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
         {!isLoading && tutti.length === 0 && (
           <p className="text-muted-foreground">
-            Nessun ufficio. Senza il codice univoco ufficio la fattura elettronica alla PA non parte.
+            {t("Nessun ufficio. Senza il codice univoco ufficio la fattura elettronica alla PA non parte.")}
           </p>
         )}
         {tutti.map((u) => (
           <div key={u.id} className={`flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border ${compatta ? "px-2 py-1.5" : "px-3 py-2"} ${u.attivo ? "" : "opacity-60"}`}>
             <span className="font-mono font-medium">{u.codice_univoco_ufficio}</span>
             <span className="flex-1 min-w-0 truncate">{u.descrizione || "—"}</span>
-            {u.predefinito && <Badge>Predefinito</Badge>}
-            {!u.attivo && <Badge variant="secondary">Disattivato</Badge>}
+            {u.predefinito && <Badge>{t("Predefinito")}</Badge>}
+            {!u.attivo && <Badge variant="secondary">{t("Disattivato")}</Badge>}
             {puoModificare && (
               <div className="flex gap-1">
                 {u.attivo && !u.predefinito && (
@@ -68,15 +70,15 @@ export function UfficiPaCard({
                     size="sm"
                     variant="ghost"
                     className={compatta ? "h-7 px-2" : undefined}
-                    aria-label="Rendi predefinito"
-                    title="Rendi predefinito"
-                    onClick={() => esegui(() => rendiPredefinito.mutateAsync(u.id), "Ufficio predefinito cambiato")}
+                    aria-label={t("Rendi predefinito")}
+                    title={t("Rendi predefinito")}
+                    onClick={() => esegui(() => rendiPredefinito.mutateAsync(u.id), t("Ufficio predefinito cambiato"))}
                   >
                     <Star className="h-3.5 w-3.5" />
-                    {!compatta && <span className="ml-1">Predefinito</span>}
+                    {!compatta && <span className="ml-1">{t("Predefinito")}</span>}
                   </Button>
                 )}
-                <Button size="sm" variant="ghost" className={compatta ? "h-7 px-2" : undefined} aria-label="Modifica ufficio" onClick={() => setAperto({ ufficio: u })}>
+                <Button size="sm" variant="ghost" className={compatta ? "h-7 px-2" : undefined} aria-label={t("Modifica ufficio")} onClick={() => setAperto({ ufficio: u })}>
                   <Pencil className="h-3.5 w-3.5" />
                 </Button>
                 <Button
@@ -86,18 +88,18 @@ export function UfficiPaCard({
                   onClick={() =>
                     esegui(
                       () => disattiva.mutateAsync({ id: u.id, attivo: !u.attivo }),
-                      u.attivo ? "Ufficio disattivato" : "Ufficio riattivato",
+                      u.attivo ? t("Ufficio disattivato") : t("Ufficio riattivato"),
                     )
                   }
                 >
-                  {u.attivo ? "Disattiva" : "Riattiva"}
+                  {u.attivo ? t("Disattiva") : t("Riattiva")}
                 </Button>
               </div>
             )}
           </div>
         ))}
         {tutti.length > 0 && !tutti.some((u) => u.predefinito) && (
-          <p className="text-xs text-amber-700">Nessun ufficio predefinito: la fattura non saprà a quale ufficio andare.</p>
+          <p className="text-xs text-amber-700">{t("Nessun ufficio predefinito: la fattura non saprà a quale ufficio andare.")}</p>
         )}
       </CardContent>
 
@@ -127,6 +129,7 @@ function DialogUfficio({
   onClose: () => void;
   onSalva: (f: UfficioPaForm) => Promise<void>;
 }) {
+  const t = useT();
   const { toast } = useToast();
   const [f, setF] = useState<UfficioPaForm>({
     descrizione: ufficio?.descrizione ?? "",
@@ -143,10 +146,10 @@ function DialogUfficio({
     setSalvo(true);
     try {
       await onSalva(f);
-      toast({ title: ufficio ? "Ufficio aggiornato" : "Ufficio aggiunto" });
+      toast({ title: ufficio ? t("Ufficio aggiornato") : t("Ufficio aggiunto") });
       onClose();
     } catch (e) {
-      toast({ title: "Non salvato", description: messaggioErroreUfficio(e), variant: "destructive" });
+      toast({ title: t("Non salvato"), description: messaggioErroreUfficio(e), variant: "destructive" });
     } finally {
       setSalvo(false);
     }
@@ -156,12 +159,12 @@ function DialogUfficio({
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>{ufficio ? "Modifica ufficio" : "Nuovo ufficio"}</DialogTitle>
-          <DialogDescription>Il codice univoco ufficio è sull'ordine dell'ente o su indicepa.gov.it.</DialogDescription>
+          <DialogTitle>{ufficio ? t("Modifica ufficio") : t("Nuovo ufficio")}</DialogTitle>
+          <DialogDescription>{t("Il codice univoco ufficio è sull'ordine dell'ente o su indicepa.gov.it.")}</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <Label htmlFor="uff-codice">Codice univoco ufficio *</Label>
+            <Label htmlFor="uff-codice">{t("Codice univoco ufficio *")}</Label>
             <Input
               id="uff-codice"
               className="font-mono uppercase"
@@ -173,19 +176,19 @@ function DialogUfficio({
             {provato && errori.codice && <p className="text-xs text-destructive">{errori.codice}</p>}
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="uff-descr">Nome dell'ufficio *</Label>
-            <Input id="uff-descr" value={f.descrizione} placeholder="Lavori pubblici" onChange={(e) => setF({ ...f, descrizione: e.target.value })} />
+            <Label htmlFor="uff-descr">{t("Nome dell'ufficio *")}</Label>
+            <Input id="uff-descr" value={f.descrizione} placeholder={t("Lavori pubblici")} onChange={(e) => setF({ ...f, descrizione: e.target.value })} />
             {provato && errori.descrizione && <p className="text-xs text-destructive">{errori.descrizione}</p>}
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="uff-note">Note</Label>
+            <Label htmlFor="uff-note">{t("Note")}</Label>
             <Input id="uff-note" value={f.note ?? ""} onChange={(e) => setF({ ...f, note: e.target.value })} />
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Annulla</Button>
+          <Button variant="outline" onClick={onClose}>{t("Annulla")}</Button>
           <Button onClick={salva} disabled={salvo}>
-            {salvo && <Loader2 className="h-4 w-4 mr-1 animate-spin" />} Salva
+            {salvo && <Loader2 className="h-4 w-4 mr-1 animate-spin" />} {t("Salva")}
           </Button>
         </DialogFooter>
       </DialogContent>

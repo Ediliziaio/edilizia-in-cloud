@@ -14,6 +14,7 @@ import { Bell, Plus, Trash2, AlertTriangle, Wallet, CreditCard, Clock } from "lu
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { parsePositiveAmount } from "@/lib/treasury";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const ruleTypeLabels: Record<string, { label: string; icon: any; unit: string }> = {
   balance_below: { label: "Saldo sotto soglia", icon: Wallet, unit: "€" },
@@ -27,6 +28,7 @@ interface Props {
 }
 
 export default function BankAlertRules({ companyId }: Props) {
+  const t = useT();
   const [rules, setRules] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -62,8 +64,8 @@ export default function BankAlertRules({ companyId }: Props) {
       if (error) throw error;
       setRules(data || []);
     } catch (e: any) {
-      setLoadError(e.message || "Impossibile caricare gli alert");
-      toast.error("Errore caricamento alert finanziari");
+      setLoadError(e.message || t("Impossibile caricare gli alert"));
+      toast.error(t("Errore caricamento alert finanziari"));
     } finally {
       setLoading(false);
     }
@@ -71,7 +73,7 @@ export default function BankAlertRules({ companyId }: Props) {
 
   async function handleAdd() {
     if (!companyId) {
-      toast.error("Azienda non disponibile");
+      toast.error(t("Azienda non disponibile"));
       return;
     }
 
@@ -81,7 +83,7 @@ export default function BankAlertRules({ companyId }: Props) {
       : parsePositiveAmount(newRule.threshold);
 
     if (!thresholdValue || thresholdValue <= 0) {
-      toast.error(isDateBased ? "Inserisci un numero di giorni valido" : "Inserisci una soglia maggiore di zero");
+      toast.error(isDateBased ? t("Inserisci un numero di giorni valido") : t("Inserisci una soglia maggiore di zero"));
       return;
     }
 
@@ -103,7 +105,7 @@ export default function BankAlertRules({ companyId }: Props) {
     try {
       const { error } = await supabase.from("bank_alert_rules").insert(payload);
       if (error) throw error;
-      toast.success("Alert creato");
+      toast.success(t("Alert creato"));
       setShowAdd(false);
       setNewRule({ rule_type: "balance_below", threshold: "", days_threshold: "", notify_email: false, notify_inapp: true });
       await loadRules();
@@ -141,7 +143,7 @@ export default function BankAlertRules({ companyId }: Props) {
         .eq("id", deleteId)
         .eq("company_id", companyId);
       if (error) throw error;
-      toast.success("Alert eliminato");
+      toast.success(t("Alert eliminato"));
       setDeleteId(null);
       await loadRules();
     } catch (e: any) {
@@ -159,10 +161,10 @@ export default function BankAlertRules({ companyId }: Props) {
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h3 className="font-semibold flex items-center gap-2">
-          <Bell className="h-4 w-4" /> Alert Finanziari
+          <Bell className="h-4 w-4" /> {t("Alert Finanziari")}
         </h3>
         <Button size="sm" onClick={() => setShowAdd(true)}>
-          <Plus className="h-4 w-4 mr-1" /> Nuovo Alert
+          <Plus className="h-4 w-4 mr-1" /> {t("Nuovo Alert")}
         </Button>
       </div>
 
@@ -170,7 +172,7 @@ export default function BankAlertRules({ companyId }: Props) {
         <Card className="border-destructive/30">
           <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-destructive">{loadError}</p>
-            <Button variant="outline" size="sm" onClick={() => loadRules()}>Riprova</Button>
+            <Button variant="outline" size="sm" onClick={() => loadRules()}>{t("Riprova")}</Button>
           </CardContent>
         </Card>
       )}
@@ -178,7 +180,7 @@ export default function BankAlertRules({ companyId }: Props) {
       {rules.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground">
-            Nessun alert configurato. Crea un alert per ricevere notifiche automatiche.
+            {t("Nessun alert configurato. Crea un alert per ricevere notifiche automatiche.")}
           </CardContent>
         </Card>
       ) : (
@@ -194,10 +196,10 @@ export default function BankAlertRules({ companyId }: Props) {
                   <div className="flex items-center gap-3">
                     <Icon className="h-5 w-5 text-muted-foreground" />
                     <div>
-                      <p className="text-sm font-medium">{info.label}: {value} {info.unit}</p>
+                      <p className="text-sm font-medium">{t(info.label)}: {value} {info.unit === "giorni" ? t("giorni") : info.unit}</p>
                       <div className="flex gap-2 mt-1">
                         {rule.notify_email && <Badge variant="outline" className="text-xs">Email</Badge>}
-                        {rule.notify_inapp && <Badge variant="outline" className="text-xs">In-app</Badge>}
+                        {rule.notify_inapp && <Badge variant="outline" className="text-xs">{t("In-app")}</Badge>}
                       </div>
                     </div>
                   </div>
@@ -218,29 +220,29 @@ export default function BankAlertRules({ companyId }: Props) {
       <Dialog open={showAdd} onOpenChange={setShowAdd}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Nuovo Alert Finanziario</DialogTitle>
+            <DialogTitle>{t("Nuovo Alert Finanziario")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div>
-              <Label>Tipo di alert</Label>
+              <Label>{t("Tipo di alert")}</Label>
               <Select value={newRule.rule_type} onValueChange={(v) => setNewRule({ ...newRule, rule_type: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {Object.entries(ruleTypeLabels).map(([key, val]) => (
-                    <SelectItem key={key} value={key}>{val.label}</SelectItem>
+                    <SelectItem key={key} value={key}>{t(val.label)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div>
               <Label>
-                Soglia ({ruleTypeLabels[newRule.rule_type]?.unit || ""})
+                {t("Soglia ({unita})", { unita: ruleTypeLabels[newRule.rule_type]?.unit === "giorni" ? t("giorni") : ruleTypeLabels[newRule.rule_type]?.unit || "" })}
               </Label>
               {["unreconciled_days", "connection_expiring"].includes(newRule.rule_type) ? (
                 <Input
                   type="number"
                   min="1"
-                  placeholder="Es: 7"
+                  placeholder={t("Es: 7")}
                   value={newRule.days_threshold}
                   onChange={(e) => setNewRule({ ...newRule, days_threshold: e.target.value })}
                 />
@@ -249,7 +251,7 @@ export default function BankAlertRules({ companyId }: Props) {
                   type="number"
                   min="0.01"
                   step="0.01"
-                  placeholder="Es: 5000"
+                  placeholder={t("Es: 5000")}
                   value={newRule.threshold}
                   onChange={(e) => setNewRule({ ...newRule, threshold: e.target.value })}
                 />
@@ -261,23 +263,23 @@ export default function BankAlertRules({ companyId }: Props) {
                   <TooltipTrigger asChild>
                     <div className="flex items-center gap-2 opacity-50 cursor-not-allowed">
                       <Switch disabled={true} checked={false} />
-                      <span className="text-sm text-muted-foreground">Notifica via email (prossimamente)</span>
+                      <span className="text-sm text-muted-foreground">{t("Notifica via email (prossimamente)")}</span>
                     </div>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>L&apos;invio email sarà disponibile nei prossimi aggiornamenti.</p>
+                    <p>{t("L'invio email sarà disponibile nei prossimi aggiornamenti.")}</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
               <div className="flex items-center gap-2">
                 <Switch checked={newRule.notify_inapp} onCheckedChange={(v) => setNewRule({ ...newRule, notify_inapp: v })} />
-                <Label>In-app</Label>
+                <Label>{t("In-app")}</Label>
               </div>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAdd(false)} disabled={saving}>Annulla</Button>
-            <Button onClick={handleAdd} disabled={saving}>{saving ? "Creazione..." : "Crea Alert"}</Button>
+            <Button variant="outline" onClick={() => setShowAdd(false)} disabled={saving}>{t("Annulla")}</Button>
+            <Button onClick={handleAdd} disabled={saving}>{saving ? t("Creazione...") : t("Crea Alert")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -286,13 +288,13 @@ export default function BankAlertRules({ companyId }: Props) {
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Elimina alert</AlertDialogTitle>
-            <AlertDialogDescription>L'alert verrà eliminato definitivamente.</AlertDialogDescription>
+            <AlertDialogTitle>{t("Elimina alert")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("L'alert verrà eliminato definitivamente.")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} disabled={!!pendingActionId}>
-              {pendingActionId ? "Eliminazione..." : "Elimina"}
+              {pendingActionId ? t("Eliminazione...") : t("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -7,6 +7,7 @@ import { useEffect } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useUfficiPa } from "@/hooks/useUfficiPa";
 import { etichettaUfficioPa, type UfficioPa } from "@/lib/clienti/ufficiPa";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   anagraficaId: string | null | undefined;
@@ -19,6 +20,7 @@ interface Props {
 }
 
 export function SelettoreUfficioPa({ anagraficaId, value, onChange, proponiPredefinito = true, disabled, id, className }: Props) {
+  const t = useT();
   const { tutti, predefinito, isLoading } = useUfficiPa(anagraficaId);
   // Un ufficio disattivato resta visibile solo se è quello già scelto.
   const voci = tutti.filter((u) => u.attivo || u.id === value);
@@ -30,7 +32,7 @@ export function SelettoreUfficioPa({ anagraficaId, value, onChange, proponiPrede
 
   if (!anagraficaId) return null;
   if (!isLoading && voci.length === 0) {
-    return <p className="text-sm text-muted-foreground">Nessun ufficio: aggiungilo nella scheda del cliente.</p>;
+    return <p className="text-sm text-muted-foreground">{t("Nessun ufficio: aggiungilo nella scheda del cliente.")}</p>;
   }
   return (
     <Select
@@ -38,15 +40,15 @@ export function SelettoreUfficioPa({ anagraficaId, value, onChange, proponiPrede
       disabled={disabled || isLoading}
       onValueChange={(v) => onChange(v, tutti.find((u) => u.id === v) ?? null)}
     >
-      <SelectTrigger id={id} className={className} aria-label="Ufficio PA">
-        <SelectValue placeholder={isLoading ? "Carico gli uffici…" : "Scegli l'ufficio"} />
+      <SelectTrigger id={id} className={className} aria-label={t("Ufficio PA")}>
+        <SelectValue placeholder={isLoading ? t("Carico gli uffici…") : t("Scegli l'ufficio")} />
       </SelectTrigger>
       <SelectContent>
         {voci.map((u) => (
           <SelectItem key={u.id} value={u.id}>
             {etichettaUfficioPa(u)}
-            {u.predefinito ? " · predefinito" : ""}
-            {!u.attivo ? " · disattivato" : ""}
+            {u.predefinito ? ` ${t("· predefinito")}` : ""}
+            {!u.attivo ? ` ${t("· disattivato")}` : ""}
           </SelectItem>
         ))}
       </SelectContent>

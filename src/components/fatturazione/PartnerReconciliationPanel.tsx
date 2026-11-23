@@ -29,12 +29,14 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link2, Unlink, ArrowUpRight } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function PartnerReconciliationPanel({
   companyId,
 }: {
   companyId: string | null;
 }) {
+  const tTesto = useT();
   const permissions = usePermissions();
   const [kind, setKind] = useState<ReconciliationKind>("cliente");
   const [search, setSearch] = useState("");
@@ -100,12 +102,12 @@ export function PartnerReconciliationPanel({
           : {}),
       });
       toast.success(
-        choice.target ? "Collegamento salvato" : "Collegamento rimosso",
+        choice.target ? tTesto("Collegamento salvato") : tTesto("Collegamento rimosso"),
       );
       setChoice(null);
     } catch (e) {
       toast.error(
-        partnerFeedback(e, "Collegamento non salvato. Aggiorna e riprova."),
+        partnerFeedback(e, tTesto("Collegamento non salvato. Aggiorna e riprova.")),
       );
     }
   };
@@ -124,30 +126,28 @@ export function PartnerReconciliationPanel({
         }}
       >
         <TabsList>
-          <TabsTrigger value="cliente">Clienti dei cantieri</TabsTrigger>
-          <TabsTrigger value="fornitore">Fornitori operativi</TabsTrigger>
+          <TabsTrigger value="cliente">{tTesto("Clienti dei cantieri")}</TabsTrigger>
+          <TabsTrigger value="fornitore">{tTesto("Fornitori operativi")}</TabsTrigger>
         </TabsList>
       </Tabs>
       <p className="text-sm text-muted-foreground">
-        Collega i registri dello stesso soggetto. Non vengono fusi record,
-        modificate fatture o creati account. I suggerimenti richiedono conferma;
-        identificativi discordanti non sono abbinabili.
+        {tTesto("Collega i registri dello stesso soggetto. Non vengono fusi record, modificate fatture o creati account. I suggerimenti richiedono conferma; identificativi discordanti non sono abbinabili.")}
       </p>
       {!canReadTarget ? (
         <p role="alert">
-          Per questa riconciliazione serve anche il permesso di lettura{" "}
-          {kind === "cliente" ? "Clienti o Commesse" : "Fornitori"}.
+          {kind === "cliente"
+            ? tTesto("Per questa riconciliazione serve anche il permesso di lettura Clienti o Commesse.")
+            : tTesto("Per questa riconciliazione serve anche il permesso di lettura Fornitori.")}
         </p>
       ) : query.isLoading ? (
-        <p role="status">Caricamento anagrafiche e collegamenti…</p>
+        <p role="status">{tTesto("Caricamento anagrafiche e collegamenti…")}</p>
       ) : query.isError ? (
         <div role="alert" className="rounded-xl border border-destructive p-4">
           <p>
-            Collegamenti non disponibili. Nessun elenco parziale viene
-            presentato come completo.
+            {tTesto("Collegamenti non disponibili. Nessun elenco parziale viene presentato come completo.")}
           </p>
           <Button variant="outline" onClick={() => void query.refetch()}>
-            Riprova
+            {tTesto("Riprova")}
           </Button>
         </div>
       ) : (
@@ -155,8 +155,8 @@ export function PartnerReconciliationPanel({
           <div className="flex flex-wrap items-center gap-2">
             <Input
               className="max-w-sm"
-              aria-label="Cerca anagrafica da riconciliare"
-              placeholder="Nome, partita IVA, codice fiscale…"
+              aria-label={tTesto("Cerca anagrafica da riconciliare")}
+              placeholder={tTesto("Nome, partita IVA, codice fiscale…")}
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
@@ -179,32 +179,27 @@ export function PartnerReconciliationPanel({
                 {label}
               </Button>
             ))}
-            <span className="text-xs text-muted-foreground">
-              {rows.length} posizioni fiscali ·{" "}
-              {all.filter((r) => !!linkId(r)).length} collegate
-            </span>
+            <span className="text-xs text-muted-foreground">{tTesto("{n} posizioni fiscali · {n2} collegate", { n: rows.length, n2: all.filter((r) => !!linkId(r)).length })}</span>
           </div>
           {kind === "fornitore" && all.some((r) => r.receiptIds) && (
             <p className="text-xs text-muted-foreground">
-              Sono comprese anche le fatture ricevute. Le posizioni senza
-              P.IVA/CF restano separate per documento: il conteggio non è il
-              numero dei fornitori e un nome uguale non prova l’identità.
+              {tTesto("Sono comprese anche le fatture ricevute. Le posizioni senza P.IVA/CF restano separate per documento: il conteggio non è il numero dei fornitori e un nome uguale non prova l’identità.")}
             </p>
           )}
           {!canEdit && (
             <p className="text-sm text-muted-foreground">
-              Consultazione: non puoi modificare i collegamenti.
+              {tTesto("Consultazione: non puoi modificare i collegamenti.")}
             </p>
           )}
           <div className="overflow-x-auto rounded-xl border">
             <table className="w-full text-sm">
               <thead className="bg-muted/40">
                 <tr>
-                  <th className="px-3 py-2 text-left">Anagrafica fiscale</th>
+                  <th className="px-3 py-2 text-left">{tTesto("Anagrafica fiscale")}</th>
                   <th className="px-3 py-2 text-left">
-                    {kind === "cliente" ? "Cliente cantiere" : "Fornitore"}
+                    {kind === "cliente" ? tTesto("Cliente cantiere") : tTesto("Fornitore")}
                   </th>
-                  <th className="w-px px-3 py-2 text-left">Azioni</th>
+                  <th className="w-px px-3 py-2 text-left">{tTesto("Azioni")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -230,25 +225,22 @@ export function PartnerReconciliationPanel({
                                 : `/azienda/documenti/anagrafiche/${source.id}`
                             }
                           >
-                            {source.name || "Nome da completare"}
+                            {source.name || tTesto("Nome da completare")}
                           </Link>
                           <div className="flex flex-wrap items-center gap-x-3 text-xs leading-4">
                             {source.receiptIds && (
                               <span className="text-primary">
-                                Fatture ricevute · {source.receiptIds.length}{" "}
-                                {source.receiptIds.length === 1
-                                  ? "documento"
-                                  : "documenti"}
+                                {tTesto(source.receiptIds.length === 1 ? "Fatture ricevute · {n} documento" : "Fatture ricevute · {n} documenti", { n: source.receiptIds.length })}
                               </span>
                             )}
                             <span className="text-muted-foreground">
                               {source.vat ||
                                 source.fiscal ||
-                                "Identificativi non indicati"}
+                                tTesto("Identificativi non indicati")}
                             </span>
                           </div>
                           {source.active === false && (
-                            <Badge variant="secondary">Inattiva</Badge>
+                            <Badge variant="secondary">{tTesto("Inattiva")}</Badge>
                           )}
                         </td>
                         <td className="space-y-1 px-3 py-2">
@@ -268,21 +260,20 @@ export function PartnerReconciliationPanel({
                                 </Link>
                                 {target.active === false && (
                                   <p className="text-xs text-amber-700">
-                                    Fornitore inattivo: collegamento mantenuto
+                                    {tTesto("Fornitore inattivo: collegamento mantenuto")}
                                   </p>
                                 )}
                               </>
                             ) : (
                               <p className="text-amber-700">
-                                Collegata, ma scheda non accessibile: verifica i
-                                permessi.
+                                {tTesto("Collegata, ma scheda non accessibile: verifica i permessi.")}
                               </p>
                             )
                           ) : suggestions.length ? (
                             <>
                               {suggestions.length > 1 && (
                                 <p className="text-xs text-amber-700">
-                                  Più candidati: scegli dopo verifica.
+                                  {tTesto("Più candidati: scegli dopo verifica.")}
                                 </p>
                               )}
                               {suggestions.map((m) => (
@@ -305,7 +296,7 @@ export function PartnerReconciliationPanel({
                                       className="h-9 shrink-0 px-2.5 sm:h-8"
                                       onClick={() => select(source, m.target)}
                                     >
-                                      Verifica collegamento
+                                      {tTesto("Verifica collegamento")}
                                     </Button>
                                   )}
                                 </div>
@@ -313,7 +304,7 @@ export function PartnerReconciliationPanel({
                             </>
                           ) : (
                             <span className="text-muted-foreground">
-                              Nessuna corrispondenza certa
+                              {tTesto("Nessuna corrispondenza certa")}
                             </span>
                           )}
                         </td>
@@ -327,7 +318,7 @@ export function PartnerReconciliationPanel({
                                 onClick={() => select(source, null)}
                               >
                                 <Unlink className="mr-1 h-4 w-4" />
-                                Scollega
+                                {tTesto("Scollega")}
                               </Button>
                             ) : (
                               <Button
@@ -340,7 +331,7 @@ export function PartnerReconciliationPanel({
                                 }}
                               >
                                 <Link2 className="mr-1 h-4 w-4" />
-                                Cerca {kind}
+                                {kind === "cliente" ? tTesto("Cerca cliente") : tTesto("Cerca fornitore")}
                               </Button>
                             ))}
                         </td>
@@ -353,7 +344,7 @@ export function PartnerReconciliationPanel({
                       colSpan={3}
                       className="p-6 text-center text-muted-foreground"
                     >
-                      Nessuna anagrafica per questi filtri.
+                      {tTesto("Nessuna anagrafica per questi filtri.")}
                     </td>
                   </tr>
                 )}
@@ -367,7 +358,7 @@ export function PartnerReconciliationPanel({
                 disabled={currentPage === 0}
                 onClick={() => setPage(currentPage - 1)}
               >
-                Precedenti
+                {tTesto("Precedenti")}
               </Button>
               <span>
                 {currentPage + 1} / {Math.ceil(rows.length / 30)}
@@ -377,7 +368,7 @@ export function PartnerReconciliationPanel({
                 disabled={(currentPage + 1) * 30 >= rows.length}
                 onClick={() => setPage(currentPage + 1)}
               >
-                Successivi
+                {tTesto("Successivi")}
               </Button>
             </div>
           )}
@@ -387,21 +378,19 @@ export function PartnerReconciliationPanel({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              Scegli{" "}
               {kind === "cliente"
-                ? "il cliente del cantiere"
-                : "il fornitore operativo"}
+                ? tTesto("Scegli il cliente del cantiere")
+                : tTesto("Scegli il fornitore operativo")}
             </DialogTitle>
             <DialogDescription>
-              Nessuna creazione automatica. Confronta gli identificativi prima
-              di confermare.
+              {tTesto("Nessuna creazione automatica. Confronta gli identificativi prima di confermare.")}
             </DialogDescription>
           </DialogHeader>
           <Input
-            aria-label="Cerca scheda operativa"
+            aria-label={tTesto("Cerca scheda operativa")}
             value={targetSearch}
             onChange={(e) => setTargetSearch(e.target.value)}
-            placeholder="Nome o identificativo fiscale…"
+            placeholder={tTesto("Nome o identificativo fiscale…")}
           />
           <div className="max-h-72 space-y-2 overflow-y-auto">
             {(query.data?.targets ?? [])
@@ -424,19 +413,19 @@ export function PartnerReconciliationPanel({
                   <span>
                     {t.name}
                     <span className="block text-xs">
-                      {t.vat || t.fiscal || "Identificativi non indicati"}
+                      {t.vat || t.fiscal || tTesto("Identificativi non indicati")}
                     </span>
                   </span>
                   {manual && partnerConflict(manual, t) && (
                     <span className="text-xs text-destructive">
-                      Dati discordanti
+                      {tTesto("Dati discordanti")}
                     </span>
                   )}
                 </Button>
               ))}
           </div>
           <p className="text-xs text-muted-foreground">
-            Fino a 50 risultati: restringi la ricerca se necessario.
+            {tTesto("Fino a 50 risultati: restringi la ricerca se necessario.")}
           </p>
         </DialogContent>
       </Dialog>
@@ -448,35 +437,30 @@ export function PartnerReconciliationPanel({
           <DialogHeader>
             <DialogTitle>
               {choice?.target
-                ? "Conferma collegamento"
-                : "Scollega le anagrafiche"}
+                ? tTesto("Conferma collegamento")
+                : tTesto("Scollega le anagrafiche")}
             </DialogTitle>
             <DialogDescription>
-              Le schede e i documenti fiscali rimangono separati e non vengono
-              eliminati.
+              {tTesto("Le schede e i documenti fiscali rimangono separati e non vengono eliminati.")}
             </DialogDescription>
           </DialogHeader>
           <p>
             {choice?.source.name}{" "}
             {choice?.target
               ? `→ ${choice.target.name}`
-              : "→ rimuovi solo il collegamento"}
+              : tTesto("→ rimuovi solo il collegamento")}
           </p>
           {choice?.source.receiptIds && (
-            <p className="rounded-lg border p-3 text-sm">
-              Il collegamento riguarda {choice.source.receiptIds.length} fatture
-              ricevute di questo gruppo. Non modifica XML, importi, stato
-              fiscale o costi già contabilizzati.
-            </p>
+            <p className="rounded-lg border p-3 text-sm">{tTesto("Il collegamento riguarda {n} fatture ricevute di questo gruppo. Non modifica XML, importi, stato fiscale o costi già contabilizzati.", { n: choice.source.receiptIds.length })}</p>
           )}
           {choice?.target && (
             <div className="space-y-3">
               <p className="text-sm">
-                P.IVA: {choice.source.vat || "non indicata"} /{" "}
-                {choice.target.vat || "non indicata"}
+                {tTesto("P.IVA:")} {choice.source.vat || tTesto("non indicata")} /{" "}
+                {choice.target.vat || tTesto("non indicata")}
                 <br />
-                CF: {choice.source.fiscal || "non indicato"} /{" "}
-                {choice.target.fiscal || "non indicato"}
+                {tTesto("CF:")} {choice.source.fiscal || tTesto("non indicato")} /{" "}
+                {choice.target.fiscal || tTesto("non indicato")}
               </p>
               {!choice.source.receiptIds && (
                 <>
@@ -485,26 +469,24 @@ export function PartnerReconciliationPanel({
                       checked={complete}
                       onCheckedChange={(v) => setComplete(v === true)}
                     />
-                    Completa solo email e telefono mancanti
+                    {tTesto("Completa solo email e telefono mancanti")}
                   </Label>
                   <p className="text-xs text-muted-foreground">
-                    Non sovrascrive dati già presenti, intestazione o
-                    identificativi. Non attiva sincronizzazioni future.
+                    {tTesto("Non sovrascrive dati già presenti, intestazione o identificativi. Non attiva sincronizzazioni future.")}
                   </p>
                 </>
               )}
               {needsIdentityReview && (
                 <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
                   <p>
-                    Gli identificativi non bastano a confermare l’identità:
-                    verifica la scheda e i documenti originali.
+                    {tTesto("Gli identificativi non bastano a confermare l’identità: verifica la scheda e i documenti originali.")}
                   </p>
                   <Label className="flex items-center gap-2">
                     <Checkbox
                       checked={identityReviewed}
                       onCheckedChange={(v) => setIdentityReviewed(v === true)}
                     />
-                    Ho verificato che è lo stesso soggetto
+                    {tTesto("Ho verificato che è lo stesso soggetto")}
                   </Label>
                 </div>
               )}
@@ -516,7 +498,7 @@ export function PartnerReconciliationPanel({
               disabled={mutation.isPending}
               onClick={() => setChoice(null)}
             >
-              Annulla
+              {tTesto("Annulla")}
             </Button>
             <Button
               disabled={
@@ -524,7 +506,7 @@ export function PartnerReconciliationPanel({
               }
               onClick={() => void confirm()}
             >
-              {mutation.isPending ? "Salvataggio…" : "Conferma"}
+              {mutation.isPending ? tTesto("Salvataggio…") : tTesto("Conferma")}
             </Button>
           </DialogFooter>
         </DialogContent>

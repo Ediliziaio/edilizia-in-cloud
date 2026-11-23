@@ -5,6 +5,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 function PeriodSelect({
   label,
@@ -62,6 +63,7 @@ export function FiscalPeriodFilters({
   showPeriod: boolean;
   onChange: (changes: Record<string, string>) => void;
 }) {
+  const t = useT();
   const year = new Date().getFullYear();
   const years = [
     ...new Set([
@@ -72,7 +74,7 @@ export function FiscalPeriodFilters({
   return (
     <div className="flex flex-wrap items-end gap-3">
       <PeriodSelect
-        label="Anno fiscale"
+        label={t("Anno fiscale")}
         value={String(anno)}
         onChange={(value) => onChange({ anno: value })}
         options={years.map((y) => ({ value: String(y), label: String(y) }))}
@@ -80,18 +82,18 @@ export function FiscalPeriodFilters({
       {showPeriod && (
         <>
           <PeriodSelect
-            label="Tipo periodo fiscale"
-            caption="Periodo"
+            label={t("Tipo periodo fiscale")}
+            caption={t("Periodo")}
             value={tipo}
             onChange={(value) => onChange({ periodo: value })}
             options={[
-              { value: "mensile", label: "Mensile" },
-              { value: "trimestrale", label: "Trimestrale" },
+              { value: "mensile", label: t("Mensile") },
+              { value: "trimestrale", label: t("Trimestrale") },
             ]}
           />
           <PeriodSelect
-            label="Periodo fiscale"
-            caption={tipo === "mensile" ? "Mese" : "Trimestre"}
+            label={t("Periodo fiscale")}
+            caption={tipo === "mensile" ? t("Mese") : t("Trimestre")}
             value={String(tipo === "mensile" ? mese : trimestre)}
             onChange={(value) =>
               onChange({ [tipo === "mensile" ? "mese" : "trimestre"]: value })
@@ -102,11 +104,11 @@ export function FiscalPeriodFilters({
                 value: String(i + 1),
                 label:
                   tipo === "mensile"
-                    ? new Intl.DateTimeFormat("it-IT", {
+                    ? new Intl.DateTimeFormat(intlCampo(), {
                         month: "long",
                         timeZone: "UTC",
                       }).format(new Date(Date.UTC(2026, i, 1)))
-                    : `${i + 1}° trimestre`,
+                    : t("{i}° trimestre", { i: i + 1 }),
               }),
             )}
           />

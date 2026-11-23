@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { formatCurrency } from "@/lib/formatters";
 import { fiscalDate } from "@/lib/fatturazione/fiscalInsights";
 import type { FiscalDocument } from "@/lib/fatturazione/fiscalWorkspace";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const SCELTE = [
   { v: 100, t: "100% tutta" },
@@ -22,6 +23,7 @@ const SCELTE = [
 
 /** Quanta IVA si detrae, fattura per fattura o per gruppi: si cerca il fornitore e si spunta. */
 export function DetraibilitaAcquisti({ company, acquisti }: { company: string; acquisti: FiscalDocument[] }) {
+  const tr = useT();
   const qc = useQueryClient();
   const { isAdmin, solaLettura } = usePermissions();
   const [aperto, setAperto] = useState(false);
@@ -62,14 +64,14 @@ export function DetraibilitaAcquisti({ company, acquisti }: { company: string; a
       } as never);
       if (error) throw error;
       const e = data as unknown as { aggiornate: number };
-      toast.success(`${e.aggiornate} ${e.aggiornate === 1 ? "fattura aggiornata" : "fatture aggiornate"}: la liquidazione si ricalcola.`);
+      toast.success(tr(e.aggiornate === 1 ? "{n} fattura aggiornata: la liquidazione si ricalcola." : "{n} fatture aggiornate: la liquidazione si ricalcola.", { n: e.aggiornate }));
       setAperto(false);
       setScelte(new Set());
       await qc.invalidateQueries({ queryKey: ["fiscal-purchases"] });
       await qc.invalidateQueries({ queryKey: ["liquidazione-righi"] });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "";
-      toast.error(/chiuso/i.test(msg) ? "Il periodo fiscale è chiuso: va riaperto prima." : "Non salvato. Riprova.");
+      toast.error(/chiuso/i.test(msg) ? tr("Il periodo fiscale è chiuso: va riaperto prima.") : tr("Non salvato. Riprova."));
     } finally {
       setInvio(false);
     }
@@ -78,28 +80,28 @@ export function DetraibilitaAcquisti({ company, acquisti }: { company: string; a
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-white px-4 py-2 text-sm">
       <p>
-        <span className="font-medium">IVA detraibile</span>
+        <span className="font-medium">{tr("IVA detraibile")}</span>
         <span className="text-muted-foreground">
-          {" · "}{ridotte.length === 0 ? "tutte le fatture al 100%" : `${ridotte.length} ${ridotte.length === 1 ? "fattura ridotta" : "fatture ridotte"}, le altre al 100%`}
+          {" · "}{ridotte.length === 0 ? tr("tutte le fatture al 100%") : tr(ridotte.length === 1 ? "{n} fattura ridotta, le altre al 100%" : "{n} fatture ridotte, le altre al 100%", { n: ridotte.length })}
         </span>
       </p>
-      {isAdmin && !solaLettura && <Button size="sm" variant="outline" onClick={() => setAperto(true)}>Imposta IVA non detraibile</Button>}
+      {isAdmin && !solaLettura && <Button size="sm" variant="outline" onClick={() => setAperto(true)}>{tr("Imposta IVA non detraibile")}</Button>}
 
       <Dialog open={aperto} onOpenChange={setAperto}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>IVA detraibile sugli acquisti</DialogTitle>
-            <DialogDescription>Cerca il fornitore, spunta le fatture e scegli la percentuale. Riduce solo l'IVA detratta.</DialogDescription>
+            <DialogTitle>{tr("IVA detraibile sugli acquisti")}</DialogTitle>
+            <DialogDescription>{tr("Cerca il fornitore, spunta le fatture e scegli la percentuale. Riduce solo l'IVA detratta.")}</DialogDescription>
           </DialogHeader>
-          <Input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder="Fornitore o numero…" className="h-8 text-sm" aria-label="Cerca fattura" />
+          <Input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder={tr("Fornitore o numero…")} className="h-8 text-sm" aria-label={tr("Cerca fattura")} />
           <label className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Checkbox checked={tutteVisibili} onCheckedChange={cambiaVisibili} aria-label="Seleziona tutte le fatture visibili" />
-            Seleziona tutte le {visibili.length} visibili
+            <Checkbox checked={tutteVisibili} onCheckedChange={cambiaVisibili} aria-label={tr("Seleziona tutte le fatture visibili")} />
+            {tr("Seleziona tutte le {n} visibili", { n: visibili.length })}
           </label>
           <div className="max-h-64 space-y-1 overflow-y-auto">
             {visibili.map((d) => (
               <label key={d.id} className="flex cursor-pointer items-center gap-2 rounded-md border p-2 text-sm">
-                <Checkbox checked={scelte.has(d.id)} onCheckedChange={() => cambia(d.id)} aria-label={`Scegli ${d.numero_fattura}`} />
+                <Checkbox checked={scelte.has(d.id)} onCheckedChange={() => cambia(d.id)} aria-label={tr("Scegli {numero_fattura}", { numero_fattura: d.numero_fattura ?? "" })} />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-medium">{d.cedente_ragione_sociale || "—"}</span>
                   <span className="block truncate text-xs text-muted-foreground">{d.numero_fattura} · {fiscalDate(String(d.data_fattura ?? ""))}</span>
@@ -112,17 +114,17 @@ export function DetraibilitaAcquisti({ company, acquisti }: { company: string; a
             ))}
           </div>
           <div className="space-y-1">
-            <Label htmlFor="det-perc" className="text-xs">Percentuale detraibile</Label>
+            <Label htmlFor="det-perc" className="text-xs">{tr("Percentuale detraibile")}</Label>
             <div className="flex flex-wrap items-center gap-1.5">
               {SCELTE.map((s) => (
-                <Button key={s.v} type="button" size="sm" variant={percentuale === String(s.v) ? "default" : "outline"} className="h-7 text-xs" onClick={() => setPercentuale(String(s.v))}>{s.t}</Button>
+                <Button key={s.v} type="button" size="sm" variant={percentuale === String(s.v) ? "default" : "outline"} className="h-7 text-xs" onClick={() => setPercentuale(String(s.v))}>{tr(s.t)}</Button>
               ))}
               <Input id="det-perc" inputMode="decimal" value={percentuale} onChange={(e) => setPercentuale(e.target.value)} className="h-7 w-16 text-right text-xs" aria-invalid={!valido} />
             </div>
           </div>
           <DialogFooter>
             <Button size="sm" onClick={conferma} disabled={!scelte.size || !valido || invio}>
-              {invio && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Applica a {scelte.size} {scelte.size === 1 ? "fattura" : "fatture"}
+              {invio && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{tr(scelte.size === 1 ? "Applica a {n} fattura" : "Applica a {n} fatture", { n: scelte.size })}
             </Button>
           </DialogFooter>
         </DialogContent>

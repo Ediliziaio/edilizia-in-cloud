@@ -17,6 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { ClienteSnapshot } from "@/types/fatturazione";
 import type { EditorState } from "./useEditorState";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const TIPO_LABELS: Record<string, string> = {
   fattura: "Fattura", fattura_pa: "Fattura PA", proforma: "Proforma",
@@ -35,6 +36,7 @@ interface Props {
 }
 
 export function EditorSendEmailDialog({ state, open, onOpenChange, saveNow }: Props) {
+  const t = useT();
   const docLabel = TIPO_LABELS[state.tipo] || "Documento";
   const cliente = state.cliente_snapshot as (ClienteSnapshot & { email?: string }) | null | undefined;
   // Una bozza ha già il suo numero (01/10/2026) ma non è emessa: inviarla al
@@ -93,11 +95,11 @@ export function EditorSendEmailDialog({ state, open, onOpenChange, saveNow }: Pr
   const handleSend = useCallback(async () => {
     if (sendingRef.current || !state.id || !toEmail) return;
     if (isBozza) {
-      toast.error("Documento in bozza", { description: "Emetti il documento prima di inviarlo via email." });
+      toast.error(t("Documento in bozza"), { description: t("Emetti il documento prima di inviarlo via email.") });
       return;
     }
     if (!isValidEmail(toEmail)) {
-      toast.error("Indirizzo email non valido");
+      toast.error(t("Indirizzo email non valido"));
       return;
     }
 
@@ -109,7 +111,7 @@ export function EditorSendEmailDialog({ state, open, onOpenChange, saveNow }: Pr
     try {
       await saveNow();
     } catch (err) {
-      toast.error("Modifiche non salvate: email non inviata", { description: (err as Error).message });
+      toast.error(t("Modifiche non salvate: email non inviata"), { description: (err as Error).message });
       setIsSending(false);
       sendingRef.current = false;
       return;
@@ -142,25 +144,25 @@ export function EditorSendEmailDialog({ state, open, onOpenChange, saveNow }: Pr
       if (resp.error) {
         const ctx = (resp.error as { context?: Response }).context;
         const corpo = ctx instanceof Response ? await ctx.clone().json().catch((): null => null) : null;
-        throw new Error(corpo?.error ?? "Risposta dell’invio non disponibile. Premi «Invia» per verificare la stessa richiesta.");
+        throw new Error(corpo?.error ?? t("Risposta dell’invio non disponibile. Premi «Invia» per verificare la stessa richiesta."));
       }
       const result = resp.data as { success?: boolean; error?: string; stato?: string };
       if (result.stato === "in_corso" || result.stato === "incerto") {
-        toast.warning(result.stato === "in_corso" ? "Invio in corso" : "Esito dell’invio da verificare", {
-          description: "Premi «Invia» per controllare questa richiesta nel registro. Il controllo non spedisce una seconda email.",
+        toast.warning(result.stato === "in_corso" ? t("Invio in corso") : t("Esito dell’invio da verificare"), {
+          description: t("Premi «Invia» per controllare questa richiesta nel registro. Il controllo non spedisce una seconda email."),
         });
         return;
       }
       if (!result.success) {
-        throw new Error(result.error || "Errore sconosciuto");
+        throw new Error(result.error || t("Errore sconosciuto"));
       }
 
-      toast.success("Email inviata", { description: `Inviata a ${toEmail}` });
+      toast.success(t("Email inviata"), { description: t("Inviata a {toEmail}", { toEmail: String(toEmail ?? "") }) });
       richiesteInCorso.current.delete(chiave);
       try { sessionStorage.removeItem(chiave); } catch { /* solo memoria */ }
       onOpenChange(false);
     } catch (err) {
-      toast.error("Errore invio email", { description: err instanceof Error ? err.message : String(err) });
+      toast.error(t("Errore invio email"), { description: err instanceof Error ? err.message : String(err) });
     } finally {
       setIsSending(false);
       sendingRef.current = false;
@@ -173,11 +175,9 @@ export function EditorSendEmailDialog({ state, open, onOpenChange, saveNow }: Pr
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Mail className="h-5 w-5 text-primary" />
-            Invia {docLabel} via email
+            {t("Invia {documento} via email", { documento: t(docLabel) })}
           </DialogTitle>
-          <DialogDescription>
-            {docLabel} N° {state.numero} verrà inviata al destinatario con tutti i dettagli.
-          </DialogDescription>
+          <DialogDescription>{t("{docLabel} N° {numero} verrà inviata al destinatario con tutti i dettagli.", { docLabel: t(docLabel), numero: String(state.numero ?? "") })}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
@@ -185,13 +185,13 @@ export function EditorSendEmailDialog({ state, open, onOpenChange, saveNow }: Pr
           {isBozza && (
             <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-300">
               <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-              <span>Questo documento è ancora una <strong>bozza</strong>: ha già il suo numero ({state.numero}), ma non è emesso. Emettilo prima di inviarlo al cliente.</span>
+              <span>{t("Questo documento è ancora una bozza: ha già il suo numero ({numero}), ma non è emesso. Emettilo prima di inviarlo al cliente.", { numero: String(state.numero ?? "") })}</span>
             </div>
           )}
 
           {/* Destinatario */}
           <div className="space-y-1.5">
-            <Label htmlFor="document-email-to" className="text-sm font-medium">Destinatario *</Label>
+            <Label htmlFor="document-email-to" className="text-sm font-medium">{t("Destinatario *")}</Label>
             <Input
               id="document-email-to"
               disabled={isSending}
@@ -204,14 +204,14 @@ export function EditorSendEmailDialog({ state, open, onOpenChange, saveNow }: Pr
             {!customerEmail && (
               <div className="flex items-center gap-1.5 text-xs text-amber-600">
                 <AlertCircle className="h-3 w-3" />
-                <span>Nessuna email trovata per il cliente. Inserisci manualmente.</span>
+                <span>{t("Nessuna email trovata per il cliente. Inserisci manualmente.")}</span>
               </div>
             )}
           </div>
 
           {/* Oggetto */}
           <div className="space-y-1.5">
-            <Label htmlFor="document-email-subject" className="text-sm font-medium">Oggetto</Label>
+            <Label htmlFor="document-email-subject" className="text-sm font-medium">{t("Oggetto")}</Label>
             <Input
               id="document-email-subject"
               disabled={isSending}
@@ -223,32 +223,32 @@ export function EditorSendEmailDialog({ state, open, onOpenChange, saveNow }: Pr
 
           {/* Messaggio personalizzato */}
           <div className="space-y-1.5">
-            <Label htmlFor="document-email-message" className="text-sm font-medium">Messaggio (opzionale)</Label>
+            <Label htmlFor="document-email-message" className="text-sm font-medium">{t("Messaggio (opzionale)")}</Label>
             <Textarea
               id="document-email-message"
               disabled={isSending}
-              placeholder="Aggiungi un messaggio personalizzato per il cliente..."
+              placeholder={t("Aggiungi un messaggio personalizzato per il cliente...")}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               rows={3}
               className="resize-none"
             />
             <p className="text-[11px] text-muted-foreground">
-              I dettagli del documento (righe, totali, scadenza, IBAN) verranno inclusi automaticamente.
+              {t("I dettagli del documento (righe, totali, scadenza, IBAN) verranno inclusi automaticamente.")}
             </p>
           </div>
 
           {/* Riepilogo documento */}
           <div className="rounded-lg bg-muted/50 border p-3 space-y-1">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Riepilogo</p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("Riepilogo")}</p>
             <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-sm">
-              <span className="text-muted-foreground">Documento:</span>
-              <span className="font-medium">{docLabel} {state.numero}</span>
-              <span className="text-muted-foreground">Cliente:</span>
+              <span className="text-muted-foreground">{t("Documento:")}</span>
+              <span className="font-medium">{t(docLabel)} {state.numero}</span>
+              <span className="text-muted-foreground">{t("Cliente:")}</span>
               <span className="font-medium truncate">
                 {(cliente?.ragione_sociale || `${cliente?.nome || ""} ${cliente?.cognome || ""}`.trim()) || "—"}
               </span>
-              <span className="text-muted-foreground">Totale:</span>
+              <span className="text-muted-foreground">{t("Totale:")}</span>
               <span className="font-bold text-primary">
                 {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(state.totale_da_pagare ?? 0)}
               </span>
@@ -258,7 +258,7 @@ export function EditorSendEmailDialog({ state, open, onOpenChange, saveNow }: Pr
 
         <DialogFooter className="gap-2 sm:gap-0">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSending}>
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button
             onClick={handleSend}
@@ -269,7 +269,7 @@ export function EditorSendEmailDialog({ state, open, onOpenChange, saveNow }: Pr
             ) : (
               <Send className="h-4 w-4 mr-1.5" />
             )}
-            {isSending ? "Invio in corso..." : "Invia email"}
+            {isSending ? t("Invio in corso...") : t("Invia email")}
           </Button>
         </DialogFooter>
       </DialogContent>

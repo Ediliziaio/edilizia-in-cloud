@@ -11,6 +11,7 @@ import { TIPI_SDI } from "@/lib/fatturazione/sdiCassetto";
 import { downloadNativePDF } from "@/lib/fatturazione/generatePDF";
 import { toast } from "sonner";
 import type { EditorState } from "./useEditorState";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   state: EditorState;
@@ -19,6 +20,7 @@ interface Props {
 }
 
 export function EditorPreviewDialog({ state, open, onOpenChange }: Props) {
+  const t = useT();
   const { data: azienda } = useAnagraficaAzienda();
   const { effectiveCompany } = useAuth();
   const previewRef = useRef<HTMLDivElement>(null);
@@ -58,9 +60,9 @@ export function EditorPreviewDialog({ state, open, onOpenChange }: Props) {
     setPdfLoading(true);
     try {
       await downloadNativePDF(state.id, state.numero || undefined);
-      toast.info("Stampa richiesta", { description: "Per salvare il file scegli «Salva come PDF» nel dialogo del browser. Il file non viene scaricato automaticamente.", duration: 12000 });
+      toast.info(t("Stampa richiesta"), { description: t("Per salvare il file scegli «Salva come PDF» nel dialogo del browser. Il file non viene scaricato automaticamente."), duration: 12000 });
     } catch (err) {
-      toast.error("Errore generazione PDF", { description: err instanceof Error ? err.message : undefined });
+      toast.error(t("Errore generazione PDF"), { description: err instanceof Error ? err.message : undefined });
     } finally {
       setPdfLoading(false);
     }
@@ -71,7 +73,7 @@ export function EditorPreviewDialog({ state, open, onOpenChange }: Props) {
       <DialogContent className={`flex h-[90dvh] flex-col gap-0 overflow-hidden p-0 ${mostraXml ? "max-w-5xl" : "max-w-4xl"}`}>
         <DialogHeader className="shrink-0 space-y-2 border-b px-4 py-3 pr-12 text-left">
           <DialogTitle className="text-sm font-medium">
-            Anteprima — {state.numero || "Documento"}
+            {t("Anteprima — {numero}", { numero: state.numero || t("Documento") })}
           </DialogTitle>
           <div className="flex flex-wrap items-center gap-2">
             {xmlDisponibile && (
@@ -84,7 +86,7 @@ export function EditorPreviewDialog({ state, open, onOpenChange }: Props) {
                     aria-pressed={vista === v}
                     className={`rounded px-2 py-0.5 text-[11px] font-medium transition-colors ${vista === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
                   >
-                    {etichetta}
+                    {t(etichetta)}
                   </button>
                 ))}
               </div>
@@ -92,12 +94,12 @@ export function EditorPreviewDialog({ state, open, onOpenChange }: Props) {
             {!mostraXml && <>
               <Button variant="outline" size="sm" onClick={handlePrint}>
                 <Printer className="h-3 w-3 mr-1.5" />
-                Stampa
+                {t("Stampa")}
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                aria-label="Apri PDF per la stampa"
+                aria-label={t("Apri PDF per la stampa")}
                 onClick={handleDownloadPDF}
                 disabled={pdfLoading || !state.id}
               >

@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { queryKeys } from "@/lib/queryKeys";
 import { altriAppuntamenti, oggiRoma, quandoAppuntamento } from "@/lib/opportunitaAgenda";
 import { nomiPersone } from "@/lib/marketing/nomiPersone";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const MOSTRATI = 3;
 
@@ -28,6 +29,7 @@ export function AnteprimaAppuntamenti({ opportunityId, contactId, totale }: {
   contactId: string | null;
   totale: number;
 }) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const oggi = oggiRoma();
@@ -54,16 +56,16 @@ export function AnteprimaAppuntamenti({ opportunityId, contactId, totale }: {
     staleTime: 60_000,
   });
 
-  if (isLoading) return <p className="text-muted-foreground">Carico gli appuntamenti…</p>;
-  if (isError || !data) return <p>{`Appuntamenti (${totale})`}</p>;
+  if (isLoading) return <p className="text-muted-foreground">{t("Carico gli appuntamenti…")}</p>;
+  if (isError || !data) return <p>{t("Appuntamenti ({totale})", { totale: String(totale ?? "") })}</p>;
 
   // Il numero della scheda può essere di qualche secondo fa: non meno di quelli a schermo.
   const tutti = Math.max(totale, data.appuntamenti.length);
   const altri = altriAppuntamenti(tutti, data.appuntamenti.length);
   return (
     <div className="space-y-1.5 py-0.5">
-      <p className="font-semibold">{`Appuntamenti (${tutti})`}</p>
-      {data.appuntamenti.length === 0 && <p className="text-[10px] text-muted-foreground">Nessuno in programma</p>}
+      <p className="font-semibold">{t("Appuntamenti ({tutti})", { tutti: String(tutti ?? "") })}</p>
+      {data.appuntamenti.length === 0 && <p className="text-[10px] text-muted-foreground">{t("Nessuno in programma")}</p>}
       {data.appuntamenti.map((a) => {
         const conChi = a.assigned_to ? data.nomi[a.assigned_to] : "";
         const dettagli = [

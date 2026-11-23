@@ -22,6 +22,7 @@ import {
   type PropostaTipo,
   type TipoFornitore,
 } from "@/lib/fornitori/tipiFornitore";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Tipi dei fornitori: ogni cedente delle fatture ricevute, col tipo proposto e il
@@ -118,6 +119,7 @@ async function salvaTipo(companyId: string, c: Cedente, tipo: TipoFornitore): Pr
 }
 
 export default function TipiFornitoriPage() {
+  const tr = useT();
   const companyId = useEffectiveCompanyId();
   const permessi = usePermissions();
   const queryClient = useQueryClient();
@@ -205,12 +207,12 @@ export default function TipiFornitoriPage() {
       queryClient.invalidateQueries({ queryKey: ["fattura-ricevuta-riepilogo"] });
       queryClient.invalidateQueries({ queryKey: ["fatture-ricevute-tipi-fornitori"] });
       if (errori.length) {
-        toast.error(`${fatti - errori.length} salvati, ${errori.length} non riusciti`, { description: errori.slice(0, 3).join(" · ") });
+        toast.error(tr("{fatti} salvati, {n} non riusciti", { fatti: fatti - errori.length, n: errori.length }), { description: errori.slice(0, 3).join(" · ") });
       } else {
-        toast.success(fatti === 1 ? "Tipo salvato" : `${fatti} fornitori sistemati`);
+        toast.success(fatti === 1 ? tr("Tipo salvato") : tr("{fatti} fornitori sistemati", { fatti: String(fatti ?? "") }));
       }
     },
-    onError: (e: Error) => { setAvanzamento(null); toast.error("Non riuscito", { description: e.message }); },
+    onError: (e: Error) => { setAvanzamento(null); toast.error(tr("Non riuscito"), { description: tr(e.message) }); },
   });
 
   const salvaSelezionati = () => {
@@ -225,28 +227,27 @@ export default function TipiFornitoriPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <Link to="/azienda/documenti/fatture-ricevute" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:underline">
-            <ArrowLeft className="h-3.5 w-3.5" /> Fatture ricevute
+            <ArrowLeft className="h-3.5 w-3.5" /> {tr("Fatture ricevute")}
           </Link>
-          <h1 className="text-2xl font-bold max-sm:text-lg">Tipi dei fornitori</h1>
+          <h1 className="text-2xl font-bold max-sm:text-lg">{tr("Tipi dei fornitori")}</h1>
           <p className="text-sm text-muted-foreground max-w-2xl">
-            Il tipo decide dove va il costo: le fatture di materiali, subappalti e noli vanno su una commessa, quelle di
-            telefonia, luce, affitto o banca nelle spese generali.
+            {tr("Il tipo decide dove va il costo: le fatture di materiali, subappalti e noli vanno su una commessa, quelle di telefonia, luce, affitto o banca nelle spese generali.")}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
         {permessi.canViewSettingsSuppliers && (
           <Button variant="outline" asChild>
-            <Link to="/azienda/impostazioni/fornitori"><Users className="mr-2 h-4 w-4" />Anagrafica fornitori</Link>
+            <Link to="/azienda/impostazioni/fornitori"><Users className="mr-2 h-4 w-4" />{tr("Anagrafica fornitori")}</Link>
           </Button>
         )}
         {proposteSicure.length > 0 && (
           <Button
             onClick={() => salva.mutate(proposteSicure.map((r) => ({ c: r.c, tipo: r.proposta!.tipo })))}
             disabled={salva.isPending}
-            title="Le proposte sicure: subappaltatori in elenco, reverse charge edile, nomi noti (TIM, Enel, banche…)"
+            title={tr("Le proposte sicure: subappaltatori in elenco, reverse charge edile, nomi noti (TIM, Enel, banche…)")}
           >
             {salva.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCheck className="h-4 w-4 mr-2" />}
-            Conferma le proposte sicure ({proposteSicure.length})
+            {tr("Conferma le proposte sicure ({n})", { n: proposteSicure.length })}
           </Button>
         )}
         </div>
@@ -270,92 +271,88 @@ export default function TipiFornitoriPage() {
           onClick={() => { setVista("da_fare"); setFiltroTipo("all"); }}
           className={`rounded-lg border border-dashed p-2.5 text-left hover:bg-muted/50 ${vista === "da_fare" && filtroTipo === "all" ? "border-primary bg-primary/5" : ""}`}
         >
-          <p className="text-xs text-muted-foreground">Da classificare · {daFare}</p>
+          <p className="text-xs text-muted-foreground">{tr("Da classificare · {daFare}", { daFare: String(daFare ?? "") })}</p>
           <p className="text-sm font-semibold tabular-nums">{formatCurrency(perTipo.get("__da_fare") ?? 0)}</p>
         </button>}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="inline-flex rounded-md border p-0.5 text-sm">
-          {([["tutti", `Tutti (${righe.length})`], ["fatti", `Classificati (${righe.length - daFare})`], ...(daFare > 0 ? [["da_fare", `Da classificare (${daFare})`] as const] : [])] as const).map(([v, l]) => (
+          {([["tutti", tr("Tutti ({n})", { n: righe.length })], ["fatti", tr("Classificati ({n})", { n: righe.length - daFare })], ...(daFare > 0 ? [["da_fare", tr("Da classificare ({n})", { n: daFare })] as const] : [])] as const).map(([v, l]) => (
             <button key={v} type="button" onClick={() => setVista(v)}
               className={`rounded px-2.5 py-1 ${vista === v ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}>{l}</button>
           ))}
         </div>
         <div className="relative min-w-48 flex-1 sm:max-w-xs">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder="Cerca nome o partita IVA" className="h-9 pl-8" />
+          <Input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder={tr("Cerca nome o partita IVA")} className="h-9 pl-8" />
         </div>
         {selezionati.size > 0 && (
-          <Button size="sm" onClick={salvaSelezionati} disabled={salva.isPending}>
-            Salva i {selezionati.size} selezionati
-          </Button>
+          <Button size="sm" onClick={salvaSelezionati} disabled={salva.isPending}>{tr("Salva i {size} selezionati", { size: String(selezionati.size ?? "") })}</Button>
         )}
-        {avanzamento && <span className="text-xs text-muted-foreground">Salvo {avanzamento.fatti} di {avanzamento.totale}…</span>}
+        {avanzamento && <span className="text-xs text-muted-foreground">{tr("Salvo {fatti} di {totale}…", { fatti: String(avanzamento.fatti ?? ""), totale: String(avanzamento.totale ?? "") })}</span>}
       </div>
 
       {error ? (
-        <p className="text-sm text-destructive">Non riesco a leggere i fornitori: {(error as Error).message}</p>
+        <p className="text-sm text-destructive">{tr("Non riesco a leggere i fornitori: {message}", { message: String((error as Error).message ?? "") })}</p>
       ) : isLoading ? (
         <div className="space-y-2">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
       ) : visibili.length === 0 ? (
         <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">
-          {righe.length === 0 ? "Nessun fornitore: arrivano con le fatture ricevute." : "Nessun fornitore con questi filtri."}
+          {righe.length === 0 ? tr("Nessun fornitore: arrivano con le fatture ricevute.") : tr("Nessun fornitore con questi filtri.")}
         </CardContent></Card>
       ) : (
         <div className="rounded-lg border bg-background p-2">
-          <TabellaCommessa etichetta="Fornitori" righe={visibili.slice(0, 300)} chiave={(r) => r.c.chiave} colonne={[
-            { titolo: "Seleziona", intestazione: (
-              <Checkbox aria-label="Seleziona tutti quelli visibili" checked={tutteSelezionate}
+          <TabellaCommessa etichetta={tr("Fornitori")} righe={visibili.slice(0, 300)} chiave={(r) => r.c.chiave} colonne={[
+            { titolo: tr("Seleziona"), intestazione: (
+              <Checkbox aria-label={tr("Seleziona tutti quelli visibili")} checked={tutteSelezionate}
                 onCheckedChange={(v) => setSelezionati(v ? new Set(visibili.map((r) => r.c.chiave)) : new Set())} />
             ), cella: ({ c }) => (
-              <Checkbox aria-label={`Seleziona ${c.nome ?? c.piva}`} checked={selezionati.has(c.chiave)}
+              <Checkbox aria-label={tr("Seleziona {nome}", { nome: String((c.nome ?? c.piva) ?? "") })} checked={selezionati.has(c.chiave)}
                 onCheckedChange={(v) => setSelezionati((p) => { const n = new Set(p); if (v) n.add(c.chiave); else n.delete(c.chiave); return n; })} />
             ) },
-            { titolo: "Fornitore", principale: true, cella: ({ c }) => (
-              <Link to={`/azienda/documenti/fatture-ricevute?cerca=${encodeURIComponent(c.piva || c.cf || c.nome || "")}`} title={`Le fatture di ${c.nome ?? "questo fornitore"}`}
-                className="block max-w-[320px] truncate font-medium underline-offset-2 hover:underline">{c.nome || "Senza nome"}</Link>
+            { titolo: tr("Fornitore"), principale: true, cella: ({ c }) => (
+              <Link to={`/azienda/documenti/fatture-ricevute?cerca=${encodeURIComponent(c.piva || c.cf || c.nome || "")}`} title={tr("Le fatture di {nome}", { nome: c.nome ?? tr("questo fornitore") })}
+                className="block max-w-[320px] truncate font-medium underline-offset-2 hover:underline">{c.nome || tr("Senza nome")}</Link>
             ) },
             { titolo: "P.IVA", cella: ({ c }) => (c.piva || c.cf
               ? <span className="whitespace-nowrap text-xs">{c.piva || c.cf}</span>
-              : <span className="whitespace-nowrap text-xs text-amber-700 dark:text-amber-400">Senza partita IVA</span>) },
-            { titolo: "Anagrafica", cella: ({ c }) => (c.fornitore_id ? (
+              : <span className="whitespace-nowrap text-xs text-amber-700 dark:text-amber-400">{tr("Senza partita IVA")}</span>) },
+            { titolo: tr("Anagrafica"), cella: ({ c }) => (c.fornitore_id ? (
               permessi.canViewSettingsSuppliers
-                ? <Link to={`/azienda/impostazioni/fornitori?tab=operativo&fornitore=${c.fornitore_id}`} title={c.fornitore_nome ?? undefined} className="whitespace-nowrap text-xs underline-offset-2 hover:underline">In anagrafica</Link>
-                : <span className="whitespace-nowrap text-xs" title={c.fornitore_nome ?? undefined}>In anagrafica</span>
-            ) : <span className="whitespace-nowrap text-xs text-amber-700 dark:text-amber-400" title="Si aggiunge salvando il tipo">Da aggiungere</span>) },
-            { titolo: "Fatture", destra: true, cella: ({ c }) => <span title={c.ultima ? `Ultima ${formatDateShort(c.ultima)}` : undefined}>{c.fatture}</span> },
-            { titolo: "Imponibile", destra: true, cella: ({ c }) => <span className="whitespace-nowrap">{formatCurrency(Number(c.imponibile ?? 0))}</span> },
-            { titolo: "Il costo va", cella: ({ scelto }) => <span className="whitespace-nowrap text-xs text-muted-foreground">{scelto ? DOVE_VA[INFO_TIPO_FORNITORE[scelto].commessa] : "—"}</span> },
-            { titolo: "Tipo", cella: ({ c, proposta, salvato, scelto }) => (
+                ? <Link to={`/azienda/impostazioni/fornitori?tab=operativo&fornitore=${c.fornitore_id}`} title={c.fornitore_nome ?? undefined} className="whitespace-nowrap text-xs underline-offset-2 hover:underline">{tr("In anagrafica")}</Link>
+                : <span className="whitespace-nowrap text-xs" title={c.fornitore_nome ?? undefined}>{tr("In anagrafica")}</span>
+            ) : <span className="whitespace-nowrap text-xs text-amber-700 dark:text-amber-400" title={tr("Si aggiunge salvando il tipo")}>{tr("Da aggiungere")}</span>) },
+            { titolo: tr("Fatture"), destra: true, cella: ({ c }) => <span title={c.ultima ? tr("Ultima {ultima}", { ultima: formatDateShort(c.ultima) }) : undefined}>{c.fatture}</span> },
+            { titolo: tr("Imponibile"), destra: true, cella: ({ c }) => <span className="whitespace-nowrap">{formatCurrency(Number(c.imponibile ?? 0))}</span> },
+            { titolo: tr("Il costo va"), cella: ({ scelto }) => <span className="whitespace-nowrap text-xs text-muted-foreground">{scelto ? tr(DOVE_VA[INFO_TIPO_FORNITORE[scelto].commessa]) : "—"}</span> },
+            { titolo: tr("Tipo"), cella: ({ c, proposta, salvato, scelto }) => (
               <div className="flex items-center gap-1.5">
                 <Select value={scelto ?? "none"} onValueChange={(v) => isTipoFornitore(v) && setScelte((p) => ({ ...p, [c.chiave]: v }))}>
-                  <SelectTrigger className="h-8 w-52 text-left text-xs" aria-label={`Tipo di ${c.nome ?? c.piva}`}><SelectValue placeholder="Scegli il tipo" /></SelectTrigger>
+                  <SelectTrigger className="h-8 w-52 text-left text-xs" aria-label={tr("Tipo di {nome}", { nome: String((c.nome ?? c.piva) ?? "") })}><SelectValue placeholder={tr("Scegli il tipo")} /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none" disabled>Scegli il tipo</SelectItem>
-                    {TIPI_FORNITORE.map((t) => <SelectItem key={t} value={t}>{INFO_TIPO_FORNITORE[t].etichetta}</SelectItem>)}
+                    <SelectItem value="none" disabled>{tr("Scegli il tipo")}</SelectItem>
+                    {TIPI_FORNITORE.map((t) => <SelectItem key={t} value={t}>{tr(INFO_TIPO_FORNITORE[t].etichetta)}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 {/* La proposta si legge passando il mouse: la riga resta una sola. */}
                 <span className="flex h-8 w-4 shrink-0 items-center justify-center">
                   {!salvato && proposta && scelto === proposta.tipo && (
-                    <span title={`${proposta.sicurezza === "certa" ? "Proposta sicura" : "Proposta"}: ${proposta.motivo.toLowerCase()}`}>
+                    <span title={`${proposta.sicurezza === "certa" ? tr("Proposta sicura") : tr("Proposta")}: ${proposta.motivo.toLowerCase()}`}>
                       <Sparkles className={`h-3.5 w-3.5 ${proposta.sicurezza === "certa" ? "text-emerald-600" : "text-muted-foreground"}`} aria-hidden="true" />
                     </span>
                   )}
                 </span>
                 <span className="flex w-14 shrink-0 justify-end">
                   {scelto && scelto !== salvato ? (
-                    <Button size="sm" variant="outline" className="h-8 w-full px-2 text-xs" disabled={salva.isPending} onClick={() => salva.mutate([{ c, tipo: scelto }])}>Salva</Button>
-                  ) : salvato ? <Check className="h-4 w-4 text-emerald-600" aria-label="Salvato" /> : null}
+                    <Button size="sm" variant="outline" className="h-8 w-full px-2 text-xs" disabled={salva.isPending} onClick={() => salva.mutate([{ c, tipo: scelto }])}>{tr("Salva")}</Button>
+                  ) : salvato ? <Check className="h-4 w-4 text-emerald-600" aria-label={tr("Salvato")} /> : null}
                 </span>
               </div>
             ) },
           ]} />
           {visibili.length > 300 && (
-            <p className="border-t px-3 py-2 text-xs text-muted-foreground">
-              Ne vedi 300 su {visibili.length}: cerca o filtra per tipo per trovare gli altri.
-            </p>
+            <p className="border-t px-3 py-2 text-xs text-muted-foreground">{tr("Ne vedi 300 su {n}: cerca o filtra per tipo per trovare gli altri.", { n: visibili.length })}</p>
           )}
         </div>
       )}

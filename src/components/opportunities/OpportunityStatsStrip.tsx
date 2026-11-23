@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { formatCount } from "@/lib/formatters";
 import type { OpportunityStage } from "@/types/opportunities";
 import type { RiepilogoOpportunita } from "@/hooks/useOpportunitiesData";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /** I due filtri azionabili della strip: si attivano/spengono col click. */
 export type FiltroStrip = "stallo" | "azioni_scadute" | null;
@@ -54,6 +55,7 @@ export function costruisciSoglieStallo(stages?: OpportunityStage[]): Map<string,
 }
 
 export function OpportunityStatsStrip({ riepilogo, filtroAttivo, onFiltro }: Props) {
+  const t = useT();
   const stats = useMemo(() => {
     const r = riepilogo;
     const won = r?.vinte ?? 0;
@@ -80,7 +82,7 @@ export function OpportunityStatsStrip({ riepilogo, filtroAttivo, onFiltro }: Pro
     // "814.695,...". I decimali qui non decidono niente. I conteggi col punto
     // delle migliaia: «16.406», non «16406».
     isCurrency
-      ? new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(v)
+      ? new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(v)
       : formatCount(v);
 
   return (
@@ -114,11 +116,9 @@ export function OpportunityStatsStrip({ riepilogo, filtroAttivo, onFiltro }: Pro
               <p className="text-sm font-bold leading-tight text-foreground truncate">
                 {fmt(value, isCurrency)}
               </p>
-              <p className="text-[10px] text-muted-foreground leading-tight truncate">{label}</p>
+              <p className="text-[10px] text-muted-foreground leading-tight truncate">{t(label)}</p>
               {weightedHint && (
-                <p className="text-[9px] leading-tight text-amber-600 dark:text-amber-400 truncate">
-                  {stats.unscored} senza stima
-                </p>
+                <p className="text-[9px] leading-tight text-amber-600 dark:text-amber-400 truncate">{t("{n} senza stima", { n: stats.unscored ?? 0 })}</p>
               )}
               {winRateHint && (
                 <p className="text-[9px] leading-tight text-green-600 dark:text-green-400 truncate">
@@ -140,7 +140,7 @@ export function OpportunityStatsStrip({ riepilogo, filtroAttivo, onFiltro }: Pro
           <button
             key={key}
             type="button"
-            title={attivo ? "Togli il filtro" : `Mostra solo: ${label}`}
+            title={attivo ? t("Togli il filtro") : t("Mostra solo: {label}", { label: t(label) })}
             aria-pressed={attivo}
             className={classi}
             onClick={() => onFiltro!(attivo ? null : filtro)}

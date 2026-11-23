@@ -11,8 +11,8 @@ import { CreditCard, Eye, EyeOff, Pencil, Check, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-import { it } from "date-fns/locale";
 import { formatTreasuryCurrency, sumTreasuryByCurrency } from "@/lib/treasury";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 function maskIban(iban: string | null) {
   if (!iban || iban.length < 8) return iban || "—";
@@ -32,6 +32,7 @@ interface Props {
 }
 
 export default function BankAccountsList({ companyId, refreshKey = 0 }: Props) {
+  const tr = useT();
   const { canViewBankBalances } = usePermissions();
   const requestVersion=useRef(0);
   const [accounts, setAccounts] = useState<any[]>([]);
@@ -69,8 +70,8 @@ export default function BankAccountsList({ companyId, refreshKey = 0 }: Props) {
       setAccounts(data || []);
     } catch (e: any) {
       if(version!==requestVersion.current)return;
-      setLoadError(e.message || "Impossibile caricare i conti");
-      toast.error("Errore caricamento conti bancari");
+      setLoadError(e.message || tr("Impossibile caricare i conti"));
+      toast.error(tr("Errore caricamento conti bancari"));
     } finally {
       if(version===requestVersion.current)setLoading(false);
     }
@@ -79,7 +80,7 @@ export default function BankAccountsList({ companyId, refreshKey = 0 }: Props) {
   async function saveName(accountId: string) {
     const displayName = editValue.trim();
     if (!displayName) {
-      toast.error("Il nome del conto non può essere vuoto");
+      toast.error(tr("Il nome del conto non può essere vuoto"));
       return;
     }
 
@@ -91,13 +92,13 @@ export default function BankAccountsList({ companyId, refreshKey = 0 }: Props) {
         .eq("id", accountId)
         .eq("company_id", companyId);
       if (error) throw error;
-      toast.success("Nome aggiornato");
+      toast.success(tr("Nome aggiornato"));
       setAccounts((prev) =>
         prev.map((a) => (a.id === accountId ? { ...a, display_name: displayName } : a))
       );
       setEditingName(null);
     } catch (e: any) {
-      toast.error(e.message || "Aggiornamento non riuscito");
+      toast.error(e.message || tr("Aggiornamento non riuscito"));
     } finally {
       setSavingNameId(null);
     }
@@ -122,7 +123,7 @@ export default function BankAccountsList({ companyId, refreshKey = 0 }: Props) {
       <Card className="border-destructive/30">
         <CardContent className="flex flex-col gap-3 py-6 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
           <p className="text-sm text-destructive">{loadError}</p>
-          <Button variant="outline" size="sm" onClick={() => loadAccounts()}>Riprova</Button>
+          <Button variant="outline" size="sm" onClick={() => loadAccounts()}>{tr("Riprova")}</Button>
         </CardContent>
       </Card>
     );
@@ -133,8 +134,8 @@ export default function BankAccountsList({ companyId, refreshKey = 0 }: Props) {
       // Mobile: una riga di testo (la scheda Connessioni è solo al desktop).
       <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-muted/20 py-5 text-center max-sm:h-auto max-sm:py-3">
         <CreditCard className="h-7 w-7 text-muted-foreground max-sm:hidden" />
-        <h2 className="text-xl font-semibold max-sm:text-xs max-sm:font-normal max-sm:text-muted-foreground">Nessun conto collegato</h2>
-        <p className="text-muted-foreground max-sm:hidden">Scegli i conti disponibili nella sezione sopra oppure collega una banca.</p>
+        <h2 className="text-xl font-semibold max-sm:text-xs max-sm:font-normal max-sm:text-muted-foreground">{tr("Nessun conto collegato")}</h2>
+        <p className="text-muted-foreground max-sm:hidden">{tr("Scegli i conti disponibili nella sezione sopra oppure collega una banca.")}</p>
       </div>
     );
   }
@@ -145,13 +146,11 @@ export default function BankAccountsList({ companyId, refreshKey = 0 }: Props) {
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <div className="flex flex-wrap gap-x-5 gap-y-1">{canViewBankBalances && totals.map(t => <p key={t.currency} className="text-3xl font-bold max-sm:text-lg max-sm:leading-tight">{formatTreasuryCurrency(t.total, "—", t.currency)}</p>)}</div>
-          <p className="text-sm text-muted-foreground max-sm:text-[11px]">
-            {accounts.length} conti su {bankCount} banche
-          </p>
+          <p className="text-sm text-muted-foreground max-sm:text-[11px]">{tr("{n} conti su {banche} banche", { n: accounts.length, banche: String(bankCount ?? "") })}</p>
         </div>
         <div className="flex items-center gap-2 max-sm:hidden">
           <Switch checked={showAllIban} onCheckedChange={setShowAllIban} id="show-iban" />
-          <Label htmlFor="show-iban" className="text-sm">Mostra IBAN</Label>
+          <Label htmlFor="show-iban" className="text-sm">{tr("Mostra IBAN")}</Label>
         </div>
       </div>
 
@@ -168,13 +167,13 @@ export default function BankAccountsList({ companyId, refreshKey = 0 }: Props) {
                 <CreditCard className="h-4 w-4 shrink-0 text-muted-foreground" />
               )}
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] font-semibold leading-tight">{account.display_name || account.account_name || "Conto"}</p>
+                <p className="truncate text-[13px] font-semibold leading-tight">{account.display_name || account.account_name || tr("Conto")}</p>
                 <p className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
-                  {conn?.institution_name || "Banca"}
-                  {account.balance_updated_at ? ` · ${formatDistanceToNow(new Date(account.balance_updated_at), { addSuffix: true, locale: it })}` : ""}
+                  {conn?.institution_name || tr("Banca")}
+                  {account.balance_updated_at ? ` · ${formatDistanceToNow(new Date(account.balance_updated_at), { addSuffix: true, locale: dateFnsCampo() })}` : ""}
                 </p>
               </div>
-              <p className="shrink-0 text-[13px] font-semibold tabular-nums">{canViewBankBalances ? formatTreasuryCurrency(account.available_balance ?? account.current_balance, "—", account.currency) : "Saldo riservato"}</p>
+              <p className="shrink-0 text-[13px] font-semibold tabular-nums">{canViewBankBalances ? formatTreasuryCurrency(account.available_balance ?? account.current_balance, "—", account.currency) : tr("Saldo riservato")}</p>
             </div>
           );
         })}
@@ -196,7 +195,7 @@ export default function BankAccountsList({ companyId, refreshKey = 0 }: Props) {
                     ) : (
                       <CreditCard className="h-5 w-5 text-muted-foreground" />
                     )}
-                    <span className="text-xs text-muted-foreground">{conn?.institution_name || "Banca"}</span>
+                    <span className="text-xs text-muted-foreground">{conn?.institution_name || tr("Banca")}</span>
                   </div>
                   <Badge variant="outline" className="text-xs">
                     {accountTypes[account.account_type] || account.account_type}
@@ -227,7 +226,7 @@ export default function BankAccountsList({ companyId, refreshKey = 0 }: Props) {
                   ) : (
                     <>
                       <p className="font-medium text-sm">
-                        {account.display_name || account.account_name || "Conto"}
+                        {account.display_name || account.account_name || tr("Conto")}
                       </p>
                       <Button
                         variant="ghost"
@@ -268,19 +267,15 @@ export default function BankAccountsList({ companyId, refreshKey = 0 }: Props) {
                 {/* Balances */}
                 <div>
                   <p className="text-2xl font-bold">
-                    {canViewBankBalances ? formatTreasuryCurrency(account.available_balance ?? account.current_balance, "—", account.currency) : "Saldo riservato"}
+                    {canViewBankBalances ? formatTreasuryCurrency(account.available_balance ?? account.current_balance, "—", account.currency) : tr("Saldo riservato")}
                   </p>
                   {canViewBankBalances && account.available_balance != null && account.current_balance != null && account.available_balance !== account.current_balance && (
-                    <p className="text-xs text-muted-foreground">
-                      Saldo corrente: {formatTreasuryCurrency(account.current_balance, "—", account.currency)}
-                    </p>
+                    <p className="text-xs text-muted-foreground">{tr("Saldo corrente: {importo}", { importo: formatTreasuryCurrency(account.current_balance, "—", account.currency) })}</p>
                   )}
                 </div>
 
                 {account.balance_updated_at && (
-                  <p className="text-xs text-muted-foreground">
-                    Aggiornato: {formatDistanceToNow(new Date(account.balance_updated_at), { addSuffix: true, locale: it })}
-                  </p>
+                  <p className="text-xs text-muted-foreground">{tr("Aggiornato: {quando}", { quando: formatDistanceToNow(new Date(account.balance_updated_at), { addSuffix: true, locale: dateFnsCampo() }) })}</p>
                 )}
               </CardContent>
             </Card>

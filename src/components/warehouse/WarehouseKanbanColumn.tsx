@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import WarehouseKanbanCard from "./WarehouseKanbanCard";
 import { isItemCritical, isItemOverdue, isItemUrgent, STATUS_CONFIG } from "@/types/warehouse";
 import type { OrderItemStatus, WarehouseItem } from "@/types/warehouse";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Accento colore (barra superiore) derivato dal colore di stato. */
 const ACCENT_BG: Record<string, string> = {
@@ -35,6 +36,7 @@ export default function WarehouseKanbanColumn({
   onToggleSelection,
   readOnly = false,
 }: WarehouseKanbanColumnProps) {
+  const t = useT();
   const { setNodeRef, isOver } = useDroppable({ id: status, disabled: readOnly });
   const config = STATUS_CONFIG[status];
   const Icon = config.icon;
@@ -44,7 +46,7 @@ export default function WarehouseKanbanColumn({
   return (
     <div
       role="region"
-      aria-label={`Articoli ${config.label}`}
+      aria-label={t("Articoli {label}", { label: String(config.label ?? "") })}
       className={cn(
         "flex h-[calc(100vh-330px)] min-h-[520px] flex-col overflow-hidden rounded-lg border bg-background shadow-sm transition-shadow",
         isOver && "ring-2 ring-primary shadow-md",
@@ -58,16 +60,16 @@ export default function WarehouseKanbanColumn({
               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-white/70 ring-1 ring-black/5">
                 <Icon className={cn("h-3.5 w-3.5", config.color)} />
               </span>
-              <span className="truncate text-sm font-semibold">{config.label}</span>
+              <span className="truncate text-sm font-semibold">{t(config.label)}</span>
             </div>
             <div className="mt-1.5">
               {attentionCount > 0 ? (
                 <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
                   <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-                  {attentionCount} da presidiare
+                  {t("{n} da presidiare", { n: attentionCount })}
                 </span>
               ) : (
-                <span className="text-[11px] text-muted-foreground">flusso regolare</span>
+                <span className="text-[11px] text-muted-foreground">{t("flusso regolare")}</span>
               )}
             </div>
           </div>
@@ -82,9 +84,9 @@ export default function WarehouseKanbanColumn({
           <div className="space-y-3 pr-2">
             {items.length === 0 ? (
               <div className="flex h-40 flex-col items-center justify-center rounded-md border border-dashed bg-muted/20 px-4 text-center">
-                <p className="text-sm font-medium text-muted-foreground">Nessun articolo</p>
+                <p className="text-sm font-medium text-muted-foreground">{t("Nessun articolo")}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {readOnly ? "Nessun articolo in questo stato." : "Trascina qui una riga quando cambia stato."}
+                  {readOnly ? t("Nessun articolo in questo stato.") : t("Trascina qui una riga quando cambia stato.")}
                 </p>
               </div>
             ) : (

@@ -33,6 +33,7 @@ import { FaseSdiBadge } from "@/components/fatturazione/FaseSdiBadge";
 import { faseSdi } from "@/lib/fatturazione/sdiCassetto";
 import { avvisoEmissione } from "@/lib/fatturazione/emissioneBozza";
 import { AvvisoNumerazione } from "@/components/fatturazione/AvvisoNumerazione";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 const TIPO_LABELS: Record<string, string> = {
   fattura: "Fattura",
   fattura_pa: "Fattura PA",
@@ -120,6 +121,7 @@ export function EditorTopBar({
   onPreview, onBack, onInviaSDI, onAggiornaStatoSdi, onDownloadPDF, onDownloadXML, onSendEmail, onDuplicate,
   onConvertToFattura, isInviaSDILoading, isAggiornaStatoLoading, isConvertLoading, isEmitting,
 }: Props) {
+  const t = useT();
   const isMobile = useIsMobile();
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
@@ -140,7 +142,7 @@ export function EditorTopBar({
     <>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 sm:px-6 py-3 border-b bg-card shadow-sm shrink-0">
         {/* Back */}
-        <Button aria-label="Torna ai documenti"
+        <Button aria-label={t("Torna ai documenti")}
           variant="ghost"
           size="icon"
           className="h-9 w-9 rounded-full"
@@ -153,7 +155,7 @@ export function EditorTopBar({
         {companyLogo && (
           <img loading="lazy"
             src={companyLogo}
-            alt="Logo"
+            alt={t("Logo")}
             className="h-6 object-contain shrink-0"
           />
         )}
@@ -161,7 +163,7 @@ export function EditorTopBar({
         {/* Doc type + number */}
         <div className="flex items-center gap-2.5 min-w-0">
           <Badge variant="outline" className="font-semibold text-xs uppercase tracking-wide border-primary/30 text-primary">
-            {TIPO_LABELS[tipo] ?? tipo}
+            {TIPO_LABELS[tipo] ? t(TIPO_LABELS[tipo]) : tipo}
           </Badge>
           {TIPO_TO_TD[tipo] && (
             <Badge variant="outline" className="text-[10px] font-mono font-medium px-1.5 py-0 h-5 bg-muted/50 text-muted-foreground">
@@ -185,7 +187,7 @@ export function EditorTopBar({
                   : ""
               }`}
             >
-              {statoConfig.label}
+              {t(statoConfig.label)}
             </Badge>
           )}
           {fase && <FaseSdiBadge doc={state} />}
@@ -201,7 +203,7 @@ export function EditorTopBar({
               className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors ${erroriInEvidenza || !isBozza ? "bg-destructive/10 text-destructive hover:bg-destructive/20" : "bg-muted text-muted-foreground hover:bg-muted/70"}`}
             >
               <AlertCircle className="h-3 w-3" />
-              <span>{validationErrorCount} da completare</span>
+              <span>{t("{validationErrorCount} da completare", { validationErrorCount: String(validationErrorCount ?? "") })}</span>
             </button>
           )}
 
@@ -210,17 +212,17 @@ export function EditorTopBar({
             {isSaving ? (
               <>
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                <span className="hidden sm:inline">Salvataggio...</span>
+                <span className="hidden sm:inline">{t("Salvataggio...")}</span>
               </>
             ) : !isDirty && state.id && !bozzaProvvisoria ? (
               <>
                 <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                <span className="hidden sm:inline">{lastSaved ? `Salvata ${formatRelativeTime(lastSaved)}` : isBozza ? "Bozza salvata" : "Documento salvato"}</span>
+                <span className="hidden sm:inline">{lastSaved ? t("Salvata {lastSaved}", { lastSaved: formatRelativeTime(lastSaved) }) : isBozza ? t("Bozza salvata") : t("Documento salvato")}</span>
               </>
             ) : isDirty ? (
               <>
                 <Clock className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Modifiche non salvate</span>
+                <span className="hidden sm:inline">{t("Modifiche non salvate")}</span>
               </>
             ) : null}
           </div>
@@ -236,7 +238,7 @@ export function EditorTopBar({
             onClick={onPreview}
           >
             <Eye className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Anteprima</span>
+            <span className="hidden sm:inline">{t("Anteprima")}</span>
           </Button>
 
           {/* Email — always visible */}
@@ -268,7 +270,7 @@ export function EditorTopBar({
           {/* More menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label="Altre azioni sul documento" className="h-8 w-8">
+              <Button variant="ghost" size="icon" aria-label={t("Altre azioni sul documento")} className="h-8 w-8">
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -276,26 +278,26 @@ export function EditorTopBar({
               {onDuplicate && (
               <DropdownMenuItem onClick={onDuplicate}>
                 <Copy className="h-3.5 w-3.5 mr-2" />
-                Duplica
+                {t("Duplica")}
               </DropdownMenuItem>
               )}
               {/* Niente export su telefono. */}
               {!isMobile && (
                 <DropdownMenuItem onClick={onDownloadPDF}>
                   <Download className="h-3.5 w-3.5 mr-2" />
-                  Scarica PDF
+                  {t("Scarica PDF")}
                 </DropdownMenuItem>
               )}
               {onSendEmail && (
                 <DropdownMenuItem onClick={onSendEmail}>
                   <Mail className="h-3.5 w-3.5 mr-2" />
-                  Invia per email
+                  {t("Invia per email")}
                 </DropdownMenuItem>
               )}
               {!isBozza && (
                 <DropdownMenuItem onClick={() => window.print()}>
                   <Printer className="h-3.5 w-3.5 mr-2" />
-                  Stampa
+                  {t("Stampa")}
                 </DropdownMenuItem>
               )}
               {!isMobile && !isBozza && !["proforma", "preventivo", "ddt"].includes(state.tipo) && (
@@ -303,7 +305,7 @@ export function EditorTopBar({
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={onDownloadXML} disabled={!onDownloadXML}>
                     <FileText className="h-3.5 w-3.5 mr-2" />
-                    Scarica XML
+                    {t("Scarica XML")}
                   </DropdownMenuItem>
                 </>
               )}
@@ -316,7 +318,7 @@ export function EditorTopBar({
                     disabled={isConvertLoading}
                   >
                     <FileText className="h-3.5 w-3.5 mr-2" />
-                    {isConvertLoading ? "Conversione..." : "Converti in Fattura"}
+                    {isConvertLoading ? t("Conversione...") : t("Converti in Fattura")}
                   </DropdownMenuItem>
                 </>
               )}
@@ -327,7 +329,7 @@ export function EditorTopBar({
             <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5"
               disabled={isSaving || isEmitting || isInviaSDILoading} onClick={onSalva}>
               <Save className="h-3.5 w-3.5" aria-hidden="true" />
-              {isBozza ? "Salva bozza" : "Salva modifiche"}
+              {isBozza ? t("Salva bozza") : t("Salva modifiche")}
             </Button>
           )}
 
@@ -342,20 +344,18 @@ export function EditorTopBar({
                     className="text-destructive hover:text-destructive/80 h-8 text-xs gap-1"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
-                    <span className="hidden md:inline">Elimina</span>
+                    <span className="hidden md:inline">{t("Elimina")}</span>
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Eliminare questa bozza?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Questa bozza di {TIPO_LABELS[tipo] ?? tipo} verrà eliminata. L'azione non può essere annullata.
-                    </AlertDialogDescription>
+                    <AlertDialogTitle>{t("Eliminare questa bozza?")}</AlertDialogTitle>
+                    <AlertDialogDescription>{t("Questa bozza di {valore} verrà eliminata. L'azione non può essere annullata.", { valore: (TIPO_LABELS[tipo] ? t(TIPO_LABELS[tipo]) : tipo) })}</AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Annulla</AlertDialogCancel>
+                    <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
                     <AlertDialogAction onClick={onDelete} disabled={isSaving || isEmitting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                      Elimina bozza
+                      {t("Elimina bozza")}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
@@ -372,23 +372,21 @@ export function EditorTopBar({
                 }}
               >
                 <Check className="h-3.5 w-3.5" />
-                {isEmitting ? "Emissione…" : "Emetti"}
+                {isEmitting ? t("Emissione…") : t("Emetti")}
               </Button>
               <AlertDialog open={confermaEmissione} onOpenChange={setConfermaEmissione}>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Emetti documento</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Emetti questa {TIPO_LABELS[tipo] ?? tipo}? {avvisoEmissione(state)} L'emissione non può essere annullata.
-                    </AlertDialogDescription>
+                    <AlertDialogTitle>{t("Emetti documento")}</AlertDialogTitle>
+                    <AlertDialogDescription>{t("Emetti questa {valore}? {state} L'emissione non può essere annullata.", { valore: (TIPO_LABELS[tipo] ? t(TIPO_LABELS[tipo]) : tipo), state: String(avvisoEmissione(state) ?? "") })}</AlertDialogDescription>
                     {/* La numerazione, finché si è in tempo: dopo l'emissione il numero è bloccato
                         (16/11/2026). Fuori dalla descrizione, che è un <p>. */}
                     <AvvisoNumerazione companyId={companyId} tipo={state.tipo} anno={annoEmissione} />
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Annulla</AlertDialogCancel>
+                    <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
                     <AlertDialogAction onClick={onEmetti} disabled={isSaving || isEmitting || (validationErrorCount ?? 0) > 0}>
-                      {isEmitting ? "Emissione in corso…" : "Emetti documento"}
+                      {isEmitting ? t("Emissione in corso…") : t("Emetti documento")}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
@@ -409,22 +407,19 @@ export function EditorTopBar({
                     ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     : <FileText className="h-3.5 w-3.5" />
                   }
-                  <span className="hidden sm:inline">Converti in Fattura</span>
-                  <span className="sm:hidden">Fattura</span>
+                  <span className="hidden sm:inline">{t("Converti in Fattura")}</span>
+                  <span className="sm:hidden">{t("Fattura")}</span>
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Convertire in fattura?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Verrà creata una nuova fattura con gli stessi dati di {TIPO_LABELS[tipo] ?? tipo} N° {state.numero}.
-                    Il documento originale verrà segnato come annullato.
-                  </AlertDialogDescription>
+                  <AlertDialogTitle>{t("Convertire in fattura?")}</AlertDialogTitle>
+                  <AlertDialogDescription>{t("Verrà creata una nuova fattura con gli stessi dati di {valore} N° {numero}. Il documento originale verrà segnato come annullato.", { valore: (TIPO_LABELS[tipo] ? t(TIPO_LABELS[tipo]) : tipo), numero: String(state.numero ?? "") })}</AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Annulla</AlertDialogCancel>
+                  <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
                   <AlertDialogAction onClick={onConvertToFattura} className="bg-emerald-600 hover:bg-emerald-700">
-                    Converti in Fattura
+                    {t("Converti in Fattura")}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>

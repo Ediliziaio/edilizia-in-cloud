@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import type { Scadenza } from "@/hooks/useScadenzario";
 import { gruppoMetodo } from "@/lib/finance/metodoScadenza";
 import { formatCurrency } from "@/lib/formatters";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const fmtEur = (n: number) => formatCurrency(n);
 
@@ -21,6 +22,7 @@ interface Props {
 }
 
 export default function MarkPaidDialog({ scadenza, open, onOpenChange, onConfirm, isPending }: Props) {
+  const t = useT();
   const isMobile = useIsMobile();
   const remaining = scadenza ? scadenza.amount - scadenza.paid_amount : 0;
   const [amount, setAmount] = useState("");
@@ -52,19 +54,17 @@ export default function MarkPaidDialog({ scadenza, open, onOpenChange, onConfirm
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{scadenza.direction === "entrata" ? "Registra incasso" : "Registra pagamento"}</DialogTitle>
+          <DialogTitle>{scadenza.direction === "entrata" ? t("Registra incasso") : t("Registra pagamento")}</DialogTitle>
         </DialogHeader>
         {/* Mobile: campi a due colonne (importo e conto, metodo e data), via le note. */}
         <div className="space-y-4 max-sm:grid max-sm:grid-cols-2 max-sm:gap-x-2 max-sm:gap-y-3 max-sm:space-y-0">
           <div className="rounded-lg bg-muted/50 p-3 text-sm max-sm:col-span-2 max-sm:px-3 max-sm:py-2 max-sm:text-xs">
             <p className="font-medium max-sm:truncate">{scadenza.description}</p>
-            <p className="text-muted-foreground">
-              Totale: {fmtEur(scadenza.amount)} · Residuo: {fmtEur(remaining)}
-            </p>
+            <p className="text-muted-foreground">{t("Totale: {totale} · Residuo: {residuo}", { totale: fmtEur(scadenza.amount), residuo: fmtEur(remaining) })}</p>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="scadenza-importo">{isMobile ? "Importo" : scadenza.direction === "entrata" ? "Importo incassato" : "Importo pagato"}</Label>
+            <Label htmlFor="scadenza-importo">{isMobile ? t("Importo") : scadenza.direction === "entrata" ? t("Importo incassato") : t("Importo pagato")}</Label>
             <Input
               id="scadenza-importo"
               type="number"
@@ -80,45 +80,45 @@ export default function MarkPaidDialog({ scadenza, open, onOpenChange, onConfirm
           {/* Mobile: il conto sale accanto all'importo (vedi order). */}
           <div className="grid grid-cols-2 gap-3 max-sm:order-1 max-sm:col-span-2 max-sm:gap-2">
             <div className="space-y-2">
-              <Label>Metodo</Label>
+              <Label>{t("Metodo")}</Label>
               <Select value={method} onValueChange={setMethod}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="bonifico">Bonifico</SelectItem>
-                  <SelectItem value="contanti">Contanti</SelectItem>
-                  <SelectItem value="carta">Carta</SelectItem>
-                  <SelectItem value="assegno">Assegno</SelectItem>
+                  <SelectItem value="bonifico">{t("Bonifico")}</SelectItem>
+                  <SelectItem value="contanti">{t("Contanti")}</SelectItem>
+                  <SelectItem value="carta">{t("Carta")}</SelectItem>
+                  <SelectItem value="assegno">{t("Assegno")}</SelectItem>
                   <SelectItem value="riba">RiBa</SelectItem>
                   <SelectItem value="rid">RID / SDD</SelectItem>
-                  <SelectItem value="altro">Altro</SelectItem>
+                  <SelectItem value="altro">{t("Altro")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="scadenza-data">Data<span className="max-sm:hidden"> {scadenza.direction === "entrata" ? "incasso" : "pagamento"}</span></Label>
+              <Label htmlFor="scadenza-data">{t("Data")}<span className="max-sm:hidden"> {scadenza.direction === "entrata" ? t("incasso") : t("pagamento")}</span></Label>
               <Input id="scadenza-data" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label>Conto</Label>
+            <Label>{t("Conto")}</Label>
             <Select value={accountLabel} onValueChange={setAccountLabel}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="banca">Banca</SelectItem>
-                <SelectItem value="cassa">Cassa</SelectItem>
+                <SelectItem value="banca">{t("Banca")}</SelectItem>
+                <SelectItem value="cassa">{t("Cassa")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           <div className="space-y-2 max-sm:hidden">
-            <Label>Note (opzionale)</Label>
+            <Label>{t("Note (opzionale)")}</Label>
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="max-sm:hidden">Annulla</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="max-sm:hidden">{t("Annulla")}</Button>
           <Button
             onClick={() => onConfirm({
               scadenzaId: scadenza.id,
@@ -130,7 +130,7 @@ export default function MarkPaidDialog({ scadenza, open, onOpenChange, onConfirm
             })}
             disabled={isPending || !amount || Number(amount) <= 0 || Number(amount) > remaining}
           >
-            {isPending ? "Salvataggio..." : "Registra"}
+            {isPending ? t("Salvataggio...") : t("Registra")}
           </Button>
         </DialogFooter>
       </DialogContent>

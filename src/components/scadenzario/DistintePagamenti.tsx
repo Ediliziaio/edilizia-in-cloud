@@ -13,6 +13,7 @@ import { exportToCSV } from "@/lib/csvExport";
 import { formatCurrency, formatDateIt } from "@/lib/formatters";
 import { etichettaModalitaPagamento } from "@/lib/fatturazione/pagamentoFatturaRicevuta";
 import { operazioniRpc, riepilogoFatturaHref } from "@/lib/operazioni/operazioni";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type TipoPartita = "ricevuta" | "rata_fornitore" | "scadenza";
 type Verifica = { id: string; numero: string | null };
@@ -47,14 +48,16 @@ const stato = (d: Distinta) => d.stato === "bozza" ? "Bozza" : d.stato === "annu
   : d.in_banca >= d.totale ? "Riconciliata" : "Approvata";
 
 function VerifichePartita({ righe }: { righe: Verifica[] }) {
+  const t = useT();
   if (!righe?.length) return null;
   return <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-amber-800 dark:text-amber-300">
-    <span>Da verificare</span>
-    {righe.map(f => <Link key={f.id} className="underline" to={riepilogoFatturaHref(f.id)}>{f.numero ? "Fattura " + f.numero : "Apri fattura"}</Link>)}
+    <span>{t("Da verificare")}</span>
+    {righe.map(f => <Link key={f.id} className="underline" to={riepilogoFatturaHref(f.id)}>{f.numero ? t("Fattura {numero}", { numero: String(f.numero) }) : t("Apri fattura")}</Link>)}
   </div>;
 }
 
 function ContenutoDistinte({ companyId }: { companyId: string }) {
+  const t = useT();
   const qc = useQueryClient();
   const conferma = useConfirm();
   const [vista, setVista] = useState<Vista>("prepara");
@@ -102,13 +105,13 @@ function ContenutoDistinte({ companyId }: { companyId: string }) {
         setScelte({});
         setOffset(0);
         setRichiesta(crypto.randomUUID());
-        toast.success("Bozza della distinta salvata");
+        toast.success(t("Bozza della distinta salvata"));
       } else if (tipo === "esporta") {
         const righe = await operazioniRpc<Array<Pick<RigaDistinta, "fornitore" | "documento" | "riferimenti" | "scadenza" | "metodo" | "importo">>>(
           "distinta_pagamenti_esporta", { p_company: companyId, p_id: id },
         );
         if (!righe.length) {
-          toast.info("Tutte le quote della distinta risultano riconciliate");
+          toast.info(t("Tutte le quote della distinta risultano riconciliate"));
           return;
         }
         exportToCSV(righe.map(r => ({
@@ -123,7 +126,7 @@ function ContenutoDistinte({ companyId }: { companyId: string }) {
         await operazioniRpc<void>(tipo === "approva" ? "distinta_pagamenti_approva" : "distinta_pagamenti_annulla", {
           p_company: companyId, p_id: id,
         });
-        toast.success(tipo === "approva" ? "Distinta approvata" : "Distinta annullata");
+        toast.success(tipo === "approva" ? t("Distinta approvata") : t("Distinta annullata"));
       }
     },
     onSuccess: aggiorna,
@@ -139,29 +142,29 @@ function ContenutoDistinte({ companyId }: { companyId: string }) {
 
   return <div className="space-y-4">
     <div className="flex flex-wrap gap-2">
-      <Button size="sm" variant={vista === "prepara" ? "secondary" : "outline"} onClick={() => setVista("prepara")}>Nuova distinta</Button>
-      <Button size="sm" variant={vista !== "prepara" ? "secondary" : "outline"} onClick={() => setVista("archivio")}>Distinte salvate</Button>
+      <Button size="sm" variant={vista === "prepara" ? "secondary" : "outline"} onClick={() => setVista("prepara")}>{t("Nuova distinta")}</Button>
+      <Button size="sm" variant={vista !== "prepara" ? "secondary" : "outline"} onClick={() => setVista("archivio")}>{t("Distinte salvate")}</Button>
     </div>
 
     {vista === "prepara" && <>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <label className="flex max-w-40 flex-col gap-1 text-sm">
-          Scadenze fino al
+          {t("Scadenze fino al")}
           <Input type="date" value={fino} onChange={e => { setFino(e.target.value); setOffset(0); setScelte({}); }} />
         </label>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm">{selezionate.length} selezionate · {formatCurrency(selezionate.reduce((s, r) => s + r.residuo, 0))}</span>
-          <Button size="sm" disabled={!selezionate.length || azione.isPending} onClick={() => azione.mutate("crea")}>Salva bozza</Button>
+          <span className="text-sm">{t("{n} selezionate", { n: selezionate.length })} · {formatCurrency(selezionate.reduce((s, r) => s + r.residuo, 0))}</span>
+          <Button size="sm" disabled={!selezionate.length || azione.isPending} onClick={() => azione.mutate("crea")}>{t("Salva bozza")}</Button>
         </div>
       </div>
-      {proposta.isLoading && <p className="text-sm text-muted-foreground" role="status">Caricamento partite…</p>}
-      {proposta.isError && <p className="text-sm" role="alert">{proposta.error.message} <button className="underline" onClick={() => void proposta.refetch()}>Riprova</button></p>}
-      {proposta.isSuccess && proposta.data.righe.length === 0 && <p className="text-sm text-muted-foreground">Nessuna partita disponibile entro questa data.</p>}
+      {proposta.isLoading && <p className="text-sm text-muted-foreground" role="status">{t("Caricamento partite…")}</p>}
+      {proposta.isError && <p className="text-sm" role="alert">{proposta.error.message} <button className="underline" onClick={() => void proposta.refetch()}>{t("Riprova")}</button></p>}
+      {proposta.isSuccess && proposta.data.righe.length === 0 && <p className="text-sm text-muted-foreground">{t("Nessuna partita disponibile entro questa data.")}</p>}
       {!!proposta.data?.righe.length && <ul className="max-h-[48vh] divide-y overflow-y-auto rounded-lg border">
         {proposta.data.righe.map(r => <li key={chiavePartita(r)} className="flex items-start gap-3 p-3 text-sm">
           <Checkbox checked={!!scelte[chiavePartita(r)]} onCheckedChange={v => cambiaScelta(r, v === true)}
             disabled={azione.isPending || selezionate.length >= 50 && !scelte[chiavePartita(r)]}
-            aria-label={"Seleziona " + r.documento + " · " + r.fornitore} />
+            aria-label={t("Seleziona {documento} · {fornitore}", { documento: String(r.documento ?? ""), fornitore: String(r.fornitore ?? "") })} />
           <div className="min-w-0 flex-1">
             <p className="font-medium">{r.documento}</p>
             <p className="text-xs text-muted-foreground">{r.fornitore} · {formatDateIt(r.scadenza)} · {METODO(r.metodo)}</p>
@@ -171,47 +174,47 @@ function ContenutoDistinte({ companyId }: { companyId: string }) {
         </li>)}
       </ul>}
       {(offset > 0 || proposta.data?.altre) && <div className="flex gap-2">
-        <Button size="sm" variant="outline" disabled={!offset} onClick={() => setOffset(x => x - 50)}>Indietro</Button>
-        <Button size="sm" variant="outline" disabled={!proposta.data?.altre} onClick={() => setOffset(x => x + 50)}>Avanti</Button>
+        <Button size="sm" variant="outline" disabled={!offset} onClick={() => setOffset(x => x - 50)}>{t("Indietro")}</Button>
+        <Button size="sm" variant="outline" disabled={!proposta.data?.altre} onClick={() => setOffset(x => x + 50)}>{t("Avanti")}</Button>
       </div>}
     </>}
 
     {vista === "archivio" && <>
-      {archivio.isLoading && <p className="text-sm text-muted-foreground" role="status">Caricamento distinte…</p>}
-      {archivio.isError && <p className="text-sm" role="alert">{archivio.error.message} <button className="underline" onClick={() => void archivio.refetch()}>Riprova</button></p>}
-      {archivio.isSuccess && !archivio.data.length && <p className="text-sm text-muted-foreground">Nessuna distinta salvata.</p>}
+      {archivio.isLoading && <p className="text-sm text-muted-foreground" role="status">{t("Caricamento distinte…")}</p>}
+      {archivio.isError && <p className="text-sm" role="alert">{archivio.error.message} <button className="underline" onClick={() => void archivio.refetch()}>{t("Riprova")}</button></p>}
+      {archivio.isSuccess && !archivio.data.length && <p className="text-sm text-muted-foreground">{t("Nessuna distinta salvata.")}</p>}
       {!!archivio.data?.length && <ul className="max-h-[58vh] divide-y overflow-y-auto rounded-lg border">
         {archivio.data.map(x => <li key={x.id} className="p-3">
           <button className="flex w-full flex-wrap items-center justify-between gap-2 text-left text-sm" onClick={() => apri(x.id)}>
-            <span>Distinta del {formatDateIt(x.creata_il.slice(0, 10))} · {x.partite} partite</span>
-            <span className="flex flex-wrap items-center gap-2"><Badge variant="outline">{stato(x)}</Badge>{formatCurrency(x.totale)}</span>
+            <span>{t("Distinta del {data} · {partite} partite", { data: formatDateIt(x.creata_il.slice(0, 10)), partite: String(x.partite ?? "") })}</span>
+            <span className="flex flex-wrap items-center gap-2"><Badge variant="outline">{t(stato(x))}</Badge>{formatCurrency(x.totale)}</span>
           </button>
         </li>)}
       </ul>}
     </>}
 
     {vista === "dettaglio" && <>
-      {dettaglio.isLoading && <p className="text-sm text-muted-foreground" role="status">Caricamento distinta…</p>}
-      {dettaglio.isError && <p role="alert" className="text-sm">{dettaglio.error.message} <button className="underline" onClick={() => void dettaglio.refetch()}>Riprova</button></p>}
+      {dettaglio.isLoading && <p className="text-sm text-muted-foreground" role="status">{t("Caricamento distinta…")}</p>}
+      {dettaglio.isError && <p role="alert" className="text-sm">{dettaglio.error.message} <button className="underline" onClick={() => void dettaglio.refetch()}>{t("Riprova")}</button></p>}
       {d && <>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline">{stato(d)}</Badge>
+            <Badge variant="outline">{t(stato(d))}</Badge>
             <span className="font-medium">{formatCurrency(d.totale)}</span>
-            {d.stato === "approvata" && <span className="text-sm text-muted-foreground">{formatCurrency(d.in_banca)} riconciliati</span>}
+            {d.stato === "approvata" && <span className="text-sm text-muted-foreground">{t("{importo} riconciliati", { importo: formatCurrency(d.in_banca) })}</span>}
           </div>
           <div className="flex flex-wrap gap-2">
             {d.stato === "bozza" && <Button size="sm" disabled={azione.isPending || d.righe?.some(r => r.verifiche.length > 0)}
               onClick={async () => {
-                if (await conferma({ title: "Approvare la distinta?", description: "Controlla i riferimenti e le quote selezionate.", confirmLabel: "Approva distinta" }))
+                if (await conferma({ title: t("Approvare la distinta?"), description: t("Controlla i riferimenti e le quote selezionate."), confirmLabel: t("Approva distinta") }))
                   azione.mutate("approva");
-              }}>Approva distinta</Button>}
-            {d.stato === "approvata" && d.in_banca < d.totale && <Button size="sm" variant="outline" disabled={azione.isPending} onClick={() => azione.mutate("esporta")}>Scarica CSV</Button>}
+              }}>{t("Approva distinta")}</Button>}
+            {d.stato === "approvata" && d.in_banca < d.totale && <Button size="sm" variant="outline" disabled={azione.isPending} onClick={() => azione.mutate("esporta")}>{t("Scarica CSV")}</Button>}
             {d.stato !== "annullata" && d.in_banca === 0 && <Button size="sm" variant="ghost" disabled={azione.isPending}
               onClick={async () => {
-                if (await conferma({ title: "Annullare la distinta?", description: "Le partite tornano disponibili per una nuova distinta.", confirmLabel: "Annulla distinta" }))
+                if (await conferma({ title: t("Annullare la distinta?"), description: t("Le partite tornano disponibili per una nuova distinta."), confirmLabel: t("Annulla distinta") }))
                   azione.mutate("annulla");
-              }}>Annulla distinta</Button>}
+              }}>{t("Annulla distinta")}</Button>}
           </div>
         </div>
         <ul className="max-h-[50vh] divide-y overflow-y-auto rounded-lg border">
@@ -223,7 +226,7 @@ function ContenutoDistinte({ companyId }: { companyId: string }) {
             </div>
             <div className="text-right tabular-nums">
               <p>{formatCurrency(r.importo)}</p>
-              {r.in_banca > 0 && <p className="text-xs text-emerald-700 dark:text-emerald-300">{formatCurrency(r.in_banca)} in banca</p>}
+              {r.in_banca > 0 && <p className="text-xs text-emerald-700 dark:text-emerald-300">{t("{importo} in banca", { importo: formatCurrency(r.in_banca) })}</p>}
             </div>
           </li>)}
         </ul>
@@ -233,17 +236,18 @@ function ContenutoDistinte({ companyId }: { companyId: string }) {
 }
 
 export function DistintePagamenti({ companyId }: { companyId: string }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   return <>
-    <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setOpen(true)} aria-label="Distinte pagamenti">
+    <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setOpen(true)} aria-label={t("Distinte pagamenti")}>
       <ClipboardList className="h-4 w-4" aria-hidden="true" />
-      <span>Distinte<span className="max-sm:hidden"> pagamenti</span></span>
+      <span>{t("Distinte")}<span className="max-sm:hidden"> {t("pagamenti")}</span></span>
     </Button>
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="max-h-[90dvh] max-w-3xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Distinte pagamenti</DialogTitle>
-          <DialogDescription>Prepara le quote dei fornitori e approva la distinta prima di esportarla.</DialogDescription>
+          <DialogTitle>{t("Distinte pagamenti")}</DialogTitle>
+          <DialogDescription>{t("Prepara le quote dei fornitori e approva la distinta prima di esportarla.")}</DialogDescription>
         </DialogHeader>
         {open && <ContenutoDistinte companyId={companyId} />}
       </DialogContent>

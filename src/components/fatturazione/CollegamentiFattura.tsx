@@ -23,10 +23,10 @@ import { conInterruttoreSubappalto, proveTraccia } from "@/lib/subappaltatori/co
 import { chiaveCollegamenti, esigiRigaSalvata, messaggioSalvataggio } from "@/lib/fatturazione/salvataggioFattura";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
-const errore = (e: unknown) => toast.error("Non salvato", { description: messaggioSalvataggio(e) });
 const DDT_A_VISTA = 6;
 const pivaPulita = (p: string | null | undefined) => (p ?? "").replace(/\s/g, "").replace(/^IT/i, "");
 
@@ -52,6 +52,8 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
   /** Chi non può aprire quelle pagine vede il testo, senza link. */
   vaiPrimaNota?: boolean; vaiTesoreria?: boolean; vaiEmail?: boolean;
 }) {
+  const t = useT();
+  const errore = (e: unknown) => toast.error(t("Non salvato"), { description: messaggioSalvataggio(e) });
   const aspettoGenerale = useAspettoOperativo();
   const qc = useQueryClient();
   const chiave = chiaveCollegamenti(companyId, fatturaId);
@@ -151,7 +153,7 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
       const { data: fatti, error } = await db.from("fattura_ricevuta_mezzi").update({ confermata: true, confermata_da: u.user?.id ?? null, confermata_at: new Date().toISOString() })
         .in("id", ids).eq("company_id", companyId).eq("fattura_ricevuta_id", fatturaId).eq("confermata", false).select("id");
       if (error) throw error;
-      if (!fatti?.length) throw new Error("Nessun mezzo confermato: forse li ha già confermati qualcun altro.");
+      if (!fatti?.length) throw new Error(t("Nessun mezzo confermato: forse li ha già confermati qualcun altro."));
     },
     onSuccess: aggiorna, onError: errore,
   });
@@ -212,30 +214,28 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
   const ddtVisti = tuttiDdt ? ddt : ddt.slice(0, DDT_A_VISTA);
   return (
     <>
-      <dt className="text-muted-foreground">Mezzi</dt>
+      <dt className="text-muted-foreground">{t("Mezzi")}</dt>
       <dd className="flex flex-wrap items-center gap-x-3 gap-y-1">
         {(data?.mezzi ?? []).map((m) => (
           <span key={m.id} className="inline-flex min-w-0 max-w-full flex-wrap items-center gap-1 [overflow-wrap:anywhere]">
-            {m.mezzi?.nome ?? "Mezzo"}{m.mezzi?.targa ? ` · ${m.mezzi.targa}` : ""}
+            {m.mezzi?.nome ?? t("Mezzo")}{m.mezzi?.targa ? ` · ${m.mezzi.targa}` : ""}
             {m.importo != null && <span className="text-xs text-muted-foreground">{formatCurrency(m.importo)}</span>}
-            {m.importo == null && (data?.mezzi.length ?? 0)>1 && <span className="text-xs text-muted-foreground">quota da attribuire</span>}
-            {!m.confermata && <span className="text-xs text-amber-700 dark:text-amber-400">da confermare</span>}
-            {puoModificare && !m.confermata && <button type="button" className="text-muted-foreground hover:text-foreground" aria-label={`Conferma ${m.mezzi?.nome ?? "mezzo"}`} title="Conferma" onClick={() => conferma.mutate(m.id)}><Check className="h-3.5 w-3.5" /></button>}
-            {puoModificare && <button type="button" className="text-muted-foreground hover:text-foreground" aria-label={`Togli ${m.mezzi?.nome ?? "mezzo"}`} title="Togli" onClick={() => togliMezzo.mutate(m.id)}><X className="h-3.5 w-3.5" /></button>}
+            {m.importo == null && (data?.mezzi.length ?? 0)>1 && <span className="text-xs text-muted-foreground">{t("quota da attribuire")}</span>}
+            {!m.confermata && <span className="text-xs text-amber-700 dark:text-amber-400">{t("da confermare")}</span>}
+            {puoModificare && !m.confermata && <button type="button" className="text-muted-foreground hover:text-foreground" aria-label={t("Conferma {nome}", { nome: m.mezzi?.nome ?? t("mezzo") })} title={t("Conferma")} onClick={() => conferma.mutate(m.id)}><Check className="h-3.5 w-3.5" /></button>}
+            {puoModificare && <button type="button" className="text-muted-foreground hover:text-foreground" aria-label={t("Togli {nome}", { nome: m.mezzi?.nome ?? t("mezzo") })} title={t("Togli")} onClick={() => togliMezzo.mutate(m.id)}><X className="h-3.5 w-3.5" /></button>}
           </span>
         ))}
         {puoModificare && (data?.mezzi ?? []).filter((m) => !m.confermata).length > 1 && (
-          <Azione disabled={confermaTutti.isPending} onClick={() => confermaTutti.mutate((data?.mezzi ?? []).filter((m) => !m.confermata).map((m) => m.id))}>
-            Conferma tutti ({(data?.mezzi ?? []).filter((m) => !m.confermata).length})
-          </Azione>
+          <Azione disabled={confermaTutti.isPending} onClick={() => confermaTutti.mutate((data?.mezzi ?? []).filter((m) => !m.confermata).map((m) => m.id))}>{t("Conferma tutti ({n})", { n: (data?.mezzi ?? []).filter((m) => !m.confermata).length })}</Azione>
         )}
-        {isError ? <span role="alert" className="text-xs text-destructive">Collegamenti non disponibili. <button type="button" className="underline" onClick={() => void refetch()}>Riprova</button></span> : !data?.mezzi.length && <span className="text-muted-foreground">Nessuno</span>}
+        {isError ? <span role="alert" className="text-xs text-destructive">{t("Collegamenti non disponibili.")} <button type="button" className="underline" onClick={() => void refetch()}>{t("Riprova")}</button></span> : !data?.mezzi.length && <span className="text-muted-foreground">{t("Nessuno")}</span>}
         {puoModificare && (
           <Popover open={apriMezzo} onOpenChange={open => { setApriMezzo(open); if (!open) setTargaRicerca(""); }}>
-            <PopoverTrigger asChild><Azione aria-label="Collega un mezzo">Collega</Azione></PopoverTrigger>
+            <PopoverTrigger asChild><Azione aria-label={t("Collega un mezzo")}>{t("Collega")}</Azione></PopoverTrigger>
             <PopoverContent align="start" className="w-80 max-w-[calc(100vw-2rem)] p-0">
               {daXml.length > 0 && <div className="flex max-h-24 flex-wrap items-center gap-1 overflow-y-auto border-b p-2">
-                <span className="text-xs text-muted-foreground">Targhe dall’XML</span>
+                <span className="text-xs text-muted-foreground">{t("Targhe dall’XML")}</span>
                 {daXml.map(targa => <Button key={targa} size="sm" variant="outline" className="h-7 px-2 text-xs"
                   onClick={() => setTargaRicerca(targa)}>{targa}</Button>)}
               </div>}
@@ -253,14 +253,14 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
           <span key={d.id} className="inline-flex min-w-0 max-w-full flex-wrap items-center gap-1 [overflow-wrap:anywhere]">
             {d.ddt_ricezione_id ? <Link className="underline underline-offset-2" to={percorsoDocumentoGenerale(`/azienda/ddt/${d.ddt_ricezione_id}`, aspettoGenerale?.generaleId)}>{d.numero_ddt}</Link> : d.numero_ddt}
             {d.data_ddt && <span className="text-xs text-muted-foreground">{formatDateShort(d.data_ddt)}</span>}
-            {puoModificare && <button type="button" className="text-muted-foreground hover:text-foreground" aria-label={`Togli DDT ${d.numero_ddt}`} title="Togli" onClick={() => togliDdt.mutate(d.id)}><X className="h-3 w-3" /></button>}
+            {puoModificare && <button type="button" className="text-muted-foreground hover:text-foreground" aria-label={t("Togli DDT {numero_ddt}", { numero_ddt: d.numero_ddt ?? "" })} title={t("Togli")} onClick={() => togliDdt.mutate(d.id)}><X className="h-3 w-3" /></button>}
           </span>
         ))}
-        {!ddt.length && <span className="text-muted-foreground">Nessuno</span>}
-        {ddt.length > DDT_A_VISTA && <Azione onClick={() => setTuttiDdt((v) => !v)}>{tuttiDdt ? "Meno" : `Altri ${ddt.length - DDT_A_VISTA}`}</Azione>}
+        {!ddt.length && <span className="text-muted-foreground">{t("Nessuno")}</span>}
+        {ddt.length > DDT_A_VISTA && <Azione onClick={() => setTuttiDdt((v) => !v)}>{tuttiDdt ? t("Meno") : t("Altri {n}", { n: ddt.length - DDT_A_VISTA })}</Azione>}
         {puoModificare && (
           <Popover open={apriDdt} onOpenChange={setApriDdt}>
-            <PopoverTrigger asChild><Azione aria-label="Aggiungi un DDT">Aggiungi</Azione></PopoverTrigger>
+            <PopoverTrigger asChild><Azione aria-label={t("Aggiungi un DDT")}>{t("Aggiungi")}</Azione></PopoverTrigger>
             <PopoverContent align="start" className="w-96 max-w-[calc(100vw-2rem)]">
               {apriDdt && <CollegaDdtFattura companyId={companyId} fatturaId={fatturaId} fornitoreId={fornitoreId} onSalvato={() => { setApriDdt(false); aggiorna(); }} />}
             </PopoverContent>
@@ -276,30 +276,30 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
 
       {(contrattoId || contratti.length > 0 || controllo) && (
         <>
-          <dt className="text-muted-foreground">Subappalto</dt>
+          <dt className="text-muted-foreground">{t("Subappalto")}</dt>
           <dd className="flex flex-wrap items-center gap-x-3 gap-y-1">
             {contrattoId ? (
               <>
-                <span>Contratto {numeroContratto || "senza numero"}</span>
+                <span>{t("Contratto {numero}", { numero: numeroContratto || t("senza numero") })}</span>
                 {salDelContratto.length > 0 && (
                   <Select value={salId ?? "nessuno"} disabled={!puoModificare} onValueChange={(v) => salvaSubappalto.mutate({ sal_subappaltatore_id: v === "nessuno" ? null : v })}>
-                    <SelectTrigger className="h-7 w-44 text-xs" aria-label="SAL del contratto"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-7 w-44 text-xs" aria-label={t("SAL del contratto")}><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="nessuno">Nessun SAL</SelectItem>
+                      <SelectItem value="nessuno">{t("Nessun SAL")}</SelectItem>
                       {salDelContratto.map((s) => {
                         // La fattura si collega a un SAL solo dopo il benestare (verificato o pagato).
                         const daVerificare = s.stato !== "verificato" && s.stato !== "pagato";
-                        return <SelectItem key={s.id} value={s.id} disabled={daVerificare}>SAL {s.numero_sal ?? "?"}{s.importo_netto != null ? ` · ${formatCurrency(s.importo_netto)}` : ""}{daVerificare ? " · da verificare" : ""}</SelectItem>;
+                        return <SelectItem key={s.id} value={s.id} disabled={daVerificare}>SAL {s.numero_sal ?? "?"}{s.importo_netto != null ? ` · ${formatCurrency(s.importo_netto)}` : ""}{daVerificare ? ` · ${t("da verificare")}` : ""}</SelectItem>;
                       })}
                     </SelectContent>
                   </Select>
                 )}
-                {puoModificare && <Azione onClick={() => salvaSubappalto.mutate({ contratto_subappalto_id: null, sal_subappaltatore_id: null })}>Scollega</Azione>}
+                {puoModificare && <Azione onClick={() => salvaSubappalto.mutate({ contratto_subappalto_id: null, sal_subappaltatore_id: null })}>{t("Scollega")}</Azione>}
               </>
             ) : (
               <Select value="" disabled={!puoModificare} onValueChange={(v) => salvaSubappalto.mutate({ contratto_subappalto_id: v })}>
-                <SelectTrigger className="h-7 w-56 text-xs" aria-label="Contratto di subappalto"><SelectValue placeholder="Collega a un contratto…" /></SelectTrigger>
-                <SelectContent>{contratti.map((c) => <SelectItem key={c.id} value={c.id}>{c.numero_contratto || "Senza numero"}{c.descrizione_lavori ? ` · ${c.descrizione_lavori.slice(0, 40)}` : ""}</SelectItem>)}</SelectContent>
+                <SelectTrigger className="h-7 w-56 text-xs" aria-label={t("Contratto di subappalto")}><SelectValue placeholder={t("Collega a un contratto…")} /></SelectTrigger>
+                <SelectContent>{contratti.map((c) => <SelectItem key={c.id} value={c.id}>{c.numero_contratto || t("Senza numero")}{c.descrizione_lavori ? ` · ${c.descrizione_lavori.slice(0, 40)}` : ""}</SelectItem>)}</SelectContent>
               </Select>
             )}
             {controllo && (
@@ -313,7 +313,7 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
 
       {!!pagamenti?.movimenti.length && (
         <>
-          <dt className="text-muted-foreground">Banca</dt>
+          <dt className="text-muted-foreground">{t("Banca")}</dt>
           <dd className="flex flex-wrap items-center gap-x-3 gap-y-1">
             {pagamenti.movimenti.map((m) => {
               const testo = [m.booking_date ? formatDateShort(m.booking_date) : null, m.amount != null ? formatCurrency(Math.abs(m.amount)) : null, m.counterparty_name].filter(Boolean).join(" · ");
@@ -327,7 +327,7 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
 
       {!!pagamenti?.scritture.length && (
         <>
-          <dt className="text-muted-foreground">Prima nota</dt>
+          <dt className="text-muted-foreground">{t("Prima nota")}</dt>
           <dd className="flex flex-wrap items-center gap-x-3 gap-y-1">
             {pagamenti.scritture.map((r) => {
               const testo = [r.entry_date ? formatDateShort(r.entry_date) : null, r.amount != null ? formatCurrency(Math.abs(r.amount)) : null].filter(Boolean).join(" · ");
@@ -341,7 +341,7 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
 
       {emailOrigine.length > 0 && (
         <>
-          <dt className="text-muted-foreground">Email</dt>
+          <dt className="text-muted-foreground">{t("Email")}</dt>
           <dd className="space-y-0.5">
             {emailOrigine.map((r) => {
               const e = r.email_inbox;
@@ -358,7 +358,7 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
 
       {!!data?.storni.length && (
         <>
-          <dt className="text-muted-foreground">{notaDiCredito ? "Storna" : "Nota di credito"}</dt>
+          <dt className="text-muted-foreground">{notaDiCredito ? t("Storna") : t("Nota di credito")}</dt>
           <dd className="flex flex-wrap items-center gap-x-3 gap-y-1">
             {data.storni.map((n) => <Link key={n} className="underline underline-offset-2" to={`/azienda/documenti/fatture-ricevute?cerca=${encodeURIComponent(n)}`}>{n}</Link>)}
           </dd>

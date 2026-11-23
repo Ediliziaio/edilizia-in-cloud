@@ -44,6 +44,7 @@ import { datiReaMancanti, eSocieta, eSocietaDiCapitali } from "../../../../supab
 
 import { useSearchParams } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 /** Le schede della pagina: l'indirizzo («?sezione=pdf») ne apre una, anche a pagina già aperta. */
 const SEZIONI = ["azienda", "fiscale", "elettronica", "pdf", "pagamenti", "numeratori", "avanzate", "export-contabile"];
 const sezioneValida = (s: string | null): string => (s && SEZIONI.includes(s) ? s : "azienda");
@@ -56,6 +57,7 @@ const COLORI_PDF = [
 ] as const;
 
 export default function ImpostazioniFatturazione() {
+  const t = useT();
   const isMobile = useIsMobile();
   const { data: azienda, isLoading, isError } = useAnagraficaAzienda();
   const { effectiveCompany } = useAuth();
@@ -128,16 +130,16 @@ export default function ImpostazioniFatturazione() {
       return data as { ok?: boolean; importate?: number; fallite?: number; appena_controllato?: boolean; motivo?: string; errore?: string };
     },
     onSuccess: (data) => {
-      if (data?.motivo === "token_mancante") toast.error("Il collegamento con openapi non è configurato: avvisa l'assistenza.");
-      else if (data?.appena_controllato) toast.info("Controllato meno di un minuto fa: riprova tra poco.");
-      else if (data?.fallite) toast.warning(`${quante(data.importate ?? 0, "fattura nuova", "fatture nuove")}, ${quante(data.fallite, "non importata", "non importate")}: il dettaglio è qui sotto.`);
-      else if (data?.importate) toast.success(`${quante(data.importate, "fattura nuova", "fatture nuove")} in Fatture ricevute`);
-      else toast.success("Nessuna fattura nuova dai fornitori");
+      if (data?.motivo === "token_mancante") toast.error(t("Il collegamento con openapi non è configurato: avvisa l'assistenza."));
+      else if (data?.appena_controllato) toast.info(t("Controllato meno di un minuto fa: riprova tra poco."));
+      else if (data?.fallite) toast.warning(t("{valore}, {fallite}: il dettaglio è qui sotto.", { valore: String(quante(data.importate ?? 0, "fattura nuova", "fatture nuove") ?? ""), fallite: String(quante(data.fallite, "non importata", "non importate") ?? "") }));
+      else if (data?.importate) toast.success(t("{importate} in Fatture ricevute", { importate: String(quante(data.importate, "fattura nuova", "fatture nuove") ?? "") }));
+      else toast.success(t("Nessuna fattura nuova dai fornitori"));
       queryClient.invalidateQueries({ queryKey: ["sdi-cedente-config", companyId] });
       queryClient.invalidateQueries({ queryKey: ["fatture-ricevute-openapi", companyId] });
       queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] });
     },
-    onError: (e: Error) => toast.error(e?.message || "Controllo non riuscito"),
+    onError: (e: Error) => toast.error(e?.message || t("Controllo non riuscito")),
   });
   const onboardMutation = useMutation({
     mutationFn: async () => {
@@ -156,11 +158,11 @@ export default function ImpostazioniFatturazione() {
       return data as { stato?: string; next_step?: string };
     },
     onSuccess: (data) => {
-      toast.success(data?.stato === "registrato" ? "Invio allo SDI attivo" : "Attivazione eseguita");
+      toast.success(data?.stato === "registrato" ? t("Invio allo SDI attivo") : t("Attivazione eseguita"));
       queryClient.invalidateQueries({ queryKey: ["sdi-cedente-config", companyId] });
       queryClient.invalidateQueries({ queryKey: queryKeys.anagraficaAzienda.detail(companyId) });
     },
-    onError: (e: any) => toast.error(e?.message || "Errore durante l'attivazione"),
+    onError: (e: any) => toast.error(e?.message || t("Errore durante l'attivazione")),
   });
 
   if (isLoading) {
@@ -212,14 +214,14 @@ export default function ImpostazioniFatturazione() {
     }
     const iban = pulito.iban_principale;
     if (typeof iban === "string" && !ibanValido(iban)) {
-      toast.error("IBAN principale non valido", { description: "Controlla il formato italiano e le cifre di controllo con la tua banca." });
+      toast.error(t("IBAN principale non valido"), { description: t("Controlla il formato italiano e le cifre di controllo con la tua banca.") });
       return;
     }
     if (Array.isArray(form.conti_fatturazione)) {
       const conti = form.conti_fatturazione.map(conto => ({ ...conto, iban: pulisciIbanConto(conto.iban) }));
       const nonValido = conti.findIndex(conto => conto.iban && !ibanValido(conto.iban));
       if (nonValido >= 0) {
-        toast.error(`IBAN del conto ${nonValido + 1} non valido`, { description: "Controlla il formato italiano e le cifre di controllo con la tua banca." });
+        toast.error(t("IBAN del conto {nonValido} non valido", { nonValido: nonValido + 1 }), { description: t("Controlla il formato italiano e le cifre di controllo con la tua banca.") });
         return;
       }
       pulito.conti_fatturazione = conti;
@@ -231,8 +233,8 @@ export default function ImpostazioniFatturazione() {
       const dati: Record<string, unknown> = { ...schedaDalProfilo(profilo), ...pulito };
       const mancanti = campiMancantiPerCreare(dati);
       if (mancanti.length > 0) {
-        toast.error("La scheda dell'azienda non si può ancora creare", {
-          description: `Mancano: ${mancanti.join(", ")}. Completali e premi «Crea la scheda e salva».`,
+        toast.error(t("La scheda dell'azienda non si può ancora creare"), {
+          description: t("Mancano: {mancanti}. Completali e premi «Crea la scheda e salva».", { mancanti: mancanti.join(", ") }),
         });
         return;
       }
@@ -244,9 +246,9 @@ export default function ImpostazioniFatturazione() {
         if (error) throw error;
         queryClient.invalidateQueries({ queryKey: queryKeys.anagraficaAzienda.all });
         setForm({});
-        toast.success("Scheda dell'azienda creata e salvata");
+        toast.success(t("Scheda dell'azienda creata e salvata"));
       } catch (err) {
-        toast.error("Salvataggio non riuscito", { description: messaggioErroreSalvataggio(err) });
+        toast.error(t("Salvataggio non riuscito"), { description: messaggioErroreSalvataggio(err) });
       } finally {
         setSaving(false);
       }
@@ -263,14 +265,14 @@ export default function ImpostazioniFatturazione() {
         .select("id");
       if (error) throw error;
       if (!(data as unknown[] | null)?.length) {
-        toast.error("Non ho salvato niente", { description: "Il database non ha accettato la modifica. Riprova; se continua, scrivi all'assistenza." });
+        toast.error(t("Non ho salvato niente"), { description: t("Il database non ha accettato la modifica. Riprova; se continua, scrivi all'assistenza.") });
         return;
       }
       queryClient.invalidateQueries({ queryKey: queryKeys.anagraficaAzienda.all });
       setForm({});
-      toast.success("Impostazioni salvate");
+      toast.success(t("Impostazioni salvate"));
     } catch (err) {
-      toast.error("Salvataggio non riuscito", { description: messaggioErroreSalvataggio(err) });
+      toast.error(t("Salvataggio non riuscito"), { description: messaggioErroreSalvataggio(err) });
     } finally {
       setSaving(false);
     }
@@ -279,7 +281,7 @@ export default function ImpostazioniFatturazione() {
   const handleLogoUpload = async (file: File) => {
     if (!effectiveCompany?.id) return;
     if (file.size > LOGO_MAX_BYTE) {
-      toast.error("Il logo supera i 2 MB: scegline uno più leggero.");
+      toast.error(t("Il logo supera i 2 MB: scegline uno più leggero."));
       return;
     }
     setUploadingLogo(true);
@@ -300,9 +302,9 @@ export default function ImpostazioniFatturazione() {
       const { data: urlData } = supabase.storage.from("company-logos").getPublicUrl(path);
       const logoUrl = urlData.publicUrl + "?t=" + Date.now();
       updateField("logo_url", logoUrl);
-      toast.success("Logo caricato");
+      toast.success(t("Logo caricato"));
     } catch {
-      toast.error("Non sono riuscito a caricare il logo. Riprova.");
+      toast.error(t("Non sono riuscito a caricare il logo. Riprova."));
     } finally {
       setUploadingLogo(false);
     }
@@ -314,34 +316,30 @@ export default function ImpostazioniFatturazione() {
       {isError && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Non riesco a leggere i dati dell'azienda</AlertTitle>
-          <AlertDescription>Ricarica la pagina. Se continua, scrivi all'assistenza: finché non si leggono non si può salvare niente.</AlertDescription>
+          <AlertTitle>{t("Non riesco a leggere i dati dell'azienda")}</AlertTitle>
+          <AlertDescription>{t("Ricarica la pagina. Se continua, scrivi all'assistenza: finché non si leggono non si può salvare niente.")}</AlertDescription>
         </Alert>
       )}
       {senzaScheda && (
         <Alert>
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>La scheda dell'azienda non è ancora stata creata</AlertTitle>
+          <AlertTitle>{t("La scheda dell'azienda non è ancora stata creata")}</AlertTitle>
           <AlertDescription>
-            Ho messo i dati che hai nel Profilo aziendale: controllali, completa quello che manca e premi «Crea la scheda e salva».
-            Senza la scheda le fatture non hanno i tuoi dati fiscali.
+            {t("Ho messo i dati che hai nel Profilo aziendale: controllali, completa quello che manca e premi «Crea la scheda e salva». Senza la scheda le fatture non hanno i tuoi dati fiscali.")}
           </AlertDescription>
         </Alert>
       )}
       {!senzaScheda && provvisori.length > 0 && (
         <Alert>
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Alcuni dati sono ancora provvisori</AlertTitle>
-          <AlertDescription>
-            La scheda è nata con la prima fattura, con valori provvisori al posto di: {provvisori.join(", ")}. Compila i campi vuoti e salva:
-            finché non lo fai, l'invio allo SDI non si può attivare.
-          </AlertDescription>
+          <AlertTitle>{t("Alcuni dati sono ancora provvisori")}</AlertTitle>
+          <AlertDescription>{t("La scheda è nata con la prima fattura, con valori provvisori al posto di: {provvisori}. Compila i campi vuoti e salva: finché non lo fai, l'invio allo SDI non si può attivare.", { provvisori: provvisori.join(", ") })}</AlertDescription>
         </Alert>
       )}
       <div className="flex justify-end">
         <Button onClick={handleSave} disabled={saving || isError || (!isDirty && !senzaScheda)} className="gap-1.5">
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          {senzaScheda ? "Crea la scheda e salva" : "Salva modifiche"}
+          {senzaScheda ? t("Crea la scheda e salva") : t("Salva modifiche")}
         </Button>
       </div>
 
@@ -350,27 +348,27 @@ export default function ImpostazioniFatturazione() {
           pulsante «Salva modifiche» sta in alto e non lo si nota. */}
       {isDirty && (
         <div className="sticky top-2 z-30 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 shadow-sm dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-200" role="status">
-          <span className="flex items-center gap-2 font-medium"><AlertTriangle className="h-4 w-4 shrink-0" /> Hai modifiche non salvate.</span>
+          <span className="flex items-center gap-2 font-medium"><AlertTriangle className="h-4 w-4 shrink-0" /> {t("Hai modifiche non salvate.")}</span>
           <Button size="sm" onClick={handleSave} disabled={saving} className="gap-1.5">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Salva ora
+            {t("Salva ora")}
           </Button>
         </div>
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="flex flex-wrap h-auto gap-1 p-1 w-full justify-start bg-muted/50">
-          <TabsTrigger value="azienda" className="gap-1.5 text-xs"><Building2 className="h-3.5 w-3.5" />Azienda</TabsTrigger>
-          <TabsTrigger value="fiscale" className="gap-1.5 text-xs"><Receipt className="h-3.5 w-3.5" />Dati fiscali</TabsTrigger>
-          <TabsTrigger value="elettronica" className="gap-1.5 text-xs"><Globe className="h-3.5 w-3.5" />Fattura elettronica</TabsTrigger>
-          <TabsTrigger value="pdf" className="gap-1.5 text-xs"><Palette className="h-3.5 w-3.5" />Aspetto</TabsTrigger>
-          <TabsTrigger value="pagamenti" className="gap-1.5 text-xs"><CreditCard className="h-3.5 w-3.5" />Conto e pagamenti</TabsTrigger>
-          <TabsTrigger value="numeratori" className="gap-1.5 text-xs"><FileText className="h-3.5 w-3.5" />Numerazione</TabsTrigger>
-          <TabsTrigger value="avanzate" className="gap-1.5 text-xs"><Settings2 className="h-3.5 w-3.5" />IVA e bollo</TabsTrigger>
+          <TabsTrigger value="azienda" className="gap-1.5 text-xs"><Building2 className="h-3.5 w-3.5" />{t("Azienda")}</TabsTrigger>
+          <TabsTrigger value="fiscale" className="gap-1.5 text-xs"><Receipt className="h-3.5 w-3.5" />{t("Dati fiscali")}</TabsTrigger>
+          <TabsTrigger value="elettronica" className="gap-1.5 text-xs"><Globe className="h-3.5 w-3.5" />{t("Fattura elettronica")}</TabsTrigger>
+          <TabsTrigger value="pdf" className="gap-1.5 text-xs"><Palette className="h-3.5 w-3.5" />{t("Aspetto")}</TabsTrigger>
+          <TabsTrigger value="pagamenti" className="gap-1.5 text-xs"><CreditCard className="h-3.5 w-3.5" />{t("Conto e pagamenti")}</TabsTrigger>
+          <TabsTrigger value="numeratori" className="gap-1.5 text-xs"><FileText className="h-3.5 w-3.5" />{t("Numerazione")}</TabsTrigger>
+          <TabsTrigger value="avanzate" className="gap-1.5 text-xs"><Settings2 className="h-3.5 w-3.5" />{t("IVA e bollo")}</TabsTrigger>
           {/* Niente export su telefono: qui si tirano fuori i documenti
               fiscali per il commercialista, è lavoro da scrivania. */}
           {!isMobile && (
-            <TabsTrigger value="export-contabile" className="gap-1.5 text-xs"><Download className="h-3.5 w-3.5" />Per il commercialista</TabsTrigger>
+            <TabsTrigger value="export-contabile" className="gap-1.5 text-xs"><Download className="h-3.5 w-3.5" />{t("Per il commercialista")}</TabsTrigger>
           )}
         </TabsList>
 
@@ -379,21 +377,20 @@ export default function ImpostazioniFatturazione() {
         {/* ═══════════════════════════════════════════════════════ */}
         <TabsContent value="azienda" className="space-y-4 mt-4">
           <p className="text-sm text-muted-foreground">
-            Questi dati escono sulle fatture che fai ai tuoi clienti. Il Profilo aziendale ha i suoi (preventivi, email, portale
-            clienti): cambiare uno non cambia l'altro.
+            {t("Questi dati escono sulle fatture che fai ai tuoi clienti. Il Profilo aziendale ha i suoi (preventivi, email, portale clienti): cambiare uno non cambia l'altro.")}
           </p>
           {/* Logo */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Logo</CardTitle>
-              <CardDescription>Il logo delle fatture: se non ne metti uno, si usa quello del Profilo aziendale.</CardDescription>
+              <CardTitle className="text-base">{t("Logo")}</CardTitle>
+              <CardDescription>{t("Il logo delle fatture: se non ne metti uno, si usa quello del Profilo aziendale.")}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex items-start gap-6">
                 <div className="relative group">
                   <div className="h-24 w-24 rounded-lg border-2 border-dashed border-muted-foreground/30 flex items-center justify-center bg-muted/30 overflow-hidden">
                     {current.logo_url ? (
-                      <img loading="lazy" src={current.logo_url} alt="Logo" className="h-full w-full object-contain p-1" />
+                      <img loading="lazy" src={current.logo_url} alt={t("Logo")} className="h-full w-full object-contain p-1" />
                     ) : (
                       <Upload className="h-8 w-8 text-muted-foreground/50" />
                     )}
@@ -414,15 +411,15 @@ export default function ImpostazioniFatturazione() {
                   />
                   <Button variant="outline" size="sm" className="gap-1.5" onClick={() => fileInputRef.current?.click()} disabled={uploadingLogo}>
                     <Upload className="h-3.5 w-3.5" />
-                    {current.logo_url ? "Cambia logo" : "Carica logo"}
+                    {current.logo_url ? t("Cambia logo") : t("Carica logo")}
                   </Button>
                   {current.logo_url && (
                     <Button variant="ghost" size="sm" className="gap-1 text-destructive hover:text-destructive/80 ml-2" onClick={() => updateField("logo_url", null)}>
                       <Trash2 className="h-3.5 w-3.5" />
-                      Rimuovi
+                      {t("Rimuovi")}
                     </Button>
                   )}
-                  <p className="text-xs text-muted-foreground">PNG, JPG o SVG, al massimo 2 MB.</p>
+                  <p className="text-xs text-muted-foreground">{t("PNG, JPG o SVG, al massimo 2 MB.")}</p>
                 </div>
               </div>
             </CardContent>
@@ -431,35 +428,35 @@ export default function ImpostazioniFatturazione() {
           {/* Dati Aziendali */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Dati Aziendali</CardTitle>
-              <CardDescription>Informazioni anagrafiche utilizzate nei documenti fiscali e nella fatturazione elettronica.</CardDescription>
+              <CardTitle className="text-base">{t("Dati Aziendali")}</CardTitle>
+              <CardDescription>{t("Informazioni anagrafiche utilizzate nei documenti fiscali e nella fatturazione elettronica.")}</CardDescription>
             </CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2 sm:col-span-2"><Label htmlFor="az-ragione-sociale">Ragione Sociale / Denominazione</Label><Input id="az-ragione-sociale" value={current.ragione_sociale ?? ""} onChange={(e) => updateField("ragione_sociale", e.target.value)} placeholder="Es. Edilizia Rossi S.r.l." /></div>
-              <div className="space-y-2"><Label htmlFor="az-partita-iva">Partita IVA</Label><Input id="az-partita-iva" value={current.partita_iva ?? ""} onChange={(e) => updateField("partita_iva", e.target.value)} className="font-mono" placeholder="12345678901" maxLength={11} /></div>
-              <div className="space-y-2"><Label htmlFor="az-codice-fiscale">Codice Fiscale</Label><Input id="az-codice-fiscale" value={current.codice_fiscale ?? ""} onChange={(e) => updateField("codice_fiscale", e.target.value)} className="font-mono uppercase" placeholder="RSSMRA80A01H501U" /></div>
-              <div className="space-y-2"><Label htmlFor="az-forma-giuridica">Forma Giuridica</Label>
+              <div className="space-y-2 sm:col-span-2"><Label htmlFor="az-ragione-sociale">{t("Ragione Sociale / Denominazione")}</Label><Input id="az-ragione-sociale" value={current.ragione_sociale ?? ""} onChange={(e) => updateField("ragione_sociale", e.target.value)} placeholder={t("Es. Edilizia Rossi S.r.l.")} /></div>
+              <div className="space-y-2"><Label htmlFor="az-partita-iva">{t("Partita IVA")}</Label><Input id="az-partita-iva" value={current.partita_iva ?? ""} onChange={(e) => updateField("partita_iva", e.target.value)} className="font-mono" placeholder="12345678901" maxLength={11} /></div>
+              <div className="space-y-2"><Label htmlFor="az-codice-fiscale">{t("Codice Fiscale")}</Label><Input id="az-codice-fiscale" value={current.codice_fiscale ?? ""} onChange={(e) => updateField("codice_fiscale", e.target.value)} className="font-mono uppercase" placeholder={t("RSSMRA80A01H501U")} /></div>
+              <div className="space-y-2"><Label htmlFor="az-forma-giuridica">{t("Forma Giuridica")}</Label>
                 <Select value={current.forma_giuridica ?? ""} onValueChange={(v) => updateField("forma_giuridica", v)}>
-                  <SelectTrigger id="az-forma-giuridica"><SelectValue placeholder="Seleziona..." /></SelectTrigger>
+                  <SelectTrigger id="az-forma-giuridica"><SelectValue placeholder={t("Seleziona...")} /></SelectTrigger>
                   <SelectContent>
                     {["SRL", "SRLS", "SPA", "SAS", "SNC", "SS", "Ditta Individuale", "Libero Professionista", "Cooperativa", "Associazione", "Altro"].map((fg) => (
-                      <SelectItem key={fg} value={fg}>{fg}</SelectItem>
+                      <SelectItem key={fg} value={fg}>{fg === "Altro" ? t("Altro") : fg}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2"><Label htmlFor="az-pec">PEC</Label><Input id="az-pec" value={current.pec ?? ""} onChange={(e) => updateField("pec", e.target.value)} type="email" placeholder="azienda@pec.it" /></div>
               <div className="space-y-2"><Label htmlFor="az-email">Email</Label><Input id="az-email" value={current.email ?? ""} onChange={(e) => updateField("email", e.target.value)} type="email" placeholder="info@azienda.it" /></div>
-              <div className="space-y-2"><Label htmlFor="az-telefono">Telefono</Label><Input id="az-telefono" value={current.telefono ?? ""} onChange={(e) => updateField("telefono", e.target.value)} placeholder="+39 02 1234567" /></div>
-              <div className="space-y-2"><Label htmlFor="az-sito-web">Sito Web</Label><Input id="az-sito-web" value={current.sito_web ?? ""} onChange={(e) => updateField("sito_web", e.target.value)} placeholder="https://www.azienda.it" /></div>
+              <div className="space-y-2"><Label htmlFor="az-telefono">{t("Telefono")}</Label><Input id="az-telefono" value={current.telefono ?? ""} onChange={(e) => updateField("telefono", e.target.value)} placeholder="+39 02 1234567" /></div>
+              <div className="space-y-2"><Label htmlFor="az-sito-web">{t("Sito Web")}</Label><Input id="az-sito-web" value={current.sito_web ?? ""} onChange={(e) => updateField("sito_web", e.target.value)} placeholder="https://www.azienda.it" /></div>
             </CardContent>
           </Card>
 
           {/* Indirizzo */}
           <Card>
-            <CardHeader><CardTitle className="text-base">Sede Legale</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">{t("Sede Legale")}</CardTitle></CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2 sm:col-span-2"><Label htmlFor="az-indirizzo">Indirizzo</Label><CampoIndirizzo
+              <div className="space-y-2 sm:col-span-2"><Label htmlFor="az-indirizzo">{t("Indirizzo")}</Label><CampoIndirizzo
                 id="az-indirizzo"
                 value={current.indirizzo_via ?? ""}
                 onChange={(v) => updateField("indirizzo_via", v)}
@@ -468,13 +465,13 @@ export default function ImpostazioniFatturazione() {
                   const campi = campiDaTrovato(a, { via: "indirizzo_via", citta: "indirizzo_comune", cap: "indirizzo_cap", provincia: "indirizzo_provincia" });
                   setForm((p) => ({ ...p, ...campi, indirizzo_via: strada, indirizzo_numero_civico: civico }));
                 }}
-                placeholder="Via Roma"
+                placeholder={t("Via Roma")}
               /></div>
-              <div className="space-y-2"><Label htmlFor="az-civico">N. Civico</Label><Input id="az-civico" value={current.indirizzo_numero_civico ?? ""} onChange={(e) => updateField("indirizzo_numero_civico", e.target.value)} placeholder="1" /></div>
+              <div className="space-y-2"><Label htmlFor="az-civico">{t("N. Civico")}</Label><Input id="az-civico" value={current.indirizzo_numero_civico ?? ""} onChange={(e) => updateField("indirizzo_numero_civico", e.target.value)} placeholder="1" /></div>
               <div className="space-y-2"><Label htmlFor="az-cap">CAP</Label><Input id="az-cap" value={current.indirizzo_cap ?? ""} onChange={(e) => updateField("indirizzo_cap", e.target.value)} placeholder="00100" maxLength={5} /></div>
-              <div className="space-y-2"><Label htmlFor="az-comune">Comune</Label><Input id="az-comune" value={current.indirizzo_comune ?? ""} onChange={(e) => updateField("indirizzo_comune", e.target.value)} placeholder="Roma" /></div>
-              <div className="space-y-2"><Label htmlFor="az-provincia">Provincia</Label><Input id="az-provincia" value={current.indirizzo_provincia ?? ""} onChange={(e) => updateField("indirizzo_provincia", e.target.value)} maxLength={2} className="uppercase" placeholder="RM" /></div>
-              <div className="space-y-2"><Label htmlFor="az-nazione">Nazione</Label><Input id="az-nazione" value={current.indirizzo_nazione ?? "IT"} onChange={(e) => updateField("indirizzo_nazione", e.target.value)} maxLength={2} className="uppercase" placeholder="IT" /></div>
+              <div className="space-y-2"><Label htmlFor="az-comune">{t("Comune")}</Label><Input id="az-comune" value={current.indirizzo_comune ?? ""} onChange={(e) => updateField("indirizzo_comune", e.target.value)} placeholder={t("Roma")} /></div>
+              <div className="space-y-2"><Label htmlFor="az-provincia">{t("Provincia")}</Label><Input id="az-provincia" value={current.indirizzo_provincia ?? ""} onChange={(e) => updateField("indirizzo_provincia", e.target.value)} maxLength={2} className="uppercase" placeholder="RM" /></div>
+              <div className="space-y-2"><Label htmlFor="az-nazione">{t("Nazione")}</Label><Input id="az-nazione" value={current.indirizzo_nazione ?? "IT"} onChange={(e) => updateField("indirizzo_nazione", e.target.value)} maxLength={2} className="uppercase" placeholder="IT" /></div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -485,12 +482,12 @@ export default function ImpostazioniFatturazione() {
         <TabsContent value="fiscale" className="space-y-4 mt-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Regime Fiscale</CardTitle>
-              <CardDescription>Il regime fiscale determina gli obblighi IVA e le note obbligatorie in fattura.</CardDescription>
+              <CardTitle className="text-base">{t("Regime Fiscale")}</CardTitle>
+              <CardDescription>{t("Il regime fiscale determina gli obblighi IVA e le note obbligatorie in fattura.")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="fisc-regime">Regime Fiscale</Label>
+                <Label htmlFor="fisc-regime">{t("Regime Fiscale")}</Label>
                 <Select value={current.regime_fiscale ?? "RF01"} onValueChange={(v) => updateField("regime_fiscale", v)}>
                   <SelectTrigger id="fisc-regime"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -504,8 +501,8 @@ export default function ImpostazioniFatturazione() {
                 <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 flex items-start gap-2">
                   <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
                   <div className="text-sm">
-                    <p className="font-medium text-amber-800 dark:text-amber-300">Regime Forfettario</p>
-                    <p className="text-amber-700 dark:text-amber-400 text-xs mt-0.5">Le fatture non avranno addebito IVA. Verrà inserita automaticamente la dicitura obbligatoria: "Operazione effettuata ai sensi dell'art.1 commi da 54 a 89 della Legge n. 190/2014 — Regime forfettario".</p>
+                    <p className="font-medium text-amber-800 dark:text-amber-300">{t("Regime Forfettario")}</p>
+                    <p className="text-amber-700 dark:text-amber-400 text-xs mt-0.5">{t("Le fatture non avranno addebito IVA. Verrà inserita automaticamente la dicitura obbligatoria: \"Operazione effettuata ai sensi dell'art.1 commi da 54 a 89 della Legge n. 190/2014 — Regime forfettario\".")}</p>
                   </div>
                 </div>
               )}
@@ -515,15 +512,15 @@ export default function ImpostazioniFatturazione() {
           {/* ─── Registro imprese (art. 2250 c.c., 24/09/2026) ─── */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Registro imprese</CardTitle>
+              <CardTitle className="text-base">{t("Registro imprese")}</CardTitle>
               <CardDescription>
-                Per le società questi dati vanno in ogni fattura (art. 2250 del codice civile). Li trovi nella visura camerale.
+                {t("Per le società questi dati vanno in ogni fattura (art. 2250 del codice civile). Li trovi nella visura camerale.")}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="fisc-rea-ufficio">Ufficio REA (provincia)</Label>
+                  <Label htmlFor="fisc-rea-ufficio">{t("Ufficio REA (provincia)")}</Label>
                   <Input
                     id="fisc-rea-ufficio"
                     value={current.rea_ufficio ?? ""}
@@ -534,7 +531,7 @@ export default function ImpostazioniFatturazione() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="fisc-rea-numero">Numero REA</Label>
+                  <Label htmlFor="fisc-rea-numero">{t("Numero REA")}</Label>
                   <Input
                     id="fisc-rea-numero"
                     value={current.codice_rea ?? ""}
@@ -545,7 +542,7 @@ export default function ImpostazioniFatturazione() {
                 </div>
                 {eSocietaDiCapitali(current.forma_giuridica) && (
                   <div className="space-y-2">
-                    <Label htmlFor="fisc-capitale">Capitale sociale versato (€)</Label>
+                    <Label htmlFor="fisc-capitale">{t("Capitale sociale versato (€)")}</Label>
                     <Input
                       id="fisc-capitale"
                       type="number"
@@ -561,8 +558,8 @@ export default function ImpostazioniFatturazione() {
               {eSocieta(current.forma_giuridica) && (
                 <div className="flex items-center justify-between">
                   <div>
-                    <Label htmlFor="fisc-liquidazione">Società in liquidazione</Label>
-                    <p className="text-xs text-muted-foreground mt-0.5">In fattura esce «in liquidazione» (LS) invece di «non in liquidazione» (LN).</p>
+                    <Label htmlFor="fisc-liquidazione">{t("Società in liquidazione")}</Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">{t("In fattura esce «in liquidazione» (LS) invece di «non in liquidazione» (LN).")}</p>
                   </div>
                   <Switch
                     id="fisc-liquidazione"
@@ -574,7 +571,7 @@ export default function ImpostazioniFatturazione() {
               {datiReaMancanti(current).length > 0 && (
                 <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 flex items-start gap-2 text-sm text-amber-800 dark:text-amber-300">
                   <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-                  <span>Senza questi dati le fatture della tua società non partono allo SDI: la legge li chiede su ogni fattura.</span>
+                  <span>{t("Senza questi dati le fatture della tua società non partono allo SDI: la legge li chiede su ogni fattura.")}</span>
                 </div>
               )}
             </CardContent>
@@ -584,11 +581,11 @@ export default function ImpostazioniFatturazione() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">DURC</CardTitle>
-              <CardDescription>Segna la data di scadenza.</CardDescription>
+              <CardDescription>{t("Segna la data di scadenza.")}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-2 max-w-xs">
-                <Label htmlFor="durc-scadenza">Scadenza DURC</Label>
+                <Label htmlFor="durc-scadenza">{t("Scadenza DURC")}</Label>
                 <Input
                   id="durc-scadenza"
                   type="date"
@@ -629,19 +626,19 @@ export default function ImpostazioniFatturazione() {
             previewClassName="xl:sticky xl:top-4"
             editor={<Card>
               <CardHeader>
-                <CardTitle className="text-base">Aspetto dei documenti</CardTitle>
-                <CardDescription>Colore e logo nei PDF generati dalla fatturazione.</CardDescription>
+                <CardTitle className="text-base">{t("Aspetto dei documenti")}</CardTitle>
+                <CardDescription>{t("Colore e logo nei PDF generati dalla fatturazione.")}</CardDescription>
               </CardHeader>
               <CardContent>
                 <fieldset disabled={saving} className="min-w-0 space-y-5">
                   <div className="space-y-2">
-                    <Label htmlFor="colore-fattura">Colore di titoli e righe</Label>
+                    <Label htmlFor="colore-fattura">{t("Colore di titoli e righe")}</Label>
                     <div className="flex flex-wrap items-center gap-3">
                       <input id="colore-fattura" type="color" value={current.colore_primario ?? "#0ea5e9"} onChange={(e) => updateField("colore_primario", e.target.value)} className="h-10 w-10 rounded border cursor-pointer" />
                       <div className="flex flex-wrap gap-2">
                         {COLORI_PDF.map(([c, nome]) => {
                           const selezionato = (current.colore_primario ?? "#0ea5e9").toLowerCase() === c;
-                          return <button key={c} type="button" title={nome} aria-label={nome} aria-pressed={selezionato} className={`h-9 w-9 rounded-full border-2 transition-colors ${selezionato ? "ring-2 ring-ring ring-offset-2" : "border-transparent hover:border-foreground/30"}`}
+                          return <button key={c} type="button" title={t(nome)} aria-label={t(nome)} aria-pressed={selezionato} className={`h-9 w-9 rounded-full border-2 transition-colors ${selezionato ? "ring-2 ring-ring ring-offset-2" : "border-transparent hover:border-foreground/30"}`}
                             style={{ backgroundColor: c }}
                             onClick={() => updateField("colore_primario", c)} />;
                         })}
@@ -652,25 +649,25 @@ export default function ImpostazioniFatturazione() {
                     <LogoSizeControl value={current.scala_logo} onChange={valore => updateField("scala_logo", valore)} disabled={saving} />
                     <LogoAlignmentControl value={current.allineamento_logo} onChange={valore => updateField("allineamento_logo", valore)} disabled={saving} />
                     <Button type="button" variant="link" size="sm" className="h-auto p-0" onClick={() => setActiveTab("azienda")}>
-                      {logoFattura ? "Gestisci logo in Azienda" : "Aggiungi un logo in Azienda"}
+                      {logoFattura ? t("Gestisci logo in Azienda") : t("Aggiungi un logo in Azienda")}
                     </Button>
                   </div>
-                  <DiscardDocumentDraft disabled={saving || !aspettoModificato} etichetta="Annulla modifiche all’aspetto"
-                    descrizione="Ripristina colore, dimensione e allineamento del logo dell’ultimo salvataggio."
+                  <DiscardDocumentDraft disabled={saving || !aspettoModificato} etichetta={t("Annulla modifiche all’aspetto")}
+                    descrizione={t("Ripristina colore, dimensione e allineamento del logo dell’ultimo salvataggio.")}
                     onDiscard={() => setForm(({ colore_primario: _colore, scala_logo: _scala, allineamento_logo: _allineamento, ...resto }) => resto)} />
                 </fieldset>
               </CardContent>
             </Card>}
-            anteprima={<Card aria-label="Anteprima con dati di esempio" className="overflow-hidden">
+            anteprima={<Card aria-label={t("Anteprima con dati di esempio")} className="overflow-hidden">
               <CardHeader className="border-b p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <CardTitle className="text-base">Anteprima con dati di esempio</CardTitle>
-                  <UniformSelect aria-label="Documento in anteprima" value={tipoAnteprima}
+                  <CardTitle className="text-base">{t("Anteprima con dati di esempio")}</CardTitle>
+                  <UniformSelect aria-label={t("Documento in anteprima")} value={tipoAnteprima}
                     onChange={(e) => setTipoAnteprima(e.target.value as TipoAnteprimaFiscale)}
                     className="h-10 min-w-36 rounded-md border bg-background px-3 text-sm">
-                    <option value="fattura">Fattura</option>
-                    <option value="nota_credito">Nota di credito</option>
-                    <option value="proforma">Proforma</option>
+                    <option value="fattura">{t("Fattura")}</option>
+                    <option value="nota_credito">{t("Nota di credito")}</option>
+                    <option value="proforma">{t("Proforma")}</option>
                     <option value="ddt">DDT</option>
                   </UniformSelect>
                 </div>
@@ -687,12 +684,12 @@ export default function ImpostazioniFatturazione() {
         <TabsContent value="pagamenti" className="space-y-4 mt-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Metodo di pagamento</CardTitle>
-              <CardDescription>Quello che si seleziona da solo nelle fatture nuove.</CardDescription>
+              <CardTitle className="text-base">{t("Metodo di pagamento")}</CardTitle>
+              <CardDescription>{t("Quello che si seleziona da solo nelle fatture nuove.")}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                <Label htmlFor="pag-metodo">Metodo di pagamento (codice SDI)</Label>
+                <Label htmlFor="pag-metodo">{t("Metodo di pagamento (codice SDI)")}</Label>
                 <Select value={current.metodo_pagamento_default ?? "MP05"} onValueChange={(v) => updateField("metodo_pagamento_default", v)}>
                   <SelectTrigger id="pag-metodo"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -707,26 +704,26 @@ export default function ImpostazioniFatturazione() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Conto corrente</CardTitle>
-              <CardDescription>L'IBAN esce sulle fatture, dove si dice come pagare.</CardDescription>
+              <CardTitle className="text-base">{t("Conto corrente")}</CardTitle>
+              <CardDescription>{t("L'IBAN esce sulle fatture, dove si dice come pagare.")}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="conto-iban" className="text-xs">IBAN</Label>
-                  <Input id="conto-iban" value={current.iban_principale ?? ""} onChange={(e) => updateField("iban_principale", e.target.value.replace(/\s+/g, "").toUpperCase())} className="font-mono uppercase text-xs" placeholder="IT60X0542811101000000123456" />
+                  <Input id="conto-iban" value={current.iban_principale ?? ""} onChange={(e) => updateField("iban_principale", e.target.value.replace(/\s+/g, "").toUpperCase())} className="font-mono uppercase text-xs" placeholder={t("IT60X0542811101000000123456")} />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="conto-bic" className="text-xs">BIC/SWIFT</Label>
-                  <Input id="conto-bic" value={current.bic_swift ?? ""} onChange={(e) => updateField("bic_swift", e.target.value.toUpperCase())} className="font-mono uppercase text-xs" placeholder="BPMOIT22XXX" />
+                  <Label htmlFor="conto-bic" className="text-xs">{t("BIC/SWIFT")}</Label>
+                  <Input id="conto-bic" value={current.bic_swift ?? ""} onChange={(e) => updateField("bic_swift", e.target.value.toUpperCase())} className="font-mono uppercase text-xs" placeholder={t("BPMOIT22XXX")} />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="conto-banca" className="text-xs">Nome della banca</Label>
-                  <Input id="conto-banca" value={current.nome_banca ?? ""} onChange={(e) => updateField("nome_banca", e.target.value)} className="text-xs" placeholder="Banca Popolare di Milano" />
+                  <Label htmlFor="conto-banca" className="text-xs">{t("Nome della banca")}</Label>
+                  <Input id="conto-banca" value={current.nome_banca ?? ""} onChange={(e) => updateField("nome_banca", e.target.value)} className="text-xs" placeholder={t("Banca Popolare di Milano")} />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="conto-intestatario" className="text-xs">Intestatario</Label>
-                  <Input id="conto-intestatario" value={current.intestatario_conto ?? ""} onChange={(e) => updateField("intestatario_conto", e.target.value)} className="text-xs" placeholder="Mario Rossi S.r.l." />
+                  <Label htmlFor="conto-intestatario" className="text-xs">{t("Intestatario")}</Label>
+                  <Input id="conto-intestatario" value={current.intestatario_conto ?? ""} onChange={(e) => updateField("intestatario_conto", e.target.value)} className="text-xs" placeholder={t("Mario Rossi S.r.l.")} />
                 </div>
               </div>
 
@@ -736,32 +733,32 @@ export default function ImpostazioniFatturazione() {
               <div className="mt-5 border-t pt-4 space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                    <p className="text-xs font-medium">Altri conti</p>
+                    <p className="text-xs font-medium">{t("Altri conti")}</p>
                     <p className="text-[11px] text-muted-foreground">
-                      Se incassi su più banche, aggiungile qui: in fattura le scegli dalla tendina. Quello sopra resta proposto di serie.
+                      {t("Se incassi su più banche, aggiungile qui: in fattura le scegli dalla tendina. Quello sopra resta proposto di serie.")}
                     </p>
                   </div>
                   <Button type="button" variant="outline" size="sm" className="shrink-0"
                     onClick={() => updateField("conti_fatturazione", [...(altriConti), { nome: "", iban: "", bic: "", banca: "" }])}>
-                    Aggiungi conto
+                    {t("Aggiungi conto")}
                   </Button>
                 </div>
                 {altriConti.map((c, i) => (
                   <div key={i} className="grid grid-cols-1 gap-2 rounded-md border p-2 sm:grid-cols-[1fr_1.6fr_auto]">
-                    <Input aria-label={`Nome del conto ${i + 1}`} value={c.nome ?? ""} placeholder="BCC conto lavori"
+                    <Input aria-label={t("Nome del conto {i}", { i: i + 1 })} value={c.nome ?? ""} placeholder={t("BCC conto lavori")}
                       className="text-xs"
                       onChange={(e) => scriviConto(i, { nome: e.target.value })} />
                     <div className="space-y-1">
-                      <Input aria-label={`IBAN del conto ${i + 1}`} value={c.iban ?? ""} placeholder="IT60X0542811101000000123456"
+                      <Input aria-label={t("IBAN del conto {i}", { i: i + 1 })} value={c.iban ?? ""} placeholder={t("IT60X0542811101000000123456")}
                         className={`font-mono uppercase text-xs ${c.iban && !ibanValido(c.iban) ? "border-destructive" : ""}`}
                         onChange={(e) => scriviConto(i, { iban: pulisciIbanConto(e.target.value) })} />
                       {c.iban && !ibanValido(c.iban) && (
-                        <p className="text-[10px] text-destructive">IBAN non valido: IT, 2 cifre, 1 lettera e 22 fra cifre e lettere.</p>
+                        <p className="text-[10px] text-destructive">{t("IBAN non valido: IT, 2 cifre, 1 lettera e 22 fra cifre e lettere.")}</p>
                       )}
                     </div>
-                    <Button type="button" variant="ghost" size="sm" aria-label={`Togli il conto ${i + 1}`}
+                    <Button type="button" variant="ghost" size="sm" aria-label={t("Togli il conto {i}", { i: i + 1 })}
                       onClick={() => updateField("conti_fatturazione", altriConti.filter((_, k) => k !== i))}>
-                      Togli
+                      {t("Togli")}
                     </Button>
                   </div>
                 ))}
@@ -796,11 +793,11 @@ export default function ImpostazioniFatturazione() {
                   <Badge variant="outline" className="font-mono text-xs">{badge}</Badge>
                 </div>
                 {ncSegue ? (
-                  <p className="text-sm text-muted-foreground">Segue la serie delle Fatture (serie unica): il prossimo numero è <span className="font-mono">{badge}</span>.</p>
+                  <p className="text-sm text-muted-foreground">{t("Segue la serie delle Fatture (serie unica): il prossimo numero è")} <span className="font-mono">{badge}</span>.</p>
                 ) : (
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-xs">Prefisso</Label>
+                    <Label className="text-xs">{t("Prefisso")}</Label>
                     <Input
                       value={current[item.prefix] ?? item.default}
                       onChange={(e) => updateField(item.prefix, e.target.value.toUpperCase().slice(0, 5))}
@@ -809,7 +806,7 @@ export default function ImpostazioniFatturazione() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs">Prossimo numero</Label>
+                    <Label className="text-xs">{t("Prossimo numero")}</Label>
                     <Input
                       type="number"
                       min={1}
@@ -822,14 +819,14 @@ export default function ImpostazioniFatturazione() {
                 {eFattura && (
                   <div className="mt-4 space-y-4 border-t pt-4">
                     <div className="space-y-2">
-                      <Label className="text-xs">Formato del numero</Label>
+                      <Label className="text-xs">{t("Formato del numero")}</Label>
                       <Input value={current.formato_numero ?? ""} onChange={(e) => updateField("formato_numero", e.target.value || null)} placeholder="{prefisso}-{yyyy}-{nnnn}" className="font-mono" />
-                      <p className="text-[11px] text-muted-foreground">Segnaposto: <span className="font-mono">{"{prefisso} {n} {nnnn} {yyyy} {yy}"}</span>. Vuoto = standard (<span className="font-mono">FT-2026-0001</span>). Vale anche per le Note di Credito, col loro prefisso.</p>
+                      <p className="text-[11px] text-muted-foreground">{t("Segnaposto:")} <span className="font-mono">{"{prefisso} {n} {nnnn} {yyyy} {yy}"}</span>{t(". Vuoto = standard (")}<span className="font-mono">FT-2026-0001</span>{t("). Vale anche per le Note di Credito, col loro prefisso.")}</p>
                     </div>
                     <div className="flex items-center justify-between">
                       <div>
-                        <Label className="text-xs">Serie unica con le Note di Credito</Label>
-                        <p className="text-[11px] text-muted-foreground">La nota di credito prende il numero successivo della serie Fatture.</p>
+                        <Label className="text-xs">{t("Serie unica con le Note di Credito")}</Label>
+                        <p className="text-[11px] text-muted-foreground">{t("La nota di credito prende il numero successivo della serie Fatture.")}</p>
                       </div>
                       <Switch checked={!!current.nc_serie_condivisa} onCheckedChange={(v) => updateField("nc_serie_condivisa", v)} />
                     </div>
@@ -847,14 +844,14 @@ export default function ImpostazioniFatturazione() {
         <TabsContent value="avanzate" className="space-y-4 mt-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">IVA, bollo e split payment</CardTitle>
-              <CardDescription>Come escono sulle fatture l'IVA e il bollo.</CardDescription>
+              <CardTitle className="text-base">{t("IVA, bollo e split payment")}</CardTitle>
+              <CardDescription>{t("Come escono sulle fatture l'IVA e il bollo.")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <Label htmlFor="iva-per-cassa">IVA per cassa</Label>
-                  <p className="text-xs text-muted-foreground mt-0.5">Esigibilità IVA differita al momento del pagamento (art. 32-bis DL 83/2012)</p>
+                  <Label htmlFor="iva-per-cassa">{t("IVA per cassa")}</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">{t("Esigibilità IVA differita al momento del pagamento (art. 32-bis DL 83/2012)")}</p>
                 </div>
                 <Switch id="iva-per-cassa" checked={current.iva_per_cassa ?? false} onCheckedChange={(v) => updateField("iva_per_cassa", v)} />
               </div>
@@ -865,33 +862,31 @@ export default function ImpostazioniFatturazione() {
                 <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-lg p-3 flex items-start gap-2 text-xs text-amber-800 dark:text-amber-300">
                   <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
                   <span>
-                    Le fatture escono con l'esigibilità differita e la dicitura di legge. Il Registro IVA e la liquidazione di questa app
-                    però contano l'IVA delle vendite alla data della fattura e quella degli acquisti alla ricezione, non all'incasso e al
-                    pagamento: i versamenti falli calcolare al commercialista. Il regime è ammesso con un volume d'affari fino a 2 milioni di euro.
+                    {t("Le fatture escono con l'esigibilità differita e la dicitura di legge. Il Registro IVA e la liquidazione di questa app però contano l'IVA delle vendite alla data della fattura e quella degli acquisti alla ricezione, non all'incasso e al pagamento: i versamenti falli calcolare al commercialista. Il regime è ammesso con un volume d'affari fino a 2 milioni di euro.")}
                   </span>
                 </div>
               )}
               <Separator />
               <div className="flex items-center justify-between">
                 <div>
-                  <Label htmlFor="split-payment">Split payment (fatture alla pubblica amministrazione)</Label>
-                  <p className="text-xs text-muted-foreground mt-0.5">Si applica da solo alle fatture verso enti pubblici (art. 17-ter DPR 633/72)</p>
+                  <Label htmlFor="split-payment">{t("Split payment (fatture alla pubblica amministrazione)")}</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">{t("Si applica da solo alle fatture verso enti pubblici (art. 17-ter DPR 633/72)")}</p>
                 </div>
                 <Switch id="split-payment" checked={current.split_payment_pa ?? true} onCheckedChange={(v) => updateField("split_payment_pa", v)} />
               </div>
               <Separator />
               <div className="flex items-center justify-between">
                 <div>
-                  <Label htmlFor="socio-unico">Società con unico socio</Label>
-                  <p className="text-xs text-muted-foreground mt-0.5">Spunta se sei una S.r.l. con un solo socio.</p>
+                  <Label htmlFor="socio-unico">{t("Società con unico socio")}</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">{t("Spunta se sei una S.r.l. con un solo socio.")}</p>
                 </div>
                 <Switch id="socio-unico" checked={current.socio_unico ?? false} onCheckedChange={(v) => updateField("socio_unico", v)} />
               </div>
               <Separator />
               <div className="flex items-center justify-between">
                 <div>
-                  <Label htmlFor="bollo-automatico">Bollo da 2 € automatico</Label>
-                  <p className="text-xs text-muted-foreground mt-0.5">Applica da solo il bollo di € 2,00 quando la parte della fattura senza IVA (esente, esclusa, non soggetta, forfettario, lettera d'intento) supera € 77,47</p>
+                  <Label htmlFor="bollo-automatico">{t("Bollo da 2 € automatico")}</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">{t("Applica da solo il bollo di € 2,00 quando la parte della fattura senza IVA (esente, esclusa, non soggetta, forfettario, lettera d'intento) supera € 77,47")}</p>
                 </div>
                 <Switch id="bollo-automatico" checked={current.bollo_virtuale_auto ?? true} onCheckedChange={(v) => updateField("bollo_virtuale_auto", v)} />
               </div>
@@ -905,32 +900,31 @@ export default function ImpostazioniFatturazione() {
           {isMobile ? (
             <Card>
               <CardContent className="py-6 text-sm text-muted-foreground">
-                L'export contabile si fa da computer: apri questa pagina da lì
-                per scaricare i documenti fiscali del periodo.
+                {t("L'export contabile si fa da computer: apri questa pagina da lì per scaricare i documenti fiscali del periodo.")}
               </CardContent>
             </Card>
           ) : (
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
-                <Download className="h-4 w-4" aria-hidden="true" /> Export Contabile
+                <Download className="h-4 w-4" aria-hidden="true" /> {t("Export Contabile")}
               </CardTitle>
               <CardDescription>
-                Esporta documenti fiscali in formato CSV o Excel per il tuo commercialista o software di contabilità.
+                {t("Esporta documenti fiscali in formato CSV o Excel per il tuo commercialista o software di contabilità.")}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
               {/* Format selector */}
               <div className="space-y-2">
-                <Label>Formato di esportazione</Label>
+                <Label>{t("Formato di esportazione")}</Label>
                 <div className="flex gap-2 flex-wrap">
                   {[
-                    { id: "csv", label: "CSV standard", desc: "Excel, LibreOffice, Google Sheets" },
+                    { id: "csv", label: t("CSV standard"), desc: t("Excel, LibreOffice, Google Sheets") },
                     // L'id resta quello che il backend conosce; il file è un riepilogo
                     // XML nostro (<ExportContabile>), NON il tracciato FatturaPA: prima
                     // l'etichetta prometteva l'import in Danea, TeamSystem e Zucchetti.
-                    { id: "fatturapa_xml", label: "Riepilogo XML", desc: "Elenco dei documenti in XML. I file FatturaPA veri si scaricano dal cassetto SDI" },
-                    { id: "prima_nota", label: "Prima nota", desc: "Registro contabile semplificato" },
+                    { id: "fatturapa_xml", label: t("Riepilogo XML"), desc: t("Elenco dei documenti in XML. I file FatturaPA veri si scaricano dal cassetto SDI") },
+                    { id: "prima_nota", label: t("Prima nota"), desc: t("Registro contabile semplificato") },
                   ].map((f) => (
                     <button
                       key={f.id}
@@ -952,7 +946,7 @@ export default function ImpostazioniFatturazione() {
               {/* Date range */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="export-date-from">Dal</Label>
+                  <Label htmlFor="export-date-from">{t("Dal")}</Label>
                   <Input
                     id="export-date-from"
                     type="date"
@@ -961,7 +955,7 @@ export default function ImpostazioniFatturazione() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="export-date-to">Al</Label>
+                  <Label htmlFor="export-date-to">{t("Al")}</Label>
                   <Input
                     id="export-date-to"
                     type="date"
@@ -975,17 +969,17 @@ export default function ImpostazioniFatturazione() {
               <div className="flex gap-2 flex-wrap">
                 {[
                   {
-                    label: "Anno corrente",
+                    label: t("Anno corrente"),
                     from: `${new Date().getFullYear()}-01-01`,
                     to: `${new Date().getFullYear()}-12-31`,
                   },
                   {
-                    label: "Anno precedente",
+                    label: t("Anno precedente"),
                     from: `${new Date().getFullYear() - 1}-01-01`,
                     to: `${new Date().getFullYear() - 1}-12-31`,
                   },
                   {
-                    label: "Trimestre corrente",
+                    label: t("Trimestre corrente"),
                     from: (() => {
                       const q = Math.floor(new Date().getMonth() / 3);
                       return `${new Date().getFullYear()}-${String(q * 3 + 1).padStart(2, "0")}-01`;
@@ -1013,7 +1007,7 @@ export default function ImpostazioniFatturazione() {
                 disabled={isExportingContabile || !exportDateFrom || !exportDateTo}
                 onClick={async () => {
                   if (!exportDateFrom || !exportDateTo) {
-                    toast.error("Seleziona un intervallo di date");
+                    toast.error(t("Seleziona un intervallo di date"));
                     return;
                   }
                   setIsExportingContabile(true);
@@ -1028,9 +1022,9 @@ export default function ImpostazioniFatturazione() {
                     });
                     if (error) {
                       const detail = error.context ? await error.context.json?.().catch((): null => null) : null;
-                      throw new Error(detail?.error || error.message || "Errore nell'esportazione");
+                      throw new Error(detail?.error || error.message || t("Errore nell'esportazione"));
                     }
-                    if (!data?.content) throw new Error("Nessun dato da esportare");
+                    if (!data?.content) throw new Error(t("Nessun dato da esportare"));
                     // Download file
                     const mimeTypes: Record<string, string> = {
                       csv: "text/csv",
@@ -1049,23 +1043,23 @@ export default function ImpostazioniFatturazione() {
                     a.download = data.filename || `export-contabile-${exportDateFrom}_${exportDateTo}.${extensions[exportFormat] || "csv"}`;
                     a.click();
                     setTimeout(() => URL.revokeObjectURL(url), 10000);
-                    toast.success("Export completato", { description: `${data.rows || ""} righe esportate` });
+                    toast.success(t("Export completato"), { description: t("{rows} righe esportate", { rows: String((data.rows || "") ?? "") }) });
                   } catch (err: unknown) {
-                    toast.error(err instanceof Error ? err.message : "Errore nell'esportazione");
+                    toast.error(err instanceof Error ? err.message : t("Errore nell'esportazione"));
                   } finally {
                     setIsExportingContabile(false);
                   }
                 }}
               >
                 {isExportingContabile ? (
-                  <><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Esportazione in corso...</>
+                  <><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />{t("Esportazione in corso...")}</>
                 ) : (
-                  <><Download className="h-4 w-4" aria-hidden="true" />Esporta documenti fiscali</>
+                  <><Download className="h-4 w-4" aria-hidden="true" />{t("Esporta documenti fiscali")}</>
                 )}
               </Button>
 
               <p className="text-xs text-muted-foreground text-center">
-                Include fatture, note credito e proforma nel periodo selezionato
+                {t("Include fatture, note credito e proforma nel periodo selezionato")}
               </p>
             </CardContent>
           </Card>

@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useForecastLedger } from "@/hooks/useForecastLedger";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { incassiPerSettimana, type GruppoIncassi } from "@/lib/finance/incassiSettimanali";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const euro = (cents: number) => formatCurrency(cents / 100);
 
@@ -20,6 +21,7 @@ function Gruppo({ titolo, gruppo, sotto, tono, aperto }: {
   tono?: "rosso" | "attenua";
   aperto?: boolean;
 }) {
+  const t = useT();
   const vuoto = gruppo.righe.length === 0;
   const dettaglio = sotto ?? [
     gruppo.fattureCents > 0 ? `Già fatturato ${euro(gruppo.fattureCents)}` : null,
@@ -30,7 +32,7 @@ function Gruppo({ titolo, gruppo, sotto, tono, aperto }: {
       <summary className={`flex list-none flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 ${vuoto ? "" : "cursor-pointer"} [&::-webkit-details-marker]:hidden`}>
         {!vuoto && <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />}
         <span className={`font-medium ${tono === "rosso" ? "text-rose-700 dark:text-rose-400" : ""}`}>{titolo}</span>
-        {!vuoto && <span className="text-xs text-muted-foreground">{gruppo.righe.length} {gruppo.righe.length === 1 ? "incasso" : "incassi"}</span>}
+        {!vuoto && <span className="text-xs text-muted-foreground">{t(gruppo.righe.length === 1 ? "{n} incasso" : "{n} incassi", { n: gruppo.righe.length })}</span>}
         <span className={`ml-auto font-semibold tabular-nums ${tono === "rosso" ? "text-rose-700 dark:text-rose-400" : tono === "attenua" || vuoto ? "text-muted-foreground" : ""}`}>{euro(gruppo.cents)}</span>
         {dettaglio && <span className="w-full text-xs text-muted-foreground">{dettaglio}</span>}
       </summary>
@@ -38,9 +40,9 @@ function Gruppo({ titolo, gruppo, sotto, tono, aperto }: {
         <ul className="divide-y border-t text-sm">
           {gruppo.righe.map((m) => (
             <li key={m.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 px-4 py-2">
-              <span className="w-20 shrink-0 tabular-nums text-muted-foreground">{m.date ? formatDateShort(m.date) : "Senza data"}</span>
+              <span className="w-20 shrink-0 tabular-nums text-muted-foreground">{m.date ? formatDateShort(m.date) : t("Senza data")}</span>
               <Link to={m.href} className="min-w-0 flex-1 truncate underline-offset-2 hover:underline" title={m.note}>{m.description}</Link>
-              <span className="text-xs text-muted-foreground">{m.rataFatturata ? "Rata fatturata" : m.source}{m.orderLabel ? ` · ${m.orderLabel}` : ""}</span>
+              <span className="text-xs text-muted-foreground">{m.rataFatturata ? t("Rata fatturata") : m.source}{m.orderLabel ? ` · ${m.orderLabel}` : ""}</span>
               <span className="font-medium tabular-nums">{euro(m.cents)}</span>
             </li>
           ))}
@@ -61,6 +63,7 @@ function Numero({ titolo, cents, rosso }: { titolo: string; cents: number; rosso
 
 /** Con `cerca` si guardano solo gli incassi di quel cliente, fattura o commessa: anche i totali. */
 export function IncassiPerSettimanaVista({ cerca = "" }: { cerca?: string }) {
+  const tr = useT();
   const query = useForecastLedger();
   const oggi = new Date().toLocaleDateString("en-CA");
   const dati = useMemo(() => {
@@ -75,8 +78,8 @@ export function IncassiPerSettimanaVista({ cerca = "" }: { cerca?: string }) {
   if (query.isError || !dati) {
     return (
       <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed p-8 text-center">
-        <p className="text-sm text-muted-foreground">Non sono riuscito a leggere gli incassi previsti.</p>
-        <Button variant="outline" size="sm" onClick={() => void query.refetch()}>Riprova</Button>
+        <p className="text-sm text-muted-foreground">{tr("Non sono riuscito a leggere gli incassi previsti.")}</p>
+        <Button variant="outline" size="sm" onClick={() => void query.refetch()}>{tr("Riprova")}</Button>
       </div>
     );
   }
@@ -89,24 +92,24 @@ export function IncassiPerSettimanaVista({ cerca = "" }: { cerca?: string }) {
       {mancanti.length > 0 && (
         <p role="status" className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
           <AlertTriangle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
-          Non si sono caricati: {mancanti.join(", ")}. I totali potrebbero essere incompleti.
+          {tr("Non si sono caricati: {elenco}. I totali potrebbero essere incompleti.", { elenco: mancanti.join(", ") })}
         </p>
       )}
       {/* Gli stessi numeri dell'elenco: fatture, rate e scadenze, di tutti gli anni. */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
-        <Numero titolo="Scaduto da incassare" cents={dati.scaduto.cents} rosso={dati.scaduto.cents > 0} />
-        <Numero titolo="Questa settimana" cents={corrente.cents} />
-        <div className="max-sm:col-span-2"><Numero titolo="Prossimi 30 giorni" cents={dati.prossimi30Cents} /></div>
+        <Numero titolo={tr("Scaduto da incassare")} cents={dati.scaduto.cents} rosso={dati.scaduto.cents > 0} />
+        <Numero titolo={tr("Questa settimana")} cents={corrente.cents} />
+        <div className="max-sm:col-span-2"><Numero titolo={tr("Prossimi 30 giorni")} cents={dati.prossimi30Cents} /></div>
       </div>
-      {dati.scaduto.righe.length > 0 && <Gruppo titolo="Scaduto, ancora da incassare" gruppo={dati.scaduto} tono="rosso" />}
-      <Gruppo titolo={`Questa settimana · fino al ${formatDateShort(corrente.fine)}`} gruppo={corrente} aperto />
+      {dati.scaduto.righe.length > 0 && <Gruppo titolo={tr("Scaduto, ancora da incassare")} gruppo={dati.scaduto} tono="rosso" />}
+      <Gruppo titolo={tr("Questa settimana · fino al {fine}", { fine: formatDateShort(corrente.fine) })} gruppo={corrente} aperto />
       {prossime.map((s) => <Gruppo key={s.inizio} titolo={`${formatDateShort(s.inizio)} – ${formatDateShort(s.fine)}`} gruppo={s} />)}
-      {dati.piuAvanti.righe.length > 0 && <Gruppo titolo="Più avanti" gruppo={dati.piuAvanti} />}
+      {dati.piuAvanti.righe.length > 0 && <Gruppo titolo={tr("Più avanti")} gruppo={dati.piuAvanti} />}
       {dati.senzaData.righe.length > 0 && (
-        <Gruppo titolo="Senza data" gruppo={dati.senzaData} tono="attenua" sotto="Rate legate a un evento non ancora accaduto, rate senza data e parti di commessa senza una rata pianificata." />
+        <Gruppo titolo={tr("Senza data")} gruppo={dati.senzaData} tono="attenua" sotto={tr("Rate legate a un evento non ancora accaduto, rate senza data e parti di commessa senza una rata pianificata.")} />
       )}
       {dati.daControllare.righe.length > 0 && (
-        <Gruppo titolo="Da controllare, fuori dai totali" gruppo={dati.daControllare} tono="attenua" sotto="Potrebbero essere già comprese nelle rate della stessa commessa: collegale alla rata." />
+        <Gruppo titolo={tr("Da controllare, fuori dai totali")} gruppo={dati.daControllare} tono="attenua" sotto={tr("Potrebbero essere già comprese nelle rate della stessa commessa: collegale alla rata.")} />
       )}
     </div>
   );

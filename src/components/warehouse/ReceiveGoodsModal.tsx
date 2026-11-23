@@ -46,6 +46,7 @@ import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { DDTAttachmentUploader } from "@/components/ddt/DDTAttachmentUploader";
 import { PostReceiptDDTPrompt } from "./PostReceiptDDTPrompt";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ReceiveGoodsModalProps {
   open: boolean;
@@ -66,9 +67,11 @@ export function ReceiveGoodsModal({
   open,
   onOpenChange,
   orderItemId,
-  orderItemName = "Articolo",
+  orderItemName: orderItemNameProp,
   warehouseId: warehouseIdProp,
 }: ReceiveGoodsModalProps) {
+  const t = useT();
+  const orderItemName = orderItemNameProp ?? t("Articolo");
   const { createGoodsReceipt, isCreating, uploadProgress } = useGoodsReceipt();
   const { warehouses, defaultWarehouse } = useWarehouses(true);
 
@@ -139,16 +142,16 @@ export function ReceiveGoodsModal({
     if (isCreating) return;
 
     if (!quantityReceived) {
-      toast.error("Inserire la quantità ricevuta");
+      toast.error(t("Inserire la quantità ricevuta"));
       return;
     }
     const qty = Number(quantityReceived.trim().replace(",", "."));
     if (!Number.isFinite(qty) || qty <= 0) {
-      toast.error("Quantità non valida — deve essere maggiore di zero");
+      toast.error(t("Quantità non valida — deve essere maggiore di zero"));
       return;
     }
     if (!selectedWarehouseId) {
-      toast.error("Seleziona il magazzino di destinazione");
+      toast.error(t("Seleziona il magazzino di destinazione"));
       return;
     }
 
@@ -181,8 +184,8 @@ export function ReceiveGoodsModal({
       // magazzino, ma in realtà RLS/rete/edge function aveva fallito.
       // Disallineamento cantiere/magazzino.
       console.error("Submit error:", error);
-      toast.error("Ricezione non registrata", {
-        description: error instanceof Error ? error.message : "Riprova o controlla la connessione",
+      toast.error(t("Ricezione non registrata"), {
+        description: error instanceof Error ? error.message : t("Riprova o controlla la connessione"),
       });
     }
   };
@@ -199,10 +202,10 @@ export function ReceiveGoodsModal({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>{orderItemName}</DialogTitle></DialogHeader>
-          <p className="text-sm">È su misura: va al cantiere, non in magazzino. L'arrivo si spunta posizione per posizione.</p>
+          <p className="text-sm">{t("È su misura: va al cantiere, non in magazzino. L'arrivo si spunta posizione per posizione.")}</p>
           {suMisura.odaId
-            ? <Button asChild className="min-h-11"><Link to={`/azienda/ordini-acquisto/${suMisura.odaId}/arrivo`}>Apri l'arrivo per posizione</Link></Button>
-            : <p className="text-sm text-muted-foreground">Questa posizione non è ancora in un ordine al fornitore.</p>}
+            ? <Button asChild className="min-h-11"><Link to={`/azienda/ordini-acquisto/${suMisura.odaId}/arrivo`}>{t("Apri l'arrivo per posizione")}</Link></Button>
+            : <p className="text-sm text-muted-foreground">{t("Questa posizione non è ancora in un ordine al fornitore.")}</p>}
         </DialogContent>
       </Dialog>
     );
@@ -223,11 +226,10 @@ export function ReceiveGoodsModal({
               <div className="rounded-full bg-primary/10 p-1.5">
                 <PackageOpen className="h-4 w-4 text-primary" />
               </div>
-              Ricevi merce — <span className="truncate">{orderItemName}</span>
+              {t("Ricevi merce —")} <span className="truncate">{orderItemName}</span>
             </DialogTitle>
             <p className="text-xs text-muted-foreground mt-1">
-              Registra la ricezione fisica in magazzino. Al termine potrai
-              formalizzare il DDT.
+              {t("Registra la ricezione fisica in magazzino. Al termine potrai formalizzare il DDT.")}
             </p>
           </DialogHeader>
 
@@ -241,14 +243,14 @@ export function ReceiveGoodsModal({
               <div className="space-y-1.5">
                 <label className="text-xs font-medium flex items-center gap-1.5">
                   <WarehouseIcon className="h-3.5 w-3.5 text-muted-foreground" />
-                  Magazzino destinazione *
+                  {t("Magazzino destinazione *")}
                 </label>
                 <Select
                   value={selectedWarehouseId}
                   onValueChange={setSelectedWarehouseId}
                 >
                   <SelectTrigger disabled={isCreating} className="h-10">
-                    <SelectValue placeholder="Scegli magazzino…" />
+                    <SelectValue placeholder={t("Scegli magazzino…")} />
                   </SelectTrigger>
                   <SelectContent>
                     {warehouses.map((w) => (
@@ -266,7 +268,7 @@ export function ReceiveGoodsModal({
               <div className="space-y-1.5">
                 <label className="text-xs font-medium flex items-center gap-1.5">
                   <Hash className="h-3.5 w-3.5 text-muted-foreground" />
-                  Quantità ricevuta *
+                  {t("Quantità ricevuta *")}
                 </label>
                 <Input
                   type="number"
@@ -275,7 +277,7 @@ export function ReceiveGoodsModal({
                   step="0.01"
                   value={quantityReceived}
                   onChange={(e) => setQuantityReceived(e.target.value)}
-                  placeholder="Es. 10"
+                  placeholder={t("Es. 10")}
                   disabled={isCreating}
                   className="h-10 text-right font-semibold tabular-nums"
                 />
@@ -284,13 +286,13 @@ export function ReceiveGoodsModal({
               <div className="space-y-1.5">
                 <label className="text-xs font-medium flex items-center gap-1.5">
                   <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-                  Numero DDT (opzionale)
+                  {t("Numero DDT (opzionale)")}
                 </label>
                 <Input
                   type="text"
                   value={ddtNumber}
                   onChange={(e) => setDdtNumber(e.target.value)}
-                  placeholder="Es. DT-2026-0123"
+                  placeholder={t("Es. DT-2026-0123")}
                   disabled={isCreating}
                   className="h-10 font-mono text-sm"
                 />
@@ -301,7 +303,7 @@ export function ReceiveGoodsModal({
             <div className="space-y-2">
               <label className="text-xs font-medium flex items-center gap-1.5">
                 <Camera className="h-3.5 w-3.5 text-muted-foreground" />
-                Foto o PDF DDT (opzionale)
+                {t("Foto o PDF DDT (opzionale)")}
               </label>
               {ddtFile ? (
                 <DDTFilePreviewInline
@@ -318,7 +320,7 @@ export function ReceiveGoodsModal({
                   isUploading={isCreating}
                   onFilesSelected={async (items) => {
                     const first=items[0];if(!first)return;
-                    try {await validateWarehouseFile(first.file);setDdtFile(first.file);} catch(error){toast.error(error instanceof Error?error.message:"File non valido.");}
+                    try {await validateWarehouseFile(first.file);setDdtFile(first.file);} catch(error){toast.error(error instanceof Error?error.message:t("File non valido."));}
                   }}
                 />
               )}
@@ -328,7 +330,7 @@ export function ReceiveGoodsModal({
             <div className="space-y-1.5">
               <label className="text-xs font-medium flex items-center gap-1.5">
                 <ShieldCheck className="h-3.5 w-3.5 text-muted-foreground" />
-                Stato qualità *
+                {t("Stato qualità *")}
               </label>
               <Select
                 value={qualityStatus}
@@ -343,25 +345,25 @@ export function ReceiveGoodsModal({
                   <SelectItem value="ok">
                     <span className="inline-flex items-center gap-1.5">
                       <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
-                      OK — conforme
+                      {t("OK — conforme")}
                     </span>
                   </SelectItem>
                   <SelectItem value="pending">
                     <span className="inline-flex items-center gap-1.5">
                       <span className="inline-block h-2 w-2 rounded-full bg-sky-500" />
-                      In verifica
+                      {t("In verifica")}
                     </span>
                   </SelectItem>
                   <SelectItem value="damaged">
                     <span className="inline-flex items-center gap-1.5">
                       <span className="inline-block h-2 w-2 rounded-full bg-rose-500" />
-                      Danneggiato
+                      {t("Danneggiato")}
                     </span>
                   </SelectItem>
                   <SelectItem value="partial">
                     <span className="inline-flex items-center gap-1.5">
                       <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
-                      Consegna parziale
+                      {t("Consegna parziale")}
                     </span>
                   </SelectItem>
                 </SelectContent>
@@ -373,13 +375,13 @@ export function ReceiveGoodsModal({
               <div className="space-y-1.5">
                 <label className="text-xs font-medium flex items-center gap-1.5">
                   <ClipboardCheck className="h-3.5 w-3.5 text-muted-foreground" />
-                  Note qualità
+                  {t("Note qualità")}
                 </label>
                 <Input
                   type="text"
                   value={qualityNotes}
                   onChange={(e) => setQualityNotes(e.target.value)}
-                  placeholder="Es. 2 scatole ammaccate, 1 pezzo mancante…"
+                  placeholder={t("Es. 2 scatole ammaccate, 1 pezzo mancante…")}
                   disabled={isCreating}
                   className="h-10"
                 />
@@ -390,13 +392,13 @@ export function ReceiveGoodsModal({
             <div className="space-y-1.5">
               <label className="text-xs font-medium flex items-center gap-1.5">
                 <StickyNote className="h-3.5 w-3.5 text-muted-foreground" />
-                Note generali (opzionale)
+                {t("Note generali (opzionale)")}
               </label>
               <Input
                 type="text"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Es. Stoccato in sezione A2"
+                placeholder={t("Es. Stoccato in sezione A2")}
                 disabled={isCreating}
                 className="h-10"
               />
@@ -405,9 +407,7 @@ export function ReceiveGoodsModal({
             {/* Upload progress */}
             {uploadProgress > 0 && uploadProgress < 100 && (
               <div className="space-y-1.5 rounded-md border bg-muted/30 p-2.5">
-                <div className="text-xs text-muted-foreground">
-                  Upload foto DDT… {uploadProgress}%
-                </div>
+                <div className="text-xs text-muted-foreground">{t("Upload foto DDT… {uploadProgress}%", { uploadProgress: String(uploadProgress ?? "") })}</div>
                 <Progress value={uploadProgress} className="h-1.5" />
               </div>
             )}
@@ -422,7 +422,7 @@ export function ReceiveGoodsModal({
               disabled={isCreating}
               className="text-muted-foreground"
             >
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button
               type="button"
@@ -435,12 +435,12 @@ export function ReceiveGoodsModal({
               {isCreating ? (
                 <>
                   <span className="inline-block h-3 w-3 rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground animate-spin" />
-                  Registrando…
+                  {t("Registrando…")}
                 </>
               ) : (
                 <>
                   <PackageOpen className="h-4 w-4" />
-                  Registra ricezione
+                  {t("Registra ricezione")}
                 </>
               )}
             </Button>
@@ -472,6 +472,7 @@ function DDTFilePreviewInline({
   onRemove: () => void;
   disabled?: boolean;
 }) {
+  const t = useT();
   const isImage = file.type.startsWith("image/");
   const objectUrl = useMemo(
     () => (isImage ? URL.createObjectURL(file) : null),
@@ -501,7 +502,7 @@ function DDTFilePreviewInline({
       <div className="flex-1 min-w-0 text-xs">
         <p className="font-medium truncate">{file.name}</p>
         <p className="text-muted-foreground">
-          {(file.size / 1024 / 1024).toFixed(1)} MB · {file.type || "file"}
+          {(file.size / 1024 / 1024).toFixed(1)} MB · {file.type || t("file")}
         </p>
       </div>
       <Button
@@ -511,7 +512,7 @@ function DDTFilePreviewInline({
         onClick={onRemove}
         disabled={disabled}
         className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
-        aria-label="Rimuovi file DDT"
+        aria-label={t("Rimuovi file DDT")}
       >
         <X className="h-4 w-4" />
       </Button>

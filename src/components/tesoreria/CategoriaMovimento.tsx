@@ -26,6 +26,7 @@ import {
 import { ScegliVoceCassa } from "./ScegliVoceCassa";
 import { RipartizioneCassa } from "./RipartizioneCassa";
 import { formatEuro } from "@/lib/formatEuro";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function CategoriaMovimento({
   company,
@@ -49,6 +50,7 @@ export function CategoriaMovimento({
   compatta?: boolean;
   onSalvata?: (revisione: number, nome: string | null) => void;
 }) {
+  const t = useT();
   const [aperto, setAperto] = useState(false);
   const [occupato, setOccupato] = useState(false);
   const [ripartisci, setRipartisci] = useState(false);
@@ -59,12 +61,12 @@ export function CategoriaMovimento({
     setOccupato(true);
     try {
       const rev = await salvaCategoriaMovimento({ company, tx, voce: id, revision: revisione });
-      toast.success(id ? "Categoria salvata" : "Categoria tolta");
+      toast.success(id ? t("Categoria salvata") : t("Categoria tolta"));
       setAperto(false);
       onSalvata?.(rev, nome);
       aggiorna();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Categoria non salvata");
+      toast.error(e instanceof Error ? e.message : t("Categoria non salvata"));
     } finally {
       setOccupato(false);
     }
@@ -74,13 +76,13 @@ export function CategoriaMovimento({
     setOccupato(true);
     try {
       const rev = await salvaRipartizioneMovimento({ company, tx, quote, revision: revisione });
-      toast.success(quote.length ? "Ripartizione salvata" : "Ripartizione tolta");
+      toast.success(quote.length ? t("Ripartizione salvata") : t("Ripartizione tolta"));
       setAperto(false);
       setRipartisci(false);
       onSalvata?.(rev, voce?.nome ?? null);
       aggiorna();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Ripartizione non salvata");
+      toast.error(e instanceof Error ? e.message : t("Ripartizione non salvata"));
     } finally {
       setOccupato(false);
     }
@@ -100,21 +102,21 @@ export function CategoriaMovimento({
           {etichetta}
         </span>
       ) : (
-        <span className={puoModificare ? "text-primary" : "text-muted-foreground"}>{puoModificare ? "Scegli" : "—"}</span>
+        <span className={puoModificare ? "text-primary" : "text-muted-foreground"}>{puoModificare ? t("Scegli") : "—"}</span>
       )}
       {quote && (
         <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-sky-50 px-1.5 py-px text-[10px] font-medium text-sky-800 ring-1 ring-inset ring-sky-200 dark:bg-sky-950 dark:text-sky-200 dark:ring-sky-800">
           <Split className="h-2.5 w-2.5" aria-hidden />+{quote.length - 1}
-          <span className="sr-only"> altre voci: ripartito</span>
+          <span className="sr-only"> {t("altre voci: ripartito")}</span>
         </span>
       )}
       {daConfermare && (
         <span className="shrink-0 rounded-full bg-amber-50 px-1.5 py-px text-[10px] font-medium text-amber-800 ring-1 ring-inset ring-amber-200 dark:bg-amber-950 dark:text-amber-200 dark:ring-amber-800">
-          da confermare
+          {t("da confermare")}
         </span>
       )}
       {!voce && testoVecchio && (
-        <span className="shrink-0 text-[10px] text-muted-foreground">testo libero</span>
+        <span className="shrink-0 text-[10px] text-muted-foreground">{t("testo libero")}</span>
       )}
     </span>
   );
@@ -131,14 +133,14 @@ export function CategoriaMovimento({
         <PopoverContent align="start" className="w-[26rem] max-w-[calc(100vw-2rem)] space-y-2 p-3">
           {voce && (
             <p className="text-xs text-muted-foreground">
-              Ora: <strong className="text-foreground">{quote ? quote.map((q) => q.nome).join(" + ") : voce.nome}</strong> · {ORIGINE_VOCE[voce.origine] ?? voce.origine}
+              {t("Ora:")} <strong className="text-foreground">{quote ? quote.map((q) => q.nome).join(" + ") : voce.nome}</strong> · {ORIGINE_VOCE[voce.origine] ? t(ORIGINE_VOCE[voce.origine]) : voce.origine}
             </p>
           )}
           {!quote && !voce?.confermata && voce?.proposta_quote && voce.proposta_quote.length > 1 && !ripartisci && (
             <p className="rounded-md bg-sky-50 px-2 py-1.5 text-xs text-sky-900 dark:bg-sky-950 dark:text-sky-100">
-              La fattura collegata copre {voce.proposta_quote.length} voci:{" "}
+              {t("La fattura collegata copre {n} voci:", { n: voce.proposta_quote.length })}{" "}
               {voce.proposta_quote.map((q) => `${q.nome} ${formatEuro(q.cents / 100)}`).join(", ")}.{" "}
-              <button type="button" className="font-medium underline" onClick={() => setRipartisci(true)}>Ripartisci così</button>
+              <button type="button" className="font-medium underline" onClick={() => setRipartisci(true)}>{t("Ripartisci così")}</button>
             </p>
           )}
           {ripartisci ? (
@@ -156,25 +158,25 @@ export function CategoriaMovimento({
               <ScegliVoceCassa catalogo={catalogo.data} importo={importo} selezionata={voce?.confermata && !quote ? voce.id : null} occupato={occupato} onScegli={(v) => void salva(v.id, v.nome)} />
               <div className="flex flex-wrap items-center gap-1">
                 <Button variant="ghost" size="sm" disabled={occupato} onClick={() => setRipartisci(true)}>
-                  <Split className="mr-1 h-3.5 w-3.5" /> {quote ? "Cambia la ripartizione" : "Ripartisci su più voci"}
+                  <Split className="mr-1 h-3.5 w-3.5" /> {quote ? t("Cambia la ripartizione") : t("Ripartisci su più voci")}
                 </Button>
                 {voce?.confermata && (
                   <Button variant="ghost" size="sm" className="text-muted-foreground" disabled={occupato} onClick={() => void salva(null, null)}>
-                    Togli la categoria
+                    {t("Togli la categoria")}
                   </Button>
                 )}
               </div>
             </>
           )}
-          {catalogo.isError && <p role="alert" className="text-xs text-destructive">Catalogo non disponibile: {(catalogo.error as Error).message}</p>}
+          {catalogo.isError && <p role="alert" className="text-xs text-destructive">{t("Catalogo non disponibile: {errore}", { errore: String((catalogo.error as Error).message ?? "") })}</p>}
         </PopoverContent>
       </Popover>
       {daConfermare && voce && voce.codice.includes(".") && (
         <button
           type="button"
           className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
-          title={`Conferma «${voce.nome}»`}
-          aria-label={`Conferma ${voce.nome}`}
+          title={t("Conferma «{nome}»", { nome: String(voce.nome ?? "") })}
+          aria-label={t("Conferma {nome}", { nome: String(voce.nome ?? "") })}
           disabled={occupato}
           onClick={() => void salva(voce.id, voce.nome)}
         >

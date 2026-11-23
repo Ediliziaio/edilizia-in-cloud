@@ -26,6 +26,7 @@ import { Progress } from "@/components/ui/progress";
 import type { DocumentoFiscale, RigaDocumento, RiepilogoIVA, StatoDocumento, TipoDocumento } from "@/types/fatturazione";
 import type { EditorState } from "./editor/useEditorState";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Il dettaglio di una fattura emessa con un altro programma e importata. Stessa
@@ -87,6 +88,7 @@ function documentoPerAnteprima(riga: DocumentoFiscale, f: FatturaImportata): Doc
 }
 
 export default function DettaglioFatturaImportata() {
+  const t = useT();
   const { id } = useParams();
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
@@ -131,8 +133,8 @@ export default function DettaglioFatturaImportata() {
     const err = elenco.error ?? fattura.error;
     return (
       <div className="space-y-3 p-6">
-        <Button variant="outline" size="sm" className="gap-1.5" onClick={() => navigate("/azienda/documenti")}><ArrowLeft className="h-4 w-4" /> Torna ai documenti</Button>
-        <p role="alert" className="text-sm text-destructive">{err instanceof Error ? err.message : "Fattura non disponibile."}</p>
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={() => navigate("/azienda/documenti")}><ArrowLeft className="h-4 w-4" /> {t("Torna ai documenti")}</Button>
+        <p role="alert" className="text-sm text-destructive">{err instanceof Error ? t(err.message) : t("Fattura non disponibile.")}</p>
       </div>
     );
   }
@@ -141,11 +143,11 @@ export default function DettaglioFatturaImportata() {
   }
 
   const f = fattura.data;
-  const tipoLabel = TIPO_LABELS[doc.tipo] ?? "Fattura";
+  const tipoLabel = t(TIPO_LABELS[doc.tipo] ?? "Fattura");
   const residuo = residuoImportata(doc);
   const rateFattura = pagamentoDaMostrare(f as unknown as Record<string, unknown>)?.rate ?? [];
   const progresso = doc.totale_da_pagare > 0 ? Math.min(100, (doc.importo_pagato / doc.totale_da_pagare) * 100) : 0;
-  const gestionale = f.external_provider ? (PROVIDER_LABELS[f.external_provider] ?? f.external_provider) : "un altro programma";
+  const gestionale = f.external_provider ? (PROVIDER_LABELS[f.external_provider] ?? f.external_provider) : t("un altro programma");
 
   const scaricaOriginale = async () => {
     if (!f.external_xml_url) return;
@@ -154,7 +156,7 @@ export default function DettaglioFatturaImportata() {
       const o = await leggiOriginaleEmessa(f.external_xml_url, companyId);
       scaricaFileOriginale(o.file, o.nome);
     } catch (e) {
-      toast.error("File originale non scaricato", { description: e instanceof Error ? e.message : undefined });
+      toast.error(t("File originale non scaricato"), { description: e instanceof Error ? e.message : undefined });
     } finally {
       setScarico(false);
     }
@@ -165,16 +167,16 @@ export default function DettaglioFatturaImportata() {
       {/* Titolo e ritorno ai documenti, come nel dettaglio nativo. */}
       <div className="flex items-center justify-between gap-3 max-sm:flex-col max-sm:items-stretch max-sm:gap-1">
         <Button variant="outline" size="sm" className="w-fit gap-1.5 max-sm:hidden" onClick={() => navigate("/azienda/documenti")}>
-          <ArrowLeft className="h-4 w-4" /> Torna ai documenti
+          <ArrowLeft className="h-4 w-4" /> {t("Torna ai documenti")}
         </Button>
         <div className="sm:text-right">
           <div className="flex items-center gap-2 sm:justify-end max-sm:flex-wrap max-sm:gap-1.5">
-            <h1 className="text-xl font-semibold max-sm:text-lg max-sm:leading-tight">{tipoLabel} numero {doc.numero}</h1>
+            <h1 className="text-xl font-semibold max-sm:text-lg max-sm:leading-tight">{t("{tipoLabel} numero {numero}", { tipoLabel: String(tipoLabel ?? ""), numero: String(doc.numero ?? "") })}</h1>
             <StatoBadge stato={doc.stato as StatoDocumento} />
           </div>
           <p className="text-sm text-muted-foreground max-sm:text-xs">
             {doc.cliente_snapshot?.ragione_sociale} — {formatDateShort(doc.data_emissione)}
-            {doc.data_scadenza && <span className="sm:hidden"> · scade {formatDateShort(doc.data_scadenza)}</span>}
+            {doc.data_scadenza && <span className="sm:hidden">{" "}{t("· scade {data_scadenza}", { data_scadenza: formatDateShort(doc.data_scadenza) })}</span>}
           </p>
         </div>
       </div>
@@ -190,20 +192,20 @@ export default function DettaglioFatturaImportata() {
         />
         {f.external_xml_url && (
           <>
-            <Button size="sm" variant="secondary" className="gap-1.5" onClick={() => setXmlAperto(true)}><FileCode className="h-4 w-4" />Vedi XML originale</Button>
+            <Button size="sm" variant="secondary" className="gap-1.5" onClick={() => setXmlAperto(true)}><FileCode className="h-4 w-4" />{t("Vedi XML originale")}</Button>
             <Button size="sm" variant="secondary" className="gap-1.5 max-sm:hidden" disabled={scarico} onClick={() => void scaricaOriginale()}>
-              {scarico ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}Scarica originale
+              {scarico ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}{t("Scarica originale")}
             </Button>
           </>
         )}
         {importataPagabile(doc) && (
           <Button variant="outline" size="sm" onClick={() => setIncasso(doc)} className="gap-1.5">
-            <CreditCard className="h-4 w-4" /> Segna pagata
+            <CreditCard className="h-4 w-4" /> {t("Segna pagata")}
           </Button>
         )}
         {siRiportaDaIncassare(doc) && (
           <Button variant="outline" size="sm" onClick={() => setDaRiaprire(true)} className="gap-1.5">
-            <RotateCcw className="h-4 w-4" /> Riporta da incassare
+            <RotateCcw className="h-4 w-4" /> {t("Riporta da incassare")}
           </Button>
         )}
       </div>
@@ -212,8 +214,8 @@ export default function DettaglioFatturaImportata() {
       <div className="space-y-2 sm:hidden">
         <KpiMobili
           voci={[
-            { label: "Totale", valore: formatCurrency(doc.totale_documento) },
-            { label: "Da incassare", valore: formatCurrency(residuo), tono: residuo > 0.005 ? "text-rose-600" : undefined },
+            { label: t("Totale"), valore: formatCurrency(doc.totale_documento) },
+            { label: t("Da incassare"), valore: formatCurrency(residuo), tono: residuo > 0.005 ? "text-rose-600" : undefined },
           ]}
         />
         {(doc.righe ?? []).length > 0 && (
@@ -222,9 +224,7 @@ export default function DettaglioFatturaImportata() {
               <div key={r.id ?? i} className="flex items-center gap-2 px-3 py-2">
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[13px] font-medium leading-tight">{r.descrizione}</p>
-                  <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground">
-                    {r.quantita} {r.unita_misura} × {formatCurrency(r.prezzo_unitario)} · IVA {r.aliquota_iva}%
-                  </p>
+                  <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground">{t("{quantita} {unita_misura} × {prezzo_unitario} · IVA {aliquota_iva}%", { quantita: String(r.quantita ?? ""), unita_misura: String(r.unita_misura ?? ""), prezzo_unitario: formatCurrency(r.prezzo_unitario), aliquota_iva: String(r.aliquota_iva ?? "") })}</p>
                 </div>
                 <span className="shrink-0 text-[13px] font-semibold tabular-nums">{formatCurrency(r.imponibile)}</span>
               </div>
@@ -234,11 +234,11 @@ export default function DettaglioFatturaImportata() {
       </div>
 
       {/* L'anteprima, al centro, come nel dettaglio nativo. */}
-      <section className="max-sm:hidden" aria-label="Anteprima del documento">
+      <section className="max-sm:hidden" aria-label={t("Anteprima del documento")}>
         <div className="mb-3 text-center">
-          <h2 className="text-lg font-semibold">Anteprima del documento</h2>
+          <h2 className="text-lg font-semibold">{t("Anteprima del documento")}</h2>
           <p className="text-sm text-muted-foreground">
-            {f.external_xml_url ? "per vedere l'originale premi «Vedi XML originale»" : `l'originale è in ${gestionale}`}
+            {f.external_xml_url ? t("per vedere l'originale premi «Vedi XML originale»") : t("l'originale è in {gestionale}", { gestionale: String(gestionale ?? "") })}
           </p>
         </div>
         <div className="mx-auto flex max-w-4xl justify-center overflow-x-auto rounded-xl border bg-muted/30 p-6 shadow-inner">
@@ -246,37 +246,37 @@ export default function DettaglioFatturaImportata() {
         </div>
         <p className="mx-auto mt-2 max-w-4xl text-center text-xs text-muted-foreground">
           {(doc.righe ?? []).length === 0
-            ? "Il gestionale ha importato solo i totali, senza le righe: il documento completo è nell'originale."
-            : "Ricostruita dai dati importati: il documento fiscale è quello emesso dal gestionale."}
+            ? t("Il gestionale ha importato solo i totali, senza le righe: il documento completo è nell'originale.")
+            : t("Ricostruita dai dati importati: il documento fiscale è quello emesso dal gestionale.")}
         </p>
       </section>
 
       {/* Sotto: informazioni, pagamenti, commessa, gestionale — a colonne. */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 max-sm:gap-3">
         <Card className="max-sm:hidden">
-          <CardHeader className="pb-3"><CardTitle className="text-sm">Informazioni</CardTitle></CardHeader>
+          <CardHeader className="pb-3"><CardTitle className="text-sm">{t("Informazioni")}</CardTitle></CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-muted-foreground">Tipo</span><span>{tipoLabel}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Numero</span><span className="font-mono">{doc.numero}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Data emissione</span><span>{formatDateShort(doc.data_emissione)}</span></div>
-            {doc.data_scadenza && <div className="flex justify-between"><span className="text-muted-foreground">Data scadenza</span><span>{formatDateShort(doc.data_scadenza)}</span></div>}
-            <div className="flex justify-between"><span className="text-muted-foreground">Cliente</span><span>{doc.cliente_snapshot?.ragione_sociale || "—"}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">{t("Tipo")}</span><span>{tipoLabel}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">{t("Numero")}</span><span className="font-mono">{doc.numero}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">{t("Data emissione")}</span><span>{formatDateShort(doc.data_emissione)}</span></div>
+            {doc.data_scadenza && <div className="flex justify-between"><span className="text-muted-foreground">{t("Data scadenza")}</span><span>{formatDateShort(doc.data_scadenza)}</span></div>}
+            <div className="flex justify-between"><span className="text-muted-foreground">{t("Cliente")}</span><span>{doc.cliente_snapshot?.ragione_sociale || "—"}</span></div>
             {doc.cliente_snapshot?.partita_iva && <div className="flex justify-between"><span className="text-muted-foreground">P.IVA</span><span className="font-mono">{doc.cliente_snapshot.partita_iva}</span></div>}
           </CardContent>
         </Card>
 
         {doc.tipo !== "proforma" && (
           <Card className="max-sm:hidden">
-            <CardHeader className="pb-3"><CardTitle className="text-sm">Pagamenti</CardTitle></CardHeader>
+            <CardHeader className="pb-3"><CardTitle className="text-sm">{t("Pagamenti")}</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               <div className="grid grid-cols-2 gap-3 text-sm">
-                <div><p className="text-xs text-muted-foreground">Totale</p><p className="font-semibold">{formatCurrency(doc.totale_documento)}</p></div>
-                <div><p className="text-xs text-muted-foreground">Da pagare</p><p className="font-semibold">{formatCurrency(doc.totale_da_pagare)}</p></div>
-                <div><p className="text-xs text-muted-foreground">Incassato</p><p className="font-semibold text-emerald-600">{formatCurrency(doc.importo_pagato)}</p></div>
-                <div><p className="text-xs text-muted-foreground">Residuo</p><p className={`font-semibold ${residuo > 0 ? "text-destructive" : ""}`}>{formatCurrency(residuo)}</p></div>
+                <div><p className="text-xs text-muted-foreground">{t("Totale")}</p><p className="font-semibold">{formatCurrency(doc.totale_documento)}</p></div>
+                <div><p className="text-xs text-muted-foreground">{t("Da pagare")}</p><p className="font-semibold">{formatCurrency(doc.totale_da_pagare)}</p></div>
+                <div><p className="text-xs text-muted-foreground">{t("Incassato")}</p><p className="font-semibold text-emerald-600">{formatCurrency(doc.importo_pagato)}</p></div>
+                <div><p className="text-xs text-muted-foreground">{t("Residuo")}</p><p className={`font-semibold ${residuo > 0 ? "text-destructive" : ""}`}>{formatCurrency(residuo)}</p></div>
               </div>
               <Progress value={progresso} className="h-2" />
-              <p className="text-xs text-muted-foreground text-center">{Math.round(progresso)}% incassato</p>
+              <p className="text-xs text-muted-foreground text-center">{t("{valore}% incassato", { valore: Math.round(progresso) })}</p>
               {/* Lo storico degli incassi registrati qui, con «Annulla»: lo stesso pannello delle native. */}
               <IncassiFatturaImportata
                 invoiceId={f.id}
@@ -284,7 +284,7 @@ export default function DettaglioFatturaImportata() {
               />
               {importataPagabile(doc) && (
                 <Button variant="outline" size="sm" className="w-full" onClick={() => setIncasso(doc)}>
-                  <CreditCard className="h-4 w-4 mr-1" /> Registra incasso
+                  <CreditCard className="h-4 w-4 mr-1" /> {t("Registra incasso")}
                 </Button>
               )}
             </CardContent>
@@ -295,12 +295,12 @@ export default function DettaglioFatturaImportata() {
         {rateFattura.length > 0 && (
           <Card>
             <CardHeader className="pb-3 max-sm:p-3 max-sm:pb-2">
-              <CardTitle className="text-sm">{rateFattura.length > 1 ? `Rate (${rateFattura.length})` : "Scadenza dall'XML"}</CardTitle>
+              <CardTitle className="text-sm">{rateFattura.length > 1 ? t("Rate ({n})", { n: rateFattura.length }) : t("Scadenza dall'XML")}</CardTitle>
             </CardHeader>
             <CardContent className="divide-y divide-border text-sm max-sm:px-3 max-sm:pb-3">
               {rateFattura.map((r, i) => (
                 <div key={i} className="flex items-center justify-between gap-3 py-1.5 first:pt-0 last:pb-0">
-                  <span>{r.scadenza ? formatDateShort(r.scadenza) : "Senza data"}{r.metodo ? <span className="text-muted-foreground"> · {r.metodo}</span> : null}</span>
+                  <span>{r.scadenza ? formatDateShort(r.scadenza) : t("Senza data")}{r.metodo ? <span className="text-muted-foreground"> · {r.metodo}</span> : null}</span>
                   <span className="font-medium tabular-nums">{r.importo != null ? formatCurrency(r.importo) : "—"}</span>
                 </div>
               ))}
@@ -322,21 +322,21 @@ export default function DettaglioFatturaImportata() {
         </Card>
 
         <Card className="max-sm:hidden">
-          <CardHeader className="pb-3"><CardTitle className="text-sm">Gestionale</CardTitle></CardHeader>
+          <CardHeader className="pb-3"><CardTitle className="text-sm">{t("Gestionale")}</CardTitle></CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <div className="flex justify-between gap-2"><span className="text-muted-foreground">Emessa con</span><span>{gestionale}</span></div>
-            {f.external_sdi_id && <div className="flex justify-between gap-2"><span className="text-muted-foreground">Identificativo SdI</span><span className="font-mono text-xs truncate">{f.external_sdi_id}</span></div>}
-            <p className="text-xs text-muted-foreground">Invio allo SDI, modifiche e note di credito si fanno nel gestionale: qui arrivano a ogni sincronizzazione.</p>
+            <div className="flex justify-between gap-2"><span className="text-muted-foreground">{t("Emessa con")}</span><span>{gestionale}</span></div>
+            {f.external_sdi_id && <div className="flex justify-between gap-2"><span className="text-muted-foreground">{t("Identificativo SdI")}</span><span className="font-mono text-xs truncate">{f.external_sdi_id}</span></div>}
+            <p className="text-xs text-muted-foreground">{t("Invio allo SDI, modifiche e note di credito si fanno nel gestionale: qui arrivano a ogni sincronizzazione.")}</p>
           </CardContent>
         </Card>
 
         {doc.documento_correlato_id && (
           <Card className="max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none">
-            <CardHeader className="pb-3 max-sm:hidden"><CardTitle className="text-sm">Documenti collegati</CardTitle></CardHeader>
+            <CardHeader className="pb-3 max-sm:hidden"><CardTitle className="text-sm">{t("Documenti collegati")}</CardTitle></CardHeader>
             <CardContent className="max-sm:p-0">
               <Button variant="outline" size="sm" asChild className="w-full max-sm:h-8 max-sm:text-xs">
                 <Link to={`/azienda/documenti/importata/${doc.documento_correlato_id}`}>
-                  <ExternalLink className="h-4 w-4 mr-1" /> Visualizza documento originale
+                  <ExternalLink className="h-4 w-4 mr-1" /> {t("Visualizza documento originale")}
                 </Link>
               </Button>
             </CardContent>

@@ -4,7 +4,6 @@ import { useQuery } from "@tanstack/react-query";
 import { formatCurrency } from "@/lib/formatters";
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import {
   Calendar,
   ExternalLink,
@@ -52,6 +51,7 @@ import {
   getUrgencyLabel,
 } from "@/types/warehouse";
 import type { OrderItemStatus, WarehouseItem } from "@/types/warehouse";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface WarehouseItemDetailDialogProps {
   item: WarehouseItem | null;
@@ -86,6 +86,7 @@ function resolveWorkflowPhase(item: WarehouseItem): WorkflowPhase {
 }
 
 function WorkflowStepper({ currentPhase }: { currentPhase: WorkflowPhase }) {
+  const t = useT();
   const currentIdx = WORKFLOW_STEPS.findIndex((s) => s.phase === currentPhase);
 
   return (
@@ -104,7 +105,7 @@ function WorkflowStepper({ currentPhase }: { currentPhase: WorkflowPhase }) {
                   isActive && "bg-primary text-primary-foreground ring-2 ring-primary/40 ring-offset-2 ring-offset-background",
                   !isDone && !isActive && "bg-muted text-muted-foreground"
                 )}
-                aria-label={`${step.label}${isActive ? " (attivo)" : isDone ? " (completato)" : ""}`}
+                aria-label={isActive ? t("{fase} (attivo)", { fase: t(step.label) }) : isDone ? t("{fase} (completato)", { fase: t(step.label) }) : t(step.label)}
               >
                 {isDone ? <CheckCircle2 className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
               </div>
@@ -115,7 +116,7 @@ function WorkflowStepper({ currentPhase }: { currentPhase: WorkflowPhase }) {
                   !isActive && "text-muted-foreground"
                 )}
               >
-                {step.label}
+                {t(step.label)}
               </span>
             </div>
             {idx < WORKFLOW_STEPS.length - 1 && (
@@ -145,6 +146,7 @@ export default function WarehouseItemDetailDialog({
   stockMatch,
   readOnly = false,
 }: WarehouseItemDetailDialogProps) {
+  const t = useT();
   const [editingNotes, setEditingNotes] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [receiveOpen, setReceiveOpen] = useState(false);
@@ -229,21 +231,21 @@ export default function WarehouseItemDetailDialog({
         wrapper: "bg-destructive/10 border-destructive/30",
         text: "text-destructive",
         Icon: AlertCircle,
-        label: `In ritardo di ${Math.abs(daysUntil!)} giorni — azione urgente`,
+        label: t("In ritardo di {valore} giorni — azione urgente", { valore: Math.abs(daysUntil!) }),
       }
     : critical
       ? {
           wrapper: "bg-destructive/10 border-destructive/30",
           text: "text-destructive",
           Icon: AlertCircle,
-          label: `Critico - lavori tra ${daysUntil} giorni`,
+          label: t("Critico - lavori tra {daysUntil} giorni", { daysUntil: String(daysUntil ?? "") }),
         }
       : urgent
         ? {
             wrapper: "bg-warning/10 border-warning/30",
             text: "text-warning",
             Icon: AlertTriangle,
-            label: `Urgente - lavori tra ${daysUntil} giorni`,
+            label: t("Urgente - lavori tra {daysUntil} giorni", { daysUntil: String(daysUntil ?? "") }),
           }
         : null;
 
@@ -273,7 +275,7 @@ export default function WarehouseItemDetailDialog({
                     (STATUS_CONFIG[item.status] ?? STATUS_CONFIG.da_ordinare).color,
                   )}
                 >
-                  {(STATUS_CONFIG[item.status] ?? STATUS_CONFIG.da_ordinare).label}
+                  {t((STATUS_CONFIG[item.status] ?? STATUS_CONFIG.da_ordinare).label)}
                 </Badge>
               ) : (
                 <Select
@@ -287,14 +289,14 @@ export default function WarehouseItemDetailDialog({
                       (STATUS_CONFIG[item.status] ?? STATUS_CONFIG.da_ordinare).bgColor,
                       (STATUS_CONFIG[item.status] ?? STATUS_CONFIG.da_ordinare).color
                     )}
-                    aria-label="Modifica stato articolo"
+                    aria-label={t("Modifica stato articolo")}
                   >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {Object.entries(STATUS_CONFIG).map(([status, config]) => (
                       <SelectItem key={status} value={status}>
-                        {config.label}
+                        {t(config.label)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -324,11 +326,11 @@ export default function WarehouseItemDetailDialog({
             <div className="rounded-lg border bg-muted/30 p-3">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Workflow tracciabilità
+                  {t("Workflow tracciabilità")}
                 </span>
                 {isInstalled && (
                   <Badge className="bg-success/15 text-success border border-success/30 hover:bg-success/15">
-                    Completato
+                    {t("Completato")}
                   </Badge>
                 )}
               </div>
@@ -341,7 +343,7 @@ export default function WarehouseItemDetailDialog({
                 <div className="rounded-md border bg-card p-2.5">
                   <div className="flex items-center gap-1.5 text-muted-foreground">
                     <Hash className="h-3 w-3" />
-                    <span className="text-[10px] uppercase tracking-wide font-semibold">Qty</span>
+                    <span className="text-[10px] uppercase tracking-wide font-semibold">{t("Qty")}</span>
                   </div>
                   <p className="text-base font-semibold mt-0.5 tabular-nums">
                     {item.quantity ?? 1}
@@ -350,7 +352,7 @@ export default function WarehouseItemDetailDialog({
                 <div className="rounded-md border bg-card p-2.5">
                   <div className="flex items-center gap-1.5 text-muted-foreground">
                     <Euro className="h-3 w-3" />
-                    <span className="text-[10px] uppercase tracking-wide font-semibold">Unit</span>
+                    <span className="text-[10px] uppercase tracking-wide font-semibold">{t("Unit")}</span>
                   </div>
                   <p className="text-base font-semibold mt-0.5 tabular-nums">
                     {formatCurrency(item.purchase_price!)}
@@ -359,7 +361,7 @@ export default function WarehouseItemDetailDialog({
                 <div className="rounded-md border border-primary/20 bg-primary/5 p-2.5">
                   <div className="flex items-center gap-1.5 text-primary">
                     <Euro className="h-3 w-3" />
-                    <span className="text-[10px] uppercase tracking-wide font-semibold">Totale</span>
+                    <span className="text-[10px] uppercase tracking-wide font-semibold">{t("Totale")}</span>
                   </div>
                   <p className="text-base font-bold mt-0.5 tabular-nums text-primary">
                     {formatCurrency(totalPrice)}
@@ -373,7 +375,7 @@ export default function WarehouseItemDetailDialog({
                 </div>
                 <div>
                   <p className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground">
-                    Quantità
+                    {t("Quantità")}
                   </p>
                   <p className="text-base font-semibold tabular-nums">{item.quantity ?? 1}</p>
                 </div>
@@ -390,7 +392,7 @@ export default function WarehouseItemDetailDialog({
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground leading-none">
-                        Fornitore
+                        {t("Fornitore")}
                       </p>
                       <p className="text-sm font-medium truncate mt-0.5">{supplierName}</p>
                     </div>
@@ -404,11 +406,9 @@ export default function WarehouseItemDetailDialog({
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-[10px] uppercase tracking-wide font-semibold text-success leading-none">
-                        Già disponibile in giacenza
+                        {t("Già disponibile in giacenza")}
                       </p>
-                      <p className="text-sm font-semibold mt-0.5 truncate">
-                        {stockMatch.quantity} pz — {stockMatch.name}
-                      </p>
+                      <p className="text-sm font-semibold mt-0.5 truncate">{t("{quantity} pz — {name}", { quantity: String(stockMatch.quantity ?? ""), name: String(stockMatch.name ?? "") })}</p>
                     </div>
                   </div>
                 )}
@@ -419,12 +419,12 @@ export default function WarehouseItemDetailDialog({
               <div className="flex items-center justify-between gap-2 mb-3">
                 <span className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground flex items-center gap-1.5">
                   <FileText className="h-3.5 w-3.5" />
-                  DDT e ricezioni merce
+                  {t("DDT e ricezioni merce")}
                 </span>
                 <div className="flex items-center gap-2">
                   {receipts.length > 0 && (
                     <Badge variant="secondary" className="text-xs">
-                      {receipts.length} moviment{receipts.length === 1 ? "o" : "i"}
+                      {receipts.length === 1 ? t("{n} movimento", { n: 1 }) : t("{n} movimenti", { n: receipts.length })}
                     </Badge>
                   )}
                   {!readOnly && (
@@ -437,19 +437,18 @@ export default function WarehouseItemDetailDialog({
                       disabled={isUpdating}
                     >
                       <FileText className="h-3 w-3 mr-1" />
-                      Carica DDT
+                      {t("Carica DDT")}
                     </Button>
                   )}
                 </div>
               </div>
 
               {receiptsLoading ? (
-                <p className="text-sm text-muted-foreground">Caricamento ricezioni...</p>
+                <p className="text-sm text-muted-foreground">{t("Caricamento ricezioni...")}</p>
               ) : receipts.length === 0 ? (
                 <div className="rounded-md border border-dashed bg-muted/30 p-3 text-sm text-muted-foreground space-y-3">
                   <p>
-                    Nessun DDT collegato a questo articolo. Carica qui il DDT di arrivo merce,
-                    collega il documento all'ordine e registra quantità, magazzino e allegati.
+                    {t("Nessun DDT collegato a questo articolo. Carica qui il DDT di arrivo merce, collega il documento all'ordine e registra quantità, magazzino e allegati.")}
                   </p>
                   {!readOnly && (
                     <Button
@@ -461,14 +460,14 @@ export default function WarehouseItemDetailDialog({
                       disabled={isUpdating}
                     >
                       <FileText className="h-4 w-4 mr-2" />
-                      Carica DDT ricezione
+                      {t("Carica DDT ricezione")}
                     </Button>
                   )}
                 </div>
               ) : (
                 <div className="space-y-2">
                   {receipts.map((receipt) => {
-                    const ddtNumber = receipt.ddt?.numero_ddt || receipt.ddt_number || "DDT non indicato";
+                    const ddtNumber = receipt.ddt?.numero_ddt || receipt.ddt_number || t("DDT non indicato");
                     const receiptDate = receipt.ddt?.data_ricezione || receipt.receipt_date;
                     const fileUrl = receipt.ddt?.ddt_file_url || receipt.ddt_photo_url;
                     return (
@@ -478,20 +477,18 @@ export default function WarehouseItemDetailDialog({
                             <p className="text-sm font-semibold truncate">{ddtNumber}</p>
                             <p className="text-xs text-muted-foreground mt-0.5">
                               {receiptDate
-                                ? format(new Date(receiptDate), "dd MMM yyyy", { locale: it })
-                                : "Data non indicata"}
+                                ? format(new Date(receiptDate), "dd MMM yyyy", { locale: dateFnsCampo() })
+                                : t("Data non indicata")}
                               {" · "}
-                              {receipt.quantity_received} pz ricevuti
+                              {t("{n} pz ricevuti", { n: receipt.quantity_received })}
                               {receipt.warehouse?.name ? ` · ${receipt.warehouse.name}` : ""}
                             </p>
                             {(receipt.ddt?.corriere || receipt.ddt?.targa_mezzo) && (
-                              <p className="text-xs text-muted-foreground mt-1">
-                                Trasporto: {[receipt.ddt.corriere, receipt.ddt.targa_mezzo].filter(Boolean).join(" · ")}
-                              </p>
+                              <p className="text-xs text-muted-foreground mt-1">{t("Trasporto: {valore}", { valore: [receipt.ddt.corriere, receipt.ddt.targa_mezzo].filter(Boolean).join(" · ") })}</p>
                             )}
                           </div>
                           <Badge variant={receipt.quality_check_status === "damaged" ? "destructive" : "outline"} className="shrink-0">
-                            {receipt.quality_check_status || receipt.ddt?.stato || "ricevuto"}
+                            {receipt.quality_check_status || receipt.ddt?.stato || t("ricevuto")}
                           </Badge>
                         </div>
                         <div className="mt-2 flex flex-wrap gap-2">
@@ -499,13 +496,13 @@ export default function WarehouseItemDetailDialog({
                             <Button variant="outline" size="sm" asChild className="h-7 px-2 text-xs">
                               <Link to={`/azienda/ddt/${receipt.ddt_ricezione_id}`}>
                                 <ExternalLink className="h-3 w-3 mr-1" />
-                                Apri DDT
+                                {t("Apri DDT")}
                               </Link>
                             </Button>
                           )}
                           {fileUrl && (
                             <Button variant="ghost" size="sm" onClick={() => void openWarehouseDocument(fileUrl)} className="h-7 px-2 text-xs">
-                              <FileText className="h-3 w-3 mr-1" />Allegato
+                              <FileText className="h-3 w-3 mr-1" />{t("Allegato")}
                             </Button>
                           )}
                         </div>
@@ -523,10 +520,10 @@ export default function WarehouseItemDetailDialog({
                   <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
                   <div className="min-w-0 flex-1">
                     <p className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground leading-none">
-                      Ordine
+                      {t("Ordine")}
                     </p>
                     <p className="text-sm font-medium truncate mt-0.5">
-                      {item.order.order_code || "Ordine"} — {item.order.customer?.first_name ?? ""}{" "}
+                      {item.order.order_code || t("Ordine")} — {item.order.customer?.first_name ?? ""}{" "}
                       {item.order.customer?.last_name ?? ""}
                     </p>
                   </div>
@@ -534,7 +531,7 @@ export default function WarehouseItemDetailDialog({
                 <Button variant="ghost" size="sm" asChild className="h-7 px-2 shrink-0">
                   <Link to={`/azienda/ordini/${item.order.id}`}>
                     <ExternalLink className="h-3.5 w-3.5 mr-1" />
-                    Vai
+                    {t("Vai")}
                   </Link>
                 </Button>
               </div>
@@ -544,10 +541,10 @@ export default function WarehouseItemDetailDialog({
                   <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground leading-none">
-                      Data lavori prevista
+                      {t("Data lavori prevista")}
                     </p>
                     <p className="text-sm font-medium mt-0.5">
-                      {format(new Date(expectedDate), "dd MMMM yyyy", { locale: it })}
+                      {format(new Date(expectedDate), "dd MMMM yyyy", { locale: dateFnsCampo() })}
                     </p>
                   </div>
                   {daysUntil !== null && (
@@ -569,7 +566,7 @@ export default function WarehouseItemDetailDialog({
                       )}
                     >
                       {overdue
-                        ? `${Math.abs(daysUntil)}g in ritardo`
+                        ? t("{valore}g in ritardo", { valore: Math.abs(daysUntil) })
                         : daysUntil <= 7
                           ? getUrgencyLabel(daysUntil)
                           : `${daysUntil}g`}
@@ -584,7 +581,7 @@ export default function WarehouseItemDetailDialog({
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground flex items-center gap-1.5">
                   <StickyNote className="h-3.5 w-3.5" />
-                  Note
+                  {t("Note")}
                 </span>
                 {!readOnly && !editingNotes && onUpdateNotes && (
                   <Button
@@ -594,7 +591,7 @@ export default function WarehouseItemDetailDialog({
                     onClick={startEditNotes}
                   >
                     <Pencil className="h-3 w-3" />
-                    {item.notes ? "Modifica" : "Aggiungi"}
+                    {item.notes ? t("Modifica") : t("Aggiungi")}
                   </Button>
                 )}
               </div>
@@ -603,23 +600,23 @@ export default function WarehouseItemDetailDialog({
                   <Textarea
                     value={noteText}
                     onChange={(e) => setNoteText(e.target.value)}
-                    placeholder="Aggiungi nota..."
+                    placeholder={t("Aggiungi nota...")}
                     className="text-sm min-h-[72px] resize-none"
                     autoFocus
                   />
                   <div className="flex justify-end gap-2">
                     <Button variant="ghost" size="sm" onClick={() => setEditingNotes(false)}>
-                      Annulla
+                      {t("Annulla")}
                     </Button>
                     <Button size="sm" onClick={saveNotes}>
-                      Salva
+                      {t("Salva")}
                     </Button>
                   </div>
                 </div>
               ) : (
                 <p className="text-sm text-foreground/80 whitespace-pre-wrap">
                   {item.notes || (
-                    <span className="italic text-muted-foreground">Nessuna nota</span>
+                    <span className="italic text-muted-foreground">{t("Nessuna nota")}</span>
                   )}
                 </p>
               )}
@@ -629,8 +626,7 @@ export default function WarehouseItemDetailDialog({
             {item.updated_at && (
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground pt-1">
                 <Clock className="h-3 w-3" />
-                Aggiornato il{" "}
-                {format(new Date(item.updated_at), "dd MMM yyyy 'alle' HH:mm", { locale: it })}
+                {t("Aggiornato il {data}", { data: format(new Date(item.updated_at), "dd MMM yyyy, HH:mm", { locale: dateFnsCampo() }) })}
               </div>
             )}
           </div>
@@ -640,7 +636,7 @@ export default function WarehouseItemDetailDialog({
             {readOnly ? (
               <div className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-md bg-blue-50 border border-blue-200 text-blue-800 text-sm font-medium">
                 <FileText className="h-4 w-4 shrink-0" />
-                <span className="text-center">Vista consulente: dati consultabili senza azioni operative.</span>
+                <span className="text-center">{t("Vista consulente: dati consultabili senza azioni operative.")}</span>
               </div>
             ) : canReceive && (
               <Button
@@ -649,14 +645,14 @@ export default function WarehouseItemDetailDialog({
                 disabled={isUpdating}
               >
                 <PackageOpen className="h-4 w-4" />
-                Ricevi Merce in Magazzino
+                {t("Ricevi Merce in Magazzino")}
               </Button>
             )}
             {!readOnly && isReceived && (
               <div className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-md bg-success/10 border border-success/30 text-success text-sm font-medium">
                 <CheckCircle2 className="h-4 w-4 shrink-0" />
                 <span className="text-center">
-                  Merce gia in magazzino. Gestisci DDT e allegati nella sezione sopra.
+                  {t("Merce gia in magazzino. Gestisci DDT e allegati nella sezione sopra.")}
                 </span>
               </div>
             )}
@@ -664,7 +660,7 @@ export default function WarehouseItemDetailDialog({
               <div className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-md bg-warning/10 border border-warning/30 text-warning text-sm font-medium">
                 <Truck className="h-4 w-4 shrink-0" />
                 <span className="text-center">
-                  In transito — attendi conferma consegna
+                  {t("In transito — attendi conferma consegna")}
                 </span>
               </div>
             )}
@@ -675,13 +671,13 @@ export default function WarehouseItemDetailDialog({
                 disabled={isUpdating}
               >
                 <Wrench className="h-4 w-4" />
-                Registra Installazione (foto prima/dopo)
+                {t("Registra Installazione (foto prima/dopo)")}
               </Button>
             )}
             {!readOnly && isInstalled && (
               <div className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-md bg-success/10 border border-success/30 text-success text-sm font-medium">
                 <CheckCircle2 className="h-4 w-4 shrink-0" />
-                <span>Installazione completata</span>
+                <span>{t("Installazione completata")}</span>
               </div>
             )}
           </div>

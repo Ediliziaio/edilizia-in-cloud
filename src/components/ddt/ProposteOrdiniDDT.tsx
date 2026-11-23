@@ -8,6 +8,7 @@ import { documentiDb as db } from "@/lib/ddt/documentiPersistenti";
 import type { DDTRiga } from "@/hooks/useDDTRicezione";
 import type { RigaOrdine } from "@/lib/ddt/abbinaRigheOrdine";
 import type { PropostaDdtAI } from "../../../supabase/functions/_shared/confrontoDdtOrdiniAI";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 export function ProposteOrdiniDDT({
   ddtId,
   righe,
@@ -19,6 +20,7 @@ export function ProposteOrdiniDDT({
   righe: DDTRiga[];
   ordini: RigaOrdine[];
 }) {
+  const t = useT();
   const [proposte, setProposte] = useState<PropostaDdtAI[]>([]);
   const [impronta, setImpronta] = useState("");
   const qc = useQueryClient();
@@ -31,7 +33,7 @@ export function ProposteOrdiniDDT({
       if (error || data?.error)
         throw new Error(
           data?.error ||
-            "Analisi non disponibile. Riprova o abbina le righe a mano.",
+            t("Analisi non disponibile. Riprova o abbina le righe a mano."),
         );
       return data as { righe: PropostaDdtAI[]; impronta: string };
     },
@@ -51,7 +53,7 @@ export function ProposteOrdiniDDT({
       if (error) throw error;
       if (!data)
         throw new Error(
-          "Riga già ricevuta o non modificabile. Aggiorna il confronto.",
+          t("Riga già ricevuta o non modificabile. Aggiorna il confronto."),
         );
       return { riga: riga.id, impronta: String(data.impronta) };
     },
@@ -62,22 +64,21 @@ export function ProposteOrdiniDDT({
       void qc.invalidateQueries({ queryKey: ["ddt-controllo-ordini"] });
       void qc.invalidateQueries({ queryKey: ["ddt-righe-ordine"] });
       toast.success(
-        "Abbinamento salvato. Conferma separatamente le quantità arrivate.",
+        t("Abbinamento salvato. Conferma separatamente le quantità arrivate."),
       );
     },
     onError: (e: Error) =>
-      toast.error("Abbinamento non salvato", { description: e.message }),
+      toast.error(t("Abbinamento non salvato"), { description: e.message }),
   });
   return (
     <div className={compatto?"space-y-2":"space-y-3 rounded-xl border border-violet-100 bg-violet-50/30 p-3"}>
       <div className={`flex items-center justify-between gap-2 ${compatto ? "flex-nowrap" : "flex-wrap"}`}>
-        <div className="min-w-0" title="L’AI confronta gli articoli; le quantità e gli arrivi restano da controllare.">
+        <div className="min-w-0" title={t("L’AI confronta gli articoli; le quantità e gli arrivi restano da controllare.")}>
           <p className="text-xs font-medium">
-            Controllo delle corrispondenze
+            {t("Controllo delle corrispondenze")}
           </p>
           <p className={`text-xs text-muted-foreground ${compatto ? "hidden sm:block" : ""}`}>
-            L’AI confronta gli articoli; le quantità e gli arrivi restano da
-            controllare.
+            {t("L’AI confronta gli articoli; le quantità e gli arrivi restano da controllare.")}
           </p>
         </div>
         <Button
@@ -99,7 +100,7 @@ export function ProposteOrdiniDDT({
           ) : (
             <Sparkles className="mr-1.5 h-4 w-4" />
           )}
-          Controlla con AI
+          {t("Controlla con AI")}
         </Button>
       </div>
       {analisi.isError && (
@@ -136,8 +137,8 @@ export function ProposteOrdiniDDT({
                           }
                         >
                           {r.purchase_order_item_id === id
-                            ? "Già abbinata"
-                            : "Usa"}{" "}
+                            ? t("Già abbinata")
+                            : t("Usa")}{" "}
                           · {o?.oda_number} · {o?.description}
                         </Button>
                       );
@@ -145,13 +146,12 @@ export function ProposteOrdiniDDT({
                   </div>
                 ) : (
                   <p className="text-xs text-amber-800">
-                    Articolo senza corrispondenza: controlla se è fuori ordine.
+                    {t("Articolo senza corrispondenza: controlla se è fuori ordine.")}
                   </p>
                 )}
                 {p.ordine_righe.length > 1 && (
                   <p className="text-xs text-amber-800">
-                    Più ordini possibili: scegli la destinazione della merce.
-                    Puoi ripartire le quantità in “Consegne e materiali”.
+                    {t("Più ordini possibili: scegli la destinazione della merce. Puoi ripartire le quantità in “Consegne e materiali”.")}
                   </p>
                 )}
               </li>

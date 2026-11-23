@@ -28,6 +28,7 @@ import { useBillingMode } from "@/contexts/BillingModeContext";
 import { ClientiFiscaliImportatiTable } from "@/components/fatturazione/HubEsterno";
 import { PaDaConfermare } from "@/components/fatturazione/PaDaConfermare";
 import { etichettaTipoCliente } from "@/lib/clienti/clienteFiscale";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const TIPO_COLORS: Record<string, string> = {
   B2B: "bg-blue-100 text-blue-700",
@@ -57,6 +58,7 @@ type AnagraficheListProps = {
 export default function AnagraficheList({
   embedded = false,
 }: AnagraficheListProps = {}) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const navigate = useNavigate();
   const permissions = usePermissions();
@@ -76,11 +78,10 @@ export default function AnagraficheList({
             </div>
             <div className="min-w-0">
               <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">
-                Clienti fiscali
+                {t("Clienti fiscali")}
               </h1>
               <p className="mt-0.5 text-sm text-slate-500">
-                Clienti e fornitori fiscali per fatturazione, SDI e
-                riconciliazione.
+                {t("Clienti e fornitori fiscali per fatturazione, SDI e riconciliazione.")}
               </p>
             </div>
           </div>
@@ -92,7 +93,7 @@ export default function AnagraficheList({
                 onClick={() => navigate("/azienda/clienti")}
               >
                 <Users className="mr-1 h-4 w-4" />
-                Clienti dei cantieri
+                {t("Clienti dei cantieri")}
               </Button>
             )}
             {(permissions.isAdmin ||
@@ -104,7 +105,7 @@ export default function AnagraficheList({
                 onClick={() => navigate("/azienda/impostazioni/fornitori")}
               >
                 <Truck className="mr-1 h-4 w-4" />
-                Fornitori operativi
+                {t("Fornitori operativi")}
               </Button>
             )}
           </div>
@@ -116,10 +117,10 @@ export default function AnagraficheList({
         onValueChange={(v) => setMainTab(v as typeof mainTab)}
       >
         <TabsList>
-          <TabsTrigger value="anagrafiche">Anagrafiche</TabsTrigger>
+          <TabsTrigger value="anagrafiche">{t("Anagrafiche")}</TabsTrigger>
           <TabsTrigger value="riconciliazione" className="gap-1.5">
             <ArrowRightLeft className="h-3.5 w-3.5" />
-            Riconciliazione clienti e fornitori
+            {t("Riconciliazione clienti e fornitori")}
           </TabsTrigger>
         </TabsList>
 
@@ -139,6 +140,7 @@ export default function AnagraficheList({
 // ─── Anagrafiche Table (existing) ──────────────────────────────
 
 function AnagraficheTable() {
+  const t = useT();
   const navigate = useNavigate();
   const [tipoTab, setTipoTab] = useState<TipoTab>("tutti");
   const [search, setSearch] = useState("");
@@ -201,9 +203,9 @@ function AnagraficheTable() {
         }}
       >
         <TabsList>
-          <TabsTrigger value="tutti">Tutti</TabsTrigger>
-          <TabsTrigger value="cliente">Clienti</TabsTrigger>
-          <TabsTrigger value="fornitore">Fornitori</TabsTrigger>
+          <TabsTrigger value="tutti">{t("Tutti")}</TabsTrigger>
+          <TabsTrigger value="cliente">{t("Clienti")}</TabsTrigger>
+          <TabsTrigger value="fornitore">{t("Fornitori")}</TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -212,7 +214,7 @@ function AnagraficheTable() {
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Cerca per nome, P.IVA, email..."
+            placeholder={t("Cerca per nome, P.IVA, email...")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
@@ -220,14 +222,14 @@ function AnagraficheTable() {
         </div>
         <Select value={tipoCliente} onValueChange={setTipoCliente}>
           <SelectTrigger className="w-36">
-            <SelectValue placeholder="Tipo" />
+            <SelectValue placeholder={t("Tipo")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Tutti i tipi</SelectItem>
-            <SelectItem value="B2B">Azienda</SelectItem>
-            <SelectItem value="B2C">Privato</SelectItem>
-            <SelectItem value="PA">Pubblica Amministrazione</SelectItem>
-            <SelectItem value="Estero">Estero</SelectItem>
+            <SelectItem value="all">{t("Tutti i tipi")}</SelectItem>
+            <SelectItem value="B2B">{t("Azienda")}</SelectItem>
+            <SelectItem value="B2C">{t("Privato")}</SelectItem>
+            <SelectItem value="PA">{t("Pubblica Amministrazione")}</SelectItem>
+            <SelectItem value="Estero">{t("Estero")}</SelectItem>
           </SelectContent>
         </Select>
         <div className="flex items-center gap-2">
@@ -237,7 +239,7 @@ function AnagraficheTable() {
             onCheckedChange={setSoloAttivi}
           />
           <Label htmlFor="attivi" className="text-sm">
-            Solo attivi
+            {t("Solo attivi")}
           </Label>
         </div>
       </div>
@@ -257,15 +259,14 @@ function AnagraficheTable() {
         </Card>
       ) : isError ? (
         <div role="alert" className="rounded-xl border p-4">
-          Anagrafiche non disponibili: nessun risultato viene mostrato come
-          vuoto.
+          {t("Anagrafiche non disponibili: nessun risultato viene mostrato come vuoto.")}
           <Button variant="outline" onClick={() => void refetch()}>
-            Riprova
+            {t("Riprova")}
           </Button>
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
-          Nessuna anagrafica trovata
+          {t("Nessuna anagrafica trovata")}
         </div>
       ) : (
         <Card>
@@ -273,13 +274,13 @@ function AnagraficheTable() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/50">
-                  <th className="p-3 text-left font-medium">Anagrafica</th>
+                  <th className="p-3 text-left font-medium">{t("Anagrafica")}</th>
                   <th className="p-3 text-left font-medium">P.IVA</th>
-                  <th className="p-3 text-left font-medium">Tipo</th>
-                  <th className="p-3 text-right font-medium">Fatturato</th>
-                  <th className="p-3 text-right font-medium">N. fatture</th>
-                  <th className="p-3 text-left font-medium">Ultima fattura</th>
-                  <th className="p-3 text-left font-medium">Stato</th>
+                  <th className="p-3 text-left font-medium">{t("Tipo")}</th>
+                  <th className="p-3 text-right font-medium">{t("Fatturato")}</th>
+                  <th className="p-3 text-right font-medium">{t("N. fatture")}</th>
+                  <th className="p-3 text-left font-medium">{t("Ultima fattura")}</th>
+                  <th className="p-3 text-left font-medium">{t("Stato")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -337,7 +338,7 @@ function AnagraficheTable() {
                       </td>
                       <td className="p-3">
                         <Badge variant={a.attivo ? "default" : "secondary"}>
-                          {a.attivo ? "Attivo" : "Inattivo"}
+                          {a.attivo ? t("Attivo") : t("Inattivo")}
                         </Badge>
                       </td>
                     </tr>
@@ -349,23 +350,20 @@ function AnagraficheTable() {
       )}
       {!isLoading && !isError && filtered.length > 0 && (
         <div className="flex items-center justify-end gap-3 text-sm">
-          <span>
-            {filtered.length} anagrafiche · pagina {currentPage + 1} di{" "}
-            {Math.ceil(filtered.length / 30)}
-          </span>
+          <span>{t("{n} anagrafiche · pagina {currentPage} di {valore}", { n: filtered.length, currentPage: currentPage + 1, valore: Math.ceil(filtered.length / 30) })}</span>
           <Button
             variant="outline"
             disabled={currentPage === 0}
             onClick={() => setPage(currentPage - 1)}
           >
-            Precedenti
+            {t("Precedenti")}
           </Button>
           <Button
             variant="outline"
             disabled={(currentPage + 1) * 30 >= filtered.length}
             onClick={() => setPage(currentPage + 1)}
           >
-            Successivi
+            {t("Successivi")}
           </Button>
         </div>
       )}

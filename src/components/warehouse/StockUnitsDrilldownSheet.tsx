@@ -36,6 +36,7 @@ import {
   type StockUnitsListRow,
 } from "@/hooks/warehouse/useStockUnits";
 import { WarrantyExportDialog, type WarrantyExportItem } from "@/components/warehouse/WarrantyExportDialog";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface StockUnitsDrilldownSheetProps {
   open: boolean;
@@ -84,6 +85,7 @@ function StockUnitsDrilldownSheetSession({
   lotti = [],
   title,
 }: StockUnitsDrilldownSheetProps) {
+  const t = useT();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StockUnitStatus | "all">("all");
   const [lottoFilter, setLottoFilter] = useState<string>(lottoId ?? "all");
@@ -120,10 +122,10 @@ function StockUnitsDrilldownSheetSession({
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <Package className="h-5 w-5 text-orange-600" />
-            {title ?? "Tutti i seriali"}
+            {title ?? t("Tutti i seriali")}
           </SheetTitle>
           <SheetDescription>
-            {units.length} {units.length === 1 ? "seriale" : "seriali"} trovati
+            {units.length === 1 ? t("{n} seriale trovato", { n: 1 }) : t("{n} seriali trovati", { n: units.length })}
             {Object.keys(statusCounts).length > 0 && (
               <span className="flex flex-wrap gap-1 mt-2">
                 {(Object.keys(statusCounts) as StockUnitStatus[]).map((s) => (
@@ -132,7 +134,7 @@ function StockUnitsDrilldownSheetSession({
                     variant="outline"
                     className={STATUS_BADGE[s] ?? ""}
                   >
-                    {STATUS_LABELS[s]}: {statusCounts[s]}
+                    {t(STATUS_LABELS[s])}: {statusCounts[s]}
                   </Badge>
                 ))}
               </span>
@@ -147,10 +149,10 @@ function StockUnitsDrilldownSheetSession({
               variant="outline"
               size="sm"
               onClick={() => setExportOpen(true)}
-              title="Esporta lista per registrazione garanzia fornitore"
+              title={t("Esporta lista per registrazione garanzia fornitore")}
             >
               <ShieldCheck className="h-3.5 w-3.5 mr-1.5" />
-              Esporta per garanzia ({units.length})
+              {t("Esporta per garanzia ({n})", { n: units.length })}
             </Button>
           </div>
         )}
@@ -158,7 +160,7 @@ function StockUnitsDrilldownSheetSession({
         {/* Filtri */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
           <div className="space-y-1 sm:col-span-1">
-            <Label className="text-xs uppercase">Cerca seriale</Label>
+            <Label className="text-xs uppercase">{t("Cerca seriale")}</Label>
             <div className="relative">
               <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground/60" />
               <Input
@@ -170,7 +172,7 @@ function StockUnitsDrilldownSheetSession({
             </div>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs uppercase">Stato</Label>
+            <Label className="text-xs uppercase">{t("Stato")}</Label>
             <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StockUnitStatus | "all")}>
               <SelectTrigger>
                 <SelectValue />
@@ -178,7 +180,7 @@ function StockUnitsDrilldownSheetSession({
               <SelectContent>
                 {(Object.keys(STATUS_LABELS) as Array<StockUnitStatus | "all">).map((s) => (
                   <SelectItem key={s} value={s}>
-                    {STATUS_LABELS[s]}
+                    {t(STATUS_LABELS[s])}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -186,13 +188,13 @@ function StockUnitsDrilldownSheetSession({
           </div>
           {lotti.length > 0 && (
             <div className="space-y-1">
-              <Label className="text-xs uppercase">Lotto</Label>
+              <Label className="text-xs uppercase">{t("Lotto")}</Label>
               <Select value={lottoFilter} onValueChange={setLottoFilter}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tutti i lotti</SelectItem>
+                  <SelectItem value="all">{t("Tutti i lotti")}</SelectItem>
                   {lotti.map((l) => (
                     <SelectItem key={l.id} value={l.id}>
                       {l.codice_lotto}
@@ -209,25 +211,25 @@ function StockUnitsDrilldownSheetSession({
           {isLoading ? (
             <div className="flex items-center justify-center py-12 text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              Caricamento seriali...
+              {t("Caricamento seriali...")}
             </div>
           ) : isError ? (
-            <div role="alert" className="p-4 text-sm text-destructive">Impossibile verificare le matricole. <Button variant="outline" size="sm" onClick={() => void refetch()}>Riprova matricole</Button></div>
+            <div role="alert" className="p-4 text-sm text-destructive">{t("Impossibile verificare le matricole.")} <Button variant="outline" size="sm" onClick={() => void refetch()}>{t("Riprova matricole")}</Button></div>
           ) : units.length === 0 ? (
             <div className="text-center py-12 text-sm text-muted-foreground">
               <Filter className="h-8 w-8 mx-auto mb-2 opacity-30" />
-              Nessun seriale corrisponde ai filtri.
+              {t("Nessun seriale corrisponde ai filtri.")}
             </div>
           ) : (
             <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead className="bg-muted/50">
                 <tr className="text-left">
-                  <th className="px-3 py-2 font-medium">Seriale</th>
-                  <th className="px-3 py-2 font-medium">Articolo</th>
-                  <th className="px-3 py-2 font-medium">Lotto</th>
-                  <th className="px-3 py-2 font-medium">Stato</th>
-                  <th className="px-3 py-2 font-medium">Garanzia</th>
+                  <th className="px-3 py-2 font-medium">{t("Seriale")}</th>
+                  <th className="px-3 py-2 font-medium">{t("Articolo")}</th>
+                  <th className="px-3 py-2 font-medium">{t("Lotto")}</th>
+                  <th className="px-3 py-2 font-medium">{t("Stato")}</th>
+                  <th className="px-3 py-2 font-medium">{t("Garanzia")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -258,6 +260,7 @@ function StockUnitsDrilldownSheetSession({
 }
 
 function UnitRow({ u }: { u: StockUnitsListRow }) {
+  const t = useT();
   const warrantyExpires = (u as unknown as { warranty_expires_at?: string | null }).warranty_expires_at;
   return (
     <tr className="hover:bg-muted/30">
@@ -281,11 +284,11 @@ function UnitRow({ u }: { u: StockUnitsListRow }) {
       </td>
       <td className="px-3 py-2">
         <Badge variant="outline" className={STATUS_BADGE[u.status] ?? ""}>
-          {STATUS_LABELS[u.status]}
+          {t(STATUS_LABELS[u.status])}
         </Badge>
       </td>
       <td className="px-3 py-2 text-muted-foreground">
-        {warrantyExpires ? new Date(warrantyExpires).toLocaleDateString("it-IT") : "—"}
+        {warrantyExpires ? new Date(warrantyExpires).toLocaleDateString(intlCampo()) : "—"}
       </td>
     </tr>
   );

@@ -21,6 +21,7 @@ import {
 } from "@/lib/fatturazione/incassi";
 import { useSegnaPagata } from "@/hooks/useMovimentiCassa";
 import type { DocumentoFiscale } from "@/types/fatturazione";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // «Segna pagata» su una fattura o su una selezione (25/09/2026): chiede metodo
 // e data, poi registra un incasso vero per ciascuna (registra_incasso_atomico).
@@ -76,6 +77,7 @@ function ModuloIncasso({
   onOpenChange,
   onFatto,
 }: Omit<Props, "open"> & { escluse: number }) {
+  const tr = useT();
   const segnaPagata = useSegnaPagata();
   const registrazioneInCorso = useRef(false);
   const [metodo, setMetodo] = useState(() => metodoPredefinito(fatture));
@@ -110,16 +112,16 @@ function ModuloIncasso({
       <DialogHeader>
         <DialogTitle>
           {una || fatture.length === 0
-            ? "Segna pagata"
-            : `Segna pagate ${fatture.length} fatture`}
+            ? tr("Segna pagata")
+            : tr("Segna pagate {n} fatture", { n: fatture.length })}
         </DialogTitle>
         {/* Mobile: la spiegazione resta solo per i lettori di schermo. */}
         <DialogDescription className="max-sm:sr-only">
           {fatture.length === 0
-            ? "Nessuna delle fatture selezionate ha qualcosa da incassare."
+            ? tr("Nessuna delle fatture selezionate ha qualcosa da incassare.")
             : una
-              ? `Registra l'incasso della fattura n. ${una.numero} (da incassare ${formatCurrency(residuoDaIncassare(una))}), tutto o in parte: entra nel registro incassi e in prima nota, e aggiorna la scadenza.`
-              : `Un incasso per fattura, per quanto resta da incassare: ${formatCurrency(totale)} in tutto. Entrano nel registro incassi e in prima nota, e chiudono le scadenze.`}
+              ? tr("Registra l'incasso della fattura n. {numero} (da incassare {importo}), tutto o in parte: entra nel registro incassi e in prima nota, e aggiorna la scadenza.", { numero: String(una.numero ?? ""), importo: formatCurrency(residuoDaIncassare(una)) })
+              : tr("Un incasso per fattura, per quanto resta da incassare: {totale} in tutto. Entrano nel registro incassi e in prima nota, e chiudono le scadenze.", { totale: formatCurrency(totale) })}
         </DialogDescription>
       </DialogHeader>
       <CorpoDialogOperativo>
@@ -127,14 +129,14 @@ function ModuloIncasso({
       {escluse > 0 && (
         <p className="text-xs text-muted-foreground">
           {escluse === 1
-            ? "1 documento selezionato non si può incassare (bozza, già pagato, preventivo…) e resta com'è."
-            : `${escluse} documenti selezionati non si possono incassare (bozze, già pagati, preventivi…) e restano come sono.`}
+            ? tr("1 documento selezionato non si può incassare (bozza, già pagato, preventivo…) e resta com'è.")
+            : tr("{n} documenti selezionati non si possono incassare (bozze, già pagati, preventivi…) e restano come sono.", { n: String(escluse ?? "") })}
         </p>
       )}
 
       {una && (
         <div className="space-y-1.5">
-          <Label htmlFor="incasso-importo">Importo incassato</Label>
+          <Label htmlFor="incasso-importo">{tr("Importo incassato")}</Label>
           <Input
             id="incasso-importo"
             inputMode="decimal"
@@ -142,13 +144,9 @@ function ModuloIncasso({
             onChange={(e) => setImportoTesto(e.target.value)}
           />
           {!importoValido ? (
-            <p className="text-xs text-destructive">
-              Da 0,01 a {formatCurrency(residuoUna)}: quanto resta da incassare.
-            </p>
+            <p className="text-xs text-destructive">{tr("Da 0,01 a {importo}: quanto resta da incassare.", { importo: formatCurrency(residuoUna) })}</p>
           ) : importo < residuoUna - 0.005 ? (
-            <p className="text-xs text-muted-foreground">
-              Incasso parziale: restano {formatCurrency(residuoUna - importo)} da incassare.
-            </p>
+            <p className="text-xs text-muted-foreground">{tr("Incasso parziale: restano {importo} da incassare.", { importo: formatCurrency(residuoUna - importo) })}</p>
           ) : null}
         </div>
       )}
@@ -156,7 +154,7 @@ function ModuloIncasso({
       {fatture.length > 0 && (
         <div className="grid grid-cols-2 gap-3 max-sm:gap-2">
           <div className="space-y-1.5">
-            <Label htmlFor="incasso-metodo">Metodo</Label>
+            <Label htmlFor="incasso-metodo">{tr("Metodo")}</Label>
             <Select value={metodo} onValueChange={setMetodo}>
               <SelectTrigger id="incasso-metodo">
                 <SelectValue />
@@ -172,7 +170,7 @@ function ModuloIncasso({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="incasso-data">
-              Data<span className="max-sm:hidden"> dell'incasso</span>
+              {tr("Data")}<span className="max-sm:hidden"> {tr("dell'incasso")}</span>
             </Label>
             <Input
               id="incasso-data"
@@ -183,7 +181,7 @@ function ModuloIncasso({
             />
             {!dataValida && (
               <p className="text-xs text-destructive">
-                Scegli una data non futura.
+                {tr("Scegli una data non futura.")}
               </p>
             )}
           </div>
@@ -192,15 +190,15 @@ function ModuloIncasso({
 
       {fatture.length > 0 && metodo === "bonifico" && (
         <p className="rounded-lg bg-blue-50 p-3 text-xs text-blue-900">
-          Hai ricevuto un bonifico parlante con ritenuta?{" "}
+          {tr("Hai ricevuto un bonifico parlante con ritenuta?")}{" "}
           <Link
             className="font-medium underline"
             to="/azienda/documenti?tab=incassi"
             onClick={() => onOpenChange(false)}
           >
-            Usa il dettaglio nel Registro incassi
+            {tr("Usa il dettaglio nel Registro incassi")}
           </Link>{" "}
-          per distinguere lordo cliente e netto bancario.
+          {tr("per distinguere lordo cliente e netto bancario.")}
         </p>
       )}
 
@@ -213,7 +211,7 @@ function ModuloIncasso({
           disabled={segnaPagata.isPending}
           className={fatture.length > 0 ? "max-sm:hidden" : undefined}
         >
-          {fatture.length === 0 ? "Chiudi" : "Annulla"}
+          {fatture.length === 0 ? tr("Chiudi") : tr("Annulla")}
         </Button>
         {fatture.length > 0 && (
           <Button
@@ -223,7 +221,7 @@ function ModuloIncasso({
             {segnaPagata.isPending && (
               <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
             )}
-            {una ? "Registra incasso" : `Registra ${fatture.length} incassi`}
+            {una ? tr("Registra incasso") : tr("Registra {n} incassi", { n: fatture.length })}
           </Button>
         )}
       </DialogFooter>

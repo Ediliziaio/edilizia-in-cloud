@@ -60,16 +60,18 @@ import { parseDecimalIT } from '@/lib/parseDecimalIT';
 import { OperaiSubappaltatore } from '@/components/subappaltatori/OperaiSubappaltatore';
 import { IncarichiCantiere } from '@/components/sicurezza/IncarichiCantiere';
 import { FascicoloDocumenti } from '@/components/sicurezza/FascicoloDocumenti';
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Con più contratti (una commessa ciascuno), su quale si guardano SAL e ritenute. */
 function SceltaContratto({ contratti, valore, onCambia }: { contratti: ContrattoCompleto[]; valore: string; onCambia: (id: string) => void }) {
+  const t = useT();
   // Con un contratto solo non c'è niente da scegliere.
-  const nome = (c: ContrattoCompleto) => [c.commessa?.order_code, c.numero_contratto, c.commessa?.description].filter(Boolean).join(' · ') || 'Contratto';
-  if (contratti.length === 1) return <p className="min-w-0 truncate text-sm"><span className="text-muted-foreground">Contratto: </span><span className="font-medium">{nome(contratti[0])}</span></p>;
+  const nome = (c: ContrattoCompleto) => [c.commessa?.order_code, c.numero_contratto, c.commessa?.description].filter(Boolean).join(' · ') || t("Contratto");
+  if (contratti.length === 1) return <p className="min-w-0 truncate text-sm"><span className="text-muted-foreground">{t("Contratto:")} </span><span className="font-medium">{nome(contratti[0])}</span></p>;
   return (
     <div className="flex min-w-0 flex-col gap-1 text-sm sm:flex-row sm:items-center sm:gap-3">
-      <span className="text-muted-foreground">Contratto:</span>
-      <UniformSelect className="h-10 w-full min-w-0 max-w-xl truncate rounded-md border bg-background px-2 text-sm" value={valore} onChange={(e) => onCambia(e.target.value)} aria-label="Contratto">
+      <span className="text-muted-foreground">{t("Contratto:")}</span>
+      <UniformSelect className="h-10 w-full min-w-0 max-w-xl truncate rounded-md border bg-background px-2 text-sm" value={valore} onChange={(e) => onCambia(e.target.value)} aria-label={t("Contratto")}>
         {contratti.map((c) => (
           <option key={c.id} value={c.id}>{nome(c)}</option>
         ))}
@@ -81,18 +83,19 @@ function SceltaContratto({ contratti, valore, onCambia }: { contratti: Contratto
 // ── Badge helpers ────────────────────────────────────────────────────────────
 
 function DurcBadge({ scadenza, hasDoc }: { scadenza: string | null; hasDoc?: boolean }) {
+  const t = useT();
   if (!scadenza) {
     // Distinzione: DURC caricato ma SENZA data di scadenza (da inserire) vs DURC
     // del tutto assente. Prima mostrava sempre "DURC mancante" → confondeva quando
     // il file DURC c'era (es. import massivo) ma la scadenza non era stata salvata.
     return hasDoc
-      ? <Badge className="bg-amber-500 text-white">DURC · scadenza mancante</Badge>
-      : <Badge variant="outline">DURC assente</Badge>;
+      ? <Badge className="bg-amber-500 text-white">{t("DURC · scadenza mancante")}</Badge>
+      : <Badge variant="outline">{t("DURC assente")}</Badge>;
   }
   const daysLeft = differenceInDays(parseISO(scadenza), new Date());
-  if (daysLeft < 0) return <Badge className="bg-red-600 text-white">DURC scaduto</Badge>;
-  if (daysLeft <= 30) return <Badge className="bg-yellow-500 text-white">DURC {daysLeft}gg</Badge>;
-  return <Badge className="bg-green-600 text-white">DURC OK</Badge>;
+  if (daysLeft < 0) return <Badge className="bg-red-600 text-white">{t("DURC scaduto")}</Badge>;
+  if (daysLeft <= 30) return <Badge className="bg-yellow-500 text-white">{t("DURC {daysLeft}gg", { daysLeft: String(daysLeft ?? "") })}</Badge>;
+  return <Badge className="bg-green-600 text-white">{t("DURC OK")}</Badge>;
 }
 
 // TIPO_DOC_LABELS e DOCUMENT_BUCKET sono definiti in
@@ -111,6 +114,7 @@ function isMissingCampoLinkColumn(error: unknown) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export default function SubappaltatoreDetail() {
+  const t = useT();
   const schedaCommessa = useContext(ContestoSchedaCommessa);
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -236,7 +240,7 @@ export default function SubappaltatoreDetail() {
       .from(DOCUMENT_BUCKET)
       .createSignedUrl(path, 60 * 5);
     if (error || !data?.signedUrl) {
-      toast.error('Impossibile aprire il documento');
+      toast.error(t("Impossibile aprire il documento"));
       return;
     }
     window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
@@ -382,8 +386,8 @@ export default function SubappaltatoreDetail() {
 
   const saveAnagraficaMutation = useMutation({
     mutationFn: async () => {
-      if (!anagraficaForm.ragione_sociale.trim()) throw new Error('Ragione sociale obbligatoria');
-      if (!dataPlausibile(anagraficaForm.durc_scadenza)) throw new Error('Scadenza DURC non valida: controlla l\'anno');
+      if (!anagraficaForm.ragione_sociale.trim()) throw new Error(t("Ragione sociale obbligatoria"));
+      if (!dataPlausibile(anagraficaForm.durc_scadenza)) throw new Error(t("Scadenza DURC non valida: controlla l'anno"));
       const campoId = sub?.campo_subappaltatore_id
         ? sub.campo_subappaltatore_id
         : await findOrCreateCampoSubappaltatore(anagraficaForm);
@@ -424,7 +428,7 @@ export default function SubappaltatoreDetail() {
       };
       const { error: errAltre } = await (supabase as any).from('subappaltatori_sicurezza').update(anagrafica)
         .eq('company_id', companyId).eq('campo_subappaltatore_id', campoId).neq('id', id!);
-      if (errAltre) throw new Error("Anagrafica salvata su questa scheda, ma non sulle altre schede della ditta. Riprova.");
+      if (errAltre) throw new Error(t("Anagrafica salvata su questa scheda, ma non sulle altre schede della ditta. Riprova."));
       const nomeVecchio = sub?.ragione_sociale?.trim();
       if (nomeVecchio && nomeVecchio !== anagraficaForm.ragione_sociale.trim()) {
         await (supabase as any).from('external_teams').update({ name: anagraficaForm.ragione_sociale.trim() })
@@ -432,7 +436,7 @@ export default function SubappaltatoreDetail() {
       }
     },
     onSuccess: () => {
-      toast.success('Anagrafica aggiornata su tutte le schede della ditta');
+      toast.success(t("Anagrafica aggiornata su tutte le schede della ditta"));
       queryClient.invalidateQueries({ queryKey: ['subappaltatore', id] });
       queryClient.invalidateQueries({ queryKey: ['subappaltatore-campo-access'] });
       queryClient.invalidateQueries({ queryKey: ['sub-campo-list', companyId] });
@@ -444,7 +448,7 @@ export default function SubappaltatoreDetail() {
 
   const collegaCampoMutation = useMutation({
     mutationFn: async () => {
-      if (!sub) throw new Error('Subappaltatore non trovato');
+      if (!sub) throw new Error(t("Subappaltatore non trovato"));
       const source = {
         ragione_sociale: sub.ragione_sociale ?? '',
         piva: sub.piva ?? '',
@@ -469,7 +473,7 @@ export default function SubappaltatoreDetail() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success('Anagrafica app cantiere collegata');
+      toast.success(t("Anagrafica app cantiere collegata"));
       queryClient.invalidateQueries({ queryKey: ['subappaltatore', id] });
       queryClient.invalidateQueries({ queryKey: ['subappaltatore-campo-access'] });
       queryClient.invalidateQueries({ queryKey: ['sub-campo-list', companyId] });
@@ -494,8 +498,8 @@ export default function SubappaltatoreDetail() {
 
   const uploadDocumentMutation = useMutation({
     mutationFn: async () => {
-      if (!docFile) throw new Error('Seleziona un file');
-      if (!dataPlausibile(docForm.data_scadenza)) throw new Error('Scadenza non valida: controlla l\'anno');
+      if (!docFile) throw new Error(t("Seleziona un file"));
+      if (!dataPlausibile(docForm.data_scadenza)) throw new Error(t("Scadenza non valida: controlla l'anno"));
       const safeName = docFile.name.replace(/[^\w.-]+/g, '_');
       const filePath = `${companyId}/${id}/${Date.now()}-${safeName}`;
       const { error: uploadError } = await supabase.storage
@@ -522,11 +526,11 @@ export default function SubappaltatoreDetail() {
           ? await (supabase as any).from('subappaltatori_sicurezza').update({ durc_scadenza: nuova })
               .eq('company_id', companyId).eq('campo_subappaltatore_id', sub.campo_subappaltatore_id).or(`durc_scadenza.is.null,durc_scadenza.lt.${nuova}`)
           : await (supabase as any).from('subappaltatori_sicurezza').update({ durc_scadenza: nuova }).eq('id', id!);
-        if (errDurc) throw new Error('Documento caricato, ma la scadenza del DURC sulla scheda non è aggiornata: impostala a mano.');
+        if (errDurc) throw new Error(t("Documento caricato, ma la scadenza del DURC sulla scheda non è aggiornata: impostala a mano."));
       }
     },
     onSuccess: () => {
-      toast.success('Documento caricato');
+      toast.success(t("Documento caricato"));
       queryClient.invalidateQueries({ queryKey: ['documenti-sub', id] });
       queryClient.invalidateQueries({ queryKey: ['sicurezza-documenti', companyId] });
       queryClient.invalidateQueries({ queryKey: ['subappaltatore', id] });
@@ -545,7 +549,7 @@ export default function SubappaltatoreDetail() {
     }
     const { data, error } = await supabase.storage.from(DOCUMENT_BUCKET).createSignedUrl(doc.url, 60 * 5);
     if (error || !data?.signedUrl) {
-      toast.error('Impossibile aprire il documento');
+      toast.error(t("Impossibile aprire il documento"));
       return;
     }
     window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
@@ -559,13 +563,13 @@ export default function SubappaltatoreDetail() {
         .eq('id', doc.id)
         .select('id');
       if (error) throw new Error(error.message || error.details || error.hint || 'Errore');
-      if (!data?.length) throw new Error('Documento non eliminato: non hai il permesso o è già stato tolto.');
+      if (!data?.length) throw new Error(t("Documento non eliminato: non hai il permesso o è già stato tolto."));
       if (doc.url && !doc.url.startsWith('http')) {
         await supabase.storage.from(DOCUMENT_BUCKET).remove([doc.url]);
       }
     },
     onSuccess: () => {
-      toast.success('Documento eliminato');
+      toast.success(t("Documento eliminato"));
       queryClient.invalidateQueries({ queryKey: ['documenti-sub', id] });
       queryClient.invalidateQueries({ queryKey: ['sicurezza-documenti', companyId] });
     },
@@ -575,17 +579,17 @@ export default function SubappaltatoreDetail() {
   // Imposta/aggiorna SOLO la scadenza DURC sulla scheda (badge in alto si aggiorna).
   const setDurcMutation = useMutation({
     mutationFn: async (date: string) => {
-      if (!dataPlausibile(date)) throw new Error('Scadenza DURC non valida: controlla l\'anno');
+      if (!dataPlausibile(date)) throw new Error(t("Scadenza DURC non valida: controlla l'anno"));
       const { data, error } = await (supabase as any)
         .from('subappaltatori_sicurezza')
         .update({ durc_scadenza: date || null })
         .eq('id', id!)
         .select('id');
       if (error) throw new Error(error.message || error.details || error.hint || 'Errore');
-      if (!data?.length) throw new Error('Scadenza non aggiornata: non hai il permesso.');
+      if (!data?.length) throw new Error(t("Scadenza non aggiornata: non hai il permesso."));
     },
     onSuccess: () => {
-      toast.success('Scadenza DURC aggiornata');
+      toast.success(t("Scadenza DURC aggiornata"));
       setDurcDateInput('');
       queryClient.invalidateQueries({ queryKey: ['subappaltatore', id] });
       queryClient.invalidateQueries({ queryKey: ['subappaltatori-page', companyId] });
@@ -619,10 +623,10 @@ export default function SubappaltatoreDetail() {
     // sulla scheda è rimasta la data vecchia (prima vinceva sempre la scheda e SAL e pagamenti restavano bloccati).
     const tutte = [...(sub?.durc_scadenza ? [sub.durc_scadenza] : []), ...daDocumenti].sort();
     const scad = tutte.length ? tutte[tutte.length - 1] : null;
-    if (!scad) return 'DURC mancante: il SAL si registra, ma chiedi il DURC alla ditta e caricalo con la data di scadenza.';
+    if (!scad) return t("DURC mancante: il SAL si registra, ma chiedi il DURC alla ditta e caricalo con la data di scadenza.");
     const oggi = new Date(); oggi.setHours(0, 0, 0, 0);
     if (new Date(scad) < oggi) {
-      return `DURC scaduto il ${new Date(scad).toLocaleDateString('it-IT')}: il SAL si registra, ma chiedi alla ditta il DURC nuovo.`;
+      return t("DURC scaduto il {data}: il SAL si registra, ma chiedi alla ditta il DURC nuovo.", { data: new Date(scad).toLocaleDateString(intlCampo()) });
     }
     return null;
   };
@@ -630,14 +634,14 @@ export default function SubappaltatoreDetail() {
   const [salRichiestaId, setSalRichiestaId] = useState(() => crypto.randomUUID());
   const saveSalMutation = useMutation({
     mutationFn: async () => {
-      if (!contratto?.id) throw new Error('Contratto non trovato');
+      if (!contratto?.id) throw new Error(t("Contratto non trovato"));
       const importoLordo = parseDecimalIT(salForm.importo_lordo);
-      if (!(importoLordo > 0)) throw new Error('Scrivi l\'importo del SAL');
+      if (!(importoLordo > 0)) throw new Error(t("Scrivi l'importo del SAL"));
       // Lo 0% è una ritenuta valida: prima `|| 5` la trasformava in 5%.
       const ritenutaPct = salForm.ritenuta_pct.trim() ? parseDecimalIT(salForm.ritenuta_pct) : Number(contratto.ritenuta_garanzia_pct ?? 0);
       const numero = Number(salForm.numero_sal);
-      if (!Number.isInteger(numero) || numero < 1) throw new Error('Indica un numero SAL intero e positivo');
-      if (!Number.isFinite(ritenutaPct) || ritenutaPct < 0 || ritenutaPct > 100) throw new Error('Ritenuta non valida');
+      if (!Number.isInteger(numero) || numero < 1) throw new Error(t("Indica un numero SAL intero e positivo"));
+      if (!Number.isFinite(ritenutaPct) || ritenutaPct < 0 || ritenutaPct > 100) throw new Error(t("Ritenuta non valida"));
       const { data, error } = await supabase.rpc('sal_sub_registra_con_garanzia' as never, {
         p_company: companyId, p_contratto: contratto.id, p_id: salRichiestaId,
         p_numero: numero, p_data: salForm.data_emissione, p_lordo: importoLordo,
@@ -645,11 +649,11 @@ export default function SubappaltatoreDetail() {
       } as never);
       if (error) throw new Error(error.message);
       const esito = data as unknown;
-      if (!esito || typeof esito !== 'object' || !('id' in esito) || esito.id !== salRichiestaId) throw new Error('Registrazione SAL non confermata: rileggi i dati prima di riprovare');
+      if (!esito || typeof esito !== 'object' || !('id' in esito) || esito.id !== salRichiestaId) throw new Error(t("Registrazione SAL non confermata: rileggi i dati prima di riprovare"));
 
     },
     onSuccess: () => {
-      toast.success('SAL e relativa garanzia registrati');
+      toast.success(t("SAL e relativa garanzia registrati"));
       const durc = avvisoDurc();
       if (durc) toast.warning(durc);
       setSalRichiestaId(crypto.randomUUID());
@@ -674,7 +678,7 @@ export default function SubappaltatoreDetail() {
 
   const approvaSALMutation = useMutation({
     mutationFn: async (sal: SALSubappaltatore) => {
-      if (sal.revisione === undefined) throw new Error("Versione del SAL non disponibile. Ricarica la scheda.");
+      if (sal.revisione === undefined) throw new Error(t("Versione del SAL non disponibile. Ricarica la scheda."));
       const { data, error } = await supabase
         .from("sal_subappaltatori")
         .update({ stato: "verificato" })
@@ -684,24 +688,24 @@ export default function SubappaltatoreDetail() {
         .eq("stato", "ricevuto")
         .select("id");
       if (error) throw error;
-      if (!data?.length) throw new Error("SAL non approvato: non hai il permesso, o è già cambiato. Ricarica la pagina.");
+      if (!data?.length) throw new Error(t("SAL non approvato: non hai il permesso, o è già cambiato. Ricarica la pagina."));
     },
     onSuccess: () => {
-      toast.success("SAL approvato");
+      toast.success(t("SAL approvato"));
       if (contratto?.order_id) void queryClient.invalidateQueries({ queryKey: ['order-subcontract-statistics', contratto.order_id, companyId] });
       queryClient.invalidateQueries({ queryKey: ['sal-sub', contratto?.id] });
       queryClient.invalidateQueries({ queryKey: chiaviContratti.salTutti(id) });
       queryClient.invalidateQueries({ queryKey: ['subappaltatori-page', companyId] });
     },
     onError: (err: Error) => {
-      toast.error(err.message || "Errore durante l’approvazione");
+      toast.error(err.message || t("Errore durante l’approvazione"));
       void ricaricaSal();
     },
   });
 
   const contestaSALMutation = useMutation({
     mutationFn: async ({ sal, note }: { sal: SALSubappaltatore; note: string }) => {
-      if (sal.revisione === undefined) throw new Error("Versione del SAL non disponibile. Ricarica la scheda.");
+      if (sal.revisione === undefined) throw new Error(t("Versione del SAL non disponibile. Ricarica la scheda."));
       const { data, error } = await supabase
         .from("sal_subappaltatori")
         .update({ stato: "contestato", note_contestazione: note } as never)
@@ -712,10 +716,10 @@ export default function SubappaltatoreDetail() {
         .in("stato", ["ricevuto", "verificato"])
         .select("id");
       if (error) throw error;
-      if (!data?.length) throw new Error("SAL non contestato: non hai il permesso, o è già cambiato. Ricarica la pagina.");
+      if (!data?.length) throw new Error(t("SAL non contestato: non hai il permesso, o è già cambiato. Ricarica la pagina."));
     },
     onSuccess: () => {
-      toast.success("SAL contestato", { description: "Se era fatto dalle misure, le misure tornano libere: puoi rifare il SAL da «Lavori e quantità»." });
+      toast.success(t("SAL contestato"), { description: t("Se era fatto dalle misure, le misure tornano libere: puoi rifare il SAL da «Lavori e quantità».") });
       if (contratto?.order_id) void queryClient.invalidateQueries({ queryKey: ['order-subcontract-statistics', contratto.order_id, companyId] });
       setSalDaContestare(null);
       setContestaNote("");
@@ -727,7 +731,7 @@ export default function SubappaltatoreDetail() {
       queryClient.invalidateQueries({ queryKey: ['subappaltatori-page', companyId] });
     },
     onError: (err: Error) => {
-      toast.error(err.message || "Errore durante la contestazione");
+      toast.error(err.message || t("Errore durante la contestazione"));
       void ricaricaSal();
     },
   });
@@ -748,9 +752,9 @@ export default function SubappaltatoreDetail() {
   if (!sub) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">{erroreSub ? "Scheda non disponibile nell’azienda corrente. Verifica gli accessi o riprova." : "Subappaltatore non trovato"}</p>
-        {erroreSub && <Button variant="outline" onClick={()=>void ricaricaSub()}>Riprova</Button>}
-        <Button variant="link" onClick={() => navigate('/azienda/manodopera?tab=subappaltatori')}>{schedaCommessa ? "Torna alla commessa" : "Torna alla lista"}</Button>
+        <p className="text-muted-foreground">{erroreSub ? t("Scheda non disponibile nell’azienda corrente. Verifica gli accessi o riprova.") : t("Subappaltatore non trovato")}</p>
+        {erroreSub && <Button variant="outline" onClick={()=>void ricaricaSub()}>{t("Riprova")}</Button>}
+        <Button variant="link" onClick={() => navigate('/azienda/manodopera?tab=subappaltatori')}>{schedaCommessa ? t("Torna alla commessa") : t("Torna alla lista")}</Button>
       </div>
     );
   }
@@ -791,7 +795,7 @@ export default function SubappaltatoreDetail() {
         </Button>}
         <div className="flex-1 min-w-0">
               <h1 className={`${schedaCommessa ? 'text-lg' : 'text-xl sm:text-2xl'} font-bold truncate max-sm:text-lg max-sm:leading-tight`}>{sub.ragione_sociale}</h1>
-              <p className="text-sm text-muted-foreground max-sm:text-xs">{sub.tipo_lavori ?? 'Subappaltatore'}</p>
+              <p className="text-sm text-muted-foreground max-sm:text-xs">{sub.tipo_lavori ?? t("Subappaltatore")}</p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -800,11 +804,11 @@ export default function SubappaltatoreDetail() {
                 riquadro «Account app cantiere» in Anagrafica, dove si spiega cosa fa. */}
             {sub.telefono && (
               <Button asChild variant="outline" size="sm" className="tap-compact h-7 px-2.5 text-xs sm:hidden">
-                <a href={`tel:${sub.telefono}`}><Phone className="mr-1 h-3.5 w-3.5" />Chiama</a>
+                <a href={`tel:${sub.telefono}`}><Phone className="mr-1 h-3.5 w-3.5" />{t("Chiama")}</a>
               </Button>
             )}
             <Button variant="outline" size="sm" className="tap-compact max-sm:h-7 max-sm:px-2.5 max-sm:text-xs" onClick={openAnagraficaDialog}>
-              Modifica dati
+              {t("Modifica dati")}
             </Button>
           </div>
         </div>
@@ -819,22 +823,22 @@ export default function SubappaltatoreDetail() {
           <Card>
             <CardHeader className="pb-3 max-sm:p-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <HardHat className="size-4" aria-hidden="true" /> Contatti e dati della ditta
+                <HardHat className="size-4" aria-hidden="true" /> {t("Contatti e dati della ditta")}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 max-sm:space-y-2 max-sm:p-3">
               <div className="rounded-lg border bg-slate-50 p-3 max-sm:px-2.5 max-sm:py-2">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between max-sm:flex-row max-sm:items-center max-sm:justify-between">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium max-sm:text-[13px]">{hasAppCantiere ? 'Account app cantiere' : <><span className="sm:hidden">App cantiere non collegata</span><span className="max-sm:hidden">Account app cantiere</span></>}</p>
+                    <p className="text-sm font-medium max-sm:text-[13px]">{hasAppCantiere ? t("Account app cantiere") : <><span className="sm:hidden">{t("App cantiere non collegata")}</span><span className="max-sm:hidden">{t("Account app cantiere")}</span></>}</p>
                     <p className={`text-xs text-muted-foreground ${hasAppCantiere ? 'max-sm:truncate max-sm:text-[11px]' : 'max-sm:hidden'}`}>
                       {hasAppCantiere
                         ? appCantiere?.user_id
-                          ? `Account attivo: ${appCantiere.user_email ?? 'email non indicata'}`
+                          ? t("Account attivo: {email}", { email: appCantiere.user_email ?? t("email non indicata") })
                           : appCantiere?.user_email
-                            ? `Email pronta per invito: ${appCantiere.user_email}`
-                            : 'Scheda collegata, account non ancora invitato'
-                        : 'Collega questa anagrafica agli account app cantiere per evitare doppioni.'}
+                            ? t("Email pronta per invito: {user_email}", { user_email: String(appCantiere.user_email ?? "") })
+                            : t("Scheda collegata, account non ancora invitato")
+                        : t("Collega questa anagrafica agli account app cantiere per evitare doppioni.")}
                     </p>
                   </div>
                   {!hasAppCantiere && (
@@ -846,22 +850,22 @@ export default function SubappaltatoreDetail() {
                       disabled={collegaCampoMutation.isPending}
                     >
                       <Link2 className="mr-1.5 h-4 w-4 max-sm:h-3.5 max-sm:w-3.5" />
-                      <span className="max-sm:hidden">Collega app cantiere</span>
-                      <span className="sm:hidden">Collega</span>
+                      <span className="max-sm:hidden">{t("Collega app cantiere")}</span>
+                      <span className="sm:hidden">{t("Collega")}</span>
                     </Button>
                   )}
                 </div>
               </div>
               <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
                 {[
-                  { label: 'Partita IVA', value: sub.piva },
-                  { label: 'Codice fiscale', value: sub.codice_fiscale },
-                  { label: 'Responsabile', value: sub.responsabile },
-                  { label: 'Telefono', value: sub.telefono, href: sub.telefono && `tel:${sub.telefono}` },
+                  { label: t("Partita IVA"), value: sub.piva },
+                  { label: t("Codice fiscale"), value: sub.codice_fiscale },
+                  { label: t("Responsabile"), value: sub.responsabile },
+                  { label: t("Telefono"), value: sub.telefono, href: sub.telefono && `tel:${sub.telefono}` },
                   { label: 'Email', value: sub.email, href: sub.email && `mailto:${sub.email}` },
                   { label: 'PEC', value: sub.pec, href: sub.pec && `mailto:${sub.pec}` },
-                  { label: 'Indirizzo', value: sub.indirizzo },
-                  { label: 'Note', value: sub.note },
+                  { label: t("Indirizzo"), value: sub.indirizzo },
+                  { label: t("Note"), value: sub.note },
                 ].map(({ label, value, href }) => value ? <div key={label} className="min-w-0">
                   <dt className="text-xs text-muted-foreground">{label}</dt>
                   <dd className="break-words text-sm font-medium">{href
@@ -870,7 +874,7 @@ export default function SubappaltatoreDetail() {
               </dl>
               <SubcontractorSupplierLink subcontractorId={id!} />
               {!effectiveDurc && <div className="flex flex-wrap items-center gap-2 border-t pt-3">
-                <label className="text-sm text-muted-foreground" htmlFor="scadenza-durc-ditta">Scadenza DURC</label>
+                <label className="text-sm text-muted-foreground" htmlFor="scadenza-durc-ditta">{t("Scadenza DURC")}</label>
                   <div className="flex items-center gap-2">
                     <Input
                       id="scadenza-durc-ditta"
@@ -879,7 +883,7 @@ export default function SubappaltatoreDetail() {
                       value={durcDateInput}
                       onChange={(e) => setDurcDateInput(e.target.value)}
                       className="h-8 w-auto text-xs"
-                      aria-label="Data scadenza DURC"
+                      aria-label={t("Data scadenza DURC")}
                     />
                     <Button
                       size="sm"
@@ -888,7 +892,7 @@ export default function SubappaltatoreDetail() {
                       disabled={!durcDateInput || setDurcMutation.isPending}
                       onClick={() => setDurcMutation.mutate(durcDateInput)}
                     >
-                      {setDurcMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Salva scadenza'}
+                      {setDurcMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t("Salva scadenza")}
                     </Button>
                   </div>
               </div>}
@@ -905,7 +909,7 @@ export default function SubappaltatoreDetail() {
           <FascicoloDocumenti key={`${companyId}:${id}`} companyId={companyId} subId={id!} />
           <details className="rounded-xl border bg-muted/20 p-3">
             <summary className="cursor-pointer text-sm font-semibold">
-              Archivio documenti <span className="ml-1 text-xs font-normal text-muted-foreground">{documenti.length + documentiCompliance.length}</span>
+              {t("Archivio documenti")} <span className="ml-1 text-xs font-normal text-muted-foreground">{documenti.length + documentiCompliance.length}</span>
             </summary>
             <div className="mt-3 space-y-3">
           {/* Documenti */}
@@ -915,28 +919,27 @@ export default function SubappaltatoreDetail() {
             <CardHeader className="pb-3 max-sm:p-3 max-sm:pb-2">
               <CardTitle className="text-base flex items-center justify-between gap-2 max-sm:text-sm">
                 <span className="flex items-center gap-2">
-                  <FileText className="h-4 w-4 max-sm:hidden" /> <span className="max-sm:hidden">Documenti idoneità</span><span className="sm:hidden">Documenti</span>
+                  <FileText className="h-4 w-4 max-sm:hidden" /> <span className="max-sm:hidden">{t("Documenti idoneità")}</span><span className="sm:hidden">{t("Documenti")}</span>
                 </span>
                 <span className="flex gap-2">
                   <Button size="sm" variant="outline" className="max-sm:hidden" onClick={() => setBulkDocDialog(true)}>
                     <FileArchive className="h-4 w-4 mr-1.5" />
-                    Importa ZIP
+                    {t("Importa ZIP")}
                   </Button>
                   <Button size="sm" className="tap-compact max-sm:h-7 max-sm:px-2.5 max-sm:text-xs" onClick={() => setDocDialog(true)}>
                     <Upload className="h-4 w-4 mr-1.5 max-sm:h-3.5 max-sm:w-3.5" />
-                    <span className="max-sm:hidden">Carica documento</span>
-                    <span className="sm:hidden">Carica</span>
+                    <span className="max-sm:hidden">{t("Carica documento")}</span>
+                    <span className="sm:hidden">{t("Carica")}</span>
                   </Button>
                 </span>
               </CardTitle>
             </CardHeader>
             <CardContent className="max-sm:p-3 max-sm:pt-0">
               <p className="text-xs text-muted-foreground mb-3 max-sm:hidden">
-                Carica qui <strong>DURC</strong>, visura camerale, POS, polizze e altri documenti di idoneità.
-                Per il DURC indica la <strong>data di scadenza</strong>: aggiorna in automatico il badge in alto.
+                {t("Carica qui DURC, visura camerale, POS, polizze e altri documenti di idoneità. Per il DURC indica la data di scadenza: aggiorna in automatico il badge in alto.")}
               </p>
               {documenti.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nessun documento caricato.</p>
+                <p className="text-sm text-muted-foreground">{t("Nessun documento caricato.")}</p>
               ) : (
                 <div className="space-y-2">
                   {documenti.map((doc) => {
@@ -947,13 +950,13 @@ export default function SubappaltatoreDetail() {
                       <div key={doc.id} className="flex items-center justify-between border rounded-lg p-3 max-sm:px-2.5 max-sm:py-2">
                         <div className="min-w-0">
                           <p className="text-sm font-medium max-sm:truncate max-sm:text-[13px]">
-                            {TIPO_DOC_LABELS[doc.tipo]}
+                            {t(TIPO_DOC_LABELS[doc.tipo])}
                             {doc.nome_file && <span className="text-muted-foreground ml-1">— {doc.nome_file}</span>}
                           </p>
                           {doc.data_scadenza && (
                             <p className={`text-xs mt-0.5 ${daysLeft === null ? 'text-muted-foreground' : daysLeft < 0 ? 'text-red-600' : daysLeft <= 30 ? 'text-amber-600' : 'text-muted-foreground'}`}>
-                              Scade: {format(parseISO(doc.data_scadenza), 'dd/MM/yyyy')}
-                              {daysLeft !== null && (daysLeft < 0 ? ' (scaduto)' : daysLeft <= 30 ? ` (${daysLeft}gg)` : '')}
+                              {t("Scade: {data}", { data: format(parseISO(doc.data_scadenza), 'dd/MM/yyyy') })}
+                              {daysLeft !== null && (daysLeft < 0 ? ` ${t("(scaduto)")}` : daysLeft <= 30 ? ` (${t("{daysLeft}gg", { daysLeft: String(daysLeft ?? "") })})` : '')}
                             </p>
                           )}
                         </div>
@@ -966,13 +969,13 @@ export default function SubappaltatoreDetail() {
                             variant="ghost"
                             size="sm"
                             className="text-destructive hover:text-destructive"
-                            aria-label={`Elimina documento ${TIPO_DOC_LABELS[doc.tipo]}`}
+                            aria-label={t("Elimina documento {valore}", { valore: String(TIPO_DOC_LABELS[doc.tipo] ?? "") })}
                             onClick={async () => {
                               if (
                                 await confirm({
-                                  title: 'Eliminare il documento?',
-                                  description: `Il documento "${TIPO_DOC_LABELS[doc.tipo]}${doc.nome_file ? ` — ${doc.nome_file}` : ''}" verrà rimosso definitivamente dal subappaltatore.`,
-                                  confirmLabel: 'Elimina',
+                                  title: t("Eliminare il documento?"),
+                                  description: t("Il documento \"{documento}\" verrà rimosso definitivamente dal subappaltatore.", { documento: `${t(TIPO_DOC_LABELS[doc.tipo])}${doc.nome_file ? ` — ${doc.nome_file}` : ''}` }),
+                                  confirmLabel: t("Elimina"),
                                   variant: 'destructive',
                                 })
                               ) {
@@ -999,13 +1002,13 @@ export default function SubappaltatoreDetail() {
             <Card>
               <CardHeader className="pb-3 max-sm:p-3 max-sm:pb-2">
                 <CardTitle className="text-base flex items-center gap-2 max-sm:text-sm">
-                  <FileText className="h-4 w-4 max-sm:hidden" /> Documenti caricati
+                  <FileText className="h-4 w-4 max-sm:hidden" /> {t("Documenti caricati")}
                   <Badge variant="secondary" className="ml-1">{documentiCompliance.length}</Badge>
                 </CardTitle>
               </CardHeader>
               <CardContent className="max-sm:p-3 max-sm:pt-0">
                 <p className="text-xs text-muted-foreground mb-3 max-sm:hidden">
-                  Documenti importati dall'anagrafica o dall'import massivo (modulo Sicurezza), in sola lettura.
+                  {t("Documenti importati dall'anagrafica o dall'import massivo (modulo Sicurezza), in sola lettura.")}
                 </p>
                 <div className="space-y-2">
                   {documentiCompliance.map((doc) => {
@@ -1016,12 +1019,12 @@ export default function SubappaltatoreDetail() {
                       <div key={doc.id} className="flex items-center justify-between border rounded-lg p-3 max-sm:px-2.5 max-sm:py-2">
                         <div className="min-w-0">
                           <p className="text-sm font-medium max-sm:text-[13px]">
-                            {COMPLIANCE_TIPO_LABELS[doc.tipo] ?? doc.tipo}
+                            {t(COMPLIANCE_TIPO_LABELS[doc.tipo] ?? doc.tipo)}
                           </p>
                           {doc.scadenza && (
                             <p className={`text-xs mt-0.5 ${daysLeft === null ? 'text-muted-foreground' : daysLeft < 0 ? 'text-red-600' : daysLeft <= 30 ? 'text-amber-600' : 'text-muted-foreground'}`}>
-                              Scade: {format(parseISO(doc.scadenza), 'dd/MM/yyyy')}
-                              {daysLeft !== null && (daysLeft < 0 ? ' (scaduto)' : daysLeft <= 30 ? ` (${daysLeft}gg)` : '')}
+                              {t("Scade: {data}", { data: format(parseISO(doc.scadenza), 'dd/MM/yyyy') })}
+                              {daysLeft !== null && (daysLeft < 0 ? ` ${t("(scaduto)")}` : daysLeft <= 30 ? ` (${t("{daysLeft}gg", { daysLeft: String(daysLeft ?? "") })})` : '')}
                             </p>
                           )}
                         </div>
@@ -1029,7 +1032,7 @@ export default function SubappaltatoreDetail() {
                           variant="ghost"
                           size="sm"
                           onClick={() => void openComplianceDoc(doc.storage_path)}
-                          aria-label="Apri documento"
+                          aria-label={t("Apri documento")}
                         >
                           <ExternalLink className="h-3.5 w-3.5" />
                         </Button>
@@ -1047,9 +1050,9 @@ export default function SubappaltatoreDetail() {
         {/* ─── Lavori e contratti ──────────────────────────────────────────── */}
         <TabsContent value="lavori" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-3">
           <Tabs value={tabAttiva} onValueChange={setTabAttiva} activationMode="manual">
-            <TabsList aria-label="Commesse e contratti della ditta" className="h-auto justify-start">
-              <TabsTrigger value="lavori">Commesse</TabsTrigger>
-              <TabsTrigger value="contratto">Contratti</TabsTrigger>
+            <TabsList aria-label={t("Commesse e contratti della ditta")} className="h-auto justify-start">
+              <TabsTrigger value="lavori">{t("Commesse")}</TabsTrigger>
+              <TabsTrigger value="contratto">{t("Contratti")}</TabsTrigger>
             </TabsList>
             <TabsContent value="lavori">
               <LavoriSubappaltatore subId={id!}
@@ -1071,7 +1074,7 @@ export default function SubappaltatoreDetail() {
           <TabsContent value="listino" className="mt-4 max-sm:mt-3">
             {sub.campo_subappaltatore_id
               ? <ListinoDitta companyId={companyId} anagraficaId={sub.campo_subappaltatore_id} nomeDitta={sub.ragione_sociale} />
-              : <p className="text-sm text-muted-foreground">Questa scheda non è ancora collegata alla ditta: il listino vale per la ditta in tutte le commesse, quindi prima va collegata (Panoramica → «Collega app cantiere»).</p>}
+              : <p className="text-sm text-muted-foreground">{t("Questa scheda non è ancora collegata alla ditta: il listino vale per la ditta in tutte le commesse, quindi prima va collegata (Panoramica → «Collega app cantiere»).")}</p>}
           </TabsContent>
         )}
 
@@ -1079,11 +1082,11 @@ export default function SubappaltatoreDetail() {
         <TabsContent value="contabilita" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-3">
           {contratti.length > 0 && <SceltaContratto contratti={contratti} valore={contratto?.id ?? ''} onCambia={setContrattoSelId} />}
           <Tabs value={vistaContabilita} onValueChange={setVistaContabilita}>
-            <TabsList className="h-auto flex-wrap"><TabsTrigger value="sal">SAL e verbali</TabsTrigger><TabsTrigger value="fatture">Fatture e pagamenti</TabsTrigger><TabsTrigger value="ritenute">Ritenute</TabsTrigger>{permessi.canViewSubappaltatoriAmministrazione && <TabsTrigger value="mensili">Documenti mensili</TabsTrigger>}</TabsList>
-            {permessi.canViewSubappaltatoriAmministrazione && <TabsContent value="mensili" className="mt-4">{caricoContratti ? <p className="text-sm text-muted-foreground">Caricamento contratti…</p> : erroreContratti ? <p role="alert" className="text-sm text-destructive">Contratti non disponibili. <Button variant="link" onClick={()=>void ricaricaContratti()}>Riprova</Button></p> : <DocumentiMensiliSub key={`${companyId}:${id}`} companyId={companyId} subId={id!} contratti={contratti}/>}</TabsContent>}
+            <TabsList className="h-auto flex-wrap"><TabsTrigger value="sal">{t("SAL e verbali")}</TabsTrigger><TabsTrigger value="fatture">{t("Fatture e pagamenti")}</TabsTrigger><TabsTrigger value="ritenute">{t("Ritenute")}</TabsTrigger>{permessi.canViewSubappaltatoriAmministrazione && <TabsTrigger value="mensili">{t("Documenti mensili")}</TabsTrigger>}</TabsList>
+            {permessi.canViewSubappaltatoriAmministrazione && <TabsContent value="mensili" className="mt-4">{caricoContratti ? <p className="text-sm text-muted-foreground">{t("Caricamento contratti…")}</p> : erroreContratti ? <p role="alert" className="text-sm text-destructive">{t("Contratti non disponibili.")} <Button variant="link" onClick={()=>void ricaricaContratti()}>{t("Riprova")}</Button></p> : <DocumentiMensiliSub key={`${companyId}:${id}`} companyId={companyId} subId={id!} contratti={contratti}/>}</TabsContent>}
             <TabsContent value="fatture" className="mt-4"><FattureDebitiSubappaltatore subId={id!} partitaIva={sub.piva ?? null} /></TabsContent>
             <TabsContent value="sal" className="space-y-4 mt-4">
-          <div className={`flex items-center justify-between gap-3 ${!contratto ? 'max-sm:hidden' : ''}`}><h3 className="text-sm font-semibold">SAL del contratto</h3>
+          <div className={`flex items-center justify-between gap-3 ${!contratto ? 'max-sm:hidden' : ''}`}><h3 className="text-sm font-semibold">{t("SAL del contratto")}</h3>
             <Button
               size="sm"
               disabled={!contratto || !(permessi.canEditOrders && permessi.canViewSubappaltatoriAmministrazione && permessi.canViewCosts && !permessi.solaLettura) || salCaricamento || salErrore || salControlloBase}
@@ -1095,11 +1098,11 @@ export default function SubappaltatoreDetail() {
                   if (error) throw error;
                   if (data?.length) {
                     const completo = contratti.find(c => c.id === contratto.id);
-                    if (!completo) throw Error('Contratto non disponibile');
+                    if (!completo) throw Error(t("Contratto non disponibile"));
                     setSalLavori(completo); return;
                   }
                 } catch {
-                  toast.error('Non è stato possibile verificare la base lavori. Riprova prima di registrare il SAL.');
+                  toast.error(t("Non è stato possibile verificare la base lavori. Riprova prima di registrare il SAL."));
                   return;
                 } finally { setSalControlloBase(false); }
 
@@ -1109,7 +1112,7 @@ export default function SubappaltatoreDetail() {
               }}
             >
               <Plus className="h-4 w-4 mr-1" />
-              {salControlloBase ? 'Apertura…' : 'Nuovo SAL'}
+              {salControlloBase ? t("Apertura…") : t("Nuovo SAL")}
             </Button>
           </div>
 
@@ -1117,15 +1120,15 @@ export default function SubappaltatoreDetail() {
             <Alert className="border-amber-500/40 bg-amber-50/50 dark:bg-amber-900/10">
               <AlertTriangle className="h-4 w-4 text-amber-600" />
               <AlertDescription className="text-amber-800 dark:text-amber-200 max-sm:text-xs">
-                Vai prima nel tab <strong>Contratti</strong> per creare il contratto di subappalto.
+                {t("Vai prima nel tab Contratti per creare il contratto di subappalto.")}
               </AlertDescription>
             </Alert>
           )}
 
-          {salCaricamento ? <p role="status">Caricamento SAL…</p> : salErrore ? <p role="alert">SAL non disponibili. <Button variant="link" onClick={() => void ricaricaSal()}>Riprova</Button></p> : salList.length === 0 && contratto ? (
+          {salCaricamento ? <p role="status">{t("Caricamento SAL…")}</p> : salErrore ? <p role="alert">{t("SAL non disponibili.")} <Button variant="link" onClick={() => void ricaricaSal()}>{t("Riprova")}</Button></p> : salList.length === 0 && contratto ? (
             <Card>
               <CardContent className="py-10 text-center">
-                <p className="text-sm text-muted-foreground">Nessun SAL ricevuto ancora.</p>
+                <p className="text-sm text-muted-foreground">{t("Nessun SAL ricevuto ancora.")}</p>
               </CardContent>
             </Card>
           ) : (
@@ -1139,10 +1142,10 @@ export default function SubappaltatoreDetail() {
 
         {/* ─── Tab 4: Ritenute & Pagamenti ──────────────────────────────────── */}
         <TabsContent value="ritenute" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-3">
-          <p className="text-xs text-muted-foreground">Le ritenute seguono il contratto. Lo svincolo richiede un riferimento documentale e non registra un pagamento al subappaltatore.</p>
-          {ritenuteLoading ? <p role="status" className="text-sm text-muted-foreground">Caricamento garanzie…</p> : ritenuteError ? <Alert variant="destructive"><AlertDescription>Registro garanzie non disponibile. <Button variant="outline" size="sm" onClick={() => void ricaricaRitenute()}>Riprova</Button></AlertDescription></Alert> : <>
-          {salGaranziaDaRiconciliare.length > 0 && <Alert className="border-amber-400 bg-amber-50"><AlertTriangle className="h-4 w-4"/><AlertDescription>Registro da riconciliare per {salGaranziaDaRiconciliare.length} SAL: gli importi delle ritenute nei SAL non coincidono con le registrazioni di garanzia. I totali sotto descrivono soltanto il registro disponibile, non attestano il residuo effettivo. Verifica gli originali prima di registrare uno svincolo.</AlertDescription></Alert>}
-          {ritenute.length === 0 ? <Card><CardContent className="py-8 text-center"><p className="text-sm font-medium">Nessuna ritenuta nel registro</p><p className="mt-2 text-sm text-muted-foreground">I nuovi SAL registrano la relativa garanzia. Per gli importi storici mancanti occorre verificare e riconciliare il registro.</p></CardContent></Card> :
+          <p className="text-xs text-muted-foreground">{t("Le ritenute seguono il contratto. Lo svincolo richiede un riferimento documentale e non registra un pagamento al subappaltatore.")}</p>
+          {ritenuteLoading ? <p role="status" className="text-sm text-muted-foreground">{t("Caricamento garanzie…")}</p> : ritenuteError ? <Alert variant="destructive"><AlertDescription>{t("Registro garanzie non disponibile.")} <Button variant="outline" size="sm" onClick={() => void ricaricaRitenute()}>{t("Riprova")}</Button></AlertDescription></Alert> : <>
+          {salGaranziaDaRiconciliare.length > 0 && <Alert className="border-amber-400 bg-amber-50"><AlertTriangle className="h-4 w-4"/><AlertDescription>{t("Registro da riconciliare per {n} SAL: gli importi delle ritenute nei SAL non coincidono con le registrazioni di garanzia. I totali sotto descrivono soltanto il registro disponibile, non attestano il residuo effettivo. Verifica gli originali prima di registrare uno svincolo.", { n: salGaranziaDaRiconciliare.length })}</AlertDescription></Alert>}
+          {ritenute.length === 0 ? <Card><CardContent className="py-8 text-center"><p className="text-sm font-medium">{t("Nessuna ritenuta nel registro")}</p><p className="mt-2 text-sm text-muted-foreground">{t("I nuovi SAL registrano la relativa garanzia. Per gli importi storici mancanti occorre verificare e riconciliare il registro.")}</p></CardContent></Card> :
             <RitenuteContabilita key={`${companyId}:${contratto?.id}`} ritenute={ritenute} sal={salList} contratto={contratto?.numero_contratto || 'Contratto'}
               canRelease={permessi.isAdmin && !permessi.solaLettura} onSvincola={setRitenutaDaSvincolare} onVerbale={setSalVerbale}/>}
 
@@ -1156,29 +1159,29 @@ export default function SubappaltatoreDetail() {
       <Dialog open={anagraficaDialog} onOpenChange={setAnagraficaDialog}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle><span className="max-sm:hidden">Modifica anagrafica subappaltatore</span><span className="sm:hidden">Modifica dati</span></DialogTitle>
-            <DialogDescription className="max-sm:sr-only">Completa i dati fiscali, operativi e di contatto.</DialogDescription>
+            <DialogTitle><span className="max-sm:hidden">{t("Modifica anagrafica subappaltatore")}</span><span className="sm:hidden">{t("Modifica dati")}</span></DialogTitle>
+            <DialogDescription className="max-sm:sr-only">{t("Completa i dati fiscali, operativi e di contatto.")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2 max-sm:grid-cols-2">
               <div className="space-y-1.5 sm:col-span-2 max-sm:col-span-2">
-                <Label>Ragione sociale *</Label>
+                <Label>{t("Ragione sociale *")}</Label>
                 <Input value={anagraficaForm.ragione_sociale} onChange={(e) => setAnagraficaForm(f => ({ ...f, ragione_sociale: e.target.value }))} />
               </div>
               <div className="space-y-1.5">
-                <Label>P.IVA / C.F.</Label>
+                <Label>{t("P.IVA / C.F.")}</Label>
                 <Input value={anagraficaForm.piva} onChange={(e) => setAnagraficaForm(f => ({ ...f, piva: e.target.value }))} />
               </div>
               <div className="space-y-1.5">
-                <Label>Tipo lavori</Label>
+                <Label>{t("Tipo lavori")}</Label>
                 <Input value={anagraficaForm.tipo_lavori} onChange={(e) => setAnagraficaForm(f => ({ ...f, tipo_lavori: e.target.value }))} />
               </div>
               <div className="space-y-1.5">
-                <Label>Responsabile</Label>
+                <Label>{t("Responsabile")}</Label>
                 <Input value={anagraficaForm.responsabile} onChange={(e) => setAnagraficaForm(f => ({ ...f, responsabile: e.target.value }))} />
               </div>
               <div className="space-y-1.5">
-                <Label>Telefono</Label>
+                <Label>{t("Telefono")}</Label>
                 <Input value={anagraficaForm.telefono} onChange={(e) => setAnagraficaForm(f => ({ ...f, telefono: e.target.value }))} />
               </div>
               <div className="space-y-1.5">
@@ -1190,28 +1193,28 @@ export default function SubappaltatoreDetail() {
                 <Input type="email" value={anagraficaForm.pec} onChange={(e) => setAnagraficaForm(f => ({ ...f, pec: e.target.value }))} />
               </div>
               <div className="space-y-1.5">
-                <Label>Codice Fiscale</Label>
-                <Input value={anagraficaForm.codice_fiscale} onChange={(e) => setAnagraficaForm(f => ({ ...f, codice_fiscale: e.target.value }))} placeholder="Es. RSSMRA80A01H501U" />
+                <Label>{t("Codice Fiscale")}</Label>
+                <Input value={anagraficaForm.codice_fiscale} onChange={(e) => setAnagraficaForm(f => ({ ...f, codice_fiscale: e.target.value }))} placeholder={t("Es. RSSMRA80A01H501U")} />
               </div>
               <div className="space-y-1.5">
-                <Label>Scadenza DURC</Label>
+                <Label>{t("Scadenza DURC")}</Label>
                 <Input type="date" max={DATA_MASSIMA} value={anagraficaForm.durc_scadenza} onChange={(e) => setAnagraficaForm(f => ({ ...f, durc_scadenza: e.target.value }))} />
               </div>
               <div className="space-y-1.5 sm:col-span-2 max-sm:col-span-2">
-                <Label htmlFor="subappaltatore-dettaglio-indirizzo">Indirizzo sede</Label>
+                <Label htmlFor="subappaltatore-dettaglio-indirizzo">{t("Indirizzo sede")}</Label>
                 <CampoIndirizzo id="subappaltatore-dettaglio-indirizzo" value={anagraficaForm.indirizzo} onChange={(v) => setAnagraficaForm(f => ({ ...f, indirizzo: v }))} />
               </div>
               <div className="space-y-1.5 sm:col-span-2 max-sm:col-span-2">
-                <Label>Note</Label>
+                <Label>{t("Note")}</Label>
                 <Textarea value={anagraficaForm.note} onChange={(e) => setAnagraficaForm(f => ({ ...f, note: e.target.value }))} rows={3} className="max-sm:min-h-[60px]" />
               </div>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" className="max-sm:hidden" onClick={() => setAnagraficaDialog(false)} disabled={saveAnagraficaMutation.isPending}>Annulla</Button>
+            <Button variant="outline" className="max-sm:hidden" onClick={() => setAnagraficaDialog(false)} disabled={saveAnagraficaMutation.isPending}>{t("Annulla")}</Button>
             <Button onClick={() => saveAnagraficaMutation.mutate()} disabled={saveAnagraficaMutation.isPending || !anagraficaForm.ragione_sociale.trim()}>
               {saveAnagraficaMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Salva anagrafica
+              {t("Salva anagrafica")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1221,12 +1224,12 @@ export default function SubappaltatoreDetail() {
       <Dialog open={docDialog} onOpenChange={setDocDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Carica documento</DialogTitle>
-            <DialogDescription className="max-sm:sr-only">DURC, visura, DVR, polizze, attestazioni o altri documenti del subappaltatore.</DialogDescription>
+            <DialogTitle>{t("Carica documento")}</DialogTitle>
+            <DialogDescription className="max-sm:sr-only">{t("DURC, visura, DVR, polizze, attestazioni o altri documenti del subappaltatore.")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label>Tipo documento</Label>
+              <Label>{t("Tipo documento")}</Label>
               <Select value={docForm.tipo} onValueChange={(v) => setDocForm(f => ({ ...f, tipo: v as TipoDocumentoSub }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -1237,7 +1240,7 @@ export default function SubappaltatoreDetail() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>File *</Label>
+              <Label>{t("File *")}</Label>
               <Input type="file" onChange={async (e) => {
                 const f = e.target.files?.[0] ?? null;
                 setDocFile(f);
@@ -1248,7 +1251,7 @@ export default function SubappaltatoreDetail() {
                   const iso = await extractDurcExpiryFromPdf(f);
                   if (iso) {
                     setDocForm((prev) => ({ ...prev, data_scadenza: prev.data_scadenza || iso }));
-                    toast.success(`Scadenza DURC rilevata dal PDF: ${iso.split('-').reverse().join('/')}`);
+                    toast.success(t("Scadenza DURC rilevata dal PDF: {valore}", { valore: iso.split('-').reverse().join('/') }));
                   }
                 }
               }} />
@@ -1257,24 +1260,24 @@ export default function SubappaltatoreDetail() {
             {/* Mobile: basta la scadenza (è quella che accende gli avvisi). */}
             <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
               <div className="space-y-1.5 max-sm:hidden">
-                <Label>Data rilascio</Label>
+                <Label>{t("Data rilascio")}</Label>
                 <Input type="date" value={docForm.data_rilascio} onChange={(e) => setDocForm(f => ({ ...f, data_rilascio: e.target.value }))} />
               </div>
               <div className="space-y-1.5">
-                <Label>Scadenza</Label>
+                <Label>{t("Scadenza")}</Label>
                 <Input type="date" max={DATA_MASSIMA} value={docForm.data_scadenza} onChange={(e) => setDocForm(f => ({ ...f, data_scadenza: e.target.value }))} />
               </div>
             </div>
             <div className="space-y-1.5 max-sm:hidden">
-              <Label>Note</Label>
+              <Label>{t("Note")}</Label>
               <Textarea value={docForm.note} onChange={(e) => setDocForm(f => ({ ...f, note: e.target.value }))} rows={2} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" className="max-sm:hidden" onClick={() => setDocDialog(false)} disabled={uploadDocumentMutation.isPending}>Annulla</Button>
+            <Button variant="outline" className="max-sm:hidden" onClick={() => setDocDialog(false)} disabled={uploadDocumentMutation.isPending}>{t("Annulla")}</Button>
             <Button onClick={() => uploadDocumentMutation.mutate()} disabled={uploadDocumentMutation.isPending || !docFile}>
               {uploadDocumentMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Carica
+              {t("Carica")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1297,7 +1300,7 @@ export default function SubappaltatoreDetail() {
       }} />}
       {salLavori && <LavoriMisureSubDialog key={salLavori.id} companyId={companyId} contratto={salLavori} sezioneIniziale="sal" onApriStorico={() => setSalLavori(null)} onClose={() => setSalLavori(null)} onApriVerbale={async (salId) => {
         const {data,error} = await supabase.from('sal_subappaltatori').select('*').eq('company_id',companyId).eq('contratto_id',salLavori.id).eq('id',salId).single();
-        if (error || !data) throw Error('SAL salvato, ma lettura del verbale non riuscita. Riprova.');
+        if (error || !data) throw Error(t("SAL salvato, ma lettura del verbale non riuscita. Riprova."));
         setSalLavori(null); setSalVerbale(data as SALSubappaltatore);
       }} />}
       {commessaPopup && <SchedaCommessaDialog contestoOrigine="impresa" key={commessaPopup} companyId={companyId} orderId={commessaPopup} destinazione={{to:`/azienda/ordini/${commessaPopup}`}} onClose={() => setCommessaPopup(null)} />}
@@ -1309,26 +1312,26 @@ export default function SubappaltatoreDetail() {
       <Dialog open={!!salDaContestare} onOpenChange={() => { setSalDaContestare(null); setContestaNote(""); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Contesta SAL</DialogTitle>
-            <DialogDescription className="max-sm:sr-only">Inserisci le motivazioni della contestazione.</DialogDescription>
+            <DialogTitle>{t("Contesta SAL")}</DialogTitle>
+            <DialogDescription className="max-sm:sr-only">{t("Inserisci le motivazioni della contestazione.")}</DialogDescription>
           </DialogHeader>
           <div>
-            <Label>Note contestazione</Label>
+            <Label>{t("Note contestazione")}</Label>
             <Textarea
               value={contestaNote}
               onChange={e => setContestaNote(e.target.value)}
-              placeholder="Es: Importo non corretto, mancano documenti..."
+              placeholder={t("Es: Importo non corretto, mancano documenti...")}
               rows={3}
             />
           </div>
           <DialogFooter>
-            <Button variant="outline" className="max-sm:hidden" onClick={() => setSalDaContestare(null)}>Annulla</Button>
+            <Button variant="outline" className="max-sm:hidden" onClick={() => setSalDaContestare(null)}>{t("Annulla")}</Button>
             <Button
               variant="destructive"
               onClick={() => salDaContestare && contestaSALMutation.mutate({ sal: salDaContestare, note: contestaNote.trim() })}
               disabled={!contestaNote.trim() || contestaSALMutation.isPending}
             >
-              Conferma contestazione
+              {t("Conferma contestazione")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1340,7 +1343,7 @@ export default function SubappaltatoreDetail() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Euro className="h-5 w-5 text-green-600" />
-              Nuovo SAL subappaltatore
+              {t("Nuovo SAL subappaltatore")}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
@@ -1349,7 +1352,7 @@ export default function SubappaltatoreDetail() {
             )}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>N. SAL</Label>
+                <Label>{t("N. SAL")}</Label>
                 <Input
                   type="number"
                   value={salForm.numero_sal}
@@ -1358,13 +1361,13 @@ export default function SubappaltatoreDetail() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Data emissione</Label>
+                <Label>{t("Data emissione")}</Label>
                 <Input type="date" value={salForm.data_emissione} onChange={(e) => setSalForm(f => ({ ...f, data_emissione: e.target.value }))} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Importo lordo (€)</Label>
+                <Label>{t("Importo lordo (€)")}</Label>
                 <Input
                   type="number"
                   value={salForm.importo_lordo}
@@ -1373,7 +1376,7 @@ export default function SubappaltatoreDetail() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Ritenuta %</Label>
+                <Label>{t("Ritenuta %")}</Label>
                 <Input
                   type="number"
                   min="0"
@@ -1395,40 +1398,40 @@ export default function SubappaltatoreDetail() {
                   return (
                     <>
                       <div className="flex justify-between">
-                        <span>Ritenuta trattenuta:</span>
-                        <span className="font-medium text-amber-600">€{ritenuta.toLocaleString('it-IT', { minimumFractionDigits: 2 })}</span>
+                        <span>{t("Ritenuta trattenuta:")}</span>
+                        <span className="font-medium text-amber-600">€{ritenuta.toLocaleString(intlCampo(), { minimumFractionDigits: 2 })}</span>
                       </div>
                       <div className="flex justify-between font-semibold border-t pt-1">
-                        <span>Netto da pagare:</span>
-                        <span className="text-green-600">€{netto.toLocaleString('it-IT', { minimumFractionDigits: 2 })}</span>
+                        <span>{t("Netto da pagare:")}</span>
+                        <span className="text-green-600">€{netto.toLocaleString(intlCampo(), { minimumFractionDigits: 2 })}</span>
                       </div>
-                      <p className="text-xs text-muted-foreground">Se il contratto ha un acconto già fatturato, al salvataggio se ne scala la quota da questo netto.</p>
+                      <p className="text-xs text-muted-foreground">{t("Se il contratto ha un acconto già fatturato, al salvataggio se ne scala la quota da questo netto.")}</p>
                     </>
                   );
                 })()}
               </div>
             )}
             <div className="space-y-1.5">
-              <Label>Stato</Label>
+              <Label>{t("Stato")}</Label>
               <Select value={salForm.stato} onValueChange={(v) => setSalForm(f => ({ ...f, stato: v as StatoSALSub }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ricevuto">Ricevuto</SelectItem>
-                  <SelectItem value="verificato">Verificato</SelectItem>
-                  <SelectItem value="contestato">Contestato</SelectItem>
+                  <SelectItem value="ricevuto">{t("Ricevuto")}</SelectItem>
+                  <SelectItem value="verificato">{t("Verificato")}</SelectItem>
+                  <SelectItem value="contestato">{t("Contestato")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Note</Label>
+              <Label>{t("Note")}</Label>
               <Textarea value={salForm.note} onChange={(e) => setSalForm(f => ({ ...f, note: e.target.value }))} rows={2} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" className="max-sm:hidden" onClick={() => setSalDialog(false)} disabled={saveSalMutation.isPending}>Annulla</Button>
+            <Button variant="outline" className="max-sm:hidden" onClick={() => setSalDialog(false)} disabled={saveSalMutation.isPending}>{t("Annulla")}</Button>
             <Button onClick={() => saveSalMutation.mutate()} disabled={saveSalMutation.isPending || !salForm.importo_lordo}>
               {saveSalMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Registra SAL
+              {t("Registra SAL")}
             </Button>
           </DialogFooter>
         </DialogContent>

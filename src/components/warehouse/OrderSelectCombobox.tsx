@@ -25,9 +25,9 @@ import { cn } from "@/lib/utils";
 import { filtriRicercaParole } from "@/lib/ricerca/ricercaContatti";
 import { supabase } from "@/integrations/supabase/client";
 import { format, parseISO, differenceInDays } from "date-fns";
-import { it } from "date-fns/locale";
 import { BadgeGenerale, RigaAppartenenza } from "@/components/orders/generali/BadgeGerarchia";
 import { COLONNE_GERARCHIA, conGenerali, eGenerale, raggruppaPerGenerale, type RigaGerarchia } from "@/lib/orders/generali/gerarchiaScelta";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface OrderOption extends RigaGerarchia {
   id: string;
@@ -77,7 +77,7 @@ const FILTERS: { key: Filter; label: string; description: string }[] = [
 function fmtDate(d: string | null): string {
   if (!d) return "";
   try {
-    return format(parseISO(d), "d MMM yyyy", { locale: it });
+    return format(parseISO(d), "d MMM yyyy", { locale: dateFnsCampo() });
   } catch {
     return d;
   }
@@ -111,8 +111,9 @@ function relativeBadge(workStart: string | null, workEnd: string | null, expecte
 
 export function OrderSelectCombobox({
   id, soloOperative = false, generaliSempre = false, companyId, value, onChange, disabled,
-  placeholder, filtroIniziale, esclusi, ariaLabel = "Commessa",
+  placeholder, filtroIniziale, esclusi, ariaLabel,
 }: Props) {
+  const tr = useT();
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState<Filter>(filtroIniziale ?? "soon");
   const [search, setSearch] = useState("");
@@ -318,7 +319,7 @@ export function OrderSelectCombobox({
           type="button"
           variant="outline"
           role="combobox"
-          aria-label={ariaLabel}
+          aria-label={ariaLabel ?? tr("Commessa")}
           aria-expanded={open}
           disabled={disabled}
           className={cn(
@@ -335,12 +336,12 @@ export function OrderSelectCombobox({
               <span className="text-xs text-muted-foreground truncate w-full">
                 {nomeCommessa(selectedOrder)}
                 {selectedOrder.work_start_date && (
-                  <> · lavori dal {fmtDate(selectedOrder.work_start_date)}</>
+                  <>{" "}{tr("· lavori dal {work_start_date}", { work_start_date: fmtDate(selectedOrder.work_start_date) })}</>
                 )}
               </span>
             </div>
           ) : (
-            <span className="truncate">{placeholder ?? "Scegli un ordine..."}</span>
+            <span className="truncate">{placeholder ?? tr("Scegli un ordine...")}</span>
           )}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
@@ -348,7 +349,7 @@ export function OrderSelectCombobox({
       <PopoverContent className="w-[min(28rem,calc(100vw-2rem))] p-0" align="start">
         <Command shouldFilter={false}>
           {/* Search input */}
-          <CommandInput placeholder="Cerca per codice, cliente o indirizzo…" value={search} onValueChange={setSearch} />
+          <CommandInput placeholder={tr("Cerca per codice, cliente o indirizzo…")} value={search} onValueChange={setSearch} />
 
           {/* Filter chips */}
           <div className="flex items-center gap-1 px-2 py-2 border-b bg-muted/30">
@@ -363,9 +364,9 @@ export function OrderSelectCombobox({
                     ? "bg-primary text-primary-foreground font-medium"
                     : "text-muted-foreground hover:bg-muted",
                 )}
-                title={f.description}
+                title={tr(f.description)}
               >
-                {f.label}
+                {tr(f.label)}
               </button>
             ))}
             <span className="ml-auto text-[10px] text-muted-foreground">
@@ -381,33 +382,33 @@ export function OrderSelectCombobox({
           >
             {isError ? (
               <div role="alert" className="space-y-2 p-3 text-sm">
-                <p>Non riesco a caricare le commesse.</p>
-                <Button type="button" size="sm" variant="outline" onClick={() => void refetch()}>Riprova</Button>
+                <p>{tr("Non riesco a caricare le commesse.")}</p>
+                <Button type="button" size="sm" variant="outline" onClick={() => void refetch()}>{tr("Riprova")}</Button>
               </div>
             ) : isLoading ? (
               <div className="flex items-center justify-center py-6 text-xs text-muted-foreground">
                 <Loader2 className="h-3 w-3 animate-spin mr-2" />
-                Caricamento ordini…
+                {tr("Caricamento ordini…")}
               </div>
             ) : totalCount === 0 ? (
               <CommandEmpty className="py-6 text-center text-sm text-muted-foreground">
                 {debouncedSearch
-                  ? `Nessun ordine corrisponde a "${debouncedSearch}"`
+                  ? tr("Nessun ordine corrisponde a \"{debouncedSearch}\"", { debouncedSearch: String(debouncedSearch ?? "") })
                   : filter === "soon"
-                    ? "Nessun ordine con lavori nei prossimi 30 giorni"
+                    ? tr("Nessun ordine con lavori nei prossimi 30 giorni")
                     : filter === "generali"
-                      ? "Nessuna commessa generale"
-                      : "Nessun ordine trovato"}
+                      ? tr("Nessuna commessa generale")
+                      : tr("Nessun ordine trovato")}
               </CommandEmpty>
             ) : (
               <>
                 {/* Scadenze solo per i prossimi lavori: su tutte le commesse «Altri» non vuol dire niente. */}
                 {filter === "soon" && !debouncedSearch ? (
                   <>
-                    <OrderGroup heading="Oggi" orders={groups.today} value={value} onSelect={handleSelect} />
-                    <OrderGroup heading="Prossimi 7 giorni" orders={groups.thisWeek} value={value} onSelect={handleSelect} />
-                    <OrderGroup heading="Prossimi 30 giorni" orders={groups.thisMonth} value={value} onSelect={handleSelect} />
-                    <OrderGroup heading="Altri" orders={groups.other} value={value} onSelect={handleSelect} />
+                    <OrderGroup heading={tr("Oggi")} orders={groups.today} value={value} onSelect={handleSelect} />
+                    <OrderGroup heading={tr("Prossimi 7 giorni")} orders={groups.thisWeek} value={value} onSelect={handleSelect} />
+                    <OrderGroup heading={tr("Prossimi 30 giorni")} orders={groups.thisMonth} value={value} onSelect={handleSelect} />
+                    <OrderGroup heading={tr("Altri")} orders={groups.other} value={value} onSelect={handleSelect} />
                   </>
                 ) : (
                   <OrderGroup
@@ -456,6 +457,7 @@ function OrderGroup({
   value: string | undefined;
   onSelect: (o: OrderOption) => void;
 }) {
+  const tr = useT();
   if (orders.length === 0) return null;
   return (
     <CommandGroup heading={heading}>
@@ -483,7 +485,7 @@ function OrderGroup({
             {badge && (
               <span className={cn("inline-flex h-5 shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 text-[10px] font-medium", badge.cls)}>
                 <CalendarClock className="h-2.5 w-2.5" />
-                {badge.label}
+                {badge.label === "OGGI" ? tr("OGGI") : /^\d+gg fa$/.test(badge.label) ? tr("{n}gg fa", { n: badge.label.replace(/\D/g, "") }) : /^\d+gg$/.test(badge.label) ? tr("{n}gg", { n: badge.label.replace(/\D/g, "") }) : badge.label}
               </span>
             )}
           </CommandItem>

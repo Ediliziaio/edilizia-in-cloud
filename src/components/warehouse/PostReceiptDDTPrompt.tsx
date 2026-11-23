@@ -13,7 +13,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import {
   Dialog,
   DialogContent,
@@ -45,6 +44,7 @@ import {
   useDDTAttachments,
 } from "@/hooks/useDDTRicezione";
 import { NewDDTDialog } from "@/components/ddt/NewDDTDialog";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface PostReceiptDDTPromptProps {
   open: boolean;
@@ -70,6 +70,7 @@ export function PostReceiptDDTPrompt({
   orderItemName = "merce",
   capturedPhoto,
 }: PostReceiptDDTPromptProps) {
+  const t = useT();
   const [wizardOpen, setWizardOpen] = useState(false);
   const [chosenDdtId, setSelectedDdtId] = useState<string>("");
   const [isAttaching, setIsAttaching] = useState(false);
@@ -177,13 +178,13 @@ export function PostReceiptDDTPrompt({
               <div className="min-w-0 flex-1">
                 <DialogHeader className="space-y-1 text-left">
                   <DialogTitle className="text-base font-semibold flex items-center gap-2">
-                    Ricezione registrata
+                    {t("Ricezione registrata")}
                     <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
                   </DialogTitle>
                 </DialogHeader>
                 <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
                   <strong className="text-foreground">{orderItemName}</strong>{" "}
-                  è stato ricevuto in magazzino.
+                  {t("è stato ricevuto in magazzino.")}
                 </p>
                 {contextLine && (
                   <div className="mt-2 flex items-center gap-1.5 text-[11px] text-muted-foreground">
@@ -198,11 +199,10 @@ export function PostReceiptDDTPrompt({
           {/* Body */}
           <div className="px-5 py-4 space-y-3">
             <p className="text-sm font-medium">
-              Vuoi registrare il <span className="text-primary">DDT di consegna</span>?
+              {t("Vuoi registrare il DDT di consegna?")}
             </p>
             <p className="text-xs text-muted-foreground">
-              Completare il DDT formale permette tracciabilità piena (corriere,
-              autista, verifica qualità, firma, allegati).
+              {t("Completare il DDT formale permette tracciabilità piena (corriere, autista, verifica qualità, firma, allegati).")}
             </p>
 
             {/* Preview foto catturata */}
@@ -222,7 +222,7 @@ export function PostReceiptDDTPrompt({
                 <div className="flex-1 min-w-0 text-xs">
                   <p className="font-medium truncate">{capturedPhoto.name}</p>
                   <p className="text-muted-foreground">
-                    Foto pronta per upload
+                    {t("Foto pronta per upload")}
                   </p>
                 </div>
               </div>
@@ -232,7 +232,7 @@ export function PostReceiptDDTPrompt({
             {poQuery.isLoading && (
               <div className="rounded-md bg-muted/30 p-2.5 text-xs text-muted-foreground flex items-center gap-1.5">
                 <Loader2 className="h-3 w-3 animate-spin" />
-                Ricerca ordine d'acquisto…
+                {t("Ricerca ordine d'acquisto…")}
               </div>
             )}
 
@@ -241,10 +241,9 @@ export function PostReceiptDDTPrompt({
               <div className="rounded-md bg-amber-50 border border-amber-200 p-2.5 flex items-start gap-2">
                 <Info className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
                 <div className="text-xs text-amber-900">
-                  <p className="font-medium">Nessun ODA collegato</p>
+                  <p className="font-medium">{t("Nessun ODA collegato")}</p>
                   <p className="text-amber-800">
-                    L'articolo non risulta su un Ordine d'Acquisto. Puoi
-                    chiudere e gestire il DDT più tardi dal menu DDT.
+                    {t("L'articolo non risulta su un Ordine d'Acquisto. Puoi chiudere e gestire il DDT più tardi dal menu DDT.")}
                   </p>
                 </div>
               </div>
@@ -255,8 +254,7 @@ export function PostReceiptDDTPrompt({
               <div className="space-y-1.5 rounded-md border bg-sky-50/50 p-2.5">
                 <div className="flex items-center gap-1.5 text-xs font-medium text-sky-900">
                   <Paperclip className="h-3.5 w-3.5" />
-                  {existingDdts.length} DDT esistent
-                  {existingDdts.length === 1 ? "e" : "i"} per questo ODA
+                  {existingDdts.length === 1 ? t("{n} DDT esistente per questo ODA", { n: 1 }) : t("{n} DDT esistenti per questo ODA", { n: existingDdts.length })}
                 </div>
                 {capturedPhoto ? (
                   <Select
@@ -264,7 +262,7 @@ export function PostReceiptDDTPrompt({
                     onValueChange={setSelectedDdtId}
                   >
                     <SelectTrigger className="h-8 text-xs bg-background">
-                      <SelectValue placeholder="Seleziona DDT…" />
+                      <SelectValue placeholder={t("Seleziona DDT…")} />
                     </SelectTrigger>
                     <SelectContent>
                       {existingDdts.map((d) => (
@@ -275,7 +273,7 @@ export function PostReceiptDDTPrompt({
                             </span>
                             <span className="text-[10px] text-muted-foreground">
                               {format(new Date(d.data_ricezione), "dd/MM/yyyy", {
-                                locale: it,
+                                locale: dateFnsCampo(),
                               })}{" "}
                               · {d.stato}
                             </span>
@@ -286,8 +284,7 @@ export function PostReceiptDDTPrompt({
                   </Select>
                 ) : (
                   <p className="text-[11px] text-sky-800">
-                    Scatta una foto in fase di ricezione per allegarla a un DDT
-                    esistente.
+                    {t("Scatta una foto in fase di ricezione per allegarla a un DDT esistente.")}
                   </p>
                 )}
               </div>
@@ -295,7 +292,7 @@ export function PostReceiptDDTPrompt({
 
             {!poQuery.isLoading && poId && !hasExisting && !ddtsLoading && (
               <p className="text-[11px] text-muted-foreground italic">
-                Nessun DDT registrato per questo ODA. Crealo qui.
+                {t("Nessun DDT registrato per questo ODA. Crealo qui.")}
               </p>
             )}
           </div>
@@ -309,7 +306,7 @@ export function PostReceiptDDTPrompt({
                 disabled={isAttaching}
               >
                 <FileCheck className="h-4 w-4" />
-                Crea DDT formale (wizard)
+                {t("Crea DDT formale (wizard)")}
               </Button>
             )}
             {canShowAttachButton && (
@@ -324,7 +321,7 @@ export function PostReceiptDDTPrompt({
                 ) : (
                   <Paperclip className="h-4 w-4" />
                 )}
-                Allega foto al DDT selezionato
+                {t("Allega foto al DDT selezionato")}
               </Button>
             )}
             <Button
@@ -333,7 +330,7 @@ export function PostReceiptDDTPrompt({
               disabled={isAttaching}
               className="w-full text-muted-foreground"
             >
-              Solo ricezione — chiudi
+              {t("Solo ricezione — chiudi")}
             </Button>
           </DialogFooter>
         </DialogContent>

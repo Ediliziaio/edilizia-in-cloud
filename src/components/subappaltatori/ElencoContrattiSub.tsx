@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import type { ContrattoCompleto } from "./ContrattiSubappalto";
 import type { RiepilogoContratto } from "@/lib/subappaltatori/riconciliazioneContratto";
 import { euroSub } from "@/lib/subappaltatori/lavoriMisure";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export const FASI_CONTRATTO = {
   bozza: "Bozza",
@@ -30,6 +31,7 @@ const data = (v: string | null) =>
   v ? v.slice(0, 10).split("-").reverse().join("/") : "Non indicata";
 
 function Stato({ stato }: { stato: keyof typeof FASI_CONTRATTO }) {
+  const t = useT();
   return (
     <Badge
       variant="outline"
@@ -43,7 +45,7 @@ function Stato({ stato }: { stato: keyof typeof FASI_CONTRATTO }) {
               : "bg-muted/50"
       }
     >
-      {FASI_CONTRATTO[stato]}
+      {t(FASI_CONTRATTO[stato])}
     </Badge>
   );
 }
@@ -71,6 +73,7 @@ function Scheda({
   riga: RigaContrattoSub;
   onApri: (id: string) => void;
 }) {
+  const t = useT();
   const { contratto: c, riepilogo: r, firma } = riga;
   return (
     <button
@@ -80,38 +83,34 @@ function Scheda({
     >
       <div className="flex items-start justify-between gap-2">
         <span className="break-words text-sm font-semibold">
-          {c.numero_contratto || "Contratto senza numero"}
+          {c.numero_contratto || t("Contratto senza numero")}
         </span>
         <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground" />
       </div>
       <p className="mt-1 text-xs text-muted-foreground">
-        {c.commessa?.order_code || "Commessa"} ·{" "}
+        {c.commessa?.order_code || t("Commessa")} ·{" "}
         {c.commessa?.description || c.descrizione_lavori}
       </p>
       <div className="my-3 flex flex-wrap gap-2">
         <Stato stato={c.stato} />
-        <Badge variant="outline">{FIRME[firma]}</Badge>
+        <Badge variant="outline">{t(FIRME[firma])}</Badge>
       </div>
       <div className="mb-3 grid grid-cols-2 gap-2 text-xs">
         <div>
-          <p className="text-muted-foreground">Valore con oneri</p>
+          <p className="text-muted-foreground">{t("Valore con oneri")}</p>
           <p className="mt-1 font-semibold tabular-nums">{euroSub(r.valore)}</p>
         </div>
         <div>
-          <p className="text-muted-foreground">Netto SAL non pagati</p>
+          <p className="text-muted-foreground">{t("Netto SAL non pagati")}</p>
           <p className="mt-1 font-semibold tabular-nums">
             {euroSub(r.daPagare)}
           </p>
         </div>
       </div>
       <Avanzamento r={r} />
-      <p className="mt-3 text-xs text-muted-foreground">
-        Fine prevista: {data(c.data_fine_prevista)}
-      </p>
+      <p className="mt-3 text-xs text-muted-foreground">{t("Fine prevista: {data_fine_prevista}", { data_fine_prevista: String(data(c.data_fine_prevista) ?? "") })}</p>
       {r.avvisi.length > 0 && (
-        <p className="mt-2 text-xs font-medium text-amber-800">
-          {r.avvisi.length} verifiche contabili
-        </p>
+        <p className="mt-2 text-xs font-medium text-amber-800">{t("{n} verifiche contabili", { n: r.avvisi.length })}</p>
       )}
     </button>
   );
@@ -131,6 +130,7 @@ export function ElencoContrattiSub({
   onCommessa?: (id: string) => void;
   onLavorazioni?: (contratto: ContrattoCompleto) => void;
 }) {
+  const t = useT();
   const [vista, setVista] = useState<"tabella" | "fasi" | "schede">("tabella");
   const [ricerca, setRicerca] = useState("");
   const [fase, setFase] = useState("tutti");
@@ -184,7 +184,7 @@ export function ElencoContrattiSub({
     <Button size="sm" variant="outline" onClick={event => {
       event.stopPropagation();
       onLavorazioni(contratto);
-    }}>Lavorazioni affidate</Button>
+    }}>{t("Lavorazioni affidate")}</Button>
   );
   const scheda = (r: RigaContrattoSub) => (
     <div key={r.contratto.id} className="space-y-1">
@@ -210,7 +210,7 @@ export function ElencoContrattiSub({
           ["Valore con oneri", euroSub(totale)],
         ].map(([label, value]) => (
           <div key={label} className="rounded-xl border bg-background p-3">
-            <p className="text-xs text-muted-foreground">{label}</p>
+            <p className="text-xs text-muted-foreground">{t(String(label))}</p>
             <p className="mt-1 text-xl font-semibold tabular-nums">{value}</p>
           </div>
         ))}
@@ -220,7 +220,7 @@ export function ElencoContrattiSub({
           <div
             className="flex rounded-lg bg-muted p-1"
             role="group"
-            aria-label="Vista contratti"
+            aria-label={t("Vista contratti")}
           >
             {(
               [
@@ -244,20 +244,20 @@ export function ElencoContrattiSub({
           <div className="relative min-w-48 flex-1">
             <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
             <Input
-              aria-label="Cerca contratti e commesse"
-              placeholder="Cerca contratto, commessa, cliente o referente…"
+              aria-label={t("Cerca contratti e commesse")}
+              placeholder={t("Cerca contratto, commessa, cliente o referente…")}
               className="pl-9"
               value={ricerca}
               onChange={(e) => cambia(() => setRicerca(e.target.value))}
             />
           </div>
           <UniformSelect
-            aria-label="Stato firma"
+            aria-label={t("Stato firma")}
             className="h-10 rounded-md border bg-background px-3 text-sm"
             value={firma}
             onChange={(e) => cambia(() => setFirma(e.target.value))}
           >
-            <option value="tutte">Tutte le firme</option>
+            <option value="tutte">{t("Tutte le firme")}</option>
             {Object.entries(FIRME).map(([v, l]) => (
               <option key={v} value={v}>
                 {l}
@@ -265,20 +265,20 @@ export function ElencoContrattiSub({
             ))}
           </UniformSelect>
           <UniformSelect
-            aria-label="Ordina contratti"
+            aria-label={t("Ordina contratti")}
             className="h-10 rounded-md border bg-background px-3 text-sm"
             value={ordine}
             onChange={(e) => cambia(() => setOrdine(e.target.value))}
           >
-            <option value="recenti">Più recenti</option>
-            <option value="valore">Valore maggiore</option>
-            <option value="fine">Fine prevista</option>
+            <option value="recenti">{t("Più recenti")}</option>
+            <option value="valore">{t("Valore maggiore")}</option>
+            <option value="fine">{t("Fine prevista")}</option>
           </UniformSelect>
         </div>
         <div
           className="flex flex-wrap items-center gap-1 border-t pt-2"
           role="group"
-          aria-label="Stato lavori"
+          aria-label={t("Stato lavori")}
         >
           {[["tutti", "Tutti"], ...Object.entries(FASI_CONTRATTO)].map(
             ([v, l]) => (
@@ -302,20 +302,20 @@ export function ElencoContrattiSub({
       </div>
       <div className="flex flex-wrap justify-between gap-2 text-xs text-muted-foreground">
         <p>
-          {filtrate.length} di {righe.length} contratti ·{" "}
+          {t("{n} di {totale} contratti ·", { n: filtrate.length, totale: righe.length })}{" "}
           {contesto === "commesse"
-            ? "apri la commessa o il relativo contratto"
-            : "seleziona un contratto per i dettagli"}
+            ? t("apri la commessa o il relativo contratto")
+            : t("seleziona un contratto per i dettagli")}
         </p>
-        <p>Stato lavori e firma sono distinti</p>
+        <p>{t("Stato lavori e firma sono distinti")}</p>
       </div>
       {filtrate.length === 0 ? (
         <div className="rounded-xl border border-dashed p-8 text-center">
           <p className="text-sm text-muted-foreground">
-            Nessun contratto corrispondente.
+            {t("Nessun contratto corrispondente.")}
           </p>
           <Button variant="link" onClick={reset}>
-            Reimposta filtri
+            {t("Reimposta filtri")}
           </Button>
         </div>
       ) : vista === "fasi" ? (
@@ -338,7 +338,7 @@ export function ElencoContrattiSub({
                   <div className="space-y-2 p-2">
                     {gruppo.length === 0 ? (
                       <p className="p-4 text-center text-xs text-muted-foreground">
-                        Nessun contratto in questa fase
+                        {t("Nessun contratto in questa fase")}
                       </p>
                     ) : (
                       gruppo
@@ -353,7 +353,7 @@ export function ElencoContrattiSub({
                           setLimiti((l) => ({ ...l, [stato]: limite + 20 }))
                         }
                       >
-                        Mostra altri 20
+                        {t("Mostra altri 20")}
                       </Button>
                     )}
                   </div>
@@ -372,18 +372,18 @@ export function ElencoContrattiSub({
             <table className="w-full min-w-[1050px] text-sm">
               <thead className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
                 <tr>
-                  <th className="p-3 font-medium">Contratto / commessa</th>
-                  <th className="p-3 font-medium">Stato lavori</th>
-                  <th className="p-3 font-medium">Firma</th>
+                  <th className="p-3 font-medium">{t("Contratto / commessa")}</th>
+                  <th className="p-3 font-medium">{t("Stato lavori")}</th>
+                  <th className="p-3 font-medium">{t("Firma")}</th>
                   <th className="p-3 text-right font-medium">
-                    Valore con oneri
+                    {t("Valore con oneri")}
                   </th>
-                  <th className="p-3 font-medium">Avanzamento SAL</th>
+                  <th className="p-3 font-medium">{t("Avanzamento SAL")}</th>
                   <th className="p-3 text-right font-medium">
-                    Netto SAL non pagati
+                    {t("Netto SAL non pagati")}
                   </th>
-                  <th className="p-3 font-medium">Fine prevista</th>
-                  {onCommessa && <th className="p-3 font-medium">Commessa</th>}
+                  <th className="p-3 font-medium">{t("Fine prevista")}</th>
+                  {onCommessa && <th className="p-3 font-medium">{t("Commessa")}</th>}
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -401,22 +401,20 @@ export function ElencoContrattiSub({
                           onApri(c.id);
                         }}
                       >
-                        {c.numero_contratto || "Contratto senza numero"}
+                        {c.numero_contratto || t("Contratto senza numero")}
                       </button>
                       <p className="mt-1 text-xs text-muted-foreground">
                         {c.commessa?.order_code} ·{" "}
                         {c.commessa?.description || c.descrizione_lavori}
                       </p>
                       {r.avvisi.length > 0 && (
-                        <p className="mt-1 text-xs text-amber-800">
-                          {r.avvisi.length} verifiche contabili
-                        </p>
+                        <p className="mt-1 text-xs text-amber-800">{t("{n} verifiche contabili", { n: r.avvisi.length })}</p>
                       )}
                     </td>
                     <td className="p-3">
                       <Stato stato={c.stato} />
                     </td>
-                    <td className="p-3 text-xs">{FIRME[f]}</td>
+                    <td className="p-3 text-xs">{t(FIRME[f])}</td>
                     <td className="whitespace-nowrap p-3 text-right tabular-nums">
                       {euroSub(r.valore)}
                     </td>
@@ -440,7 +438,7 @@ export function ElencoContrattiSub({
                             onCommessa(c.order_id);
                           }}
                         >
-                          Apri commessa
+                          {t("Apri commessa")}
                         </Button>
                       </div></td>
                     )}
@@ -460,7 +458,7 @@ export function ElencoContrattiSub({
                     variant="outline"
                     onClick={() => onCommessa(r.contratto.order_id)}
                   >
-                    Apri commessa
+                    {t("Apri commessa")}
                   </Button>
                 )}</div>
               </div>
@@ -470,24 +468,21 @@ export function ElencoContrattiSub({
       )}
       {vista !== "fasi" && filtrate.length > 20 && (
         <div className="flex items-center justify-between gap-2">
-          <p className="text-xs text-muted-foreground">
-            {corrente * 20 + 1}–{Math.min((corrente + 1) * 20, filtrate.length)}{" "}
-            di {filtrate.length}
-          </p>
+          <p className="text-xs text-muted-foreground">{t("{da}–{a} di {n}", { da: corrente * 20 + 1, a: Math.min((corrente + 1) * 20, filtrate.length), n: filtrate.length })}</p>
           <div className="flex gap-2">
             <Button
               variant="outline"
               disabled={corrente === 0}
               onClick={() => setPagina(corrente - 1)}
             >
-              Precedenti
+              {t("Precedenti")}
             </Button>
             <Button
               variant="outline"
               disabled={corrente === ultima}
               onClick={() => setPagina(corrente + 1)}
             >
-              Successivi
+              {t("Successivi")}
             </Button>
           </div>
         </div>

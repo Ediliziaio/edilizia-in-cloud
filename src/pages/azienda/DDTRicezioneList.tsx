@@ -29,7 +29,6 @@ import { usePipelineTransition } from "@/hooks/usePipelineTransition";
 import { useState, useMemo } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -119,6 +118,7 @@ import {
   operationalPeriod,
   updateOperationalParams,
 } from "@/lib/orders/operationalFilters";
+import { useT, intlCampo, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type FilterKey = "tutti" | "da_registrare" | DDTStato;
 type SortDirection = "asc" | "desc";
@@ -254,6 +254,7 @@ export default function DDTRicezioneList() {
 }
 
 function DocumentoDDTCollegato({ id, canCreate }: { id: string; canCreate: boolean }) {
+  const t = useT();
   const navigate = useNavigate();
   const ingresso = useDocumentiInIngresso(canCreate, id);
   const documento = ingresso.query.data?.find(j => j.id === id);
@@ -272,16 +273,16 @@ function DocumentoDDTCollegato({ id, canCreate }: { id: string; canCreate: boole
       <header className="flex flex-wrap items-start justify-between gap-3 rounded-xl border bg-card p-3 sm:p-4">
         <div className="flex min-w-0 items-start gap-2">
           <Button asChild variant="ghost" size="icon" className="shrink-0">
-            <Link aria-label="Tutti i DDT" to="/azienda/ordini?tab=ddt"><ArrowLeft className="size-4" aria-hidden="true" /></Link>
+            <Link aria-label={t("Tutti i DDT")} to="/azienda/ordini?tab=ddt"><ArrowLeft className="size-4" aria-hidden="true" /></Link>
           </Button>
           <div className="min-w-0 space-y-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 id="bolla-collegata" className="text-lg font-bold sm:text-xl">DDT in ingresso</h1>
+              <h1 id="bolla-collegata" className="text-lg font-bold sm:text-xl">{t("DDT in ingresso")}</h1>
               {stato && <StatoDocumentoInIngresso stato={stato} />}
             </div>
             {documento && <p className="text-xs text-muted-foreground">
-              {documento.source === "whatsapp" ? "WhatsApp" : documento.source === "campo" ? "App cantiere" : "Caricamento ufficio"}
-              {" · "}{new Date(documento.created_at).toLocaleDateString("it-IT")}
+              {documento.source === "whatsapp" ? "WhatsApp" : documento.source === "campo" ? t("App cantiere") : t("Caricamento ufficio")}
+              {" · "}{new Date(documento.created_at).toLocaleDateString(intlCampo())}
             </p>}
           </div>
         </div>
@@ -290,23 +291,23 @@ function DocumentoDDTCollegato({ id, canCreate }: { id: string; canCreate: boole
             <Button variant="outline" size="sm" disabled={ingresso.riprovando === id} onClick={() => {
               setVista(null);
               void ingresso.riprova(documento);
-            }}>{stato === "error" ? "Rileggi con l’AI" : "Leggi con l’AI"}</Button>
+            }}>{stato === "error" ? t("Rileggi con l’AI") : t("Leggi con l’AI")}</Button>
           )}
           {puoCompilare && (
             <Button size="sm" variant={mostraEditor ? "outline" : "default"}
               onClick={() => setVista(mostraEditor ? "originale" : "modifica")}>
-              {mostraEditor ? "Solo originale" : stato === "review" ? "Controlla e registra" : "Compila a mano"}
+              {mostraEditor ? t("Solo originale") : stato === "review" ? t("Controlla e registra") : t("Compila a mano")}
             </Button>
           )}
         </div>}
       </header>
-      {ingresso.query.isLoading && <p role="status" className="text-sm text-muted-foreground">Caricamento della bolla…</p>}
+      {ingresso.query.isLoading && <p role="status" className="text-sm text-muted-foreground">{t("Caricamento della bolla…")}</p>}
       {ingresso.query.isError && <div className="flex items-center gap-2">
-        <p role="alert" className="text-sm text-destructive">Caricamento della bolla non riuscito.</p>
-        <Button size="sm" variant="outline" onClick={() => void ingresso.query.refetch()}>Riprova</Button>
+        <p role="alert" className="text-sm text-destructive">{t("Caricamento della bolla non riuscito.")}</p>
+        <Button size="sm" variant="outline" onClick={() => void ingresso.query.refetch()}>{t("Riprova")}</Button>
       </div>}
       {!ingresso.query.isLoading && !ingresso.query.isError && !documento && (
-        <p role="status" className="text-sm text-muted-foreground">Bolla non disponibile per questa utenza.</p>
+        <p role="status" className="text-sm text-muted-foreground">{t("Bolla non disponibile per questa utenza.")}</p>
       )}
       {documento && (
         <>
@@ -317,12 +318,12 @@ function DocumentoDDTCollegato({ id, canCreate }: { id: string; canCreate: boole
           {documento.last_error && <p className="text-sm text-destructive">{documento.last_error}</p>}
           {stato === "split" && !!documento.split_ids?.length && (
             <div className="space-y-2 rounded-lg border bg-card p-4">
-              <p className="text-sm font-medium">Bolle ricavate dal PDF</p>
+              <p className="text-sm font-medium">{t("Bolle ricavate dal PDF")}</p>
               <ul className="flex flex-wrap gap-2">
                 {documento.split_ids.filter(idBollaValido).map((figlio, i) => (
                   <li key={figlio}>
                     <Button asChild size="sm" variant="outline">
-                      <Link to={`/azienda/ordini?tab=ddt&ddt_documento=${figlio}`}>Apri bolla {i + 1}</Link>
+                      <Link to={`/azienda/ordini?tab=ddt&ddt_documento=${figlio}`}>{t("Apri bolla {i}", { i: i + 1 })}</Link>
                     </Button>
                   </li>
                 ))}
@@ -333,8 +334,8 @@ function DocumentoDDTCollegato({ id, canCreate }: { id: string; canCreate: boole
             <RevisioneDocumento documento={documento} incorporata onClose={() => setVista("originale")}
               onRegistrata={ddtId => navigate(`/azienda/ddt/${ddtId}`, { replace: true })} />
           ) : (
-            <section aria-label="Bolla originale" className="rounded-xl border bg-card p-3 sm:p-4">
-              <h2 className="mb-2 text-sm font-semibold">Bolla originale</h2>
+            <section aria-label={t("Bolla originale")} className="rounded-xl border bg-card p-3 sm:p-4">
+              <h2 className="mb-2 text-sm font-semibold">{t("Bolla originale")}</h2>
               <OriginaliConfronto companyId={documento.company_id} files={originaliBolla(documento.company_id, {}, [documento])} />
             </section>
           )}
@@ -345,6 +346,7 @@ function DocumentoDDTCollegato({ id, canCreate }: { id: string; canCreate: boole
 }
 
 function ElencoDDT({ canCreate }: { canCreate: boolean }) {
+  const t = useT();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [params, setParams] = useSearchParams();
@@ -651,7 +653,7 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
   const exportCSV = () => {
     const rows = buildExportRows();
     if (rows.length === 0) {
-      toast({ title: "Nessun DDT da esportare", variant: "destructive" });
+      toast({ title: t("Nessun DDT da esportare"), variant: "destructive" });
       return;
     }
     exportToCSV(
@@ -659,13 +661,13 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
       exportColumns,
       `ddt-${format(new Date(), "yyyy-MM-dd")}.csv`,
     );
-    toast({ title: `CSV esportato — ${rows.length} DDT` });
+    toast({ title: t("CSV esportato — {n} DDT", { n: rows.length }) });
   };
 
   const exportXLSX = async () => {
     const rows = buildExportRows();
     if (rows.length === 0) {
-      toast({ title: "Nessun DDT da esportare", variant: "destructive" });
+      toast({ title: t("Nessun DDT da esportare"), variant: "destructive" });
       return;
     }
     await exportToXLSX(
@@ -673,13 +675,13 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
       exportColumns,
       `ddt-${format(new Date(), "yyyy-MM-dd")}.xlsx`,
     );
-    toast({ title: `Excel esportato — ${rows.length} DDT` });
+    toast({ title: t("Excel esportato — {n} DDT", { n: rows.length }) });
   };
 
   const exportPDF = async () => {
     const rows = buildExportRows();
     if (rows.length === 0) {
-      toast({ title: "Nessun DDT da esportare", variant: "destructive" });
+      toast({ title: t("Nessun DDT da esportare"), variant: "destructive" });
       return;
     }
     try {
@@ -766,11 +768,11 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
       });
 
       doc.save(`ddt-${format(new Date(), "yyyy-MM-dd")}.pdf`);
-      toast({ title: `PDF esportato — ${rows.length} DDT` });
+      toast({ title: t("PDF esportato — {n} DDT", { n: rows.length }) });
     } catch (e) {
       toast({
-        title: "Errore export PDF",
-        description: e instanceof Error ? e.message : "Generazione PDF fallita",
+        title: t("Errore export PDF"),
+        description: e instanceof Error ? e.message : t("Generazione PDF fallita"),
         variant: "destructive",
       });
     }
@@ -779,32 +781,32 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
   const columns = [
     {
       id: "atteso",
-      label: "Attesi",
-      hint: "Merce ancora da ricevere",
+      label: t("Attesi"),
+      hint: t("Merce ancora da ricevere"),
       accent: "border-t-sky-500",
     },
     {
       id: "parziale",
-      label: "Parziali",
-      hint: "Ricezione da completare",
+      label: t("Parziali"),
+      hint: t("Ricezione da completare"),
       accent: "border-t-amber-500",
     },
     {
       id: "ricevuto",
-      label: "Da verificare",
-      hint: "Merce ricevuta, controllo da eseguire",
+      label: t("Da verificare"),
+      hint: t("Merce ricevuta, controllo da eseguire"),
       accent: "border-t-rose-500",
     },
     {
       id: "verificato",
-      label: "Verificati",
-      hint: "Controllo completato senza danni segnalati",
+      label: t("Verificati"),
+      hint: t("Controllo completato senza danni segnalati"),
       accent: "border-t-emerald-500",
     },
     {
       id: "non_conforme",
-      label: "Non conformi / danni",
-      hint: "Difformità o danni da approfondire",
+      label: t("Non conformi / danni"),
+      hint: t("Difformità o danni da approfondire"),
       accent: "border-t-rose-500",
     },
   ].map((c) => ({ ...c, items: filtered.filter((d) => stage(d) === c.id) }));
@@ -826,20 +828,20 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
         <DDTStatusBadge stato={ddt.stato} size="sm" />
       </PipelineCardHeading>
       <p className="mt-2 text-sm font-medium">
-        {fornitoreNomeDi(ddt) ?? "Fornitore non indicato"}
+        {fornitoreNomeDi(ddt) ?? t("Fornitore non indicato")}
       </p>
       <p className="mt-1 text-xs text-muted-foreground">
-        {ddt.purchase_orders?.oda_number ?? "Senza ordine d'acquisto"}
+        {ddt.purchase_orders?.oda_number ?? t("Senza ordine d'acquisto")}
       </p>
       <p className="mt-1 text-xs text-primary">
-        {commessaCodiceDi(ddt) ?? "Senza commessa"}
+        {commessaCodiceDi(ddt) ?? t("Senza commessa")}
         {` · ${destinazioneConsegneDDT(ddt)}`}
       </p>
       <div className="mt-2 space-y-1 text-xs text-muted-foreground">
         <p>
           {ddt.data_ricezione
             ? format(new Date(ddt.data_ricezione), "dd/MM/yyyy")
-            : "Data non indicata"}
+            : t("Data non indicata")}
           {ddt.ora_arrivo ? ` · ${ddt.ora_arrivo.slice(0, 5)}` : ""}
         </p>
         <p>{magazziniConsegneDDT(ddt)}</p>
@@ -851,17 +853,17 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
         )}
       </div>
       <p className="mt-2 text-xs font-medium">
-        {ddt.ricezione_esplicita ? "Consegne" : "Quantità ricevuta"}:{" "}
+        {ddt.ricezione_esplicita ? t("Consegne") : t("Quantità ricevuta")}:{" "}
         {riepilogoQuantitaDDT(ddt)}
       </p>
       {ddt.has_damages && (
         <p className="mt-2 flex items-center gap-1 text-xs font-medium text-rose-700">
           <AlertTriangle className="h-3 w-3" />
-          Danni segnalati
+          {t("Danni segnalati")}
         </p>
       )}
       <p className="mt-2 border-t pt-2 text-xs text-muted-foreground">
-        {(ddt.attachments?.length ?? 0) + (ddt.ddt_file_url ? 1 : 0)} allegati
+        {t("{n} allegati", { n: (ddt.attachments?.length ?? 0) + (ddt.ddt_file_url ? 1 : 0) })}
       </p>
     </article>
   );
@@ -874,21 +876,21 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
           {canCreate && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" className="h-9 w-9 rounded-full" aria-label="Altre azioni DDT">
+                <Button variant="outline" size="icon" className="h-9 w-9 rounded-full" aria-label={t("Altre azioni DDT")}>
                   <MoreHorizontal className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 {(pendingBase.length > 0 || ingresso.invii.length > 0 || !!invioSelezionato) && (
                   <DropdownMenuItem onSelect={() => setTab(tab === "da_registrare" ? "tutti" : "da_registrare")}>
-                    {tab === "da_registrare" ? "Tutti i DDT" : `Documenti in ingresso (${pendingBase.length})`}
+                    {tab === "da_registrare" ? t("Tutti i DDT") : t("Documenti in ingresso ({n})", { n: pendingBase.length })}
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem onSelect={() => setBloccoOpen(true)}>Carica più bolle</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setBloccoOpen(true)}>{t("Carica più bolle")}</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-          <Button size="icon" disabled={!canCreate} aria-label="Nuovo DDT" onClick={() => { if (canCreate) setNewOpen(true); }}
+          <Button size="icon" disabled={!canCreate} aria-label={t("Nuovo DDT")} onClick={() => { if (canCreate) setNewOpen(true); }}
             className="h-9 w-9 rounded-full bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm">
             <Plus className="h-4 w-4" />
           </Button>
@@ -897,10 +899,9 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
           filtri e «Nuovo», senza esportazioni. ─────────────────────── */}
       <div className={cn("flex flex-wrap items-start justify-between gap-3", slotAzioni && "hidden")}>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">DDT fornitori</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t("DDT fornitori")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Ricezione, controllo della merce e documenti collegati a ordini e
-            commesse.
+            {t("Ricezione, controllo della merce e documenti collegati a ordini e commesse.")}
           </p>
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap max-sm:w-full max-sm:flex-nowrap">
@@ -909,14 +910,12 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="max-sm:hidden">
                 <Download className="h-4 w-4 mr-1.5" />
-                <span className="hidden sm:inline">Esporta</span>
+                <span className="hidden sm:inline">{t("Esporta")}</span>
                 <ChevronDown className="h-3.5 w-3.5 ml-1" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuLabel className="text-[11px]">
-                DDT filtrati ({filtered.length})
-              </DropdownMenuLabel>
+              <DropdownMenuLabel className="text-[11px]">{t("DDT filtrati ({n})", { n: filtered.length })}</DropdownMenuLabel>
               <DropdownMenuItem onClick={exportCSV}>
                 <FileText className="h-4 w-4 mr-2" /> CSV
               </DropdownMenuItem>
@@ -934,12 +933,12 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
               variant={tab === "da_registrare" ? "secondary" : "outline"}
               size="sm"
               className="shrink-0"
-              aria-label={`Documenti in ingresso (${pendingBase.length})`}
+              aria-label={t("Documenti in ingresso ({n})", { n: pendingBase.length })}
               aria-pressed={tab === "da_registrare"}
               onClick={() => setTab(tab === "da_registrare" ? "tutti" : "da_registrare")}
             >
-              <span className="hidden sm:inline">Documenti in ingresso</span>
-              <span className="sm:hidden">In ingresso</span>
+              <span className="hidden sm:inline">{t("Documenti in ingresso")}</span>
+              <span className="sm:hidden">{t("In ingresso")}</span>
               <span className="ml-1 tabular-nums">({pendingBase.length})</span>
             </Button>
           )}
@@ -951,8 +950,8 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
               className="shrink-0"
               onClick={() => setBloccoOpen(true)}
             >
-              <span className="hidden sm:inline">Carica più bolle</span>
-              <span className="sm:hidden">Più bolle</span>
+              <span className="hidden sm:inline">{t("Carica più bolle")}</span>
+              <span className="sm:hidden">{t("Più bolle")}</span>
             </Button>
           )}
 
@@ -965,14 +964,14 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
             className="shrink-0 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm shadow-orange-500/20 hover:from-orange-600 hover:to-amber-500 hover:shadow-md hover:shadow-orange-500/25 max-sm:flex-1"
           >
             <Plus className="h-4 w-4 mr-1" />
-            <span className="hidden sm:inline">Nuovo DDT</span>
-            <span className="sm:hidden">Nuovo</span>
+            <span className="hidden sm:inline">{t("Nuovo DDT")}</span>
+            <span className="sm:hidden">{t("Nuovo")}</span>
           </Button>
         </div>
       </div>
 
-      <OperationalSummary label="Riepilogo DDT" title="Ricezioni e controlli" icon={Truck} error={isError}>
-        {([{ key: "atteso", label: "Attesi" }, { key: "parziale", label: "Ricezioni parziali" }, { key: "ricevuto", label: "Da verificare" }, { key: "non_conforme", label: "Non conformi" }] as const).map(item => {
+      <OperationalSummary label={t("Riepilogo DDT")} title={t("Ricezioni e controlli")} icon={Truck} error={isError}>
+        {([{ key: "atteso", label: t("Attesi") }, { key: "parziale", label: t("Ricezioni parziali") }, { key: "ricevuto", label: t("Da verificare") }, { key: "non_conforme", label: t("Non conformi") }] as const).map(item => {
           const registrati = baseFiltered.filter(ddt => stage(ddt) === item.key).length;
           const totale = registrati + (item.key === "ricevuto" ? pendingDaVerificare.length : 0);
           return <OperationalSummaryMetric key={item.key} label={item.label} value={totale} isLoading={isLoading}
@@ -982,38 +981,36 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
         })}
       </OperationalSummary>
 
-      <section aria-label="Filtri DDT" className="rounded-xl border bg-white p-2.5 shadow-sm max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
+      <section aria-label={t("Filtri DDT")} className="rounded-xl border bg-white p-2.5 shadow-sm max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
         <div className="flex flex-nowrap items-center gap-2 overflow-x-auto max-sm:overflow-visible"><div className="relative min-w-[200px] flex-1 max-sm:min-w-0">
             <Search className="absolute left-3 top-2 h-4 w-4 text-muted-foreground" />
             <Input
-              aria-label="Cerca DDT"
-              placeholder="Cerca DDT, OdA, commessa o corriere…"
+              aria-label={t("Cerca DDT")}
+              placeholder={t("Cerca DDT, OdA, commessa o corriere…")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="h-8 pl-9 text-xs max-sm:h-9 max-sm:text-sm"
             />
-          </div><Select value={tab} onValueChange={value => setTab(value as FilterKey)}><SelectTrigger aria-label="Stato DDT" className="h-8 w-[180px] max-w-full text-xs max-sm:h-9 max-sm:w-[8.5rem] max-sm:shrink-0 max-sm:text-sm"><SelectValue /></SelectTrigger><SelectContent>{FILTERS.map(f => <SelectItem key={f.key} value={f.key}>{f.key === "tutti" ? "Tutti gli stati" : f.label}</SelectItem>)}</SelectContent></Select>{!telefono && <OperationalViewSwitch
+          </div><Select value={tab} onValueChange={value => setTab(value as FilterKey)}><SelectTrigger aria-label={t("Stato DDT")} className="h-8 w-[180px] max-w-full text-xs max-sm:h-9 max-sm:w-[8.5rem] max-sm:shrink-0 max-sm:text-sm"><SelectValue /></SelectTrigger><SelectContent>{FILTERS.map(f => <SelectItem key={f.key} value={f.key}>{f.key === "tutti" ? t("Tutti gli stati") : f.label}</SelectItem>)}</SelectContent></Select>{!telefono && <OperationalViewSwitch
             value={view}
             onChange={(v) => update({ vista: v, ambito: archive.scope })}
           />}<OperationalExtraFilters count={Number(filterOrder !== "all") + Number(filterSupplier !== "all") + Number(filterPeriodo !== "tutto") + Number(!!focus) + Number(archive.scope !== "all")}>      <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
 
           <OperationalHelp>
-            Apri un DDT per registrare la ricezione, verificare la merce o
-            consultare gli allegati. I documenti con danni sono raccolti tra le
-            non conformità.
+            {t("Apri un DDT per registrare la ricezione, verificare la merce o consultare gli allegati. I documenti con danni sono raccolti tra le non conformità.")}
           </OperationalHelp>
 
           <Select value={filterOrder} onValueChange={setFilterOrder}>
             <SelectTrigger
-              aria-label="Commessa DDT"
+              aria-label={t("Commessa DDT")}
               className="h-8 w-[165px] text-xs"
             >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tutte le commesse</SelectItem>
-              <SelectItem value="none">Senza commessa</SelectItem>
+              <SelectItem value="all">{t("Tutte le commesse")}</SelectItem>
+              <SelectItem value="none">{t("Senza commessa")}</SelectItem>
               {commesseInElenco.map(([id, name]) => (
                 <SelectItem key={id} value={id}>
                   {name}
@@ -1023,13 +1020,13 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
           </Select>
           <Select value={filterSupplier} onValueChange={setFilterSupplier}>
             <SelectTrigger
-              aria-label="Fornitore DDT"
+              aria-label={t("Fornitore DDT")}
               className="h-8 w-[165px] text-xs"
             >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tutti i fornitori</SelectItem>
+              <SelectItem value="all">{t("Tutti i fornitori")}</SelectItem>
               {fornitoriInElenco.map(([id, name]) => (
                 <SelectItem key={id} value={id}>
                   {name}
@@ -1040,7 +1037,7 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
           {!!activeFiltersCount && (
             <Button variant="ghost" size="sm" onClick={clearFilters}>
               <X className="mr-1 h-3.5 w-3.5" />
-              Azzera ({activeFiltersCount})
+              {t("Azzera ({n})", { n: activeFiltersCount })}
             </Button>
           )}
         </div>
@@ -1048,17 +1045,17 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
 
           <Select value={filterPeriodo} onValueChange={setFilterPeriodo}>
             <SelectTrigger
-              aria-label="Data ricezione DDT"
+              aria-label={t("Data ricezione DDT")}
               className="h-8 w-[190px] shrink-0 text-xs"
             >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="tutto">Ricezione: sempre</SelectItem>
-              <SelectItem value="30">Ultimi 30 giorni</SelectItem>
-              <SelectItem value="90">Ultimi 90 giorni</SelectItem>
-              <SelectItem value="anno">Quest’anno</SelectItem>
-              <SelectItem value="personalizzato">Intervallo di date</SelectItem>
+              <SelectItem value="tutto">{t("Ricezione: sempre")}</SelectItem>
+              <SelectItem value="30">{t("Ultimi 30 giorni")}</SelectItem>
+              <SelectItem value="90">{t("Ultimi 90 giorni")}</SelectItem>
+              <SelectItem value="anno">{t("Quest’anno")}</SelectItem>
+              <SelectItem value="personalizzato">{t("Intervallo di date")}</SelectItem>
             </SelectContent>
           </Select>
           {filterPeriodo === "personalizzato" && <OperationalDateRange from={dateFrom} to={dateTo} onChange={values => update(values)} />}
@@ -1079,14 +1076,14 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
             }
           />
           <span>
-            {rows.length} {rows.length === 1 ? "documento caricato" : "documenti caricati"} · {pending.length} da registrare
+            {rows.length === 1 ? t("{n} documento caricato", { n: 1 }) : t("{n} documenti caricati", { n: rows.length })} · {t("{n} da registrare", { n: pending.length })}
             {focus === "pendenti"
-              ? " · Attesi e parziali"
+              ? ` ${t("· Attesi e parziali")}`
               : focus === "verifica"
-                ? " · Ricevuti da verificare"
+                ? ` ${t("· Ricevuti da verificare")}`
                 : ""}
           </span>
-          <span>Le esportazioni includono i DDT registrati filtrati.</span>
+          <span>{t("Le esportazioni includono i DDT registrati filtrati.")}</span>
         </div>
       </div></OperationalExtraFilters></div>
       </section>
@@ -1096,35 +1093,33 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
           role="status"
           className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm"
         >
-          {ingresso.ripresaLocale.queueCount} invii conservati su questo
-          dispositivo. Lascia aperta la pagina per completarli.{" "}
+          {t("{n} invii conservati su questo dispositivo. Lascia aperta la pagina per completarli.", { n: ingresso.ripresaLocale.queueCount })}{" "}
           {ingresso.ripresaLocale.failedCount > 0 && (
             <Button
               variant="link"
               size="sm"
               onClick={() => void ingresso.ripresaLocale.retry()}
             >
-              Riprova invii
+              {t("Riprova invii")}
             </Button>
           )}
         </p>
       )}
       {canCreate && ingresso.query.isError && (
         <p role="alert" className="rounded-lg border p-3 text-sm">
-          Le letture in ingresso non sono aggiornate. I documenti già caricati
-          restano disponibili.{" "}
+          {t("Le letture in ingresso non sono aggiornate. I documenti già caricati restano disponibili.")}{" "}
           <Button
             variant="link"
             size="sm"
             onClick={() => void ingresso.query.refetch()}
           >
-            Riprova letture
+            {t("Riprova letture")}
           </Button>
         </p>
       )}
       {canCreate && ingresso.query.isLoading && (
         <p role="status" className="text-sm text-muted-foreground">
-          Caricamento documenti in lettura…
+          {t("Caricamento documenti in lettura…")}
         </p>
       )}
       {canCreate && tab === "da_registrare" && !focus && archive.scope !== "history" && (
@@ -1132,14 +1127,14 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
           onApri={invio => update({ invio, stato: "da_registrare", cerca: null, commessa: null, fornitore: null,
             periodo: null, da: null, a: null, focus: null, pagina: null })} />
       )}
-      {canCreate && ingresso.infoNonAggiornate && <p role="status" className="text-sm text-muted-foreground">Riepilogo invii e confronto duplicati momentaneamente indisponibili.</p>}
+      {canCreate && ingresso.infoNonAggiornate && <p role="status" className="text-sm text-muted-foreground">{t("Riepilogo invii e confronto duplicati momentaneamente indisponibili.")}</p>}
 
       {/* ─── List ─────────────────────────────────────────────── */}
       {isError ? (
         <div role="alert" className="rounded-xl border p-6 text-sm">
-          Impossibile caricare i DDT.{" "}
+          {t("Impossibile caricare i DDT.")}{" "}
           <Button variant="outline" size="sm" onClick={() => void refetch()}>
-            Riprova
+            {t("Riprova")}
           </Button>
         </div>
       ) : isLoading ? (
@@ -1168,20 +1163,20 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
       ) : view === "pipeline" && tab !== "da_registrare" ? (
         <>
           {pending.length > 0 && (
-            <OperationalTable label="Documenti da registrare">
+            <OperationalTable label={t("Documenti da registrare")}>
               <thead>
                 <tr>
-                  <th>Documento</th>
-                  <th>Stato</th>
-                  <th>Data</th>
-                  <th>Fornitore</th>
-                  <th>OdA</th>
-                  <th>Commessa</th>
-                  <th>Corriere</th>
-                  <th>Destinazione</th>
-                  <th>Allegati</th>
-                  <th>Q.tà</th>
-                  <th>Azioni</th>
+                  <th>{t("Documento")}</th>
+                  <th>{t("Stato")}</th>
+                  <th>{t("Data")}</th>
+                  <th>{t("Fornitore")}</th>
+                  <th>{t("OdA")}</th>
+                  <th>{t("Commessa")}</th>
+                  <th>{t("Corriere")}</th>
+                  <th>{t("Destinazione")}</th>
+                  <th>{t("Allegati")}</th>
+                  <th>{t("Q.tà")}</th>
+                  <th>{t("Azioni")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1199,7 +1194,7 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
             </OperationalTable>
           )}
           <OperationalBoard
-            label="Pipeline DDT"
+            label={t("Pipeline DDT")}
             onOpen={(ddt) => navigate(`/azienda/ddt/${ddt.id}`)}
             onMove={canCreate ? moveDocument : undefined}
             disabled={movement.saving}
@@ -1213,7 +1208,7 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
           {selection.toolbar}
           {selection.confirmation}
           {telefono ? (
-            <ul aria-label="Elenco DDT" className="divide-y overflow-hidden rounded-lg border bg-card">
+            <ul aria-label={t("Elenco DDT")} className="divide-y overflow-hidden rounded-lg border bg-card">
               {visibleRows.map((row) => {
                 if (row.tipo === "documento") {
                   const j = row.documento;
@@ -1224,7 +1219,7 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-sm font-medium">{nomeDocumentoInIngresso(j)}</span>
                           <span className="block truncate text-xs text-muted-foreground">
-                            {ingresso.duplicati.get(j.id) ? "Possibile duplicato · " : ""}{j.order_id ? "Commessa assegnata" : "Da associare"}
+                            {ingresso.duplicati.get(j.id) ? `${t("Possibile duplicato")} · ` : ""}{j.order_id ? t("Commessa assegnata") : t("Da associare")}
                           </span>
                         </span>
                         <span className="shrink-0 rounded-md bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-900">
@@ -1235,14 +1230,14 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
                   );
                 }
                 const ddt = row.ddt;
-                const fornitore = fornitoreNomeDi(ddt) ?? ddt.purchase_orders?.oda_number ?? "Fornitore da indicare";
+                const fornitore = fornitoreNomeDi(ddt) ?? ddt.purchase_orders?.oda_number ?? t("Fornitore da indicare");
                 return (
                   <li key={ddt.id}>
                     <Link to={`/azienda/ddt/${ddt.id}`} className="flex w-full items-center gap-2 px-3 py-2.5">
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-medium">{fornitore}</span>
                         <span className="block truncate text-xs text-muted-foreground">
-                          DDT {ddt.numero_ddt}{ddt.data_ricezione ? ` · ${new Date(ddt.data_ricezione).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "2-digit" })}` : ""}{ddt.has_damages ? " · con danni" : ""}
+                          DDT {ddt.numero_ddt}{ddt.data_ricezione ? ` · ${new Date(ddt.data_ricezione).toLocaleDateString(intlCampo(), { day: "2-digit", month: "2-digit", year: "2-digit" })}` : ""}{ddt.has_damages ? ` ${t("· con danni")}` : ""}
                         </span>
                       </span>
                       <DDTStatusBadge stato={ddt.stato} size="sm" />
@@ -1252,63 +1247,63 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
               })}
             </ul>
           ) : (
-          <OperationalTable label="Elenco DDT">
+          <OperationalTable label={t("Elenco DDT")}>
             <thead>
               <tr className="border-b bg-muted/50">
                 {selection.enabled && <th scope="col">{selection.header}</th>}
                 <SortableTh
-                  label="N° DDT"
+                  label={t("N° DDT")}
                   active={sort.key === "numero"}
                   direction={sort.direction}
                   onClick={() => handleSort("numero")}
                 />
                 <SortableTh
-                  label="Stato"
+                  label={t("Stato")}
                   active={sort.key === "stato"}
                   direction={sort.direction}
                   onClick={() => handleSort("stato")}
                 />
                 <SortableTh
-                  label="Data"
+                  label={t("Data")}
                   active={sort.key === "data"}
                   direction={sort.direction}
                   onClick={() => handleSort("data")}
                 />
                 <SortableTh
-                  label="Fornitore"
+                  label={t("Fornitore")}
                   active={sort.key === "fornitore"}
                   direction={sort.direction}
                   onClick={() => handleSort("fornitore")}
                 />
-                <th scope="col">OdA</th>
-                <th scope="col">Commessa</th>
+                <th scope="col">{t("OdA")}</th>
+                <th scope="col">{t("Commessa")}</th>
                 <SortableTh
-                  label="Corriere"
+                  label={t("Corriere")}
                   active={sort.key === "corriere"}
                   direction={sort.direction}
                   onClick={() => handleSort("corriere")}
                 />
                 <SortableTh
-                  label="Magazzino"
+                  label={t("Magazzino")}
                   active={sort.key === "magazzino"}
                   direction={sort.direction}
                   onClick={() => handleSort("magazzino")}
                 />
                 <SortableTh
-                  label="Allegati"
+                  label={t("Allegati")}
                   active={sort.key === "allegati"}
                   direction={sort.direction}
                   onClick={() => handleSort("allegati")}
                   align="center"
                 />
                 <SortableTh
-                  label="Q.tà"
+                  label={t("Q.tà")}
                   active={sort.key === "quantita"}
                   direction={sort.direction}
                   onClick={() => handleSort("quantita")}
                   align="right"
                 />
-                <th scope="col">Azioni</th>
+                <th scope="col">{t("Azioni")}</th>
               </tr>
             </thead>
             <tbody>
@@ -1358,7 +1353,7 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
                               size="sm"
                               className="h-auto gap-1 px-1"
                               disabled={movement.saving}
-                              aria-label={`Gestisci stato DDT ${ddt.numero_ddt}: ${DDT_STATO_META[ddt.stato as keyof typeof DDT_STATO_META]?.label ?? ddt.stato}`}
+                              aria-label={t("Gestisci stato DDT {numero}: {stato}", { numero: ddt.numero_ddt, stato: t(DDT_STATO_META[ddt.stato as keyof typeof DDT_STATO_META]?.label ?? ddt.stato) })}
                             >
                               <DDTStatusBadge stato={ddt.stato} size="sm" />
                               <ChevronDown className="h-3 w-3" />
@@ -1368,7 +1363,7 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
                             align="start"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            <DropdownMenuLabel>Cambia stato</DropdownMenuLabel>
+                            <DropdownMenuLabel>{t("Cambia stato")}</DropdownMenuLabel>
                             {FILTERS.filter(
                               (f) =>
                                 !["tutti", "da_registrare"].includes(f.key),
@@ -1378,7 +1373,7 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
                                 disabled={stage(ddt) === f.key}
                                 onSelect={() => moveDocument(ddt.id, f.key)}
                               >
-                                {f.label}
+                                {t(f.label)}
                               </DropdownMenuItem>
                             ))}
                           </DropdownMenuContent>
@@ -1393,7 +1388,7 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
                     <td className="p-3 text-muted-foreground text-xs">
                       {ddt.data_ricezione
                         ? format(new Date(ddt.data_ricezione), "dd/MM/yyyy", {
-                            locale: it,
+                            locale: dateFnsCampo(),
                           })
                         : "—"}
                     </td>
@@ -1476,7 +1471,7 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
                         className="h-7 px-2 text-xs"
                       >
                         <Link to={`/azienda/ddt/${ddt.id}`}>
-                          Apri
+                          {t("Apri")}
                           <ArrowRight className="ml-1 h-3 w-3" />
                         </Link>
                       </Button>
@@ -1491,7 +1486,7 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
             page={page}
             total={rows.length}
             onChange={(v) => update({ pagina: String(v) })}
-            label="Pagine DDT"
+            label={t("Pagine DDT")}
           />
         </>
       )}
@@ -1503,10 +1498,10 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
           onClick={() => void ingresso.query.fetchNextPage()}
         >
           {ingresso.query.isFetchingNextPage
-            ? "Caricamento…"
+            ? t("Caricamento…")
             : ingresso.query.isFetchNextPageError
-              ? "Riprova a caricare altri documenti"
-              : "Carica altri documenti da registrare"}
+              ? t("Riprova a caricare altri documenti")
+              : t("Carica altri documenti da registrare")}
         </Button>
       )}
 
@@ -1532,6 +1527,7 @@ function EmptyState({
   canCreate: boolean;
   onCreate: () => void;
 }) {
+  const t = useT();
   return (
     <div className="text-center py-12 sm:py-16 space-y-3 rounded-lg border-2 border-dashed">
       <div className="h-12 w-12 mx-auto rounded-full bg-muted flex items-center justify-center">
@@ -1539,20 +1535,20 @@ function EmptyState({
       </div>
       <p className="text-muted-foreground font-medium">
         {hasFilter
-          ? "Nessun DDT corrisponde ai filtri"
-          : "Nessun DDT registrato"}
+          ? t("Nessun DDT corrisponde ai filtri")
+          : t("Nessun DDT registrato")}
       </p>
       <p className="text-sm text-muted-foreground max-w-md mx-auto">
         {hasFilter
-          ? "Prova a cambiare i filtri o la ricerca per trovare il DDT."
-          : "Registra il primo DDT per tracciare le ricezioni merce con allegati, dati corriere e verifica qualità."}
+          ? t("Prova a cambiare i filtri o la ricerca per trovare il DDT.")
+          : t("Registra il primo DDT per tracciare le ricezioni merce con allegati, dati corriere e verifica qualità.")}
       </p>
       {canCreate && !hasFilter && (
         <Button
           onClick={onCreate}
           className="mt-2 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600"
         >
-          <Plus className="h-4 w-4 mr-1" /> Registra primo DDT
+          <Plus className="h-4 w-4 mr-1" /> {t("Registra primo DDT")}
         </Button>
       )}
     </div>

@@ -14,6 +14,7 @@ import { getScadenzaInfo } from "@/lib/fatturazione/filtriDocumenti";
 import { cn } from "@/lib/utils";
 import type { DocumentoFiscale } from "@/types/fatturazione";
 import { PROVIDER_LABELS, SegnaPagataImportataDialog, residuoImportata, useIntegrazioneFatture } from "./GestionaleEsterno";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Le schede dell'hub fatture per chi fattura con un altro programma, quando il dato
@@ -38,6 +39,7 @@ const PER_PAGINA = 30;
 
 /** Clienti fiscali di chi importa: uno per P.IVA (poi CF, poi nome), con fatturato e residuo. */
 export function ClientiFiscaliImportatiTable() {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const navigate = useNavigate();
   const [cerca, setCerca] = useState("");
@@ -68,32 +70,32 @@ export function ClientiFiscaliImportatiTable() {
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative w-full max-w-xs">
           <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={cerca} onChange={(e) => { setCerca(e.target.value); setPagina(0); }} placeholder="Cerca nome, P.IVA, CF…" aria-label="Cerca clienti fiscali" className="h-9 pl-8" />
+          <Input value={cerca} onChange={(e) => { setCerca(e.target.value); setPagina(0); }} placeholder={t("Cerca nome, P.IVA, CF…")} aria-label={t("Cerca clienti fiscali")} className="h-9 pl-8" />
         </div>
-        <p className="text-xs text-muted-foreground">Dalle fatture importate dal tuo gestionale: si aggiornano a ogni sincronizzazione.</p>
+        <p className="text-xs text-muted-foreground">{t("Dalle fatture importate dal tuo gestionale: si aggiornano a ogni sincronizzazione.")}</p>
       </div>
       {isLoading ? (
         <div className="space-y-2"><Skeleton className="h-10" /><Skeleton className="h-10" /><Skeleton className="h-10" /></div>
       ) : isError ? (
         <div role="alert" className="flex items-center gap-3 rounded-xl border p-4 text-sm">
-          Clienti non disponibili adesso.
-          <Button variant="outline" size="sm" onClick={() => void refetch()}>Riprova</Button>
+          {t("Clienti non disponibili adesso.")}
+          <Button variant="outline" size="sm" onClick={() => void refetch()}>{t("Riprova")}</Button>
         </div>
       ) : filtrati.length === 0 ? (
         <div className="py-12 text-center text-sm text-muted-foreground">
-          {cerca ? "Nessun cliente con questa ricerca." : "Nessun cliente: compariranno con le prime fatture importate."}
+          {cerca ? t("Nessun cliente con questa ricerca.") : t("Nessun cliente: compariranno con le prime fatture importate.")}
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border bg-card">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
-                <th className="p-3 text-left font-medium">Cliente</th>
-                <th className="p-3 text-left font-medium">P.IVA / CF</th>
-                <th className="p-3 text-right font-medium">Fatturato</th>
-                <th className="p-3 text-right font-medium">Da incassare</th>
-                <th className="p-3 text-right font-medium">N. fatture</th>
-                <th className="p-3 text-left font-medium">Ultima fattura</th>
+                <th className="p-3 text-left font-medium">{t("Cliente")}</th>
+                <th className="p-3 text-left font-medium">{t("P.IVA / CF")}</th>
+                <th className="p-3 text-right font-medium">{t("Fatturato")}</th>
+                <th className="p-3 text-right font-medium">{t("Da incassare")}</th>
+                <th className="p-3 text-right font-medium">{t("N. fatture")}</th>
+                <th className="p-3 text-left font-medium">{t("Ultima fattura")}</th>
               </tr>
             </thead>
             <tbody>
@@ -101,7 +103,7 @@ export function ClientiFiscaliImportatiTable() {
                 <tr
                   key={c.chiave}
                   className="cursor-pointer border-b hover:bg-muted/30"
-                  title="Vedi le sue fatture"
+                  title={t("Vedi le sue fatture")}
                   onClick={() => navigate(`/azienda/documenti?cerca=${encodeURIComponent(c.partita_iva ?? c.codice_fiscale ?? c.ragione_sociale ?? "")}`)}
                 >
                   <td className="p-3">
@@ -119,10 +121,10 @@ export function ClientiFiscaliImportatiTable() {
           </table>
           {pagine > 1 && (
             <div className="flex items-center justify-between border-t p-3 text-xs text-muted-foreground">
-              <span>{filtrati.length} clienti · pagina {pagina + 1} di {pagine}</span>
+              <span>{t("{n} clienti · pagina {pagina} di {pagine}", { n: filtrati.length, pagina: pagina + 1, pagine: String(pagine ?? "") })}</span>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" disabled={pagina === 0} onClick={() => setPagina(pagina - 1)}>Indietro</Button>
-                <Button variant="outline" size="sm" disabled={pagina >= pagine - 1} onClick={() => setPagina(pagina + 1)}>Avanti</Button>
+                <Button variant="outline" size="sm" disabled={pagina === 0} onClick={() => setPagina(pagina - 1)}>{t("Indietro")}</Button>
+                <Button variant="outline" size="sm" disabled={pagina >= pagine - 1} onClick={() => setPagina(pagina + 1)}>{t("Avanti")}</Button>
               </div>
             </div>
           )}
@@ -151,6 +153,7 @@ const METODO_LABEL: Record<string, string> = { bank_transfer: "Bonifico", bonifi
  * (azienda sempre nativa) non mostra nulla.
  */
 export function RegistroIncassiImportate({ soloSeCeNe = false }: { soloSeCeNe?: boolean }) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const [daSegnare, setDaSegnare] = useState<DocumentoFiscale | null>(null);
   const anno = new Date().getFullYear();
@@ -210,15 +213,15 @@ export function RegistroIncassiImportate({ soloSeCeNe = false }: { soloSeCeNe?: 
     <div className="space-y-4 max-sm:space-y-3">
       {soloSeCeNe && (
         <div className="border-t pt-4">
-          <h2 className="text-sm font-semibold">Fatture emesse col gestionale precedente</h2>
-          <p className="text-xs text-muted-foreground">Lo storico degli incassi: resta qui, non si mescola con quello nuovo.</p>
+          <h2 className="text-sm font-semibold">{t("Fatture emesse col gestionale precedente")}</h2>
+          <p className="text-xs text-muted-foreground">{t("Lo storico degli incassi: resta qui, non si mescola con quello nuovo.")}</p>
         </div>
       )}
       <div className="grid grid-cols-3 gap-3 max-sm:gap-2">
         {[
-          { label: `Incassato ${anno}`, valore: kpi.incassato, tono: "text-emerald-700" },
-          { label: "Da incassare", valore: kpi.residuo, tono: "text-slate-900" },
-          { label: "Scaduto", valore: kpi.scaduto, tono: kpi.scaduto > 0 ? "text-destructive" : "text-slate-900" },
+          { label: t("Incassato {anno}", { anno: String(anno ?? "") }), valore: kpi.incassato, tono: "text-emerald-700" },
+          { label: t("Da incassare"), valore: kpi.residuo, tono: "text-slate-900" },
+          { label: t("Scaduto"), valore: kpi.scaduto, tono: kpi.scaduto > 0 ? "text-destructive" : "text-slate-900" },
         ].map((k) => (
           <div key={k.label} className="rounded-xl border bg-card p-4 max-sm:p-2.5">
             <p className="text-xs text-muted-foreground max-sm:text-[11px]">{k.label}</p>
@@ -230,15 +233,15 @@ export function RegistroIncassiImportate({ soloSeCeNe = false }: { soloSeCeNe?: 
       <section className="rounded-xl border bg-card">
         <header className="flex items-center gap-2 border-b px-4 py-3 max-sm:px-3 max-sm:py-2">
           <Wallet className="h-4 w-4 text-muted-foreground max-sm:hidden" />
-          <h2 className="text-sm font-semibold">Da incassare</h2>
+          <h2 className="text-sm font-semibold">{t("Da incassare")}</h2>
           <span className="text-xs text-muted-foreground">{daIncassare.length}</span>
         </header>
         {aperte.isLoading ? (
           <div className="space-y-2 p-4"><Skeleton className="h-10" /><Skeleton className="h-10" /></div>
         ) : aperte.isError ? (
-          <p className="p-4 text-sm text-destructive">Non riesco a caricare le fatture aperte. Riprova tra poco.</p>
+          <p className="p-4 text-sm text-destructive">{t("Non riesco a caricare le fatture aperte. Riprova tra poco.")}</p>
         ) : daIncassare.length === 0 ? (
-          <p className="p-4 text-sm text-muted-foreground">Nessuna fattura da incassare.</p>
+          <p className="p-4 text-sm text-muted-foreground">{t("Nessuna fattura da incassare.")}</p>
         ) : (
           <ul className="divide-y">
             {taglia(daIncassare, quanteDa).map((d) => {
@@ -249,13 +252,13 @@ export function RegistroIncassiImportate({ soloSeCeNe = false }: { soloSeCeNe?: 
                     <div className="truncate text-sm font-medium max-sm:text-[13px]">{d.elenco_cliente ?? "—"}</div>
                     <div className="truncate text-xs text-muted-foreground max-sm:text-[11px]">
                       {d.numero} · {formatDateShort(d.data_emissione)}
-                      {scad?.scaduta && <span className="font-medium text-destructive"> · scaduta da {scad.giorni} gg</span>}
-                      {scad && !scad.scaduta && scad.urgente && <span className="text-amber-600"> · scade in {scad.giorni} gg</span>}
+                      {scad?.scaduta && <span className="font-medium text-destructive">{" · "}{t("scaduta da {giorni} gg", { giorni: String(scad.giorni ?? "") })}</span>}
+                      {scad && !scad.scaduta && scad.urgente && <span className="text-amber-600">{" · "}{t("scade in {giorni} gg", { giorni: String(scad.giorni ?? "") })}</span>}
                     </div>
                   </div>
                   <div className="shrink-0 text-right text-sm font-semibold tabular-nums max-sm:text-[13px]">{formatCurrency(residuoImportata(d))}</div>
-                  <Button variant="outline" size="sm" className="shrink-0 gap-1.5 max-sm:h-8 max-sm:w-8 max-sm:px-0" aria-label={`Registra incasso fattura ${d.numero}`} onClick={() => setDaSegnare(d)}>
-                    <CreditCard className="h-4 w-4" /><span className="max-sm:hidden">Incassa</span>
+                  <Button variant="outline" size="sm" className="shrink-0 gap-1.5 max-sm:h-8 max-sm:w-8 max-sm:px-0" aria-label={t("Registra incasso fattura {numero}", { numero: String(d.numero ?? "") })} onClick={() => setDaSegnare(d)}>
+                    <CreditCard className="h-4 w-4" /><span className="max-sm:hidden">{t("Incassa")}</span>
                   </Button>
                 </li>
               );
@@ -269,15 +272,15 @@ export function RegistroIncassiImportate({ soloSeCeNe = false }: { soloSeCeNe?: 
 
       <section className="rounded-xl border bg-card">
         <header className="flex items-center gap-2 border-b px-4 py-3 max-sm:px-3 max-sm:py-2">
-          <h2 className="text-sm font-semibold">Incassi registrati nel {anno}</h2>
+          <h2 className="text-sm font-semibold">{t("Incassi registrati nel {anno}", { anno: String(anno ?? "") })}</h2>
           <span className="text-xs text-muted-foreground">{incassi.data?.length ?? 0}</span>
         </header>
         {incassi.isLoading ? (
           <div className="space-y-2 p-4"><Skeleton className="h-10" /></div>
         ) : incassi.isError ? (
-          <p className="p-4 text-sm text-destructive">Non riesco a caricare gli incassi. Riprova tra poco.</p>
+          <p className="p-4 text-sm text-destructive">{t("Non riesco a caricare gli incassi. Riprova tra poco.")}</p>
         ) : (incassi.data ?? []).length === 0 ? (
-          <p className="p-4 text-sm text-muted-foreground">Nessun incasso registrato quest'anno in Edilizia in Cloud. Le fatture segnate pagate nel gestionale risultano già «Pagata» nell'elenco.</p>
+          <p className="p-4 text-sm text-muted-foreground">{t("Nessun incasso registrato quest'anno in Edilizia in Cloud. Le fatture segnate pagate nel gestionale risultano già «Pagata» nell'elenco.")}</p>
         ) : (
           <ul className="divide-y">
             {taglia(incassi.data ?? [], quanteInc).map((p) => (
@@ -305,31 +308,29 @@ export function RegistroIncassiImportate({ soloSeCeNe = false }: { soloSeCeNe?: 
 
 /** Il cassetto SDI di chi fattura con un altro programma: gli invii li fa il gestionale. */
 export function CassettoSdiEsterno() {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const { data: integration } = useIntegrazioneFatture(companyId);
-  const gestionale = integration ? (PROVIDER_LABELS[integration.provider] ?? integration.provider) : "il tuo gestionale";
+  const gestionale = integration ? (PROVIDER_LABELS[integration.provider] ?? integration.provider) : t("il tuo gestionale");
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 shadow-sm sm:px-6">
         <div className="flex items-start gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500"><Archive className="h-5 w-5" /></div>
           <div className="min-w-0">
-            <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900">Cassetto SDI</h1>
-            <p className="mt-1 text-sm text-slate-500">
-              Le fatture le trasmette allo SDI {gestionale}: invii, ricevute e scarti si controllano lì.
-              Qui arrivano le fatture già emesse e quelle dei fornitori.
-            </p>
+            <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900">{t("Cassetto SDI")}</h1>
+            <p className="mt-1 text-sm text-slate-500">{t("Le fatture le trasmette allo SDI {gestionale}: invii, ricevute e scarti si controllano lì. Qui arrivano le fatture già emesse e quelle dei fornitori.", { gestionale: String(gestionale ?? "") })}</p>
           </div>
         </div>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <Link to="/azienda/documenti" className="flex items-center gap-3 rounded-xl border bg-card p-4 hover:bg-muted/40">
           <FileText className="h-5 w-5 text-orange-500" />
-          <div><p className="text-sm font-semibold">Fatture emesse</p><p className="text-xs text-muted-foreground">Importate da {gestionale}</p></div>
+          <div><p className="text-sm font-semibold">{t("Fatture emesse")}</p><p className="text-xs text-muted-foreground">{t("Importate da {gestionale}", { gestionale: String(gestionale ?? "") })}</p></div>
         </Link>
         <Link to="/azienda/documenti/fatture-ricevute" className="flex items-center gap-3 rounded-xl border bg-card p-4 hover:bg-muted/40">
           <Inbox className="h-5 w-5 text-sky-600" />
-          <div><p className="text-sm font-semibold">Fatture ricevute</p><p className="text-xs text-muted-foreground">Dai fornitori, con l'XML originale</p></div>
+          <div><p className="text-sm font-semibold">{t("Fatture ricevute")}</p><p className="text-xs text-muted-foreground">{t("Dai fornitori, con l'XML originale")}</p></div>
         </Link>
       </div>
     </div>

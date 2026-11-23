@@ -18,6 +18,7 @@ import {
   type EsitoArrivo, type PosizioneArrivo,
 } from "@/lib/arrivi/arrivoPosizioni";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const BUCKET = "campo-rapportini";
 
@@ -58,6 +59,7 @@ export function ArrivoPosizioniPanel({ odaId, ddtId, nascondiSeVuoto, inCantiere
   /** Dentro la pagina dell'ordine: fornitore e numero si leggono già sopra. */
   compatto?: boolean;
 }) {
+  const t = useT();
   const { profile } = useAuth();
   const elenco = useElencoArrivo(odaId, ddtId);
   const registra = useRegistraSpunte(odaId, elenco.data?.ordine.order_id);
@@ -72,7 +74,7 @@ export function ArrivoPosizioniPanel({ odaId, ddtId, nascondiSeVuoto, inCantiere
   const proposte = useMemo(() => abbinaRigheBolla(righeBolla, posizioni), [righeBolla, posizioni]);
 
   if (elenco.isLoading) {
-    return nascondiSeVuoto ? null : <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-label="Carico" /></div>;
+    return nascondiSeVuoto ? null : <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-label={t("Carico")} /></div>;
   }
   if (elenco.error || !elenco.data) {
     if (nascondiSeVuoto) return null;
@@ -80,7 +82,7 @@ export function ArrivoPosizioniPanel({ odaId, ddtId, nascondiSeVuoto, inCantiere
   }
   if (posizioni.length === 0) {
     if (nascondiSeVuoto) return null;
-    return <p className="rounded-xl border p-4 text-sm text-muted-foreground">In questo ordine non ci sono posizioni su misura.</p>;
+    return <p className="rounded-xl border p-4 text-sm text-muted-foreground">{t("In questo ordine non ci sono posizioni su misura.")}</p>;
   }
 
   const { ordine, articoli_normali } = elenco.data;
@@ -122,7 +124,7 @@ export function ArrivoPosizioniPanel({ odaId, ddtId, nascondiSeVuoto, inCantiere
   const aggiungiFoto = async (p: PosizioneArrivo, file: File | undefined) => {
     if (!file) return;
     const azienda = profile?.company_id;
-    if (!azienda || !ordine.order_id) { toast.error("Foto non caricata: riapri la pagina."); return; }
+    if (!azienda || !ordine.order_id) { toast.error(t("Foto non caricata: riapri la pagina.")); return; }
     setFotoInCorso(p.poi_id);
     try {
       const blob: Blob = await compressImage(file, 1600, 0.8).catch((): Blob => file);
@@ -131,7 +133,7 @@ export function ArrivoPosizioniPanel({ odaId, ddtId, nascondiSeVuoto, inCantiere
       if (error || !data?.path) throw error ?? new Error("caricamento");
       setSpunte(s => s[p.poi_id] ? { ...s, [p.poi_id]: { ...s[p.poi_id], foto: [...s[p.poi_id].foto, data.path] } } : s);
     } catch {
-      toast.error("Foto non caricata: la spunta resta, puoi riprovare.");
+      toast.error(t("Foto non caricata: la spunta resta, puoi riprovare."));
     } finally {
       setFotoInCorso(null);
     }
@@ -148,35 +150,35 @@ export function ArrivoPosizioniPanel({ odaId, ddtId, nascondiSeVuoto, inCantiere
       sostitutivo: s.sostitutivo,
       ddt_riga_id: s.collega ? proposte[poi_id]?.rigaId ?? null : null,
     }));
-    if (righe.some(r => !Number.isFinite(r.quantita) || r.quantita <= 0)) { toast.error("Controlla le quantità."); return; }
+    if (righe.some(r => !Number.isFinite(r.quantita) || r.quantita <= 0)) { toast.error(t("Controlla le quantità.")); return; }
     inCorso.current = true;
     registra.mutate({ righe, ddtId, numeroBolla, invioId: invio.current }, {
       onSettled: () => { inCorso.current = false; },
       onSuccess: esito => {
         invio.current = crypto.randomUUID();
         setSpunte({});
-        if (esito.registrate > 0) toast.success(esito.registrate === 1 ? "Posizione registrata" : `${esito.registrate} posizioni registrate`);
-        else if (esito.gia_registrato) toast.info("Era già registrato.");
+        if (esito.registrate > 0) toast.success(esito.registrate === 1 ? t("Posizione registrata") : t("{registrate} posizioni registrate", { registrate: String(esito.registrate ?? "") }));
+        else if (esito.gia_registrato) toast.info(t("Era già registrato."));
         for (const s of esito.saltate) toast.warning(`${s.descrizione ?? "Una riga"}: ${s.motivo}`);
       },
-      onError: e => toast.error(messaggioErrore(e, "Arrivo non registrato: riprova.")),
+      onError: e => toast.error(messaggioErrore(e, t("Arrivo non registrato: riprova."))),
     });
   };
 
   return (
     <div className={cn("space-y-3", !compatto && "pb-24")}>
       <div className={cn(!compatto && "rounded-xl border bg-background p-3")}>
-        {!compatto && <p className="text-base font-bold">{ordine.fornitore ?? "Fornitore"} · {ordine.numero}</p>}
+        {!compatto && <p className="text-base font-bold">{ordine.fornitore ?? t("Fornitore")} · {ordine.numero}</p>}
         {!compatto && <p className="text-sm text-muted-foreground">{[ordine.commessa, ordine.cliente].filter(Boolean).join(" · ")}</p>}
         <p className={cn("text-sm", !compatto && "mt-1")}>
-          {daSpuntare.length === 0 ? "È arrivato tutto." : daSpuntare.length === 1 ? "Manca 1 posizione." : `Mancano ${daSpuntare.length} posizioni.`}
-          {" "}Va al cantiere: non entra in magazzino.
+          {daSpuntare.length === 0 ? t("È arrivato tutto.") : daSpuntare.length === 1 ? t("Manca 1 posizione.") : t("Mancano {n} posizioni.", { n: daSpuntare.length })}
+          {" "}{t("Va al cantiere: non entra in magazzino.")}
         </p>
       </div>
 
       {!ddtId && daSpuntare.length > 0 && (
         <div className="space-y-1">
-          <label htmlFor="arrivo-numero-bolla" className="text-sm font-semibold">Numero bolla (se c'è)</label>
+          <label htmlFor="arrivo-numero-bolla" className="text-sm font-semibold">{t("Numero bolla (se c'è)")}</label>
           <input id="arrivo-numero-bolla" value={numeroBolla} onChange={e => setNumeroBolla(e.target.value)}
             className="h-11 w-full rounded-xl border bg-background px-3 text-base" autoComplete="off" />
         </div>
@@ -184,7 +186,7 @@ export function ArrivoPosizioniPanel({ odaId, ddtId, nascondiSeVuoto, inCantiere
 
       {daSpuntare.length > 1 && (
         <button type="button" onClick={tuttoArrivato} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border text-sm font-semibold">
-          <Check className="h-4 w-4" aria-hidden="true" />È arrivato tutto giusto
+          <Check className="h-4 w-4" aria-hidden="true" />{t("È arrivato tutto giusto")}
         </button>
       )}
 
@@ -204,7 +206,7 @@ export function ArrivoPosizioniPanel({ odaId, ddtId, nascondiSeVuoto, inCantiere
                   <p className="font-semibold">{nome}</p>
                   <p className="text-sm text-muted-foreground">
                     {[misure, p.componente, `${Number(p.quantita)} ${p.unita ?? "pz"}`].filter(Boolean).join(" · ")}
-                    {p.riordino ? " · riordino" : ""}
+                    {p.riordino ? ` ${t("· riordino")}` : ""}
                   </p>
                 </div>
                 <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold", TONI[stato.tono])}>{stato.testo}</span>
@@ -212,8 +214,8 @@ export function ArrivoPosizioniPanel({ odaId, ddtId, nascondiSeVuoto, inCantiere
 
               {p.problemi.filter(x => x.foto.length > 0 || x.nota).map(x => (
                 <div key={x.id} className="space-y-1 rounded-lg bg-muted/50 p-2 text-xs">
-                  <p>{x.nota ?? ""}{x.chi ? ` — ${x.chi}` : ""}{x.riordino_numero ? ` · riordino ${x.riordino_numero}` : ""}</p>
-                  {x.foto.length > 0 && <div className="flex flex-wrap gap-1">{x.foto.map(f => <ImgRiservata key={f} src={linkFoto(f)} alt="Foto del pezzo" className="h-16 w-16 rounded object-cover" />)}</div>}
+                  <p>{x.nota ?? ""}{x.chi ? ` — ${x.chi}` : ""}{x.riordino_numero ? ` ${t("· riordino {riordino_numero}", { riordino_numero: String(x.riordino_numero ?? "") })}` : ""}</p>
+                  {x.foto.length > 0 && <div className="flex flex-wrap gap-1">{x.foto.map(f => <ImgRiservata key={f} src={linkFoto(f)} alt={t("Foto del pezzo")} className="h-16 w-16 rounded object-cover" />)}</div>}
                 </div>
               ))}
 
@@ -235,7 +237,7 @@ export function ArrivoPosizioniPanel({ odaId, ddtId, nascondiSeVuoto, inCantiere
                   {c.problemi > 0 && (
                     <button type="button" aria-pressed={!!s?.sostitutivo} onClick={() => s?.sostitutivo ? setSpunte(({ [p.poi_id]: _t, ...r }) => r) : pezzoGiusto(p)}
                       className={cn("min-h-11 w-full rounded-lg border text-sm font-semibold", s?.sostitutivo ? SCELTA.arrivata : "bg-background")}>
-                      È arrivato il pezzo sostitutivo
+                      {t("È arrivato il pezzo sostitutivo")}
                     </button>
                   )}
                 </>
@@ -245,30 +247,30 @@ export function ArrivoPosizioniPanel({ odaId, ddtId, nascondiSeVuoto, inCantiere
                 <div className="space-y-2">
                   {Number(p.quantita) > 1 && (
                     <label className="flex items-center justify-between gap-2 text-sm">
-                      <span>Quanti{p.unita && p.unita !== "pz" ? ` ${p.unita}` : " pezzi"}</span>
+                      <span>{t("Quanti")}{p.unita && p.unita !== "pz" ? ` ${p.unita}` : ` ${t("pezzi")}`}</span>
                       <input inputMode="decimal" value={s.quantita} onChange={e => cambia(p.poi_id, { quantita: e.target.value })}
-                        aria-label={`Quanti pezzi per ${nome}`} className="h-11 w-20 rounded-lg border bg-background px-2 text-center text-base" />
+                        aria-label={t("Quanti pezzi per {nome}", { nome: String(nome ?? "") })} className="h-11 w-20 rounded-lg border bg-background px-2 text-center text-base" />
                     </label>
                   )}
                   {conProblema && (
                     <>
-                      <input value={s.nota} onChange={e => cambia(p.poi_id, { nota: e.target.value })} placeholder="Cosa c'è che non va"
-                        aria-label={`Nota per ${nome}`} className="h-11 w-full rounded-lg border bg-background px-3 text-base" />
+                      <input value={s.nota} onChange={e => cambia(p.poi_id, { nota: e.target.value })} placeholder={t("Cosa c'è che non va")}
+                        aria-label={t("Nota per {nome}", { nome: String(nome ?? "") })} className="h-11 w-full rounded-lg border bg-background px-3 text-base" />
                       <div className="flex flex-wrap items-center gap-2">
                         <label className={cn("flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 text-sm font-semibold", fotoInCorso === p.poi_id && "opacity-60")}>
                           {fotoInCorso === p.poi_id ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Camera className="h-4 w-4" aria-hidden="true" />}
-                          Foto
+                          {t("Foto")}
                           <input type="file" accept="image/*" capture="environment" className="sr-only" disabled={fotoInCorso === p.poi_id}
                             onChange={e => { void aggiungiFoto(p, e.target.files?.[0]); e.target.value = ""; }} />
                         </label>
-                        {s.foto.length > 0 && <span className="text-sm text-muted-foreground">{s.foto.length === 1 ? "1 foto" : `${s.foto.length} foto`}</span>}
+                        {s.foto.length > 0 && <span className="text-sm text-muted-foreground">{s.foto.length === 1 ? t("1 foto") : t("{n} foto", { n: s.foto.length })}</span>}
                       </div>
                     </>
                   )}
                   {proposta && (
                     <label className="flex min-h-11 items-center gap-2 rounded-lg bg-muted/50 px-2 text-sm">
                       <input type="checkbox" className="h-5 w-5" checked={s.collega} onChange={e => cambia(p.poi_id, { collega: e.target.checked })} />
-                      <span className="min-w-0">Sulla bolla: riga {proposta.posizione}, {proposta.descrizione}</span>
+                      <span className="min-w-0">{t("Sulla bolla: riga {posizione}, {descrizione}", { posizione: String(proposta.posizione ?? ""), descrizione: String(proposta.descrizione ?? "") })}</span>
                     </label>
                   )}
                 </div>
@@ -281,7 +283,7 @@ export function ArrivoPosizioniPanel({ odaId, ddtId, nascondiSeVuoto, inCantiere
       {articoli_normali > 0 && !inCantiere && (
         <p className="flex items-start gap-2 rounded-xl border p-3 text-sm text-muted-foreground">
           <PackageX className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-          {articoli_normali === 1 ? "1 articolo normale di questo ordine" : `${articoli_normali} articoli normali di questo ordine`} si registra dall'arrivo merce dell'ordine e va in magazzino come sempre.
+          {articoli_normali === 1 ? t("1 articolo normale di questo ordine si registra dall'arrivo merce dell'ordine e va in magazzino come sempre.") : t("{articoli_normali} articoli normali di questo ordine si registra dall'arrivo merce dell'ordine e va in magazzino come sempre.", { articoli_normali: String(articoli_normali ?? "") })}
         </p>
       )}
 
@@ -290,19 +292,19 @@ export function ArrivoPosizioniPanel({ odaId, ddtId, nascondiSeVuoto, inCantiere
       {quanteSpunte > 0 && (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-background p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:static sm:rounded-xl sm:border">
           <div className="mx-auto flex max-w-xl items-center gap-2">
-            <button type="button" aria-label="Annulla le spunte" onClick={() => setSpunte({})} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border">
+            <button type="button" aria-label={t("Annulla le spunte")} onClick={() => setSpunte({})} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border">
               <X className="h-5 w-5" aria-hidden="true" />
             </button>
             <button type="button" disabled={registra.isPending || !!fotoInCorso} onClick={salva}
               className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-3 text-base font-bold text-white disabled:opacity-60">
               {registra.isPending && <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />}
-              {quanteSpunte === 1 ? "Salva 1 posizione" : `Salva ${quanteSpunte} posizioni`}
+              {quanteSpunte === 1 ? t("Salva 1 posizione") : t("Salva {quanteSpunte} posizioni", { quanteSpunte: String(quanteSpunte ?? "") })}
             </button>
           </div>
         </div>
       )}
 
-      {inCantiere && <Link to="/campo/merce" className="block py-2 text-center text-sm text-primary underline">Torna a Merce presa</Link>}
+      {inCantiere && <Link to="/campo/merce" className="block py-2 text-center text-sm text-primary underline">{t("Torna a Merce presa")}</Link>}
     </div>
   );
 }

@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
 import { formatTreasuryCurrency, isChronologicalDateRange, parsePositiveAmount, toFiniteAmount } from "@/lib/treasury";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const formatEur = (val: unknown) => formatTreasuryCurrency(val, "€0,00");
 
@@ -42,7 +43,7 @@ const descrizioneEsito: Record<Transizione, string> = {
   reimbursed: "Rimborso associato al movimento",
   draft: "Nota spese riaperta",
 };
-const dataOra = (data: string) => new Date(data).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" });
+const dataOra = (data: string) => new Date(data).toLocaleString(intlCampo(), { dateStyle: "short", timeStyle: "short" });
 
 interface Props {
   companyId: string;
@@ -54,6 +55,7 @@ export default function ExpenseReports(props: Props) {
 }
 
 function NoteSpeseAzienda({ companyId, refreshKey = 0 }: Props) {
+  const t = useT();
   const [showCreate, setShowCreate] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [newReport, setNewReport] = useState({ title: "", description: "", period_from: "", period_to: "" });
@@ -110,13 +112,13 @@ function NoteSpeseAzienda({ companyId, refreshKey = 0 }: Props) {
   });
   const reports = lista.data ?? [];
   const loading = lista.isLoading;
-  const loadError = lista.isError ? (lista.error?.message || "Impossibile caricare le note spese") : null;
+  const loadError = lista.isError ? (lista.error?.message || t("Impossibile caricare le note spese")) : null;
   const loadReports = lista.refetch;
 
   async function handleCreate() {
-    if (!newReport.title.trim()) { toast.error("Inserisci il titolo della nota spese"); return; }
+    if (!newReport.title.trim()) { toast.error(t("Inserisci il titolo della nota spese")); return; }
     if (!isChronologicalDateRange(newReport.period_from, newReport.period_to)) {
-      toast.error("L'intervallo del periodo non è valido");
+      toast.error(t("L'intervallo del periodo non è valido"));
       return;
     }
     setIsCreating(true);
@@ -129,7 +131,7 @@ function NoteSpeseAzienda({ companyId, refreshKey = 0 }: Props) {
         period_to: newReport.period_to || null,
       }).select("*").single();
       if (error) { toast.error(error.message); return; }
-      toast.success("Nota spese creata");
+      toast.success(t("Nota spese creata"));
       setShowCreate(false);
       setNewReport({ title: "", description: "", period_from: "", period_to: "" });
       await loadReports();
@@ -162,18 +164,18 @@ function NoteSpeseAzienda({ companyId, refreshKey = 0 }: Props) {
       setReportItems(itemsData || []);
     } catch (errore) {
       const descrizione = typeof errore === "object" && errore && "message" in errore ? String(errore.message) : undefined;
-      toast.error("Errore caricamento dettaglio nota spese", { description: descrizione });
+      toast.error(t("Errore caricamento dettaglio nota spese"), { description: descrizione });
       setReportItems([]);
     }
   }
 
   async function handleAddItem() {
     if (aggiuntaInCorso.current) return;
-    if (!selectedReport?.id) { toast.error("Nota spese non disponibile"); return; }
-    if (!newItem.description.trim()) { toast.error("Inserisci la descrizione della spesa"); return; }
+    if (!selectedReport?.id) { toast.error(t("Nota spese non disponibile")); return; }
+    if (!newItem.description.trim()) { toast.error(t("Inserisci la descrizione della spesa")); return; }
     const amount = parsePositiveAmount(newItem.amount);
-    if (!amount) { toast.error("Inserisci un importo maggiore di zero"); return; }
-    if (!newItem.expense_date) { toast.error("Inserisci la data della spesa"); return; }
+    if (!amount) { toast.error(t("Inserisci un importo maggiore di zero")); return; }
+    if (!newItem.expense_date) { toast.error(t("Inserisci la data della spesa")); return; }
 
     if (tentativoVoce.current?.reportId !== selectedReport.id || tentativoVoce.current.companyId !== companyId) {
       tentativoVoce.current = { id: crypto.randomUUID(), reportId: selectedReport.id, companyId };
@@ -202,7 +204,7 @@ function NoteSpeseAzienda({ companyId, refreshKey = 0 }: Props) {
           tentativoVoce.current = null;
           await openDetail(selectedReport);
           await loadReports();
-          toast.error("Il primo invio è già registrato. Controlla la voce prima di aggiungerne un’altra.");
+          toast.error(t("Il primo invio è già registrato. Controlla la voce prima di aggiungerne un’altra."));
           return;
         }
       } else if (error) {
@@ -210,15 +212,15 @@ function NoteSpeseAzienda({ companyId, refreshKey = 0 }: Props) {
       }
 
       tentativoVoce.current = null;
-      toast.success("Voce aggiunta");
+      toast.success(t("Voce aggiunta"));
       setShowAddItem(false);
       setNewItem({ description: "", amount: "", category: "Trasferte", expense_date: todayIso() });
       await openDetail(selectedReport);
       await loadReports();
     } catch (errore) {
-      toast.error("Impossibile confermare il salvataggio della voce", {
+      toast.error(t("Impossibile confermare il salvataggio della voce"), {
         description: typeof errore === "object" && errore !== null && "message" in errore
-          ? String(errore.message) : "Riprova dallo stesso modulo.",
+          ? String(errore.message) : t("Riprova dallo stesso modulo."),
       });
     } finally {
       aggiuntaInCorso.current = false;
@@ -229,7 +231,7 @@ function NoteSpeseAzienda({ companyId, refreshKey = 0 }: Props) {
   async function cambiaStato(report: Report, stato: Transizione) {
     if (transizioneInCorso.current) return;
     if (stato === "submitted" && toFiniteAmount(report.total_amount) <= 0) {
-      toast.error("Aggiungi almeno una voce prima di inviare la nota spese");
+      toast.error(t("Aggiungi almeno una voce prima di inviare la nota spese"));
       return;
     }
     if (stato === "rejected" && !motivo.trim()) return;
@@ -248,17 +250,17 @@ function NoteSpeseAzienda({ companyId, refreshKey = 0 }: Props) {
         .eq("updated_at", report.updated_at).select("*").maybeSingle();
       if (error) throw error;
       if (!data) {
-        toast.warning("Nota spese aggiornata da un’altra scheda", { description: "Controlla lo stato corrente prima di procedere." });
+        toast.warning(t("Nota spese aggiornata da un’altra scheda"), { description: t("Controlla lo stato corrente prima di procedere.") });
         if (selectedReport?.id === report.id) await openDetail(report);
       } else {
-        toast.success(descrizioneEsito[stato]);
+        toast.success(t(descrizioneEsito[stato]));
         if (selectedReport?.id === report.id) setSelectedReport(data);
       }
       setRevisione(null);
       await loadReports();
     } catch (errore) {
       const descrizione = typeof errore === "object" && errore && "message" in errore ? String(errore.message) : undefined;
-      toast.error("Aggiornamento della nota spese non confermato", { description: descrizione });
+      toast.error(t("Aggiornamento della nota spese non confermato"), { description: descrizione });
     } finally {
       transizioneInCorso.current = false;
       setSubmittingId(null);
@@ -279,10 +281,10 @@ function NoteSpeseAzienda({ companyId, refreshKey = 0 }: Props) {
       .eq("id", deleteId)
       .eq("company_id", companyId);
     if (error) {
-      toast.error("Errore eliminazione: " + error.message);
+      toast.error(t("Errore eliminazione: {errore}", { errore: error.message }));
       return;
     }
-    toast.success("Nota spese eliminata");
+    toast.success(t("Nota spese eliminata"));
     setDeleteId(null);
     if (selectedReport?.id === deleteId) setSelectedReport(null);
     await loadReports();
@@ -296,7 +298,7 @@ function NoteSpeseAzienda({ companyId, refreshKey = 0 }: Props) {
       .eq("id", itemId)
       .eq("company_id", companyId);
     if (error) {
-      toast.error("Errore eliminazione voce: " + error.message);
+      toast.error(t("Errore eliminazione voce: {errore}", { errore: error.message }));
       return;
     }
     await openDetail(selectedReport);
@@ -311,10 +313,10 @@ function NoteSpeseAzienda({ companyId, refreshKey = 0 }: Props) {
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h3 className="font-semibold flex items-center gap-2">
-          <Receipt className="h-4 w-4" /> Note Spese
+          <Receipt className="h-4 w-4" /> {t("Note Spese")}
         </h3>
         <Button size="sm" onClick={() => setShowCreate(true)}>
-          <Plus className="h-4 w-4 mr-1" /> Nuova Nota Spese
+          <Plus className="h-4 w-4 mr-1" /> {t("Nuova Nota Spese")}
         </Button>
       </div>
 
@@ -322,7 +324,7 @@ function NoteSpeseAzienda({ companyId, refreshKey = 0 }: Props) {
         <Card className="border-destructive/30">
           <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-destructive">{loadError}</p>
-            <Button variant="outline" size="sm" onClick={() => loadReports()}>Riprova</Button>
+            <Button variant="outline" size="sm" onClick={() => loadReports()}>{t("Riprova")}</Button>
           </CardContent>
         </Card>
       )}
@@ -332,13 +334,13 @@ function NoteSpeseAzienda({ companyId, refreshKey = 0 }: Props) {
           <CardContent className="py-12 flex flex-col items-center justify-center gap-3 text-center">
             <Receipt className="h-10 w-10 text-muted-foreground/40" aria-hidden="true" />
             <div>
-              <p className="text-sm font-medium text-foreground">Nessuna nota spese</p>
+              <p className="text-sm font-medium text-foreground">{t("Nessuna nota spese")}</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Registra le spese aziendali per tenerle sempre sotto controllo.
+                {t("Registra le spese aziendali per tenerle sempre sotto controllo.")}
               </p>
             </div>
             <Button size="sm" variant="outline" onClick={() => setShowCreate(true)}>
-              <Plus className="h-3.5 w-3.5 mr-1" aria-hidden="true" /> Crea prima nota spese
+              <Plus className="h-3.5 w-3.5 mr-1" aria-hidden="true" /> {t("Crea prima nota spese")}
             </Button>
           </CardContent>
         </Card>
@@ -355,7 +357,7 @@ function NoteSpeseAzienda({ companyId, refreshKey = 0 }: Props) {
                     <div>
                       <p className="font-medium">{report.title}</p>
                       <div className="flex gap-2 mt-1 items-center">
-                        <Badge className={st.color} variant="secondary"><Icon className="h-3 w-3 mr-1" /> {st.label}</Badge>
+                        <Badge className={st.color} variant="secondary"><Icon className="h-3 w-3 mr-1" /> {t(st.label)}</Badge>
                         <span className="text-sm font-semibold">{formatEur(report.total_amount || 0)}</span>
                         {report.period_from && (
                           <span className="text-xs text-muted-foreground">{report.period_from} — {report.period_to || "..."}</span>
@@ -377,7 +379,7 @@ function NoteSpeseAzienda({ companyId, refreshKey = 0 }: Props) {
                           ) : (
                             <Send className="h-3 w-3 mr-1" aria-hidden="true" />
                           )}
-                          {submittingId === report.id ? "Invio..." : "Invia"}
+                          {submittingId === report.id ? t("Invio...") : t("Invia")}
                         </Button>
                         <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setDeleteId(report.id); }}>
                           <Trash2 className="h-4 w-4 text-destructive" />
@@ -395,20 +397,20 @@ function NoteSpeseAzienda({ companyId, refreshKey = 0 }: Props) {
       {/* Create Dialog */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Nuova Nota Spese</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t("Nuova Nota Spese")}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
-            <div><Label>Titolo</Label><Input placeholder="Es: Trasferta Milano - Marzo 2026" value={newReport.title} onChange={(e) => setNewReport({ ...newReport, title: e.target.value })} /></div>
-            <div><Label>Descrizione</Label><Textarea placeholder="Note opzionali..." value={newReport.description} onChange={(e) => setNewReport({ ...newReport, description: e.target.value })} rows={2} /></div>
+            <div><Label>{t("Titolo")}</Label><Input placeholder={t("Es: Trasferta Milano - Marzo 2026")} value={newReport.title} onChange={(e) => setNewReport({ ...newReport, title: e.target.value })} /></div>
+            <div><Label>{t("Descrizione")}</Label><Textarea placeholder={t("Note opzionali...")} value={newReport.description} onChange={(e) => setNewReport({ ...newReport, description: e.target.value })} rows={2} /></div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Da</Label><Input type="date" value={newReport.period_from} onChange={(e) => setNewReport({ ...newReport, period_from: e.target.value })} /></div>
+              <div><Label>{t("Da")}</Label><Input type="date" value={newReport.period_from} onChange={(e) => setNewReport({ ...newReport, period_from: e.target.value })} /></div>
               <div><Label>A</Label><Input type="date" value={newReport.period_to} onChange={(e) => setNewReport({ ...newReport, period_to: e.target.value })} /></div>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCreate(false)} disabled={isCreating}>Annulla</Button>
+            <Button variant="outline" onClick={() => setShowCreate(false)} disabled={isCreating}>{t("Annulla")}</Button>
             <Button onClick={handleCreate} disabled={isCreating}>
               {isCreating && <span className="h-3.5 w-3.5 mr-2 rounded-full border-2 border-white border-t-transparent animate-spin inline-block" />}
-              {isCreating ? "Creazione..." : "Crea"}
+              {isCreating ? t("Creazione...") : t("Crea")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -422,7 +424,7 @@ function NoteSpeseAzienda({ companyId, refreshKey = 0 }: Props) {
               {selectedReport?.title}
               {selectedReport && (
                 <Badge className={statusConfig[selectedReport.status]?.color} variant="secondary">
-                  {statusConfig[selectedReport.status]?.label}
+                  {t(statusConfig[selectedReport.status]?.label ?? "")}
                 </Badge>
               )}
             </DialogTitle>
@@ -431,26 +433,26 @@ function NoteSpeseAzienda({ companyId, refreshKey = 0 }: Props) {
             <div className="flex justify-between items-center">
               <p className="text-lg font-bold">{formatEur(selectedReport?.total_amount || 0)}</p>
               {selectedReport?.status === "draft" && (
-                <Button size="sm" onClick={() => setShowAddItem(true)}><Plus className="h-4 w-4 mr-1" /> Aggiungi Voce</Button>
+                <Button size="sm" onClick={() => setShowAddItem(true)}><Plus className="h-4 w-4 mr-1" /> {t("Aggiungi Voce")}</Button>
               )}
             </div>
             {selectedReport?.reviewed_at && (
               <div className="rounded-lg border bg-muted/30 p-3 text-sm">
-                <p>Ultima revisione · {dataOra(selectedReport.reviewed_at)}</p>
+                <p>{t("Ultima revisione · {reviewed_at}", { reviewed_at: String(dataOra(selectedReport.reviewed_at) ?? "") })}</p>
                 {selectedReport.reviewed_by && <p className="text-muted-foreground">{profili?.[selectedReport.reviewed_by] || selectedReport.reviewed_by}</p>}
                 {selectedReport.review_reason && <p className="mt-1 whitespace-pre-wrap">{selectedReport.review_reason}</p>}
-                {selectedReport.status === "rejected" && <p className="mt-2 text-muted-foreground">Riapri la nota per correggere le voci e inviarla di nuovo.</p>}
+                {selectedReport.status === "rejected" && <p className="mt-2 text-muted-foreground">{t("Riapri la nota per correggere le voci e inviarla di nuovo.")}</p>}
               </div>
             )}
             {selectedReport?.reimbursed_at && (
               <div className="rounded-lg border bg-muted/30 p-3 text-sm">
-                <p>Rimborso registrato · {dataOra(selectedReport.reimbursed_at)}</p>
+                <p>{t("Rimborso registrato · {reimbursed_at}", { reimbursed_at: String(dataOra(selectedReport.reimbursed_at) ?? "") })}</p>
                 {selectedReport.reimbursed_by && <p className="text-muted-foreground">{profili?.[selectedReport.reimbursed_by] || selectedReport.reimbursed_by}</p>}
-                <p className="break-all text-muted-foreground">Movimento {selectedReport.reimbursement_transaction_id}</p>
+                <p className="break-all text-muted-foreground">{t("Movimento {reimbursement_transaction_id}", { reimbursement_transaction_id: String(selectedReport.reimbursement_transaction_id ?? "") })}</p>
               </div>
             )}
             {reportItems.length === 0 ? (
-              <p className="text-muted-foreground text-center py-6">Nessuna voce. Aggiungi le spese alla nota.</p>
+              <p className="text-muted-foreground text-center py-6">{t("Nessuna voce. Aggiungi le spese alla nota.")}</p>
             ) : (
               <div className="space-y-2">
                 {reportItems.map((item) => (
@@ -458,7 +460,7 @@ function NoteSpeseAzienda({ companyId, refreshKey = 0 }: Props) {
                     <div>
                       <p className="text-sm font-medium">{item.description}</p>
                       <div className="flex gap-2 mt-1">
-                        <Badge variant="outline" className="text-xs">{item.category}</Badge>
+                        <Badge variant="outline" className="text-xs">{t(item.category)}</Badge>
                         <span className="text-xs text-muted-foreground">{item.expense_date}</span>
                       </div>
                     </div>
@@ -478,16 +480,16 @@ function NoteSpeseAzienda({ companyId, refreshKey = 0 }: Props) {
           {selectedReport && (
             <DialogFooter className="flex-wrap">
               {selectedReport.status === "rejected" && (
-                <Button variant="outline" disabled={!!submittingId} onClick={() => void cambiaStato(selectedReport, "draft")}>Riapri per correggere</Button>
+                <Button variant="outline" disabled={!!submittingId} onClick={() => void cambiaStato(selectedReport, "draft")}>{t("Riapri per correggere")}</Button>
               )}
               {isAdmin && selectedReport.status === "submitted" && (
                 <>
-                  <Button variant="outline" onClick={() => apriRevisione("rejected")}>Rifiuta</Button>
-                  <Button onClick={() => apriRevisione("approved")}>Approva</Button>
+                  <Button variant="outline" onClick={() => apriRevisione("rejected")}>{t("Rifiuta")}</Button>
+                  <Button onClick={() => apriRevisione("approved")}>{t("Approva")}</Button>
                 </>
               )}
               {isAdmin && selectedReport.status === "approved" && (
-                <Button onClick={() => apriRevisione("reimbursed")}>Registra rimborso</Button>
+                <Button onClick={() => apriRevisione("reimbursed")}>{t("Registra rimborso")}</Button>
               )}
             </DialogFooter>
           )}
@@ -497,33 +499,33 @@ function NoteSpeseAzienda({ companyId, refreshKey = 0 }: Props) {
       <Dialog open={!!revisione} onOpenChange={(open) => { if (!open && !submittingId) setRevisione(null); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{revisione === "approved" ? "Approva nota spese" : revisione === "rejected" ? "Rifiuta nota spese" : "Registra rimborso"}</DialogTitle>
+            <DialogTitle>{revisione === "approved" ? t("Approva nota spese") : revisione === "rejected" ? t("Rifiuta nota spese") : t("Registra rimborso")}</DialogTitle>
           </DialogHeader>
           {revisione === "reimbursed" ? (
             <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">Associa l’uscita già contabilizzata per {formatEur(importoRimborso)}.</p>
-              <Label htmlFor="rimborso-nota-movimento">Movimento bancario</Label>
+              <p className="text-sm text-muted-foreground">{t("Associa l’uscita già contabilizzata per {importoRimborso}.", { importoRimborso: formatEur(importoRimborso) })}</p>
+              <Label htmlFor="rimborso-nota-movimento">{t("Movimento bancario")}</Label>
               <Select value={movimento} onValueChange={setMovimento}>
-                <SelectTrigger id="rimborso-nota-movimento"><SelectValue placeholder="Scegli il movimento" /></SelectTrigger>
+                <SelectTrigger id="rimborso-nota-movimento"><SelectValue placeholder={t("Scegli il movimento")} /></SelectTrigger>
                 <SelectContent>
                   {movimenti.data?.map((m) => <SelectItem key={m.id} value={m.id}>{m.booking_date} · {m.description || m.id}</SelectItem>)}
                 </SelectContent>
               </Select>
-              {movimenti.isLoading && <p role="status" className="text-sm">Caricamento movimenti…</p>}
-              {movimenti.isError && <Button variant="link" onClick={() => void movimenti.refetch()}>Riprova lettura movimenti</Button>}
-              {movimenti.isSuccess && movimenti.data.length === 0 && <p className="text-sm">Nessuna uscita contabilizzata con lo stesso importo e valuta.</p>}
+              {movimenti.isLoading && <p role="status" className="text-sm">{t("Caricamento movimenti…")}</p>}
+              {movimenti.isError && <Button variant="link" onClick={() => void movimenti.refetch()}>{t("Riprova lettura movimenti")}</Button>}
+              {movimenti.isSuccess && movimenti.data.length === 0 && <p className="text-sm">{t("Nessuna uscita contabilizzata con lo stesso importo e valuta.")}</p>}
             </div>
           ) : (
             <div className="space-y-2">
-              <Label htmlFor="nota-spese-motivo">{revisione === "rejected" ? "Motivo del rifiuto" : "Nota di approvazione (facoltativa)"}</Label>
+              <Label htmlFor="nota-spese-motivo">{revisione === "rejected" ? t("Motivo del rifiuto") : t("Nota di approvazione (facoltativa)")}</Label>
               <Textarea id="nota-spese-motivo" maxLength={2000} value={motivo} onChange={(e) => setMotivo(e.target.value)} />
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" disabled={!!submittingId} onClick={() => setRevisione(null)}>Annulla</Button>
+            <Button variant="outline" disabled={!!submittingId} onClick={() => setRevisione(null)}>{t("Annulla")}</Button>
             <Button disabled={!!submittingId || (revisione === "rejected" && !motivo.trim()) || (revisione === "reimbursed" && !movimento)}
               onClick={() => { if (revisione && selectedReport) void cambiaStato(selectedReport, revisione); }}>
-              Conferma
+              {t("Conferma")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -532,30 +534,30 @@ function NoteSpeseAzienda({ companyId, refreshKey = 0 }: Props) {
       {/* Add Item Dialog */}
       <Dialog open={showAddItem} onOpenChange={setShowAddItem}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Aggiungi Voce Spesa</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t("Aggiungi Voce Spesa")}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
-            <div><Label>Descrizione</Label><Input placeholder="Es: Pranzo con cliente" value={newItem.description} onChange={(e) => setNewItem({ ...newItem, description: e.target.value })} /></div>
+            <div><Label>{t("Descrizione")}</Label><Input placeholder={t("Es: Pranzo con cliente")} value={newItem.description} onChange={(e) => setNewItem({ ...newItem, description: e.target.value })} /></div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Importo (EUR)</Label><Input type="number" min="0.01" step="0.01" placeholder="0.00" value={newItem.amount} onChange={(e) => setNewItem({ ...newItem, amount: e.target.value })} /></div>
-              <div><Label>Data</Label><Input type="date" value={newItem.expense_date} onChange={(e) => setNewItem({ ...newItem, expense_date: e.target.value })} /></div>
+              <div><Label>{t("Importo (EUR)")}</Label><Input type="number" min="0.01" step="0.01" placeholder="0.00" value={newItem.amount} onChange={(e) => setNewItem({ ...newItem, amount: e.target.value })} /></div>
+              <div><Label>{t("Data")}</Label><Input type="date" value={newItem.expense_date} onChange={(e) => setNewItem({ ...newItem, expense_date: e.target.value })} /></div>
             </div>
             <div>
-              <Label>Categoria</Label>
+              <Label>{t("Categoria")}</Label>
               <Select value={newItem.category} onValueChange={(v) => setNewItem({ ...newItem, category: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {["Trasferte", "Ristorazione", "Trasporti", "Alloggio", "Materiali", "Altro"].map((c) => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                    <SelectItem key={c} value={c}>{t(c)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddItem(false)} disabled={isAddingItem}>Annulla</Button>
+            <Button variant="outline" onClick={() => setShowAddItem(false)} disabled={isAddingItem}>{t("Annulla")}</Button>
             <Button onClick={handleAddItem} disabled={isAddingItem}>
               {isAddingItem && <span className="h-3.5 w-3.5 mr-2 rounded-full border-2 border-white border-t-transparent animate-spin inline-block" />}
-              {isAddingItem ? "Aggiunta..." : "Aggiungi"}
+              {isAddingItem ? t("Aggiunta...") : t("Aggiungi")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -565,12 +567,12 @@ function NoteSpeseAzienda({ companyId, refreshKey = 0 }: Props) {
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Elimina nota spese</AlertDialogTitle>
-            <AlertDialogDescription>La nota spese e tutte le sue voci verranno eliminate.</AlertDialogDescription>
+            <AlertDialogTitle>{t("Elimina nota spese")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("La nota spese e tutte le sue voci verranno eliminate.")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete}>Elimina</AlertDialogAction>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete}>{t("Elimina")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

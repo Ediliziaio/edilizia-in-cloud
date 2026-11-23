@@ -14,11 +14,13 @@ import { tutteLePagine } from "@/lib/fatturazione/registroVendite";
 import { formatCount, formatCurrency, formatDateShort } from "@/lib/formatters";
 import type { ConfrontoCassa, ValoriPropostaCassa } from "../../../../shared/cassaInCloud";
 import { AbbinaAccreditoCassa, RiepilogoAccreditoCassa, ScritturaChiusuraCassa } from "./OperazioniChiusureCassa";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const importo = (n: number | null, valuta: string | null) => n === null ? "—" : valuta === "EUR" ? formatCurrency(n)
-  : `${n.toLocaleString("it-IT", { minimumFractionDigits: 2 })}${valuta ? ` ${valuta}` : ""}`;
+  : `${n.toLocaleString(intlCampo(), { minimumFractionDigits: 2 })}${valuta ? ` ${valuta}` : ""}`;
 
 function DettaglioGiorno({ companyId, gruppo, puoAbbinare }: { companyId: string; gruppo: ConfrontoCassa; puoAbbinare: boolean }) {
+  const tr = useT();
   const permessi = usePermissions();
   const [scrittura, setScrittura] = useState<ValoriPropostaCassa | null>(null);
   const [abbina, setAbbina] = useState(false);
@@ -32,16 +34,16 @@ function DettaglioGiorno({ companyId, gruppo, puoAbbinare }: { companyId: string
     <div className="space-y-3 px-3 pb-3">
       {(gruppo.scontrini_assenti > 0 || gruppo.con_resi || gruppo.con_differiti || gruppo.con_fatture) && (
         <div className="flex flex-wrap gap-1">
-          {gruppo.scontrini_assenti > 0 && <Badge variant="outline">Scontrini assenti {gruppo.scontrini_assenti}</Badge>}
-          {gruppo.con_resi && <Badge variant="outline">Resi</Badge>}
-          {gruppo.con_differiti && <Badge variant="outline">Differiti</Badge>}
-          {gruppo.con_fatture && <Badge variant="outline">Fatture collegate</Badge>}
+          {gruppo.scontrini_assenti > 0 && <Badge variant="outline">{tr("Scontrini assenti {scontrini_assenti}", { scontrini_assenti: String(gruppo.scontrini_assenti ?? "") })}</Badge>}
+          {gruppo.con_resi && <Badge variant="outline">{tr("Resi")}</Badge>}
+          {gruppo.con_differiti && <Badge variant="outline">{tr("Differiti")}</Badge>}
+          {gruppo.con_fatture && <Badge variant="outline">{tr("Fatture collegate")}</Badge>}
         </div>
       )}
       {gruppo.chiusure.map(({ id, dati: c, valuta, presente }) => (
         <div key={id} className="space-y-2 rounded-md border p-3">
-          <p className="text-sm font-medium">Chiusura {c.numero ? `n. ${c.numero}` : ""} · {formatDateShort(c.data_chiusura)} {c.ora?.slice(0, 5)}
-            {!presente && <Badge variant="outline" className="ml-2">Assente nell’ultimo import</Badge>}
+          <p className="text-sm font-medium">{c.numero ? tr("Chiusura n. {numero}", { numero: c.numero }) : tr("Chiusura")} · {formatDateShort(c.data_chiusura)} {c.ora?.slice(0, 5)}
+            {!presente && <Badge variant="outline" className="ml-2">{tr("Assente nell’ultimo import")}</Badge>}
           </p>
           <dl className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
             {[
@@ -50,14 +52,14 @@ function DettaglioGiorno({ companyId, gruppo, puoAbbinare }: { companyId: string
               ["Fatture dirette", c.fatture_dirette], ["Note di credito", c.note_credito],
             ].map(([etichetta, valore]) => valore !== null && (
               <div key={String(etichetta)}>
-                <dt className="text-xs text-muted-foreground">{etichetta}</dt><dd className="tabular-nums">{importo(Number(valore), valuta)}</dd>
+                <dt className="text-xs text-muted-foreground">{tr(String(etichetta))}</dt><dd className="tabular-nums">{importo(Number(valore), valuta)}</dd>
               </div>
             ))}
           </dl>
           {!!c.iva.length && (
             <Table>
               <TableHeader><TableRow>
-                <TableHead>Aliquota IVA</TableHead><TableHead>Totale scontrini</TableHead><TableHead>Annulli</TableHead><TableHead>Pagamenti</TableHead>
+                <TableHead>{tr("Aliquota IVA")}</TableHead><TableHead>{tr("Totale scontrini")}</TableHead><TableHead>{tr("Annulli")}</TableHead><TableHead>{tr("Pagamenti")}</TableHead>
               </TableRow></TableHeader>
               <TableBody>{c.iva.map((t, i) => (
                 <TableRow key={`${t.id ?? "iva"}-${i}`}>
@@ -66,8 +68,8 @@ function DettaglioGiorno({ companyId, gruppo, puoAbbinare }: { companyId: string
                   <TableCell>{importo(t.annulli, valuta)}</TableCell>
                   <TableCell>{t.pagamenti.filter((q) => q.importo || q.annulli).map((q, j) => (
                     <p key={j} className="whitespace-nowrap">
-                      {q.descrizione ?? (q.tipo === "CASH" ? "Contanti" : ["CASHCARD", "CREDITCARD"].includes(q.tipo) ? "Carta/POS" : q.tipo)}
-                      {" · "}{importo(q.importo, valuta)}{!!q.annulli && ` · annulli ${importo(q.annulli, valuta)}`}
+                      {q.descrizione ?? (q.tipo === "CASH" ? tr("Contanti") : ["CASHCARD", "CREDITCARD"].includes(q.tipo) ? tr("Carta/POS") : q.tipo)}
+                      {" · "}{importo(q.importo, valuta)}{!!q.annulli && ` · ${tr("annulli {annulli}", { annulli: String(importo(q.annulli, valuta) ?? "") })}`}
                     </p>
                   ))}</TableCell>
                 </TableRow>
@@ -76,22 +78,22 @@ function DettaglioGiorno({ companyId, gruppo, puoAbbinare }: { companyId: string
           )}
         </div>
       ))}
-      {proposta.isLoading && proposta.fetchStatus === "fetching" && <p role="status" className="text-sm text-muted-foreground">Verifica operazioni collegate…</p>}
-      {proposta.isError && <p role="alert" className="text-sm text-destructive">Operazioni collegate non disponibili. <button className="underline" onClick={() => void proposta.refetch()}>Riprova</button></p>}
+      {proposta.isLoading && proposta.fetchStatus === "fetching" && <p role="status" className="text-sm text-muted-foreground">{tr("Verifica operazioni collegate…")}</p>}
+      {proposta.isError && <p role="alert" className="text-sm text-destructive">{tr("Operazioni collegate non disponibili.")} <button className="underline" onClick={() => void proposta.refetch()}>{tr("Riprova")}</button></p>}
       {p && (
         <>
-          {!p.valori && <p className="text-sm text-muted-foreground">La proposta contabile richiede totali coerenti e pagamenti in contanti o con carta. Controlla dati, resi, annulli e fatture collegate.</p>}
+          {!p.valori && <p className="text-sm text-muted-foreground">{tr("La proposta contabile richiede totali coerenti e pagamenti in contanti o con carta. Controlla dati, resi, annulli e fatture collegate.")}</p>}
           <div className="flex flex-wrap gap-2">
             {p.scrittura_id && <Button size="sm" variant="outline" asChild>
-              <Link to={`/azienda/contabilita-generale?anno=${gruppo.giorno.slice(0, 4)}`}>Scrittura registrata</Link>
+              <Link to={`/azienda/contabilita-generale?anno=${gruppo.giorno.slice(0, 4)}`}>{tr("Scrittura registrata")}</Link>
             </Button>}
             {!p.scrittura_id && p.puo_registrare && p.valori &&
-              <Button size="sm" variant="outline" onClick={() => setScrittura(p.valori)}>Proponi scrittura Dare/Avere</Button>}
+              <Button size="sm" variant="outline" onClick={() => setScrittura(p.valori)}>{tr("Proponi scrittura Dare/Avere")}</Button>}
             {puoAbbinare && !p.accredito_id && p.valori?.pos > 0 &&
-              <Button size="sm" variant="outline" onClick={() => setAbbina(true)}>Abbina accredito POS</Button>}
+              <Button size="sm" variant="outline" onClick={() => setAbbina(true)}>{tr("Abbina accredito POS")}</Button>}
           </div>
-          {p.scrittura_da_verificare && <p role="alert" className="text-sm text-destructive">I dati della chiusura sono cambiati dopo la registrazione. Verifica la scrittura.</p>}
-          {p.pos_da_verificare && <p role="alert" className="text-sm text-destructive">I dati della chiusura sono cambiati dopo l’abbinamento. Verifica l’accredito POS.</p>}
+          {p.scrittura_da_verificare && <p role="alert" className="text-sm text-destructive">{tr("I dati della chiusura sono cambiati dopo la registrazione. Verifica la scrittura.")}</p>}
+          {p.pos_da_verificare && <p role="alert" className="text-sm text-destructive">{tr("I dati della chiusura sono cambiati dopo l’abbinamento. Verifica l’accredito POS.")}</p>}
           {p.accredito_id && <RiepilogoAccreditoCassa companyId={companyId} id={p.accredito_id} puoScollegare={puoAbbinare} />}
         </>
       )}
@@ -102,6 +104,7 @@ function DettaglioGiorno({ companyId, gruppo, puoAbbinare }: { companyId: string
 }
 
 export default function ChiusureGiornaliereCassa({ companyId, dal, al, punto }: { companyId: string; dal: string; al: string; punto: string }) {
+  const t = useT();
   const permessi = usePermissions();
   const puoAbbinare = permessi.canReconcileBankTransactions && !permessi.solaLettura;
   const [aperto, setAperto] = useState<string | null>(null);
@@ -115,26 +118,26 @@ export default function ChiusureGiornaliereCassa({ companyId, dal, al, punto }: 
       supabase.rpc("cassa_in_cloud_confronto" as never, { p_company_id: companyId, p_dal: dal, p_al: al } as never)
         .range(da, a).abortSignal(signal)),
   });
-  if (giorni > 61) return <p className="text-sm text-muted-foreground">Per confrontare le chiusure, seleziona fino a 62 giorni.</p>;
-  if (elenco.isLoading) return <p role="status" className="text-sm text-muted-foreground">Caricamento chiusure…</p>;
-  if (elenco.isError) return <p role="alert" className="text-sm text-destructive">Impossibile leggere le chiusure. <button className="underline" onClick={() => void elenco.refetch()}>Riprova</button></p>;
+  if (giorni > 61) return <p className="text-sm text-muted-foreground">{t("Per confrontare le chiusure, seleziona fino a 62 giorni.")}</p>;
+  if (elenco.isLoading) return <p role="status" className="text-sm text-muted-foreground">{t("Caricamento chiusure…")}</p>;
+  if (elenco.isError) return <p role="alert" className="text-sm text-destructive">{t("Impossibile leggere le chiusure.")} <button className="underline" onClick={() => void elenco.refetch()}>{t("Riprova")}</button></p>;
   const righe = (elenco.data ?? []).filter((g) => !punto || g.punto_vendita_id === punto);
   const attive = righe.filter((g) => selezionati.includes(chiaveGiornoCassa(g)) && confrontoChiusura(g).stato === "Scontrini allineati");
-  if (!righe.length) return <p className="text-sm text-muted-foreground">Nessuna chiusura o scontrino importato nel periodo.</p>;
+  if (!righe.length) return <p className="text-sm text-muted-foreground">{t("Nessuna chiusura o scontrino importato nel periodo.")}</p>;
   return (
     <div className="space-y-2">
       {!!attive.length && puoAbbinare && (
         <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" onClick={() => setGruppiPos(attive)}>Abbina accredito POS ({attive.length})</Button>
-          <Button size="sm" variant="ghost" onClick={() => setSelezionati([])}>Deseleziona</Button>
+          <Button size="sm" onClick={() => setGruppiPos(attive)}>{t("Abbina accredito POS ({n})", { n: attive.length })}</Button>
+          <Button size="sm" variant="ghost" onClick={() => setSelezionati([])}>{t("Deseleziona")}</Button>
         </div>
       )}
       <Card>
         <Table>
           <TableHeader><TableRow>
             {puoAbbinare && <TableHead className="w-10">POS</TableHead>}
-            <TableHead>Giorno e cassa</TableHead><TableHead>Scontrini importati</TableHead>
-            <TableHead>Chiusura</TableHead><TableHead>Confronto</TableHead><TableHead />
+            <TableHead>{t("Giorno e cassa")}</TableHead><TableHead>{t("Scontrini importati")}</TableHead>
+            <TableHead>{t("Chiusura")}</TableHead><TableHead>{t("Confronto")}</TableHead><TableHead />
           </TableRow></TableHeader>
           <TableBody>{righe.map((g) => {
             const key = chiaveGiornoCassa(g);
@@ -161,15 +164,16 @@ function RigaChiusura({ g, c, aperta, puoAbbinare, selezionata, limite, onApri, 
   g: ConfrontoCassa; c: ReturnType<typeof confrontoChiusura>; aperta: boolean; puoAbbinare: boolean;
   selezionata: boolean; limite: boolean; onApri: () => void; onSeleziona: (v: boolean) => void; children: React.ReactNode;
 }) {
+  const t = useT();
   return (
     <>
       <TableRow>
         {puoAbbinare && <TableCell>{c.stato === "Scontrini allineati" && (
-          <Checkbox aria-label={`Seleziona ${g.punto_vendita_nome}, cassa ${g.cassa_id}, ${g.giorno} per il POS`}
+          <Checkbox aria-label={t("Seleziona {punto_vendita_nome}, cassa {cassa_id}, {giorno} per il POS", { punto_vendita_nome: String(g.punto_vendita_nome ?? ""), cassa_id: String(g.cassa_id ?? ""), giorno: String(g.giorno ?? "") })}
             checked={selezionata} disabled={limite && !selezionata} onCheckedChange={(v) => onSeleziona(v === true)} />
         )}</TableCell>}
         <TableCell>
-          <p className="whitespace-nowrap font-medium">{formatDateShort(g.giorno)} · {g.cassa_id ? `Cassa ${g.cassa_id}` : "Cassa non indicata"}</p>
+          <p className="whitespace-nowrap font-medium">{formatDateShort(g.giorno)} · {g.cassa_id ? t("Cassa {cassa_id}", { cassa_id: String(g.cassa_id ?? "") }) : t("Cassa non indicata")}</p>
           <p className="text-xs text-muted-foreground">{g.punto_vendita_nome}</p>
         </TableCell>
         <TableCell className="whitespace-nowrap">{formatCount(g.numero_scontrini)} · {importo(g.totale_scontrini, c.valuta)}</TableCell>
@@ -178,7 +182,7 @@ function RigaChiusura({ g, c, aperta, puoAbbinare, selezionata, limite, onApri, 
           <Badge variant={c.stato === "Scontrini allineati" ? "secondary" : "outline"} className="whitespace-nowrap">{c.stato}</Badge>
           {c.scostamento !== null && c.scostamento !== 0 && <p className="mt-1 text-xs text-destructive">{importo(c.scostamento, c.valuta)}</p>}
         </TableCell>
-        <TableCell><Button size="sm" variant="ghost" aria-expanded={aperta} onClick={onApri}>{aperta ? "Chiudi" : "Dettaglio"}</Button></TableCell>
+        <TableCell><Button size="sm" variant="ghost" aria-expanded={aperta} onClick={onApri}>{aperta ? t("Chiudi") : t("Dettaglio")}</Button></TableCell>
       </TableRow>
       {aperta && <TableRow><TableCell colSpan={puoAbbinare ? 6 : 5} className="p-0">{children}</TableCell></TableRow>}
     </>

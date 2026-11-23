@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { leggiImportoItaliano } from "@/lib/orders/salCertificato";
 import { useContiMovimentabili } from "./ContiPerRuolo";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Le righe della fattura che sono già un cespite: numero riga → descrizione del cespite. */
 export function useCespitiDellaFattura(companyId: string, fatturaId: string, enabled: boolean) {
@@ -44,12 +45,13 @@ const PROPOSTE: Array<{ sotto: string; aliquota: number; categoria: "materiale" 
 export function CespiteDaRiga({ companyId, fatturaId, chiave, descrizione, gia }: {
   companyId: string; fatturaId: string; chiave: string; descrizione: string; gia: string | undefined;
 }) {
+  const t = useT();
   const [aperto, setAperto] = useState(false);
-  if (gia) return <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] text-emerald-800" title={gia}>Cespite</span>;
+  if (gia) return <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] text-emerald-800" title={gia}>{t("Cespite")}</span>;
   return (
     <>
       <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => setAperto(true)}
-        title="Se la riga è un bene comprato che dura più anni (macchina, attrezzatura, automezzo): va nel registro dei cespiti e si ammortizza">Fai cespite</Button>
+        title={t("Se la riga è un bene comprato che dura più anni (macchina, attrezzatura, automezzo): va nel registro dei cespiti e si ammortizza")}>{t("Fai cespite")}</Button>
       {aperto && <Dialogo companyId={companyId} fatturaId={fatturaId} chiave={chiave} descrizione={descrizione} onClose={() => setAperto(false)} />}
     </>
   );
@@ -60,6 +62,7 @@ const DAL_RUOLO = "__ruolo__";
 function Dialogo({ companyId, fatturaId, chiave, descrizione, onClose }: {
   companyId: string; fatturaId: string; chiave: string; descrizione: string; onClose: () => void;
 }) {
+  const t = useT();
   const qc = useQueryClient();
   const piano = useContiMovimentabili(companyId);
   const [nome, setNome] = useState(descrizione.slice(0, 200));
@@ -79,43 +82,43 @@ function Dialogo({ companyId, fatturaId, chiave, descrizione, onClose }: {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Cespite creato: la riga è sul conto del bene");
+      toast.success(t("Cespite creato: la riga è sul conto del bene"));
       for (const k of [["cespiti-della-fattura"], ["fatture-ricevute"], ["fattura-ricevuta-riepilogo"], ["contabilita-generale", companyId]]) {
         void qc.invalidateQueries({ queryKey: k });
       }
       onClose();
     },
-    onError: (e) => toast.error("Cespite non creato", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Cespite non creato"), { description: e instanceof Error ? e.message : String(e) }),
   });
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="max-w-md">
-        <DialogHeader><DialogTitle>Nuovo cespite dalla riga</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{t("Nuovo cespite dalla riga")}</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1">
-            <Label htmlFor="ces-nome" className="text-xs">Descrizione del bene</Label>
+            <Label htmlFor="ces-nome" className="text-xs">{t("Descrizione del bene")}</Label>
             <Input id="ces-nome" className="h-8" value={nome} onChange={(e) => setNome(e.target.value)} />
           </div>
           <div className="grid grid-cols-3 gap-2">
             <div className="col-span-2 space-y-1">
-              <Label className="text-xs">Tipo di bene</Label>
+              <Label className="text-xs">{t("Tipo di bene")}</Label>
               <Select value={sotto} onValueChange={(x) => { setSotto(x); setAliquota(String(PROPOSTE.find((p) => p.sotto === x)?.aliquota ?? aliquota)); }}>
-                <SelectTrigger aria-label="Tipo di bene" className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>{PROPOSTE.map((p) => <SelectItem key={p.sotto} value={p.sotto} className="text-xs">{p.sotto}</SelectItem>)}</SelectContent>
+                <SelectTrigger aria-label={t("Tipo di bene")} className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>{PROPOSTE.map((p) => <SelectItem key={p.sotto} value={p.sotto} className="text-xs">{t(p.sotto)}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-1">
-              <Label htmlFor="ces-aliq" className="text-xs">Aliquota %</Label>
+              <Label htmlFor="ces-aliq" className="text-xs">{t("Aliquota %")}</Label>
               <Input id="ces-aliq" inputMode="decimal" className="h-8 text-right tabular-nums" value={aliquota} onChange={(e) => setAliquota(e.target.value)} />
             </div>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Conto del bene</Label>
+            <Label className="text-xs">{t("Conto del bene")}</Label>
             <Select value={conto ?? DAL_RUOLO} onValueChange={(x) => setConto(x === DAL_RUOLO ? null : x)}>
-              <SelectTrigger aria-label="Conto del bene" className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectTrigger aria-label={t("Conto del bene")} className="h-8 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value={DAL_RUOLO} className="text-xs">Proposto dal tipo di bene</SelectItem>
+                <SelectItem value={DAL_RUOLO} className="text-xs">{t("Proposto dal tipo di bene")}</SelectItem>
                 {(piano.data ?? []).filter((c) => c.natura === "attivo").map((c) => (
                   <SelectItem key={c.id} value={c.id} className="text-xs">{c.codice} {c.descrizione}</SelectItem>
                 ))}
@@ -123,13 +126,12 @@ function Dialogo({ companyId, fatturaId, chiave, descrizione, onClose }: {
             </Select>
           </div>
           <p className="text-xs text-muted-foreground">
-            Il costo è l'imponibile della riga più l'IVA che non si detrae; la data è quella della fattura. Il primo anno si
-            ammortizza a metà aliquota. Se la fattura è già nel giornale, la sua scrittura si rifà con la riga sul conto del bene.
+            {t("Il costo è l'imponibile della riga più l'IVA che non si detrae; la data è quella della fattura. Il primo anno si ammortizza a metà aliquota. Se la fattura è già nel giornale, la sua scrittura si rifà con la riga sul conto del bene.")}
           </p>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Annulla</Button>
-          <Button disabled={!valido || crea.isPending} onClick={() => crea.mutate()}>{crea.isPending ? "Creo…" : "Crea il cespite"}</Button>
+          <Button variant="outline" onClick={onClose}>{t("Annulla")}</Button>
+          <Button disabled={!valido || crea.isPending} onClick={() => crea.mutate()}>{crea.isPending ? t("Creo…") : t("Crea il cespite")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

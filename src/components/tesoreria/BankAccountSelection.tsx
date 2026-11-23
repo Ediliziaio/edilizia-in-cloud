@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { BANKING_QUERY_KEYS } from "@/lib/banking/queryKeys";
 import { toast } from "sonner";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type Account = {
   id: string;
@@ -29,6 +30,7 @@ export default function BankAccountSelection({
   companyId: string;
   onChanged?: () => void;
 }) {
+  const t = useT();
   const qc = useQueryClient();
   const { userRoles } = useAuth();
   const { canEditSettingsIntegrations, canViewBankBalances } = usePermissions();
@@ -131,13 +133,13 @@ export default function BankAccountSelection({
         { p_company: companyId, p_accounts: ids } as never,
       );
       if (error) throw error;
-      toast.success("Scelta dei conti salvata");
+      toast.success(t("Scelta dei conti salvata"));
       invalidate();
     } catch (e) {
       toast.error(
         e instanceof Error
           ? e.message
-          : ((e as { message?: string }).message ?? "Scelta non salvata"),
+          : ((e as { message?: string }).message ?? t("Scelta non salvata")),
       );
     } finally {
       setSaving(false);
@@ -148,17 +150,17 @@ export default function BankAccountSelection({
     try {
       const n = Number(limit);
       if (!limit.trim() || !Number.isInteger(n) || n < 0 || n > 100)
-        throw new Error("Inserisci un limite intero fra 0 e 100");
+        throw new Error(t("Inserisci un limite intero fra 0 e 100"));
       const { error } = await supabase.rpc(
         "bank_set_account_limit" as never,
         { p_company: companyId, p_limit: n } as never,
       );
       if (error) throw error;
-      toast.success("Limite aggiornato");
+      toast.success(t("Limite aggiornato"));
       setLimit("");
       invalidate();
     } catch (e) {
-      toast.error((e as { message?: string }).message ?? "Limite non salvato");
+      toast.error((e as { message?: string }).message ?? t("Limite non salvato"));
     } finally {
       setSaving(false);
     }
@@ -166,15 +168,15 @@ export default function BankAccountSelection({
   if (query.isLoading)
     return (
       <p className="text-sm text-muted-foreground">
-        Caricamento conti disponibili…
+        {t("Caricamento conti disponibili…")}
       </p>
     );
   if (query.error)
     return (
       <div role="alert" className="text-sm text-destructive">
-        Impossibile leggere la scelta dei conti.{" "}
+        {t("Impossibile leggere la scelta dei conti.")}{" "}
         <Button variant="link" onClick={() => void query.refetch()}>
-          Riprova
+          {t("Riprova")}
         </Button>
       </div>
     );
@@ -182,54 +184,47 @@ export default function BankAccountSelection({
   return (
     <section
       className="rounded-lg border bg-muted/20 p-4 space-y-3"
-      aria-label="Scelta dei conti bancari"
+      aria-label={t("Scelta dei conti bancari")}
     >
       <div className="flex justify-between gap-3">
         <div>
           <h3 className="font-semibold">
-            Conti collegati{" "}
+            {t("Conti collegati")}{" "}
             <span className="tabular-nums">
               {data.selected.length}/{data.limit}
             </span>
           </h3>
-          <p className="text-xs text-muted-foreground">
-            {data.accounts.length} disponibili dalle banche autorizzate. Scegli
-            quali utilizzare in Tesoreria.
-          </p>
+          <p className="text-xs text-muted-foreground">{t("{n} disponibili dalle banche autorizzate. Scegli quali utilizzare in Tesoreria.", { n: data.accounts.length })}</p>
         </div>
       </div>
       {data.automatic && (
         <p className="text-xs">
-          Aggiornamento automatico alle 7:00 e alle 18:00 · ora italiana.
+          {t("Aggiornamento automatico alle 7:00 e alle 18:00 · ora italiana.")}
         </p>
       )}
       {runs.error && (
         <p role="alert" className="text-xs text-destructive">
-          Esiti automatici non disponibili.
+          {t("Esiti automatici non disponibili.")}
         </p>
       )}
       {runs.data?.map((r, i) => (
         <p key={i} className="text-xs text-muted-foreground">
-          Aggiornamento del{" "}
-          {new Date(r.slot).toLocaleString("it-IT", {
-            timeZone: "Europe/Rome",
-          })}
-          :{" "}
+          {t("Aggiornamento del {data}:", { data: new Date(r.slot).toLocaleString(intlCampo(), { timeZone: "Europe/Rome" }) })}{" "}
           {r.status === "completed"
-            ? "Completato"
+            ? t("Completato")
             : r.status === "failed"
               ? r.error_message
               : r.status === "running"
-                ? "In corso"
-                : "In attesa"}
+                ? t("In corso")
+                : t("In attesa")}
         </p>
       ))}
       <div className="flex flex-wrap items-center gap-2">
         <Input
-          aria-label="Cerca conto disponibile"
+          aria-label={t("Cerca conto disponibile")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Cerca banca, nome conto o ultime cifre IBAN…"
+          placeholder={t("Cerca banca, nome conto o ultime cifre IBAN…")}
           className="min-w-48 flex-1"
         />
         {data.selected.length > 0 && (
@@ -239,15 +234,15 @@ export default function BankAccountSelection({
             onClick={() => setShowAvailable((v) => !v)}
           >
             {showAvailable
-              ? "Solo conti scelti"
-              : `Mostra disponibili (${data.accounts.length - data.selected.length})`}
+              ? t("Solo conti scelti")
+              : t("Mostra disponibili ({n})", { n: data.accounts.length - data.selected.length })}
           </Button>
         )}
       </div>
       <div
         className="h-1.5 overflow-hidden rounded-full bg-muted"
         role="progressbar"
-        aria-label="Conti utilizzati"
+        aria-label={t("Conti utilizzati")}
         aria-valuemin={0}
         aria-valuemax={data.limit || 1}
         aria-valuenow={data.selected.length}
@@ -299,14 +294,14 @@ export default function BankAccountSelection({
                     />
                     {data.banks[a.connection_id!]}
                   </strong>
-                  {a.account_name ?? "Conto corrente"} ·{" "}
-                  {a.iban ? `•••• ${a.iban.slice(-4)}` : "IBAN non disponibile"}
+                  {a.account_name ?? t("Conto corrente")} ·{" "}
+                  {a.iban ? `•••• ${a.iban.slice(-4)}` : t("IBAN non disponibile")}
                   <span className="block text-xs text-muted-foreground">
                     {data.selected.includes(a.id)
-                      ? "Collegato in Tesoreria"
+                      ? t("Collegato in Tesoreria")
                       : checked
-                        ? "Selezionato · da confermare"
-                        : "Disponibile · non importato"}
+                        ? t("Selezionato · da confermare")
+                        : t("Disponibile · non importato")}
                   </span>
                 </span>
               </label>
@@ -318,19 +313,14 @@ export default function BankAccountSelection({
           <Button
             onClick={() => void save()}
             disabled={saving || !draft || draft.company !== companyId}
-          >
-            Conferma {ids.length}/{data.limit} conti
-          </Button>
-          <p className="text-xs text-muted-foreground">
-            Per collegare più di {data.limit} conti, richiedi lo sblocco al
-            superadmin.
-          </p>
+          >{t("Conferma {n}/{limit} conti", { n: ids.length, limit: String(data.limit ?? "") })}</Button>
+          <p className="text-xs text-muted-foreground">{t("Per collegare più di {limit} conti, richiedi lo sblocco al superadmin.", { limit: String(data.limit ?? "") })}</p>
         </div>
       )}
       {admin && (
         <div className="flex items-center gap-2 border-t pt-3">
           <label htmlFor="bank-account-limit" className="text-xs">
-            Limite conti · solo superadmin
+            {t("Limite conti · solo superadmin")}
           </label>
           <Input
             id="bank-account-limit"
@@ -348,7 +338,7 @@ export default function BankAccountSelection({
             onClick={() => void saveLimit()}
             disabled={saving || !limit}
           >
-            Aggiorna limite
+            {t("Aggiorna limite")}
           </Button>
         </div>
       )}

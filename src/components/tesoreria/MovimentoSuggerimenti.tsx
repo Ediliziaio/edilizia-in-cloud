@@ -13,6 +13,7 @@ import {
   cifreRiferimento, linkCommessa, linkFattura, linkFornitore, linkOda, paroleNome, punteggioCandidato, riferimentoOda, stessaControparte,
 } from "@/lib/finance/collegamentiFinanza";
 import type { CandidatoRipartizione } from "./RipartizioneMovimento";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Fornitore { id: string; name: string }
 interface Oda { id: string; oda_number: string | null; status: string | null; order_id: string | null; supplier_id: string | null }
@@ -26,6 +27,7 @@ const controparteDi = (m: BankMovement) => (m.transaction_type === "credit" ? m.
  * punteggio. Il popup li mostra dentro «A cosa è collegato», nella riga giusta.
  */
 export function useSuggerimentiMovimento(company: string, m: BankMovement, puoAbbinare: boolean, onAbbinato: () => void) {
+  const t = useT();
   const controparte = controparteDi(m);
   const causale = bankCausale(m);
   const rifOda = riferimentoOda(causale);
@@ -88,12 +90,12 @@ export function useSuggerimentiMovimento(company: string, m: BankMovement, puoAb
       );
       salvato = true;
       const falliti = await syncBankExternalPayments([{ id: m.id, booking_date: m.booking_date, result }]);
-      toast.success(`Abbinato a ${c.titolo}`);
-      if (falliti.length) toast.warning(`Pagamento salvato, aggiornamento esterno da riprovare: ${falliti.join(", ")}`);
+      toast.success(t("Abbinato a {titolo}", { titolo: String(c.titolo ?? "") }));
+      if (falliti.length) toast.warning(t("Pagamento salvato, aggiornamento esterno da riprovare: {falliti}", { falliti: falliti.join(", ") }));
     } catch (e) {
       // Salvato ma non allineato fuori: lo si dice, e l'elenco si aggiorna lo stesso.
-      if (salvato) toast.warning("Abbinamento salvato, aggiornamento esterno da riprovare");
-      else toast.error(e instanceof Error ? e.message : "Abbinamento non riuscito");
+      if (salvato) toast.warning(t("Abbinamento salvato, aggiornamento esterno da riprovare"));
+      else toast.error(e instanceof Error ? e.message : t("Abbinamento non riuscito"));
     } finally {
       setInCorso(null);
       if (salvato) onAbbinato();
@@ -106,18 +108,19 @@ export type SuggerimentiMovimento = ReturnType<typeof useSuggerimentiMovimento>;
 
 /** Riga «Controparte»: il nome, la scheda del fornitore, l'ODA citato e quanto ha di aperto. */
 export function ControparteRiconosciuta({ s, onCollegaOda, odaCollegate = [] }: { s: SuggerimentiMovimento; onCollegaOda?: (odaId: string) => void; odaCollegate?: string[] }) {
+  const t = useT();
   const { controparte, uscita, fornitore, oda, rifOda, candidati, dellaControparte, apertiControparte, puoAbbinare } = s;
   return (
     <>
       {fornitore.data
-        ? <Link to={linkFornitore(fornitore.data.id)} className="font-medium text-primary hover:underline" title="Apri la scheda del fornitore">{fornitore.data.name}</Link>
-        : controparte ? <span className="font-medium">{controparte}</span> : <span className="text-muted-foreground">Nessuno</span>}
-      {uscita && controparte && fornitore.isSuccess && !fornitore.data && <span className="text-xs text-muted-foreground">non è tra i fornitori</span>}
+        ? <Link to={linkFornitore(fornitore.data.id)} className="font-medium text-primary hover:underline" title={t("Apri la scheda del fornitore")}>{fornitore.data.name}</Link>
+        : controparte ? <span className="font-medium">{controparte}</span> : <span className="text-muted-foreground">{t("Nessuno")}</span>}
+      {uscita && controparte && fornitore.isSuccess && !fornitore.data && <span className="text-xs text-muted-foreground">{t("non è tra i fornitori")}</span>}
       {!uscita && controparte && (
-        <Link to={`/azienda/documenti?cerca=${encodeURIComponent(controparte)}`} className="text-xs text-primary hover:underline">Sue fatture</Link>
+        <Link to={`/azienda/documenti?cerca=${encodeURIComponent(controparte)}`} className="text-xs text-primary hover:underline">{t("Sue fatture")}</Link>
       )}
       {puoAbbinare && controparte && candidati.isSuccess && dellaControparte.length > 0 && (
-        <span className="text-xs text-muted-foreground">{dellaControparte.length} {uscita ? (dellaControparte.length === 1 ? "scadenza aperta" : "scadenze aperte") : (dellaControparte.length === 1 ? "fattura aperta" : "fatture aperte")} · {money(apertiControparte)}</span>
+        <span className="text-xs text-muted-foreground">{uscita ? t(dellaControparte.length === 1 ? "{n} scadenza aperta" : "{n} scadenze aperte", { n: dellaControparte.length }) : t(dellaControparte.length === 1 ? "{n} fattura aperta" : "{n} fatture aperte", { n: dellaControparte.length })} · {money(apertiControparte)}</span>
       )}
       {rifOda && (
         <span className="inline-flex max-w-full flex-wrap items-center gap-x-1 rounded-full border px-2 py-0.5 text-xs">
@@ -126,13 +129,13 @@ export function ControparteRiconosciuta({ s, onCollegaOda, odaCollegate = [] }: 
             ? <>
                 <Link to={linkOda(oda.data.id)} className="font-medium text-primary hover:underline">{/^oda/i.test(oda.data.oda_number ?? "") ? oda.data.oda_number : `ODA ${oda.data.oda_number}`}</Link>
                 {oda.data.status && <span className="text-muted-foreground">· {oda.data.status}</span>}
-                {oda.data.order_id && <Link to={linkCommessa(oda.data.order_id)} className="text-primary hover:underline">· commessa</Link>}
+                {oda.data.order_id && <Link to={linkCommessa(oda.data.order_id)} className="text-primary hover:underline">{t("· commessa")}</Link>}
                 {onCollegaOda && !odaCollegate.includes(oda.data.id) && (
-                  <button type="button" className="font-medium text-primary hover:underline" onClick={() => onCollegaOda(oda.data!.id)}>· collega</button>
+                  <button type="button" className="font-medium text-primary hover:underline" onClick={() => onCollegaOda(oda.data!.id)}>{t("· collega")}</button>
                 )}
-                {odaCollegate.includes(oda.data.id) && <span className="text-emerald-700">· collegato</span>}
+                {odaCollegate.includes(oda.data.id) && <span className="text-emerald-700">{t("· collegato")}</span>}
               </>
-            : <span>ODA {rifOda} nella causale{oda.isSuccess && <span className="text-muted-foreground"> · non trovato</span>}</span>}
+            : <span>{t("ODA {rifOda} nella causale", { rifOda })}{oda.isSuccess && <span className="text-muted-foreground"> {t("· non trovato")}</span>}</span>}
         </span>
       )}
     </>
@@ -141,15 +144,16 @@ export function ControparteRiconosciuta({ s, onCollegaOda, odaCollegate = [] }: 
 
 /** Dentro la riga «Fatture e pagamenti»: i documenti aperti che somigliano di più, abbinabili con un clic. */
 export function SuggerimentiAbbinamento({ s, resto }: { s: SuggerimentiMovimento; resto: number }) {
+  const t = useT();
   const { candidati, migliori, abbina, inCorso } = s;
   if (!s.puoAbbinare || candidati.isError) return null;
-  if (candidati.isPending) return <p role="status" className="basis-full text-xs text-muted-foreground">Cerco i documenti aperti…</p>;
+  if (candidati.isPending) return <p role="status" className="basis-full text-xs text-muted-foreground">{t("Cerco i documenti aperti…")}</p>;
   if (!migliori.length) return null;
   const linkCandidato = (c: CandidatoRipartizione) =>
     c.tipo === "documento" ? linkFattura(c.id, true) : c.tipo === "invoice" ? linkFattura(c.id, false) : null;
   return (
     <div className="w-full min-w-0 basis-full space-y-1">
-      <p className="flex items-center gap-1 text-xs font-medium text-muted-foreground"><Sparkles className="h-3 w-3 text-primary" />Suggeriti</p>
+      <p className="flex items-center gap-1 text-xs font-medium text-muted-foreground"><Sparkles className="h-3 w-3 text-primary" />{t("Suggeriti")}</p>
       <ul className="divide-y rounded-lg border bg-card">
         {migliori.map(({ c, punteggio, motivi }) => {
           const link = linkCandidato(c);
@@ -163,11 +167,11 @@ export function SuggerimentiAbbinamento({ s, resto }: { s: SuggerimentiMovimento
                 </p>
                 <p className="truncate text-xs text-muted-foreground">{motivi.join(" · ")}</p>
               </div>
-              <Badge variant="outline" className={punteggio >= 70 ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"} title="Quanto il documento somiglia al movimento">{punteggio}%</Badge>
+              <Badge variant="outline" className={punteggio >= 70 ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"} title={t("Quanto il documento somiglia al movimento")}>{punteggio}%</Badge>
               <span className="shrink-0 tabular-nums">{money(Number(c.residuo))}</span>
               <Button size="sm" className="h-7" variant={punteggio >= 70 ? "default" : "outline"} disabled={!!inCorso} onClick={() => void abbina(c)}
-                aria-label={`Abbina ${c.titolo} per ${money(importo)}`}>
-                {inCorso === c.key && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}Abbina{importo < Number(c.residuo) ? ` ${money(importo)}` : ""}
+                aria-label={t("Abbina {titolo} per {importo}", { titolo: String(c.titolo ?? ""), importo: String(money(importo) ?? "") })}>
+                {inCorso === c.key && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}{t("Abbina")}{importo < Number(c.residuo) ? ` ${money(importo)}` : ""}
               </Button>
             </li>
           );

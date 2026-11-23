@@ -11,6 +11,7 @@ import {
 } from "@/lib/ddt/proposteImportazione";
 import type { BollaLetta } from "@/lib/ddt/importBolle";
 import type { RigaOrdine } from "@/lib/ddt/abbinaRigheOrdine";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 export function CollegamentiBolla({
   bolla,
   companyId,
@@ -22,6 +23,7 @@ export function CollegamentiBolla({
   disabled: boolean;
   onChange: (patch: Partial<BollaLetta>) => void;
 }) {
+  const t = useT();
   const commesse = useQuery({
     queryKey: ["ddt-proposte-commesse", companyId],
     queryFn: () =>
@@ -96,16 +98,15 @@ export function CollegamentiBolla({
       open={!!bolla.purchaseOrderId}
     >
       <summary className="cursor-pointer text-xs font-medium">
-        Associazioni suggerite e confronto con l’OdA
+        {t("Associazioni suggerite e confronto con l’OdA")}
         {bolla.purchaseOrderId
-          ? " · ordine collegato"
-          : ` · ${proposte.commesse.length + proposte.oda.length} proposte`}
+          ? ` ${t("· ordine collegato")}`
+          : ` ${t("· {n} proposte", { n: proposte.commesse.length + proposte.oda.length })}`}
       </summary>
       <div className="mt-3 space-y-3 text-xs">
         {(commesse.isError || oda.isError || righe.isError) && (
           <p role="alert">
-            Non riesco a caricare tutte le associazioni. Riprova prima di
-            confrontare le righe.
+            {t("Non riesco a caricare tutte le associazioni. Riprova prima di confrontare le righe.")}
             <Button
               size="sm"
               variant="link"
@@ -115,20 +116,19 @@ export function CollegamentiBolla({
                 if (bolla.purchaseOrderId) void righe.refetch();
               }}
             >
-              Riprova
+              {t("Riprova")}
             </Button>
           </p>
         )}
         {(commesse.isLoading || oda.isLoading) && (
-          <p>Ricerca delle associazioni…</p>
+          <p>{t("Ricerca delle associazioni…")}</p>
         )}
         {!proposte.commesse.length &&
           !proposte.oda.length &&
           !commesse.isLoading &&
           !oda.isLoading && (
             <p className="text-muted-foreground">
-              Nessuna corrispondenza proposta. Puoi scegliere la commessa
-              manualmente; scegli prima il fornitore per cercare gli OdA.
+              {t("Nessuna corrispondenza proposta. Puoi scegliere la commessa manualmente; scegli prima il fornitore per cercare gli OdA.")}
             </p>
           )}
         {!bolla.purchaseOrderId &&
@@ -150,7 +150,7 @@ export function CollegamentiBolla({
                   disabled={disabled}
                   onClick={() => onChange({ orderId: c.id })}
                 >
-                  Conferma commessa
+                  {t("Conferma commessa")}
                 </Button>
               </div>
             ))}
@@ -170,7 +170,7 @@ export function CollegamentiBolla({
                     {" "}
                     ·{" "}
                     {commesse.data?.find((c) => c.id === o.order_id)
-                      ?.order_code ?? "commessa collegata"}
+                      ?.order_code ?? t("commessa collegata")}
                   </>
                 )}
               </span>
@@ -193,30 +193,29 @@ export function CollegamentiBolla({
                       })
                 }
               >
-                {bolla.purchaseOrderId ? "Scollega OdA" : "Conferma OdA"}
+                {bolla.purchaseOrderId ? t("Scollega OdA") : t("Conferma OdA")}
               </Button>
             </div>
           ))}
         {bolla.purchaseOrderId && (
           <>
             <p className="rounded-md bg-blue-50 p-2 text-blue-900">
-              Collegare l’OdA conserva il documento. Non registra l’arrivo
-              dell’intero ordine e non carica giacenze:{" "}
+              {t("Collegare l’OdA conserva il documento. Non registra l’arrivo dell’intero ordine e non carica giacenze:")}{" "}
               {bolla.destinazione === "cantiere"
-                ? "la consegna diretta resta documentata sulle righe della bolla."
-                : "le quantità effettive si confermano dalla scheda DDT."}
+                ? t("la consegna diretta resta documentata sulle righe della bolla.")
+                : t("le quantità effettive si confermano dalla scheda DDT.")}
             </p>
             {righe.isLoading ? (
-              <p>Caricamento righe ordinate…</p>
+              <p>{t("Caricamento righe ordinate…")}</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[520px] text-left">
                   <thead>
                     <tr className="border-b">
-                      <th className="p-2">Bolla</th>
-                      <th className="p-2">Ordine / residuo</th>
-                      <th className="p-2">Confronto</th>
-                      <th className="p-2">Associazione</th>
+                      <th className="p-2">{t("Bolla")}</th>
+                      <th className="p-2">{t("Ordine / residuo")}</th>
+                      <th className="p-2">{t("Confronto")}</th>
+                      <th className="p-2">{t("Associazione")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -229,7 +228,7 @@ export function CollegamentiBolla({
                         <td className="p-2">
                           {c.ordine
                             ? `${c.ordine.description} · residuo ${Math.max(0, Number(c.ordine.quantity) - Number(c.ordine.quantity_received ?? 0))} ${c.ordine.unit_of_measure ?? ""}`
-                            : "Non individuato"}
+                            : t("Non individuato")}
                         </td>
                         <td className="p-2">{c.esito}</td>
                         <td className="p-2">
@@ -258,7 +257,7 @@ export function CollegamentiBolla({
                                 })
                               }
                             >
-                              Annulla conferma
+                              {t("Annulla conferma")}
                             </Button>
                           ) : c.ordine &&
                             unitaComparabile(
@@ -284,10 +283,10 @@ export function CollegamentiBolla({
                                 })
                               }
                             >
-                              Conferma riga
+                              {t("Conferma riga")}
                             </Button>
                           ) : (
-                            "Da scegliere nella scheda"
+                            t("Da scegliere nella scheda")
                           )}
                         </td>
                       </tr>
@@ -298,9 +297,8 @@ export function CollegamentiBolla({
             )}
             {mancanti.length > 0 && (
               <p className="text-muted-foreground">
-                Non presenti in questa bolla:{" "}
-                {mancanti.map((o) => o.description || o.sku).join("; ")}.
-                Potrebbero arrivare con un’altra consegna.
+                {t("Non presenti in questa bolla:")}{" "}
+                {t("{mancanti}. Potrebbero arrivare con un’altra consegna.", { mancanti: mancanti.map((o) => o.description || o.sku).join("; ") })}
               </p>
             )}
           </>
