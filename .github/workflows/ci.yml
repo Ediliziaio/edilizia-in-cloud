@@ -289,6 +289,11 @@ jobs:
           node --input-type=module -e
           "import { chromium } from 'playwright'; const browser = await chromium.launch({headless:true}); await browser.close();"
       - name: Build application and prerender public routes
+        # La build di Vite supera gli 8 GB di heap (OOM il 23/11/2026 su cc0efb69d e prima su
+        # 281b9a352). Il runner ha 16 GB: qui 12 GB. Cloudflare Pages resta sul default di
+        # package.json (8 GB), perché il suo ambiente di build non ne ha di più.
+        env:
+          BUILD_HEAP_MB: '12288'
         run: npm run build
       - name: Verify prerendered routes
         run: npm run prerender:verify
