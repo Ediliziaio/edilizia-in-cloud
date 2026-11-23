@@ -55,6 +55,7 @@ export interface RigaReale {
 }
 
 export interface Incasso { fatturaId: string; data: string | null; importo: number }
+export interface ScadenzaIncassoPiano { mese: Mese | null; peso: number }
 
 export const arrotonda = (n: number) => Math.round(n * 100) / 100;
 const somma = (valori: number[]) => arrotonda(valori.reduce((t, v) => t + v, 0));
@@ -134,6 +135,7 @@ export interface Rettifiche {
   chiusa?: boolean;
   /** Ricavi a finire: −x% (prezzo più basso di quanto previsto). */
   prezzoPct?: number;
+  unita?: ReadonlyMap<string, DatiUnita> | null;
   /** Costi a finire: +y%. */
   costiPct?: number;
 }
@@ -174,15 +176,19 @@ export function confrontoVoci(
     }
   }
   const approvatePerId = new Map((approvate ?? []).map((a) => [a.id, a]));
-  const fattore = (tipo: TipoVoce) =>
-    tipo === "ricavo" ? 1 - (rettifiche.prezzoPct ?? 0) / 100 : 1 + (rettifiche.costiPct ?? 0) / 100;
+  const fattore = (voce: VocePiano) => {
+    if (voce.tipo === "costo") return 1 + (rettifiche.costiPct ?? 0) / 100;
+    const stato = voce.figliaId ? rettifiche.unita?.get(voce.figliaId)?.statoVendita : null;
+    if (voce.categoria === "vendite" && (stato === "compromesso" || stato === "rogitata")) return 1;
+    return 1 - (rettifiche.prezzoPct ?? 0) / 100;
+  };
 
   const dalleVoci: RigaConfronto[] = [...voci]
     .sort((a, b) => a.ordine - b.ordine)
     .map((v): RigaConfronto => {
       const sue = perVoce.get(v.id) ?? [];
       const reale = somma(sue.map((r) => r.importo));
-      const aFinire = rettifiche.chiusa ? 0 : arrotonda(aFinireVoce(v.importo, reale, v.aFinire) * fattore(v.tipo));
+      const aFinire = rettifiche.chiusa ? 0 : arrotonda(aFinireVoce(v.importo, reale, v.aFinire) * fattore(v));
       const stima = arrotonda(reale + aFinire);
       const origine = approvate ? approvatePerId.get(v.origineId ?? "") ?? approvatePerId.get(v.id) ?? null : null;
       return {
@@ -298,11 +304,14 @@ export function flussoPrevisto(voci: VocePiano[], oggi: Mese): MeseCassa[] {
 export interface OpzioniStima {
   /** Gli incassi che mancano arrivano n mesi dopo il previsto. */
   ritardoMesi?: number;
+  unita?: ReadonlyMap<string, DatiUnita> | null;
+  scadenzeIncasso?: ReadonlyMap<string, readonly ScadenzaIncassoPiano[]>;
+  mesiRivisti?: ReadonlySet<string>;
 }
 
 /**
  * Il flusso della stima: il reale nei mesi in cui è avvenuto (costi alla data della spesa,
- * ricavi alla data dell'incasso), le fatture non ancora incassate il mese prossimo, e
+ * ricavi alla data dell'incasso), le fatture aperte alle scadenze note e
  * l'a finire di ogni voce sui suoi mesi che non sono ancora passati (se sono tutti passati,
  * in questo mese). Gli anticipi incassati oltre il fatturato riducono i primi
  * incassi a finire: non sono un ricavo aggiuntivo. Le voci senza mese non entrano.
@@ -314,7 +323,7 @@ export function flussoStima(
   oggi: Mese,
   opzioni: OpzioniStima = {},
 ): MeseCassa[] {
-  const partite: { mese: Mese; partita: PartitaCassa }[] = [];
+  const partite: { mese: Mese; partita: PartitaCassa; unitaId?: string | null }[] = [];
   for (const r of righe.filter((x) => x.tipo === "costo")) {
     partite.push({ mese: meseDi(r.data, oggi), partita: { etichetta: r.descrizione, tipo: "costo", importo: r.importo, origine: "reale" } });
   }
@@ -323,35 +332,89 @@ export function flussoStima(
   }
   const fatturato = somma(righe.filter((x) => x.tipo === "ricavo").map((x) => x.importo));
   const daIncassare = arrotonda(fatturato - somma(incassi.map((i) => i.importo)));
-  if (daIncassare > 0) {
+  const ritardoIncassi = opzioni.ritardoMesi ?? 0;
+  const prossimoMese = aggiungiMesi(oggi, 1);
+  const pagatoPerFattura = new Map<string, number>();
+  for (const i of incassi) pagatoPerFattura.set(i.fatturaId, (pagatoPerFattura.get(i.fatturaId) ?? 0) + i.importo);
+  let incassiConScadenza = 0;
+  for (const r of righe) {
+    if (r.tipo !== "ricavo" || r.fonte !== "fattura" || !r.rifId) continue;
+    if (r.importo <= 0) continue;
+    const scadenzeNote = opzioni.scadenzeIncasso?.get(r.rifId);
+    const scadenze = scadenzeNote?.length ? scadenzeNote : [{ mese: null, peso: 1 }];
+    const residuo = Math.max(0, arrotonda(r.importo - (pagatoPerFattura.get(r.rifId) ?? 0)));
+    const importi = dividiAlCentesimo(residuo, scadenze.map(s => s.peso));
+    for (const [index, scadenza] of scadenze.entries()) {
+      const importo = importi[index];
+      if (!importo) continue;
+      const mese = scadenza.mese ? (scadenza.mese < oggi ? oggi : scadenza.mese) : prossimoMese;
+      incassiConScadenza += importo;
+      partite.push({
+        mese: aggiungiMesi(mese, ritardoIncassi),
+        partita: { etichetta: scadenza.mese ? r.descrizione : `${r.descrizione} · scadenza stimata`, tipo: "ricavo", importo, origine: "da_incassare" },
+      });
+    }
+  }
+  const residuoSenzaScadenza = arrotonda(daIncassare - incassiConScadenza);
+  if (residuoSenzaScadenza > 0) {
     partite.push({
-      mese: aggiungiMesi(oggi, 1 + (opzioni.ritardoMesi ?? 0)),
-      partita: { etichetta: "Fatture da incassare", tipo: "ricavo", importo: daIncassare, origine: "da_incassare" },
+      mese: aggiungiMesi(prossimoMese, ritardoIncassi),
+      partita: { etichetta: "Fatture da incassare · scadenza stimata", tipo: "ricavo", importo: residuoSenzaScadenza, origine: "da_incassare" },
     });
+  }
+  const venditePerUnita = new Map<string, number>();
+  for (const { voce } of confronto.ricavi) {
+    if (voce?.categoria === "vendite" && voce.figliaId && voce.importo > 0) {
+      venditePerUnita.set(voce.figliaId, (venditePerUnita.get(voce.figliaId) ?? 0) + 1);
+    }
   }
   for (const r of [...confronto.ricavi, ...confronto.costi]) {
     const v = r.voce;
     if (!v || !v.mese || r.aFinire === 0) continue;
-    const finestra = Array.from({ length: Math.max(1, v.durataMesi) }, (_, i) => aggiungiMesi(v.mese!, i));
+    // Una vendita ripartita su più righe o mesi ha già un proprio calendario.
+    const rogito = v.tipo === "ricavo" && v.categoria === "vendite" && v.durataMesi === 1
+      && v.figliaId && venditePerUnita.get(v.figliaId) === 1 && !opzioni.mesiRivisti?.has(v.id)
+      ? opzioni.unita?.get(v.figliaId)?.meseRogito
+      : null;
+    const meseVoce = rogito ?? v.mese;
+    const finestra = Array.from({ length: Math.max(1, v.durataMesi) }, (_, i) => aggiungiMesi(meseVoce, i));
     const future = finestra.filter((m) => m >= oggi);
-    const ritardo = v.tipo === "ricavo" ? opzioni.ritardoMesi ?? 0 : 0;
+    const ritardo = v.tipo === "ricavo" ? ritardoIncassi : 0;
     const inizio = aggiungiMesi(future[0] ?? oggi, ritardo);
     for (const q of distribuisci(r.aFinire, inizio, future.length || 1)) {
-      partite.push({ mese: q.mese, partita: { etichetta: r.etichetta, tipo: v.tipo, importo: q.importo, origine: "a_finire" } });
+      partite.push({
+        mese: q.mese,
+        unitaId: v.categoria === "vendite" ? v.figliaId : null,
+        partita: { etichetta: rogito ? `${r.etichetta} · rogito previsto` : r.etichetta, tipo: v.tipo, importo: q.importo, origine: "a_finire" },
+      });
     }
   }
-  // Caparre/anticipi possono precedere la fattura. Il confronto economico usa il
-  // fatturato, mentre la cassa deve ancora ricevere solo il saldo. Compensiamo
-  // prima gli incassi a finire più vicini, senza toccare il reale o i costi.
-  let anticipo = Math.max(0, Math.round(-daIncassare * 100));
-  for (const p of partite
+  // Caparre e acconti riducono prima il saldo della propria unità; per gli
+  // incassi storici senza collegamento si conserva la compensazione per data.
+  const incassiPerId = new Map(incassi.map((i) => [i.fatturaId, i.importo]));
+  const anticipiUnita = new Map<string, number>();
+  for (const [id, unita] of opzioni.unita ?? []) {
+    anticipiUnita.set(id, Math.max(0, Math.round(somma((unita.incassiIds ?? []).map(id => incassiPerId.get(id) ?? 0)) * 100)));
+  }
+  let anticipo = Math.max(0, Math.round(-residuoSenzaScadenza * 100));
+  const ricaviAFinire = partite
     .filter((p) => p.partita.tipo === "ricavo" && p.partita.origine === "a_finire" && p.partita.importo > 0)
-    .sort((a, b) => a.mese.localeCompare(b.mese) || a.partita.etichetta.localeCompare(b.partita.etichetta))) {
-    if (anticipo === 0) break;
+    .sort((a, b) => a.mese.localeCompare(b.mese) || a.partita.etichetta.localeCompare(b.partita.etichetta));
+  const compensa = (p: (typeof partite)[number], disponibile: number) => {
     const centesimi = Math.round(p.partita.importo * 100);
-    const compensato = Math.min(anticipo, centesimi);
+    const compensato = Math.min(anticipo, centesimi, disponibile);
     p.partita.importo = (centesimi - compensato) / 100;
     anticipo -= compensato;
+    return compensato;
+  };
+  for (const p of ricaviAFinire) {
+    if (anticipo === 0) break;
+    const disponibile = p.unitaId ? anticipiUnita.get(p.unitaId) ?? 0 : 0;
+    if (p.unitaId && disponibile) anticipiUnita.set(p.unitaId, disponibile - compensa(p, disponibile));
+  }
+  for (const p of ricaviAFinire) {
+    if (anticipo === 0) break;
+    compensa(p, anticipo);
   }
   return serieMensile(partite, oggi);
 }
@@ -498,7 +561,13 @@ export function indicatori(
 // ── Costi comuni ───────────────────────────────────────────────────────────
 
 export interface FigliaRipartizione { id: string; nome: string; importo: number | null }
-export interface DatiUnita { mq: number | null; millesimi: number | null }
+export interface DatiUnita {
+  mq: number | null;
+  millesimi: number | null;
+  meseRogito?: Mese | null;
+  statoVendita?: string | null;
+  incassiIds?: string[];
+}
 export type CriterioRipartizione = "millesimi" | "mq" | "importo" | "parti_uguali";
 
 export interface QuotaFiglia { figliaId: string; nome: string; base: number; quota: number; importo: number }
@@ -646,6 +715,7 @@ export interface InputPiano {
   figlie: FigliaRipartizione[];
   /** Millesimi e m² delle unità (modulo Unità), per figlia. */
   unita?: ReadonlyMap<string, DatiUnita> | null;
+  scadenzeIncasso?: ReadonlyMap<string, readonly ScadenzaIncassoPiano[]>;
   /** Il criterio scelto per i costi comuni (Modifica della generale); assente = automatico. */
   criterio?: CriterioScelto;
   scenario?: Scenario | null;
@@ -733,7 +803,12 @@ export function calcolaPianoEconomico(input: InputPiano): PianoCalcolato {
   })();
 
   const cassaPrevista = flussoPrevisto(input.voci, oggi);
-  const cassaStima = flussoStima(confronto, input.righe, input.incassi, oggi);
+  const mesiApprovati = new Map(input.approvate?.map(v => [v.id, v.mese]));
+  const mesiRivisti = new Set(input.voci
+    .filter(v => v.origineId && mesiApprovati.has(v.origineId) && mesiApprovati.get(v.origineId) !== v.mese)
+    .map(v => v.id));
+  const opzioniCassa = { unita: input.unita, scadenzeIncasso: input.scadenzeIncasso, mesiRivisti };
+  const cassaStima = flussoStima(confronto, input.righe, input.incassi, oggi, opzioniCassa);
   const indPrevisto = indicatori(
     { ricavi: confronto.totali.ricavi.previsto, costi: confronto.totali.costi.previsto, costiCantiere: costiCantiere(confronto, "previsto") },
     cassaPrevista, mqTotali,
@@ -749,10 +824,10 @@ export function calcolaPianoEconomico(input: InputPiano): PianoCalcolato {
   if (!scenarioNeutro(input.scenario)) {
     const s = input.scenario!;
     confrontoScenario = conVariantiAcquirenti(
-      confrontoVoci(input.voci, input.righe, input.approvate ?? null, { prezzoPct: s.prezzoPct, costiPct: s.costiPct, chiusa }),
+      confrontoVoci(input.voci, input.righe, input.approvate ?? null, { prezzoPct: s.prezzoPct, costiPct: s.costiPct, unita: input.unita, chiusa }),
       input.varianti,
     );
-    cassaScenario = flussoStima(confrontoScenario, input.righe, input.incassi, oggi, { ritardoMesi: s.ritardoMesi });
+    cassaScenario = flussoStima(confrontoScenario, input.righe, input.incassi, oggi, { ...opzioniCassa, ritardoMesi: s.ritardoMesi });
     indScenario = indicatori(
       {
         ricavi: confrontoScenario.totali.ricavi.stima,

@@ -261,7 +261,6 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
             onOpenChange={setImportaFile}
             generaleId={g.id}
             versioneId={null}
-            vociEsistenti={0}
             onImportato={setVersioneId}
           />
         )}
@@ -684,6 +683,11 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
               Verifica copertura con le fonti
             </Button>
           </IntestazioneScheda>
+          {n.scadenzeCaricamento && <p role="status" className="text-sm text-muted-foreground">Lettura delle scadenze delle fatture…</p>}
+          {n.scadenzeErrore && <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+            Uso date stimate per le fatture. Le scadenze registrate sono momentaneamente indisponibili.
+            <Button type="button" variant="outline" size="sm" onClick={() => void n.rileggiScadenze()}>Riprova</Button>
+          </div>}
           <CassaIndicatori
             piano={piano}
             scenario={scenario}
@@ -719,7 +723,7 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
           onOpenChange={setImportaFile}
           generaleId={g.id}
           versioneId={v.id}
-          vociEsistenti={n.voci.length}
+          vociEsistenti={n.voci}
         />
       )}
       {modificabile && (

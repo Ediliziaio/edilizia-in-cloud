@@ -36,6 +36,8 @@ const norm = (v: string) =>
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
+export const chiaveVoceBusinessPlan = (voce: Pick<RigaBusinessPlan, "tipo" | "descrizione">) =>
+  `${voce.tipo}:${norm(voce.descrizione)}`;
 const numero = (v: CellaBusinessPlan | undefined) =>
   typeof v === "number" ? (Number.isFinite(v) ? v : null) : leggiNumeroItaliano(testo(v));
 const somma = (righe: RigaBusinessPlan[], tipo: TipoVoce) =>

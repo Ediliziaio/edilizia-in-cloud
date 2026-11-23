@@ -534,7 +534,7 @@ export function moveDay(value: string, days: number): string {
 }
 const grossCents = (amount: Money, vat?: Money): number =>
   Math.round(toCents(amount) * (1 + Math.max(0, Number(vat) || 0) / 100));
-const closed = (status: string): boolean =>
+export const closed = (status: string): boolean =>
   [
     "paid",
     "pagata",

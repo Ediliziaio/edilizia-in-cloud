@@ -26,7 +26,6 @@ import {
 } from "@/components/orders/generali/piano/formato";
 import type {
   Indicatori,
-  MeseCassa,
   PianoCalcolato,
   Scenario,
 } from "@/lib/orders/generali/pianoConti";
@@ -105,7 +104,7 @@ export function CassaIndicatori({
   conUnita: boolean;
 }) {
   const [tabella, setTabella] = useState(false);
-  const [mese, setMese] = useState<MeseCassa | null>(null);
+  const [meseSelezionato, setMese] = useState<string | null>(null);
   const [periodo, setPeriodo] = useState<"tutto" | "futuro" | "passato">(
     "tutto",
   );
@@ -192,6 +191,7 @@ export function CassaIndicatori({
   ];
 
   const serie = piano.cassa.scenario ?? piano.cassa.stima;
+  const mese = serie.find(m => m.mese === meseSelezionato);
   const previsti = new Map(
     piano.cassa.previsto.map((m) => [m.mese, m.cumulato]),
   );
@@ -247,8 +247,8 @@ export function CassaIndicatori({
               Simula il piano
             </h3>
             <p className="text-xs text-muted-foreground">
-              Uno scenario sulla stima: tocca solo quello che deve ancora
-              succedere e non cambia il piano.
+              Modifica importi e tempi degli incassi residui.
+              {conUnita && " I prezzi delle unità a compromesso o già vendute sono protetti."}
             </p>
           </div>
           <div className="flex flex-wrap items-end gap-4">
@@ -426,9 +426,7 @@ export function CassaIndicatori({
           </span>
         </div>
         <p className="text-xs text-muted-foreground">
-          I mesi precedenti riportano il reale. Da questo mese il flusso include
-          anche scadenze e stime; apri il dettaglio mensile per distinguerle. La
-          cumulata mantiene il saldo precedente al periodo selezionato.
+          La stima usa i rogiti collegati alle singole vendite e le scadenze delle fatture. Il dettaglio del mese distingue incassi registrati, fatture da incassare e voci a finire.
         </p>
         {datiInVista.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
@@ -581,13 +579,13 @@ export function CassaIndicatori({
                         m.mese === piano.oggi &&
                           "bg-sky-50/60 dark:bg-sky-500/10",
                       )}
-                      onClick={() => setMese(m)}
+                      onClick={() => setMese(m.mese)}
                     >
                       <td className="px-3 py-1.5">
                         <button
                           type="button"
                           className="generale-legend-link"
-                          onClick={() => setMese(m)}
+                          onClick={() => setMese(m.mese)}
                           aria-label={`Apri dettaglio cassa di ${nomeMese(m.mese)}`}
                         >
                           {nomeMese(m.mese)}

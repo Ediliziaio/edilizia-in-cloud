@@ -3,7 +3,7 @@ import { act, renderHook } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { annotaStimeDiPartenza, messaggioPiano, useApprovaPiano, useImportaBusinessPlanPiano } from "@/hooks/useGeneralePiano";
-import { vociDiPartenza } from "@/lib/orders/generali/pianoCategorie";
+import { vociDiPartenza, type VoceNuova } from "@/lib/orders/generali/pianoCategorie";
 import { DA_STIMARE, riferimentoImportazione } from "@/lib/orders/generali/budgetCompletezza";
 
 const m = vi.hoisted(() => ({
@@ -76,6 +76,20 @@ it("ricontrolla i dati persistiti prima di chiamare l'approvazione", async () =>
     );
   });
   expect(m.rpc).not.toHaveBeenCalled();
+});
+
+it("prima di archiviare l'importazione verifica le voci già presenti nella bozza", async () => {
+  m.voci = [{ id: "1", tipo: "costo", descrizione: "Acquisto terreno", nota: null, importo: 350_000 }];
+  const { result } = renderHook(() => useImportaBusinessPlanPiano("generale", "versione"), { wrapper });
+  const voce: VoceNuova = { tipo: "costo", categoria: "terreno", descrizione: "Acquisto Terreno", importo: 400_000, mese: null, durataMesi: 1 };
+  await act(async () => {
+    await expect(result.current.mutateAsync({ voci: [voce] })).rejects.toThrow(/contiene già/);
+  });
+  expect(m.ordine).toEqual([]);
+  await act(async () => {
+    await expect(result.current.mutateAsync({ voci: [{ ...voce, aggiungiGiaPresente: true }] })).resolves.toMatchObject({ ids: ["v-0"] });
+  });
+  expect(m.voci).toHaveLength(2);
 });
 it("archivia l'originale prima delle voci e rifiuta un secondo caricamento dello stesso scenario", async () => {
   const hash = "a".repeat(64),

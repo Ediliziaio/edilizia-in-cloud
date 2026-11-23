@@ -839,14 +839,22 @@ function RigaVoce({
       {reale}
       <td className="px-1 py-1">
         {p.aFinireModificabile ? (
-          <CellaImporto
-            valore={v.aFinire}
-            vuotoPermesso
-            suggerito={Math.abs(r.aFinire) < 0.005 ? undefined : r.aFinire}
-            etichetta={`A finire di ${nome}`}
-            className={TONI.aFinire.testo}
-            onSalva={(aFinire) => salva({ aFinire })}
-          />
+          <>
+            <CellaImporto
+              valore={v.aFinire}
+              vuotoPermesso
+              suggerito={Math.abs(r.aFinire) < 0.005 ? undefined : r.aFinire}
+              etichetta={`A finire di ${nome}`}
+              className={TONI.aFinire.testo}
+              onSalva={(aFinire) => salva({ aFinire })}
+            />
+            {r.aFinireManuale && r.reale > 0 && r.aFinire > 0 && (
+              <span className="block px-1 text-right text-[11px] leading-tight text-amber-800 dark:text-amber-300"
+                title={`Verifica se i ${euro(r.reale)} già registrati sono compresi nel residuo manuale.`}>
+                Manuale · verifica
+              </span>
+            )}
+          </>
         ) : (
           <span
             className={cn(

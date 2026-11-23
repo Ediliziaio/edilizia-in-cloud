@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ImportaBusinessPlan } from "@/components/orders/generali/piano/ImportaBusinessPlan";
 import { leggiFileBusinessPlan } from "@/lib/orders/generali/businessPlanImport";
+import { leggiVoci } from "@/lib/orders/generali/pianoLettura";
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 
@@ -43,6 +44,19 @@ async function carica() {
 }
 
 describe("Anteprima del business plan", () => {
+  it("mostra l'importo in bozza e richiede di selezionare esplicitamente una voce già presente", async () => {
+    const importa = vi.fn();
+    const vociEsistenti = leggiVoci([{ id: "terreno", tipo: "costo", categoria: "terreno", descrizione: "Acquisto terreno", importo: 350_000 }]);
+    render(<ImportaBusinessPlan onImporta={importa} onAnnulla={vi.fn()} vociEsistenti={vociEsistenti} />);
+    await carica();
+    expect(screen.getByText(/Già in bozza · 350.000/)).toBeVisible();
+    expect(screen.getByLabelText("Importa riga 2")).not.toBeChecked();
+    expect(screen.getByRole("button", { name: "Aggiungi 2 voci alla bozza" })).toBeDisabled();
+    fireEvent.click(screen.getByLabelText("Importa riga 2"));
+    fireEvent.click(screen.getByLabelText(/Ho verificato scenario/));
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi 3 voci alla bozza" }));
+    expect(importa.mock.calls[0][0][0]).toMatchObject({ descrizione: "Acquisto terreno", importo: 400_000, aggiungiGiaPresente: true });
+  });
   it.each([[0,"Appalto",4,90000,150000],[1,"Sviluppo",6,370000,500000],[2,"Compravendita",4,230000,300000]] as const)("porta il file reale alla conferma del foglio %s %s",async(indice,nome,quante,costi,ricavi)=>{
     const originale=await vi.importActual<typeof import("@/lib/orders/generali/businessPlanImport")>("@/lib/orders/generali/businessPlanImport");
     vi.mocked(leggiFileBusinessPlan).mockImplementationOnce(originale.leggiFileBusinessPlan);

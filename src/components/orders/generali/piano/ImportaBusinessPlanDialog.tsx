@@ -4,6 +4,7 @@ import { DialogContentOperativo as DialogContent } from "../design/ContestoOpera
 import { messaggioPiano, useImportaBusinessPlanPiano } from "@/hooks/useGeneralePiano";
 import { ImportaBusinessPlan } from "./ImportaBusinessPlan";
 import { useAuth } from "@/contexts/AuthContext";
+import type { VocePiano } from "@/lib/orders/generali/pianoConti";
 
 export function ImportaBusinessPlanDialog({
   open,
@@ -17,7 +18,7 @@ export function ImportaBusinessPlanDialog({
   onOpenChange: (open: boolean) => void;
   generaleId: string;
   versioneId: string | null;
-  vociEsistenti: number;
+  vociEsistenti?: readonly VocePiano[];
   onImportato?: (versioneId: string) => void;
 }) {
   const aggiungi = useImportaBusinessPlanPiano(generaleId, versioneId);

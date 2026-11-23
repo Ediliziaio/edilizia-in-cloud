@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { ATTACHMENTS_BUCKET } from "@/components/orders/filePreviewUtils";
 import { controllaBudget, DA_STIMARE, fonteImportazione } from "@/lib/orders/generali/budgetCompletezza";
+import { chiaveVoceBusinessPlan } from "@/lib/orders/generali/businessPlanImport";
 import type { OrigineBusinessPlan } from "@/components/orders/generali/piano/ImportaBusinessPlan";
 import { allPaymentRows } from "./useSupplierPayments";
 import { operazioneChiusa, type RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
@@ -17,8 +18,8 @@ import { moduliDelModello } from "@/lib/orders/generali/moduli";
 import { variantiPerPiano } from "@/lib/orders/generali/varianti";
 import { calcolaPianoEconomico, type DatiUnita, type PianoCalcolato, type Scenario, type VocePiano } from "@/lib/orders/generali/pianoConti";
 import {
-  dataDaMese, leggiFotografie, leggiReale, leggiUnita, leggiVersioni, leggiVoci,
-  type FotografiaPiano, type RealePiano, type VersionePiano,
+  dataDaMese, leggiFotografie, leggiReale, leggiScadenzeIncasso, leggiUnita, leggiVersioni, leggiVoci,
+  type FatturaConScadenza, type FotografiaPiano, type RataIncassoPiano, type RealePiano, type VersionePiano,
 } from "@/lib/orders/generali/pianoLettura";
 
 // Tabelle e RPC del piano non sono ancora nei tipi generati: cast localizzato.
@@ -98,6 +99,44 @@ export function useRealePiano(generaleId: string | undefined, versioneId: string
   });
 }
 
+function useScadenzeIncassoPiano(companyId: string | undefined, reale: RealePiano | undefined, enabled: boolean) {
+  const ids = useMemo(() => {
+    const fatture = new Map<string, number>();
+    for (const r of reale?.righe ?? []) {
+      if (r.tipo === "ricavo" && r.fonte === "fattura" && r.rifId) fatture.set(r.rifId, (fatture.get(r.rifId) ?? 0) + r.importo);
+    }
+    for (const i of reale?.incassi ?? []) {
+      const importo = fatture.get(i.fatturaId);
+      if (importo !== undefined) fatture.set(i.fatturaId, importo - i.importo);
+    }
+    return [...fatture].filter(([, importo]) => importo >= 0.005).map(([id]) => id).sort();
+  }, [reale]);
+  return useQuery({
+    queryKey: ["generale-piano-scadenze-incasso", companyId, ids],
+    enabled: !!companyId && enabled && reale?.permessi.importi === true && ids.length > 0,
+    staleTime: 60_000,
+    queryFn: async ({ signal }) => {
+      const fatture: FatturaConScadenza[] = [];
+      const rate: RataIncassoPiano[] = [];
+      for (let i = 0; i < ids.length; i += 80) {
+        const gruppo = ids.slice(i, i + 80);
+        const [documenti, scadenze] = await Promise.all([
+          allPaymentRows<FatturaConScadenza>((a, b) => db.from("invoices")
+            .select("id,due_date").eq("company_id", companyId).is("deleted_at", null)
+            .in("id", gruppo).order("id").range(a, b).abortSignal(signal)),
+          allPaymentRows<RataIncassoPiano>((a, b) => db.from("scadenze")
+            .select("invoice_id,due_date,amount,paid_amount,status,rata_numero")
+            .eq("company_id", companyId).eq("direction", "entrata")
+            .in("invoice_id", gruppo).order("id").range(a, b).abortSignal(signal)),
+        ]);
+        fatture.push(...documenti);
+        rate.push(...scadenze);
+      }
+      return leggiScadenzeIncasso(fatture, rate);
+    },
+  });
+}
+
 /**
  * Millesimi e m² delle unità (modulo Unità e vendite). La tabella può non esserci ancora, o
  * legare la figlia con un'altra colonna: in quei casi niente unità, e i costi comuni si
@@ -112,7 +151,11 @@ export function useUnitaGenerale(generaleId: string | undefined, figlieIds: stri
     meta: { silent: true },
     queryFn: async (): Promise<Map<string, DatiUnita> | null> => {
       try {
-        let { data, error } = await db.from("unita_immobiliari").select("*").in("order_id", figlieIds).limit(2000);
+        let { data, error } = await db.from("unita_immobiliari")
+          .select("*,movimenti:unita_movimenti!unita_movimenti_unita_id_fkey(id)").in("order_id", figlieIds).limit(2000);
+        if (error?.code === "PGRST200") {
+          ({ data, error } = await db.from("unita_immobiliari").select("*").in("order_id", figlieIds).limit(2000));
+        }
         if (error?.code === "42703") {
           ({ data, error } = await db.from("unita_immobiliari").select("*").limit(2000));
         }
@@ -172,6 +215,7 @@ export interface OpzioniNumeri {
  * `piano` è null finché manca qualcosa o se chi guarda non vede i margini.
  */
 export function useGeneralePianoNumeri(riepilogo: RiepilogoGenerale | undefined, opzioni: OpzioniNumeri = {}) {
+  const { effectiveCompany } = useAuth();
   const generaleId = riepilogo?.generale.id;
   const attivo = (opzioni.enabled ?? true) && !!riepilogo?.permessi.margini;
   const versioni = useVersioniPiano(generaleId, attivo);
@@ -183,6 +227,7 @@ export function useGeneralePianoNumeri(riepilogo: RiepilogoGenerale | undefined,
   const voci = useVociPiano(inVista?.id);
   const approvate = useVociPiano(confrontaCon && confrontaCon.id !== inVista?.id ? confrontaCon.id : null);
   const reale = useRealePiano(generaleId, inVista?.id ?? null, attivo && versioni.isSuccess);
+  const scadenze = useScadenzeIncassoPiano(effectiveCompany?.id, reale.data, attivo);
   const figlieIds = useMemo(() => (riepilogo?.figlie ?? []).map((f) => f.id), [riepilogo]);
   const unita = useUnitaGenerale(generaleId, figlieIds, attivo);
   const criterio = useCriterioRipartizione(generaleId);
@@ -200,6 +245,7 @@ export function useGeneralePianoNumeri(riepilogo: RiepilogoGenerale | undefined,
       approvate: approvateVoci,
       righe: reale.data.righe,
       incassi: reale.data.incassi,
+      scadenzeIncasso: scadenze.data,
       figlie: riepilogo.figlie.map((f) => ({ id: f.id, nome: f.codice ? `${f.codice} · ${f.nome}` : f.nome, importo: f.importo })),
       unita: unita.data ?? null,
       criterio: criterio.data?.criterio ?? "auto",
@@ -207,7 +253,7 @@ export function useGeneralePianoNumeri(riepilogo: RiepilogoGenerale | undefined,
       varianti: conUnita ? variantiPerPiano(varianti.data) : null,
       chiusa: operazioneChiusa(riepilogo),
     });
-  }, [riepilogo, inVista, confrontaCon, voci.data, approvate.data, reale.data, unita.data, criterio.data, opzioni.scenario, conUnita, varianti.data]);
+  }, [riepilogo, inVista, confrontaCon, voci.data, approvate.data, reale.data, scadenze.data, unita.data, criterio.data, opzioni.scenario, conUnita, varianti.data]);
 
   return {
     versioni: elenco,
@@ -215,6 +261,9 @@ export function useGeneralePianoNumeri(riepilogo: RiepilogoGenerale | undefined,
     voci: Array.isArray(voci.data) ? voci.data : [],
     reale: reale.data ?? null,
     unita: unita.data ?? null,
+    scadenzeCaricamento: scadenze.isLoading,
+    scadenzeErrore: scadenze.isError,
+    rileggiScadenze: scadenze.refetch,
     piano,
     /** Non c'è ancora nessuna versione: il prossimo passo è creare il piano. */
     vuoto: versioni.isSuccess && elenco.length === 0,
@@ -383,7 +432,7 @@ export function useModificaVoce(generaleId: string, versioneId: string | null) {
   });
 }
 
-type VociDaImportare = (VoceNuova & { figliaId?: string | null; nota?: string })[];
+type VociDaImportare = (VoceNuova & { figliaId?: string | null; nota?: string; aggiungiGiaPresente?: true })[];
 
 async function inserisciVociPiano(qc: ReturnType<typeof useQueryClient>, versioneId: string, nuove: VociDaImportare): Promise<string[]> {
   const esistenti = qc.getQueryData<VocePiano[]>(chiaviPiano.voci(versioneId)) ?? [];
@@ -412,9 +461,13 @@ export function useImportaBusinessPlanPiano(generaleId: string, versioneId: stri
         if (typeof data !== "string") throw new Error("La bozza non risulta creata. Ricarica il piano.");
         destinazione = data;
       }
-      const attuali = await allPaymentRows<{ nota: string | null }>((a, b) => db.from("generale_piano_voci").select("nota").eq("versione_id", destinazione).order("id").range(a, b));
+      const attuali = await allPaymentRows<Pick<VocePiano, "tipo" | "descrizione" | "nota">>((a, b) =>
+        db.from("generale_piano_voci").select("tipo,descrizione,nota").eq("versione_id", destinazione).order("id").range(a, b));
       const fonti = new Set((attuali ?? []).map((v: { nota: string | null }) => fonteImportazione(v.nota)).filter(Boolean));
       if (voci.some(v => { const fonte = fonteImportazione(v.nota ?? null); return fonte && fonti.has(fonte); })) throw new Error("Questo file e scenario sono già stati importati nella versione. Apri una revisione per confrontare un nuovo piano.");
+      const chiaviAttuali = new Set(attuali.map(chiaveVoceBusinessPlan));
+      const giaPresenti = voci.filter(v => !v.aggiungiGiaPresente && chiaviAttuali.has(chiaveVoceBusinessPlan(v)));
+      if (giaPresenti.length) throw new Error(`La bozza contiene già «${giaPresenti[0].descrizione}». Riapri l’anteprima per confrontare la voce.`);
       if (origine) {
         if (!user?.id || !/^[a-f0-9]{64}$/.test(origine.hash)) throw new Error("Sessione o impronta del file non valida. Ricarica il business plan.");
         const estensione = origine.file.name.split(".").pop()?.toLowerCase();

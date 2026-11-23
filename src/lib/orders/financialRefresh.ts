@@ -13,7 +13,8 @@ const prefixes = new Set([
   'contratti-sub', 'ritenute-sub', 'ritenute-sub-tutte', 'subappaltatori-page', 'subappalto-contratti',
   'mezzi-piano-fonti', 'fattura-collegamenti-pagamenti', 'pagamento-costo', 'pagamento-costo-banca', 'pagamento-costo-sal', 'pagamenti-sal-candidati', 'bank-transactions',
   'bank-reconciliation', 'bank-lotto-movimenti', 'bank-lotto-candidati', 'bank-movimenti-workspace', 'bank-movimento', 'bank-candidati', 'bank-contesto-movimenti', 'esposizione-commessa', 'suppliers', 'commessa-fatture-fornitori',
-  'generale-fatture-fornitori', 'generale-controllo-forniture', 'generale-cassa-effettiva', 'generale-piano-reale', 'commessa-generale-riepilogo',
+  'generale-fatture-fornitori', 'generale-controllo-forniture', 'generale-cassa-effettiva', 'generale-piano-reale', 'generale-piano-unita',
+  'generale-piano-scadenze-incasso', 'commessa-generale-riepilogo',
   'incassi-registrati', 'incassi-unita', 'generale-unita',
   'commessa-importi-finanziari', 'orders-global-stats', 'orders-monthly-chart', 'orders-monthly-sales-chart', 'mappa-commesse-generali',
 ]);
