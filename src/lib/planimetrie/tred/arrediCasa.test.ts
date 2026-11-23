@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import { CostruttoreMesh } from "./costruttore";
 import { chiaveModelloElemento, costruisciElemento, modelloElemento } from "./elementi";
-import { arrediInquadrati, descrizioneArrediInquadrati, etichetteArrediInquadrati, vistaInternaArredata } from "./inquadraturaArredi";
+import { arrediInquadrati, descrizioneArrediInquadrati, posizioniArrediInquadrati, vistaInternaArredata } from "./inquadraturaArredi";
 import type { PiantaPer3D } from "./tipi";
 
 it.each(["letto_matrimoniale", "letto_singolo", "divano", "armadio", "comodino", "tavolo", "sedia", "cucina", "cucina_angolare", "frigorifero", "mobile_tv", "doccia"])("il modello %s mantiene posizione, rotazione e ingombro della pianta", (tipo) => {
@@ -33,7 +33,7 @@ it("la camera da letto inquadra il letto e identifica i mobili senza muoverli o 
   ] };
   const prima = structuredClone(p), t = vistaInternaArredata(p, "camera");
   expect(arrediInquadrati(p, p.locali[0], t).find((e) => e.id === "letto")!.quotaVisibile).toBeGreaterThanOrEqual(.5);
-  expect(etichetteArrediInquadrati(p, "camera", t, 1.5).some((e) => e.nome === "BED")).toBe(true);
+  expect(posizioniArrediInquadrati(p, "camera", t, 1.5).some((e) => e.id === "letto")).toBe(true);
   expect(descrizioneArrediInquadrati(p, "camera", t)).toContain("Do not infer furniture from the room name");
   expect(p).toEqual(prima);
 });

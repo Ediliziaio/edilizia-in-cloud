@@ -28,7 +28,12 @@ function casa(opz: { finestraCamera?: number; bidet?: boolean; altezzaCamera?: n
   p = C.aggiungiElemento(p, voce("letto_matrimoniale"), { x: 650, y: 250 }).pianta;
   const sanitari: Array<[string, number]> = [["wc", 830], ["lavabo", 900], ["doccia", 960], ...(opz.bidet ? [["bidet", 870] as [string, number]] : [])];
   for (const [t, x] of sanitari) p = C.aggiungiElemento(p, voce(t), { x, y: 360 }).pianta;
-  return aPlanimetria(p, nuovaPlanimetria("Casa"));
+  const doc = aPlanimetria(p, nuovaPlanimetria("Casa"));
+  for (const apertura of doc.livelli[0].fatto.aperture) {
+    if (apertura.tipo === "portafinestra") apertura.superficieApribileMq = 3.1;
+    if (apertura.tipo === "finestra") apertura.superficieApribileMq = 1.6;
+  }
+  return doc;
 }
 
 describe("verifiche igienico-sanitarie", () => {

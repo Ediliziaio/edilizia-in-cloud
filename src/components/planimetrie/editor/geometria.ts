@@ -3,7 +3,10 @@
  * (agli angoli esistenti, alle pareti, alle direzioni dritte, alla griglia).
  * Funzioni pure, in centimetri.
  */
-import type { Muro, Pianta, Punto } from "./adattatore";
+import { intersezioneAssi, sulTratto } from "../../../../shared/planimetrie/geometria.ts";
+import type { RiferimentoQuota } from "../../../../shared/planimetrie/modello.ts";
+import { puntoMedio } from "../../../../shared/planimetrie/quote.ts";
+import type { Muro, Pianta, Punto, StatoElemento } from "./adattatore";
 
 export const GRIGLIA = 5;
 
@@ -67,13 +70,45 @@ export function puntoInPoligono(p: Punto, poligono: Punto[]): boolean {
   return dentro;
 }
 
-export type Guida = "angolo" | "parete" | "dritto" | "allineato" | "griglia";
+export type Guida = "angolo" | "medio" | "intersezione" | "parete" | "dritto" | "allineato" | "griglia";
 
 export interface Aggancio {
   punto: Punto;
   guida: Guida;
   /** Punto con cui ci si è allineati (per disegnare la linea guida). */
   riferimento?: Punto;
+  ancora?: RiferimentoQuota;
+}
+
+function puntoDiPrecisione(pianta: Pianta, p: Punto, tolleranza: number, da: Punto | undefined, precisione: boolean): Aggancio | undefined {
+  let migliore: Aggancio | undefined;
+  let distanza = tolleranza;
+  const considera = (punto: Punto, guida: Guida, ancora?: RiferimentoQuota) => {
+    const d = dist(punto, p);
+    if (d > distanza || (migliore && d === distanza) || (da && uguali(punto, da))) return;
+    distanza = d;
+    migliore = { punto, guida, ...(ancora && { ancora }) };
+  };
+  const vicini = pianta.muri.filter(m => proiettaSuMuro(p, m).distanza <= tolleranza);
+  if (precisione) {
+    for (const [i, muro] of vicini.entries()) {
+      for (let j = i + 1; j < vicini.length; j++) {
+        const altro = vicini[j];
+        const incrocio = intersezioneAssi(muro, altro);
+        if (!incrocio || !sulTratto(incrocio.tA, muro) || !sulTratto(incrocio.tB, altro)) continue;
+        const { punto, tA, tB } = incrocio;
+        // Un angolo condiviso resta un estremo. Mostra l'intersezione sulle T e sugli incroci.
+        const interno = (t: number) => t > 1e-9 && t < 1 - 1e-9;
+        if (interno(tA) || interno(tB)) considera(punto, "intersezione", { tipo: "intersezione", muroId: muro.id, altroMuroId: altro.id });
+      }
+    }
+  }
+  for (const m of vicini) {
+    for (const estremo of ["p1", "p2"] as const) considera(m[estremo], "angolo", { tipo: "estremo", muroId: m.id, estremo });
+    if (precisione) considera(puntoMedio(m), "medio", { tipo: "medio", muroId: m.id });
+  }
+  for (const l of pianta.locali) for (const a of l.contorno) considera(a, "angolo");
+  return migliore;
 }
 
 /** Tutti gli angoli esistenti: estremi delle pareti e vertici delle stanze. */
@@ -92,15 +127,11 @@ export function angoliEsistenti(pianta: Pianta): Punto[] {
 export function aggancia(
   pianta: Pianta,
   p: Punto,
-  { tolleranza, da }: { tolleranza: number; da?: Punto },
+  { tolleranza, da, precisione = true, visibile }: { tolleranza: number; da?: Punto; precisione?: boolean; visibile?: (stato: StatoElemento) => boolean },
 ): Aggancio {
-  // 1. Angoli esistenti
-  let vicino: Punto | null = null;
-  for (const a of angoliEsistenti(pianta)) {
-    if (da && uguali(a, da)) continue;
-    if (dist(a, p) <= tolleranza && (!vicino || dist(a, p) < dist(vicino, p))) vicino = a;
-  }
-  if (vicino) return { punto: { ...vicino }, guida: "angolo" };
+  if (visibile) pianta = { ...pianta, muri: pianta.muri.filter(m => visibile(m.stato)), locali: pianta.locali.filter(l => visibile(l.stato)) };
+  const esatto = puntoDiPrecisione(pianta, p, tolleranza, da, precisione);
+  if (esatto) return esatto;
 
   // 2. Direzione dritta rispetto al punto di partenza
   let q = p;
@@ -134,8 +165,8 @@ export function aggancia(
   }
 
   // 4. Allineamento con un angolo esistente (stessa x o stessa y)
-  for (const a of angoliEsistenti(pianta)) {
-    if (guida === "dritto") {
+  if (guida === "dritto") {
+    for (const a of angoliEsistenti(pianta)) {
       // muovendosi in orizzontale si può fermare sulla x di un angolo, e viceversa
       if (da && q.y === da.y && Math.abs(a.x - q.x) <= tolleranza) return { punto: { x: a.x, y: q.y }, guida: "allineato", riferimento: a };
       if (da && q.x === da.x && Math.abs(a.y - q.y) <= tolleranza) return { punto: { x: q.x, y: a.y }, guida: "allineato", riferimento: a };
@@ -147,5 +178,5 @@ export function aggancia(
 }
 
 function arrotondaSulMuro(m: Muro, t: number): Punto {
-  return puntoSulMuro(m, Math.round(t / GRIGLIA) * GRIGLIA);
+  return puntoSulMuro(m, Math.min(lunghezzaMuro(m), Math.round(t / GRIGLIA) * GRIGLIA));
 }

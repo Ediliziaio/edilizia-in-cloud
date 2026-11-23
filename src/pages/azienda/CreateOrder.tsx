@@ -1252,6 +1252,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         position: index,
         supplier_id: item.supplier_id || null,
         purchase_price: item.purchase_price || 0,
+        ...(selectedQuoteId && item.origine_preventivo_id ? { origine_preventivo_id: item.origine_preventivo_id } : {}),
         vat_rate: item.vat_rate ?? 22,
         stock_item_id: item.stock_item_id || null,
         unit_price: item.unit_price ?? 0,

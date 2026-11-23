@@ -36,6 +36,13 @@ describe("computo nel gestionale per ogni azienda", () => {
     const result = await salvaComputoCloud(company, id, "scope", bozza, 0);
     expect(result.bozza.ivaAliquota).toBe("10"); expect(t.insert).toHaveBeenCalledWith(expect.objectContaining({ company_id: company, revision: 1, payload: expect.objectContaining({ ivaAliquota: "10" }) }));
   });
+  it("la lettura per il riuso cerca la bozza per azienda e documento, senza leggere la tabella dei costi", async () => {
+    const t = table({ data: { id, revision: 1, payload: bozzaVuota(), updated_at: "2026-10-28" }, error: null });
+    expect(await leggiComputoCloud(company, id, { includiCosti: false })).toMatchObject({ id, revision: 1 });
+    expect(api.from).toHaveBeenCalledExactlyOnceWith("computo_preventivo_drafts");
+    expect(t.eq).toHaveBeenCalledWith("company_id", company);
+    expect(t.eq).toHaveBeenCalledWith("id", id);
+  });
   it("aggiorna solo la revisione letta, mai con upsert", async () => {
     const t = table({ data: { id, revision: 3 }, error: null });
     await salvaComputoCloud(company, id, "scope", bozzaVuota(), 2);

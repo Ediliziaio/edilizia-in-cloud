@@ -23,7 +23,7 @@ import { formatEuro } from "@/lib/computo/computoStrutturato";
 
 type Sezione = keyof BozzaComputo["sezioniPdf"];
 
-export default function ComputoDocumento({ creaCommessa, bozza, onChange, onSostituisci, spesaCliente, ivaInclusa = true, totaleDocumento, controlli, onVaiA, companyId, disabilitato, condizioniDelModello, invioFirma, puoRiscrivereCondizioni = true }: {
+export default function ComputoDocumento({ creaCommessa, bozza, onChange, onSostituisci, spesaCliente, ivaInclusa = true, controlli, onVaiA, companyId, disabilitato, condizioniDelModello, invioFirma, puoRiscrivereCondizioni = true }: {
   bozza: BozzaComputo;
   onChange: (patch: Partial<BozzaComputo>) => void;
   /** Cambio di formato: tocca più campi insieme (`applicaVarianteComputo`). */
@@ -32,7 +32,6 @@ export default function ComputoDocumento({ creaCommessa, bozza, onChange, onSost
   spesaCliente: number;
   /** La spesa del cliente comprende l'IVA (è impostata). */
   ivaInclusa?: boolean;
-  totaleDocumento: number;
   /** Il riquadro «Da completare prima del download», già pronto. */
   controlli: ReactNode;
   onVaiA: (passo: number) => void;
@@ -77,8 +76,7 @@ export default function ComputoDocumento({ creaCommessa, bozza, onChange, onSost
         <p className="text-xs text-muted-foreground">Scegli il documento e cosa mostrare: l'anteprima si aggiorna subito.</p></div>
       <dl aria-label="Riepilogo del documento" className="flex gap-5 text-right text-sm tabular-nums">
         <div><dt className="text-xs text-muted-foreground">Lavorazioni</dt><dd className="font-semibold">{bozza.voci.length}</dd></div>
-        <div><dt className="text-xs text-muted-foreground">Allegati nel PDF</dt><dd className="font-semibold">{(bozza.allegati ?? []).filter(a => a.includi).length}</dd></div>
-        <div><dt className="text-xs text-muted-foreground">Totale imponibile</dt><dd className="font-semibold">{formatEuro(totaleDocumento)} €</dd></div>
+        <div><dt className="text-xs text-muted-foreground">Allegati nel PDF</dt><dd className="font-semibold">{(bozza.allegati ?? []).filter(a => a.includi).length + (bozza.piantaOrigine && bozza.progettoNelPdf !== "nessuno" ? 1 : 0)}</dd></div>
       </dl>
     </div>
     {controlli}
@@ -87,6 +85,20 @@ export default function ComputoDocumento({ creaCommessa, bozza, onChange, onSost
       <h3 className="text-sm font-semibold">Documento PDF</h3>
       <ComputoFormatoSchede value={bozza.formatoPdf} disabled={disabilitato} onChange={value => onSostituisci(applicaVarianteComputo(bozza, value))} />
     </section>
+    {bozza.piantaOrigine && <section aria-label="Planimetria e progetto nel PDF" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-white p-3">
+      <div className="min-w-0">
+        <Label htmlFor="computo-progetto-nel-pdf" className="text-sm font-semibold">Progetto nel PDF</Label>
+        <p className="mt-1 text-xs text-muted-foreground">{bozza.piantaOrigine.titolo} · versione {bozza.piantaOrigine.versione}</p>
+        {bozza.progettoNelPdf === "fascicolo" && <p className="break-words text-xs text-muted-foreground">Tavole, stanze, serramenti, impianti, materiali e render disponibili.</p>}
+        {bozza.allegati.some(a => a.includi) && <p className="text-xs text-muted-foreground">Le foto e i file selezionati nel passo Progetto si aggiungono a parte.</p>}
+      </div>
+      <select id="computo-progetto-nel-pdf" className="h-9 max-w-full rounded-md border bg-background px-2 text-sm" value={bozza.progettoNelPdf}
+        disabled={disabilitato} onChange={e => onChange({ progettoNelPdf: e.target.value as BozzaComputo["progettoNelPdf"] })}>
+        <option value="nessuno">Solo computo</option>
+        <option value="tavola">Aggiungi la tavola</option>
+        <option value="fascicolo">Aggiungi il fascicolo di progetto</option>
+      </select>
+    </section>}
 
     <div className="grid items-start gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 310px), 1fr))" }}>
       <section aria-label="Sezioni del documento" className="rounded-lg border bg-white p-3">

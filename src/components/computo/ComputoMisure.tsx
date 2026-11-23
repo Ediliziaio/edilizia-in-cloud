@@ -2,7 +2,7 @@ import { useEffect, useRef, type KeyboardEvent } from "react";
 import { Copy, Plus, Ruler, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { arrotondaDecimale, misuraVuota, quantitaMisura, type VoceEditor } from "@/lib/computo/editorNativo";
+import { arrotondaDecimale, misuraSenzaCollegamento, misuraVuota, quantitaMisura, type VoceEditor } from "@/lib/computo/editorNativo";
 
 const CAMPI = [
   ["descrizione", "Ambiente o riferimento", "Riferimento"],
@@ -78,6 +78,7 @@ export default function ComputoMisure({ misure, unita, onChange }: {
               <Input data-riga={i} data-campo={key} maxLength={key === "descrizione" ? 1000 : key === "formula" ? 500 : 40}
                 inputMode={numerico ? "decimal" : "text"} aria-label={`${key} misura ${i + 1}`} value={m[key]}
                 disabled={conFormula && numerico}
+                readOnly={!!m.dallaPianta && key !== "descrizione"}
                 placeholder={key === "formula" && i === 0 ? "es. (3+2)*2,4" : undefined}
                 className={`h-9 sm:h-8 sm:px-2 sm:text-sm ${numerico ? "text-right tabular-nums" : ""} ${key === "formula" ? "font-mono sm:text-xs" : ""}`}
                 onKeyDown={e => invio(e, i, key)}
@@ -88,11 +89,12 @@ export default function ComputoMisure({ misure, unita, onChange }: {
             <span className="text-sm font-medium sm:hidden">Misura {i + 1}</span>
             <div className="flex items-center gap-0.5">
               <Button size="icon" variant="ghost" className="h-8 w-8" title="Duplica misura" aria-label={`Duplica misura ${i + 1}`} disabled={misure.length >= 500}
-                onClick={() => onChange([...misure.slice(0, i + 1), { ...m, id: crypto.randomUUID() }, ...misure.slice(i + 1)])}><Copy className="h-3.5 w-3.5" /></Button>
+                onClick={() => onChange([...misure.slice(0, i + 1), { ...misuraSenzaCollegamento(m), id: crypto.randomUUID() }, ...misure.slice(i + 1)])}><Copy className="h-3.5 w-3.5" /></Button>
               <Button size="icon" variant="ghost" className="h-8 w-8" title="Elimina misura" aria-label={`Elimina misura ${i + 1}`}
                 onClick={() => onChange(misure.filter(r => r.id !== m.id))}><Trash2 className="h-3.5 w-3.5" /></Button>
               <output className={`min-w-[4.5rem] text-right text-sm font-semibold tabular-nums ${quantita[i] === null ? "text-amber-700" : quantita[i]! < 0 ? "text-red-700" : ""}`} aria-label={`Quantità misura ${i + 1}`}>
                 {quantita[i] === null ? "Da completare" : numero(quantita[i]!)}
+                {m.dallaPianta && <span className="block text-[10px] font-normal text-muted-foreground">Pianta v{m.dallaPianta.versione}{m.dallaPianta.origine === "stimata" && " · stima"}</span>}
               </output>
             </div>
           </div>

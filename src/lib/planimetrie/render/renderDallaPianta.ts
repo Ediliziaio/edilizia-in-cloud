@@ -12,7 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import type { TipoStanza } from "@/modules/render-stanza/lib/types";
 import type { Destinazione } from "../../../../shared/planimetrie/modello.ts";
-import type { AperturaInquadrata, PartenzaRender } from "../../../../shared/render-planimetria/prompt.ts";
+import type { AperturaInquadrata, ArredoNelFotogramma, PartenzaRender } from "../../../../shared/render-planimetria/prompt.ts";
 import type { RiferimentoStanza } from "../../../../shared/render-planimetria/vincoli.ts";
 
 /** Ciò che finisce in `config.planimetria` della sessione. */
@@ -20,6 +20,8 @@ export interface PlanimetriaNelRender extends RiferimentoStanza {
   partenza: PartenzaRender;
   /** Aperture inquadrate dalla vista del 3D (solo con partenza «vista_3d»). */
   inquadrate?: AperturaInquadrata[];
+  arredi_inquadrati?: string[];
+  posizioni_arredi?: ArredoNelFotogramma[];
   /** PNG della pianta della stanza, nel contenitore «stanza-originals». */
   pianta_path?: string | null;
   /** Per mostrarlo nelle gallerie senza riaprire la pianta. */

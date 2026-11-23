@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { StrictMode, useState } from "react";
 import { IDBFactory } from "fake-indexeddb";
 import { Blob as NodeBlob } from "node:buffer";
@@ -150,7 +150,7 @@ describe("Planimetria e memoria: percorso intero nella chat", () => {
     const element = <Workspace ownerId={scope.ownerId} companyId={scope.companyId} onBack={vi.fn()} simulated={false} transport={call} />;
     const view = render(element); await screen.findByRole("button", { name: "Allega file" }); send("Soffitto cucina escluso; includi soffitto camera");
     await screen.findByText("Verifica tecnica necessaria."); expect(screen.getByRole("log")).not.toHaveTextContent("Ho aggiornato tutte le voci");
-    expect(screen.getByRole("log")).toHaveTextContent("Vedi modifiche");
+    expect(within(screen.getByRole("log")).getByRole("button", { name: "Rivedi le voci" })).toBeInTheDocument();
     openLines(); expect(screen.getByRole("textbox", { name: "Titolo voce 1" })).toHaveValue("Camera · Tinteggiatura soffitto");
     expect(screen.queryByRole("textbox", { name: "Titolo voce 2" })).not.toBeInTheDocument();
     await screen.findByText("Salvato su questo browser", {}, { timeout: 3000 }); view.unmount(); render(element);

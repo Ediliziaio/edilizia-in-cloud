@@ -1,5 +1,5 @@
 import { esigiVerificaDocumento } from "../../../../shared/planimetrie/verificaDocumento.ts";
-import { applicaMaterialiProgetto, materialiDelProgetto } from "../../../../shared/planimetrie/materialiProgetto.ts";
+import { applicaMaterialiProgetto, materialiDellaStanza } from "../../../../shared/planimetrie/materialiProgetto.ts";
 import { preparaMaterialiStanza } from "@/lib/render/roomMaterialsBoard";
 /**
  * Render in serie dalla pianta: più stanze, o più stili per la stessa stanza, con un clic.
@@ -13,8 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { DEFAULT_STANZA_CONFIG } from "@/components/render-stanza/StanzaConfigForm";
 import { caricaFotogramma } from "@/components/planimetrie/Vista3DPigra";
 import { pianteDaPlanimetria, vistaInternaArredata } from "@/lib/planimetrie/tred";
-import { descrizioneArrediInquadrati } from "../tred/inquadraturaArredi";
-import { configPerApertureInquadrate } from "./configFotogramma";
+import { configPerApertureInquadrate, riferimentiFotogramma } from "./configFotogramma";
 import { uploadRenderOriginal } from "@/lib/render/renderStorage";
 import { getEdgeFunctionAuthHeaders, resolveEdgeFunctionErrorMessage } from "@/modules/render/lib/edgeFunctionClient";
 import { applicaIdea, type IdeaPronta } from "@/modules/render-stanza/lib/ideePronte";
@@ -79,7 +78,8 @@ export async function avviaRenderStanza(contesto: ContestoSerie, lavoro: LavoroR
   if (!locale3D) throw new Error("Stanza non trovata nel 3D.");
 
   const cattura = await caricaFotogramma();
-  const f = await cattura({ pianta, localeId: lavoro.localeId, telecamera: vistaInternaArredata(pianta, lavoro.localeId, { vista: ctx.ambito === "fatto" ? "fatto" : "progetto" }), vista: ctx.ambito === "fatto" ? "fatto" : "progetto", larghezza: 1536, altezza: 1024, annotaElementi: true });
+  const vista = ctx.ambito === "fatto" ? "fatto" : "progetto";
+  const f = await cattura({ pianta, localeId: lavoro.localeId, telecamera: vistaInternaArredata(pianta, lavoro.localeId, { vista }), vista, larghezza: 1536, altezza: 1024 });
 
   const ora = Date.now();
   const casuale = Math.random().toString(36).slice(2, 7);
@@ -97,7 +97,7 @@ export async function avviaRenderStanza(contesto: ContestoSerie, lavoro: LavoroR
     locale_id: lavoro.localeId,
     locale_nome: vincoli.locale.nome,
     partenza: "vista_3d",
-    inquadrate: f.metadati.aperture_visibili.map((a) => ({ id: a.id, posizione: a.posizione, riquadro: a.riquadro })),
+    ...riferimentiFotogramma(f.metadati),
     pianta_path: null,
   };
   try {
@@ -108,8 +108,8 @@ export async function avviaRenderStanza(contesto: ContestoSerie, lavoro: LavoroR
   } catch { /* si va avanti con misure e aperture scritte */ }
 
   const scelte = configPerApertureInquadrate(configPerStanza(vincoli.locale.destinazione, lavoro.idea, ctx.nota), f.metadati);
-  const posizioni = descrizioneArrediInquadrati(pianta, lavoro.localeId, f.metadati.telecamera, 1.5);
-  const config = await preparaMaterialiStanza(applicaMaterialiProgetto({ ...scelte, note_libere: [posizioni, scelte.note_libere].filter(Boolean).join("\n"), qualita_render: ctx.qualita_render ?? "alta" }, materialiDelProgetto(ctx.documento, contesto.ambito)), ctx.companyId);
+  const materiali = materialiDellaStanza(ctx.documento,contesto.ambito,vincoli.locale.finiture);
+  const config = await preparaMaterialiStanza(applicaMaterialiProgetto({ ...scelte, qualita_render: ctx.qualita_render ?? "alta" }, materiali), ctx.companyId);
   const { data: nuova, error: errSessione } = await supabase
     .from("render_stanza_sessions")
     .insert({ company_id: ctx.companyId, created_by: ctx.userId, status: "pending", original_photo_url: storagePath, config: { ...config, planimetria: rif } as never })

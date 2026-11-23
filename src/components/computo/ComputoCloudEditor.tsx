@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import ComputoNativoEditor from "./ComputoNativoEditor";
 import { creaBackupComputo } from "@/lib/computo/backupComputo";
 import { leggiBozzaComputo, type BozzaComputo } from "@/lib/computo/editorNativo";
-import { ConflittoComputoCloud, improntaComputo, leggiComputoCloud, preparaAllegatiCloud, salvaComputoCloud } from "@/lib/computo/cloudComputo";
+import { confermaProgettoComputo, ConflittoComputoCloud, improntaComputo, leggiComputoCloud, preparaAllegatiCloud, salvaComputoCloud, type AggiornamentoProgettoComputo } from "@/lib/computo/cloudComputo";
 
 type Props = Omit<ComponentProps<typeof ComputoNativoEditor>, "cloud"> & {
   companyId: string;
@@ -42,6 +42,7 @@ export default function ComputoCloudEditor({ companyId, draftId, soloEsistente =
   const revision = useRef<number | null>(null);
   const inVolo = useRef(false);
   const inCoda = useRef<BozzaComputo | null>(null);
+  const progettoInSalvataggio = useRef(false);
   /**
    * La bozza com'era all'apertura (l'editor la ripete appena montato). Un
    * computo NUOVO si salva solo quando qualcuno lo cambia: altrimenti ogni
@@ -102,7 +103,7 @@ export default function ComputoCloudEditor({ companyId, draftId, soloEsistente =
   useEffect(() => { let attivo = true; void carica(false, () => attivo); return () => { attivo = false; }; }, [carica]);
 
   const salvaOra = useCallback(async (bozza: BozzaComputo): Promise<void> => {
-    if (revision.current == null) return;
+    if (revision.current == null || progettoInSalvataggio.current) return;
     // Un salvataggio alla volta: quello che arriva nel frattempo aspetta e parte subito dopo, con la revisione nuova.
     if (inVolo.current) { inCoda.current = bozza; return; }
     inVolo.current = true;
@@ -130,6 +131,29 @@ export default function ComputoCloudEditor({ companyId, draftId, soloEsistente =
   const json = corrente ? JSON.stringify(corrente) : null;
   const nuovoIntatto = stato.serverJson === null && (json === null || json === aperta.current);
   const sporca = !nuovoIntatto && json !== null && json !== stato.serverJson;
+  const progettoPronto = !sporca && !stato.conflitto && !!revision.current && salvataggio.stato === "fermo";
+
+  async function salvaProgetto(aggiornamento: AggiornamentoProgettoComputo) {
+    if (inVolo.current || !revision.current || !progettoPronto || JSON.stringify(aggiornamento.prima) !== stato.serverJson) {
+      throw new Error("Attendi il salvataggio della bozza e rivedi le misure prima di confermare.");
+    }
+    inVolo.current = true;
+    progettoInSalvataggio.current = true;
+    setSalvataggio({ stato: "in-corso" });
+    try {
+      const esito = await confermaProgettoComputo(companyId, draftId, revision.current, aggiornamento);
+      revision.current = esito.revision;
+      setCorrente(esito.bozza);
+      setStato(s => ({ ...s, serverJson: JSON.stringify(esito.bozza) }));
+      try { await marca(esito.bozza, esito.revision); } catch { /* La transazione è già confermata. */ }
+      setSalvataggio({ stato: "fermo", alle: new Date(esito.updatedAt) });
+      return esito.bozza;
+    } finally {
+      inVolo.current = false;
+      progettoInSalvataggio.current = false;
+      setSalvataggio(s => s.stato === "in-corso" && !inVolo.current ? { stato: "fermo" } : s);
+    }
+  }
 
   useEffect(() => {
     if (!stato.pronto || stato.conflitto || revision.current == null || !corrente || !sporca) return;
@@ -175,7 +199,8 @@ export default function ComputoCloudEditor({ companyId, draftId, soloEsistente =
       }}><CloudDownload className="mr-1 h-4 w-4" />{stato.conflitto ? "Scarica la mia copia e riapri quella salvata" : "Riprova"}</Button>
       {!soloEsistente && !stato.pronto && <Button variant="ghost" size="sm" disabled={caricando} onClick={() => setStato(s => ({ ...s, pronto: true }))}>Continua con la copia su questo computer</Button>}
     </div>}
-    {pronto ? <fieldset disabled={caricando} className="min-w-0"><ComputoNativoEditor key={stato.epoch} {...props} companyId={companyId} cloud={{ onChange, status: testoStato }} /></fieldset>
+    {pronto ? <fieldset disabled={caricando} className="min-w-0"><ComputoNativoEditor key={stato.epoch} {...props} companyId={companyId}
+      cloud={{ onChange, status: testoStato, salvaProgetto, progettoPronto }} /></fieldset>
       : (!stato.errore || caricando) && <p role="status" className="flex items-center gap-2 py-6 text-sm"><Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />Apro il computo…</p>}
   </div>;
 }

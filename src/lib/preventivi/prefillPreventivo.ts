@@ -34,6 +34,7 @@ export function righePreventivoPerCommessa(rows: Array<Record<string, unknown>>)
     position: idx,
     unit_price: r.unit_price ?? undefined,
     purchase_price: r.purchase_price,
+    ...(r.origine_preventivo_id ? { origine_preventivo_id: r.origine_preventivo_id } : {}),
     vat_rate: r.vat_rate ?? undefined,
     discount_percent: r.discount_percent ?? undefined,
     // ── spina misure (solo prodotti su misura) ──

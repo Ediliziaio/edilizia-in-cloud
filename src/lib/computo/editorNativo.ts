@@ -7,14 +7,22 @@ import { revisioneSchema } from "./revisioniSchema";
 import type { VoceComputo } from "./alberoComputo";
 
 const testo = z.string().max(30000);
+export const MAX_MISURE_VOCE = 500;
 export const misuraSchema = z.object({
   id: z.string(), descrizione: testo, parti: testo, lunghezza: testo, larghezza: testo,
   altezza: testo, formula: testo,
+  dallaPianta: z.object({
+    chiave: z.string().min(1).max(1500), versione: z.number().int().positive(),
+    origine: z.enum(["rilevata", "da_documento", "stimata"]),
+    // Un'unica misura delle vecchie bozze poteva sommare più oggetti della stessa stanza.
+    componenti: z.array(z.string().min(1).max(1500)).min(1).optional(),
+  }).optional(),
 });
 const voceSchema = z.object({
   id: z.string(), capitolo: testo, categoria: testo, sottocategoria: testo, tariffa: testo,
   descrizione: testo, unita: testo, quantita: testo, prezzo: testo,
   fonte: z.string().max(500).default(""),
+  chiavePlanimetria: z.string().max(500).optional(),
   /** Il numero d'ordine della voce nel computo d'origine (PriMus): resta anche se se ne tolgono altre (17/11/2026). */
   numero: z.string().max(20).default(""),
   /** Costo unitario stimato dell'impresa: per i margini del passo Economia, mai nel PDF. */
@@ -29,7 +37,7 @@ const voceSchema = z.object({
   noteMisure: testo.default(""),
   descrizioneComune: testo.default(""),
   sicurezza: z.boolean(), detrazione: z.boolean(), corpo: z.boolean(),
-  misure: z.array(misuraSchema).max(500),
+  misure: z.array(misuraSchema).max(MAX_MISURE_VOCE),
 });
 const allegatoSchema = z.object({
   id: z.string().uuid(), nome: z.string().max(300), tipo: z.enum(["foto", "planimetria", "render"]),
@@ -37,6 +45,7 @@ const allegatoSchema = z.object({
   includi: z.boolean(),
 });
 export const bozzaComputoSchema = z.object({
+  fontePlanimetria: z.object({ planimetriaId: z.string().uuid(), versione: z.number().int().positive(), varianteId: z.string().regex(/^[a-zA-Z0-9_-]{1,36}$/) }).optional(),
   versione: z.literal(1), titolo: z.string().max(160), committente: z.string().max(160), oggetto: z.string().max(500),
   numero: z.string().max(80).default(""), indirizzo: z.string().max(300).default(""),
   // Il cliente come negli altri preventivi (29/10/2026): il contatto del CRM, i recapiti, il cointestatario e
@@ -92,6 +101,11 @@ export const bozzaComputoSchema = z.object({
   /** Le revisioni salvate, per confrontare cosa è cambiato (le più recenti in fondo). */
   revisioni: z.array(revisioneSchema).max(20).default([]),
   sconto: z.object({ tipo: z.enum(["nessuno", "percentuale", "importo"]).default("nessuno"), valore: z.string().max(40).default(""), descrizione: z.string().max(120).default("") }).prefault({}),
+  piantaOrigine: z.object({
+    id: z.string().uuid(), titolo: z.string().max(160), livelloId: z.string().min(1).max(250),
+    propostaId: z.string().min(1).max(250).nullable(), versione: z.number().int().positive(),
+  }).optional(),
+  progettoNelPdf: z.enum(["nessuno", "tavola", "fascicolo"]).default("nessuno"),
   voci: z.array(voceSchema).max(5000),
 }).superRefine((b, ctx) => {
   if (new Set(b.allegati.map(a => a.id)).size !== b.allegati.length) ctx.addIssue({ code: "custom", message: "Identificativo allegato duplicato." });
@@ -112,6 +126,7 @@ export type MisuraEditor = VoceEditor["misure"][number];
 export type AllegatoComputo = z.infer<typeof allegatoSchema>;
 export const bozzaVuota = (): BozzaComputo => bozzaComputoSchema.parse({ versione: 1, titolo: "Nuovo preventivo / computo metrico", committente: "", oggetto: "", mostraMisurePdf: false, mostraCodiciPdf: false, mostraFontiPdf: false, voci: [] });
 export const misuraVuota = (): MisuraEditor => ({ id: crypto.randomUUID(), descrizione: "", parti: "", lunghezza: "", larghezza: "", altezza: "", formula: "" });
+export const misuraSenzaCollegamento = ({ dallaPianta: _pianta, ...misura }: MisuraEditor): MisuraEditor => misura;
 export const voceVuota = (): VoceEditor => voceSchema.parse({
   id: crypto.randomUUID(), capitolo: "Opere edili", categoria: "", sottocategoria: "", tariffa: "", descrizione: "",
   unita: "mq", quantita: "", prezzo: "", sicurezza: false, detrazione: false, corpo: false, misure: [],
@@ -183,6 +198,27 @@ export function calcolaVoce(v: VoceEditor, senzaPrezzi = false) {
     : arrotondaDecimale((quantita * prezzo) / (ePercentuale(v.unita) ? 100 : 1));
   if (importo !== null && (!Number.isFinite(importo) || Math.abs(importo) > 1e12)) errori.push("Importo fuori limite.");
   return { quantita, prezzo, importo, errori, misure };
+}
+
+/** Un nuovo totale confermato in chat conserva le misure di origine e aggiunge la differenza. */
+export function rettificaQuantitaMisurata(voce: VoceEditor, quantita: number, motivo?: string): MisuraEditor[] {
+  if (!voce.misure.length) return voce.misure;
+  const prima = calcolaVoce(voce);
+  if (prima.quantita === null || !Number.isFinite(quantita) || Math.abs(quantita) > 1e12 || (voce.detrazione && quantita > 0)) {
+    throw new Error("Verifica le misure della lavorazione prima di rettificarne la quantità.");
+  }
+  if (Math.abs(prima.quantita - quantita) < 0.005) return voce.misure;
+  if (voce.misure.length >= 500) throw new Error("La voce ha già 500 misure. Correggi la quantità direttamente in una riga di misura.");
+  const somma = arrotondaDecimale(prima.misure.reduce<number>((s, n) => s + n!, 0));
+  const nuovaSomma = voce.detrazione && somma > 0 ? Math.abs(quantita) : quantita;
+  const delta = arrotondaDecimale(nuovaSomma - somma);
+  let ordine = voce.misure.length + 1;
+  while (voce.misure.some(m => m.id === `rettifica-${voce.id}-${ordine}`)) ordine++;
+  return [...voce.misure, {
+    id: `rettifica-${voce.id}-${ordine}`,
+    descrizione: ["Rettifica quantità confermata", motivo?.trim()].filter(Boolean).join(" · ").slice(0, 1000),
+    parti: "", lunghezza: "", larghezza: "", altezza: "", formula: String(delta).replace(".", ","),
+  }];
 }
 
 export function vociDaBozza(bozza: BozzaComputo, senzaPrezzi = false): VoceComputo[] {

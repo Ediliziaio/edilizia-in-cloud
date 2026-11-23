@@ -21,6 +21,7 @@ interface Props {
   /** Le voci già nel computo, per dirlo sulla riga. */
   vociPresenti?: readonly string[];
   capitoliComputo?: readonly string[];
+  unitaPrezzo?: string;
 }
 
 const FONTI = {

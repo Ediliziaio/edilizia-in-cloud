@@ -9,7 +9,8 @@ import { arrotondaDecimale } from "./editorNativo";
 export type ScontoComputo = { tipo: "nessuno" | "percentuale" | "importo"; valore: string; descrizione: string };
 
 const numero = (s: string) => {
-  const t = s.trim().replace(/\s/g, "");
+  const testo = s.trim().replace(/\s/g, "");
+  const t = /^\d{1,3}(?:\.\d{3})+,\d+$/.test(testo) ? testo.replace(/\./g, "") : testo;
   if (!/^\d+(?:[.,]\d+)?$/.test(t)) return null;
   const n = Number(t.replace(",", "."));
   return Number.isFinite(n) ? n : null;
@@ -21,7 +22,7 @@ const numero = (s: string) => {
  * (D.lgs. 81/2008, all. XV): lo sconto si calcola sul resto. Prima del 29/10/2026 si scontavano anche loro.
  */
 export function calcolaSconto(totaleLavori: number, s: ScontoComputo | undefined, sicurezza = 0): { importo: number; percentuale: number | null; errore: string; etichetta: string } {
-  const totale = Math.max(0, totaleLavori - Math.max(0, sicurezza));
+  const totale = Math.max(0, arrotondaDecimale(totaleLavori - Math.max(0, sicurezza)));
   const etichetta = s?.descrizione.trim() || "Sconto";
   if (!s || s.tipo === "nessuno" || !s.valore.trim()) return { importo: 0, percentuale: null, errore: "", etichetta };
   const n = numero(s.valore);
@@ -30,7 +31,7 @@ export function calcolaSconto(totaleLavori: number, s: ScontoComputo | undefined
     if (n > 100) return { importo: 0, percentuale: null, errore: "Lo sconto in percentuale va da 0 a 100.", etichetta };
     return { importo: totale > 0 ? arrotondaDecimale(totale * n / 100) : 0, percentuale: n, errore: "", etichetta };
   }
-  if (totale > 0 && n > totale) return { importo: 0, percentuale: null, errore: "Lo sconto supera il totale dei lavori soggetti a ribasso.", etichetta };
+  if (arrotondaDecimale(n) > totale) return { importo: 0, percentuale: null, errore: "Lo sconto supera il totale dei lavori soggetti a ribasso.", etichetta };
   return { importo: arrotondaDecimale(n), percentuale: totale > 0 ? arrotondaDecimale(n / totale * 100, 2) : null, errore: "", etichetta };
 }
 

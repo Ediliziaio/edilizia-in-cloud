@@ -29,6 +29,7 @@ export type RigaCommessa = {
   unita_misura: string | null;
   unit_price: number | null;
   purchase_price: number;
+  origine_preventivo_id?: string;
   vat_rate: number | null;
   discount_percent: number | null;
   family_id: string | null;
@@ -63,6 +64,7 @@ export function righeCommessaDaPreventivo(righe: Array<Record<string, unknown>>)
         unita_misura: um || null,
         unit_price: unitario,
         purchase_price: costo,
+        ...(typeof r.id === "string" && r.id ? { origine_preventivo_id: r.id } : {}),
         vat_rate: r.vat_rate != null ? Number(r.vat_rate) : null,
         discount_percent: r.discount_percent != null ? Number(r.discount_percent) : null,
         family_id: suMisura ? (r.family_id as string) : null,

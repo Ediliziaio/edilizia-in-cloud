@@ -11,6 +11,7 @@ import type { IntestazioneComputo } from "./esportaComputo";
 import { nomeFontModello } from "./assetModello";
 import { alberoComputo, numeroVoce, tariffaVoce, type NodoComputo, type VoceComputo } from "./alberoComputo";
 import { formatEuro } from "./computoStrutturato";
+import { disegnaPlanimetriaComputo } from "./stampaPlanimetria";
 import { creaTema } from "@/components/preventivi/pdf/temaDocumento";
 
 const UNITA = ["", "uno", "due", "tre", "quattro", "cinque", "sei", "sette", "otto", "nove", "dieci", "undici", "dodici", "tredici", "quattordici", "quindici", "sedici", "diciassette", "diciotto", "diciannove"];
@@ -85,7 +86,9 @@ export function disegnaElencoPrezzi(doc: jsPDF, voci: VoceComputo[], i: Intestaz
   font(17, true); for (const r of avvolgi(i.titolo, larghezza).slice(0, 3)) { doc.text(r, m, y); y += 20; }
   const dati = [["Committente", i.nascondiCliente ? "" : i.committente ?? ""], ["Luogo dei lavori", i.nascondiCliente ? "" : i.indirizzoIntervento ?? ""], ["Data", i.dataDocumento ?? ""], ["Riferimenti dei prezzi", i.riferimentoPrezzi ?? ""]].filter(([, v]) => v.trim());
   for (const [k, v] of dati) { font(6.5, true, t.grigioChiaro); doc.text(k.toUpperCase(), m, y); font(8.5); avvolgi(v, larghezza).slice(0, 2).forEach((r, n) => doc.text(r, m, y + 11 + n * 10)); y += 28; }
-  y += 6; testataColonne();
+  y += 6;
+  if (i.planimetria) y += disegnaPlanimetriaComputo(doc, i.planimetria, m, y, larghezza, 231);
+  testataColonne();
 
   const riga = (v: VoceComputo) => {
     const descrizione = (v.descrizione_estesa || v.descrizione_breve || "").trim();

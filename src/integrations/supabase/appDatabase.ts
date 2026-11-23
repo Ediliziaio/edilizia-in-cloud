@@ -1,7 +1,7 @@
 import type { FishAssistanceCase } from "../../../shared/fish/assistance";
 import type { PrezziMimit } from "../../../shared/carburanti/mimit";
 import type { TrattaViaggio, Viaggio } from "@/lib/mezzi/viaggi";
-import type { Database } from "./types";
+import type { Database, Json } from "./types";
 import type { AttivitaAi } from "../../../shared/aiAttivita";
 import type {
   AvanzamentoRegistratoCampo, CantiereTecnico, PersonaAccessoTecnico, SchedaCantiere,
@@ -202,6 +202,14 @@ export type AppDatabase = Omit<Database, "public"> & {
       campo_registra_visita_con_foto: {
         Args: { p_azienda: string; p_ordine: string; p_operazione: string; p_autore: string; p_tipo: TipoVisitaCampo; p_giorno: string;
           p_misure: string | null; p_note: string | null; p_foto: string[] };
+        Returns: string;
+      };
+      preventivo_riferimenti_storici: {
+        Args: { p_azienda: string; p_codice: string | null; p_descrizione: string; p_tariffa: string | null; p_preventivo: string | null };
+        Returns: Json;
+      };
+      prepara_commessa_computo_atomic: {
+        Args: { p_azienda: string; p_computo: string; p_testata: Json; p_righe: Json };
         Returns: string;
       };
       prima_nota_riepilogo_filtrato: {

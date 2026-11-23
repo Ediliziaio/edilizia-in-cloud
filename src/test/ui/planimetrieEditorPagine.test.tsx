@@ -168,7 +168,7 @@ describe("Nuova pianta", () => {
     monta(<RenderPlanimetriaNuova />, "/azienda/planimetrie/nuova?da=testo", "/azienda/planimetrie/nuova");
     fireEvent.change(screen.getByLabelText("Com'è la casa?"), { target: { value: "Bilocale di 50 mq con bagno e camera" } });
     fireEvent.click(screen.getByRole("button", { name: /Ricava la pianta/ }));
-    expect(await screen.findByText("Controlla la pianta e salvala")).toBeTruthy();
+    expect(await screen.findByText(/^Editor · Da una descrizione/)).toBeTruthy();
     expect(archivio.invoke).toHaveBeenCalledWith("planimetria-genera", { body: expect.objectContaining({ company_id: "azienda-1", ingresso: "descrizione" }) });
     expect(screen.getByText("Controlla le misure del bagno.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Salva/ }));
@@ -187,10 +187,10 @@ describe("Nuova pianta", () => {
       error: null,
     });
     monta(<RenderPlanimetriaNuova />, "/azienda/planimetrie/nuova?da=sopralluogo", "/azienda/planimetrie/nuova");
-    expect(screen.getByText("Pianta dal sopralluogo")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Nuovo rilievo" })).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Le misure, stanza per stanza"), { target: { value: "Cucina 3,20 per 4,10\nBagno 2,10 x 2,40" } });
     fireEvent.click(screen.getByRole("button", { name: /Ricava la pianta/ }));
-    expect(await screen.findByText("Controlla la pianta e salvala")).toBeTruthy();
+    expect(await screen.findByText(/^Editor · Dal sopralluogo/)).toBeTruthy();
     expect(archivio.invoke).toHaveBeenCalledWith("planimetria-genera", { body: expect.objectContaining({ ingresso: "rilievo", testo: "Cucina 3,20 per 4,10\nBagno 2,10 x 2,40" }) });
   });
 

@@ -83,4 +83,14 @@ describe("progetto e allegati del computo", () => {
       { nome: "danneggiato.pdf", tipo: "planimetria", blob: new NodeBlob(["non è un PDF"], { type: "application/pdf" }) as unknown as Blob },
     ])).rejects.toThrow();
   });
+  it("accoda la tavola del progetto nella scala e nel formato originali", async () => {
+    const progetto = await PDFDocument.create();
+    progetto.addPage([1190.55, 841.89]).drawText("Scala 1:50");
+    const blob = await generaDocumentoComputo(voci(), { titolo: "Computo in scala" }, [{
+      nome: "progetto-v2.pdf", tipo: "planimetria", conservaScala: true,
+      blob: new NodeBlob([Uint8Array.from(await progetto.save()).buffer], { type: "application/pdf" }) as unknown as Blob,
+    }]);
+    const risultato = await PDFDocument.load(new Uint8Array(await blob.arrayBuffer()));
+    expect(risultato.getPage(risultato.getPageCount() - 1).getSize()).toEqual({ width: 1190.55, height: 841.89 });
+  });
 });

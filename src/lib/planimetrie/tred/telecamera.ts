@@ -20,10 +20,12 @@ import {
   puntoNelPoligono,
   rettangoloMinimo,
   scalare,
+  tagliaTraDue,
   v2,
 } from "./geometria2d";
-import { comeApertura, muriCalcolati, nomeApertura } from "./scena";
+import { aperturaPercorribile, comeApertura, muriCalcolati, nomeApertura } from "./scena";
 import type { AperturaPer3D, Limiti3D, LocalePer3D, PiantaPer3D, Telecamera3D, TipoApertura, V3, Vista3D } from "./tipi";
+import type { ArredoNelFotogramma } from "../../../../shared/render-planimetria/prompt";
 
 const CM = 0.01;
 export const ALTEZZA_OCCHI = 1.6;
@@ -60,6 +62,23 @@ export function vistaGiroIntorno(limiti: Limiti3D, aspetto = 1, fov = 45): Telec
   const dir = unit([0.55, 0.75, 0.75]);
   const y = edificio ? c[1] : 0.4;
   return { posizione: [c[0] + dir[0] * d, y - 0.4 + dir[1] * d, c[2] + dir[2] * d], guarda: [c[0], y, c[2]], fov };
+}
+
+/** Inquadra gli strati da una quota più bassa e usa tutto lo spazio disponibile nel visore. */
+export function vistaEsplosa(limiti: Limiti3D, aspetto = 1, fov = 40): Telecamera3D {
+  const mira = centro(limiti);
+  const verso = unit([.55, .37, .83]);
+  const destra = unit(cross([0, 1, 0], verso));
+  const alto = cross(verso, destra);
+  const t = Math.tan(fov * Math.PI / 360) * .88;
+  let distanza = 1;
+  for (const x of [limiti.min[0], limiti.max[0]]) for (const y of [limiti.min[1], limiti.max[1]]) for (const z of [limiti.min[2], limiti.max[2]]) {
+    const p = sub([x, y, z], mira);
+    distanza = Math.max(distanza, dot(p, verso) + Math.max(
+      Math.abs(dot(p, destra)) / (t * Math.max(aspetto, .1)), Math.abs(dot(p, alto)) / t, .1,
+    ));
+  }
+  return { posizione: [mira[0] + verso[0] * distanza, mira[1] + verso[1] * distanza, mira[2] + verso[2] * distanza], guarda: mira, fov };
 }
 
 export type LatoEsterno = "sud" | "est" | "nord" | "ovest";
@@ -99,18 +118,21 @@ function contornoM(l: LocalePer3D): V2[] {
  * (le finestre no). Prima la telecamera attraversava i muri e dopo 30 passi era fuori dalla casa, nel vuoto.
  * `da` e `a` sono posizioni della telecamera ([x, altezza, y] in metri): conta il piano.
  */
-export function passoLibero(pianta: PiantaPer3D, vista: Vista3D, da: V3, a: V3): boolean {
+export function passoLibero(pianta: PiantaPer3D, vista: Vista3D, da: V3, a: V3, visita = false): boolean {
   const p0 = { x: da[0] * 100, y: da[2] * 100 };
   const p1 = { x: a[0] * 100, y: a[2] * 100 };
   const dx = p1.x - p0.x;
   const dy = p1.y - p0.y;
-  // dalla soglia di una porta d'ingresso non si esce dalla casa: i muri si vedono solo da dentro, fuori resterebbe il vuoto
-  if (pianta.muri.length) {
+  // Nella vista della singola stanza non c'è supporto fuori dalla casa. La visita usa i pavimenti e il terreno della scena.
+  if (!visita && pianta.muri.length) {
     const xs = pianta.muri.flatMap((m) => [m.a.x, m.b.x]);
     const ys = pianta.muri.flatMap((m) => [m.a.y, m.b.y]);
     const margine = 0;
     if (p1.x < Math.min(...xs) - margine || p1.x > Math.max(...xs) + margine || p1.y < Math.min(...ys) - margine || p1.y > Math.max(...ys) + margine) return false;
   }
+  const passa = (muroId: string, t: number) => pianta.aperture.some(ap =>
+    ap.muroId === muroId && (visita ? aperturaPercorribile(ap, vista) : ap.tipo !== "finestra" && !ap.fisso && comeApertura(ap.stato, vista) === "aperta") &&
+    Math.abs(ap.posizione - t) <= ap.larghezza / 2 - (visita ? 13 : 0));
   for (const m of pianta.muri) {
     // nello stato di fatto contano i muri da demolire, nel progetto quelli nuovi; nel confronto entrambi
     if (vista === "fatto" && m.stato === "nuovo") continue;
@@ -125,9 +147,7 @@ export function passoLibero(pianta: PiantaPer3D, vista: Vista3D, da: V3, a: V3):
     const u = ((m.a.x - p0.x) * dy - (m.a.y - p0.y) * dx) / den; // lungo il muro
     if (t < 0 || t > 1 || u < 0 || u > 1) continue;
     const alMuro = u * lung;
-    const varco = pianta.aperture.some((ap) =>
-      ap.muroId === m.id && ap.tipo !== "finestra" && ap.stato !== "demolire" && Math.abs(ap.posizione - alMuro) <= ap.larghezza / 2);
-    if (!varco) return false;
+    if (!passa(m.id, alMuro)) return false;
   }
   // Ci si ferma a 20 cm dalla faccia del muro, non sull'asse: dentro lo spessore del muro si vede solo il vuoto.
   // Ci si può sempre allontanare, anche se si parte vicino (la telecamera «entra» vicino a un lato corto).
@@ -145,9 +165,7 @@ export function passoLibero(pianta: PiantaPer3D, vista: Vista3D, da: V3, a: V3):
     const nuova = dist(p1);
     const margine = m.spessore / 2 + 20;
     if (nuova.d >= margine || nuova.d >= dist(p0).d) continue;
-    const inVarco = pianta.aperture.some((ap) =>
-      ap.muroId === m.id && ap.tipo !== "finestra" && ap.stato !== "demolire" && Math.abs(ap.posizione - nuova.alMuro) <= ap.larghezza / 2);
-    if (!inVarco) return false;
+    if (!passa(m.id, nuova.alMuro)) return false;
   }
   return true;
 }
@@ -255,6 +273,32 @@ export function apertureDelLocale(pianta: PiantaPer3D, localeId: string, vista: 
   return out;
 }
 
+/** Proiezione del vano ritagliata dal fotogramma, in coordinate da -1 a 1. */
+export function proiezioneApertura(t: Telecamera3D, aspetto: number, a: AperturaLocale) {
+  const q = a.angoli.map(p => proietta(t, aspetto, p));
+  const vicino = .05;
+  const intera = q.every(p => p.profondita >= vicino && Math.abs(p.x) <= 1 && Math.abs(p.y) <= 1);
+  if (intera && Math.abs(areaConSegno(q)) > 1e-8) return { contorno: q, intera };
+  const davanti: V2[] = [];
+  for (let i = 0; i < q.length; i++) {
+    const j = (i + 1) % q.length;
+    const dp = q[i].profondita, dq = q[j].profondita;
+    if (dp >= vicino) davanti.push(q[i]);
+    if ((dp >= vicino) !== (dq >= vicino)) {
+      const quota = (vicino - dp) / (dq - dp);
+      const p = a.angoli[i], fine = a.angoli[j];
+      davanti.push(proietta(t, aspetto, [
+        p[0] + (fine[0] - p[0]) * quota,
+        p[1] + (fine[1] - p[1]) * quota,
+        p[2] + (fine[2] - p[2]) * quota,
+      ]));
+    }
+  }
+  const orizzontale = tagliaTraDue(davanti, v2(0, 0), v2(1, 0), -1, 1);
+  const contorno = tagliaTraDue(orizzontale, v2(0, 0), v2(0, 1), -1, 1);
+  return Math.abs(areaConSegno(contorno)) > 1e-8 ? { contorno, intera: false } : null;
+}
+
 export interface MetadatiFotogramma {
   locale: {
     id: string;
@@ -271,6 +315,9 @@ export interface MetadatiFotogramma {
   vista: Vista3D;
   /** La cattura può nascondere gli arredi: in quel caso non si inviano istruzioni che li aggiungano. */
   arredi_inclusi?: boolean;
+  /** Identificativi degli arredi rilevati nell’inquadratura del fotogramma. */
+  arredi_inquadrati?: string[];
+  posizioni_arredi?: ArredoNelFotogramma[];
   /** Aperture del locale che cadono nell'inquadratura. */
   aperture_visibili: {
     id: string;
@@ -283,6 +330,7 @@ export interface MetadatiFotogramma {
     riquadro: { x0: number; y0: number; x1: number; y1: number };
     posizione: "sinistra" | "centro" | "destra";
     distanza_m: number;
+    ritagliata?: boolean;
   }[];
   /** Tutte le aperture del locale, anche quelle alle spalle della telecamera. */
   aperture_del_locale: number;
@@ -305,27 +353,12 @@ export function metadatiFotogramma(
   const aperture = apertureDelLocale(pianta, localeId, vista);
   const visibili: MetadatiFotogramma["aperture_visibili"] = [];
   for (const a of aperture) {
-    // Un vano laterale può attraversare il piano della telecamera: si ritaglia
-    // la parte davanti agli occhi, senza scartare tutta la finestra visibile.
-    const davanti: V3[] = [];
-    for (let i = 0; i < a.angoli.length; i++) {
-      const p = a.angoli[i], q = a.angoli[(i + 1) % a.angoli.length];
-      const dp = proietta(telecamera, aspetto, p).profondita, dq = proietta(telecamera, aspetto, q).profondita;
-      if (dp >= .05) davanti.push(p);
-      if ((dp >= .05) !== (dq >= .05)) {
-        const t = (.05 - dp) / (dq - dp);
-        davanti.push(p.map((v, k) => v + (q[k] - v) * t) as V3);
-      }
-    }
-    if (davanti.length < 3) continue;
-    const pr = davanti.map((p) => proietta(telecamera, aspetto, p));
-    const xs = pr.map((p) => p.x);
-    const ys = pr.map((p) => p.y);
-    const x0 = Math.max(-1, Math.min(...xs));
-    const x1 = Math.min(1, Math.max(...xs));
-    const y0 = Math.max(-1, Math.min(...ys));
-    const y1 = Math.min(1, Math.max(...ys));
-    if (x1 <= x0 || y1 <= y0) continue;
+    const proiezione = proiezioneApertura(telecamera, aspetto, a);
+    if (!proiezione) continue;
+    const xs = proiezione.contorno.map(p => p.x);
+    const ys = proiezione.contorno.map(p => p.y);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs);
+    const y0 = Math.min(...ys), y1 = Math.max(...ys);
     const cx = (x0 + x1) / 2;
     const centroApertura: V3 = [
       (a.angoli[0][0] + a.angoli[2][0]) / 2,
@@ -342,6 +375,7 @@ export function metadatiFotogramma(
       riquadro: { x0: arrotonda((x0 + 1) / 2, 3), y0: arrotonda((1 - y1) / 2, 3), x1: arrotonda((x1 + 1) / 2, 3), y1: arrotonda((1 - y0) / 2, 3) },
       posizione: cx < -0.33 ? "sinistra" : cx > 0.33 ? "destra" : "centro",
       distanza_m: arrotonda(Math.hypot(...sub(centroApertura, telecamera.posizione))),
+      ...(!proiezione.intera ? { ritagliata: true } : {}),
     });
   }
   return {

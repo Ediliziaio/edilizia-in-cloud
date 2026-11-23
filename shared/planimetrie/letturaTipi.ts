@@ -12,6 +12,7 @@ export interface VerificaLettura {
   descrizione: string;
   riferimento?: RiferimentoVerifica;
   valoriLettiCm?: number[];
+  esitoQuota?: "compatibile" | "discordante" | "senza_quota";
   /** Zone indicate sulla foto salvata: coordinate 0–1, indipendenti dallo zoom. Non sono conferme della quota. */
   zoneFoto?: ZonaFotoDocumento[];
   conferma?: { firma: string; quando: string; nota?: string; valoreCm?: number };
@@ -45,6 +46,7 @@ export function verificheLetturaValide(v: unknown): v is VerificaLettura[] {
     ids.add(r.id);
     if (!["quota", "geometria", "aperture", "elementi", "nota"].includes(r.tipo) || typeof r.descrizione !== "string" || !r.descrizione.trim() || r.descrizione.length > 4000) return false;
     if (r.valoriLettiCm !== undefined && (!Array.isArray(r.valoriLettiCm) || r.valoriLettiCm.length > 20 || !r.valoriLettiCm.every((n: unknown) => typeof n === "number" && Number.isFinite(n) && n > 0 && n <= 100000))) return false;
+    if (r.esitoQuota !== undefined && (r.tipo !== "quota" || !["compatibile", "discordante", "senza_quota"].includes(r.esitoQuota))) return false;
     if (r.zoneFoto !== undefined && (!Array.isArray(r.zoneFoto) || r.zoneFoto.length > 8 || !r.zoneFoto.every(zonaFotoValida))) return false;
     if (r.riferimento !== undefined) {
       const a = r.riferimento;

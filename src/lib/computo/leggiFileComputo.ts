@@ -4,6 +4,7 @@ import { leggiComputoXpwe, MESSAGGIO_DCF } from "./xpwe";
 import { eFoglioDaConvertire, eFoglioXlsx, leggiComputoExcel, MESSAGGIO_XLS } from "./computoExcel";
 import type { ComputoStrutturato } from "./computoStrutturato";
 import { leggiPdfTabellare } from "./pdfTabellare";
+import { caricaPdfJsBrowser } from "@/lib/pdfjsBrowser";
 
 /**
  * Legge nel browser un computo: il PDF stampato da PriMus, l'XPWE o un foglio Excel.
@@ -30,13 +31,7 @@ export const MESSAGGIO_PDF_PROTETTO = "Il PDF è protetto da password: aprilo, s
 const MIME_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
 async function pagineDaPdf(dati: ArrayBuffer): Promise<PdfPaginaPosizionata[]> {
-  const pdfjs = await import("pdfjs-dist");
-  const worker = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default as unknown;
-  // Il prebundle di sviluppo può restituire il modulo invece dell'URL. Come nel visore PDF,
-  // in locale si usa il file servito da Vite; in produzione deve esserci l'asset emesso dalla build.
-  const indirizzoWorker = typeof worker === "string" ? worker : import.meta.env.DEV ? "/node_modules/pdfjs-dist/build/pdf.worker.min.mjs" : null;
-  if (!indirizzoWorker) throw new Error("Il lettore PDF non si è caricato: ricarica la pagina e riprova.");
-  pdfjs.GlobalWorkerOptions.workerSrc = indirizzoWorker;
+  const pdfjs = await caricaPdfJsBrowser();
   // In pdfjs 6 si distrugge il caricamento, non il documento (che non ha più `destroy`).
   const caricamento = pdfjs.getDocument({ data: dati });
   const pdf = await caricamento.promise.catch((e: unknown) => {

@@ -2,8 +2,8 @@
  * Verifiche igienico-sanitarie della pianta (DM 5 luglio 1975 e regolamenti edilizi tipici):
  * il controllo che un tecnico fa prima di una CILA o di una SCIA.
  *
- * - Rapporto aeroilluminante: nei locali abitabili (soggiorno, cucina, camere, studio) la
- *   superficie finestrata deve essere almeno 1/8 di quella del pavimento.
+ * - Rapporto aeroilluminante: nei locali abitabili la superficie finestrata apribile si
+ *   confronta con 1/8 del pavimento. Il fattore di luce diurna va verificato a parte.
  * - Altezze: locali abitabili almeno 2,70 m; bagni, corridoi, disimpegni e ripostigli 2,40 m.
  * - Superfici: camera singola almeno 9 m², doppia 14 m²; soggiorno almeno 14 m².
  * - Bagni: con finestra, oppure con aerazione meccanica (la VMC disegnata); in ogni alloggio
@@ -12,13 +12,14 @@
  *
  * I valori vengono dalla norma nazionale; i regolamenti comunali possono chiedere di più (o
  * ammettere deroghe: montagna, centri storici, sottotetti). È un controllo di massima: la
- * verifica vera la firma il tecnico. Contano le finestre e le portafinestre (luce netta =
- * larghezza × altezza del vano), non le porte né i varchi.
+ * verifica vera la firma il tecnico. Larghezza per altezza del vano dà un limite lordo,
+ * da usare come stima in assenza della superficie apribile rilevata.
  */
 import { apertureDelLocale, areaPoligono } from "./geometria.ts";
 import { ALTEZZA_MEDIA_ABITABILI, ALTEZZA_MEDIA_SERVIZI, ALTEZZA_UTILE_MINIMA, altezzeLocale, falde } from "./sottotetto.ts";
 import { verificheDiProgetto } from "./interferenze.ts";
 import { ambitiDi, statoDelLivello, type Destinazione, type Locale, type Planimetria, type StatoPianta } from "./modello.ts";
+import { sistemaDi } from "./serramenti.ts";
 
 export type EsitoVerifica = "ok" | "attenzione" | "non_conforme";
 
@@ -27,6 +28,8 @@ export interface Verifica {
   codice: "rai" | "altezza" | "superficie" | "bagno" | "alloggio" | "interferenza" | "scala" | "contenimento" | "serramento" | "tetto";
   esito: EsitoVerifica;
   livello: string;
+  livelloId?: string;
+  localeId?: string;
   /** Il locale (o l'alloggio) a cui si riferisce. */
   oggetto: string;
   messaggio: string;
@@ -41,18 +44,19 @@ const ESCLUSI = new Set<Destinazione>(["balcone", "terrazzo", "garage", "cantina
 const mq = (v: number) => `${v.toLocaleString("it-IT", { maximumFractionDigits: 2 })} m²`;
 const m = (cm: number) => `${(cm / 100).toLocaleString("it-IT", { maximumFractionDigits: 2 })} m`;
 
-/**
- * Superficie finestrata del locale (m²): finestre e portafinestre che lo toccano, più i
- * lucernari (finestre a tetto) dentro la stanza, con la loro luce intera.
- */
-export function superficieFinestrata(locale: Locale, stato: StatoPianta): number {
+function misureFinestre(locale: Locale, stato: StatoPianta): { lordo: number; apribile?: number }[] {
   const pareti = apertureDelLocale(locale, stato)
     .filter((a) => a.tipo === "finestra" || a.tipo === "portafinestra")
-    .reduce((t, a) => t + (a.larghezza * a.altezza) / 10_000, 0);
+    .map(a => ({ lordo: a.larghezza * a.altezza / 10_000, apribile: sistemaDi(a) === "fisso" ? 0 : a.superficieApribileMq }));
   const tetto = stato.elementi
     .filter((e) => e.tipo === "lucernario" && e.stato !== "da_demolire" && insideLocale(e.posizione, locale))
-    .reduce((t, e) => t + ((e.larghezza ?? 78) * (e.profondita ?? 118)) / 10_000, 0);
-  return pareti + tetto;
+    .map(e => ({ lordo: (e.larghezza ?? 78) * (e.profondita ?? 118) / 10_000 }));
+  return [...pareti, ...tetto];
+}
+
+/** Superficie dei vani finestrati, inclusi i lucernari, in metri quadrati lordi. */
+export function superficieFinestrata(locale: Locale, stato: StatoPianta): number {
+  return misureFinestre(locale, stato).reduce((n, finestra) => n + finestra.lordo, 0);
 }
 
 /** Le verifiche di uno stato (com'è oggi o una proposta) su tutti i piani. */
@@ -78,7 +82,7 @@ export function verificaPianta(doc: Planimetria, ambitoChiave = "fatto"): Verifi
       if (ABITABILI.has(l.destinazione) || SERVIZI.has(l.destinazione) || l.destinazione === "altro") a.mq += area;
       alloggi.set(chiave, a);
       const v = (codice: Verifica["codice"], esito: EsitoVerifica, messaggio: string, valore?: string, richiesto?: string) =>
-        out.push({ codice, esito, livello: livello.nome, oggetto: l.nome, messaggio, valore, richiesto });
+        out.push({ codice, esito, livello: livello.nome, livelloId: livello.id, localeId: l.id, oggetto: l.nome, messaggio, valore, richiesto });
 
       // altezza
       if (sotto && (ABITABILI.has(l.destinazione) || SERVIZI.has(l.destinazione))) {
@@ -96,11 +100,22 @@ export function verificaPianta(doc: Planimetria, ambitoChiave = "fatto"): Verifi
 
       // rapporto aeroilluminante
       if (ABITABILI.has(l.destinazione) && areaLorda > 0) {
-        const fin = superficieFinestrata(l, stato);
+        const finestre = misureFinestre(l, stato);
+        const rilevata = finestre.reduce((n, f) => n + (f.apribile ?? 0), 0);
         const serve = areaLorda / 8;
-        const rapporto = fin > 0 ? `1/${(areaLorda / fin).toLocaleString("it-IT", { maximumFractionDigits: 1 })}` : "nessuna finestra";
-        if (fin >= serve) v("rai", "ok", "Finestre sufficienti.", `${mq(fin)} (${rapporto})`, `${mq(serve)} (1/8)`);
-        else v("rai", fin >= serve * 0.85 ? "attenzione" : "non_conforme", fin > 0 ? `Mancano ${mq(serve - fin)} di finestre.` : "Il locale non ha finestre.", `${mq(fin)} (${rapporto})`, `${mq(serve)} (1/8)`);
+        const riferimento = `${mq(serve)} (1/8)`;
+        const daMisurare = finestre.some(f => f.apribile == null);
+        const massimo = finestre.reduce((n, f) => n + (f.apribile ?? f.lordo), 0);
+        if (rilevata >= serve) {
+          v("rai", "ok", "Superficie apribile sufficiente per il confronto con 1/8. Verifica il fattore di luce diurna.", `${mq(rilevata)} apribili`, riferimento);
+        } else if (daMisurare && massimo >= serve) {
+          v("rai", "attenzione", "Misura la superficie apribile del serramento e verifica il fattore di luce diurna.", `Fino a ${mq(massimo)} dai vani in tavola`, riferimento);
+        } else {
+          const motivo = daMisurare ? "La superficie risulta insufficiente già usando la misura lorda dei vani."
+            : rilevata > 0 ? `Mancano ${mq(serve - rilevata)} di superficie apribile.` : "Serve una finestra apribile.";
+          v("rai", massimo >= serve * 0.85 ? "attenzione" : "non_conforme", motivo,
+            daMisurare ? `Fino a ${mq(massimo)} dai vani in tavola` : `${mq(rilevata)} apribili`, riferimento);
+        }
       }
 
       // superfici minime
@@ -119,7 +134,7 @@ export function verificaPianta(doc: Planimetria, ambitoChiave = "fatto"): Verifi
       if (l.destinazione === "bagno") {
         const tipi = new Set(stato.elementi.filter((e) => insideLocale(e.posizione, l)).map((e) => e.tipo));
         a.bagni.push({ nome: l.nome, tipi });
-        const finestra = superficieFinestrata(l, stato) > 0;
+        const finestra = misureFinestre(l, stato).some(f => (f.apribile ?? f.lordo) > 0);
         if (finestra) v("bagno", "ok", "Bagno finestrato.");
         else if (tipi.has("vmc") || stato.elementi.some((e) => e.tipo === "vmc")) v("bagno", "ok", "Bagno cieco con aerazione meccanica (VMC).");
         else v("bagno", "non_conforme", "Bagno cieco: serve l'aerazione meccanica (aspiratore o VMC).");

@@ -49,8 +49,8 @@ function InterventionImage({ area, modelId }: { area: SalesArea; modelId: string
 
 function QuoteChooser({ params, onSelect, ai }: { params: URLSearchParams; onSelect: () => void; ai: boolean }) {
   const permissions = usePermissions();
-  const classicHref = quoteCreationHref('/azienda/marketing/preventivi/nuovo', params);
-  const aiClassicHref = `${classicHref}${classicHref.includes('?') ? '&' : '?'}ai=1`;
+  const hrefComputo = quoteCreationHref("/azienda/marketing/preventivi/nuovo", params);
+  const hrefComputoAi = `${hrefComputo}${hrefComputo.includes("?") ? "&" : "?"}ai=1`;
   const { moduli, isLoading, isError } = useModuliVendita();
   const { isAreaVisibile, isLoading: visibilityLoading } = useModuliVisibilita();
   const srSupport = useSerramentiModelSupport();
@@ -118,10 +118,10 @@ function QuoteChooser({ params, onSelect, ai }: { params: URLSearchParams; onSel
         )}
     </div>
     <div ref={scroll} className="min-h-0 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 max-sm:py-3" data-testid="quote-chooser-scroll">
-      {!area && !searching && permissions.canEditPreventivi && <Link onClick={onSelect} to={ai ? aiClassicHref : quoteCreationHref("/azienda/marketing/preventivi/nuovo", params)}
+      {!area && !searching && permissions.canEditPreventivi && <Link onClick={onSelect} to={ai ? hrefComputoAi : hrefComputo}
         className="mb-5 flex min-h-24 items-center gap-4 rounded-xl border border-orange-200 bg-orange-50/70 p-4 transition-colors hover:bg-orange-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary max-sm:mb-3 max-sm:min-h-0 max-sm:gap-3 max-sm:px-3 max-sm:py-2.5">
         <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white text-orange-600 shadow-sm max-sm:h-9 max-sm:w-9"><FileText aria-hidden="true" className="h-6 w-6 max-sm:h-5 max-sm:w-5" /></span>
-        <span className="min-w-0 flex-1"><span className="block font-semibold max-sm:text-sm">Preventivo / computo metrico</span><span className="mt-1 block text-sm text-muted-foreground max-sm:hidden">{ai ? 'Descrivi il lavoro in chat. Le voci si costruiscono nel preventivo e restano modificabili nell’editor.' : 'Capitoli, lavorazioni, misure e formule. Il computo completo con il tuo modello grafico.'}</span></span>
+        <span className="min-w-0 flex-1"><span className="block font-semibold max-sm:text-sm">Preventivo / computo metrico</span><span className="mt-1 block text-sm text-muted-foreground max-sm:hidden">{ai ? 'Descrivi il lavoro in chat. Le voci si costruiscono nel preventivo e restano modificabili nell’editor.' : 'Inserisci le lavorazioni con quantità e prezzi.'}</span></span>
         <ArrowRight aria-hidden="true" className="h-5 w-5 shrink-0 text-orange-600" />
       </Link>}
 

@@ -275,24 +275,24 @@ export function costruisciVetro(m: MuroCalc, v: VanoMuro, c: CostruttoreMesh): v
 
 /**
  * Telaio del serramento: cornice, montanti fra le ante e, per i sistemi a scorrere, un'anta davanti al vetro.
- * Si disegna solo quando chi ha fatto la pianta ha scelto ante o sistema (le altre finestre restano come prima).
+ * Lo spessore del profilo si adatta ai vani stretti e non modifica il foro nel muro.
  */
-export function costruisciTelaio(m: MuroCalc, v: VanoMuro, c: CostruttoreMesh, ante: number, scorrevole: boolean): void {
+export function costruisciTelaio(m: MuroCalc, v: VanoMuro, c: CostruttoreMesh, ante: number, scorrevole: boolean, profilo = .05, soglia = true): void {
   const rot = Math.atan2(m.d.y, m.d.x);
   const asta = (s0: number, s1: number, z0: number, z1: number, profondita = 0.07, fuori = 0) => {
     const mezzo = piu(m.a, per(m.d, (s0 + s1) / 2));
     const n = { x: -m.d.y, y: m.d.x };
     c.scatola(mezzo.x + n.x * fuori, mezzo.y + n.y * fuori, z0, s1 - s0, profondita, z1 - z0, rot);
   };
-  const t = 0.05;
+  const t = Math.min(profilo, (v.s1 - v.s0) / 5, (v.z1 - v.z0) / 5);
   asta(v.s0, v.s0 + t, v.z0, v.z1);
   asta(v.s1 - t, v.s1, v.z0, v.z1);
-  asta(v.s0, v.s1, v.z0, v.z0 + t);
-  asta(v.s0, v.s1, v.z1 - t, v.z1);
+  if (soglia) asta(v.s0 + t, v.s1 - t, v.z0, v.z0 + t);
+  asta(v.s0 + t, v.s1 - t, v.z1 - t, v.z1);
   const n = Math.max(1, ante);
   for (let i = 1; i < n; i++) {
     const s = v.s0 + ((v.s1 - v.s0) * i) / n;
-    asta(s - t / 2, s + t / 2, v.z0, v.z1, scorrevole ? 0.09 : 0.07);
+    asta(s - t / 2, s + t / 2, v.z0 + (soglia ? t : 0), v.z1 - t, scorrevole ? 0.09 : 0.07);
   }
   if (scorrevole) {
     // le ante scorrono su binari diversi: ogni anta ha il suo telaio, un po' avanti o indietro

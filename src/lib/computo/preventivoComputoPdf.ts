@@ -12,6 +12,21 @@ import { segnaClausoleDelDocumento } from "@/lib/fea/clausoleDelDocumento";
 import { geometriaLogo, nomeFontModello } from "./assetModello";
 import { segnaCopertinaComputoPdf, segnaVoceComputoPdf } from "./destinazioniPdf";
 import { haPaginaCopertina } from "./copertineComputo";
+import { disegnaPlanimetriaComputo } from "./stampaPlanimetria";
+
+function disegnaFotoInCopertina(doc: jsPDF, foto: NonNullable<IntestazioneComputo["immagineCopertina"]>, x: number, y: number, w: number, h: number, ritaglia: boolean) {
+  if (!ritaglia) {
+    doc.addImage(foto.dati, "JPEG", x, y, w, h);
+    return;
+  }
+  const scala = Math.max(w / foto.larghezza, h / foto.altezza);
+  const larghezza = foto.larghezza * scala, altezza = foto.altezza * scala;
+  doc.saveGraphicsState();
+  try {
+    doc.rect(x, y, w, h, null); doc.clip(); doc.discardPath();
+    doc.addImage(foto.dati, "JPEG", x + (w - larghezza) / 2, y + (h - altezza) / 2, larghezza, altezza);
+  } finally { doc.restoreGraphicsState(); }
+}
 
 /** Stesso tema dei preventivi edili; dettaglio metrico mantenuto nel motore comune. */
 export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: IntestazioneComputo): jsPDF {
@@ -115,7 +130,7 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
     const trama = mescola(c.fondo, c.testo, 0.06), tenue = mescola(c.fondo, c.testo, 0.72), filo = mescola(c.fondo, c.testo, 0.3);
     // Con la foto del progetto la parte alta è la foto, a tutta pagina; sotto, il fondo scuro con titolo e dati.
     const foto = i.immagineCopertina;
-    const fotoH = foto || stileCopertina === "fotografica" ? Math.round(H * 0.44) : 0;
+    const fotoH = foto || stileCopertina === "fotografica" ? Math.round(H * (i.planimetria ? .22 : .44)) : 0;
     doc.setFillColor(c.fondo); doc.rect(0, 0, W, H, "F");
     // La trama di un foglio millimetrato, appena visibile: è un computo, un documento tecnico.
     doc.setDrawColor(trama); doc.setLineWidth(0.3);
@@ -126,7 +141,7 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
       for (let x = 0; x <= W; x += 24) doc.line(x, 0, x, H);
       for (let r = 0; r <= H; r += 24) doc.line(0, r, W, r);
     }
-    if (foto) { try { doc.addImage(foto.dati, "JPEG", 0, 0, W, fotoH); } catch { /* una foto illeggibile non ferma il preventivo */ } }
+    if (foto) { try { disegnaFotoInCopertina(doc, foto, 0, 0, W, fotoH, !!i.planimetria); } catch { /* una foto illeggibile non ferma il preventivo */ } }
     else if (stileCopertina === "fotografica") {
       doc.setFillColor(mescola(t.fondo, "#FFFFFF", .80)); doc.rect(0, 0, W, fotoH, "F");
       doc.setFillColor(mescola(t.fondo, "#FFFFFF", .55)); doc.rect(W * .08, fotoH * .35, W * .33, fotoH * .65, "F");
@@ -157,14 +172,23 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
       font(15, true, c.testo); doc.text(short(i.azienda || "Preventivo con computo metrico", stileCopertina === "diagonale" && !fotoH ? cw * .60 : cw), cm, yc); yc += 15;
       if (i.dettagliAzienda) { font(8, false, tenue); (wrap(i.dettagliAzienda, stileCopertina === "diagonale" && !fotoH ? cw * .60 : cw) as string[]).slice(0, 2).forEach((r, k) => doc.text(r, cm, yc + k * 11 * scalaTesto)); }
     }
-    yc = fotoH ? yc + 44 : H * 0.36;
+    if (i.planimetria) yc = fotoH ? yc + 29 : Math.max(H * .205, yc + 38);
+    else yc = fotoH ? yc + 44 : H * 0.36;
+    const campi = ([
+      ["Committente", i.nascondiCliente ? "" : i.committente ?? ""], ["Luogo dei lavori", i.nascondiCliente ? "" : i.indirizzoIntervento ?? ""],
+      ["Data", i.dataDocumento ?? ""], ["Preventivo n.", [i.numero, i.revisione && `rev. ${i.revisione}`].filter(Boolean).join(" · ")],
+      ["Tecnico / referente", i.tecnico ?? ""],
+    ] as [string, string][]).filter(([, v]) => v.trim());
+    const fondoPianta = campi.length ? H - 70 - Math.ceil(campi.length / 3) * 46 - 28 : H - 57;
     const occhiello = (i.soloRiepilogo ? "Piano dei lavori · sintesi per capitoli" : i.senzaPrezzi ? "Computo metrico · lavorazioni e quantità" : veste?.sopratitolo?.trim() || "Preventivo · computo metrico estimativo").toUpperCase();
     font(9, true, c.evidenza); for (const [n, r] of wrap(occhiello, cw).entries()) { doc.text(r, cm, yc + n * 13); }
     doc.setFillColor(c.evidenza); doc.rect(cm, yc + 9, 54, 2.5, "F"); yc += 46;
     let sizeTitolo = veste?.dimensioneTitolo ?? 34;
     fontCopertina(sizeTitolo, c.testo);
     let righeTitolo = wrap(i.titolo || "Preventivo", cw - 10);
-    const limiteTitolo = H - 70 - 2 * 46 - 24 - (i.oggetto?.trim() ? 44 : 0);
+    const limiteTitolo = i.planimetria
+      ? fondoPianta - 162 - (i.oggetto?.trim() ? (fotoH ? 55 : 72) : 0)
+      : H - 70 - 2 * 46 - 24 - (i.oggetto?.trim() ? 44 : 0);
     while (sizeTitolo > 18 && yc + (righeTitolo.length - 1) * sizeTitolo * 1.15 > limiteTitolo) {
       sizeTitolo--; fontCopertina(sizeTitolo, c.testo); righeTitolo = wrap(i.titolo || "Preventivo", cw - 10);
     }
@@ -172,12 +196,11 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
       if (yc > limiteTitolo) break; // Il titolo completo è riportato nei dati del lavoro.
       doc.text(r, cm, yc); yc += sizeTitolo * 1.15;
     }
-    if (i.oggetto?.trim()) { yc += 4; font(12, false, tenue); for (const r of (wrap(i.oggetto.trim(), cw - 40) as string[]).slice(0, fotoH ? 2 : 4)) { doc.text(r, cm, yc); yc += 16; } }
-    const campi = ([
-      ["Committente", i.nascondiCliente ? "" : i.committente ?? ""], ["Luogo dei lavori", i.nascondiCliente ? "" : i.indirizzoIntervento ?? ""],
-      ["Data", i.dataDocumento ?? ""], ["Preventivo n.", [i.numero, i.revisione && `rev. ${i.revisione}`].filter(Boolean).join(" · ")],
-      ["Tecnico / referente", i.tecnico ?? ""],
-    ] as [string, string][]).filter(([, v]) => v.trim());
+    if (i.oggetto?.trim()) { yc += 4; font(12, false, tenue); for (const r of wrap(i.oggetto.trim(), cw - 40).slice(0, fotoH ? 2 : i.planimetria ? 3 : 4)) { doc.text(r, cm, yc); yc += 16; } }
+    if (i.planimetria) {
+      const yPianta = yc + 12;
+      disegnaPlanimetriaComputo(doc, i.planimetria, cm, yPianta, cw, Math.min(fotoH ? 218 : 272, fondoPianta - yPianta));
+    }
     if (campi.length) {
       const col = (cw - 30) / 3, righe = Math.ceil(campi.length / 3);
       let yb = H - 70 - righe * 46;
@@ -226,8 +249,8 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
   }
   y = Math.max(y, m + (geometria?.h ?? 0));
   if (i.immagineCopertina && i.sezioni?.copertina !== false) {
-    const hFoto = width * .30;
-    y += 18; doc.addImage(i.immagineCopertina.dati, "JPEG", m, y, width, hFoto); y += hFoto;
+    const hFoto = width * (i.planimetria ? .18 : .30);
+    y += 18; disegnaFotoInCopertina(doc, i.immagineCopertina, m, y, width, hFoto, !!i.planimetria); y += hFoto;
   }
   y += 27;
   const sopratitolo = veste?.sopratitolo?.trim().toUpperCase();
@@ -238,6 +261,7 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
   metadati.forEach((line, k) => doc.text(line, m, y + 1 + k * 11));
   if (copertina === "sobria") { y += metadati.length * 11 + 8; doc.setDrawColor(t.fondo); doc.setLineWidth(1.2); doc.line(m, y, right, y); y += 25; }
   else y = Math.max(y + metadati.length * 11 + 15, heroH + 25);
+  if (i.planimetria) y += disegnaPlanimetriaComputo(doc, i.planimetria, m, y, width, Math.min(235, bottom - y - 12));
   }
   if (stato && !coperta) { paragraph(stato, 8, t.grigio); y += 12; }
   const anagrafica: [string, string][] = [];
@@ -384,7 +408,7 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
   const celleSomma = (v: VoceComputo): TestoCella[][] => [
     [], righeCella(v.is_detrazione ? "SI DETRAGGONO" : "SOMMANO", colonne[1].w, 7.2, true),
     righeCella(v.unita_misura || "-", unitaW, 7), righeCella(num(v.quantita, 2), 62, 7.5, true),
-    ...(mostraUnitari ? [righeCella(v.prezzo_unitario_computo == null ? "Da definire" : formatEuro(v.prezzo_unitario_computo), 70, 7.5)] : []),
+    ...(mostraUnitari ? [righeCella(v.prezzo_unitario_computo == null ? "Da definire" : num(v.prezzo_unitario_computo, 2), 70, 7.5)] : []),
     ...(mostraImporti ? [righeCella(v.da_quantificare ? "Da quantificare" : v.importo_computo == null ? "Da definire" : formatEuro(v.importo_computo), 82, 7.5, true)] : []),
   ];
   const altezzaSomma = 7.5 * scalaTesto * 1.4 + 12;
@@ -499,12 +523,13 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
   if (i.vociOpzionali?.length && !i.soloRiepilogo) {
     ensure(90); y += 14; paragraph("Voci opzionali", 13, t.inchiostro, true); paragraph("Proposte in aggiunta: non sono comprese nel totale del preventivo.", 8.5, t.grigio); y += 4; rule();
     for (const o of i.vociOpzionali) {
-      const righe = wrap(o.descrizione, width - 190) as string[];
-      ensure(righe.length * 11 + 12);
-      righe.slice(0, 4).forEach((r, k) => { font(9, k === 0); doc.text(r, m, y + k * 11); });
-      font(8.5, false, t.grigio); doc.text(`${o.quantita == null ? "-" : num(o.quantita)} ${o.unita}${mostraUnitari && o.prezzo != null ? ` × ${money(o.prezzo)}` : ""}`, right - 90, y, { align: "right" });
-      if (mostraImporti) { font(9, true); doc.text(money(o.importo), right, y, { align: "right" }); }
-      y += Math.min(4, righe.length) * 11 + 8;
+      const misura = [num(o.quantita), o.unita].filter(Boolean).join(" ");
+      const unitario = mostraUnitari && o.prezzo != null ? ` × ${num(o.prezzo, 2)} €` : "";
+      const importo = mostraImporti ? ` · Importo ${money(o.importo)}` : "";
+      ensure(32);
+      paragraph(o.descrizione, 9, t.inchiostro, true);
+      paragraph(misura + unitario + importo, 8.5, t.grigio);
+      y += 8;
     }
   }
   if (i.calcoloDetrazione && !i.calcoloDetrazione.errore && voci.length) {

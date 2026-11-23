@@ -1,10 +1,15 @@
 import { Blob as NodeBlob } from "node:buffer";
-import { useState } from "react";
+import { useState, type ReactElement } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render as monta, screen, within } from "@testing-library/react";
 import { bozzaVuota, voceVuota } from "@/lib/computo/editorNativo";
 import { readPdfPreview, revokePdfPreviewUrl } from "@/lib/pdfPreviewSource";
 import ComputoNativoEditor from "@/components/computo/ComputoNativoEditor";
+
+const render = (editor: ReactElement) => monta(editor, {
+  wrapper: ({ children }) => <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>,
+});
 
 const documento = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/computo/esportaComputo", () => ({ esportaComputoPdf: vi.fn(), generaDocumentoComputo: async (...args: unknown[]) => { documento(...args); return new Blob(["%PDF-computo"], { type: "application/pdf" }); } }));
@@ -32,13 +37,14 @@ describe("anteprima computo con le protezioni di produzione", () => {
   it("la vista in tempo reale legge il PDF senza fetch(blob:)", async () => {
     render(<ComputoNativoEditor storageKey="csp-computo" initialFase={3} />);
     expect(screen.queryByRole("complementary", { name: "Anteprima del preventivo" })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Mostra PDF" }));
+    fireEvent.click(screen.getByRole("button", { name: "Anteprima" }));
     fireEvent.click(screen.getByRole("button", { name: "Leggi byte anteprima" }));
     expect(await screen.findByText("%PDF-computo")).toBeInTheDocument(); expect(fetch).not.toHaveBeenCalled();
   });
   it("anche il popup di anteprima usa i byte originali senza rete", async () => {
     render(<ComputoNativoEditor storageKey="csp-computo" initialFase={3} />);
     fireEvent.click(screen.getByRole("button", { name: "Anteprima" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ingrandisci anteprima" }));
     const dialog = await screen.findByRole("dialog");
     fireEvent.click(within(dialog).getByRole("button", { name: "Leggi byte anteprima" }));
     expect(await screen.findByText("%PDF-computo")).toBeInTheDocument(); expect(fetch).not.toHaveBeenCalled();
@@ -51,7 +57,7 @@ describe("anteprima computo con le protezioni di produzione", () => {
     render(<ComputoNativoEditor storageKey="csp-computo" initialFase={2} />);
     fireEvent.click(within(screen.getByRole("navigation", { name: "Indice dei capitoli" })).getByRole("button", { name: /Demolizioni/ }));
     expect(screen.queryByRole("button", { name: "Apri voce 2" })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Mostra PDF" }));
+    fireEvent.click(screen.getByRole("button", { name: "Anteprima" }));
     fireEvent.click(screen.getByRole("button", { name: "Leggi byte anteprima" }));
     expect(await screen.findByText("%PDF-computo")).toBeInTheDocument();
     expect(documento.mock.lastCall?.[0]).toHaveLength(2);
@@ -68,7 +74,7 @@ describe("anteprima computo con le protezioni di produzione", () => {
     ];
     localStorage.setItem("csp-computo", JSON.stringify({ ...bozzaVuota(), titolo: "Computo CSP", voci }));
     render(<ComputoNativoEditor storageKey="csp-computo" initialFase={2} />);
-    fireEvent.click(screen.getByRole("button", { name: "Mostra PDF" }));
+    fireEvent.click(screen.getByRole("button", { name: "Anteprima" }));
     fireEvent.click(screen.getByRole("button", { name: "Apri voce 1" }));
     expect(screen.getByLabelText("Voce collegata al PDF")).toHaveTextContent("computo.voce.prima");
     fireEvent.click(screen.getByRole("button", { name: "Chiudi dettagli" }));

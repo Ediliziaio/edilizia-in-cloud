@@ -66,6 +66,26 @@ describe("il calcolo della scelta", () => {
 });
 
 describe("la schermata", () => {
+  it("per quotare una singola lavorazione esclude unità diverse o ignote e mantiene la tariffa scelta", async () => {
+    PREZZARIO.voci = [
+      { id: "ok", descrizione: "Posa gres", unita_misura: "mq", prezzo: 46, codice: "E-01", fonteLabel: "Listino di prova" },
+      { id: "alt", descrizione: "Posa marmo", unita_misura: "m²", prezzo: 63, codice: "E-02", fonteLabel: "Listino di prova" },
+      { id: "pezzo", descrizione: "Serramento", unita_misura: "cad", prezzo: 250 },
+      { id: "incerta", descrizione: "Voce senza unità", unita_misura: null, prezzo: 50 },
+      { id: "senza", descrizione: "Voce senza prezzo", unita_misura: "mq", prezzo: null },
+    ];
+    const { onPick } = apri({ unitaPrezzo: "m²" });
+    fireEvent.click(screen.getByRole("button", { name: /cerca nel prezzario regionale/i }));
+    expect(screen.queryByText("Serramento")).toBeNull();
+    expect(screen.queryByText("Voce senza unità")).toBeNull();
+    expect(screen.queryByText("Voce senza prezzo")).toBeNull();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Scegli: Posa gres" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Scegli: Posa marmo" }));
+    expect(screen.queryByLabelText("Quantità: Posa marmo")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Usa questo prezzo" }));
+    expect(onPick).toHaveBeenCalledWith([expect.objectContaining({ prezzo_unitario: 63, sourceUnit: "m²", codice_tariffa: "E-02", fonte: "Listino di prova" })]);
+  });
+
   it("mostra tutto il listino, non i primi 40, e i gruppi con il numero di voci", async () => {
     apri();
     expect(await screen.findByText("Voce 45")).toBeTruthy();

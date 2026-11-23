@@ -79,13 +79,13 @@ describe("«Crea commessa (rivedi)» e «Converti in Cantiere»: stesse righe", 
     riga({ name: "Intonaco", quantity: 85.5, unit_price: 24, unit_of_measure: "m²", prezzo_acquisto: 11.5 }),
     riga({ name: "Zanzariera (opzione)", quantity: 2, unit_price: 120, is_optional: true }),
     riga({ item_category: "nota", name: "Nota interna" }),
-  ];
+  ].map((r, i) => ({ ...r, id: `r${i}` }));
 
   it("la strada «rivedi» dà le righe giuste: niente opzionali, sconto di riga, decimali veri con l'unità", () => {
     const items = righePreventivoPerCommessa(preventivoRighe);
     expect(items.map((i) => i.name)).toEqual(["Finestra PVC", "Intonaco"]);
-    expect(items[0]).toMatchObject({ quantity: 4, unit_price: 850, discount_percent: 5, vat_rate: 10, status: "da_ordinare", position: 0, measure_status: "da_rilevare" });
-    expect(items[1]).toMatchObject({ quantity: 85.5, unita_misura: "m²", unit_price: 24, purchase_price: 11.5 });
+    expect(items[0]).toMatchObject({ quantity: 4, unit_price: 850, discount_percent: 5, vat_rate: 10, status: "da_ordinare", position: 0, measure_status: "da_rilevare", origine_preventivo_id: "r0" });
+    expect(items[1]).toMatchObject({ quantity: 85.5, unita_misura: "m²", unit_price: 24, purchase_price: 11.5, origine_preventivo_id: "r2" });
   });
 
   describe("la conversione automatica", () => {
@@ -99,7 +99,7 @@ describe("«Crea commessa (rivedi)» e «Converti in Cantiere»: stesse righe", 
         client_name: "Mario Rossi", client_email: null, client_phone: null, client_company: null, client_address: null, notes: null,
         indirizzo_lavori: null, tipo_lavoro: null,
       }];
-      condiviso.db.tabelle.quote_items = preventivoRighe.map((r, i) => ({ ...r, id: `r${i}`, quote_id: "q-1", sort_order: i }));
+      condiviso.db.tabelle.quote_items = preventivoRighe.map((r, i) => ({ ...r, quote_id: "q-1", sort_order: i }));
       condiviso.gestore = null;
     });
     afterEach(() => { vi.unstubAllGlobals(); });
@@ -122,7 +122,7 @@ describe("«Crea commessa (rivedi)» e «Converti in Cantiere»: stesse righe", 
       expect(senzaOrdine).toEqual(righePreventivoPerCommessa(preventivoRighe).map((i) => ({
         // L'edge scrive null dove la pagina lascia il campo vuoto.
         name: i.name, description: i.description ?? null, quantity: i.quantity, unita_misura: i.unita_misura ?? null, status: i.status, position: i.position,
-        unit_price: i.unit_price ?? null, purchase_price: i.purchase_price, vat_rate: i.vat_rate ?? null, discount_percent: i.discount_percent ?? null,
+        unit_price: i.unit_price ?? null, purchase_price: i.purchase_price, origine_preventivo_id: i.origine_preventivo_id, vat_rate: i.vat_rate ?? null, discount_percent: i.discount_percent ?? null,
         family_id: i.family_id ?? null, axis_selections: i.axis_selections ?? null, misure_preventivo: i.misure_preventivo ?? null, measure_status: i.measure_status ?? null,
       })));
       expect(chiamata.args.p_order_data).toMatchObject({total_amount:6000,quote_id:"q-1"});

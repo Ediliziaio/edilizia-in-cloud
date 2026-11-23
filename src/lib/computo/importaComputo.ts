@@ -121,9 +121,13 @@ function misuraDaDocumento(m: ComputoMisura): MisuraEditor {
   const base = { ...misuraVuota(), descrizione: conFormula.slice(0, MAX_TESTO) };
   // Riga con la sola quantità: nell'editor è una formula fatta del solo numero.
   if (dimensioni.every(n => n === null)) return { ...base, formula: cifra(m.quantita) };
+  // PriMus può stampare il segno della detrazione solo nella colonna Quantità.
+  const segnoDimensioni = dimensioni.reduce<number>((segno, n) => n === null ? segno : segno * Math.sign(n), 1);
+  const versoOpposto = m.quantita !== null && Math.sign(m.quantita) * segnoDimensioni < 0;
+  const parti = versoOpposto ? -(m.parti_uguali ?? 1) : m.parti_uguali;
   return {
     ...base,
-    parti: cifra(m.parti_uguali), lunghezza: cifra(m.lunghezza),
+    parti: cifra(parti), lunghezza: cifra(m.lunghezza),
     larghezza: cifra(m.larghezza), altezza: cifra(m.altezza_peso),
   };
 }

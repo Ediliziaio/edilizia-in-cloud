@@ -20,13 +20,12 @@ const CHIAVE_SABATO = "eic.cantiere.sabato";
  * dispositivo), mai la domenica né le chiusure dell'azienda (Personale →
  * festività) o, se l'azienda non ne ha, le feste nazionali.
  */
-export function useCalendarioCantiere(): CalendarioCantiere {
+export function useCalendarioCantiere(anno = new Date().getFullYear()): CalendarioCantiere {
   const { data: festivita } = useHrFestivita();
   const [sabato, impostaSabato] = useState(() => {
     try { return localStorage.getItem(CHIAVE_SABATO) === "1"; } catch { return false; }
   });
   const chiusure = useMemo(() => {
-    const anno = new Date().getFullYear();
     const chiusure = new Set<string>();
     for (let y = anno - 1; y <= anno + 2; y++) {
       const elenco = festivita?.length ? festivita : italianHolidays(y);
@@ -36,7 +35,7 @@ export function useCalendarioCantiere(): CalendarioCantiere {
       }
     }
     return chiusure as ReadonlySet<string>;
-  }, [festivita]);
+  }, [anno, festivita]);
   const lavorativo = useMemo(() => calendarioCantiere({ sabato, chiusure }), [chiusure, sabato]);
   const setSabato = (v: boolean) => {
     impostaSabato(v);

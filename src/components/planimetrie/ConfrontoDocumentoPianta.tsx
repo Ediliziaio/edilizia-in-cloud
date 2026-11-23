@@ -16,20 +16,25 @@ import { StatoVerificaDocumento } from "./ControlloPrimaDellUso";
 export interface SorgenteDocumentoPianta { file: Blob; nome: string }
 const num = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits: 2 });
 
-export function ConfrontoDocumentoPianta({ documento, sorgente, archivio, onAggiorna, onSeleziona, solaLettura }: {
-  documento: Planimetria; sorgente?: SorgenteDocumentoPianta; archivio?: ArchivioRicalco;
+export function ConfrontoDocumentoPianta({ documento, livelloId, sorgente, archivio, onAggiorna, onSeleziona, solaLettura }: {
+  documento: Planimetria; livelloId?: string; sorgente?: SorgenteDocumentoPianta; archivio?: ArchivioRicalco;
   onAggiorna: (d: Planimetria) => void; onSeleziona?: (v: VerificaLettura) => void; solaLettura?: boolean;
 }) {
   const [attivaId, setAttivaId] = useState<string>();
-  const percorso = documento.letturaDocumento?.sorgente?.percorso;
-  const foto = useQuery({ queryKey: ["documento-pianta-foto", percorso], enabled: !!percorso && !!archivio && !sorgente, queryFn: () => archivio!.url(percorso!), staleTime: 60 * 60_000 });
   const verifiche = verificheDelDocumento(documento);
+  const attiva = verifiche.find(v => v.id === attivaId);
+  const idFoto = attiva?.riferimento?.livelloId ?? livelloId;
+  const livello = documento.livelli.find(l => l.id === idFoto) ?? documento.livelli[0];
+  const percorso = documento.letturaDocumento?.sorgente?.percorso ?? livello?.ricalco?.percorso;
+  const nomeFoto = sorgente?.nome ?? documento.letturaDocumento?.sorgente?.nome ?? percorso?.split("/").at(-1);
+  const foto = useQuery({ queryKey: ["documento-pianta-foto", percorso], enabled: !!percorso && !!archivio && !sorgente, queryFn: () => archivio!.url(percorso!), staleTime: 60 * 60_000 });
   const fatte = verifiche.filter((v) => verificaConfermata(documento, v)).length;
-  const attiva = verifiche.find((v) => v.id === attivaId);
-  const piantaFoto = useMemo(() => daPlanimetria(documento, attiva?.riferimento?.livelloId), [documento, attiva?.riferimento?.livelloId]);
+  const piantaFoto = useMemo(() => daPlanimetria(documento, idFoto), [documento, idFoto]);
   const seleziona = (v: VerificaLettura) => { setAttivaId(v.id); onSeleziona?.(v); };
   return <aside aria-label="Confronto foto e pianta" className="flex min-h-0 w-full shrink-0 flex-col overflow-hidden border-b bg-slate-50 lg:w-[330px] lg:border-b-0 lg:border-r xl:w-[360px]">
-    {sorgente || foto.data ? <FotoDocumentoVerifica file={sorgente?.file} url={foto.data} verifiche={verifiche} attiva={attiva} pianta={piantaFoto} onSeleziona={seleziona} onZone={(id, zone) => { if (!solaLettura) onAggiorna(impostaZoneFoto(documento, id, zone)); }} solaLettura={solaLettura} /> : <div className="border-b p-3"><h3 className="text-sm font-semibold">Documento originale</h3><p className="mt-2 text-xs text-muted-foreground">{foto.isLoading ? "Carico la foto originale…" : foto.error ? "Foto non disponibile: riprova riaprendo il progetto." : "La foto originale non è allegata a questa versione. Confronta le quote con il documento in tuo possesso."}</p></div>}
+    {sorgente || foto.data ? <FotoDocumentoVerifica file={sorgente?.file} url={foto.data} verifiche={verifiche} attiva={attiva} pianta={piantaFoto}
+      fotoRaddrizzata={nomeFoto?.endsWith("-raddrizzato.png")} onSeleziona={seleziona}
+      onZone={(id, zone) => { if (!solaLettura) onAggiorna(impostaZoneFoto(documento, id, zone)); }} solaLettura={solaLettura} /> : <div className="border-b p-3"><h3 className="text-sm font-semibold">Documento originale</h3><p className="mt-2 text-xs text-muted-foreground">{foto.isLoading ? "Carico la foto di riferimento…" : foto.error ? "Foto non disponibile: riprova riaprendo il progetto." : "La foto originale non è allegata a questa versione. Confronta le quote con il documento in tuo possesso."}</p></div>}
     <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3 max-lg:max-h-64">
       <div className="flex items-center justify-between text-sm"><h3 className="font-semibold">Verifica una voce alla volta</h3><span className="text-xs tabular-nums">{fatte}/{verifiche.length}</span></div>
       <p className="text-xs text-muted-foreground">Scegli una misura solo dopo averla verificata. Puoi lasciare aperti i dubbi e salvare la bozza.</p>

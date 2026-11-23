@@ -1,7 +1,9 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { ListChecks, Map, MessageSquare } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import { SilvioAvatar } from '@/components/silvio/SilvioAvatar';
 import { formatCurrency } from '@/lib/formatters';
 
 /** «668,8 m²», non «668.8 m²»: le quantità nella revisione all'italiana. */
@@ -14,11 +16,14 @@ import { createLocalQuoteAudioTransport, createQuoteAudioTransport } from '@/lib
 import { consentiSimulazionePreventivoAi } from '@/lib/preventivi/localSimulation';
 import { quoteChatReleaseFlag } from '@/lib/preventivi/quoteRollout';
 import type { ChatDocument } from '@/lib/preventivi/quoteChatDocument';
+import type { ControlliCostiSilvio } from '@/lib/preventivi/modificaCostoSilvio';
 import type { QuoteProject } from '@/lib/preventivi/quoteProject';
 import type { QuoteDraft } from '@/lib/preventivi/quoteDraft';
 import { cloneWizardDraft, type NativeComputoModule, type WizardAiChange } from '@/lib/preventivi/wizardAiDraft';
 import { createWizardAiMemory, type WizardAiMemoryScope, type WizardAiSavedDraft, type WizardAiSnapshot } from '@/lib/preventivi/wizardAiMemory';
 import { idAttivitaValido } from '../../../shared/aiAttivita';
+import { ConversazioneProgettoSilvio, type MessaggioSilvio } from './conversazioneProgettoSilvio';
+import type { OrigineComputoPianta } from '@/lib/computo/computoDallaPianta';
 import './QuoteWizardAiDialog.css';
 
 const Workspace = lazy(() => import('./dev/QuoteAssistedWorkspace'));
@@ -26,14 +31,26 @@ export type WizardAiReview = { changes: WizardAiChange[]; pending: number; error
 export type QuoteWizardAiDialogProps = {
   title: string; companyId: string; open: boolean; onOpenChange: (open: boolean) => void;
   document: ChatDocument; project: QuoteProject; fingerprint: string;
-  preview: (document: ChatDocument, chapters: Record<string, string>) => ReactNode;
+  preview: (document: ChatDocument, chapters: Record<string, string>, visible?: boolean) => ReactNode;
+  costPreview?: (document: ChatDocument, chapters: Record<string, string>, controlli: ControlliCostiSilvio) => ReactNode;
+  costEditable?: boolean;
+  progettoOperativo?: ReactNode;
+  progettoCollegato?: OrigineComputoPianta;
+  progettoInModifica?: boolean;
+  apriProgetto?: boolean;
+  onAggiornaChatPreventivo?: (continuazione: WizardAiSnapshot, chiusura: boolean) => void;
+  continuazione?: WizardAiSnapshot;
+  chiediChiusura?: boolean;
   review: (document: ChatDocument, chapters: Record<string, string>) => WizardAiReview;
   onApply: (document: ChatDocument, chapters: Record<string, string>, richiestaId?: string) => void | Promise<void>;
   chapters?: boolean;
+  computo?: Record<string, import('./dev/QuoteLineEditor').ComputoLineMetadata>;
+  chapterMaxLength?: number;
   /** Il listino aziendale del modulo come fonte di prezzi della chat (id riservato di quoteListinoSource). */
   listinoSourceId?: string;
   /** Un file da far leggere subito a Silvio (es. la planimetria del passo Progetto). */
   initialFile?: File;
+  initialInput?: string;
   commercial?: { draft: QuoteDraft; defaultVat: number | null; module?: NativeComputoModule };
 };
 
@@ -59,25 +76,45 @@ export default function QuoteWizardAiDialog(props: QuoteWizardAiDialogProps) {
     });
     return () => { active = false; };
   }, [memory, scope, initialSeed]);
-  if (!loaded) return <Dialog open={props.open} onOpenChange={props.onOpenChange}><DialogContent><DialogTitle>Silvio AI · {props.title}</DialogTitle><DialogDescription>Recupero la bozza di lavoro…</DialogDescription></DialogContent></Dialog>;
+  if (!loaded) return <Dialog open={props.open} onOpenChange={props.onOpenChange}><DialogContent className={props.computo ? 'quote-wizard-ai-dialog quote-wizard-ai-computo' : undefined}><DialogTitle>Silvio AI · {props.title}</DialogTitle><DialogDescription>Apro il preventivo…</DialogDescription></DialogContent></Dialog>;
   return <WizardAiSession {...props} initialSeed={initialSeed} memory={memory} scope={scope} saved={loaded.saved} storageIssue={loaded.issue} />;
 }
 
 /** Native autosave remains outside: saving the conversation never applies quote rows. */
 function WizardAiSession(props: QuoteWizardAiDialogProps & { initialSeed: { document: ChatDocument; project: QuoteProject; fingerprint: string; companyId: string }; memory: ReturnType<typeof createWizardAiMemory>; scope: WizardAiMemoryScope; saved: WizardAiSavedDraft | null; storageIssue?: string }) {
   const { effectiveCompany, user } = useAuth();
+  const { costPreview } = props;
   const ownerId = props.scope.ownerId || null;
   const seed = props.initialSeed;
-  const [document, setDocument] = useState(props.saved?.snapshot.document ?? seed.document);
+  const [ripresa] = useState<WizardAiSnapshot | null>(() => {
+    if (props.saved || !props.continuazione) return props.saved;
+    const precedente = props.continuazione.snapshot;
+    return { ...props.continuazione, snapshot: {
+      ...precedente, document: { ...seed.document, revision: precedente.document.revision + 1 },
+      pendingEdits: null, savedBudget: null, budgetFollowUp: false, interrupted: false,
+      // I pulsanti delle risposte erano riferiti alle misure della revisione precedente.
+      messages: precedente.messages.map(({ role, text, diagnostic, origineProgetto, riferimentoProgetto }) => ({
+        role, text, diagnostic, origineProgetto, riferimentoProgetto,
+      })),
+    } };
+  });
+  const [document, setDocument] = useState(ripresa?.snapshot.document ?? seed.document);
+  const [messaggi, setMessaggi] = useState<MessaggioSilvio[]>(() => ripresa?.snapshot.messages ?? [
+    { role: 'assistant', text: 'Descrivi i lavori per il preventivo. Nella scheda Progetto puoi intervenire sulla planimetria collegata.' },
+  ]);
+  const conversazione = useMemo(() => props.progettoCollegato ? { messaggi, setMessaggi } : null, [props.progettoCollegato, messaggi]);
   const [busy, setBusy] = useState(false);
   const [chapters, setChapters] = useState<Record<string, string>>(props.saved?.chapters ?? {});
   const [reviewing, setReviewing] = useState(false);
-  const [closing, setClosing] = useState(false);
+  const reviewHeading = useRef<HTMLHeadingElement>(null);
+  const [closing, setClosing] = useState(Boolean(props.chiediChiusura));
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [closeError, setCloseError] = useState('');
-  const snapshotRef = useRef<WizardAiSnapshot | null>(props.saved);
+  const [erroreProgetto, setErroreProgetto] = useState('');
+  const snapshotRef = useRef<WizardAiSnapshot | null>(ripresa);
+  const [sessionId] = useState(() => ripresa?.snapshot.sessionId ?? crypto.randomUUID());
   const revisionRef = useRef(props.saved?.revision ?? null);
   const savingRef = useRef(false);
   const receiveSnapshot = useCallback((state: WizardAiSnapshot) => { snapshotRef.current = state; }, []);
@@ -108,9 +145,61 @@ function WizardAiSession(props: QuoteWizardAiDialogProps & { initialSeed: { docu
     try { fallback = props.review(document, {}); } catch { /* Other validation errors stay visible below. */ }
     review = { ...fallback, error: e instanceof Error ? e.message : 'Bozza non applicabile.' };
   }
+  const [progettoAperto, setProgettoAperto] = useState(() => Boolean(
+    props.apriProgetto && props.progettoOperativo && !review.changes.length && !review.pending && !ripresa?.snapshot.pendingEdits,
+  ));
+  const [chatVisitata, setChatVisitata] = useState(!progettoAperto);
   const conflictRef = useRef(conflict);
-  conflictRef.current = conflict;
-  const close = () => { if (!applyingRef.current && !savingRef.current) { setCloseError(''); setClosing(true); } };
+  useLayoutEffect(() => { conflictRef.current = conflict; }, [conflict]);
+  useLayoutEffect(() => { if (reviewing && !conflict) reviewHeading.current?.focus({ preventScroll: true }); }, [reviewing, conflict]);
+  const haConversazione = () => {
+    const corrente = snapshotRef.current?.snapshot;
+    return Boolean((conversazione?.messaggi ?? corrente?.messages)?.some(m => m.role === 'user' || m.riferimentoProgetto) ||
+      corrente?.input.trim() || corrente?.plan || corrente?.pendingEdits);
+  };
+  const snapshotCorrente = (): WizardAiSnapshot | null => {
+    if (!conversazione) return snapshotRef.current;
+    const messaggiDaSalvare = conversazione.messaggi.map(({ replyKey: _replyKey, ...m }) => m);
+    const attuale = snapshotRef.current;
+    return { blob: attuale?.blob ?? null, snapshot: {
+      version: 1, document, sessionId, input: '', sourceId: props.listinoSourceId ?? null, model: null,
+      project: seed.project, interrupted: false, plan: null, rooms: [], selectedRoom: null, rectangle: null,
+      ...attuale?.snapshot, messages: messaggiDaSalvare,
+    } };
+  };
+  const aggiornaChat = (chiusura: boolean) => {
+    if (!conflict || identityChanged || !props.onAggiornaChatPreventivo) return false;
+    const continuazione = snapshotCorrente();
+    if (!continuazione) return false;
+    props.onAggiornaChatPreventivo(continuazione, chiusura);
+    return true;
+  };
+  const cambiaVista = (progetto: boolean) => {
+    if (progetto === progettoAperto || savingRef.current || applyingRef.current) return;
+    if (props.progettoInModifica) {
+      setErroreProgetto('Conferma o scarta la proposta della pianta prima di cambiare vista.');
+      return;
+    }
+    if (progetto && (busy || reviewing || (!conflict && (review.changes.length || review.pending || snapshotRef.current?.snapshot.pendingEdits)))) {
+      setErroreProgetto('Concludi le proposte del preventivo prima di passare al progetto.');
+      return;
+    }
+    setErroreProgetto('');
+    if (!progetto && aggiornaChat(false)) return;
+    if (!progetto) setChatVisitata(true);
+    setProgettoAperto(progetto);
+  };
+  const close = () => {
+    if (applyingRef.current || savingRef.current) return;
+    if (progettoAperto && props.progettoInModifica) {
+      setErroreProgetto('Conferma o scarta la proposta della pianta prima di chiudere.');
+      return;
+    }
+    if (progettoAperto && !haConversazione()) { props.onOpenChange(false); return; }
+    if (progettoAperto && aggiornaChat(true)) return;
+    setCloseError('');
+    setClosing(true);
+  };
   const finishClose = async (save: boolean) => {
     if (savingRef.current || applyingRef.current || save && (conflict || busy)) return;
     savingRef.current = true; setSaving(true); setCloseError('');
@@ -118,8 +207,9 @@ function WizardAiSession(props: QuoteWizardAiDialogProps & { initialSeed: { docu
       if (save) {
         if (props.storageIssue && await props.memory.load(props.scope))
           throw new Error('La memoria è di nuovo disponibile e contiene una bozza. Non la sovrascrivo: chiudi e riapri Silvio AI per riprenderla.');
-        if (!snapshotRef.current) throw new Error('La chat si sta preparando. Attendi un momento e riprova.');
-        const saved = await props.memory.save(props.scope, revisionRef.current, seed.fingerprint, snapshotRef.current, chapters);
+        const snapshot = snapshotCorrente();
+        if (!snapshot) throw new Error('La chat si sta preparando. Attendi un momento e riprova.');
+        const saved = await props.memory.save(props.scope, revisionRef.current, seed.fingerprint, snapshot, chapters);
         revisionRef.current = saved.revision;
         if (conflictRef.current) throw new Error('Account o preventivo cambiato durante il salvataggio. La copia precedente resta separata.');
       }
@@ -146,21 +236,57 @@ function WizardAiSession(props: QuoteWizardAiDialogProps & { initialSeed: { docu
     catch (e) { setError(e instanceof Error ? e.message : 'Nessuna modifica applicata.'); }
     finally { applyingRef.current = false; setApplying(false); }
   };
-  return <Dialog open={props.open} onOpenChange={open => { if (!open) close(); }}><DialogContent className="quote-wizard-ai-dialog top-[50%] p-0" onInteractOutside={e => e.preventDefault()}>
-    <header className="quote-wizard-ai-title"><div><DialogTitle>Silvio AI <span>· {props.title}</span></DialogTitle><DialogDescription>Stesso preventivo, stesso modello. Le modifiche restano separate fino alla conferma.</DialogDescription></div><span className="quote-wizard-ai-badge">Bozza di lavoro</span></header>
-    {conflict ? <div role="alert" className="quote-wizard-ai-alert">{identityChanged ? 'L’account o l’azienda attiva è cambiata.' : 'Il preventivo è cambiato mentre lavoravi qui.'} Chiudi e riapri Silvio AI per ripartire dai dati aggiornati. Nessuna modifica verrà applicata.</div> :
-    <fieldset disabled={applying || saving} className="quote-wizard-ai-body min-w-0"><Suspense fallback={<p role="status" className="p-8">Preparo chat e modello del preventivo…</p>}><Workspace companyId={props.companyId} companyName={effectiveCompany?.name} simulated={false}
+  return <ConversazioneProgettoSilvio.Provider value={conversazione}><Dialog open={props.open} onOpenChange={open => { if (!open) close(); }}><DialogContent className={`quote-wizard-ai-dialog top-[50%] p-0${props.computo ? ' quote-wizard-ai-computo' : ''}`} onInteractOutside={e => e.preventDefault()}>
+    <header className="quote-wizard-ai-title">
+      {props.computo && <SilvioAvatar size={34} bg="navy" title="" />}
+      <div className="min-w-0 flex-1">
+        <DialogTitle>Silvio AI <span>· {props.title}</span></DialogTitle>
+        <DialogDescription className={props.computo ? 'sr-only' : undefined}>
+          {props.computo ? 'Rivedi le voci della bozza e conferma per applicarle al computo.' : 'Stesso preventivo, stesso modello. Le modifiche restano separate fino alla conferma.'}
+        </DialogDescription>
+      </div>
+      {!progettoAperto && <span className="quote-wizard-ai-badge">{props.computo ? props.saved ? 'Bozza ripresa' : 'Bozza chat' : 'Bozza di lavoro'}</span>}
+    </header>
+    {props.progettoOperativo && !identityChanged && <div role="group" aria-label="Area di lavoro di Silvio" className="flex shrink-0 gap-1 border-b bg-white px-4 py-2">
+      <Button type="button" size="sm" variant={progettoAperto ? 'ghost' : 'secondary'} aria-pressed={!progettoAperto}
+        disabled={applying || saving} onClick={() => cambiaVista(false)}><MessageSquare aria-hidden="true" className="size-4" /> Chat preventivo</Button>
+      <Button type="button" size="sm" variant={progettoAperto ? 'secondary' : 'ghost'} aria-pressed={progettoAperto}
+        disabled={applying || saving} onClick={() => cambiaVista(true)}><Map aria-hidden="true" className="size-4" /> Progetto</Button>
+    </div>}
+    {erroreProgetto && <p role="alert" className="quote-wizard-ai-alert">{erroreProgetto}</p>}
+    {progettoAperto && !identityChanged && <section aria-label="Progetto nel popup di Silvio" className="quote-wizard-ai-body quote-wizard-ai-project min-w-0 space-y-3 p-2 sm:p-4">
+      {props.progettoOperativo}
+    </section>}
+    {conflict ? (!progettoAperto || identityChanged) && <div role="alert" className="quote-wizard-ai-alert">{identityChanged ? 'L’account o l’azienda attiva è cambiata.' : 'Il preventivo è cambiato mentre lavoravi qui.'} Chiudi e riapri Silvio AI per ripartire dai dati aggiornati. Nessuna modifica verrà applicata.</div> :
+    chatVisitata && <fieldset hidden={progettoAperto} disabled={applying || saving || progettoAperto} className="quote-wizard-ai-body min-w-0"><Suspense fallback={<p role="status" className="p-8">Preparo chat e modello del preventivo…</p>}><Workspace companyId={props.companyId} companyName={effectiveCompany?.name} simulated={false}
       transport={transport} transcribeAudio={transcribe} cadReader={cadReader} onBack={close}
-      embedded={{ title: props.title, document: seed.document, project: seed.project, initial: props.saved ?? undefined, onSnapshot: receiveSnapshot, savedLocally: !!props.saved, commercial: props.commercial, fixedSourceId: props.listinoSourceId, initialFile: props.initialFile, onChange: receive, preview: document => props.preview(document, chapters) }} /></Suspense></fieldset>}
-    {reviewing && !conflict && <section className="quote-wizard-ai-review" aria-label="Riepilogo modifiche prima di applicare"><h3>Controlla cosa cambia nel preventivo</h3>
+      embedded={{ title: props.title, document: seed.document, project: seed.project, initial: ripresa ?? undefined, onSnapshot: receiveSnapshot, savedLocally: !!props.saved, commercial: props.commercial, fixedSourceId: props.listinoSourceId, initialFile: props.initialFile, initialInput: props.initialInput, onChange: receive, proposedWork: props.computo ? review.changes : undefined, lineMetadata: props.computo,
+        progettoCollegato: props.progettoCollegato, sessionId: conversazione ? sessionId : undefined,
+        preview: (document, visible) => props.preview(document, chapters, visible),
+        costPreview: costPreview ? (document, controlli) => costPreview(document, chapters, controlli) : undefined,
+        costEditable: props.costEditable }} /></Suspense></fieldset>}
+    {reviewing && !conflict && !progettoAperto && <section className="quote-wizard-ai-review" aria-label="Riepilogo modifiche prima di applicare">
+      <h3 ref={reviewHeading} tabIndex={-1}><ListChecks size={18} aria-hidden="true" />Controlla cosa cambia nel preventivo</h3>
       {review.error && <p role="alert">{review.error}</p>}
-      <ul>{review.changes.map(change => <li key={change.id}><span className={`quote-change-${change.kind}`}>{change.kind}</span><div className="min-w-0 flex-1"><strong>{change.title}</strong><p className="mt-1 text-xs text-slate-500">{change.before && <>Prima: {quantitaIt(change.before.quantity)} {change.before.unit} × {formatCurrency(change.before.price)}</>}{change.before && change.after && ' → '}{change.after && <>Dopo: {quantitaIt(change.after.quantity)} {change.after.unit} × {formatCurrency(change.after.price)}</>}</p></div>
-        {props.chapters && change.kind !== 'esclusione' ? <label>Capitolo<input aria-label={`Capitolo di ${change.title}`} maxLength={200} value={chapters[change.id] ?? change.chapter} onChange={e => setChapters(value => ({ ...value, [change.id]: e.target.value }))} /></label> : <small>{change.chapter}</small>}</li>)}</ul>
+      <ul>{review.changes.map(change => <li key={change.id}><span className="quote-wizard-ai-change" data-kind={change.kind}>{change.kind}</span><div className="min-w-0 flex-1"><strong>{change.title}</strong><p className="mt-1 text-xs text-slate-500">{change.before && <>Prima: {quantitaIt(change.before.quantity)} {change.before.unit} × {formatCurrency(change.before.price)}</>}{change.before && change.after && ' → '}{change.after && <>Dopo: {quantitaIt(change.after.quantity)} {change.after.unit} × {formatCurrency(change.after.price)}</>}</p>{change.nota && <p className="mt-1 text-xs text-slate-600">{change.nota}</p>}</div>
+        {props.chapters && change.kind !== 'esclusione' ? <label>Capitolo<input aria-label={`Capitolo di ${change.title}`} maxLength={props.chapterMaxLength ?? 200} value={chapters[change.id] ?? change.chapter} onChange={e => setChapters(value => ({ ...value, [change.id]: e.target.value }))} /></label> : <small>{change.chapter}</small>}</li>)}</ul>
       {!!review.pending && <p>{review.pending} nuove proposte incomplete o non confermate restano fuori dal computo.</p>}
     </section>}
-    {error && <p role="alert" className="quote-wizard-ai-alert">{error}</p>}
-    {!reviewing && review.error && <p role="alert" className="quote-wizard-ai-alert">{review.error}</p>}
-    <footer className="quote-wizard-ai-footer"><p>{busy ? 'Silvio sta lavorando…' : `${review.changes.length} modifiche da rivedere${review.pending ? ` · ${review.pending} ${review.pending === 1 ? 'voce da completare o confermare' : 'voci da completare o confermare'}: nella scheda «Voci del preventivo» inserisci quantità e prezzo mancanti e spunta «Inclusa»` : ""}`}</p><Button variant="outline" disabled={applying || saving} onClick={close}>Chiudi</Button>{reviewing && <Button variant="ghost" disabled={applying || saving} onClick={() => setReviewing(false)}>Torna alla chat</Button>}<Button disabled={conflict || busy || applying || saving || !!review.error || !review.changes.length} onClick={() => reviewing ? void apply() : setReviewing(true)}>{applying ? 'Applico…' : reviewing ? 'Conferma e applica al preventivo' : 'Rivedi e applica'}</Button></footer>
+    {!progettoAperto && error && <p role="alert" className="quote-wizard-ai-alert">{error}</p>}
+    {!progettoAperto && !reviewing && review.error && <p role="alert" className="quote-wizard-ai-alert">{review.error}</p>}
+    {progettoAperto ? <footer className="quote-wizard-ai-footer">
+      <Button type="button" variant="outline" onClick={close}>Chiudi</Button>
+    </footer> : <footer className="quote-wizard-ai-footer">
+      <p>{busy ? 'Silvio sta lavorando…' : <>
+        {(!props.computo || !!review.changes.length) && <>{review.changes.length} {review.changes.length === 1 ? 'modifica da rivedere' : 'modifiche da rivedere'}</>}
+        {!!review.pending && <>{review.changes.length || !props.computo ? ' · ' : ''}{review.pending} {review.pending === 1 ? 'voce da completare o confermare' : 'voci da completare o confermare'}. {props.computo ? 'Apri una riga nella scheda «Voci».' : 'Apri «Voci del preventivo», completa i dati e spunta «Inclusa».'}</>}
+      </>}</p>
+      <Button variant="outline" disabled={applying || saving} onClick={close}>Chiudi</Button>
+      {reviewing && <Button variant="ghost" disabled={applying || saving} onClick={() => setReviewing(false)}>Torna alla chat</Button>}
+      <Button disabled={conflict || busy || applying || saving || !!review.error || !review.changes.length} onClick={() => reviewing ? void apply() : setReviewing(true)}>
+        {applying ? 'Applico…' : reviewing ? 'Conferma e applica al preventivo' : 'Rivedi e applica'}
+      </Button>
+    </footer>}
     <AlertDialog open={closing} onOpenChange={open => { if (!savingRef.current) setClosing(open); }}>
       <AlertDialogContent className="z-[60] max-w-xl rounded-2xl">
         <AlertDialogTitle>Vuoi salvare il lavoro con Silvio AI?</AlertDialogTitle>
@@ -175,5 +301,5 @@ function WizardAiSession(props: QuoteWizardAiDialogProps & { initialSeed: { docu
         </div>
       </AlertDialogContent>
     </AlertDialog>
-  </DialogContent></Dialog>;
+  </DialogContent></Dialog></ConversazioneProgettoSilvio.Provider>;
 }

@@ -213,7 +213,9 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
 
     // ─── Pareti ───
     for (const m of stato.muri) {
-      const misure = misureMuro(m, stato, opz);
+      const demolita = m.stato === "da_demolire";
+      const misure = misureMuro(demolita ? livello.fatto.muri.find(p => p.id === m.id) ?? m : m,
+        demolita ? livello.fatto : stato, opz);
       metti(`muro:${m.id}`, "lunghezza_ml", misure.lunghezza, "Lunghezza parete", { livelloId: livello.id, oggettoId: m.id });
       metti(`muro:${m.id}`, "superficie_mq", misure.superficie, "Superficie parete", { livelloId: livello.id, oggettoId: m.id });
       metti(`muro:${m.id}`, "volume_mc", misure.volume, "Volume parete", { livelloId: livello.id, oggettoId: m.id });
@@ -227,6 +229,8 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
     // ─── Aperture ───
     for (const a of stato.aperture) {
       const origini = [origineMisura(a, "larghezza"), origineMisura(a, "altezza")];
+      metti(`apertura:${a.id}`, "superficie_mq", { valore: a.larghezza * a.altezza / 10_000, origini },
+        "Superficie del vano", { livelloId: livello.id, oggettoId: a.id });
       const nomeTipo = { porta: "Porte", finestra: "Finestre", portafinestra: "Portefinestre", varco: "Varchi" }[a.tipo];
       const nomeStato = { esistente: "esistenti", da_demolire: "da demolire", nuovo: "nuove" }[a.stato];
       const misura = `${Math.round(a.larghezza)}x${Math.round(a.altezza)}`;
@@ -464,6 +468,13 @@ function misureLocale(l: Locale, stato: StatoPianta, opz: Required<OpzioniQuanti
   const areaMq = areaPoligono(l.contorno) / 10_000;
   const perimetroM = perimetroPoligono(l.contorno) / 100;
   const altezzaM = l.altezza / 100;
+  const base = {
+    pavimento_mq: { valore: areaMq, origini: [oContorno] },
+    perimetro_ml: { valore: perimetroM, origini: [oContorno] },
+    soffitto_mq: { valore: areaMq, origini: [oContorno] },
+    volume_mc: { valore: areaMq * altezzaM, origini: [oContorno, oAltezza] },
+  };
+  if (l.aperto) return base;
   const vani = apertureDelLocale(l, stato, opz.tolleranzaCm);
   const oVani = vani.flatMap(originiApertura);
 
@@ -472,12 +483,9 @@ function misureLocale(l: Locale, stato: StatoPianta, opz: Required<OpzioniQuanti
   const aTerra = vani.filter(a => a.davanzale <= 0);
 
   const misure: Partial<Record<MisuraLocale, Accumulo>> = {
-    pavimento_mq: { valore: areaMq, origini: [oContorno] },
-    perimetro_ml: { valore: perimetroM, origini: [oContorno] },
+    ...base,
     pareti_lorde_mq: { valore: lorde, origini: [oContorno, oAltezza] },
     pareti_nette_mq: { valore: Math.max(0, lorde - detratto), origini: [oContorno, oAltezza, ...oVani] },
-    soffitto_mq: { valore: areaMq, origini: [oContorno] },
-    volume_mc: { valore: areaMq * altezzaM, origini: [oContorno, oAltezza] },
     battiscopa_ml: {
       valore: Math.max(0, perimetroM - aTerra.reduce((s, a) => s + a.larghezza, 0) / 100),
       origini: [oContorno, ...aTerra.map(a => origineMisura(a, "larghezza"))],
@@ -495,7 +503,7 @@ function misureLocale(l: Locale, stato: StatoPianta, opz: Required<OpzioniQuanti
 function misureMuro(m: Muro, stato: StatoPianta, opz: Required<OpzioniQuantita>) {
   const lunghezzaM = lunghezzaMuro(m) / 100;
   const oBase = [origineMisura(m, "lunghezza"), origineMisura(m, "altezza")];
-  const vani = stato.aperture.filter(a => a.muroId === m.id);
+  const vani = stato.aperture.filter(a => a.muroId === m.id && a.stato !== "da_demolire");
   const lorda = lunghezzaM * (m.altezza / 100);
   const det = vani.reduce((s, a) => s + detrazione(vuotoFino(a, m.altezza) / 10_000, opz), 0);
   const origini = [...oBase, ...vani.flatMap(originiApertura)];

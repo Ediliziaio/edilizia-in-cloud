@@ -2,10 +2,12 @@
  * Il disegno della pianta, in SVG. Non gestisce i gesti: ogni cosa cliccabile porta
  * `data-tipo` e `data-id`, e l'editor capisce dal bersaglio cosa è stato toccato.
  */
-import { forwardRef, type SVGProps } from "react";
-import type { DatiVista, Pianta, Punto, TipoApertura } from "./adattatore";
+import { forwardRef, useMemo, type ReactNode, type SVGProps } from "react";
+import { quoteNellaVista, type DatiVista, type Muro, type Pianta, type Punto, type TipoApertura } from "./adattatore";
 import { visibile, type Vista } from "./comandi";
 import { NOMI_AREA } from "../../../../shared/planimetrie/modello.ts";
+import { chiaveTratto, puntiPercorso, type AttraversamentoImpianto, type Percorso } from "../../../../shared/planimetrie/impianti.ts";
+import { pedateCad } from "../../../../shared/planimetrie/geometria.ts";
 import {
   COLORE_STANZA,
   STILE_AREA,
@@ -24,6 +26,11 @@ import { scriviMetri, scriviMq } from "./misure";
 import { SimboloArredo } from "./SimboloArredo";
 import { EvidenzaVerificaPianta } from "./EvidenzaVerificaPianta";
 import type { VerificaLettura } from "../../../../shared/planimetrie/letturaTipi.ts";
+import type { AnteprimaCad } from "./comandiCad";
+import type { ConfrontoTramezzoChat } from "./comandiChat";
+import { TracceChatPianta, type AnimazioneChatTela, type IstantaneaChat } from "./TracceChatPianta";
+
+export type { AnimazioneChatTela } from "./TracceChatPianta";
 
 export interface Camera {
   /** pixel per centimetro */
@@ -54,6 +61,7 @@ export interface Sovrapposizioni {
   riquadro?: { a: Punto; b: Punto } | null;
   pareteInCorso?: { a: Punto; b: Punto } | null;
   aggancio?: Aggancio | null;
+  cad?: { riferimento: Muro; esito?: Extract<AnteprimaCad, { ok: true }> };
   aperturaFantasma?: { muroId: string; t: number; tipo: TipoApertura } | null;
   /** Stanza libera in corso: i punti messi e il cursore. */
   poligonoInCorso?: { punti: Punto[]; cursore: Punto } | null;
@@ -61,6 +69,7 @@ export interface Sovrapposizioni {
   quotaInCorso?: { a: Punto; b: Punto } | null;
   /** Arredo che sta per essere posato. */
   arredoFantasma?: { tipo: string; centro: Punto; larghezza: number; profondita: number } | null;
+  demolizioni?: { traccia: Punto[]; daSegnare: string[]; protetti: string[] };
 }
 
 type Gestori = Pick<SVGProps<SVGSVGElement>, "onPointerDown" | "onPointerMove" | "onPointerUp" | "onPointerCancel">;
@@ -74,10 +83,18 @@ interface Props extends Gestori {
   vista: Vista;
   selezione: Selezione | null;
   verificaEvidenziata?: VerificaLettura;
+  animazioneChat?: AnimazioneChatTela | null;
+  confrontoChat?: IstantaneaChat | null;
+  confrontoTramezzo?: ConfrontoTramezzoChat;
+  layerDwg?: ReactNode;
   /** Più oggetti selezionati insieme (arredi, quote, testi). */
   gruppo?: { elementi: string[]; quote: string[]; testi: string[] };
-  /** Linee stimate degli impianti (percorso a squadra), da mostrare tratteggiate. */
-  lineeImpianti?: Array<{ linea: string; da: Punto; a: Punto }>;
+  lineeImpianti?: Percorso[];
+  modificaTracciati?: boolean;
+  tracciato?: Percorso;
+  tracciatoPrima?: Percorso;
+  attraversamentiTracciato?: AttraversamentoImpianto[];
+  puntoTracciatoAttivo?: number | null;
   /** Immagine di riferimento sotto il disegno (mappa, foto aerea, rilievo), in scala. */
   sfondo?: SfondoRicalco | null;
   camera: Camera;
@@ -111,7 +128,9 @@ const SELEZIONE = "#2563eb";
 export const COLORI_LINEE: Record<string, string> = { elettrica: "#dc2626", acqua: "#2563eb", scarico: "#92400e", frigorifera: "#0891b2", condensa: "#65a30d", riscaldamento: "#ea580c" };
 
 export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPlanimetria(
-    { pianta, dati, latiModificabili, misureSoloSelezione, vista, selezione, verificaEvidenziata, gruppo, lineeImpianti, sfondo, camera, larghezza, altezza, sovrapposizioni, inModifica, className, ...gestori },
+    { pianta, dati, latiModificabili, misureSoloSelezione, vista, selezione, verificaEvidenziata, animazioneChat, confrontoChat, confrontoTramezzo, layerDwg, gruppo,
+      lineeImpianti, modificaTracciati, tracciato, tracciatoPrima, attraversamentiTracciato, puntoTracciatoAttivo,
+      sfondo, camera, larghezza, altezza, sovrapposizioni, inModifica, className, ...gestori },
     ref,
   ) {
     const px = (n: number) => n / camera.s; // n pixel in cm
@@ -119,6 +138,7 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
     const aperture = pianta.aperture.filter((a) => visibile(a.stato, vista) && muri.some((m) => m.id === a.muroId));
     const stanzeDiLavoro = pianta.locali.filter((l) => visibile(l.stato, vista));
     const locali = dati.locali;
+    const istantanea = useMemo(() => ({ pianta, locali }), [pianta, locali]);
     const nelGruppo = (tipo: Selezione["tipo"], id: string) =>
       !!gruppo && (tipo === "elemento" ? gruppo.elementi : tipo === "quota" ? gruppo.quote : tipo === "testo" ? gruppo.testi : []).includes(id);
     const sel = (tipo: Selezione["tipo"], id: string) => (selezione?.tipo === tipo && selezione.id === id) || nelGruppo(tipo, id);
@@ -223,15 +243,18 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
               key={l.id}
               points={punti(l.contorno)}
               fill={COLORE_STANZA[l.destinazione] ?? COLORE_STANZA.altro}
-              stroke={sel("locale", l.id) ? SELEZIONE : "none"}
-              strokeWidth={px(3)}
+              stroke={sel("locale", l.id) ? SELEZIONE : l.aperto ? "#64748b" : "none"}
+              strokeWidth={px(sel("locale", l.id) ? 3 : 1)}
+              strokeDasharray={l.aperto ? `${px(4)} ${px(3)}` : undefined}
               data-tipo="locale"
               data-id={l.id}
               style={{ cursor: "pointer" }}
             />
           ))}
 
-          {/* arredi e sanitari: si selezionano, si spostano e si ruotano (fase 3) */}
+          {layerDwg}
+
+          {/* arredi e sanitari */}
           {(pianta.elementi ?? dati.elementi.map((e) => ({ ...e, stato: "esistente" as const })))
             .filter((e) => visibile(e.stato, vista))
             .map((e) => {
@@ -247,14 +270,16 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
                   style={{ cursor: "move" }}
                   opacity={vista === "progetto" && e.stato === "da_demolire" ? 0.55 : 1}
                 >
-                  <SimboloArredo
+                  {e.alzateCad ? pedateCad(e.alzateCad, e.larghezza, e.profondita).map((pedata, i) => (
+                    <polygon key={i} points={punti(pedata)} fill="#f8fafc" stroke={colore} strokeWidth={px(selezionato ? 2 : 1)} data-tipo="elemento" data-id={e.id} />
+                  )) : <SimboloArredo
                     tipo={e.tipo}
                     larghezza={e.larghezza}
                     profondita={e.profondita}
                     colore={colore}
                     spessore={px(selezionato ? 2 : 1.2)}
                     riempimento={vista === "progetto" && e.stato === "da_demolire" ? "#fef9c3" : "#ffffff"}
-                  />
+                  />}
                   {/* bersaglio pieno: si prende anche cliccando dentro il simbolo */}
                   {e.tipo === "solaio" ? (
                     // il solaio copre tutta la pianta: si prende solo dal bordo, così le stanze sotto restano cliccabili
@@ -264,7 +289,7 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
                       <rect x={-e.larghezza / 2} y={-e.profondita / 2} width={25} height={e.profondita} fill="transparent" data-tipo="elemento" data-id={e.id} />
                       <rect x={e.larghezza / 2 - 25} y={-e.profondita / 2} width={25} height={e.profondita} fill="transparent" data-tipo="elemento" data-id={e.id} />
                     </>
-                  ) : (
+                  ) : !e.alzateCad && (
                     <rect x={-e.larghezza / 2} y={-e.profondita / 2} width={e.larghezza} height={e.profondita} fill="transparent" data-tipo="elemento" data-id={e.id} />
                   )}
                   {Math.min(e.larghezza, e.profondita) * camera.s > 34 && (
@@ -428,19 +453,19 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
             );
           })}
 
-          {/* quote libere */}
-          {(pianta.quote ?? []).map((q) => {
+          {quoteNellaVista(pianta, vista).map(({ quota: q, daRivedere }) => {
             const l = dist(q.p1, q.p2);
             if (l < 1) return null;
             const n = { x: -(q.p2.y - q.p1.y) / l, y: (q.p2.x - q.p1.x) / l };
             const a = { x: q.p1.x + n.x * q.scostamento, y: q.p1.y + n.y * q.scostamento };
             const b = { x: q.p2.x + n.x * q.scostamento, y: q.p2.y + n.y * q.scostamento };
             const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-            const colore = sel("quota", q.id) ? SELEZIONE : "#0f766e";
+            const colore = daRivedere ? "#a16207" : sel("quota", q.id) ? SELEZIONE : "#0f766e";
             const tick = px(5);
             const ang = angoloTesto(a, b);
             return (
               <g key={q.id} data-tipo="quota" data-id={q.id} style={{ cursor: "pointer" }}>
+                {q.riferimenti && <title>{daRivedere ? "Aggancio da rivedere" : "Quota associativa"}</title>}
                 <line x1={q.p1.x} y1={q.p1.y} x2={a.x} y2={a.y} stroke={colore} strokeWidth={px(0.8)} strokeDasharray={`${px(3)} ${px(3)}`} />
                 <line x1={q.p2.x} y1={q.p2.y} x2={b.x} y2={b.y} stroke={colore} strokeWidth={px(0.8)} strokeDasharray={`${px(3)} ${px(3)}`} />
                 <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={colore} strokeWidth={px(1.4)} />
@@ -450,7 +475,7 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
                 {/* bersaglio largo per prenderla col mouse */}
                 <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth={px(14)} data-tipo="quota" data-id={q.id} />
                 <text transform={`translate(${m.x + n.x * px(9)} ${m.y + n.y * px(9)}) rotate(${ang})`} textAnchor="middle" dominantBaseline="middle" fontSize={px(11)} fontWeight={600} fill={colore} pointerEvents="none">
-                  {scriviMetri(l)}
+                  {daRivedere && "⚠ "}{scriviMetri(l)}
                 </text>
               </g>
             );
@@ -475,6 +500,9 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
           ))}
 
           <EvidenzaVerificaPianta pianta={pianta} verifica={verificaEvidenziata} scala={camera.s} />
+          {confrontoChat && <TracceChatPianta prima={confrontoChat} dopo={istantanea} vista={vista} escludiMuro={confrontoTramezzo?.dopo.id} />}
+          {animazioneChat && <TracceChatPianta key={animazioneChat.numero} numero={animazioneChat.numero} prima={animazioneChat.prima}
+            dopo={istantanea} vista={vista} evidenza={animazioneChat.evidenza} />}
           {/* maniglie agli estremi della parete selezionata */}
           {selezione?.tipo === "muro" &&
             (() => {
@@ -498,10 +526,50 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
             })()}
 
           {/* anteprime mentre si disegna */}
-          {lineeImpianti?.map((l, i) => (
-            <path key={i} d={`M ${l.da.x} ${l.da.y} L ${l.a.x} ${l.da.y} L ${l.a.x} ${l.a.y}`} fill="none" pointerEvents="none"
-              stroke={COLORI_LINEE[l.linea] ?? "#64748b"} strokeWidth={px(1.6)} strokeDasharray={`${px(6)} ${px(4)}`} opacity={0.85} />
-          ))}
+          {lineeImpianti?.map(l => {
+            const id = chiaveTratto(l);
+            if (tracciato && id === chiaveTratto(tracciato)) return null;
+            const coordinate = puntiPercorso(l).map(p => `${p.x},${-p.y}`).join(" ");
+            return <g key={id}>
+              <polyline points={coordinate} fill="none" pointerEvents="none" strokeLinejoin="round"
+                stroke={COLORI_LINEE[l.linea]} strokeWidth={px(l.vertici ? 2 : 1.6)}
+                strokeDasharray={l.vertici ? undefined : `${px(6)} ${px(4)}`} opacity={tracciato ? .22 : .85} />
+              {modificaTracciati && <polyline points={coordinate} fill="none" stroke="transparent" strokeWidth={px(9)}
+                pointerEvents="stroke" data-tipo="tratto-impianto" data-id={id} style={{ cursor: "pointer" }} />}
+            </g>;
+          })}
+          {tracciatoPrima && <polyline aria-label="Tracciato precedente" role="img" points={puntiPercorso(tracciatoPrima).map(p => `${p.x},${-p.y}`).join(" ")}
+            fill="none" pointerEvents="none" stroke="#b45309" strokeWidth={px(3)} strokeDasharray={`${px(7)} ${px(4)}`} strokeLinejoin="round" />}
+          {tracciato && <g pointerEvents="none" role="img" aria-label="Tracciato selezionato sulla pianta">
+            <polyline points={puntiPercorso(tracciato).map(p => `${p.x},${-p.y}`).join(" ")} fill="none" stroke="white"
+              strokeWidth={px(6)} strokeLinecap="round" strokeLinejoin="round" />
+            <polyline points={puntiPercorso(tracciato).map(p => `${p.x},${-p.y}`).join(" ")} fill="none"
+              stroke={tracciatoPrima ? "#047857" : COLORI_LINEE[tracciato.linea]} strokeWidth={px(3)} strokeLinecap="round" strokeLinejoin="round"
+              strokeDasharray={tracciato.vertici ? undefined : `${px(6)} ${px(4)}`} />
+            {[tracciato.da, tracciato.a].map((p, i) => <circle key={i} cx={p.x} cy={-p.y} r={px(4)} fill={COLORI_LINEE[tracciato.linea]} stroke="white" strokeWidth={px(1.3)} />)}
+            {tracciato.vertici?.map((p, i) => <g key={i}>
+              <circle cx={p.x} cy={-p.y} r={px(8)} fill={i === puntoTracciatoAttivo ? "#172554" : "#fff"}
+                stroke={COLORI_LINEE[tracciato.linea]} strokeWidth={px(1.5)} />
+              <text x={p.x} y={-p.y} fill={i === puntoTracciatoAttivo ? "#fff" : "#172554"} textAnchor="middle" dominantBaseline="central"
+                fontSize={px(9)} fontWeight={700}>{i + 1}</text>
+            </g>)}
+            {attraversamentiTracciato?.map((a, i) => <g key={i}>
+              <title>{a.aperturaId ? `Interferenza in pianta · apertura ${a.aperturaId}` : `Interferenza in pianta · ${a.tipoMuro}`}</title>
+              <circle cx={a.punto.x} cy={-a.punto.y} r={px(6)} fill="#fbbf24" stroke="#78350f" strokeWidth={px(1.2)} />
+              <text x={a.punto.x} y={-a.punto.y} textAnchor="middle" dominantBaseline="central" fill="#451a03" fontSize={px(9)} fontWeight={700}>!</text>
+            </g>)}
+          </g>}
+          {sovrapposizioni.demolizioni && <g pointerEvents="none">
+            {muri.filter(m => sovrapposizioni.demolizioni!.daSegnare.includes(m.id) || sovrapposizioni.demolizioni!.protetti.includes(m.id)).map(m => {
+              const protetto = sovrapposizioni.demolizioni!.protetti.includes(m.id);
+              return <line key={m.id} x1={m.p1.x} y1={m.p1.y} x2={m.p2.x} y2={m.p2.y} strokeLinecap="round"
+                stroke={protetto ? "#475569" : "#ea580c"} strokeWidth={Math.max(px(4), m.spessore)}
+                strokeDasharray={protetto ? px(5) + " " + px(4) : undefined} opacity={protetto ? .8 : .7} />;
+            })}
+            {sovrapposizioni.demolizioni.traccia.length > 1 && <polyline
+              points={sovrapposizioni.demolizioni.traccia.map(p => p.x + "," + p.y).join(" ")}
+              fill="none" stroke="#f97316" strokeWidth={px(4)} strokeLinecap="round" strokeLinejoin="round" />}
+          </g>}
           {sovrapposizioni.rettangolo && <AnteprimaRettangolo {...sovrapposizioni.rettangolo} px={px} />}
           {sovrapposizioni.riquadro && (
             <rect
@@ -564,33 +632,57 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
                 />
               );
             })()}
-          {sovrapposizioni.aggancio && sovrapposizioni.aggancio.guida !== "griglia" && (
-            <g pointerEvents="none">
-              {sovrapposizioni.aggancio.riferimento && (
-                <line
-                  x1={sovrapposizioni.aggancio.riferimento.x}
-                  y1={sovrapposizioni.aggancio.riferimento.y}
-                  x2={sovrapposizioni.aggancio.punto.x}
-                  y2={sovrapposizioni.aggancio.punto.y}
-                  stroke={SELEZIONE}
-                  strokeWidth={px(1)}
-                  strokeDasharray={`${px(4)} ${px(4)}`}
-                />
-              )}
-              <circle
-                cx={sovrapposizioni.aggancio.punto.x}
-                cy={sovrapposizioni.aggancio.punto.y}
-                r={px(sovrapposizioni.aggancio.guida === "angolo" ? 7 : 5)}
-                fill="none"
-                stroke={SELEZIONE}
-                strokeWidth={px(2)}
-              />
-            </g>
-          )}
+          {sovrapposizioni.cad && <AnteprimaModificaCad {...sovrapposizioni.cad} px={px} />}
+          {confrontoTramezzo && <AnteprimaTramezzo confronto={confrontoTramezzo} px={px} />}
+          {sovrapposizioni.aggancio && sovrapposizioni.aggancio.guida !== "griglia" && <IndicatoreAggancio aggancio={sovrapposizioni.aggancio} px={px} />}
         </g>
       </svg>
     );
   });
+
+function AnteprimaTramezzo({ confronto, px }: { confronto: ConfrontoTramezzoChat; px: (n: number) => number }) {
+  const { prima, dopo, interferenze } = confronto;
+  const centro = (m: Muro) => ({ x: (m.p1.x + m.p2.x) / 2, y: (m.p1.y + m.p2.y) / 2 });
+  const da = centro(prima), a = centro(dopo);
+  return <g pointerEvents="none" role="img" aria-label="Tramezzo prima e dopo lo spostamento">
+    <line x1={prima.p1.x} y1={prima.p1.y} x2={prima.p2.x} y2={prima.p2.y} stroke="#b45309" strokeWidth={px(2.5)} strokeDasharray={`${px(5)} ${px(4)}`} />
+    <line x1={dopo.p1.x} y1={dopo.p1.y} x2={dopo.p2.x} y2={dopo.p2.y} stroke="#0f766e" strokeWidth={px(3)} />
+    <line x1={da.x} y1={da.y} x2={a.x} y2={a.y} stroke="#0f766e" strokeWidth={px(1.5)} />
+    {interferenze.map((s, i) => <g key={i} role="img" aria-label={s.testo}>
+      <circle cx={s.punto.x} cy={s.punto.y} r={px(8)} fill="#fff7ed" stroke="#b45309" strokeWidth={px(2)} />
+      <text x={s.punto.x} y={s.punto.y + px(0.5)} textAnchor="middle" dominantBaseline="middle" fontWeight="700" fontSize={px(11)} fill="#92400e">!</text>
+    </g>)}
+  </g>;
+}
+
+function AnteprimaModificaCad({ riferimento, esito, px }: NonNullable<Sovrapposizioni["cad"]> & { px: (n: number) => number }) {
+  const tratto = (m: { p1: Punto; p2: Punto }, colore: string, spessore: number, tratteggio?: string) => (
+    <line x1={m.p1.x} y1={m.p1.y} x2={m.p2.x} y2={m.p2.y} stroke={colore} strokeWidth={spessore} strokeDasharray={tratteggio} />
+  );
+  const tratteggio = `${px(6)} ${px(4)}`;
+  return <g pointerEvents="none" data-anteprima-cad>
+    {tratto(riferimento, SELEZIONE, px(3))}
+    {esito && tratto(esito.muro, "#059669", Math.max(esito.muro.spessore, px(4)), tratteggio)}
+    {esito?.rimosso && tratto(esito.rimosso, "#e11d48", Math.max(esito.muro.spessore, px(4)), tratteggio)}
+  </g>;
+}
+
+function IndicatoreAggancio({ aggancio, px }: { aggancio: Aggancio; px: (n: number) => number }) {
+  const { punto: p, guida, riferimento } = aggancio;
+  const etichetta = guida === "medio" ? "Punto medio" : guida === "intersezione" ? "Intersezione" : null;
+  const r = px(6);
+  return <g pointerEvents="none" data-aggancio={guida}>
+    {riferimento && <line x1={riferimento.x} y1={riferimento.y} x2={p.x} y2={p.y} stroke={SELEZIONE}
+      strokeWidth={px(1)} strokeDasharray={`${px(4)} ${px(4)}`} />}
+    <g transform={`translate(${p.x} ${p.y})`} fill="none" stroke={SELEZIONE} strokeWidth={px(2)}>
+      {guida === "medio" ? <path d={`M 0 ${-r} L ${r} ${r} L ${-r} ${r} Z`} fill="white" />
+        : guida === "intersezione" ? <path d={`M ${-r} ${-r} L ${r} ${r} M ${r} ${-r} L ${-r} ${r}`} />
+        : <circle r={px(guida === "angolo" ? 7 : 5)} />}
+      {etichetta && <text x={px(10)} y={px(-9)} fontSize={px(12)} fontWeight={600} fill={SELEZIONE}
+        stroke="white" strokeWidth={px(3)} paintOrder="stroke">{etichetta}</text>}
+    </g>
+  </g>;
+}
 
 function puntoVersoCentro(a: Punto, b: Punto, centro: Punto): Punto {
   const l = dist(a, b) || 1;

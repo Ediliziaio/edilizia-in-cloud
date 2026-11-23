@@ -4,6 +4,7 @@ import type { Database, Json } from "@/integrations/supabase/types";
 import { leggiBozzaComputo, type BozzaComputo } from "./editorNativo";
 import { totaleElencoComputo } from "./economiaComputo";
 import { leggiAllegatoLocale, salvaAllegatiRipristinati } from "./allegatiLocali";
+import type { Planimetria } from "../../../shared/planimetrie/modello.ts";
 
 type Row = { id: string; company_id: string; created_by: string; revision: number; payload: Json; title: string | null; client_name: string | null; items_count: number; total: number | null; updated_at: string };
 type CloudDatabase = Omit<Database, "public"> & { public: Omit<Database["public"], "Tables"> & { Tables: Database["public"]["Tables"] & {
@@ -15,10 +16,25 @@ const BUCKET = "quote-materials";
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Dal 29/10/2026 il preventivo con computo si salva nel gestionale per ogni azienda (prima solo Demo Azienda 2). */
 export const computoCloudAttivo = (companyId: string | undefined) => !!companyId && uuid.test(companyId);
+
+/** Il percorso dalla pianta rispetta anche i collegamenti nati nel passo Progetto di una bozza. */
+export async function ultimoComputoCollegato(companyId: string, piantaOrigine: { id: string; livelloId: string; propostaId: string | null }) {
+  const { data, error } = await db.from("computo_preventivo_drafts").select("id")
+    .eq("company_id", companyId).contains("payload", { piantaOrigine })
+    .order("updated_at", { ascending: false }).order("id").limit(1).maybeSingle();
+  if (error) throw new Error("I computi di questa planimetria non sono disponibili. Riprova.");
+  return data?.id ?? null;
+}
 export class ConflittoComputoCloud extends Error {
   constructor() { super("Il computo è stato modificato da un altro dispositivo. Le tue modifiche sono al sicuro su questo computer: scarica la tua copia e riapri la versione salvata."); }
 }
 export type ComputoCloud = { id: string; revision: number; bozza: BozzaComputo; updatedAt: string };
+export type AggiornamentoProgettoComputo = {
+  documento: Planimetria;
+  versioneAttesa: number;
+  prima: BozzaComputo;
+  dopo: BozzaComputo;
+};
 export type RiepilogoComputoCloud = { id: string; titolo: string; committente: string; numeroVoci: number; updatedAt: string; totale: number | null };
 
 function verifica(companyId: string, id?: string) {
@@ -40,18 +56,34 @@ export async function improntaComputo(bozza: BozzaComputo) {
  * Qui si ricorda quali bozze avevano una riga di costi, per poterla svuotare quando si tolgono tutti.
  */
 const costiPresenti = new Set<string>();
-export async function leggiComputoCloud(companyId: string, id: string): Promise<ComputoCloud | null> {
+export async function leggiComputoCloud(companyId: string, id: string, { includiCosti = true } = {}): Promise<ComputoCloud | null> {
   verifica(companyId, id);
   const { data, error } = await db.from("computo_preventivo_drafts").select("id, revision, payload, updated_at").eq("company_id", companyId).eq("id", id).maybeSingle();
   if (error) throw new Error("Il gestionale non risponde. La copia su questo computer non è stata toccata.");
   if (!data) return null;
   const bozza = leggiBozzaComputo(JSON.stringify(data.payload));
+  if (!includiCosti) return { id: data.id, revision: data.revision, updatedAt: data.updated_at, bozza };
   // Chi non ha il permesso riceve zero righe: la bozza resta senza costi, come deve.
   const { data: riga } = await db.from("computo_preventivo_costi").select("costi").eq("company_id", companyId).eq("draft_id", id).maybeSingle();
   const costi = riga?.costi && typeof riga.costi === "object" && !Array.isArray(riga.costi) ? riga.costi as Record<string, unknown> : null;
   if (costi) costiPresenti.add(id);
   return { id: data.id, revision: data.revision, updatedAt: data.updated_at,
     bozza: costi ? { ...bozza, voci: bozza.voci.map(v => typeof costi[v.id] === "string" ? { ...v, costo: costi[v.id] as string } : v) } : bozza };
+}
+
+/** Restituisce il primo riferimento già salvato, nell'ordine indicato dal chiamante. */
+export async function primoComputoCloudEsistente(companyId: string, ids: string[]): Promise<string | null> {
+  for (let i=0;i<ids.length;i+=40) {
+    const candidati=ids.slice(i,i+40);
+    verifica(companyId);
+    if (candidati.some(id=>!uuid.test(id))) throw new Error("Riferimento al computo non valido.");
+    const {data,error}=await db.from("computo_preventivo_drafts").select("id").eq("company_id",companyId).in("id",candidati);
+    if (error) throw new Error("Le revisioni del computo non sono disponibili.");
+    const presenti=new Set(data?.map(r=>r.id));
+    const esistente=candidati.find(id=>presenti.has(id));
+    if (esistente) return esistente;
+  }
+  return null;
 }
 export async function elencaComputiCloud(companyId: string): Promise<RiepilogoComputoCloud[]> {
   verifica(companyId);
@@ -112,6 +144,32 @@ export async function salvaComputoCloud(companyId: string, id: string, scope: st
     if (!erroreCosti) costiPresenti.add(id);
   }
   return { id: result.data.id, revision: result.data.revision, bozza: valida, updatedAt: result.data.updated_at };
+}
+
+/** La bozza di partenza è già salvata, con i suoi allegati e costi. */
+export async function confermaProgettoComputo(
+  companyId: string, id: string, revision: number,
+  { documento, versioneAttesa, dopo }: AggiornamentoProgettoComputo,
+): Promise<ComputoCloud> {
+  verifica(companyId, id);
+  const bozza = leggiBozzaComputo(JSON.stringify(dopo));
+  const origine = bozza.piantaOrigine;
+  if (!origine || origine.versione !== versioneAttesa + 1) throw new Error("La versione del progetto è cambiata. Rivedi le misure.");
+  const [{ documentoValido }, { calcolaQuantita }] = await Promise.all([
+    import("@/lib/planimetrie/archivio"), import("../../../shared/planimetrie/quantita.ts"),
+  ]);
+  const valida = documentoValido(documento);
+  const payload = { ...bozza, voci: bozza.voci.map(v => v.costo ? { ...v, costo: "" } : v) };
+  if (new Blob([JSON.stringify(payload)]).size > 6 * 1024 * 1024) throw new Error("Il computo supera il limite di 6 MB di dati.");
+  const { data, error } = await supabase.rpc("planimetria_computo_conferma" as never, {
+    p_company_id: companyId, p_planimetria_id: origine.id, p_versione_attesa: versioneAttesa,
+    p_documento: valida, p_quantita: calcolaQuantita(valida), p_bozza_id: id,
+    p_revisione_attesa: revision, p_payload: payload, p_totale: totaleElencoComputo(bozza),
+  } as never);
+  if (error?.code === "PT409" || error?.code === "40001") throw new Error("La pianta o il computo è cambiato in un’altra scheda. Riapri la bozza e rivedi la proposta.");
+  const riga = (data as unknown as { versione: number; revisione: number; aggiornato_il: string }[] | null)?.[0];
+  if (error || !riga) throw new Error("Salvataggio di progetto e computo non riuscito. Controlla la connessione e riprova.");
+  return { id, revision: riga.revisione, updatedAt: riga.aggiornato_il, bozza };
 }
 export async function preparaAllegatiCloud(companyId: string, id: string, scope: string, bozza: BozzaComputo) {
   verifica(companyId, id);

@@ -9,6 +9,7 @@ import { calcolaIvaComputo } from "./ivaComputo";
 import { calcolaSconto } from "./scontoComputo";
 import { testoPianoPagamenti } from "./pianoPagamentiPdf";
 import { creaTema } from "@/components/preventivi/pdf/temaDocumento";
+import { disegnaPlanimetriaComputo } from "./stampaPlanimetria";
 
 /**
  * Il computo metrico come lo stampa PriMus, ma da guardare.
@@ -53,9 +54,9 @@ export function disegnaComputoPrimus(doc: jsPDF, voci: VoceComputo[], i: Intesta
     while (s.length > 1 && doc.getTextWidth(`${s}…`) > w) s = s.slice(0, -1);
     return `${s}…`;
   };
-  const due = (n: number) => n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: "always" });
+  const decimale = (n: number, massimi = 2) => n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: massimi, useGrouping: "always" });
   /** Le dimensioni come in PriMus: due decimali, tre quando servono (0,625). */
-  const dimensione = (n: number) => n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 3, useGrouping: "always" });
+  const dimensione = (n: number) => decimale(n, 3);
   /** Un numero allineato a destra nella sua colonna: se non ci sta, si rimpicciolisce invece di sconfinare. */
   const numeroA = (testo: string, x: number, w: number, size = 7.5, stile: "normal" | "bold" = "normal", colore = t.inchiostro) => {
     let s = size;
@@ -192,7 +193,7 @@ export function disegnaComputoPrimus(doc: jsPDF, voci: VoceComputo[], i: Intesta
     const dims = [[mis.parti_uguali, c.pu], [mis.lunghezza, c.lu], [mis.larghezza, c.la], [mis.altezza_peso, c.h]] as const;
     for (const [n, x] of dims) if (n !== null && n !== undefined) numeroA(dimensione(n), x, c.dim - 2, 7, "normal", t.inchiostro);
     if (mis.quantita !== null && mis.quantita !== undefined) {
-      numeroA(due(mis.quantita), c.q, 44, 7, "normal", mis.quantita < 0 || v.is_detrazione ? "#B42318" : t.inchiostro);
+      numeroA(decimale(mis.quantita), c.q, 44, 7, "normal", mis.quantita < 0 || v.is_detrazione ? "#B42318" : t.inchiostro);
     }
     y += righe.length * 8.6;
   };
@@ -243,8 +244,8 @@ export function disegnaComputoPrimus(doc: jsPDF, voci: VoceComputo[], i: Intesta
     filetto(c.q - 46, conPrezzi ? c.imp : c.q, t.grigioChiaro, 0.4);
     y += 8;
     font(7, "bold", t.grigio); doc.text(`SOMMANO ${v.unita_misura || ""}`.trim(), fineDesc, y, { align: "right" });
-    if (v.quantita !== null) numeroA(due(v.quantita), c.q, 44, 7.5, "bold");
-    if (conUnitari && v.prezzo_unitario_computo !== null) numeroA(due(v.prezzo_unitario_computo), c.u, 42, 7.5);
+    if (v.quantita !== null) numeroA(decimale(v.quantita), c.q, 44, 7.5, "bold");
+    if (conUnitari && v.prezzo_unitario_computo !== null) numeroA(decimale(v.prezzo_unitario_computo, 6), c.u, 42, 7.5);
     if (conPrezzi) numeroA(v.da_quantificare ? "da quantificare" : v.importo_computo === null ? "da definire" : formatEuro(v.importo_computo), c.imp, 54, 7.5, "bold", v.importo_computo === null ? "#8A5A00" : t.inchiostro);
     riportato += v.importo_computo ?? 0;
     voceInCorso = null;
@@ -314,7 +315,7 @@ export function disegnaComputoPrimus(doc: jsPDF, voci: VoceComputo[], i: Intesta
           doc.setFillColor(t.filetto); doc.rect(xBarra, y - 5, largBarra, 4, "F");
           doc.setFillColor(t.marca); doc.rect(xBarra, y - 5, Math.max(0.6, largBarra * Math.min(1, Math.abs(r.perc) / 100)), 4, "F");
         }
-        font(6.8, "normal", t.grigio); doc.text(`${due(r.perc)} %`, xBarra + largBarra + 34, y, { align: "right" });
+        font(6.8, "normal", t.grigio); doc.text(`${decimale(r.perc)} %`, xBarra + largBarra + 34, y, { align: "right" });
         numeroA(formatEuro(r.importo), c.imp, 80, r.livello ? 7 : 7.5, r.livello ? "normal" : "bold", r.livello ? t.grigio : t.inchiostro);
         y += r.livello ? 10.5 : 12.5;
       }
@@ -332,12 +333,12 @@ export function disegnaComputoPrimus(doc: jsPDF, voci: VoceComputo[], i: Intesta
     // Lo sconto è una riga del riepilogo: le voci restano ai loro prezzi, l'IVA si calcola sul netto.
     const sconto = calcolaSconto(totale, i.sconto, sicurezza);
     if (sconto.importo > 0) {
-      riga(`${sconto.etichetta}${sconto.percentuale != null ? ` ${due(sconto.percentuale).replace(",00", "")} %` : ""}`, `-${formatEuro(sconto.importo)} €`);
+      riga(`${sconto.etichetta}${sconto.percentuale != null ? ` ${decimale(sconto.percentuale).replace(",00", "")} %` : ""}`, `-${formatEuro(sconto.importo)} €`);
       riga("Imponibile", `${formatEuro(totale - sconto.importo)} €`, true);
     }
     const iva = calcolaIvaComputo(totale - sconto.importo, i);
     if (iva.modalita === "applicata" && iva.iva !== null && iva.totale !== null) {
-      riga(`IVA ${due(iva.aliquota ?? 0).replace(",00", "")} %`, `${formatEuro(iva.iva)} €`);
+      riga(`IVA ${decimale(iva.aliquota ?? 0).replace(",00", "")} %`, `${formatEuro(iva.iva)} €`);
       serve(30); y += 4;
       doc.setFillColor(t.fondo); doc.rect(c.u - 168, y - 11, destra - (c.u - 168), 22, "F");
       font(8, "bold", t.bianco); doc.text("TOTALE IVA INCLUSA", c.u - 160, y + 3);
@@ -389,6 +390,7 @@ export function disegnaComputoPrimus(doc: jsPDF, voci: VoceComputo[], i: Intesta
 
   // ── Impaginazione ──────────────────────────────────────────────────────
   intestazioneDocumento();
+  if (i.planimetria) y += disegnaPlanimetriaComputo(doc, i.planimetria, m, y, larghezza, 231);
   if (!i.soloRiepilogo && i.sezioni?.lavorazioni !== false) {
     pagineTabella = true;
     intestazioneColonne();

@@ -40,6 +40,30 @@ describe("PDF tecnico del computo nativo", () => {
     expect(pdf).toContain("NP.001");
   });
 
+  it.each(["editoriale", "primus"] as const)("stampa la precisione dell’unitario nel formato %s", async (impaginazione) => {
+    const voci = vociDaBozza({ ...bozza, voci: [
+      { ...voceVuota(), descrizione: "Fornitura e posa serramenti", quantita: "10", prezzo: "347,8745" },
+    ] });
+    const doc = await generaComputoPdf(voci, { titolo: "Serramenti", impaginazione });
+
+    expect(doc.output()).toContain("(347,8745)");
+    expect(doc.output()).toContain("3.478,75");
+  });
+
+  it("stampa l’intera descrizione della voce opzionale e i suoi importi", async () => {
+    const descrizione = [...Array(6).fill("Dettaglio della lavorazione opzionale"), "FINE_OPZIONE"].join("\n");
+    const doc = await generaComputoPdf(vociDaBozza(bozza), {
+      titolo: "Computo con opzioni", impaginazione: "editoriale",
+      vociOpzionali: [{ descrizione, unita: "pz", quantita: 10, prezzo: 347.8745, importo: 3478.75 }],
+    });
+    const pdf = doc.output();
+
+    expect(pdf).toContain("FINE_OPZIONE");
+    expect(pdf).toContain("347,8745");
+    expect(pdf).toContain("Importo 3.478,75");
+    expect(pdf).toContain("1.218,60");
+  });
+
   it("il preventivo cliente conserva descrizioni e condizioni su più pagine", async () => {
     const b = { ...bozza, voci: [{ ...bozza.voci[0], descrizione: "Descrizione estesa della lavorazione ".repeat(500) + "FINE_LAVORAZIONE" }] };
     const doc = await generaComputoPdf(vociDaBozza(b), { titolo: "Test multipagina", presentazione: "preventivo", condizioni: "Condizioni dettagliate ".repeat(500) + "FINE_CONDIZIONI" });

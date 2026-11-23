@@ -1,5 +1,5 @@
 import { triangola, v2 } from "./geometria2d";
-import type { GenereMesh, Mesh3D, V3 } from "./tipi";
+import type { Mesh3D, V3 } from "./tipi";
 
 const sub = (a: V3, b: V3): V3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const cross = (a: V3, b: V3): V3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
@@ -52,6 +52,50 @@ export class CostruttoreMesh {
     this.poligono([a, b, c, d], normale);
   }
 
+  quadLiscio(punti: [V3, V3, V3, V3], normali: [V3, V3, V3, V3]): void {
+    const base = this.posizioni.length / 3;
+    punti.forEach((p, i) => {
+      this.posizioni.push(...p);
+      this.normali.push(...normali[i]);
+    });
+    const media: V3 = [0, 0, 0];
+    for (const n of normali) { media[0] += n[0]; media[1] += n[1]; media[2] += n[2]; }
+    if (dot(normaleNewell(punti), media) >= 0) this.indici.push(base, base + 1, base + 2, base, base + 2, base + 3);
+    else this.indici.push(base, base + 2, base + 1, base, base + 3, base + 2);
+    this.facce++;
+  }
+
+  /** Tubo circolare lungo una spezzata. I raccordi seguono la tangente media. */
+  tubo(percorso: V3[], raggio: number, passi = 12): void {
+    if (percorso.length < 2 || raggio <= 0) return;
+    const unit = (v: V3): V3 => {
+      const n = len(v) || 1;
+      return [v[0] / n, v[1] / n, v[2] / n];
+    };
+    const direzioni = percorso.map((_, i) => unit(sub(percorso[Math.min(percorso.length - 1, i + 1)], percorso[Math.max(0, i - 1)])));
+    const assi: V3[] = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+    const inclinazione = (asse: V3) => Math.max(...direzioni.map(d => Math.abs(dot(asse, d))));
+    const riferimento = assi.reduce((migliore, asse) => inclinazione(asse) < inclinazione(migliore) ? asse : migliore);
+    const anelli = percorso.map((p, i) => {
+      const d = direzioni[i];
+      const asse = Math.abs(dot(riferimento, d)) < .98 ? riferimento : assi.find(a => Math.abs(dot(a, d)) < .98)!;
+      const u = unit(cross(d, asse));
+      const v = cross(d, u);
+      return Array.from({ length: passi }, (_, j) => {
+        const a = j * Math.PI * 2 / passi;
+        const n = u.map((c, k) => c * Math.cos(a) + v[k] * Math.sin(a)) as V3;
+        return { n, p: p.map((c, k) => c + n[k] * raggio) as V3 };
+      });
+    });
+    for (let i = 1; i < anelli.length; i++) for (let j = 0; j < passi; j++) {
+      const k = (j + 1) % passi;
+      const faccia = [anelli[i - 1][j], anelli[i - 1][k], anelli[i][k], anelli[i][j]] as const;
+      this.quadLiscio([faccia[0].p, faccia[1].p, faccia[2].p, faccia[3].p], [faccia[0].n, faccia[1].n, faccia[2].n, faccia[3].n]);
+    }
+    this.poligono(anelli[0].map(a => a.p), direzioni[0].map(n => -n) as V3);
+    this.poligono(anelli[anelli.length - 1].map(a => a.p), direzioni[direzioni.length - 1]);
+  }
+
   /** Poligono orizzontale anche concavo (pavimenti, soffitti), alla quota `y`. */
   orizzontale(contorno: { x: number; y: number }[], quota: number, versoAlto: boolean): void {
     if (contorno.length < 3) return;
@@ -79,7 +123,7 @@ export class CostruttoreMesh {
    * rotazione attorno all'asse verticale (radianti, l'asse x locale va verso (cos, sin) in pianta).
    */
   /** `girata`: rotazione della scatola attorno al suo centro (dx, dz), prima di quella dell'elemento. */
-  scatola(cx: number, cz: number, base: number, larghezza: number, profondita: number, altezza: number, rotazione: number, dx = 0, dz = 0, girata = 0): void {
+  scatola(cx: number, cz: number, base: number, larghezza: number, profondita: number, altezza: number, rotazione: number, dx = 0, dz = 0, girata = 0, raggio = 0): void {
     const c = Math.cos(rotazione + girata);
     const s = Math.sin(rotazione + girata);
     const ce = Math.cos(rotazione), se = Math.sin(rotazione);
@@ -88,6 +132,37 @@ export class CostruttoreMesh {
     const mondo = (lx: number, lz: number, y: number): V3 => [ox + lx * c - lz * s, y, oz + lx * s + lz * c];
     const hx = larghezza / 2;
     const hz = profondita / 2;
+    const hy = altezza / 2;
+    const bordo = Math.min(raggio, hx * .95, hy * .95, hz * .95);
+    if (bordo > .001) {
+      const semilati = [hx, hy, hz];
+      const quote = semilati.map((h) => [-h, -h + bordo / 2, -h + bordo, h - bordo, h - bordo / 2, h]);
+      for (const [fisso, u, v] of [[0, 1, 2], [1, 2, 0], [2, 0, 1]]) {
+        for (const segno of [-1, 1]) {
+          const da = this.posizioni.length / 3;
+          for (const a of quote[u]) for (const b of quote[v]) {
+            const p: V3 = [0, 0, 0];
+            p[fisso] = segno * semilati[fisso];
+            p[u] = a;
+            p[v] = b;
+            const centro = p.map((k, asse) => Math.max(bordo - semilati[asse], Math.min(semilati[asse] - bordo, k))) as V3;
+            const n = sub(p, centro);
+            const lunghezza = len(n);
+            const [nx, ny, nz] = n.map(k => k / lunghezza);
+            this.posizioni.push(...mondo(centro[0] + bordo * nx, centro[2] + bordo * nz, base + hy + centro[1] + bordo * ny));
+            this.normali.push(nx * c - nz * s, ny, nx * s + nz * c);
+          }
+          const lato = quote[v].length;
+          for (let i = 0; i < quote[u].length - 1; i++) for (let j = 0; j < lato - 1; j++) {
+            const a = da + i * lato + j, b = a + lato;
+            if (segno > 0) this.indici.push(a, b, b + 1, a, b + 1, a + 1);
+            else this.indici.push(a, b + 1, b, a, a + 1, b + 1);
+            this.facce++;
+          }
+        }
+      }
+      return;
+    }
     const y0 = base;
     const y1 = base + altezza;
     const ex: V3 = [c, 0, s];
@@ -121,7 +196,7 @@ export class CostruttoreMesh {
     return this.indici.length === 0;
   }
 
-  mesh(dati: { id: string; nome: string; genere: GenereMesh; materiale: string; riferimento: string }): Mesh3D {
+  mesh(dati: Pick<Mesh3D, "id" | "nome" | "genere" | "materiale" | "riferimento" | "stratoEsploso">): Mesh3D {
     return { ...dati, posizioni: this.posizioni, normali: this.normali, indici: this.indici, facce: this.facce };
   }
 }

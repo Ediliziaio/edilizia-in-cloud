@@ -44,8 +44,8 @@ describe('Testo progressivo reale, solo message e nessuna azione parziale', () =
     await expect(readQuoteStream(response, id, new AbortController().signal)).rejects.toThrow('Bozza intatta');
   });
   it('mostra il grassetto mentre scrive, senza asterischi, anche prima che si chiuda', () => {
-    const api = createRef<QuoteStreamingReplyHandle>(); const log = createRef<HTMLDivElement>();
-    render(<div ref={log}><QuoteStreamingReply ref={api} log={log} /></div>);
+    const api = createRef<QuoteStreamingReplyHandle>();
+    render(<QuoteStreamingReply ref={api} />);
     const risposta = () => screen.getByLabelText('Risposta in elaborazione');
     act(() => api.current!.update('Per una **ristrutturazione compl'));
     expect(risposta().querySelector('strong')).toHaveTextContent('ristrutturazione compl'); expect(risposta()).not.toHaveTextContent('*');
@@ -56,9 +56,21 @@ describe('Testo progressivo reale, solo message e nessuna azione parziale', () =
     act(() => api.current!.update('Codice `ABC'));
     expect(risposta().querySelector('code')).toHaveTextContent('ABC');
   });
+  it('mostra attesa, scrittura e verifica nello stesso messaggio', () => {
+    const api = createRef<QuoteStreamingReplyHandle>();
+    const view = render(<QuoteStreamingReply ref={api} status="Silvio sta preparando la risposta…" elapsedSeconds={1} />);
+    const reply = screen.getByLabelText('Risposta in elaborazione');
+    expect(screen.getByRole('status')).toHaveTextContent('Silvio sta preparando la risposta…');
+    act(() => api.current!.update('Lavorazioni in corso **da verificare**.'));
+    expect(screen.getByLabelText('Risposta in elaborazione')).toBe(reply);
+    expect(screen.getByRole('status')).toHaveTextContent('Silvio sta scrivendo…');
+    view.rerender(<QuoteStreamingReply ref={api} status="Controllo proposte, esclusioni e riferimenti" showProgress elapsedSeconds={2} />);
+    expect(screen.getByRole('status')).toHaveTextContent('Controllo proposte, esclusioni e riferimenti');
+    expect(reply).toHaveTextContent('Lavorazioni in corso da verificare.');
+  });
   it('aggiorna solo il componente del testo, senza ridisegnare editor o salvare frammenti', () => {
-    const api = createRef<QuoteStreamingReplyHandle>(); const log = createRef<HTMLDivElement>(); let parentRenders = 0;
-    function Parent() { parentRenders++; return <div ref={log}><p>Editor invariato</p><QuoteStreamingReply ref={api} log={log} /></div>; }
+    const api = createRef<QuoteStreamingReplyHandle>(); let parentRenders = 0;
+    function Parent() { parentRenders++; return <div><p>Editor invariato</p><QuoteStreamingReply ref={api} /></div>; }
     render(<Parent />); act(() => api.current!.update('<script>non eseguire</script>'));
     expect(screen.getByLabelText('Risposta in elaborazione')).toHaveTextContent('<script>non eseguire</script>');
     expect(parentRenders).toBe(1); expect(document.querySelector('script')).toBeNull();

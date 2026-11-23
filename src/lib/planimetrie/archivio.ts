@@ -91,7 +91,7 @@ export function messaggioErrorePlanimetria(errore: { code?: string; message?: st
 }
 
 /** Valida il documento e lo restituisce, o lancia un errore leggibile. */
-function documentoValido(documento: unknown): Planimetria {
+export function documentoValido(documento: unknown): Planimetria {
   const esito = validaPlanimetria(documento);
   if (esito.ok === false) throw new Error(`La pianta non è valida: ${esito.errori.slice(0, 3).join(" ")}`);
   return esito.planimetria;
@@ -238,11 +238,12 @@ export function useElencoPlanimetrie(companyId: string | null | undefined, filtr
   });
 }
 
-export function usePlanimetria(id: string | null | undefined) {
+export function usePlanimetria(id: string | null | undefined, rileggiAlRitorno = false) {
   return useQuery({
     queryKey: chiaviPlanimetrie.dettaglio(id),
     enabled: !!id,
     queryFn: () => caricaPlanimetria(id!),
+    ...(rileggiAlRitorno ? { refetchOnWindowFocus: "always" as const } : {}),
   });
 }
 

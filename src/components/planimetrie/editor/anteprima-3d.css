@@ -1,0 +1,107 @@
+.pl-editor-viste {
+  container: viste-planimetria / inline-size;
+}
+
+.pl-editor-viste-con-3d {
+  display: grid;
+  grid-template-rows: auto minmax(280px, 1.15fr) minmax(320px, 1fr);
+  overflow: auto;
+}
+
+.pl-editor-viste-con-3d[data-pianta-nascosta] {
+  grid-template-rows: minmax(320px, 1fr);
+}
+
+.pl-editor-solo-3d {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: flex-end;
+  border-bottom: 1px solid hsl(var(--border));
+  padding: .25rem .5rem;
+  background: hsl(var(--background));
+}
+
+.pl-editor-divisore-3d {
+  display: none;
+  position: relative;
+  z-index: 2;
+  place-items: center;
+  border-inline: 1px solid hsl(var(--border));
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+  cursor: col-resize;
+  touch-action: none;
+  user-select: none;
+}
+
+.pl-editor-divisore-3d:is(:hover, :focus-visible, [data-trascinamento]) {
+  background: hsl(var(--primary) / .09);
+  color: hsl(var(--primary));
+}
+
+.pl-editor-divisore-3d:focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: -2px;
+}
+
+.pl-editor-divisore-3d[data-trascinamento]::after {
+  position: absolute;
+  inset-block: 0;
+  left: 50%;
+  width: 2px;
+  transform: translateX(var(--spostamento-guida, 0px));
+  background: hsl(var(--primary));
+  pointer-events: none;
+  content: "";
+}
+
+.pl-editor-anteprima-3d {
+  container: anteprima-planimetria / inline-size;
+  border-top: 1px solid hsl(var(--border));
+}
+
+.pl-editor-nascondi-pianta span {
+  display: none;
+}
+
+@container anteprima-planimetria (min-width: 350px) {
+  .pl-editor-nascondi-pianta {
+    width: auto;
+    padding-inline: .625rem;
+  }
+
+  .pl-editor-nascondi-pianta span {
+    display: inline;
+  }
+}
+
+@container viste-planimetria (width < 680px) {
+  .pl-editor-nascondi-pianta {
+    display: none;
+  }
+}
+
+@container viste-planimetria (min-width: 680px) {
+  .pl-editor-viste-con-3d {
+    grid-template-rows: minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  .pl-editor-viste-con-3d:not([data-pianta-nascosta]) {
+    grid-template-columns: minmax(0, var(--peso-pianta)) 20px minmax(0, var(--peso-anteprima));
+  }
+
+  .pl-editor-solo-3d {
+    display: none;
+  }
+
+  .pl-editor-divisore-3d {
+    display: grid;
+  }
+
+  .pl-editor-anteprima-3d {
+    border-top: 0;
+  }
+}

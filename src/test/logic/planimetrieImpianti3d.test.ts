@@ -55,13 +55,17 @@ describe("tubazioni e cavi in 3D", () => {
     expect(con.materiali.impianto_acqua).toBeTruthy();
   });
 
-  it("nella vista esplosa le tubazioni stanno a metà fra pavimento e pareti", () => {
-    expect(stratoDi({ id: "impianto:acqua", riferimento: "impianto:acqua", genere: "elemento" })).toBe(0.5);
+  it("nella vista esplosa le tubazioni hanno uno strato dedicato fra pavimento e pareti", () => {
+    expect(stratoDi({ id: "impianto:acqua", riferimento: "impianto:acqua", genere: "elemento" })).toBe("impianti");
     const con = costruisciScena(pianta, { impianti: true, soffitto: true });
     const es = esplodiInStrati(con, 1.5);
-    const prima = con.mesh.find((m) => m.id === "impianto:acqua")!;
-    const dopo = es.mesh.find((m) => m.id === "impianto:acqua")!;
-    expect(maxY(dopo)).toBeCloseTo(maxY(prima) + 0.5 * 1.5, 6);
+    const livelli = (m: Mesh3D) => m.posizioni.filter((_, i) => i % 3 === 1);
+    const pavimenti = es.mesh.filter(m => stratoDi(m) === "pavimenti");
+    const impianti = es.mesh.filter(m => stratoDi(m) === "impianti");
+    const pareti = es.mesh.filter(m => stratoDi(m) === "pareti");
+    expect(impianti.map(m => m.id)).toEqual(expect.arrayContaining(["impianto:acqua", "impianto:elettrica", "impianto:scarico"]));
+    expect(Math.min(...impianti.flatMap(livelli))).toBeGreaterThan(Math.max(...pavimenti.map(maxY)));
+    expect(Math.min(...pareti.flatMap(livelli))).toBeGreaterThan(Math.max(...impianti.map(maxY)));
     expect(es.impianti).toEqual(con.impianti);
   });
 });

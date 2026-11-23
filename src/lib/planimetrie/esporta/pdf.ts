@@ -314,7 +314,8 @@ function disegnaLegenda(d: Disegnatore, x: number, y: number, larg: number, vist
   const stati = new Set(vista.muri.map((m) => m.stato));
   vista.aperture.forEach((a) => { if (a.stato !== "esistente") stati.add(a.stato === "nuovo" ? "da_demolire" : "nuovo"); });
   const voci: { colore: string; bordo: string; testo: string }[] = [
-    { ...COLORI_STATO.esistente, colore: COLORI_STATO.esistente.riempimento, testo: "Muri esistenti" },
+    { ...COLORI_STATO.esistente, colore: COLORI_STATO.esistente.riempimento,
+      testo: stati.has("da_demolire") || stati.has("nuovo") ? "Muri esistenti" : "Murature" },
   ];
   if (stati.has("da_demolire")) voci.push({ colore: COLORI_STATO.da_demolire.riempimento, bordo: COLORI_STATO.da_demolire.bordo, testo: "Demolizioni (giallo)" });
   if (stati.has("nuovo")) voci.push({ colore: COLORI_STATO.nuovo.riempimento, bordo: COLORI_STATO.nuovo.bordo, testo: "Nuove costruzioni (rosso)" });

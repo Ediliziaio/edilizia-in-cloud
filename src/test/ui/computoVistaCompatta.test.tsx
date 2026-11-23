@@ -17,7 +17,7 @@ function Vista({ onModifica = () => undefined }: { onModifica?: (id: string, pat
 describe("computo compatto a righe", () => {
   it("allinea le colonne e filtra un capitolo dall'indice senza cambiare le voci", () => {
     render(<Vista />);
-    for (const nome of ["Voce / lavorazione", "Quantità", "U.M.", "Prezzo unit. €", "Importo €"]) expect(screen.getByRole("columnheader", { name: nome })).toBeInTheDocument();
+    for (const nome of ["Lavorazione", "Quantità", "U.M.", "Prezzo unit. €", "Importo €"]) expect(screen.getByRole("columnheader", { name: nome })).toBeInTheDocument();
     const indice = within(screen.getByRole("navigation", { name: "Indice dei capitoli" }));
     fireEvent.click(indice.getByRole("button", { name: /Finiture/ }));
     expect(screen.getByRole("button", { name: "Apri voce 2" })).toBeInTheDocument();

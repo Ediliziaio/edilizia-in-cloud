@@ -27,6 +27,11 @@ describe("le voci della commessa portano listino, arrivo previsto e distinta", (
     expect(payload).toMatch(/posizioni: \(?item\.posizioni\?\.length \? item\.posizioni : null/);
   });
 
+  it("invia la riga del preventivo per applicare l’analisi costi nella creazione guidata", () => {
+    expect(CREA).toContain("selectedQuoteId && item.origine_preventivo_id");
+    expect(CREA).toContain("origine_preventivo_id: item.origine_preventivo_id");
+  });
+
   it("in modifica la riga del database torna nel modulo con arrivo previsto e distinta", () => {
     const posizioni = [{ id: "p1", label: "Finestra cucina", quantity: 1 }];
     const riga = { id: "r1", name: "Finestra", description: null, quantity: 1, status: "da_ordinare", position: 0,

@@ -23,7 +23,7 @@ import { altezzeLocale, falde } from "../../../shared/planimetrie/sottotetto.ts"
 export const COEFFICIENTE_SOTTO_150 = 0.3;
 
 export const COEFFICIENTI_UNITA: Record<string, number> = { balcone: 0.3, terrazzo: 0.3, cantina: 0.25, garage: 0.5 };
-const comune = (s: string) => /comun|condominial|androne/i.test(s);
+export const eParteComune = (s: string) => /comun|condominial|androne/i.test(s);
 
 export interface LocaleUnita { id: string; livelloId: string; livello: string; nome: string; destinazione: string; mq: number; coefficiente: number }
 export interface Unita {
@@ -48,7 +48,7 @@ export function unitaDellEdificio(doc: Planimetria, ambito = "fatto"): Unita[] {
     const stato = statoPerAmbito(doc, l.id, ambito) ?? l.fatto;
     const sottoFalde = falde(l, stato);
     for (const loc of stato.locali) {
-      if (!loc.unita?.trim() || comune(loc.unita)) continue;
+      if (!loc.unita?.trim() || eParteComune(loc.unita)) continue;
       const mq = areaPoligono(loc.contorno) / 10_000;
       const base = COEFFICIENTI_UNITA[loc.destinazione] ?? 1;
       const sotto = sottoFalde ? altezzeLocale(loc, sottoFalde) : null;

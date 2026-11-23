@@ -10,7 +10,9 @@ const Vista3D = lazy(() => import("./Vista3D"));
 
 export const Vista3DPigra = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3DPigra(props, ref) {
   return (
-    <Suspense fallback={<div className="flex h-[60vh] min-h-[320px] items-center justify-center rounded-lg border text-sm text-muted-foreground">Preparo il 3D…</div>}>
+    <Suspense fallback={<div role="status" className={props.anteprimaEditor
+      ? "grid flex-1 place-content-center bg-muted/25 px-3 text-center text-sm text-muted-foreground"
+      : "flex h-[60vh] min-h-[320px] items-center justify-center rounded-lg border text-sm text-muted-foreground"}>Preparo il 3D…</div>}>
       <Vista3D ref={ref} {...props} />
     </Suspense>
   );

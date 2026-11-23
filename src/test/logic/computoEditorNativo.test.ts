@@ -1,5 +1,28 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { bozzaVuota, calcolaVoce, chiaveBozzaComputo, leggiBozzaComputo, misuraVuota, numeroEditor, quantitaMisura, salvaBozzaComputo, voceVuota, vociDaBozza, vociPerAnteprima } from "@/lib/computo/editorNativo";
+import { bozzaVuota, calcolaVoce, chiaveBozzaComputo, leggiBozzaComputo, misuraVuota, numeroEditor, quantitaMisura, rettificaQuantitaMisurata, salvaBozzaComputo, voceVuota, vociDaBozza, vociPerAnteprima } from "@/lib/computo/editorNativo";
+import { controlliPreventivo } from "@/lib/computo/controlliPreventivo";
+
+describe("misure e attendibilità della bozza", () => {
+  it("conserva le misure del PDF e aggiunge solo la differenza confermata", () => {
+    const origine = { ...misuraVuota(), descrizione: "Getto magrone come da DDT", formula: "18" };
+    const voce = { ...voceVuota(), descrizione: "Calcestruzzo magro", unita: "m3", prezzo: "135", misure: [origine] };
+    const misure = rettificaQuantitaMisurata(voce, 20, "Quantità fornita in chat");
+    expect(misure[0]).toBe(origine);
+    expect(misure[1]).toMatchObject({ descrizione: "Rettifica quantità confermata · Quantità fornita in chat", formula: "2" });
+    expect(calcolaVoce({ ...voce, misure })).toMatchObject({ quantita: 20, importo: 2700 });
+    expect(rettificaQuantitaMisurata({ ...voce, misure }, 20)).toBe(misure);
+    expect(calcolaVoce({ ...voce, detrazione: true, misure: rettificaQuantitaMisurata({ ...voce, detrazione: true }, -20) }).quantita).toBe(-20);
+  });
+
+  it("segnala la fornitura duplicata e distingue le stime senza modificare le voci", () => {
+    const conPosa = { ...voceVuota(), descrizione: "Fornitura e posa di serramenti in PVC", unita: "pz", quantita: "5", prezzo: "700" };
+    const materiale = { ...voceVuota(), descrizione: "Fornitura di serramenti in PVC", unita: "cad", quantita: "5", prezzo: "500", fonte: "Stima di mercato" };
+    const altraFase = { ...materiale, id: "altra", capitolo: "Secondo piano" };
+    const { daControllare, sovrapposizioni } = controlliPreventivo([conPosa, materiale, altraFase]);
+    expect(daControllare).toHaveLength(2);
+    expect(sovrapposizioni).toEqual([{ voce: materiale, altra: conPosa, motivo: "Possibile doppio conteggio con una voce di fornitura e posa" }]);
+  });
+});
 import { controllaTotali } from "@/lib/computo/computoStrutturato";
 
 const voce = () => ({ ...voceVuota(), descrizione: "Intonaco", prezzo: "12,35", quantita: "10" });

@@ -92,6 +92,16 @@ describe('Affidabilità integrata: richieste, economia e quantità', () => {
     expect(() => applyProtectedQuoteEdits(next, [proposal], 4)).toThrow('superate');
     expect(applyProtectedQuoteEdits(before, [{ ...proposal, unit: 'cad' }], 4).lines[0].price).toBeNull();
   });
+  it('nel computo mantiene inclusa la modifica approvata della sola quantità, se la voce è completa e già inclusa', () => {
+    const prima = doc();
+    const quantita = { ...p, quantity: 12 };
+    const opzioni = { conservaInclusioneQuantita: true };
+    expect(applyProtectedQuoteEdits(prima, [quantita], 4, opzioni).lines[0]).toMatchObject({ quantity: 12, price: 40, included: true });
+    expect(applyProtectedQuoteEdits(prima, [{ ...quantita, unit: 'cad' }], 4, opzioni).lines[0]).toMatchObject({ price: null, included: false });
+    expect(applyProtectedQuoteEdits(prima, [{ ...quantita, quantity: null }], 4, opzioni).lines[0].included).toBe(false);
+    const esclusa = { ...prima, lines: [{ ...prima.lines[0], included: false }] };
+    expect(applyProtectedQuoteEdits(esclusa, [quantita], 4, opzioni).lines[0].included).toBe(false);
+  });
   it('converte il budget AI a valori medi, non al budget desiderato, con provenienza persistente', () => {
     const budget = { scope: 'Bagno sintetico', currency: 'EUR' as const, assumptions: ['Dati da confermare'], exclusions: ['Strutture'], groups: [{ label: 'Impianti', low: 1000, high: 2000, basis: 'Stima generale, non tariffa' }] };
     const next = indicativeBudgetProposal(doc(), budget, 4);

@@ -25,7 +25,7 @@ import {
   type TestoLavoro,
   type TipoApertura,
 } from "./adattatore";
-import type { TipoArea } from "../../../../shared/planimetrie/modello.ts";
+import { funzionePareteDaVerificare, type TipoArea, type TipoZanzariera } from "../../../../shared/planimetrie/modello.ts";
 import { eAvvolgibile, oscuranteAmmessi, sistemiAmmessi, zanzarieraAmmessa } from "../../../../shared/planimetrie/serramenti.ts";
 import { diff, direzione, dist, lunghezzaMuro, proiettaSuMuro, puntoSulMuro, sulSegmento, uguali } from "./geometria";
 
@@ -195,8 +195,10 @@ export function eliminaLocale(pianta: Pianta, id: string, vista: Vista = "fatto"
   const soloSuo = (m: Muro) =>
     latoDi(locale, m) && !altri.some((l) => latoDi(l, m));
   if (vista === "progetto" && locale.stato !== "nuovo") {
+    const pareti = pianta.muri.filter(soloSuo);
+    if (pareti.some(m => m.stato === "esistente" && funzionePareteDaVerificare(m))) return pianta;
     let p = pianta;
-    for (const m of pianta.muri.filter(soloSuo)) p = eliminaMuro(p, m.id, vista);
+    for (const m of pareti) p = eliminaMuro(p, m.id, vista);
     return p;
   }
   const via = new Set(pianta.muri.filter(soloSuo).map((m) => m.id));
@@ -229,7 +231,7 @@ export function aggiungiParete(
   return { pianta: { ...pianta, muri: [...pianta.muri, muro] }, id: muro.id };
 }
 
-export function modificaMuro(pianta: Pianta, id: string, campi: Partial<Pick<Muro, "spessore" | "altezza" | "tipo" | "stato" | "origine">>): Pianta {
+export function modificaMuro(pianta: Pianta, id: string, campi: Partial<Pick<Muro, "spessore" | "altezza" | "tipo" | "stato" | "origine" | "origineAltezza" | "funzioneDaVerificare">>): Pianta {
   return { ...pianta, muri: pianta.muri.map((m) => (m.id === id ? { ...m, ...campi } : m)) };
 }
 
@@ -242,6 +244,7 @@ export function eliminaMuro(pianta: Pianta, id: string, vista: Vista = "fatto"):
   const muro = pianta.muri.find((m) => m.id === id);
   if (!muro) return pianta;
   if (vista === "progetto" && muro.stato !== "nuovo") {
+    if (muro.stato === "esistente" && funzionePareteDaVerificare(muro)) return pianta;
     const stato: StatoElemento = muro.stato === "da_demolire" ? "esistente" : "da_demolire";
     return {
       ...pianta,
@@ -451,6 +454,18 @@ export function modificaApertura(
   };
 }
 
+export function impostaZanzariera(pianta: Pianta, id: string, vista: Vista, zanzariera: TipoZanzariera | undefined): Pianta {
+  const apertura = pianta.aperture.find(a => a.id === id);
+  if (!apertura || !zanzarieraAmmessa(apertura.tipo) || !visibile(apertura.stato, vista)) return pianta;
+  if (vista === "progetto" && apertura.stato === "esistente") {
+    const variazioni = { ...pianta.zanzariereProgetto };
+    if (zanzariera === apertura.zanzariera) delete variazioni[id];
+    else variazioni[id] = zanzariera ?? null;
+    return { ...pianta, zanzariereProgetto: variazioni };
+  }
+  return modificabile(apertura.stato, vista) ? modificaApertura(pianta, id, { zanzariera }) : pianta;
+}
+
 /** Un clic gira il verso di apertura: le quattro combinazioni, una dopo l'altra. */
 export function giraApertura(pianta: Pianta, id: string): Pianta {
   const ordine: Apertura["verso"][] = [
@@ -502,7 +517,7 @@ export function riposizionaAperture(prima: Pianta, dopo: Pianta): Pianta {
 
 /** Conferma una misura stimata: da qui in poi è «rilevata». */
 export function confermaMisura(pianta: Pianta, tipo: "muro" | "apertura" | "locale", id: string): Pianta {
-  if (tipo === "muro") return modificaMuro(pianta, id, { origine: "rilevata" });
+  if (tipo === "muro") return modificaMuro(pianta, id, { origine: "rilevata", origineAltezza: "rilevata" });
   if (tipo === "apertura") return modificaApertura(pianta, id, { origine: "rilevata" });
   return modificaLocale(pianta, id, { origine: "rilevata" });
 }
@@ -577,13 +592,14 @@ export function chiudiStanze(pianta: Pianta, vista: Vista = "fatto"): Pianta {
 export function rinominaStanza(
   pianta: Pianta,
   id: string,
-  attuale: Pick<Locale, "nome" | "destinazione" | "finiture">,
-  campi: Partial<Pick<Locale, "nome" | "destinazione" | "finiture">>,
+  attuale: Pick<Locale, "nome" | "destinazione" | "finiture" | "unita">,
+  campi: Partial<Pick<Locale, "nome" | "destinazione" | "finiture" | "unita">>,
   vista: Vista,
 ): Pianta {
   const diLavoro = pianta.locali.find((l) => l.id === id);
   if (diLavoro && (vista === "fatto" || diLavoro.stato === "nuovo")) return modificaLocale(pianta, id, campi);
-  return { ...pianta, nomiProgetto: { ...pianta.nomiProgetto, [id]: { ...attuale, ...campi } } };
+  return { ...pianta, nomiProgetto: { ...pianta.nomiProgetto, [id]: { nome: attuale.nome, destinazione: attuale.destinazione, finiture: attuale.finiture,
+    ...campi, unita: ("unita" in campi ? campi.unita : attuale.unita) ?? null } } };
 }
 
 // ─── Arredi, sanitari, quote e testi (fase 3 del piano di completamento) ──────
@@ -591,7 +607,7 @@ export function rinominaStanza(
 /** Come per le pareti: nel progetto un arredo di oggi non si sposta, si toglie (e se ne mette uno nuovo). */
 export function aggiungiElemento(
   pianta: Pianta,
-  voce: { tipo: string; larghezza: number; profondita: number; altezza?: number; etichetta?: string },
+  voce: Pick<ElementoLavoro, "tipo" | "larghezza" | "profondita" | "altezza" | "etichetta" | "alzateCad">,
   centro: Punto,
   o: { stato?: StatoElemento; rotazione?: number } = {},
 ): { pianta: Pianta; id: string } {
@@ -605,6 +621,7 @@ export function aggiungiElemento(
     larghezza: voce.larghezza,
     profondita: voce.profondita,
     ...(voce.altezza ? { altezza: voce.altezza } : {}),
+    ...(voce.alzateCad ? { alzateCad: voce.alzateCad } : {}),
     stato: o.stato ?? "esistente",
     origine: "rilevata",
   };
@@ -618,7 +635,9 @@ export function modificaElemento(
 ): Pianta {
   const norm = { ...campi };
   if (norm.rotazione != null) norm.rotazione = ((Math.round(norm.rotazione) % 360) + 360) % 360;
-  return { ...pianta, elementi: (pianta.elementi ?? []).map((e) => (e.id === id ? { ...e, ...norm, origine: "rilevata" } : e)) };
+  return { ...pianta, elementi: (pianta.elementi ?? []).map((e) => (e.id === id
+    ? { ...e, ...norm, origine: "rilevata", ...(norm.tipo && norm.tipo !== e.tipo ? { alzateCad: undefined } : {}) }
+    : e)) };
 }
 
 export function ruotaElemento(pianta: Pianta, id: string, gradi: number): Pianta {
@@ -669,14 +688,19 @@ export function eliminaArea(pianta: Pianta, id: string, vista: Vista = "fatto"):
   return { ...pianta, aree: (pianta.aree ?? []).filter((x) => x.id !== id) };
 }
 
-export function aggiungiQuota(pianta: Pianta, p1: Punto, p2: Punto, scostamento = 40): { pianta: Pianta; id: string } {
+export function aggiungiQuota(pianta: Pianta, p1: Punto, p2: Punto, scostamento = 40, opzioni: Pick<QuotaLavoro, "riferimenti" | "soloProgetto"> = {}): { pianta: Pianta; id: string } {
   const id = nuovoId("quota");
-  const arr = (p: Punto) => ({ x: Math.round(p.x), y: Math.round(p.y) });
-  return { pianta: { ...pianta, quote: [...(pianta.quote ?? []), { id, p1: arr(p1), p2: arr(p2), scostamento }] }, id };
+  return { pianta: { ...pianta, quote: [...(pianta.quote ?? []), { id, p1: { ...p1 }, p2: { ...p2 }, scostamento, ...opzioni }] }, id };
 }
 
 export function modificaQuota(pianta: Pianta, id: string, campi: Partial<Pick<QuotaLavoro, "p1" | "p2" | "scostamento">>): Pianta {
-  return { ...pianta, quote: (pianta.quote ?? []).map((q) => (q.id === id ? { ...q, ...campi } : q)) };
+  return { ...pianta, quote: (pianta.quote ?? []).map(q => {
+    if (q.id !== id) return q;
+    const riferimenti = { ...q.riferimenti };
+    if (campi.p1) delete riferimenti.p1;
+    if (campi.p2) delete riferimenti.p2;
+    return { ...q, ...campi, riferimenti: riferimenti.p1 || riferimenti.p2 ? riferimenti : undefined };
+  }) };
 }
 
 export function eliminaQuota(pianta: Pianta, id: string): Pianta {
@@ -713,7 +737,7 @@ export function gruppoModificabile(pianta: Pianta, g: Gruppo, vista: Vista): Gru
   const el = new Set(g.elementi);
   return {
     elementi: (pianta.elementi ?? []).filter((e) => el.has(e.id) && modificabile(e.stato, vista)).map((e) => e.id),
-    quote: (pianta.quote ?? []).filter((q) => g.quote.includes(q.id)).map((q) => q.id),
+    quote: (pianta.quote ?? []).filter((q) => g.quote.includes(q.id) && (vista === "progetto" || !q.soloProgetto)).map((q) => q.id),
     testi: (pianta.testi ?? []).filter((t) => g.testi.includes(t.id)).map((t) => t.id),
   };
 }
@@ -724,7 +748,7 @@ export function gruppoNelRiquadro(pianta: Pianta, a: Punto, b: Punto, vista: Vis
   const dentro = (p: Punto) => p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1;
   return {
     elementi: (pianta.elementi ?? []).filter((e) => visibile(e.stato, vista) && dentro(e.centro)).map((e) => e.id),
-    quote: (pianta.quote ?? []).filter((q) => dentro(q.p1) && dentro(q.p2)).map((q) => q.id),
+    quote: (pianta.quote ?? []).filter((q) => (vista === "progetto" || !q.soloProgetto) && dentro(q.p1) && dentro(q.p2)).map((q) => q.id),
     testi: (pianta.testi ?? []).filter((t) => dentro(t.posizione)).map((t) => t.id),
   };
 }
@@ -753,11 +777,14 @@ function trasformaGruppo(
   const norm = (r: number) => (((Math.round(r) % 360) + 360) % 360) + 0;
   return {
     ...pianta,
-    elementi: (pianta.elementi ?? []).map((e) => (g.elementi.includes(e.id) ? { ...e, centro: arr(e.centro), rotazione: norm(angolo(e.rotazione)) } : e)),
+    elementi: (pianta.elementi ?? []).map((e) => (g.elementi.includes(e.id) ? {
+      ...e, centro: arr(e.centro), rotazione: norm(angolo(e.rotazione)),
+      ...(scambiaQuota && e.alzateCad ? { alzateCad: e.alzateCad.map(([a, b]): [Punto, Punto] => [{ ...a, x: -a.x }, { ...b, x: -b.x }]) } : {}),
+    } : e)),
     quote: (pianta.quote ?? []).map((q) => {
       if (!g.quote.includes(q.id)) return q;
       const p1 = arr(q.p1), p2 = arr(q.p2);
-      return scambiaQuota ? { ...q, p1: p2, p2: p1 } : { ...q, p1, p2 };
+      return { ...q, p1: scambiaQuota ? p2 : p1, p2: scambiaQuota ? p1 : p2, riferimenti: undefined };
     }),
     testi: (pianta.testi ?? []).map((t) => (g.testi.includes(t.id) ? { ...t, posizione: arr(t.posizione), rotazione: norm(angolo(t.rotazione)) } : t)),
   };
@@ -795,7 +822,7 @@ export function duplicaGruppo(pianta: Pianta, g: Gruppo, vista: Vista, delta: Pu
     nuovo.elementi.push(r.id);
   }
   for (const q of (pianta.quote ?? []).filter((x) => g.quote.includes(x.id))) {
-    const r = aggiungiQuota(p, { x: q.p1.x + delta.x, y: q.p1.y + delta.y }, { x: q.p2.x + delta.x, y: q.p2.y + delta.y }, q.scostamento);
+    const r = aggiungiQuota(p, { x: q.p1.x + delta.x, y: q.p1.y + delta.y }, { x: q.p2.x + delta.x, y: q.p2.y + delta.y }, q.scostamento, { soloProgetto: vista === "progetto" });
     p = r.pianta;
     nuovo.quote.push(r.id);
   }

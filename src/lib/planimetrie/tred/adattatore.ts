@@ -16,7 +16,7 @@ import { materialiDelProgetto, statoConMateriali } from "../../../../shared/plan
  */
 import { puntiTerreno } from "../../../../shared/planimetrie/terreno.ts";
 import { rotazioneSchermo } from "../../../../shared/planimetrie/orientamento.ts";
-import type { Apertura, Elemento, Livello, Planimetria, StatoLavori, StatoPianta } from "../../../../shared/planimetrie/modello.ts";
+import type { AlzataCad, Apertura, Elemento, Livello, Planimetria, StatoLavori, StatoPianta } from "../../../../shared/planimetrie/modello.ts";
 import type { PiantaPer3D, StatoOggetto } from "./tipi";
 import { anteDi, eScorrevole, misureOscurante, sistemaDi, zanzarieraDi } from "../../../../shared/planimetrie/serramenti.ts";
 
@@ -38,12 +38,17 @@ export function daStatoPianta(s: StatoPianta): PiantaPer3D {
       altezza: a.altezza,
       davanzale: a.davanzale,
       stato: stato(a.stato),
-      ...(a.ante !== undefined || a.sistema !== undefined ? { ante: anteDi(a), scorrevole: eScorrevole(sistemaDi(a)) } : {}),
+      ...(a.sistema === "fisso" ? { fisso: true } : {}),
+      ...(a.tipo === "finestra" || a.tipo === "portafinestra" || a.ante !== undefined || a.sistema !== undefined
+        ? { ante: anteDi(a), scorrevole: eScorrevole(sistemaDi(a)) }
+        : {}),
       ...oscurante3D(a),
       ...zanzariera3D(a),
     })),
-    locali: s.locali.map((l) => ({ id: l.id, nome: l.nome, destinazione: l.destinazione, contorno: l.contorno.map(giu), altezza: l.altezza, ...(l.finiture ? { finiture: l.finiture } : {}) })),
+    locali: s.locali.map((l) => ({ id: l.id, nome: l.nome, destinazione: l.destinazione, contorno: l.contorno.map(giu), altezza: l.altezza, unita: l.unita,
+      ...(l.finiture ? { finiture: l.finiture } : {}), ...(l.aperto ? { aperto: true } : {}) })),
     elementi: s.elementi.map(daElemento),
+    ...(s.tracciatiImpianti?.length ? { tracciatiImpianti: s.tracciatiImpianti.map(t => ({ ...t, vertici: t.vertici.map(giu) })) } : {}),
     ...(s.aree?.length ? { aree: s.aree.filter((a) => a.stato !== "da_demolire").map((a) => ({ id: a.id, tipo: a.tipo, contorno: a.contorno.map(giu), recinzione: a.recinzione, quota: a.quota })) } : {}),
   };
 }
@@ -71,6 +76,9 @@ function daElemento(e: Elemento) {
     profondita: e.profondita,
     altezza: e.altezza,
     localeId: e.localeId ?? undefined,
+    ...(e.colore ? { colore: e.colore } : {}),
+    ...(e.modello ? { modello: e.modello } : {}),
+    ...(e.alzateCad ? { alzateCad: e.alzateCad.map(([a, b]): AlzataCad => [giu(a), giu(b)]) } : {}),
   };
 }
 
@@ -90,9 +98,14 @@ export function pianteDaPlanimetria(p: Planimetria, scelta: { livelloId?: string
   // una proposta fatta prima delle aree esterne non le ha: valgono quelle di oggi
   const materialiProposta = proposta ? materialiDelProgetto(p, scelta.materialiAmbito ?? `progetto:${proposta.id}`) : materialiFatto;
   const statoProposta = proposta ? (proposta.aree === undefined && livello.fatto.aree ? { ...proposta, aree: livello.fatto.aree } : proposta) : livello.fatto;
-  const progetto = { ...daStatoPianta(statoConMateriali(statoProposta, materialiProposta)), infissiProgetto: materialiProposta.infissi };
+  const progetto = { ...daStatoPianta(statoConMateriali(statoProposta, materialiProposta)),
+    infissiProgetto: materialiProposta.infissi };
+  if (proposta) {
+    const rimossi = new Set(proposta.elementi.filter(e => e.stato === "da_demolire").map(e => e.id));
+    progetto.elementi = progetto.elementi.filter(e => !rimossi.has(e.id));
+  }
   // il tetto è del piano, uguale oggi e nel progetto; il terreno è di tutta la pianta
   const punti = puntiTerreno(p).map((q) => ({ x: q.x, y: -q.y, quota: q.quota }));
-  const extra = { ...(livello.tetto ? { tetto: livello.tetto } : {}), ...(punti.length ? { terreno: punti } : {}) };
+  const extra = { nord: p.nord, ...(livello.tetto ? { tetto: livello.tetto } : {}), ...(punti.length ? { terreno: punti } : {}) };
   return { fatto: { ...fatto, ...extra }, progetto: { ...progetto, ...extra }, livello };
 }

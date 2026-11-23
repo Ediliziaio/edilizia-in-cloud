@@ -3,6 +3,7 @@
  * senza three.js, così il visualizzatore, il dialogo dei render esterni e i test le usano senza pesi.
  * Le scelte si ricordano nel browser: quelle fatte nel 3D valgono anche per i render esterni con l'AI.
  */
+import type { Scena3D } from "./tipi";
 
 export type IdFacciata = "intonaco_bianco" | "intonaco_caldo" | "intonaco_grigio" | "intonaco_terra" | "mattone" | "pietra" | "legno" | "cemento";
 export type IdInfissi = "bianco" | "antracite" | "legno" | "verde" | "grigio";
@@ -42,6 +43,10 @@ export interface OpzioniAspetto {
 }
 
 export const ASPETTO_PREDEFINITO: OpzioniAspetto = { realistico: true, facciata: "intonaco_bianco", infissi: "antracite", ora: 15, alberi: true, effetti: true };
+
+export function ammetteAlberiDiContesto(scena: Scena3D) {
+  return !scena.mesh.some(m => /(?:^|:)area:/.test(m.id) || /^albero/i.test(m.nome));
+}
 
 const CHIAVE = "planimetrie:aspetto:v1";
 

@@ -1,6 +1,8 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ImportaVociDialog } from "@/components/computo/ImportaVociDialog";
+import { bozzaVuota, misuraVuota, voceVuota } from "@/lib/computo/editorNativo";
 
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({ effectiveCompany: { id: "d2000000-0000-4000-a000-000000000002" }, user: { id: "u1" } }),
@@ -12,6 +14,8 @@ vi.mock("@/lib/computo/leggiFileComputo", async () => {
 });
 const server = vi.hoisted(() => ({ estraiSulServer: vi.fn() }));
 vi.mock("@/lib/computo/estrazioneServer", () => server);
+const cloud = vi.hoisted(() => ({ elencaComputiCloud: vi.fn(), leggiComputoCloud: vi.fn() }));
+vi.mock("@/lib/computo/cloudComputo", () => cloud);
 
 /** Computo inventato: nessun dato di clienti. */
 const CSV = [
@@ -48,7 +52,7 @@ describe("Importa voci: il popup", () => {
     expect(await screen.findByText("Pronte 3 voci")).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Aggiungi 3 voci" }, { timeout: 3000 })).toBeInTheDocument();
     expect(onAggiungi).not.toHaveBeenCalled();
-    expect(screen.getByText(/Le 4 voci che ci sono già restano come sono/)).toBeInTheDocument();
+    expect(screen.getByText("Le voci selezionate si aggiungono in fondo al documento.")).toBeInTheDocument();
 
     // La voce senza prezzo è segnalata e si filtra.
     const incerte = document.querySelectorAll("tr[data-incerta]");
@@ -137,5 +141,45 @@ describe("Importa voci: il popup", () => {
     const foglio = document.querySelector(".importa-voci-foglio");
     expect(foglio).not.toBeNull();
     expect(foglio).toHaveTextContent("CSV");
+  });
+
+  it("copia un capitolo salvato dopo la selezione, con misure e ID nuovi", async () => {
+    const ambito = { companyId: "azienda-1", userId: "u1", draftId: "destinazione" };
+    const sorgente = { id: "sorgente", titolo: "Ristrutturazione demo", committente: "Cliente demo", numeroVoci: 3,
+      totale: 400, updatedAt: "2026-11-21T10:00:00Z" };
+    const voci = [
+      { ...voceVuota(), id: "riga-sorgente", capitolo: "Murature", tariffa: "M01", descrizione: "Rasatura", prezzo: "25", costo: "12",
+        misure: [{ ...misuraVuota(), id: "misura-sorgente", descrizione: "Parete A", formula: "3*4" }] },
+      { ...voceVuota(), capitolo: "Murature", descrizione: "Protezione opzionale", quantita: "1", prezzo: "200", opzionale: true },
+      { ...voceVuota(), capitolo: "Finiture", descrizione: "Pittura", quantita: "5", prezzo: "20" },
+    ];
+    cloud.elencaComputiCloud.mockResolvedValue([sorgente, { ...sorgente, id: ambito.draftId, titolo: "Computo aperto" }]);
+    cloud.leggiComputoCloud.mockResolvedValue({ bozza: { ...bozzaVuota(), committente: "Committente da conservare nel sorgente", voci } });
+    const onAggiungi = vi.fn();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={client}><ImportaVociDialog open onOpenChange={() => {}}
+      onAggiungi={onAggiungi} vociPresenti={1} consentiAi={false} daComputi={ambito} /></QueryClientProvider>);
+
+    expect(cloud.elencaComputiCloud).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Da un computo salvato" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Importa da computo Ristrutturazione demo" }));
+    expect(screen.queryByRole("button", { name: "Importa da computo Computo aperto" })).not.toBeInTheDocument();
+    const capitolo = await screen.findByLabelText("Seleziona il capitolo Murature");
+    expect(screen.getByRole("button", { name: "Aggiungi 0 voci" })).toBeDisabled();
+    fireEvent.click(capitolo);
+    expect(screen.getByText(/importo lavori/)).toHaveTextContent("300,00 €");
+    expect(screen.getByText("Opzionale · fuori dal totale")).toBeVisible();
+    expect(onAggiungi).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi 2 voci" }));
+
+    expect(cloud.leggiComputoCloud).toHaveBeenCalledWith(ambito.companyId, sorgente.id, { includiCosti: false });
+    expect(onAggiungi).toHaveBeenCalledTimes(1);
+    const [copiate, intestazione] = onAggiungi.mock.calls[0];
+    expect(intestazione).toBeNull();
+    expect(copiate.map((v: { descrizione: string }) => v.descrizione)).toEqual(["Rasatura", "Protezione opzionale"]);
+    expect(copiate[0]).toMatchObject({ costo: "", tariffa: "M01", misure: [{ descrizione: "Parete A", formula: "3*4" }] });
+    expect(copiate[0].id).not.toBe(voci[0].id);
+    expect(copiate[0].misure[0].id).not.toBe(voci[0].misure[0].id);
+    expect(voci[0].costo).toBe("12");
   });
 });

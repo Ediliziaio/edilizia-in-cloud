@@ -1,74 +1,85 @@
-/**
- * Vista esplosa a strati, come nei disegni CAD: la casa si apre in fette staccate lungo l'altezza,
- * dal basso: platea · pavimenti · pareti con porte, finestre e arredi · soffitti · tetto.
- * Non cambia nulla della pianta: sposta in alto le mesh di ogni strato di un multiplo della distanza,
- * così si vede cosa sta dentro e come è fatto ogni strato.
- *
- * Con più piani ogni piano ha i suoi strati, uno sopra l'altro (la distanza fra strati resta la stessa).
- * Le aree esterne e il terreno non si muovono.
- */
-import { CostruttoreMesh } from "./costruttore";
 import { limitiDi } from "./scena";
-import type { Mesh3D, Scena3D } from "./tipi";
+import type { Mesh3D, Scena3D, StratoEsploso3D } from "./tipi";
 
-/** Strati dal basso: -1 platea, 0 pavimenti, 0,5 impianti, 1 pareti e arredi, 2 soffitti, 3 tetto. `null` = non si muove. */
-export function stratoDi(m: Pick<Mesh3D, "id" | "riferimento" | "genere">): number | null {
-  const base = m.id.includes("/") ? m.id.slice(m.id.lastIndexOf("/") + 1) : m.id;
-  if (base === "terreno" || base === "marciapiede" || base.startsWith("area:")) return null;
-  if (base === "edificio-sotto" || base === "platea") return -1;
-  if (m.riferimento === "tetto" || base.startsWith("tetto")) return 3;
-  if (base.startsWith("soffitto:")) return 2;
-  if (base.startsWith("pavimento:")) return 0;
-  // tubi e cavi corrono sul pavimento: nella vista esplosa stanno a metà fra il pavimento e le pareti, ben visibili
-  if (base.startsWith("impianto:")) return 0.5;
-  return 1;
+export const STRATI_ESPLOSO: readonly { id: StratoEsploso3D; nome: string }[] = [
+  { id: "fondazioni", nome: "Fondazioni schematiche" },
+  { id: "pavimenti", nome: "Pavimenti" },
+  { id: "impianti", nome: "Impianti" },
+  { id: "pareti", nome: "Pareti e serramenti" },
+  { id: "arredi", nome: "Arredi e sanitari" },
+  { id: "soffitti", nome: "Soffitti" },
+  { id: "copertura", nome: "Copertura" },
+];
+
+const ordineStrati = new Map(STRATI_ESPLOSO.map(({ id }, index) => [id, index]));
+const prefissoPiano = (id: string) => id.includes("/") ? id.slice(0, id.lastIndexOf("/")) : "";
+const chiaveStrato = (piano: string, strato: StratoEsploso3D) => `${piano}/${strato}`;
+
+export function stratoDi(m: Pick<Mesh3D, "id" | "riferimento" | "genere" | "stratoEsploso">): StratoEsploso3D | null {
+  if (m.stratoEsploso !== undefined) return m.stratoEsploso;
+  const base = m.id.slice(m.id.lastIndexOf("/") + 1);
+  if (base === "terreno" || base === "marciapiede" || base === "edificio-sotto" || base.startsWith("area:")) return null;
+  if (base === "fondazioni" || base === "platea") return "fondazioni";
+  if (m.riferimento === "tetto" || base.startsWith("tetto")) return "copertura";
+  if (base.startsWith("soffitto:")) return "soffitti";
+  if (base.startsWith("pavimento:")) return "pavimenti";
+  if (base.startsWith("impianto:")) return "impianti";
+  if (base.startsWith("elemento:")) return "arredi";
+  return "pareti";
 }
 
-/** Il soffitto è una superficie sola, visibile solo da sotto: nella vista esplosa si guarda anche da sopra, quindi si aggiunge la faccia opposta. */
+/** Il soffitto è una superficie sola, visibile da sotto nella scena ordinaria. */
 function aDoppiaFaccia(m: Mesh3D): Mesh3D {
   const n = m.posizioni.length / 3;
   const indici = m.indici.slice();
   for (let i = 0; i + 2 < m.indici.length; i += 3) indici.push(m.indici[i] + n, m.indici[i + 2] + n, m.indici[i + 1] + n);
-  return { ...m, posizioni: m.posizioni.concat(m.posizioni), normali: m.normali.concat(m.normali.map((x) => -x)), indici };
+  return { ...m, posizioni: m.posizioni.concat(m.posizioni), normali: m.normali.concat(m.normali.map(x => -x)), indici };
 }
 
-const MATERIALE_PLATEA = { nome: "Platea di fondazione", colore: "#9c978d", opacita: 1, ruvidita: 0.95 };
+interface Gruppo {
+  piano: string;
+  strato: StratoEsploso3D;
+  min: number;
+  max: number;
+}
 
-const prefissoPiano = (id: string) => (id.includes("/") ? id.slice(0, id.lastIndexOf("/")) : "");
-
+/** Separa i gruppi usando il loro ingombro verticale, conservando geometria, X/Y della pianta e contesto esterno. */
 export function esplodiInStrati(scena: Scena3D, distanza: number): Scena3D {
-  if (!(distanza > 0) || !scena.mesh.length) return scena;
-  // i piani dal più basso: prima del loro prefisso, in ordine di altezza reale
-  const minPiano = new Map<string, number>();
+  if (!Number.isFinite(distanza) || distanza <= 0 || !scena.mesh.length) return scena;
+  const gruppi = new Map<string, Gruppo>(), quotePiani = new Map<string, number>();
   for (const m of scena.mesh) {
-    const p = prefissoPiano(m.id);
-    let y = Infinity;
-    for (let i = 1; i < m.posizioni.length; i += 3) y = Math.min(y, m.posizioni[i]);
-    minPiano.set(p, Math.min(minPiano.get(p) ?? Infinity, y));
-  }
-  const ordine = [...minPiano.entries()].sort((a, b) => a[1] - b[1]).map(([p]) => p);
-  const mesh: Mesh3D[] = scena.mesh.map((m) => {
     const strato = stratoDi(m);
-    if (strato === null) return m;
-    const dy = (ordine.indexOf(prefissoPiano(m.id)) * 4 + strato) * distanza;
-    if (dy === 0 && strato !== 2) return m;
-    const sorgente = strato === 2 ? aDoppiaFaccia(m) : m;
+    if (!strato || m.posizioni.length < 3) continue;
+    const piano = prefissoPiano(m.id);
+    const chiave = chiaveStrato(piano, strato);
+    const g = gruppi.get(chiave) ?? { piano, strato, min: Infinity, max: -Infinity };
+    for (let i = 1; i < m.posizioni.length; i += 3) {
+      g.min = Math.min(g.min, m.posizioni[i]);
+      g.max = Math.max(g.max, m.posizioni[i]);
+    }
+    gruppi.set(chiave, g);
+    quotePiani.set(piano, Math.min(quotePiani.get(piano) ?? Infinity, g.min));
+  }
+  const ordinati = [...gruppi.entries()].sort(([, a], [, b]) =>
+    quotePiani.get(a.piano)! - quotePiani.get(b.piano)! || a.piano.localeCompare(b.piano) ||
+    ordineStrati.get(a.strato)! - ordineStrati.get(b.strato)!);
+  const spostamenti = new Map<string, number>();
+  let precedente = -Infinity;
+  for (const [chiave, g] of ordinati) {
+    const base = Math.max(g.min, precedente + distanza);
+    spostamenti.set(chiave, base - g.min);
+    precedente = base + g.max - g.min;
+  }
+  const mesh = scena.mesh.map((m): Mesh3D => {
+    const strato = stratoDi(m);
+    if (!strato) return m;
+    const dy = spostamenti.get(chiaveStrato(prefissoPiano(m.id), strato)) ?? 0;
+    if (!dy && strato !== "soffitti") return m;
+    const sorgente = strato === "soffitti" ? aDoppiaFaccia(m) : m;
     const posizioni = sorgente.posizioni.slice();
     for (let k = 1; k < posizioni.length; k += 3) posizioni[k] += dy;
-    return { ...sorgente, posizioni };
+    const auto = sorgente.auto;
+    return { ...sorgente, posizioni, ...(auto ? { auto: { ...auto, centro: [auto.centro[0], auto.centro[1] + dy, auto.centro[2]] } } : {}) };
   });
-  const materiali = { ...scena.materiali };
-  // la platea: la lastra di fondazione sotto tutta la casa, un po' più larga dei muri
-  const l = limitiDi(scena.mesh, (g) => g === "muro");
-  if (Number.isFinite(l.min[0]) && l.max[0] > l.min[0] && !scena.mesh.some((m) => stratoDi(m) === -1)) {
-    const c = new CostruttoreMesh();
-    const margine = 0.4;
-    c.scatola((l.min[0] + l.max[0]) / 2, (l.min[2] + l.max[2]) / 2, -0.3, l.max[0] - l.min[0] + 2 * margine, l.max[2] - l.min[2] + 2 * margine, 0.3, 0);
-    const platea = c.mesh({ id: "platea", nome: "Platea di fondazione", genere: "pavimento", materiale: "platea", riferimento: "platea" });
-    const posizioni = platea.posizioni.slice();
-    for (let k = 1; k < posizioni.length; k += 3) posizioni[k] -= distanza;
-    mesh.push({ ...platea, posizioni });
-    materiali.platea = MATERIALE_PLATEA;
-  }
-  return { ...scena, mesh, materiali, limiti: limitiDi(mesh) };
+  return { ...scena, mesh, limiti: limitiDi(mesh) };
 }

@@ -8,11 +8,14 @@ import { alberoComputo, numeroVoce, tariffaVoce, type NodoComputo, type VoceComp
 import type { QuadroEconomico } from "./quadroEconomico";
 import { formatEuro } from "./computoStrutturato";
 import type { AllegatoPdfComputo } from "./allegatiLocali";
-import type { ImpostazioniIvaComputo } from "./ivaComputo";
+import { calcolaIvaComputo, type ImpostazioniIvaComputo } from "./ivaComputo";
+import { calcolaSconto, oneriSicurezza } from "./scontoComputo";
+import { arrotondaDecimale } from "./editorNativo";
 import { personalizzaDocumento } from "./personalizzaDocumento";
 import { compilaTestiComputo } from "./testiDocumentoComputo";
 import { preparaAssetModello, registraFontModello } from "./assetModello";
 import { fontStandard } from "./fontDocumento";
+import { disegnaPlanimetriaComputo, type PlanimetriaComputoPdf } from "./stampaPlanimetria";
 
 export type RigaStampa =
   | { tipo: "capitolo"; livello: number; testo: string }
@@ -65,6 +68,8 @@ export interface IntestazioneComputo extends ImpostazioniIvaComputo {
   vociOpzionali?: { descrizione: string; unita: string; quantita: number | null; prezzo: number | null; importo: number | null }[];
   /** La foto della copertina, già ritagliata a misura (data URL JPEG). */
   immagineCopertina?: { dati: string; larghezza: number; altezza: number } | null;
+  /** La stessa revisione e variante da cui sono state ricavate le lavorazioni. */
+  planimetria?: PlanimetriaComputoPdf;
   firmaCointestatario?: string;
   numero?: string;
   indirizzoIntervento?: string;
@@ -201,6 +206,25 @@ export async function esportaComputoXlsx(voci: VoceComputo[], intestazione: Inte
     if (c.livello === 0) row.font = { bold: true };
   }
   riep.getColumn("i").numFmt = numFmt;
+  if (!intestazione.senzaPrezzi && intestazione.mostraImporti !== false
+      && (intestazione.presentazione === "preventivo" || intestazione.sconto || intestazione.ivaModalita)
+      && voci.some(voce => voce.importo_computo != null)) {
+    const lordo = arrotondaDecimale(voci.reduce((totale, voce) => totale + (Number(voce.importo_computo) || 0), 0));
+    const sconto = calcolaSconto(lordo, intestazione.sconto, oneriSicurezza(voci));
+    if (sconto.errore) throw new Error(sconto.errore);
+    const fiscale = calcolaIvaComputo(lordo - sconto.importo, intestazione);
+    if (fiscale.errore) throw new Error(fiscale.errore);
+
+    riep.addRow({});
+    riep.addRow({ c: "Riepilogo preventivo" }).font = { bold: true };
+    riep.addRow({ c: "Totale dei lavori", i: lordo });
+    if (sconto.importo > 0) riep.addRow({ c: testo(sconto.etichetta), i: -sconto.importo });
+    riep.addRow({ c: "Imponibile", i: fiscale.imponibile });
+    const etichettaIva = fiscale.modalita === "non-applicabile" ? "IVA non applicabile"
+      : fiscale.iva == null ? "IVA da definire" : "IVA " + fiscale.aliquota?.toLocaleString("it-IT") + "%";
+    riep.addRow({ c: etichettaIva, i: fiscale.iva });
+    if (fiscale.totale != null) riep.addRow({ c: "Totale preventivo", i: fiscale.totale }).font = { bold: true };
+  }
   if (intestazione.quadro) {
     riep.addRow({});
     riep.addRow({ c: "QUADRO ECONOMICO" }).font = { bold: true };
@@ -268,6 +292,10 @@ export async function generaComputoPdf(voci: VoceComputo[], intestazione: Intest
     if (metadati.length) doc.text(metadati, m, y + 20);
     doc.text(`pag. ${pagina}`, W - m, y + 8, { align: "right" });
     y += 32 + Math.max(0, metadati.length - 1) * 10;
+    if (pagina === 1 && intestazione.planimetria) {
+      y += disegnaPlanimetriaComputo(doc, intestazione.planimetria, m, y, W - 2 * m, 185);
+      doc.setTextColor("#000000");
+    }
     doc.setFont("helvetica", "bold"); doc.setFontSize(7.5);
     doc.text("N.ord", col.n, y); doc.text("Tariffa", col.t, y); doc.text("DESIGNAZIONE DEI LAVORI", col.d, y);
     for (const [k, l] of [["pu", "par.ug."], ["lu", "lung."], ["la", "larg."], ["h", "H/peso"], ["q", "Quantità"], ["u", "Unitario"], ["i", "TOTALE"]] as const) {

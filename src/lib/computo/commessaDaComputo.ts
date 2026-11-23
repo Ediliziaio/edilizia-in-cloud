@@ -11,10 +11,11 @@
  * esplicita: inserirle qui farebbe ricalcolare il documento già deciso.
  */
 import { supabase } from "@/integrations/supabase/client";
-import { getModuleQuote, upsertModuleQuote, type ModuleQuoteInput } from "@/lib/moduli/quoteBridge";
+import { getModuleQuote, preparaDatiModuleQuote, type ModuleQuoteInput } from "@/lib/moduli/quoteBridge";
+import type { Json } from "@/integrations/supabase/types";
 import { personalizzazioneDocumento } from "../../../supabase/functions/_shared/personalizzazioneDocumenti";
 import { esitoOffertaModulo } from "@/lib/moduli/esitoOffertaModulo";
-import { calcolaVoce, ePercentuale, numeroEditor, type BozzaComputo } from "./editorNativo";
+import { arrotondaDecimale, calcolaVoce, ePercentuale, numeroEditor, type BozzaComputo } from "./editorNativo";
 
 export const MODULO_COMPUTO = "computo";
 
@@ -36,7 +37,7 @@ export type DatiCommessaComputo = {
  * Le righe del preventivo dalle voci del computo: una riga per voce, prezzi già scontati di riga a zero.
  * Il costo della voce, se manca, lo prende il database dal listino aziendale col codice (`codice_prezzario`).
  */
-export function righeDaComputo(d: Pick<DatiCommessaComputo, "bozza" | "aliquotaIva" | "conCosti" | "companyId">, quoteId: string) {
+export function righeDaComputo(d: Pick<DatiCommessaComputo, "bozza" | "aliquotaIva" | "conCosti" | "companyId">, quoteId?: string) {
   const fase = nomiFase(d.bozza.voci.map((v) => v.capitolo.trim() || "Lavorazioni"));
   return d.bozza.voci.map((v, k) => {
     const c = calcolaVoce(v);
@@ -115,9 +116,9 @@ export function fasiDaRate(rate: DatiCommessaComputo["rate"]) {
  * Le voci e i costi restano separati; il PDF originale conserva il dettaglio.
  */
 export function prezzoConcordatoComputo(d: Pick<DatiCommessaComputo, "subtotal" | "vatAmount" | "total" | "aliquotaIva">) {
-  const netto = Math.round(d.subtotal * 100) / 100;
+  const netto = arrotondaDecimale(d.subtotal);
   const aliquota = d.aliquotaIva ?? 0;
-  const iva = Math.round(netto * aliquota) / 100;
+  const iva = arrotondaDecimale(netto * aliquota / 100);
   if (![d.subtotal, d.vatAmount, d.total, aliquota].every(Number.isFinite) || netto < 0 || aliquota < 0
       || Math.abs(iva - d.vatAmount) > 0.005 || Math.abs(netto + iva - d.total) > 0.005) {
     throw new Error("Gli importi del computo non sono riconciliati: verifica imponibile, IVA e totale prima di creare la commessa.");
@@ -144,47 +145,41 @@ export function ritenutaPerCommessa(r: { percentuale?: string; su?: string; svin
 export async function preparaCommessaDaComputo(d: DatiCommessaComputo): Promise<string> {
   const prezzoConcordato = prezzoConcordatoComputo(d);
   const esistente = await getModuleQuote(d.companyId, MODULO_COMPUTO, d.draftId);
-  const deciso = !!esitoOffertaModulo(esistente);
-  const riga = deciso ? esistente! : await upsertModuleQuote({
+  if (esistente && esitoOffertaModulo(esistente)) {
+    const { count, error } = await supabase.from("quote_items").select("id", { count: "exact", head: true }).eq("quote_id", esistente.id);
+    if (error) throw new Error("Non riesco a leggere le righe del preventivo: riprova.");
+    if ((count ?? 0) > 0) return esistente.id;
+    throw new Error("Il preventivo già deciso non ha righe trasferibili. Verifica il documento originale prima di preparare la commessa.");
+  }
+  const righe = righeDaComputo(d);
+  if (!righe.length) throw new Error("Aggiungi almeno una lavorazione.");
+  const { quoteNumber, patch: datiModulo } = await preparaDatiModuleQuote({
     companyId: d.companyId, userId: d.userId, moduleKey: MODULO_COMPUTO, progettoId: d.draftId,
     titolo: d.bozza.titolo.trim() || "Preventivo con computo", clientName: d.bozza.committente.trim() || "Cliente",
     clientEmail: d.bozza.clienteEmail || null, clientPhone: d.bozza.clienteTelefono || null,
     subtotal: d.subtotal, vatAmount: d.vatAmount, total: d.total, validityDays: d.validityDays, pdfBlob: await d.generaPdf(),
     numeroDocumento: personalizzazioneDocumento(d.companyId).numeroAutomaticoComputo ? d.bozza.numero : null,
     ...d.recapitiFirma,
+  }, esistente, crypto.randomUUID());
+  const testata: Record<string, Json | undefined> = {
+    ...datiModulo, ...prezzoConcordato, quote_number: quoteNumber, payment_phases: fasiDaRate(d.rate),
+    ritenuta_garanzia: ritenutaPerCommessa(d.bozza.pianoPagamenti?.ritenuta),
+    contact_id: d.bozza.clienteId, customer_id: d.bozza.clienteAnagraficaId,
+    opportunity_id: d.bozza.opportunitaId, client_address: d.bozza.indirizzo.trim() || undefined,
+  };
+  const cf = d.bozza.clienteCodiceFiscale?.replace(/\s+/g, "").toUpperCase();
+  const piva = d.bozza.clientePartitaIva?.replace(/\s+/g, "").toUpperCase().replace(/^IT/, "");
+  if (cf) testata.client_fiscal_code = cf;
+  const tipoCliente = d.bozza.clienteTipo === "pa" && d.recapitiFirma?.clientTipo === "azienda"
+    ? "pa" : d.recapitiFirma?.clientTipo ?? d.bozza.clienteTipo;
+  if (tipoCliente) testata.client_tipo = tipoCliente;
+  if (!d.recapitiFirma && (tipoCliente === "azienda" || tipoCliente === "pa")) {
+    if (piva) testata.client_vat_number = piva;
+    if (d.bozza.committente.trim()) testata.client_company = d.bozza.committente.trim();
+  }
+  const { data, error } = await supabase.rpc("prepara_commessa_computo_atomic", {
+    p_azienda: d.companyId, p_computo: d.draftId, p_testata: testata, p_righe: righe,
   });
-  const { count, error: erroreConta } = await supabase.from("quote_items").select("id", { count: "exact", head: true }).eq("quote_id", riga.id);
-  if (erroreConta) throw new Error("Non riesco a leggere le righe del preventivo: riprova.");
-  if (deciso && (count ?? 0) > 0) return riga.id;
-  if (deciso) throw new Error("Il preventivo già deciso non ha righe trasferibili. Verifica il documento originale prima di preparare la commessa: gli importi confermati non sono stati modificati.");
-  if (!deciso && (count ?? 0) > 0) {
-    const { error } = await supabase.from("quote_items").delete().eq("quote_id", riga.id);
-    if (error) throw new Error("Non riesco ad aggiornare le righe del preventivo: riprova.");
-  }
-  const righe = righeDaComputo(d, riga.id);
-  if (righe.length) {
-    const { error } = await supabase.from("quote_items").insert(righe as never);
-    if (error) throw new Error(`Righe del preventivo non salvate: ${error.message}`);
-  }
-  if (!deciso) {
-    const patch: Record<string, unknown> = { ...prezzoConcordato, payment_phases: fasiDaRate(d.rate), ritenuta_garanzia: ritenutaPerCommessa(d.bozza.pianoPagamenti?.ritenuta) };
-    if (d.bozza.clienteId) patch.contact_id = d.bozza.clienteId;
-    if (d.bozza.clienteAnagraficaId) patch.customer_id = d.bozza.clienteAnagraficaId;
-    if (d.bozza.opportunitaId) patch.opportunity_id = d.bozza.opportunitaId;
-    if (d.bozza.indirizzo.trim()) patch.client_address = d.bozza.indirizzo.trim();
-    // I dati fiscali del cliente passano alla commessa e poi alla fattura (30/10/2026).
-    const cf = d.bozza.clienteCodiceFiscale?.replace(/\s+/g, "").toUpperCase(), piva = d.bozza.clientePartitaIva?.replace(/\s+/g, "").toUpperCase().replace(/^IT/, "");
-    if (cf) patch.client_fiscal_code = cf;
-    // Il tipo del cliente arriva alla commessa: un ente pubblico non diventa un «Privato» (17/11/2026).
-    const tipoCliente = d.bozza.clienteTipo === "pa" && d.recapitiFirma?.clientTipo === "azienda"
-      ? "pa" : d.recapitiFirma?.clientTipo ?? d.bozza.clienteTipo;
-    if (tipoCliente) patch.client_tipo = tipoCliente;
-    if (!d.recapitiFirma && (tipoCliente === "azienda" || tipoCliente === "pa")) {
-      if (piva) patch.client_vat_number = piva;
-      if (d.bozza.committente.trim()) patch.client_company = d.bozza.committente.trim();
-    }
-    const { error } = await supabase.from("quotes").update(patch as never).eq("id", riga.id);
-    if (error) throw new Error(`Rate e cliente non salvati sul preventivo: ${error.message}`);
-  }
-  return riga.id;
+  if (error || !data) throw new Error(error?.message ?? "Il preventivo per la commessa non è stato salvato.");
+  return data;
 }
