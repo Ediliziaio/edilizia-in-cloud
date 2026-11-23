@@ -37,6 +37,11 @@ export interface IpotesiFabbisogno {
   secchioCollaParquetKg: number;
   pezzoBattiscopaM: number;
   sfridoBattiscopa: number;
+  /** Pavimento radiante: rotolo di tubo, pannello isolante bugnato, massetto sopra i tubi. */
+  rotoloTuboM: number;
+  pannelloRadianteMq: number;
+  sfridoPannelli: number;
+  massettoRadianteCm: number;
 }
 
 export const IPOTESI_FABBISOGNO: IpotesiFabbisogno = {
@@ -47,6 +52,7 @@ export const IPOTESI_FABBISOGNO: IpotesiFabbisogno = {
   collaPiastrelleKgMq: 4.5, collaRivestimentoKgMq: 3, saccoCollaKg: 25, stuccoKgMq: 0.4, saccoStuccoKg: 5,
   collaParquetKgMq: 1.2, secchioCollaParquetKg: 15,
   pezzoBattiscopaM: 2.4, sfridoBattiscopa: 0.1,
+  rotoloTuboM: 200, pannelloRadianteMq: 1.12, sfridoPannelli: 0.05, massettoRadianteCm: 4.5,
 };
 
 export type TipoPavimento = "legno" | "flottante" | "piastrelle";
@@ -56,7 +62,7 @@ export interface RigaFabbisogno {
   materiale: string;
   /** Quantità da comprare, già con sfrido e mani. */
   quantita: number;
-  unita: "l" | "m²" | "m" | "kg";
+  unita: "l" | "m²" | "m" | "kg" | "m³";
   /** Confezioni intere: «3 secchi da 14 l». */
   confezioni: { numero: number; nome: string } | null;
   /** Come è stato calcolato, in una riga. */
@@ -88,7 +94,7 @@ export function mqScatolaDa(descrizione: string | undefined, predefinito: number
 }
 
 type Stanza = { id: string; nome: string; destinazione: string; pavimento?: string; rivestimento?: boolean;
-  m: { pareti: number; soffitto: number; pavimento: number; rivestimento: number; battiscopa: number } };
+  m: { pareti: number; soffitto: number; pavimento: number; rivestimento: number; battiscopa: number; perimetro: number; radianteMq: number; tuboRadianteM: number } };
 
 function stanzeDellAmbito(p: Planimetria, ambito: string): Stanza[] {
   const q = calcolaQuantita(p);
@@ -108,12 +114,16 @@ function stanzeDellAmbito(p: Planimetria, ambito: string): Stanza[] {
     const id = k.soggetto.slice("locale:".length);
     const info = locali.get(id);
     if (!info) continue;
-    const s = per.get(id) ?? { id, ...info, m: { pareti: 0, soffitto: 0, pavimento: 0, rivestimento: 0, battiscopa: 0 } };
+    const s = per.get(id) ?? { id, ...info, m: { pareti: 0, soffitto: 0, pavimento: 0, rivestimento: 0, battiscopa: 0, perimetro: 0, radianteMq: 0, tuboRadianteM: 0 } };
     if (k.misura === "pareti_nette_mq") s.m.pareti = v.valore;
     else if (k.misura === "soffitto_mq") s.m.soffitto = v.valore;
     else if (k.misura === "pavimento_mq") s.m.pavimento = v.valore;
     else if (k.misura === "rivestimento_mq") s.m.rivestimento = v.valore;
     else if (k.misura === "battiscopa_ml") s.m.battiscopa = v.valore;
+    else if (k.misura === "perimetro_ml") s.m.perimetro = v.valore;
+    else if (k.misura === "radiante_mq") s.m.radianteMq = v.valore;
+    // il tubo della zona: lo sviluppo dei circuiti se tracciati (con mandata e ritorno), altrimenti la stima
+    else if (k.misura === "radiante_tubo_ml") s.m.tuboRadianteM = v.valore;
     per.set(id, s);
   }
   return [...per.values()].filter((s) => !/balcon|terrazz|giardino/.test(s.destinazione));
@@ -213,6 +223,28 @@ export function fabbisognoMateriali(p: Planimetria, ambito: string, ipotesi: Par
     confezioni: confezioni(m, h.pezzoBattiscopaM, (n) => `${n} ${n === 1 ? "pezzo" : "pezzi"} da ${fmt(h.pezzoBattiscopaM)} m`),
     come: `perimetro senza le porte + ${Math.round(h.sfridoBattiscopa * 100)}% per tagli e angoli`,
     stanze: conBattiscopa.map((s) => ({ nome: s.nome, valore: s.m.battiscopa * (1 + h.sfridoBattiscopa) })) });
+
+  // Pavimento radiante: gli stessi metri dei circuiti che vede il computo.
+  const radiante = stanze.filter((s) => s.m.radianteMq > 0);
+  if (radiante.length) {
+    const tubo = radiante.reduce((t, s) => t + s.m.tuboRadianteM, 0);
+    riga({ id: "radiante_tubo", materiale: "Tubo per pavimento radiante (PE-Xa 17×2)", unita: "m",
+      confezioni: confezioni(tubo, h.rotoloTuboM, (n) => `${n} ${n === 1 ? "rotolo" : "rotoli"} da ${h.rotoloTuboM} m`),
+      come: "sviluppo dei circuiti con andata e ritorno al collettore (la stima a passo se i circuiti non ci sono)",
+      stanze: radiante.map((s) => ({ nome: s.nome, valore: s.m.tuboRadianteM })) });
+    const pannelli = radiante.reduce((t, s) => t + s.m.radianteMq * (1 + h.sfridoPannelli), 0);
+    riga({ id: "radiante_pannelli", materiale: "Pannello isolante bugnato per radiante", unita: "m²",
+      confezioni: confezioni(pannelli, h.pannelloRadianteMq, (n) => `${n} ${n === 1 ? "pannello" : "pannelli"} da ${fmt(h.pannelloRadianteMq, 2)} m²`),
+      come: `area riscaldata + ${Math.round(h.sfridoPannelli * 100)}% di sfrido`,
+      stanze: radiante.map((s) => ({ nome: s.nome, valore: s.m.radianteMq * (1 + h.sfridoPannelli) })) });
+    riga({ id: "radiante_striscia", materiale: "Striscia isolante perimetrale", unita: "m",
+      confezioni: confezioni(radiante.reduce((t, s) => t + s.m.perimetro, 0), 50, (n) => `${n} ${n === 1 ? "rotolo" : "rotoli"} da 50 m`),
+      come: "perimetro delle stanze con radiante",
+      stanze: radiante.map((s) => ({ nome: s.nome, valore: s.m.perimetro })) });
+    riga({ id: "radiante_massetto", materiale: "Massetto sopra i tubi", unita: "m³", confezioni: null,
+      come: `${fmt(h.massettoRadianteCm)} cm sopra i tubi sull'area riscaldata`,
+      stanze: radiante.map((s) => ({ nome: s.nome, valore: s.m.radianteMq * h.massettoRadianteCm / 100 })) });
+  }
 
   return righe;
 }

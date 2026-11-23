@@ -70,3 +70,25 @@ describe("fabbisogno materiali dalla pianta", () => {
     expect(mqScatolaDa("senza formato", 1.2)).toBe(1.2);
   });
 });
+
+describe("fabbisogno del pavimento radiante", () => {
+  it("tubo in rotoli con gli stessi metri del computo, pannelli, striscia e massetto", async () => {
+    const { calcolaQuantita } = await import("../../../shared/planimetrie/quantita");
+    const p = base();
+    const s = p.livelli[0].fatto;
+    s.pavimentoRadiante = s.locali.map((l) => ({ localeId: l.id, passoCm: 15, superficieEsclusaMq: 0 }));
+    const ingresso = s.locali.find((l) => /ingresso/i.test(l.nome))!;
+    const xs = ingresso.contorno.map((q) => q.x), ys = ingresso.contorno.map((q) => q.y);
+    s.collettoreRadiante = { posizione: { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: Math.min(...ys) + 15 }, quotaCm: 55, limiteCircuitoM: 90 };
+    const righe = fabbisognoMateriali(p, "fatto");
+    const tubo = riga(righe, "radiante_tubo")!;
+    const computo = Object.values(calcolaQuantita(p)).filter((v) => v.ambito === "fatto" && v.chiave.endsWith(".radiante_tubo_ml")).reduce((t, v) => t + v.valore, 0);
+    expect(tubo.quantita).toBeCloseTo(computo, 0);
+    expect(tubo.confezioni!.nome).toMatch(/rotol[io] da 200 m/);
+    expect(riga(righe, "radiante_pannelli")!.confezioni!.nome).toMatch(/pannelli da 1,12 m²/);
+    expect(riga(righe, "radiante_massetto")!.unita).toBe("m³");
+    expect(riga(righe, "radiante_striscia")).toBeDefined();
+    // senza radiante le righe non ci sono
+    expect(riga(fabbisognoMateriali(base(), "fatto"), "radiante_tubo")).toBeUndefined();
+  });
+});
