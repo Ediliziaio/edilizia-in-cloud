@@ -9,7 +9,7 @@ import { coloriContraddittori } from "../../../shared/render-room/colours.ts";
 import { COLORI_INFISSI_PROGETTO, PROFILI_PROGETTO, descrizionePavimento, statoConMateriali } from "../../../shared/planimetrie/materialiProgetto.ts";
 import { svgPiantaStanza } from "../../../shared/render-planimetria/piantaStanza.ts";
 import { NOMI_VERIFICA, verificaPianta, type Verifica } from "../../../shared/planimetrie/verifiche.ts";
-import { fabbisognoMateriali } from "../../../shared/planimetrie/fabbisogno.ts";
+import { FASI_FABBISOGNO, fabbisognoMateriali } from "../../../shared/planimetrie/fabbisogno.ts";
 import { DATI_URBANISTICI, firmaRiscontroTecnico, RISCONTRI_TECNICI, RUOLI_TAVOLA, valutaUrbanistica } from "../../../shared/planimetrie/urbanistica.ts";
 import { selectedRoomVisuals } from "../../../shared/render-references/roomVisualCatalog.ts";
 import { makeReferenceImage } from "../../../shared/render-references/referenceUrl.ts";
@@ -462,10 +462,16 @@ export async function esportaFascicolo(d: DatiFascicolo): Promise<{ dati: Uint8A
   if (materiali.length) {
     avanza("Materiali da comprare");
     nuovaPagina("Materiali da comprare", `${nomeAmbito} · rese tipiche di cantiere, da confermare con le schede dei prodotti`, true);
-    for (const r of materiali) {
-      testo(`${r.materiale}: ${r.quantita.toLocaleString("it-IT")} ${r.unita}${r.confezioni ? ` · ${r.confezioni.nome}` : ""}`, 11, true);
-      testo(r.come);
+    for (const f of FASI_FABBISOGNO.filter((f) => materiali.some((r) => r.fase === f.id))) {
+      testo(f.nome, 12, true);
+      testo(f.posa);
       y -= 4;
+      for (const r of materiali.filter((r) => r.fase === f.id)) {
+        testo(`${r.materiale}: ${r.quantita.toLocaleString("it-IT")} ${r.unita}${r.confezioni ? ` · ${r.confezioni.nome}` : ""}`, 11, true);
+        testo(r.come);
+        y -= 4;
+      }
+      y -= 6;
     }
   }
   nuovaPagina("Riepilogo e punti da verificare", nomeAmbito, true);

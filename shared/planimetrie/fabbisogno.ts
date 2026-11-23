@@ -39,6 +39,13 @@ export interface IpotesiFabbisogno {
   sfridoBattiscopa: number;
   /** Pavimento radiante: rotolo di tubo, pannello isolante bugnato, massetto sopra i tubi. */
   rotoloTuboM: number;
+  /** Massetto premiscelato: kg per m³ in opera. */
+  massettoKgM3: number;
+  /** Tramezzi in forati da 8 cm: pezzi a m², malta e intonaco. */
+  foratiMq: number;
+  maltaKgMq: number;
+  intonacoKgMqCm: number;
+  intonacoCm: number;
   pannelloRadianteMq: number;
   sfridoPannelli: number;
   massettoRadianteCm: number;
@@ -52,7 +59,7 @@ export const IPOTESI_FABBISOGNO: IpotesiFabbisogno = {
   collaPiastrelleKgMq: 4.5, collaRivestimentoKgMq: 3, saccoCollaKg: 25, stuccoKgMq: 0.4, saccoStuccoKg: 5,
   collaParquetKgMq: 1.2, secchioCollaParquetKg: 15,
   pezzoBattiscopaM: 2.4, sfridoBattiscopa: 0.1,
-  rotoloTuboM: 200, pannelloRadianteMq: 1.12, sfridoPannelli: 0.05, massettoRadianteCm: 4.5,
+  rotoloTuboM: 200, massettoKgM3: 2000, foratiMq: 16, maltaKgMq: 18, intonacoKgMqCm: 13, intonacoCm: 1.5, pannelloRadianteMq: 1.12, sfridoPannelli: 0.05, massettoRadianteCm: 4.5,
 };
 
 export type TipoPavimento = "legno" | "flottante" | "piastrelle";
@@ -68,7 +75,31 @@ export interface RigaFabbisogno {
   /** Come è stato calcolato, in una riga. */
   come: string;
   stanze: Array<{ nome: string; valore: number }>;
+  /** La fase di cantiere in cui si usa (vedi FASI_FABBISOGNO). */
+  fase: FaseFabbisogno;
 }
+
+/**
+ * Le fasi nell'ordine in cui si lavorano in cantiere, con la posa in breve: la lista
+ * della spesa si legge come la legge un capocantiere (23/11/2026).
+ */
+export const FASI_FABBISOGNO = [
+  { id: "murature", nome: "1 · Murature", posa: "Tramezzi nuovi in laterizio forato con malta; a muro asciutto intonaco sulle due facce (rinzaffo, arriccio, finitura). Prima di intonacare si passano le tracce degli impianti." },
+  { id: "radiante", nome: "2 · Impianti a pavimento e massetto", posa: "Striscia perimetrale contro i muri, pannelli isolanti a giunti sfalsati, tubo dal collettore a serpentina senza giunzioni, prova di tenuta in pressione, massetto con i tubi in pressione. Stagionatura e primo avviamento graduale prima del pavimento (circa 4 settimane per il sabbia-cemento)." },
+  { id: "pavimenti", nome: "3 · Pavimenti e rivestimenti", posa: "Su massetto asciutto e planare: piastrelle con colla a doppia spalmatura sui formati grandi, fughe dopo 24 ore; parquet incollato su massetto con umidità controllata (primer se serve), senza calpestio per 24–48 ore." },
+  { id: "tinteggiatura", nome: "4 · Tinteggiatura", posa: "Stuccatura e carteggiatura dove serve, una mano di fissativo, poi due mani di pittura a distanza di 4–6 ore; prima i soffitti, poi le pareti." },
+  { id: "finiture", nome: "5 · Finiture", posa: "Battiscopa per ultimo, a pittura asciutta: incollato o fissato, tagli a 45° negli angoli." },
+] as const;
+export type FaseFabbisogno = typeof FASI_FABBISOGNO[number]["id"];
+
+const FASE_DI: Record<string, FaseFabbisogno> = {
+  tramezzo_laterizio: "murature", tramezzo_malta: "murature", tramezzo_intonaco: "murature",
+  radiante_striscia: "radiante", radiante_pannelli: "radiante", radiante_tubo: "radiante", radiante_massetto: "radiante",
+  pavimento_piastrelle: "pavimenti", pavimento_legno: "pavimenti", pavimento_flottante: "pavimenti", colla_parquet: "pavimenti",
+  rivestimento: "pavimenti", colla_piastrelle: "pavimenti", stucco: "pavimenti",
+  fissativo: "tinteggiatura", pittura: "tinteggiatura",
+  battiscopa: "finiture",
+};
 
 const arrotonda = (n: number, d = 1) => Math.round(n * 10 ** d) / 10 ** d;
 const fmt = (n: number, cifre = 1) => n.toLocaleString("it-IT", { maximumFractionDigits: cifre });
@@ -129,19 +160,46 @@ function stanzeDellAmbito(p: Planimetria, ambito: string): Stanza[] {
   return [...per.values()].filter((s) => !/balcon|terrazz|giardino/.test(s.destinazione));
 }
 
+/** I tramezzi nuovi (fino a 15 cm) della variante, con i m² di parete. */
+function tramezziNuovi(p: Planimetria, ambito: string): Array<{ nome: string; mq: number }> {
+  if (!ambito.startsWith("progetto:")) return [];
+  const id = ambito.slice("progetto:".length);
+  return p.livelli.flatMap((l) => (l.proposte.find((x) => x.id === id)?.muri ?? [])
+    .filter((m) => m.stato === "nuovo" && m.spessore <= 15)
+    .map((m, i) => ({ nome: `${l.nome} · tramezzo ${i + 1}`, mq: Math.hypot(m.p2.x - m.p1.x, m.p2.y - m.p1.y) * (m.altezza ?? 270) / 10_000 })));
+}
+
 export function fabbisognoMateriali(p: Planimetria, ambito: string, ipotesi: Partial<IpotesiFabbisogno> = {}): RigaFabbisogno[] {
   const h = { ...IPOTESI_FABBISOGNO, ...ipotesi };
   const stanze = stanzeDellAmbito(p, ambito);
   if (!stanze.length) return [];
   const righe: RigaFabbisogno[] = [];
-  const riga = (r: Omit<RigaFabbisogno, "quantita" | "stanze"> & { stanze: Array<{ nome: string; valore: number }> }) => {
+  const riga = (r: Omit<RigaFabbisogno, "quantita" | "stanze" | "fase"> & { stanze: Array<{ nome: string; valore: number }> }) => {
     const quantita = arrotonda(r.stanze.reduce((t, s) => t + s.valore, 0));
-    if (quantita > 0) righe.push({ ...r, quantita, stanze: r.stanze.filter((s) => s.valore > 0).map((s) => ({ ...s, valore: arrotonda(s.valore) })) });
+    if (quantita > 0) righe.push({ ...r, fase: FASE_DI[r.id] ?? "finiture", quantita, stanze: r.stanze.filter((s) => s.valore > 0).map((s) => ({ ...s, valore: arrotonda(s.valore) })) });
   };
   const confezioni = (q: number, misura: number, nome: (n: number) => string) => {
     const numero = Math.ceil(q / misura - 1e-9);
     return numero > 0 ? { numero, nome: nome(numero) } : null;
   };
+
+  // Tramezzi nuovi della variante: laterizio forato, malta, intonaco sulle due facce.
+  const nuovi = tramezziNuovi(p, ambito);
+  if (nuovi.length) {
+    const mq = nuovi.reduce((t, m) => t + m.mq, 0);
+    riga({ id: "tramezzo_laterizio", materiale: "Laterizio forato da 8 cm (tramezzi nuovi)", unita: "m²",
+      confezioni: { numero: Math.ceil(mq * h.foratiMq * 1.05), nome: `${Math.ceil(mq * h.foratiMq * 1.05)} forati 8×25×25 (con 5% di rotture)` },
+      come: `${fmt(mq)} m² di tramezzo × ${h.foratiMq} pezzi/m²`,
+      stanze: nuovi.map((m) => ({ nome: m.nome, valore: m.mq })) });
+    riga({ id: "tramezzo_malta", materiale: "Malta per murature", unita: "kg",
+      confezioni: confezioni(mq * h.maltaKgMq, 25, (n) => `${n} ${n === 1 ? "sacco" : "sacchi"} da 25 kg`),
+      come: `${fmt(h.maltaKgMq)} kg/m² di tramezzo`,
+      stanze: nuovi.map((m) => ({ nome: m.nome, valore: m.mq * h.maltaKgMq })) });
+    riga({ id: "tramezzo_intonaco", materiale: "Intonaco premiscelato (due facce)", unita: "kg",
+      confezioni: confezioni(mq * 2 * h.intonacoKgMqCm * h.intonacoCm, 25, (n) => `${n} ${n === 1 ? "sacco" : "sacchi"} da 25 kg`),
+      come: `2 facce × ${fmt(h.intonacoCm)} cm × ${fmt(h.intonacoKgMqCm)} kg/m² per cm`,
+      stanze: nuovi.map((m) => ({ nome: m.nome, valore: m.mq * 2 * h.intonacoKgMqCm * h.intonacoCm })) });
+  }
 
   // Pittura: pareti (senza la parte piastrellata) e soffitti, per le mani previste.
   const daPitturare = stanze.map((s) => ({ nome: s.nome, mq: Math.max(0, s.m.pareti - s.m.rivestimento) + s.m.soffitto }));
@@ -241,10 +299,13 @@ export function fabbisognoMateriali(p: Planimetria, ambito: string, ipotesi: Par
       confezioni: confezioni(radiante.reduce((t, s) => t + s.m.perimetro, 0), 50, (n) => `${n} ${n === 1 ? "rotolo" : "rotoli"} da 50 m`),
       come: "perimetro delle stanze con radiante",
       stanze: radiante.map((s) => ({ nome: s.nome, valore: s.m.perimetro })) });
-    riga({ id: "radiante_massetto", materiale: "Massetto sopra i tubi", unita: "m³", confezioni: null,
-      come: `${fmt(h.massettoRadianteCm)} cm sopra i tubi sull'area riscaldata`,
+    const m3 = radiante.reduce((t, s) => t + s.m.radianteMq * h.massettoRadianteCm / 100, 0);
+    riga({ id: "radiante_massetto", materiale: "Massetto sopra i tubi (sabbia e cemento)", unita: "m³",
+      confezioni: confezioni(m3 * h.massettoKgM3, 25, (n) => `${n} ${n === 1 ? "sacco" : "sacchi"} da 25 kg di premiscelato`),
+      come: `${fmt(h.massettoRadianteCm)} cm sopra i tubi sull'area riscaldata (premiscelato ~${fmt(h.massettoKgM3 / 1000, 1)} t/m³)`,
       stanze: radiante.map((s) => ({ nome: s.nome, valore: s.m.radianteMq * h.massettoRadianteCm / 100 })) });
   }
 
-  return righe;
+  const ordine = FASI_FABBISOGNO.map((f) => f.id);
+  return righe.sort((a, b) => ordine.indexOf(a.fase) - ordine.indexOf(b.fase));
 }

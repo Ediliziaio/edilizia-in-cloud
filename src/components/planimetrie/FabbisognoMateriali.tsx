@@ -8,7 +8,7 @@
 import { useMemo, useState } from "react";
 import { ChevronDown, PaintBucket } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { fabbisognoMateriali, IPOTESI_FABBISOGNO } from "../../../shared/planimetrie/fabbisogno.ts";
+import { FASI_FABBISOGNO, fabbisognoMateriali, IPOTESI_FABBISOGNO } from "../../../shared/planimetrie/fabbisogno.ts";
 import type { Planimetria } from "../../../shared/planimetrie/modello.ts";
 
 const fmt = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits: 1 });
@@ -21,8 +21,8 @@ export function FabbisognoMateriali({ documento, ambito, titolo = "Materiali da 
   if (!righe.length) return null;
 
   const scarica = () => {
-    const csv = [["Materiale", "Quantità", "Unità", "Da comprare", "Come", "Per stanza"],
-      ...righe.map((r) => [r.materiale, fmt(r.quantita), r.unita, r.confezioni?.nome ?? "", r.come, r.stanze.map((s) => `${s.nome}: ${fmt(s.valore)}`).join("; ")])]
+    const csv = [["Fase", "Materiale", "Quantità", "Unità", "Da comprare", "Come", "Per stanza"],
+      ...righe.map((r) => [FASI_FABBISOGNO.find((f) => f.id === r.fase)?.nome ?? "", r.materiale, fmt(r.quantita), r.unita, r.confezioni?.nome ?? "", r.come, r.stanze.map((s) => `${s.nome}: ${fmt(s.valore)}`).join("; ")])]
       .map((riga) => riga.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(";")).join("\n");
     const url = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
     const a = document.createElement("a");
@@ -51,8 +51,12 @@ export function FabbisognoMateriali({ documento, ambito, titolo = "Materiali da 
           </select>
         </label>
       </div>
+      {FASI_FABBISOGNO.filter((f) => righe.some((r) => r.fase === f.id)).map((f) => (
+      <div key={f.id} className="space-y-1.5">
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{f.nome}</h4>
+        <p className="text-xs leading-relaxed text-muted-foreground">{f.posa}</p>
       <ul className="divide-y rounded-lg border">
-        {righe.map((r) => (
+        {righe.filter((r) => r.fase === f.id).map((r) => (
           <li key={r.id}>
             <button type="button" onClick={() => setAperta((v) => (v === r.id ? null : r.id))} aria-expanded={aperta === r.id}
               className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-muted/50">
@@ -74,6 +78,8 @@ export function FabbisognoMateriali({ documento, ambito, titolo = "Materiali da 
           </li>
         ))}
       </ul>
+      </div>
+      ))}
     </section>
   );
 }

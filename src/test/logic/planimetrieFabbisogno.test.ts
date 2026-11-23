@@ -35,6 +35,15 @@ describe("fabbisogno materiali dalla pianta", () => {
     expect(riga(righe, "battiscopa")!.confezioni!.nome).toMatch(/pezzi da 2,4 m/);
   });
 
+  it("le righe seguono l'ordine del cantiere: murature, radiante, pavimenti, tinteggiatura, finiture", async () => {
+    const { FASI_FABBISOGNO } = await import("../../../shared/planimetrie/fabbisogno");
+    const ordine = FASI_FABBISOGNO.map((f) => f.id);
+    const fasi = righe.map((r) => ordine.indexOf(r.fase));
+    expect(fasi).toEqual([...fasi].sort((a, b) => a - b));
+    expect(riga(righe, "battiscopa")!.fase).toBe("finiture");
+    expect(riga(righe, "pittura")!.fase).toBe("tinteggiatura");
+  });
+
   it("le ipotesi si possono cambiare: 3 mani invece di 2 = 50% di pittura in più", () => {
     const tre = riga(fabbisognoMateriali(base(), "fatto", { maniPittura: 3 }), "pittura")!;
     expect(tre.quantita / riga(righe, "pittura")!.quantita).toBeCloseTo(1.5, 1);
@@ -109,6 +118,15 @@ describe("frazionare una stanza con il pavimento radiante", () => {
     p.livelli[0].proposte = [proposta as never];
     const v = validaPlanimetria(JSON.parse(JSON.stringify(p)));
     expect("errori" in v ? v.errori : []).toEqual([]);
-    expect(riga(fabbisognoMateriali(p, "progetto:fraz"), "radiante_pannelli")!.stanze).toHaveLength(2);
+    const dopo = fabbisognoMateriali(p, "progetto:fraz");
+    expect(riga(dopo, "radiante_pannelli")!.stanze).toHaveLength(2);
+    // il tramezzo nuovo porta forati, malta e intonaco, nella fase «Murature», prima di tutto
+    const forati = riga(dopo, "tramezzo_laterizio")!;
+    expect(forati.fase).toBe("murature");
+    expect(forati.confezioni!.nome).toMatch(/forati 8×25×25/);
+    expect(riga(dopo, "tramezzo_intonaco")!.come).toMatch(/2 facce/);
+    expect(dopo[0].fase).toBe("murature");
+    // nello stato di fatto non ci sono tramezzi nuovi
+    expect(riga(fabbisognoMateriali(p, "fatto"), "tramezzo_laterizio")).toBeUndefined();
   });
 });
