@@ -18,7 +18,13 @@ beforeEach(() => {
   vi.stubGlobal("URL", class extends URL { static createObjectURL() { return "blob:prova"; } static revokeObjectURL() {} });
   vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
 });
-afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+afterEach(async () => {
+  cleanup();
+  // Radix ripristina il focus con un timer dopo lo smontaggio del dialogo.
+  await new Promise<void>(resolve => setTimeout(resolve, 0));
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 describe("stato del progetto conservato fino al fascicolo", () => {
   it.each([
