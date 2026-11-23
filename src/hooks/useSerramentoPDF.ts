@@ -27,6 +27,7 @@ import { disegniDelPreventivo, type DisegnoPdf, type RigaPerDisegno } from "@/li
 import { blocchiAccesi, fotoDeiBlocchi, fotoDellePagine } from "@/lib/pdf/fotoBlocchi";
 import { caricaFotoPianoLavori, type FotoPianoLavoriPdf } from "@/lib/serramenti/fotoPianoLavoriPdf";
 import { immaginiCatalogoPdf } from "@/lib/serramenti/immaginiCatalogoPdf";
+import { memoriaCatalogoPdf, type MemoriaCatalogo } from "@/lib/serramenti/memoriaCatalogoPdf";
 import { immaginePrincipale, type ImmagineCatalogo } from "@/lib/listino/immaginiCatalogo";
 import { normalizePdfPagesOrder } from "@/types/serramenti";
 import { CAMPI_IMMAGINE_SERRAMENTI, firmaImmagine, firmaImmaginiModello } from "@/lib/storage/immaginiModelloPdf";
@@ -183,15 +184,16 @@ export interface SerramentoPdfPayload {
  * non ha mai salvato quelle impostazioni lo vede. Prima il PDF serramenti non
  * mostrava mai lo sconto, e chi lo dava non poteva farlo vedere al cliente.
  */
-async function mostraScontiNelPdf(companyId: string | null | undefined): Promise<boolean> {
+async function mostraScontiNelPdf(companyId: string | null | undefined, memo: MemoriaCatalogo): Promise<boolean> {
   if (!companyId) return true;
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data } = await (supabase as any)
-      .from("preventivo_impostazioni")
-      .select("pdf_mostra_sconti")
-      .eq("company_id", companyId)
-      .maybeSingle();
+    const { data } = await memo(`impostazioni-preventivo:${companyId}`, async () =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any)
+        .from("preventivo_impostazioni")
+        .select("pdf_mostra_sconti")
+        .eq("company_id", companyId)
+        .maybeSingle() as { data: { pdf_mostra_sconti?: boolean | null } | null });
     return data?.pdf_mostra_sconti !== false;
   } catch {
     return true;
@@ -275,6 +277,7 @@ async function mapWithConcurrency<T, R>(
 export async function caricaLineeDedicate(
   companyId: string | null | undefined,
   detail: SrProgettoDetail,
+  memo: MemoriaCatalogo = memoriaCatalogoPdf(true),
 ): Promise<SerramentoPdfLineaPagina[]> {
   if (!companyId) return [];
   const fisiche: SerramentoPdfLineaPagina[] = [];
@@ -285,8 +288,9 @@ export async function caricaLineeDedicate(
   ].filter(r => !!r.id);
   if (righeFornitore.length) {
     try {
-    const { data, error } = await supabase.from("supplier_product_lines").select("*").eq("company_id", companyId)
-      .in("id", [...new Set(righeFornitore.map(r => r.id!))]);
+    const idsLinee = [...new Set(righeFornitore.map(r => r.id!))].sort();
+    const { data, error } = await memo(`linee-fornitore:${companyId}:${idsLinee.join(",")}`, async () =>
+      await supabase.from("supplier_product_lines").select("*").eq("company_id", companyId).in("id", idsLinee));
     const perId = new Map(((data ?? []) as Array<{ id: string; nome: string; materiale: string; immagini?: unknown }>).map(line => [line.id, line]));
     if (!error) for (const id of new Set(righeFornitore.map(r => r.id!))) {
       const line = perId.get(id);
@@ -313,10 +317,11 @@ export async function caricaLineeDedicate(
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = supabase as any;
-    const { data: righeSchede, error } = await db
-      .from("listino_schede_linea")
-      .select(COLONNE_SCHEDA_LINEA)
-      .eq("company_id", companyId);
+    const { data: righeSchede, error } = await memo(`schede-linea:${companyId}`, async () =>
+      await db
+        .from("listino_schede_linea")
+        .select(COLONNE_SCHEDA_LINEA)
+        .eq("company_id", companyId) as { data: Record<string, unknown>[] | null; error: unknown });
     if (error) throw error;
     if (!righeSchede?.length) return fisiche;
     const schede = (righeSchede as Record<string, unknown>[]).map(comeSchedaLinea);
@@ -329,12 +334,15 @@ export async function caricaLineeDedicate(
       values: Array<{ id: string; valore: string | null; label: string | null }>;
     };
     const familyIds = [...new Set(righeBom.map((r) => r.family_id))];
+    const chiaveFamiglie = [...familyIds].sort().join(",");
     const [{ data: famiglie }, { data: assi }] = await Promise.all([
-      db.from("article_families").select("id, nome, categoria_id, macrocategoria_id").in("id", familyIds),
-      db
-        .from("article_family_axes")
-        .select("family_id, codice, nome, values:article_family_axis_values(id, valore, label)")
-        .in("family_id", familyIds),
+      memo(`famiglie-linee:${companyId}:${chiaveFamiglie}`, async () =>
+        await db.from("article_families").select("id, nome, categoria_id, macrocategoria_id").in("id", familyIds) as { data: Famiglia[] | null }),
+      memo(`assi-linee:${companyId}:${chiaveFamiglie}`, async () =>
+        await db
+          .from("article_family_axes")
+          .select("family_id, codice, nome, values:article_family_axis_values(id, valore, label)")
+          .in("family_id", familyIds) as { data: Asse[] | null }),
     ]);
     const famigliaPerId = new Map(((famiglie ?? []) as Famiglia[]).map((f) => [f.id, f] as const));
     const assiPerFamiglia = new Map<string, Asse[]>();
@@ -348,11 +356,13 @@ export async function caricaLineeDedicate(
     const tipologiaIds = [...new Set(schede.map((s) => s.macrocategoria_id).filter((id): id is string => !!id))];
     const [{ data: categorie }, { data: tipologie }] = await Promise.all([
       categoriaIds.length > 0
-        ? db.from("listino_categorie").select("id, nome, macrocategoria_id").in("id", categoriaIds)
-        : Promise.resolve({ data: [] }),
+        ? memo(`categorie-linee:${companyId}:${[...categoriaIds].sort().join(",")}`, async () =>
+            await db.from("listino_categorie").select("id, nome, macrocategoria_id").in("id", categoriaIds) as { data: Array<{ id: string; nome: string; macrocategoria_id: string | null }> | null })
+        : Promise.resolve({ data: [] as Array<{ id: string; nome: string; macrocategoria_id: string | null }> }),
       tipologiaIds.length > 0
-        ? db.from("listino_macrocategorie").select("id, nome").in("id", tipologiaIds)
-        : Promise.resolve({ data: [] }),
+        ? memo(`tipologie-linee:${companyId}:${[...tipologiaIds].sort().join(",")}`, async () =>
+            await db.from("listino_macrocategorie").select("id, nome").in("id", tipologiaIds) as { data: Array<{ id: string; nome: string }> | null })
+        : Promise.resolve({ data: [] as Array<{ id: string; nome: string }> }),
     ]);
     const categoriaPerId = new Map(
       ((categorie ?? []) as Array<{ id: string; nome: string; macrocategoria_id: string | null }>).map(
@@ -401,6 +411,9 @@ export async function caricaLineeDedicate(
 
 async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEnriched> {
   const { detail } = opts;
+  // Il documento vero («Scarica», «Invia al cliente») rilegge sempre il listino;
+  // l'anteprima a lato riusa per un minuto quello che ha appena letto.
+  const memo = memoriaCatalogoPdf(opts.useFreshTemplate === true);
   // Il modello dell'azienda del preventivo: senza filtro il super admin (che
   // vede tutte le righe) riceveva null e il PDF usciva con i testi di serie.
   const templateSalvato = await resolveSrDocumentTemplate(detail.progetto, opts.template, opts.useFreshTemplate, getTemplatePdf) as SrTemplatePdfRow | null;
@@ -428,12 +441,14 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
     consulenteId = user?.id ?? null;
   }
   if (consulenteId) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data } = await (supabase as any)
-      .from("profiles")
-      .select("first_name, last_name, email, phone, avatar_url, company_id")
-      .eq("id", consulenteId)
-      .maybeSingle();
+
+    const { data } = await memo(`consulente:${consulenteId}`, async () =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any)
+        .from("profiles")
+        .select("first_name, last_name, email, phone, avatar_url, company_id")
+        .eq("id", consulenteId)
+        .maybeSingle() as { data: { first_name?: string | null; last_name?: string | null; email?: string | null; phone?: string | null; avatar_url?: string | null; company_id?: string | null } | null });
     // Chi scarica fa da consulente solo se lavora nell'azienda del preventivo: un
     // super admin entrato per assistenza finiva nel PDF del cliente coi suoi recapiti.
     if (data && !(daUtenteCollegato && data.company_id !== companyId)) {
@@ -455,11 +470,13 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
   const categoriaToMacro: Record<string, string> = {};
   const tipologiaDisegno: Record<string, string | null> = {};
   if (familyIds.length > 0) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: famRows } = await (supabase as any)
-      .from("article_families")
-      .select("id, nome, descrizione, immagine_url, custom_field_values, categoria_id, macrocategoria_id, disegno_tipologia")
-      .in("id", familyIds);
+
+    const { data: famRows } = await memo(`prodotti:${companyId}:${[...familyIds].sort().join(",")}`, async () =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any)
+        .from("article_families")
+        .select("id, nome, descrizione, immagine_url, custom_field_values, categoria_id, macrocategoria_id, disegno_tipologia")
+        .in("id", familyIds) as { data: unknown[] | null });
     ((famRows ?? []) as Array<{
       id: string;
       nome: string | null;
@@ -488,11 +505,13 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
         .map((f) => f.categoria_id).filter((v): v is string => !!v),
     ));
     if (categoriaIds.length > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: catRows } = await (supabase as any)
-        .from("listino_categorie")
-        .select("id, macrocategoria_id")
-        .in("id", categoriaIds);
+
+      const { data: catRows } = await memo(`categorie:${companyId}:${[...categoriaIds].sort().join(",")}`, async () =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase as any)
+          .from("listino_categorie")
+          .select("id, macrocategoria_id")
+          .in("id", categoriaIds) as { data: Array<{ id: string; macrocategoria_id: string | null }> | null });
       ((catRows ?? []) as Array<{ id: string; macrocategoria_id: string | null }>).forEach((c) => {
         if (c.macrocategoria_id) categoriaToMacro[c.id] = c.macrocategoria_id;
       });
@@ -513,13 +532,15 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
   ));
   const fieldsByMacro: Record<string, SerramentoPdfMacroField[]> = {};
   if (macroIdsCoinvolte.length > 0) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: fieldRows } = await (supabase as any)
-      .from("listino_macrocategoria_fields")
-      .select("macrocategoria_id, field_key, field_label, field_type, field_unit, field_options, show_in_pdf, sort_order")
-      .in("macrocategoria_id", macroIdsCoinvolte)
-      .eq("show_in_pdf", true)
-      .order("sort_order", { ascending: true });
+
+    const { data: fieldRows } = await memo(`campi-scheda:${companyId}:${[...macroIdsCoinvolte].sort().join(",")}`, async () =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any)
+        .from("listino_macrocategoria_fields")
+        .select("macrocategoria_id, field_key, field_label, field_type, field_unit, field_options, show_in_pdf, sort_order")
+        .in("macrocategoria_id", macroIdsCoinvolte)
+        .eq("show_in_pdf", true)
+        .order("sort_order", { ascending: true }) as { data: unknown[] | null });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ((fieldRows ?? []) as any[]).forEach((f) => {
       const arr = fieldsByMacro[f.macrocategoria_id] ?? [];
@@ -547,11 +568,13 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
     { axisLabel: string; valueLabel: string; valueDescrizione?: string | null; axisDefaultLabel?: string | null; valueConElenco?: boolean }
   > = {};
   if (famiglieConVarianti.length > 0) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: axisRows } = await (supabase as any)
-      .from("article_family_axes")
-      .select("id, family_id, codice, nome, values:article_family_axis_values(id, valore, label, descrizione, is_default, opzioni)")
-      .in("family_id", famiglieConVarianti);
+
+    const { data: axisRows } = await memo(`variabili:${companyId}:${[...famiglieConVarianti].sort().join(",")}`, async () =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any)
+        .from("article_family_axes")
+        .select("id, family_id, codice, nome, values:article_family_axis_values(id, valore, label, descrizione, is_default, opzioni)")
+        .in("family_id", famiglieConVarianti) as { data: unknown[] | null });
     // Lookup: key = "family_id|axis_codice|value_id"
     ((axisRows ?? []) as Array<{
       family_id: string; codice: string; nome: string;
@@ -578,11 +601,13 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
   ].filter((v): v is string => !!v)));
   const supplierLineById: Record<string, SerramentoPdfSupplierLine> = {};
   if (supplierLineIds.length > 0) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: lineRows } = await (supabase as any)
-      .from("supplier_product_lines")
-      .select("id, nome, supplier_catalog_id")
-      .in("id", supplierLineIds);
+
+    const { data: lineRows } = await memo(`linee:${companyId}:${[...supplierLineIds].sort().join(",")}`, async () =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any)
+        .from("supplier_product_lines")
+        .select("id, nome, supplier_catalog_id")
+        .in("id", supplierLineIds) as { data: Array<{ id: string; nome: string; supplier_catalog_id: string | null }> | null });
     const catalogIds = Array.from(new Set(
       ((lineRows ?? []) as Array<{ supplier_catalog_id: string | null }>)
         .map((l) => l.supplier_catalog_id)
@@ -590,11 +615,13 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
     ));
     const catalogNomeById: Record<string, string> = {};
     if (catalogIds.length > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: catalogRows } = await (supabase as any)
-        .from("supplier_catalogs")
-        .select("id, nome")
-        .in("id", catalogIds);
+
+      const { data: catalogRows } = await memo(`cataloghi:${companyId}:${[...catalogIds].sort().join(",")}`, async () =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase as any)
+          .from("supplier_catalogs")
+          .select("id, nome")
+          .in("id", catalogIds) as { data: Array<{ id: string; nome: string }> | null });
       ((catalogRows ?? []) as Array<{ id: string; nome: string }>).forEach((c) => {
         catalogNomeById[c.id] = c.nome;
       });
@@ -643,13 +670,15 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
   // Fallback automatico: cerca macro candidate per serramenti senza assegnazione
   let autoFallbackMacroId: string | null = null;
   if (hasUnassignedSerramento && companyId) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: candidateMacros } = await (supabase as any)
-      .from("listino_macrocategorie")
-      .select("id, mostra_pagina_dedicata_pdf, attivo")
-      .eq("company_id", companyId)
-      .eq("attivo", true)
-      .order("sort_order", { ascending: true });
+
+    const { data: candidateMacros } = await memo(`tipologie-attive:${companyId}`, async () =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any)
+        .from("listino_macrocategorie")
+        .select("id, mostra_pagina_dedicata_pdf, attivo")
+        .eq("company_id", companyId)
+        .eq("attivo", true)
+        .order("sort_order", { ascending: true }) as { data: Array<{ id: string; mostra_pagina_dedicata_pdf: boolean | null; attivo: boolean }> | null });
     const candidates = (candidateMacros ?? []) as Array<{
       id: string; mostra_pagina_dedicata_pdf: boolean | null; attivo: boolean;
     }>;
@@ -666,11 +695,13 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
   const macroNomeById: Record<string, string> = {};
   let macroPagineDedicate: SerramentoPdfMacroPagina[] = [];
   if (macroIdsBomOrdine.length > 0) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: macroRows } = await (supabase as any)
-      .from("listino_macrocategorie")
-      .select("id, nome, descrizione, descrizione_estesa, immagine_url, mostra_pagina_dedicata_pdf")
-      .in("id", macroIdsBomOrdine);
+
+    const { data: macroRows } = await memo(`tipologie:${companyId}:${[...macroIdsBomOrdine].sort().join(",")}`, async () =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any)
+        .from("listino_macrocategorie")
+        .select("id, nome, descrizione, descrizione_estesa, immagine_url, mostra_pagina_dedicata_pdf")
+        .in("id", macroIdsBomOrdine) as { data: unknown[] | null });
     const macroMap = new Map<string, SerramentoPdfMacroPagina>();
     ((macroRows ?? []) as Array<{
       id: string; nome: string; descrizione: string | null;
@@ -717,8 +748,8 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
     toDataUrl(consulente?.foto_url ?? null),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     toDataUrl((template as any)?.pdf_cover_image_url ?? null),
-    caricaLineeDedicate(companyId, detail),
-    mostraScontiNelPdf(companyId),
+    caricaLineeDedicate(companyId, detail, memo),
+    mostraScontiNelPdf(companyId, memo),
     // Le foto dei blocchi accesi (come è fatto un serramento, protezione…).
     fotoDeiBlocchi("serramenti", template?.pdf_blocchi, blocchiAccesi(normalizePdfPagesOrder(template?.pdf_pages_order ?? null))),
     fotoDellePagine("serramenti", template?.pdf_blocchi, ["percorso", "confronto", "cta", "proposta", "allegato", "dettagli", "investimento"]),

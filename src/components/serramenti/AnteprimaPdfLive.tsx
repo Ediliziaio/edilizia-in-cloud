@@ -5,6 +5,7 @@
 import { useCallback, useMemo } from "react";
 import type { SerramentoPdfPayload } from "@/hooks/useSerramentoPDF";
 import { AnteprimaPdfVero } from "@/components/preventivatore/AnteprimaPdfVero";
+import { chiaveAnteprimaPdf } from "@/lib/preventivatore/chiaveAnteprimaPdf";
 
 interface Props {
   payload: SerramentoPdfPayload;
@@ -14,7 +15,10 @@ interface Props {
 
 export function AnteprimaPdfLive({ payload, attivo }: Props) {
   // Cambia solo quando cambia qualcosa che finisce nel PDF.
-  const chiave = useMemo(() => JSON.stringify([payload.detail, payload.template ?? null, payload.company ?? null]), [payload.detail, payload.template, payload.company]);
+  const chiave = useMemo(
+    () => chiaveAnteprimaPdf([payload.detail, payload.template ?? null, payload.company ?? null]),
+    [payload.detail, payload.template, payload.company],
+  );
   const genera = useCallback(async () => {
     const { renderSerramentoBlob } = await import("@/hooks/useSerramentoPDF");
     return renderSerramentoBlob({ ...payload, useFreshTemplate: false });
