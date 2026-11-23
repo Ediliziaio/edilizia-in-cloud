@@ -34,7 +34,7 @@ function dbFinto(esistenti: { id: string; email?: string | null; phone?: string 
         (inseriti[tabella] ??= []).push(lista);
         const fallisce = tabella === "marketing_contacts" && opzioni.falliscoInsertDopo !== undefined && ++insertContatti > opzioni.falliscoInsertDopo;
         const dati = lista.map(() => ({ id: `${tabella}-${++id}` }));
-        const risposta = fallisce ? { data: null as null, error: { message: "timeout" } } : { data: dati, error: null };
+        const risposta = fallisce ? { data: null as null, error: { message: "timeout" } } : { data: dati, error: null as null };
         return {
           select: () => ({ ...Promise.resolve(risposta), then: (r: (v: unknown) => unknown) => Promise.resolve(risposta).then(r), single: async () => ({ data: fallisce ? null : dati[0], error: risposta.error }) }),
           then: (r: (v: unknown) => unknown) => Promise.resolve({ error: risposta.error }).then(r),
