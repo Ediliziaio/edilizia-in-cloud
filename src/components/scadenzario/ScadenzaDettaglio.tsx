@@ -28,7 +28,7 @@ interface Abbinamento {
  * commessa, gli incassi o pagamenti registrati e il bonifico abbinato. Ogni
  * voce porta alla sua scheda; il bonifico si apre in Tesoreria.
  */
-export function ScadenzaDettaglio({ scadenza: s, onClose, onMarkPaid, onAnnullaIncasso, onNota, onModifica, onAnnullaScadenza }: {
+export function ScadenzaDettaglio({ scadenza: s, onClose, onMarkPaid, onAnnullaIncasso, onNota, onModifica, onAnnullaScadenza, pagaSulPosto }: {
   scadenza: Scadenza;
   onClose: () => void;
   onMarkPaid: (s: Scadenza) => void;
@@ -37,6 +37,8 @@ export function ScadenzaDettaglio({ scadenza: s, onClose, onMarkPaid, onAnnullaI
   onNota?: (s: Scadenza, nota: string | null) => Promise<unknown>;
   onModifica?: (s: Scadenza) => void;
   onAnnullaScadenza?: (s: Scadenza) => void;
+  /** La rata si paga qui anche se viene da un documento (23/11/2026: le rate dei fornitori). */
+  pagaSulPosto?: (s: Scadenza) => boolean;
 }) {
   const daFonte = scadenzaDaFonte(s);
   const entrata = s.direction === "entrata";
@@ -230,7 +232,7 @@ export function ScadenzaDettaglio({ scadenza: s, onClose, onMarkPaid, onAnnullaI
             {onModifica && !percheScadenzaNonModificabile(s) && <Button variant="outline" onClick={() => onModifica(s)}>Modifica scadenza</Button>}
             {onAnnullaScadenza && !percheScadenzaNonModificabile(s) && <Button variant="outline" onClick={() => onAnnullaScadenza(s)}>Annulla scadenza</Button>}
             {percheScadenzaNonModificabile(s) && <p className="w-full text-xs text-muted-foreground">{percheScadenzaNonModificabile(s)}</p>}
-            {(aperta || daFonte) && <Button onClick={() => onMarkPaid(s)}><CreditCard className="mr-1 h-4 w-4" />{daFonte ? "Apri fonte" : entrata ? "Incassa" : "Paga"}</Button>}
+            {(aperta || daFonte) && <Button onClick={() => onMarkPaid(s)}><CreditCard className="mr-1 h-4 w-4" />{pagaSulPosto?.(s) ? "Paga" : daFonte ? "Apri fonte" : entrata ? "Incassa" : "Paga"}</Button>}
             {onAnnullaIncasso && siAnnullaIncasso(s) && <Button variant="outline" onClick={() => onAnnullaIncasso(s)}><Undo2 className="mr-1 h-4 w-4" />Annulla incasso</Button>}
             {s.invoice_id && !nativa.isPending && <Button variant="outline" asChild><Link to={linkFattura(s.invoice_id, !!nativa.data)}>Apri la fattura</Link></Button>}
             {s.order_id && <Button variant="outline" asChild><Link to={linkCommessa(s.order_id)}>Apri la commessa</Link></Button>}

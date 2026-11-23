@@ -43,6 +43,8 @@ interface Props {
   tutteSelezionate?: boolean;
   selezioneParziale?: boolean;
   inCorso?: boolean;
+  /** La riga si paga qui, anche se viene da un documento (23/11/2026: le rate dei fornitori). */
+  pagaSulPosto?: (s: Scadenza) => boolean;
 }
 
 const monthLabel = (d: Date | null) => {
@@ -54,7 +56,8 @@ const monthLabel = (d: Date | null) => {
 /** I totali di un mese nella riga del titolo: quanto entra, quanto esce, quanto resta aperto. */
 interface TotaliMese { incassi: number; pagamenti: number; apertoIn: number; apertoOut: number }
 
-export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnnullaIncasso, onAdd, onRowClick, onNota, onModifica, selezionate, onSeleziona, onSelezionaPagina, tutteSelezionate, selezioneParziale, inCorso = false }: Props) {
+export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnnullaIncasso, onAdd, onRowClick, onNota, onModifica, selezionate, onSeleziona, onSelezionaPagina, tutteSelezionate, selezioneParziale, inCorso = false, pagaSulPosto }: Props) {
+  const azionePagamento = (s: Scadenza) => pagaSulPosto?.(s) ? "Paga" : scadenzaDaFonte(s) ? "Apri fonte" : s.direction === "entrata" ? "Incassa" : "Paga";
   // Totali per mese delle righe in pagina (16/11/2026): si legge il mese senza sommare a mente.
   const totaliMese = useMemo(() => {
     const m = new Map<string, TotaliMese>();
@@ -157,7 +160,7 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
                     className="min-h-11 px-1 text-xs font-medium leading-tight text-primary"
                     onClick={(e) => { e.stopPropagation(); onMarkPaid(s); }}
                   >
-                    {scadenzaDaFonte(s) ? "Apri fonte" : s.direction === "entrata" ? "Incassa" : "Paga"}
+                    {azionePagamento(s)}
                   </button>
                 )}
                 {onAnnullaIncasso && siAnnullaIncasso(s) && (
@@ -295,7 +298,7 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
                     )}
                     {!isPaid && !isCancelled && (
                       <Button variant="ghost" size="sm" className="h-7 px-1.5 text-xs" onClick={() => onMarkPaid(s)}>
-                        <CreditCard className="mr-1 h-3.5 w-3.5" />{scadenzaDaFonte(s) ? "Apri fonte" : s.direction === "entrata" ? "Incassa" : "Paga"}
+                        <CreditCard className="mr-1 h-3.5 w-3.5" />{azionePagamento(s)}
                       </Button>
                     )}
                     {onAnnullaIncasso && siAnnullaIncasso(s) && (

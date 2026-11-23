@@ -102,8 +102,9 @@ export default function Scadenzario() {
   // 23/11/2026: la rata di una fattura fornitore si paga qui. Prima «Segna pagata» portava alla
   // pagina Costi, e da lì riepilogo, popup e modulo: Impresa Vulcano non riusciva a registrare.
   const [pagaCosto, setPagaCosto] = useState<{ costId: string; importo: number } | null>(null);
+  const pagaSulPosto = (s: Scadenza) => s.auto_source === "fonte_costo" && !!s.cost_id && permessi.canViewCosts && !permessi.solaLettura;
   const apriPagamento = (s: Scadenza) => {
-    if (s.auto_source === "fonte_costo" && s.cost_id && permessi.canViewCosts && !permessi.solaLettura) {
+    if (pagaSulPosto(s) && s.cost_id) {
       setPagaCosto({ costId: s.cost_id, importo: Math.max(0, Number(s.amount) - Number(s.paid_amount ?? 0)) });
       return;
     }
@@ -552,6 +553,7 @@ export default function Scadenzario() {
               scadenze={filtered}
               onNota={(s, nota) => updateNotes(s.id, nota)}
               onMarkPaid={apriPagamento}
+              pagaSulPosto={pagaSulPosto}
               onCancel={(id) => { const s = scadenze.find((x) => x.id === id); if (s) void annullaSingola(s); }}
               onModifica={!permessi.solaLettura ? setDaModificare : undefined}
               selezionate={selezione.ids}
@@ -647,6 +649,7 @@ export default function Scadenzario() {
           scadenza={scadenzaAperta}
           onClose={() => setDettaglio(null)}
           onMarkPaid={(x) => { setDettaglio(null); apriPagamento(x); }}
+          pagaSulPosto={pagaSulPosto}
           onAnnullaIncasso={(x) => { setDettaglio(null); setDaAnnullare(x); }}
           onNota={(x, nota) => updateNotes(x.id, nota)}
           onModifica={!permessi.solaLettura ? (s) => { setDettaglio(null); setDaModificare(s); } : undefined}
