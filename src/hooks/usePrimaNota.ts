@@ -15,7 +15,7 @@ import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
  * sincronizzazione la fattura torna «da incassare». Best effort: l'incasso qui
  * resta comunque, e chi lo registra sa se deve ripeterlo sul gestionale.
  */
-async function allineaFattureInCloud(invoiceId: string, importo: number, data: string): Promise<"ok" | "non_allineata" | "solo_qui" | null> {
+export async function allineaFattureInCloud(invoiceId: string, importo: number, data: string): Promise<"ok" | "non_allineata" | "solo_qui" | null> {
   const { data: f } = await supabase.from("invoices").select("external_provider, total, paid_amount").eq("id", invoiceId).maybeSingle();
   if (!f || f.external_provider !== "fattureincloud") return null;
   // paid_amount è già ricalcolato dal trigger del registro pagamenti.

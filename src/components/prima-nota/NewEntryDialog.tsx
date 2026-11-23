@@ -18,6 +18,10 @@ import { toast } from "sonner";
 import type { DatiRegistrazione, PrimaNotaEntry } from "@/hooks/usePrimaNota";
 import { useContiPrimaNota } from "@/hooks/useContiPrimaNota";
 import { useQuery } from "@tanstack/react-query";
+import { Checkbox } from "@/components/ui/checkbox";
+import { QuoteMovimento } from "./QuoteMovimento";
+import { useRegistraDivisa } from "@/hooks/useRegistraDivisa";
+import { problemaQuote, type Quota } from "@/lib/primaNota/quoteMovimento";
 
 const CATEGORIES = [
   { value: "incasso", label: "Incasso cliente" },
@@ -106,6 +110,12 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
   const [isUploading, setIsUploading] = useState(false);
   // Riferimento, note e allegato stanno piegati: si aprono da soli se la registrazione ne ha già.
   const [dettagliAperti, setDettagliAperti] = useState(false);
+  // Movimento diviso (23/11/2026): un bonifico su più fatture, commesse o voci. Solo nuove registrazioni.
+  const [diviso, setDiviso] = useState(false);
+  const [quote, setQuote] = useState<Quota[]>([]);
+  const registraDivisa = useRegistraDivisa(companyId);
+  // Le fatture di un verso non valgono nell'altro: cambiando verso le quote si svuotano.
+  const cambiaVerso = (v: "entrata" | "uscita") => { if (v !== direction) setQuote([]); setDirection(v); };
 
   // Combobox data
   const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
@@ -170,6 +180,8 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
     setInvoiceId("");
     setAttachmentFile(null);
     setDettagliAperti(false);
+    setDiviso(false);
+    setQuote([]);
   };
 
   // In modifica, quello che questa registrazione ha già messo sulla sua fattura torna disponibile.
@@ -179,8 +191,8 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
   // La categoria decide il verso: un incasso entra, un pagamento esce.
   const scegliCategoria = (v: string) => {
     setCategory(v);
-    if (v === "incasso") setDirection("entrata");
-    else if (v === "fornitore") setDirection("uscita");
+    if (v === "incasso") cambiaVerso("entrata");
+    else if (v === "fornitore") cambiaVerso("uscita");
     if (v !== "incasso") setInvoiceId("");
   };
 
@@ -224,8 +236,9 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, entry?.id, mostraAllegato]);
 
-  const showSupplier = category === "fornitore";
-  const showOrder = category === "incasso";
+  const showSupplier = category === "fornitore" && !diviso;
+  const showOrder = category === "incasso" && !diviso;
+  const problemaDiviso = diviso ? problemaQuote(amount, quote) : null;
 
   const selectedSupplier = suppliers.find((s) => s.id === supplierId);
   const fatturaScelta = fatture.find((f) => f.id === invoiceId);
@@ -237,7 +250,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
   const blocco: { testo: string; errore: boolean } | null =
     oltreResiduo ? { testo: "L’importo supera quanto resta da incassare su questa fattura.", errore: true }
     : invoiceId && direction !== "entrata" ? { testo: "L’incasso di una fattura è un’entrata: cambia il verso o togli la fattura.", errore: true }
-    : !description.trim() ? { testo: "Manca la descrizione.", errore: false }
+    : !description.trim() && !diviso ? { testo: "Manca la descrizione.", errore: false }
     : !(Number(amount) > 0) ? { testo: "Manca l’importo.", errore: false }
     : !entryDate ? { testo: "Manca la data.", errore: false }
     : metodoPersonalizzato && !method.trim() ? { testo: "Indica il nome della modalità di pagamento.", errore: false }
@@ -246,12 +259,14 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
     : !entry && accountLabel === "banca" && !!conti.data?.length ? { testo: "Scegli il conto bancario effettivo.", errore: false }
     : /^(banca|conto):/.test(accountLabel) && !contoScelto && !entry ? { testo: "Il conto scelto non è più disponibile: selezionalo di nuovo.", errore: true }
     : contoScelto?.bank_account_id && contiPiano.length > 0 && !contoPiano && !contoScelto.conto_liquidita_id ? { testo: "Associa la banca al conto di liquidità del piano contabile.", errore: false }
+    : problemaDiviso ? { testo: problemaDiviso, errore: false }
     : null;
   const isValid = !blocco;
   const verso = VERSO[direction];
 
+  const inCorso = isPending || isUploading || registraDivisa.isPending;
   const handleConfirm = async () => {
-    if (!isValid || isPending || isUploading) return;
+    if (!isValid || inCorso) return;
     if (attachmentFile && !companyId) {
       toast.error("Azienda non disponibile: riapri la registrazione prima di caricare l’allegato.");
       return;
@@ -280,6 +295,20 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
       }
     }
 
+    const contoBanca = contoScelto?.bank_account_id ?? null;
+    const contoLiquidita = contoScelto?.bank_account_id && contoPiano ? contoPiano : contoScelto?.conto_liquidita_id ?? null;
+    if (diviso) {
+      registraDivisa.mutate({
+        testata: {
+          direction, data: entryDate, importo: Number(amount), descrizione: description.trim(),
+          metodo: method.trim() || undefined, riferimento: reference || undefined,
+          account_label: contoScelto?.account_label ?? accountLabel, bank_account_id: contoBanca, conto_liquidita_id: contoLiquidita,
+          note: notes || undefined, attachment_url: attachmentUrl, attachment_name: attachmentName,
+        },
+        quote,
+      }, { onSuccess: () => onOpenChange(false) });
+      return;
+    }
     onConfirm({
       direction,
       category,
@@ -318,7 +347,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
         <div className="space-y-4 max-sm:space-y-3">
           {/* La categoria decide il verso e quali campi servono: viene prima. */}
           <div className="grid grid-cols-2 gap-3 max-sm:gap-2">
-            <div className="space-y-2">
+            <div className={cn("space-y-2", diviso && "invisible")} aria-hidden={diviso}>
               <Label htmlFor="pn-categoria">Categoria</Label>
               <Select value={category} onValueChange={scegliCategoria} disabled={rataCollegata}>
                 <SelectTrigger id="pn-categoria"><SelectValue /></SelectTrigger>
@@ -338,7 +367,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
                     type="button"
                     aria-pressed={direction === v}
                     disabled={rataCollegata}
-                    onClick={() => setDirection(v)}
+                    onClick={() => cambiaVerso(v)}
                     className={cn(
                       "h-8 rounded text-sm font-medium transition-colors",
                       direction === v ? VERSO[v].pieno : "text-muted-foreground hover:text-foreground",
@@ -350,6 +379,16 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
               </div>
             </div>
           </div>
+
+          {!entry && (
+            <label className="flex cursor-pointer items-start gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+              <Checkbox checked={diviso} onCheckedChange={v => { setDiviso(v === true); setQuote([]); }} className="mt-0.5" />
+              <span>
+                <span className="font-medium">Divido su più fatture, commesse o voci</span>
+                <span className="block text-xs text-muted-foreground">Un bonifico che paga o incassa più fatture, una RiBa, una spesa su più commesse.</span>
+              </span>
+            </label>
+          )}
 
           {/* Supplier combobox */}
           {showSupplier && (
@@ -431,16 +470,17 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
             </div>
           )}
 
-          <div className="space-y-2">
+          {!diviso && <div className="space-y-2">
             <Label>Commessa o macrocommessa</Label>
             {rataCollegata ? <p className="text-sm font-medium">{entry.orders?.order_code || "Commessa della rata"}</p>
               : <CommessaCombobox value={orderId || null} onChange={id => setOrderId(id ?? "")}
                 ariaLabel="Commessa o macrocommessa" nessunaLabel="Nessuna commessa collegata" />}
-          </div>
+          </div>}
 
           <div className="space-y-2">
-            <Label htmlFor="pn-descrizione">Descrizione</Label>
-            <Input id="pn-descrizione" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="es. Pagamento fornitore ABC" />
+            <Label htmlFor="pn-descrizione">Descrizione{diviso && <span className="font-normal text-muted-foreground"> (facoltativa)</span>}</Label>
+            <Input id="pn-descrizione" value={description} onChange={(e) => setDescription(e.target.value)}
+              placeholder={diviso ? (direction === "entrata" ? "es. Bonifico cliente ABC" : "es. RiBa fornitore ABC") : "es. Pagamento fornitore ABC"} />
           </div>
 
           {/* L'importo è il dato che si legge per primo: grande, col segno del verso.
@@ -470,6 +510,8 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
               <Input id="pn-data" type="date" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} className="h-12" />
             </div>
           </div>
+
+          {diviso && <QuoteMovimento companyId={companyId} direction={direction} importo={amount} quote={quote} onQuote={setQuote} />}
 
           <div className="grid grid-cols-2 gap-3 max-sm:gap-2">
             <div className="space-y-2">
@@ -583,10 +625,10 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} className="max-sm:hidden">Annulla</Button>
           <Button
-            disabled={isPending || isUploading || !isValid}
+            disabled={inCorso || !isValid}
             onClick={handleConfirm}
           >
-            {isPending || isUploading ? "Salvataggio..." : entry ? "Salva modifiche" : "Registra"}
+            {inCorso ? "Salvataggio..." : entry ? "Salva modifiche" : diviso && quote.length > 1 ? `Registra ${quote.length} quote` : "Registra"}
           </Button>
         </DialogFooter>
       </DialogContent>

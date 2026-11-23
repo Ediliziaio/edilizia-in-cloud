@@ -53,6 +53,9 @@ const CATEGORY_LABELS: Record<string, string> = {
   stipendi: "Stipendi",
   utenze: "Utenze",
   affitto: "Affitto",
+  commissioni: "Commissioni bancarie",
+  finanziamento: "Finanziamento",
+  giroconto: "Giroconto",
   altro: "Altro",
 };
 
