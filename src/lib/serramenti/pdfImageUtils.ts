@@ -70,21 +70,61 @@ export function inScalaDiGrigi(pixel: Uint8ClampedArray | number[]): void {
 const CONVERTITE = new Map<string, string>();
 const CONVERTITE_MAX = 60;
 
+/**
+ * Le immagini che NON si sono caricate (23/11/2026). Senza questa memoria il
+ * PDF a lato ritentava la stessa foto rotta a ogni giro, e ogni tentativo
+ * costa fino a 12 secondi di attesa (IMAGE_LOAD_TIMEOUT_MS) prima di
+ * rinunciare: con due foto irraggiungibili l'anteprima non arrivava mai.
+ *
+ * Un minuto, non di più: qui passano anche i documenti veri di tutti i
+ * preventivatori, e un intoppo passeggero sul logo non deve far uscire senza
+ * logo i PDF scaricati nella mezz'ora dopo. Il PDF usciva comunque senza
+ * quell'immagine — l'unica cosa che si perde è il tentativo in più.
+ */
+const FALLITE = new Map<string, number>();
+const RIPROVA_DOPO_MS = 60_000;
+const FALLITE_MAX = 200;
+
 /** Per le prove: si riparte senza immagini in memoria. */
-export function dimenticaImmaginiConvertite(): void { CONVERTITE.clear(); }
+export function dimenticaImmaginiConvertite(): void { CONVERTITE.clear(); FALLITE.clear(); }
 registraMemoria(dimenticaImmaginiConvertite);
+
+/**
+ * La stessa immagine firmata due volte ha due indirizzi diversi (cambia il
+ * `token`), ma è lo stesso file: senza togliere la firma dalla chiave, ogni
+ * rilettura del preventivo riscaricava e riconvertiva tutte le foto.
+ */
+export function chiaveImmagine(url: string): string {
+  if (!/^https?:\/\//i.test(url)) return url;
+  try {
+    const indirizzo = new URL(url);
+    indirizzo.searchParams.delete("token");
+    return indirizzo.toString();
+  } catch {
+    return url;
+  }
+}
 
 export async function toDataUrl(url: string | null | undefined, opzioni: OpzioniImmaginePdf = {}): Promise<string | null> {
   if (!url) return null;
   if (url.startsWith("data:") && !opzioni.scalaDiGrigi) return url;
   if (typeof globalThis.Image !== "function" || typeof document === "undefined") return url;
-  const chiave = `${url}\u0000${JSON.stringify(opzioni)}`;
+  const chiave = `${chiaveImmagine(url)}\u0000${JSON.stringify(opzioni)}`;
   const giaFatta = CONVERTITE.get(chiave);
   if (giaFatta) return giaFatta;
+  const fallita = FALLITE.get(chiave);
+  if (fallita !== undefined && Date.now() - fallita < RIPROVA_DOPO_MS) return null;
   const fatta = await convertiInDataUrl(url, opzioni);
   if (fatta && fatta.startsWith("data:")) {
+    FALLITE.delete(chiave);
     if (CONVERTITE.size >= CONVERTITE_MAX) CONVERTITE.delete(CONVERTITE.keys().next().value as string);
     CONVERTITE.set(chiave, fatta);
+  } else if (fatta === null) {
+    if (FALLITE.size >= FALLITE_MAX) {
+      const piuVecchia = FALLITE.keys().next();
+      if (!piuVecchia.done) FALLITE.delete(piuVecchia.value);
+    }
+    FALLITE.set(chiave, Date.now());
   }
   return fatta;
 }
