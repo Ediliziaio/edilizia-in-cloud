@@ -7,7 +7,6 @@
 import { leggiValori, valoreInTesto } from "../../../supabase/functions/_shared/moduliCantiere";
 import { compilatoDa } from "../../../supabase/functions/genera-pdf-rapportino/model";
 import { format, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
 import { AlertCircle, CheckCircle, Clock, Download, FileText, Loader2, PenLine } from "lucide-react";
 import { ImgRiservata } from "@/components/common/ImgRiservata";
 import { RapportinoBlocchi } from "@/components/campo/RapportinoBlocchi";
@@ -15,7 +14,7 @@ import { cn } from "@/lib/utils";
 import { ETICHETTA_STATO_OPERAIO, rapportinoDaRifare, statoRapportino, type StatoRapportino } from "@/lib/campo/rapportinoStato";
 import { isClientReport } from "@/lib/campo/reportKind";
 import { oreInTesto } from "@/lib/campo/regoleCampo";
-import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface RapportinoCardRiga {
   id: string;
@@ -79,7 +78,7 @@ export function RapportinoCardCampo({ r, autore, pdfOccupato, onPdf, onFirma, on
       {autore && <p className="mb-2 text-sm font-semibold">{autore}</p>}
       <div className="mb-1 flex items-start justify-between gap-2">
         <p className="font-semibold text-foreground">
-          {Number.isNaN(giorno.getTime()) ? r.data_lavoro : format(giorno, "d MMM yyyy", { locale: it })}
+          {Number.isNaN(giorno.getTime()) ? r.data_lavoro : format(giorno, "d MMM yyyy", { locale: dateFnsCampo() })}
         </p>
         <span className={cn("flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold", classe)}>
           <Icona className="h-3.5 w-3.5" aria-hidden="true" />

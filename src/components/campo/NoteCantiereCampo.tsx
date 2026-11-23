@@ -8,7 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, MessageSquare } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
-import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface NotaCampo {
   id: string;
@@ -72,7 +72,7 @@ export function NoteCantiereCampo({ orderId }: { orderId: string }) {
             </p>
             <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">{n.testo}</p>
             <p className="mt-1 text-[11px] text-muted-foreground">
-              {n.autore ?? t("Ufficio")} · {new Date(n.creata_il).toLocaleDateString("it-IT", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+              {n.autore ?? t("Ufficio")} · {new Date(n.creata_il).toLocaleDateString(intlCampo(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
             </p>
           </li>
         ))}

@@ -11,14 +11,13 @@
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
 import { AlertTriangle, ChevronRight, ClipboardList } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCampoRapportiniDaCompilare } from "@/hooks/useCampoRapportiniDaCompilare";
 import { useRapportiniSospesi } from "@/hooks/campo/useRapportiniSospesi";
 import { campoReportUrl, isClientReport } from "@/lib/campo/reportKind";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Il rapportino di quel giorno, già compilato se era respinto o in bozza. */
 const rapportinoDelGiorno = (orderId: string, giorno: string) => `/campo/lavoro/${orderId}/rapportino?data=${giorno}`;
@@ -131,7 +130,7 @@ export function RapportiniSospesi() {
                 )}
               </p>
               <p className="text-xs text-muted-foreground">
-                {format(parseISO(r.data_lavoro), "d MMM", { locale: it })} — {r.order?.description?.slice(0, 40)}
+                {format(parseISO(r.data_lavoro), "d MMM", { locale: dateFnsCampo() })} — {r.order?.description?.slice(0, 40)}
               </p>
             </div>
             <ChevronRight className="w-4 h-4 text-amber-600 shrink-0" />

@@ -6,19 +6,18 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { format, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
 import { AlertCircle, ChevronRight, FilePenLine, Navigation, Package, Phone, Receipt, Users } from "lucide-react";
 import { ScattaFoto } from "@/components/campo/ScattaFoto";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UniformSelect } from "@/components/ui/uniform-select";
 import { cn } from "@/lib/utils";
-import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 import {
   linkMappa, linkTelefono, useMiaGiornata,
   type CantiereDelGiorno, type Contatto,
 } from "@/hooks/campo/useCampoGiornata";
 
-const giornoLungo = (g: string) => format(parseISO(g), "EEEE d MMMM", { locale: it });
+const giornoLungo = (g: string) => format(parseISO(g), "EEEE d MMMM", { locale: dateFnsCampo() });
 
 function Chiama({ ruolo, contatto }: { ruolo: string; contatto: Contatto }) {
   const t = useT();

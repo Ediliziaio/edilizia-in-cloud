@@ -21,7 +21,7 @@ import { UniformSelect } from "@/components/ui/uniform-select";
 import { useUnaVolta } from "@/hooks/campo/useUnaVolta";
 import { preparaFoto, avvisiPreparazione } from "@/lib/campo/preparaFoto";
 import { senzaRete } from "@/lib/campo/timbra";
-import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 import { cn } from "@/lib/utils";
 
 type Tipo = SicurezzaEvento["tipo"];
@@ -328,7 +328,7 @@ export default function CampoSegnalaSicurezza() {
               <li key={e.id} className="rounded-xl border bg-background p-3">
                 <p className="text-sm font-semibold">
                   {t(TIPI.find(v => v.valore === e.tipo)?.titolo ?? "Segnalazione")}
-                  <span className="font-normal text-muted-foreground"> · {new Date(e.accaduto_il).toLocaleDateString("it-IT", { day: "numeric", month: "short" })}</span>
+                  <span className="font-normal text-muted-foreground"> · {new Date(e.accaduto_il).toLocaleDateString(intlCampo(), { day: "numeric", month: "short" })}</span>
                 </p>
                 <p className="line-clamp-2 text-sm text-muted-foreground">{e.descrizione}</p>
                 <p className={cn("mt-1 text-xs font-semibold", e.stato === "chiusa" ? "text-emerald-700" : "text-amber-700")}>{t(STATI[e.stato])}</p>

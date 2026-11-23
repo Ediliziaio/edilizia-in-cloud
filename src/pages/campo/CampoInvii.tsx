@@ -9,7 +9,7 @@ import { useRapportiniSospesi } from "@/hooks/campo/useRapportiniSospesi";
 import { useNetworkStatus } from "@/hooks/campo/useNetworkStatus";
 import { useIsCampo } from "@/hooks/useIsCampo";
 import { UniformSelect } from "@/components/ui/uniform-select";
-import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 import { listDraftKeys } from "@/hooks/campo/useFormDraft";
 import { bozzeCantieriPrelievo } from "@/lib/campo/bozzaPrelievo";
 import { idBozzaTecnica, nomeBozzaTecnica, type BozzaTecnica, type DatiBozzaTecnica } from "@/lib/campo/bozzaTecnica";
@@ -38,7 +38,8 @@ const GRUPPI = [
   ["daCorreggere", "Da controllare"], ["inCoda", "In coda"],
   ["bozza", "Bozze"], ["inviato", "Inviati da questo telefono"],
 ] as const;
-const dataBreve = new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "short" });
+// La lingua dell'operaio: si legge a ogni uso, non una volta sola all'avvio.
+const dataBreve = { format: (d: Date | number) => new Intl.DateTimeFormat(intlCampo(), { day: "numeric", month: "short" }).format(d) };
 const giornoBreve = (giorno: string) => dataBreve.format(new Date(`${giorno}T12:00:00`));
 
 function linkBozza(id: string) {

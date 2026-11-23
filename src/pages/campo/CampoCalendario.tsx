@@ -14,7 +14,6 @@ import {
 } from "date-fns";
 import { lavoroQuelGiorno } from "@/lib/campo/mieiGiorni";
 import { cantiereCadeInGiorno } from "@/lib/campo/cantiereInGiorno";
-import { it } from "date-fns/locale";
 import {
   ChevronLeft, ChevronRight, MapPin, Loader2, CalendarOff,
   Clock, Navigation, HardHat, CheckCircle2, Route, Building2,
@@ -41,7 +40,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { distanzaCampo } from "@/lib/campo/numeriItaliani";
 import { giorniRitardoCantiere } from "@/lib/campo/ritardoCantiere";
-import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type FnT = ReturnType<typeof useT>;
 
@@ -101,7 +100,7 @@ function dayLabel(day: Date, t: FnT): string {
   if (isToday(day)) return t("Oggi");
   if (isTomorrow(day)) return t("Domani");
   if (isYesterday(day)) return t("Ieri");
-  return format(day, "EEEE d MMMM", { locale: it });
+  return format(day, "EEEE d MMMM", { locale: dateFnsCampo() });
 }
 
 function statusBadge(status: string, t: FnT) {
@@ -398,7 +397,7 @@ export default function CampoCalendario() {
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground max-md:hidden">{t("Vista calendario")}</p>
                 <p className="text-sm font-semibold capitalize">
-                  {viewMode === "week" ? format(weekStart, "MMMM yyyy", { locale: it }) : format(currentMonth, "MMMM yyyy", { locale: it })}
+                  {viewMode === "week" ? format(weekStart, "MMMM yyyy", { locale: dateFnsCampo() }) : format(currentMonth, "MMMM yyyy", { locale: dateFnsCampo() })}
                 </p>
               </div>
               <div className="flex rounded-xl bg-muted p-0.5">
@@ -435,7 +434,7 @@ export default function CampoCalendario() {
                   <div className="text-center">
                     <p className="text-sm font-bold">{t("Settimana")}</p>
                     <p className="text-xs text-muted-foreground">
-                      {format(weekStart, "d MMM", { locale: it })} - {format(addDays(weekStart, 6), "d MMM", { locale: it })}
+                      {format(weekStart, "d MMM", { locale: dateFnsCampo() })} - {format(addDays(weekStart, 6), "d MMM", { locale: dateFnsCampo() })}
                     </p>
                   </div>
                   <button onClick={() => setWeekStart(w => addWeeks(w, 1))}
@@ -456,7 +455,7 @@ export default function CampoCalendario() {
                           isDayToday ? "border-primary/30 bg-primary/10 text-primary" : "border-transparent bg-muted/50 text-foreground hover:bg-muted"
                         )}>
                         <span className={cn("text-[10px] font-bold uppercase", isSelected ? "text-primary-foreground/80" : "text-muted-foreground")}>
-                          {format(day, "EEE", { locale: it }).slice(0, 2)}
+                          {format(day, "EEE", { locale: dateFnsCampo() }).slice(0, 2)}
                         </span>
                         <span className="mt-1 text-lg font-black">{format(day, "d")}</span>
                         <span className={cn("mt-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold",
@@ -479,7 +478,7 @@ export default function CampoCalendario() {
                     <ChevronLeft className="h-5 w-5" />
                   </button>
                   <span className="text-sm font-bold capitalize">
-                    {format(currentMonth, "MMMM yyyy", { locale: it })}
+                    {format(currentMonth, "MMMM yyyy", { locale: dateFnsCampo() })}
                   </span>
                   <button onClick={() => setCurrentMonth(m => addMonths(m, 1))}
                     className="flex h-10 w-10 items-center justify-center rounded-xl border bg-background transition-all active:scale-95">
@@ -581,7 +580,7 @@ export default function CampoCalendario() {
             <div>
               <p className="font-semibold text-foreground">{campoCrewAgendaEnabled ? t("Nessun altro cantiere o appuntamento") : t("Nessun impegno programmato")}</p>
               <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                {campoCrewAgendaEnabled ? t("I turni di squadra sono elencati nell'agenda qui sopra.") : isToday(selectedDay) ? t("Oggi non risultano cantieri o appuntamenti assegnati.") : t("Niente programmato per {data}.", { data: format(selectedDay, "EEEE d MMMM", { locale: it }) })}
+                {campoCrewAgendaEnabled ? t("I turni di squadra sono elencati nell'agenda qui sopra.") : isToday(selectedDay) ? t("Oggi non risultano cantieri o appuntamenti assegnati.") : t("Niente programmato per {data}.", { data: format(selectedDay, "EEEE d MMMM", { locale: dateFnsCampo() }) })}
               </p>
             </div>
           </div>
@@ -639,7 +638,7 @@ export default function CampoCalendario() {
             const timeStr = a.appointment_time
               ? a.appointment_time.slice(0, 5) + (a.appointment_end_time ? ` - ${a.appointment_end_time.slice(0, 5)}` : "")
               : null;
-            const dateStr = format(parseISO(a.appointment_date), "EEEE d MMMM yyyy", { locale: it });
+            const dateStr = format(parseISO(a.appointment_date), "EEEE d MMMM yyyy", { locale: dateFnsCampo() });
 
             return (
               <div className="space-y-5">
@@ -963,7 +962,7 @@ function CantiereCard({
       {hasDateRange && (
         <div className="flex items-center gap-2 text-[11px] text-muted-foreground mb-3 bg-muted/50 rounded-lg px-2.5 py-1.5">
           <Navigation className="w-3 h-3 shrink-0" />
-          <span>{format(parseISO(order.work_start_date!), "d MMM", { locale: it })} → {format(parseISO(order.work_end_date!), "d MMM", { locale: it })}</span>
+          <span>{format(parseISO(order.work_start_date!), "d MMM", { locale: dateFnsCampo() })} → {format(parseISO(order.work_end_date!), "d MMM", { locale: dateFnsCampo() })}</span>
         </div>
       )}
 

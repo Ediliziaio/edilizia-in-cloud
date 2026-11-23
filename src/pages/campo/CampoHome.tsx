@@ -6,8 +6,7 @@
 import { useState, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { format, isToday, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths, isSameDay, startOfDay, isBefore } from "date-fns";
-import { it } from "date-fns/locale";
+import { format, isToday, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths, isSameDay, startOfDay, isBefore, addDays, startOfWeek } from "date-fns";
 import {
   MapPin, ChevronRight, ChevronLeft,
   CheckCircle, Clock,
@@ -38,7 +37,7 @@ import { isNative } from "@/lib/mobile";
 import { Skeleton } from "@/components/ui/skeleton";
 import { giorniRitardoCantiere, testoRitardoCantiere } from "@/lib/campo/ritardoCantiere";
 import { AvvisoScadenzePersonali } from "@/components/campo/AvvisoScadenzePersonali";
-import { useLinguaCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
+import { dateFnsCampo, intlCampo, useLinguaCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 import { useCampoWorkDay } from "@/hooks/campo/useCampoWorkDay";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -65,7 +64,12 @@ function campoPriorityScore(priority: string | null | undefined): number {
   }
 }
 
-const GIORNI_SETTIMANA = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
+/** Iniziali dei giorni, da lunedì, nella lingua dell'operaio (in italiano: Lun, Mar, Mer…). */
+const giorniSettimana = () => {
+  const lunedi = startOfWeek(new Date(), { weekStartsOn: 1 });
+  return Array.from({ length: 7 }, (_, i) => format(addDays(lunedi, i), "EEE", { locale: dateFnsCampo() }).replace(/\.$/, ""))
+    .map(g => g.charAt(0).toLocaleUpperCase(intlCampo()) + g.slice(1));
+};
 
 interface CampoAiOrder {
   id: string;
@@ -131,8 +135,8 @@ export default function CampoHome() {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
               <p className="capitalize text-xs text-muted-foreground md:text-sm">
-                {lingua.codice === "it" ? format(new Date(), "EEEE d MMMM yyyy", { locale: it })
-                  : new Intl.DateTimeFormat(lingua.locale, { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date())}
+                {lingua.codice === "it" ? format(new Date(), "EEEE d MMMM yyyy", { locale: dateFnsCampo() })
+                  : new Intl.DateTimeFormat(intlCampo(), { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date())}
               </p>
               {isOperaio && isCapocantiere && (
                 <span className="rounded-md bg-primary/10 px-1.5 text-[11px] font-semibold text-primary md:hidden">{t("Capocantiere")}</span>
@@ -567,6 +571,8 @@ function CantieriSub() {
 // Mini Calendario mensile
 // ─────────────────────────────────────────────────────────────────────────────
 function MiniCalendarioCampo() {
+  // «tr» e non «t»: qui sotto «t» è il nome di ogni attività nei .map.
+  const tr = useT();
   const { user, profile } = useAuth();
   const companyId = profile?.company_id;
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -632,7 +638,7 @@ function MiniCalendarioCampo() {
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <span className="text-sm font-medium min-w-[120px] text-center capitalize">
-              {format(currentMonth, "MMMM yyyy", { locale: it })}
+              {format(currentMonth, "MMMM yyyy", { locale: dateFnsCampo() })}
             </span>
             <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7"
               onClick={() => setCurrentMonth(m => addMonths(m, 1))}>
@@ -644,7 +650,7 @@ function MiniCalendarioCampo() {
       <CardContent className="pb-3">
         {/* Giorni settimana */}
         <div className="grid grid-cols-7 mb-1">
-          {GIORNI_SETTIMANA.map(g => (
+          {giorniSettimana().map(g => (
             <div key={g} className="text-center text-[10px] font-semibold text-muted-foreground py-1 uppercase">
               {g}
             </div>
@@ -688,7 +694,7 @@ function MiniCalendarioCampo() {
                   {dayTasks.length > 0 && (
                     <TooltipContent side="bottom" className="max-w-[200px]">
                       <p className="font-medium text-xs mb-1">
-                        {format(day, "d MMMM", { locale: it })} — {dayTasks.length} attività
+                        {tr("{data} — {n} attività", { data: format(day, "d MMMM", { locale: dateFnsCampo() }), n: dayTasks.length })}
                       </p>
                       {dayTasks.slice(0, 4).map((t: any) => (
                         <p key={t.id} className="text-xs text-muted-foreground truncate">• {t.title}</p>
@@ -705,8 +711,8 @@ function MiniCalendarioCampo() {
         {selectedDate && (
           <div className="mt-3 border-t pt-3">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-              {isToday(selectedDate) ? "Oggi" : format(selectedDate, "d MMMM", { locale: it })}
-              {selectedTasks.length > 0 && ` — ${selectedTasks.length} attività`}
+              {isToday(selectedDate) ? tr("Oggi") : format(selectedDate, "d MMMM", { locale: dateFnsCampo() })}
+              {selectedTasks.length > 0 && ` — ${tr("{n} attività", { n: selectedTasks.length })}`}
             </p>
             {selectedTasks.length === 0 ? (
               <p className="text-xs text-muted-foreground italic">Nessuna scadenza per questo giorno</p>
@@ -738,6 +744,7 @@ function MiniCalendarioCampo() {
 // Le mie attività
 // ─────────────────────────────────────────────────────────────────────────────
 function MieAttivitaCampo() {
+  const tr = useT();
   const navigate = useNavigate();
   const { user, profile } = useAuth();
   const companyId = profile?.company_id;
@@ -777,7 +784,7 @@ function MieAttivitaCampo() {
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base">Le mie attività</CardTitle>
+          <CardTitle className="text-base">{tr("Le mie attività")}</CardTitle>
           <div className="flex items-center gap-2">
             {tasks.length > 0 && (
               <Badge variant="secondary" className="text-xs">{tasks.length}</Badge>
@@ -819,7 +826,7 @@ function MieAttivitaCampo() {
                     <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                       {t.order?.order_code && <span>{t.order.order_code}</span>}
                       {t.due_date && (
-                        <span>{format(new Date(t.due_date), "d MMM", { locale: it })}</span>
+                        <span>{format(new Date(t.due_date), "d MMM", { locale: dateFnsCampo() })}</span>
                       )}
                     </div>
                   </div>

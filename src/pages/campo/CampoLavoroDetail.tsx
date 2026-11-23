@@ -19,7 +19,6 @@ import { commessaChiusa } from "@/lib/campo/cantieriAperti";
 import { SottofasiContate } from "@/components/campo/SottofasiContate";
 import { SOTTOFASI_NELLA_FASE, sottofasiDalleFasi, sottofasiPerFase, type Sottofase } from "@/lib/orders/sottofasi";
 import { format, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
 import {
   ArrowLeft, MapPin, Phone, AlertCircle,
   CheckCircle, Clock, Loader2, FileText, PenLine,
@@ -53,7 +52,7 @@ import { RapportiniInCoda } from "@/components/campo/RapportiniInCoda";
 import { linkChiediCorrezione } from "@/lib/campo/chiediCorrezione";
 import { chiaveFasiCommessa, leggiFasiCommessa } from "@/lib/campo/fasiCommessa";
 import { giorniRitardoCantiere, testoRitardoCantiere } from "@/lib/campo/ritardoCantiere";
-import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { dateFnsCampo, intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 import { faseInRitardo, testoRitardo } from "@/components/campo/PianoSchedaCantiere";
 import { useNetworkStatus } from "@/hooks/campo/useNetworkStatus";
 import { campoReportUrl, isClientReport } from "@/lib/campo/reportKind";
@@ -271,7 +270,7 @@ interface FaseMia {
 
 /** «15 ott – 21 ott», «dal 15 ott», «fino al 21 ott». */
 function periodoFase(f: Pick<FaseMia, "dal" | "al">): string {
-  const g = (d: string) => format(parseISO(d), "d MMM", { locale: it });
+  const g = (d: string) => format(parseISO(d), "d MMM", { locale: dateFnsCampo() });
   if (f.dal && f.al) return f.dal === f.al ? g(f.dal) : `${g(f.dal)} – ${g(f.al)}`;
   if (f.dal) return `dal ${g(f.dal)}`;
   return f.al ? `fino al ${g(f.al)}` : "";
@@ -979,9 +978,9 @@ export default function CampoLavoroDetail() {
               <p className="flex items-center gap-2 px-1 text-sm text-muted-foreground">
                 <Clock className="h-4 w-4 shrink-0" />
                 <span>
-                  {order?.work_start_date ? `Dal ${format(new Date(order.work_start_date), "d MMM", { locale: it })}` : "Inizio da fissare"}
+                  {order?.work_start_date ? t("Dal {data}", { data: format(new Date(order.work_start_date), "d MMM", { locale: dateFnsCampo() }) }) : t("Inizio da fissare")}
                   {" · "}
-                  {order?.work_end_date ? `fine prevista ${format(new Date(order.work_end_date), "d MMM yyyy", { locale: it })}` : "fine da fissare"}
+                  {order?.work_end_date ? t("fine prevista {data}", { data: format(new Date(order.work_end_date), "d MMM yyyy", { locale: dateFnsCampo() }) }) : t("fine da fissare")}
                   {/* Ritardo del cantiere sempre visibile (collaudo 23/11): RIS01 doveva finire il 16 ago, al 45%. */}
                   {(() => {
                     const giorni = giorniRitardoCantiere(order?.work_end_date, today, order?.status);
@@ -1377,7 +1376,7 @@ function BolleCantiere({ orderId }: { orderId: string }) {
       >
         <Camera className="h-4 w-4" />Fotografa una bolla
       </button>
-      {documenti.data?.map(j => <div key={j.id} className="rounded-xl border bg-background p-3 text-sm"><p className="break-all font-semibold">{j.files[0]?.name}</p><p className="mt-1 text-xs text-muted-foreground">{STATO_DOCUMENTO[j.status]} · {new Date(j.created_at).toLocaleString("it-IT")}</p></div>)}
+      {documenti.data?.map(j => <div key={j.id} className="rounded-xl border bg-background p-3 text-sm"><p className="break-all font-semibold">{j.files[0]?.name}</p><p className="mt-1 text-xs text-muted-foreground">{STATO_DOCUMENTO[j.status]} · {new Date(j.created_at).toLocaleString(intlCampo())}</p></div>)}
       {documenti.isError && <button className="min-h-11 text-sm underline" onClick={() => void documenti.refetch()}>Riprova a caricare i DDT inviati</button>}
       {documenti.hasNextPage && <button className="min-h-11 w-full rounded-xl border text-sm" disabled={documenti.isFetchingNextPage} onClick={()=>void documenti.fetchNextPage()}>{documenti.isFetchingNextPage?"Caricamento…":"Carica altri DDT inviati"}</button>}
       {isLoading && <p className="text-sm text-muted-foreground">Carico le bolle…</p>}
@@ -1465,7 +1464,7 @@ function DiarioCantiere({ orderId }: { orderId: string }) {
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-bold text-foreground">{title}</p>
                       <span className="text-[11px] text-muted-foreground">
-                        {format(new Date(data.created_at), "d MMM HH:mm", { locale: it })}
+                        {format(new Date(data.created_at), "d MMM HH:mm", { locale: dateFnsCampo() })}
                       </span>
                     </div>
                     {actorName && <p className="text-xs text-muted-foreground">Da {actorName}</p>}
@@ -1704,6 +1703,7 @@ function diaryEventLabel(eventType: string, payload: Record<string, unknown>) {
 // Documenti e Firma — tab con richieste firma e invio nuove
 // ─────────────────────────────────────────────────────────────────────────────
 function DocumentiFirmaTab({ orderId, customer }: { orderId: string; customer: CampoCustomer | null }) {
+  const tr = useT();
   const queryClient = useQueryClient();
   const [showNewDoc, setShowNewDoc] = useState(false);
   const [selectedTipo, setSelectedTipo] = useState<string | null>(null);
@@ -1921,14 +1921,14 @@ function DocumentiFirmaTab({ orderId, customer }: { orderId: string; customer: C
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Inviato a {f.signer_name || f.signer_email}
+                      {tr("Inviato a {nome}", { nome: f.signer_name || f.signer_email })}
                     </p>
                     <p className="text-[11px] text-muted-foreground mt-0.5">
-                      {format(new Date(f.created_at), "d MMM yyyy 'alle' HH:mm", { locale: it })}
+                      {tr("{data} alle {ora}", { data: format(new Date(f.created_at), "d MMM yyyy", { locale: dateFnsCampo() }), ora: format(new Date(f.created_at), "HH:mm") })}
                     </p>
                     {f.signed_at && (
                       <p className="text-[11px] text-green-600 font-medium mt-0.5">
-                        Firmato il {format(new Date(f.signed_at), "d MMM yyyy 'alle' HH:mm", { locale: it })}
+                        {tr("Firmato il {data} alle {ora}", { data: format(new Date(f.signed_at), "d MMM yyyy", { locale: dateFnsCampo() }), ora: format(new Date(f.signed_at), "HH:mm") })}
                       </p>
                     )}
                   </div>

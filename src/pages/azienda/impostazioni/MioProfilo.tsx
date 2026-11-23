@@ -17,7 +17,6 @@ import { logger } from "@/utils/logger";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import {
   Camera, User, Save, Loader2, Phone, Mail, Lock, Eye, EyeOff,
   Shield, Check, X, CalendarDays, RefreshCw, Unlink, Clock, Bell,
@@ -35,7 +34,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SceltaLinguaCampo } from "@/components/campo/SceltaLinguaCampo";
-import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 import { EmailOAuthConnectionsCard } from "@/components/integrations/EmailOAuthConnectionsCard";
 import { TwoFactorSetup } from "@/components/auth/TwoFactorSetup";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -643,7 +642,7 @@ export default function MioProfilo() {
                 <div>
                   <p className="text-muted-foreground text-xs">{t("Account creato")}</p>
                   <p className="font-medium">
-                    {profile?.created_at ? format(new Date(profile.created_at), "d MMMM yyyy", { locale: it }) : "—"}
+                    {profile?.created_at ? format(new Date(profile.created_at), "d MMMM yyyy", { locale: dateFnsCampo() }) : "—"}
                   </p>
                 </div>
                 <div>
@@ -653,7 +652,7 @@ export default function MioProfilo() {
                       // profiles.last_login_at non viene popolato per tutti gli
                       // utenti (es. super admin): fallback al dato auth nativo.
                       const lastAccess = profile?.last_login_at ?? user?.last_sign_in_at;
-                      return lastAccess ? format(new Date(lastAccess), "d MMM yyyy, HH:mm", { locale: it }) : "—";
+                      return lastAccess ? format(new Date(lastAccess), "d MMM yyyy, HH:mm", { locale: dateFnsCampo() }) : "—";
                     })()}
                   </p>
                 </div>
@@ -869,7 +868,7 @@ export default function MioProfilo() {
                           <p className={`text-xs mt-1 ${
                             isHealthy ? "text-green-600/70" : "text-amber-600/70"
                           }`}>
-                            Ultimo aggiornamento: {format(new Date(googleConn.last_sync_at), "d MMM yyyy, HH:mm", { locale: it })}
+                            {t("Ultimo aggiornamento: {data}", { data: format(new Date(googleConn.last_sync_at), "d MMM yyyy, HH:mm", { locale: dateFnsCampo() }) })}
                           </p>
                         ) : (
                           <p className={`text-xs mt-1 italic ${

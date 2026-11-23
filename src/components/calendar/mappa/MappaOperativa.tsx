@@ -24,7 +24,7 @@ import PosizioneOperativa from "./PosizioneOperativa";
 import { calcolaPercorso, fonteCartografica, formatoKm, servizioMappa, type Ambito, type Profilo, type PropostaMappa, type TipoCandidato } from "./servizio";
 import { aspettoTratta, type LineaPercorso } from "./tratte";
 import { useMemoriaMappa, type StatoMappa } from "./useMappaCalendario";
-import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type FnT = ReturnType<typeof useT>;
 
@@ -825,7 +825,7 @@ export default function MappaOperativa({
     {consumo && <details onToggle={e => setVediConsumo(e.currentTarget.open)} className="rounded-lg border bg-card px-3 py-2 text-sm">
       <summary className="cursor-pointer font-medium">{t("Consumo cartografico del mese")}</summary>
       {conteggi.isError && <p className="mt-2 text-xs">{t("Conteggi non disponibili.")}</p>}
-      {conteggi.data?.map(c => <p key={`${c.provider}:${c.voce}`} className="mt-1 text-xs">{c.provider.replaceAll("_", " ")} · {c.voce.replaceAll("_", " ")} · {Number(c.unita).toLocaleString("it-IT")}</p>)}
+      {conteggi.data?.map(c => <p key={`${c.provider}:${c.voce}`} className="mt-1 text-xs">{c.provider.replaceAll("_", " ")} · {c.voce.replaceAll("_", " ")} · {Number(c.unita).toLocaleString(intlCampo())}</p>)}
     </details>}
   </section>;
 }

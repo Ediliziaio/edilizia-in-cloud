@@ -7,7 +7,6 @@ import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
 import { LogIn, LogOut } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -22,7 +21,7 @@ import { useCampoSedi } from "@/hooks/campo/useCampoSedi";
 import { costruisciLuoghi, righeTimeline, type RigaTimeline } from "@/lib/campo/luoghi";
 import { campoWorkDay, messaggioScadenzaRapportino, reportDayAllowed } from "@/lib/campo/workDay";
 import { useRegoleCampoOrdine } from "@/hooks/useRegoleCampo";
-import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type TipoTimbratura = "entrata" | "uscita" | "pausa_inizio" | "pausa_fine";
 
@@ -131,7 +130,7 @@ function CampoTimbraturaEditor() {
 
         {/* Ore lavorate oggi */}
         <div className="bg-muted border border-border rounded-2xl p-5">
-          <p className="text-xs text-muted-foreground mb-1">{t("Oggi — {data}", { data: format(new Date(), "EEEE d MMMM", { locale: it }) })}</p>
+          <p className="text-xs text-muted-foreground mb-1">{t("Oggi — {data}", { data: format(new Date(), "EEEE d MMMM", { locale: dateFnsCampo() }) })}</p>
           <div className="flex items-end gap-2">
             <span className="text-4xl font-bold text-foreground">{dayTime.isError || dayTime.isLoading ? "—" : oreBrevi(oreLavorate)}</span>
             <span className="text-lg text-muted-foreground mb-1">{t("nella giornata")}</span>
@@ -188,7 +187,7 @@ function CampoTimbraturaEditor() {
                   <div key={day} className="bg-muted border border-border rounded-xl p-3">
                     <div className="flex items-center justify-between mb-2">
                       <p className="text-sm font-medium text-foreground">
-                        {format(parseISO(day), "EEE d MMM", { locale: it })}
+                        {format(parseISO(day), "EEE d MMM", { locale: dateFnsCampo() })}
                       </p>
                       <span className="text-sm text-primary font-semibold">{ore}</span>
                     </div>

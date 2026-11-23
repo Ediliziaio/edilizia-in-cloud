@@ -22,7 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface RigaSquadra {
   /** Vuoto per chi della squadra non ha l'app: le sue ore vengono dal Personale. */
@@ -42,7 +42,7 @@ interface RigaSquadra {
 }
 
 const ora = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }) : null;
+  iso ? new Date(iso).toLocaleTimeString(intlCampo(), { hour: "2-digit", minute: "2-digit" }) : null;
 
 const oreDaControllare = (riga: RigaSquadra) =>
   riga.in_cantiere || (!riga.rapportino_inviato && !(Number(riga.ore) > 0));
@@ -217,7 +217,7 @@ export default function CampoSquadra() {
                           : t("Non ha timbrato oggi")}
                     </span>
                     <span className="inline-flex items-center gap-1 font-semibold tabular-nums text-foreground">
-                      <Clock className="h-3 w-3 text-muted-foreground" aria-hidden="true" />{Number(r.ore).toLocaleString("it-IT")} h
+                      <Clock className="h-3 w-3 text-muted-foreground" aria-hidden="true" />{Number(r.ore).toLocaleString(intlCampo())} h
                     </span>
                   </p>
                   {r.user_id ? (

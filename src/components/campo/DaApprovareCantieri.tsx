@@ -8,7 +8,6 @@ import { lazy, Suspense, useId, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { differenceInCalendarDays, format, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
 import { ClipboardList, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,7 +17,7 @@ import { messaggioErrore } from "@/lib/campo/messaggioErrore";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // Pesante (approvazione con verifica economica e delle fasi): caricato solo
 // quando si apre il popup, per non appesantire la pagina Attività.
@@ -206,7 +205,7 @@ export function DaApprovareCantieri() {
             })}
             {gruppi.correzioniSenza.map((c) => (
               <li key={`c-${c.id}`} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm">
-                <span><strong>{t("Timbratura dimenticata")}</strong> · {c.persona || t("Operaio")} · {t("{tipo} del {data}", { tipo: c.tipo === "entrata" ? t("entrata") : t("uscita"), data: format(parseISO(c.ora), "d MMM 'alle' HH:mm", { locale: it }) })} · {etichetta(c.order_id, c.codice)}{codiceDi(c.order_id) ? ` · ${codiceDi(c.order_id)}` : ""} · «{c.motivo}»</span>
+                <span><strong>{t("Timbratura dimenticata")}</strong> · {c.persona || t("Operaio")} · {t("{tipo} del {data}", { tipo: c.tipo === "entrata" ? t("entrata") : t("uscita"), data: format(parseISO(c.ora), "d MMM 'alle' HH:mm", { locale: dateFnsCampo() }) })} · {etichetta(c.order_id, c.codice)}{codiceDi(c.order_id) ? ` · ${codiceDi(c.order_id)}` : ""} · «{c.motivo}»</span>
                 <span className="flex gap-2">
                   <Button size="sm" disabled={decidi.isPending} onClick={() => decidi.mutate({ id: c.id, approva: true })}>{t("Approva")}</Button>
                   <Button size="sm" variant="outline" disabled={decidi.isPending} onClick={() => {

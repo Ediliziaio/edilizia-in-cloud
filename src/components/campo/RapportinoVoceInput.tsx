@@ -3,7 +3,7 @@ import CampoAudioRecorder from "@/components/campo/CampoAudioRecorder";
 import { useRapportinoVocale, type MaterialeUsato } from "@/hooks/campo/useRapportinoVocale";
 import { useNetworkStatus } from "@/hooks/campo/useNetworkStatus";
 import { oreInTesto } from "@/lib/campo/regoleCampo";
-import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface PropostaRapportino {
   descrizione: string;
@@ -62,7 +62,7 @@ export function RapportinoVoceInput({ orderId, workDay, proponiOre, proponiMater
             {proposta.materiali.length > 0 && <div>
               <p className="font-semibold text-foreground">{t("Materiali proposti")}</p>
               <ul className="mt-1 list-disc space-y-1 pl-5 text-muted-foreground">
-                {proposta.materiali.map((m, i) => <li key={`${m.nome}-${i}`}>{m.nome} · {m.quantita.toLocaleString("it-IT")} {m.unita}</li>)}
+                {proposta.materiali.map((m, i) => <li key={`${m.nome}-${i}`}>{m.nome} · {m.quantita.toLocaleString(intlCampo())} {m.unita}</li>)}
               </ul>
             </div>}
           </div>

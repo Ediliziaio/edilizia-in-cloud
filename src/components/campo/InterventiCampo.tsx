@@ -4,18 +4,17 @@
  * lì»), cosa fare (note) e il cliente — così so dove e cosa fare.
  */
 import { format, parseISO, isToday, isTomorrow } from "date-fns";
-import { it } from "date-fns/locale";
 import { Wrench, Navigation, Phone, CalendarClock } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { linkMappa, linkTelefono } from "@/hooks/campo/useCampoGiornata";
 import { useMieiInterventi, type InterventoCampo } from "@/hooks/campo/useMieiInterventi";
-import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 function quando(iso: string | null, t: ReturnType<typeof useT>): string {
   if (!iso) return t("Data da fissare");
   const d = parseISO(iso);
   const ora = format(d, "HH:mm");
-  const giorno = isToday(d) ? t("Oggi") : isTomorrow(d) ? t("Domani") : format(d, "EEE d MMM", { locale: it });
+  const giorno = isToday(d) ? t("Oggi") : isTomorrow(d) ? t("Domani") : format(d, "EEE d MMM", { locale: dateFnsCampo() });
   return ora === "00:00" ? giorno : `${giorno} · ${ora}`;
 }
 

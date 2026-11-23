@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { RilevazioniMezziRapportino } from "@/components/orders/RilevazioniMezziRapportino";
 import { CampiModuloLettura } from "@/components/campo/CampiModuloLettura";
 import { bloccoFasi, oreBrevi, type FaseBlocco, type MaterialeBlocco } from "../../../supabase/functions/genera-pdf-rapportino/model";
-import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   report: { id?: string; company_id?: string; order_id?: string; fasi_lavorate?: unknown; materiali_usati?: unknown; foto_urls?: unknown; campi_extra?: unknown };
@@ -63,7 +63,7 @@ function GrigliaFoto({ foto, alt, onFoto }: { foto: string[]; alt: string; onFot
 function SchedaFase({ fase, compatto, onFoto }: { fase: FaseBlocco; compatto: boolean; onFoto?: (url: string) => void }) {
   const t = useT();
   const completata = fase.percentuale === 100;
-  const stato = completata ? t("Completata") : fase.percentuale !== null ? `${fase.percentuale.toLocaleString("it-IT")}%` : t("Lavorata");
+  const stato = completata ? t("Completata") : fase.percentuale !== null ? `${fase.percentuale.toLocaleString(intlCampo())}%` : t("Lavorata");
   const pill = (
     <span className={cn("shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold",
       completata ? "bg-emerald-100 text-emerald-800" : fase.percentuale !== null ? "bg-orange-100 text-orange-800" : "bg-slate-100 text-slate-700")}>

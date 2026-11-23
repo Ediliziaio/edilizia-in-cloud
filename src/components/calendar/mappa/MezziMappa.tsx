@@ -7,7 +7,7 @@ import { TIPI_MEZZO } from "@/types/mezzi";
 import { coordinate, partiNelFuso } from "../../../../shared/mappa-operativa/calcoli";
 import { formatoKm } from "./servizio";
 import type { FiltriMezzi, FiltroMezzi } from "./useMezziMappa";
-import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const dataIt = (valore: string) => valore.split("-").reverse().join("/");
 function dataOra(iso: string) {
@@ -78,9 +78,9 @@ export default function MezziMappa({ mezzi, selezione, giorno, personale, tipoMe
           <span className="min-w-0">
             <span className="block break-words text-sm font-semibold">{m.nome}</span>
             <span className="block text-xs text-muted-foreground">{[tipo, m.targa].filter(Boolean).join(" · ")}</span>
-            <span className="block text-xs">{m.attrezzatura ? [m.attrezzatura.quantita != null ? [m.attrezzatura.quantita.toLocaleString("it-IT"), m.unita].filter(Boolean).join(" ") : null,
+            <span className="block text-xs">{m.attrezzatura ? [m.attrezzatura.quantita != null ? [m.attrezzatura.quantita.toLocaleString(intlCampo()), m.unita].filter(Boolean).join(" ") : null,
               m.attrezzatura.custode ? t("In carico a {nome}", { nome: m.attrezzatura.custode }) : null].filter(Boolean).join(" · ") : m.stradale ? misure.join(" · ") || t("Km da registrare") :
-              m.contaore != null ? t("{ore} h · lettura contaore", { ore: m.contaore.toLocaleString("it-IT") }) : m.unita === "ore" ? t("Lettura contaore da registrare") : t("Assegnazione operativa")}</span>
+              m.contaore != null ? t("{ore} h · lettura contaore", { ore: m.contaore.toLocaleString(intlCampo()) }) : m.unita === "ore" ? t("Lettura contaore da registrare") : t("Assegnazione operativa")}</span>
             <span className="block break-words text-xs text-muted-foreground">{m.posizione ? [m.posizione.nome, m.attrezzatura && m.posizione.quando ? dataOra(m.posizione.quando) : null].filter(Boolean).join(" · ")
               : m.attrezzatura?.quantita != null ? t("Quantità senza ubicazione registrata") : t("Posizione da documentare")}</span>
             {m.destinazione && m.destinazione.order_id !== m.posizione?.order_id &&

@@ -6,7 +6,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import {
   Plus, CheckCircle, Clock, Circle, Loader2, Calendar as CalendarIcon,
   X, HardHat, MapPin, ListChecks, PlayCircle,
@@ -19,7 +18,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
-import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // ── Config ──
 const PRIORITY_CONFIG: Record<string, { label: string; dot: string; badge: string; sort: number }> = {
@@ -181,7 +180,7 @@ export default function CampoAttivita() {
               <p className="truncate text-lg font-black">{focusTask.title}</p>
               <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-blue-800/80">
                 {focusTask.order?.order_code && <span className="rounded-full bg-white/70 px-2 py-1 font-semibold">{focusTask.order.order_code}</span>}
-                {focusTask.due_date && <span className="rounded-full bg-white/70 px-2 py-1 font-semibold">{t("Scade {data}", { data: format(new Date(focusTask.due_date), "d MMM", { locale: it }) })}</span>}
+                {focusTask.due_date && <span className="rounded-full bg-white/70 px-2 py-1 font-semibold">{t("Scade {data}", { data: format(new Date(focusTask.due_date), "d MMM", { locale: dateFnsCampo() }) })}</span>}
                 {focusTask.order?.indirizzo_lavori && <span className="truncate rounded-full bg-white/70 px-2 py-1 font-semibold">{focusTask.order.indirizzo_lavori}</span>}
               </div>
             </div>
@@ -305,7 +304,7 @@ export default function CampoAttivita() {
                             ? "text-red-600 font-semibold" : "text-muted-foreground"
                         )}>
                           <CalendarIcon className="w-3 h-3" />
-                          {format(new Date(task.due_date), "d MMM", { locale: it })}
+                          {format(new Date(task.due_date), "d MMM", { locale: dateFnsCampo() })}
                         </span>
                       )}
                     </div>

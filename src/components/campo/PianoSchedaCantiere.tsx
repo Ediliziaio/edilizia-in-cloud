@@ -13,13 +13,14 @@ import {
 import type { Sottofase } from "@/lib/orders/sottofasi";
 import { planningDay } from "@/lib/orders/planning";
 import { cn } from "@/lib/utils";
-import { sostituisci, useT } from "@/lib/campo/lingua/LinguaCampo";
+import { intlCampo, sostituisci, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type T = ReturnType<typeof useT>;
 
 
 const statoFase = { da_iniziare: "Da iniziare", in_corso: "In corso", completata: "Completata" };
-const dataBreve = new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "short", year: "numeric" });
+// La lingua dell'operaio: si legge a ogni uso, non una volta sola all'avvio.
+const dataBreve = { format: (d: Date | number) => new Intl.DateTimeFormat(intlCampo(), { day: "numeric", month: "short", year: "numeric" }).format(d) };
 const data = (giorno: string) => dataBreve.format(new Date(`${giorno}T12:00:00`));
 
 /** «l’8 giu», «l’11 giu», «il 9 giu»: davanti a 8 e 11 l'articolo si apostrofa. */

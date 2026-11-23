@@ -95441,6 +95441,7 @@ export type Database = {
           last_login_at: string | null
           last_login_ip: unknown
           last_name: string
+          lingua: string | null
           locked_until: string | null
           marketing_contact_id: string | null
           notes: string | null
@@ -95491,6 +95492,7 @@ export type Database = {
           last_login_at?: string | null
           last_login_ip?: unknown
           last_name: string
+          lingua?: string | null
           locked_until?: string | null
           marketing_contact_id?: string | null
           notes?: string | null
@@ -95541,6 +95543,7 @@ export type Database = {
           last_login_at?: string | null
           last_login_ip?: unknown
           last_name?: string
+          lingua?: string | null
           locked_until?: string | null
           marketing_contact_id?: string | null
           notes?: string | null

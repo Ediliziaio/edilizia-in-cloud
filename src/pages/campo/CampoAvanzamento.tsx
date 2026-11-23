@@ -45,7 +45,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { puoSpuntareInCantiere, chiSpuntaValido, type ChiSpunta } from "@/lib/orders/chiSpunta";
 import { faseHaSottofasi, messaggioErrore, SOTTOFASI_NELLA_FASE, sottofasiDalleFasi, sottofasiPerFase, type Sottofase } from "@/lib/orders/sottofasi";
 import { percorsoCantiereTecnico } from "@/lib/campo/schedaCantiere";
-import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // Le foto restano indirizzate come prima nel database; in lettura passano da
 // un link a scadenza (linkFileRiservato), cosi' funzionano anche quando il
@@ -464,7 +464,7 @@ export default function CampoAvanzamento() {
                           {done && fase.completata_il && (
                             <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
                               <Clock className="h-3 w-3" />
-                              {new Date(fase.completata_il).toLocaleDateString("it-IT")}
+                              {new Date(fase.completata_il).toLocaleDateString(intlCampo())}
                             </span>
                           )}
                         </div>

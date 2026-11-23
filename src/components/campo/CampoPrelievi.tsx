@@ -9,11 +9,12 @@ import { useCodaCampo } from "@/hooks/campo/useCodaCampo";
 import { formatoQuantitaMagazzino, nomeCantierePrelievo, quantitaPrelievo } from "@/lib/campo/magazzino";
 import { syncQueue } from "@/lib/campo/sync-queue";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
-import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
-const dataPrelievo = new Intl.DateTimeFormat("it-IT", {
+// La lingua dell'operaio: si legge a ogni uso, non una volta sola all'avvio.
+const dataPrelievo = { format: (d: Date | number) => new Intl.DateTimeFormat(intlCampo(), {
   day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
-});
+}).format(d) };
 const stati = {
   consegnato: { label: "Consegnato", className: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" },
   rifiutato: { label: "Rifiutato", className: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300" },

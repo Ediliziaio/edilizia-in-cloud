@@ -6,7 +6,6 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { ShieldCheck, ChevronLeft, Loader2, CheckCircle2 } from "lucide-react";
 import {
   useChecklistSicurezza,
@@ -15,7 +14,7 @@ import {
 import CampoChecklistItem from "@/components/campo/CampoChecklistItem";
 import { isChecklistCompleta } from "@/lib/campo/checklist-items";
 import type { JSX } from "react";
-import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export default function CampoChecklistSicurezza(): JSX.Element {
   const navigate = useNavigate();
@@ -43,7 +42,7 @@ export default function CampoChecklistSicurezza(): JSX.Element {
 
   const completaLocale = useMemo(() => isChecklistCompleta(risposte), [risposte]);
 
-  const today = format(new Date(), "EEEE d MMMM yyyy", { locale: it });
+  const today = format(new Date(), "EEEE d MMMM yyyy", { locale: dateFnsCampo() });
   const capitalizedDate = today.charAt(0).toUpperCase() + today.slice(1);
 
   const handleConferma = async (): Promise<void> => {

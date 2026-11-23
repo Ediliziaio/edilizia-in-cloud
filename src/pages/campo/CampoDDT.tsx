@@ -40,7 +40,7 @@ import {
   MAX_DOCUMENTO_BYTE,
   mimeDocumento,
 } from "@/lib/ddt/preparaDocumento";
-import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const campo = "min-h-12 w-full rounded-xl border bg-background px-3 text-base";
 type PaginaBolla = { id: string; file: File };
@@ -703,7 +703,7 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
                 {j.status === "review" && puoRegistrare ? t("Da controllare") : t(STATO_DOCUMENTO[j.status])} ·{" "}
-                {new Date(j.created_at).toLocaleString("it-IT")}
+                {new Date(j.created_at).toLocaleString(intlCampo())}
               </p>
               {j.status === "review" && puoRegistrare && !j.ddt_id && (
                 <button

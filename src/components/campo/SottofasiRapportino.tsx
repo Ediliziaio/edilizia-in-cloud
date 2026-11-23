@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { avanzamentoDaSottofasi, intervalloSottofase, percentualeDaQuantita, type Sottofase } from "@/lib/orders/sottofasi";
 import { giornoLocale } from "@/lib/orders/cronoprogramma";
 import { testoPiano } from "@/components/orders/SottofasiFase";
-import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type DatoAvanzata = { quantita?: number; percentuale?: number };
 
@@ -143,7 +143,7 @@ export function SottofasiRapportino({ nomeFase, sottofasi, spunte, onSpunta, lav
                           onAvanzata!(s.id, e.target.value !== "" && Number.isFinite(n) && n > 0 ? { quantita: n } : null);
                         }}
                         className="h-11 min-w-0 flex-1 rounded-lg border border-border bg-background px-2 text-base text-foreground" />
-                      <span className="shrink-0 tabular-nums">{t("su {n}", { n: q.quantita.toLocaleString("it-IT", { maximumFractionDigits: 2 }) })}{q.unita ? ` ${q.unita}` : ""}</span>
+                      <span className="shrink-0 tabular-nums">{t("su {n}", { n: q.quantita.toLocaleString(intlCampo(), { maximumFractionDigits: 2 }) })}{q.unita ? ` ${q.unita}` : ""}</span>
                     </label>
                   ) : (
                     <div className="mt-2 flex items-center gap-1.5" role="group" aria-label={t("{nome}: a che punto è", { nome: s.name })}>

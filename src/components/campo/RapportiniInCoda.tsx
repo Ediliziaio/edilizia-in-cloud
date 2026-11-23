@@ -6,13 +6,12 @@
  * con ore e foto, e sa che parte da solo; se l'invio ha bisogno di lui, lo dice e porta al modulo.
  */
 import { format, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
 import { AlertCircle, CloudUpload } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useCodaCampo } from "@/hooks/campo/useCodaCampo";
 import { oreInTesto } from "@/lib/campo/regoleCampo";
 import { campoReportUrl } from "@/lib/campo/reportKind";
-import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function RapportiniInCoda({ companyId, userId, orderId, online }: {
   companyId: string | null;
@@ -40,7 +39,7 @@ export function RapportiniInCoda({ companyId, userId, orderId, online }: {
                 : <CloudUpload className="mt-0.5 size-4 shrink-0 text-emerald-700 motion-safe:animate-pulse" aria-hidden="true" />}
               <div className="min-w-0 flex-1">
                 <p className={fallito ? "text-sm font-semibold text-red-900" : "text-sm font-semibold text-emerald-900"}>
-                  {t("Rapportino del {data}", { data: Number.isNaN(data.getTime()) ? giorno : format(data, "d MMM", { locale: it }) })}
+                  {t("Rapportino del {data}", { data: Number.isNaN(data.getTime()) ? giorno : format(data, "d MMM", { locale: dateFnsCampo() }) })}
                   {" · "}{t(fallito ? "da controllare" : "sul telefono, da inviare")}
                 </p>
                 <p className="text-xs text-foreground/80">

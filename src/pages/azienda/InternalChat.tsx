@@ -40,7 +40,6 @@ import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import { righeAvvisiLettura } from "@/lib/documenti/avvisiLettura";
 import { toast } from "sonner";
 import { format, isToday, isYesterday, isSameDay } from "date-fns";
-import { it } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 // Badge import rimosso (v8.6.75 Round 9 / LUCIA-FULL-REMOVAL) — era usato
@@ -76,7 +75,7 @@ import {
 import { cn } from "@/lib/utils";
 import { sottoLarghezza } from "@/hooks/useSottoLarghezza";
 import { nomeCanaleLeggibile } from "@/lib/chat/nomeCanale";
-import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 import {
   filterChatProfiles,
   isAllowedSilvioUpload,
@@ -273,7 +272,7 @@ function formatDateSeparator(dateStr: string) {
   const d = new Date(dateStr);
   if (isToday(d)) return "Oggi";
   if (isYesterday(d)) return "Ieri";
-  return format(d, "d MMMM yyyy", { locale: it });
+  return format(d, "d MMMM yyyy", { locale: dateFnsCampo() });
 }
 
 function initials(p: Profile | undefined) {

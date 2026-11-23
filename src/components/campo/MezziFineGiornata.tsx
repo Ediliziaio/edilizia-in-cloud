@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { ViaggioDialog } from "@/components/mezzi/ViaggioDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
-import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 import { leggiRilevazioneMezzo, mezzoDaCantiere, RILEVAZIONI_MEZZI, type OpzioniRilevazioniMezzi, type TestiRilevazioniMezzi } from "@/lib/campo/rilevazioniMezzi";
 
 export type DoveStasera = "cantiere" | "magazzino" | "furgone" | "con_me" | "invariato";
@@ -68,7 +68,7 @@ export function righeDaSalvare(valori: Record<string, RigaMezzoGiornata>, rileva
 
 const QUI: Record<MezzoDellaGiornata["dove_ora"], DoveStasera> = { cantiere: "cantiere", a_bordo: "furgone", con_te: "con_me" };
 const ORA: Record<MezzoDellaGiornata["dove_ora"], string> = { cantiere: "sul cantiere", a_bordo: "sul furgone", con_te: "con te" };
-const kmIt = (n: number | null) => (n == null ? null : n.toLocaleString("it-IT", { maximumFractionDigits: 0 }));
+const kmIt = (n: number | null) => (n == null ? null : n.toLocaleString(intlCampo(), { maximumFractionDigits: 0 }));
 
 export function MezziFineGiornata({
   orderId,

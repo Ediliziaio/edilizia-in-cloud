@@ -8,7 +8,6 @@ import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,7 +17,7 @@ import { cantieriAperti } from "@/lib/campo/cantieriAperti";
 import { messaggioErrore } from "@/lib/campo/messaggioErrore";
 import { campoWorkDay, giorniSceglibili, istanteRoma, shiftWorkDay } from "@/lib/campo/workDay";
 import { cn } from "@/lib/utils";
-import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // La tabella e le due RPC non sono ancora nei tipi generati: contratto locale.
 type Rpc = (nome: "campo_timbratura_correzione_chiedi", args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: unknown }>;
@@ -134,7 +133,7 @@ export function CorrezioneTimbratura({ preferOrderId }: { preferOrderId?: string
             <UniformSelect value={giornoValido} onChange={(e) => setGiorno(e.target.value)} className="h-12 w-full rounded-lg border bg-background px-3 text-base">
               {giorni.map((g) => (
                 <option key={g} value={g}>
-                  {g === oggi ? tr("Oggi") : g === shiftWorkDay(oggi, -1) ? tr("Ieri") : format(parseISO(g), "EEE d MMM", { locale: it })}
+                  {g === oggi ? tr("Oggi") : g === shiftWorkDay(oggi, -1) ? tr("Ieri") : format(parseISO(g), "EEE d MMM", { locale: dateFnsCampo() })}
                 </option>
               ))}
             </UniformSelect>
@@ -174,7 +173,7 @@ export function CorrezioneTimbratura({ preferOrderId }: { preferOrderId?: string
             <li key={r.id} className="rounded-xl border bg-muted/30 p-3 text-sm">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-medium">
-                  {r.tipo === "entrata" ? tr("Entrata") : tr("Uscita")} · {format(parseISO(r.ora_richiesta), "EEE d MMM HH:mm", { locale: it })}
+                  {r.tipo === "entrata" ? tr("Entrata") : tr("Uscita")} · {format(parseISO(r.ora_richiesta), "EEE d MMM HH:mm", { locale: dateFnsCampo() })}
                 </span>
                 <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold", STATO[r.stato].classe)}>{tr(STATO[r.stato].testo)}</span>
               </div>

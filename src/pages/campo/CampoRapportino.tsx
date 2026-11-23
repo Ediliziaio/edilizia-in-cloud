@@ -18,7 +18,6 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import {
   ArrowLeft, ChevronRight, ChevronLeft,
   Camera, X, Minus, Plus, Loader2, Send, CalendarDays, ClipboardPenLine, LogIn, Mic, Images, Trash2, WifiOff,
@@ -60,7 +59,7 @@ import { RapportinoSiteContext } from "@/components/campo/RapportinoSiteContext"
 import { AnteprimaFotoCampo } from "@/components/campo/AnteprimaFotoCampo";
 import { cn } from "@/lib/utils";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { dateFnsCampo, intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 import { MAX_FOTO_PER_RAPPORTINO, avvisiPreparazione, postiLiberi, preparaFoto } from "@/lib/campo/preparaFoto";
 import { useCampoDayTime } from "@/hooks/campo/useCampoDayTime";
 import { campoReportHours } from "@/lib/campo/timeSummary";
@@ -133,7 +132,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
   const [params, setParams] = useSearchParams();
   const today = useCampoWorkDay();
   const yesterday = shiftWorkDay(today, -1);
-  const dayLabel = validWorkDay(workDay) ? format(new Date(`${workDay}T12:00:00`), "d MMMM yyyy", { locale: it }) : "Data non valida";
+  const dayLabel = validWorkDay(workDay) ? format(new Date(`${workDay}T12:00:00`), "d MMMM yyyy", { locale: dateFnsCampo() }) : t("Data non valida");
 
   const [step, setStep] = useState(1);
   const inizioRapportino = useRef<HTMLDivElement>(null);
@@ -1600,8 +1599,8 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
       : !confermaCliente && !oreNonMie && oreLavorate !== "" ? t("{ore} ordinarie", { ore: oreInTesto(oreLavorate) }) : "",
     parti.foto && !soloOreAllOperaio && fotoUrls.length ? t(fotoUrls.length === 1 ? "{n} foto allegata" : "{n} foto allegate", { n: fotoUrls.length }) : "",
   ].filter(Boolean).join(" · ");
-  const dettagliDaAggiungere = new Intl.ListFormat("it", { type: "conjunction" })
-    .format(["la descrizione", ...(parti.foto ? ["le foto"] : []), ...(parti.materiali ? ["i materiali"] : [])]);
+  const dettagliDaAggiungere = new Intl.ListFormat(intlCampo(), { type: "conjunction" })
+    .format([t("la descrizione"), ...(parti.foto ? [t("le foto")] : []), ...(parti.materiali ? [t("i materiali")] : [])]);
 
   if (inCoda && !modificaCoda) {
     const foto = inCoda.payload.campi.foto_urls?.length ?? 0;
@@ -1720,7 +1719,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                 {!dayAllowed && <option value={workDay}>{dayLabel} — non inviabile</option>}
                 {giorniSelezionabili.map((g) => (
                   <option key={g} value={g}>
-                    {g === today ? t("Oggi") : g === yesterday ? t("Ieri") : format(new Date(`${g}T12:00:00`), "EEEE", { locale: it })} · {format(new Date(`${g}T12:00:00`), "dd/MM")}
+                    {g === today ? t("Oggi") : g === yesterday ? t("Ieri") : format(new Date(`${g}T12:00:00`), "EEEE", { locale: dateFnsCampo() })} · {format(new Date(`${g}T12:00:00`), "dd/MM")}
                   </option>
                 ))}
               </UniformSelect>
@@ -1784,7 +1783,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                   {oreRegistrateDalCapo
                     ? `${oreGiaRegistrate?.da || "Il tuo capo"} ha già segnato le tue ore di questa giornata (${oreInTesto(Number(oreGiaRegistrate?.ore) || 0)}).`
                     : "Il capocantiere registra le ore della squadra."}{" "}
-                  {soloOreAllOperaio ? "Puoi indicare eventuali ore aggiuntive." : `Qui puoi aggiungere ${dettagliDaAggiungere}.`}
+                  {soloOreAllOperaio ? t("Puoi indicare eventuali ore aggiuntive.") : t("Qui puoi aggiungere {dettagli}.", { dettagli: dettagliDaAggiungere })}
                 </p>
                 <button type="button" className="min-h-11 text-sm text-primary underline" onClick={() => setOreMieForzate(true)}>
                   {oreRegistrateDalCapo
