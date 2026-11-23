@@ -5,6 +5,7 @@ import { COLORI_INFISSI_PROGETTO } from "../../../../shared/planimetrie/material
  * la stessa scena serve al visore, alle esportazioni (GLB, OBJ) e ai test.
  */
 import { finiturePareti } from "./finiturePareti";
+import { battiscopaLocale } from "./battiscopa";
 import { CostruttoreMesh } from "./costruttore";
 import { chiaveModelloElemento, costruisciElemento, modelloElemento } from "./elementi";
 import { modelloCatalogo3D, richiedeAltezzaComplemento } from "../../../../shared/planimetrie/modelliArredo";
@@ -16,7 +17,7 @@ import { baseTetto, facceTetto, finituraDi, fotovoltaicoSulTetto, quotaFalde, re
 import { meshImpianti } from "./impianti3d";
 import { meshSchemaCanali } from "./raccordi3d";
 import { ritagliaScavi, scavoPiscina, superficieConScavi, type ScavoPiscina } from "./piscina";
-import { MATERIALE_AREA, MATERIALI, definizioneMateriale, materialeFinitura, materialeMuro, materialePavimento } from "./materiali";
+import { MATERIALE_AREA, MATERIALI, conRotazione, definizioneMateriale, materialeFinitura, materialeMuro, materialePavimento, rotazionePosa } from "./materiali";
 import { calcolaIncroci, costruisciAnteOscuranti, costruisciZanzariera, costruisciCassonetto, costruisciMuro, costruisciPorta, costruisciTelaio, costruisciTamponamento, costruisciVetro, preparaMuro, sistemaVani, type MuroCalc, type VanoMuro } from "./muri";
 import type { AperturaPer3D, Mesh3D, OpzioniScena, PiantaPer3D, Scena3D, StatoOggetto, StratoEsploso3D, V3, Vista3D } from "./tipi";
 
@@ -431,9 +432,18 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
     if (!foro) {
       const pav = new CostruttoreMesh();
       pav.orizzontale(buchiPav.length ? poligonoConBuchi(contorno, buchiPav) : contorno, 0, true);
+      const materialeBase = materialeFinitura(l.finiture?.pavimento, "pavimento", materialePavimento(l.destinazione));
+      const tramaPavimento = definizioneMateriale(materialeBase)?.tessitura?.trama;
       mesh.push(pav.mesh({ id: `pavimento:${l.id}`, nome: `Pavimento ${l.nome}`, genere: "pavimento",
-        materiale: materialeFinitura(l.finiture?.pavimento, "pavimento", materialePavimento(l.destinazione)), riferimento: l.id,
+        materiale: tramaPavimento ? conRotazione(materialeBase, rotazionePosa(contorno, tramaPavimento, l.finiture?.posaPavimento)) : materialeBase, riferimento: l.id,
         stratoEsploso: areeAperte.has(l.id) ? null : "pavimenti" }));
+    }
+    // Battiscopa: nello stesso materiale del pavimento se è di piastrelle, laccato bianco col legno e la resina.
+    if (!colori && !foro && !areeAperte.has(l.id)) {
+      const base = materialeFinitura(l.finiture?.pavimento, "pavimento", materialePavimento(l.destinazione));
+      const trama = definizioneMateriale(base)?.tessitura?.trama;
+      const diPiastrelle = !!trama && !trama.startsWith("rovere") && trama !== "resina" && base !== "prato";
+      if (base !== "prato" && base !== "pavimento_esterno") mesh.push(...battiscopaLocale(l, muri, pianta.aperture.filter((a) => comeApertura(a.stato, vista) === "aperta"), diPiastrelle ? base : "battiscopa"));
     }
     // Le finiture sono della stanza, non dell'intero muro (l'esterno resta invariato).
     if (!colori) mesh.push(...finiturePareti(l, muri, pianta.aperture.filter((a) => comeApertura(a.stato, vista) === "aperta"), falde ? (x, z) => quotaIn(falde, x, z) : undefined));

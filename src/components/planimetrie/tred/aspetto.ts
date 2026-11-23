@@ -658,6 +658,15 @@ export function creaAspetto({ renderer, scene, camera }: Avvio): Aspetto {
         return;
       }
       if (opz.dentro) {
+        // dai vetri si vede il cielo dell'ora scelta, non una tinta piatta
+        const chiaveDentro = `${opz.ora}/${luce}`;
+        if (oraCielo !== chiaveDentro || !cielo) {
+          costruisciCielo(st, r);
+          oraCielo = chiaveDentro;
+          ambienteCielo?.dispose();
+          ambienteCielo = null;
+        }
+        if (cielo) cielo.visible = true;
         scene.background = new THREE.Color(st.cielo.orizzonte);
         scene.environmentIntensity = sera ? .18 : diffusa ? .52 : .42;
         renderer.toneMappingExposure = sera ? 1.18 : .95;
@@ -687,7 +696,7 @@ export function creaAspetto({ renderer, scene, camera }: Avvio): Aspetto {
       }
       // cielo, nebbia, riflessi del cielo sui vetri
       const chiaveCielo = `${opz.ora}/${luce}`;
-      if (oraCielo !== chiaveCielo) {
+      if (oraCielo !== chiaveCielo || !ambienteCielo || !cielo) {
         costruisciCielo(st, r);
         oraCielo = chiaveCielo;
         ambienteCielo?.dispose();

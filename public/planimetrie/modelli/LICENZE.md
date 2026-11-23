@@ -35,3 +35,10 @@ SHA-256 originale `6ef6933d93ee0812d4049446a38e9b46273cab03b21be1e2ef1d502eccdb6
 Adattamenti di Edilizia in Cloud: compressione Meshopt, orientamento e scala, base colore in file separati, materiali e colorazione di vernice condivisi fra visore e Blender. Marca e modello identificano il veicolo rappresentato.
 
 Il visore usa i veicoli in sosta, con la posa statica e le dimensioni memorizzate sulla planimetria.
+
+## Piastrelle e resine disegnate dal codice
+
+Le texture di gres (60×60, 30×60, 120×120), cotto 30×30, mosaico 5×5, piastrelle da parete 7,5×15 e resina
+non sono file: le disegna `src/lib/planimetrie/tred/trameGenerate.ts` nel browser (colore, rilievo e
+lucentezza). Sono opera di Edilizia in Cloud, senza materiale di terzi e senza licenze da rispettare.
+Le foto mostrate accanto ai campioni nell'editor sono quelle già presenti in `public/render-references`.

@@ -2,6 +2,22 @@ import { FOTO_FINITURE } from "./fotoFiniture";
 import { esportaGlb, type CampioneGlb } from "./tred/esporta";
 import type { Scena3D } from "./tred/tipi";
 import { CANALI_PBR, chiaveMappaPbr, urlMappaPbr } from "./tred/campioniPbr";
+import { eTramaGenerata, generaTrama } from "./tred/trameGenerate";
+
+async function campioneGenerato(trama: string, canale: typeof CANALI_PBR[number]): Promise<CampioneGlb> {
+  const mappe = generaTrama(trama, 1024)!;
+  const tela = document.createElement("canvas");
+  tela.width = tela.height = mappe.lato;
+  const ctx = tela.getContext("2d");
+  if (!ctx) throw new Error("Impossibile preparare la texture");
+  const dati = ctx.createImageData(mappe.lato, mappe.lato);
+  dati.data.set(mappe[canale]);
+  ctx.putImageData(dati, 0, 0);
+  if (canale !== "rugosita") return campioneDaTela(tela);
+  const png = await new Promise<Blob | null>(ok => tela.toBlob(ok, "image/png"));
+  if (!png) throw new Error("Impossibile esportare la texture");
+  return { dati: new Uint8Array(await png.arrayBuffer()), mimeType: "image/png" };
+}
 
 const campioni = new Map<string, Promise<CampioneGlb>>();
 
@@ -47,6 +63,7 @@ export async function esportaGlbConFiniture(base: Scena3D, aggiuntivi: ReadonlyM
     const percorso = urlMappaPbr(trama, canale);
     const url = percorso ? import.meta.env.BASE_URL + percorso : canale === "colore" ? FOTO_FINITURE[trama] : undefined;
     const chiave = chiaveMappaPbr(trama, canale);
+    if (eTramaGenerata(trama)) return aggiuntivi.has(chiave) ? [] : [campioneGenerato(trama, canale).then(campione => [chiave, campione] as const).catch((): null => null)];
     if (!url || aggiuntivi.has(chiave)) return [];
     const mimeType = percorso ? canale === "rugosita" ? "image/png" : "image/jpeg" : undefined;
     return [caricaCampione(url, mimeType).then(campione => [chiave, campione] as const).catch((): null => null)];

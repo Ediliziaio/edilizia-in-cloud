@@ -120,10 +120,13 @@ describe("GLB", () => {
 
     const uv = dati.accessors[primitiva.attributes.TEXCOORD_0];
     const inizioUv = 28 + lunghezzaJson + dati.bufferViews[uv.bufferView].byteOffset;
-    const { posizioni } = scena.mesh[indice];
+    const { posizioni, materiale } = scena.mesh[indice];
+    // le doghe seguono il lato lungo della stanza: la stessa rotazione vale per colore, rilievo e lucentezza
+    const giro = (scena.materiali[materiale].tessitura?.rotazione ?? 0) * Math.PI / 180;
     for (let i = 0; i < uv.count; i++) {
-      expect(binario.getFloat32(inizioUv + i * 8, true)).toBeCloseTo(posizioni[i * 3] / 1.8);
-      expect(binario.getFloat32(inizioUv + i * 8 + 4, true)).toBeCloseTo(1 - posizioni[i * 3 + 2] / 1.8);
+      const x = posizioni[i * 3], z = posizioni[i * 3 + 2];
+      expect(binario.getFloat32(inizioUv + i * 8, true)).toBeCloseTo((x * Math.cos(giro) + z * Math.sin(giro)) / 1.8);
+      expect(binario.getFloat32(inizioUv + i * 8 + 4, true)).toBeCloseTo(1 - (z * Math.cos(giro) - x * Math.sin(giro)) / 1.8);
     }
   });
 

@@ -16,7 +16,8 @@ import { aggiungiElemento, statoNuovo, visibile, type Vista } from "./comandi";
 interface Richiesta { tipo: string; angolo?: boolean; centro?: boolean; larghezzaMinima?: number; etichetta?: string }
 
 /** Con `perNumero` un tipo già presente vale per una richiesta, non per tutte (prese, punti luce). */
-export interface OpzioniArreda { programma?: Richiesta[]; perNumero?: boolean }
+/** `senzaContorno`: solo i mobili principali, senza tappeti, tende, quadri, lampade e piante. */
+export interface OpzioniArreda { programma?: Richiesta[]; perNumero?: boolean; senzaContorno?: boolean }
 
 const PROGRAMMA: Partial<Record<Destinazione, Richiesta[]>> = {
   bagno: [{ tipo: "doccia", angolo: true }, { tipo: "wc" }, { tipo: "bidet" }, { tipo: "lavabo" }, { tipo: "lavatrice", angolo: true }],
@@ -32,6 +33,9 @@ const PROGRAMMA: Partial<Record<Destinazione, Richiesta[]>> = {
 const CUCINA_SOGGIORNO: Richiesta[] = [
   { tipo: "cucina", larghezzaMinima: 180 }, { tipo: "divano" }, { tipo: "tavolo", centro: true }, { tipo: "mobile_tv" },
 ];
+
+/** Stanno sotto, sopra o appesi dietro a un altro mobile: il loro ingombro in pianta può coincidere col suo. */
+export const ARREDI_SOVRAPPONIBILI: ReadonlySet<string> = new Set(["tappeto", "quadro", "specchio_parete", "lampada_sospensione"]);
 
 /** Letto singolo o matrimoniale, divano dritto o angolare, cucina lineare o ad angolo: uno basta. */
 const FAMIGLIE = new Set(["letto", "divano", "cucina"]);
@@ -358,6 +362,79 @@ export function arredaStanza(pianta: Pianta, localeId: string, vista: Vista, des
       }
     }
   }
+  if (opzioni.programma || opzioni.senzaContorno) return esito;
+
+  // ── Arredo di contorno: ciò che fa sembrare abitata una stanza. Si mette solo dove c'è posto,
+  //    con gli stessi controlli dei mobili; se non entra si lascia stare, senza segnalarlo.
+  etichettaCorrente = undefined;
+  const nellaStanza = () => (esito.pianta.elementi ?? []).filter((e) => visibile(e.stato, vista) && e.stato !== "da_demolire" && dentro(e.centro, contorno));
+  const ha = (tipo: string) => nellaStanza().some((e) => e.tipo === tipo);
+  /** Verso in cui guarda un mobile (dalla parete alla stanza). */
+  const davanti = (gradi: number) => { const a = (gradi * Math.PI) / 180; return { x: -Math.sin(a), y: Math.cos(a) }; };
+  const altezzaStanza = locale.altezza ?? 270;
+  const posaLibera = (v: VoceCatalogo, centro: Punto, rotazione: number) => {
+    const r = aggiungiElemento(esito.pianta, v, centro, { stato: statoNuovo(vista), rotazione });
+    esito.pianta = r.pianta;
+    esito.aggiunti.push(r.id);
+  };
+  /** Un oggetto appeso al muro dietro `mobile` (quadro, specchio): solo se lì non c'è una porta o una finestra. */
+  const appesoDietro = (mobile: { centro: Punto; larghezza: number; profondita: number; rotazione: number }, v: VoceCatalogo) => {
+    const f = davanti(mobile.rotazione);
+    const c = { x: mobile.centro.x - f.x * (mobile.profondita / 2 + STACCO - v.profondita / 2), y: mobile.centro.y - f.y * (mobile.profondita / 2 + STACCO - v.profondita / 2) };
+    const lato = lati.find((l) => l.rotazione === mobile.rotazione && Math.abs((c.x - l.a.x) * l.n.x + (c.y - l.a.y) * l.n.y) < v.profondita + STACCO + 2);
+    if (!lato || !dentro(c, contorno)) return;
+    const t = (c.x - lato.a.x) * lato.u.x + (c.y - lato.a.y) * lato.u.y;
+    if (t - v.larghezza / 2 < 0 || t + v.larghezza / 2 > lato.lunghezza) return;
+    if (lato.vietati.some((vano) => t + v.larghezza / 2 > vano.da && t - v.larghezza / 2 < vano.a)) return;
+    posaLibera(v, c, mobile.rotazione);
+  };
+  const soggiorno = dest === "soggiorno" || cucinaSoggiorno;
+  const divano = nellaStanza().find((e) => e.tipo.startsWith("divano"));
+  const letto = nellaStanza().find((e) => e.tipo.startsWith("letto"));
+  const tavolo = nellaStanza().find((e) => e.tipo === "tavolo");
+
+  if (tavolo && (soggiorno || dest === "cucina") && !ha("lampada_sospensione")) {
+    const v = voce("lampada_sospensione");
+    posaLibera({ ...v, altezza: Math.min(v.altezza, altezzaStanza) }, tavolo.centro, tavolo.rotazione);
+  }
+  if (divano && soggiorno && !ha("tappeto")) {
+    const f = davanti(divano.rotazione), v = voce("tappeto");
+    const delDivano = ingombro(divano.centro, divano.larghezza, divano.profondita, divano.rotazione);
+    for (const [w, d] of [[v.larghezza, v.profondita], [200, 140], [160, 110]]) {
+      const c = { x: arrotonda(divano.centro.x + f.x * (divano.profondita / 2 + d / 2 - 25)), y: arrotonda(divano.centro.y + f.y * (divano.profondita / 2 + d / 2 - 25)) };
+      const box = ingombro(c, w, d, divano.rotazione);
+      const angoli = [{ x: box.x0 + 1, y: box.y0 + 1 }, { x: box.x1 - 1, y: box.y0 + 1 }, { x: box.x1 - 1, y: box.y1 - 1 }, { x: box.x0 + 1, y: box.y1 - 1 }];
+      // il tappeto passa sotto il divano che lo regge, ma non sotto gli altri mobili né davanti alle porte
+      const libero = angoli.every((p) => dentro(p, contorno)) && !ostacoli.some((o) => sovrapposti(o, box)
+        && !(Math.abs(o.x0 - delDivano.x0) < 1 && Math.abs(o.y0 - delDivano.y0) < 1 && Math.abs(o.x1 - delDivano.x1) < 1 && Math.abs(o.y1 - delDivano.y1) < 1));
+      if (!libero) continue;
+      posaLibera({ ...v, larghezza: w, profondita: d }, c, divano.rotazione);
+      const tavolino = voce("tavolino");
+      if (!ha("tavolino") && w >= 200 && entra(c, tavolino.larghezza, tavolino.profondita, divano.rotazione)) posa(tavolino, c, divano.rotazione);
+      break;
+    }
+  }
+  if (["soggiorno", "camera", "studio", "cucina"].includes(dest) && !ha("tenda")) {
+    const v = voce("tenda");
+    lati.forEach((l, i) => l.vietati.filter((vano) => vano.soloAlti != null).forEach((vano) => {
+      const larghezza = Math.min(l.lunghezza, vano.a - vano.da + 30);
+      const t = Math.min(Math.max((vano.da + vano.a) / 2, larghezza / 2), l.lunghezza - larghezza / 2);
+      const prof = v.profondita / 2 + STACCO;
+      const c = { x: Math.round(l.a.x + l.u.x * t + l.n.x * prof), y: Math.round(l.a.y + l.u.y * t + l.n.y * prof) };
+      if (larghezza < 60 || !entra(c, larghezza, v.profondita, l.rotazione)) return;
+      posa({ ...v, altezza: Math.min(v.altezza, altezzaStanza - 5) }, c, l.rotazione, larghezza);
+      occupatiPerLato[i].push({ da: t - larghezza / 2, a: t + larghezza / 2 });
+    }));
+  }
+  const sottoIlQuadro = letto ?? (soggiorno ? divano : undefined);
+  if (sottoIlQuadro && !ha("quadro")) appesoDietro(sottoIlQuadro, voce("quadro"));
+  if (dest === "bagno") {
+    const lavabo = nellaStanza().find((e) => e.tipo === "lavabo");
+    if (lavabo && !ha("specchio_parete")) appesoDietro(lavabo, voce("specchio_parete"));
+    if (!ha("scaldasalviette")) aParete(voce("scaldasalviette"), { tipo: "scaldasalviette" });
+  }
+  if ((soggiorno || dest === "camera" || dest === "studio") && !ha("lampada_piantana")) aParete(voce("lampada_piantana"), { tipo: "lampada_piantana", angolo: true });
+  if ((soggiorno || dest === "studio") && !ha("pianta_vaso")) aParete(voce("pianta_vaso"), { tipo: "pianta_vaso", angolo: true });
   return esito;
 }
 

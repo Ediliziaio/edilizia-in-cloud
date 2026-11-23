@@ -11,6 +11,16 @@ export const FOTO_FINITURE_AGGIUNTIVE: Readonly<Record<string, PhotoEntry>> = {
   travertino: { folder: "bathroom", filename: "Travertino-Beige-Levigato-A-Bande-Naturali.webp", text: "beige travertine with naturally layered bands" },
 };
 
+/** Foto di riferimento dei campioni disegnati dal codice: servono all'editor e alle tavole del render, non al 3D. */
+export const FOTO_CAMPIONI_GENERATI: Readonly<Record<string, PhotoEntry>> = {
+  gres_grande: { folder: "floors", filename: "Pavimento-Gres-Grande-Formato-Lucido.webp", text: "large-format greige porcelain slabs with minimal joints" },
+  gres_antracite: { folder: "bathroom", filename: "Piastrelle-In-Gres-Effetto-Cemento-Antracite.webp", text: "anthracite concrete-look porcelain tiles in a running bond" },
+  resina: { folder: "floors", filename: "Pavimento-Continuo-In-Resina-Grigio-Caldo.webp", text: "seamless warm grey resin floor" },
+  mosaico_bianco: { folder: "bathroom", filename: "Mosaico-Penny-Round-Bianco-Con-Fughe-Taupe.webp", text: "small glossy white ceramic mosaic with light grey joints" },
+  metro_bianco: { folder: "bathroom", filename: "Mosaico-Esagonale-Bianco-Lucido.webp", text: "glossy white subway wall tiles in a running bond" },
+  metro_salvia: { folder: "bathroom", filename: "Mosaico-Esagonale-Bianco-Lucido.webp", text: "glossy sage green subway wall tiles in a running bond" },
+};
+
 /** Import Vite: disponibili anche nelle anteprime locali e nei deploy con base diversa da '/'. */
 export const FOTO_FINITURE: Readonly<Record<string, string>> = {
   rovere_gres: rovere, pietra,

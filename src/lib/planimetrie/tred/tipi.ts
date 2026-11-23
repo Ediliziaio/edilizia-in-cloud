@@ -205,7 +205,8 @@ export interface Materiale3D {
   doppioLato?: boolean;
   /** Campione reale, ripetuto in metri (non dipende dalle dimensioni della stanza). */
   finituraProgetto?: boolean;
-  tessitura?: { trama: string; metri: [number, number]; tinta?: string; occlusioneMetallo?: boolean };
+  /** `rotazione` in gradi: verso della posa sulle facce orizzontali (vedi `uvFinitura`). */
+  tessitura?: { trama: string; metri: [number, number]; tinta?: string; occlusioneMetallo?: boolean; rotazione?: number };
 }
 
 export interface Limiti3D {

@@ -10,6 +10,7 @@ import { uvFinitura } from "@/lib/planimetrie/tred/uvFiniture";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import type { Materiale3D, Mesh3D, Scena3D, Telecamera3D } from "@/lib/planimetrie/tred";
 import { CAMPIONI_PBR } from "@/lib/planimetrie/tred/campioniPbr";
+import { RUVIDITA_PIASTRELLA_IN_MAPPA, TRAME_GENERATE } from "@/lib/planimetrie/tred/trameGenerate";
 
 function materialeThree(m: Materiale3D | undefined, tessiture: ReturnType<typeof textureFiniture>): THREE.MeshStandardMaterial {
   if (!m) return new THREE.MeshStandardMaterial();
@@ -29,7 +30,14 @@ function materialeThree(m: Materiale3D | undefined, tessiture: ReturnType<typeof
   if (m.tessitura) {
     mat.map = tessiture.carica(m.tessitura.trama);
     const campione = CAMPIONI_PBR[m.tessitura.trama];
-    if (campione) {
+    const generata = TRAME_GENERATE[m.tessitura.trama];
+    if (generata) {
+      // piastrelle disegnate dal codice: la fuga è incisa e opaca, la piastrella ha la lucentezza del campione
+      mat.normalMap = tessiture.carica(m.tessitura.trama, "normale");
+      mat.normalScale.setScalar(generata.rilievo);
+      mat.roughnessMap = tessiture.carica(m.tessitura.trama, "rugosita");
+      if (mat.roughnessMap) mat.roughness = Math.min(1, m.ruvidita / RUVIDITA_PIASTRELLA_IN_MAPPA);
+    } else if (campione) {
       mat.normalMap = tessiture.carica(m.tessitura.trama, "normale");
       mat.normalScale.setScalar(campione.rilievo);
       mat.roughnessMap = tessiture.carica(m.tessitura.trama, "rugosita");
@@ -73,7 +81,7 @@ function geometriaThree(m: Mesh3D, tessitura?: Materiale3D["tessitura"]): THREE.
   g.setAttribute("normal", new THREE.Float32BufferAttribute(m.normali, 3));
   g.setIndex(m.indici);
   if (m.uv) g.setAttribute("uv", new THREE.Float32BufferAttribute(m.uv.map((v, i) => i % 2 ? 1 - v : v), 2));
-  else if (tessitura) g.setAttribute("uv", new THREE.BufferAttribute(uvFinitura(m.posizioni, m.normali, tessitura.metri), 2));
+  else if (tessitura) g.setAttribute("uv", new THREE.BufferAttribute(uvFinitura(m.posizioni, m.normali, tessitura.metri, tessitura.rotazione), 2));
   g.computeBoundingSphere();
   return g;
 }

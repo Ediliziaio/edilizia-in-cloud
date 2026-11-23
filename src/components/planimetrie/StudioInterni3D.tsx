@@ -12,10 +12,10 @@ import { anteprimaModificheCasa3D, type ModificaCasa3D } from "@/lib/planimetrie
 import { percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
 import { apertureDelLocale, pianiDaPlanimetria, pianteDaPlanimetria } from "@/lib/planimetrie/tred";
 import { ingombriArrediSovrapposti, ingombroDentroLocale } from "@/lib/planimetrie/tred/ingombroArredo";
-import { CAMPIONI_FINITURE, campioneFinitura } from "../../../shared/planimetrie/finiture";
+import { CAMPIONI_FINITURE, RIVESTIMENTI_STANZA, campioneFinitura, campioneRivestimento } from "../../../shared/planimetrie/finiture";
 import { puntoNelPoligono } from "../../../shared/planimetrie/geometria";
 import { ambitoGeometriaDelPiano, COLORI_INFISSI_PROGETTO, materialiDelProgetto, PROFILI_PROGETTO, type InfissiProgetto } from "../../../shared/planimetrie/materialiProgetto";
-import { eAmbienteInterno, type Elemento, type Finiture, type Livello, type Locale, type Planimetria, type StatoPianta } from "../../../shared/planimetrie/modello";
+import { eAmbienteInterno, type Elemento, type Finiture, type Livello, type Locale, type Planimetria, type PosaPavimento, type StatoPianta } from "../../../shared/planimetrie/modello";
 import { modelliArredo, modelloArredo, richiedeAltezzaComplemento } from "../../../shared/planimetrie/modelliArredo";
 import { anteDi } from "../../../shared/planimetrie/serramenti";
 import { controlloPrimaDellUso } from "../../../shared/planimetrie/verificaDocumento";
@@ -164,13 +164,15 @@ export function StudioInterni3D({ documento, bozza, onBozza, livello, ambito, pl
   const primoArredo = oggettiConLoStessoTipo[0];
   const statoColore = oggettiConLoStessoTipo.every(e => e.colore === primoArredo?.colore) ? primoArredo?.colore : undefined;
   const modelliDiversi = oggettiConLoStessoTipo.some(e => e.modello !== primoArredo?.modello);
-  const campioni = superficie === "rivestimento" ? CAMPIONI_FINITURE.pavimento.filter(c => c.trama !== "rovere") : CAMPIONI_FINITURE[superficie];
+  const campioni = superficie === "rivestimento" ? RIVESTIMENTI_STANZA : CAMPIONI_FINITURE[superficie];
   const valori = stanze.map(l => superficie === "rivestimento" ? l.finiture?.rivestimento?.materiale : l.finiture?.[superficie]);
   const finitureDiverse = valori.some(v => v !== valori[0]);
   const valore = finitureDiverse ? undefined : valori[0];
   const altezze = stanze.flatMap(l => l.finiture?.rivestimento ? [l.finiture.rivestimento.altezza] : []);
   const altezzaComune = altezze.length && altezze.every(h => h === altezze[0]) ? altezze[0] : "";
-  const campioneAttuale = campioneFinitura(valore, superficie === "rivestimento" ? "pavimento" : superficie);
+  const campioneAttuale = superficie === "rivestimento" ? campioneRivestimento(valore)?.campione : campioneFinitura(valore, superficie);
+  const pose = stanze.map(l => l.finiture?.posaPavimento ?? "dritta");
+  const posaComune = pose.every(p => p === pose[0]) ? pose[0] : undefined;
   const nomeElemento = elemento ? nomeDelTipo(elemento.tipo) : "";
   const daPosare: Elemento | undefined = posa === "sposta" ? elemento : posa === "aggiungi" && catalogo && nuove ? {
     id: "", tipo: catalogo.tipo, posizione: { x: 0, y: 0 }, rotazione: rotazioneNuova,
@@ -431,6 +433,15 @@ export function StudioInterni3D({ documento, bozza, onBozza, livello, ambito, pl
             <div className="grid grid-cols-2 gap-2">
               {campioni.map(c => <CampioneSuperficie key={c.id} campione={c} attivo={c.id === campioneAttuale?.id} onClick={() => scegliFinitura(c.descrizione)} />)}
             </div>
+            {superficie === "pavimento" && <label className="flex items-center justify-between gap-2 text-xs">Posa
+              <UniformSelect aria-label="Posa del pavimento" className="h-8 w-36" value={posaComune ?? ""}
+                onChange={e => { const posa = e.target.value as PosaPavimento; modificaFiniture(f => ({ ...f, posaPavimento: posa === "dritta" ? undefined : posa })); }}>
+                {!posaComune && <option value="">Mista</option>}
+                <option value="dritta">Dritta</option>
+                <option value="traversa">Di traverso</option>
+                <option value="diagonale">In diagonale</option>
+              </UniformSelect>
+            </label>}
             {(superficie === "pareti" || superficie === "soffitto") && <label className="flex items-center justify-between gap-2 text-xs">Colore personalizzato
               <input type="color" aria-label={"Colore personalizzato " + SUPERFICI[superficie].toLowerCase()} value={valore && /^#[a-f0-9]{6}$/i.test(valore) ? valore : campioneAttuale?.colore ?? "#f5f1e9"}
                 onInput={e => scegliFinitura(e.currentTarget.value)} onChange={e => scegliFinitura(e.currentTarget.value)}

@@ -1,5 +1,5 @@
 import { CostruttoreMesh } from "./costruttore";
-import { materialeFinitura } from "./materiali";
+import { materialeFinitura, materialeRivestimento } from "./materiali";
 import type { MuroCalc } from "./muri";
 import type { AperturaPer3D, LocalePer3D, Mesh3D, V3 } from "./tipi";
 
@@ -15,7 +15,7 @@ export function finiturePareti(locale: LocalePer3D, muri: MuroCalc[], aperture: 
     { nome: "rivestimento", testo: locale.finiture.rivestimento?.materiale, altezza: (locale.finiture.rivestimento?.altezza ?? 0) / 100, superficie: "pavimento" as const },
   ];
   return strati.flatMap((strato) => {
-    const materiale = materialeFinitura(strato.testo, strato.superficie, "");
+    const materiale = strato.nome === "rivestimento" ? materialeRivestimento(strato.testo) : materialeFinitura(strato.testo, strato.superficie, "");
     if (!materiale || strato.altezza <= 0) return [];
     const c = new CostruttoreMesh();
     for (let i = 0; i < contorno.length; i++) {

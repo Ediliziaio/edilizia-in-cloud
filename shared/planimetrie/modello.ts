@@ -193,10 +193,14 @@ export const DESTINAZIONI: readonly Destinazione[] = [
   "studio", "lavanderia", "balcone", "terrazzo", "garage", "cantina", "giardino", "altro",
 ];
 
+export type PosaPavimento = "dritta" | "traversa" | "diagonale";
+
 export interface Finiture {
   pavimento?: string;
   /** Il locale usa una finitura esplicita nella propria variante. */
   pavimentoSpecifico?: boolean;
+  /** Verso della posa rispetto al lato più lungo della stanza. Senza: dritta (doghe lungo il lato lungo). */
+  posaPavimento?: PosaPavimento;
   pareti?: string;
   soffitto?: string;
   /** Rivestimento a parete (piastrelle di bagno e cucina) fino all'altezza indicata. */
@@ -876,6 +880,7 @@ function validaStato(
       if (!eOggetto(o.finiture)) errori.push(`${e}: le finiture non sono valide.`);
       else {
         if (o.finiture.pavimentoSpecifico !== undefined && typeof o.finiture.pavimentoSpecifico !== "boolean") errori.push(`${e}: la finitura specifica del pavimento non è valida.`);
+        if (o.finiture.posaPavimento !== undefined && !["dritta", "traversa", "diagonale"].includes(o.finiture.posaPavimento as string)) errori.push(`${e}: la posa del pavimento non è valida.`);
         if (o.finiture.rivestimento !== undefined && o.finiture.rivestimento !== null) {
           const r = o.finiture.rivestimento;
           if (!eOggetto(r) || !(eNumero(r.altezza) && r.altezza > 0)) errori.push(`${e}: l'altezza del rivestimento deve essere un numero maggiore di zero.`);

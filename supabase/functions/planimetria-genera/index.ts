@@ -1,3 +1,4 @@
+// 23/11/2026: ripubblicata per i nuovi campioni di finitura in shared/planimetrie/finiture.ts.
 /**
  * planimetria-genera — la pianta generata da ciò che l'impresa ha già.
  *

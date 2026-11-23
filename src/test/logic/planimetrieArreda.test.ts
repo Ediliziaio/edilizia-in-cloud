@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { aPlanimetria, daPlanimetria, type Pianta } from "@/components/planimetrie/editor/adattatore";
-import { arredaStanza } from "@/components/planimetrie/editor/arreda";
+import { arredaStanza, ARREDI_SOVRAPPONIBILI } from "@/components/planimetrie/editor/arreda";
 import * as C from "@/components/planimetrie/editor/comandi";
 import { validaPlanimetria, type Planimetria } from "../../../shared/planimetrie/modello.ts";
 
@@ -47,7 +47,7 @@ describe("arreda con un clic", () => {
       const cx = muro.p1.x + Math.sign(muro.p2.x - muro.p1.x) * porta.posizione;
       expect(sopra(b, { x0: cx - porta.larghezza / 2, x1: cx + porta.larghezza / 2, y0: h - 90, y1: h }), `${e.tipo} davanti alla porta`).toBe(false);
     }
-    for (const a of nuovi) for (const b of nuovi) if (a !== b) expect(sopra(box(a), box(b)), `${a.tipo} su ${b.tipo}`).toBe(false);
+    for (const a of nuovi) for (const b of nuovi) if (a !== b && !ARREDI_SOVRAPPONIBILI.has(a.tipo) && !ARREDI_SOVRAPPONIBILI.has(b.tipo)) expect(sopra(box(a), box(b)), `${a.tipo} su ${b.tipo}`).toBe(false);
     expect(validaPlanimetria(aPlanimetria(r.pianta)).ok).toBe(true);
   });
 
@@ -100,7 +100,7 @@ describe("arreda con un clic", () => {
     const passaggio = { x0: 200 - semiluce, x1: 200 + semiluce, y0: 0, y1: 400 };
     for (const arredo of arredi) {
       expect(sopra(box(arredo), passaggio), arredo.tipo).toBe(false);
-      for (const altro of arredi) if (arredo !== altro) expect(sopra(box(arredo), box(altro)), `${arredo.tipo} su ${altro.tipo}`).toBe(false);
+      for (const altro of arredi) if (arredo !== altro && !ARREDI_SOVRAPPONIBILI.has(arredo.tipo) && !ARREDI_SOVRAPPONIBILI.has(altro.tipo)) expect(sopra(box(arredo), box(altro)), `${arredo.tipo} su ${altro.tipo}`).toBe(false);
     }
   });
 

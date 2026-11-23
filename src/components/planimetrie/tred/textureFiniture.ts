@@ -1,6 +1,26 @@
 import * as THREE from "three";
 import { FOTO_FINITURE } from "@/lib/planimetrie/fotoFiniture";
 import { chiaveMappaPbr, urlMappaPbr, type CanalePbr } from "@/lib/planimetrie/tred/campioniPbr";
+import { eTramaGenerata, generaTrama } from "@/lib/planimetrie/tred/trameGenerate";
+
+/** Sul telefono le piastrelle disegnate dal codice sono a metà risoluzione: un quarto della memoria. */
+export const latoTrameGenerate = (): number =>
+  typeof window !== "undefined" && window.matchMedia?.("(max-width: 820px), (pointer: coarse)").matches ? 512 : 1024;
+
+/** Una mappa di una trama generata, su una tela (serve anche all'esportazione GLB). */
+export function telaTramaGenerata(trama: string, canale: CanalePbr, lato = latoTrameGenerate()): HTMLCanvasElement | null {
+  if (typeof document === "undefined") return null;
+  const mappe = generaTrama(trama, lato);
+  if (!mappe) return null;
+  const tela = document.createElement("canvas");
+  tela.width = tela.height = mappe.lato;
+  const ctx = tela.getContext("2d");
+  if (!ctx) return null;
+  const dati = ctx.createImageData(mappe.lato, mappe.lato);
+  dati.data.set(mappe[canale]);
+  ctx.putImageData(dati, 0, 0);
+  return tela;
+}
 
 /** Un caricatore per gruppo: nessuna texture GPU condivisa con un gruppo già distrutto. */
 export function textureFiniture(ridisegna: () => void) {
@@ -11,6 +31,17 @@ export function textureFiniture(ridisegna: () => void) {
     const gia = cache.get(chiave);
     if (gia) return gia.texture;
     let texture: THREE.Texture;
+    if (eTramaGenerata(trama)) {
+      const tela = telaTramaGenerata(trama, canale);
+      if (!tela) return null;
+      texture = new THREE.CanvasTexture(tela);
+      texture.name = `Finitura ${chiave}`;
+      texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+      texture.colorSpace = canale === "colore" ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+      texture.anisotropy = 8;
+      cache.set(chiave, { trama, texture });
+      return texture;
+    }
     const urlDati = urlMappaPbr(trama, canale);
     const foto = urlDati ? import.meta.env.BASE_URL + urlDati : canale === "colore" ? FOTO_FINITURE[trama] : undefined;
     if (foto) {

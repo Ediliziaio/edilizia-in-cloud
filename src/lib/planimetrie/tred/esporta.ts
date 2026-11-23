@@ -7,6 +7,7 @@
  */
 import type { Materiale3D, Mesh3D, Scena3D } from "./tipi";
 import { istanzeGlb, type GeometriaModello } from "./istanzeGlb";
+import { RUVIDITA_PIASTRELLA_IN_MAPPA, TRAME_GENERATE } from "./trameGenerate";
 import { uvFinitura } from "./uvFiniture";
 import { CREDITO_MODEL_3_HIGHLAND, LICENZA_CC0_CATALOGO, MODELLI_CATALOGO_3D } from "../../../../shared/planimetrie/modelliArredo";
 import { CAMPIONI_PBR, chiaveMappaPbr } from "./campioniPbr";
@@ -58,7 +59,7 @@ export function esportaGlb(scena: Scena3D, campioni: ReadonlyMap<string, Campion
   }));
   const perTrama = new Map(immagini.map((i, n) => [i.name, n]));
 
-  const registraGeometria = (m: Mesh3D, dati: GeometriaModello, metriUv?: [number, number]) => {
+  const registraGeometria = (m: Mesh3D, dati: GeometriaModello, metriUv?: [number, number], rotazioneUv = 0) => {
     const nVertici = dati.posizioni.length / 3;
     const pos = new Float32Array(dati.posizioni);
     const nor = new Float32Array(dati.normali);
@@ -80,7 +81,7 @@ export function esportaGlb(scena: Scena3D, campioni: ReadonlyMap<string, Campion
     const aInd = accessors.push({ bufferView: vInd, componentType: grandi ? 5125 : 5123, count: m.indici.length, type: "SCALAR" }) - 1;
     const attributes: Record<string, number> = { POSITION: aPos, NORMAL: aNor };
     if (metriUv) {
-      const uv = m.uv ? new Float32Array(m.uv) : uvFinitura(pos, nor, metriUv);
+      const uv = m.uv ? new Float32Array(m.uv) : uvFinitura(pos, nor, metriUv, rotazioneUv);
       // glTF misura V dal bordo superiore dell'immagine, il visore dal bordo inferiore.
       if (!m.uv) for (let i = 1; i < uv.length; i += 2) uv[i] = 1 - uv[i];
       attributes.TEXCOORD_0 = accessors.push({ bufferView: aggiungi(uv, 34962), componentType: 5126, count: nVertici, type: "VEC2" }) - 1;
@@ -96,7 +97,7 @@ export function esportaGlb(scena: Scena3D, campioni: ReadonlyMap<string, Campion
     const istanza = usaUv && !m.uv ? undefined : istanzeGlb.get(m.posizioni);
     let geometria = istanza && condivise.get(istanza.geometria);
     if (!geometria) {
-      geometria = registraGeometria(m, istanza?.geometria ?? m, usaUv ? tessitura.metri : istanza && m.uv ? [1, 1] : undefined);
+      geometria = registraGeometria(m, istanza?.geometria ?? m, usaUv ? tessitura.metri : istanza && m.uv ? [1, 1] : undefined, usaUv ? tessitura.rotazione : 0);
       if (istanza) condivise.set(istanza.geometria, geometria);
     }
     const mesh = meshes.push({
@@ -176,13 +177,15 @@ function materialeGltf(chiave: string, m: Materiale3D, perTrama: ReadonlyMap<str
   const trasparente = m.opacita < 1;
   return {
     name: m.nome || chiave,
-    extras: { chiave, trama: m.tessitura?.trama, metri: m.tessitura?.metri },
+    // la chiave resta quella del materiale di base: il verso della posa è già nelle UV
+    extras: { chiave: chiave.replace(/@[\d.]+$/, ""), trama: m.tessitura?.trama, metri: m.tessitura?.metri },
     ...(m.emissione ? { emissiveFactor: lineare(m.emissione.colore),
       extensions: { KHR_materials_emissive_strength: { emissiveStrength: m.emissione.intensita } } } : {}),
-    ...(normale !== undefined ? { normalTexture: { index: normale, scale: CAMPIONI_PBR[m.tessitura!.trama]?.rilievo ?? 1 } } : {}),
+    ...(normale !== undefined ? { normalTexture: { index: normale, scale: CAMPIONI_PBR[m.tessitura!.trama]?.rilievo ?? TRAME_GENERATE[m.tessitura!.trama]?.rilievo ?? 1 } } : {}),
     ...(rugosita !== undefined && m.tessitura?.occlusioneMetallo ? { occlusionTexture: { index: rugosita } } : {}),
     pbrMetallicRoughness: { baseColorFactor: [r, g, b, m.opacita], metallicFactor: m.metallico ?? 0,
-      roughnessFactor: rugosita === undefined ? m.ruvidita : 1,
+      // nelle piastrelle generate la mappa vale 0,6 sulla piastrella: il fattore la riporta alla lucentezza del campione
+      roughnessFactor: rugosita === undefined ? m.ruvidita : m.tessitura && TRAME_GENERATE[m.tessitura.trama] ? Math.min(1, m.ruvidita / RUVIDITA_PIASTRELLA_IN_MAPPA) : 1,
       ...(rugosita !== undefined ? { metallicRoughnessTexture: { index: rugosita } } : {}),
       ...(foto !== undefined ? { baseColorTexture: { index: foto } } : {}) },
     ...(trasparente ? { alphaMode: "BLEND" } : {}),

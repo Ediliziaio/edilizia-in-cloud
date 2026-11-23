@@ -1,8 +1,10 @@
-import { CAMPIONI_FINITURE, campioneFinitura, type SuperficieFinitura } from "../../../../shared/planimetrie/finiture.ts";
+import { CAMPIONI_FINITURE, campioneFinitura, campioneRivestimento, type SuperficieFinitura } from "../../../../shared/planimetrie/finiture.ts";
+import type { PosaPavimento } from "../../../../shared/planimetrie/modello.ts";
 import { COLORE_RADIANTE } from "../../../../shared/planimetrie/pavimentoRadiante.ts";
 import { COLORI_CIRCUITO } from "../../../../shared/planimetrie/circuitiRadianti.ts";
 import type { Materiale3D } from "./tipi";
 import { CAMPIONI_PBR } from "./campioniPbr";
+import { TRAME_GENERATE } from "./trameGenerate";
 
 /** Colori dei materiali (sRGB). Giallo e rosso seguono la convenzione italiana: demolizioni e nuove costruzioni. */
 export function materialeFinitura(testo: string | undefined, superficie: SuperficieFinitura, fallback: string): string {
@@ -11,7 +13,43 @@ export function materialeFinitura(testo: string | undefined, superficie: Superfi
   return campione ? `finitura:${superficie}:${campione.id}` : fallback;
 }
 
+/** Il rivestimento a mezza altezza: piastrelle da parete o un campione dei pavimenti. */
+export function materialeRivestimento(testo: string | undefined): string {
+  if (testo && /^#[0-9a-f]{6}$/i.test(testo.trim())) return `colore:${testo.trim().toLowerCase()}`;
+  const trovato = campioneRivestimento(testo);
+  return trovato ? `finitura:${trovato.superficie}:${trovato.campione.id}` : "";
+}
+
+/** Le trame con un verso (doghe): si posano lungo il lato lungo della stanza. Le altre seguono solo i muri. */
+const TRAME_A_DOGHE = new Set(["rovere", "rovere_gres", "rovere_miele", "gres_30x60"]);
+
+/**
+ * Di quanti gradi girare la texture del pavimento: la posa segue il lato più lungo della stanza
+ * (non gli assi del foglio), poi «di traverso» aggiunge 90° e «in diagonale» 45°.
+ */
+export function rotazionePosa(contorno: ReadonlyArray<{ x: number; y: number }>, trama: string | undefined, posa: PosaPavimento | undefined): number {
+  let lungo = 0, angolo = 0;
+  for (let i = 0; i < contorno.length; i++) {
+    const a = contorno[i], b = contorno[(i + 1) % contorno.length];
+    const l = Math.hypot(b.x - a.x, b.y - a.y);
+    if (l > lungo + 1e-6) { lungo = l; angolo = Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI; }
+  }
+  const periodo = trama && TRAME_A_DOGHE.has(trama) ? 180 : 90;
+  const base = ((angolo % periodo) + periodo) % periodo;
+  const totale = base + (posa === "traversa" ? 90 : posa === "diagonale" ? 45 : 0);
+  const giro = Math.round((((totale % 180) + 180) % 180) * 10) / 10;
+  return giro === 180 ? 0 : giro;
+}
+
+/** Lo stesso materiale, posato con un altro verso: l'angolo fa parte della chiave (`…@45`). */
+export const conRotazione = (materiale: string, gradi: number): string => gradi ? `${materiale}@${gradi}` : materiale;
+
 export function definizioneMateriale(id: string): Materiale3D | undefined {
+  const girato = /^(.+)@(\d+(?:\.\d+)?)$/.exec(id);
+  if (girato) {
+    const base = definizioneMateriale(girato[1]);
+    return base?.tessitura ? { ...base, tessitura: { ...base.tessitura, rotazione: Number(girato[2]) } } : base;
+  }
   if (id.startsWith("colore:")) {
     const colore = id.slice("colore:".length);
     return { nome: colore, colore, opacita: 1, ruvidita: .92, finituraProgetto: true, tessitura: { trama: "intonaco", metri: [1, 1], tinta: colore } };
@@ -32,7 +70,7 @@ export const MATERIALI: Record<string, Materiale3D> = {
     const trama = c.id === "gres_legno" ? "rovere_gres" : c.trama;
     return [`finitura:${superficie}:${c.id}`, {
       nome: c.nome, colore: c.colore === "#ffffff" ? (c.trama === "rovere" ? "#c49a63" : c.trama === "marmo" ? "#f2f0eb" : c.trama === "pietra" ? "#d9cdb9" : c.colore) : c.colore,
-      opacita: 1, ruvidita: c.ruvidita, tessitura: { trama, metri: CAMPIONI_PBR[trama]?.metri ?? c.metri, tinta: c.colore },
+      opacita: 1, ruvidita: c.ruvidita, tessitura: { trama, metri: CAMPIONI_PBR[trama]?.metri ?? TRAME_GENERATE[trama]?.metri ?? c.metri, tinta: c.colore },
     }];
   }))),
   // linee degli impianti (stesse tinte del disegno 2D)
@@ -58,16 +96,17 @@ export const MATERIALI: Record<string, Materiale3D> = {
   muro_demolire: { nome: "Muro da demolire", colore: "#f2c200", opacita: 1, ruvidita: 0.8 },
   muro_nuovo: { nome: "Muro nuovo", colore: "#d42a2a", opacita: 1, ruvidita: 0.8 },
   soffitto: { nome: "Soffitto", colore: "#f6f4ef", opacita: 1, ruvidita: 0.95 },
+  battiscopa: { nome: "Battiscopa laccato bianco", colore: "#f3f1ec", opacita: 1, ruvidita: 0.38 },
   luce_calda: { nome: "Diffusore LED caldo", colore: "#fff4df", opacita: 1, ruvidita: .68, emissione: { colore: "#ffd5a3", intensita: 8 } },
   luce_specchio: { nome: "Luce perimetrale", colore: "#fff2db", opacita: 1, ruvidita: .75, emissione: { colore: "#ffdfb4", intensita: 2.7 } },
   vetro: { nome: "Vetro", colore: "#a9d2ee", opacita: 0.3, ruvidita: 0.05 },
   vetro_fume: { nome: "Vetro fumé", colore: "#54514b", opacita: .21, ruvidita: .10, doppioLato: true },
   schermo: { nome: "Schermo spento", colore: "#1b2330", opacita: 1, ruvidita: .22 },
   pavimento_legno: { nome: "Pavimento in legno", colore: "#b98a5c", opacita: 1, ruvidita: 0.6, tessitura: { trama: "rovere", metri: CAMPIONI_PBR.rovere.metri, tinta: "#ffffff" } },
-  pavimento_piastrelle: { nome: "Pavimento in piastrelle", colore: "#cdd3d6", opacita: 1, ruvidita: 0.4 },
-  pavimento_gres: { nome: "Pavimento in gres", colore: "#d6c7b0", opacita: 1, ruvidita: 0.5 },
+  pavimento_piastrelle: { nome: "Pavimento in piastrelle", colore: "#cdd3d6", opacita: 1, ruvidita: 0.4, tessitura: { trama: "piastrelle", metri: TRAME_GENERATE.piastrelle.metri, tinta: "#d6dbdd" } },
+  pavimento_gres: { nome: "Pavimento in gres", colore: "#d6c7b0", opacita: 1, ruvidita: 0.5, tessitura: { trama: "piastrelle", metri: TRAME_GENERATE.piastrelle.metri, tinta: "#dccfba" } },
   pavimento_esterno: { nome: "Pavimento esterno", colore: "#a7a299", opacita: 1, ruvidita: 0.85 },
-  pavimento: { nome: "Pavimento", colore: "#c9b79c", opacita: 1, ruvidita: 0.6 },
+  pavimento: { nome: "Pavimento", colore: "#c9b79c", opacita: 1, ruvidita: 0.6, tessitura: { trama: "piastrelle", metri: TRAME_GENERATE.piastrelle.metri, tinta: "#d2c2a9" } },
   prato: { nome: "Prato", colore: "#7da55a", opacita: 1, ruvidita: 1 },
   acqua: { nome: "Acqua", colore: "#59c4de", opacita: .42, ruvidita: .05 },
   acqua_turchese: { nome: "Acqua turchese", colore: "#6fdfd9", opacita: .39, ruvidita: .045 },

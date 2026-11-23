@@ -1,3 +1,4 @@
+// 23/11/2026: ripubblicata per i nuovi campioni di finitura in shared/planimetrie/finiture.ts.
 import { rifiutaRenderStanza } from "../../../shared/render-planimetria/controlloRender.ts";
 import { validaColoriStanza } from "../../../shared/render-room/colours.ts";
 import { applicaMaterialiProgetto, vincoloInfissiProgetto } from "../../../shared/planimetrie/materialiProgetto.ts";
