@@ -537,6 +537,9 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
     impianti = r.impianti;
   }
 
+  // Dove c'è un cancello la recinzione si apre.
+  const cancelli = pianta.elementi.filter((e) => e.tipo.startsWith("cancello_"))
+    .map((e) => ({ x: e.centro.x * CM, y: e.centro.y * CM, mezzo: (e.larghezza ?? (e.tipo === "cancello_carrabile" ? 400 : 110)) * CM / 2 }));
   // Aree esterne: superfici appena sopra il terreno; il lotto recintato ha muretto e rete.
   for (const a of pianta.aree ?? []) {
     const contorno = pulisciPoligono(a.contorno.map((p) => v2(p.x * CM, p.y * CM)));
@@ -556,6 +559,7 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
         const pezzi = Math.max(1, Math.ceil(l));
         const controCasa = (k: number) => {
           const x = p.x + (q.x - p.x) * (k + .5) / pezzi, y = p.y + (q.y - p.y) * (k + .5) / pezzi;
+          if (cancelli.some((g) => Math.hypot(x - g.x, y - g.y) < g.mezzo + .08)) return true;
           return a.tipo !== "lotto" && muri.some((m) => {
             const t = Math.max(0, Math.min(m.lunghezza, (x - m.a.x) * m.d.x + (y - m.a.y) * m.d.y));
             return Math.hypot(x - (m.a.x + m.d.x * t), y - (m.a.y + m.d.y * t)) < m.spessore / 2 + .6;
@@ -586,7 +590,7 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
     if (a.tipo === "lotto") continue;
     const c = new CostruttoreMesh();
     const q = (a.quota ?? 0) * CM;
-    superficieConScavi(c, contorno, q + (a.tipo === "aiuola" ? 0.08 : 0.004), scaviPiscine);
+    superficieConScavi(c, contorno, q + (a.tipo === "aiuola" ? 0.08 : a.tipo === "vialetto" ? 0.016 : 0.004), scaviPiscine);
     // un'area rialzata ha i fianchi (muretti del terrazzamento)
     if (Math.abs(q) > 0.05) {
       contorno.forEach((p, i) => {

@@ -13,6 +13,8 @@ import { GTAOPass } from "three/examples/jsm/postprocessing/GTAOPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { RectAreaLightUniformsLib } from "three/examples/jsm/lights/RectAreaLightUniformsLib.js";
 import { apertureDelLocale, type PiantaPer3D, type Scena3D, type V3, type Vista3D } from "@/lib/planimetrie/tred";
+import { TRAME_GENERATE } from "@/lib/planimetrie/tred/trameGenerate";
+import { telaTramaGenerata } from "./textureFiniture";
 import { soleIndicativo } from "../../../../shared/planimetrie/orientamento";
 
 // Le scelte (facciata, infissi, ora…) stanno in un modulo senza three.js, così anche i dialoghi le leggono senza appesantire il bundle.
@@ -452,6 +454,38 @@ export function creaAspetto({ renderer, scene, camera }: Avvio): Aspetto {
       m.metalness = 0.1;
       m.envMapIntensity = 2.2;
     }
+    const facciataVera = faccia ? TRAME_GENERATE["facciata_" + faccia.trama] : undefined;
+    if (faccia && facciataVera) {
+      // facciata con rilievo vero: i mattoni e le pietre prendono la luce radente, la malta resta opaca
+      const mappa = (canale: "colore" | "normale" | "rugosita") => {
+        const idMappa = `facciata_${faccia.trama}:${canale}`;
+        let t = texture.get(idMappa);
+        if (!t) {
+          const tela = telaTramaGenerata("facciata_" + faccia.trama, canale);
+          if (!tela) return null;
+          t = new THREE.CanvasTexture(tela);
+          t.wrapS = t.wrapT = THREE.RepeatWrapping;
+          t.colorSpace = canale === "colore" ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+          t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+          texture.set(idMappa, t);
+        }
+        return t;
+      };
+      const colore = mappa("colore");
+      if (colore) {
+        m.map = colore;
+        m.normalMap = mappa("normale");
+        m.normalScale.setScalar(facciataVera.rilievo);
+        m.roughnessMap = mappa("rugosita");
+        m.roughness = 1;
+        m.color = new THREE.Color(facciataVera.colori ? "#ffffff" : faccia.colore);
+        m.userData.metri = facciataVera.metri[0];
+        m.userData.mappeCondivise = true;
+        m.needsUpdate = true;
+        materiali.set(id, m);
+        return m;
+      }
+    }
     if (look) {
       const t = trama(look.trama);
       if (t) {
@@ -753,7 +787,7 @@ export function creaAspetto({ renderer, scene, camera }: Avvio): Aspetto {
       spegniEffetti();
       texture.forEach((t) => t.dispose());
       tramaPrato?.dispose();
-      materiali.forEach((m) => { m.map?.dispose(); m.dispose(); });
+      materiali.forEach((m) => { if (!m.userData.mappeCondivise) m.map?.dispose(); m.dispose(); });
       luciLed.forEach(luce => scene.remove(luce));
       if (cielo) { cielo.geometry.dispose(); (cielo.material as THREE.Material).dispose(); }
       if (ambienteCielo) ambienteCielo.dispose();

@@ -93,12 +93,22 @@ Sulla tela vera sono una ogni 7,5 cm, misurate sui pixel.
   la recinzione ha muretto, pali e rete e salta i tratti lungo la casa.
   ![verde](piano-3d-planimetrie-immagini/dopo-esterno-verde.jpg)
 
+- **Ingresso del giardino e facciate.** «Arreda il giardino» ora fa anche il vialetto dalla casa al confine
+  (largo 1,20 m, con le fughe), il cancello pedonale in fondo, le aiuole fiorite all'inizio e due lampioni;
+  «vialetto in giardino» fa solo questo. Se la siepe c'era già, si apre al cancello; la recinzione ha il varco.
+  Se non c'è un percorso dritto e libero (piscina in mezzo) lo dice e non disegna niente. Nel 3D: cancelli a
+  bacchette con pilastri, aiuole con cordolo e fiori, lampione con la lanterna. Le facciate «Mattoni a vista»,
+  «Pietra» e gli intonaci hanno rilievo vero: mattoni 25×5,5 con malta chiara, pietra squadrata a corsi.
+  ![ingresso](piano-3d-planimetrie-immagini/dopo-esterno-ingresso-mattoni.jpg)
+
 ### Solo impostato o non fatto
 
 - **Inquadratura della camera**: parte ancora con mezzo fotogramma coperto. Ho provato una correzione al
   punteggio della telecamera, non ha cambiato il risultato e l'ho tolta. Va capito cosa copre la vista.
 - **Esterni, il resto**: cielo nella vista «Gira intorno» dello Studio (oggi lo sfondo è grigio per scelta),
-  prato con fili d'erba veri, percorsi e luci da giardino posati da soli.
+  prato con fili d'erba veri, cancello carrabile e posto auto posati da soli, vialetti con curve.
+  Nella vista tagliata dall'alto la facciata scelta (mattoni, pietra) si vede anche sulle facce interne dei
+  muri: era già così, ora si nota di più.
 - **Finiture chieste in chat (lotto 5)**: «arreda …» in chat c'era già e ora fa di più; i comandi per le
   finiture («parquet a spina in soggiorno», «gres in diagonale in bagno») non sono stati scritti: si fanno
   dallo Studio. Il file dei comandi (`editor/comandiChat.ts`) ha modifiche non pubblicate di un'altra sessione.

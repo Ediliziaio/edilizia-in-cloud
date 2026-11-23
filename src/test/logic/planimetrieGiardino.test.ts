@@ -16,7 +16,7 @@ describe("verde del giardino", () => {
     const pianta = casaConPrato();
     const { passi } = comandiDaChatDisegno(pianta, "fatto", "arreda il giardino");
     expect(passi).toHaveLength(1);
-    expect(passi[0].testo).toMatch(/^Giardino · siepe [\d,]+ m · \d alber/);
+    expect(passi[0].testo).toMatch(/^Giardino · vialetto [\d,]+ m · cancello pedonale · .*siepe [\d,]+ m/);
     const prato = passi[0].pianta.aree!.find(a => a.tipo === "prato")!;
     const xs = prato.contorno.map(p => p.x), ys = prato.contorno.map(p => p.y);
     const nuovi = passi[0].pianta.elementi!.filter(e => e.tipo === "siepe" || e.tipo === "albero");
@@ -79,4 +79,68 @@ describe("verde del giardino", () => {
     expect(senzaPrato.passi).toHaveLength(0);
     expect(senzaPrato.avvisi.join(" ")).toMatch(/Disegna prima il prato/);
   });
+});
+
+describe("ingresso del giardino", () => {
+  it("vialetto dalla casa al confine, cancello in fondo, aiuole e lampioni: tutto dentro il prato e la siepe lascia il varco", () => {
+    const { passi } = comandiDaChatDisegno(casaConPrato(), "fatto", "arreda il giardino");
+    const p = passi[0].pianta;
+    const prato = p.aree!.find(a => a.tipo === "prato")!, vialetto = p.aree!.find(a => a.tipo === "vialetto")!;
+    expect(vialetto).toBeDefined();
+    const xs = prato.contorno.map(q => q.x), ys = prato.contorno.map(q => q.y);
+    for (const q of vialetto.contorno) {
+      expect(q.x).toBeGreaterThanOrEqual(Math.min(...xs)); expect(q.x).toBeLessThanOrEqual(Math.max(...xs));
+      expect(q.y).toBeGreaterThanOrEqual(Math.min(...ys)); expect(q.y).toBeLessThanOrEqual(Math.max(...ys));
+    }
+    // largo 120 cm, parte dal lato della casa (sinistra) e arriva al confine opposto
+    const vx = vialetto.contorno.map(q => q.x), vy = vialetto.contorno.map(q => q.y);
+    expect(Math.max(...vy) - Math.min(...vy)).toBe(120);
+    expect(Math.min(...vx)).toBe(Math.min(...xs));
+    expect(Math.max(...vx)).toBeGreaterThan(Math.max(...xs) - 30);
+    const cancello = p.elementi!.find(e => e.tipo === "cancello_pedonale")!;
+    expect(cancello.centro.x).toBeGreaterThan(Math.max(...xs) - 30);
+    expect(cancello.centro.y).toBeCloseTo((Math.min(...vy) + Math.max(...vy)) / 2, 0);
+    expect(p.elementi!.filter(e => e.tipo === "aiuola").length).toBeGreaterThanOrEqual(1);
+    expect(p.elementi!.filter(e => e.tipo === "lampione")).toHaveLength(2);
+    // nessuna siepe davanti al cancello
+    for (const s of p.elementi!.filter(e => e.tipo === "siepe")) {
+      const davanti = Math.abs(s.centro.x - cancello.centro.x) < 60 && Math.abs(s.centro.y - cancello.centro.y) < s.larghezza / 2 + 30 && s.rotazione === 90;
+      expect(davanti, `siepe in ${s.centro.x},${s.centro.y}`).toBe(false);
+    }
+    expect(validaPlanimetria(aPlanimetria(p)).ok).toBe(true);
+    // nel 3D la recinzione, se c'è, si apre al cancello; cancello e aiuole non sono più scatole
+    const recintato = comandiDaChatDisegno(p, "fatto", "recinzione intorno al giardino").passi[0].pianta;
+    const scena = costruisciScena(pianteDaPlanimetria(aPlanimetria(recintato)).fatto, { vista: "fatto" });
+    const rete = scena.mesh.find(m => m.id === `area:${prato.id}:rete`)!;
+    const gx = cancello.centro.x / 100, gz = cancello.centro.y / 100;
+    let nelVarco = 0;
+    for (let i = 0; i < rete.posizioni.length; i += 3) if (Math.abs(rete.posizioni[i] - gx) < .2 && Math.abs(rete.posizioni[i + 2] - gz) < .35) nelVarco++;
+    expect(nelVarco).toBe(0);
+    const materiali = new Set(scena.mesh.filter(m => m.id.startsWith("elemento:")).map(m => m.materiale));
+    for (const m of ["fiore_rosa", "fiore_giallo", "grafite", "luce_calda"]) expect(materiali.has(m), m).toBe(true);
+  });
+
+  it("le facciate hanno colori veri e rilievo: malta più chiara del mattone", async () => {
+    const { generaTrama } = await import("@/lib/planimetrie/tred/trameGenerate");
+    const m = generaTrama("facciata_mattone", 256)!;
+    const px = (x: number, y: number) => 4 * (y * 256 + x);
+    // (0,0) è malta, (32,8) il centro del primo mattone
+    expect(m.colore[px(0, 0)]).toBeGreaterThan(m.colore[px(32, 8)] - 5);
+    expect(m.colore[px(32, 8)]).toBeGreaterThan(m.colore[px(32, 8) + 2] + 40);
+    expect(m.colore[px(0, 0) + 2]).toBeGreaterThan(m.colore[px(32, 8) + 2] + 40);
+    expect(generaTrama("facciata_pietra", 64)).not.toBeNull();
+    expect(generaTrama("facciata_intonaco", 64)).not.toBeNull();
+  });
+});
+
+it("con la siepe già piantata il vialetto si fa lo stesso e la siepe si apre al cancello", () => {
+  const conSiepe = comandiDaChatDisegno(casaConPrato(), "fatto", "siepe intorno al giardino").passi[0].pianta;
+  const prima = conSiepe.elementi!.filter(e => e.tipo === "siepe").length;
+  const { passi, avvisi } = comandiDaChatDisegno(conSiepe, "fatto", "vialetto in giardino");
+  expect(passi.length, avvisi.join(" | ")).toBe(1);
+  expect(passi[0].testo).toMatch(/vialetto [\d,]+ m · cancello pedonale/);
+  const p = passi[0].pianta, cancello = p.elementi!.find(e => e.tipo === "cancello_pedonale")!;
+  const siepi = p.elementi!.filter(e => e.tipo === "siepe" && e.stato !== "da_demolire");
+  expect(siepi.length).toBeLessThan(prima);
+  for (const s of siepi) expect(Math.abs(s.centro.x - cancello.centro.x) < 60 && Math.abs(s.centro.y - cancello.centro.y) < 60).toBe(false);
 });

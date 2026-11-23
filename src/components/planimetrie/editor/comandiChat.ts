@@ -588,18 +588,24 @@ function verdeDelGiardino(pianta: Pianta, vista: C.Vista, istruzione: string): P
   const t = chiave(istruzione);
   const luogo = String.raw`(?:(?:intorno|attorno|lungo|in|nel|sul|al|del)\s+)?(?:al\s+|il\s+|del\s+)?(?:giardino|prato|confine)`;
   const tutto = new RegExp(String.raw`^arreda\s+(?:il\s+)?(?:giardino|prato|esterno|verde)$`, "u").test(t);
-  const cosa = new RegExp(String.raw`^(?:metti\s+|aggiungi\s+)?(?:una\s+|la\s+|gli\s+|degli\s+)?(siepe|siepi|alberi|albero|recinzione|recinto)\s+${luogo}$`, "u").exec(t)?.[1];
+  const cosa = new RegExp(String.raw`^(?:metti\s+|aggiungi\s+)?(?:una\s+|la\s+|gli\s+|degli\s+)?(siepe|siepi|alberi|albero|recinzione|recinto|vialetto|stradina|cancello|aiuole|aiuola|ingresso)\s+${luogo}$`, "u").exec(t)?.[1];
   if (!tutto && !cosa) return null;
   // senza un prato disegnato «arreda giardino» resta il comando delle stanze (un locale chiamato Giardino)
   if (tutto && !pratiDelGiardino(pianta, vista).length) return null;
   if (!pratiDelGiardino(pianta, vista).length) throw new Error("Disegna prima il prato, ad esempio «Giardino 12 × 10 m a destra della casa».");
-  const esito = arredaGiardino(pianta, vista, tutto ? { siepe: true, alberi: true }
-    : { siepe: cosa!.startsWith("siep"), alberi: cosa!.startsWith("alber"), recinzione: cosa!.startsWith("recin") });
+  const ingresso = !!cosa && /^(?:vialetto|stradina|cancello|aiuol|ingresso)/u.test(cosa);
+  const esito = arredaGiardino(pianta, vista, tutto ? { ingresso: true, siepe: true, alberi: true }
+    : { ingresso, siepe: cosa!.startsWith("siep"), alberi: cosa!.startsWith("alber"), recinzione: cosa!.startsWith("recin") });
   const parti = [
+    ...(esito.vialettoM ? ["vialetto " + esito.vialettoM.toLocaleString("it-IT", { maximumFractionDigits: 1 }) + " m"] : []),
+    ...(esito.cancelli ? ["cancello pedonale"] : []),
+    ...(esito.aiuole ? [esito.aiuole === 1 ? "1 aiuola" : esito.aiuole + " aiuole"] : []),
+    ...(esito.lampioni ? [esito.lampioni === 1 ? "1 lampione" : esito.lampioni + " lampioni"] : []),
     ...(esito.siepeM ? ["siepe " + esito.siepeM.toLocaleString("it-IT", { maximumFractionDigits: 1 }) + " m"] : []),
     ...(esito.alberi ? [esito.alberi === 1 ? "1 albero" : esito.alberi + " alberi"] : []),
     ...(esito.recintate ? ["recinzione sul confine del prato"] : []),
   ];
+  if (!parti.length && ingresso) throw new Error("Non trovo un percorso dritto e libero dalla casa al confine del prato (o il vialetto c’è già). Sposta ciò che è in mezzo, oppure disegna il vialetto a mano da «Esterni».");
   if (!parti.length) throw new Error(cosa?.startsWith("recin") ? "Il prato è già recintato." : "Nel giardino c’è già, oppure non c’è posto libero lungo il confine.");
   return { pianta: esito.pianta, evidenza: { tipo: "area", id: esito.aree[0] }, testo: "Giardino · " + parti.join(" · "),
     daVerificare: "Controlla le distanze dal confine: siepi e alberi hanno distanze minime dal vicino (art. 892 del Codice civile, salvo regolamenti locali)." };

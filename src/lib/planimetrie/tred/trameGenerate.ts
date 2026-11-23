@@ -29,6 +29,10 @@ export interface FormatoTrama {
   grana: number;
   /** Lucentezza della piastrella rispetto alla ruvidità del campione: la fuga resta sempre opaca. */
   superficieIrregolare?: number;
+  /** Colori veri (0–255) di pezzo e fuga, per le facciate: senza, il disegno è quasi bianco e lo tinge il campione. */
+  colori?: { pezzo: [number, number, number]; fuga: [number, number, number] };
+  /** Ruvidità scritta nella mappa per il pezzo (predefinita: quella delle piastrelle). */
+  ruviditaPezzo?: number;
   /** Solo per l'acqua: quanto sono ripide le increspature. */
   onde?: number;
   /** Forza del rilievo nel visore. */
@@ -49,6 +53,12 @@ export const TRAME_GENERATE: Readonly<Record<string, FormatoTrama>> = {
   metro: { metri: [.6, .6], colonne: 4, righe: 8, sfalsata: true, fugaMm: 2.5, biselloMm: 6, stonalizzazione: .03, nuvole: .03, scalaNuvoleM: .1, grana: .01, superficieIrregolare: .35, rilievo: 1.2, provenienza: GENERATA },
   // l'acqua: nessun disegno, solo increspature che muovono i riflessi del cielo
   onde: { metri: [1.6, 1.6], colonne: 1, righe: 1, fugaMm: 0, biselloMm: 0, stonalizzazione: 0, nuvole: .025, scalaNuvoleM: .2, grana: 0, superficieIrregolare: 1.5, onde: 5, rilievo: 1, provenienza: GENERATA },
+  // facciate: mattoni 25×5,5 con fuga di malta chiara, pietra squadrata a corsi, intonaco a grana fine
+  facciata_mattone: { metri: [1.04, 1.04], colonne: 4, righe: 16, sfalsata: true, fugaMm: 10, biselloMm: 3, stonalizzazione: .2, nuvole: .1, scalaNuvoleM: .06, grana: .09, superficieIrregolare: .7, rilievo: 1.5,
+    colori: { pezzo: [176, 96, 70], fuga: [196, 188, 172] }, ruviditaPezzo: .88, provenienza: GENERATA },
+  facciata_pietra: { metri: [1.6, 1.6], colonne: 4, righe: 8, sfalsata: true, fugaMm: 9, biselloMm: 9, stonalizzazione: .2, nuvole: .2, scalaNuvoleM: .09, grana: .07, superficieIrregolare: 1.1, rilievo: 1.6,
+    colori: { pezzo: [198, 186, 164], fuga: [150, 142, 128] }, ruviditaPezzo: .9, provenienza: GENERATA },
+  facciata_intonaco: { metri: [2, 2], colonne: 1, righe: 1, fugaMm: 0, biselloMm: 0, stonalizzazione: 0, nuvole: .035, scalaNuvoleM: .5, grana: .05, superficieIrregolare: .35, rilievo: .6, ruviditaPezzo: .95, provenienza: GENERATA },
   resina: { metri: [2.4, 2.4], colonne: 1, righe: 1, fugaMm: 0, biselloMm: 0, stonalizzazione: 0, nuvole: .1, scalaNuvoleM: .7, grana: .025, superficieIrregolare: .25, rilievo: .35, provenienza: GENERATA },
 };
 
@@ -129,11 +139,17 @@ export function generaTrama(trama: string, lato = 1024): MappeTrama | null {
         const spalla = f.fugaMm > 0 ? morbido(mezzaFuga, mezzaFuga + bisello, bordo) : 1;
         tono = (.93 + piastrella + nuvola * f.nuvole * 2 + grana * f.grana * 2) * (.9 + .1 * spalla);
         alto = spalla - 1 + nuvola * (f.superficieIrregolare ?? .08) * .5 + grana * f.grana * .6;
-        ruvido = RUVIDITA_PIASTRELLA_IN_MAPPA + nuvola * (f.superficieIrregolare ?? .08) * .35 + (1 - spalla) * .2;
+        ruvido = (f.ruviditaPezzo ?? RUVIDITA_PIASTRELLA_IN_MAPPA) + nuvola * (f.superficieIrregolare ?? .08) * .35 + (1 - spalla) * .2;
       }
       altezza[i] = alto;
-      const c = Math.round(Math.min(1, Math.max(0, tono)) * 255);
-      colore[4 * i] = colore[4 * i + 1] = colore[4 * i + 2] = c;
+      if (f.colori) {
+        // nelle facciate la fuga ha il suo colore (la malta è più chiara del mattone): il tono fa solo la variazione
+        const base = inFuga ? f.colori.fuga : f.colori.pezzo, k = inFuga ? tono / .62 : tono / .93;
+        for (let canale = 0; canale < 3; canale++) colore[4 * i + canale] = Math.round(Math.min(255, Math.max(0, base[canale] * k)));
+      } else {
+        const c = Math.round(Math.min(1, Math.max(0, tono)) * 255);
+        colore[4 * i] = colore[4 * i + 1] = colore[4 * i + 2] = c;
+      }
       colore[4 * i + 3] = 255;
       const r = Math.round(Math.min(1, Math.max(0, ruvido)) * 255);
       rugosita[4 * i] = rugosita[4 * i + 1] = rugosita[4 * i + 2] = r;
