@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { UniformSelect } from "@/components/ui/uniform-select";
@@ -49,7 +50,7 @@ export function LetturaDocumentiPos(props: Props) {
   const { stato } = useLetturaDocumentiPos(props.companyId, props.posId);
   const lettura = stato.data;
   const etichetta = lettura?.stato === "in_corso" && !lettura.ferma ? "Lettura in corso…"
-    : lettura?.stato === "pronta" ? "Risultati della lettura" : "Leggi PSC e contratto";
+    : lettura?.stato === "pronta" && lettura.risultato ? "Risultati della lettura" : "Leggi PSC e contratto";
   return <>
     <Button type="button" size="sm" variant="outline" className="gap-1.5" onClick={() => setAperto(true)}>
       {lettura?.stato === "in_corso" && !lettura.ferma
@@ -78,7 +79,8 @@ function CorpoLettura({ companyId, posId, orderId, psc, salva, onInserisci, lett
     <span role="alert">Non riesco a leggere lo stato della lettura.</span>
     <Button type="button" size="sm" variant="outline" onClick={rileggi}>Riprova</Button>
   </Stato>;
-  if (!lettura || nuova) return <SceltaDocumenti companyId={companyId} posId={posId} orderId={orderId} psc={psc} salva={salva}
+  // Una lettura pronta senza risultato è di una versione precedente del lettore: si rifà.
+  if (!lettura || nuova || (lettura.stato === "pronta" && !lettura.risultato)) return <SceltaDocumenti companyId={companyId} posId={posId} orderId={orderId} psc={psc} salva={salva}
     contrattoIniziale={lettura?.fonti.contratto?.id ?? null} onAvviata={() => setNuova(false)} chiudi={chiudi} />;
   if (lettura.stato === "in_corso" || lettura.stato === "errore") return <InCorso companyId={companyId} posId={posId} lettura={lettura} salva={salva}
     nuova={() => setNuova(true)} chiudi={chiudi} />;
@@ -197,6 +199,8 @@ function Risultati({ companyId, posId, psc, lettura, onInserisci, nuova, chiudi 
   const [decisioni, setDecisioni] = useState<DecisioniLettore>(lettura.decisioni);
   const [scelte, setScelte] = useState<Set<string>>(() => new Set(indicazioniValide(risultato, lettura.decisioni).map(chiaveIndicazione)));
   const [confermato, conferma] = useState(false);
+  /** Fase o ambito di ogni estratto, quando un campo di emergenza ne riceve più d'uno (come in «Cerca indicazioni nel PSC»). */
+  const [fasi, setFasi] = useState<Record<string, string>>({});
   // Il PSC della lettura deve essere ancora quello del POS, altrimenti le emergenze non si possono inserire con le loro fonti.
   const pscAllineato = !!psc && !!lettura.fonti.psc && psc.id === lettura.fonti.psc.id && psc.sha256 === lettura.fonti.psc.sha256 &&
     psc.revisione === lettura.fonti.psc.revisione;
@@ -206,6 +210,9 @@ function Risultati({ companyId, posId, psc, lettura, onInserisci, nuova, chiudi 
     (eCampoOrganizzazione(i.campo) || (i.documento === "psc" && pscAllineato));
   const selezionate = risultato.indicazioni.filter(i => scelte.has(chiaveIndicazione(i)) && inseribile(i));
   const campi = (Object.keys(CAMPI_LETTORE) as CampoLettore[]).filter(c => risultato.indicazioni.some(i => i.campo === c));
+  const emergenzaMultipla = (i: IndicazioneLettore) => !eCampoOrganizzazione(i.campo) &&
+    selezionate.filter(s => s.campo === i.campo && s.documento === "psc").length > 1;
+  const fasiMancanti = selezionate.some(i => emergenzaMultipla(i) && !fasi[chiaveIndicazione(i)]?.trim());
 
   const scegli = (campo: CampoLettore, scelta: SceltaConflitto) => {
     const prossime = { ...decisioni, [campo]: scelta };
@@ -230,7 +237,10 @@ function Risultati({ companyId, posId, psc, lettura, onInserisci, nuova, chiudi 
   function inserisci() {
     const righe = righeOrganizzazioneLettore(selezionate, lettura.fonti.psc?.revisione);
     const emergenze = pscAllineato && lettura.fonti.psc
-      ? proposteEmergenzaDaLettura({ ...risultato, indicazioni: selezionate }, lettura.fonti.psc, decisioni) : [];
+      ? proposteEmergenzaDaLettura({ ...risultato, indicazioni: selezionate }, lettura.fonti.psc, decisioni).map(p => {
+        const fase = fasi[[p.campo, "psc", p.pagina, p.estratto].join("|")]?.trim();
+        return fase ? { ...p, fase: fase.slice(0, 100) } : p;
+      }) : [];
     onInserisci(righe, emergenze);
     toast.success("Indicazioni inserite nella bozza: salva per conservarle");
     chiudi();
@@ -273,18 +283,25 @@ function Risultati({ companyId, posId, psc, lettura, onInserisci, nuova, chiudi 
             const k = chiaveIndicazione(i), puo = inseribile(i);
             return <div key={k} className="space-y-1 rounded-md border p-2">
               <label className="flex items-start gap-2 text-sm">
-                <Checkbox checked={puo && scelte.has(k)} disabled={!puo} aria-label={`Usa l’indicazione del ${DOCUMENTO_LETTORE_LABEL[i.documento]} a pagina ${i.pagina}`}
+                <Checkbox checked={puo && scelte.has(k)} disabled={!puo}
+                  aria-label={`Usa l’indicazione del ${DOCUMENTO_LETTORE_LABEL[i.documento]} a pagina ${i.pagina} per ${CAMPI_LETTORE[campo]}`}
                   onCheckedChange={v => { setScelte(prev => { const s = new Set(prev); if (v === true) s.add(k); else s.delete(k); return s; }); conferma(false); }} />
                 <span className="min-w-0 break-words">«{i.citazione}»</span>
               </label>
               <div className="ml-6 flex flex-wrap items-center gap-2 text-xs">
                 <Badge variant="outline">{DOCUMENTO_LETTORE_LABEL[i.documento]} · p. {i.pagina}{i.metodo === "ocr" ? " · OCR" : ""}</Badge>
-                <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => apri(i)}>
+                <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => apri(i)}
+                  aria-label={`Apri la pagina ${i.pagina} del ${DOCUMENTO_LETTORE_LABEL[i.documento]}`}>
                   <ExternalLink className="mr-1 size-3" aria-hidden="true" />Apri la pagina
                 </Button>
                 {inConflitto.has(campo) && !valide.has(k) && <span className="text-muted-foreground">Scegli sopra quale documento vale.</span>}
                 {!eCampoOrganizzazione(campo) && i.documento === "contratto" && <span className="text-muted-foreground">Dal contratto: riportala a mano nelle emergenze.</span>}
               </div>
+              {puo && scelte.has(k) && emergenzaMultipla(i) && <label className="ml-6 block space-y-1 text-xs font-medium">
+                <span>Fase o ambito · pagina {i.pagina}</span>
+                <Input className="h-8" value={fasi[k] ?? ""} maxLength={100} placeholder="Es. Allestimento, area nord"
+                  onChange={e => { const v = e.target.value; setFasi(f => ({ ...f, [k]: v })); conferma(false); }} />
+              </label>}
             </div>;
           })}
         </fieldset>)}
@@ -295,6 +312,7 @@ function Risultati({ companyId, posId, psc, lettura, onInserisci, nuova, chiudi 
         <ul className="list-disc space-y-1 pl-5 text-sm">{risultato.mancanti.map(c => <li key={c}>{DOMANDE[c]}</li>)}</ul>
       </section>}
 
+      {fasiMancanti && <p role="status" className="text-sm text-muted-foreground">Quando usi più estratti per la stessa voce di emergenza, indica la fase o l’ambito di ciascuno.</p>}
       {!!selezionate.length && <label className="flex items-start gap-2 rounded-md bg-muted/30 p-3 text-sm">
         <Checkbox checked={confermato} onCheckedChange={v => conferma(v === true)} />
         Ho confrontato le citazioni selezionate con gli originali e ne ho verificato la pertinenza a questo cantiere.
@@ -302,7 +320,7 @@ function Risultati({ companyId, posId, psc, lettura, onInserisci, nuova, chiudi 
     </div>
     <DialogFooter className="shrink-0 gap-2 px-4 py-3 sm:px-6">
       <Button type="button" variant="outline" onClick={nuova}>Nuova lettura</Button>
-      <Button type="button" disabled={!selezionate.length || !confermato} onClick={inserisci}>
+      <Button type="button" disabled={!selezionate.length || !confermato || fasiMancanti} onClick={inserisci}>
         Inserisci {selezionate.length || ""} nella bozza
       </Button>
     </DialogFooter>

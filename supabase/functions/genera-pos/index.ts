@@ -17,6 +17,7 @@ import { normalizzaRiferimentoPsc } from "../_shared/posPsc.ts";
 import { AZIONI_POS, eAzioneBrowserPos, scriveAzionePos, type AzionePos } from "../_shared/posAzioni.ts";
 import { applicaFontiProposteAiPos, capitoliComputoPos, ISTRUZIONE_VOCI_DA_CLASSIFICARE, preparaContestoAiPos, vociDaClassificarePerAi } from "../_shared/posAiContesto.ts";
 import { computoPerAiPos, fasiPerAiPos, leggiPaginePscConOcr, pscPerAiPos } from "../_shared/posAiFonti.ts";
+// Lettore di PSC e contratto: v2 dal 23/11 sera (definizioni dei campi, niente titoletti), vedi posLettoreDocumenti.ts.
 import {
   ISTRUZIONE_INDICAZIONI_DOCUMENTI, indicazioniPerProposte, normalizzaRisultatoLettore, normalizzaDecisioniLettore, proposteEmergenzaDaLettura,
 } from "../_shared/posLettoreDocumenti.ts";

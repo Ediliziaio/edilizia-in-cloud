@@ -34,7 +34,7 @@ const base: LetturaDocumentiVista = {
   avanzamento: { fatti: 1, blocchi: 1 },
   decisioni: {},
   risultato: {
-    versione: 1,
+    versione: 2,
     indicazioni: [
       { campo: "accessi", documento: "contratto", pagina: 2, citazione: "L'appaltatore accede dall'ingresso principale di Via Verdi 12", metodo: "testo" },
       { campo: "accessi", documento: "psc", pagina: 7, citazione: "L'accesso dei mezzi avviene dal passo carraio di Via Rossi 3", metodo: "testo" },
@@ -88,9 +88,9 @@ it("senza scelta sul conflitto l’accesso non entra; dopo la scelta e la confer
   const dialog = await screen.findByRole("dialog");
   const decisioni = within(dialog).getByRole("region", { name: "Decisioni da prendere" });
   expect(within(decisioni).getByText(/Accessi e percorsi: PSC e contratto non coincidono/)).toBeInTheDocument();
-  const accessoPsc = within(dialog).getByRole("checkbox", { name: "Usa l’indicazione del PSC a pagina 7" });
+  const accessoPsc = within(dialog).getByRole("checkbox", { name: "Usa l’indicazione del PSC a pagina 7 per Accessi e percorsi" });
   expect(accessoPsc).toBeDisabled();
-  expect(within(dialog).getByRole("checkbox", { name: "Usa l’indicazione del Contratto a pagina 3" })).toBeDisabled();
+  expect(within(dialog).getByRole("checkbox", { name: "Usa l’indicazione del Contratto a pagina 3 per Allarme, chiamata e procedura" })).toBeDisabled();
   const daChiarire = within(dialog).getByRole("region", { name: "Da chiarire" });
   expect(within(daChiarire).getAllByRole("listitem").map(li => li.textContent)).toEqual([
     "Quali servizi e spazi comuni usa l’impresa, e con quali regole?", "Quali sono le vie di esodo e le uscite di emergenza?",
@@ -102,7 +102,7 @@ it("senza scelta sul conflitto l’accesso non entra; dopo la scelta e la confer
   })));
   expect(accessoPsc).toBeEnabled();
   expect(accessoPsc).toBeChecked();
-  expect(within(dialog).getByRole("checkbox", { name: "Usa l’indicazione del Contratto a pagina 2" })).not.toBeChecked();
+  expect(within(dialog).getByRole("checkbox", { name: "Usa l’indicazione del Contratto a pagina 2 per Accessi e percorsi" })).not.toBeChecked();
 
   const inserisci = within(dialog).getByRole("button", { name: /Inserisci 3 nella bozza/ });
   expect(inserisci).toBeDisabled();
@@ -122,10 +122,9 @@ it("apre la pagina originale del documento citato", async () => {
   monta(base);
   fireEvent.click(await screen.findByRole("button", { name: "Risultati della lettura" }));
   const dialog = await screen.findByRole("dialog");
-  const pulsanti = within(dialog).getAllByRole("button", { name: "Apri la pagina" });
-  fireEvent.click(pulsanti[0]);
+  fireEvent.click(within(dialog).getByRole("button", { name: "Apri la pagina 2 del Contratto" }));
   expect(apri).toHaveBeenCalledWith("order-attachments", "ord/ai-contratti/c.pdf", 2);
-  fireEvent.click(pulsanti[1]);
+  fireEvent.click(within(dialog).getByRole("button", { name: "Apri la pagina 7 del PSC" }));
   expect(apri).toHaveBeenCalledWith("sicurezza-documenti", "az/PSC.pdf", 7);
 });
 
@@ -134,8 +133,8 @@ it("se il PSC del POS è cambiato, le emergenze lette dal vecchio non si possono
   fireEvent.click(await screen.findByRole("button", { name: "Risultati della lettura" }));
   const dialog = await screen.findByRole("dialog");
   expect(within(dialog).getByText(/Il PSC del POS non è più quello letto/)).toBeInTheDocument();
-  expect(within(dialog).getByRole("checkbox", { name: "Usa l’indicazione del PSC a pagina 15" })).toBeDisabled();
-  expect(within(dialog).getByRole("checkbox", { name: "Usa l’indicazione del PSC a pagina 12" })).toBeEnabled();
+  expect(within(dialog).getByRole("checkbox", { name: "Usa l’indicazione del PSC a pagina 15 per Punti di raccolta" })).toBeDisabled();
+  expect(within(dialog).getByRole("checkbox", { name: "Usa l’indicazione del PSC a pagina 12 per Coordinamento dei fronti" })).toBeEnabled();
 });
 
 it("una lettura fermata si riprende con gli stessi documenti", async () => {
@@ -148,4 +147,33 @@ it("una lettura fermata si riprende con gli stessi documenti", async () => {
   await waitFor(() => expect(api).toHaveBeenCalledWith(expect.objectContaining({
     azione: "avvia_lettura_documenti", contratto_id: "a-2", usa_psc: true,
   })));
+});
+
+it("con due estratti per la stessa voce di emergenza chiede la fase di ciascuno, come «Cerca indicazioni nel PSC»", async () => {
+  const dueSoccorsi: LetturaDocumentiVista = { ...base, risultato: { ...base.risultato!, conflitti: [], indicazioni: [
+    { campo: "primo_soccorso", documento: "psc", pagina: 38, citazione: "almeno un pacchetto di medicazione per ogni 10 addetti", metodo: "testo" },
+    { campo: "primo_soccorso", documento: "psc", pagina: 66, citazione: "garantire la presenza di pacchetti di medicazione per tutta la durata", metodo: "testo" },
+  ] } };
+  const { onInserisci } = monta(dueSoccorsi);
+  fireEvent.click(await screen.findByRole("button", { name: "Risultati della lettura" }));
+  const dialog = await screen.findByRole("dialog");
+  fireEvent.click(within(dialog).getByRole("checkbox", { name: /Ho confrontato le citazioni/ }));
+  const inserisci = within(dialog).getByRole("button", { name: /Inserisci 2 nella bozza/ });
+  expect(inserisci).toBeDisabled();
+  expect(within(dialog).getByText(/indica la fase o l’ambito di ciascuno/)).toBeInTheDocument();
+  fireEvent.change(within(dialog).getByLabelText("Fase o ambito · pagina 38"), { target: { value: "Allestimento" } });
+  fireEvent.change(within(dialog).getByLabelText("Fase o ambito · pagina 66"), { target: { value: "Lavori in quota" } });
+  fireEvent.click(within(dialog).getByRole("checkbox", { name: /Ho confrontato le citazioni/ }));
+  fireEvent.click(inserisci);
+  expect(onInserisci).toHaveBeenCalledWith([], [
+    expect.objectContaining({ campo: "primo_soccorso", pagina: 38, fase: "Allestimento" }),
+    expect.objectContaining({ campo: "primo_soccorso", pagina: 66, fase: "Lavori in quota" }),
+  ]);
+});
+
+it("una lettura di una versione precedente del lettore si rifà invece di aprire risultati vuoti", async () => {
+  monta({ ...base, risultato: null });
+  fireEvent.click(await screen.findByRole("button", { name: "Leggi PSC e contratto" }));
+  const dialog = await screen.findByRole("dialog");
+  expect(within(dialog).getByRole("button", { name: "Avvia la lettura" })).toBeInTheDocument();
 });
