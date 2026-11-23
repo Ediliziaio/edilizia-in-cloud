@@ -118,7 +118,7 @@ export async function agenteListini(db: DbLettura, companyId: string, opzioni: {
 
   // Acquisti degli ultimi 12 mesi: il prezzo davvero pagato, se l'ordine ha un prezzo confermato.
   letture++;
-  const da = `${Number(opzioni.oggi.slice(0, 4)) - 1}${opzioni.oggi.slice(4)}`;
+  const da = anniPrima(opzioni.oggi, 1);
   const acquisti = await leggi(db.from("purchase_order_items").select("id, sku, description, unit_of_measure, unit_price, discount_percent, quantity, created_at, price_pending")
     .eq("company_id", companyId).gte("created_at", da).order("created_at", { ascending: false }).limit(TETTI.acquisti), "Acquisti recenti");
   for (const a of acquisti) {
@@ -133,11 +133,22 @@ export async function agenteListini(db: DbLettura, companyId: string, opzioni: {
   return { dati: righe, letture, avvisi };
 }
 
+const ACCETTATO = { testo: "accettato", selezionabile: true }, INVIATO = { testo: "inviato, senza risposta", selezionabile: false };
+const SCADUTO = { testo: "scaduto senza risposta", selezionabile: false }, RIFIUTATO = { testo: "rifiutato dal cliente", selezionabile: false };
+// Anche le forme al maschile: i preventivi più vecchi le hanno ancora, e senza resterebbero fuori dallo storico.
 const ESITO_PREVENTIVO: Record<string, { testo: string; selezionabile: boolean }> = {
-  accettata: { testo: "accettato", selezionabile: true }, convertita: { testo: "accettato, diventato commessa", selezionabile: true },
-  inviata: { testo: "inviato, senza risposta", selezionabile: false }, scaduta: { testo: "scaduto senza risposta", selezionabile: false },
-  rifiutata: { testo: "rifiutato dal cliente", selezionabile: false },
+  accettata: ACCETTATO, accettato: ACCETTATO, firmato: ACCETTATO, convertita: { testo: "accettato, diventato commessa", selezionabile: true },
+  inviata: INVIATO, inviato: INVIATO, visto: INVIATO, scaduta: SCADUTO, scaduto: SCADUTO, rifiutata: RIFIUTATO, rifiutato: RIFIUTATO,
 };
+/** Righe che non sono una lavorazione: non hanno un prezzo unitario da confrontare. */
+const NON_LAVORAZIONI = new Set(["nota", "sconto", "subtotale"]);
+
+/** Lo stesso giorno di `anni` anni prima; il 29 febbraio diventa il 28, mai una data che non esiste. */
+export function anniPrima(oggi: string, anni: number): string {
+  const [a, m, g] = oggi.slice(0, 10).split("-").map(Number);
+  const ultimo = new Date(Date.UTC(a - anni, m, 0)).getUTCDate();
+  return `${String(a - anni).padStart(4, "0")}-${String(m).padStart(2, "0")}-${String(Math.min(g, ultimo)).padStart(2, "0")}`;
+}
 
 /**
  * I preventivi degli ultimi 24 mesi che sono usciti dall'azienda. Le bozze no: non sono mai state un prezzo.
@@ -146,7 +157,7 @@ const ESITO_PREVENTIVO: Record<string, { testo: string; selezionabile: boolean }
  */
 export async function agenteStorico(db: DbLettura, companyId: string, opzioni: { oggi: string; escludiPreventivo?: string }): Promise<EsitoAgente<RigaFonte[]>> {
   const avvisi: string[] = []; let letture = 1;
-  const da = `${Number(opzioni.oggi.slice(0, 4)) - 2}${opzioni.oggi.slice(4)}`;
+  const da = anniPrima(opzioni.oggi, 2);
   const preventivi = (await leggi(db.from("quotes").select("id, quote_number, status, signed_at, created_at")
     .eq("company_id", companyId).in("status", Object.keys(ESITO_PREVENTIVO)).gte("created_at", da)
     .order("created_at", { ascending: false }).limit(TETTI.preventivi + 1), "Storico dei preventivi")).filter(q => q.id !== opzioni.escludiPreventivo);
@@ -156,12 +167,12 @@ export async function agenteStorico(db: DbLettura, companyId: string, opzioni: {
   const righe: RigaFonte[] = [];
   for (let i = 0; i < letti.length && righe.length < TETTI.righePreventivi; i += 50) {
     letture++;
-    const voci = await leggi(db.from("quote_items").select("id, quote_id, name, description, quantity, unit_price, discount_percent, unit_of_measure, codice_prezzario, is_optional")
+    const voci = await leggi(db.from("quote_items").select("id, quote_id, name, description, quantity, unit_price, discount_percent, unit_of_measure, codice_prezzario, is_optional, item_category")
       .eq("company_id", companyId).in("quote_id", letti.slice(i, i + 50).map(q => q.id)).limit(1000), "Righe dei preventivi");
     for (const v of voci) {
       const q = perId.get(v.quote_id); const lordo = prezzo(v.unit_price);
       const descrizione = [testo(v.name), testo(v.description)].filter(Boolean).join(" — ");
-      if (!q || lordo === null || !descrizione || v.is_optional === true) continue;
+      if (!q || lordo === null || !descrizione || v.is_optional === true || NON_LAVORAZIONI.has(String(v.item_category))) continue;
       const esito = ESITO_PREVENTIVO[String(q.status)]; const quantita = numero(v.quantity);
       const numeroPreventivo = testo(q.quote_number, 60) || "senza numero";
       righe.push({

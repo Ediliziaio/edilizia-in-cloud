@@ -12,6 +12,7 @@ const ALTRA = "b0000000-0000-4000-a000-000000000002";
 const OGGI = "2026-11-23";
 
 const nessuno: number | null = null;
+const nessunaData: string | null = null;
 const voce = (id: string, patch: Partial<VoceEditor>): VoceEditor => ({ ...voceVuota(), id, capitolo: "Opere edili", ...patch });
 
 function seme() {
@@ -298,5 +299,26 @@ describe("margine obiettivo: sempre un numero, e si sa da dove viene", () => {
     const esito = await coordinaVerifica({ companyId: AZIENDA, voci: voci.map(v => voceRichiesta(v, false)), permessi: { costi: false }, oggi: OGGI, margineObiettivoPct: 25 }, new DbFinto(seme()).client);
     expect(esito.economia).toBeNull();
     expect(esito.voci[0].proposta).toBeNull();
+  });
+});
+
+describe("storico: forme vecchie degli stati, righe che non sono lavorazioni, date", () => {
+  it("un preventivo «accettato» al maschile vale come accettato; note e sconti non sono prezzi", async () => {
+    const dati = seme();
+    dati.quotes = [{ id: "q9", company_id: AZIENDA, quote_number: "PRV/2026/090", status: "accettato", signed_at: nessunaData, created_at: "2026-05-01T09:00:00Z" }];
+    dati.quote_items = [
+      { id: "i9", company_id: AZIENDA, quote_id: "q9", name: "Rasatura armata con rete in fibra", description: "", quantity: 12, unit_price: 21, discount_percent: 10, unit_of_measure: "mq", codice_prezzario: "", is_optional: false, item_category: "posa" },
+      { id: "i10", company_id: AZIENDA, quote_id: "q9", name: "Rasatura armata con rete in fibra", description: "", quantity: 12, unit_price: 500, discount_percent: 0, unit_of_measure: "mq", codice_prezzario: "", is_optional: false, item_category: "subtotale" },
+    ] as typeof dati.quote_items;
+    const voci = [voce("r", { descrizione: "Rasatura armata con rete in fibra", unita: "mq", quantita: "12" })];
+    const { esito } = await verifica(voci, { db: new DbFinto(dati) });
+    expect(esito.voci[0].candidati.map(c => [c.valore, c.selezionabile])).toEqual([[18.9, true]]);
+    expect(esito.voci[0].proposta).toMatchObject({ prezzo: 18.9, fonte: "Preventivo PRV/2026/090 accettato · 01/05/2026" });
+  });
+  it("il 29 febbraio di un anno fa è il 28", async () => {
+    const { anniPrima } = await import("@/lib/preventivi/coordinatore/agenti");
+    expect(anniPrima("2028-02-29", 1)).toBe("2027-02-28");
+    expect(anniPrima("2028-02-29", 4)).toBe("2024-02-29");
+    expect(anniPrima("2026-11-23", 2)).toBe("2024-11-23");
   });
 });
