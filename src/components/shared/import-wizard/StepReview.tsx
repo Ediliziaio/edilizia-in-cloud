@@ -1,4 +1,4 @@
-import { FileSpreadsheet, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { FileSpreadsheet, CheckCircle2, AlertCircle, AlertTriangle, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -6,6 +6,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import type { ImportField } from "@/components/shared/CSVImportDialog";
 import type { ObjectType } from "./StepStart";
 import type { ImportMode } from "./StepUpload";
+import type { EsitoImportazione } from "@/components/shared/ImportWizard";
+import { OpzioniImportazione, type AutomazioneScelta } from "./OpzioniImportazione";
 
 interface StepReviewProps {
   objectType: ObjectType;
@@ -19,7 +21,30 @@ interface StepReviewProps {
   consent: boolean;
   onConsentChange: (v: boolean) => void;
   isImporting: boolean;
-  result: { success: number; errors: string[] } | null;
+  result: EsitoImportazione | null;
+  opzioni?: {
+    etichette: string[];
+    onEtichetteChange: (v: string[]) => void;
+    automazioni: AutomazioneScelta[];
+    onAutomazioniChange: (v: AutomazioneScelta[]) => void;
+  };
+}
+
+function Elenco({ titolo, righe, tono }: { titolo: string; righe: string[]; tono: "amber" | "red" }) {
+  const colori = tono === "amber"
+    ? { box: "border-amber-200 bg-amber-50 text-amber-900", riga: "bg-white/70" }
+    : { box: "border-destructive/30 bg-destructive/5 text-destructive", riga: "bg-white/70" };
+  const Icona = tono === "amber" ? AlertTriangle : AlertCircle;
+  return (
+    <div className={`rounded-lg border p-4 ${colori.box}`}>
+      <p className="mb-2 flex items-center gap-2 text-sm font-medium"><Icona className="h-4 w-4" />{titolo}</p>
+      <ScrollArea className="max-h-[220px]">
+        <ul className="space-y-1">
+          {righe.map((r, i) => <li key={i} className={`rounded px-2 py-1 text-xs ${colori.riga}`}>{r}</li>)}
+        </ul>
+      </ScrollArea>
+    </div>
+  );
 }
 
 function formatSize(bytes: number) {
@@ -30,7 +55,7 @@ function formatSize(bytes: number) {
 
 export function StepReview({
   objectType, fields, fileHeaders, mapping, fileName, fileSize,
-  importMode, consent, onConsentChange, isImporting, result, fileRows,
+  importMode, consent, onConsentChange, isImporting, result, fileRows, opzioni,
 }: StepReviewProps) {
   const mappedEntries = fileHeaders
     .filter((h) => mapping[h])
@@ -49,28 +74,42 @@ export function StepReview({
   }
 
   if (result) {
+    const conteggi = [
+      { n: result.creati, testo: (n: number) => (n === 1 ? "nuovo" : "nuovi") },
+      { n: result.aggiornati, testo: (n: number) => (n === 1 ? "aggiornato" : "aggiornati") },
+      { n: result.saltati, testo: () => "saltati: non trovati" },
+    ].filter((c) => (c.n ?? 0) > 0);
+    const avvisi = result.avvisi ?? [];
     return (
-      <div className="max-w-xl mx-auto space-y-4 py-8">
-        {result.success > 0 && (
-          <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 dark:bg-green-900/20 dark:text-green-400 rounded-lg p-4">
-            <CheckCircle2 className="h-5 w-5 shrink-0" />
-            <span className="font-medium">{result.success} righe importate con successo</span>
-          </div>
-        )}
-        {result.errors.length > 0 && (
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-sm text-destructive">
-              <AlertCircle className="h-4 w-4" />
-              <span>{result.errors.length} errori</span>
-            </div>
-            <ScrollArea className="max-h-[200px]">
-              <div className="space-y-1">
-                {result.errors.map((err, i) => (
-                  <p key={i} className="text-xs text-destructive bg-destructive/5 rounded px-2 py-1">{err}</p>
+      <div className="max-w-xl mx-auto space-y-4 py-6">
+        {result.success > 0 ? (
+          <div className="rounded-lg border border-green-200 bg-green-50 p-5 text-green-800 dark:bg-green-900/20 dark:text-green-400">
+            <p className="flex items-center gap-2 text-base font-semibold">
+              <CheckCircle2 className="h-5 w-5 shrink-0" /> Importazione completata: {result.success} {result.success === 1 ? label.replace(/i$/, "o") : label}
+            </p>
+            {conteggi.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2 pl-7">
+                {conteggi.map((c, i) => (
+                  <span key={i} className="rounded-full bg-white/80 px-3 py-1 text-xs font-medium">{c.n} {c.testo(c.n!)}</span>
                 ))}
               </div>
-            </ScrollArea>
+            )}
+            {(result.fatto ?? []).length > 0 && (
+              <ul className="mt-3 space-y-1 pl-7 text-sm">
+                {result.fatto!.map((f, i) => <li key={i}>✓ {f}</li>)}
+              </ul>
+            )}
           </div>
+        ) : (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-5 text-destructive">
+            <p className="flex items-center gap-2 text-base font-semibold"><AlertCircle className="h-5 w-5" /> Nessuna riga importata</p>
+          </div>
+        )}
+        {avvisi.length > 0 && (
+          <Elenco tono="amber" titolo={`${avvisi.length} ${avvisi.length === 1 ? "riga non importata perché doppia" : "righe non importate perché doppie"}`} righe={avvisi} />
+        )}
+        {result.errors.length > 0 && (
+          <Elenco tono="red" titolo={`${result.errors.length} ${result.errors.length === 1 ? "riga non importata per un errore" : "righe non importate per un errore"}`} righe={result.errors} />
         )}
       </div>
     );
@@ -78,26 +117,12 @@ export function StepReview({
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      {/* Preferences */}
-      <div>
-        <h3 className="text-sm font-semibold mb-3">Preferenze</h3>
-        <div className="space-y-3 border rounded-lg p-4 bg-muted/20">
-          <div className="flex items-start gap-2 opacity-50">
-            <Checkbox disabled className="mt-0.5" />
-            <div>
-              <p className="text-sm text-muted-foreground">Crea un elenco intelligente per i nuovi contatti creati con l'importazione</p>
-              <Badge variant="outline" className="mt-1 text-[10px]">Prossimamente</Badge>
-            </div>
-          </div>
-          <div className="flex items-start gap-2 opacity-50">
-            <Checkbox disabled className="mt-0.5" />
-            <div>
-              <p className="text-sm text-muted-foreground">Aggiungi i contatti importati a un flusso di lavoro</p>
-              <Badge variant="outline" className="mt-1 text-[10px]">Prossimamente</Badge>
-            </div>
-          </div>
+      {opzioni && (
+        <div>
+          <h3 className="text-sm font-semibold mb-3">Dopo l'importazione</h3>
+          <OpzioniImportazione {...opzioni} />
         </div>
-      </div>
+      )}
 
       {/* Document info */}
       <div>

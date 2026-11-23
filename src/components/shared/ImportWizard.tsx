@@ -8,6 +8,7 @@ import { StepStart, type ObjectType } from "./import-wizard/StepStart";
 import { StepUpload, type ImportMode } from "./import-wizard/StepUpload";
 import { StepMap } from "./import-wizard/StepMap";
 import { StepReview } from "./import-wizard/StepReview";
+import type { AutomazioneScelta } from "./import-wizard/OpzioniImportazione";
 import { PAGINA_IMPORTAZIONE } from "./import-wizard/useImportaDaUrl";
 import { campiObbligatoriMancanti, type ImportField } from "./CSVImportDialog";
 
@@ -19,8 +20,30 @@ export interface ImportWizardProps {
   destinazione?: string;
   contactFields: ImportField[];
   opportunityFields: ImportField[];
-  onImportContacts: (rows: Record<string, string>[], options: { mode: ImportMode }) => Promise<{ success: number; errors: string[] }>;
-  onImportOpportunities: (rows: Record<string, string>[], options: { mode: ImportMode }) => Promise<{ success: number; errors: string[] }>;
+  onImportContacts: (rows: Record<string, string>[], options: OpzioniImport) => Promise<EsitoImportazione>;
+  onImportOpportunities: (rows: Record<string, string>[], options: { mode: ImportMode }) => Promise<EsitoImportazione>;
+  /** Al passo 4 si scelgono etichette e automazioni per i contatti importati. */
+  opzioniContatti?: boolean;
+}
+
+export interface OpzioniImport {
+  mode: ImportMode;
+  etichette?: string[];
+  automazioni?: AutomazioneScelta[];
+}
+
+/** Com'è andata: i numeri, cosa è stato fatto dopo, e le righe da guardare. */
+export interface EsitoImportazione {
+  success: number;
+  /** Righe non importate per un errore. */
+  errors: string[];
+  creati?: number;
+  aggiornati?: number;
+  saltati?: number;
+  /** Righe non importate di proposito (doppie nel file): da controllare, non errori. */
+  avvisi?: string[];
+  /** Cosa è stato fatto dopo l'importazione: etichette, automazioni. */
+  fatto?: string[];
 }
 
 function autoMatch(fileHeaders: string[], fields: ImportField[]): Record<string, string> {
@@ -97,7 +120,7 @@ function parseFileData(file: File): Promise<{ headers: string[]; rows: string[][
 
 export function ImportWizard({
   open, onClose, defaultObjectType, contactFields, opportunityFields,
-  onImportContacts, onImportOpportunities, destinazione,
+  onImportContacts, onImportOpportunities, destinazione, opzioniContatti,
 }: ImportWizardProps) {
   const [step, setStep] = useState(0);
   const [objectType, setObjectType] = useState<ObjectType>(defaultObjectType);
@@ -109,7 +132,9 @@ export function ImportWizard({
   const [skipUnmapped, setSkipUnmapped] = useState(true);
   const [consent, setConsent] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
-  const [result, setResult] = useState<{ success: number; errors: string[] } | null>(null);
+  const [result, setResult] = useState<EsitoImportazione | null>(null);
+  const [etichette, setEtichette] = useState<string[]>([]);
+  const [automazioni, setAutomazioni] = useState<AutomazioneScelta[]>([]);
 
   const navigate = useNavigate();
   const prefissoMarketing = useMarketingRoutePrefix();
@@ -159,15 +184,16 @@ export function ImportWizard({
     }).filter((r) => Object.values(r).some((v) => v.trim()));
 
     try {
-      const fn = objectType === "contacts" ? onImportContacts : onImportOpportunities;
-      const res = await fn(mappedRows, { mode: importMode });
+      const res = objectType === "contacts"
+        ? await onImportContacts(mappedRows, { mode: importMode, etichette, automazioni })
+        : await onImportOpportunities(mappedRows, { mode: importMode });
       setResult(res);
     } catch (err: any) {
       setResult({ success: 0, errors: [err?.message || "Errore durante l'importazione"] });
     } finally {
       setIsImporting(false);
     }
-  }, [fileRows, fileHeaders, mapping, objectType, importMode, onImportContacts, onImportOpportunities]);
+  }, [fileRows, fileHeaders, mapping, objectType, importMode, etichette, automazioni, onImportContacts, onImportOpportunities]);
 
   const handleNext = () => {
     if (step === 3) { handleImport(); return; }
@@ -232,6 +258,9 @@ export function ImportWizard({
             onConsentChange={setConsent}
             isImporting={isImporting}
             result={result}
+            opzioni={opzioniContatti && objectType === "contacts"
+              ? { etichette, onEtichetteChange: setEtichette, automazioni, onAutomazioniChange: setAutomazioni }
+              : undefined}
           />
         )}
       </div>

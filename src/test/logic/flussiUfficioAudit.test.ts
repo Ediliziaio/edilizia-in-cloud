@@ -2,6 +2,9 @@ import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
 import { describe, expect, it, vi } from "vitest";
+import { normalizeTagList } from "@/lib/marketingTags";
+import { formeTelefono, telefonoInternazionale } from "@/lib/contactUtils";
+import { perOgniLotto } from "@/lib/lottiDiId";
 
 function estrai(file: string, inizio: string, fine: string) {
   const fonte = readFileSync(file, "utf8");
@@ -19,6 +22,7 @@ function esegui(codice: string, ambiente: Record<string, unknown>) {
 describe("importazione contatti", () => {
   function gestore(errore?: Error) {
     const codice = estrai("src/pages/azienda/marketing/MarketingContacts.tsx", "  const handleImport =", "  if (importOpen)");
+    const iscrivi = vi.fn(async (_nome: string, _arg: unknown) => ({ data: { enrolled: 2 }, error: null as null }));
     const inserisci = vi.fn((_righe: unknown) => ({ select: async () => ({ data: [{ id: "nuovo" }] }) }));
     const aggiorna = vi.fn((_riga: unknown) => ({ eq: () => ({ eq: async () => ({ error: null as Error | null }) }) }));
     const tabella = {
@@ -27,19 +31,19 @@ describe("importazione contatti", () => {
     };
     const handleImport = esegui(codice + "\nhandleImport", {
       companyId: "azienda-a", canEditContacts: true, contactCustomFields: [], invalidate: vi.fn(),
-      supabase: { from: () => tabella },
+      supabase: { from: () => tabella, rpc: iscrivi }, normalizeTagList, formeTelefono, telefonoInternazionale, perOgniLotto,
     });
     const righe = [
       { first_name: "Modificato", email: "gia@example.test" },
       { first_name: "Nuovo", email: "nuovo@example.test" },
     ];
-    return { handleImport, righe, inserisci, aggiorna };
+    return { handleImport, righe, inserisci, aggiorna, iscrivi };
   }
 
   it("crea e aggiorna dallo stesso file", async () => {
     const { handleImport, righe, inserisci, aggiorna } = gestore();
     expect(await handleImport(righe, { mode: "upsert" })).toEqual({
-      success: 2, errors: ["Riepilogo: 1 creati, 1 aggiornati"],
+      success: 2, errors: [], creati: 1, aggiornati: 1, saltati: 0, avvisi: [], fatto: [],
     });
     expect(inserisci).toHaveBeenCalledWith([expect.objectContaining({ email: "nuovo@example.test" })]);
     expect(aggiorna).toHaveBeenCalledWith(expect.objectContaining({ email: "gia@example.test" }));
@@ -282,4 +286,52 @@ it.each([500, 404, 410, 204])("cancellazione evento Google HTTP %s", async (stat
     expect(cancellaMappa).toHaveBeenCalledOnce();
   }
   expect(fetch).toHaveBeenCalledOnce();
+});
+
+describe("importazione contatti: etichette, automazioni e doppioni", () => {
+  function gestore() {
+    const codice = estrai("src/pages/azienda/marketing/MarketingContacts.tsx", "  const handleImport =", "  if (importOpen)");
+    const inserisci = vi.fn((righe: { tags: string[] }[]) => ({ select: async () => ({ data: righe.map((_, i) => ({ id: `nuovo-${i}` })) }) }));
+    const aggiorna = vi.fn((_riga: { tags?: string[] }) => ({ eq: () => ({ eq: async () => ({ error: null as Error | null }) }) }));
+    const iscrivi = vi.fn(async (_nome: string, arg: { p_entity_ids: string[] }) => ({ data: { enrolled: arg.p_entity_ids.length }, error: null as null }));
+    const tabella = {
+      select: () => ({ eq: () => ({ in: async () => ({ data: [{ id: "esistente", email: "gia@example.test", tags: ["vecchia"] }], error: null }) }) }),
+      insert: inserisci, update: aggiorna,
+    };
+    const handleImport = esegui(codice + "\nhandleImport", {
+      companyId: "azienda-a", canEditContacts: true, contactCustomFields: [], invalidate: vi.fn(),
+      supabase: { from: () => tabella, rpc: iscrivi }, normalizeTagList, formeTelefono, telefonoInternazionale, perOgniLotto,
+    });
+    return { handleImport, inserisci, aggiorna, iscrivi };
+  }
+
+  it("aggiunge le etichette scelte e fa entrare i contatti importati nell'automazione", async () => {
+    const { handleImport, inserisci, aggiorna, iscrivi } = gestore();
+    const esito = await handleImport(
+      [{ first_name: "Già", email: "gia@example.test" }, { first_name: "Nuovo", email: "nuovo@example.test", tags: "fiera" }],
+      { mode: "upsert", etichette: ["Lista novembre"], automazioni: [{ id: "flusso-1", nome: "Benvenuto" }] },
+    );
+    expect(inserisci.mock.calls[0][0][0].tags).toEqual(expect.arrayContaining(["fiera", "lista novembre"]));
+    // Il contatto già presente tiene le sue etichette.
+    expect(aggiorna.mock.calls[0][0].tags).toEqual(expect.arrayContaining(["vecchia", "lista novembre"]));
+    expect(iscrivi).toHaveBeenCalledWith("enroll_entities_in_flow", expect.objectContaining({ p_flow_id: "flusso-1", p_entity_type: "contact" }));
+    expect(esito.fatto).toEqual(["Etichetta «lista novembre» su 2 contatti", "2 contatti entrati nell'automazione «Benvenuto»"]);
+  });
+
+  it("senza etichette nel file non cancella quelle del contatto già presente", async () => {
+    const { handleImport, aggiorna } = gestore();
+    await handleImport([{ first_name: "Già", email: "gia@example.test" }], { mode: "update" });
+    expect(aggiorna.mock.calls[0][0]).not.toHaveProperty("tags");
+  });
+
+  it("una riga doppia nel file diventa un solo avviso, non due errori", async () => {
+    const { handleImport } = gestore();
+    const esito = await handleImport(
+      [{ first_name: "Anna", email: "anna@example.test", phone: "348 5273876" }, { first_name: "Anna", email: "anna@example.test", phone: "3485273876" }],
+      { mode: "create" },
+    );
+    expect(esito.errors).toEqual([]);
+    expect(esito.avvisi).toEqual(["Riga 3: è lo stesso contatto della riga 2 (stessa email e stesso telefono), importato una volta sola"]);
+    expect(esito.creati).toBe(1);
+  });
 });

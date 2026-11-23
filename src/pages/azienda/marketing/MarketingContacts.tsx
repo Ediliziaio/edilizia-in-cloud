@@ -29,8 +29,7 @@ import { ContactListsView } from "@/components/marketing/ContactListsView";
 import { AddToListDropdown } from "@/components/marketing/AddToListDropdown";
 import { BulkTagsDialog, BulkCreateOpportunitiesDialog } from "@/components/contacts/BulkContactActions";
 import { BulkEnrollAutomationDropdown } from "@/components/marketing/BulkEnrollAutomationDropdown";
-import { ImportWizard } from "@/components/shared/ImportWizard";
-import type { ImportMode } from "@/components/shared/import-wizard/StepUpload";
+import { ImportWizard, type EsitoImportazione, type OpzioniImport } from "@/components/shared/ImportWizard";
 import { useImportaDaUrl } from "@/components/shared/import-wizard/useImportaDaUrl";
 import type { ImportField } from "@/components/shared/CSVImportDialog";
 import { syncTagsToOpportunities, removeTagFromOpportunities } from "@/hooks/useTagSync";
@@ -1404,7 +1403,7 @@ export default function MarketingContacts() {
     setPage(1);
   };
 
-  const handleImport = async (rows: Record<string, string>[], options: { mode: ImportMode }) => {
+  const handleImport = async (rows: Record<string, string>[], options: OpzioniImport): Promise<EsitoImportazione> => {
     if (!companyId) return { success: 0, errors: ["Nessuna azienda selezionata"] };
     if (!canEditContacts) return { success: 0, errors: ["Non hai i permessi per importare o modificare contatti"] };
     const customKeys = contactCustomFields.map(f => `custom_${f.id}`);
@@ -1412,6 +1411,10 @@ export default function MarketingContacts() {
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const errors: string[] = [];
+    const avvisi: string[] = [];
+    const fatto: string[] = [];
+    const etichetteExtra = normalizeTagList(options?.etichette ?? []);
+    const idsImportati: string[] = [];
     let created = 0;
     let updated = 0;
     let skipped = 0;
@@ -1446,43 +1449,30 @@ export default function MarketingContacts() {
           company_name: r.company_name?.trim() || null,
           city: r.city?.trim() || null,
           province: r.province?.trim() || null,
-          tags: r.tags ? normalizeTagList(r.tags.split(",")) : [],
+          tags: normalizeTagList([...(r.tags ? r.tags.split(",") : []), ...etichetteExtra]),
           notes: r.notes?.trim() || null,
           source: r.source?.trim() || "importazione",
         },
       };
     }).filter(Boolean) as { rowIdx: number; row: Record<string, string>; data: any }[];
 
-    // Detect internal duplicates by email and normalized phone
-    const seenEmails = new Map<string, number>();
-    const seenPhones = new Map<string, number>();
-    for (const p of parsed) {
-      if (p.data.email) {
-        const key = p.data.email.toLowerCase();
-        if (seenEmails.has(key)) {
-          errors.push(`Riga ${p.rowIdx + 2}: email duplicata nel file ("${p.data.email}")`);
-        }
-        seenEmails.set(key, p.rowIdx);
-      }
-      if (p.data.phone) {
-        const key = p.data.phone;
-        if (seenPhones.has(key)) {
-          errors.push(`Riga ${p.rowIdx + 2}: telefono duplicato nel file ("${p.data.phone}")`);
-        }
-        seenPhones.set(key, p.rowIdx);
-      }
-    }
-
-    // Remove internal duplicates from parsed (keep first occurrence)
-    const seenEmailsForDedup = new Set<string>();
-    const seenPhonesForDedup = new Set<string>();
+    // Doppioni nel file: si tiene la prima riga e lo si dice una volta sola per riga.
+    const primaPerEmail = new Map<string, number>();
+    const primaPerTelefono = new Map<string, number>();
     const finalParsed = parsed.filter(p => {
       const emailKey = p.data.email?.toLowerCase();
       const phoneKey = p.data.phone;
-      if (emailKey && seenEmailsForDedup.has(emailKey)) return false;
-      if (!emailKey && phoneKey && seenPhonesForDedup.has(phoneKey)) return false;
-      if (emailKey) seenEmailsForDedup.add(emailKey);
-      if (phoneKey) seenPhonesForDedup.add(phoneKey);
+      const primaEmail = emailKey ? primaPerEmail.get(emailKey) : undefined;
+      const primaTelefono = phoneKey ? primaPerTelefono.get(phoneKey) : undefined;
+      const doppia = primaEmail !== undefined || (!emailKey && primaTelefono !== undefined);
+      if (doppia) {
+        const prima = (primaEmail ?? primaTelefono)!;
+        const motivi = [primaEmail !== undefined && "stessa email", primaTelefono === prima && "stesso telefono"].filter(Boolean).join(" e ");
+        avvisi.push(`Riga ${p.rowIdx + 2}: è lo stesso contatto della riga ${prima + 2} (${motivi}), importato una volta sola`);
+        return false;
+      }
+      if (emailKey) primaPerEmail.set(emailKey, p.rowIdx);
+      if (phoneKey && !primaPerTelefono.has(phoneKey)) primaPerTelefono.set(phoneKey, p.rowIdx);
       return true;
     });
 
@@ -1490,11 +1480,12 @@ export default function MarketingContacts() {
       // Simple insert
       const toInsert = finalParsed.map(p => p.data);
       if (toInsert.length === 0) {
-        return { success: 0, errors: errors.length ? errors : ["Nessun contatto valido da importare"] };
+        return { success: 0, errors: errors.length ? errors : ["Nessun contatto valido da importare"], avvisi };
       }
       const { error, data } = await supabase.from("marketing_contacts").insert(toInsert).select("id");
-      if (error) return { success: 0, errors: [...errors, error.message] };
+      if (error) return { success: 0, errors: [...errors, error.message], avvisi };
       created = data?.length || 0;
+      idsImportati.push(...(data ?? []).map((c) => c.id));
 
       // Custom fields
       if (data && customKeys.length > 0) {
@@ -1516,6 +1507,7 @@ export default function MarketingContacts() {
     } else {
       // Abbina i contatti esistenti per email o telefono.
       const existingMap = new Map<string, string>(); // matchKey -> contact id
+      const etichetteEsistenti = new Map<string, string[]>(); // contact id -> tags
 
       // Fetch existing contacts by email/phone
       const emails = finalParsed.map(p => p.data.email).filter(Boolean);
@@ -1527,13 +1519,14 @@ export default function MarketingContacts() {
           const batch = emails.slice(i, i + 100);
           const { data: existing, error } = await supabase
             .from("marketing_contacts")
-            .select("id, email")
+            .select("id, email, tags")
             .eq("company_id", companyId)
             .in("email", batch);
           if (error) return { success: 0, errors: [...errors, "Impossibile verificare i contatti esistenti. Riprova l’importazione."] };
           for (const e of existing || []) {
             if (e.email) {
               existingMap.set(`email:${e.email.toLowerCase()}`, e.id);
+              etichetteEsistenti.set(e.id, e.tags ?? []);
             }
           }
         }
@@ -1545,13 +1538,14 @@ export default function MarketingContacts() {
           const batch = phones.slice(i, i + 20).flatMap(formeTelefono);
           const { data: existing, error } = await supabase
             .from("marketing_contacts")
-            .select("id, phone")
+            .select("id, phone, tags")
             .eq("company_id", companyId)
             .in("phone", batch);
           if (error) return { success: 0, errors: [...errors, "Impossibile verificare i contatti esistenti. Riprova l’importazione."] };
           for (const e of existing || []) {
             if (e.phone) {
               existingMap.set(`phone:${telefonoInternazionale(e.phone)}`, e.id);
+              etichetteEsistenti.set(e.id, e.tags ?? []);
             }
           }
         }
@@ -1573,6 +1567,9 @@ export default function MarketingContacts() {
           // Update existing
           const updateData = { ...p.data };
           delete updateData.company_id;
+          // Le etichette si aggiungono a quelle che il contatto ha già, non le sostituiscono.
+          if (updateData.tags.length) updateData.tags = normalizeTagList([...(etichetteEsistenti.get(existingId) ?? []), ...updateData.tags]);
+          else delete updateData.tags;
           updateData.updated_at = new Date().toISOString();
           const { error: updateError } = await supabase
             .from("marketing_contacts")
@@ -1583,6 +1580,7 @@ export default function MarketingContacts() {
             errors.push(`Riga ${p.rowIdx + 2}: errore aggiornamento - ${updateError.message}`);
           } else {
             updated++;
+            idsImportati.push(existingId);
             // Update custom fields
             if (customKeys.length > 0) {
               for (const key of customKeys) {
@@ -1610,6 +1608,7 @@ export default function MarketingContacts() {
           errors.push(`Errore creazione: ${error.message}`);
         } else {
           created = data?.length || 0;
+          idsImportati.push(...(data ?? []).map((c) => c.id));
           if (data && customKeys.length > 0) {
             const fieldValues: { contact_id: string; field_id: string; value: string | null }[] = [];
             data.forEach((contact, idx) => {
@@ -1630,14 +1629,29 @@ export default function MarketingContacts() {
       }
     }
 
+    if (etichetteExtra.length && idsImportati.length) {
+      fatto.push(`${etichetteExtra.length === 1 ? "Etichetta" : "Etichette"} ${etichetteExtra.map((e) => `«${e}»`).join(", ")} su ${idsImportati.length} contatti`);
+    }
+    // Le automazioni scelte: i contatti importati partono dal primo passaggio.
+    for (const flusso of options?.automazioni ?? []) {
+      if (!idsImportati.length) break;
+      let iscritti = 0;
+      try {
+        await perOgniLotto(idsImportati, async (lotto) => {
+          const { data, error } = await supabase.rpc("enroll_entities_in_flow", {
+            p_flow_id: flusso.id, p_entity_ids: lotto, p_entity_type: "contact",
+          });
+          if (error) throw error;
+          iscritti += ((data ?? {}) as { enrolled?: number }).enrolled ?? 0;
+        });
+        fatto.push(`${iscritti} contatti entrati nell'automazione «${flusso.nome}»`);
+      } catch {
+        errors.push(`Automazione «${flusso.nome}»: ${iscritti ? `entrati ${iscritti} contatti, poi si è fermata` : "i contatti non sono entrati"}. Riprova dalla lista contatti con «Aggiungi ad automazione».`);
+      }
+    }
+
     invalidate();
-    const successCount = created + updated;
-    const details: string[] = [];
-    if (created > 0) details.push(`${created} creati`);
-    if (updated > 0) details.push(`${updated} aggiornati`);
-    if (skipped > 0) details.push(`${skipped} saltati (non trovati)`);
-    if (details.length > 0) errors.unshift(`Riepilogo: ${details.join(", ")}`);
-    return { success: successCount, errors };
+    return { success: created + updated, errors, creati: created, aggiornati: updated, saltati: skipped, avvisi, fatto };
   };
 
   if (importOpen) {
@@ -1649,6 +1663,7 @@ export default function MarketingContacts() {
         contactFields={importFields}
         opportunityFields={[]}
         onImportContacts={async (rows, opts) => handleImport(rows, opts)}
+        opzioniContatti
         onImportOpportunities={async () => ({ success: 0, errors: [] })}
       />
     );
