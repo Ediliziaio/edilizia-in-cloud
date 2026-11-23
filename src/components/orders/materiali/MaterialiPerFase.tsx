@@ -977,7 +977,8 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio, generaIni
             </Button>
             {/* Cosa ordinare ed entro quando, solo di questa commessa (17/11/2026). */}
             {/* Telefono: solo l'icona, così le tre azioni stanno su una riga (collaudo 23/11/2026). */}
-            <Button size="sm" variant="outline" className="tap-compact h-8 px-2.5 text-xs max-md:w-9 max-md:px-0" onClick={() => setFabbisogno(true)} aria-label="Fabbisogno: cosa ordinare ed entro quando" title="Fabbisogno">
+            {/* Dal telefono no (decisione del founder, 23/11/2026): il fabbisogno si usa da tablet e computer. */}
+            <Button size="sm" variant="outline" className="tap-compact h-8 px-2.5 text-xs max-md:w-9 max-md:px-0 max-sm:hidden" onClick={() => setFabbisogno(true)} aria-label="Fabbisogno: cosa ordinare ed entro quando" title="Fabbisogno">
               <CalendarClock className="h-3.5 w-3.5 md:mr-1" aria-hidden /><span className="max-md:sr-only">Fabbisogno</span>
             </Button>
             <Suggerimento testo="Scomposizioni: da una voce di computo ai suoi materiali">

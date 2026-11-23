@@ -26,6 +26,7 @@ import { gruppiDaOrdinare, ordinabile } from "@/lib/acquisti/ordinaDalFabbisogno
 import { apertaFabbisogno, avanzamentoFasi, differenze, nomeBreve, ETICHETTA_URGENZA, linkMateriali, raggruppaPerFase, raggruppaPerUrgenza, selezionabile, testoLimite, urgenza, type RigaFabbisogno, type Urgenza } from "@/lib/acquisti/fabbisogno";
 import { ETICHETTA_STATO_MATERIALE, type StatoMateriale } from "@/lib/distinta/statoMateriale";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { VerificaDatiMaterialeDialog } from "@/components/orders/materiali/VerificaDatiMateriale";
 
 const COLORE: Record<Urgenza, string> = {
@@ -67,6 +68,11 @@ export default function FabbisognoMateriali({ orderId, inFinestra = false }: { o
   // Si spunta anche senza fornitore (17/11/2026): prima si assegna il fornitore, poi si ordina.
   const puoScegliere = canManagePurchasing || canEditOrders;
   const [scelti, setScelti] = useState<Set<string>>(new Set());
+  // Telefono: 30 righe per gruppo, poi «Mostra tutti». Con 500 materiali la pagina era alta
+  // 90.000px (collaudo 23/11/2026). Da tablet in su si vede tutto come prima.
+  const telefono = useIsMobile(640);
+  const [gruppiAperti, setGruppiAperti] = useState<Set<string>>(new Set());
+  const RIGHE_TELEFONO = 30;
   const { effectiveCompany } = useAuth();
   const qc = useQueryClient();
   const fornitoriAzienda = useQuery({
@@ -202,48 +208,65 @@ export default function FabbisognoMateriali({ orderId, inFinestra = false }: { o
           </div>
   ) : null;
 
+  // Dal telefono il fabbisogno non si usa (decisione del founder, 23/11/2026): chi arriva qui da
+  // un link vede dove trovarlo da tablet o computer.
+  if (telefono && !inFinestra) {
+    return (
+      <div className="space-y-3 p-4">
+        <h1 className="flex items-center gap-2 text-[17px] font-semibold"><CalendarClock className="h-5 w-5" aria-hidden /> Fabbisogno materiali</h1>
+        <p className="text-sm text-muted-foreground">
+          Si usa da tablet o computer: lo trovi in <strong className="text-foreground">Acquisti → Fabbisogno</strong>, in alto a destra,
+          oppure dentro la commessa, scheda <strong className="text-foreground">Materiali → Fabbisogno</strong>.
+        </p>
+        <Button asChild variant="outline" size="sm"><Link to="/azienda/ordini?tab=acquisto">Vai agli acquisti</Link></Button>
+      </div>
+    );
+  }
+
   return (
     <div className={cn("space-y-4", !inFinestra && "mx-auto max-w-6xl p-3 sm:p-6")}>
-      {!inFinestra && <header className="flex flex-wrap items-start justify-between gap-3">
+      {!inFinestra && <header className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="flex items-center gap-2 text-xl font-semibold"><CalendarClock className="h-5 w-5" aria-hidden /> Fabbisogno materiali</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="flex items-center gap-2 text-xl font-semibold max-sm:text-[17px]"><CalendarClock className="h-5 w-5" aria-hidden /> Fabbisogno materiali</h1>
+          <p className="text-sm text-muted-foreground max-lg:hidden">
             Cosa manca da ordinare nelle commesse, ed entro quando: l'inizio della fase (o la data scritta sul materiale)
             meno i giorni di consegna del fornitore. Se usi la validazione del tecnico, solo le fasi validate.
           </p>
         </div>
-        <Button asChild variant="outline" size="sm">
-          <Link to="/azienda/impostazioni/acquisti-materiali">Giorni di consegna e promemoria</Link>
+        <Button asChild variant="outline" size="sm" className="max-sm:h-8 max-sm:px-2.5 max-sm:text-xs">
+          <Link to="/azienda/impostazioni/acquisti-materiali"><span className="sm:hidden">Consegne</span><span className="max-sm:hidden">Giorni di consegna e promemoria</span></Link>
         </Button>
       </header>}
 
       {effectiveCompany?.id && <EccezioniOperative key={effectiveCompany.id + (orderId ?? "")}
         companyId={effectiveCompany.id} tipo="cantiere" commessaId={orderId} />}
 
-      {!orderId && <div className="flex flex-wrap gap-2" role="list" aria-label="Riepilogo">
+      {!orderId && <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center md:justify-between">
+      <div className="flex flex-wrap gap-2" role="list" aria-label="Riepilogo">
         {(["ritardo", "settimana", "mese", "dopo", "senza_data", "da_verificare"] as Urgenza[]).map((u) => (
-          <span key={u} role="listitem" className={cn("rounded-md border px-2.5 py-1 text-sm", COLORE[u])}>
+          <span key={u} role="listitem" className={cn("rounded-md border px-2.5 py-1 text-sm", COLORE[u], conta(u) === 0 && "hidden")}>
             <strong className="tabular-nums">{conta(u)}</strong> {ETICHETTA_URGENZA[u].toLowerCase()}
           </span>
         ))}
-      </div>}
+      </div>
 
-      {!orderId && <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 max-sm:grid max-sm:grid-cols-2">
         {<Select value={commessa} onValueChange={setCommessa}>
-          <SelectTrigger className="h-9 w-56" aria-label="Commessa"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-9 w-56 max-sm:w-full" aria-label="Commessa"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="tutte">Tutte le commesse</SelectItem>
             {commesse.map(([id, codice]) => <SelectItem key={id} value={id}>{codice}</SelectItem>)}
           </SelectContent>
         </Select>}
         <Select value={fornitore} onValueChange={setFornitore}>
-          <SelectTrigger className="h-9 w-56" aria-label="Fornitore"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-9 w-56 max-sm:w-full" aria-label="Fornitore"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="tutti">Tutti i fornitori</SelectItem>
             {fornitori.map(([id, nome]) => <SelectItem key={id} value={id}>{nome}</SelectItem>)}
           </SelectContent>
         </Select>
         {barraScelta}
+      </div>
       </div>}
 
       <AlertDialog open={conferma} onOpenChange={setConferma}>
@@ -302,7 +325,7 @@ export default function FabbisognoMateriali({ orderId, inFinestra = false }: { o
       ) : (
         <>
           {righe.length >= 500 && (
-            <Alert><AlertDescription className="text-xs">Si vedono i primi 500 materiali, i più urgenti: filtra per commessa o fornitore per gli altri.</AlertDescription></Alert>
+            <p className="text-xs text-muted-foreground">Si vedono i primi 500 materiali, i più urgenti: filtra per commessa o fornitore per gli altri.</p>
           )}
           {(orderId ? raggruppaPerFase(filtrate, oggi).map((g) => ({ chiave: `fase-${g.fase}`, titolo: g.fase, righe: g.righe, ritardo: g.ritardo, settimana: g.settimana, colore: "" }))
             : gruppi.map((g) => ({ chiave: g.urgenza, titolo: ETICHETTA_URGENZA[g.urgenza], righe: g.righe, ritardo: 0, settimana: 0, colore: COLORE[g.urgenza] })))
@@ -321,11 +344,17 @@ export default function FabbisognoMateriali({ orderId, inFinestra = false }: { o
                   {g.settimana > 0 && <span className="rounded-full bg-amber-100 px-2 text-xs font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200">{g.settimana} entro 7 giorni</span>}
                 </h2>
                 <ul className="divide-y">
-                  {g.righe.map((r) => (
+                  {(telefono && !gruppiAperti.has(g.chiave) ? g.righe.slice(0, RIGHE_TELEFONO) : g.righe).map((r) => (
                     <Riga key={r.order_item_id} r={r} oggi={oggi} puoDatare={puoDatare} inCommessa={!!orderId}
                       scelta={puoScegliere && selezionabile(r) ? { si: scelti.has(r.order_item_id), cambia: (v) => cambia(r.order_item_id, v) } : null} />
                   ))}
                 </ul>
+                {telefono && !gruppiAperti.has(g.chiave) && g.righe.length > RIGHE_TELEFONO && (
+                  <button type="button" onClick={() => setGruppiAperti((a) => new Set(a).add(g.chiave))}
+                    className="w-full border-t px-3 py-2.5 text-sm font-medium text-primary">
+                    Mostra tutti ({g.righe.length})
+                  </button>
+                )}
               </section>
             );
           })}
@@ -609,13 +638,14 @@ function Riga({ r, oggi, puoDatare, scelta, inCommessa }: {
   const stato = ETICHETTA_STATO_MATERIALE[r.stato as StatoMateriale] ?? r.stato;
   const u = urgenza(r, oggi);
   return (
-    <li className={cn("grid gap-x-3 gap-y-1 border-l-4 px-3 py-2 text-sm sm:grid-cols-[auto_minmax(0,2fr)_minmax(0,1.1fr)_auto_auto] sm:items-center", BORDO_URGENZA[u])}>
-      <div className="hidden w-4 sm:block">
+    <li className={cn("grid gap-x-3 gap-y-1 border-l-4 px-3 py-2 text-sm max-lg:grid-cols-[minmax(0,1fr)_auto] max-lg:items-center lg:grid-cols-[auto_minmax(0,2fr)_minmax(0,1.1fr)_auto_auto] lg:items-center", BORDO_URGENZA[u])}>
+      <div className="hidden w-4 lg:block">
         {scelta && <Checkbox checked={scelta.si} onCheckedChange={(v) => scelta.cambia(v === true)} aria-label={`Seleziona ${r.name} (${r.commessa ?? "commessa"})`} />}
       </div>
-      <div className="min-w-0">
+      {/* Telefono: nome e quantità a tutta larghezza, poi «Ordina entro» con stato e «Apri» sulla stessa riga. */}
+      <div className="min-w-0 max-lg:col-span-2">
         <p className="flex items-start gap-2 font-medium">
-          {scelta && <Checkbox className="mt-0.5 sm:hidden" checked={scelta.si} onCheckedChange={(v) => scelta.cambia(v === true)} aria-label={`Seleziona ${r.name}`} />}
+          {scelta && <Checkbox className="mt-0.5 lg:hidden" checked={scelta.si} onCheckedChange={(v) => scelta.cambia(v === true)} aria-label={`Seleziona ${r.name}`} />}
           <span className="line-clamp-2" title={r.name}>{r.name}</span>
         </p>
         <VerificaNelFabbisogno r={r} />
@@ -624,7 +654,7 @@ function Riga({ r, oggi, puoDatare, scelta, inCommessa }: {
           {r.fornitore ? r.fornitore : <span className="text-amber-700 dark:text-amber-300">senza fornitore</span>}
         </p>
       </div>
-      <div className="text-xs text-muted-foreground">
+      <div className="text-xs text-muted-foreground max-lg:col-span-2 max-lg:empty:hidden">
         {r.residuo > 0 ? (
           <span>Da ordinare <strong className="tabular-nums text-foreground">{numero(r.residuo)} {unita}</strong>{r.residuo !== r.previsto ? <> su {numero(r.previsto)}</> : null}</span>
         ) : r.eccedenza > 0 ? (
@@ -634,16 +664,17 @@ function Riga({ r, oggi, puoDatare, scelta, inCommessa }: {
           <span className="flex items-center gap-1 text-violet-700 dark:text-violet-300"><AlertTriangle className="h-3 w-3" aria-hidden /> Ordine in un'altra unità: verifica</span>
         )}
       </div>
-      <div className="text-xs tabular-nums sm:text-right">
+      <div className="text-xs tabular-nums lg:text-right">
         <p>
           {u === "ritardo" && <span className="mr-1.5 rounded bg-red-100 px-1.5 py-0.5 font-semibold text-red-800 dark:bg-red-950 dark:text-red-200">Ordina subito</span>}
           Ordina entro <strong>{data(r.ordina_entro)}</strong>
         </p>
-        <p className="text-muted-foreground">{testoLimite(r.ordina_entro, oggi)}{r.giorni_consegna != null ? ` · consegna ${r.giorni_consegna} gg` : ""}</p>
-        {/* La chiave fa ripartire il campo quando la data cambia dal server. */}
-        <DataServe key={r.data_scritta ?? ""} r={r} puoDatare={puoDatare} />
+        <p className="text-muted-foreground max-sm:hidden">{testoLimite(r.ordina_entro, oggi)}{r.giorni_consegna != null ? ` · consegna ${r.giorni_consegna} gg` : ""}</p>
+        {/* La chiave fa ripartire il campo quando la data cambia dal server. Telefono: la data
+            «serve il» si cambia da tablet o dalla commessa; qui resta la scadenza dell'ordine. */}
+        <div className="max-sm:hidden"><DataServe key={r.data_scritta ?? ""} r={r} puoDatare={puoDatare} /></div>
       </div>
-      <div className="flex items-center gap-2 sm:justify-end">
+      <div className="flex items-center gap-2 justify-end">
         <Badge variant="secondary" className="whitespace-nowrap font-normal">{stato}</Badge>
         {!inCommessa && (
           <Button asChild size="sm" variant="ghost" className="h-7 px-2 text-xs">

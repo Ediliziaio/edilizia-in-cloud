@@ -1,3 +1,4 @@
+import { SoloDaTabletOComputer } from "@/components/shared/SoloDaTabletOComputer";
 import { supabase } from "@/integrations/supabase/client";
 import { nomeCliente } from "@/lib/fatturazione/clienteSnapshot";
 import { CelleEmesse, IntestazioniEmesse, SceltaColonneEmesse, STICKY_SELEZIONE, useColonneEmesse } from "@/components/fatturazione/ColonneFattureEmesse";
@@ -95,6 +96,9 @@ const HUB_TABS: {
   { id: "fiscalita", label: "Fiscalità", description: "IVA, F24, ritenute e conservazione", icon: Calculator },
 ];
 
+/** Schede che dal telefono non compaiono: si usano da tablet o computer. */
+const SOLO_DA_TABLET = new Set<BillingHubTab>(["incassi", "fiscalita"]);
+
 // ─── Tab config ───────────────────────────────────────────
 const TIPO_TABS: {
   id: string;
@@ -141,9 +145,12 @@ function BillingHubTabs({
   activeTab: BillingHubTab;
   onChange: (tab: BillingHubTab) => void;
 }) {
+  // Telefono (decisione del founder, 23/11/2026): Registro incassi e Fiscalità non compaiono.
+  const telefono = useIsMobile(640);
+  const sezioni = telefono ? HUB_TABS.filter(({ id }) => !SOLO_DA_TABLET.has(id)) : HUB_TABS;
   return (
     <>
-      <SelettoreSezione nome="Sezioni documenti" valore={activeTab} sezioni={HUB_TABS} onScegli={onChange} className="max-sm:-order-1 lg:hidden" />
+      <SelettoreSezione nome="Sezioni documenti" valore={activeTab} sezioni={sezioni} onScegli={onChange} className="max-sm:-order-1 lg:hidden" />
       <nav aria-label="Sezioni documenti" className="hidden flex-wrap gap-1 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm lg:flex">
         {HUB_TABS.map(({ id, icon: Icon, label, description }) => {
           const attiva = activeTab === id;
@@ -185,6 +192,7 @@ function DocumentiFiscaliHub() {
   // Chi fattura con un altro programma vede le stesse schede: dove il dato nativo
   // non c'è (incassi, invii SDI) la scheda legge le fatture importate o lo dice.
   const esterna = useBillingMode({ facoltativo: true })?.isExternal ?? false;
+  const telefonoHub = useIsMobile(640);
 
   // Mobile: colonna flessibile, così le linguette (order -1) scendono sotto il
   // titolo della scheda (order -2), che sta dentro il componente figlio.
@@ -197,11 +205,17 @@ function DocumentiFiscaliHub() {
       {/* Chi fattura qui vede il registro nativo e, sotto, lo storico delle
           importate: il giorno del passaggio di incassi nativi non ce n'è
           nessuno. Chi non ha importate non vede la seconda sezione. */}
+      {telefonoHub && SOLO_DA_TABLET.has(activeHubTab) ? (
+        <SoloDaTabletOComputer titolo={HUB_TABS.find(({ id }) => id === activeHubTab)?.label ?? "Documenti"}
+          dove={<>la trovi in <strong>Fatture</strong>, nelle schede in alto.</>}
+          indietro={{ url: "/azienda/documenti", etichetta: "Torna alle fatture" }}><></></SoloDaTabletOComputer>
+      ) : <>
       {activeHubTab === "incassi" && (esterna ? <RegistroIncassiImportate /> : (
         <><RegistroIncassi embedded /><RegistroIncassiImportate soloSeCeNe /></>
       ))}
       {activeHubTab === "sdi" && (esterna ? <CassettoSdiEsterno /> : <CassettoSDI embedded />)}
       {activeHubTab === "fiscalita" && <FiscalWorkspace />}
+      </>}
     </div>
   );
 }

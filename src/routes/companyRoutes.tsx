@@ -1,3 +1,4 @@
+import { SoloDaTabletOComputer } from "@/components/shared/SoloDaTabletOComputer";
 import { type ReactNode } from "react";
 // Le pagine si caricano col ritentativo: dopo un deploy i chunk vecchi non
 // esistono più e senza questo la pagina va in errore (vedi lazyWithRetry).
@@ -876,7 +877,7 @@ export default function CompanyRoutesContainer() {
 
         {/* Prima nota — gated: tesoreria (stesso dominio finanziario) */}
         <Route path="prima-nota" element={withCompanyPermission("canViewPrimaNota", <ErrorBoundary title="Errore nel caricamento prima nota"><FeatureRoute featureKey="tesoreria"><PrimaNota /></FeatureRoute></ErrorBoundary>)} />
-        <Route path="contabilita-generale" element={withCompanyPermission("canViewPrimaNota", <FeatureRoute featureKey="contabilita_fiscale"><ErrorBoundary title="Errore nella contabilità generale"><ContabilitaGeneralePagina /></ErrorBoundary></FeatureRoute>)} />
+        <Route path="contabilita-generale" element={withCompanyPermission("canViewPrimaNota", <FeatureRoute featureKey="contabilita_fiscale"><SoloDaTabletOComputer titolo="Contabilità generale" dove={<>la trovi nel menu, sezione <strong>Finanza → Contabilità generale</strong>.</>} indietro={{ url: "/azienda/attivita", etichetta: "Torna alle attività" }}><ErrorBoundary title="Errore nella contabilità generale"><ContabilitaGeneralePagina /></ErrorBoundary></SoloDaTabletOComputer></FeatureRoute>)} />
         {/* Stessa guardia della lista (OrCommercialista): prima il commercialista
             vedeva il tab ODA ma prendeva 403 aprendo un dettaglio. */}
         <Route path="ordini-acquisto" element={<Navigate to="/azienda/ordini?tab=acquisto" replace />} />
@@ -968,11 +969,11 @@ export default function CompanyRoutesContainer() {
         <Route path="render/stanza/gallery" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderStanzaGallery /></FeatureRoute>)} />
         <Route path="render/stanza/gallery/:id" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderStanzaGalleryDetail /></FeatureRoute>)} />
         {/* Planimetrie autonome; stessi permessi e collegamenti alle generazioni delle stanze. */}
-        <Route path="planimetrie" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPlanimetrieHub /></FeatureRoute>)} />
+        <Route path="planimetrie" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><SoloDaTabletOComputer titolo="Planimetrie" dove={<>le trovi nel menu, sezione <strong>Marketing e vendita → Planimetrie</strong>, e nella scheda della commessa.</>} indietro={{ url: "/azienda/attivita", etichetta: "Torna alle attività" }}><RenderPlanimetrieHub /></SoloDaTabletOComputer></FeatureRoute>)} />
         <Route path="planimetrie/nuova" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPlanimetriaNuova /></FeatureRoute>)} />
-        <Route path="planimetrie/:id" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPlanimetriaScheda /></FeatureRoute>)} />
+        <Route path="planimetrie/:id" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><SoloDaTabletOComputer titolo="Planimetrie" dove={<>le trovi nel menu, sezione <strong>Marketing e vendita → Planimetrie</strong>, e nella scheda della commessa.</>} indietro={{ url: "/azienda/attivita", etichetta: "Torna alle attività" }}><RenderPlanimetriaScheda /></SoloDaTabletOComputer></FeatureRoute>)} />
         <Route path="planimetrie/:id/modifica" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPlanimetriaModifica /></FeatureRoute>)} />
-        <Route path="planimetrie/:id/stanza/:localeId" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPlanimetriaStanza /></FeatureRoute>)} />
+        <Route path="planimetrie/:id/stanza/:localeId" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><SoloDaTabletOComputer titolo="Planimetrie" dove={<>le trovi nel menu, sezione <strong>Marketing e vendita → Planimetrie</strong>, e nella scheda della commessa.</>} indietro={{ url: "/azienda/attivita", etichetta: "Torna alle attività" }}><RenderPlanimetriaStanza /></SoloDaTabletOComputer></FeatureRoute>)} />
         <Route path="render/planimetrie/*" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><LegacyPlanimetrieRedirect /></FeatureRoute>)} />
         <Route path="render/ristrutturazioni" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderTechnicalModuleHub moduleId="ristrutturazioni" /></FeatureRoute>)} />
         <Route path="render/ristrutturazioni/new" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderTechnicalModuleNew moduleId="ristrutturazioni" /></FeatureRoute>)} />

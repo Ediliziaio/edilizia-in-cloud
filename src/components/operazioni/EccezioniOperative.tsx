@@ -1,3 +1,4 @@
+import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -65,7 +66,9 @@ export function EccezioniOperative({ companyId, tipo, commessaId }: { companyId:
     onError: (e: Error) => toast.error(e.message),
   });
   const lista = dati.data ?? [];
-  return <section className="space-y-2" aria-label={tipo === "cantiere" ? "Materiali a rischio" : "Da fare operativo"}>
+  // Telefono e tablet: vuoto (niente aperto) non occupa tre righe per dire che non c'è niente.
+  const vuotoAperte = dati.isSuccess && !lista.length && !chiuse && offset === 0;
+  return <section className={cn("space-y-2", vuotoAperte && "max-lg:hidden")} aria-label={tipo === "cantiere" ? "Materiali a rischio" : "Da fare operativo"}>
     <div className="flex flex-wrap items-center justify-between gap-2">
       <h3 className="font-medium">{tipo === "cantiere" ? "Materiali a rischio" : "Da fare operativo"}</h3>
       <Button size="sm" variant="outline" onClick={() => { setChiuse(x => !x); setOffset(0); }}>
