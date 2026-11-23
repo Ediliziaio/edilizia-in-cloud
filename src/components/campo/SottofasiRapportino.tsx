@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { avanzamentoDaSottofasi, intervalloSottofase, percentualeDaQuantita, type Sottofase } from "@/lib/orders/sottofasi";
 import { giornoLocale } from "@/lib/orders/cronoprogramma";
 import { testoPiano } from "@/components/orders/SottofasiFase";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type DatoAvanzata = { quantita?: number; percentuale?: number };
 
@@ -32,6 +33,7 @@ const TANTE = 8;
  * Per ognuna, a un tocco, «Ci ho lavorato» (dà l'inizio reale) e «Finita»; e se ci ha lavorato, quanto.
  */
 export function SottofasiRapportino({ nomeFase, sottofasi, spunte, onSpunta, lavorate = [], onLavorata, quantitaDi, avanzate = {}, onAvanzata }: SottofasiRapportinoProps) {
+  const t = useT();
   const [cerca, setCerca] = useState("");
   const [tutte, setTutte] = useState(false);
   const fatta = (s: Sottofase) => s.fatta || spunte.includes(s.id);
@@ -86,15 +88,15 @@ export function SottofasiRapportino({ nomeFase, sottofasi, spunte, onSpunta, lav
         <div className="mb-2 space-y-1.5">
           <label className="relative block">
             <Search className="absolute left-2.5 top-3 h-4 w-4 text-muted-foreground" aria-hidden="true" />
-            <input type="search" value={cerca} onChange={(e) => setCerca(e.target.value)} aria-label={`Cerca nelle sottofasi di ${nomeFase}`} placeholder="Cerca una lavorazione…"
+            <input type="search" value={cerca} onChange={(e) => setCerca(e.target.value)} aria-label={t("Cerca nelle sottofasi di {fase}", { fase: nomeFase })} placeholder={t("Cerca una lavorazione…")}
               className="h-10 w-full rounded-lg border border-border bg-background pl-8 pr-2 text-sm" />
           </label>
           <button type="button" onClick={() => setTutte((v) => !v)} className="text-xs text-primary underline underline-offset-2">
-            {tutte ? `Solo da fare (${daFare})` : `Mostra anche le fatte (${sottofasi.length - daFare})`}
+            {tutte ? t("Solo da fare ({n})", { n: daFare }) : t("Mostra anche le fatte ({n})", { n: sottofasi.length - daFare })}
           </button>
         </div>
       )}
-      <ul className="space-y-2" aria-label={`Sottofasi di ${nomeFase}`}>
+      <ul className="space-y-2" aria-label={t("Sottofasi di {fase}", { fase: nomeFase })}>
         {viste.map((s) => {
           const piano = testoPiano(s);
           const q = quantitaDi?.get(s.id);
@@ -109,43 +111,43 @@ export function SottofasiRapportino({ nomeFase, sottofasi, spunte, onSpunta, lav
               </div>
               {(piano || inRitardo(s)) && (
                 <p className={cn("text-[11px] tabular-nums", inRitardo(s) ? "font-medium text-rose-700" : "text-muted-foreground")}>
-                  {piano}{inRitardo(s) ? `${piano ? " · " : ""}in ritardo` : ""}
+                  {piano}{inRitardo(s) ? `${piano ? " · " : ""}${t("in ritardo")}` : ""}
                 </p>
               )}
               {s.fatta ? (
-                <p className="mt-1 text-xs text-muted-foreground">Già fatta</p>
+                <p className="mt-1 text-xs text-muted-foreground">{t("Già fatta")}</p>
               ) : (
                 <>
                   <div className="mt-1.5 grid grid-cols-2 gap-2">
                     {onLavorata && (
-                      <button type="button" aria-pressed={lavorate.includes(s.id)} aria-label={`${s.name}: ci ho lavorato oggi`}
+                      <button type="button" aria-pressed={lavorate.includes(s.id)} aria-label={t("{nome}: ci ho lavorato oggi", { nome: s.name })}
                         onClick={() => scegli(s, "lavorata")}
                         className={cn("flex min-h-11 items-center justify-center gap-1.5 rounded-lg border text-sm",
                           lavorate.includes(s.id) ? "border-sky-600 bg-sky-50 font-medium text-sky-900" : "border-border text-muted-foreground")}>
-                        <Hammer className="h-4 w-4" aria-hidden="true" />Ci ho lavorato
+                        <Hammer className="h-4 w-4" aria-hidden="true" />{t("Ci ho lavorato")}
                       </button>
                     )}
-                    <button type="button" aria-pressed={spunte.includes(s.id)} aria-label={`${s.name}: finita`}
+                    <button type="button" aria-pressed={spunte.includes(s.id)} aria-label={t("{nome}: finita", { nome: s.name })}
                       onClick={() => scegli(s, "finita")}
                       className={cn("flex min-h-11 items-center justify-center gap-1.5 rounded-lg border text-sm", !onLavorata && "col-span-2",
                         spunte.includes(s.id) ? "border-emerald-600 bg-emerald-50 font-medium text-emerald-900" : "border-border text-muted-foreground")}>
-                      <Check className="h-4 w-4" aria-hidden="true" />Finita
+                      <Check className="h-4 w-4" aria-hidden="true" />{t("Finita")}
                     </button>
                   </div>
                   {aperta && (q ? (
                     <label className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-                      <span className="shrink-0">Fatti oggi</span>
-                      <input type="number" inputMode="decimal" min={0} step="any" aria-label={`${s.name}: quantità fatta oggi`} value={dato?.quantita ?? ""}
+                      <span className="shrink-0">{t("Fatti oggi")}</span>
+                      <input type="number" inputMode="decimal" min={0} step="any" aria-label={t("{nome}: quantità fatta oggi", { nome: s.name })} value={dato?.quantita ?? ""}
                         onChange={(e) => {
                           const n = Number(e.target.value);
                           onAvanzata!(s.id, e.target.value !== "" && Number.isFinite(n) && n > 0 ? { quantita: n } : null);
                         }}
                         className="h-11 min-w-0 flex-1 rounded-lg border border-border bg-background px-2 text-base text-foreground" />
-                      <span className="shrink-0 tabular-nums">su {q.quantita.toLocaleString("it-IT", { maximumFractionDigits: 2 })}{q.unita ? ` ${q.unita}` : ""}</span>
+                      <span className="shrink-0 tabular-nums">{t("su {n}", { n: q.quantita.toLocaleString("it-IT", { maximumFractionDigits: 2 }) })}{q.unita ? ` ${q.unita}` : ""}</span>
                     </label>
                   ) : (
-                    <div className="mt-2 flex items-center gap-1.5" role="group" aria-label={`${s.name}: a che punto è`}>
-                      <span className="shrink-0 text-xs text-muted-foreground">Arrivati a</span>
+                    <div className="mt-2 flex items-center gap-1.5" role="group" aria-label={t("{nome}: a che punto è", { nome: s.name })}>
+                      <span className="shrink-0 text-xs text-muted-foreground">{t("Arrivati a")}</span>
                       {PASSI.map((p) => (
                         <button key={p} type="button" aria-pressed={dato?.percentuale === p} disabled={p <= (Number(s.percentuale) || 0)}
                           onClick={() => onAvanzata!(s.id, dato?.percentuale === p ? null : { percentuale: p })}
@@ -159,9 +161,9 @@ export function SottofasiRapportino({ nomeFase, sottofasi, spunte, onSpunta, lav
             </li>
           );
         })}
-        {viste.length === 0 && <li className="px-1 py-2 text-xs text-muted-foreground">{cerca ? "Nessuna lavorazione con questo nome." : "Tutte fatte."}</li>}
+        {viste.length === 0 && <li className="px-1 py-2 text-xs text-muted-foreground">{cerca ? t("Nessuna lavorazione con questo nome.") : t("Tutte fatte.")}</li>}
       </ul>
-      <p className="mt-2 text-xs text-muted-foreground">Valgono quando il rapportino viene approvato, con la data di questo rapportino.</p>
+      <p className="mt-2 text-xs text-muted-foreground">{t("Valgono quando il rapportino viene approvato, con la data di questo rapportino.")}</p>
     </div>
   );
 }

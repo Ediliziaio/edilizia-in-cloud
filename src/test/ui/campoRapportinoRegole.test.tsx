@@ -535,6 +535,8 @@ describe("Il rapportino respinto si corregge e si rimanda", () => {
     expect(screen.getByText(/Esiste già un rapportino per questa giornata/)).toBeInTheDocument();
     expect(screen.queryByText("L’ufficio ha respinto questo rapportino")).toBeNull();
     expect(screen.getByRole("button", { name: "Avanti" })).toBeDisabled();
+    // Collaudo 23/11: il modulo vuoto restava scrivibile e l'operaio lo riempiva per niente.
+    expect(screen.getByLabelText("Lavori svolti nella giornata")).toBeDisabled();
   });
 });
 

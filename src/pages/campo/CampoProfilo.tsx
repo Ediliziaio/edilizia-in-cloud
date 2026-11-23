@@ -9,8 +9,10 @@ import { Mail, Phone, Building2, LogOut,
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { eAccessoConLink } from "@/lib/campo/linkAccesso";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export default function CampoProfilo() {
+  const t = useT();
   const navigate = useNavigate();
   const { user, profile, signOut, role } = useAuth();
 
@@ -51,7 +53,7 @@ export default function CampoProfilo() {
 
   return (
     // Il <main> della shell è l'unico scroller mobile: qui solo flusso.
-    <div className="flex flex-col px-4 py-4 space-y-4">
+    <div className="flex flex-col space-y-3 md:space-y-4 md:px-4 md:py-4">
 
       {/* Avatar + nome */}
       <div className="bg-muted border border-border rounded-2xl p-6 flex flex-col items-center gap-3">
@@ -67,7 +69,7 @@ export default function CampoProfilo() {
               <Building2 className="w-4 h-4 text-primary" />
             )}
             <span className="text-sm text-primary capitalize">
-              {role === "employee" ? "Operaio" : "Subappaltatore"}
+              {role === "employee" ? t("Operaio") : t("Subappaltatore")}
             </span>
           </div>
         </div>
@@ -77,17 +79,17 @@ export default function CampoProfilo() {
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-muted border border-border rounded-2xl p-4 text-center">
           <p className="text-3xl font-bold text-foreground">{stats?.rapportiniMese ?? "—"}</p>
-          <p className="text-xs text-muted-foreground mt-1">Rapportini questo mese</p>
+          <p className="text-xs text-muted-foreground mt-1">{t("Rapportini questo mese")}</p>
         </div>
         <div className="bg-muted border border-border rounded-2xl p-4 text-center">
           <p className="text-3xl font-bold text-foreground">{stats?.cantieri ?? "—"}</p>
-          <p className="text-xs text-muted-foreground mt-1">Cantieri assegnati</p>
+          <p className="text-xs text-muted-foreground mt-1">{t("Cantieri assegnati")}</p>
         </div>
       </div>
 
       {/* Dati anagrafici */}
       <div className="bg-muted border border-border rounded-2xl p-4 space-y-4">
-        <p className="text-xs text-muted-foreground uppercase tracking-wide">Dati personali</p>
+        <p className="text-xs text-muted-foreground uppercase tracking-wide">{t("Dati personali")}</p>
 
         {user?.email && !eAccessoConLink(user.email) && (
           <div className="flex items-center gap-3">
@@ -95,7 +97,7 @@ export default function CampoProfilo() {
               <Mail className="w-4 h-4 text-muted-foreground" />
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Email</p>
+              <p className="text-xs text-muted-foreground">{t("Email")}</p>
               <p className="text-sm text-foreground">{user.email}</p>
             </div>
           </div>
@@ -107,7 +109,7 @@ export default function CampoProfilo() {
               <Phone className="w-4 h-4 text-muted-foreground" />
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Telefono</p>
+              <p className="text-xs text-muted-foreground">{t("Telefono")}</p>
               <a href={`tel:${p.phone}`} className="text-sm text-primary">{p.phone}</a>
             </div>
           </div>
@@ -118,7 +120,7 @@ export default function CampoProfilo() {
             <ShieldCheck className="w-4 h-4 text-muted-foreground" />
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Ruolo sistema</p>
+            <p className="text-xs text-muted-foreground">{t("Ruolo sistema")}</p>
             <p className="text-sm text-foreground capitalize">{role}</p>
           </div>
         </div>
@@ -126,13 +128,13 @@ export default function CampoProfilo() {
 
       {/* App info */}
       <div className="bg-muted border border-border rounded-2xl p-4">
-        <p className="text-xs text-muted-foreground uppercase tracking-wide mb-3">App</p>
+        <p className="text-xs text-muted-foreground uppercase tracking-wide mb-3">{t("App")}</p>
         <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">Versione</span>
-          <span className="text-sm text-foreground">Area Campo 1.0</span>
+          <span className="text-sm text-muted-foreground">{t("Versione")}</span>
+          <span className="text-sm text-foreground">{t("Area Campo 1.0")}</span>
         </div>
         <div className="flex items-center justify-between mt-2">
-          <span className="text-sm text-muted-foreground">Piattaforma</span>
+          <span className="text-sm text-muted-foreground">{t("Piattaforma")}</span>
           <span className="text-sm text-foreground">Edilizia in Cloud</span>
         </div>
       </div>
@@ -143,7 +145,7 @@ export default function CampoProfilo() {
         className="w-full bg-red-600/10 border border-red-600/30 text-red-600 font-semibold py-4 rounded-2xl flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
       >
         <LogOut className="w-5 h-5" />
-        Esci dall'account
+        {t("Esci dall'account")}
       </button>
     </div>
   );

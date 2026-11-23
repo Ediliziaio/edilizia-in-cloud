@@ -12,6 +12,7 @@ import { LogIn, LogOut } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+import { oreBrevi } from "@/lib/campo/numeriItaliani";
 import { useCampoDayTime } from "@/hooks/campo/useCampoDayTime";
 import { campoDayWindow, campoReportHours, summarizeCampoTime } from "@/lib/campo/timeSummary";
 import { CampoTimbroCard, type TimbroEsito } from "@/components/campo/CampoTimbroCard";
@@ -21,6 +22,7 @@ import { useCampoSedi } from "@/hooks/campo/useCampoSedi";
 import { costruisciLuoghi, righeTimeline, type RigaTimeline } from "@/lib/campo/luoghi";
 import { campoWorkDay, messaggioScadenzaRapportino, reportDayAllowed } from "@/lib/campo/workDay";
 import { useRegoleCampoOrdine } from "@/hooks/useRegoleCampo";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type TipoTimbratura = "entrata" | "uscita" | "pausa_inizio" | "pausa_fine";
 
@@ -35,13 +37,13 @@ interface Timbratura {
   fonte: string;
 }
 
-function etichettaRiga(r: RigaTimeline): string {
+function etichettaRiga(r: RigaTimeline, t: ReturnType<typeof useT>): string {
   switch (r.tipo) {
-    case "inizio": return r.luogo ? `Inizio giornata · ${r.luogo}` : "Inizio giornata";
-    case "cambio": return r.luogo ? `Arrivato a ${r.luogo}` : "Cambio posto";
-    case "pausa_inizio": return "Inizio pausa";
-    case "pausa_fine": return "Fine pausa";
-    default: return "Fine giornata";
+    case "inizio": return r.luogo ? t("Inizio giornata · {luogo}", { luogo: r.luogo }) : t("Inizio giornata");
+    case "cambio": return r.luogo ? t("Arrivato a {luogo}", { luogo: r.luogo }) : t("Cambio posto");
+    case "pausa_inizio": return t("Inizio pausa");
+    case "pausa_fine": return t("Fine pausa");
+    default: return t("Fine giornata");
   }
 }
 
@@ -54,6 +56,7 @@ export default function CampoTimbratura() {
 function CampoTimbraturaEditor() {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
+  const t = useT();
   const [lastExit, setLastExit] = useState<{ orderId: string; day: string } | null>(null);
   const [searchParams] = useSearchParams();
   const companyId = profile?.company_id ?? null;
@@ -115,29 +118,29 @@ function CampoTimbraturaEditor() {
   // mobile (il suo pb-28 dà già aria sopra la bottom nav).
   return (
     <div className="flex flex-col">
-      <div className="px-4 py-4 space-y-4">
+      <div className="space-y-3 md:space-y-4 md:px-4 md:py-4">
         <CampoTimbroCard preferOrderId={linkedOrderId} onPunched={dopoTimbro} />
         {lastExit && reportDayAllowed(lastExit.day, dayTime.now, giorniIndietro) && <div role="status" className="space-y-2 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-900">
-          <p className="font-semibold">Giornata finita. Il rapportino è separato.</p>
-          <p>Puoi compilarlo ora. {messaggioScadenzaRapportino(giorniIndietro)}</p>
+          <p className="font-semibold">{t("Giornata finita. Il rapportino è separato.")}</p>
+          <p>{t("Puoi compilarlo ora.")} {messaggioScadenzaRapportino(giorniIndietro)}</p>
           <button type="button" className="min-h-12 w-full rounded-lg border border-green-300 bg-background px-3 font-semibold"
-            onClick={() => navigate(`/campo/lavoro/${lastExit.orderId}/rapportino?data=${lastExit.day}`)}>Compila il rapportino</button>
+            onClick={() => navigate(`/campo/lavoro/${lastExit.orderId}/rapportino?data=${lastExit.day}`)}>{t("Compila il rapportino")}</button>
         </div>}
 
         <CorrezioneTimbratura preferOrderId={linkedOrderId} />
 
         {/* Ore lavorate oggi */}
         <div className="bg-muted border border-border rounded-2xl p-5">
-          <p className="text-xs text-muted-foreground mb-1">Oggi — {format(new Date(), "EEEE d MMMM", { locale: it })}</p>
+          <p className="text-xs text-muted-foreground mb-1">{t("Oggi — {data}", { data: format(new Date(), "EEEE d MMMM", { locale: it }) })}</p>
           <div className="flex items-end gap-2">
-            <span className="text-4xl font-bold text-foreground">{dayTime.isError || dayTime.isLoading ? "—" : oreLavorate.toFixed(1)}</span>
-            <span className="text-lg text-muted-foreground mb-1">h nella giornata</span>
+            <span className="text-4xl font-bold text-foreground">{dayTime.isError || dayTime.isLoading ? "—" : oreBrevi(oreLavorate)}</span>
+            <span className="text-lg text-muted-foreground mb-1">{t("nella giornata")}</span>
           </div>
           {minutiPausa > 0 && (
-            <p className="text-xs text-muted-foreground mt-1">{minutiPausa} min pausa{isInPausa ? " (in corso)" : ""}</p>
+            <p className="text-xs text-muted-foreground mt-1">{isInPausa ? t("{minuti} min pausa (in corso)", { minuti: minutiPausa }) : t("{minuti} min pausa", { minuti: minutiPausa })}</p>
           )}
           {focusSiteMinutes != null && dayTime.isSuccess && (
-            <p className="mt-2 text-sm">Su questo cantiere: {campoReportHours(focusSiteMinutes)} h · pause escluse</p>
+            <p className="mt-2 text-sm">{t("Su questo cantiere: {ore} h · pause escluse", { ore: campoReportHours(focusSiteMinutes) })}</p>
           )}
 
           {/* Cronologia di oggi: un cambio di posto è una riga sola */}
@@ -153,7 +156,7 @@ function CampoTimbraturaEditor() {
                     "bg-primary"
                   )} />
                   <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
-                    <span className="min-w-0 truncate text-sm text-foreground">{etichettaRiga(r)}</span>
+                    <span className="min-w-0 truncate text-sm text-foreground">{etichettaRiga(r, t)}</span>
                     <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
                       {format(parseISO(r.at), "HH:mm")}
                     </span>
@@ -166,10 +169,10 @@ function CampoTimbraturaEditor() {
 
         {/* Storico */}
         <div>
-          <p className="text-xs text-muted-foreground mb-3 uppercase tracking-wide">Storico ultimi 14 giorni</p>
+          <p className="text-xs text-muted-foreground mb-3 uppercase tracking-wide">{t("Storico ultimi 14 giorni")}</p>
           {Object.entries(storicoByDay).filter(([day]) => day !== today).length === 0 && (
             <p className="rounded-xl border border-dashed border-border py-6 text-center text-sm text-muted-foreground">
-              Nessuna timbratura nei giorni scorsi. Qui vedrai le ore degli ultimi 14 giorni.
+              {t("Nessuna timbratura nei giorni scorsi. Qui vedrai le ore degli ultimi 14 giorni.")}
             </p>
           )}
           <div className="space-y-3">
@@ -180,14 +183,14 @@ function CampoTimbraturaEditor() {
                 const historical = summarizeCampoTime(storico, { ...campoDayWindow(day), now: dayTime.now });
                 const ent = asc.find(t => t.tipo === "entrata");
                 const usc = [...asc].reverse().find(t => t.tipo === "uscita");
-                const ore = (historical.workMinutes / 60).toFixed(1);
+                const ore = oreBrevi(historical.workMinutes / 60);
                 return (
                   <div key={day} className="bg-muted border border-border rounded-xl p-3">
                     <div className="flex items-center justify-between mb-2">
                       <p className="text-sm font-medium text-foreground">
                         {format(parseISO(day), "EEE d MMM", { locale: it })}
                       </p>
-                      <span className="text-sm text-primary font-semibold">{ore}h</span>
+                      <span className="text-sm text-primary font-semibold">{ore}</span>
                     </div>
                     <div className="flex gap-3">
                       {ent && (

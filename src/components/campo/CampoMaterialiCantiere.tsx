@@ -7,6 +7,7 @@ import { useCampoMagazzinoConfig } from "@/hooks/campo/useCampoPrelievo";
 import { supabase } from "@/integrations/supabase/client";
 import { formattaQuantitaMovimento } from "@/lib/magazzino/quantitaMovimento";
 import { queryKeys } from "@/lib/queryKeys";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const PER_PAGINA = 30;
 
@@ -16,6 +17,7 @@ export function CampoMaterialiCantiere({ companyId, orderId, chiuso = false, apr
   chiuso?: boolean;
   apri?: boolean;
 }) {
+  const t = useT();
   const [aperto, setAperto] = useState(apri);
   const config = useCampoMagazzinoConfig();
   const idPannello = useId();
@@ -28,18 +30,18 @@ export function CampoMaterialiCantiere({ companyId, orderId, chiuso = false, apr
   if (!autorizzato) return null;
 
   return (
-    <section ref={riquadro} aria-label="Materiali in cantiere" className="rounded-2xl border bg-background p-3 shadow-sm">
+    <section ref={riquadro} aria-label={t("Materiali in cantiere")} className="rounded-2xl border bg-background p-3 shadow-sm">
       <Button type="button" variant="ghost" aria-expanded={aperto} aria-controls={idPannello}
         onClick={() => setAperto(valore => !valore)}
         className="min-h-11 w-full justify-start gap-2 px-2 text-left font-semibold">
         <Package aria-hidden="true" className="h-5 w-5 shrink-0 text-primary" />
-        <span className="flex-1">Materiali in cantiere</span>
+        <span className="flex-1">{t("Materiali in cantiere")}</span>
         <ChevronDown aria-hidden="true" className={aperto ? "h-4 w-4 rotate-180" : "h-4 w-4"} />
       </Button>
       {config.data?.livello === "prelievi" && !chiuso && (
         <Button asChild variant="outline" className="mt-2 min-h-11 w-full gap-2 text-primary">
           <Link to={`/campo/magazzino?order_id=${encodeURIComponent(orderId)}`}>
-            <PackagePlus aria-hidden="true" className="h-4 w-4" /> Preleva materiale
+            <PackagePlus aria-hidden="true" className="h-4 w-4" /> {t("Preleva materiale")}
           </Link>
         </Button>
       )}
@@ -51,6 +53,7 @@ export function CampoMaterialiCantiere({ companyId, orderId, chiuso = false, apr
 }
 
 function RiepilogoMateriali({ companyId, orderId, userId }: { companyId: string; orderId: string; userId: string }) {
+  const t = useT();
   const materiali = useInfiniteQuery({
     queryKey: [...queryKeys.warehouse.campoMateriali(companyId, orderId), userId],
     initialPageParam: 0,
@@ -69,14 +72,14 @@ function RiepilogoMateriali({ companyId, orderId, userId }: { companyId: string;
   const righe = materiali.isError ? [] : materiali.data?.pages.flatMap(pagina => pagina.slice(0, PER_PAGINA)) ?? [];
   return (
     <div className="mt-3 space-y-3 text-sm">
-      {materiali.isLoading && <p role="status" className="text-muted-foreground">Carico i materiali…</p>}
+      {materiali.isLoading && <p role="status" className="text-muted-foreground">{t("Carico i materiali…")}</p>}
       {materiali.isError && (
         <div role="alert" className="space-y-2">
-          <p>Impossibile aggiornare i materiali.</p>
-          <Button variant="outline" size="sm" onClick={() => void materiali.refetch()}>Riprova</Button>
+          <p>{t("Impossibile aggiornare i materiali.")}</p>
+          <Button variant="outline" size="sm" onClick={() => void materiali.refetch()}>{t("Riprova")}</Button>
         </div>
       )}
-      {materiali.isSuccess && righe.length === 0 && <p className="text-muted-foreground">Nessuna consegna registrata.</p>}
+      {materiali.isSuccess && righe.length === 0 && <p className="text-muted-foreground">{t("Nessuna consegna registrata.")}</p>}
       {righe.length > 0 && (
         <ul className="divide-y">
           {righe.map(riga => {
@@ -86,26 +89,26 @@ function RiepilogoMateriali({ companyId, orderId, userId }: { companyId: string;
                 <p className="break-words font-medium">{riga.nome}</p>
                 <dl className="grid grid-cols-2 gap-2 leading-snug">
                   <div className="min-w-0 rounded-xl bg-muted/60 p-2.5">
-                    <dt className="text-xs text-muted-foreground">Consegnato</dt>
+                    <dt className="text-xs text-muted-foreground">{t("Consegnato")}</dt>
                     <dd className="break-words text-base font-bold tabular-nums">{formattaQuantitaMovimento(Number(riga.consegnato))}{unita}</dd>
                   </div>
                   <div className="min-w-0 rounded-xl bg-primary/10 p-2.5">
-                    <dt className="text-xs text-muted-foreground">Residuo</dt>
+                    <dt className="text-xs text-muted-foreground">{t("Residuo")}</dt>
                     <dd className="break-words text-base font-bold tabular-nums">
-                      {riga.residuo === null ? "Da verificare" : `${formattaQuantitaMovimento(Number(riga.residuo))}${unita}`}
+                      {riga.residuo === null ? t("Da verificare") : `${formattaQuantitaMovimento(Number(riga.residuo))}${unita}`}
                     </dd>
                   </div>
                 </dl>
-                {!riga.unita_misura && <p className="text-xs text-muted-foreground">Unità di misura da impostare</p>}
+                {!riga.unita_misura && <p className="text-xs text-muted-foreground">{t("Unità di misura da impostare")}</p>}
               </li>
             );
           })}
         </ul>
       )}
-      {righe.length > 0 && <p className="text-xs text-muted-foreground">Il residuo tiene conto dei resi e dei consumi nei rapportini approvati.</p>}
+      {righe.length > 0 && <p className="text-xs text-muted-foreground">{t("Il residuo tiene conto dei resi e dei consumi nei rapportini approvati.")}</p>}
       {materiali.hasNextPage && !materiali.isError && (
         <Button variant="outline" className="min-h-11 w-full" disabled={materiali.isFetching} onClick={() => void materiali.fetchNextPage()}>
-          {materiali.isFetchingNextPage ? "Caricamento…" : "Mostra altri materiali"}
+          {materiali.isFetchingNextPage ? t("Caricamento…") : t("Mostra altri materiali")}
         </Button>
       )}
     </div>

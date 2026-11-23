@@ -26,11 +26,14 @@ Deno.serve(async (req: Request) => {
     if (typeof id !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return errorResponse("Identificativo rapportino non valido", 400, cors);
     const baseUrl = Deno.env.get("SUPABASE_URL")!;
     // Company membership alone must not let a worker export a colleague's report.
+    // 23/11/2026: si chiede alla VISTA, non alla tabella. Dal 12/11 la regola restrittiva office_financial_select
+    // nasconde campo_rapportini a chi non ha i diritti d'ufficio: ogni operaio riceveva 403 sul proprio rapportino
+    // e il PDF non nasceva più (Demo 2: 14 su 24 nell'ultimo mese). La vista applica le stesse regole sulle righe.
     const caller = createClient(baseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
       global: { headers: { Authorization: req.headers.get("Authorization")! } },
       auth: { persistSession: false, autoRefreshToken: false },
     });
-    const { data: allowed, error: accessError } = await caller.from("campo_rapportini").select("id").eq("id", id).maybeSingle();
+    const { data: allowed, error: accessError } = await caller.from("campo_rapportini_visibili").select("id").eq("id", id).maybeSingle();
     if (accessError || !allowed) return errorResponse("Rapportino non disponibile o non autorizzato", 403, cors);
     const { data: rap, error: reportError } = await admin.from("campo_rapportini")
       .select("*, autore:profiles!campo_rapportini_user_id_fkey(first_name, last_name), ordine:orders!campo_rapportini_order_id_fkey(order_code, description, client_name, work_address, indirizzo_lavori)")

@@ -18,6 +18,7 @@ import { cantieriAperti } from "@/lib/campo/cantieriAperti";
 import { messaggioErrore } from "@/lib/campo/messaggioErrore";
 import { campoWorkDay, giorniSceglibili, istanteRoma, shiftWorkDay } from "@/lib/campo/workDay";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // La tabella e le due RPC non sono ancora nei tipi generati: contratto locale.
 type Rpc = (nome: "campo_timbratura_correzione_chiedi", args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: unknown }>;
@@ -50,6 +51,7 @@ export function istanteDaGiornoEOra(giorno: string, ora: string): Date | null {
 
 export function CorrezioneTimbratura({ preferOrderId }: { preferOrderId?: string | null }) {
   const { user, profile } = useAuth();
+  const tr = useT();
   const companyId = profile?.company_id ?? null;
   const qc = useQueryClient();
   const assegnazioni = useCampoAssignments();
@@ -85,9 +87,9 @@ export function CorrezioneTimbratura({ preferOrderId }: { preferOrderId?: string
   const chiedi = useMutation({
     mutationFn: async () => {
       const istante = istanteDaGiornoEOra(giornoValido, ora);
-      if (!istante) throw new Error("Scrivi l’ora, per esempio 17:30");
-      if (istante.getTime() > Date.now()) throw new Error("L’ora non può essere nel futuro");
-      if (motivo.trim().length < 3) throw new Error("Scrivi in due parole cosa è successo");
+      if (!istante) throw new Error(tr("Scrivi l’ora, per esempio 17:30"));
+      if (istante.getTime() > Date.now()) throw new Error(tr("L’ora non può essere nel futuro"));
+      if (motivo.trim().length < 3) throw new Error(tr("Scrivi in due parole cosa è successo"));
       const rpc = supabase.rpc.bind(supabase) as unknown as Rpc;
       const { error } = await rpc("campo_timbratura_correzione_chiedi", {
         p_order_id: cantiere || null, p_tipo: tipo, p_ora: istante.toISOString(), p_motivo: motivo.trim(),
@@ -95,85 +97,86 @@ export function CorrezioneTimbratura({ preferOrderId }: { preferOrderId?: string
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Richiesta mandata: l’ufficio la vede nella commessa");
+      toast.success(tr("Richiesta mandata: l’ufficio la vede nella commessa"));
       setOra(""); setMotivo("");
       void qc.invalidateQueries({ queryKey: ["campo-correzioni-timbrature"] });
     },
-    onError: (e) => toast.error(messaggioErrore(e, "Non sono riuscito a mandare la richiesta. Riprova.")),
+    onError: (e) => toast.error(messaggioErrore(e, tr("Non sono riuscito a mandare la richiesta. Riprova."))),
   });
 
   const righe = elenco.data ?? [];
   const inAttesa = righe.filter(r => r.stato === "in_attesa").length;
 
   return (
-    <details className="rounded-2xl border border-border bg-background p-4" open={inAttesa > 0 ? true : undefined}>
-      <summary className="min-h-11 cursor-pointer text-sm font-semibold">
-        Hai dimenticato di timbrare?{inAttesa > 0 ? ` · ${inAttesa} in attesa` : ""}
+    <details className="rounded-2xl border border-border bg-background px-4 py-1 [&[open]]:pb-4" open={inAttesa > 0 ? true : undefined}>
+      {/* Titolo centrato: con min-h-11 il testo stava in alto e sotto restava un vuoto (collaudo 23/11). */}
+      <summary className="cursor-pointer py-2.5 text-sm font-semibold">
+        {tr("Hai dimenticato di timbrare?")}{inAttesa > 0 ? ` · ${tr("{n} in attesa", { n: inAttesa })}` : ""}
       </summary>
       <form
         className="mt-3 space-y-3"
         onSubmit={(e) => { e.preventDefault(); if (!chiedi.isPending) chiedi.mutate(); }}
       >
-        <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Cosa hai dimenticato">
+        <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label={tr("Cosa hai dimenticato")}>
           {(["entrata", "uscita"] as const).map((t) => (
             <button
               key={t} type="button" role="radio" aria-checked={tipo === t}
               onClick={() => setTipo(t)}
               className={cn("min-h-12 rounded-xl border text-sm font-semibold", tipo === t ? "border-primary bg-primary/10 text-primary" : "bg-muted/40")}
             >
-              {t === "entrata" ? "L’entrata" : "L’uscita"}
+              {t === "entrata" ? tr("L’entrata") : tr("L’uscita")}
             </button>
           ))}
         </div>
         <div className="grid grid-cols-2 gap-2">
           <label className="space-y-1 text-sm">
-            <span className="font-medium">Giorno</span>
+            <span className="font-medium">{tr("Giorno")}</span>
             <UniformSelect value={giornoValido} onChange={(e) => setGiorno(e.target.value)} className="h-12 w-full rounded-lg border bg-background px-3 text-base">
               {giorni.map((g) => (
                 <option key={g} value={g}>
-                  {g === oggi ? "Oggi" : g === shiftWorkDay(oggi, -1) ? "Ieri" : format(parseISO(g), "EEE d MMM", { locale: it })}
+                  {g === oggi ? tr("Oggi") : g === shiftWorkDay(oggi, -1) ? tr("Ieri") : format(parseISO(g), "EEE d MMM", { locale: it })}
                 </option>
               ))}
             </UniformSelect>
           </label>
           <label className="space-y-1 text-sm">
-            <span className="font-medium">Ora</span>
+            <span className="font-medium">{tr("Ora")}</span>
             <input type="time" value={ora} onChange={(e) => setOra(e.target.value)} required
               className="h-12 w-full rounded-lg border bg-background px-3 text-base" />
           </label>
         </div>
         {cantieri.length > 1 && (
           <label className="block space-y-1 text-sm">
-            <span className="font-medium">Cantiere</span>
+            <span className="font-medium">{tr("Cantiere")}</span>
             <UniformSelect value={cantiere} onChange={(e) => setOrderId(e.target.value)} className="h-12 w-full rounded-lg border bg-background px-3 text-base">
               {cantieri.map((c) => (
-                <option key={c.order_id} value={c.order_id}>{c.order?.order_code ?? "Cantiere"}{c.order?.description ? ` · ${c.order.description}` : ""}</option>
+                <option key={c.order_id} value={c.order_id}>{c.order?.order_code ?? tr("Cantiere")}{c.order?.description ? ` · ${c.order.description}` : ""}</option>
               ))}
             </UniformSelect>
           </label>
         )}
         <label className="block space-y-1 text-sm">
-          <span className="font-medium">Cosa è successo</span>
+          <span className="font-medium">{tr("Cosa è successo")}</span>
           <input value={motivo} onChange={(e) => setMotivo(e.target.value)} maxLength={500} required
-            placeholder="Es. telefono scarico, ero già in macchina"
+            placeholder={tr("Es. telefono scarico, ero già in macchina")}
             className="h-12 w-full rounded-lg border bg-background px-3 text-base" />
         </label>
         <button type="submit" disabled={chiedi.isPending}
           className="min-h-12 w-full rounded-xl bg-primary px-3 text-base font-bold text-primary-foreground disabled:opacity-50">
-          {chiedi.isPending ? "Mando…" : "Chiedi la correzione all’ufficio"}
+          {chiedi.isPending ? tr("Mando…") : tr("Chiedi la correzione all’ufficio")}
         </button>
-        <p className="text-xs text-muted-foreground">La timbratura entra nelle tue ore quando l’ufficio la approva.</p>
+        <p className="text-xs text-muted-foreground">{tr("La timbratura entra nelle tue ore quando l’ufficio la approva.")}</p>
       </form>
 
       {righe.length > 0 && (
-        <ul className="mt-4 space-y-2" aria-label="Le tue richieste">
+        <ul className="mt-4 space-y-2" aria-label={tr("Le tue richieste")}>
           {righe.map((r) => (
             <li key={r.id} className="rounded-xl border bg-muted/30 p-3 text-sm">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-medium">
-                  {r.tipo === "entrata" ? "Entrata" : "Uscita"} · {format(parseISO(r.ora_richiesta), "EEE d MMM HH:mm", { locale: it })}
+                  {r.tipo === "entrata" ? tr("Entrata") : tr("Uscita")} · {format(parseISO(r.ora_richiesta), "EEE d MMM HH:mm", { locale: it })}
                 </span>
-                <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold", STATO[r.stato].classe)}>{STATO[r.stato].testo}</span>
+                <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold", STATO[r.stato].classe)}>{tr(STATO[r.stato].testo)}</span>
               </div>
               {r.stato === "respinta" && r.motivo_risposta && <p className="mt-1 text-xs text-red-800">{r.motivo_risposta}</p>}
             </li>

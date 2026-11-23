@@ -5,10 +5,12 @@ import { useFieldSurveyAccess } from "@/hooks/useFieldSurveys";
 import { SurveyAccessContext } from "@/contexts/SurveyAccessContext";
 import SopralluogoEditor from "@/pages/azienda/sopralluoghi/SopralluogoEditor";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 export default function CampoSopralluogo() {
   const { id } = useParams<{ id: string }>();
   const access = useFieldSurveyAccess(id || null);
   const qc = useQueryClient();
+  const t = useT();
   // Drop cached technical data when authorization is revoked, never render stale details.
   useEffect(() => {
     if ((access.data?.can_view === false || access.isError) && id)
@@ -17,21 +19,20 @@ export default function CampoSopralluogo() {
   if (!id || access.isError)
     return (
       <div role="alert" className="p-5">
-        Impossibile verificare l’accesso.{" "}
-        <Button onClick={() => void access.refetch()}>Riprova</Button>
+        {t("Impossibile verificare l’accesso.")}{" "}
+        <Button onClick={() => void access.refetch()}>{t("Riprova")}</Button>
       </div>
     );
   if (access.isPending)
     return (
       <p role="status" className="p-5">
-        Verifico l’assegnazione…
+        {t("Verifico l’assegnazione…")}
       </p>
     );
   if (!access.data?.can_view)
     return (
       <p role="alert" className="rounded-2xl border p-5">
-        Sopralluogo non disponibile: serve un’assegnazione autorizzata
-        dall’ufficio.
+        {t("Sopralluogo non disponibile: serve un’assegnazione autorizzata dall’ufficio.")}
       </p>
     );
   return (

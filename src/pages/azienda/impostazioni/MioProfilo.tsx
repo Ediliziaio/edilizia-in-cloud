@@ -21,7 +21,7 @@ import { it } from "date-fns/locale";
 import {
   Camera, User, Save, Loader2, Phone, Mail, Lock, Eye, EyeOff,
   Shield, Check, X, CalendarDays, RefreshCw, Unlink, Clock, Bell,
-  Settings2, AlertTriangle,
+  Settings2, AlertTriangle, Languages,
 } from "lucide-react";
 import GoogleCalendarSyncPrefsDialog from "@/components/settings/GoogleCalendarSyncPrefsDialog";
 import OutlookCalendarConnectionTab from "@/components/settings/OutlookCalendarConnectionTab";
@@ -34,6 +34,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SceltaLinguaCampo } from "@/components/campo/SceltaLinguaCampo";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import { EmailOAuthConnectionsCard } from "@/components/integrations/EmailOAuthConnectionsCard";
 import { TwoFactorSetup } from "@/components/auth/TwoFactorSetup";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -56,8 +58,8 @@ const ROLE_LABELS: Record<string, string> = {
   call_center: "Call Center", referrer: "Segnalatore",
 };
 
-type ProfileTab = "profilo" | "sicurezza" | "calendari" | "email" | "notifiche";
-const PROFILE_TABS: ProfileTab[] = ["profilo", "sicurezza", "calendari", "email", "notifiche"];
+type ProfileTab = "profilo" | "sicurezza" | "calendari" | "email" | "notifiche" | "lingua";
+const PROFILE_TABS: ProfileTab[] = ["profilo", "sicurezza", "calendari", "email", "notifiche", "lingua"];
 
 function isProfileTab(tab: string | null): tab is ProfileTab {
   return PROFILE_TABS.includes(tab as ProfileTab);
@@ -76,6 +78,7 @@ function GoogleIcon({ className }: { className?: string }) {
 }
 
 export default function MioProfilo() {
+  const t = useT();
   const { user, role, refreshAuth, effectiveCompany, profile: authProfile } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
@@ -101,7 +104,7 @@ export default function MioProfilo() {
     if (notificheAltrove) navigate("/azienda/impostazioni/notifiche", { replace: true });
   }, [notificheAltrove, navigate]);
   const activeTab: ProfileTab =
-    isProfileTab(tabParam) && !(isMobile && schedaSoloDesktop) && !notificheAltrove && (schedaNotifiche || tabParam !== "notifiche")
+    isProfileTab(tabParam) && !(isMobile && schedaSoloDesktop) && !notificheAltrove && (schedaNotifiche || tabParam !== "notifiche") && (nelCampo || tabParam !== "lingua")
       ? tabParam
       : "profilo";
   const handleTabChange = (tab: string) => {
@@ -164,8 +167,8 @@ export default function MioProfilo() {
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user?.id) return;
-    if (!file.type.startsWith("image/")) { toast.error("Carica un file immagine valido"); return; }
-    if (file.size > 2 * 1024 * 1024) { toast.error("La foto può pesare al massimo 2 MB."); return; }
+    if (!file.type.startsWith("image/")) { toast.error(t("Carica un file immagine valido")); return; }
+    if (file.size > 2 * 1024 * 1024) { toast.error(t("La foto può pesare al massimo 2 MB.")); return; }
     const reader = new FileReader();
     reader.onload = (ev) => setAvatarPreview(ev.target?.result as string);
     reader.readAsDataURL(file);
@@ -181,9 +184,9 @@ export default function MioProfilo() {
       queryClient.invalidateQueries({ queryKey: ["my-profile"] });
       queryClient.invalidateQueries({ queryKey: ["chat-profiles"] });
       refreshAuth();
-      toast.success("Foto aggiornata!");
+      toast.success(t("Foto aggiornata!"));
     } catch (err: unknown) {
-      toast.error("Foto non caricata", { description: motivoDelRifiuto(err, "Riprova tra qualche secondo.") });
+      toast.error(t("Foto non caricata"), { description: motivoDelRifiuto(err, t("Riprova tra qualche secondo.")) });
       setAvatarPreview(null);
     } finally { setIsUploading(false); }
   };
@@ -201,9 +204,9 @@ export default function MioProfilo() {
       setAvatarPreview(null);
       queryClient.invalidateQueries({ queryKey: ["my-profile"] });
       refreshAuth();
-      toast.success("Foto rimossa");
+      toast.success(t("Foto rimossa"));
     } catch (err: unknown) {
-      toast.error("Impossibile rimuovere la foto", { description: motivoDelRifiuto(err, "Riprova tra qualche secondo.") });
+      toast.error(t("Impossibile rimuovere la foto"), { description: motivoDelRifiuto(err, t("Riprova tra qualche secondo.")) });
     } finally {
       setIsRemovingAvatar(false);
     }
@@ -212,7 +215,7 @@ export default function MioProfilo() {
   // ── Save profile ──
   const updateProfile = useMutation({
     mutationFn: async () => {
-      if (!firstName.trim() || !lastName.trim()) throw new MessaggioPerUtente("Scrivi nome e cognome.");
+      if (!firstName.trim() || !lastName.trim()) throw new MessaggioPerUtente(t("Scrivi nome e cognome."));
       const { error } = await supabase.from("profiles")
         .update({ first_name: firstName.trim(), last_name: lastName.trim(), phone: phone.trim() || null })
         .eq("id", user!.id);
@@ -222,9 +225,9 @@ export default function MioProfilo() {
       queryClient.invalidateQueries({ queryKey: ["my-profile"] });
       queryClient.invalidateQueries({ queryKey: ["chat-profiles"] });
       refreshAuth();
-      toast.success("Profilo salvato");
+      toast.success(t("Profilo salvato"));
     },
-    onError: (err: unknown) => toast.error("Profilo non salvato", { description: motivoDelRifiuto(err, "Riprova tra qualche secondo.") }),
+    onError: (err: unknown) => toast.error(t("Profilo non salvato"), { description: motivoDelRifiuto(err, t("Riprova tra qualche secondo.")) }),
   });
   // Nome, cognome e telefono scritti e non salvati: chi esce o ricarica deve poterci ripensare.
   useSettingsDraftGuard(profileDirty || updateProfile.isPending);
@@ -250,8 +253,8 @@ export default function MioProfilo() {
   }, [newPw]);
 
   const handleChangePassword = async () => {
-    if (newPw.length < 8) { toast.error("La password deve avere almeno 8 caratteri."); return; }
-    if (newPw !== confirmPw) { toast.error("Le due password non coincidono."); return; }
+    if (newPw.length < 8) { toast.error(t("La password deve avere almeno 8 caratteri.")); return; }
+    if (newPw !== confirmPw) { toast.error(t("Le due password non coincidono.")); return; }
     setChangingPw(true);
     try {
       const { error } = await supabase.auth.updateUser({ password: newPw });
@@ -260,7 +263,7 @@ export default function MioProfilo() {
       const { error: erroreObbligo } = await supabase.rpc("staff_update_own_password_flag", { _must_change: false });
       if (erroreObbligo) logger.error("[password] obbligo di cambio non tolto:", erroreObbligo);
       setNewPw(""); setConfirmPw("");
-      toast.success("Password aggiornata");
+      toast.success(t("Password aggiornata"));
     } catch (err: any) {
       toast.error(motivoPasswordRifiutata(err), { duration: 10000 });
     } finally { setChangingPw(false); }
@@ -493,7 +496,7 @@ export default function MioProfilo() {
           {/* Il cerchietto resta piccolo; l'area di tocco la allarga il ::after fino a 44 px. */}
           <button
             type="button"
-            aria-label="Cambia foto"
+            aria-label={t("Cambia foto")}
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}
             className="tap-compact absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-primary text-white flex items-center justify-center shadow-lg hover:bg-primary/90 transition-colors after:absolute after:-inset-2 after:content-[''] max-sm:h-6 max-sm:w-6 max-sm:after:-inset-2.5"
@@ -511,7 +514,7 @@ export default function MioProfilo() {
           <p className="text-sm text-muted-foreground max-sm:text-xs">{user?.email}</p>
           <div className="flex items-center gap-2 mt-1">
             <Badge variant="secondary" className="text-[10px] h-5">
-              {ROLE_LABELS[role ?? ""] ?? role}
+              {ROLE_LABELS[role ?? ""] ? t(ROLE_LABELS[role ?? ""]) : role}
             </Badge>
             {profile?.avatar_url && (
               <button
@@ -520,7 +523,7 @@ export default function MioProfilo() {
                 disabled={isRemovingAvatar}
                 className="tap-compact text-xs text-destructive hover:underline disabled:opacity-50 disabled:no-underline disabled:cursor-not-allowed"
               >
-                {isRemovingAvatar ? "Rimozione…" : "Rimuovi foto"}
+                {isRemovingAvatar ? t("Rimozione…") : t("Rimuovi foto")}
               </button>
             )}
           </div>
@@ -537,22 +540,28 @@ export default function MioProfilo() {
             piattaforma), dove non esiste la pagina Notifiche. */}
         <div className="relative mb-6 max-sm:mb-3">
           <div className="-mx-1 overflow-x-auto overscroll-x-contain px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-sm:mx-0 max-sm:px-0">
-            <TabsList className={`inline-flex h-auto min-w-max w-max justify-start gap-0.5 sm:gap-1 bg-muted/50 p-1 max-sm:grid max-sm:w-full max-sm:min-w-0 ${schedaNotifiche ? "max-sm:grid-cols-3" : "max-sm:grid-cols-2"}`}>
+            <TabsList className={`inline-flex h-auto min-w-max w-max justify-start gap-0.5 sm:gap-1 bg-muted/50 p-1 max-sm:grid max-sm:w-full max-sm:min-w-0 ${nelCampo ? "max-sm:grid-cols-4" : schedaNotifiche ? "max-sm:grid-cols-3" : "max-sm:grid-cols-2"}`}>
               <TabsTrigger value="profilo" className="h-9 shrink-0 gap-1 sm:gap-1.5 whitespace-nowrap px-2 sm:px-3 text-xs sm:text-sm">
-                <User className="h-3.5 w-3.5" /> Profilo
+                <User className="h-3.5 w-3.5" /> {t("Profilo")}
               </TabsTrigger>
               <TabsTrigger value="sicurezza" className="h-9 shrink-0 gap-1 sm:gap-1.5 whitespace-nowrap px-2 sm:px-3 text-xs sm:text-sm">
-                <Shield className="h-3.5 w-3.5" /> Sicurezza
+                <Shield className="h-3.5 w-3.5" /> {t("Sicurezza")}
               </TabsTrigger>
               <TabsTrigger value="calendari" className="h-9 shrink-0 gap-1 sm:gap-1.5 whitespace-nowrap px-2 sm:px-3 text-xs sm:text-sm max-md:hidden">
-                <CalendarDays className="h-3.5 w-3.5" /> Calendari
+                <CalendarDays className="h-3.5 w-3.5" /> {t("Calendari")}
               </TabsTrigger>
               <TabsTrigger value="email" className="h-9 shrink-0 gap-1 sm:gap-1.5 whitespace-nowrap px-2 sm:px-3 text-xs sm:text-sm max-md:hidden">
-                <Mail className="h-3.5 w-3.5" /> Email
+                <Mail className="h-3.5 w-3.5" /> {t("Email")}
               </TabsTrigger>
               {schedaNotifiche && (
                 <TabsTrigger value="notifiche" className="h-9 shrink-0 gap-1 sm:gap-1.5 whitespace-nowrap px-2 sm:px-3 text-xs sm:text-sm">
-                  <Bell className="h-3.5 w-3.5" /> Notifiche
+                  <Bell className="h-3.5 w-3.5" /> {t("Notifiche")}
+                </TabsTrigger>
+              )}
+              {/* Lingua dell'app: per ora solo nel campo (operai e subappaltatori, 23/11/2026). */}
+              {nelCampo && (
+                <TabsTrigger value="lingua" className="h-9 shrink-0 gap-1 sm:gap-1.5 whitespace-nowrap px-2 sm:px-3 text-xs sm:text-sm">
+                  <Languages className="h-3.5 w-3.5" /> {t("Lingua")}
                 </TabsTrigger>
               )}
             </TabsList>
@@ -569,18 +578,18 @@ export default function MioProfilo() {
           <Card>
             <CardHeader className="pb-3 max-sm:p-4 max-sm:pb-2">
               <CardTitle className="text-base flex items-center gap-2">
-                <User className="h-4 w-4" /> Dati personali
+                <User className="h-4 w-4" /> {t("Dati personali")}
               </CardTitle>
-              <CardDescription className="max-sm:hidden">Le informazioni che vengono mostrate nella chat, calendario e nel team.</CardDescription>
+              <CardDescription className="max-sm:hidden">{t("Le informazioni che vengono mostrate nella chat, calendario e nel team.")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 max-sm:space-y-3 max-sm:p-4 max-sm:pt-0">
               <div className="grid gap-4 sm:grid-cols-2 max-sm:grid-cols-2 max-sm:gap-3">
                 <div className="space-y-1.5">
-                  <Label htmlFor="fn">Nome</Label>
+                  <Label htmlFor="fn">{t("Nome")}</Label>
                   <Input id="fn" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="ln">Cognome</Label>
+                  <Label htmlFor="ln">{t("Cognome")}</Label>
                   <Input id="ln" value={lastName} onChange={(e) => setLastName(e.target.value)} />
                 </div>
               </div>
@@ -589,14 +598,14 @@ export default function MioProfilo() {
                   diretta possibile). Per cambiare email: contatta admin (info
                   spostata nel testo informativo del Telefono). */}
               <div className="space-y-1.5">
-                <Label htmlFor="phone" className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5" /> Telefono</Label>
+                <Label htmlFor="phone" className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5" /> {t("Telefono")}</Label>
                 <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+39 333 1234567" />
               </div>
               <div className="flex items-center justify-between pt-2">
                 {profileDirty ? (
                   <p className="text-xs text-amber-600 flex items-center gap-1.5">
                     <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
-                    Modifiche non salvate
+                    {t("Modifiche non salvate")}
                   </p>
                 ) : (
                   <span />
@@ -606,15 +615,15 @@ export default function MioProfilo() {
                   disabled={updateProfile.isPending || !profileDirty}
                 >
                   {updateProfile.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                  Salva modifiche
+                  {t("Salva modifiche")}
                 </Button>
               </div>
               {/* v8.6.39 M7 — nota separata in fondo: info su modifica email
                   che prima era sotto l'input email duplicato. */}
               <p className="text-xs text-muted-foreground border-t pt-3 max-sm:hidden">
                 {role === "super_admin"
-                  ? "L'email di accesso del super admin si gestisce dal pannello Supabase (Auth → Users)."
-                  : "Per modificare l'email contatta l'amministratore della tua azienda."}
+                  ? t("L'email di accesso del super admin si gestisce dal pannello Supabase (Auth → Users).")
+                  : t("Per modificare l'email contatta l'amministratore della tua azienda.")}
               </p>
             </CardContent>
           </Card>
@@ -625,20 +634,20 @@ export default function MioProfilo() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <Clock className="h-4 w-4" /> Cronologia account
+                <Clock className="h-4 w-4" /> {t("Cronologia account")}
               </CardTitle>
-              <CardDescription>Informazioni di utilizzo del tuo account.</CardDescription>
+              <CardDescription>{t("Informazioni di utilizzo del tuo account.")}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4 text-sm">
                 <div>
-                  <p className="text-muted-foreground text-xs">Account creato</p>
+                  <p className="text-muted-foreground text-xs">{t("Account creato")}</p>
                   <p className="font-medium">
                     {profile?.created_at ? format(new Date(profile.created_at), "d MMMM yyyy", { locale: it }) : "—"}
                   </p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground text-xs">Ultimo accesso</p>
+                  <p className="text-muted-foreground text-xs">{t("Ultimo accesso")}</p>
                   <p className="font-medium">
                     {(() => {
                       // profiles.last_login_at non viene popolato per tutti gli
@@ -662,19 +671,19 @@ export default function MioProfilo() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <Lock className="h-4 w-4" /> Cambia password
+                <Lock className="h-4 w-4" /> {t("Cambia password")}
               </CardTitle>
-              <CardDescription className="max-sm:hidden">Scegli una password sicura con almeno 8 caratteri.</CardDescription>
+              <CardDescription className="max-sm:hidden">{t("Scegli una password sicura con almeno 8 caratteri.")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="new-pw">Nuova password</Label>
+                <Label htmlFor="new-pw">{t("Nuova password")}</Label>
                 <div className="relative">
                   <Input id="new-pw" type={showPw ? "text" : "password"} value={newPw}
-                    onChange={(e) => setNewPw(e.target.value)} placeholder="Minimo 8 caratteri" />
+                    onChange={(e) => setNewPw(e.target.value)} placeholder={t("Minimo 8 caratteri")} />
                   <button onClick={() => setShowPw(!showPw)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    type="button" aria-label={showPw ? "Nascondi password" : "Mostra password"}>
+                    type="button" aria-label={showPw ? t("Nascondi password") : t("Mostra password")}>
                     {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
@@ -693,9 +702,9 @@ export default function MioProfilo() {
                         ))}
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Sicurezza: <span className="font-medium">{labels[Math.max(0, pwStrength - 1)] ?? "Troppo debole"}</span>
+                        {t("Sicurezza:")} <span className="font-medium">{t(labels[Math.max(0, pwStrength - 1)] ?? "Troppo debole")}</span>
                         {pwStrength < 3 && newPw.length >= 8 && (
-                          <span className="ml-2 text-amber-600">· aggiungi maiuscole, numeri o simboli</span>
+                          <span className="ml-2 text-amber-600">· {t("aggiungi maiuscole, numeri o simboli")}</span>
                         )}
                       </p>
                     </div>
@@ -703,17 +712,17 @@ export default function MioProfilo() {
                 })()}
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="confirm-pw">Conferma password</Label>
+                <Label htmlFor="confirm-pw">{t("Conferma password")}</Label>
                 <Input id="confirm-pw" type={showPw ? "text" : "password"} value={confirmPw}
-                  onChange={(e) => setConfirmPw(e.target.value)} placeholder="Ripeti la password" />
+                  onChange={(e) => setConfirmPw(e.target.value)} placeholder={t("Ripeti la password")} />
                 {newPw && confirmPw && newPw !== confirmPw && (
                   <p className="text-xs text-destructive flex items-center gap-1">
-                    <X className="h-3 w-3" /> Le password non coincidono
+                    <X className="h-3 w-3" /> {t("Le password non coincidono")}
                   </p>
                 )}
                 {newPw && confirmPw && newPw === confirmPw && newPw.length >= 8 && (
                   <p className="text-xs text-green-600 flex items-center gap-1">
-                    <Check className="h-3 w-3" /> Le password coincidono
+                    <Check className="h-3 w-3" /> {t("Le password coincidono")}
                   </p>
                 )}
               </div>
@@ -724,7 +733,7 @@ export default function MioProfilo() {
                      soddisfatti (es. lunghezza + numero/maiuscole/simbolo). */
                   disabled={changingPw || !newPw || newPw !== confirmPw || newPw.length < 8 || pwStrength < 2}>
                   {changingPw ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Shield className="h-4 w-4 mr-2" />}
-                  Aggiorna password
+                  {t("Aggiorna password")}
                 </Button>
               </div>
             </CardContent>
@@ -738,9 +747,9 @@ export default function MioProfilo() {
           <Card className="max-sm:hidden">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <Shield className="h-4 w-4" /> Privacy e dati personali
+                <Shield className="h-4 w-4" /> {t("Privacy e dati personali")}
               </CardTitle>
-              <CardDescription>Esercita i tuoi diritti GDPR sui dati conservati dalla piattaforma.</CardDescription>
+              <CardDescription>{t("Esercita i tuoi diritti GDPR sui dati conservati dalla piattaforma.")}</CardDescription>
             </CardHeader>
             <CardContent>
               {/* v8.6.36 — Card 'Privacy' pulita: rimosso duplicato date account (già nella tab Profilo) */}
@@ -758,11 +767,11 @@ export default function MioProfilo() {
             <div className="lg:col-span-2 max-sm:hidden">
               {inUfficio ? <Card id="regole-azienda">
                 <CardHeader>
-                  <CardTitle className="text-base">Sicurezza dell’azienda</CardTitle>
-                  <CardDescription>Blocco dei tentativi e reti autorizzate si gestiscono insieme alle altre regole aziendali.</CardDescription>
+                  <CardTitle className="text-base">{t("Sicurezza dell’azienda")}</CardTitle>
+                  <CardDescription>{t("Blocco dei tentativi e reti autorizzate si gestiscono insieme alle altre regole aziendali.")}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Button asChild variant="outline"><Link to="/azienda/impostazioni/sicurezza-privacy?tab=regole#regole-azienda">Apri le regole aziendali</Link></Button>
+                  <Button asChild variant="outline"><Link to="/azienda/impostazioni/sicurezza-privacy?tab=regole#regole-azienda">{t("Apri le regole aziendali")}</Link></Button>
                 </CardContent>
               </Card> : <CompanySecuritySettings />}
             </div>
@@ -981,6 +990,11 @@ export default function MioProfilo() {
         {schedaNotifiche && (
           <TabsContent value="notifiche" className="mt-0">
             <AvvisiPerEvento conDispositivo={!nelCampo} />
+          </TabsContent>
+        )}
+        {nelCampo && (
+          <TabsContent value="lingua" className="mt-0">
+            <SceltaLinguaCampo />
           </TabsContent>
         )}
       </Tabs>

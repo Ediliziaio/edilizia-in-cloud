@@ -18,6 +18,7 @@ import { messaggioErrore } from "@/lib/campo/messaggioErrore";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // Pesante (approvazione con verifica economica e delle fasi): caricato solo
 // quando si apre il popup, per non appesantire la pagina Attività.
@@ -64,6 +65,7 @@ export function totaleDaApprovare(a: DaApprovare | undefined) {
 }
 
 export function DaApprovareCantieri() {
+  const t = useT();
   const [elencoEsteso, setElencoEsteso] = useState(false);
   const elencoId = useId();
   const puoApprovare = usePuoApprovareCantiere();
@@ -127,7 +129,7 @@ export function DaApprovareCantieri() {
       if (error) throw error;
       const m = new Map<string, { nome: string; indirizzo: string | null; codice: string | null }>();
       for (const o of (data ?? []) as Array<{ id: string; client_name: string | null; description: string | null; order_code: string | null; indirizzo_lavori: string | null }>) {
-        m.set(o.id, { nome: o.client_name || o.description || o.order_code || "Cantiere", indirizzo: o.indirizzo_lavori, codice: o.order_code });
+        m.set(o.id, { nome: o.client_name || o.description || o.order_code || t("Cantiere"), indirizzo: o.indirizzo_lavori, codice: o.order_code });
       }
       return m;
     },
@@ -136,7 +138,7 @@ export function DaApprovareCantieri() {
   // piccolo). Finché i nomi non sono caricati, mostra il codice come prima.
   const etichetta = (orderId: string | null, codiceFallback: string | null) => {
     const i = orderId ? nomi.data?.get(orderId) : undefined;
-    if (!i) return codiceFallback ?? "Cantiere";
+    if (!i) return codiceFallback ?? t("Cantiere");
     return i.indirizzo ? `${i.nome} · ${i.indirizzo}` : i.nome;
   };
   // Il codice come riferimento piccolo, SOLO quando il nome è già caricato
@@ -148,11 +150,11 @@ export function DaApprovareCantieri() {
       if (error) throw error;
     },
     onSuccess: (_d, v) => {
-      toast.success(v.approva ? "Approvata: la timbratura è nel registro" : "Respinta: l’operaio è avvisato");
+      toast.success(v.approva ? t("Approvata: la timbratura è nel registro") : t("Respinta: l’operaio è avvisato"));
       void qc.invalidateQueries({ queryKey: ["ufficio-da-approvare"] });
       void qc.invalidateQueries({ queryKey: ["ufficio-cantieri-oggi"] });
     },
-    onError: (e) => toast.error(messaggioErrore(e, "Non sono riuscito a salvare la decisione.")),
+    onError: (e) => toast.error(messaggioErrore(e, t("Non sono riuscito a salvare la decisione."))),
   });
 
   if (!puoApprovare) return null;
@@ -166,66 +168,78 @@ export function DaApprovareCantieri() {
 
   return (
     <section aria-labelledby="da-approvare-titolo" className="rounded-xl border border-amber-200 bg-card">
-      <h2 id="da-approvare-titolo" className="flex items-center gap-2 border-b px-4 py-3 text-sm font-semibold">
-        <ClipboardList className="h-4 w-4 text-amber-600" />Dal cantiere, da approvare
+      <h2 id="da-approvare-titolo" className="flex items-center gap-2 border-b px-4 py-3 text-sm font-semibold max-md:px-3.5 max-md:py-2.5 max-md:text-[15px]">
+        <ClipboardList className="h-4 w-4 text-amber-600" />{t("Dal cantiere, da approvare")}
         {tot > 0 && <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">{tot}</span>}
       </h2>
-      {approvare.isLoading ? <p className="p-4 text-sm text-muted-foreground"><Loader2 className="mr-2 inline h-4 w-4 animate-spin" />Carico…</p>
-        : approvare.isError ? <p role="alert" className="p-4 text-sm text-destructive">Non riesco a leggere le approvazioni. <button className="underline" onClick={() => void approvare.refetch()}>Riprova</button></p>
+      {approvare.isLoading ? <p className="p-4 text-sm text-muted-foreground"><Loader2 className="mr-2 inline h-4 w-4 animate-spin" />{t("Carico…")}</p>
+        : approvare.isError ? <p role="alert" className="p-4 text-sm text-destructive">{t("Non riesco a leggere le approvazioni.")} <button className="underline" onClick={() => void approvare.refetch()}>{t("Riprova")}</button></p>
         : (
-          <ul id={elencoId} className={cn("divide-y", !elencoEsteso && "max-sm:[&>li:nth-child(n+3)]:hidden")}>
+          <ul id={elencoId} className={cn("divide-y", !elencoEsteso && "max-sm:[&>li:nth-child(n+3)]:hidden sm:[&>li:nth-child(n+6)]:hidden")}>
             {gruppi.commesse.map((g) => {
               const pezzi = [
-                g.nRapportini > 0 ? `${g.nRapportini} rapportin${g.nRapportini === 1 ? "o" : "i"}` : null,
-                g.nCorrezioni > 0 ? `${g.nCorrezioni} timbratur${g.nCorrezioni === 1 ? "a" : "e"}` : null,
-                g.nBolle > 0 ? `${g.nBolle} boll${g.nBolle === 1 ? "a" : "e"}` : null,
+                g.nRapportini > 0 ? (g.nRapportini === 1 ? t("{n} rapportino", { n: g.nRapportini }) : t("{n} rapportini", { n: g.nRapportini })) : null,
+                g.nCorrezioni > 0 ? (g.nCorrezioni === 1 ? t("{n} timbratura", { n: g.nCorrezioni }) : t("{n} timbrature", { n: g.nCorrezioni })) : null,
+                g.nBolle > 0 ? (g.nBolle === 1 ? t("{n} bolla", { n: g.nBolle }) : t("{n} bolle", { n: g.nBolle })) : null,
               ].filter(Boolean).join(" · ");
               const codice = codiceDi(g.orderId);
               return (
-                <li key={`o-${g.orderId}`} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm">
-                  <span className="min-w-0">
-                    {g.inRitardo && <span className="mr-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-800">in ritardo</span>}
-                    <strong>{etichetta(g.orderId, g.codiceFallback)}</strong> · {g.totale} da approvare <span className="text-muted-foreground">({pezzi})</span>
+                <li key={`o-${g.orderId}`} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm max-sm:flex-nowrap max-sm:px-3.5">
+                  {/* Telefono: due righe (cantiere; cosa aspetta e da quando), non quattro. */}
+                  <span className="min-w-0 sm:hidden">
+                    <strong className="block truncate">{etichetta(g.orderId, g.codiceFallback)}</strong>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {g.inRitardo && <span className="font-semibold text-amber-800">{t("In ritardo")} · </span>}
+                      {pezzi || t("{n} da approvare", { n: g.totale })}{codice ? ` · ${codice}` : ""}
+                    </span>
+                  </span>
+                  <span className="min-w-0 max-sm:hidden">
+                    {g.inRitardo && <span className="mr-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-800">{t("in ritardo")}</span>}
+                    <strong>{etichetta(g.orderId, g.codiceFallback)}</strong> · {t("{n} da approvare", { n: g.totale })} <span className="text-muted-foreground">({pezzi})</span>
                     {codice ? <span className="text-muted-foreground"> · {codice}</span> : null}
                   </span>
-                  <button type="button" aria-label={`Apri e approva: ${etichetta(g.orderId, g.codiceFallback)}`} onClick={() => setCommessaPopup({ id: g.orderId, titolo: etichetta(g.orderId, g.codiceFallback) })} className="whitespace-nowrap font-medium text-primary underline underline-offset-4">Apri e approva</button>
+                  <button type="button" aria-label={t("Apri e approva: {cantiere}", { cantiere: etichetta(g.orderId, g.codiceFallback) })} onClick={() => setCommessaPopup({ id: g.orderId, titolo: etichetta(g.orderId, g.codiceFallback) })} className="whitespace-nowrap font-medium text-primary underline underline-offset-4 max-sm:shrink-0 max-sm:no-underline">
+                    <span className="max-sm:hidden">{t("Apri e approva")}</span><span className="sm:hidden">{t("Apri")}</span>
+                  </button>
                 </li>
               );
             })}
             {gruppi.correzioniSenza.map((c) => (
               <li key={`c-${c.id}`} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm">
-                <span><strong>Timbratura dimenticata</strong> · {c.persona || "Operaio"} · {c.tipo} del {format(parseISO(c.ora), "d MMM 'alle' HH:mm", { locale: it })} · {etichetta(c.order_id, c.codice)}{codiceDi(c.order_id) ? ` · ${codiceDi(c.order_id)}` : ""} · «{c.motivo}»</span>
+                <span><strong>{t("Timbratura dimenticata")}</strong> · {c.persona || t("Operaio")} · {t("{tipo} del {data}", { tipo: c.tipo === "entrata" ? t("entrata") : t("uscita"), data: format(parseISO(c.ora), "d MMM 'alle' HH:mm", { locale: it }) })} · {etichetta(c.order_id, c.codice)}{codiceDi(c.order_id) ? ` · ${codiceDi(c.order_id)}` : ""} · «{c.motivo}»</span>
                 <span className="flex gap-2">
-                  <Button size="sm" disabled={decidi.isPending} onClick={() => decidi.mutate({ id: c.id, approva: true })}>Approva</Button>
+                  <Button size="sm" disabled={decidi.isPending} onClick={() => decidi.mutate({ id: c.id, approva: true })}>{t("Approva")}</Button>
                   <Button size="sm" variant="outline" disabled={decidi.isPending} onClick={() => {
-                    const motivo = window.prompt("Perché la respingi? Lo legge l’operaio.");
+                    const motivo = window.prompt(t("Perché la respingi? Lo legge l’operaio."));
                     if (motivo?.trim()) decidi.mutate({ id: c.id, approva: false, risposta: motivo.trim() });
-                  }}>Respingi</Button>
+                  }}>{t("Respingi")}</Button>
                 </span>
               </li>
             ))}
             {gruppi.bolleSenza.map((b) => (
               <li key={`b-${b.id}`} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm">
-                <span><strong>Bolla dal cantiere</strong> · {b.fornitore ?? "Fornitore"}{b.numero ? ` n. ${b.numero}` : ""} · {b.persona || "Operaio"}</span>
-                <Link to="/azienda/magazzino" className="font-medium text-primary underline underline-offset-4">Verifica</Link>
+                <span><strong>{t("Bolla dal cantiere")}</strong> · {b.fornitore ?? t("Fornitore")}{b.numero ? ` ${t("n. {numero}", { numero: b.numero })}` : ""} · {b.persona || t("Operaio")}</span>
+                <Link to="/azienda/magazzino" className="font-medium text-primary underline underline-offset-4">{t("Verifica")}</Link>
               </li>
             ))}
           </ul>
         )}
+      {/* Da tablet in su i primi 5: con 15 aperti la lista delle attività finiva sotto la piega
+          (collaudo 23/11/2026, tablet 1024×768). Da telefono i primi 2. */}
       {approvare.isSuccess && righe > 2 && (
-        <div className="border-t px-3 py-2 sm:hidden">
+        <div className={cn("border-t px-3 py-2", righe <= 5 && "sm:hidden")}>
           <Button type="button" variant="ghost" className="w-full" aria-expanded={elencoEsteso} aria-controls={elencoId} onClick={() => setElencoEsteso(value => !value)}>
-            {elencoEsteso ? "Mostra meno" : `Mostra tutte le ${righe} voci`}
+            {elencoEsteso ? t("Mostra meno") : t("Mostra tutte le {n} voci", { n: righe })}
           </Button>
         </div>
       )}
       <Dialog open={!!commessaPopup} onOpenChange={(aperto) => { if (!aperto) chiudiPopup(); }}>
         <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-4xl">
           <DialogHeader>
-            <DialogTitle>Approva · {commessaPopup?.titolo}</DialogTitle>
+            <DialogTitle>{t("Approva · {cantiere}", { cantiere: commessaPopup?.titolo ?? "" })}</DialogTitle>
           </DialogHeader>
           {commessaPopup && (
-            <Suspense fallback={<p className="p-4 text-sm text-muted-foreground"><Loader2 className="mr-2 inline h-4 w-4 animate-spin" />Carico il cantiere…</p>}>
+            <Suspense fallback={<p className="p-4 text-sm text-muted-foreground"><Loader2 className="mr-2 inline h-4 w-4 animate-spin" />{t("Carico il cantiere…")}</p>}>
               <div className="space-y-4">
                 {/* Timbrature dimenticate e bolle/acquisti: si approvano qui. */}
                 <DaApprovareCommessa orderId={commessaPopup.id} onApriRapportini={() => document.getElementById("popup-rapportini")?.scrollIntoView({ behavior: "smooth", block: "start" })} />

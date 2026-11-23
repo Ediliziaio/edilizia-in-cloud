@@ -2,6 +2,7 @@ import { MapPin } from "lucide-react";
 import type { StockCampo } from "@/hooks/campo/useCampoPrelievo";
 import type { BozzaPrelievo } from "@/lib/campo/bozzaPrelievo";
 import { formatoQuantitaMagazzino, quantitaPrelievo } from "@/lib/campo/magazzino";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type PrelievoDaRitirare = { cantiere: string; nome: string; righe: BozzaPrelievo["righe"] };
 type Materiale = {
@@ -19,7 +20,7 @@ type Ubicazione = { id: string; magazzino: string; nome: string; daVerificare: b
 
 const ordina = new Intl.Collator("it-IT", { numeric: true, sensitivity: "base" });
 
-function raggruppaRitiro(prelievi: PrelievoDaRitirare[], inventario: ReadonlyMap<string, StockCampo>) {
+function raggruppaRitiro(prelievi: PrelievoDaRitirare[], inventario: ReadonlyMap<string, StockCampo>, t: (testo: string) => string) {
   const materiali = new Map<string, Materiale>();
   for (const prelievo of prelievi) {
     for (const { articolo, quantita } of prelievo.righe) {
@@ -34,7 +35,7 @@ function raggruppaRitiro(prelievi: PrelievoDaRitirare[], inventario: ReadonlyMap
       if (!materiale) {
         materiale = {
           id, nome: scheda?.name ?? articolo.name, codice: scheda?.internal_code || articolo.internal_code || null,
-          warehouseId: articolo.warehouse_id, magazzino: scheda?.magazzino || articolo.magazzino || "Magazzino non indicato",
+          warehouseId: articolo.warehouse_id, magazzino: scheda?.magazzino || articolo.magazzino || t("Magazzino non indicato"),
           ubicazioni: new Set(), unita, quantita: 0, cantieri: new Map(),
         };
         materiali.set(id, materiale);
@@ -53,7 +54,7 @@ function raggruppaRitiro(prelievi: PrelievoDaRitirare[], inventario: ReadonlyMap
     const { magazzino, warehouseId } = materiale;
     const daVerificare = materiale.ubicazioni.size !== 1;
     const nome = materiale.ubicazioni.size === 1 ? [...materiale.ubicazioni][0]
-      : materiale.ubicazioni.size ? "Verifica ubicazione" : "Senza ubicazione";
+      : materiale.ubicazioni.size ? t("Verifica ubicazione") : t("Senza ubicazione");
     const id = JSON.stringify([warehouseId, magazzino, nome, daVerificare]);
     const gruppo = ubicazioni.get(id) ?? { id, magazzino, nome, daVerificare, materiali: [] };
     gruppo.materiali.push(materiale);
@@ -68,11 +69,12 @@ export function CampoListaRitiro({ prelievi, inventario }: {
   prelievi: PrelievoDaRitirare[];
   inventario: ReadonlyMap<string, StockCampo>;
 }) {
+  const t = useT();
   const cantieri = new Map(prelievi.map((prelievo) => [prelievo.cantiere, prelievo.nome]));
-  const ubicazioni = raggruppaRitiro(prelievi, inventario);
+  const ubicazioni = raggruppaRitiro(prelievi, inventario, t);
 
   return (
-    <section className="space-y-2" aria-label="Lista ritiro">
+    <section className="space-y-2" aria-label={t("Lista ritiro")}>
       {cantieri.size === 1 && <p className="text-xs font-medium text-muted-foreground">{[...cantieri.values()][0]}</p>}
       {ubicazioni.map(({ id, magazzino, nome, materiali }) => (
         <section key={id} aria-label={`${magazzino} · ${nome}`} className="min-w-0 rounded-xl border">
@@ -92,11 +94,11 @@ export function CampoListaRitiro({ prelievi, inventario }: {
                     {articolo.codice && <p className="break-words text-xs text-muted-foreground">{articolo.codice}</p>}
                   </div>
                   <p className="max-w-[44%] text-right font-bold tabular-nums [overflow-wrap:anywhere]">
-                    <span className="sr-only">Totale </span>{formatoQuantitaMagazzino.format(articolo.quantita)} {articolo.unita}
+                    <span className="sr-only">{t("Totale")} </span>{formatoQuantitaMagazzino.format(articolo.quantita)} {articolo.unita}
                   </p>
                 </div>
                 {cantieri.size > 1 && (
-                  <ul aria-label={`Destinazioni di ${articolo.nome}`} className="mt-1 space-y-0.5 text-xs">
+                  <ul aria-label={t("Destinazioni di {nome}", { nome: articolo.nome })} className="mt-1 space-y-0.5 text-xs">
                     {[...articolo.cantieri].map(([cantiere, quota]) => (
                       <li key={cantiere} className="flex items-start justify-between gap-2">
                         <span className="min-w-0 break-words text-muted-foreground">{quota.nome}</span>

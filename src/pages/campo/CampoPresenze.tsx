@@ -17,6 +17,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { shiftWorkDay, workDayStart } from "@/lib/campo/workDay";
+import { aggiungiOreRapportini, type GiornoPresenza, type OreRapportino } from "@/lib/campo/presenzeDaRapportini";
+import { oreBrevi } from "@/lib/campo/numeriItaliani";
 
 const GIORNI_SETTIMANA = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 
@@ -122,9 +124,26 @@ export default function CampoPresenze() {
     enabled: !!user?.id,
   });
 
+  // Rapportini del mese: nei giorni senza timbrature le ore vengono da qui (vedi presenzeDaRapportini).
+  // Il client legge dalla vista campo_rapportini_visibili (protectedOrderRequests): solo i propri.
+  const { data: rapportini = [] } = useQuery({
+    queryKey: ["campo-presenze-rapportini", user?.id, format(monthStart, "yyyy-MM")],
+    queryFn: async (): Promise<OreRapportino[]> => {
+      const { data, error } = await supabase
+        .from("campo_rapportini")
+        .select("data_lavoro, ore_lavorate, ore_straordinario, stato, annullato_at")
+        .eq("user_id", user!.id)
+        .gte("data_lavoro", format(monthStart, "yyyy-MM-dd"))
+        .lte("data_lavoro", format(monthEnd, "yyyy-MM-dd"));
+      if (error) throw error;
+      return (data ?? []) as OreRapportino[];
+    },
+    enabled: !!user?.id,
+  });
+
   // Mappa giorno → stato
   const dayStatusMap = useMemo(() => {
-    const map: Record<string, { status: string; ore?: number; entrata?: string; uscita?: string }> = {};
+    const map: Record<string, GiornoPresenza> = {};
 
     // Raggruppa timbrature per giorno
     const perGiorno: Record<string, any[]> = {};
@@ -176,8 +195,8 @@ export default function CampoPresenze() {
       }
     }
 
-    return map;
-  }, [timbrature, richieste]);
+    return aggiungiOreRapportini(map, rapportini);
+  }, [timbrature, richieste, rapportini]);
 
   // Giorni del calendario
   const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
@@ -195,14 +214,14 @@ export default function CampoPresenze() {
     <div className="space-y-4 md:space-y-6 max-w-3xl mx-auto">
       <div>
         <h1 className="text-lg md:text-xl font-semibold tracking-tight">Le mie presenze</h1>
-        <p className="text-xs md:text-sm text-muted-foreground mt-0.5">Storico presenze e ore lavorate</p>
+        <p className="text-xs md:text-sm text-muted-foreground mt-0.5">I giorni e le ore che hai lavorato</p>
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3">
         {[
           { label: "Giorni presente", value: giorniPresente, color: "text-green-600" },
-          { label: "Ore totali", value: `${oreTotali.toLocaleString("it-IT", { maximumFractionDigits: 1 })} h`, color: "text-primary" },
+          { label: "Ore totali", value: oreBrevi(oreTotali), color: "text-primary" },
           { label: "Giorni ferie", value: giorniFerie, color: "text-blue-500" },
           { label: "Giorni malattia", value: giorniMalattia, color: "text-orange-500" },
         ].map(kpi => (
@@ -317,7 +336,8 @@ export default function CampoPresenze() {
                 )}
                 {selectedDayData.ore != null && (
                   <p className="text-sm text-muted-foreground">
-                    Ore lavorate: <span className="text-primary font-semibold">{selectedDayData.ore}h</span>
+                    Ore lavorate: <span className="text-primary font-semibold">{oreBrevi(selectedDayData.ore)}</span>
+                    {selectedDayData.daRapportino && <span> · dal rapportino (non hai timbrato)</span>}
                   </p>
                 )}
               </div>

@@ -20,7 +20,9 @@ describe("Rapportino nella lista del cantiere (operaio)", () => {
     const a = disegna();
     expect(screen.getByText("In attesa")).toBeInTheDocument();
     expect(screen.getByText("5 ott 2026")).toBeInTheDocument();
-    expect(screen.getByText("7.5h lavorate")).toBeInTheDocument();
+    expect(screen.getByText("7h 30 lavorate")).toBeInTheDocument();
+    // Mai «7.5h»: il numero col punto non è italiano. Il database lo manda anche come testo («3.50»).
+    expect(screen.queryByText(/7\.5h/)).not.toBeInTheDocument();
     expect(screen.getByText("4 foto")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Aggiungi la tua firma" }));
     expect(a.onFirma).toHaveBeenCalled();
@@ -157,3 +159,29 @@ describe("Chi l'ha compilato", () => {
   });
 });
 
+
+describe("Collaudo 23/11: ore e firma da telefono", () => {
+  it("le ore arrivano come testo «3.50» dal database: si leggono «3h 30»", () => {
+    disegna({ ore_lavorate: "3.50" as unknown as number });
+    expect(screen.getByText("3h 30 lavorate")).toBeInTheDocument();
+  });
+
+  it("la firma è un'azione secondaria (a contorno), non un secondo pulsante blu pieno", () => {
+    disegna();
+    const firma = screen.getByRole("button", { name: "Aggiungi la tua firma" });
+    expect(firma.className).not.toMatch(/\bbg-primary\b/);
+    expect(firma.className).toMatch(/min-h-11/);
+  });
+});
+
+describe("Chiedi una correzione dal rapportino già inviato (collaudo 23/11)", () => {
+  it("compare sul rapportino inviato e chiama l'azione; non su quello respinto (lì si corregge e basta)", () => {
+    const chiedi = vi.fn();
+    render(<RapportinoCardCampo r={{ ...riga }} pdfOccupato={false} onChiediCorrezione={chiedi} />);
+    fireEvent.click(screen.getByRole("button", { name: "Chiedi una correzione" }));
+    expect(chiedi).toHaveBeenCalled();
+    cleanup();
+    render(<RapportinoCardCampo r={{ ...riga, stato: "rifiutato" }} pdfOccupato={false} onChiediCorrezione={chiedi} onCorreggi={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "Chiedi una correzione" })).not.toBeInTheDocument();
+  });
+});

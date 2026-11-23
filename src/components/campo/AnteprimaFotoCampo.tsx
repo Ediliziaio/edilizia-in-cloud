@@ -3,12 +3,14 @@ import { ImageIcon, ZoomIn } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useFileRiservato } from "@/hooks/useFileRiservati";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function AnteprimaFotoCampo({ foto, etichetta, className }: {
   foto: Blob | string;
   etichetta: string;
   className?: string;
 }) {
+  const t = useT();
   const firmata = useFileRiservato(typeof foto === "string" ? foto : null);
   const [locale, setLocale] = useState<{ foto: Blob; url: string } | null>(null);
   const [errore, setErrore] = useState<string | null>(null);
@@ -33,7 +35,7 @@ export function AnteprimaFotoCampo({ foto, etichetta, className }: {
     <Dialog>
       <DialogTrigger asChild>
         <button type="button" disabled={!disponibile}
-          aria-label={disponibile ? `Ingrandisci ${etichetta}` : `${etichetta}, anteprima non disponibile`}
+          aria-label={disponibile ? t("Ingrandisci {etichetta}", { etichetta }) : t("{etichetta}, anteprima non disponibile", { etichetta })}
           className={cn("relative grid size-full min-h-12 place-items-center overflow-hidden rounded-xl border bg-muted text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary", className)}>
           <ImageIcon className="size-5" aria-hidden="true" />
           {disponibile && <>

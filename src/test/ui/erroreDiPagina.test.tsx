@@ -125,7 +125,9 @@ describe("l'errore di una pagina non blocca le altre", () => {
   it("i layout passano la pagina aperta", () => {
     for (const layout of ["CompanyLayout", "AdminLayout", "CustomerLayout", "CampoLayout", "TecnicoLayout"]) {
       const src = readFileSync(join(process.cwd(), `src/components/layouts/${layout}.tsx`), "utf8");
-      expect(src, layout).toContain(`<ErrorBoundary title="${TITOLO}" resetKey={location.pathname}>`);
+      // Nel campo il titolo passa dalla lingua dell'operaio (23/11/2026).
+      const titolo = layout === "CampoLayout" ? `{t("${TITOLO}")}` : `"${TITOLO}"`;
+      expect(src, layout).toContain(`<ErrorBoundary title=${titolo} resetKey={location.pathname}>`);
       expect(src, layout).not.toContain(`<ErrorBoundary title="${TITOLO}">`);
     }
   });

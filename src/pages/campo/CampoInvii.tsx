@@ -9,6 +9,7 @@ import { useRapportiniSospesi } from "@/hooks/campo/useRapportiniSospesi";
 import { useNetworkStatus } from "@/hooks/campo/useNetworkStatus";
 import { useIsCampo } from "@/hooks/useIsCampo";
 import { UniformSelect } from "@/components/ui/uniform-select";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import { listDraftKeys } from "@/hooks/campo/useFormDraft";
 import { bozzeCantieriPrelievo } from "@/lib/campo/bozzaPrelievo";
 import { idBozzaTecnica, nomeBozzaTecnica, type BozzaTecnica, type DatiBozzaTecnica } from "@/lib/campo/bozzaTecnica";
@@ -127,6 +128,7 @@ export default function CampoInvii() {
 }
 
 function Invii({ companyId, userId }: { companyId: string; userId: string }) {
+  const t = useT();
   const { isTecnico } = useIsCampo();
   const online = useNetworkStatus();
   const assegnazioni = useCampoAssignments(!isTecnico);
@@ -164,12 +166,12 @@ function Invii({ companyId, userId }: { companyId: string; userId: string }) {
     setErroreRecupero("");
     try {
       if (!await syncQueue.recuperaAvanzamento(item)) {
-        setErroreRecupero("C’è già una bozza di questo avanzamento o l’invio è cambiato. Controlla l’elenco.");
+        setErroreRecupero(t("C’è già una bozza di questo avanzamento o l’invio è cambiato. Controlla l’elenco."));
         return;
       }
       setParams({ bozza: idBozzaTecnica(item.payload) });
     } catch {
-      setErroreRecupero("Non riesco a riaprire la registrazione sul telefono. Riprova.");
+      setErroreRecupero(t("Non riesco a riaprire la registrazione sul telefono. Riprova."));
     } finally {
       setRecupero(false);
     }
@@ -184,41 +186,41 @@ function Invii({ companyId, userId }: { companyId: string; userId: string }) {
     if (voci.some(v => v.href === href && v.stato !== "inviato")) continue;
     voci.push({ id: r.id, tipo: "rapportino", stato: r.stato === "rifiutato" ? "daCorreggere" : "bozza", orderId: r.order_id,
       cantiere: [r.order?.order_code, r.order?.description].filter(Boolean).join(" · "),
-      dettaglio: r.stato === "rifiutato" ? r.motivo_rifiuto || "L’ufficio chiede una correzione" : giornoBreve(r.data_lavoro), href });
+      dettaglio: r.stato === "rifiutato" ? r.motivo_rifiuto || t("L’ufficio chiede una correzione") : giornoBreve(r.data_lavoro), href });
   }
-  const nomeCantiere = (r: Riga) => r.cantiere || (r.orderId ? cantieri.get(r.orderId) || "Cantiere"
-    : r.tipo === "merce" || r.tipo === "documento_ddt" ? "Magazzino" : "Senza cantiere");
+  const nomeCantiere = (r: Riga) => r.cantiere || (r.orderId ? cantieri.get(r.orderId) || t("Cantiere")
+    : r.tipo === "merce" || r.tipo === "documento_ddt" ? t("Magazzino") : t("Senza cantiere"));
   const idFiltro = (r: Riga) => r.orderId ?? nomeCantiere(r);
   const filtri = [...new Map(voci.map(r => [idFiltro(r), nomeCantiere(r)]))];
   const filtroAttivo = filtri.some(([id]) => id === filtro) ? filtro : "";
 
   return <div className="mx-auto max-w-2xl space-y-4 pb-4">
-    <h1 className="text-xl font-bold">Invii e bozze</h1>
+    <h1 className="text-xl font-bold">{t("Invii e bozze")}</h1>
     {bozza && <RiprendiBozzaTecnica key={bozza.operationId} bozza={bozza} chiudi={() => setParams({}, { replace: true })} />}
     {erroreRecupero && <p role="alert" className="rounded-xl border p-3 text-sm">{erroreRecupero}</p>}
-    {errore && <p role="alert" className="rounded-xl border p-3 text-sm">Non riesco a leggere gli invii sul telefono.{" "}
-      <button type="button" className="min-h-11 font-semibold text-primary underline" onClick={() => setTentativo(n => n + 1)}>Riprova</button></p>}
-    {!locali && !errore && <p role="status" className="text-sm text-muted-foreground">Carico gli invii…</p>}
-    {filtri.length > 1 && <UniformSelect aria-label="Filtra per cantiere" value={filtroAttivo}
+    {errore && <p role="alert" className="rounded-xl border p-3 text-sm">{t("Non riesco a leggere gli invii sul telefono.")}{" "}
+      <button type="button" className="min-h-11 font-semibold text-primary underline" onClick={() => setTentativo(n => n + 1)}>{t("Riprova")}</button></p>}
+    {!locali && !errore && <p role="status" className="text-sm text-muted-foreground">{t("Carico gli invii…")}</p>}
+    {filtri.length > 1 && <UniformSelect aria-label={t("Filtra per cantiere")} value={filtroAttivo}
       onChange={event => setFiltro(event.target.value)} className="min-h-11 w-full bg-card">
-      <option value="">Tutti i cantieri</option>
+      <option value="">{t("Tutti i cantieri")}</option>
       {filtri.map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
     </UniformSelect>}
     {locali && voci.length === 0 && <div className="flex items-center gap-2 rounded-xl border bg-card p-3 text-sm text-muted-foreground">
-      <CloudUpload className="size-5 shrink-0" aria-hidden="true" /> Nessuna bozza o invio da mostrare.
+      <CloudUpload className="size-5 shrink-0" aria-hidden="true" /> {t("Nessuna bozza o invio da mostrare.")}
     </div>}
     {GRUPPI.map(([stato, titolo]) => {
       const gruppo = voci.filter(v => v.stato === stato && (!filtroAttivo || idFiltro(v) === filtroAttivo));
       if (!gruppo.length) return null;
-      return <section aria-label={titolo} key={stato} className="space-y-1.5">
-        <h2 className="text-sm font-semibold">{titolo} <span className="font-normal text-muted-foreground">· {gruppo.length}</span></h2>
+      return <section aria-label={t(titolo)} key={stato} className="space-y-1.5">
+        <h2 className="text-sm font-semibold">{t(titolo)} <span className="font-normal text-muted-foreground">· {gruppo.length}</span></h2>
         <ul className="divide-y rounded-xl border bg-card">
           {gruppo.map(r => {
-            const nome = r.tipo === "documento_ddt" && r.nome ? `Bolla · ${r.nome}` : r.nome || NOME[r.tipo];
+            const nome = r.tipo === "documento_ddt" && r.nome ? t("Bolla · {nome}", { nome: r.nome }) : r.nome ? t(r.nome) : t(NOME[r.tipo]);
             const dettaglio = <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold">{nome}</p>
                 <p className="truncate text-xs text-muted-foreground">{nomeCantiere(r)}</p>
-                {r.dettaglio && <p className="line-clamp-2 text-xs text-muted-foreground">{r.dettaglio}</p>}
+                {r.dettaglio && <p className="line-clamp-2 text-xs text-muted-foreground">{t(r.dettaglio)}</p>}
               </div>;
             return <li key={r.id}>
               {r.href ? <Link to={r.href} className="flex min-h-14 items-center gap-2 px-3 py-2 text-sm hover:bg-muted">
@@ -227,7 +229,7 @@ function Invii({ companyId, userId }: { companyId: string; userId: string }) {
                 {dettaglio}
                 {r.daRileggere && <Button type="button" variant="outline" className="min-h-11"
                   disabled={!online || recupero} onClick={() => void rileggi(r.daRileggere!)}>
-                  {online ? "Rileggi" : "Rileggi online"}
+                  {online ? t("Rileggi") : t("Rileggi online")}
                 </Button>}
               </div>}
             </li>;

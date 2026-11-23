@@ -12,8 +12,10 @@ import { Button } from "@/components/ui/button";
 import { useFotoCantiere } from "@/hooks/useFotoCantiere";
 import { FotoGrid } from "@/components/foto-cantiere/FotoGrid";
 import { FotoUploader } from "@/components/foto-cantiere/FotoUploader";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function OrdineFotoCantiere({ orderId }: { orderId: string }) {
+  const t = useT();
   const { foto, isLoading, upload, isUploading, elimina, getSignedUrl } = useFotoCantiere(orderId);
   // Il modulo di caricamento serve di rado: stava sempre aperto sotto la galleria
   // e occupava più spazio delle foto stesse. Si apre dal pulsante.
@@ -24,7 +26,7 @@ export function OrdineFotoCantiere({ orderId }: { orderId: string }) {
       <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0 pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <Camera className="h-4 w-4" />
-          Foto cantiere
+          {t("Foto cantiere")}
           {foto.length > 0 && (
             <span className="text-sm font-normal text-muted-foreground">({foto.length})</span>
           )}
@@ -38,7 +40,7 @@ export function OrdineFotoCantiere({ orderId }: { orderId: string }) {
           onClick={() => setCaricaAperto((aperto) => !aperto)}
         >
           {caricaAperto ? <X className="mr-1.5 h-4 w-4" /> : <Plus className="mr-1.5 h-4 w-4" />}
-          {caricaAperto ? "Chiudi" : "Aggiungi foto"}
+          {caricaAperto ? t("Chiudi") : t("Aggiungi foto")}
         </Button>
       </CardHeader>
       <CardContent className="space-y-4">

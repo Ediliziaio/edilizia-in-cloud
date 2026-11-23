@@ -127,18 +127,19 @@ export default function CampoFerie() {
     <div className="space-y-4 md:space-y-6 max-w-3xl mx-auto">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-lg md:text-xl font-semibold tracking-tight">Ferie e Permessi</h1>
-          <p className="text-xs md:text-sm text-muted-foreground mt-0.5">Richiedi ferie e visualizza lo storico</p>
+          <h1 className="text-lg md:text-xl font-semibold tracking-tight">Ferie e permessi</h1>
+          <p className="text-xs md:text-sm text-muted-foreground mt-0.5">Chiedi ferie e permessi e vedi le risposte</p>
         </div>
-        <Button onClick={() => setShowForm(!showForm)} size="sm" className="shrink-0">
+        {/* Col modulo aperto il pulsante sparisce: un'azione piena sola in vista, «Invia richiesta» (collaudo 23/11). */}
+        {!showForm && <Button onClick={() => setShowForm(true)} size="sm" className="shrink-0">
           <Plus className="w-4 h-4 mr-1" />
           <span className="hidden sm:inline">Nuova richiesta</span>
           <span className="sm:hidden">Nuova</span>
-        </Button>
+        </Button>}
       </div>
 
-      {/* KPI */}
-      <div className="grid grid-cols-3 gap-3">
+      {/* KPI — solo se c'è qualcosa da contare: tre zeri occupavano una riga senza dire niente. */}
+      {inAttesa + approvate + rifiutate > 0 && <div className="grid grid-cols-3 gap-3">
         {[
           { label: "In attesa", value: inAttesa, color: "text-amber-500" },
           { label: "Approvate", value: approvate, color: "text-green-600" },
@@ -151,7 +152,7 @@ export default function CampoFerie() {
             </CardContent>
           </Card>
         ))}
-      </div>
+      </div>}
 
       {/* Form nuova richiesta */}
       {showForm && (

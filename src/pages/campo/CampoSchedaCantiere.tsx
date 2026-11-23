@@ -13,6 +13,7 @@ import { useIsCampo } from "@/hooks/useIsCampo";
 import { linkGestionale, percorsoCantiereTecnico, titoloCantiereTecnico, type SchedaCantiere } from "@/lib/campo/schedaCantiere";
 import { destinazioneAvanzamento } from "@/lib/campo/bozzaTecnica";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const tabs = [
   { id: "fasi", titolo: "Fasi" },
@@ -22,27 +23,28 @@ const tabs = [
 const classePagina = "mx-auto w-full max-w-3xl space-y-3 pb-4 text-foreground";
 
 function StatoScheda({ messaggio, riprova }: { messaggio: string; riprova?: () => void }) {
+  const t = useT();
   return <div role="alert" className="flex flex-wrap items-center gap-2 rounded-xl border bg-card p-3 text-sm">
     <p className="min-w-0 flex-1">{messaggio}</p>
-    {riprova && <Button type="button" variant="outline" className="min-h-11" onClick={riprova}>Riprova</Button>}
+    {riprova && <Button type="button" variant="outline" className="min-h-11" onClick={riprova}>{t("Riprova")}</Button>}
   </div>;
 }
 
 export function ElencoCantieriTecnici() {
   const query = useCantieriTecnici();
   const { isTecnico } = useIsCampo();
+  const t = useT();
   const cantieri = query.data ?? [];
   return <div className={classePagina}>
-    <h1 className="text-xl font-bold">Cantieri da seguire</h1>
-    {query.isError ? <StatoScheda messaggio="Non riesco a leggere i cantieri. Controlla la connessione."
+    <h1 className="text-xl font-bold">{t("Cantieri da seguire")}</h1>
+    {query.isError ? <StatoScheda messaggio={t("Non riesco a leggere i cantieri. Controlla la connessione.")}
       riprova={() => void query.refetch()} />
-      : query.isPending ? <Skeleton className="h-24 rounded-xl" role="status" aria-label="Carico i cantieri" />
+      : query.isPending ? <Skeleton className="h-24 rounded-xl" role="status" aria-label={t("Carico i cantieri")} />
       : !cantieri.length ? <div className="space-y-2 rounded-xl border bg-card p-3 text-sm">
-        <p className="text-muted-foreground">Non hai cantieri da seguire: compaiono qui quando ti mettono capocantiere di una
-          commessa, o quando ti abilitano alla scheda del cantiere.</p>
+        <p className="text-muted-foreground">{t("Non hai cantieri da seguire: compaiono qui quando ti mettono capocantiere di una commessa, o quando ti abilitano alla scheda del cantiere.")}</p>
         {/* Il tecnico non ha la barra in basso: senza questo resterebbe su una pagina senza uscita. */}
         {isTecnico && <a href={linkGestionale()} className="inline-flex min-h-11 items-center font-semibold text-primary underline">
-          Vai al gestionale
+          {t("Vai al gestionale")}
         </a>}
       </div>
       : <ul className="divide-y rounded-xl border bg-card">
@@ -78,6 +80,7 @@ function FasiOperative({ scheda, companyId, userId }: {
 export default function CampoSchedaCantiere() {
   const { orderId } = useParams<{ orderId: string }>();
   const [params, setParams] = useSearchParams();
+  const tr = useT();
   const richiesto = params.get("tab");
   const { query, cantiere, permessi, companyId, userId } = useSchedaCantiere(orderId, richiesto === "documenti" ? "documenti" : "piano");
   const visibili = permessi?.registra_rilievi ? [...tabs, { id: "rilievi", titolo: "Rilievi" }] : tabs;
@@ -91,28 +94,28 @@ export default function CampoSchedaCantiere() {
       {cantiere?.codice && cantiere.codice !== titoloCantiereTecnico(cantiere) &&
         <p className="text-xs font-semibold text-muted-foreground">{cantiere.codice}</p>}
       <div className="flex items-start justify-between gap-2">
-        <h1 className="min-w-0 break-words text-xl font-bold">{cantiere ? titoloCantiereTecnico(cantiere) : "Scheda cantiere"}</h1>
+        <h1 className="min-w-0 break-words text-xl font-bold">{cantiere ? titoloCantiereTecnico(cantiere) : tr("Scheda cantiere")}</h1>
         {avanzamento !== null && <span className="shrink-0 rounded-lg bg-primary/10 px-2 py-1 text-sm font-semibold tabular-nums text-primary"
-          aria-label={`Avanzamento cantiere ${avanzamento}%`}>{avanzamento}%</span>}
+          aria-label={tr("Avanzamento cantiere {n}%", { n: avanzamento })}>{avanzamento}%</span>}
       </div>
       {cantiere?.indirizzo && <p className="mt-1 flex items-start gap-1.5 text-sm text-muted-foreground">
         <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden="true" /><span className="break-words">{cantiere.indirizzo}</span>
       </p>}
     </header>
-    {negato ? <StatoScheda messaggio="La scheda è disponibile per il capocantiere e per chi ha l’accesso assegnato." /> :
+    {negato ? <StatoScheda messaggio={tr("La scheda è disponibile per il capocantiere e per chi ha l’accesso assegnato.")} /> :
       <Tabs key={`${orderId}:${companyId}:${userId}`} value={tab} onValueChange={id => {
         const prossimi = new URLSearchParams(params);
         prossimi.set("tab", id);
         setParams(prossimi, { replace: true });
       }}>
-        <TabsList aria-label="Scheda cantiere" className={cn("grid h-auto w-full gap-0.5 p-1",
+        <TabsList aria-label={tr("Scheda cantiere")} className={cn("grid h-auto w-full gap-0.5 p-1",
           visibili.length === 4 ? "grid-cols-[1fr_1.7fr_1.2fr_1fr]" : "grid-cols-[1fr_1.45fr_1fr]")}>
-          {visibili.map(t => <TabsTrigger key={t.id} value={t.id} className="min-h-11 px-0.5 text-[11px] min-[375px]:text-xs sm:text-sm">{t.titolo}</TabsTrigger>)}
+          {visibili.map(t => <TabsTrigger key={t.id} value={t.id} className="min-h-11 px-0.5 text-[11px] min-[375px]:text-xs sm:text-sm">{tr(t.titolo)}</TabsTrigger>)}
         </TabsList>
         {visibili.map(t => <TabsContent key={t.id} value={t.id} className="mt-3">
-          {query.isError ? <StatoScheda messaggio="Non riesco a caricare questa sezione."
+          {query.isError ? <StatoScheda messaggio={tr("Non riesco a caricare questa sezione.")}
             riprova={() => void query.refetch()} />
-            : !scheda ? <Skeleton className="h-28 rounded-xl" role="status" aria-label="Carico la scheda" />
+            : !scheda ? <Skeleton className="h-28 rounded-xl" role="status" aria-label={tr("Carico la scheda")} />
             : t.id === "documenti" ? <DocumentiSchedaCantiere documenti={scheda.documenti ?? []} />
             : t.id === "cronoprogramma" ? <CronoprogrammaSchedaCantiere cantiere={scheda.cantiere} fasi={scheda.fasi ?? []} />
             : t.id === "rilievi" && companyId && userId ? <RilieviSchedaCantiere companyId={companyId} userId={userId}

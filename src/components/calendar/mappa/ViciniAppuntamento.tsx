@@ -3,6 +3,7 @@ import type { Coordinate } from "../../../../shared/mappa-operativa/calcoli";
 import PianificaIntervento from "./PianificaIntervento";
 import PosizioneOperativa from "./PosizioneOperativa";
 import type { PropostaMappa, TipoCandidato } from "./servizio";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   company: string;
@@ -19,10 +20,11 @@ interface Props {
 }
 
 export default function ViciniAppuntamento({ company, giorno, inizio, fine, indirizzo, punto, escludi, lavori, onChiudi, puoProporre, onProposta }: Props) {
+  const t = useT();
   const [bozza, setBozza] = useState<Coordinate | null>(null);
   const [confermato, setConfermato] = useState(punto);
   return confermato
-    ? <PianificaIntervento company={company} ambito="vendite" giorno={giorno} nomeDestinazione={indirizzo || "Posizione confermata"}
+    ? <PianificaIntervento company={company} ambito="vendite" giorno={giorno} nomeDestinazione={indirizzo || t("Posizione confermata")}
         meta={confermato} escludi={escludi} vendite lavori={lavori} partenza={inizio} fineIntervento={fine} onChiudi={onChiudi} puoProporre={puoProporre} onProposta={onProposta} />
     : <PosizioneOperativa company={company} ambito="vendite" indirizzoIniziale={indirizzo} punto={bozza} onPunto={setBozza}
         onSalva={setConfermato} onChiudi={onChiudi} />;

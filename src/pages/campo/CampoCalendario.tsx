@@ -39,6 +39,11 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { distanzaCampo } from "@/lib/campo/numeriItaliani";
+import { giorniRitardoCantiere } from "@/lib/campo/ritardoCantiere";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
+
+type FnT = ReturnType<typeof useT>;
 
 // ── Types ──
 interface OrderSummary {
@@ -92,42 +97,39 @@ type AppointmentRow = Omit<Appuntamento, "type" | "formatted_address"> & {
 };
 
 // ── Helpers ──
-function dayLabel(day: Date): string {
-  if (isToday(day)) return "Oggi";
-  if (isTomorrow(day)) return "Domani";
-  if (isYesterday(day)) return "Ieri";
+function dayLabel(day: Date, t: FnT): string {
+  if (isToday(day)) return t("Oggi");
+  if (isTomorrow(day)) return t("Domani");
+  if (isYesterday(day)) return t("Ieri");
   return format(day, "EEEE d MMMM", { locale: it });
 }
 
-function statusBadge(status: string) {
+function statusBadge(status: string, t: FnT) {
   const map: Record<string, { label: string; cls: string }> = {
-    confermato:     { label: "Confermato",  cls: "bg-blue-100 text-blue-700" },
-    in_corso:       { label: "In corso",    cls: "bg-green-100 text-green-700" },
-    in_lavorazione: { label: "In corso",    cls: "bg-green-100 text-green-700" },
-    completato:     { label: "Completato",  cls: "bg-slate-100 text-slate-600" },
-    sospeso:        { label: "Sospeso",     cls: "bg-amber-100 text-amber-700" },
+    confermato:     { label: t("Confermato"),  cls: "bg-blue-100 text-blue-700" },
+    in_corso:       { label: t("In corso"),    cls: "bg-green-100 text-green-700" },
+    in_lavorazione: { label: t("In corso"),    cls: "bg-green-100 text-green-700" },
+    completato:     { label: t("Completato"),  cls: "bg-slate-100 text-slate-600" },
+    sospeso:        { label: t("Sospeso"),     cls: "bg-amber-100 text-amber-700" },
   };
   return map[status?.toLowerCase()] ?? { label: status ?? "—", cls: "bg-muted text-muted-foreground" };
 }
 
-function appointmentTypeLabel(type: string) {
+function appointmentTypeLabel(type: string, t: FnT) {
   const map: Record<string, { label: string; cls: string; emoji: string }> = {
-    sopralluogo:      { label: "Sopralluogo",       cls: "bg-violet-100 text-violet-700",  emoji: "🔍" },
-    sopralluogo_tecnico: { label: "Sopralluogo Tecnico", cls: "bg-violet-100 text-violet-700", emoji: "🔍" },
-    consegna:         { label: "Consegna",           cls: "bg-teal-100 text-teal-700",     emoji: "📦" },
-    riunione:         { label: "Riunione",           cls: "bg-indigo-100 text-indigo-700", emoji: "👥" },
-    misura:           { label: "Presa misure",       cls: "bg-cyan-100 text-cyan-700",     emoji: "📏" },
-    installazione:    { label: "Installazione",      cls: "bg-emerald-100 text-emerald-700", emoji: "🔧" },
-    manutenzione:     { label: "Manutenzione",       cls: "bg-amber-100 text-amber-700",   emoji: "🛠" },
-    generico:         { label: "Appuntamento",       cls: "bg-slate-100 text-slate-600",    emoji: "📅" },
+    sopralluogo:      { label: t("Sopralluogo"),       cls: "bg-violet-100 text-violet-700",  emoji: "🔍" },
+    sopralluogo_tecnico: { label: t("Sopralluogo Tecnico"), cls: "bg-violet-100 text-violet-700", emoji: "🔍" },
+    consegna:         { label: t("Consegna"),           cls: "bg-teal-100 text-teal-700",     emoji: "📦" },
+    riunione:         { label: t("Riunione"),           cls: "bg-indigo-100 text-indigo-700", emoji: "👥" },
+    misura:           { label: t("Presa misure"),       cls: "bg-cyan-100 text-cyan-700",     emoji: "📏" },
+    installazione:    { label: t("Installazione"),      cls: "bg-emerald-100 text-emerald-700", emoji: "🔧" },
+    manutenzione:     { label: t("Manutenzione"),       cls: "bg-amber-100 text-amber-700",   emoji: "🛠" },
+    generico:         { label: t("Appuntamento"),       cls: "bg-slate-100 text-slate-600",    emoji: "📅" },
   };
-  return map[type?.toLowerCase()] ?? { label: type ?? "Evento", cls: "bg-slate-100 text-slate-600", emoji: "📅" };
+  return map[type?.toLowerCase()] ?? { label: type ?? t("Evento"), cls: "bg-slate-100 text-slate-600", emoji: "📅" };
 }
 
-function formatKm(meters: number): string {
-  if (meters < 1000) return `${Math.round(meters)} m`;
-  return `${(meters / 1000).toFixed(1)} km`;
-}
+const formatKm = distanzaCampo;
 
 function formatDriveTime(meters: number): string {
   // Stima grezza in linea d'aria a 35 km/h: utile come ordine di grandezza,
@@ -139,9 +141,9 @@ function formatDriveTime(meters: number): string {
   return rest ? `~${hours}h ${rest}m` : `~${hours}h`;
 }
 
-function itemTitle(item: CalendarItem): string {
+function itemTitle(item: CalendarItem, t: FnT): string {
   if (item.type === "appuntamento") return item.title;
-  return item.order?.description || item.order?.order_code || "Cantiere";
+  return item.order?.description || item.order?.order_code || t("Cantiere");
 }
 
 function campoLavoroUrl(order: {
@@ -172,6 +174,7 @@ function isOverdueOrder(order: OrderSummary | null | undefined): boolean {
 
 
 export default function CampoCalendario() {
+  const t = useT();
   const navigate = useNavigate();
   const { user, profile } = useAuth();
   const sedeCoords = useCompanyBase();
@@ -325,38 +328,40 @@ export default function CampoCalendario() {
     <div className="mx-auto flex h-full max-w-7xl flex-col gap-3 md:gap-4">
       {cantieriError && (
         <div role="alert" className="rounded-xl border border-destructive/30 bg-background p-4 text-sm">
-          <p>I cantieri non sono aggiornati. Non usare questo elenco come conferma della giornata.</p>
-          <Button variant="outline" size="sm" className="mt-2" onClick={() => reloadCantieri()}>Riprova</Button>
+          <p>{t("I cantieri non sono aggiornati. Non usare questo elenco come conferma della giornata.")}</p>
+          <Button variant="outline" size="sm" className="mt-2" onClick={() => reloadCantieri()}>{t("Riprova")}</Button>
         </div>
       )}
-      <div className="rounded-2xl border bg-background p-4 shadow-sm md:p-5">
+      {/* Telefono (collaudo 23/11, «più semplice»): solo il titolo. I 4 contatori (Oggi, Settimana, Cantieri,
+          «Appunt.») ripetevano la barra dei giorni e l'agenda subito sotto. */}
+      <div className="rounded-2xl border bg-background p-4 shadow-sm max-md:border-0 max-md:bg-transparent max-md:p-0 max-md:shadow-none md:p-5">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="min-w-0">
-            <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+            <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary max-md:hidden">
               <HardHat className="h-3.5 w-3.5" />
-              Area campo
+              {t("Area campo")}
             </div>
-            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">I miei lavori</h1>
+            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">{t("I miei lavori")}</h1>
             {/* Su mobile lo spazio è dei dati, non del sottotitolo */}
             <p className="mt-1 hidden max-w-2xl text-sm text-muted-foreground md:block">
-              Calendario operativo con cantieri, sopralluoghi, indirizzi e avanzamento lavori in una vista unica.
+              {t("Calendario operativo con cantieri, sopralluoghi, indirizzi e avanzamento lavori in una vista unica.")}
             </p>
           </div>
 
-          <div className="grid grid-cols-4 gap-1.5 sm:gap-2 xl:min-w-[560px]">
-            <SummaryTile icon={CalendarDays} label="Oggi" value={todayItems.length} tone="blue" />
-            <SummaryTile icon={CalendarRange} label="Settimana" value={weekItemsCount} tone="indigo" />
-            <SummaryTile icon={Building2} label="Cantieri" value={allCantieri.length} tone="emerald" />
-            <SummaryTile icon={Clock} label="Appunt." value={allAppuntamenti.length} tone="amber" />
+          <div className="grid grid-cols-4 gap-1.5 max-md:hidden sm:gap-2 xl:min-w-[560px]">
+            <SummaryTile icon={CalendarDays} label={t("Oggi")} value={todayItems.length} tone="blue" />
+            <SummaryTile icon={CalendarRange} label={t("Settimana")} value={weekItemsCount} tone="indigo" />
+            <SummaryTile icon={Building2} label={t("Cantieri")} value={allCantieri.length} tone="emerald" />
+            <SummaryTile icon={Clock} label={t("Appunt.")} value={allAppuntamenti.length} tone="amber" />
           </div>
         </div>
       </div>
 
-      <div role="group" aria-label="Vista operativa" className="flex gap-1">
-        <Button size="sm" variant={mostraMappa ? "ghost" : "secondary"} aria-pressed={!mostraMappa} onClick={() => setMostraMappa(false)}><CalendarDays className="size-4" /> Calendario</Button>
-        <Button size="sm" variant={mostraMappa ? "secondary" : "ghost"} aria-pressed={mostraMappa} onClick={() => { preparaSfondoMappa(); setMostraMappa(true); }}><MapPinned className="size-4" /> Mappa</Button>
+      <div role="group" aria-label={t("Vista operativa")} className="flex gap-1">
+        <Button size="sm" variant={mostraMappa ? "ghost" : "secondary"} aria-pressed={!mostraMappa} onClick={() => setMostraMappa(false)}><CalendarDays className="size-4" /> {t("Calendario")}</Button>
+        <Button size="sm" variant={mostraMappa ? "secondary" : "ghost"} aria-pressed={mostraMappa} onClick={() => { preparaSfondoMappa(); setMostraMappa(true); }}><MapPinned className="size-4" /> {t("Mappa")}</Button>
       </div>
-      {mostraMappa ? <Suspense fallback={<p role="status" className="p-3 text-sm">Caricamento mappa…</p>}>
+      {mostraMappa ? <Suspense fallback={<p role="status" className="p-3 text-sm">{t("Caricamento mappa…")}</p>}>
         <MappaOperativa key={`${profile?.company_id}:${user?.id}:campo`} {...statoMappa} ambito="campo" personale
           giorno={format(selectedDay, "yyyy-MM-dd")} onGiorno={d => {
             const data = parseISO(d);
@@ -376,11 +381,11 @@ export default function CampoCalendario() {
             const fine = a != null && inizio != null && a < inizio ? a + 1440 : a;
             const attivita: Attivita[] = [];
             if (pianificato(precedente) && fine != null && fine > 1440) {
-              attivita.push({ id: o.id + ":continua", nome: "Lavori della commessa", inizio: 0, fine: fine - 1440, risorse: [] });
+              attivita.push({ id: o.id + ":continua", nome: t("Lavori della commessa"), inizio: 0, fine: fine - 1440, risorse: [] });
             }
-            if (pianificato(giorn)) attivita.push({ id: o.id, nome: "Lavori della commessa", inizio, fine, risorse: [] });
+            if (pianificato(giorn)) attivita.push({ id: o.id, nome: t("Lavori della commessa"), inizio, fine, risorse: [] });
             if (!attivita.length) return [];
-            return [{ tipo: "cantiere", id: o.id, titolo: itemTitle(item), inizio: attivita[0].inizio, fine: attivita.at(-1)!.fine,
+            return [{ tipo: "cantiere", id: o.id, titolo: itemTitle(item, t), inizio: attivita[0].inizio, fine: attivita.at(-1)!.fine,
               stato: o.status || "Pianificato", indirizzo: o.indirizzo_lavori?.trim() || o.work_address?.trim() || "",
               punto: coordinate(o.work_lat, o.work_lng), link: campoLavoroUrl(o), attivita,
             }];
@@ -391,7 +396,7 @@ export default function CampoCalendario() {
           <div className="rounded-2xl border bg-background p-3 shadow-sm md:p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Vista calendario</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground max-md:hidden">{t("Vista calendario")}</p>
                 <p className="text-sm font-semibold capitalize">
                   {viewMode === "week" ? format(weekStart, "MMMM yyyy", { locale: it }) : format(currentMonth, "MMMM yyyy", { locale: it })}
                 </p>
@@ -405,7 +410,7 @@ export default function CampoCalendario() {
                   )}
                 >
                   <CalendarRange className="h-3.5 w-3.5" />
-                  Settimana
+                  {t("Settimana")}
                 </button>
                 <button
                   onClick={() => setViewMode("month")}
@@ -415,7 +420,7 @@ export default function CampoCalendario() {
                   )}
                 >
                   <CalendarDays className="h-3.5 w-3.5" />
-                  Mese
+                  {t("Mese")}
                 </button>
               </div>
             </div>
@@ -428,7 +433,7 @@ export default function CampoCalendario() {
                     <ChevronLeft className="h-5 w-5" />
                   </button>
                   <div className="text-center">
-                    <p className="text-sm font-bold">Settimana</p>
+                    <p className="text-sm font-bold">{t("Settimana")}</p>
                     <p className="text-xs text-muted-foreground">
                       {format(weekStart, "d MMM", { locale: it })} - {format(addDays(weekStart, 6), "d MMM", { locale: it })}
                     </p>
@@ -483,7 +488,7 @@ export default function CampoCalendario() {
                 </div>
                 <div className="grid grid-cols-7 gap-1 mb-1">
                   {["Lu", "Ma", "Me", "Gi", "Ve", "Sa", "Do"].map(d => (
-                    <div key={d} className="py-1 text-center text-[10px] font-bold text-muted-foreground">{d}</div>
+                    <div key={d} className="py-1 text-center text-[10px] font-bold text-muted-foreground">{t(d)}</div>
                   ))}
                 </div>
                 <div className="grid grid-cols-7 gap-1">
@@ -515,36 +520,37 @@ export default function CampoCalendario() {
             )}
           </div>
 
-          <div className="rounded-2xl border bg-background p-3 shadow-sm md:p-4">
+          {/* Se il prossimo impegno è oggi e si guarda oggi, è già il primo dell'agenda qui sotto: niente doppione. */}
+          {!(nextCommitment && isToday(nextCommitment.day) && isToday(selectedDay)) && <div className="rounded-2xl border bg-background p-3 shadow-sm md:p-4">
             <div className="flex items-start gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
                 <MapPinned className="h-5 w-5" />
               </div>
               <div className="min-w-0">
-                <p className="font-semibold">Prossimo impegno</p>
+                <p className="font-semibold">{t("Prossimo impegno")}</p>
                 {nextCommitment ? (
                   <>
-                    <p className="mt-1 text-sm text-foreground line-clamp-2">{itemTitle(nextCommitment.item)}</p>
-                    <p className="mt-1 text-xs capitalize text-muted-foreground">{dayLabel(nextCommitment.day)}</p>
+                    <p className="mt-1 text-sm text-foreground line-clamp-2">{itemTitle(nextCommitment.item, t)}</p>
+                    <p className="mt-1 text-xs capitalize text-muted-foreground">{dayLabel(nextCommitment.day, t)}</p>
                   </>
                 ) : (
-                  <p className="mt-1 text-sm text-muted-foreground">Nessun lavoro programmato nei prossimi giorni.</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{t("Nessun lavoro programmato nei prossimi giorni.")}</p>
                 )}
               </div>
             </div>
-          </div>
+          </div>}
         </aside>
 
         <section className="min-w-0 rounded-2xl border bg-background shadow-sm">
           <div className="border-b p-4 md:p-5">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Agenda giorno</p>
-                <h2 className="text-xl font-bold capitalize md:text-2xl">{dayLabel(selectedDay)}</h2>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground max-md:hidden">{t("Agenda giorno")}</p>
+                <h2 className="text-xl font-bold capitalize md:text-2xl">{dayLabel(selectedDay, t)}</h2>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <AgendaPill icon={ClipboardList} label={`${selectedAppointments} ${selectedAppointments === 1 ? "appuntamento" : "appuntamenti"}`} />
-                <AgendaPill icon={HardHat} label={`${selectedSites} ${selectedSites === 1 ? "cantiere" : "cantieri"}`} />
+                {selectedAppointments > 0 && <AgendaPill icon={ClipboardList} label={selectedAppointments === 1 ? t("1 appuntamento") : t("{n} appuntamenti", { n: selectedAppointments })} />}
+                {selectedSites > 0 && <AgendaPill icon={HardHat} label={selectedSites === 1 ? t("1 cantiere") : t("{n} cantieri", { n: selectedSites })} />}
                 {!isToday(selectedDay) && (
                   <button onClick={() => {
                     setSelectedDay(new Date());
@@ -552,7 +558,7 @@ export default function CampoCalendario() {
                     setCurrentMonth(new Date());
                   }}
                     className="h-9 rounded-lg bg-primary/10 px-3 text-xs font-semibold text-primary transition-all active:bg-primary/20">
-                    Torna a oggi
+                    {t("Torna a oggi")}
                   </button>
                 )}
               </div>
@@ -573,9 +579,9 @@ export default function CampoCalendario() {
               <CalendarOff className="h-8 w-8 text-muted-foreground/60" />
             </div>
             <div>
-              <p className="font-semibold text-foreground">{campoCrewAgendaEnabled ? "Nessun altro cantiere o appuntamento" : "Nessun impegno programmato"}</p>
+              <p className="font-semibold text-foreground">{campoCrewAgendaEnabled ? t("Nessun altro cantiere o appuntamento") : t("Nessun impegno programmato")}</p>
               <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                {campoCrewAgendaEnabled ? "I turni di squadra sono elencati nell'agenda qui sopra." : isToday(selectedDay) ? "Oggi non risultano cantieri o appuntamenti assegnati." : `Niente programmato per ${format(selectedDay, "EEEE d MMMM", { locale: it })}.`}
+                {campoCrewAgendaEnabled ? t("I turni di squadra sono elencati nell'agenda qui sopra.") : isToday(selectedDay) ? t("Oggi non risultano cantieri o appuntamenti assegnati.") : t("Niente programmato per {data}.", { data: format(selectedDay, "EEEE d MMMM", { locale: it }) })}
               </p>
             </div>
           </div>
@@ -595,7 +601,7 @@ export default function CampoCalendario() {
                     <div className="flex items-center gap-2 py-2 pl-2">
                       <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
                       <span className="text-[11px] text-muted-foreground">
-                        Dalla sede: <span className="font-semibold text-foreground">{formatKm(dist.fromSede)}</span>
+                        {t("Dalla sede:")} <span className="font-semibold text-foreground">{formatKm(dist.fromSede)}</span>
                       </span>
                     </div>
                   )}
@@ -629,7 +635,7 @@ export default function CampoCalendario() {
         <SheetContent side="bottom" className="rounded-t-3xl max-h-[80vh] overflow-y-auto pb-10">
           {selectedAppuntamento && (() => {
             const a = selectedAppuntamento;
-            const typeInfo = appointmentTypeLabel(a.appointment_type);
+            const typeInfo = appointmentTypeLabel(a.appointment_type, t);
             const timeStr = a.appointment_time
               ? a.appointment_time.slice(0, 5) + (a.appointment_end_time ? ` - ${a.appointment_end_time.slice(0, 5)}` : "")
               : null;
@@ -662,7 +668,7 @@ export default function CampoCalendario() {
                       <CalendarDays className="w-4.5 h-4.5 text-primary" />
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground">Data</p>
+                      <p className="text-xs text-muted-foreground">{t("Data")}</p>
                       <p className="text-sm font-semibold capitalize">{dateStr}</p>
                     </div>
                   </div>
@@ -673,7 +679,7 @@ export default function CampoCalendario() {
                         <Clock className="w-4.5 h-4.5 text-primary" />
                       </div>
                       <div>
-                        <p className="text-xs text-muted-foreground">Orario</p>
+                        <p className="text-xs text-muted-foreground">{t("Orario")}</p>
                         <p className="text-sm font-semibold">{timeStr}</p>
                       </div>
                     </div>
@@ -685,7 +691,7 @@ export default function CampoCalendario() {
                         <MapPin className="w-4.5 h-4.5 text-primary" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs text-muted-foreground">Indirizzo</p>
+                        <p className="text-xs text-muted-foreground">{t("Indirizzo")}</p>
                         <p className="text-sm font-semibold">{a.formatted_address}</p>
                       </div>
                     </div>
@@ -696,8 +702,8 @@ export default function CampoCalendario() {
                       <Eye className="w-4.5 h-4.5 text-primary" />
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground">Stato</p>
-                      <p className="text-sm font-semibold capitalize">{a.status || "Programmato"}</p>
+                      <p className="text-xs text-muted-foreground">{t("Stato")}</p>
+                      <p className="text-sm font-semibold capitalize">{a.status || t("Programmato")}</p>
                     </div>
                   </div>
                 </div>
@@ -718,7 +724,7 @@ export default function CampoCalendario() {
                       className="w-full h-12 text-base font-semibold rounded-2xl"
                     >
                       <HardHat className="w-5 h-5 mr-2" />
-                      Vai al cantiere
+                      {t("Vai al cantiere")}
                     </Button>
                   )}
                   {a.formatted_address && (
@@ -731,7 +737,7 @@ export default function CampoCalendario() {
                       className="w-full h-12 text-base font-semibold rounded-2xl"
                     >
                       <Navigation className="w-5 h-5 mr-2" />
-                      Apri in Maps
+                      {t("Apri in Maps")}
                     </Button>
                   )}
                 </div>
@@ -809,7 +815,8 @@ function AppuntamentoCard({
   distanceFromSede?: number;
   onShowDetail?: (a: Appuntamento) => void;
 }) {
-  const typeInfo = appointmentTypeLabel(item.appointment_type);
+  const t = useT();
+  const typeInfo = appointmentTypeLabel(item.appointment_type, t);
   const timeStr = item.appointment_time
     ? item.appointment_time.slice(0, 5) + (item.appointment_end_time ? ` - ${item.appointment_end_time.slice(0, 5)}` : "")
     : null;
@@ -864,18 +871,18 @@ function AppuntamentoCard({
         <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
           {item.formatted_address && (
             <div className="rounded-xl bg-muted/60 px-3 py-2">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Dove andare</p>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{t("Dove andare")}</p>
               <p className="mt-0.5 truncate text-xs font-semibold text-foreground">{item.formatted_address}</p>
             </div>
           )}
           {distanceFromSede != null && (
             <>
               <div className="rounded-xl bg-blue-50 px-3 py-2 text-blue-700">
-                <p className="text-[10px] font-bold uppercase tracking-wide opacity-75">Distanza</p>
+                <p className="text-[10px] font-bold uppercase tracking-wide opacity-75">{t("Distanza")}</p>
                 <p className="mt-0.5 text-xs font-black">{formatKm(distanceFromSede)}</p>
               </div>
               <div className="rounded-xl bg-emerald-50 px-3 py-2 text-emerald-700">
-                <p className="text-[10px] font-bold uppercase tracking-wide opacity-75">Tempo stimato</p>
+                <p className="text-[10px] font-bold uppercase tracking-wide opacity-75">{t("Tempo stimato")}</p>
                 <p className="mt-0.5 text-xs font-black">{formatDriveTime(distanceFromSede)}</p>
               </div>
             </>
@@ -898,19 +905,26 @@ function CantiereCard({
   navigate: NavigateFunction;
   distanceFromSede?: number;
 }) {
+  const t = useT();
   const order = item.order;
   if (!order) return null;
 
-  const badge = statusBadge(order.status);
+  const badge = statusBadge(order.status, t);
   const perc = order.percentuale_avanzamento ?? 0;
   const hasDateRange = order.work_start_date && order.work_end_date;
   let dayInfo = "";
+  let inRitardo = false;
   if (hasDateRange) {
     const start = parseISO(order.work_start_date!);
     const end = parseISO(order.work_end_date!);
     const total = differenceInCalendarDays(end, start) + 1;
     const current = differenceInCalendarDays(selectedDay, start) + 1;
-    dayInfo = `Giorno ${current} di ${total}`;
+    // Oltre la fine prevista scriveva «Giorno 175 di 76» (collaudo 23/11): lì conta il ritardo, non il giorno.
+    const ritardo = giorniRitardoCantiere(order.work_end_date, format(selectedDay, "yyyy-MM-dd"), order.status);
+    inRitardo = ritardo != null;
+    dayInfo = ritardo != null ? (ritardo === 1 ? t("In ritardo di 1 giorno") : t("In ritardo di {n} giorni", { n: ritardo }))
+      : current < 1 ? (1 - current === 1 ? t("Inizia tra 1 giorno") : t("Inizia tra {n} giorni", { n: 1 - current }))
+      : t("Giorno {n} di {totale}", { n: current, totale: total });
   }
 
   return (
@@ -939,7 +953,7 @@ function CantiereCard({
           </div>
         )}
         {dayInfo && (
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <div className={cn("flex items-center gap-1.5 text-xs", inRitardo ? "font-semibold text-red-700 dark:text-red-400" : "text-muted-foreground")}>
             <Clock className="w-3.5 h-3.5 text-primary/60 shrink-0" />
             <span>{dayInfo}</span>
           </div>
@@ -957,18 +971,18 @@ function CantiereCard({
         <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
           {order.indirizzo_lavori && (
             <div className="rounded-xl bg-muted/60 px-3 py-2">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Dove andare</p>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{t("Dove andare")}</p>
               <p className="mt-0.5 truncate text-xs font-semibold text-foreground">{order.indirizzo_lavori}</p>
             </div>
           )}
           {distanceFromSede != null && (
             <>
               <div className="rounded-xl bg-blue-50 px-3 py-2 text-blue-700">
-                <p className="text-[10px] font-bold uppercase tracking-wide opacity-75">Distanza</p>
+                <p className="text-[10px] font-bold uppercase tracking-wide opacity-75">{t("Distanza")}</p>
                 <p className="mt-0.5 text-xs font-black">{formatKm(distanceFromSede)}</p>
               </div>
               <div className="rounded-xl bg-emerald-50 px-3 py-2 text-emerald-700">
-                <p className="text-[10px] font-bold uppercase tracking-wide opacity-75">Tempo stimato</p>
+                <p className="text-[10px] font-bold uppercase tracking-wide opacity-75">{t("Tempo stimato")}</p>
                 <p className="mt-0.5 text-xs font-black">{formatDriveTime(distanceFromSede)}</p>
               </div>
             </>

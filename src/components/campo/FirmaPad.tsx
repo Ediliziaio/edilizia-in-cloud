@@ -5,6 +5,7 @@
  */
 import { useRef, useState } from "react";
 import { Eraser } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface FirmaPadProps {
   label: string;
@@ -12,6 +13,7 @@ interface FirmaPadProps {
 }
 
 export function FirmaPad({ label, onChange }: FirmaPadProps) {
+  const t = useT();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawingRef = useRef(false);
   const hasDrawnRef = useRef(false);
@@ -89,10 +91,10 @@ export function FirmaPad({ label, onChange }: FirmaPadProps) {
           onClick={clearCanvas}
           disabled={!hasDrawn}
           className="flex items-center gap-1 rounded-lg bg-muted px-2.5 py-1.5 text-xs font-medium text-foreground disabled:opacity-40"
-          aria-label={`Cancella ${label.toLowerCase()}`}
+          aria-label={t("Cancella {cosa}", { cosa: label.toLowerCase() })}
         >
           <Eraser className="h-3 w-3" />
-          Cancella
+          {t("Cancella")}
         </button>
       </div>
       <div className="overflow-hidden rounded-xl border border-dashed border-border bg-white">
@@ -110,11 +112,11 @@ export function FirmaPad({ label, onChange }: FirmaPadProps) {
           onTouchMove={draw}
           onTouchEnd={endDraw}
           onTouchCancel={endDraw}
-          aria-label={`Area ${label.toLowerCase()}`}
+          aria-label={t("Area {cosa}", { cosa: label.toLowerCase() })}
         />
       </div>
       {!hasDrawn && (
-        <p className="mt-1.5 text-xs text-muted-foreground">Firma qui sopra con il dito</p>
+        <p className="mt-1.5 text-xs text-muted-foreground">{t("Firma qui sopra con il dito")}</p>
       )}
     </div>
   );

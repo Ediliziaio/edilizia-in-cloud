@@ -18,6 +18,7 @@ import {
   FileText,
   CreditCard,
   Ticket,
+  ShieldAlert,
   Settings,
   Clock,
   CalendarDays,
@@ -64,6 +65,7 @@ import { CompanyContextSwitcher } from "@/components/layouts/CompanyContextSwitc
 import { AreaSwitcher } from "@/components/layouts/AreaSwitcher";
 import { QuickLoginReturnBanner } from "@/components/admin/QuickLoginReturnBanner";
 import { percorsoCantiereTecnico } from "@/lib/campo/schedaCantiere";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type CampoNavItem = {
   title: string;
@@ -84,6 +86,7 @@ export default function CampoLayout() {
       console.warn("[campo] service worker non registrato:", e instanceof Error ? e.message : e);
     });
   }, []);
+  const t = useT();
   const { profile, signOut, company, effectiveCompany } = useAuth();
   const { isOperaio, isTecnico } = useIsCampo();
   const surveyAccess = useFieldSurveyAccess();
@@ -111,7 +114,7 @@ export default function CampoLayout() {
 
   const initials = (profile?.first_name?.[0] ?? "") + (profile?.last_name?.[0] ?? "");
   const previewSession = usePreviewToken();
-  const roleLabel = isTecnico ? "Tecnico" : isOperaio ? "Operaio" : "Subappaltatore";
+  const roleLabel = isTecnico ? t("Tecnico") : isOperaio ? t("Operaio") : t("Subappaltatore");
   const home = isTecnico ? percorsoCantiereTecnico() : "/campo";
 
   // Nav items per operaio
@@ -137,6 +140,8 @@ export default function CampoLayout() {
     // pagina documenti del subappaltatore (visura/DURC/SOA, con upload).
     { title: "Documenti", url: "/campo/documenti", icon: FileText },
     { title: "Segnala", url: "/campo/ticket/nuovo", icon: Ticket },
+    // Infortuni, quasi-incidenti e pericoli: registro sicurezza, non ticket (23/11/2026).
+    { title: "Sicurezza: segnala", url: "/campo/sicurezza/segnala", icon: ShieldAlert },
     { title: "Impostazioni", url: "/campo/impostazioni", icon: Settings },
   ];
 
@@ -150,6 +155,8 @@ export default function CampoLayout() {
     { title: "Avanzamento", url: "/campo/avanzamento", icon: ListChecks },
     { title: "Documenti", url: "/campo/documenti", icon: FileText },
     { title: "Segnala", url: "/campo/ticket/nuovo", icon: Ticket },
+    // Infortuni, quasi-incidenti e pericoli: registro sicurezza, non ticket (23/11/2026).
+    { title: "Sicurezza: segnala", url: "/campo/sicurezza/segnala", icon: ShieldAlert },
     { title: "Impostazioni", url: "/campo/impostazioni", icon: Settings },
   ];
 
@@ -169,7 +176,7 @@ export default function CampoLayout() {
           <div className="space-y-2 border-b px-3 py-3">
             <Link
               to={home}
-              aria-label="Vai alla home Edilizia in Cloud"
+              aria-label={t("Vai alla home Edilizia in Cloud")}
               className="flex min-w-0 items-center overflow-hidden rounded-lg transition-colors hover:bg-accent/60 group-data-[collapsible=icon]:justify-center"
             >
               <img
@@ -187,7 +194,7 @@ export default function CampoLayout() {
               </div>
               <div className="overflow-hidden group-data-[collapsible=icon]:hidden">
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider leading-none">
-                  Area {roleLabel}
+                  {isOperaio ? t("Area Operaio") : t("Area Subappaltatore")}
                 </p>
                 <p className="text-sm font-semibold truncate leading-tight">
                   {profile?.first_name} {profile?.last_name}
@@ -204,7 +211,7 @@ export default function CampoLayout() {
           <SidebarContent>
             <SidebarGroup>
               <SidebarGroupLabel>
-                Area {roleLabel}
+                {isTecnico ? t("Area Tecnico") : isOperaio ? t("Area Operaio") : t("Area Subappaltatore")}
               </SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
@@ -218,7 +225,7 @@ export default function CampoLayout() {
                           activeClassName="bg-accent text-accent-foreground font-medium"
                         >
                           <item.icon className="h-4 w-4 shrink-0" />
-                          <span className="truncate">{item.title}</span>
+                          <span className="truncate">{t(item.title)}</span>
                           {!!item.badge && item.badge > 0 && (
                             <Badge variant="destructive" className="ml-auto h-5 min-w-5 text-[10px] px-1">
                               {item.badge > 9 ? "9+" : item.badge}
@@ -250,7 +257,7 @@ export default function CampoLayout() {
               <button
                 onClick={() => signOut()}
                 className="p-1.5 rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors group-data-[collapsible=icon]:hidden"
-                title="Esci"
+                title={t("Esci")}
               >
                 <LogOut className="h-4 w-4" />
               </button>
@@ -274,13 +281,13 @@ export default function CampoLayout() {
             <div className="bg-amber-50 border-b border-amber-300 px-4 py-2 flex items-center gap-2">
               <Eye className="h-4 w-4 text-amber-600 shrink-0" />
               <span className="text-sm text-amber-800 font-medium">
-                Modalit&agrave; SuperAdmin — Visualizzazione come: {roleLabel} (sola lettura)
+                {t("Modalità SuperAdmin — Visualizzazione come: {ruolo} (sola lettura)", { ruolo: roleLabel })}
               </span>
             </div>
           )}
           {previewSession.error && (
             <div className="bg-destructive/10 border-b border-destructive/30 px-4 py-2 text-sm text-destructive text-center">
-              Token preview non valido: {previewSession.error}
+              {t("Token preview non valido: {errore}", { errore: previewSession.error })}
             </div>
           )}
 
@@ -294,12 +301,12 @@ export default function CampoLayout() {
                 size="icon"
                 className="-ml-1 h-10 w-10 shrink-0"
                 onClick={() => { const dove = destinazioneIndietro(location.key); if (dove === -1) navigate(-1); else navigate(dove, { replace: true }); }}
-                aria-label="Torna indietro"
+                aria-label={t("Torna indietro")}
               >
                 <ArrowLeft className="h-5 w-5" />
               </Button>
             )}
-            <Link to={home} aria-label="Home Edilizia in Cloud" className="shrink-0">
+            <Link to={home} aria-label={t("Home Edilizia in Cloud")} className="shrink-0">
               <img
                 src={ediliziaLogo}
                 alt="Edilizia in Cloud"
@@ -308,10 +315,10 @@ export default function CampoLayout() {
             </Link>
             <div className="min-w-0 flex-1 border-l border-border/60 pl-2">
               {activeCompany?.name && (
-                <p className="truncate text-xs font-semibold leading-tight">{activeCompany.name}</p>
+                <p dir="auto" className="truncate text-xs font-semibold leading-tight">{activeCompany.name}</p>
               )}
               <p className="text-[10px] uppercase leading-none tracking-wider text-muted-foreground">
-                Area {roleLabel}
+                {isOperaio ? t("Area Operaio") : t("Area Subappaltatore")}
               </p>
             </div>
             <CampanellaCampo tecnico={isTecnico} />
@@ -323,7 +330,7 @@ export default function CampoLayout() {
               size="icon"
               className="h-11 w-11 shrink-0"
               onClick={isTecnico ? () => void signOut() : () => navigate("/campo/impostazioni")}
-              aria-label={isTecnico ? "Esci" : "Impostazioni"}
+              aria-label={isTecnico ? t("Esci") : t("Impostazioni")}
             >
               {isTecnico ? <LogOut className="size-4" /> : <Settings className="size-4" />}
             </Button>
@@ -333,11 +340,11 @@ export default function CampoLayout() {
           <header className="hidden md:flex h-14 border-b bg-secondary items-center gap-3 px-4 sticky top-0 z-40">
             <div className="flex items-center gap-2 text-sm text-secondary-foreground/80">
               <HardHat className="h-4 w-4" />
-              <span>Area {roleLabel}</span>
+              <span>{isOperaio ? t("Area Operaio") : t("Area Subappaltatore")}</span>
               {activeCompany?.name && (
                 <>
                   <span className="text-secondary-foreground/40">&middot;</span>
-                  <span className="font-medium text-secondary-foreground">{activeCompany.name}</span>
+                  <span dir="auto" className="font-medium text-secondary-foreground">{activeCompany.name}</span>
                 </>
               )}
             </div>
@@ -347,12 +354,14 @@ export default function CampoLayout() {
           {/* Avvisi in tempo reale (toast): i link dell'ufficio diventano quelli del campo. */}
           <NotificationsRealtime trasformaLink={isTecnico ? linkPerTecnico : linkPerCampo} />
 
-          {/* Page Content */}
-          <main className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden md:overflow-visible px-3 py-3 sm:px-4 md:p-6 ${inFlussoCompilazione || isTecnico ? "pb-4" : "pb-28"} md:pb-6`}>
+          {/* Page Content — id «main-content» come nell'area azienda: da qui valgono la scala dei
+              testi del telefono (index.css) e il ripristino dello scorrimento all'indietro
+              (ScrollToTop). L'area campo non sta mai dentro CompanyLayout: l'id resta unico. */}
+          <main id="main-content" aria-label={t("Contenuto principale")} className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden md:overflow-visible px-3 py-3 sm:px-4 md:p-6 ${inFlussoCompilazione || isTecnico ? "pb-4" : "pb-28"} md:pb-6`}>
             {isTecnico && location.pathname === home && <CompanyContextSwitcher showSecurityNote={false}
               className="mx-auto mb-3 max-w-3xl md:hidden" />}
             <PreviewSessionContext.Provider value={previewSession}>
-              <ErrorBoundary title="Errore nel caricamento della pagina" resetKey={location.pathname}>
+              <ErrorBoundary title={t("Errore nel caricamento della pagina")} resetKey={location.pathname}>
                 <Outlet />
               </ErrorBoundary>
             </PreviewSessionContext.Provider>

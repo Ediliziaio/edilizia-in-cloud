@@ -15,10 +15,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useModelliCapo, type ModelloCapo } from "@/components/campo/BottoneCollaudo";
 import { CampiModulo } from "@/components/campo/CampiModulo";
 import { FirmaVerbaleDialog, type FirmaVerbale } from "@/components/orders/FirmaVerbaleDialog";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import {
   acceptanceDaModello, outcomes, results, validateAcceptance, type AcceptanceContent, type CheckResult,
 } from "../../../supabase/functions/collaudo-commessa/model";
@@ -44,9 +46,11 @@ async function chiama<T>(body: Record<string, unknown>): Promise<T> {
 export default function CampoVerbale() {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
+  const t = useT();
   const qc = useQueryClient();
   const { profile } = useAuth();
-  const { data: modelli = [] } = useModelliCapo(orderId);
+  const modelliQuery = useModelliCapo(orderId);
+  const modelli = modelliQuery.data ?? [];
   const elenco = useQuery<Verbale[]>({
     queryKey: ["verbali-capo", orderId],
     enabled: !!orderId,
@@ -87,7 +91,7 @@ export default function CampoVerbale() {
     if (occupato) return;
     setOccupato(true);
     try { await fn(); } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Operazione non riuscita. Riprova.");
+      toast.error(e instanceof Error ? e.message : t("Operazione non riuscita. Riprova."));
       // Un altro può aver cambiato il verbale: riaprendolo si deve avere la versione nuova.
       void qc.invalidateQueries({ queryKey: ["verbali-capo", orderId] });
     } finally { setOccupato(false); }
@@ -117,60 +121,80 @@ export default function CampoVerbale() {
       action: "sign", order_id: orderId, id: report.id, version: report.version, document_hash: report.document_hash, reviewed: visto, firma: f,
     });
     setReport(r); setFirma(false); setFirmato(r.firma_cliente_nome ?? f.nome);
-    toast.success(avvisato ? "Verbale firmato. L’ufficio è stato avvisato." : "Verbale firmato. Avvisa tu l’ufficio: l’avviso non è partito.");
+    toast.success(avvisato ? t("Verbale firmato. L’ufficio è stato avvisato.") : t("Verbale firmato. Avvisa tu l’ufficio: l’avviso non è partito."));
     void qc.invalidateQueries({ queryKey: ["verbali-capo", orderId] });
   });
   const apriChiuso = (r: Verbale): void => void conErrore(async () => {
     const { url } = await chiama<{ url: string }>({ action: "open", order_id: orderId, id: r.id });
     window.open(url, "_blank");
   });
-  const indietro = () => {
+  const conferma = useConfirm();
+  const indietro = async () => {
     if (content && !firmato) {
-      if (modificato && !window.confirm("Uscire senza salvare la bozza?")) return;
+      if (modificato && !(await conferma({ title: t("Uscire senza salvare?"), description: t("Le modifiche al verbale non salvate si perdono."), confirmLabel: t("Esci senza salvare"), cancelLabel: t("Resta"), variant: "destructive" }))) return;
       setContent(null); setReport(null);
     } else if (content) { setContent(null); setReport(null); setFirmato(null); } else navigate(`/campo/lavoro/${orderId}`);
   };
 
   return (
-    <div className="mx-auto w-full max-w-2xl space-y-3 p-3 pb-24">
+    <div className="mx-auto w-full max-w-2xl space-y-3 md:p-3 md:pb-24">
       <div className="flex items-center gap-2">
-        <Button type="button" variant="ghost" size="icon" className="h-10 w-10" aria-label="Indietro" onClick={indietro}><ArrowLeft className="h-5 w-5" /></Button>
-        <h1 className="min-w-0 truncate text-lg font-black">{content ? content.title : "Collaudo"}</h1>
-        {occupato && <Loader2 className="ml-auto h-4 w-4 animate-spin" aria-label="Operazione in corso" />}
+        <Button type="button" variant="ghost" size="icon" className="h-10 w-10" aria-label={t("Indietro")} onClick={() => void indietro()}><ArrowLeft className="h-5 w-5" /></Button>
+        <h1 className="min-w-0 truncate text-[17px] font-black md:text-lg">{content ? content.title : t("Collaudo")}</h1>
+        {occupato && <Loader2 className="ml-auto h-4 w-4 animate-spin" aria-label={t("Operazione in corso")} />}
       </div>
 
       {firmato && (
-        <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">Firmato da {firmato}</p>
+        <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">{t("Firmato da {nome}", { nome: firmato })}</p>
       )}
 
       {!content && (
         <div className="space-y-2">
           {modelli.map(m => (
-            <Button key={m.id} type="button" variant="outline" className="h-11 w-full justify-start" aria-label={`Nuovo: ${m.nome}`} onClick={() => nuovo(m)}>
+            <Button key={m.id} type="button" variant="outline" className="h-11 w-full justify-start" aria-label={t("Nuovo: {nome}", { nome: m.nome })} onClick={() => nuovo(m)}>
               <Plus className="mr-2 h-4 w-4" />{m.nome}
             </Button>
           ))}
           {(elenco.data ?? []).map(r => (
             <button key={r.id} type="button" disabled={r.status !== "finalized" && r.modificabile === false} onClick={() => r.status === "finalized" ? apriChiuso(r) : riprendi(r)}
               className="flex min-h-11 w-full items-center justify-between gap-2 rounded-xl border bg-background px-3 py-2 text-left text-sm disabled:opacity-60">
-              <span className="min-w-0 truncate font-medium">{r.content?.title ?? "Verbale"}</span>
+              <span className="min-w-0 truncate font-medium">{r.content?.title ?? t("Verbale")}</span>
               <span className="shrink-0 text-xs text-muted-foreground">
-                {r.status !== "finalized" ? (r.modificabile === false ? "La chiude l'ufficio" : "Bozza") : r.firma_cliente_nome ? `Firmato da ${r.firma_cliente_nome}` : "Non firmato"}
+                {r.status !== "finalized" ? (r.modificabile === false ? t("La chiude l'ufficio") : t("Bozza")) : r.firma_cliente_nome ? t("Firmato da {nome}", { nome: r.firma_cliente_nome }) : t("Non firmato")}
               </span>
             </button>
           ))}
+          {/* Collaudo 23/11: senza modelli né verbali la pagina restava bianca sotto il titolo, anche
+              durante il caricamento o con un errore. Ora dice sempre cosa succede. */}
+          {(elenco.isLoading || modelliQuery.isLoading) && <p role="status" className="py-6 text-center text-sm text-muted-foreground">{t("Carico i collaudi…")}</p>}
+          {(elenco.isError || modelliQuery.isError) && (
+            <div role="alert" className="rounded-xl border border-destructive/30 p-3 text-sm">
+              {/* 403 del server = non è il capocantiere di questa commessa: non è un problema di rete. */}
+              <p>{/non autorizzat|non disponibile/i.test(elenco.error instanceof Error ? elenco.error.message : "")
+                ? t("Il collaudo di questo cantiere lo fa il capocantiere. Se tocca a te, chiedi all’ufficio di assegnartelo.")
+                : t("Non riesco a leggere i collaudi di questo cantiere. Controlla la rete.")}</p>
+              <button type="button" className="min-h-11 font-semibold text-primary underline"
+                onClick={() => { void elenco.refetch(); void modelliQuery.refetch(); }}>{t("Riprova")}</button>
+            </div>
+          )}
+          {!elenco.isLoading && !modelliQuery.isLoading && !elenco.isError && !modelliQuery.isError && modelli.length === 0 && (elenco.data ?? []).length === 0 && (
+            <div role="status" className="rounded-xl border bg-background p-4 text-sm">
+              <p className="font-semibold">{t("Nessun collaudo da fare qui")}</p>
+              <p className="mt-1 text-muted-foreground">{t("Per questo cantiere non c’è ancora un modulo di collaudo pronto: lo prepara l’ufficio, poi lo compila il capocantiere col cliente.")}</p>
+            </div>
+          )}
         </div>
       )}
 
       {content && !firmato && (
         <fieldset disabled={occupato} className="m-0 min-w-0 space-y-3 border-0 p-0">
           <div className="grid gap-2 rounded-2xl border bg-background p-3">
-            <div className="grid gap-1"><Label htmlFor="v-scope">Lavori verificati</Label>
+            <div className="grid gap-1"><Label htmlFor="v-scope">{t("Lavori verificati")}</Label>
               <Textarea id="v-scope" rows={2} value={content.scope} onChange={e => cambia({ scope: e.target.value })} /></div>
             <div className="grid grid-cols-2 gap-2">
-              <div className="grid gap-1"><Label htmlFor="v-cliente">Cliente</Label>
+              <div className="grid gap-1"><Label htmlFor="v-cliente">{t("Cliente")}</Label>
                 <Input id="v-cliente" value={content.customer} maxLength={200} onChange={e => cambia({ customer: e.target.value })} /></div>
-              <div className="grid gap-1"><Label htmlFor="v-verificatore">Verificatore</Label>
+              <div className="grid gap-1"><Label htmlFor="v-verificatore">{t("Verificatore")}</Label>
                 <Input id="v-verificatore" value={content.inspector} maxLength={200} onChange={e => cambia({ inspector: e.target.value })} /></div>
             </div>
           </div>
@@ -181,15 +205,15 @@ export default function CampoVerbale() {
                 <p className="text-sm font-semibold">{v.label}</p>
                 <div className="grid grid-cols-2 gap-1.5">
                   {ETICHETTE.map(([valore, etichetta]) => (
-                    <button key={valore} type="button" aria-pressed={v.result === valore} aria-label={`${etichetta}: ${v.label}`}
+                    <button key={valore} type="button" aria-pressed={v.result === valore} aria-label={t("{esito}: {voce}", { esito: t(etichetta), voce: v.label })}
                       onClick={() => cambia({ checks: content.checks.map((x, k) => k === i ? { ...x, result: valore } : x) })}
                       className={cn("min-h-10 rounded-lg border px-2 text-xs font-medium", v.result === valore ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground")}>
-                      {etichetta}
+                      {t(etichetta)}
                     </button>
                   ))}
                 </div>
                 {(v.result === "reserve" || v.result === "na") && (
-                  <Input aria-label={`Motivo: ${v.label}`} placeholder="Motivo" value={v.note} maxLength={2000}
+                  <Input aria-label={t("Motivo: {voce}", { voce: v.label })} placeholder={t("Motivo")} value={v.note} maxLength={2000}
                     onChange={e => cambia({ checks: content.checks.map((x, k) => k === i ? { ...x, note: e.target.value } : x) })} />
                 )}
               </div>
@@ -208,35 +232,35 @@ export default function CampoVerbale() {
           )}
 
           <div className="grid gap-2 rounded-2xl border bg-background p-3">
-            <div className="grid gap-1"><Label htmlFor="v-esito">Esito</Label>
+            <div className="grid gap-1"><Label htmlFor="v-esito">{t("Esito")}</Label>
               <UniformSelect id="v-esito" className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={content.outcome}
                 onChange={e => cambia({ outcome: e.target.value as AcceptanceContent["outcome"] })}>
-                {Object.entries(outcomes).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                {Object.entries(outcomes).map(([k, l]) => <option key={k} value={k}>{t(l)}</option>)}
               </UniformSelect></div>
-            <div className="grid gap-1"><Label htmlFor="v-riserve">Riserve</Label>
+            <div className="grid gap-1"><Label htmlFor="v-riserve">{t("Riserve")}</Label>
               <Textarea id="v-riserve" rows={2} value={content.reservations} onChange={e => cambia({ reservations: e.target.value })} /></div>
             {(content.outcome === "reserves" || content.outcome === "negative" || content.actions.length > 0) && (
               <div className="space-y-2">
                 {content.actions.map((a, i) => (
                   <div key={i} className="grid gap-1.5 rounded-lg border p-2">
-                    <Input aria-label={`Intervento ${i + 1}`} placeholder="Cosa fare" value={a.work} maxLength={2000}
+                    <Input aria-label={t("Intervento {n}", { n: i + 1 })} placeholder={t("Cosa fare")} value={a.work} maxLength={2000}
                       onChange={e => cambia({ actions: content.actions.map((x, k) => k === i ? { ...x, work: e.target.value } : x) })} />
                     <div className="grid grid-cols-2 gap-1.5">
-                      <Input aria-label={`Responsabile ${i + 1}`} placeholder="Chi" value={a.owner} maxLength={200}
+                      <Input aria-label={t("Responsabile {n}", { n: i + 1 })} placeholder={t("Chi")} value={a.owner} maxLength={200}
                         onChange={e => cambia({ actions: content.actions.map((x, k) => k === i ? { ...x, owner: e.target.value } : x) })} />
-                      <Input aria-label={`Entro ${i + 1}`} type="date" value={a.due}
+                      <Input aria-label={t("Entro {n}", { n: i + 1 })} type="date" value={a.due}
                         onChange={e => cambia({ actions: content.actions.map((x, k) => k === i ? { ...x, due: e.target.value } : x) })} />
                     </div>
                     <Button type="button" variant="ghost" size="sm" className="h-8 justify-self-end text-rose-600"
-                      onClick={() => cambia({ actions: content.actions.filter((_, k) => k !== i) })}>Togli</Button>
+                      onClick={() => cambia({ actions: content.actions.filter((_, k) => k !== i) })}>{t("Togli")}</Button>
                   </div>
                 ))}
                 <Button type="button" variant="outline" size="sm" onClick={() => cambia({ actions: [...content.actions, { work: "", owner: "", due: "" }] })}>
-                  <Plus className="mr-1.5 h-4 w-4" />Aggiungi un intervento
+                  <Plus className="mr-1.5 h-4 w-4" />{t("Aggiungi un intervento")}
                 </Button>
               </div>
             )}
-            <div className="grid gap-1"><Label htmlFor="v-documenti">Documenti consegnati</Label>
+            <div className="grid gap-1"><Label htmlFor="v-documenti">{t("Documenti consegnati")}</Label>
               <Input id="v-documenti" value={content.documents} onChange={e => cambia({ documents: e.target.value })} /></div>
           </div>
 
@@ -244,18 +268,18 @@ export default function CampoVerbale() {
 
           {anteprima && (
             <div className="space-y-2 rounded-2xl border bg-background p-3">
-              <a href={anteprima} target="_blank" rel="noreferrer" className="flex min-h-10 items-center gap-1.5 text-sm font-semibold text-primary"><FileText className="h-4 w-4" />Apri il PDF</a>
+              <a href={anteprima} target="_blank" rel="noreferrer" className="flex min-h-10 items-center gap-1.5 text-sm font-semibold text-primary"><FileText className="h-4 w-4" />{t("Apri il PDF")}</a>
               <label className="flex min-h-10 items-center gap-2 text-sm">
-                <input type="checkbox" checked={visto} onChange={e => setVisto(e.target.checked)} />Il cliente ha visto il documento
+                <input type="checkbox" checked={visto} onChange={e => setVisto(e.target.checked)} />{t("Il cliente ha visto il documento")}
               </label>
             </div>
           )}
 
           <div className="grid grid-cols-2 gap-2">
-            <Button type="button" variant="outline" className="h-11" disabled={!modificato} onClick={() => void conErrore(async () => { await salvaBozza(); toast.success("Bozza salvata"); })}>Salva bozza</Button>
+            <Button type="button" variant="outline" className="h-11" disabled={!modificato} onClick={() => void conErrore(async () => { await salvaBozza(); toast.success(t("Bozza salvata")); })}>{t("Salva bozza")}</Button>
             {anteprima
-              ? <Button type="button" className="h-11" disabled={!visto} onClick={() => setFirma(true)}>Fai firmare al cliente</Button>
-              : <Button type="button" className="h-11" onClick={mostraPdf}>Mostra il PDF</Button>}
+              ? <Button type="button" className="h-11" disabled={!visto} onClick={() => setFirma(true)}>{t("Fai firmare al cliente")}</Button>
+              : <Button type="button" className="h-11" onClick={mostraPdf}>{t("Mostra il PDF")}</Button>}
           </div>
         </fieldset>
       )}

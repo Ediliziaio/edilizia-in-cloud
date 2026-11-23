@@ -14,6 +14,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useIsCampo } from "@/hooks/useIsCampo";
 import { useMieiMezzi } from "@/hooks/useMezzi";
 import { cn } from "@/lib/utils";
+import { useLinguaCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { Languages, ShieldAlert, UtensilsCrossed } from "lucide-react";
+import { useBuoniPastoCampo } from "@/hooks/campo/useBuoniPastoCampo";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useFieldSurveyAccess } from "@/hooks/useFieldSurveys";
 
@@ -31,11 +34,15 @@ interface AppSection {
 
 export default function CampoMenu() {
   const navigate = useNavigate();
+  const { t, lingua } = useLinguaCampo();
   const { profile, signOut } = useAuth();
   const { isOperaio } = useIsCampo();
   const surveyAccess = useFieldSurveyAccess();
   // «Il mio mezzo» compare solo a chi ha un mezzo in carico: sul telefono il meno è meglio.
   const { data: mieiMezzi = [] } = useMieiMezzi(isOperaio);
+  // «Buoni pasto» solo a chi li ha: azienda che li usa e persona abilitata.
+  const buoniPasto = useBuoniPastoCampo();
+  const conBuoni = isOperaio && !buoniPasto.caricamento && buoniPasto.motivo === null && !buoniPasto.errore;
 
   const initials = (profile?.first_name?.[0] ?? "") + (profile?.last_name?.[0] ?? "");
   const roleLabel = isOperaio ? "Operaio" : "Subappaltatore";
@@ -60,6 +67,7 @@ export default function CampoMenu() {
         { icon: Clock, label: "Presenze", url: "/campo/presenze", color: "text-teal-600 bg-teal-50" },
         { icon: CalendarDays, label: "Ferie", url: "/campo/ferie", color: "text-orange-600 bg-orange-50" },
         { icon: Receipt, label: "Cedolini", url: "/campo/cedolini", color: "text-pink-600 bg-pink-50" },
+        ...(conBuoni ? [{ icon: UtensilsCrossed, label: "Buoni pasto", url: "/campo/buoni-pasto", color: "text-lime-700 bg-lime-50" }] : []),
         { icon: CreditCard, label: "Tesserino", url: "/campo/tesserino", color: "text-cyan-600 bg-cyan-50" },
       ],
     },
@@ -68,6 +76,7 @@ export default function CampoMenu() {
       items: [
         { icon: FileText, label: "Documenti", url: "/campo/documenti", color: "text-slate-600 bg-slate-50" },
         { icon: Ticket, label: "Segnala", url: "/campo/ticket/nuovo", color: "text-amber-600 bg-amber-50" },
+        { icon: ShieldAlert, label: "Sicurezza: segnala", url: "/campo/sicurezza/segnala", color: "text-red-600 bg-red-50" },
       ],
     },
   ];
@@ -86,6 +95,7 @@ export default function CampoMenu() {
       items: [
         { icon: FileText, label: "Documenti", url: "/campo/documenti", color: "text-slate-600 bg-slate-50" },
         { icon: Ticket, label: "Segnala", url: "/campo/ticket/nuovo", color: "text-amber-600 bg-amber-50" },
+        { icon: ShieldAlert, label: "Sicurezza: segnala", url: "/campo/sicurezza/segnala", color: "text-red-600 bg-red-50" },
       ],
     },
   ];
@@ -106,22 +116,31 @@ export default function CampoMenu() {
           <p className="text-base font-bold text-foreground truncate">
             {profile?.first_name} {profile?.last_name}
           </p>
-          <p className="text-xs text-muted-foreground">{roleLabel}</p>
+          <p className="text-xs text-muted-foreground">{t(roleLabel)}</p>
         </div>
         <button
           onClick={() => signOut()}
           className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center active:scale-95 transition-all"
-          title="Esci"
+          title={t("Esci")}
+          aria-label={t("Esci")}
         >
           <LogOut className="w-5 h-5 text-red-500" />
         </button>
       </div>
 
+      {/* Lingua: sempre in vista, anche per chi non legge l'italiano (icona + nome nella propria lingua). */}
+      <button type="button" onClick={() => navigate("/campo/impostazioni?tab=lingua")}
+        className="flex min-h-12 w-full items-center gap-3 rounded-2xl border bg-background px-4 text-start">
+        <Languages className="size-5 shrink-0 text-primary" aria-hidden="true" />
+        <span className="min-w-0 flex-1 text-sm font-semibold">{t("Lingua")}</span>
+        <span className="text-sm text-muted-foreground" dir={lingua.rtl ? "rtl" : "ltr"}>{lingua.nome}</span>
+      </button>
+
       {/* Sezioni categorizzate */}
       {sections.map((section) => (
         <div key={section.title} className="bg-background border border-border/60 rounded-2xl p-4">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">
-            {section.title}
+            {t(section.title)}
           </p>
           <div className="grid grid-cols-4 gap-x-2 gap-y-4">
             {section.items.map((item) => {
@@ -139,7 +158,7 @@ export default function CampoMenu() {
                     <item.icon className={cn("w-6 h-6", textColor)} />
                   </div>
                   <span className="text-xs font-medium text-foreground text-center leading-tight line-clamp-2 max-w-[80px]">
-                    {item.label}
+                    {t(item.label)}
                   </span>
                 </button>
               );

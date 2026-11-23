@@ -35,6 +35,8 @@ vi.mock("@tanstack/react-query", () => ({
   useMutation: (config: { mutationFn: (arg: unknown) => Promise<unknown>; onSuccess: (r: unknown, arg: unknown) => unknown; onError: (e: unknown) => void }) => ({
     isPending: false, variables: undefined as unknown,
     mutate: async (arg: unknown) => { try { const r = await config.mutationFn(arg); await config.onSuccess(r, arg); } catch (e) { config.onError(e); } },
+    // Come React Query: chiama onError e poi rifiuta (la timbratura usa mutateAsync per il blocco del doppio tocco).
+    mutateAsync: async (arg: unknown) => { try { const r = await config.mutationFn(arg); await config.onSuccess(r, arg); return r; } catch (e) { config.onError(e); throw e; } },
   }),
 }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {
@@ -54,6 +56,12 @@ afterEach(cleanup);
 const INIZIA = { name: "INIZIA LA GIORNATA" };
 const FINE = { name: "FINE GIORNATA" };
 
+// UniformSelect (18/11) disegna un pulsante col nome del campo e tiene la tendina vera nascosta, con id «<id>--native»:
+// è quella che riceve le scelte. Prima dell'aggiornamento di questo test 5 prove fallivano cercando la tendina per nome.
+const tendina = (id: string) => document.getElementById(`${id}--native`) as HTMLSelectElement;
+// «Altro cantiere» non ha id: la tendina vera è accanto al pulsante.
+const altroCantiere = () => screen.getByRole("combobox", { name: "Altro cantiere" }).parentElement!.querySelector("select") as HTMLSelectElement;
+
 describe("Timbratura a un tocco: inizio giornata", () => {
   it("col cantiere del link già scelto basta un tocco", async () => {
     render(<CampoTimbratura />);
@@ -68,21 +76,21 @@ describe("Timbratura a un tocco: inizio giornata", () => {
     state.selected = null; state.oggi = ["A", "B"];
     render(<CampoTimbratura />);
     expect(screen.getByRole("button", INIZIA)).toBeDisabled();
-    fireEvent.change(screen.getByLabelText("Da dove parti?"), { target: { value: "c:A" } });
+    fireEvent.change(tendina("campo-partenza"), { target: { value: "c:A" } });
     fireEvent.click(screen.getByRole("button", INIZIA));
     await waitFor(() => expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({ order_id: "A", note: "Cantiere: A" })));
   });
   it("chi ha un solo cantiere di oggi parte da lì senza scegliere", async () => {
     state.selected = null; state.assignedIds = ["A"];
     render(<CampoTimbratura />);
-    expect(screen.getByLabelText("Da dove parti?")).toHaveValue("c:A");
+    expect(tendina("campo-partenza")).toHaveValue("c:A");
     fireEvent.click(screen.getByRole("button", INIZIA));
     await waitFor(() => expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({ order_id: "A" })));
   });
   it("chi parte dal magazzino lo dichiara: niente cantiere, sede e flag «in sede»", async () => {
     state.selected = null; state.assignedIds = []; state.sedi = [{ id: "S", nome: "Magazzino Verona" }];
     render(<CampoTimbratura />);
-    expect(screen.getByLabelText("Da dove parti?")).toHaveValue("s:S");
+    expect(tendina("campo-partenza")).toHaveValue("s:S");
     fireEvent.click(screen.getByRole("button", INIZIA));
     await waitFor(() => expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({
       tipo: "entrata", order_id: null as null, sede_id: "S", in_sede: true, note: "Sede: Magazzino Verona",
@@ -91,17 +99,17 @@ describe("Timbratura a un tocco: inizio giornata", () => {
   it("ricorda da dove si è partiti l'ultima volta e lo propone al giorno dopo", async () => {
     state.selected = null; state.oggi = ["A", "B"]; state.sedi = [{ id: "S", nome: "Magazzino" }];
     const { unmount } = render(<CampoTimbratura />);
-    fireEvent.change(screen.getByLabelText("Da dove parti?"), { target: { value: "s:S" } });
+    fireEvent.change(tendina("campo-partenza"), { target: { value: "s:S" } });
     fireEvent.click(screen.getByRole("button", INIZIA));
     await waitFor(() => expect(state.insert).toHaveBeenCalled());
     unmount();
     render(<CampoTimbratura />);
-    expect(screen.getByLabelText("Da dove parti?")).toHaveValue("s:S");
+    expect(tendina("campo-partenza")).toHaveValue("s:S");
   });
   it("avvisa esplicitamente quando l'entrata è senza posto", async () => {
     state.selected = null; state.oggi = ["A", "B"];
     render(<CampoTimbratura />);
-    fireEvent.change(screen.getByLabelText("Da dove parti?"), { target: { value: "n" } });
+    fireEvent.change(tendina("campo-partenza"), { target: { value: "n" } });
     expect(screen.getByText(/Questa entrata registrerà ore da attribuire/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", INIZIA));
     await waitFor(() => expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({ order_id: null as null, in_sede: false })));
@@ -116,7 +124,7 @@ describe("Timbratura a un tocco: inizio giornata", () => {
   it("un cantiere del link che non è assegnato non viene mai proposto né timbrato", async () => {
     state.selected = "B"; state.assignedIds = ["A"]; state.oggi = ["A"];
     render(<CampoTimbratura />);
-    const scelta = screen.getByLabelText("Da dove parti?") as HTMLSelectElement;
+    const scelta = tendina("campo-partenza") as HTMLSelectElement;
     expect([...scelta.options].map(o => o.value)).not.toContain("c:B");
     expect(scelta).toHaveValue("c:A");
     fireEvent.click(screen.getByRole("button", INIZIA));
@@ -173,7 +181,7 @@ describe("Timbratura a un tocco: durante la giornata", () => {
     state.punches = [punch("entrata", "08:00")];
     render(<CampoTimbratura />);
     expect(screen.queryByRole("button", { name: /C · Cantiere C/ })).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Altro cantiere"), { target: { value: "c:C" } });
+    fireEvent.change(altroCantiere(), { target: { value: "c:C" } });
     await waitFor(() => expect(state.rpc).toHaveBeenCalledWith("campo_timbra_cambio_luogo", expect.objectContaining({ p_order_id: "C" })));
   });
   it("in pausa non si cambia posto: si dice di terminare prima la pausa", () => {
@@ -209,7 +217,8 @@ describe("Timbratura a un tocco: ore e controlli", () => {
   it("distingue ore totali e ore del cantiere, escludendo le pause", () => {
     state.punches = [punch("entrata", "08:00"), punch("uscita", "12:00"), punch("entrata", "13:00", "B"), punch("pausa_inizio", "15:00", null), punch("pausa_fine", "15:30", null), punch("uscita", "17:00", "B")];
     render(<CampoTimbratura />);
-    expect(screen.getByText("7.5")).toBeInTheDocument();
+    // Collaudo 23/11: le ore all'italiana, non «7.5».
+    expect(screen.getByText("7h 30")).toBeInTheDocument();
     expect(screen.getByText("Su questo cantiere: 3.5 h · pause escluse")).toBeInTheDocument();
   });
   it("blocca le azioni se non conosce lo stato effettivo", () => {

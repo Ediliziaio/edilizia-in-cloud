@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsCampo } from "@/hooks/useIsCampo";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Feedback aptico leggero al cambio tab (solo app nativa, fire-and-forget). */
 function tabHaptic() {
@@ -54,6 +55,7 @@ interface Props {
 
 export function CampoBottomNav({ unreadCount = 0, onTimbraClick }: Props) {
   const location = useLocation();
+  const t = useT();
   const { isSubappaltatore } = useIsCampo();
 
   // Hide-on-scroll (stessa logica dell'app azienda): la pillola si attenua e si
@@ -96,7 +98,7 @@ export function CampoBottomNav({ unreadCount = 0, onTimbraClick }: Props) {
       // scorre dietro il vetro. pointer-events-none sul contenitore + auto sulla pillola.
       className="pointer-events-none fixed inset-x-0 bottom-0 z-50 bg-transparent px-3 md:hidden"
       style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 16px)" }}
-      aria-label="Navigazione campo"
+      aria-label={t("Navigazione campo")}
     >
       <div
         className={cn(
@@ -117,14 +119,14 @@ export function CampoBottomNav({ unreadCount = 0, onTimbraClick }: Props) {
                 to={item.href}
                 onClick={() => { tabHaptic(); onTimbraClick?.(); }}
                 className="relative flex min-w-0 flex-1 flex-col items-center justify-end gap-1 pb-1"
-                aria-label="Timbratura"
+                aria-label={t("Timbratura")}
                 aria-current={active ? "page" : undefined}
               >
                 <div className="-mt-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-white shadow-lg shadow-primary/40 ring-4 ring-background transition-transform active:scale-95">
                   <Icon className="h-5 w-5 stroke-[2.5]" />
                 </div>
                 <span className="text-[10px] font-semibold leading-none text-primary">
-                  {item.label}
+                  {t(item.label)}
                 </span>
               </Link>
             );
@@ -136,7 +138,7 @@ export function CampoBottomNav({ unreadCount = 0, onTimbraClick }: Props) {
               to={item.href}
               onClick={tabHaptic}
               className="relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1"
-              aria-label={item.label}
+              aria-label={t(item.label)}
               aria-current={active ? "page" : undefined}
             >
               <div className="relative flex h-8 w-12 items-center justify-center">
@@ -169,7 +171,7 @@ export function CampoBottomNav({ unreadCount = 0, onTimbraClick }: Props) {
                   active ? "font-semibold text-blue-600" : "font-medium text-muted-foreground",
                 )}
               >
-                {item.label}
+                {t(item.label)}
               </span>
             </Link>
           );

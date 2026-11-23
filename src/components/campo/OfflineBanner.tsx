@@ -21,9 +21,12 @@ import { refreshCommessaCampoQueries } from "@/lib/orders/refreshCommessaCampoQu
 import { refreshCampoTimeQueries } from "@/lib/campo/refreshTimeQueries";
 import { notifyRapportinoPdf } from "@/lib/campo/rapportinoPdf";
 import type { JSX } from "react";
+import { TOAST_INVIO_RAPPORTINO } from "@/lib/campo/avvisoInvio";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export default function OfflineBanner(): JSX.Element | null {
   const online = useNetworkStatus();
+  const t = useT();
   const { user, profile, effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id ?? profile?.company_id;
   const queryClient = useQueryClient();
@@ -50,11 +53,12 @@ export default function OfflineBanner(): JSX.Element | null {
     void queryClient.invalidateQueries({ queryKey: ["mezzi"] });
     void queryClient.invalidateQueries({ queryKey: viaggiKey(esito.companyId) });
     if (esito.chiudeGiornata) void refreshCampoTimeQueries(queryClient);
-    const inviato = esito.chiudeGiornata ? "Rapportino inviato, giornata chiusa" : "Rapportino inviato";
+    const inviato = t(esito.chiudeGiornata ? "Rapportino inviato, giornata chiusa" : "Rapportino inviato");
+    // Stesso id dell'avviso «salvato, lo sto inviando» del modulo: uno solo, che diventa «inviato».
     if (esito.avvisoMezzi) {
-      toast.warning(inviato, { description: "Alcune rilevazioni dei mezzi non sono state salvate. Comunica all’ufficio i dati e dove hai lasciato le attrezzature." });
+      toast.warning(inviato, { id: TOAST_INVIO_RAPPORTINO, description: t("Alcune rilevazioni dei mezzi non sono state salvate. Comunica all’ufficio i dati e dove hai lasciato le attrezzature.") });
     } else {
-      toast.success(inviato);
+      toast.success(inviato, { id: TOAST_INVIO_RAPPORTINO });
     }
     if (esito.id && esito.pdf) void notifyRapportinoPdf(esito.id, esito.orderId, queryClient);
   }), [companyId, queryClient, user?.id]);
@@ -91,18 +95,18 @@ export default function OfflineBanner(): JSX.Element | null {
       >
         <WifiOff className="w-4 h-4 shrink-0" />
         <span className="flex-1 leading-tight">
-          {queueCount > 0 ? "La coda parte quando torna la rete." : "Sei offline. Puoi mettere gli invii in coda."}
+          {t(queueCount > 0 ? "La coda parte quando torna la rete." : "Sei offline. Puoi mettere gli invii in coda.")}
         </span>
         <span className="flex items-center gap-1.5 shrink-0">
           {draftCount > 0 && (
             <Link to="/campo/invii" className="flex min-h-9 items-center gap-1 rounded-full bg-amber-900/90 px-2 text-[11px] font-bold text-amber-100">
               <Save className="w-3 h-3" />
-              {draftCount} {draftCount === 1 ? "bozza" : "bozze"}
+              {draftCount} {t(draftCount === 1 ? "bozza" : "bozze")}
             </Link>
           )}
           {queueCount > 0 && (
             <Link to="/campo/invii" className="inline-flex min-h-9 items-center rounded-full bg-amber-900/90 px-2 text-[11px] font-bold text-amber-100">
-              {queueCount} in coda
+              {t("{n} in coda", { n: queueCount })}
             </Link>
           )}
         </span>
@@ -111,11 +115,11 @@ export default function OfflineBanner(): JSX.Element | null {
   }
 
   if (lastError || failedCount > 0) return <div role="alert" className="flex flex-wrap items-center gap-2 border-b bg-amber-100 px-4 py-2 text-sm text-amber-950">
-    <span className="flex-1">{failedCount > 0 ? `${failedCount} ${failedCount === 1 ? "operazione" : "operazioni"} da verificare. ` : ""}
-      {lastError || "I dati sono conservati sul telefono."}</span>
-    <Link to="/campo/invii" className="inline-flex min-h-11 items-center font-semibold underline">Apri invii</Link>
+    <span className="flex-1">{failedCount > 0 ? `${failedCount === 1 ? t("1 operazione da verificare.") : t("{n} operazioni da verificare.", { n: failedCount })} ` : ""}
+      {lastError || t("I dati sono conservati sul telefono.")}</span>
+    <Link to="/campo/invii" className="inline-flex min-h-11 items-center font-semibold underline">{t("Apri invii")}</Link>
     {(puoRitentare || failedCount === 0) && <button type="button" disabled={isSyncing} className="min-h-11 underline"
-      onClick={() => void retry()}>Riprova invio</button>}
+      onClick={() => void retry()}>{t("Riprova invio")}</button>}
   </div>;
 
   // Online + syncing: banner verde
@@ -128,11 +132,12 @@ export default function OfflineBanner(): JSX.Element | null {
       >
         <CloudUpload className="w-4 h-4 shrink-0 animate-pulse" />
         <span className="flex-1 leading-tight">
-          {isSyncing ? "Sincronizzazione in corso…" : "Operazioni in attesa di sincronizzazione…"}
+          {/* Niente «sincronizzazione»: l'operaio deve leggere che i dati sono al sicuro e partono da soli. */}
+          {t(isSyncing ? "Invio all’ufficio in corso…" : "Da inviare: restano sul telefono e partono da soli")}
         </span>
         {queueCount > 0 && (
           <Link to="/campo/invii" className="inline-flex min-h-9 items-center rounded-full bg-emerald-900/90 px-2 text-[11px] font-bold">
-            {queueCount} in coda
+            {t("{n} da inviare", { n: queueCount })}
           </Link>
         )}
       </div>

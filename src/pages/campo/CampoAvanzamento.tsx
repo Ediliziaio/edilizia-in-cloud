@@ -38,11 +38,14 @@ import { useCantieriTecnici } from "@/hooks/campo/useSchedaCantiere";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { faseInRitardo, testoRitardo } from "@/components/campo/PianoSchedaCantiere";
+import { useCampoWorkDay } from "@/hooks/campo/useCampoWorkDay";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { puoSpuntareInCantiere, chiSpuntaValido, type ChiSpunta } from "@/lib/orders/chiSpunta";
 import { faseHaSottofasi, messaggioErrore, SOTTOFASI_NELLA_FASE, sottofasiDalleFasi, sottofasiPerFase, type Sottofase } from "@/lib/orders/sottofasi";
 import { percorsoCantiereTecnico } from "@/lib/campo/schedaCantiere";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // Le foto restano indirizzate come prima nel database; in lettura passano da
 // un link a scadenza (linkFileRiservato), cosi' funzionano anche quando il
@@ -64,6 +67,7 @@ interface Fase {
   notes: string | null;
   foto_urls: unknown;
   completata_il: string | null;
+  end_date: string | null;
 }
 
 interface Cantiere {
@@ -94,12 +98,14 @@ async function compressImage(file: File, maxWidth = 1280, quality = 0.75): Promi
 }
 
 export default function CampoAvanzamento() {
+  const t = useT();
   const { user, profile, role } = useAuth();
   const [params] = useSearchParams();
   const orderFilter = params.get("order_id") || null;
   const companyId = profile?.company_id;
   useCommessaCampoSync(orderFilter, companyId, !!user);
   const queryClient = useQueryClient();
+  const oggi = useCampoWorkDay();
   const [uploadingFaseId, setUploadingFaseId] = useState<string | null>(null);
   const cantieriTecnici = useCantieriTecnici(role === "employee");
   const schedeAccessibili = new Set(cantieriTecnici.isError ? [] : (cantieriTecnici.data ?? []).map(c => c.id));
@@ -113,7 +119,7 @@ export default function CampoAvanzamento() {
     queryKey: ["campo-avanzamento-fasi", companyId, user?.id, orderFilter],
     queryFn: async (): Promise<Fase[]> => {
       // La chiave della query aveva già l'azienda, la query no.
-      let query = supabase.from("order_work_phases").select("id, order_id, name, position, status, percentuale, notes, foto_urls, completata_il").eq("company_id", companyId!);
+      let query = supabase.from("order_work_phases").select("id, order_id, name, position, status, percentuale, notes, foto_urls, completata_il, end_date").eq("company_id", companyId!);
       if (orderFilter) query = query.eq("order_id", orderFilter);
       const { data, error } = await query
         // Stesso ordine completo della lettura delle sottofasi: oltre il
@@ -212,7 +218,7 @@ export default function CampoAvanzamento() {
     mutationFn: async ({ id, fatta }: { id: string; fatta: boolean }) => {
       const sottofase = (sottofasiQuery.data ?? []).find(s => s.id === id);
       const fase = (fasiQuery.data ?? []).find(f => f.id === sottofase?.phase_id);
-      if (!fase || !puoSpuntare(fase)) throw Error("Permessi non confermati per questa fase. Rileggi il ruolo e riprova.");
+      if (!fase || !puoSpuntare(fase)) throw Error(t("Non riesco a confermare che questa fase tocchi a te. Aggiorna la pagina e riprova."));
       const { error } = await db.from("order_work_subphases").update({ fatta }).eq("id", id);
       if (error) throw error;
     },
@@ -224,7 +230,7 @@ export default function CampoAvanzamento() {
 
     },
     // Il database dice da sé perché no («Le sottofasi le spunta il capocantiere.»).
-    onError: (err: unknown) => toast.error(messaggioErrore(err, "Non riesco a salvare la sottofase")),
+    onError: (err: unknown) => toast.error(messaggioErrore(err, t("Non riesco a salvare la sottofase"))),
   });
 
   const gruppi = useMemo(() => {
@@ -243,7 +249,7 @@ export default function CampoAvanzamento() {
 
   const toggleFase = useMutation({
     mutationFn: async (fase: Fase) => {
-      if (!puoSpuntare(fase)) throw Error("Permessi non confermati per questa fase. Rileggi il ruolo e riprova.");
+      if (!puoSpuntare(fase)) throw Error(t("Non riesco a confermare che questa fase tocchi a te. Aggiorna la pagina e riprova."));
       const completata = fase.status === "completata";
       // Riaprire non inventa un avanzamento: la percentuale resta, la aggiorna il prossimo rapportino
       // o l'ufficio (come la riapertura dall'ufficio).
@@ -260,16 +266,16 @@ export default function CampoAvanzamento() {
     },
     onSuccess: (nowDone, fase) => {
       void refreshCommessaCampoQueries(queryClient, fase.order_id, companyId);
-      toast.success(nowDone ? "Fase segnata come completata" : "Fase riaperta");
+      toast.success(nowDone ? t("Fase segnata come completata") : t("Fase riaperta"));
     },
     onError: (err: unknown) =>
-      toast.error(err instanceof Error ? err.message : "Non riesco a salvare la fase"),
+      toast.error(err instanceof Error ? err.message : t("Non riesco a salvare la fase")),
   });
 
   async function handlePhoto(fase: Fase, files: FileList | null) {
     if (!files?.length) return;
     if (!companyId) {
-      toast.error("Profilo in caricamento, riprova tra un istante");
+      toast.error(t("Profilo in caricamento, riprova tra un istante"));
       return;
     }
     setUploadingFaseId(fase.id);
@@ -301,13 +307,13 @@ export default function CampoAvanzamento() {
         .update({ foto_urls: [...toPhotoList(fase.foto_urls), ...nuove] })
         .eq("id", fase.id);
       if (error) {
-        toast.error("Foto caricate ma non collegate alla fase");
+        toast.error(t("Foto caricate ma non collegate alla fase"));
       } else {
         void refreshCommessaCampoQueries(queryClient, fase.order_id, companyId);
-        toast.success(nuove.length === 1 ? "Foto aggiunta" : `${nuove.length} foto aggiunte`);
+        toast.success(nuove.length === 1 ? t("Foto aggiunta") : t("{n} foto aggiunte", { n: nuove.length }));
       }
     }
-    if (falliti > 0) toast.error(`${falliti} foto non caricate (max ${MAX_PHOTO_MB}MB)`);
+    if (falliti > 0) toast.error(t("{n} foto non caricate (max {mb}MB)", { n: falliti, mb: MAX_PHOTO_MB }));
     setUploadingFaseId(null);
   }
 
@@ -317,7 +323,7 @@ export default function CampoAvanzamento() {
       .from("order_work_phases")
       .update({ foto_urls: rimaste })
       .eq("id", fase.id);
-    if (error) toast.error("Non riesco a rimuovere la foto");
+    if (error) toast.error(t("Non riesco a rimuovere la foto"));
     else void refreshCommessaCampoQueries(queryClient, fase.order_id, companyId);
   }
 
@@ -326,14 +332,14 @@ export default function CampoAvanzamento() {
   const fatte = (fasiQuery.data ?? []).filter((f) => f.status === "completata").length;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4 p-3 md:p-4">
+    <div className="mx-auto max-w-3xl space-y-3 md:space-y-4 md:p-4">
       <header>
-        {orderFilter && <Link className="mb-3 inline-flex min-h-11 items-center text-sm font-medium text-primary" to={`/campo/lavoro/${encodeURIComponent(orderFilter)}`}>← Torna al cantiere</Link>}
-        <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Avanzamento lavori</h1>
+        {orderFilter && <Link className="mb-3 inline-flex min-h-11 items-center text-sm font-medium text-primary" to={`/campo/lavoro/${encodeURIComponent(orderFilter)}`}>{t("← Torna al cantiere")}</Link>}
+        <h1 className="text-2xl font-bold tracking-tight md:text-3xl">{t("Avanzamento lavori")}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          {orderFilter ? "Le fasi di questo cantiere, con le operazioni consentite al tuo ruolo." : "I cantieri a cui hai accesso, con le operazioni consentite al tuo ruolo."}
+          {orderFilter ? t("Spunta le fasi finite e aggiungi le foto.") : t("I tuoi cantieri: spunta le fasi finite e aggiungi le foto.")}
         </p>
-        <p className="mt-2 text-xs text-muted-foreground">Avanzamento operativo: non è un SAL economico né una conferma di pagamento. I rapportini restano soggetti alla verifica prevista dall’impresa.</p>
+        <p className="mt-2 text-xs text-muted-foreground">{t("Serve all’ufficio per sapere a che punto siete. Non conta per i pagamenti.")}</p>
         {!isLoading && totali > 0 && (
           <div className="mt-3 flex items-center gap-3">
             <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
@@ -343,14 +349,14 @@ export default function CampoAvanzamento() {
               />
             </div>
             <span className="text-xs font-medium tabular-nums text-muted-foreground">
-              {fatte}/{totali} fasi
+              {t("{fatte}/{totali} fasi", { fatte, totali })}
             </span>
           </div>
         )}
       </header>
 
-      {!isLoading && totali > 0 && (permessiQuery.isError ? <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm"><p>Permessi di avanzamento non disponibili. Puoi consultare le fasi; le spunte restano disattivate.</p><Button className="mt-2" variant="outline" onClick={() => void permessiQuery.refetch()}>Rileggi i permessi</Button></div> : permessiQuery.isLoading ? <p role="status" className="text-sm text-muted-foreground">Verifica dei permessi di avanzamento…</p> : null)}
-      {sottofasiQuery.isError && <div role="alert" className="rounded-xl border p-3 text-sm">Dettaglio sottofasi non disponibile. <Button variant="outline" onClick={() => void sottofasiQuery.refetch()}>Rileggi sottofasi</Button></div>}
+      {!isLoading && totali > 0 && (permessiQuery.isError ? <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm"><p>{t("Permessi di avanzamento non disponibili. Puoi consultare le fasi; le spunte restano disattivate.")}</p><Button className="mt-2" variant="outline" onClick={() => void permessiQuery.refetch()}>{t("Rileggi i permessi")}</Button></div> : permessiQuery.isLoading ? <p role="status" className="text-sm text-muted-foreground">{t("Verifica dei permessi di avanzamento…")}</p> : null)}
+      {sottofasiQuery.isError && <div role="alert" className="rounded-xl border p-3 text-sm">{t("Dettaglio sottofasi non disponibile.")} <Button variant="outline" onClick={() => void sottofasiQuery.refetch()}>{t("Rileggi sottofasi")}</Button></div>}
       {isLoading ? (
         <div className="space-y-3">
           <Skeleton className="h-28 w-full" />
@@ -358,18 +364,18 @@ export default function CampoAvanzamento() {
         </div>
       ) : fasiQuery.isError ? (
         <div className="flex flex-col items-center gap-2 rounded-xl border border-border py-10 text-center">
-          <p className="text-sm font-medium">Non riesco a caricare le fasi</p>
-          <p className="text-xs text-muted-foreground">Controlla la connessione e riprova.</p>
+          <p className="text-sm font-medium">{t("Non riesco a caricare le fasi")}</p>
+          <p className="text-xs text-muted-foreground">{t("Controlla la connessione e riprova.")}</p>
           <Button variant="outline" size="sm" onClick={() => fasiQuery.refetch()} disabled={fasiQuery.isFetching}>
             <RefreshCcw className="mr-2 h-4 w-4" />
-            {fasiQuery.isFetching ? "Riprovo…" : "Riprova"}
+            {fasiQuery.isFetching ? t("Riprovo…") : t("Riprova")}
           </Button>
         </div>
       ) : gruppi.length === 0 ? (
         <div className="flex flex-col items-center gap-1 rounded-xl border border-dashed border-border py-12 text-center">
-          <p className="text-sm font-medium">Nessuna fase da segnare</p>
+          <p className="text-sm font-medium">{t("Nessuna fase da segnare")}</p>
           <p className="max-w-sm text-xs text-muted-foreground">
-            Le fasi le prepara l'ufficio sui cantieri che ti vengono assegnati. Appena ci sono, le trovi qui.
+            {t("Le fasi le prepara l'ufficio sui cantieri che ti vengono assegnati. Appena ci sono, le trovi qui.")}
           </p>
         </div>
       ) : (
@@ -377,10 +383,10 @@ export default function CampoAvanzamento() {
           <section key={g.orderId} className="overflow-hidden rounded-xl border border-border bg-card">
             <div className="border-b border-border bg-muted/40 px-3 py-2.5">
               <div className="flex flex-wrap items-center justify-between gap-x-2">
-                <p className="text-sm font-semibold">{g.cantiere?.order_code ?? "Cantiere"}</p>
+                <p className="text-sm font-semibold">{g.cantiere?.order_code ?? t("Cantiere")}</p>
                 {schedeAccessibili.has(g.orderId) && <Link to={percorsoCantiereTecnico(g.orderId)}
                   className="inline-flex min-h-11 items-center text-xs font-semibold text-primary hover:underline">
-                  Scheda cantiere
+                  {t("Scheda cantiere")}
                 </Link>}
               </div>
               {g.cantiere?.description && (
@@ -411,9 +417,9 @@ export default function CampoAvanzamento() {
                         disabled={toggleFase.isPending || derivata || !spunta}
                         aria-label={
                           derivata
-                            ? `${fase.name}: si completa spuntando le sottofasi`
-                            : !spunta ? `${fase.name}: la segna il capocantiere`
-                            : done ? `Riapri la fase ${fase.name}` : `Segna ${fase.name} come completata`
+                            ? t("{fase}: si completa spuntando le sottofasi", { fase: fase.name })
+                            : !spunta ? t("{fase}: la segna il capocantiere", { fase: fase.name })
+                            : done ? t("Riapri la fase {fase}", { fase: fase.name }) : t("Segna {fase} come completata", { fase: fase.name })
                         }
                         className={cn("mt-0.5 shrink-0", !spunta && "opacity-50")}
                       >
@@ -442,11 +448,17 @@ export default function CampoAvanzamento() {
                                   : "bg-muted text-muted-foreground",
                             )}
                           >
-                            {done ? "Completata" : fase.status === "in_corso" ? "In corso" : "Da iniziare"}
+                            {done ? t("Completata") : fase.status === "in_corso" ? t("In corso") : t("Da iniziare")}
                           </span>
                           {!done && fase.percentuale > 0 && (
                             <span className="text-[10px] tabular-nums text-muted-foreground">
                               {fase.percentuale}%
+                            </span>
+                          )}
+                          {/* Ritardi sempre visibili (collaudo 23/11): qui il capo spunta le fasi, e la scadenza non c'era. */}
+                          {!done && faseInRitardo(fase, oggi) && (
+                            <span className="text-[11px] font-semibold text-red-700 dark:text-red-400">
+                              {testoRitardo(faseInRitardo(fase, oggi)!)}
                             </span>
                           )}
                           {done && fase.completata_il && (
@@ -459,13 +471,13 @@ export default function CampoAvanzamento() {
 
                         {!spunta && (
                           <p className="mt-1 text-xs text-muted-foreground">
-                            {permessiQuery.isError || permessiQuery.isLoading || sottofasiQuery.isError ? "Operazioni da verificare: rileggi permessi e sottofasi." : permessiQuery.data?.regola === "chi_la_fa"
-                              ? "La segna chi fa questa fase, o il capocantiere."
-                              : "La segna il capocantiere."}
+                            {permessiQuery.isError || permessiQuery.isLoading || sottofasiQuery.isError ? t("Operazioni da verificare: rileggi permessi e sottofasi.") : permessiQuery.data?.regola === "chi_la_fa"
+                              ? t("La segna chi fa questa fase, o il capocantiere.")
+                              : t("La segna il capocantiere.")}
                           </p>
                         )}
                         {derivata && (
-                          <ul className="mt-2 space-y-0.5" aria-label={`Sottofasi di ${fase.name}`}>
+                          <ul className="mt-2 space-y-0.5" aria-label={t("Sottofasi di {fase}", { fase: fase.name })}>
                             {sotto.map((s) => (
                               <li key={s.id}>
                                 <label className="flex min-h-11 items-center gap-2.5 text-sm">
@@ -473,7 +485,7 @@ export default function CampoAvanzamento() {
                                     checked={s.fatta}
                                     disabled={segnaSottofase.isPending || !spunta}
                                     onCheckedChange={(v) => segnaSottofase.mutate({ id: s.id, fatta: v === true })}
-                                    aria-label={`${s.name}: ${s.fatta ? "fatta" : "da fare"}`}
+                                    aria-label={s.fatta ? t("{nome}: fatta", { nome: s.name }) : t("{nome}: da fare", { nome: s.name })}
                                   />
                                   <span className={cn(s.fatta && "text-muted-foreground line-through")}>{s.name}</span>
                                 </label>
@@ -498,7 +510,7 @@ export default function CampoAvanzamento() {
                                 >
                                   <ImgRiservata
                                     src={url}
-                                    alt="Foto avanzamento fase"
+                                    alt={t("Foto avanzamento fase")}
                                     loading="lazy"
                                     className="h-14 w-14 rounded-md border border-border object-cover"
                                   />
@@ -507,7 +519,7 @@ export default function CampoAvanzamento() {
                                 <button
                                   type="button"
                                   onClick={() => removePhoto(fase, url)}
-                                  aria-label="Rimuovi foto"
+                                  aria-label={t("Rimuovi foto")}
                                   className="tap-compact absolute -right-2.5 -top-2.5 flex h-8 w-8 items-center justify-center"
                                 >
                                   <span className="flex h-6 w-6 items-center justify-center rounded-full bg-background shadow ring-1 ring-border">
@@ -521,7 +533,7 @@ export default function CampoAvanzamento() {
 
                         <label className="mt-2 inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium text-primary hover:underline">
                           {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
-                          {busy ? "Carico…" : foto.length > 0 ? "Aggiungi foto" : "Aggiungi foto"}
+                          {busy ? t("Carico…") : foto.length > 0 ? t("Aggiungi foto") : t("Aggiungi foto")}
                           <input
                             type="file"
                             accept="image/*"

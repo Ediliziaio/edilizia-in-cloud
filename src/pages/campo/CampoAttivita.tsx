@@ -19,6 +19,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // ── Config ──
 const PRIORITY_CONFIG: Record<string, { label: string; dot: string; badge: string; sort: number }> = {
@@ -42,6 +43,7 @@ type StatusFilter = "tutte" | "da_fare" | "in_corso" | "in_revisione" | "complet
 
 export default function CampoAttivita() {
   const navigate = useNavigate();
+  const t = useT();
   const { user, profile } = useAuth();
   const companyId = profile?.company_id;
   const queryClient = useQueryClient();
@@ -115,9 +117,9 @@ export default function CampoAttivita() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["campo-attivita"] });
       queryClient.invalidateQueries({ queryKey: ["campo-my-tasks"] });
-      toast.success("Stato aggiornato");
+      toast.success(t("Stato aggiornato"));
     },
-    onError: (err: any) => toast.error(err.message ?? "Errore"),
+    onError: (err: any) => toast.error(err.message ?? t("Errore")),
   });
 
   // Stessa sequenza della Regia (da fare → in corso → in revisione → fatta):
@@ -133,13 +135,13 @@ export default function CampoAttivita() {
       <div className="rounded-2xl border bg-background p-4 shadow-sm md:p-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+            <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary max-md:hidden">
               <ListChecks className="h-3.5 w-3.5" />
-              Task operative
+              {t("Attività di lavoro")}
             </div>
-            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Le mie attività</h1>
+            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">{t("Le mie attività")}</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Priorità, scadenze e cantieri collegati in un unico posto.
+              {t("Cosa devi fare, entro quando e in quale cantiere.")}
             </p>
           </div>
           <button
@@ -147,7 +149,7 @@ export default function CampoAttivita() {
             className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition-transform active:scale-95 md:w-auto"
           >
             <Plus className="h-4 w-4" />
-            Nuova attività
+            {t("Nuova attività")}
           </button>
         </div>
       </div>
@@ -155,11 +157,11 @@ export default function CampoAttivita() {
       {/* KPI cards */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5">
         {[
-          { label: "Aperte", value: kpi.daFare + kpi.inCorso, cls: "bg-primary/10 text-primary" },
-          { label: "Urgenti", value: kpi.urgenti, cls: "bg-red-50 text-red-700" },
-          { label: "Da fare", value: kpi.daFare, cls: "bg-slate-100 text-slate-700" },
-          { label: "In corso", value: kpi.inCorso, cls: "bg-blue-50 text-blue-700" },
-          { label: "Fatte", value: kpi.completate, cls: "bg-green-50 text-green-700" },
+          { label: t("Aperte"), value: kpi.daFare + kpi.inCorso, cls: "bg-primary/10 text-primary" },
+          { label: t("Urgenti"), value: kpi.urgenti, cls: "bg-red-50 text-red-700" },
+          { label: t("Da fare"), value: kpi.daFare, cls: "bg-slate-100 text-slate-700" },
+          { label: t("In corso"), value: kpi.inCorso, cls: "bg-blue-50 text-blue-700" },
+          { label: t("Fatte"), value: kpi.completate, cls: "bg-green-50 text-green-700" },
         ].map((k) => (
           <div key={k.label} className={cn("rounded-xl border border-border p-3 text-center shadow-sm", k.cls)}>
             <p className="text-2xl font-black tabular-nums leading-none">{k.value}</p>
@@ -174,12 +176,12 @@ export default function CampoAttivita() {
             <div className="min-w-0">
               <p className="mb-1 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-blue-700">
                 <PlayCircle className="h-4 w-4" />
-                Prossima cosa da fare
+                {t("Prossima cosa da fare")}
               </p>
               <p className="truncate text-lg font-black">{focusTask.title}</p>
               <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-blue-800/80">
                 {focusTask.order?.order_code && <span className="rounded-full bg-white/70 px-2 py-1 font-semibold">{focusTask.order.order_code}</span>}
-                {focusTask.due_date && <span className="rounded-full bg-white/70 px-2 py-1 font-semibold">Scade {format(new Date(focusTask.due_date), "d MMM", { locale: it })}</span>}
+                {focusTask.due_date && <span className="rounded-full bg-white/70 px-2 py-1 font-semibold">{t("Scade {data}", { data: format(new Date(focusTask.due_date), "d MMM", { locale: it }) })}</span>}
                 {focusTask.order?.indirizzo_lavori && <span className="truncate rounded-full bg-white/70 px-2 py-1 font-semibold">{focusTask.order.indirizzo_lavori}</span>}
               </div>
             </div>
@@ -189,14 +191,14 @@ export default function CampoAttivita() {
                   onClick={() => navigate(`/campo/lavoro/${focusTask.order_id}`)}
                   className="h-10 rounded-xl bg-white px-3 text-xs font-bold text-blue-700 shadow-sm"
                 >
-                  Apri lavoro
+                  {t("Apri lavoro")}
                 </button>
               )}
               <button
                 onClick={() => cycleStatus(focusTask)}
                 className="h-10 rounded-xl bg-blue-600 px-3 text-xs font-bold text-white shadow-sm"
               >
-                Avanza stato
+                {t("Avanza stato")}
               </button>
             </div>
           </div>
@@ -219,7 +221,7 @@ export default function CampoAttivita() {
                 isActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-accent"
               )}
             >
-              {labels[f]}
+              {t(labels[f])}
             </button>
           );
         })}
@@ -235,10 +237,10 @@ export default function CampoAttivita() {
           <CheckCircle className="w-12 h-12 text-muted-foreground/30" />
           <div>
             <p className="font-medium text-muted-foreground">
-              {statusFilter === "tutte" ? "Nessuna attività" : `Nessuna attività "${STATUS_CONFIG[statusFilter]?.label}"`}
+              {statusFilter === "tutte" ? t("Nessuna attività") : t("Nessuna attività \"{stato}\"", { stato: t(STATUS_CONFIG[statusFilter]?.label ?? "") })}
             </p>
             <p className="text-xs text-muted-foreground/70 mt-1">
-              Crea una nuova attività per iniziare
+              {t("Crea una nuova attività per iniziare")}
             </p>
           </div>
         </div>
@@ -286,7 +288,7 @@ export default function CampoAttivita() {
 
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                       <Badge className={cn("text-[11px] px-1.5 py-0 border", pCfg.badge)}>
-                        {pCfg.label}
+                        {t(pCfg.label)}
                       </Badge>
 
                       {task.order?.order_code && (
@@ -330,7 +332,7 @@ export default function CampoAttivita() {
                             }}
                             className="h-8 rounded-lg bg-primary/10 px-3 text-xs font-bold text-primary"
                           >
-                            Apri lavoro
+                            {t("Apri lavoro")}
                           </button>
                           {task.order.indirizzo_lavori && (
                             <button
@@ -387,6 +389,7 @@ function TaskFormCampo({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const t = useT();
   const isEditing = !!task?.id;
   const [title, setTitle] = useState(task?.title ?? "");
   const [notes, setNotes] = useState(task?.notes ?? "");
@@ -397,7 +400,7 @@ function TaskFormCampo({
 
   const handleSave = async () => {
     if (!title.trim()) {
-      toast.error("Inserisci un titolo");
+      toast.error(t("Inserisci un titolo"));
       return;
     }
     setSaving(true);
@@ -416,7 +419,7 @@ function TaskFormCampo({
         // task creata dall'ufficio ne cancellava categoria e assegnatario.
         const { error } = await supabase.from("tasks").update(payload).eq("id", task.id);
         if (error) throw error;
-        toast.success("Attività aggiornata");
+        toast.success(t("Attività aggiornata"));
       } else {
         payload.company_id = companyId;
         payload.assigned_to = userId;
@@ -424,11 +427,11 @@ function TaskFormCampo({
         payload.created_by = userId;
         const { error } = await supabase.from("tasks").insert(payload as any);
         if (error) throw error;
-        toast.success("Attività creata");
+        toast.success(t("Attività creata"));
       }
       onSaved();
     } catch (e: any) {
-      toast.error(e.message ?? "Errore nel salvataggio");
+      toast.error(e.message ?? t("Errore nel salvataggio"));
     } finally {
       setSaving(false);
     }
@@ -442,7 +445,7 @@ function TaskFormCampo({
           <X className="w-5 h-5" />
         </button>
         <h2 className="text-base font-semibold flex-1">
-          {isEditing ? "Modifica attività" : "Nuova attività"}
+          {isEditing ? t("Modifica attività") : t("Nuova attività")}
         </h2>
         <button
           onClick={handleSave}
@@ -450,7 +453,7 @@ function TaskFormCampo({
           className="bg-primary text-primary-foreground px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-50 flex items-center gap-2"
         >
           {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-          {isEditing ? "Salva" : "Crea"}
+          {isEditing ? t("Salva") : t("Crea")}
         </button>
       </div>
 
@@ -459,13 +462,13 @@ function TaskFormCampo({
         {/* Titolo */}
         <div>
           <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">
-            Titolo *
+            {t("Titolo *")}
           </label>
           <input
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Cosa devi fare?"
+            placeholder={t("Cosa devi fare?")}
             autoFocus
             className="w-full bg-muted border border-border rounded-xl px-3.5 py-3 text-sm text-foreground placeholder:text-muted-foreground"
           />
@@ -474,12 +477,12 @@ function TaskFormCampo({
         {/* Note */}
         <div>
           <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">
-            Descrizione
+            {t("Descrizione")}
           </label>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="Dettagli aggiuntivi..."
+            placeholder={t("Dettagli aggiuntivi...")}
             rows={3}
             className="w-full bg-muted border border-border rounded-xl px-3.5 py-3 text-sm text-foreground resize-none placeholder:text-muted-foreground"
           />
@@ -488,7 +491,7 @@ function TaskFormCampo({
         {/* Priorità */}
         <div>
           <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">
-            Priorità
+            {t("Priorità")}
           </label>
           <div className="grid grid-cols-4 gap-2">
             {PRIORITIES.map((p) => {
@@ -504,7 +507,7 @@ function TaskFormCampo({
                   )}
                 >
                   <div className={cn("w-2.5 h-2.5 rounded-full mx-auto mb-1", cfg.dot)} />
-                  {cfg.label}
+                  {t(cfg.label)}
                 </button>
               );
             })}
@@ -514,7 +517,7 @@ function TaskFormCampo({
         {/* Stato */}
         <div>
           <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">
-            Stato
+            {t("Stato")}
           </label>
           <div className="grid grid-cols-3 gap-2">
             {STATUSES.map((s) => {
@@ -531,7 +534,7 @@ function TaskFormCampo({
                   )}
                 >
                   <Icon className={cn("w-3.5 h-3.5", cfg.cls)} />
-                  {cfg.label}
+                  {t(cfg.label)}
                 </button>
               );
             })}
@@ -541,7 +544,7 @@ function TaskFormCampo({
         {/* Scadenza */}
         <div>
           <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">
-            Scadenza
+            {t("Scadenza")}
           </label>
           <input
             type="date"

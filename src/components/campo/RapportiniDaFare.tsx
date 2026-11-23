@@ -18,6 +18,7 @@ import { useCampoRapportiniDaCompilare } from "@/hooks/useCampoRapportiniDaCompi
 import { useRapportiniSospesi } from "@/hooks/campo/useRapportiniSospesi";
 import { campoReportUrl, isClientReport } from "@/lib/campo/reportKind";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Il rapportino di quel giorno, già compilato se era respinto o in bozza. */
 const rapportinoDelGiorno = (orderId: string, giorno: string) => `/campo/lavoro/${orderId}/rapportino?data=${giorno}`;
@@ -25,6 +26,7 @@ const rapportinoDelGiorno = (orderId: string, giorno: string) => `/campo/lavoro/
 export function RapportiniDaCompilareOggi() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const t = useT();
   const { user } = useAuth();
   const { data: cantieri = [], isLoading, isError, refetch } = useCampoRapportiniDaCompilare(user?.id);
 
@@ -34,11 +36,11 @@ export function RapportiniDaCompilareOggi() {
     return (
       <Card role="alert" className="border-amber-300 bg-amber-50">
         <CardContent className="flex items-center justify-between gap-3 p-4">
-          <p className="min-w-0 text-sm text-amber-900">Non riesco a controllare se hai rapportini da inviare.</p>
+          <p className="min-w-0 text-sm text-amber-900">{t("Non riesco a controllare se hai rapportini da inviare.")}</p>
           <button type="button"
             onClick={() => { void refetch(); void queryClient.invalidateQueries({ queryKey: ["campo-rapportini-sospesi"] }); }}
             className="shrink-0 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">
-            Riprova
+            {t("Riprova")}
           </button>
         </CardContent>
       </Card>
@@ -52,7 +54,7 @@ export function RapportiniDaCompilareOggi() {
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2 text-violet-800 dark:text-violet-200">
           <ClipboardList className="h-4 w-4" />
-          {cantieri.length === 1 ? "Rapportino da inviare" : `${cantieri.length} rapportini da inviare`}
+          {cantieri.length === 1 ? t("Rapportino da inviare") : t("{n} rapportini da inviare", { n: cantieri.length })}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
@@ -67,7 +69,7 @@ export function RapportiniDaCompilareOggi() {
                 {c.order_code ?? "—"} · {format(parseISO(c.data_lavoro), "dd/MM")}
               </p>
               <p className="text-xs text-muted-foreground truncate">
-                {c.description?.slice(0, 60) ?? "—"} · ~{c.ore_in_cantiere_stimate}h stimate
+                {c.description?.slice(0, 60) ?? "—"} · {t("~{ore}h stimate", { ore: c.ore_in_cantiere_stimate })}
               </p>
             </div>
             <ChevronRight className="w-4 h-4 text-violet-600 shrink-0 ml-2" />
@@ -75,7 +77,7 @@ export function RapportiniDaCompilareOggi() {
         ))}
         {cantieri.length > 5 && (
           <p className="text-xs text-muted-foreground text-center pt-1">
-            +{cantieri.length - 5} altri cantieri
+            {t("+{n} altri cantieri", { n: cantieri.length - 5 })}
           </p>
         )}
       </CardContent>
@@ -85,16 +87,17 @@ export function RapportiniDaCompilareOggi() {
 
 export function RapportiniSospesi() {
   const navigate = useNavigate();
+  const t = useT();
   const { data: rapportini = [], isError, refetch } = useRapportiniSospesi();
 
   if (isError && rapportini.length === 0) {
     return (
       <Card role="alert" className="border-amber-300 bg-amber-50">
         <CardContent className="flex items-center justify-between gap-3 p-4">
-          <p className="min-w-0 text-sm text-amber-900">Non riesco a controllare i rapportini da completare.</p>
+          <p className="min-w-0 text-sm text-amber-900">{t("Non riesco a controllare i rapportini da completare.")}</p>
           <button type="button" onClick={() => void refetch()}
             className="shrink-0 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">
-            Riprova
+            {t("Riprova")}
           </button>
         </CardContent>
       </Card>
@@ -108,7 +111,7 @@ export function RapportiniSospesi() {
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2 text-amber-800">
           <AlertTriangle className="h-4 w-4" />
-          {rapportini.length} {rapportini.length === 1 ? "rapportino" : "rapportini"} da completare
+          {rapportini.length === 1 ? t("{n} rapportino da completare", { n: rapportini.length }) : t("{n} rapportini da completare", { n: rapportini.length })}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
@@ -123,7 +126,7 @@ export function RapportiniSospesi() {
                 {r.order?.order_code}
                 {r.stato === "rifiutato" && (
                   <span className="ml-2 text-xs font-semibold uppercase tracking-wide text-red-600">
-                    Respinto — da rifare
+                    {t("Respinto — da rifare")}
                   </span>
                 )}
               </p>

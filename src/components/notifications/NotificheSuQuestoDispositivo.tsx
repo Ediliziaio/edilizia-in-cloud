@@ -12,6 +12,7 @@ import { useId } from "react";
 import { Switch } from "@/components/ui/switch";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 function iPhoneNonInstallato(): boolean {
   if (typeof window === "undefined") return false;
@@ -22,27 +23,28 @@ function iPhoneNonInstallato(): boolean {
 }
 
 export function NotificheSuQuestoDispositivo({ className }: { className?: string }) {
+  const t = useT();
   const { supported, permission, isSubscribed, isLoading, subscribe, unsubscribe, nativa, servizioNativo, errore } = usePushNotifications();
   const idStato = useId();
 
   const perche =
     !supported
       ? !nativa && iPhoneNonInstallato()
-        ? "Su iPhone aggiungi il sito alla schermata Home e aprilo da lì."
-        : nativa ? "Le notifiche su questo telefono non sono disponibili." : "Questo browser non riceve notifiche."
+        ? t("Su iPhone aggiungi il sito alla schermata Home e aprilo da lì.")
+        : nativa ? t("Le notifiche su questo telefono non sono disponibili.") : t("Questo browser non riceve notifiche.")
       : nativa && servizioNativo === false
-        ? "Il servizio per questo telefono non è ancora attivo."
+        ? t("Il servizio per questo telefono non è ancora attivo.")
       : permission === "denied"
-        ? nativa ? "Riattiva le notifiche dalle impostazioni del telefono." : "Riattiva le notifiche dalle impostazioni del browser."
+        ? nativa ? t("Riattiva le notifiche dalle impostazioni del telefono.") : t("Riattiva le notifiche dalle impostazioni del browser.")
         : null;
 
   return (
     <div className={cn("flex items-center gap-3", className)}>
       <BellRing className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
       <div className="min-w-0 flex-1">
-        <p className="text-sm">Su questo dispositivo</p>
+        <p className="text-sm">{t("Su questo dispositivo")}</p>
         <p id={idStato} className="text-xs text-muted-foreground">
-          {perche ?? (isSubscribed ? "Ricevi gli avvisi anche ad app chiusa." : "Gli avvisi sono disponibili nella campanella.")}
+          {perche ?? (isSubscribed ? t("Ricevi gli avvisi anche ad app chiusa.") : t("Gli avvisi sono disponibili nella campanella."))}
         </p>
         {errore && <p role="alert" className="mt-1 text-xs text-destructive">{errore}</p>}
       </div>
@@ -50,7 +52,7 @@ export function NotificheSuQuestoDispositivo({ className }: { className?: string
         checked={isSubscribed}
         disabled={isLoading || (!isSubscribed && !!perche)}
         onCheckedChange={(acceso) => void (acceso ? subscribe() : unsubscribe())}
-        aria-label="Notifiche su questo dispositivo"
+        aria-label={t("Notifiche su questo dispositivo")}
         aria-describedby={idStato}
       />
     </div>

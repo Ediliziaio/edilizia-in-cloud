@@ -6,6 +6,7 @@ import type { Coordinate } from "../../../../shared/mappa-operativa/calcoli";
 import { caricaSfondoVettoriale, preparaSfondoMappa } from "./caricaSfondo";
 import { fonteCartografica, stileMappa, tilesMappa } from "./servizio";
 import type { LineaPercorso } from "./tratte";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 export type Pin = { id: string; titolo: string; punto: Coordinate; numero?: number; tipo?: "base" | "gps" | "mezzo" | "destinazione_mezzo" | "attrezzatura"; etichetta?: string; avviso?: boolean };
 
 export type InquadraturaMappa = Coordinate & { zoom: number; firma: string };
@@ -99,6 +100,7 @@ export default function CartografiaOperativa({
   pin, selezionato, percorso = nessunPercorso, trattaSelezionata, onTratta, nomiPin, bozza, tileConsentito, erroreTiles,
   attesaPunti, contesto = "", inquadratura, onInquadratura, onSeleziona, onPunto,
 }: Props) {
+  const t = useT();
   const contenitore = useRef<HTMLDivElement>(null);
   const mappa = useRef<L.Map | null>(null);
   const elementi = useRef<L.LayerGroup | null>(null);
@@ -237,9 +239,9 @@ export default function CartografiaOperativa({
       const forma = (gps || flotta) && g.pin.length === 1 ? "rounded-lg" : "rounded-full";
       const colore = daVerificare ? "bg-amber-800" : gps ? "bg-violet-700" : destinazione ? "bg-amber-700" : attrezzo ? "bg-teal-700" : flotta ? "bg-sky-800" : base ? (primo.etichetta === "R" ? "bg-pink-700" : "bg-teal-700") : "bg-slate-900";
       nodo.className = `grid size-9 place-items-center ${forma} border-2 border-white font-bold text-white shadow-md ${mostraSequenza ? "text-[10px]" : "text-xs"} ${colore}`;
-      const testo = daVerificare ? `Pin fuori copertura · ${g.pin.filter(p => p.avviso).map(p => p.titolo).join(", ")}` :
-        numeri.length === 2 ? `Tappe ${numeri.join(" e ")}` :
-        g.pin.length > 1 ? `${g.pin.length} ${gps ? "timbrature vicine" : flotta ? "risorse vicine" : nomiPin ? "cantieri vicini" : "tappe vicine"}` : primo.titolo;
+      const testo = daVerificare ? t("Pin fuori copertura · {nomi}", { nomi: g.pin.filter(p => p.avviso).map(p => p.titolo).join(", ") }) :
+        numeri.length === 2 ? t("Tappe {a} e {b}", { a: String(numeri[0]), b: String(numeri[1]) }) :
+        g.pin.length > 1 ? (gps ? t("{n} timbrature vicine", { n: g.pin.length }) : flotta ? t("{n} risorse vicine", { n: g.pin.length }) : nomiPin ? t("{n} cantieri vicini", { n: g.pin.length }) : t("{n} tappe vicine", { n: g.pin.length })) : primo.titolo;
       const punto = primo.punto;
       const marker = L.marker([punto.lat, punto.lng], {
         icon: L.divIcon({ html: nodo, className: "", iconSize: [36, 36], iconAnchor: [18, 18] }),
@@ -259,7 +261,7 @@ export default function CartografiaOperativa({
         }
         if (g.pin.length > 4) {
           const altri = document.createElement("div");
-          altri.textContent = `Altri ${g.pin.length - 4} ${flotta ? "punti" : "cantieri"}`;
+          altri.textContent = flotta ? t("Altri {n} punti", { n: g.pin.length - 4 }) : t("Altri {n} cantieri", { n: g.pin.length - 4 });
           nomi.append(altri);
         }
         marker.bindTooltip(nomi, { direction: "top", offset: [0, -15], opacity: 1 });
@@ -272,14 +274,14 @@ export default function CartografiaOperativa({
           const b = document.createElement("button");
           b.type = "button";
           b.className = "rounded px-2 py-1 text-left hover:bg-slate-100";
-          b.textContent = `${p.numero != null ? `${p.numero}. ` : ""}${p.titolo}${p.avviso ? " · fuori copertura" : ""}`;
+          b.textContent = `${p.numero != null ? `${p.numero}. ` : ""}${p.titolo}${p.avviso ? ` · ${t("fuori copertura")}` : ""}`;
           b.onclick = () => { marker.closePopup(); azioni.current.onSeleziona(p.id); };
           elenco.append(b);
         });
         return elenco;
       });
     });
-  }, [pin, zoom, nomiPin]);
+  }, [pin, zoom, nomiPin, t]);
 
   useEffect(() => {
     const precedente = evidenziato.current;
@@ -323,9 +325,9 @@ export default function CartografiaOperativa({
       const elenco = document.createElement("div");
       elenco.className = "grid max-h-56 gap-1 overflow-auto";
       elenco.setAttribute("role", "group");
-      elenco.setAttribute("aria-label", "Tratte sovrapposte");
+      elenco.setAttribute("aria-label", t("Tratte sovrapposte"));
       const titolo = document.createElement("p");
-      titolo.textContent = "Scegli la tratta";
+      titolo.textContent = t("Scegli la tratta");
       titolo.className = "font-semibold";
       elenco.append(titolo);
       for (const t of vicine) {
@@ -362,13 +364,13 @@ export default function CartografiaOperativa({
       }
     }
     selezionata?.bringToFront();
-  }, [percorso, trattaSelezionata, modificaPin]);
+  }, [percorso, trattaSelezionata, modificaPin, t]);
 
   return <div className="min-w-0 space-y-2">
-    <div ref={contenitore} role="region" aria-label="Mappa operativa" data-livello-zoom={zoom} data-cartografia={mappaPronta ? "pronta" : "in-attesa"} className="relative isolate h-[40dvh] min-h-64 overflow-hidden rounded-lg border bg-slate-100 lg:h-[34rem]" />
-    {stileMappa && tileConsentito && !mappaPronta && !errore && <p role="status" className="px-1 text-xs text-muted-foreground">Caricamento mappa stradale…</p>}
+    <div ref={contenitore} role="region" aria-label={t("Mappa operativa")} data-livello-zoom={zoom} data-cartografia={mappaPronta ? "pronta" : "in-attesa"} className="relative isolate h-[40dvh] min-h-64 overflow-hidden rounded-lg border bg-slate-100 lg:h-[34rem]" />
+    {stileMappa && tileConsentito && !mappaPronta && !errore && <p role="status" className="px-1 text-xs text-muted-foreground">{t("Caricamento mappa stradale…")}</p>}
     {(errore || erroreTiles || (!tilesMappa && !stileMappa)) && <p role="status" className="px-1 text-xs text-muted-foreground">
-      {erroreTiles || (errore ? "Cartografia temporaneamente non disponibile." : "Sfondo cartografico da configurare.")} I punti restano consultabili.
+      {erroreTiles ? `${erroreTiles} ${t("I punti restano consultabili.")}` : errore ? t("Cartografia temporaneamente non disponibile. I punti restano consultabili.") : t("Sfondo cartografico da configurare. I punti restano consultabili.")}
     </p>}
   </div>;
 }

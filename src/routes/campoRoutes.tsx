@@ -14,6 +14,7 @@ import CampoLavoroDetail from "@/pages/campo/CampoLavoroDetail";
 import { CAMPO_APP_ROLES, CAMPO_ROLES } from "@/types/auth";
 import { useIsCampo } from "@/hooks/useIsCampo";
 import { percorsoCantiereTecnico } from "@/lib/campo/schedaCantiere";
+import { LinguaCampoProvider } from "@/lib/campo/lingua/LinguaCampo";
 
 const CampoLayout         = lazy(() => import("@/components/layouts/CampoLayout"));
 const CampoSchedaCantiere = lazy(() => import("@/pages/campo/CampoSchedaCantiere"));
@@ -33,6 +34,8 @@ const CampoChat           = lazy(() => import("@/pages/campo/CampoChat"));
 const CampoDocumenti      = lazy(() => import("@/pages/campo/CampoDocumenti"));
 const CampoTesserino      = lazy(() => import("@/pages/campo/CampoTesserino"));
 const CampoTicketNuovo    = lazy(() => import("@/pages/campo/CampoTicketNuovo"));
+const CampoSegnalaSicurezza = lazy(() => import("@/pages/campo/CampoSegnalaSicurezza"));
+const CampoBuoniPasto = lazy(() => import("@/pages/campo/CampoBuoniPasto"));
 const CampoProfilo        = lazy(() => import("@/pages/campo/CampoProfilo"));
 const CampoImpostazioni   = lazy(() => import("@/pages/campo/CampoImpostazioni"));
 const PreferenzeNotifiche = lazy(() => import("@/pages/azienda/impostazioni/SettingsNotifiche"));
@@ -62,9 +65,12 @@ export default function CampoRoutesContainer() {
         path=""
         element={
           <ProtectedRoute allowedRoles={CAMPO_APP_ROLES}>
-            <ErrorBoundary title="Errore nell'area campo">
-              <CampoLayout />
-            </ErrorBoundary>
+            {/* Lingua dell'operaio (23/11/2026): tutto ciò che sta sotto usa useT(); l'italiano resta la base. */}
+            <LinguaCampoProvider>
+              <ErrorBoundary title="Errore nell'area campo">
+                <CampoLayout />
+              </ErrorBoundary>
+            </LinguaCampoProvider>
           </ProtectedRoute>
         }
       >
@@ -108,6 +114,10 @@ export default function CampoRoutesContainer() {
           <Route path="tesserino" element={<CampoTesserino />} />
           <Route path="ticket/nuovo" element={<CampoTicketNuovo />} />
           <Route path="ticket/nuovo/:orderId" element={<CampoTicketNuovo />} />
+          {/* Infortuni, quasi-incidenti e situazioni pericolose (23/11/2026). */}
+          <Route path="sicurezza/segnala" element={<CampoSegnalaSicurezza />} />
+          <Route path="sicurezza/segnala/:orderId" element={<CampoSegnalaSicurezza />} />
+          <Route path="buoni-pasto" element={<CampoBuoniPasto />} />
           <Route path="avanzamento" element={<CampoAvanzamento />} />
           {/* Legacy: la vecchia pagina "SAL" era costruita sugli importi (e non ha
               mai funzionato: FK e colonne sbagliate). In cantiere serve segnare le

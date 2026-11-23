@@ -40,6 +40,7 @@ import {
   MAX_DOCUMENTO_BYTE,
   mimeDocumento,
 } from "@/lib/ddt/preparaDocumento";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const campo = "min-h-12 w-full rounded-xl border bg-background px-3 text-base";
 type PaginaBolla = { id: string; file: File };
@@ -54,19 +55,20 @@ function leggiPagina(file: File): Promise<ArrayBuffer> {
 }
 
 function FotoBollaInCoda({ voce }: { voce: SyncItem }) {
+  const t = useT();
   const pagine = useMemo(() => {
     const p = voce.payload as { files?: (ArrayBuffer | Blob)[]; fileTypes?: string[]; fileNames?: string[] };
     return (p.files ?? []).map((file, i) => {
       const tipo = p.fileTypes?.[i] || (file instanceof Blob ? file.type : "");
       const foto = tipo.startsWith("image/") && (file instanceof Blob || file instanceof ArrayBuffer)
         ? file instanceof Blob ? file : new Blob([file], { type: tipo }) : null;
-      return { foto, nome: p.fileNames?.[i] || `Pagina ${i + 1}` };
+      return { foto, nome: p.fileNames?.[i] || t("Pagina {n}", { n: i + 1 }) };
     });
-  }, [voce.payload]);
+  }, [voce.payload, t]);
 
-  return <ul aria-label="Pagine della bolla conservata" className="mt-2 grid grid-cols-3 gap-1.5 sm:grid-cols-5">
+  return <ul aria-label={t("Pagine della bolla conservata")} className="mt-2 grid grid-cols-3 gap-1.5 sm:grid-cols-5">
     {pagine.map((pagina, i) => <li key={`${pagina.nome}:${i}`} className="min-w-0">
-      {pagina.foto ? <AnteprimaFotoCampo foto={pagina.foto} etichetta={`pagina in coda ${i + 1}`} className="aspect-square h-auto" />
+      {pagina.foto ? <AnteprimaFotoCampo foto={pagina.foto} etichetta={t("pagina in coda {n}", { n: i + 1 })} className="aspect-square h-auto" />
         : <div className="grid aspect-square place-items-center rounded-xl border bg-background" aria-label={pagina.nome}><FileText className="size-5" aria-hidden="true" /></div>}
       <p className="truncate text-xs" title={pagina.nome}>{pagina.nome}</p>
     </li>)}
@@ -80,6 +82,7 @@ export default function CampoDDT() {
 }
 
 function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
+  const t = useT();
   const { user } = useAuth();
   const assegnazioni = useCampoAssignments();
   const [params] = useSearchParams();
@@ -115,11 +118,11 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
   const valoreCantiere = sceltaCantiere.valore;
   const cantierePronto = destinazione === "magazzino" || (!assegnazioni.isError && sceltaCantiere.pronto);
   const etichettaDestinazione = (tipo: "magazzino" | "cantiere", id?: string | null) => {
-    if (tipo === "magazzino") return "Magazzino";
+    if (tipo === "magazzino") return t("Magazzino");
     const c = cantieri.find((x) => x.order_id === id);
     return c
       ? [c.order.order_code, c.order.description || c.order.indirizzo_lavori].filter(Boolean).join(" · ")
-      : id ? "Cantiere" : "Scegli il cantiere";
+      : id ? t("Cantiere") : t("Scegli il cantiere");
   };
   const etichettaCantiere = etichettaDestinazione(destinazione, orderId);
   const [pagine, setPagine] = useState<PaginaBolla[]>([]);
@@ -192,7 +195,7 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
     if (!nuovi.length || blocco.current) return;
     const errore = nuovi.map(erroreDocumento).find(Boolean);
     if (errore) {
-      toast.error(errore);
+      toast.error(t(errore));
       return;
     }
     if (
@@ -200,7 +203,7 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
       [...files, ...nuovi].reduce((s, f) => s + f.size, 0) > MAX_DOCUMENTO_BYTE
     ) {
       toast.error(
-        "Un DDT può avere fino a 12 foto e pesare complessivamente 18 MB. Dividi i documenti più grandi dall’ufficio.",
+        t("Un DDT può avere fino a 12 foto e pesare complessivamente 18 MB. Dividi i documenti più grandi dall’ufficio."),
       );
       return;
     }
@@ -228,7 +231,7 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
       if (daDividere.length) setPdfDaDividere((p) => [...p, ...daDividere]);
     } catch {
       toast.error(
-        "Non riesco a preparare questo PDF. L’originale resta sul dispositivo: riprova o invialo all’ufficio.",
+        t("Non riesco a preparare questo PDF. L’originale resta sul dispositivo: riprova o invialo all’ufficio."),
       );
     } finally {
       blocco.current = false;
@@ -264,7 +267,7 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
       setPagine(tutte => tutte.map(p => p.file === prima ? { ...p, file: nuova } : p));
     } catch (errore) {
       toast.error(errore instanceof Error && /foto|18 MB/.test(errore.message)
-        ? errore.message : "Operazione non riuscita. La pagina originale è ancora qui.");
+        ? t(errore.message) : t("Operazione non riuscita. La pagina originale è ancora qui."));
     } finally {
       blocco.current = false;
       setPreparando(null);
@@ -315,7 +318,7 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
         await salvaSoloDocumento(files, orderId);
         setPagine([]);
         void documenti.refetch();
-        toast.success("Bolla ricevuta dall’ufficio");
+        toast.success(t("Bolla ricevuta dall’ufficio"));
         return;
       }
       // Prima IndexedDB, poi rete: la lettura AI non trattiene la pagina aperta.
@@ -325,15 +328,15 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
       if (puoRegistrare && typeof id === "string") setAttesa(id);
       toast.success(
         online
-          ? "Bolla salvata sul telefono. Invio in coda."
-          : "Bolla salvata sul telefono. Partirà appena torna la connessione.",
+          ? t("Bolla salvata sul telefono. Invio in coda.")
+          : t("Bolla salvata sul telefono. Partirà appena torna la connessione."),
       );
       sincronizza();
     } catch (e) {
       toast.error(
         soloDocumento
-          ? "Salvataggio della bolla non completato. Le foto restano qui."
-          : "Non riesco a salvare sul telefono. Le foto restano qui: riprova prima di uscire.",
+          ? t("Salvataggio della bolla non completato. Le foto restano qui.")
+          : t("Non riesco a salvare sul telefono. Le foto restano qui: riprova prima di uscire."),
         soloDocumento && e instanceof Error ? { description: e.message } : undefined,
       );
     } finally {
@@ -344,7 +347,7 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
 
   const salvaPezzi = async (id: string, pezzi: File[]) => {
     if (!cantierePronto) {
-      toast.error("Scegli prima il cantiere e ripeti la conferma");
+      toast.error(t("Scegli prima il cantiere e ripeti la conferma"));
       return;
     }
     if (blocco.current || !pezzi.length) return;
@@ -354,10 +357,10 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
       const voci = await Promise.all(pezzi.map((pezzo) => preparaInvio([pezzo])));
       await syncQueue.enqueueBatch(voci);
       setPdfDaDividere((p) => p.filter((x) => x.id !== id));
-      toast.success(`${pezzi.length} bolle salvate sul telefono. Invio in coda.`);
+      toast.success(t("{n} bolle salvate sul telefono. Invio in coda.", { n: pezzi.length }));
       sincronizza();
     } catch {
-      toast.error("Non riesco a salvare le bolle sul telefono. Il PDF resta qui: riprova.");
+      toast.error(t("Non riesco a salvare le bolle sul telefono. Il PDF resta qui: riprova."));
     } finally {
       blocco.current = false;
       setSalvando(false);
@@ -370,15 +373,15 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
         <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
           <Receipt className="size-5" aria-hidden="true" />
         </span>
-        <h1 className="min-w-0 text-xl font-bold">Bolle e DDT</h1>
+        <h1 className="min-w-0 text-xl font-bold">{t("Bolle e DDT")}</h1>
       </header>
       <section
         className="space-y-3 rounded-2xl border bg-card p-3 shadow-sm sm:space-y-4 sm:p-4"
-        aria-label="Nuovo documento di cantiere"
+        aria-label={t("Nuovo documento di cantiere")}
       >
         <div className="space-y-2">
-          <h2 className="text-sm font-bold">Dove va la merce</h2>
-          <div className="grid grid-cols-2 gap-2" role="group" aria-label="Dove va la merce">
+          <h2 className="text-[15px] font-bold md:text-sm">{t("Dove va la merce")}</h2>
+          <div className="grid grid-cols-2 gap-2" role="group" aria-label={t("Dove va la merce")}>
             <button
               type="button"
               aria-pressed={destinazione === "magazzino"}
@@ -386,7 +389,7 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
               disabled={occupato}
               onClick={() => setDove("magazzino")}
             >
-              <Warehouse className="size-4 shrink-0" aria-hidden="true" /> In magazzino
+              <Warehouse className="size-4 shrink-0" aria-hidden="true" /> {t("In magazzino")}
             </button>
             <button
               type="button"
@@ -395,13 +398,13 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
               disabled={occupato}
               onClick={() => setDove("cantiere")}
             >
-              <HardHat className="size-4 shrink-0" aria-hidden="true" /> In cantiere
+              <HardHat className="size-4 shrink-0" aria-hidden="true" /> {t("In cantiere")}
             </button>
           </div>
         </div>
         {destinazione === "cantiere" && (
           <label className="block space-y-1 text-sm font-medium">
-            Cantiere
+            {t("Cantiere")}
             <UniformSelect
               className={campo}
               value={valoreCantiere}
@@ -411,7 +414,7 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
               }
               onChange={(e) => setScelta(e.target.value)}
             >
-              <option value="">Scegli il cantiere</option>
+              <option value="">{t("Scegli il cantiere")}</option>
               {cantieri.map((c) => (
                 <option key={c.order_id} value={c.order_id}>
                   {c.order.order_code} ·{" "}
@@ -423,14 +426,14 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
         )}
         {destinazione === "cantiere" && richiesto && !assegnazioni.isLoading && !assegnazioni.isError &&
           !cantieri.some((c) => c.order_id === richiesto) && (
-            <p className="text-sm text-amber-800 dark:text-amber-300">Il cantiere del link non è tra quelli assegnati. Controlla la destinazione prima di inviare.</p>
+            <p className="text-sm text-amber-800 dark:text-amber-300">{t("Il cantiere del link non è tra quelli assegnati. Controlla la destinazione prima di inviare.")}</p>
           )}
         {assegnazioni.isError && (
           <button
             className="min-h-11 text-sm text-destructive underline"
             onClick={() => void assegnazioni.refetch()}
           >
-            Non riesco a caricare i cantieri. Riprova
+            {t("Non riesco a caricare i cantieri. Riprova")}
           </button>
         )}
         {!assegnazioni.isLoading &&
@@ -439,12 +442,12 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
           !ufficio &&
           destinazione === "cantiere" && (
             <p className="text-sm text-muted-foreground">
-              L’ufficio deve prima assegnarti un cantiere. La merce per il magazzino puoi già mandarla.
+              {t("L’ufficio deve prima assegnarti un cantiere. La merce per il magazzino puoi già mandarla.")}
             </p>
           )}
         <div className="space-y-2 border-t pt-3">
-          <h2 className="text-sm font-bold">Foto della bolla</h2>
-          {!files.length && <p className="text-sm text-muted-foreground">Inquadra il foglio intero. Aggiungi il retro se contiene altre righe.</p>}
+          <h2 className="text-[15px] font-bold md:text-sm">{t("Foto della bolla")}</h2>
+          {!files.length && <p className="text-sm text-muted-foreground">{t("Inquadra il foglio intero. Aggiungi il retro se contiene altre righe.")}</p>}
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
@@ -453,7 +456,7 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
               disabled={occupato || files.length >= 12}
             >
               <Camera className="size-5 shrink-0" aria-hidden="true" />
-              {files.length ? "Altra foto" : "Scatta la bolla"}
+              {files.length ? t("Altra foto") : t("Scatta la bolla")}
             </button>
             <button
               type="button"
@@ -462,7 +465,7 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
               disabled={occupato || files.length >= 12}
             >
               <FileUp className="size-4 shrink-0" aria-hidden="true" />
-              Foto o PDF
+              {t("Foto o PDF")}
             </button>
           </div>
         </div>
@@ -472,7 +475,7 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
           accept="image/*,.heic,.heif"
           capture="environment"
           hidden
-          aria-label="Fotografa il DDT"
+          aria-label={t("Fotografa il DDT")}
           onChange={(e) => {
             const input = e.currentTarget;
             void aggiungi(Array.from(input.files ?? [])).finally(() => { input.value = ""; });
@@ -484,13 +487,13 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
           accept={ACCEPT_DOCUMENTI_DDT}
           multiple
           hidden
-          aria-label="Scegli le pagine del DDT"
+          aria-label={t("Scegli le pagine del DDT")}
           onChange={(e) => {
             const input = e.currentTarget;
             void aggiungi(Array.from(input.files ?? [])).finally(() => { input.value = ""; });
           }}
         />
-        <input ref={sostituzione} type="file" accept="image/*,.heic,.heif" hidden aria-label="Scegli una foto sostitutiva"
+        <input ref={sostituzione} type="file" accept="image/*,.heic,.heif" hidden aria-label={t("Scegli una foto sostitutiva")}
           onChange={e => {
             const input = e.currentTarget;
             const nuova = input.files?.[0];
@@ -501,7 +504,7 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
         {preparando && (
           <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="size-4 motion-safe:animate-spin" aria-hidden="true" />
-            {preparando === "pdf" ? "Controllo le pagine del PDF…" : "Preparo le foto…"}
+            {preparando === "pdf" ? t("Controllo le pagine del PDF…") : t("Preparo le foto…")}
           </p>
         )}
         {pdfDaDividere.map((d) => (
@@ -513,7 +516,7 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
             }
             onDiviso={(pezzi, leggi = true) => {
               if (!leggi) {
-                toast.success("PDF divisi e scaricati sul dispositivo");
+                toast.success(t("PDF divisi e scaricati sul dispositivo"));
                 return;
               }
               void salvaPezzi(d.id, pezzi);
@@ -523,7 +526,7 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
         {!!files.length && (
           <>
             <p className="text-sm font-semibold">
-              Pagine dello stesso DDT ({files.length})
+              {t("Pagine dello stesso DDT ({n})", { n: files.length })}
             </p>
             <ul className="space-y-2">
               {pagine.map(({ file: f, id }, i) => (
@@ -536,52 +539,52 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
                       <FileText className="size-5" aria-hidden="true" />
                     </span>
                   ) : (
-                    <AnteprimaFotoCampo foto={f} etichetta={`pagina ${i + 1}`} className="size-14 shrink-0 rounded-lg" />
+                    <AnteprimaFotoCampo foto={f} etichetta={t("pagina {n}", { n: i + 1 })} className="size-14 shrink-0 rounded-lg" />
                   )}
                   <span className="min-w-0 flex-1 break-words">
                     {i + 1}. {f.name}
                   </span>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <button type="button" disabled={occupato} aria-label={`Modifica pagina ${i + 1}`}
+                      <button type="button" disabled={occupato} aria-label={t("Modifica pagina {n}", { n: i + 1 })}
                         className="grid size-11 shrink-0 place-items-center rounded-lg border text-muted-foreground hover:bg-muted disabled:opacity-50">
                         <MoreVertical className="size-5" aria-hidden="true" />
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-44">
                       {mimeDocumento(f) !== "application/pdf" && <DropdownMenuItem className="min-h-11 gap-2" onSelect={() => void ruotaPagina(f)}>
-                        <RotateCw className="size-4" aria-hidden="true" />Ruota a destra
+                        <RotateCw className="size-4" aria-hidden="true" />{t("Ruota a destra")}
                       </DropdownMenuItem>}
                       <DropdownMenuItem className="min-h-11 gap-2" onSelect={() => {
                         paginaDaSostituire.current = f;
                         sostituzione.current?.click();
-                      }}><ImagePlus className="size-4" aria-hidden="true" />Sostituisci</DropdownMenuItem>
+                      }}><ImagePlus className="size-4" aria-hidden="true" />{t("Sostituisci")}</DropdownMenuItem>
                       {files.length > 1 && <>
                         <DropdownMenuItem className="min-h-11 gap-2" disabled={i === 0} onSelect={() => spostaPagina(i, -1)}>
-                          <ArrowUp className="size-4" aria-hidden="true" />Sposta su
+                          <ArrowUp className="size-4" aria-hidden="true" />{t("Sposta su")}
                         </DropdownMenuItem>
                         <DropdownMenuItem className="min-h-11 gap-2" disabled={i === files.length - 1} onSelect={() => spostaPagina(i, 1)}>
-                          <ArrowDown className="size-4" aria-hidden="true" />Sposta giù
+                          <ArrowDown className="size-4" aria-hidden="true" />{t("Sposta giù")}
                         </DropdownMenuItem>
                       </>}
                       <DropdownMenuSeparator />
                       <DropdownMenuItem className="min-h-11 gap-2 text-destructive" onSelect={() => setPagine(p => p.filter(pagina => pagina.id !== id))}>
-                        <Trash2 className="size-4" aria-hidden="true" />Rimuovi
+                        <Trash2 className="size-4" aria-hidden="true" />{t("Rimuovi")}
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </li>
               ))}
             </ul>
-            <p className="text-xs text-muted-foreground">{files.length === 12 ? "Hai raggiunto il limite di 12 pagine." : "Per una bolla diversa, salva questa e inizia un nuovo invio."}</p>
+            <p className="text-xs text-muted-foreground">{files.length === 12 ? t("Hai raggiunto il limite di 12 pagine.") : t("Per una bolla diversa, salva questa e inizia un nuovo invio.")}</p>
           </>
         )}
         {senzaAIPossibile && (
           <label className="flex min-h-12 items-center justify-between gap-3 rounded-xl border px-3 text-sm font-medium">
             <span className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" /> Leggi con l'AI
+              <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" /> {t("Leggi con l'AI")}
             </span>
-            <Switch checked={conAI} onCheckedChange={setConAI} disabled={occupato} aria-label="Leggi con l'AI" />
+            <Switch checked={conAI} onCheckedChange={setConAI} disabled={occupato} aria-label={t("Leggi con l'AI")} />
           </label>
         )}
         <div className="space-y-2 border-t pt-3">
@@ -590,47 +593,47 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
               {destinazione === "magazzino" ? <Warehouse className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" /> : <HardHat className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />}
               <div className="min-w-0">
                 <p className="break-words font-semibold">{etichettaCantiere}</p>
-                <p className="text-xs text-muted-foreground">{files.length === 1 ? "1 pagina da inviare" : `${files.length} pagine da inviare`}</p>
+                <p className="text-xs text-muted-foreground">{files.length === 1 ? t("1 pagina da inviare") : t("{n} pagine da inviare", { n: files.length })}</p>
               </div>
             </div>
           )}
           {!online && (
             <p role="status" className="flex items-start gap-2 text-sm text-muted-foreground">
               <WifiOff className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-              {invioInCoda ? "Salva la bolla ora. Partirà appena torna la connessione." : "Torna online per compilare o inviare senza lettura AI."}
+              {invioInCoda ? t("Salva la bolla ora. Partirà appena torna la connessione.") : t("Torna online per compilare o inviare senza lettura AI.")}
             </p>
           )}
           {invioInCoda ? (
             <button type="button" disabled={!pronto || !user?.id || !companyId} onClick={() => void salva()}
               className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-3 font-semibold text-primary-foreground disabled:opacity-50 motion-safe:transition-transform motion-safe:active:scale-[0.98]">
               {salvando ? <Loader2 className="size-4 motion-safe:animate-spin" aria-hidden="true" /> : <CloudUpload className="size-5 shrink-0" aria-hidden="true" />}
-              {salvando ? "Salvo la bolla…" : online ? "Invia la bolla" : "Salva la bolla sul telefono"}
+              {salvando ? t("Salvo la bolla…") : online ? t("Invia la bolla") : t("Salva la bolla sul telefono")}
             </button>
           ) : (
             <div className="grid grid-cols-2 gap-2">
               <button type="button" disabled={!pronto || !online} onClick={() => setCompila(true)}
-                className="min-h-12 rounded-xl bg-primary px-2 font-semibold text-primary-foreground disabled:opacity-50">Compila ora</button>
+                className="min-h-12 rounded-xl bg-primary px-2 font-semibold text-primary-foreground disabled:opacity-50">{t("Compila ora")}</button>
               <button type="button" disabled={!pronto || !online} onClick={() => void salva(true)}
                 className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl border px-2 text-sm font-semibold disabled:opacity-50">
                 {salvando && <Loader2 className="size-4 shrink-0 motion-safe:animate-spin" aria-hidden="true" />}
-                La compila l'ufficio
+                {t("La compila l'ufficio")}
               </button>
             </div>
           )}
           <p className="text-xs text-muted-foreground">
             {soloFoto
-              ? "La legge e la registra l'ufficio."
-              : invioInCoda ? puoRegistrare ? "Dopo la lettura puoi controllare e confermare i dati." : "Dopo la lettura, l'ufficio controlla e conferma i dati."
-              : "Puoi inserire numero, fornitore e righe dalla foto."}
+              ? t("La legge e la registra l'ufficio.")
+              : invioInCoda ? puoRegistrare ? t("Dopo la lettura puoi controllare e confermare i dati.") : t("Dopo la lettura, l'ufficio controlla e conferma i dati.")
+              : t("Puoi inserire numero, fornitore e righe dalla foto.")}
           </p>
         </div>
       </section>
       {!!inAttesa.length && (
         <section
           className="space-y-2"
-          aria-label="Documenti conservati sul telefono"
+          aria-label={t("Documenti conservati sul telefono")}
         >
-          <h2 className="font-semibold">Bolle in coda sul telefono</h2>
+          <h2 className="text-[15px] font-semibold md:text-base">{t("Bolle in coda sul telefono")}</h2>
           {inAttesa.map((i) => {
             const p = i.payload as { fileNames?: string[]; order_id?: string | null; destinazione?: "magazzino" | "cantiere" | null } | null;
             const luogo = etichettaDestinazione(destinazioneDocumento({ destinazione: p?.destinazione, order_id: p?.order_id ?? null }), p?.order_id);
@@ -640,29 +643,29 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
               key={i.id}
               ref={i.id === params.get("invio") ? dettaglioInCoda : undefined}
             >
-              <p className="break-words font-semibold">{p?.fileNames?.[0] || "Bolla da inviare"}</p>
+              <p className="break-words font-semibold">{p?.fileNames?.[0] || t("Bolla da inviare")}</p>
               <p className="break-words text-xs text-muted-foreground">{luogo}</p>
               <p role="status" className="flex items-center gap-2">
                 {i.status === "syncing" && <Loader2 className="size-4 shrink-0 motion-safe:animate-spin" aria-hidden="true" />}
                 {i.status === "failed"
-                  ? "Invio da riprovare"
+                  ? t("Invio da riprovare")
                   : i.status === "syncing"
-                    ? "Invio al sistema…"
-                    : "In attesa di invio"}
+                    ? t("Invio al sistema…")
+                    : t("In attesa di invio")}
               </p>
               {i.lastError && <p className="mt-1 text-xs">{i.lastError}</p>}
               <button type="button" className="mr-3 min-h-11 font-semibold text-primary underline" aria-expanded={paginaInCoda === i.id}
                 onClick={() => setPaginaInCoda(p => p === i.id ? null : i.id)}>
-                {paginaInCoda === i.id ? "Nascondi pagine" : "Rivedi pagine"}
+                {paginaInCoda === i.id ? t("Nascondi pagine") : t("Rivedi pagine")}
               </button>
               {i.status === "failed" && (
                 <button
                   type="button"
                   className="min-h-11 font-semibold text-primary underline disabled:opacity-50"
                   disabled={!online}
-                  onClick={() => void syncQueue.retryFailed((x) => x.id === i.id).then(sincronizza).catch(() => toast.error("Non riesco a riprovare l'invio."))}
+                  onClick={() => void syncQueue.retryFailed((x) => x.id === i.id).then(sincronizza).catch(() => toast.error(t("Non riesco a riprovare l'invio.")))}
                 >
-                  Riprova l’invio
+                  {t("Riprova l’invio")}
                 </button>
               )}
               {paginaInCoda === i.id && <FotoBollaInCoda voce={i} />}
@@ -671,20 +674,20 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
           })}
         </section>
       )}
-      <section className="space-y-2" aria-label="Documenti inviati">
-        <h2 className="font-semibold">Documenti inviati</h2>
+      <section className="space-y-2" aria-label={t("Documenti inviati")}>
+        <h2 className="text-[15px] font-semibold md:text-base">{t("Documenti inviati")}</h2>
         {documenti.isError && !documenti.data?.length ? (
           <button
             className="min-h-11 text-sm underline"
             onClick={() => void documenti.refetch()}
           >
-            Elenco non disponibile. Riprova
+            {t("Elenco non disponibile. Riprova")}
           </button>
         ) : documenti.isLoading ? (
-          <p className="text-sm text-muted-foreground">Caricamento…</p>
+          <p className="text-sm text-muted-foreground">{t("Caricamento…")}</p>
         ) : !documenti.data?.length ? (
           <p className="text-sm text-muted-foreground">
-            I DDT salvati compariranno qui, anche dopo aver chiuso l’app.
+            {t("I DDT salvati compariranno qui, anche dopo aver chiuso l’app.")}
           </p>
         ) : (
           documenti.data.map((j) => (
@@ -694,12 +697,12 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
                   {j.status === "registered" ? <Check className="size-4" aria-hidden="true" /> : <FileText className="size-4" aria-hidden="true" />}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="break-words text-sm font-semibold">{j.files[0]?.name || "Bolla ricevuta"}</p>
+                  <p className="break-words text-sm font-semibold">{j.files[0]?.name || t("Bolla ricevuta")}</p>
                   <p className="break-words text-xs text-muted-foreground">{etichettaDestinazione(destinazioneDocumento(j), j.order_id)}</p>
                 </div>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
-                {j.status === "review" && puoRegistrare ? "Da controllare" : STATO_DOCUMENTO[j.status]} ·{" "}
+                {j.status === "review" && puoRegistrare ? t("Da controllare") : t(STATO_DOCUMENTO[j.status])} ·{" "}
                 {new Date(j.created_at).toLocaleString("it-IT")}
               </p>
               {j.status === "review" && puoRegistrare && !j.ddt_id && (
@@ -708,13 +711,12 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
                   className="mt-2 min-h-11 rounded-lg border px-3 text-sm font-semibold"
                   onClick={() => setRevisione(j)}
                 >
-                  Controlla e conferma
+                  {t("Controlla e conferma")}
                 </button>
               )}
               {j.status === "error" && (
                 <p className="mt-1 text-xs text-amber-800">
-                  L’originale è al sicuro: l’ufficio può correggerlo o ripetere
-                  la lettura.
+                  {t("L’originale è al sicuro: l’ufficio può correggerlo o ripetere la lettura.")}
                 </p>
               )}
             </article>
@@ -728,10 +730,10 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
             onClick={() => void documenti.fetchNextPage()}
           >
             {documenti.isFetchingNextPage
-              ? "Caricamento…"
+              ? t("Caricamento…")
               : documenti.isFetchNextPageError
-                ? "Riprova a caricare altri DDT"
-                : "Carica altri DDT"}
+                ? t("Riprova a caricare altri DDT")
+                : t("Carica altri DDT")}
           </button>
         )}
       </section>
@@ -763,7 +765,7 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
         to={orderId ? `/campo/merce?order=${orderId}` : "/campo/merce"}
         className="flex min-h-11 items-center text-sm underline"
       >
-        Hai pagato tu? Registra una spesa o uno scontrino
+        {t("Hai pagato tu? Registra una spesa o uno scontrino")}
       </Link>
     </div>
   );

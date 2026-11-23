@@ -13,25 +13,36 @@ import {
 import type { Sottofase } from "@/lib/orders/sottofasi";
 import { planningDay } from "@/lib/orders/planning";
 import { cn } from "@/lib/utils";
+import { sostituisci, useT } from "@/lib/campo/lingua/LinguaCampo";
+
+type T = ReturnType<typeof useT>;
+
 
 const statoFase = { da_iniziare: "Da iniziare", in_corso: "In corso", completata: "Completata" };
 const dataBreve = new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "short", year: "numeric" });
 const data = (giorno: string) => dataBreve.format(new Date(`${giorno}T12:00:00`));
 
-function periodo(inizio?: string | null, fine?: string | null) {
+/** «l’8 giu», «l’11 giu», «il 9 giu»: davanti a 8 e 11 l'articolo si apostrofa. */
+export const conArticolo = (giorno: string) => (/^(8|11)\b/.test(giorno) ? `l’${giorno}` : `il ${giorno}`);
+
+/** «In ritardo · doveva finire l’8 giu 2026»: la stessa frase in scheda cantiere, avanzamento e pagina del lavoro. */
+export const testoRitardo = (fine: string, t: T = sostituisci) => t("In ritardo · doveva finire {quando}", { quando: conArticolo(data(fine)) });
+
+function periodo(t: T, inizio?: string | null, fine?: string | null) {
   const da = planningDay(inizio);
   const a = planningDay(fine);
   if (da && a) return da === a ? data(da) : `${data(da)} – ${data(a)}`;
-  return da ? `Dal ${data(da)}` : a ? `Entro il ${data(a)}` : "Date da definire";
+  return da ? t("Dal {data}", { data: data(da) }) : a ? t("Entro il {data}", { data: data(a) }) : t("Date da definire");
 }
 
 function SottofaseRiga({ sottofase, date, onEdit }: { sottofase: Sottofase; date?: string; onEdit?: () => void }) {
+  const t = useT();
   const pct = sottofase.fatta ? 100 : Math.min(100, Math.max(0, Math.round(sottofase.percentuale || 0)));
   const dettagli = [
     date,
-    sottofase.giorni > 0 && `${sottofase.giorni} gg di lavoro`,
-    sottofase.risorse > 0 && `${sottofase.risorse} ${sottofase.risorse === 1 ? "persona" : "persone"}`,
-    sottofase.in_parallelo && "In parallelo",
+    sottofase.giorni > 0 && t("{n} gg di lavoro", { n: sottofase.giorni }),
+    sottofase.risorse > 0 && (sottofase.risorse === 1 ? t("{n} persona", { n: sottofase.risorse }) : t("{n} persone", { n: sottofase.risorse })),
+    sottofase.in_parallelo && t("In parallelo"),
   ].filter(Boolean).join(" · ");
   return <li className={cn("flex gap-2 py-2", onEdit ? "items-center" : "items-start")}>
     <div className="min-w-0 flex-1">
@@ -40,10 +51,18 @@ function SottofaseRiga({ sottofase, date, onEdit }: { sottofase: Sottofase; date
     </div>
     <span className="shrink-0 text-xs font-semibold tabular-nums">{pct}%</span>
     {onEdit && <Button type="button" size="icon" variant="ghost" className="size-11 shrink-0 text-primary"
-      aria-label={`Aggiorna sottofase ${sottofase.name}`} onClick={onEdit}>
+      aria-label={t("Aggiorna sottofase {nome}", { nome: sottofase.name })} onClick={onEdit}>
       <PencilLine className="size-4" aria-hidden="true" />
     </Button>}
   </li>;
+}
+
+/** Fine prevista passata e fase non conclusa. Collaudo 23/11: la scheda Fasi (la prima che si apre) non diceva
+ * niente dei ritardi — su ORD-DEM-RIS01 6 fasi su 10 scadute da giugno–agosto — e la regola è che i ritardi si
+ * vedono sempre, non solo nel cronoprogramma. */
+export function faseInRitardo(fase: { status: string; end_date?: string | null }, oggi: string): string | null {
+  const fine = planningDay(fase.end_date);
+  return fase.status !== "completata" && fine && fine < oggi ? fine : null;
 }
 
 export function FasiSchedaCantiere({ fasi, orderId, onEdit }: {
@@ -51,45 +70,54 @@ export function FasiSchedaCantiere({ fasi, orderId, onEdit }: {
   orderId: string;
   onEdit?: (faseId: string, sottofaseId?: string) => void;
 }) {
+  const oggi = useCampoWorkDay();
+  const t = useT();
   const [filtro, setFiltro] = useState("");
-  const visibili = fasi.filter(fase => !filtro || fase.status === filtro);
-  if (!fasi.length) return <p className="rounded-xl border bg-card p-3 text-sm text-muted-foreground">Nessuna fase pianificata.</p>;
+  const inRitardo = fasi.filter(fase => faseInRitardo(fase, oggi)).length;
+  const visibili = fasi.filter(fase => !filtro || (filtro === "ritardo" ? !!faseInRitardo(fase, oggi) : fase.status === filtro));
+  if (!fasi.length) return <p className="rounded-xl border bg-card p-3 text-sm text-muted-foreground">{t("Nessuna fase pianificata.")}</p>;
   return <div className="space-y-2">
     <div className="flex items-center justify-between gap-2">
-      <span className="text-xs text-muted-foreground">{fasi.filter(f => f.status === "completata").length} di {fasi.length} concluse</span>
-      <UniformSelect aria-label="Stato delle fasi" className="min-h-11 bg-card" value={filtro} onChange={event => setFiltro(event.target.value)}>
-        <option value="">Tutte le fasi</option>
-        {Object.entries(statoFase).map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
+      <span className="text-xs text-muted-foreground">
+        {t("{fatte} di {totale} concluse", { fatte: fasi.filter(f => f.status === "completata").length, totale: fasi.length })}
+        {inRitardo > 0 && <span className="font-semibold text-red-700 dark:text-red-400"> · {t("{n} in ritardo", { n: inRitardo })}</span>}
+      </span>
+      <UniformSelect aria-label={t("Stato delle fasi")} className="min-h-11 bg-card" value={filtro} onChange={event => setFiltro(event.target.value)}>
+        <option value="">{t("Tutte le fasi")}</option>
+        {inRitardo > 0 && <option value="ritardo">{t("In ritardo")}</option>}
+        {Object.entries(statoFase).map(([id, nome]) => <option key={id} value={id}>{t(nome)}</option>)}
       </UniformSelect>
     </div>
-    {visibili.length === 0 && <p className="py-3 text-sm text-muted-foreground">Nessuna fase in questo stato.</p>}
+    {visibili.length === 0 && <p className="py-3 text-sm text-muted-foreground">{t("Nessuna fase in questo stato.")}</p>}
     {visibili.map(fase => {
       const pct = avanzamentoFase(fase);
       const completate = fase.sottofasi.filter(s => s.fatta).length;
-      return <div key={fase.id} className="relative rounded-xl border bg-card">
+      const ritardoDal = faseInRitardo(fase, oggi);
+      return <div key={fase.id} className={cn("relative rounded-xl border bg-card", ritardoDal && "border-red-200 dark:border-red-900")}>
         <details className="group">
           <summary className={cn("flex min-h-14 cursor-pointer list-none items-center gap-2 p-3 [&::-webkit-details-marker]:hidden",
             onEdit && "pr-14")}>
             <span className="min-w-0 flex-1">
               <span className="block break-words text-sm font-semibold">{fase.name}</span>
-              <span className="text-xs text-muted-foreground">{statoFase[fase.status]}{fase.sottofasi.length > 0 && ` · Sottofasi ${completate}/${fase.sottofasi.length}`}</span>
+              <span className="text-xs text-muted-foreground">{t(statoFase[fase.status])}{fase.sottofasi.length > 0 && ` · ${t("Sottofasi {fatte}/{totale}", { fatte: completate, totale: fase.sottofasi.length })}`}</span>
+              {ritardoDal && <span className="block text-xs font-semibold text-red-700 dark:text-red-400">{testoRitardo(ritardoDal, t)}</span>}
             </span>
             <span className="shrink-0 text-sm font-semibold tabular-nums text-primary">{pct}%</span>
             <ChevronDown className="size-4 shrink-0 text-muted-foreground group-open:rotate-180" aria-hidden="true" />
           </summary>
           <div className="space-y-2 border-t px-3 pb-2 pt-2.5">
-            <p className="text-xs font-medium text-muted-foreground">{periodo(fase.start_date, fase.end_date)}</p>
+            <p className="text-xs font-medium text-muted-foreground">{periodo(t, fase.start_date, fase.end_date)}</p>
             {fase.note && <p className="whitespace-pre-wrap break-words text-sm">{fase.note}</p>}
-            {fase.sottofasi.length > 0 && <ul className="divide-y" aria-label={`Sottofasi di ${fase.name}`}>
+            {fase.sottofasi.length > 0 && <ul className="divide-y" aria-label={t("Sottofasi di {fase}", { fase: fase.name })}>
               {fase.sottofasi.map(s => <SottofaseRiga key={s.id} sottofase={s}
-                date={s.data_inizio || s.data_fine ? periodo(s.data_inizio, s.data_fine) : undefined}
+                date={s.data_inizio || s.data_fine ? periodo(t, s.data_inizio, s.data_fine) : undefined}
                 onEdit={onEdit && (() => onEdit(fase.id, s.id))} />)}
             </ul>}
             <div className="border-t"><AggiornamentiFaseCampo orderId={orderId} phaseId={fase.id} /></div>
           </div>
         </details>
         {onEdit && <Button type="button" size="icon" variant="ghost" className="absolute right-1 top-1.5 size-11 text-primary"
-          aria-label={`Aggiorna fase ${fase.name}`} onClick={() => onEdit(fase.id)}>
+          aria-label={t("Aggiorna fase {nome}", { nome: fase.name })} onClick={() => onEdit(fase.id)}>
           <PencilLine className="size-[18px]" aria-hidden="true" />
         </Button>}
       </div>;
@@ -102,6 +130,7 @@ export function CronoprogrammaSchedaCantiere({ cantiere, fasi }: {
 }) {
   const oggi = useCampoWorkDay();
   const { lavorativo } = useCalendarioCantiere();
+  const t = useT();
   const [soloRitardi, setSoloRitardi] = useState(false);
   const giorniReali = new Map<string, LavoroReale>();
   for (const f of fasi) {
@@ -118,17 +147,17 @@ export function CronoprogrammaSchedaCantiere({ cantiere, fasi }: {
   const ritardi = (fase: FaseCrono) => ritardoFase(fase) || programmate.get(fase.id)?.some(s => s.ritardo > 0);
   const visibili = soloRitardi ? piano.filter(ritardi) : piano;
 
-  if (!fasi.length) return <p className="rounded-xl border bg-card p-3 text-sm text-muted-foreground">Il cronoprogramma è disponibile quando l’ufficio inserisce le fasi.</p>;
+  if (!fasi.length) return <p className="rounded-xl border bg-card p-3 text-sm text-muted-foreground">{t("Il cronoprogramma è disponibile quando l’ufficio inserisce le fasi.")}</p>;
   return <div className="space-y-2">
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-card px-3 py-2">
       <div className="min-w-0">
-        <h2 className="text-sm font-semibold">Date di cantiere</h2>
-        <p className="mt-0.5 text-xs text-muted-foreground">{periodo(cantiere.inizio, cantiere.fine)}</p>
+        <h2 className="text-sm font-semibold">{t("Date di cantiere")}</h2>
+        <p className="mt-0.5 text-xs text-muted-foreground">{periodo(t, cantiere.inizio, cantiere.fine)}</p>
       </div>
       <button type="button" aria-pressed={soloRitardi} onClick={() => setSoloRitardi(v => !v)}
-        className="min-h-11 shrink-0 rounded-lg border px-2.5 text-xs font-medium aria-pressed:border-primary aria-pressed:bg-primary/10">Solo ritardi</button>
+        className="min-h-11 shrink-0 rounded-lg border px-2.5 text-xs font-medium aria-pressed:border-primary aria-pressed:bg-primary/10">{t("Solo ritardi")}</button>
     </div>
-    {visibili.length === 0 && <p className="py-3 text-sm text-muted-foreground">Nessuna fase in ritardo.</p>}
+    {visibili.length === 0 && <p className="py-3 text-sm text-muted-foreground">{t("Nessuna fase in ritardo.")}</p>}
     {visibili.map(fase => {
       const ritardo = ritardoFase(fase);
       const sottofasi = sotto.get(fase.id) ?? [];
@@ -142,23 +171,25 @@ export function CronoprogrammaSchedaCantiere({ cantiere, fasi }: {
         {b && <div className="relative h-2 overflow-hidden rounded-full bg-muted" aria-hidden="true">
           <span className="absolute inset-y-0 rounded-full bg-primary/60" style={{ left: `${b.left}%`, width: `${b.width}%` }} />
         </div>}
-        <p className="text-xs"><span className="font-medium">Previsto</span> · {fase.dateIncoerenti ? "Date da verificare" : periodo(fase.previstoInizio, fase.previstoFine)}</p>
-        {(fase.realeInizio || fase.realeFine) && <p className="text-xs text-muted-foreground">Effettivo · {periodo(fase.realeInizio, fase.realeFine)}</p>}
+        <p className="text-xs"><span className="font-medium">{t("Previsto")}</span> · {fase.dateIncoerenti ? t("Date da verificare") : periodo(t, fase.previstoInizio, fase.previstoFine)}</p>
+        {(fase.realeInizio || fase.realeFine) && <p className="text-xs text-muted-foreground">{t("Effettivo")} · {periodo(t, fase.realeInizio, fase.realeFine)}</p>}
         {ritardo && <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">
-          {ritardo.giorni} {ritardo.giorni === 1 ? "giorno" : "giorni"} di ritardo {ritardo.su === "inizio" ? "sull’inizio" : "sulla fine"}
+          {ritardo.su === "inizio"
+            ? ritardo.giorni === 1 ? t("{n} giorno di ritardo sull’inizio", { n: ritardo.giorni }) : t("{n} giorni di ritardo sull’inizio", { n: ritardo.giorni })
+            : ritardo.giorni === 1 ? t("{n} giorno di ritardo sulla fine", { n: ritardo.giorni }) : t("{n} giorni di ritardo sulla fine", { n: ritardo.giorni })}
         </p>}
         {sottofasi.length > 0 && <details className="group border-t">
           <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 text-xs font-semibold [&::-webkit-details-marker]:hidden">
-            Sottofasi ({sottofasi.length}) <ChevronDown className="size-4 text-muted-foreground group-open:rotate-180" aria-hidden="true" />
+            {t("Sottofasi ({n})", { n: sottofasi.length })} <ChevronDown className="size-4 text-muted-foreground group-open:rotate-180" aria-hidden="true" />
           </summary>
-          <ul className="divide-y" aria-label={`Date sottofasi di ${fase.nome}`}>
+          <ul className="divide-y" aria-label={t("Date sottofasi di {fase}", { fase: fase.nome })}>
             {sottofasi.map(s => {
               const prevista = dateSottofasi.get(s.id);
               const date = prevista ? [
-                periodo(prevista.previstoInizio, prevista.previstoFine),
-                prevista.stimata && "Stima",
-                prevista.ritardo > 0 && `+${prevista.ritardo} gg`,
-              ].filter(Boolean).join(" · ") : periodo(s.data_inizio, s.data_fine);
+                periodo(t, prevista.previstoInizio, prevista.previstoFine),
+                prevista.stimata && t("Stima"),
+                prevista.ritardo > 0 && t("+{n} gg", { n: prevista.ritardo }),
+              ].filter(Boolean).join(" · ") : periodo(t, s.data_inizio, s.data_fine);
               return <SottofaseRiga key={s.id} sottofase={s} date={date} />;
             })}
           </ul>

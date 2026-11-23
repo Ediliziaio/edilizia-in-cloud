@@ -25,14 +25,15 @@ import {
 } from "@/lib/campo/bozzaPrelievo";
 import { formatoQuantitaMagazzino, nomeCantierePrelievo, quantitaPrelievo } from "@/lib/campo/magazzino";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const formatoInputQuantita = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 20, useGrouping: false });
 const erroreSalvataggioBozza = "Non riesco a salvare il prelievo su questo dispositivo. Riprova.";
 type ArticoloBozza = BozzaPrelievo["righe"][number]["articolo"];
 
-function nomePrelievo(prelievo: PrelievoLocale, cantieri: Map<string, CantierePrelievo>) {
+function nomePrelievo(prelievo: PrelievoLocale, cantieri: Map<string, CantierePrelievo>, t: (testo: string) => string) {
   const cantiere = cantieri.get(prelievo.cantiere);
-  return cantiere ? nomeCantierePrelievo(cantiere) : prelievo.bozza.nomeCantiere || "Scegli cantiere";
+  return cantiere ? nomeCantierePrelievo(cantiere) : prelievo.bozza.nomeCantiere || t("Scegli cantiere");
 }
 
 export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richiedeConferma, cantiereIniziale, apriBozza, onRegistrato }: {
@@ -45,6 +46,7 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
   apriBozza?: boolean;
   onRegistrato: () => void;
 }) {
+  const t = useT();
   const leggiBozze = useCallback(() => puoPrelevare ? bozzeCantieriPrelievo(companyId, userId) : [], [companyId, userId, puoPrelevare]);
   const [bozzePresenti, setBozze] = useState(leggiBozze);
   const coda = useCodaCampo(companyId, userId, "prelievo");
@@ -63,6 +65,14 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
   const areaRiepilogo = useRef<HTMLDivElement>(null);
   const [inSalvataggio, setInSalvataggio] = useState(false);
   const inInvio = useRef(false);
+  // Tolto l'ultimo materiale, il riepilogo si chiude da solo: restava aperto su «Nessun materiale selezionato»
+  // (collaudo 23/11). Non durante l'invio, che svuota le bozze e chiude per conto suo.
+  useEffect(() => {
+    if (!aperto || bozze.length > 0 || inInvio.current) return;
+    let vivo = true;
+    void Promise.resolve().then(() => { if (vivo) setAperto(false); });
+    return () => { vivo = false; };
+  }, [aperto, bozze.length]);
   const online = useOnlineStatus();
   const inventario = useCampoInventario(companyId, cerca, soloDisponibili, attivo);
   const cantieri = useCampoCantieriPrelievo(companyId, attivo && puoPrelevare);
@@ -106,11 +116,13 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
     const unita = articolo.unita_misura ? ` ${articolo.unita_misura}` : "";
     let errore: string | undefined;
     if (valore !== undefined) {
-      if (!(quantita > 0)) errore = "Inserisci una quantità maggiore di zero.";
+      if (!(quantita > 0)) errore = t("Inserisci una quantità maggiore di zero.");
       else if (!giaInviata && scheda && scheda.warehouse_id !== articolo.warehouse_id) {
-        errore = "Articolo spostato. Rimuovilo e aggiungilo di nuovo.";
+        errore = t("Articolo spostato. Rimuovilo e aggiungilo di nuovo.");
       } else if (!giaInviata && quantita > disponibile) {
-        errore = `Disponibili ${formatoQuantitaMagazzino.format(disponibile)}${unita}${altre > 0 ? " con le altre bozze" : ""}.`;
+        errore = altre > 0
+          ? t("Disponibili {quantita} con le altre bozze.", { quantita: `${formatoQuantitaMagazzino.format(disponibile)}${unita}` })
+          : t("Disponibili {quantita}.", { quantita: `${formatoQuantitaMagazzino.format(disponibile)}${unita}` });
       }
     }
     return { altre, disponibile, errore };
@@ -130,10 +142,10 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
   const puoInviare = puoPrelevare && !inSalvataggio && daInviare.length > 0;
   const articoliInBozza = bozze[0]?.bozza.righe.length ?? 0;
   const numeroInvii = daInviare.length || bozze.length;
-  const invia = !online ? numeroInvii === 1 ? "Metti in coda" : "Metti in coda " + numeroInvii + " prelievi"
-    : daVerificare.length ? "Verifica invio" : richiedeConferma
-    ? numeroInvii === 1 ? "Invia richiesta" : `Invia ${numeroInvii} richieste`
-    : numeroInvii === 1 ? "Registra prelievo" : `Registra ${numeroInvii} prelievi`;
+  const invia = !online ? numeroInvii === 1 ? t("Metti in coda") : t("Metti in coda {n} prelievi", { n: numeroInvii })
+    : daVerificare.length ? t("Verifica invio") : richiedeConferma
+    ? numeroInvii === 1 ? t("Invia richiesta") : t("Invia {n} richieste", { n: numeroInvii })
+    : numeroInvii === 1 ? t("Registra prelievo") : t("Registra {n} prelievi", { n: numeroInvii });
 
   const scriviBozza = (locale: PrelievoLocale, prossima: BozzaPrelievo) => {
     const scelto = cantieriPerId.get(prossima.orderId);
@@ -145,11 +157,11 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
     const esito = salvaBozzaPrelievo(locale.chiave, locale.bozza, daSalvare);
     if (esito.stato === "cambiata") {
       setBozze(leggiBozze());
-      setErroreBozza("La bozza è cambiata in un’altra scheda. Controlla il prelievo aggiornato.");
+      setErroreBozza(t("La bozza è cambiata in un’altra scheda. Controlla il prelievo aggiornato."));
       return null;
     }
     if (esito.stato === "errore") {
-      setErroreBozza(erroreSalvataggioBozza);
+      setErroreBozza(t(erroreSalvataggioBozza));
       return null;
     }
     setErroreBozza(null);
@@ -199,7 +211,7 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
         operationId: locale.bozza.id,
         payload: { company_id: companyId, user_id: userId, order_id: locale.cantiere, locale },
       })));
-      if (!online) toast.success(preparati.length === 1 ? "Prelievo in coda" : "Prelievi in coda");
+      if (!online) toast.success(preparati.length === 1 ? t("Prelievo in coda") : t("Prelievi in coda"));
       if (preparati.length === bozze.length) {
         setAperto(false);
         setVistaRitiro(false);
@@ -211,7 +223,7 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
         if (prima) salvaBozzaPrelievo(locale.chiave, locale.bozza, prima.bozza);
       }
       setBozze(leggiBozze());
-      setErroreInvio("Non riesco a mettere i prelievi in coda. Le bozze restano disponibili.");
+      setErroreInvio(t("Non riesco a mettere i prelievi in coda. Le bozze restano disponibili."));
     } finally {
       inInvio.current = false;
       setInSalvataggio(false);
@@ -223,33 +235,37 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
       {!aperto && erroreBozza && <p role="alert" className="text-sm text-destructive">{erroreBozza}</p>}
       {puoPrelevare && (cantieri.isError ? (
         <div role="alert" className="flex items-center justify-between gap-2 rounded-lg border px-2 text-sm">
-          <span>Cantieri non disponibili</span>
-          <Button type="button" variant="ghost" size="sm" className="min-h-11" onClick={() => void cantieri.refetch()}>Riprova</Button>
+          <span>{t("Cantieri non disponibili")}</span>
+          <Button type="button" variant="ghost" size="sm" className="min-h-11" onClick={() => void cantieri.refetch()}>{t("Riprova")}</Button>
         </div>
       ) : (
+        <div>
+        {/* Collaudo 23/11: il cantiere stava in cima senza dire a cosa serve, su due righe in grassetto. */}
+        <p className="mb-1 text-xs text-muted-foreground">{t("Prelevi per il cantiere")}</p>
         <div className="relative">
           <HardHat aria-hidden="true" className="pointer-events-none absolute left-2.5 top-1/2 z-[1] h-4 w-4 -translate-y-1/2 text-primary" />
-          <UniformSelect aria-label="Cantiere attivo" value={cantiere?.id ?? ""}
+          <UniformSelect aria-label={t("Cantiere attivo")} value={cantiere?.id ?? ""}
             disabled={inSalvataggio || !assegnabili.length}
             onChange={(event) => setCantiereScelto(event.target.value)}
-            className="h-auto !min-h-11 w-full gap-2 rounded-lg bg-primary/5 py-1 pl-8 pr-2 text-left font-semibold leading-tight [&>span]:line-clamp-2 [&>span]:min-w-0 [&>span]:[overflow-wrap:anywhere] [&>svg]:shrink-0">
+            className="h-auto !min-h-11 w-full gap-2 rounded-lg bg-primary/5 py-1 pl-8 pr-2 text-left text-sm font-medium leading-tight [&>span]:line-clamp-1 [&>span]:min-w-0 [&>span]:[overflow-wrap:anywhere] [&>svg]:shrink-0">
             <option value="" disabled>
-              {bozza.nomeCantiere && !online ? bozza.nomeCantiere : cantieri.isLoading ? "Carico i cantieri…"
-                : assegnabili.length ? "Scegli cantiere" : "Nessun cantiere assegnato"}
+              {bozza.nomeCantiere && !online ? bozza.nomeCantiere : cantieri.isLoading ? t("Carico i cantieri…")
+                : assegnabili.length ? t("Scegli cantiere") : t("Nessun cantiere assegnato")}
             </option>
             {assegnabili.map((item) => <option key={item.id} value={item.id}>{nomeCantierePrelievo(item)}</option>)}
           </UniformSelect>
+        </div>
         </div>
       ))}
       <div className="flex items-stretch gap-2">
         <div className="relative min-w-0 flex-1">
           <Search aria-hidden="true" className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input ref={inputRicerca} type="search" aria-label="Cerca nell’inventario" value={ricerca}
-            title="Cerca per materiale, codice o ubicazione" placeholder="Cerca"
+          <Input ref={inputRicerca} type="search" aria-label={t("Cerca nell’inventario")} value={ricerca}
+            title={t("Cerca per materiale, codice o ubicazione")} placeholder={t("Cerca")}
             onChange={(e) => setRicerca(e.target.value)}
             className={cn("h-11 rounded-lg pl-8 text-base [&::-webkit-search-cancel-button]:hidden", ricerca && "pr-11")} />
           {ricerca && (
-            <Button type="button" variant="ghost" size="icon" aria-label="Cancella la ricerca"
+            <Button type="button" variant="ghost" size="icon" aria-label={t("Cancella la ricerca")}
               className="absolute right-0 top-0 h-11 w-11" onClick={() => {
                 setRicerca("");
                 inputRicerca.current?.focus();
@@ -259,14 +275,14 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
           )}
         </div>
         <Button type="button" variant="outline" size="icon" className="size-11 shrink-0 rounded-lg"
-          aria-label="Scansiona codice articolo" title="Scansiona codice articolo" onClick={() => setScansione(true)}>
+          aria-label={t("Scansiona codice articolo")} title={t("Scansiona codice articolo")} onClick={() => setScansione(true)}>
           <ScanLine className="size-5" aria-hidden="true" />
         </Button>
-        <UniformSelect aria-label="Disponibilità dei materiali" value={soloDisponibili ? "disponibili" : "tutti"}
+        <UniformSelect aria-label={t("Disponibilità dei materiali")} value={soloDisponibili ? "disponibili" : "tutti"}
           onChange={(e) => setSoloDisponibili(e.target.value === "disponibili")}
           className="h-11 w-[7.25rem] shrink-0 rounded-lg px-2.5 text-sm sm:w-32">
-          <option value="disponibili">Disponibili</option>
-          <option value="tutti">Tutti</option>
+          <option value="disponibili">{t("Disponibili")}</option>
+          <option value="tutti">{t("Tutti")}</option>
         </UniformSelect>
       </div>
       <BarcodeScanner open={attivo && scansione} onOpenChange={setScansione} onScan={codice => {
@@ -274,8 +290,8 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
         setSoloDisponibili(false);
       }} />
       {!ricerca && recenti.length > 0 && (
-        <section aria-label="Ultimi materiali prelevati" className="flex min-w-0 items-center gap-2">
-          <span className="shrink-0 text-xs font-medium text-muted-foreground">Recenti</span>
+        <section aria-label={t("Ultimi materiali prelevati")} className="flex min-w-0 items-center gap-2">
+          <span className="shrink-0 text-xs font-medium text-muted-foreground">{t("Recenti")}</span>
           <div className="flex min-w-0 gap-1.5 overflow-x-auto p-0.5">
             {recenti.map(([id, nome]) => (
               <button key={id} type="button" className="min-h-11 max-w-40 shrink-0 truncate rounded-lg border px-2 text-xs font-medium"
@@ -286,20 +302,20 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
       )}
 
       {!online && !articoli.length && cerca && inventario.isPaused ? (
-        <p role="status" className="rounded-xl border p-3 text-sm text-muted-foreground">I risultati di questa ricerca non sono sul telefono. Riprova quando torna la rete.</p>
+        <p role="status" className="rounded-xl border p-3 text-sm text-muted-foreground">{t("I risultati di questa ricerca non sono sul telefono. Riprova quando torna la rete.")}</p>
       ) : inventario.isLoading ? (
-        <div role="status" className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin" /><span className="sr-only">Carico l’inventario</span></div>
+        <div role="status" className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin" /><span className="sr-only">{t("Carico l’inventario")}</span></div>
       ) : inventario.isError && !inventario.isFetchNextPageError ? (
         <div role="alert" className="space-y-2 rounded-xl border p-4 text-sm">
-          <p>Non riesco a caricare l’inventario.</p>
-          <Button variant="outline" size="sm" onClick={() => void inventario.refetch()}>Riprova</Button>
+          <p>{t("Non riesco a caricare l’inventario.")}</p>
+          <Button variant="outline" size="sm" onClick={() => void inventario.refetch()}>{t("Riprova")}</Button>
         </div>
       ) : articoli.length === 0 ? (
         <div className="rounded-xl border border-dashed p-3 text-center text-muted-foreground">
-          <p className="text-sm">{soloDisponibili ? "Nessun materiale disponibile." : "Nessun materiale trovato."}</p>
+          <p className="text-sm">{soloDisponibili ? t("Nessun materiale disponibile.") : t("Nessun materiale trovato.")}</p>
           {soloDisponibili && (
             <Button type="button" variant="outline" size="sm" className="mt-2 min-h-11" onClick={() => setSoloDisponibili(false)}>
-              Mostra tutti
+              {t("Mostra tutti")}
             </Button>
           )}
         </div>
@@ -322,11 +338,11 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
                       <span className="min-w-0 break-words">
                         {articolo.ubicazione && <span className="font-medium text-foreground">{articolo.ubicazione}</span>}
                         {articolo.ubicazione && articolo.magazzino && " · "}
-                        {articolo.magazzino || (!articolo.ubicazione && "Senza ubicazione")}
+                        {articolo.magazzino || (!articolo.ubicazione && t("Senza ubicazione"))}
                       </span>
                     </p>
                     {puoPrelevare && altre > 0 && (
-                      <p className="mt-1 text-xs text-muted-foreground">{formatoQuantitaMagazzino.format(altre)} {articolo.unita_misura} in altre bozze</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{t("{quantita} in altre bozze", { quantita: `${formatoQuantitaMagazzino.format(altre)}${articolo.unita_misura ? ` ${articolo.unita_misura}` : ""}` })}</p>
                     )}
                   </div>
                   <div className="flex max-w-[44%] shrink-0 flex-col items-end gap-1">
@@ -335,13 +351,13 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
                         {formatoQuantitaMagazzino.format(residuoPerCantiere ? disponibile : articolo.disponibile)} {articolo.unita_misura}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {articolo.disponibile <= 0 ? "Esaurito" : residuoPerCantiere ? "Per il cantiere" : "Disponibili"}
+                        {articolo.disponibile <= 0 ? t("Esaurito") : residuoPerCantiere ? t("Per il cantiere") : t("Disponibili")}
                       </p>
                     </div>
                     {puoAggiungere && !riga && (
                       <Button type="button" variant="outline" className="min-h-11 gap-1 px-2" disabled={inSalvataggio || righe.length >= 100 || disponibile <= 0}
-                        onClick={() => aggiungi(articolo)} aria-label={`Aggiungi ${articolo.name} al prelievo`}>
-                        <Plus aria-hidden="true" className="h-4 w-4" /> Aggiungi
+                        onClick={() => aggiungi(articolo)} aria-label={t("Aggiungi {nome} al prelievo", { nome: articolo.name })}>
+                        <Plus aria-hidden="true" className="h-4 w-4" /> {t("Aggiungi")}
                       </Button>
                     )}
                   </div>
@@ -354,7 +370,7 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
                   </div>
                 )}
                 {puoPrelevare && !stessoMagazzino && articolo.disponibile > 0 &&
-                  <p className="mt-1 text-xs text-muted-foreground">Prelievo da un altro magazzino.</p>}
+                  <p className="mt-1 text-xs text-muted-foreground">{t("Prelievo da un altro magazzino.")}</p>}
               </li>
             );
           })}
@@ -363,7 +379,7 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
       {inventario.hasNextPage && (
         <Button type="button" variant="outline" className="min-h-11 w-full" disabled={inventario.isFetchingNextPage}
           onClick={() => void inventario.fetchNextPage()}>
-          {inventario.isFetchingNextPage ? "Carico…" : inventario.isFetchNextPageError ? "Riprova a caricare" : "Altri articoli"}
+          {inventario.isFetchingNextPage ? t("Carico…") : inventario.isFetchNextPageError ? t("Riprova a caricare") : t("Altri articoli")}
         </Button>
       )}
 
@@ -371,9 +387,9 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
         <div className="fixed inset-x-0 bottom-[calc(5.75rem+env(safe-area-inset-bottom))] z-40 mx-auto max-w-2xl px-3 sm:px-4 md:bottom-4">
           <Button type="button" className="min-h-11 w-full gap-2 rounded-lg text-sm font-semibold shadow-lg" onClick={() => setAperto(true)}>
             <ShoppingCart aria-hidden="true" className="h-4 w-4 shrink-0" />
-            {daVerificare.length ? "Verifica prelievo" : "Rivedi"} · {bozze.length > 1
-              ? `${bozze.length} prelievi`
-              : `${articoliInBozza} ${articoliInBozza === 1 ? "materiale" : "materiali"}`}
+            {daVerificare.length ? t("Verifica prelievo") : t("Rivedi")} · {bozze.length > 1
+              ? t("{n} prelievi", { n: bozze.length })
+              : articoliInBozza === 1 ? t("{n} materiale", { n: articoliInBozza }) : t("{n} materiali", { n: articoliInBozza })}
           </Button>
         </div>
       )}
@@ -383,15 +399,15 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
       }}>
         <SheetContent side="bottom" className="mx-auto flex max-h-[calc(100dvh-env(safe-area-inset-top)-0.5rem)] max-w-2xl flex-col gap-0 overflow-hidden rounded-t-2xl px-0 pb-0 pt-3.5 sm:max-h-[88dvh] sm:pt-4">
           <SheetHeader className="shrink-0 space-y-0.5 px-3 pb-2 pr-12 text-left sm:px-4">
-            <SheetTitle className="text-base sm:text-lg">{bozze.length > 1 ? "Riepilogo prelievi" : "Riepilogo prelievo"}</SheetTitle>
+            <SheetTitle className="text-base sm:text-lg">{bozze.length > 1 ? t("Riepilogo prelievi") : t("Riepilogo prelievo")}</SheetTitle>
             <SheetDescription className={cn("text-xs leading-snug", !daVerificare.length && !richiedeConferma && "sr-only")}>
-              {daVerificare.length ? "Verifica gli invii in sospeso per continuare."
-                : richiedeConferma ? "Il magazzino conferma prima dello scarico." : "Controlla quantità e destinazioni."}
+              {daVerificare.length ? t("Verifica gli invii in sospeso per continuare.")
+                : richiedeConferma ? t("Il magazzino conferma prima dello scarico.") : t("Controlla quantità e destinazioni.")}
             </SheetDescription>
           </SheetHeader>
           {haRitiro && (
             <div className="shrink-0 px-3 pb-2 sm:px-4">
-              <div role="group" aria-label="Vista riepilogo" className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-0.5">
+              <div role="group" aria-label={t("Vista riepilogo")} className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-0.5">
                 {[{ ritiro: false, testo: "Per cantiere" }, { ritiro: true, testo: "Per ubicazione" }].map(({ ritiro, testo }) => (
                   <button key={testo} type="button" aria-pressed={mostraRitiro === ritiro}
                     className={cn("min-h-11 rounded-md px-1 text-sm font-semibold", mostraRitiro === ritiro ? "bg-background text-primary shadow-sm" : "text-muted-foreground")}
@@ -399,21 +415,21 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
                       setVistaRitiro(ritiro);
                       if (areaRiepilogo.current) areaRiepilogo.current.scrollTop = 0;
                     }}>
-                    {testo}
+                    {t(testo)}
                   </button>
                 ))}
               </div>
             </div>
           )}
           <div ref={areaRiepilogo} className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain border-t px-3 py-2 sm:px-4 sm:py-3">
-            {!bozze.length && <p className="text-sm text-muted-foreground">Nessun materiale selezionato.</p>}
+            {!bozze.length && <p className="text-sm text-muted-foreground">{t("Nessun materiale selezionato.")}</p>}
             {mostraRitiro ? (
               <CampoListaRitiro inventario={articoliVisibili} prelievi={bozzeRitiro.map((locale) => ({
-                cantiere: locale.cantiere, nome: nomePrelievo(locale, cantieriPerId), righe: locale.bozza.righe,
+                cantiere: locale.cantiere, nome: nomePrelievo(locale, cantieriPerId, t), righe: locale.bozza.righe,
               }))} />
             ) : bozze.map((locale) => {
               const gruppo = locale.bozza;
-              const nome = nomePrelievo(locale, cantieriPerId);
+              const nome = nomePrelievo(locale, cantieriPerId, t);
               const bloccata = inSalvataggio || gruppo.inVerifica;
               return (
                 <section key={locale.chiave} aria-label={nome} className="min-w-0 rounded-xl border">
@@ -425,19 +441,19 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
                       </h3>
                       {(gruppo.inVerifica || !pronti.has(locale.chiave)) && (
                         <span className="shrink-0 text-xs font-medium text-amber-800 dark:text-amber-300">
-                          {gruppo.inVerifica ? "Da verificare" : "Da completare"}
+                          {gruppo.inVerifica ? t("Da verificare") : t("Da completare")}
                         </span>
                       )}
                     </div>
                     <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
                       <Warehouse aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
-                      <span className="min-w-0 break-words">{gruppo.righe[0].articolo.magazzino ?? "Senza ubicazione"}</span>
+                      <span className="min-w-0 break-words">{gruppo.righe[0].articolo.magazzino ?? t("Senza ubicazione")}</span>
                     </p>
                     {!gruppo.inVerifica && !cantiereConfermato(locale) && (
-                      <UniformSelect aria-label="Cantiere di destinazione" value="" disabled={bloccata || !assegnabili.length}
+                      <UniformSelect aria-label={t("Cantiere di destinazione")} value="" disabled={bloccata || !assegnabili.length}
                         onChange={(event) => aggiornaBozza(locale, { ...gruppo, orderId: event.target.value })}
                         className="h-11 w-full rounded-lg px-2 text-sm">
-                        <option value="" disabled>{assegnabili.length ? "Scegli cantiere" : "Cantieri non disponibili"}</option>
+                        <option value="" disabled>{assegnabili.length ? t("Scegli cantiere") : t("Cantieri non disponibili")}</option>
                         {assegnabili.map((item) => <option key={item.id} value={item.id}>{nomeCantierePrelievo(item)}</option>)}
                       </UniformSelect>
                     )}
@@ -467,12 +483,12 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
                       <CollapsibleTrigger asChild>
                         <Button type="button" variant="ghost" className="group min-h-11 w-full justify-start gap-1.5 px-1 text-xs">
                           <MessageSquare aria-hidden="true" className="h-3.5 w-3.5" />
-                          {gruppo.note.trim() ? "Nota" : "Aggiungi nota"}
+                          {gruppo.note.trim() ? t("Nota") : t("Aggiungi nota")}
                           <ChevronDown aria-hidden="true" className="ml-auto h-4 w-4 group-data-[state=open]:rotate-180" />
                         </Button>
                       </CollapsibleTrigger>
                       <CollapsibleContent className="pb-2">
-                        <Label htmlFor={`prelievo-note-${gruppo.id}`} className="sr-only">Note facoltative</Label>
+                        <Label htmlFor={`prelievo-note-${gruppo.id}`} className="sr-only">{t("Note facoltative")}</Label>
                         <Textarea id={`prelievo-note-${gruppo.id}`} rows={2} value={gruppo.note} disabled={bloccata} className="min-h-14 text-base sm:text-sm"
                           onChange={(event) => aggiornaBozza(locale, { ...gruppo, note: event.target.value })} />
                       </CollapsibleContent>
@@ -483,21 +499,21 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
             })}
           </div>
           <div className="shrink-0 space-y-1.5 border-t bg-background px-3 pb-[calc(.5rem+env(safe-area-inset-bottom))] pt-2 sm:px-4">
-            {!online && <p role="status" className="text-xs text-muted-foreground">I prelievi in coda partono quando torna la rete.</p>}
+            {!online && <p role="status" className="text-xs text-muted-foreground">{t("I prelievi in coda partono quando torna la rete.")}</p>}
             {online && !daVerificare.length && daInviare.length > 0 && daInviare.length < bozze.length && (
-              <p className="text-xs text-muted-foreground">Invii solo i prelievi pronti.</p>
+              <p className="text-xs text-muted-foreground">{t("Invii solo i prelievi pronti.")}</p>
             )}
             {(erroreBozza || erroreInvio) && (
               <p role="alert" className="max-h-16 overflow-y-auto break-words text-xs text-destructive">{erroreBozza || erroreInvio}</p>
             )}
             <div className="flex gap-2">
               <Button type="button" variant="outline" className="min-h-11 shrink-0 px-2.5 text-sm" disabled={inSalvataggio}
-                onClick={() => setAperto(false)}>Inventario</Button>
+                onClick={() => setAperto(false)}>{t("Inventario")}</Button>
               {!!bozze.length && (
                 <Button type="button" className="min-h-11 min-w-0 flex-1 gap-1.5 whitespace-normal px-2.5 text-sm leading-tight"
                   onClick={() => void registra()} disabled={!puoInviare}>
                   {inSalvataggio ? <Loader2 aria-hidden="true" className="h-4 w-4 shrink-0 motion-safe:animate-spin" /> : <Check aria-hidden="true" className="h-4 w-4 shrink-0" />}
-                  {inSalvataggio ? "Invio…" : invia}
+                  {inSalvataggio ? t("Invio…") : invia}
                 </Button>
               )}
             </div>
@@ -519,6 +535,7 @@ function QuantitaMateriale({ id, articolo, valore, disponibile, errore, bloccata
   onChange: (valore: string) => void;
   onRemove: () => void;
 }) {
+  const t = useT();
   const quantita = quantitaPrelievo(valore);
   const meno = Number((quantita - 1).toFixed(8));
   const piu = Math.min(disponibile, Number((quantita + 1).toFixed(8)));
@@ -527,23 +544,23 @@ function QuantitaMateriale({ id, articolo, valore, disponibile, errore, bloccata
     <div>
       <div className="flex items-center gap-1.5">
         <Button type="button" variant="outline" size="icon" className="min-h-11 w-11 shrink-0"
-          disabled={bloccata || !(meno > 0)} aria-label={`Diminuisci quantità di ${articolo.name}`}
+          disabled={bloccata || !(meno > 0)} aria-label={t("Diminuisci quantità di {nome}", { nome: articolo.name })}
           onClick={() => onChange(formatoInputQuantita.format(meno))}>
           <Minus aria-hidden="true" className="h-4 w-4" />
         </Button>
         <Input id={id} inputMode="decimal"
-          aria-label={`${inRiepilogo ? "Verifica quantità" : "Quantità"} di ${articolo.name}`} aria-invalid={!!errore}
+          aria-label={inRiepilogo ? t("Verifica quantità di {nome}", { nome: articolo.name }) : t("Quantità di {nome}", { nome: articolo.name })} aria-invalid={!!errore}
           aria-describedby={errore ? `${id}-errore` : undefined}
           value={valore} disabled={bloccata} onChange={(e) => onChange(e.target.value)}
           className="min-h-11 min-w-12 max-w-24 flex-1 px-1 text-center text-base tabular-nums" />
         {articolo.unita_misura && <span className="min-w-0 max-w-16 break-words text-sm text-muted-foreground">{articolo.unita_misura}</span>}
         <Button type="button" variant="outline" size="icon" className="min-h-11 w-11 shrink-0"
-          disabled={bloccata || !(piu > quantita)} aria-label={`Aumenta quantità di ${articolo.name}`}
+          disabled={bloccata || !(piu > quantita)} aria-label={t("Aumenta quantità di {nome}", { nome: articolo.name })}
           onClick={() => onChange(formatoInputQuantita.format(piu))}>
           <Plus aria-hidden="true" className="h-4 w-4" />
         </Button>
         <Button type="button" variant="ghost" size="icon" className="ml-auto min-h-11 w-11 shrink-0" disabled={bloccata}
-          aria-label={inRiepilogo ? `Togli ${articolo.name} dal riepilogo` : `Rimuovi ${articolo.name}`} onClick={onRemove}>
+          aria-label={inRiepilogo ? t("Togli {nome} dal riepilogo", { nome: articolo.name }) : t("Rimuovi {nome}", { nome: articolo.name })} onClick={onRemove}>
           <X aria-hidden="true" className="h-4 w-4" />
         </Button>
       </div>

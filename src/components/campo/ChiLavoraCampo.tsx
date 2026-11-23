@@ -7,8 +7,10 @@
 import { Link } from "react-router-dom";
 import { Phone, Users } from "lucide-react";
 import { linkTelefono, useChiLavora, type Contatto } from "@/hooks/campo/useCampoGiornata";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 function Persona({ ruolo, contatto }: { ruolo: string; contatto: Contatto }) {
+  const t = useT();
   const tel = linkTelefono(contatto.telefono);
   return (
     <div className="flex items-center justify-between gap-2">
@@ -17,9 +19,9 @@ function Persona({ ruolo, contatto }: { ruolo: string; contatto: Contatto }) {
         <span className="font-semibold">{contatto.nome}</span>
       </p>
       {tel && (
-        <a href={tel} aria-label={`Chiama ${contatto.nome}`}
+        <a href={tel} aria-label={t("Chiama {nome}", { nome: contatto.nome })}
            className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl border bg-background px-3 text-xs font-semibold active:bg-muted">
-          <Phone className="h-3.5 w-3.5" aria-hidden="true" />Chiama
+          <Phone className="h-3.5 w-3.5" aria-hidden="true" />{t("Chiama")}
         </a>
       )}
     </div>
@@ -27,9 +29,10 @@ function Persona({ ruolo, contatto }: { ruolo: string; contatto: Contatto }) {
 }
 
 export function ChiLavoraCampo({ orderId }: { orderId: string }) {
+  const t = useT();
   const { data, isLoading, isError, refetch } = useChiLavora(orderId);
-  if (isError) return <section role="alert" className="rounded-2xl border p-4 text-sm"><p>Squadra e contatti non disponibili.</p><button type="button" className="mt-2 min-h-11 text-primary underline" onClick={() => void refetch()}>Riprova a leggere la squadra</button></section>;
-  if (isLoading) return <p role="status" className="p-4 text-sm text-muted-foreground">Caricamento squadra e contatti…</p>;
+  if (isError) return <section role="alert" className="rounded-2xl border p-4 text-sm"><p>{t("Squadra e contatti non disponibili.")}</p><button type="button" className="mt-2 min-h-11 text-primary underline" onClick={() => void refetch()}>{t("Riprova a leggere la squadra")}</button></section>;
+  if (isLoading) return <p role="status" className="p-4 text-sm text-muted-foreground">{t("Caricamento squadra e contatti…")}</p>;
   if (!data) return null;
 
   const { mie_squadre: squadre, anche_oggi: altri } = data;
@@ -40,7 +43,7 @@ export function ChiLavoraCampo({ orderId }: { orderId: string }) {
 
   return (
     <section aria-labelledby="chi-lavora" className="space-y-3 rounded-2xl border bg-background p-4 shadow-sm">
-      <p id="chi-lavora" className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Con chi lavori</p>
+      <p id="chi-lavora" className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{t("Con chi lavori")}</p>
 
       {squadre.map((s) => {
         const compagni = s.compagni.filter((c) => !c.sei_tu).map((c) => c.nome).filter(Boolean);
@@ -49,32 +52,32 @@ export function ChiLavoraCampo({ orderId }: { orderId: string }) {
             <p className="flex items-center gap-1.5 text-sm font-semibold">
               <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: s.colore ?? "#94a3b8" }} aria-hidden="true" />
               {s.nome}
-              {!s.oggi_qui && <span className="font-normal text-muted-foreground">· oggi non è qui</span>}
+              {!s.oggi_qui && <span className="font-normal text-muted-foreground">· {t("oggi non è qui")}</span>}
             </p>
             {s.sono_caposquadra
-              ? <p className="text-sm font-semibold text-primary">Il caposquadra sei tu</p>
-              : s.caposquadra && <Persona ruolo="Caposquadra" contatto={s.caposquadra} />}
+              ? <p className="text-sm font-semibold text-primary">{t("Il caposquadra sei tu")}</p>
+              : s.caposquadra && <Persona ruolo={t("Caposquadra")} contatto={s.caposquadra} />}
             {compagni.length > 0 && (
-              <p className="text-sm"><span className="text-muted-foreground">Con te: </span>{compagni.join(", ")}</p>
+              <p className="text-sm"><span className="text-muted-foreground">{t("Con te:")} </span>{compagni.join(", ")}</p>
             )}
           </div>
         );
       })}
 
       {data.sono_capocantiere
-        ? <p className="text-sm font-semibold text-primary">Il capocantiere sei tu</p>
+        ? <p className="text-sm font-semibold text-primary">{t("Il capocantiere sei tu")}</p>
         : data.capocantiere
-          ? <Persona ruolo="Capocantiere" contatto={data.capocantiere} />
-          : <p className="text-sm text-muted-foreground">Il capocantiere non è ancora stato scelto.</p>}
+          ? <Persona ruolo={t("Capocantiere")} contatto={data.capocantiere} />
+          : <p className="text-sm text-muted-foreground">{t("Il capocantiere non è ancora stato scelto.")}</p>}
 
       {altri.length > 0 && (
-        <p className="text-sm"><span className="text-muted-foreground">Oggi ci sono anche: </span>{altri.join(", ")}</p>
+        <p className="text-sm"><span className="text-muted-foreground">{t("Oggi ci sono anche:")} </span>{altri.join(", ")}</p>
       )}
 
       {vedeChiCe && (
         <Link to={`/campo/squadra/${orderId}`}
               className="flex h-10 items-center justify-center gap-2 rounded-xl bg-orange-50 text-sm font-semibold text-orange-800 active:bg-orange-100">
-          <Users className="h-4 w-4" aria-hidden="true" />Chi c'è oggi
+          <Users className="h-4 w-4" aria-hidden="true" />{t("Chi c'è oggi")}
         </Link>
       )}
     </section>

@@ -21,6 +21,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import type { ChecklistItemDef } from "@/lib/campo/checklist-items";
 import type { JSX } from "react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const ICON_MAP: Record<string, LucideIcon> = {
   "hard-hat": HardHat,
@@ -52,6 +53,7 @@ export default function CampoChecklistItem({
   onToggle,
   onFotoClick,
 }: CampoChecklistItemProps): JSX.Element {
+  const t = useT();
   const Icon = ICON_MAP[item.iconKey] ?? ShieldAlert;
 
   return (
@@ -73,7 +75,7 @@ export default function CampoChecklistItem({
         type="button"
         onClick={(e) => { e.stopPropagation(); onToggle(); }}
         aria-pressed={checked}
-        aria-label={`${checked ? "Togli spunta" : "Spunta"}: ${item.label}`}
+        aria-label={checked ? t("Togli spunta: {voce}", { voce: t(item.label) }) : t("Spunta: {voce}", { voce: t(item.label) })}
         className={`
           flex-none w-12 h-12 rounded-xl flex items-center justify-center
           transition-all active:scale-95
@@ -88,14 +90,14 @@ export default function CampoChecklistItem({
 
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-foreground leading-tight">
-          {item.label}
+          {t(item.label)}
         </p>
         {item.critico && !checked && (
-          <p className="text-[11px] text-primary mt-0.5">Obbligatorio</p>
+          <p className="text-[11px] text-primary mt-0.5">{t("Obbligatorio")}</p>
         )}
         {fotoUrl && (
           <p className="text-[11px] text-emerald-600 mt-0.5 truncate">
-            Foto allegata
+            {t("Foto allegata")}
           </p>
         )}
       </div>
@@ -104,7 +106,7 @@ export default function CampoChecklistItem({
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onFotoClick(); }}
-          aria-label="Scatta foto"
+          aria-label={t("Scatta foto")}
           className={`
             flex-none w-12 h-12 rounded-xl flex items-center justify-center
             transition-all active:scale-95

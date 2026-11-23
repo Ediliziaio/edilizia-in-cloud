@@ -6,6 +6,7 @@ import { useState, type ReactNode } from "react";
 import { Camera, Loader2 } from "lucide-react";
 import { useFotoCantiere } from "@/hooks/useFotoCantiere";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function ScattaFoto({ orderId, nomeCantiere, galleria = false, className, children }: {
   orderId: string;
@@ -15,6 +16,7 @@ export function ScattaFoto({ orderId, nomeCantiere, galleria = false, className,
   className?: string;
   children?: ReactNode;
 }) {
+  const t = useT();
   const { upload, isUploading } = useFotoCantiere(orderId, { soloInvio: true });
   const [retry, setRetry] = useState<{ orderId: string; files: File[] } | null>(null);
   const carica = async (files: File[]) => {
@@ -33,7 +35,7 @@ export function ScattaFoto({ orderId, nomeCantiere, galleria = false, className,
         accept="image/*"
         className="sr-only"
         disabled={isUploading}
-        aria-label={galleria ? "Scegli foto dalla galleria" : "Scatta una foto del cantiere"}
+        aria-label={galleria ? t("Scegli foto dalla galleria") : t("Scatta una foto del cantiere")}
         {...(galleria ? { multiple: true } : { capture: "environment" as const })}
         onChange={(e) => {
           const files = Array.from(e.target.files ?? []);
@@ -42,12 +44,12 @@ export function ScattaFoto({ orderId, nomeCantiere, galleria = false, className,
         }}
       />
       {isUploading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : !children && <Camera className="h-4 w-4" aria-hidden="true" />}
-      {children ?? "Foto"}
+      {children ?? t("Foto")}
     </label>
     {retry?.orderId === orderId && (
-      <button type="button" className="text-xs text-primary underline" title="Se cambi commessa, riseleziona le foto mancanti"
+      <button type="button" className="text-xs text-primary underline" title={t("Se cambi commessa, riseleziona le foto mancanti")}
         disabled={isUploading} onClick={() => void carica(retry.files)}>
-        Riprova {retry.files.length === 1 ? "la foto mancante" : `le ${retry.files.length} foto mancanti`}
+        {retry.files.length === 1 ? t("Riprova la foto mancante") : t("Riprova le {n} foto mancanti", { n: retry.files.length })}
       </button>
     )}
     </>

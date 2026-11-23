@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { RilevazioniMezziRapportino } from "@/components/orders/RilevazioniMezziRapportino";
 import { CampiModuloLettura } from "@/components/campo/CampiModuloLettura";
 import { bloccoFasi, oreBrevi, type FaseBlocco, type MaterialeBlocco } from "../../../supabase/functions/genera-pdf-rapportino/model";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   report: { id?: string; company_id?: string; order_id?: string; fasi_lavorate?: unknown; materiali_usati?: unknown; foto_urls?: unknown; campi_extra?: unknown };
@@ -30,7 +31,7 @@ const NESSUN_NOME: ReadonlyMap<string, string> = new Map();
 
 const ETICHETTA = "text-xs font-semibold uppercase tracking-wide text-slate-500";
 
-const conto = (n: number, singolare: string, plurale: string) => `${n} ${n === 1 ? singolare : plurale}`;
+const conto = (t: ReturnType<typeof useT>, n: number, singolare: string, plurale: string) => t(n === 1 ? singolare : plurale, { n });
 
 function RigaMateriale({ m }: { m: MaterialeBlocco }) {
   return (
@@ -45,10 +46,11 @@ function RigaMateriale({ m }: { m: MaterialeBlocco }) {
 }
 
 function GrigliaFoto({ foto, alt, onFoto }: { foto: string[]; alt: string; onFoto?: (url: string) => void }) {
+  const t = useT();
   return (
     <div className="flex flex-wrap gap-2">
       {foto.map((url, i) => (
-        <button key={`${url}-${i}`} type="button" onClick={() => onFoto?.(url)} aria-label={`Apri ${alt} ${i + 1}`}
+        <button key={`${url}-${i}`} type="button" onClick={() => onFoto?.(url)} aria-label={t("Apri {cosa} {n}", { cosa: alt, n: i + 1 })}
           className="overflow-hidden rounded-lg border focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
           <ImgRiservata width={88} height={88} loading="lazy" src={url} alt={`${alt} ${i + 1}`}
             className="h-[88px] w-[88px] object-cover transition-opacity hover:opacity-80" />
@@ -59,8 +61,9 @@ function GrigliaFoto({ foto, alt, onFoto }: { foto: string[]; alt: string; onFot
 }
 
 function SchedaFase({ fase, compatto, onFoto }: { fase: FaseBlocco; compatto: boolean; onFoto?: (url: string) => void }) {
+  const t = useT();
   const completata = fase.percentuale === 100;
-  const stato = completata ? "Completata" : fase.percentuale !== null ? `${fase.percentuale.toLocaleString("it-IT")}%` : "Lavorata";
+  const stato = completata ? t("Completata") : fase.percentuale !== null ? `${fase.percentuale.toLocaleString("it-IT")}%` : t("Lavorata");
   const pill = (
     <span className={cn("shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold",
       completata ? "bg-emerald-100 text-emerald-800" : fase.percentuale !== null ? "bg-orange-100 text-orange-800" : "bg-slate-100 text-slate-700")}>
@@ -69,8 +72,8 @@ function SchedaFase({ fase, compatto, onFoto }: { fase: FaseBlocco; compatto: bo
   );
   if (compatto) {
     const dettagli = [
-      fase.materiali.length ? conto(fase.materiali.length, "materiale", "materiali") : "",
-      fase.foto.length ? conto(fase.foto.length, "foto", "foto") : "",
+      fase.materiali.length ? conto(t, fase.materiali.length, "{n} materiale", "{n} materiali") : "",
+      fase.foto.length ? conto(t, fase.foto.length, "{n} foto", "{n} foto") : "",
     ].filter(Boolean).join(" · ");
     return (
       <li className="flex items-center justify-between gap-2 py-1.5">
@@ -90,22 +93,22 @@ function SchedaFase({ fase, compatto, onFoto }: { fase: FaseBlocco; compatto: bo
           {pill}
         </div>
         {fase.percentuale !== null && (
-          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200" role="img" aria-label={`Avanzamento ${fase.percentuale}%`}>
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200" role="img" aria-label={t("Avanzamento {n}%", { n: fase.percentuale })}>
             <div className={cn("h-full rounded-full", completata ? "bg-emerald-600" : "bg-orange-500")} style={{ width: `${Math.min(100, fase.percentuale)}%` }} />
           </div>
         )}
-        {fase.ore !== null && <p className="mt-1.5 text-xs text-slate-600">{oreBrevi(fase.ore)} dichiarate su questa lavorazione</p>}
+        {fase.ore !== null && <p className="mt-1.5 text-xs text-slate-600">{t("{ore} dichiarate su questa lavorazione", { ore: oreBrevi(fase.ore) })}</p>}
       </header>
       {fase.materiali.length > 0 && (
         <div>
-          <p className={cn(ETICHETTA, "px-3 pt-2")}>Materiali usati</p>
+          <p className={cn(ETICHETTA, "px-3 pt-2")}>{t("Materiali usati")}</p>
           <ul className="divide-y">{fase.materiali.map((m, i) => <RigaMateriale key={i} m={m} />)}</ul>
         </div>
       )}
       {fase.foto.length > 0 && (
         <div className="px-3 pb-3 pt-2">
-          <p className={cn(ETICHETTA, "mb-1.5")}>Foto della lavorazione ({fase.foto.length})</p>
-          <GrigliaFoto foto={fase.foto} alt={`Foto di ${fase.nome}`} onFoto={onFoto} />
+          <p className={cn(ETICHETTA, "mb-1.5")}>{t("Foto della lavorazione ({n})", { n: fase.foto.length })}</p>
+          <GrigliaFoto foto={fase.foto} alt={t("Foto di {nome}", { nome: fase.nome })} onFoto={onFoto} />
         </div>
       )}
       {fase.campi.length > 0 && (
@@ -114,7 +117,7 @@ function SchedaFase({ fase, compatto, onFoto }: { fase: FaseBlocco; compatto: bo
         </div>
       )}
       {fase.materiali.length === 0 && fase.foto.length === 0 && fase.campi.length === 0 && (
-        <p className="px-3 py-2 text-xs text-slate-500">Nessun materiale né foto legati a questa lavorazione.</p>
+        <p className="px-3 py-2 text-xs text-slate-500">{t("Nessun materiale né foto legati a questa lavorazione.")}</p>
       )}
     </section>
   );
@@ -125,18 +128,19 @@ export function RapportinoBlocchi({ report, onFoto, compatto = false, className,
     () => bloccoFasi({ fasi_lavorate: report.fasi_lavorate, materiali_usati: report.materiali_usati, foto_urls: report.foto_urls, campi_extra: report.campi_extra }, nomiFasi),
     [report.fasi_lavorate, report.materiali_usati, report.foto_urls, report.campi_extra, nomiFasi],
   );
+  const t = useT();
   const conFasi = b.fasi.length > 0;
   if (compatto) {
     // Da telefono, nella lista: una riga per fase e i totali di quello che non è legato a nessuna.
     const altro = [
-      b.altriMateriali.length ? conto(b.altriMateriali.length, "materiale generale", "materiali generali") : "",
-      b.altreFoto.length ? conto(b.altreFoto.length, conFasi ? "altra foto" : "foto", conFasi ? "altre foto" : "foto") : "",
+      b.altriMateriali.length ? conto(t, b.altriMateriali.length, "{n} materiale generale", "{n} materiali generali") : "",
+      b.altreFoto.length ? conto(t, b.altreFoto.length, conFasi ? "{n} altra foto" : "{n} foto", conFasi ? "{n} altre foto" : "{n} foto") : "",
     ].filter(Boolean).join(" · ");
     if (!conFasi) return null;
     return (
       <div className={className}>
         <ul className="divide-y">{b.fasi.map(f => <SchedaFase key={f.id} fase={f} compatto onFoto={onFoto} />)}</ul>
-        {altro && <p className="pt-1.5 text-xs text-muted-foreground">Inoltre: {altro}</p>}
+        {altro && <p className="pt-1.5 text-xs text-muted-foreground">{t("Inoltre: {altro}", { altro })}</p>}
       </div>
     );
   }
@@ -148,7 +152,7 @@ export function RapportinoBlocchi({ report, onFoto, compatto = false, className,
     <div className={cn("space-y-4", className)}>
       {conFasi && (
         <div>
-          <p className={ETICHETTA}>{b.fasi.length === 1 ? "Lavorazione" : "Lavorazioni"}</p>
+          <p className={ETICHETTA}>{b.fasi.length === 1 ? t("Lavorazione") : t("Lavorazioni")}</p>
           <div className="mt-1.5 space-y-2.5">
             {b.fasi.map(f => <SchedaFase key={f.id} fase={f} compatto={false} onFoto={onFoto} />)}
           </div>
@@ -158,7 +162,7 @@ export function RapportinoBlocchi({ report, onFoto, compatto = false, className,
       {rilevazioniMezzi}
       {b.altriMateriali.length > 0 && (
         <div>
-          <p className={ETICHETTA}>{conFasi ? "Altri materiali" : "Materiali usati"} ({b.altriMateriali.length})</p>
+          <p className={ETICHETTA}>{conFasi ? t("Altri materiali ({n})", { n: b.altriMateriali.length }) : t("Materiali usati ({n})", { n: b.altriMateriali.length })}</p>
           <ul className="mt-1.5 divide-y overflow-hidden rounded-xl border bg-white">
             {b.altriMateriali.map((m, i) => <RigaMateriale key={i} m={m} />)}
           </ul>
@@ -166,8 +170,8 @@ export function RapportinoBlocchi({ report, onFoto, compatto = false, className,
       )}
       {b.altreFoto.length > 0 && (
         <div>
-          <p className={ETICHETTA}>{b.fasi.some(f => f.foto.length) ? "Altre foto del cantiere" : "Foto"} ({b.altreFoto.length})</p>
-          <div className="mt-1.5"><GrigliaFoto foto={b.altreFoto} alt="Foto" onFoto={onFoto} /></div>
+          <p className={ETICHETTA}>{b.fasi.some(f => f.foto.length) ? t("Altre foto del cantiere ({n})", { n: b.altreFoto.length }) : t("Foto ({n})", { n: b.altreFoto.length })}</p>
+          <div className="mt-1.5"><GrigliaFoto foto={b.altreFoto} alt={t("Foto")} onFoto={onFoto} /></div>
         </div>
       )}
     </div>

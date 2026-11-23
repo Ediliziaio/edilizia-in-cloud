@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ClipboardCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface ModelloCapo { id: string; nome: string; schema: unknown }
 
@@ -23,6 +24,7 @@ export function useModelliCapo(orderId: string | undefined) {
 
 export function BottoneCollaudo({ orderId }: { orderId: string }) {
   const navigate = useNavigate();
+  const t = useT();
   const { data: modelli = [], isSuccess } = useModelliCapo(orderId);
   // Con tutti i modelli spenti si entra solo se c'è qualcosa da rileggere.
   const { data: haVerbali = false } = useQuery<boolean>({
@@ -40,7 +42,7 @@ export function BottoneCollaudo({ orderId }: { orderId: string }) {
   return (
     <button type="button" onClick={() => navigate(`/campo/lavoro/${orderId}/verbale`)}
       className="flex h-10 flex-col items-center justify-center gap-0.5 rounded-xl border bg-background px-1 text-xs font-semibold">
-      <ClipboardCheck className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />Collaudo
+      <ClipboardCheck className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />{t("Collaudo")}
     </button>
   );
 }

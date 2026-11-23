@@ -28,6 +28,7 @@ import {
 } from "@/lib/campo/acquisti";
 import { messaggioErrore } from "@/lib/campo/messaggioErrore";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type FaseFoto = "nessuna" | "leggo" | "letto" | "non_letto";
 type RigaModulo = RigaAcquisto & { quantitaTesto?: string };
@@ -42,6 +43,7 @@ export default function CampoMerce() {
 }
 
 function CampoMerceEditor() {
+  const t = useT();
   const { user, profile } = useAuth();
   const companyId = profile?.company_id ?? null;
   const assegnazioni = useCampoAssignments();
@@ -147,12 +149,12 @@ function CampoMerceEditor() {
       setRighe(f.lettura?.righe ?? []);
       setTipoDocumento("");
       setFase(f.lettura ? "letto" : "non_letto");
-      if (!f.path) toast.warning("Non sono riuscito a salvare la foto: riprova, o inviala all’ufficio in un altro modo.");
+      if (!f.path) toast.warning(t("Non sono riuscito a salvare la foto: riprova, o inviala all’ufficio in un altro modo."));
     } catch (e) {
       if (richiesta !== fotoTask.current) return;
       // Una sostituzione fallita conserva il documento precedente, senza fingere di averlo cambiato.
       setFase(fasePrecedente);
-      toast.error(messaggioErrore(e, "Non riesco a usare questa foto: riprova."));
+      toast.error(messaggioErrore(e, t("Non riesco a usare questa foto: riprova.")));
     } finally {
       if (richiesta === fotoTask.current) fotoInCorso.current = false;
     }
@@ -171,17 +173,17 @@ function CampoMerceEditor() {
   const aggiornaRiga = (i: number, patch: Partial<RigaAcquisto>) => setRighe(r => r.map((x, k) => (k === i ? { ...x, ...patch } : x)));
 
   const invia = async () => {
-    if (!ripresaDecisa) { toast.error("Riprendi o scarta prima la bozza salvata."); return; }
+    if (!ripresaDecisa) { toast.error(t("Riprendi o scarta prima la bozza salvata.")); return; }
     if (invioInCorso.current || fotoInCorso.current || nuovaFoto) return;
-    if (!user?.id || !companyId) { toast.error("Sessione scaduta: accedi di nuovo."); return; }
-    if (!modalita) { toast.error("Dici come hai preso la merce."); return; }
-    if (assegnazioni.isError || assegnazioni.isLoading) { toast.error("Aspetta che siano caricati i tuoi cantieri, oppure riprova."); return; }
-    if (!cantiereScelto) { toast.error("Scegli il cantiere a cui va la merce."); return; }
-    if (totale.trim() && (totaleNumero == null || totaleNumero < 0 || totaleNumero > 1000000)) { toast.error("Controlla il totale: scrivi un importo valido, per esempio 1.234,56."); return; }
-    if (righe.some(r => r.descrizione.trim() && (!Number.isFinite(r.quantita) || r.quantita <= 0 || r.quantita > 1000000))) { toast.error("Controlla le quantità dei prodotti: devono essere maggiori di zero."); return; }
-    if (modalita === "pagato_da_me" && !foto?.path) { toast.error("Per il rimborso serve la foto dello scontrino."); return; }
-    if (modalita === "pagato_da_me" && !(totaleSuggerito && totaleSuggerito > 0)) { toast.error("Indica quanto hai speso."); return; }
-    if (totaleSuggerito == null && !righe.some(r => r.descrizione.trim())) { toast.error("Indica il totale o almeno un prodotto che hai preso."); return; }
+    if (!user?.id || !companyId) { toast.error(t("Sessione scaduta: accedi di nuovo.")); return; }
+    if (!modalita) { toast.error(t("Dici come hai preso la merce.")); return; }
+    if (assegnazioni.isError || assegnazioni.isLoading) { toast.error(t("Aspetta che siano caricati i tuoi cantieri, oppure riprova.")); return; }
+    if (!cantiereScelto) { toast.error(t("Scegli il cantiere a cui va la merce.")); return; }
+    if (totale.trim() && (totaleNumero == null || totaleNumero < 0 || totaleNumero > 1000000)) { toast.error(t("Controlla il totale: scrivi un importo valido, per esempio 1.234,56.")); return; }
+    if (righe.some(r => r.descrizione.trim() && (!Number.isFinite(r.quantita) || r.quantita <= 0 || r.quantita > 1000000))) { toast.error(t("Controlla le quantità dei prodotti: devono essere maggiori di zero.")); return; }
+    if (modalita === "pagato_da_me" && !foto?.path) { toast.error(t("Per il rimborso serve la foto dello scontrino.")); return; }
+    if (modalita === "pagato_da_me" && !(totaleSuggerito && totaleSuggerito > 0)) { toast.error(t("Indica quanto hai speso.")); return; }
+    if (totaleSuggerito == null && !righe.some(r => r.descrizione.trim())) { toast.error(t("Indica il totale o almeno un prodotto che hai preso.")); return; }
     invioInCorso.current = true;
     setInvioAttivo(true);
     try {
@@ -198,13 +200,13 @@ function CampoMerceEditor() {
         lettura: lettura ? { confidenza: lettura.confidenza, da_controllare: lettura.daControllare || righe.some(r => r.quantitaTesto !== undefined) } : null,
         note: note.trim(),
       });
-      toast.success("Inviata all’ufficio");
+      toast.success(t("Inviata all’ufficio"));
       bozzaAttivata.current = false; bozza.clearDraft();
       liberaAnteprima(anteprima.current); anteprima.current = undefined;
       setFoto(null); setLettura(null); setFase("nessuna");
       setModalita(""); setTipoDocumento(""); setFornitore(""); setNumero(""); setData(""); setTotale(""); setRighe([]); setNote("");
     } catch (e) {
-      toast.error(messaggioErrore(e, "Non sono riuscito a inviarla. Riprova."));
+      toast.error(messaggioErrore(e, t("Non sono riuscito a inviarla. Riprova.")));
     } finally {
       invioInCorso.current = false;
       setInvioAttivo(false);
@@ -212,22 +214,22 @@ function CampoMerceEditor() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-4 px-3 py-3 md:px-4 md:py-5">
+    <div className="mx-auto w-full max-w-3xl space-y-3 md:space-y-4 md:px-4 md:py-5">
       <div>
-        <h1 className="text-xl font-black">Merce presa</h1>
-        <p className="text-sm text-muted-foreground">Hai ritirato o comprato della merce? Fotografa il documento: ci pensa l’ufficio a registrarlo.</p>
+        <h1 className="text-xl font-black">{t("Merce presa")}</h1>
+        <p className="text-sm text-muted-foreground">{t("Hai ritirato o comprato della merce? Fotografa il documento: ci pensa l’ufficio a registrarlo.")}</p>
       </div>
 
-      {!ripresaDecisa && <div role="status" className="space-y-2 rounded-xl border bg-muted/40 p-3 text-sm"><p>Hai un ritiro non ancora inviato salvato su questo telefono.</p><button type="button" className="min-h-11 text-primary underline" onClick={riprendiBozza}>Riprendi il ritiro</button>{" "}<button type="button" className="min-h-11 text-primary underline" onClick={() => { bozza.clearDraft(); setRipresaDecisa(true); }}>Scarta la bozza</button></div>}
+      {!ripresaDecisa && <div role="status" className="space-y-2 rounded-xl border bg-muted/40 p-3 text-sm"><p>{t("Hai un ritiro non ancora inviato salvato su questo telefono.")}</p><button type="button" className="min-h-11 text-primary underline" onClick={riprendiBozza}>{t("Riprendi il ritiro")}</button>{" "}<button type="button" className="min-h-11 text-primary underline" onClick={() => { bozza.clearDraft(); setRipresaDecisa(true); }}>{t("Scarta la bozza")}</button></div>}
       {bozza.saveError && <p role="alert" className="text-sm text-destructive">{bozza.saveError}</p>}
-      {ripresaDecisa && bozza.lastSaved && <p role="status" className="text-xs text-muted-foreground">Bozza salvata sul telefono, non inviata. Le foto non caricate vanno scattate di nuovo.</p>}
+      {ripresaDecisa && bozza.lastSaved && <p role="status" className="text-xs text-muted-foreground">{t("Bozza salvata sul telefono, non inviata. Le foto non caricate vanno scattate di nuovo.")}</p>}
 
       <fieldset disabled={!ripresaDecisa || fase === "leggo" || invioAttivo || registra.isPending} className="min-w-0 space-y-4">
       {/* 1. La foto */}
-      <section className="space-y-3 rounded-2xl border bg-background p-3 shadow-sm sm:p-4" aria-label="Documento">
+      <section className="space-y-3 rounded-2xl border bg-background p-3 shadow-sm sm:p-4" aria-label={t("Documento")}>
         <input
           ref={cameraInput} type="file" accept="image/*" capture="environment" className="hidden"
-          aria-label="Scatta foto del documento"
+          aria-label={t("Scatta foto del documento")}
           onChange={e => { scegliFoto(e.target.files?.[0]); e.target.value = ""; }}
         />
         <input
@@ -235,7 +237,7 @@ function CampoMerceEditor() {
           type="file"
           accept="image/*"
           className="hidden"
-          aria-label="Foto del documento"
+          aria-label={t("Foto del documento")}
           onChange={e => { scegliFoto(e.target.files?.[0]); e.target.value = ""; }}
         />
         {!foto ? (
@@ -246,39 +248,39 @@ function CampoMerceEditor() {
             className="flex min-h-16 w-full items-center justify-center gap-2 rounded-2xl border border-primary/25 bg-primary/10 p-3 text-center text-primary disabled:opacity-60 motion-safe:transition-transform motion-safe:active:scale-[0.98]"
           >
             {fase === "leggo" ? <Loader2 className="size-5 shrink-0 motion-safe:animate-spin" aria-hidden="true" /> : <Camera className="size-5 shrink-0" aria-hidden="true" />}
-            <span className="text-base font-semibold">{fase === "leggo" ? "Leggo il documento…" : "Fotografa bolla, scontrino o fattura"}</span>
+            <span className="text-base font-semibold">{fase === "leggo" ? t("Leggo il documento…") : t("Fotografa bolla, scontrino o fattura")}</span>
           </button>
         ) : (
           <div className="flex items-start gap-3">
-            <AnteprimaFotoCampo foto={foto.anteprima} etichetta="documento fotografato" className="h-24 w-20 shrink-0" />
+            <AnteprimaFotoCampo foto={foto.anteprima} etichetta={t("documento fotografato")} className="h-24 w-20 shrink-0" />
             <div className="min-w-0 flex-1 space-y-1">
-              {fase === "letto" && !lettura?.daControllare && <p role="status" className="flex items-center gap-1.5 text-sm font-semibold text-green-700"><Check className="h-4 w-4" aria-hidden="true" />Letto: controlla qui sotto</p>}
-              {fase === "letto" && lettura?.daControllare && <p role="status" className="text-sm font-semibold text-amber-700">Letto in parte: controlla bene fornitore, prodotti e totale.</p>}
-              {fase === "non_letto" && <p role="status" className="text-sm font-semibold text-amber-700">Non sono riuscito a leggerlo: scrivi tu fornitore e totale.</p>}
-              {!foto.path && <p role="alert" className="text-xs text-destructive">La foto non è stata salvata.</p>}
-              {fase === "leggo" && <p role="status" className="text-sm">Leggo il nuovo documento…</p>}
-              <button type="button" className="min-h-11 text-sm text-primary underline" onClick={() => cameraInput.current?.click()}>Scatta di nuovo</button>
+              {fase === "letto" && !lettura?.daControllare && <p role="status" className="flex items-center gap-1.5 text-sm font-semibold text-green-700"><Check className="h-4 w-4" aria-hidden="true" />{t("Letto: controlla qui sotto")}</p>}
+              {fase === "letto" && lettura?.daControllare && <p role="status" className="text-sm font-semibold text-amber-700">{t("Letto in parte: controlla bene fornitore, prodotti e totale.")}</p>}
+              {fase === "non_letto" && <p role="status" className="text-sm font-semibold text-amber-700">{t("Non sono riuscito a leggerlo: scrivi tu fornitore e totale.")}</p>}
+              {!foto.path && <p role="alert" className="text-xs text-destructive">{t("La foto non è stata salvata.")}</p>}
+              {fase === "leggo" && <p role="status" className="text-sm">{t("Leggo il nuovo documento…")}</p>}
+              <button type="button" className="min-h-11 text-sm text-primary underline" onClick={() => cameraInput.current?.click()}>{t("Scatta di nuovo")}</button>
             </div>
           </div>
         )}
         <button type="button" className="inline-flex min-h-11 items-center gap-2 rounded-xl border px-3 text-sm font-semibold" onClick={() => fileInput.current?.click()}>
-          <Images className="size-4 shrink-0" aria-hidden="true" />{foto ? "Cambia foto dalla galleria" : "Scegli dalla galleria"}
+          <Images className="size-4 shrink-0" aria-hidden="true" />{foto ? t("Cambia foto dalla galleria") : t("Scegli dalla galleria")}
         </button>
         {nuovaFoto && <div role="alert" className="space-y-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
-          <p>La nuova foto sostituirà il documento e i dati compilati. Cantiere, pagamento e note restano invariati.</p>
+          <p>{t("La nuova foto sostituirà il documento e i dati compilati. Cantiere, pagamento e note restano invariati.")}</p>
           <div className="flex flex-wrap gap-2">
-            <button type="button" className="min-h-11 rounded-xl border px-3 font-semibold" onClick={() => void elaboraFoto(nuovaFoto)}>Sostituisci documento</button>
-            <button type="button" className="min-h-11 rounded-xl border px-3" onClick={() => setNuovaFoto(null)}>Mantieni documento</button>
+            <button type="button" className="min-h-11 rounded-xl border px-3 font-semibold" onClick={() => void elaboraFoto(nuovaFoto)}>{t("Sostituisci documento")}</button>
+            <button type="button" className="min-h-11 rounded-xl border px-3" onClick={() => setNuovaFoto(null)}>{t("Mantieni documento")}</button>
           </div>
         </div>}
         {!foto && fase !== "leggo" && (
-          <p className="text-xs text-muted-foreground">Senza foto puoi comunque segnare la merce a mano, ma per un rimborso la foto serve.</p>
+          <p className="text-xs text-muted-foreground">{t("Senza foto puoi comunque segnare la merce a mano, ma per un rimborso la foto serve.")}</p>
         )}
       </section>
 
       {/* 2. Come l'hai presa */}
-      <section className="space-y-2" aria-label="Come l’hai presa">
-        <h2 className="text-sm font-bold">Come l’hai presa?</h2>
+      <section className="space-y-2" aria-label={t("Come l’hai presa")}>
+        <h2 className="text-[15px] font-bold md:text-sm">{t("Come l’hai presa?")}</h2>
         <div className="grid gap-2">
           {MODALITA.map(m => (
             <button
@@ -291,96 +293,96 @@ function CampoMerceEditor() {
                 modalita === m.key ? "border-primary bg-primary/10" : "bg-background",
               )}
             >
-              <span className="text-base font-semibold">{m.titolo}</span>
-              <span className="text-xs text-muted-foreground">{m.descrizione}</span>
+              <span className="text-base font-semibold">{t(m.titolo)}</span>
+              <span className="text-xs text-muted-foreground">{t(m.descrizione)}</span>
             </button>
           ))}
         </div>
       </section>
 
       {/* 3. Cantiere e dati */}
-      <section className="space-y-3 rounded-2xl border bg-background p-4 shadow-sm" aria-label="Dati del documento">
+      <section className="space-y-3 rounded-2xl border bg-background p-4 shadow-sm" aria-label={t("Dati del documento")}>
         <div className="space-y-1.5">
-          <label htmlFor="merce-cantiere" className="text-sm font-semibold">Per quale cantiere?</label>
+          <label htmlFor="merce-cantiere" className="text-sm font-semibold">{t("Per quale cantiere?")}</label>
           {daCommessa ? (
             // Arrivi da dentro il cantiere: resta quello, in sola lettura (e collegato all'etichetta).
             <input
               id="merce-cantiere"
               readOnly
               className={cn(campo, "bg-muted/50 font-semibold")}
-              value={cantiereInfo ? `${cantiereInfo.order.order_code || "Cantiere"} · ${cantiereInfo.order.description || cantiereInfo.order.indirizzo_lavori || "Lavoro assegnato"}` : "Cantiere"}
+              value={cantiereInfo ? `${cantiereInfo.order.order_code || t("Cantiere")} · ${cantiereInfo.order.description || cantiereInfo.order.indirizzo_lavori || t("Lavoro assegnato")}` : t("Cantiere")}
             />
           ) : (
             <UniformSelect id="merce-cantiere" value={cantiereScelto} onChange={e => setOrderId(e.target.value)} className={campo}>
-              {!cantiereScelto && <option value="" disabled>Scegli il cantiere</option>}
-              {cantieri.map(c => <option key={c.order_id} value={c.order_id}>{c.order.order_code || "Cantiere"} · {c.order.description || c.order.indirizzo_lavori || "Lavoro assegnato"}</option>)}
+              {!cantiereScelto && <option value="" disabled>{t("Scegli il cantiere")}</option>}
+              {cantieri.map(c => <option key={c.order_id} value={c.order_id}>{c.order.order_code || t("Cantiere")} · {c.order.description || c.order.indirizzo_lavori || t("Lavoro assegnato")}</option>)}
             </UniformSelect>
           )}
-          {assegnazioni.isError && <p role="alert" className="text-xs text-destructive">Non riesco a leggere i tuoi cantieri. <button type="button" className="underline" onClick={() => assegnazioni.refetch()}>Riprova</button></p>}
+          {assegnazioni.isError && <p role="alert" className="text-xs text-destructive">{t("Non riesco a leggere i tuoi cantieri.")} <button type="button" className="underline" onClick={() => assegnazioni.refetch()}>{t("Riprova")}</button></p>}
         </div>
         <div className="space-y-1.5">
-          <label htmlFor="merce-tipo" className="text-sm font-semibold">Che documento è?</label>
+          <label htmlFor="merce-tipo" className="text-sm font-semibold">{t("Che documento è?")}</label>
           <UniformSelect id="merce-tipo" className={campo} value={tipoEffettivo} onChange={e => setTipoDocumento(e.target.value as TipoDocumento)}>
-            <option value="bolla">Bolla / DDT</option><option value="scontrino">Scontrino / ricevuta</option><option value="fattura">Fattura</option><option value="altro">Altro documento</option>
+            <option value="bolla">{t("Bolla / DDT")}</option><option value="scontrino">{t("Scontrino / ricevuta")}</option><option value="fattura">{t("Fattura")}</option><option value="altro">{t("Altro documento")}</option>
           </UniformSelect>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <label htmlFor="merce-numero" className="text-sm font-semibold">N° {tipoEffettivo === "scontrino" ? "scontrino" : tipoEffettivo === "fattura" ? "fattura" : "bolla"}</label>
-            <input id="merce-numero" className={campo} value={numero} onChange={e => setNumero(e.target.value)} placeholder={tipoEffettivo === "scontrino" ? "Facoltativo" : "Es. 1234/A"} />
+            <label htmlFor="merce-numero" className="text-sm font-semibold">{tipoEffettivo === "scontrino" ? t("N° scontrino") : tipoEffettivo === "fattura" ? t("N° fattura") : t("N° bolla")}</label>
+            <input id="merce-numero" className={campo} value={numero} onChange={e => setNumero(e.target.value)} placeholder={tipoEffettivo === "scontrino" ? t("Facoltativo") : t("Es. 1234/A")} />
           </div>
           <div className="space-y-1.5">
-            <label htmlFor="merce-data" className="text-sm font-semibold">Data</label>
+            <label htmlFor="merce-data" className="text-sm font-semibold">{t("Data")}</label>
             <input id="merce-data" type="date" className={campo} value={data} onChange={e => setData(e.target.value)} />
           </div>
         </div>
         {fase === "letto" && tipoEffettivo !== "scontrino" && numero.trim() === "" && (
-          <p role="status" className="text-xs text-amber-700">Numero della bolla non letto: scrivilo se il documento ce l’ha.</p>
+          <p role="status" className="text-xs text-amber-700">{t("Numero della bolla non letto: scrivilo se il documento ce l’ha.")}</p>
         )}
         <div className="space-y-1.5">
-          <label htmlFor="merce-fornitore" className="text-sm font-semibold">Dove l’hai presa?</label>
-          <input id="merce-fornitore" className={campo} value={fornitore} onChange={e => setFornitore(e.target.value)} placeholder="Es. Tecnomat, Leroy Merlin" />
+          <label htmlFor="merce-fornitore" className="text-sm font-semibold">{t("Dove l’hai presa?")}</label>
+          <input id="merce-fornitore" className={campo} value={fornitore} onChange={e => setFornitore(e.target.value)} placeholder={t("Es. Tecnomat, Leroy Merlin")} />
         </div>
         <div className="space-y-1.5">
-          <label htmlFor="merce-totale" className="text-sm font-semibold">Totale (€){modalita === "pagato_da_me" ? " — quanto hai speso" : ""}</label>
+          <label htmlFor="merce-totale" className="text-sm font-semibold">{modalita === "pagato_da_me" ? t("Totale (€) — quanto hai speso") : t("Totale (€)")}</label>
           <input
             id="merce-totale"
             inputMode="decimal"
             className={campo}
             value={totale}
             onChange={e => setTotale(e.target.value)}
-            placeholder={totaleRighe(righe) != null ? euro(totaleRighe(righe)) : "Es. 45,50"}
+            placeholder={totaleRighe(righe) != null ? euro(totaleRighe(righe)) : t("Es. 45,50")}
           />
         </div>
       </section>
 
       {/* 4. I prodotti */}
-      <section className="space-y-3 rounded-2xl border bg-background p-4 shadow-sm" aria-label="Prodotti">
-        <h2 className="text-sm font-bold">Cosa hai preso</h2>
-        {righe.length === 0 && <p className="text-xs text-muted-foreground">Nessun prodotto letto. Aggiungili a mano, oppure lascia solo il totale.</p>}
+      <section className="space-y-3 rounded-2xl border bg-background p-4 shadow-sm" aria-label={t("Prodotti")}>
+        <h2 className="text-[15px] font-bold md:text-sm">{t("Cosa hai preso")}</h2>
+        {righe.length === 0 && <p className="text-xs text-muted-foreground">{t("Nessun prodotto letto. Aggiungili a mano, oppure lascia solo il totale.")}</p>}
         {righe.map((r, i) => (
           <div key={i} className="space-y-2 rounded-xl border bg-muted/30 p-3">
             <div className="flex items-center gap-2">
               <input
-                aria-label={`Prodotto ${i + 1}`}
+                aria-label={t("Prodotto {n}", { n: i + 1 })}
                 className={campo}
                 value={r.descrizione}
                 onChange={e => aggiornaRiga(i, { descrizione: e.target.value })}
-                placeholder="Cosa è"
+                placeholder={t("Cosa è")}
               />
-              <button type="button" aria-label={`Togli ${r.descrizione || `prodotto ${i + 1}`}`} onClick={() => setRighe(x => x.filter((_, k) => k !== i))}
+              <button type="button" aria-label={t("Togli {nome}", { nome: r.descrizione || t("prodotto {n}", { n: i + 1 }) })} onClick={() => setRighe(x => x.filter((_, k) => k !== i))}
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-500/10">
                 <Trash2 className="h-4 w-4 text-red-500" aria-hidden="true" />
               </button>
             </div>
             <div className="flex items-center gap-2">
               <input
-                aria-label={`Quantità ${r.descrizione || `prodotto ${i + 1}`}`}
+                aria-label={t("Quantità {nome}", { nome: r.descrizione || t("prodotto {n}", { n: i + 1 }) })}
                 inputMode="decimal"
                 className="h-11 w-24 rounded-xl border bg-background px-3 text-center text-base"
                 value={r.quantitaTesto ?? (r.quantita > 0 ? String(r.quantita).replace(".", ",") : "")}
                 aria-invalid={r.quantita <= 0 || r.quantita > 1000000}
-                placeholder="Quantità"
+                placeholder={t("Quantità")}
                 onChange={e => {
                   const testo = e.target.value;
                   const n = numeroDocumento(testo) ?? 0;
@@ -388,7 +390,7 @@ function CampoMerceEditor() {
                 }}
               />
               <input
-                aria-label={`Unità ${r.descrizione || `prodotto ${i + 1}`}`}
+                aria-label={t("Unità {nome}", { nome: r.descrizione || t("prodotto {n}", { n: i + 1 }) })}
                 className="h-11 w-24 rounded-xl border bg-background px-3 text-base"
                 value={r.unita ?? ""}
                 onChange={e => aggiornaRiga(i, { unita: e.target.value })}
@@ -396,38 +398,38 @@ function CampoMerceEditor() {
               />
               {r.importo != null && <span className="ml-auto text-sm text-muted-foreground">{euro(r.importo)}</span>}
             </div>
-            {(r.quantita <= 0 || r.quantita > 1000000) && <p className="text-xs text-amber-700">Indica la quantità: non è stata confermata.</p>}
-            {r.quantitaTesto !== undefined && <p className="text-xs text-muted-foreground">Quantità modificata: controlla anche il totale del documento.</p>}
+            {(r.quantita <= 0 || r.quantita > 1000000) && <p className="text-xs text-amber-700">{t("Indica la quantità: non è stata confermata.")}</p>}
+            {r.quantitaTesto !== undefined && <p className="text-xs text-muted-foreground">{t("Quantità modificata: controlla anche il totale del documento.")}</p>}
           </div>
         ))}
         <button type="button" onClick={() => setRighe(r => [...r, { descrizione: "", quantita: 1 }])}
           className="flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold">
-          <Plus className="h-4 w-4" aria-hidden="true" />Aggiungi un prodotto
+          <Plus className="h-4 w-4" aria-hidden="true" />{t("Aggiungi un prodotto")}
         </button>
       </section>
 
       <section className="space-y-1.5">
-        <label htmlFor="merce-note" className="text-sm font-semibold">Note per l’ufficio (facoltativo)</label>
+        <label htmlFor="merce-note" className="text-sm font-semibold">{t("Note per l’ufficio (facoltativo)")}</label>
         <textarea id="merce-note" rows={2} className="w-full resize-none rounded-xl border bg-background px-3 py-2 text-base" value={note} onChange={e => setNote(e.target.value)} />
       </section>
 
       <button type="button" disabled={registra.isPending || invioAttivo || fase === "leggo" || !!nuovaFoto} onClick={() => void invia()}
         className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-base font-bold text-white disabled:opacity-60">
         {registra.isPending ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /> : null}
-        Invia all’ufficio
+        {t("Invia all’ufficio")}
       </button>
       </fieldset>
 
       {(daSpuntare.data?.length ?? 0) > 0 && (
-        <section className="space-y-2" aria-label="Merce su misura da spuntare">
-          <h2 className="text-sm font-bold">Merce su misura da spuntare</h2>
+        <section className="space-y-2" aria-label={t("Merce su misura da spuntare")}>
+          <h2 className="text-[15px] font-bold md:text-sm">{t("Merce su misura da spuntare")}</h2>
           {daSpuntare.data!.map(o => (
             <Link key={o.id} to={`/campo/merce/arrivo/${o.id}`} className="flex min-h-14 items-center justify-between gap-2 rounded-xl border bg-background p-3 text-sm">
               <span className="min-w-0">
-                <span className="block font-semibold">{o.fornitore ?? "Fornitore"} · {o.numero}</span>
+                <span className="block font-semibold">{o.fornitore ?? t("Fornitore")} · {o.numero}</span>
                 <span className="block text-muted-foreground">{[o.commessa, o.cliente].filter(Boolean).join(" · ")}</span>
               </span>
-              <span className="shrink-0 font-semibold text-primary">{o.posizioni === 1 ? "1 posizione" : `${o.posizioni} posizioni`}</span>
+              <span className="shrink-0 font-semibold text-primary">{o.posizioni === 1 ? t("1 posizione") : t("{n} posizioni", { n: o.posizioni })}</span>
             </Link>
           ))}
         </section>
@@ -435,21 +437,21 @@ function CampoMerceEditor() {
 
       {/* Le ultime inviate */}
       {(miei.data?.length ?? 0) > 0 && (
-        <section className="space-y-2" aria-label="Le ultime che hai inviato">
-          <h2 className="text-sm font-bold">Le ultime che hai inviato</h2>
+        <section className="space-y-2" aria-label={t("Le ultime che hai inviato")}>
+          <h2 className="text-[15px] font-bold md:text-sm">{t("Le ultime che hai inviato")}</h2>
           {miei.data!.map(a => {
             const s = descriviStato(a);
             return (
               <div key={a.id} className="space-y-1 rounded-xl border bg-background p-3 text-sm">
                 <div className="flex items-start justify-between gap-2">
-                  <p className="min-w-0 font-semibold">{a.fornitore || "Negozio"}{a.order?.order_code ? ` · ${a.order.order_code}` : ""}</p>
+                  <p className="min-w-0 font-semibold">{a.fornitore || t("Negozio")}{a.order?.order_code ? ` · ${a.order.order_code}` : ""}</p>
                   <span className="shrink-0 font-semibold">{euro(a.totale)}</span>
                 </div>
                 <p className={cn("text-xs", s.tono === "no" ? "font-medium text-red-700" : s.tono === "ok" ? "text-green-700" : s.tono === "attesa" ? "text-amber-700" : "text-muted-foreground")}>{s.testo}</p>
                 {a.stato === "da_verificare" && (
                   <button type="button" disabled={annulla.isPending} className="flex min-h-11 items-center gap-1 text-xs text-primary underline"
-                    onClick={() => annulla.mutate(a.id, { onError: e => toast.error(messaggioErrore(e, "Non sono riuscito a ritirarla.")) })}>
-                    <X className="h-3 w-3" aria-hidden="true" />Ritira, ho sbagliato
+                    onClick={() => annulla.mutate(a.id, { onError: e => toast.error(messaggioErrore(e, t("Non sono riuscito a ritirarla."))) })}>
+                    <X className="h-3 w-3" aria-hidden="true" />{t("Ritira, ho sbagliato")}
                   </button>
                 )}
               </div>

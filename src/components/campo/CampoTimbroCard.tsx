@@ -12,6 +12,8 @@ import { UniformSelect } from "@/components/ui/uniform-select";
  * Lo stesso componente vale per la Home e per la pagina «Timbra».
  */
 import { useEffect, useMemo, useState } from "react";
+import { useUnaVolta } from "@/hooks/campo/useUnaVolta";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Building2, Clock, Coffee, HardHat, Loader2, LogIn, LogOut, PauseCircle } from "lucide-react";
@@ -70,6 +72,7 @@ export function CampoTimbroCard({ preferOrderId = null, onPunched }: {
   preferOrderId?: string | null;
   onPunched?: (esito: TimbroEsito) => void;
 }) {
+  const t = useT();
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
   const companyId = profile?.company_id ?? null;
@@ -153,13 +156,13 @@ export function CampoTimbroCard({ preferOrderId = null, onPunched }: {
       return { tipo, orderId, day: campoWorkDay(new Date(adesso)), inCoda };
     },
     onSuccess: async (esito) => {
-      if (esito.inCoda) toast.success(`${MESSAGGI[esito.tipo as Tipo]}: senza rete, la mando appena torna`);
-      else toast.success(MESSAGGI[esito.tipo as Tipo]);
+      if (esito.inCoda) toast.success(t("{azione}: senza rete, la mando appena torna", { azione: t(MESSAGGI[esito.tipo as Tipo]) }));
+      else toast.success(t(MESSAGGI[esito.tipo as Tipo]));
       setScelta(null);
       await aggiorna();
       onPunched?.(esito);
     },
-    onError: (e) => toast.error(messaggioErrore(e, "Non sono riuscito a registrare la timbratura. Riprova.")),
+    onError: (e) => toast.error(messaggioErrore(e, t("Non sono riuscito a registrare la timbratura. Riprova."))),
   });
 
   const cambia = useMutation({
@@ -182,14 +185,19 @@ export function CampoTimbroCard({ preferOrderId = null, onPunched }: {
       return { tipo: "cambio", orderId: luogo.orderId, day: campoWorkDay(new Date(adesso)), inCoda };
     },
     onSuccess: async (esito, luogo) => {
-      toast.success(esito.inCoda ? `Ora sei: ${luogo.nome} (senza rete, lo mando appena torna)` : `Ora sei: ${luogo.nome}`);
+      toast.success(esito.inCoda ? t("Ora sei: {posto} (senza rete, lo mando appena torna)", { posto: luogo.nome }) : t("Ora sei: {posto}", { posto: luogo.nome }));
       await aggiorna();
       onPunched?.(esito);
     },
-    onError: (e) => toast.error(messaggioErrore(e, "Non sono riuscito a cambiare posto. Riprova.")),
+    onError: (e) => toast.error(messaggioErrore(e, t("Non sono riuscito a cambiare posto. Riprova."))),
   });
 
   const occupato = timbra.isPending || cambia.isPending || !dayTime.pronto;
+  // Due tocchi nello stesso istante (telefono lento, prima che il pulsante si disattivi) scrivevano
+  // due entrate a 1 ms l'una dall'altra (collaudo 23/11). Il blocco qui vale subito, non al prossimo disegno.
+  const unaVolta = useUnaVolta();
+  const timbraUnaVolta = (tipo: Tipo) => unaVolta(() => timbra.mutateAsync(tipo));
+  const cambiaUnaVolta = (luogo: Luogo) => unaVolta(() => cambia.mutateAsync(luogo));
   const sediLuoghi = luoghi.filter(l => l.tipo === "sede");
   const cantieriOggi = luoghi.filter(l => l.tipo === "cantiere" && l.oggi);
   const cantieriAltri = luoghi.filter(l => l.tipo === "cantiere" && !l.oggi);
@@ -202,18 +210,18 @@ export function CampoTimbroCard({ preferOrderId = null, onPunched }: {
   const opzione = (l: Luogo) => <option key={l.key} value={l.key}>{l.tipo === "sede" ? l.nome : nomeLuogo(l)}</option>;
 
   return (
-    <section aria-label="Timbratura" className="space-y-3 rounded-2xl border bg-background p-4 shadow-sm">
+    <section aria-label={t("Timbratura")} className="space-y-3 rounded-2xl border bg-background p-4 shadow-sm">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="flex items-center gap-2 text-base font-bold"><Clock className="h-4 w-4" aria-hidden="true" />Timbratura</h2>
+        <h2 className="flex items-center gap-2 text-base font-bold"><Clock className="h-4 w-4" aria-hidden="true" />{t("Timbratura")}</h2>
         {(inServizio || inPausa) && (!dayTime.isError || dayTime.pronto) && (
-          <span className="text-sm font-semibold text-amber-600">{campoReportHours(summary.workMinutes)} h oggi</span>
+          <span className="text-sm font-semibold text-amber-600">{t("{ore} h oggi", { ore: campoReportHours(summary.workMinutes) })}</span>
         )}
       </div>
 
       {dayTime.isError && !dayTime.pronto && (
         <div role="alert" className="space-y-1 rounded-xl border border-destructive/30 p-3 text-sm">
-          <p>Non riesco a leggere le timbrature. Le azioni restano ferme per non sbagliare una nuova entrata.</p>
-          <button type="button" onClick={() => dayTime.refetch()} className="min-h-11 text-primary underline">Riprova</button>
+          <p>{t("Non riesco a leggere le timbrature. Le azioni restano ferme per non sbagliare una nuova entrata.")}</p>
+          <button type="button" onClick={() => dayTime.refetch()} className="min-h-11 text-primary underline">{t("Riprova")}</button>
         </div>
       )}
 
@@ -223,9 +231,9 @@ export function CampoTimbroCard({ preferOrderId = null, onPunched }: {
       )}>
         <span className={cn("h-2 w-2 shrink-0 rounded-full", inServizio ? "animate-pulse bg-green-500" : inPausa ? "animate-pulse bg-amber-500" : "bg-slate-400")} aria-hidden="true" />
         <span className="min-w-0 flex-1 font-medium">
-          {inPausa ? "In pausa" : inServizio ? "In servizio" : haTimbratoOggi ? "Giornata finita" : "Non hai ancora timbrato"}
+          {t(inPausa ? "In pausa" : inServizio ? "In servizio" : haTimbratoOggi ? "Giornata finita" : "Non hai ancora timbrato")}
           {(inServizio || inPausa) && corrente && (
-            <span className="font-normal"> · <span className="font-semibold">{corrente.nome}</span>{dalle ? ` dalle ${dalle}` : ""}</span>
+            <span className="font-normal"> · <span className="font-semibold">{corrente.nome}</span>{dalle ? ` ${t("dalle {ora}", { ora: dalle })}` : ""}</span>
           )}
           {(inServizio || inPausa) && corrente?.dettaglio && (
             <span className="block truncate text-xs font-normal opacity-80">{corrente.dettaglio}</span>
@@ -235,16 +243,16 @@ export function CampoTimbroCard({ preferOrderId = null, onPunched }: {
 
       {senzaPosto && (
         <p role="status" className="text-sm text-amber-700">
-          {campoReportHours(summary.unassignedMinutes)} h senza cantiere né sede: vanno attribuite prima del consuntivo.
+          {t("{ore} h senza cantiere né sede: vanno attribuite prima del consuntivo.", { ore: campoReportHours(summary.unassignedMinutes) })}
         </p>
       )}
       {daVerificare && (
-        <p role="status" className="text-sm text-amber-700">Ci sono timbrature da verificare: controlla le ore prima di inviare il rapportino.</p>
+        <p role="status" className="text-sm text-amber-700">{t("Ci sono timbrature da verificare: controlla le ore prima di inviare il rapportino.")}</p>
       )}
 
       {fuori && (
         <div className="space-y-1.5">
-          <label htmlFor="campo-partenza" className="text-sm font-semibold">Da dove parti?</label>
+          <label htmlFor="campo-partenza" className="text-sm font-semibold">{t("Da dove parti?")}</label>
           <UniformSelect
             id="campo-partenza"
             value={partenzaKey ?? ""}
@@ -252,11 +260,11 @@ export function CampoTimbroCard({ preferOrderId = null, onPunched }: {
             disabled={timbra.isPending}
             className="h-12 w-full min-w-0 rounded-xl border bg-background px-3 text-sm"
           >
-            {!partenzaKey && <option value="" disabled>Scegli da dove parti</option>}
-            {sediLuoghi.length > 0 && <optgroup label="In sede">{sediLuoghi.map(opzione)}</optgroup>}
-            {cantieriOggi.length > 0 && <optgroup label="Cantieri di oggi">{cantieriOggi.map(opzione)}</optgroup>}
-            {cantieriAltri.length > 0 && <optgroup label="Altri cantieri">{cantieriAltri.map(opzione)}</optgroup>}
-            <option value={LUOGO_NESSUNO}>Non so ancora dove — ore da attribuire</option>
+            {!partenzaKey && <option value="" disabled>{t("Scegli da dove parti")}</option>}
+            {sediLuoghi.length > 0 && <optgroup label={t("In sede")}>{sediLuoghi.map(opzione)}</optgroup>}
+            {cantieriOggi.length > 0 && <optgroup label={t("Cantieri di oggi")}>{cantieriOggi.map(opzione)}</optgroup>}
+            {cantieriAltri.length > 0 && <optgroup label={t("Altri cantieri")}>{cantieriAltri.map(opzione)}</optgroup>}
+            <option value={LUOGO_NESSUNO}>{t("Non so ancora dove — ore da attribuire")}</option>
           </UniformSelect>
           {assegnazioni.isLoading && <p role="status" className="text-xs text-muted-foreground">Caricamento dei tuoi cantieri…</p>}
           {assegnazioni.isError && (
@@ -266,14 +274,14 @@ export function CampoTimbroCard({ preferOrderId = null, onPunched }: {
             </p>
           )}
           {partenza?.tipo === "nessuno" && (
-            <p role="status" className="text-xs text-amber-800">Questa entrata registrerà ore da attribuire: l'ufficio dovrà collegarle a un cantiere.</p>
+            <p role="status" className="text-xs text-amber-800">{t("Questa entrata registrerà ore da attribuire: l'ufficio dovrà collegarle a un cantiere.")}</p>
           )}
         </div>
       )}
 
       {inServizio && (altriDove.length > 0 || altriCantieri.length > 0) && (
         <div className="space-y-2">
-          <p className="text-sm font-semibold">Sei arrivato in un altro posto?</p>
+          <p className="text-sm font-semibold">{t("Sei arrivato in un altro posto?")}</p>
           {altriDove.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {altriDove.map(l => {
@@ -283,7 +291,7 @@ export function CampoTimbroCard({ preferOrderId = null, onPunched }: {
                     key={l.key}
                     type="button"
                     disabled={occupato}
-                    onClick={() => cambia.mutate(l)}
+                    onClick={() => cambiaUnaVolta(l)}
                     className="flex min-h-11 max-w-full items-center gap-2 rounded-xl border bg-background px-3 py-2 text-left text-sm font-semibold active:bg-muted disabled:opacity-50"
                   >
                     {inCorso ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" /> : <IconaLuogo luogo={l} className="h-4 w-4 shrink-0 text-muted-foreground" />}
@@ -295,21 +303,21 @@ export function CampoTimbroCard({ preferOrderId = null, onPunched }: {
           )}
           {altriCantieri.length > 0 && (
             <UniformSelect
-              aria-label="Altro cantiere"
+              aria-label={t("Altro cantiere")}
               value=""
               disabled={occupato}
-              onChange={e => { const l = trovaLuogo(luoghi, e.target.value); if (l) cambia.mutate(l); }}
+              onChange={e => { const l = trovaLuogo(luoghi, e.target.value); if (l) cambiaUnaVolta(l); }}
               className="h-11 w-full min-w-0 rounded-xl border bg-background px-3 text-sm"
             >
-              <option value="">Altro cantiere…</option>
+              <option value="">{t("Altro cantiere…")}</option>
               {altriCantieri.map(opzione)}
             </UniformSelect>
           )}
-          <p className="text-xs text-muted-foreground">Toccalo quando arrivi: da lì le ore passano al posto nuovo.</p>
+          <p className="text-xs text-muted-foreground">{t("Toccalo quando arrivi: da lì le ore passano al posto nuovo.")}</p>
         </div>
       )}
       {inPausa && (altriDove.length > 0 || altriCantieri.length > 0) && (
-        <p className="text-xs text-muted-foreground">Per cambiare posto termina prima la pausa.</p>
+        <p className="text-xs text-muted-foreground">{t("Per cambiare posto termina prima la pausa.")}</p>
       )}
 
       <div className="space-y-2" aria-label="Azioni di timbratura">
@@ -317,40 +325,46 @@ export function CampoTimbroCard({ preferOrderId = null, onPunched }: {
           <button
             type="button"
             disabled={occupato || !partenza}
-            onClick={() => timbra.mutate("entrata")}
+            onClick={() => timbraUnaVolta("entrata")}
             className="flex min-h-14 w-full items-center justify-center gap-3 rounded-2xl bg-green-600 px-3 py-4 text-base font-bold text-white disabled:opacity-50"
           >
             {timbra.isPending ? <Loader2 className="h-5 w-5 shrink-0 animate-spin" aria-hidden="true" /> : <LogIn className="h-5 w-5 shrink-0" aria-hidden="true" />}
-            INIZIA LA GIORNATA
+            {t("INIZIA LA GIORNATA")}
           </button>
         ) : (
-          <>
+          // In pausa l'azione di adesso è «Fine pausa»: prima il pulsante grande e rosso era «Fine giornata», a un
+          // tocco dal chiudere la giornata per sbaglio (collaudo 23/11). Una sola azione piena in vista.
+          <div className={cn("flex gap-2", inPausa ? "flex-col-reverse" : "flex-col")}>
             <button
               type="button"
               disabled={occupato}
-              onClick={() => timbra.mutate("uscita")}
-              className="flex min-h-14 w-full items-center justify-center gap-3 rounded-2xl bg-red-600 px-3 py-4 text-base font-bold text-white disabled:opacity-50"
+              onClick={() => timbraUnaVolta("uscita")}
+              className={cn("flex w-full items-center justify-center gap-3 px-3 font-bold disabled:opacity-50",
+                inPausa ? "min-h-12 rounded-xl border border-red-300 bg-background py-3 text-sm text-red-700"
+                  : "min-h-14 rounded-2xl bg-red-600 py-4 text-base text-white")}
             >
               {timbra.isPending ? <Loader2 className="h-5 w-5 shrink-0 animate-spin" aria-hidden="true" /> : <LogOut className="h-5 w-5 shrink-0" aria-hidden="true" />}
-              FINE GIORNATA
+              {t("FINE GIORNATA")}
             </button>
             <button
               type="button"
               disabled={occupato}
-              onClick={() => timbra.mutate(inPausa ? "pausa_fine" : "pausa_inizio")}
-              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border bg-background px-3 py-3 text-sm font-semibold disabled:opacity-50"
+              onClick={() => timbraUnaVolta(inPausa ? "pausa_fine" : "pausa_inizio")}
+              className={cn("flex w-full items-center justify-center gap-2 px-3 font-semibold disabled:opacity-50",
+                inPausa ? "min-h-14 rounded-2xl bg-amber-500 py-4 text-base font-bold text-amber-950"
+                  : "min-h-12 rounded-xl border bg-background py-3 text-sm")}
             >
               {inPausa ? <PauseCircle className="h-4 w-4" aria-hidden="true" /> : <Coffee className="h-4 w-4" aria-hidden="true" />}
-              {inPausa ? "FINE PAUSA" : "INIZIA PAUSA"}
+              {t(inPausa ? "FINE PAUSA" : "INIZIA PAUSA")}
             </button>
-          </>
+          </div>
         )}
       </div>
 
       <p className="text-[11px] leading-snug text-muted-foreground">
-        {gpsStatus === "success" && <span className="text-green-600">GPS attivo — precisione {Math.round(accuracy)}m{address ? ` · ${address}` : ""}</span>}
-        {gpsStatus === "loading" && "Acquisizione GPS..."}
-        {(gpsStatus === "denied" || gpsStatus === "error" || gpsStatus === "idle") && "GPS non disponibile — timbratura senza posizione"}
+        {gpsStatus === "success" && <span className="text-green-600">{t("Posizione trovata (±{metri} m)", { metri: Math.round(accuracy) })}{address ? ` · ${address}` : ""}</span>}
+        {gpsStatus === "loading" && t("Cerco la posizione…")}
+        {(gpsStatus === "denied" || gpsStatus === "error" || gpsStatus === "idle") && t("Posizione non disponibile: la timbratura vale lo stesso.")}
       </p>
     </section>
   );

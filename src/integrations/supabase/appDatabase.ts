@@ -70,12 +70,25 @@ export type GiroMezziSalvato = {
   viaggio_id: string | null; stato_viaggio: Viaggio["stato"] | null; annullato_il: string | null;
 };
 
+/** Registro infortuni, quasi-incidenti e situazioni pericolose (migrazione 20290523110000). */
+export type SicurezzaEvento = {
+  id: string; company_id: string; order_id: string | null; segnalato_da: string;
+  tipo: "infortunio" | "quasi_incidente" | "pericolo"; accaduto_il: string; luogo: string | null; descrizione: string;
+  ferito: boolean; persona_coinvolta: string | null; parte_corpo: string | null;
+  soccorso: "nessuno" | "primo_soccorso" | "pronto_soccorso" | "ambulanza"; testimoni: string | null; foto: string[];
+  stato: "nuova" | "presa_in_carico" | "chiusa"; gestita_da: string | null; presa_in_carico_il: string | null;
+  azioni_correttive: string | null; note_ufficio: string | null; chiusa_il: string | null; created_at: string; updated_at: string;
+};
+
 export type AppDatabase = Omit<Database, "public"> & {
   public: Omit<Database["public"], "Views" | "Tables"> & {
     Functions: Database["public"]["Functions"] & {
       registra_dispositivo_push: { Args: { p_utente: string; p_chiave: string; p_token: string; p_piattaforma: "ios" | "android" }; Returns: undefined };
       disattiva_dispositivo_push: { Args: { p_utente: string; p_chiave: string }; Returns: undefined };
       campo_cantieri_tecnici: { Args: { p_azienda: string }; Returns: CantiereTecnico[] };
+      campo_qr_cantiere_token: { Args: { p_ordine: string }; Returns: string | null };
+      campo_mio_tesserino: { Args: Record<string, never>; Returns: string | null };
+      tesserino_rigenera: { Args: { p_profilo: string }; Returns: string };
       campo_scheda_cantiere: { Args: { p_azienda: string; p_ordine: string; p_sezione: SezioneSchedaCantiere }; Returns: SchedaCantiere };
       commessa_accessi_tecnici: { Args: { p_ordine: string }; Returns: PersonaAccessoTecnico[] };
       commessa_accesso_tecnico: { Args: { p_ordine: string; p_persona: string; p_consentito: boolean }; Returns: undefined };
@@ -234,6 +247,13 @@ export type AppDatabase = Omit<Database, "public"> & {
       mezzi_giornate: Omit<GiornataMezzo,"Row"> & { Row: GiornataMezzo["Row"] & { ore_lavorate: number | null; litri_riforniti: number | null; litri_consumati: number | null } };
       tasks: Tasks & { Row: Tasks["Row"] & { fish_call_id: string | null } };
       ai_fish_assistance: { Row: { [K in keyof FishAssistanceCase]: FishAssistanceCase[K] }; Insert: never; Update: never; Relationships: [] };
+      sicurezza_eventi: {
+        Row: SicurezzaEvento;
+        Insert: Pick<SicurezzaEvento, "company_id" | "tipo" | "descrizione"> & Partial<Pick<SicurezzaEvento,
+          "id" | "order_id" | "accaduto_il" | "luogo" | "ferito" | "persona_coinvolta" | "parte_corpo" | "soccorso" | "testimoni" | "foto">>;
+        Update: Partial<Pick<SicurezzaEvento, "stato" | "azioni_correttive" | "note_ufficio">>;
+        Relationships: [];
+      };
       mappa_posizioni: {
         Row: { company_id: string; tipo: string; record_id: string; lat: number; lng: number; fonte: string; aggiornato_da: string; aggiornato_il: string };
         Insert: never;

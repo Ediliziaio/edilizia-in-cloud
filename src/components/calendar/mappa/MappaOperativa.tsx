@@ -24,6 +24,9 @@ import PosizioneOperativa from "./PosizioneOperativa";
 import { calcolaPercorso, fonteCartografica, formatoKm, servizioMappa, type Ambito, type Profilo, type PropostaMappa, type TipoCandidato } from "./servizio";
 import { aspettoTratta, type LineaPercorso } from "./tratte";
 import { useMemoriaMappa, type StatoMappa } from "./useMappaCalendario";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
+
+type FnT = ReturnType<typeof useT>;
 
 const MezziMappa = lazy(() => import("./MezziMappa"));
 
@@ -37,10 +40,10 @@ interface Props {
   vendite?: boolean; lavori?: boolean; consumo?: boolean; nuovo?: () => void;
 }
 
-const fascia = (inizio: number | null, fine: number | null) => inizio == null ? "Orario non definito" :
+const fascia = (inizio: number | null, fine: number | null, t: FnT) => inizio == null ? t("Orario non definito") :
   oraDaMinuti(inizio) + (fine == null ? "" : `–${oraDaMinuti(fine)}${fine >= 1440 ? " (+1)" : ""}`);
-const nomeTappa = (tappa: { id: string; titolo: string }) =>
-  tappa.id === "partenza" || tappa.id === "rientro" ? tappa.titolo.replace(/^(Partenza|Rientro) · /, "") : tappa.titolo;
+const nomeTappa = (tappa: { id: string; titolo: string }, t: FnT) =>
+  tappa.id === "partenza" || tappa.id === "rientro" ? tappa.titolo.replace(`${t("Partenza")} · `, "").replace(`${t("Rientro")} · `, "") : tappa.titolo;
 const idRisorsa = (r: Risorsa) => `${r.tipo}:${r.id}`;
 const nessuna: LineaPercorso[] = [];
 const viaggiVuoti: NonNullable<import("@/integrations/supabase/appDatabase").AppDatabase["public"]["Functions"]["mappa_km_effettivi"]["Returns"]> = [];
@@ -76,6 +79,7 @@ export default function MappaOperativa({
   giorno, onGiorno, state, onState, voci, ambito, personale = false, loading, erroreDati,
   modifica, registroMezzi, onRiprova, onScheda, puoProporre, onProposta, vendite = false, lavori = false, consumo, nuovo,
 }: Props) {
+  const t = useT();
   const { effectiveCompany, company: home, user } = useAuth();
   const company = (effectiveCompany ?? home)?.id;
   const queryClient = useQueryClient();
@@ -252,7 +256,7 @@ export default function MappaOperativa({
       const aggiuntivi = assegnati.data?.filter(r => r.order_id === v.id && !r.squadra_id && r.nome
         && !attivita.some(a => a.risorse.some(s => s.id === (r.employee_id ?? r.user_id))));
       if (aggiuntivi?.length) attivita.push({
-        id: v.id + "-assegnati", inizio: v.inizio, fine: v.fine, nome: "Assegnazione alla commessa",
+        id: v.id + "-assegnati", inizio: v.inizio, fine: v.fine, nome: t("Assegnazione alla commessa"),
         risorse: [...new Map(aggiuntivi.flatMap((r): Risorsa[] => [
           { id: r.employee_id ?? r.user_id, nome: r.nome!, tipo: "operaio" },
           ...(r.mezzo && r.mezzo_id ? [{ id: r.mezzo_id, nome: r.mezzo, tipo: "mezzo" as const }] : []),
@@ -261,7 +265,7 @@ export default function MappaOperativa({
       if (!correzione || v.escluso) return { ...v, attivita };
       return { ...v, attivita, punto: { lat: correzione.lat, lng: correzione.lng }, motivo: undefined };
     });
-  }, [voci, posizioni.data, assegnati.data]);
+  }, [voci, posizioni.data, assegnati.data, t]);
   const risorse = useMemo(() => {
     const mappa = new Map<string, Risorsa>();
     mappate.flatMap(v => v.attivita).flatMap(a => a.risorse).forEach(r => mappa.set(idRisorsa(r), r));
@@ -311,11 +315,11 @@ export default function MappaOperativa({
       return punto ? [{ id: s.id, nome: s.nome, punto }] : [];
     });
     const sedeOperativa = sede && coordinate(sede.lat, sede.lng);
-    if (sedeOperativa) voci.unshift({ id: "sede", nome: "Sede operativa", punto: sedeOperativa });
-    if (baseCalendario) voci.unshift({ id: "calendario", nome: "Base del commerciale", punto: baseCalendario });
-    if (basePersonale) voci.push({ id: "personale", nome: "Partenza personale", punto: basePersonale });
+    if (sedeOperativa) voci.unshift({ id: "sede", nome: t("Sede operativa"), punto: sedeOperativa });
+    if (baseCalendario) voci.unshift({ id: "calendario", nome: t("Base del commerciale"), punto: baseCalendario });
+    if (basePersonale) voci.push({ id: "personale", nome: t("Partenza personale"), punto: basePersonale });
     return voci;
-  }, [sediPartenza.data, sede, baseCalendario, basePersonale]);
+  }, [sediPartenza.data, sede, baseCalendario, basePersonale, t]);
   const base = sceltaBase?.id == null ? basi.find(s => s.id === "calendario" || s.id === "sede") : basi.find(s => s.id === sceltaBase.id);
   const aggiornaBase = (patch: Partial<SceltaBase>) => setPreferenze(p => ({
     ...p, scelteBase: { ...p.scelteBase, [chiaveBase]: { ...p.scelteBase[chiaveBase], ...patch } },
@@ -324,12 +328,12 @@ export default function MappaOperativa({
   const baseRientro = sceltaRientro === "partenza" ? base : basi.find(s => s.id === sceltaRientro);
   const tappe = useMemo((): TappaOperativa[] => {
     if (!impegni.length) return impegni;
-    const partenza: TappaOperativa[] = base ? [{ id: "partenza", titolo: base.id === "personale" ? base.nome : `Partenza · ${base.nome}`,
+    const partenza: TappaOperativa[] = base ? [{ id: "partenza", titolo: base.id === "personale" ? base.nome : `${t("Partenza")} · ${base.nome}`,
       punto: base.punto, inizio: null, fine: null }] : [];
-    const rientro: TappaOperativa[] = baseRientro ? [{ id: "rientro", titolo: `Rientro · ${baseRientro.nome}`,
+    const rientro: TappaOperativa[] = baseRientro ? [{ id: "rientro", titolo: `${t("Rientro")} · ${baseRientro.nome}`,
       punto: baseRientro.punto, inizio: null, fine: null }] : [];
     return [...partenza, ...impegni, ...rientro];
-  }, [base, baseRientro, impegni]);
+  }, [base, baseRientro, impegni, t]);
   const attesaPunti = Boolean(loading || (ids.length && posizioni.isLoading));
   const attesaPercorso = attesaPunti || sediPartenza.isLoading || assegnati.isLoading;
   const haPartenza = tappe[0]?.id === "partenza";
@@ -355,13 +359,13 @@ export default function MappaOperativa({
     ...(t.voce ? {} : { tipo: "base" as const, etichetta: t.id === "partenza" ? "P" : "R" }),
   }] : []), [tappe, haPartenza, percorso]);
   const timbrature = vistaGps ? (gps.data ?? []).slice(0, 500) : [];
-  const personeGps = new Map(timbrature.flatMap(t => t.persona_id ? [[t.persona_id, t.nome ?? "Operaio"] as const] : []));
+  const personeGps = new Map(timbrature.flatMap(ev => ev.persona_id ? [[ev.persona_id, ev.nome ?? t("Operaio")] as const] : []));
   const filtroPersonaGps = personeGps.has(personaGps) ? personaGps : "";
   const timbratureVisibili = timbrature.filter(t => !filtroPersonaGps || t.persona_id === filtroPersonaGps);
-  const pinGps: Pin[] = timbratureVisibili.flatMap(t => {
-    const punto = coordinate(t.lat, t.lng);
-    return punto ? [{ id: t.id, punto, tipo: "gps", etichetta: dettagliTimbratura(t.tipo).simbolo,
-      titolo: `${partiNelFuso(t.ora).ora} · ${t.nome ?? "Operaio"} · ${dettagliTimbratura(t.tipo).label}`,
+  const pinGps: Pin[] = timbratureVisibili.flatMap(ev => {
+    const punto = coordinate(ev.lat, ev.lng);
+    return punto ? [{ id: ev.id, punto, tipo: "gps", etichetta: dettagliTimbratura(ev.tipo).simbolo,
+      titolo: `${partiNelFuso(ev.ora).ora} · ${ev.nome ?? t("Operaio")} · ${t(dettagliTimbratura(ev.tipo).label)}`,
     }] : [];
   });
   const pinProblemi = vista === "problemi" ? new Set(attivitaDaMostrare.map(({ voce }) => voce.id)) : null;
@@ -380,14 +384,14 @@ export default function MappaOperativa({
   const tratte = riepilogoPercorso(tappe, percorso?.tratte ?? []);
   const linee = useMemo((): LineaPercorso[] => {
     if (!percorso) return nessuna;
-    const panoramiche = percorso.panoramiche.map(punti => ({ punti, colore: "#475569", titolo: "Tracciato complessivo" }));
+    const panoramiche = percorso.panoramiche.map(punti => ({ punti, colore: "#475569", titolo: t("Tracciato complessivo") }));
     const dettagli = percorso.geometrieTratte.flatMap((punti, indice): LineaPercorso[] => {
       if (punti.length < 2) return [];
       const aspetto = aspettoTratta(indice, tappe[indice + 1]?.id === "rientro");
-      return [{ ...aspetto, punti, indice, titolo: `${aspetto.etichetta} · ${nomeTappa(tappe[indice])} → ${nomeTappa(tappe[indice + 1])}` }];
+      return [{ ...aspetto, punti, indice, titolo: `${aspetto.rientro ? t("Rientro") : t("Tratta {n}", { n: indice + 1 })} · ${nomeTappa(tappe[indice], t)} → ${nomeTappa(tappe[indice + 1], t)}` }];
     });
     return [...panoramiche, ...dettagli];
-  }, [percorso, tappe]);
+  }, [percorso, tappe, t]);
   const indiceTratta = trattaScelta?.firma === firma ? trattaScelta.indice : null;
   const mostraTratta = useCallback((indice: number) => {
     setPreferenze(p => ({ ...p, trattaScelta: { firma, indice } }));
@@ -440,7 +444,7 @@ export default function MappaOperativa({
       setLavoro({ firma, inCorso: false, dati });
       if (consumo && vediConsumo) void conteggi.refetch();
     } catch {
-      if (!signal.aborted) setLavoro({ firma, inCorso: false, errore: "Calcolo interrotto. Riprova." });
+      if (!signal.aborted) setLavoro({ firma, inCorso: false, errore: t("Calcolo interrotto. Riprova.") });
     } finally {
       if (calcoloInCorso.current?.controller === controller) calcoloInCorso.current = null;
     }
@@ -462,7 +466,7 @@ export default function MappaOperativa({
     scorriAlleAzioni();
   };
   const salvaPosizione = (punto: Coordinate, indirizzo?: string) => {
-    if (posiziona === "destinazione") setDestinazione({ punto, titolo: indirizzo || "Posizione confermata", indirizzo });
+    if (posiziona === "destinazione") setDestinazione({ punto, titolo: indirizzo || t("Posizione confermata"), indirizzo });
     else if (posiziona === "partenza" && puoUsarePartenzaPersonale) aggiornaBase({ id: "personale", personale: punto, rientro: sceltaRientro === "partenza" ? "" : sceltaRientro });
     else {
       void queryClient.invalidateQueries({ queryKey: ["mappa-posizioni", company, user?.id] });
@@ -518,74 +522,74 @@ export default function MappaOperativa({
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-baseline justify-between gap-x-2">
             <span className="break-words text-sm font-medium">{v.titolo}</span>
-            <span className="text-xs tabular-nums text-muted-foreground">{fascia(v.inizio, v.fine)}</span>
+            <span className="text-xs tabular-nums text-muted-foreground">{fascia(v.inizio, v.fine, t)}</span>
           </span>
           <span className="block break-words text-xs text-muted-foreground">
-            {[riepilogoNomi, etichettaStato(v.stato), ultimo && `${statoPresenza(ultimo.tipo)} alle ${partiNelFuso(ultimo.ora).ora}`].filter(Boolean).join(" · ")}
+            {[riepilogoNomi, t(etichettaStato(v.stato)), ultimo && t("{stato} alle {ora}", { stato: t(statoPresenza(ultimo.tipo)), ora: partiNelFuso(ultimo.ora).ora })].filter(Boolean).join(" · ")}
           </span>
-          {!attivo && (v.motivo || v.indirizzo || avvisi.length > 0) && <span className="block truncate text-xs text-muted-foreground">{avvisi.length ? avvisi.join(" · ") : v.motivo || v.indirizzo}</span>}
+          {!attivo && (v.motivo || v.indirizzo || avvisi.length > 0) && <span className="block truncate text-xs text-muted-foreground">{avvisi.length ? avvisi.map(avviso => t(avviso)).join(" · ") : (v.motivo && t(v.motivo)) || v.indirizzo}</span>}
         </span>
         <ChevronDown aria-hidden="true" className={`mt-1 size-3.5 shrink-0 text-muted-foreground ${attivo ? "rotate-180" : ""}`} />
       </button>
       {attivo && <div className="space-y-2 px-3 pb-3 text-xs">
-        <p className="break-words text-muted-foreground">{[v.cliente, v.indirizzo || v.motivo || "Indirizzo mancante"].filter(Boolean).join(" · ")}</p>
+        <p className="break-words text-muted-foreground">{[v.cliente, v.indirizzo || (v.motivo && t(v.motivo)) || t("Indirizzo mancante")].filter(Boolean).join(" · ")}</p>
         {avvisi.some(avviso => avviso !== "Indirizzo mancante") &&
-          <p className="font-medium text-amber-800 dark:text-amber-300">{avvisi.filter(avviso => avviso !== "Indirizzo mancante").join(" · ")}</p>}
+          <p className="font-medium text-amber-800 dark:text-amber-300">{avvisi.filter(avviso => avviso !== "Indirizzo mancante").map(avviso => t(avviso)).join(" · ")}</p>}
         {v.attivita.map(a => <div key={a.id} className="rounded-md border bg-background px-2 py-1.5">
-          {v.tipo === "cantiere" && <div className="font-medium">{a.nome} · {fascia(a.inizio, a.fine)}{a.stato && ` · ${etichettaStato(a.stato)}`}</div>}
-          {a.risorse.map(r => <p key={idRisorsa(r)} className="mt-0.5 break-words">{r.nome} <span className="text-muted-foreground">· {r.tipo === "squadra" ? "Squadra assegnata" : r.tipo === "mezzo" ? "Mezzo assegnato al conducente" : "Assegnato"}</span></p>)}
-          {personale && v.tipo === "cantiere" && a.risorse.length === 0 && <p>Assegnato a te</p>}
+          {v.tipo === "cantiere" && <div className="font-medium">{a.nome} · {fascia(a.inizio, a.fine, t)}{a.stato && ` · ${t(etichettaStato(a.stato))}`}</div>}
+          {a.risorse.map(r => <p key={idRisorsa(r)} className="mt-0.5 break-words">{r.nome} <span className="text-muted-foreground">· {r.tipo === "squadra" ? t("Squadra assegnata") : r.tipo === "mezzo" ? t("Mezzo assegnato al conducente") : t("Assegnato")}</span></p>)}
+          {personale && v.tipo === "cantiere" && a.risorse.length === 0 && <p>{t("Assegnato a te")}</p>}
         </div>)}
         {eventi.map(p => <p key={`${p.user_id}:${p.ora}:${p.tipo}`} className="break-words rounded bg-emerald-50 px-2 py-1.5 text-emerald-950">
-          {p.nome ?? "Operaio"} · {statoPresenza(p.tipo)} · {partiNelFuso(p.ora).ora} · {p.fonte}
+          {p.nome ?? t("Operaio")} · {t(statoPresenza(p.tipo))} · {partiNelFuso(p.ora).ora} · {p.fonte}
         </p>)}
         <div className="flex flex-wrap gap-1">
-          {v.link && <Button asChild size="sm" variant="outline"><Link to={v.link}>Apri commessa <ArrowUpRight className="size-3.5" /></Link></Button>}
+          {v.link && <Button asChild size="sm" variant="outline"><Link to={v.link}>{t("Apri commessa")} <ArrowUpRight className="size-3.5" /></Link></Button>}
           {vista === "problemi" && v.link && ambito === "lavori" && modifica && orario &&
-            <Button asChild size="sm" variant="outline"><Link to={`${v.link}?tab=cantiere&vista_cantiere=cronoprogramma`}>Rivedi orari</Link></Button>}
-          {!v.link && onScheda && <Button size="sm" variant="outline" onClick={() => onScheda(v.id)}>Apri scheda <ArrowUpRight className="size-3.5" /></Button>}
-          {modifica && !v.escluso && <Button size="sm" variant="outline" onClick={() => avviaPosizione(v)}>Posiziona pin</Button>}
+            <Button asChild size="sm" variant="outline"><Link to={`${v.link}?tab=cantiere&vista_cantiere=cronoprogramma`}>{t("Rivedi orari")}</Link></Button>}
+          {!v.link && onScheda && <Button size="sm" variant="outline" onClick={() => onScheda(v.id)}>{t("Apri scheda")} <ArrowUpRight className="size-3.5" /></Button>}
+          {modifica && !v.escluso && <Button size="sm" variant="outline" onClick={() => avviaPosizione(v)}>{t("Posiziona pin")}</Button>}
           {(vendite || lavori) && v.punto && <Button size="sm" variant="outline" onClick={() => {
             setDestinazione({ titolo: v.titolo, punto: v.punto!, indirizzo: v.indirizzo, voce: v });
             setPosiziona(null);
             setBozza(null);
             scorriAlleAzioni();
-          }}><Users className="size-3.5" /> Chi è più vicino?</Button>}
+          }}><Users className="size-3.5" /> {t("Chi è più vicino?")}</Button>}
         </div>
       </div>}
     </article>;
   };
 
-  return <section className="min-w-0 space-y-3" aria-label="Vista Mappa operativa">
+  return <section className="min-w-0 space-y-3" aria-label={t("Vista Mappa operativa")}>
     <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-background p-2">
       <div className="flex items-center gap-1">
-        <Button size="icon" variant="ghost" aria-label="Giorno precedente" onClick={() => cambiaData(dataAdiacente(giorno, -1))}><ChevronLeft className="size-4" /></Button>
-        <Input className="w-36" aria-label="Giorno della mappa" type="date" value={giorno} onChange={e => cambiaData(e.target.value)} />
-        <Button size="icon" variant="ghost" aria-label="Giorno successivo" onClick={() => cambiaData(dataAdiacente(giorno, 1))}><ChevronRight className="size-4" /></Button>
+        <Button size="icon" variant="ghost" aria-label={t("Giorno precedente")} onClick={() => cambiaData(dataAdiacente(giorno, -1))}><ChevronLeft className="size-4" /></Button>
+        <Input className="w-36" aria-label={t("Giorno della mappa")} type="date" value={giorno} onChange={e => cambiaData(e.target.value)} />
+        <Button size="icon" variant="ghost" aria-label={t("Giorno successivo")} onClick={() => cambiaData(dataAdiacente(giorno, 1))}><ChevronRight className="size-4" /></Button>
       </div>
-      <Button variant="outline" size="sm" onClick={() => cambiaData(partiNelFuso(new Date()).giorno)}>Oggi</Button>
-      {!vistaGps && !vistaMezzi && <><select aria-label={opzioniTeam ? "Filtra squadra o operaio" : "Filtra commerciale"} className="h-9 max-w-full rounded-md border bg-background px-2 text-sm"
+      <Button variant="outline" size="sm" onClick={() => cambiaData(partiNelFuso(new Date()).giorno)}>{t("Oggi")}</Button>
+      {!vistaGps && !vistaMezzi && <><select aria-label={opzioniTeam ? t("Filtra squadra o operaio") : t("Filtra commerciale")} className="h-9 max-w-full rounded-md border bg-background px-2 text-sm"
         value={state.risorsa} onChange={e => onState({ risorsa: e.target.value })}>
-        <option value="">{opzioniTeam ? "Tutte le risorse" : "Tutti i commerciali"}</option>
-        {risorse.map(([key, r]) => <option key={key} value={key}>{r.nome}{r.tipo === "squadra" ? " · squadra" : r.tipo === "mezzo" ? " · mezzo" : ""}</option>)}
-        {state.risorsa && !risorse.some(([key]) => key === state.risorsa) && <option value={state.risorsa}>Risorsa selezionata</option>}
+        <option value="">{opzioniTeam ? t("Tutte le risorse") : t("Tutti i commerciali")}</option>
+        {risorse.map(([key, r]) => <option key={key} value={key}>{r.nome}{r.tipo === "squadra" ? ` · ${t("squadra")}` : r.tipo === "mezzo" ? ` · ${t("mezzo")}` : ""}</option>)}
+        {state.risorsa && !risorse.some(([key]) => key === state.risorsa) && <option value={state.risorsa}>{t("Risorsa selezionata")}</option>}
       </select>
-      {opzioniTeam && <select aria-label="Filtra cantiere" className="h-9 max-w-full rounded-md border bg-background px-2 text-sm" value={state.cantiere}
+      {opzioniTeam && <select aria-label={t("Filtra cantiere")} className="h-9 max-w-full rounded-md border bg-background px-2 text-sm" value={state.cantiere}
         onChange={e => onState({ cantiere: e.target.value })}>
-        <option value="">Tutti i cantieri</option>
+        <option value="">{t("Tutti i cantieri")}</option>
         {mappate.map(v => <option key={v.id} value={v.id}>{v.titolo}</option>)}
-        {state.cantiere && !mappate.some(v => v.id === state.cantiere) && <option value={state.cantiere}>Cantiere selezionato</option>}
+        {state.cantiere && !mappate.some(v => v.id === state.cantiere) && <option value={state.cantiere}>{t("Cantiere selezionato")}</option>}
       </select>}
-      <select aria-label="Filtra stato" className="h-9 max-w-full rounded-md border bg-background px-2 text-sm" value={state.stato} onChange={e => onState({ stato: e.target.value })}>
-        <option value="">Tutti gli stati</option>{stati.map(s => <option key={s} value={s}>{etichettaStato(s)}</option>)}
-        {state.stato && !stati.includes(state.stato) && <option value={state.stato}>{etichettaStato(state.stato)}</option>}
+      <select aria-label={t("Filtra stato")} className="h-9 max-w-full rounded-md border bg-background px-2 text-sm" value={state.stato} onChange={e => onState({ stato: e.target.value })}>
+        <option value="">{t("Tutti gli stati")}</option>{stati.map(s => <option key={s} value={s}>{t(etichettaStato(s))}</option>)}
+        {state.stato && !stati.includes(state.stato) && <option value={state.stato}>{t(etichettaStato(state.stato))}</option>}
       </select>
-      {(vendite || lavori) && <Button variant="outline" className="ml-auto" onClick={() => avviaPosizione("destinazione")}><LocateFixed className="size-4" /> Chi è più vicino?</Button>}</>}
+      {(vendite || lavori) && <Button variant="outline" className="ml-auto" onClick={() => avviaPosizione("destinazione")}><LocateFixed className="size-4" /> {t("Chi è più vicino?")}</Button>}</>}
     </div>
 
     {(erroreDati || posizioni.isError || presenze.isError || assegnati.isError) && <p role="alert" className="rounded-md border border-amber-200 bg-amber-50 p-2 text-sm text-amber-900">
-      Alcuni dati della mappa sono temporaneamente indisponibili. <button className="underline" onClick={() => { onRiprova?.(); if (ids.length) void posizioni.refetch();
-        if (ordini.length) { void presenze.refetch(); if (!personale && lavori) void assegnati.refetch(); } }}>Riprova</button>
+      {t("Alcuni dati della mappa sono temporaneamente indisponibili.")} <button className="underline" onClick={() => { onRiprova?.(); if (ids.length) void posizioni.refetch();
+        if (ordini.length) { void presenze.refetch(); if (!personale && lavori) void assegnati.refetch(); } }}>{t("Riprova")}</button>
     </p>}
     <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1.65fr)_minmax(17rem,1fr)]">
       <CartografiaOperativa pin={pin} selezionato={selezione} percorso={vista === "percorso" ? linee : nessuna}
@@ -595,28 +599,28 @@ export default function MappaOperativa({
         contesto={`${giorno}:${vista}`} inquadratura={inquadratura} onInquadratura={salvaInquadratura} onSeleziona={aggiornaSelezione} onPunto={posiziona ? setBozza : undefined} />
       <div className="min-w-0 rounded-lg border bg-background">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
-          <span className="text-xs text-muted-foreground">{vistaMezzi ? `${mezziVisibili.length} ${tipoRisorse[mezziVisibili.length === 1 ? 0 : 1]} · ${mezziInMappa} sulla mappa` :
-            vista === "percorso" ? `${tappe.length} tappe · ${pin.length} sulla mappa` :
-            vista === "problemi" ? `${attivitaDaMostrare.length + viaggiDaMostrare.length} da completare · ${pin.length} sulla mappa` :
-              vistaGps ? `${pin.length} timbrature sulla mappa` : `${filtrate.length} in elenco · ${pin.length} sulla mappa`}</span>
+          <span className="text-xs text-muted-foreground">{vistaMezzi ? t("{n} {tipo} · {m} sulla mappa", { n: mezziVisibili.length, tipo: t(tipoRisorse[mezziVisibili.length === 1 ? 0 : 1]), m: mezziInMappa }) :
+            vista === "percorso" ? t("{n} tappe · {m} sulla mappa", { n: tappe.length, m: pin.length }) :
+            vista === "problemi" ? t("{n} da completare · {m} sulla mappa", { n: attivitaDaMostrare.length + viaggiDaMostrare.length, m: pin.length }) :
+              vistaGps ? t("{n} timbrature sulla mappa", { n: pin.length }) : t("{n} in elenco · {m} sulla mappa", { n: filtrate.length, m: pin.length })}</span>
           <Button type="button" size="sm" variant="ghost" className="lg:hidden" aria-expanded={elencoAperto}
-            onClick={() => setElencoAperto(v => !v)}>{elencoAperto ? "Nascondi elenco" : "Mostra elenco"}</Button>
-          <div role="group" aria-label="Contenuto elenco mappa" className={`w-full flex-wrap gap-1 lg:flex ${elencoAperto ? "flex" : "hidden"}`}>
+            onClick={() => setElencoAperto(v => !v)}>{elencoAperto ? t("Nascondi elenco") : t("Mostra elenco")}</Button>
+          <div role="group" aria-label={t("Contenuto elenco mappa")} className={`w-full flex-wrap gap-1 lg:flex ${elencoAperto ? "flex" : "hidden"}`}>
             <Button type="button" size="sm" variant={vista === "giornata" ? "secondary" : "ghost"}
-              aria-pressed={vista === "giornata"} onClick={() => cambiaVista("giornata")}>Giornata</Button>
+              aria-pressed={vista === "giornata"} onClick={() => cambiaVista("giornata")}>{t("Giornata")}</Button>
             <Button type="button" size="sm" variant={vista === "percorso" ? "secondary" : "ghost"}
-              aria-pressed={vista === "percorso"} onClick={() => cambiaVista("percorso")}><Route className="size-4" /> Percorso</Button>
+              aria-pressed={vista === "percorso"} onClick={() => cambiaVista("percorso")}><Route className="size-4" /> {t("Percorso")}</Button>
             {puoVedereMezziMappa && <Button type="button" size="sm" variant={vistaMezzi ? "secondary" : "ghost"}
-              aria-pressed={vistaMezzi} onClick={() => cambiaVista("mezzi")}><Truck className="size-4" /> Mezzi</Button>}
+              aria-pressed={vistaMezzi} onClick={() => cambiaVista("mezzi")}><Truck className="size-4" /> {t("Mezzi")}</Button>}
             {opzioniTeam && <Button type="button" size="sm" variant={vistaGps ? "secondary" : "ghost"}
-              aria-pressed={vistaGps} onClick={() => cambiaVista("timbrature")}><LocateFixed className="size-4" /> Timbrature GPS</Button>}
+              aria-pressed={vistaGps} onClick={() => cambiaVista("timbrature")}><LocateFixed className="size-4" /> {t("Timbrature GPS")}</Button>}
             <Button type="button" size="sm" variant={vista === "problemi" ? "secondary" : "ghost"}
-              aria-pressed={vista === "problemi"} onClick={() => cambiaVista("problemi")}>Da sistemare · {daSistemare.length + viaggiDaSistemare.length}</Button>
+              aria-pressed={vista === "problemi"} onClick={() => cambiaVista("problemi")}>{t("Da sistemare · {n}", { n: daSistemare.length + viaggiDaSistemare.length })}</Button>
           </div>
         </div>
         <div className={`min-w-0 divide-y lg:block lg:max-h-[31rem] lg:overflow-auto ${elencoAperto ? "" : "hidden"}`}>
-          {loading && !vistaGps && !vistaMezzi && <p className="p-4 text-sm text-muted-foreground" role="status">Caricamento attività…</p>}
-          {vistaMezzi && <Suspense fallback={<p className="p-4 text-sm text-muted-foreground" role="status">Caricamento mezzi…</p>}>
+          {loading && !vistaGps && !vistaMezzi && <p className="p-4 text-sm text-muted-foreground" role="status">{t("Caricamento attività…")}</p>}
+          {vistaMezzi && <Suspense fallback={<p className="p-4 text-sm text-muted-foreground" role="status">{t("Caricamento mezzi…")}</p>}>
             <MezziMappa mezzi={mezziVisibili} selezione={selezione} giorno={giorno} personale={personale}
               tipoMezzi={preferenze.tipoMezzi} cercaMezzi={preferenze.cercaMezzi} caricamento={mezzi.isPending} aggiornamento={mezzi.isFetching} errore={mezzi.isError} nonDisponibile={mezzi.data?.nonDisponibile}
               onRiprova={() => void mezzi.refetch()} onFiltri={preferisci} onSeleziona={selezionaRiga}
@@ -634,136 +638,137 @@ export default function MappaOperativa({
             limite={(gps.data?.length ?? 0) > 500} onSeleziona={selezionaRiga}
             registraRiga={(id, el) => { if (el) righe.current.set(id, el); else righe.current.delete(id); }} />}
           {vista === "giornata" && <>
-            {!loading && !filtrate.length && <p className="p-4 text-sm text-muted-foreground">Nessuna attività per la giornata e i filtri scelti.</p>}
+            {!loading && !filtrate.length && <p className="p-4 text-sm text-muted-foreground">{t("Nessuna attività per la giornata e i filtri scelti.")}</p>}
             {filtrate.map(v => <div key={v.id}>{riga(v, numeriGiornata.get(v.id))}</div>)}
           </>}
-          {vista === "percorso" && <section aria-label="Percorso pianificato">
+          {vista === "percorso" && <section aria-label={t("Percorso pianificato")}>
             <div className="space-y-2 border-b p-3">
               <div className="flex flex-wrap items-center gap-2">
-                {!!gruppi.length && <select aria-label="Risorsa del percorso" className="h-9 max-w-full rounded-md border bg-background px-2 text-sm" value={gruppo}
+                {!!gruppi.length && <select aria-label={t("Risorsa del percorso")} className="h-9 max-w-full rounded-md border bg-background px-2 text-sm" value={gruppo}
                   onChange={e => { preferisci({ trattaGruppo: e.target.value }); chiudiPosizione(); }}>{gruppi.map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}</select>}
-                {import.meta.env.VITE_MAPPA_OPERATIVA_FURGONE === "true" && <select aria-label="Profilo mezzo" className="h-9 rounded-md border bg-background px-2 text-sm"
-                  value={profilo} onChange={e => preferisci({ profilo: e.target.value as Profilo })}><option value="auto">Auto</option><option value="furgone">Furgone</option></select>}
-                <Button variant="outline" size="sm" onClick={() => void calcola()} disabled={routing || attesaPercorso || tappe.length < 2}>{routing ? "Calcolo in corso…" : "Calcola percorso"}</Button>
+                {import.meta.env.VITE_MAPPA_OPERATIVA_FURGONE === "true" && <select aria-label={t("Profilo mezzo")} className="h-9 rounded-md border bg-background px-2 text-sm"
+                  value={profilo} onChange={e => preferisci({ profilo: e.target.value as Profilo })}><option value="auto">{t("Auto")}</option><option value="furgone">{t("Furgone")}</option></select>}
+                <Button variant="outline" size="sm" onClick={() => void calcola()} disabled={routing || attesaPercorso || tappe.length < 2}>{routing ? t("Calcolo in corso…") : t("Calcola percorso")}</Button>
                 {ambito === "vendite" && impegni.length > 0 && <Button variant="ghost" size="sm" onClick={async () => {
-                  const righe = [`Giro appuntamenti · ${giorno.split("-").reverse().join("/")}`,
-                    ...tappe.map(t => t.id === "partenza" || t.id === "rientro" ? t.titolo : [fascia(t.inizio,t.fine), t.titolo, t.voce?.indirizzo].filter(Boolean).join(" · "))];
+                  const righe = [t("Giro appuntamenti · {data}", { data: giorno.split("-").reverse().join("/") }),
+                    ...tappe.map(tp => tp.id === "partenza" || tp.id === "rientro" ? tp.titolo : [fascia(tp.inizio,tp.fine,t), tp.titolo, tp.voce?.indirizzo].filter(Boolean).join(" · "))];
                   if (percorso && valoriTratte.some(Boolean)) {
-                    righe.push(`${valoriTratte.some(t => !t) ? "Totale parziale" : "Totale stimato"} · ${formatoKm(totali.metri)} · ${Math.round(totali.secondi / 60)} min`);
+                    righe.push(`${valoriTratte.some(tr => !tr) ? t("Totale parziale") : t("Totale stimato")} · ${formatoKm(totali.metri)} · ${Math.round(totali.secondi / 60)} min`);
                   }
                   try {
                     await navigator.clipboard.writeText(righe.join("\n"));
-                    toast.success("Giro copiato");
-                  } catch { toast.error("Impossibile copiare il giro"); }
-                }}><ClipboardCopy className="size-4" /> Copia giro</Button>}
+                    toast.success(t("Giro copiato"));
+                  } catch { toast.error(t("Impossibile copiare il giro")); }
+                }}><ClipboardCopy className="size-4" /> {t("Copia giro")}</Button>}
               </div>
               <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,10rem),1fr))] gap-2 rounded-md bg-muted/45 p-2">
                 <label className="grid min-w-0 gap-1 text-xs font-medium">
-                  <span className="text-teal-800 dark:text-teal-300">Partenza</span>
-                  <select aria-label="Partenza" className="h-9 min-w-0 rounded-md border bg-background px-2 text-sm font-normal" value={base?.id ?? ""}
+                  <span className="text-teal-800 dark:text-teal-300">{t("Partenza")}</span>
+                  <select aria-label={t("Partenza")} className="h-9 min-w-0 rounded-md border bg-background px-2 text-sm font-normal" value={base?.id ?? ""}
                     onChange={e => { aggiornaBase({ id: e.target.value }); chiudiPosizione(); }}>
-                    <option value="">Dalla prima tappa</option>
+                    <option value="">{t("Dalla prima tappa")}</option>
                     {basi.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
                   </select>
                 </label>
                 {(basi.length > 0 || base) && <label className="grid min-w-0 gap-1 text-xs font-medium">
-                  <span className="text-pink-800 dark:text-pink-300">Rientro</span>
-                  <select aria-label="Rientro" className="h-9 min-w-0 rounded-md border bg-background px-2 text-sm font-normal"
+                  <span className="text-pink-800 dark:text-pink-300">{t("Rientro")}</span>
+                  <select aria-label={t("Rientro")} className="h-9 min-w-0 rounded-md border bg-background px-2 text-sm font-normal"
                     value={baseRientro ? sceltaRientro : ""} onChange={e => aggiornaBase({ rientro: e.target.value })}>
-                    <option value="">Termina all’ultima tappa</option>
-                    {base && <option value="partenza">Stessa sede di partenza</option>}
+                    <option value="">{t("Termina all’ultima tappa")}</option>
+                    {base && <option value="partenza">{t("Stessa sede di partenza")}</option>}
                     {basi.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
                   </select>
                 </label>}
                 {puoUsarePartenzaPersonale && <Button className="col-span-full justify-self-start" variant="outline" size="sm" onClick={() => avviaPosizione("partenza")}>
-                  <MapPin className="size-3.5" /> {sceltaBase?.personale ? "Modifica partenza personale" : "Imposta partenza personale"}
+                  <MapPin className="size-3.5" /> {sceltaBase?.personale ? t("Modifica partenza personale") : t("Imposta partenza personale")}
                 </Button>}
               </div>
-              {sediPartenza.isError && <p role="alert" className="text-xs text-muted-foreground">Altre sedi temporaneamente indisponibili.{" "}
-                <button type="button" className="underline" onClick={() => void sediPartenza.refetch()}>Riprova</button></p>}
-              {!percorso && <p className="text-xs text-muted-foreground">{tappe.length < 2 ? "Percorso non calcolabile" :
-                haRientro ? `Il totale include il rientro a ${baseRientro?.nome}.` :
-                  haPartenza ? "Il totale va dalla partenza all’ultima tappa." : "Totale tra le tappe della giornata."}</p>}
+              {sediPartenza.isError && <p role="alert" className="text-xs text-muted-foreground">{t("Altre sedi temporaneamente indisponibili.")}{" "}
+                <button type="button" className="underline" onClick={() => void sediPartenza.refetch()}>{t("Riprova")}</button></p>}
+              {!percorso && <p className="text-xs text-muted-foreground">{tappe.length < 2 ? t("Percorso non calcolabile") :
+                haRientro ? t("Il totale include il rientro a {nome}.", { nome: baseRientro?.nome ?? "" }) :
+                  haPartenza ? t("Il totale va dalla partenza all’ultima tappa.") : t("Totale tra le tappe della giornata.")}</p>}
               {giroFiltrato && <div className="flex flex-wrap items-center justify-between gap-1 rounded-md border px-2 py-1 text-xs">
-                <span>{impegni.length} di {impegniCompleti.length} visite incluse</span>
-                <Button type="button" size="sm" variant="ghost" onClick={() => onState({ cantiere: "", stato: "" })}>Mostra giro completo</Button>
+                <span>{t("{n} di {totale} visite incluse", { n: impegni.length, totale: impegniCompleti.length })}</span>
+                <Button type="button" size="sm" variant="ghost" onClick={() => onState({ cantiere: "", stato: "" })}>{t("Mostra giro completo")}</Button>
               </div>}
               {!!criticita.length && <Button type="button" size="sm" variant="outline"
                 onClick={() => {
                   const attuale = criticita.findIndex(t => t.a.id === selezione);
                   aggiornaSelezione(criticita[(attuale + 1) % criticita.length].a.id);
-                }}>{criticita.length === 1 ? "Vai alla criticità" : `Scorri ${criticita.length} criticità`}</Button>}
+                }}>{criticita.length === 1 ? t("Vai alla criticità") : t("Scorri {n} criticità", { n: criticita.length })}</Button>}
               {calcoloAttuale?.errore && <p role="alert" className="text-xs text-amber-800 dark:text-amber-300">{calcoloAttuale.errore}</p>}
               {percorso && <div aria-live="polite" className="space-y-2 text-sm">
-                <p className="font-semibold">{valoriTratte.some(Boolean) ? `${routing ? (calcoloAttuale?.dati ? "Totale parziale · in calcolo" : "Ultima stima · aggiornamento in corso") : giroFiltrato ? `Totale del giro filtrato${valoriTratte.some(t => !t) ? " · parziale" : ""}` :
-                  valoriTratte.some(t => !t) ? "Totale parziale" : "Totale stimato"} · ${formatoKm(totali.metri)} · ${Math.round(totali.secondi / 60)} min` : "Stima stradale non disponibile"}</p>
+                <p className="font-semibold">{valoriTratte.some(Boolean) ? `${routing ? (calcoloAttuale?.dati ? t("Totale parziale · in calcolo") : t("Ultima stima · aggiornamento in corso")) : giroFiltrato ? (valoriTratte.some(tr => !tr) ? t("Totale del giro filtrato · parziale") : t("Totale del giro filtrato")) :
+                  valoriTratte.some(tr => !tr) ? t("Totale parziale") : t("Totale stimato")} · ${formatoKm(totali.metri)} · ${Math.round(totali.secondi / 60)} min` : t("Stima stradale non disponibile")}</p>
                 {haRientro && <dl className="space-y-1 rounded-md border px-2 py-1.5 text-xs">
                   {valoriTratte.slice(0, -1).some(Boolean) && <div className="flex flex-wrap justify-between gap-x-2">
-                    <dt>Fino all’ultima tappa{valoriTratte.slice(0, -1).some(t => !t) ? " · parziale" : ""}</dt>
+                    <dt>{valoriTratte.slice(0, -1).some(tr => !tr) ? t("Fino all’ultima tappa · parziale") : t("Fino all’ultima tappa")}</dt>
                     <dd className="font-medium tabular-nums">{formatoKm(totali.metri - (ultimaTratta?.metri ?? 0))} · {Math.round((totali.secondi - (ultimaTratta?.secondi ?? 0)) / 60)} min</dd>
                   </div>}
                   <div className="flex flex-wrap justify-between gap-x-2 text-pink-800 dark:text-pink-300">
-                    <dt className="break-words">Rientro a {baseRientro?.nome}</dt>
-                    <dd className="font-medium tabular-nums">{ultimaTratta ? `${formatoKm(ultimaTratta.metri)} · ${Math.round(ultimaTratta.secondi / 60)} min` : "Stima non disponibile"}</dd>
+                    <dt className="break-words">{t("Rientro a {nome}", { nome: baseRientro?.nome ?? "" })}</dt>
+                    <dd className="font-medium tabular-nums">{ultimaTratta ? `${formatoKm(ultimaTratta.metri)} · ${Math.round(ultimaTratta.secondi / 60)} min` : t("Stima non disponibile")}</dd>
                   </div>
                   <div className="flex flex-wrap justify-between gap-x-2 text-muted-foreground">
-                    <dt>{arrivoRientro != null ? "Arrivo stimato in sede" : "Arrivo in sede da verificare"}</dt>
+                    <dt>{arrivoRientro != null ? t("Arrivo stimato in sede") : t("Arrivo in sede da verificare")}</dt>
                     {arrivoRientro != null && <dd className="tabular-nums">{oraDaMinuti(arrivoRientro)}{arrivoRientro >= 1440 ? ` (+${Math.floor(arrivoRientro / 1440)} g)` : ""}</dd>}
-                    {arrivoRientro == null && <dd>Completa orari e tratte del giro</dd>}
+                    {arrivoRientro == null && <dd>{t("Completa orari e tratte del giro")}</dd>}
                   </div>
                   {!!stimaArrivo?.ritardoMinuti && <div className="flex justify-between gap-2 text-amber-800 dark:text-amber-300">
-                    <dt>Ritardi inclusi nel rientro</dt><dd className="tabular-nums">+{stimaArrivo.ritardoMinuti} min</dd>
+                    <dt>{t("Ritardi inclusi nel rientro")}</dt><dd className="tabular-nums">+{stimaArrivo.ritardoMinuti} min</dd>
                   </div>}
                 </dl>}
                 {!!linee.length && <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                  <span>Percorso su strada · OSRM</span>
+                  <span>{t("Percorso su strada · OSRM")}</span>
                   <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" className="underline">© OpenStreetMap contributors</a>
-                  {indiceTratta != null && <Button type="button" variant="outline" size="sm" className="ml-auto" onClick={() => preferisci({ trattaScelta: null })}>Tutte le tratte</Button>}
+                  {indiceTratta != null && <Button type="button" variant="outline" size="sm" className="ml-auto" onClick={() => preferisci({ trattaScelta: null })}>{t("Tutte le tratte")}</Button>}
                 </div>}
                 {percorso.errori.map(e => <p key={e} className="text-xs text-amber-800 dark:text-amber-300">{e}</p>)}
               </div>}
             </div>
             <ol className="divide-y">
-              {tappe.map((t, i) => {
+              {tappe.map((tp, i) => {
                 const pinDaVerificare = percorso?.fuoriCopertura.includes(i);
-                const voce = t.voce;
+                const voce = tp.voce;
                 const segmento = tratte[i - 1];
-                const aspetto = aspettoTratta(Math.max(0, i - 1), t.id === "rientro");
+                const aspetto = aspettoTratta(Math.max(0, i - 1), tp.id === "rientro");
                 const lineaDisponibile = (percorso?.geometrieTratte[i - 1]?.length ?? 0) >= 2;
                 const attiva = indiceTratta === i - 1;
-                const etichetta = segmento ? `${aspetto.etichetta} · ${nomeTappa(segmento.da)} → ${nomeTappa(segmento.a)}` : "";
-                return <li key={t.id}>
+                const etichettaTratta = aspetto.rientro ? t("Rientro") : t("Tratta {n}", { n: Math.max(0, i - 1) + 1 });
+                const etichetta = segmento ? `${etichettaTratta} · ${nomeTappa(segmento.da, t)} → ${nomeTappa(segmento.a, t)}` : "";
+                return <li key={tp.id}>
                   {segmento && (percorso || segmento.conflitto) && <div className="mx-3 my-1 rounded-md border-l-[3px] bg-muted/40"
                     style={{ borderLeftColor: aspetto.colore, borderLeftStyle: aspetto.rientro ? "dashed" : "solid" }}>
                     {percorso && <button type="button" ref={el => { if (el) riferimentiTratte.current.set(i - 1, el); else riferimentiTratte.current.delete(i - 1); }}
                       disabled={!lineaDisponibile} aria-pressed={attiva} aria-label={etichetta}
                       onClick={() => preferisci({ trattaScelta: attiva ? null : { firma, indice: i - 1 } })}
                       className="flex w-full min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-0.5 rounded-r-md px-2 py-1.5 text-left text-xs hover:enabled:bg-muted aria-pressed:bg-primary/10">
-                      <span className="font-semibold">{aspetto.etichetta}</span>
+                      <span className="font-semibold">{etichettaTratta}</span>
                       <span className="tabular-nums">{segmento.tratta ? `${formatoKm(segmento.tratta.metri)} · ${Math.round(segmento.tratta.secondi / 60)} min` :
-                        percorso.problemiTratte[i - 1] === "fuori_copertura" ? "Verifica la copertura dei pin" :
-                          percorso.problemiTratte[i - 1] === "nessun_percorso" ? "Collegamento stradale assente" : "Tratta mancante"}</span>
-                      <span className="w-full break-words text-muted-foreground">{nomeTappa(segmento.da)} → {nomeTappa(segmento.a)}</span>
+                        percorso.problemiTratte[i - 1] === "fuori_copertura" ? t("Verifica la copertura dei pin") :
+                          percorso.problemiTratte[i - 1] === "nessun_percorso" ? t("Collegamento stradale assente") : t("Tratta mancante")}</span>
+                      <span className="w-full break-words text-muted-foreground">{nomeTappa(segmento.da, t)} → {nomeTappa(segmento.a, t)}</span>
                     </button>}
                     {segmento.conflitto && <p className="px-2 py-1 text-xs font-medium text-amber-800 dark:text-amber-300">{segmento.conflitto}
-                      {!!segmento.ritardoMinuti && ` · +${segmento.ritardoMinuti} min stimati`}</p>}
+                      {!!segmento.ritardoMinuti && ` · ${t("+{n} min stimati", { n: segmento.ritardoMinuti })}`}</p>}
                   </div>}
                   {pinDaVerificare && <p className="mx-3 mt-1 rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-                    Pin fuori copertura · {nomeTappa(t)}
+                    {t("Pin fuori copertura")} · {nomeTappa(tp, t)}
                   </p>}
-                  {voce ? riga({ ...voce, inizio: t.inizio, fine: t.fine }, i + (haPartenza ? 0 : 1), t.id) :
-                    <button type="button" ref={el => { if (el) righe.current.set(t.id, el); else righe.current.delete(t.id); }}
-                      aria-pressed={selezione === t.id} onClick={() => selezionaRiga(t.id)}
+                  {voce ? riga({ ...voce, inizio: tp.inizio, fine: tp.fine }, i + (haPartenza ? 0 : 1), tp.id) :
+                    <button type="button" ref={el => { if (el) righe.current.set(tp.id, el); else righe.current.delete(tp.id); }}
+                      aria-pressed={selezione === tp.id} onClick={() => selezionaRiga(tp.id)}
                       className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted/50 aria-pressed:bg-primary/5">
-                      <span className={`grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold ${t.id === "rientro" ? "bg-pink-100 text-pink-900" : "bg-teal-100 text-teal-900"}`}>{t.id === "partenza" ? "P" : "R"}</span>
-                      {t.titolo}
+                      <span className={`grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold ${tp.id === "rientro" ? "bg-pink-100 text-pink-900" : "bg-teal-100 text-teal-900"}`}>{tp.id === "partenza" ? "P" : "R"}</span>
+                      {tp.titolo}
                     </button>}
                 </li>;
               })}
             </ol>
           </section>}
           {vista === "problemi" && <>
-            <div className="flex flex-wrap gap-1 p-2" role="group" aria-label="Tipo di criticità">
+            <div className="flex flex-wrap gap-1 p-2" role="group" aria-label={t("Tipo di criticità")}>
               {([
                 ["tutti", "Tutte", daSistemare.length + viaggiDaSistemare.length],
                 ["posizioni", "Posizioni", posizioniDaCompletare],
@@ -771,23 +776,23 @@ export default function MappaOperativa({
                 ["viaggi", "Km", viaggiDaSistemare.length],
               ] as const).filter(([id]) => id !== "viaggi" || vedeViaggi).map(([id, titolo, numero]) => <Button key={id} type="button" size="sm"
                 variant={filtroProblemi === id ? "secondary" : "ghost"} aria-pressed={filtroProblemi === id} onClick={() => preferisci({ filtroProblemi: id })}>
-                {titolo} <span className={filtroProblemi === id ? "opacity-85" : "text-muted-foreground"}>{numero}</span>
+                {t(titolo)} <span className={filtroProblemi === id ? "opacity-85" : "text-muted-foreground"}>{numero}</span>
               </Button>)}
             </div>
-            {mostraViaggi && incompleti.isError && <p role="alert" className="px-3 py-2 text-xs">Viaggi da completare temporaneamente non disponibili.{" "}
-              <button type="button" className="underline" onClick={() => void incompleti.refetch()}>Riprova</button></p>}
-            {caricamentoViaggi && <p role="status" className="p-3 text-sm text-muted-foreground">Caricamento viaggi…</p>}
-            {!loading && !caricamentoViaggi && !attivitaDaMostrare.length && !viaggiDaMostrare.length && <p className="p-3 text-sm text-muted-foreground">Nessun elemento da completare con questi filtri.</p>}
+            {mostraViaggi && incompleti.isError && <p role="alert" className="px-3 py-2 text-xs">{t("Viaggi da completare temporaneamente non disponibili.")}{" "}
+              <button type="button" className="underline" onClick={() => void incompleti.refetch()}>{t("Riprova")}</button></p>}
+            {caricamentoViaggi && <p role="status" className="p-3 text-sm text-muted-foreground">{t("Caricamento viaggi…")}</p>}
+            {!loading && !caricamentoViaggi && !attivitaDaMostrare.length && !viaggiDaMostrare.length && <p className="p-3 text-sm text-muted-foreground">{t("Nessun elemento da completare con questi filtri.")}</p>}
             {attivitaDaMostrare.map(({ voce }) => <div key={voce.id}>{riga(voce)}</div>)}
             {viaggiDaMostrare.map(v => <div key={v.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
-              <div><p className="font-medium">{v.mezzo}</p><p className="text-xs text-muted-foreground">{partiNelFuso(v.partenza).ora} · Km da registrare</p></div>
+              <div><p className="font-medium">{v.mezzo}</p><p className="text-xs text-muted-foreground">{partiNelFuso(v.partenza).ora} · {t("Km da registrare")}</p></div>
               <Button asChild size="sm" variant="outline"><Link to={ambito === "campo"
                 ? `/campo/mezzi?mezzo=${v.mezzo_id}&rivedi=${v.id}&giorno=${giorno}`
-                : `/azienda/mezzi/${v.mezzo_id}?tab=viaggi&giorno=${giorno}&viaggio=${v.id}`}>Apri viaggio</Link></Button>
+                : `/azienda/mezzi/${v.mezzo_id}?tab=viaggi&giorno=${giorno}&viaggio=${v.id}`}>{t("Apri viaggio")}</Link></Button>
             </div>)}
           </>}
         </div>
-        {!!posa && posa.id === state.id && <p className="border-t px-3 py-1.5 text-xs text-muted-foreground">Posizionamento in corso</p>}
+        {!!posa && posa.id === state.id && <p className="border-t px-3 py-1.5 text-xs text-muted-foreground">{t("Posizionamento in corso")}</p>}
       </div>
     </div>
 
@@ -800,26 +805,26 @@ export default function MappaOperativa({
         vendite={vendite} lavori={lavori} onChiudi={() => setDestinazione(null)}
         puoProporre={(tipo, id) => !!puoProporre?.(tipo, id, destinazione.voce)}
         onProposta={onProposta ? proposta => onProposta(proposta, destinazione) : undefined} />}
-      {destinazione && nuovo && <Button variant="outline" onClick={nuovo}>Nuovo appuntamento</Button>}
+      {destinazione && nuovo && <Button variant="outline" onClick={nuovo}>{t("Nuovo appuntamento")}</Button>}
     </div>
 
     {!vistaMezzi && <div className="max-w-xl">
-      <section className="min-w-0 space-y-2 rounded-lg border bg-card p-3" aria-label="Km effettivi registrati">
-        <h3 className="font-medium">Km effettivi registrati</h3>
-        {effettivi.isPending ? <p className="text-sm text-muted-foreground">Caricamento viaggi…</p> :
-          effettivi.isError ? <p className="text-sm text-muted-foreground">Registro temporaneamente non disponibile.</p> :
+      <section className="min-w-0 space-y-2 rounded-lg border bg-card p-3" aria-label={t("Km effettivi registrati")}>
+        <h3 className="font-medium">{t("Km effettivi registrati")}</h3>
+        {effettivi.isPending ? <p className="text-sm text-muted-foreground">{t("Caricamento viaggi…")}</p> :
+          effettivi.isError ? <p className="text-sm text-muted-foreground">{t("Registro temporaneamente non disponibile.")}</p> :
           viaggi.length ? <>
-            <p className="text-sm font-medium tabular-nums">{formatoKm(kmDocumentati(viaggi))} · viaggi partiti nel giorno selezionato</p>
+            <p className="text-sm font-medium tabular-nums">{formatoKm(kmDocumentati(viaggi))} · {t("viaggi partiti nel giorno selezionato")}</p>
             {viaggi.map(v => <p key={v.id} className="break-words text-xs text-muted-foreground">
               {v.mezzo} · {partiNelFuso(v.partenza).ora} · {formatoKm(v.metri)} · {v.fonte}
             </p>)}
-          </> : <p className="text-sm text-muted-foreground">Da registrare</p>}
-        {registroMezzi && <Button asChild variant="link" className="h-auto px-0"><Link to="/azienda/manodopera?tab=mezzi">Apri registro mezzi</Link></Button>}
+          </> : <p className="text-sm text-muted-foreground">{t("Da registrare")}</p>}
+        {registroMezzi && <Button asChild variant="link" className="h-auto px-0"><Link to="/azienda/manodopera?tab=mezzi">{t("Apri registro mezzi")}</Link></Button>}
       </section>
     </div>}
     {consumo && <details onToggle={e => setVediConsumo(e.currentTarget.open)} className="rounded-lg border bg-card px-3 py-2 text-sm">
-      <summary className="cursor-pointer font-medium">Consumo cartografico del mese</summary>
-      {conteggi.isError && <p className="mt-2 text-xs">Conteggi non disponibili.</p>}
+      <summary className="cursor-pointer font-medium">{t("Consumo cartografico del mese")}</summary>
+      {conteggi.isError && <p className="mt-2 text-xs">{t("Conteggi non disponibili.")}</p>}
       {conteggi.data?.map(c => <p key={`${c.provider}:${c.voce}`} className="mt-1 text-xs">{c.provider.replaceAll("_", " ")} · {c.voce.replaceAll("_", " ")} · {Number(c.unita).toLocaleString("it-IT")}</p>)}
     </details>}
   </section>;

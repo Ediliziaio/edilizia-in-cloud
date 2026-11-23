@@ -185,6 +185,7 @@ const DynamicQrRedirect = lazy(() => import("@/pages/public/DynamicQrRedirect"))
 // Etichette QR di attrezzi e mezzi (05/10/2026): /q/<codice>?c=<azienda>.
 const QrMezzo = lazy(() => import("@/pages/QrMezzo"));
 const DocumentiCantiere = lazy(() => import("@/pages/public/DocumentiCantiere"));
+const VerificaTesserino = lazy(() => import("@/pages/public/VerificaTesserino"));
 const SignaturePage = lazy(() => import("@/pages/public/SignaturePage"));
 const FirmaOdV = lazy(() => import("@/pages/public/FirmaOdV"));
 const FirmaDocumento = lazy(() => import("@/pages/public/FirmaDocumento"));
@@ -388,7 +389,10 @@ const queryClient = new QueryClient({
       // quindi è rumore non azionabile (DB lento/cold/503, es. fetchUserData auth) —
       // non allarmiamo con un toast "Riprova". Gli errori reali (permessi, constraint,
       // rete persa) continuano a essere mostrati. Detection condivisa con userErrorMessage.
-      if (query.state.data !== undefined && !silent && !isTransientTimeoutError(error)) {
+      // 23/11/2026 (collaudo area operai): nemmeno con la rete persa. I dati restano a schermo, il banner di
+      // rete (segnalaErroreDiRete qui sopra → OfflineBanner) lo dice già e le code del campo riprovano da sole:
+      // l'avviso rosso «Riprova» in cantiere era solo allarme, ripetuto a ogni rilettura.
+      if (query.state.data !== undefined && !silent && !isTransientTimeoutError(error) && !isNetworkError(error)) {
         // Audit design: niente error.message tecnico all'utente. Messaggio
         // comprensibile in italiano; il dettaglio tecnico resta in Sentry sopra.
         toast.error(userErrorMessage(error, "Aggiornamento dati non riuscito. Riprova."));
@@ -929,6 +933,10 @@ const Gestionale = () => (
 function App() {
   if (typeof window !== "undefined" && /^\/documenti-cantiere\/?$/.test(window.location.pathname)) {
     return <Suspense fallback={<p className="p-5 text-sm" role="status">Caricamento documenti…</p>}><DocumentiCantiere /></Suspense>;
+  }
+  // Il QR del tesserino di cantiere (23/11/2026): stessa regola, chi controlla non ha un account.
+  if (typeof window !== "undefined" && /^\/tesserino\/?$/.test(window.location.pathname)) {
+    return <Suspense fallback={<p className="p-5 text-sm" role="status">Verifica in corso…</p>}><VerificaTesserino /></Suspense>;
   }
   return <Gestionale />;
 }

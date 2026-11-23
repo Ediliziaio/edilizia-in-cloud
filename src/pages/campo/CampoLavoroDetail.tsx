@@ -49,10 +49,18 @@ import { campoDayWindow } from "@/lib/campo/timeSummary";
 import { campoWorkDay } from "@/lib/campo/workDay";
 import { rapportinoConsegnato, rapportinoDaRifare, statoRapportino } from "@/lib/campo/rapportinoStato";
 import { RapportinoCardCampo } from "@/components/campo/RapportinoCardCampo";
+import { RapportiniInCoda } from "@/components/campo/RapportiniInCoda";
+import { linkChiediCorrezione } from "@/lib/campo/chiediCorrezione";
+import { chiaveFasiCommessa, leggiFasiCommessa } from "@/lib/campo/fasiCommessa";
+import { giorniRitardoCantiere, testoRitardoCantiere } from "@/lib/campo/ritardoCantiere";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { faseInRitardo, testoRitardo } from "@/components/campo/PianoSchedaCantiere";
+import { useNetworkStatus } from "@/hooks/campo/useNetworkStatus";
 import { campoReportUrl, isClientReport } from "@/lib/campo/reportKind";
 import { useRegoleCampoOrdine } from "@/hooks/useRegoleCampo";
 import { REGOLE_COME_OGGI, flussoPersona } from "@/lib/campo/regoleCampo";
 import { useRapportinoProtocollo } from "@/hooks/campo/useRapportinoProtocollo";
+import { DocumentiQrCampo } from "@/components/campo/DocumentiQrCampo";
 import { ETICHETTA_IN_CANTIERE, quantitaLeggibile, statoInCantiere, type StatoInCantiere } from "@/lib/distinta/statoMateriale";
 
 // Un tab = una cosa sola. Rapportini = la giornata dell'operaio (interno).
@@ -270,6 +278,7 @@ function periodoFase(f: Pick<FaseMia, "dal" | "al">): string {
 }
 
 export default function CampoLavoroDetail() {
+  const t = useT();
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -300,6 +309,7 @@ export default function CampoLavoroDetail() {
   useCommessaCampoSync(orderId, companyId, !!user);
   const currentUserIds = Array.from(new Set([user?.id, profile?.id].filter((id): id is string => Boolean(id))));
   const currentUserId = currentUserIds[0] ?? null;
+  const online = useNetworkStatus();
   const currentUserKey = currentUserIds.join("|");
   const fallbackOrderCode = searchParams.get("order_code");
   const fallbackOrderTitle = searchParams.get("order_title");
@@ -429,7 +439,7 @@ export default function CampoLavoroDetail() {
             },
           } satisfies CampoAssignment;
         }
-        throw new Error("Connessione lenta: verifica assegnazione non completata");
+        throw new Error("La rete è lenta o assente: non riesco ad aprire il cantiere.");
       }
 
       // Tutti i probe vuoti SENZA timeout: prima di concludere "non assegnato"
@@ -439,7 +449,7 @@ export default function CampoLavoroDetail() {
       // Errore → react-query riprova, invece di cementare il falso negativo.
       const { data: sessionCheck } = await supabase.auth.getSession();
       if (!sessionCheck?.session) {
-        throw new Error("Sessione non ancora pronta: verifica assegnazione da riprovare");
+        throw new Error("L’accesso non è ancora pronto: riprova tra un attimo.");
       }
 
       // Non assegnato — la UI mostra un fallback recuperabile.
@@ -496,25 +506,10 @@ export default function CampoLavoroDetail() {
   // Fasi di lavoro della commessa — stessa queryKey del wizard rapportino,
   // così l'invalidazione post-invio riallinea anche questa vista.
   const { data: fasiCommessa = [] } = useQuery({
-    queryKey: ["campo-fasi-commessa", orderId],
+    queryKey: chiaveFasiCommessa(orderId),
     enabled: !!orderId && (activeTab === "descrizione" || activeTab === "rapportini"),
     staleTime: 60_000,
-    queryFn: async (): Promise<{ id: string; name: string; status: string; percentuale: number }[]> => {
-      // order_work_phases non è nei tipi generati → cast
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
-        .from("order_work_phases")
-        .select("id, name, status, percentuale")
-        .eq("order_id", orderId)
-        .order("position", { ascending: true });
-      if (error) throw error;
-      return ((data ?? []) as Record<string, unknown>[]).map((p) => ({
-        id: p.id as string,
-        name: (p.name as string) ?? "",
-        status: (p.status as string) ?? "da_iniziare",
-        percentuale: Number(p.percentuale) || 0,
-      }));
-    },
+    queryFn: () => leggiFasiCommessa(orderId!),
   });
 
   // phase_id → nome, per i rapportini scritti prima che il nome entrasse nella voce della fase.
@@ -726,6 +721,7 @@ export default function CampoLavoroDetail() {
   if (isLoading && assignmentTimedOut) {
     return (
       <div className="flex h-full min-h-[420px] flex-col items-center justify-center p-6 text-center">
+        {orderId && <div className="mb-4 w-full max-w-sm text-left"><RapportiniInCoda companyId={companyId} userId={currentUserId ?? undefined} orderId={orderId} online={online} /></div>}
         <AlertCircle className="mb-3 h-10 w-10 text-amber-600" />
         <p className="font-semibold text-foreground">Caricamento cantiere lento</p>
         <p className="mt-1 max-w-sm text-sm text-muted-foreground">
@@ -752,10 +748,14 @@ export default function CampoLavoroDetail() {
     );
   }
 
-  // Errore di rete/RLS → mostra fallback visibile invece di pagina bianca
-  if (isError) {
+  // Errore di rete/RLS → mostra fallback visibile invece di pagina bianca. Solo se del cantiere non c'è niente:
+  // una rilettura fallita con i dati già in pagina (rete debole appena dopo un invio) non deve togliere la
+  // pagina all'operaio — collaudo 23/11, finiva su «Impossibile caricare il lavoro» col rapportino in coda.
+  if (isError && !assignment) {
     return (
       <div className="flex flex-col items-center justify-center h-full min-h-[400px] p-6 text-center">
+        {/* Anche senza cantiere: il rapportino appena inviato si vede, al sicuro sul telefono. */}
+        {orderId && <div className="mb-4 w-full max-w-sm text-left"><RapportiniInCoda companyId={companyId} userId={currentUserId ?? undefined} orderId={orderId} online={online} /></div>}
         <AlertCircle className="w-10 h-10 text-destructive mb-3" />
         <p className="font-semibold text-foreground">Impossibile caricare il lavoro</p>
         <p className="text-sm text-muted-foreground mt-1 mb-4 max-w-xs">
@@ -829,7 +829,7 @@ export default function CampoLavoroDetail() {
   const flussoRapportino = flussoPersona(regoleRapporti.data ?? REGOLE_COME_OGGI, ruoloRapporti ?? {}, isSubappaltatore);
   const soloTimbratura = flussoRapportino.soloTimbratura && !rapportinoDaRifare(statoRapportinoOggi);
   const regoleDaVerificare = !!regoleRapporti.isLoading || !!regoleRapporti.isError || !!ruoloRapportiLoading || !!ruoloRapportiError;
-  const azioneRapportino = flussoRapportino.soloOre ? "Registra le tue ore" : "Scrivi il rapportino";
+  const azioneRapportino = t(flussoRapportino.soloOre ? "Registra le tue ore" : "Scrivi il rapportino");
   // `data` apre il rapportino di quel giorno: se era respinto o in bozza si riapre già compilato.
   const rapportinoDelGiornoUrl = (giorno: string) => {
     const params = new URLSearchParams(orderContextQuery);
@@ -892,13 +892,13 @@ export default function CampoLavoroDetail() {
             <ArrowLeft className="w-5 h-5 text-foreground" />
           </button>
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Lavoro assegnato</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("Lavoro assegnato")}</p>
             <p className="truncate text-lg font-black text-foreground md:text-xl">{order?.order_code}</p>
             <p className="truncate text-xs text-muted-foreground md:text-sm">{order?.description}</p>
           </div>
           {vedeSchedaTecnica && <Link to={percorsoCantiereTecnico(orderId)}
             className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg border px-2 text-xs font-semibold text-primary">
-            <BookOpenCheck className="size-4" aria-hidden="true" /> Piano e documenti
+            <BookOpenCheck className="size-4" aria-hidden="true" /> {t("Piano e documenti")}
           </Link>}
         </div>
 
@@ -937,9 +937,9 @@ export default function CampoLavoroDetail() {
               sera dentro al rapportino (dove la galleria è irraggiungibile). */}
           {/* Bolla: parte da QUI (cantiere già impostato), non più dal menu "App".
               Giornaliero resta nella card "Chiudi giornata" e nella barra sticky. */}
-          <QuickAction icon={Receipt} label="Bolla" onClick={() => navigate(`/campo/ddt?order=${orderId}`)} />
-          <QuickAction icon={Camera} label="Foto" onClick={() => navigate(`/campo/lavoro/${orderId}/foto`)} />
-          <QuickAction icon={AlertCircle} label="Segnala" onClick={() => navigate(`/campo/ticket/nuovo/${orderId}`)} />
+          <QuickAction icon={Receipt} label={t("Bolla")} onClick={() => navigate(`/campo/ddt?order=${orderId}`)} />
+          <QuickAction icon={Camera} label={t("Foto")} onClick={() => navigate(`/campo/lavoro/${orderId}/foto`)} />
+          <QuickAction icon={AlertCircle} label={t("Segnala")} onClick={() => navigate(`/campo/ticket/nuovo/${orderId}`)} />
           {orderId && <BottoneCollaudo orderId={orderId} />}
         </div>
         </>}
@@ -958,14 +958,14 @@ export default function CampoLavoroDetail() {
                   : "bg-muted text-muted-foreground active:bg-muted"
               )}
             >
-              {label}
+              {t(label)}
             </button>
           ))}
         </div>
       </div>
 
       {/* Contenuto tab */}
-      <div className="space-y-3 px-3 py-3 md:space-y-4 md:px-4 md:py-4">
+      <div className="space-y-3 py-3 md:space-y-4 md:px-4 md:py-4">
         {/* Le istruzioni dell'ufficio vengono prima di tutto: si leggono entrando. */}
         {orderId && <NoteCantiereCampo orderId={orderId} />}
         {/* La giornata (timbra → rapportino → uscita) ha UN solo bottone: la barra in
@@ -982,6 +982,11 @@ export default function CampoLavoroDetail() {
                   {order?.work_start_date ? `Dal ${format(new Date(order.work_start_date), "d MMM", { locale: it })}` : "Inizio da fissare"}
                   {" · "}
                   {order?.work_end_date ? `fine prevista ${format(new Date(order.work_end_date), "d MMM yyyy", { locale: it })}` : "fine da fissare"}
+                  {/* Ritardo del cantiere sempre visibile (collaudo 23/11): RIS01 doveva finire il 16 ago, al 45%. */}
+                  {(() => {
+                    const giorni = giorniRitardoCantiere(order?.work_end_date, today, order?.status);
+                    return giorni != null && <span className="font-semibold text-red-700 dark:text-red-400"> · {testoRitardoCantiere(giorni)}</span>;
+                  })()}
                 </span>
               </p>
             )}
@@ -989,6 +994,7 @@ export default function CampoLavoroDetail() {
             {/* Con chi lavori: squadra, caposquadra, capocantiere */}
             {orderId && <RuoloCantiereCampo orderId={orderId} ruolo={ruoloRapportiError ? undefined : ruoloRapporti} subappaltatore={isSubappaltatore} caricamento={ruoloRapportiLoading} errore={ruoloRapportiError} onRapportini={() => setActiveTab("rapportini")} onRiprova={() => void ricaricaRuoloRapporti()} />}
             {orderId && <ChiLavoraCampo orderId={orderId} />}
+            {orderId && <DocumentiQrCampo orderId={orderId} />}
 
             {/* Fasi di lavoro della commessa */}
             {fasiCommessa.length > 0 && (
@@ -1018,6 +1024,13 @@ export default function CampoLavoroDetail() {
                       <div className="h-2 rounded-full bg-primary transition-all" style={{ width: `${faseAttualePct}%` }} />
                     </div>
                     <div className="mt-1.5"><SottofasiContate sottofasi={sottofasiDi.get(faseAttuale.id) ?? []} /></div>
+                    {/* Ritardi sempre visibili (collaudo 23/11): la fase attuale scaduta lo dice qui, dove si guarda. */}
+                    {(() => {
+                      const fine = faseInRitardo(faseAttuale, today);
+                      return fine && <p className="mt-1.5 text-xs font-semibold text-red-700 dark:text-red-400">
+                        {testoRitardo(fine)}
+                      </p>;
+                    })()}
                   </div>
                 )}
                 {!vedeSchedaTecnica && fasiAssegnate.length > 0 && <details className="group">
@@ -1116,7 +1129,7 @@ export default function CampoLavoroDetail() {
                   Materiali da posare <span className="font-normal text-muted-foreground">({orderItems.length})</span>
                   {(() => {
                     const arrivati = orderItems.filter((i) => i.inCantiere === "arrivato" || i.inCantiere === "posato").length;
-                    return <span className="ml-1 text-xs font-normal text-muted-foreground">· {arrivati} arrivati</span>;
+                    return <span className="ml-1 text-xs font-normal text-muted-foreground"> · {arrivati} {arrivati === 1 ? "arrivato" : "arrivati"}</span>;
                   })()}
                 </summary>
                 <div className="mt-3 space-y-2">
@@ -1158,16 +1171,16 @@ export default function CampoLavoroDetail() {
         {activeTab === "rapportini" && (
           <div className="space-y-3">
             <section className="space-y-3 rounded-2xl border bg-background p-3 sm:p-4">
-              <h2 className="font-bold">{soloTimbratura ? "Rapportino del responsabile" : flussoRapportino.soloOre ? "Le tue ore in cantiere" : "Rapportino di cantiere"}</h2>
+              <h2 className="font-bold">{t(soloTimbratura ? "Rapportino del responsabile" : flussoRapportino.soloOre ? "Le tue ore in cantiere" : "Rapportino di cantiere")}</h2>
               {regoleRapporti.isError ? <div role="alert" className="text-sm text-foreground">
                 <p>Non riesco a leggere le regole del rapportino.</p>
                 <button type="button" className="min-h-11 font-semibold text-primary" onClick={() => void regoleRapporti.refetch()}>Riprova le regole</button>
               </div> : regoleDaVerificare ? <p role="status" className="text-sm text-muted-foreground">Verifico come compili il rapportino…</p> : <>
                 <p className="text-sm text-muted-foreground">{soloTimbratura
-                  ? "Segna entrata e uscita. Il responsabile compila il giornaliero."
+                  ? t("Segna entrata e uscita. Il responsabile compila il giornaliero.")
                   : flussoRapportino.soloOre
-                    ? "Qui registri le tue ore. Il responsabile racconta i lavori."
-                    : "Apri il modulo per scrivere o raccontare i lavori. Lo storico è qui sotto."}</p>
+                    ? t("Qui registri le tue ore. Il responsabile racconta i lavori.")
+                    : t("Apri il modulo per scrivere o raccontare i lavori. Lo storico è qui sotto.")}</p>
                 <button
                   type="button"
                   onClick={() => navigate(soloTimbratura ? timbraturaUrl : rapportinoManualeUrl)}
@@ -1179,8 +1192,9 @@ export default function CampoLavoroDetail() {
               </>}
             </section>
 
+            {orderId && <RapportiniInCoda companyId={companyId} userId={currentUserId ?? undefined} orderId={orderId} online={online} />}
             {vedeRapportiniCantiere && <p className="text-sm text-muted-foreground">Rapportini del cantiere. Puoi firmare o correggere soltanto quelli compilati da te; l’approvazione spetta all’ufficio.</p>}
-            {ruoloRapportiError ? <div role="alert" className="rounded-xl border border-destructive/30 p-3 text-sm"><p>Non riesco a verificare quali rapportini puoi consultare.</p><button type="button" className="min-h-11 font-semibold text-primary underline" onClick={() => void ricaricaRuoloRapporti()}>Rileggi il ruolo</button></div> : rapportiniLoading || ruoloRapportiLoading ? <p role="status" className="py-6 text-center text-sm text-muted-foreground">Carico i rapporti…</p> : rapportiniError ? (
+            {ruoloRapportiError ? <div role="alert" className="rounded-xl border border-destructive/30 p-3 text-sm"><p>Non riesco a caricare i rapportini: la rete è lenta o assente.</p><button type="button" className="min-h-11 font-semibold text-primary underline" onClick={() => void ricaricaRuoloRapporti()}>Riprova</button></div> : rapportiniLoading || ruoloRapportiLoading ? <p role="status" className="py-6 text-center text-sm text-muted-foreground">Carico i rapporti…</p> : rapportiniError ? (
               <div role="alert" className="rounded-xl border border-destructive/30 p-3 text-sm">
                 <p>Non riesco a caricare lo storico. Non significa che i rapporti siano assenti.</p>
                 <button type="button" className="min-h-11 font-semibold text-primary underline" onClick={() => void ricaricaRapportini()}>Riprova lo storico</button>
@@ -1205,6 +1219,7 @@ export default function CampoLavoroDetail() {
                   onPdf={mio || r.pdf_url ? () => void apriPdfRapportino(r) : undefined}
                   onFirma={mio ? () => { setFirmaRapportinoId(r.id); setFirmaDataUrl(null); } : undefined}
                   onCorreggi={mio ? () => navigate(campoReportUrl(orderId!, "daily", r.data_lavoro)) : undefined}
+                  onChiediCorrezione={mio ? () => navigate(linkChiediCorrezione(orderId!, r.data_lavoro)) : undefined}
                   nomiFasi={nomiFasi}
                 />;
               })

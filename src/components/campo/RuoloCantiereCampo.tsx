@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { ClipboardList, ListChecks, Users, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function RuoloCantiereCampo({
   orderId,
@@ -23,19 +24,19 @@ export function RuoloCantiereCampo({
   onRiprova: () => void;
   onRapportini: () => void;
 }) {
+  const t = useT();
   if (errore)
     return (
       <section
         role="alert"
         className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm"
       >
-        <p className="font-semibold">Ruolo del cantiere non disponibile</p>
+        <p className="font-semibold">{t("Ruolo del cantiere non disponibile")}</p>
         <p className="mt-1">
-          Non possiamo confermare le operazioni di coordinamento. Riprova prima
-          di procedere.
+          {t("Non possiamo confermare le operazioni di coordinamento. Riprova prima di procedere.")}
         </p>
         <Button variant="outline" className="mt-3" onClick={onRiprova}>
-          Rileggi il ruolo
+          {t("Rileggi il ruolo")}
         </Button>
       </section>
     );
@@ -45,74 +46,70 @@ export function RuoloCantiereCampo({
         role="status"
         className="rounded-2xl border p-4 text-sm text-muted-foreground"
       >
-        Verifica del ruolo in questo cantiere…
+        {t("Verifica del ruolo in questo cantiere…")}
       </p>
     );
   const coordina = ruolo.isCapocantiere || ruolo.isCaposquadra;
   const titolo = ruolo.isCapocantiere
-    ? "Capocantiere"
+    ? t("Capocantiere")
     : ruolo.isCaposquadra
-      ? "Caposquadra"
+      ? t("Caposquadra")
       : subappaltatore
-        ? "Impresa subappaltatrice"
-        : "Operaio";
+        ? t("Impresa subappaltatrice")
+        : t("Operaio");
+  const spiegazione = ruolo.isCapocantiere
+    ? t("Coordini il cantiere e consulti la squadra. Documenta il lavoro svolto e gestisci i rapporti con il cliente secondo le regole aziendali.")
+    : ruolo.isCaposquadra
+      ? t("Coordini la tua squadra. Il capocantiere mantiene il coordinamento della commessa.")
+      : subappaltatore
+        ? t("Documenta il lavoro affidato alla tua impresa. Le quantità economiche e i SAL vengono verificati nel gestionale.")
+        : t("Registra le tue ore, documenta il lavoro e consulta le fasi della commessa.");
+  // Collaudo 23/11 («più semplice e minimale»): il riquadro occupava mezzo schermo in apertura — spiegazione, tre
+  // pulsanti a tutta riga e una nota. Ora: ruolo su una riga, tre scorciatoie su una riga, la spiegazione a richiesta.
+  const scorciatoia = "flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-xl border px-1 text-[13px] font-medium";
   return (
     <section
-      aria-label="Il tuo ruolo nel cantiere"
-      className="rounded-2xl border bg-background p-4 shadow-sm"
+      aria-label={t("Il tuo ruolo nel cantiere")}
+      className="rounded-2xl border bg-background p-3 shadow-sm"
     >
-      <div className="flex items-start gap-3">
-        <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-        <div>
-          <p className="text-xs text-muted-foreground">
-            Il tuo ruolo in questa commessa
-          </p>
-          <h2 className="mt-1 text-base font-semibold">{titolo}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {ruolo.isCapocantiere
-              ? "Coordini il cantiere e consulti la squadra. Documenta il lavoro svolto e gestisci i rapporti con il cliente secondo le regole aziendali."
-              : ruolo.isCaposquadra
-                ? "Coordini la tua squadra. Il capocantiere mantiene il coordinamento della commessa."
-                : subappaltatore
-                  ? "Documenta il lavoro affidato alla tua impresa. Le quantità economiche e i SAL vengono verificati nel gestionale."
-                  : "Registra le tue ore, documenta il lavoro e consulta le fasi della commessa."}
-          </p>
-        </div>
+      <div className="flex items-center gap-2">
+        <ShieldCheck className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+        <p className="text-xs text-muted-foreground">{t("Il tuo ruolo")}</p>
+        <h2 className="min-w-0 truncate text-[15px] font-semibold">{titolo}</h2>
       </div>
-      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+      <div className={`mt-2 grid gap-2 ${coordina ? "grid-cols-3" : "grid-cols-2"}`}>
         <Link
           to={`/campo/avanzamento?order_id=${encodeURIComponent(orderId)}`}
-          className="flex min-h-11 items-center gap-2 rounded-xl border px-3 text-sm font-medium"
+          aria-label={t("Fasi di questo cantiere")}
+          className={scorciatoia}
         >
-          <ListChecks className="h-4 w-4" />
-          Fasi di questo cantiere
+          <ListChecks className="h-4 w-4 shrink-0" aria-hidden="true" />
+          {t("Fasi")}
         </Link>
         <button
           type="button"
           onClick={onRapportini}
-          className="flex min-h-11 items-center gap-2 rounded-xl border px-3 text-sm font-medium"
+          aria-label={ruolo.isCapocantiere ? t("Rapportini del cantiere") : t("I miei rapportini")}
+          className={scorciatoia}
         >
-          <ClipboardList className="h-4 w-4" />{ruolo.isCapocantiere ? "Rapportini del cantiere" : "I miei rapportini"}
+          <ClipboardList className="h-4 w-4 shrink-0" aria-hidden="true" />{t("Rapportini")}
         </button>
         {coordina && (
           <Link
             to={`/campo/squadra/${orderId}`}
-            className="flex min-h-11 items-center gap-2 rounded-xl border px-3 text-sm font-medium sm:col-span-2"
+            aria-label={t("Presenze e squadra del cantiere")}
+            className={scorciatoia}
           >
-            <Users className="h-4 w-4" />
-            Presenze e squadra del cantiere
+            <Users className="h-4 w-4 shrink-0" aria-hidden="true" />
+            {t("Squadra")}
           </Link>
         )}
       </div>
-      <details className="mt-3 text-xs text-muted-foreground">
-        <summary className="cursor-pointer py-1">
-          Ruoli e avanzamento: cosa significano
-        </summary>
+      <details className="mt-2 text-xs text-muted-foreground">
+        <summary className="cursor-pointer py-2">{t("Cosa fa il tuo ruolo")}</summary>
+        <p className="mt-1 text-sm">{spiegazione}</p>
         <p className="mt-2">
-          Questo è il ruolo operativo assegnato nella commessa; non sostituisce
-          nomine e incarichi di sicurezza. Le fasi descrivono l’avanzamento
-          operativo. Il rapportino dichiara il lavoro; la sua approvazione e il
-          riconoscimento di un SAL sono passaggi distinti.
+          {t("Questo è il ruolo operativo assegnato nella commessa; non sostituisce nomine e incarichi di sicurezza. Le fasi descrivono l’avanzamento operativo. Il rapportino dichiara il lavoro; la sua approvazione e il riconoscimento di un SAL sono passaggi distinti.")}
         </p>
       </details>
     </section>

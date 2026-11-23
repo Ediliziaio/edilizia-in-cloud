@@ -75,6 +75,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { sottoLarghezza } from "@/hooks/useSottoLarghezza";
+import { nomeCanaleLeggibile } from "@/lib/chat/nomeCanale";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import {
   filterChatProfiles,
   isAllowedSilvioUpload,
@@ -636,6 +638,7 @@ const MESSAGES_PAGE_SIZE = 5;
 type ChannelMessagesData = ChannelMessagesCache<Message>;
 
 function useChannelMessages(channelId: string | null, onNewMessage?: () => void) {
+  const t = useT();
   const queryClient = useQueryClient();
   const queryKey = useMemo(() => channelMessagesQueryKey(channelId), [channelId]);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
@@ -684,13 +687,13 @@ function useChannelMessages(channelId: string | null, onNewMessage?: () => void)
         hasOlder: rows.length > MESSAGES_PAGE_SIZE,
       }));
     } catch (error) {
-      toast.error("Non riesco a caricare i messaggi precedenti", {
-        description: error instanceof Error ? error.message : "Errore sconosciuto",
+      toast.error(t("Non riesco a caricare i messaggi precedenti"), {
+        description: error instanceof Error ? error.message : t("Errore sconosciuto"),
       });
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [channelId, data, isLoadingOlder, messages, queryClient, queryKey]);
+  }, [channelId, data, isLoadingOlder, messages, queryClient, queryKey, t]);
 
   useEffect(() => {
     if (!channelId) return;
@@ -740,6 +743,7 @@ const ChatListItem = React.memo(function ChatListItem({
   isPinned?: boolean;
   onTogglePin?: () => void;
 }) {
+  const t = useT();
   const channelNameLower = channel.name.toLowerCase();
   // Silvio cliente E Silvio Superadmin → stesso rendering visivo
   const isSilvio = channelNameLower === "silvio-ai" || channelNameLower === "silvio-admin";
@@ -753,7 +757,7 @@ const ChatListItem = React.memo(function ChatListItem({
     return otherId ? profileMap.get(otherId) : undefined;
   }, [isDm, channel.dm_user_ids, userId, profileMap]);
 
-  const displayName = isDm ? profileName(dmProfile) : channel.name;
+  const displayName = isDm ? profileName(dmProfile) : nomeCanaleLeggibile(channel.name, t);
   const memberCount = members.filter((m) => m.channel_id === channel.id).length;
 
   // Last message preview — ripulito dalla sintassi markdown (es. i messaggi
@@ -775,13 +779,14 @@ const ChatListItem = React.memo(function ChatListItem({
     : "";
   const lastMsgPreview = lastMsg
     ? (
-        lastMsg.sender_id === userId ? "Tu: "
+        lastMsg.sender_id === userId ? t("Tu: ")
         : lastMsg.sender_id === SILVIO_SENDER_ID ? "Silvio: "
         : lastMsg.sender_id === SILVIO_ADMIN_SENDER_ID ? "Silvio: "
         : `${lastMsgSender?.first_name ?? ""}: `
       )
       + cleanLastContent.slice(0, 50) + (cleanLastContent.length > 50 ? "…" : "")
-    : isDm ? "Inizia a chattare" : "Nessun messaggio";
+    // Con dei non letti non si scrive «Nessun messaggio»: l'anteprima può mancare (non ancora letta), i messaggi no.
+    : unread > 0 ? t("Nuovi messaggi") : isDm ? t("Inizia a chattare") : t("Nessun messaggio");
 
   // v8.6.54 — Cambiato da <button> a <div role=button> per evitare HTML
   // nesting illegale: il bottone pin/unpin DENTRO il button-listitem
@@ -791,7 +796,7 @@ const ChatListItem = React.memo(function ChatListItem({
     <div
       role="button"
       tabIndex={0}
-      aria-label={`Apri chat ${displayName}`}
+      aria-label={t("Apri chat {nome}", { nome: displayName })}
       aria-pressed={isActive}
       onClick={onClick}
       onKeyDown={(e) => {
@@ -835,12 +840,12 @@ const ChatListItem = React.memo(function ChatListItem({
           <span className={cn("text-[15px] truncate flex items-center gap-1.5", unread > 0 ? "font-semibold text-foreground" : "font-normal text-foreground")}>
             {/* v8.6.51 — Pin icon visibile sempre se pinnato */}
             {isPinned && (
-              <Pin className="h-3 w-3 text-eic-orange shrink-0" fill="currentColor" aria-label="Pinnata" />
+              <Pin className="h-3 w-3 text-eic-orange shrink-0" fill="currentColor" aria-label={t("Pinnata")} />
             )}
             <span className="truncate">{displayName}</span>
           </span>
           <span className={cn("text-xs shrink-0", unread > 0 ? "text-[#00a884] font-medium" : "text-muted-foreground")}>
-            {lastMsg ? formatChatListTime(lastMsg.created_at) : ""}
+            {lastMsg ? t(formatChatListTime(lastMsg.created_at)) : ""}
           </span>
         </div>
         <div className="flex items-center justify-between gap-2 mt-0.5">
@@ -862,8 +867,8 @@ const ChatListItem = React.memo(function ChatListItem({
                   "tap-compact p-1 rounded hover:bg-foreground/10 transition-opacity",
                   isPinned ? "opacity-80 hover:opacity-100" : "max-md:hidden opacity-0 group-hover/listitem:opacity-60 hover:!opacity-100",
                 )}
-                aria-label={isPinned ? "Rimuovi pin" : "Pinna chat"}
-                title={isPinned ? "Rimuovi pin" : "Pinna chat in alto"}
+                aria-label={isPinned ? t("Rimuovi pin") : t("Pinna chat")}
+                title={isPinned ? t("Rimuovi pin") : t("Pinna chat in alto")}
               >
                 <Pin className={cn("h-3.5 w-3.5", isPinned ? "text-eic-orange" : "text-muted-foreground")} fill={isPinned ? "currentColor" : "none"} />
               </button>
@@ -906,6 +911,7 @@ const ChatListItem = React.memo(function ChatListItem({
 });
 
 function AttachmentPreview({ msg, isMe }: { msg: Message; isMe: boolean }) {
+  const t = useT();
   const storedAttachment = parseStoredAttachmentUrl(msg.attachment_url);
   const { data: signedUrl, isLoading } = useQuery({
     queryKey: ["internal-chat-attachment-url", msg.id, msg.attachment_url],
@@ -924,13 +930,13 @@ function AttachmentPreview({ msg, isMe }: { msg: Message; isMe: boolean }) {
   if (!msg.attachment_url) return null;
 
   const href = storedAttachment ? signedUrl : msg.attachment_url;
-  const attachmentName = msg.attachment_name || "Allegato";
+  const attachmentName = msg.attachment_name || t("Allegato");
   const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(attachmentName);
 
   if (isImage && href) {
     return (
       <div className="mb-1.5">
-        <a href={href} target="_blank" rel="noopener noreferrer" className="block" aria-label={`Apri allegato ${attachmentName}`}>
+        <a href={href} target="_blank" rel="noopener noreferrer" className="block" aria-label={t("Apri allegato {nome}", { nome: attachmentName })}>
           <img loading="lazy"
             src={href}
             alt={attachmentName}
@@ -949,7 +955,7 @@ function AttachmentPreview({ msg, isMe }: { msg: Message; isMe: boolean }) {
         target={href ? "_blank" : undefined}
         rel="noopener noreferrer"
         aria-disabled={!href}
-        aria-label={href ? `Apri allegato ${attachmentName}` : `Allegato ${attachmentName} in preparazione`}
+        aria-label={href ? t("Apri allegato {nome}", { nome: attachmentName }) : t("Allegato {nome} in preparazione", { nome: attachmentName })}
         className={cn(
           "flex items-center gap-2 px-3 py-2 rounded-lg text-[13px] transition-colors",
           !href && "pointer-events-none opacity-70",
@@ -996,6 +1002,7 @@ const MessageBubble = React.memo(function MessageBubble({
   // Detect AI bot type from sender_id.
   // Silvio cliente e Silvio Superadmin sono visivamente IDENTICI (stesso "Silvio")
   // — la differenza vive solo nel sender_id (e nell'edge function chiamata).
+  const t = useT();
   const isSilvioMsg = msg.sender_id === SILVIO_SENDER_ID;
   const isSilvioAdminMsg = msg.sender_id === SILVIO_ADMIN_SENDER_ID;
   // v8.6.75 (LUCIA-FULL-REMOVAL) — isLuciaMsg eliminato. isAIMsg ora copre
@@ -1072,7 +1079,7 @@ const MessageBubble = React.memo(function MessageBubble({
                 : "bg-gray-100 dark:bg-white/5 border-gray-400",
             )}>
               <p className="font-semibold text-[11px]" style={{ color: getColorHex(replyMsg.sender_id) }}>
-                {replyMsg.sender_id === userId ? "Tu" : profileName(replySender)}
+                {replyMsg.sender_id === userId ? t("Tu") : profileName(replySender)}
               </p>
               <p className="truncate text-muted-foreground">{replyMsg.content.slice(0, 80)}</p>
             </div>
@@ -1081,7 +1088,7 @@ const MessageBubble = React.memo(function MessageBubble({
           {/* Pinned indicator */}
           {msg.is_pinned && (
             <div className="flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400 mb-0.5">
-              <Pin className="h-2.5 w-2.5" /> Pinnato
+              <Pin className="h-2.5 w-2.5" /> {t("Pinnato")}
             </div>
           )}
 
@@ -1154,7 +1161,7 @@ const MessageBubble = React.memo(function MessageBubble({
             "absolute bottom-1 right-2 flex items-center gap-0.5 text-[11px]",
             isMe ? "text-[#667781] dark:text-gray-400" : "text-[#667781] dark:text-gray-500",
           )}>
-            {msg.is_edited && <span className="italic mr-0.5">mod.</span>}
+            {msg.is_edited && <span className="italic mr-0.5">{t("mod.")}</span>}
             {formatMsgTime(msg.created_at)}
             {isMe && <CheckCheck className="h-3.5 w-3.5 ml-0.5 text-blue-500" />}
           </span>
@@ -1169,7 +1176,7 @@ const MessageBubble = React.memo(function MessageBubble({
                     key={emoji}
                     type="button"
                     onClick={() => onReaction(emoji)}
-                    aria-label={`Reazione ${emoji}, ${users.length} utenti`}
+                    aria-label={t("Reazione {emoji}, {n} utenti", { emoji, n: users.length })}
                     className={cn(
                     "flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full border shadow-sm",
                     users.includes(userId ?? "")
@@ -1193,14 +1200,14 @@ const MessageBubble = React.memo(function MessageBubble({
           <div className="flex items-center gap-0.5 bg-white dark:bg-gray-800 rounded-lg shadow-md border px-1 py-0.5">
             <Popover>
               <PopoverTrigger asChild>
-                <button type="button" className="tap-compact p-2 md:p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700" title="Reagisci" aria-label="Reagisci al messaggio">
+                <button type="button" className="tap-compact p-2 md:p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700" title={t("Reagisci")} aria-label={t("Reagisci al messaggio")}>
                   <Smile className="h-3.5 w-3.5 text-muted-foreground" />
                 </button>
               </PopoverTrigger>
               <PopoverContent side="top" align={isMe ? "start" : "end"} className="w-auto p-1.5">
                 <div className="flex gap-1">
                   {QUICK_REACTIONS.map((emoji) => (
-                    <button key={emoji} type="button" onClick={() => onReaction(emoji)} aria-label={`Reagisci con ${emoji}`}
+                    <button key={emoji} type="button" onClick={() => onReaction(emoji)} aria-label={t("Reagisci con {emoji}", { emoji })}
                       className="text-lg hover:scale-125 transition-transform p-0.5 rounded">
                       {emoji}
                     </button>
@@ -1208,17 +1215,17 @@ const MessageBubble = React.memo(function MessageBubble({
                 </div>
               </PopoverContent>
             </Popover>
-            <button type="button" onClick={onReply} className="tap-compact p-2 md:p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700" title="Rispondi" aria-label="Rispondi al messaggio">
+            <button type="button" onClick={onReply} className="tap-compact p-2 md:p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700" title={t("Rispondi")} aria-label={t("Rispondi al messaggio")}>
               <CornerDownRight className="h-3.5 w-3.5 text-muted-foreground" />
             </button>
             <button type="button" onClick={onPin} className="tap-compact p-2 md:p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
-              title={msg.is_pinned ? "Rimuovi pin" : "Pinna"} aria-label={msg.is_pinned ? "Rimuovi pin dal messaggio" : "Pinna messaggio"}>
+              title={msg.is_pinned ? t("Rimuovi pin") : t("Pinna")} aria-label={msg.is_pinned ? t("Rimuovi pin dal messaggio") : t("Pinna messaggio")}>
               {msg.is_pinned
                 ? <PinOff className="h-3.5 w-3.5 text-amber-500" />
                 : <Pin className="h-3.5 w-3.5 text-muted-foreground" />}
             </button>
             {isMe && onDelete && (
-              <button type="button" onClick={onDelete} className="tap-compact p-2 md:p-1 rounded hover:bg-red-50 dark:hover:bg-red-950/40" title="Elimina messaggio" aria-label="Elimina messaggio">
+              <button type="button" onClick={onDelete} className="tap-compact p-2 md:p-1 rounded hover:bg-red-50 dark:hover:bg-red-950/40" title={t("Elimina messaggio")} aria-label={t("Elimina messaggio")}>
                 <Trash2 className="h-3.5 w-3.5 text-red-500" />
               </button>
             )}
@@ -1272,6 +1279,7 @@ interface InternalChatProps {
 }
 
 export default function InternalChat({ companyIdOverride, embedded, areaCampo = false }: InternalChatProps = {}) {
+  const t = useT();
   const location = useLocation();
   const navigate = useNavigate();
   const { role, profile: currentUserProfile, isImpersonating } = useAuth();
@@ -1418,12 +1426,12 @@ export default function InternalChat({ companyIdOverride, embedded, areaCampo = 
           // fallback `email` perché `?.full_name` era sempre undefined.
           // Ora usa profileName() che concatena correttamente.
           const senderProfile = profileMapRef.current.get(msg.sender_id);
-          const senderName = senderProfile ? profileName(senderProfile) : "Nuovo messaggio";
+          const senderName = senderProfile ? profileName(senderProfile) : t("Nuovo messaggio");
           // v8.6.75 (LOOP-CHAT-ADMIN Round 2 / MORE-4) — Rimosso `msg.text`
           // dal fallback: la colonna non esiste sul tipo Message né sulla
           // tabella internal_chat_messages (campo è `content`). Lo lasciava
           // come dead-code che induceva in errore eventuali refactor futuri.
-          const body = (msg.content ?? "").slice(0, 140) || "Hai ricevuto un messaggio";
+          const body = (msg.content ?? "").slice(0, 140) || t("Hai ricevuto un messaggio");
           try {
             const notificationOptions: NotificationOptions & { renotify: boolean } = {
               body,
@@ -1445,7 +1453,7 @@ export default function InternalChat({ companyIdOverride, embedded, areaCampo = 
       )
       .subscribe();
     return () => { supabase.removeChannel(sub); };
-  }, [companyId, userId, handleSelectChannel]);
+  }, [companyId, userId, handleSelectChannel, t]);
 
   // Richiedi permission browser notifications dopo che l'utente è entrato
   // nella chat (non al primo load).
@@ -1598,7 +1606,7 @@ export default function InternalChat({ companyIdOverride, embedded, areaCampo = 
     mutationFn: async () => {
       if (!selectedChannelId || !companyId || !userId || !newMsg.trim()) return;
       if (!channels.some((channel) => channel.id === selectedChannelId)) {
-        throw new Error("Non hai accesso a questa conversazione.");
+        throw new Error(t("Non hai accesso a questa conversazione."));
       }
       const mentionedIds = parseMentions(newMsg.trim());
       const { error } = await supabase.from("internal_chat_messages").insert({
@@ -1626,7 +1634,7 @@ export default function InternalChat({ companyIdOverride, embedded, areaCampo = 
   const sendToSilvio = useCallback(async (messageText: string) => {
     if (!selectedChannelId || !companyId || !userId || !messageText.trim()) return;
     if (!channels.some((channel) => channel.id === selectedChannelId)) {
-      toast.error("Non hai accesso a questa conversazione.");
+      toast.error(t("Non hai accesso a questa conversazione."));
       return;
     }
     setSilvioError(null);
@@ -1639,7 +1647,7 @@ export default function InternalChat({ companyIdOverride, embedded, areaCampo = 
       content: messageText.trim(), message_type: "text",
     });
     if (insertErr) {
-      toast.error(`Errore invio: ${insertErr.message || insertErr.details || insertErr.hint || "errore sconosciuto"}`);
+      toast.error(t("Errore invio: {errore}", { errore: insertErr.message || insertErr.details || insertErr.hint || t("errore sconosciuto") }));
       return;
     }
     queryClient.invalidateQueries({ queryKey: ["internal-chat-messages", selectedChannelId] });
@@ -1655,7 +1663,7 @@ export default function InternalChat({ companyIdOverride, embedded, areaCampo = 
         functionName: edgeFn,
         requestMessageId,
         senderId: isSilvioAdminChannel ? SILVIO_ADMIN_SENDER_ID : SILVIO_SENDER_ID,
-        onRecovering: () => toast.info("Recupero la risposta di Silvio. Non serve reinviare la domanda."),
+        onRecovering: () => toast.info(t("Recupero la risposta di Silvio. Non serve reinviare la domanda.")),
         onMessage: (message) => queryClient.setQueryData<ChannelMessagesData>(
           channelMessagesQueryKey(selectedChannelId), (prev) => upsertChannelMessage(prev, message as Message)),
         body: {
@@ -1673,7 +1681,7 @@ export default function InternalChat({ companyIdOverride, embedded, areaCampo = 
         } catch {
           errBody = null;
         }
-        throw new Error(errBody?.error ?? errBody?.message ?? res.error.message ?? "Errore Silvio");
+        throw new Error(errBody?.error ?? errBody?.message ?? res.error.message ?? t("Errore Silvio"));
       }
       // AI Test Lab — toast warning se aiRouter ha fatto fallback automatico.
       // Funziona anche senza migration AI_TEST_LAB-2 (legge da response, non DB).
@@ -1702,14 +1710,14 @@ export default function InternalChat({ companyIdOverride, embedded, areaCampo = 
       queryClient.invalidateQueries({ queryKey: ["internal-chat-sidebar-state"] });
       refetchUnread();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Errore comunicazione";
+      const message = err instanceof Error ? err.message : t("Errore comunicazione");
       setSilvioError(message);
       toast.error(`Silvio: ${message}`);
     } finally {
       void queryClient.invalidateQueries({ queryKey: ["internal-chat-messages", selectedChannelId] });
       setAiTyping(false);
     }
-  }, [selectedChannelId, companyId, userId, channels, queryClient, refetchUnread, isSilvioAdminChannel, aiSelector.showSelector, aiSelector.selectedModel]);
+  }, [selectedChannelId, companyId, userId, channels, queryClient, refetchUnread, isSilvioAdminChannel, aiSelector.showSelector, aiSelector.selectedModel, t]);
 
   // Create group channel
   const [channelName, setChannelName] = useState("");
@@ -1722,7 +1730,7 @@ export default function InternalChat({ companyIdOverride, embedded, areaCampo = 
     mutationFn: async () => {
       if (!companyId || !userId) return;
       const safeChannelName = channelName.trim();
-      if (!safeChannelName) throw new Error("Inserisci un nome gruppo.");
+      if (!safeChannelName) throw new Error(t("Inserisci un nome gruppo."));
       const safeSelectedMembers = Array.from(new Set(selectedMembers.filter((id) => internalProfileIds.has(id))));
       const { data: ch, error } = await supabase.from("internal_chat_channels").insert({
         company_id: companyId, name: safeChannelName,
@@ -1749,7 +1757,7 @@ export default function InternalChat({ companyIdOverride, embedded, areaCampo = 
       queryClient.invalidateQueries({ queryKey: ["internal-chat-sidebar-state"] });
       setCreateOpen(false); setChannelName(""); setChannelDesc(""); setSelectedMembers([]); setMemberDialogSearch("");
       if (newId) handleSelectChannel(newId);
-      toast.success("Gruppo creato!");
+      toast.success(t("Gruppo creato!"));
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -1758,7 +1766,7 @@ export default function InternalChat({ companyIdOverride, embedded, areaCampo = 
   const createDm = useCallback(async (targetUserId: string) => {
     if (!companyId || !userId) return;
     if (!internalProfileIds.has(targetUserId)) {
-      toast.error("Puoi avviare chat solo con persone interne all'azienda.");
+      toast.error(t("Puoi avviare chat solo con persone interne all'azienda."));
       return;
     }
     const dmUserIds = normalizeDmUserIds(userId, targetUserId);
@@ -1814,8 +1822,8 @@ export default function InternalChat({ companyIdOverride, embedded, areaCampo = 
     handleSelectChannel(ch.id);
     setCreateDmOpen(false);
     setDmDialogSearch("");
-    toast.success("Chat creata!");
-  }, [companyId, userId, channels, profileMap, queryClient, handleSelectChannel, internalProfileIds]);
+    toast.success(t("Chat creata!"));
+  }, [companyId, userId, channels, profileMap, queryClient, handleSelectChannel, internalProfileIds, t]);
 
   // ── File Attachment ──
   const attachInputRef = useRef<HTMLInputElement>(null);
@@ -1849,15 +1857,15 @@ export default function InternalChat({ companyIdOverride, embedded, areaCampo = 
 
   const uploadAndAskSilvio = useCallback(async (file: File) => {
     if (!isSilvioChannel || !companyId || !userId) {
-      toast.error("Disponibile solo nella chat Silvio");
+      toast.error(t("Disponibile solo nella chat Silvio"));
       return;
     }
     if (file.size > 20 * 1024 * 1024) {
-      toast.error("File troppo grande (max 20 MB)");
+      toast.error(t("File troppo grande (max 20 MB)"));
       return;
     }
     if (!isAllowedSilvioUpload(file)) {
-      toast.error("Silvio accetta solo immagini JPG/PNG/GIF/WebP o PDF.");
+      toast.error(t("Silvio accetta solo immagini JPG/PNG/GIF/WebP o PDF."));
       return;
     }
     setSilvioUploading(true);
@@ -1922,11 +1930,11 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
         await sendToSilvio(userPrompt);
       }
     } catch (e) {
-      toast.error(`Upload fallito: ${e instanceof Error ? e.message : String(e)}`);
+      toast.error(t("Upload fallito: {errore}", { errore: e instanceof Error ? e.message : String(e) }));
     } finally {
       setSilvioUploading(false);
     }
-  }, [isSilvioChannel, companyId, userId, selectedChannelId, queryClient, sendToSilvio]);
+  }, [isSilvioChannel, companyId, userId, selectedChannelId, queryClient, sendToSilvio, t]);
 
   // ─── Audio Recording (Silvio AI) ──────────────────────────────────────
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -1947,7 +1955,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
         stream.getTracks().forEach((t) => t.stop());
         const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
         if (blob.size < 1000) {
-          toast.error("Registrazione troppo breve");
+          toast.error(t("Registrazione troppo breve"));
           return;
         }
         setIsTranscribing(true);
@@ -1965,7 +1973,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
           }
           const text = ((data as TranscriptionResponse | null)?.text ?? "").trim();
           if (!text) {
-            toast.error("Nessun testo trascritto");
+            toast.error(t("Nessun testo trascritto"));
             return;
           }
           // Auto-fill input + auto-send (Silvio cliente + Silvio Admin)
@@ -1975,11 +1983,11 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
               setNewMsg("");
               sendToSilvio(text);
             } else {
-              toast.info("Trascritto, premi invio per inviare");
+              toast.info(t("Trascritto, premi invio per inviare"));
             }
           }, 100);
         } catch (e) {
-          toast.error(`Trascrizione fallita: ${e instanceof Error ? e.message : String(e)}`);
+          toast.error(t("Trascrizione fallita: {errore}", { errore: e instanceof Error ? e.message : String(e) }));
         } finally {
           setIsTranscribing(false);
         }
@@ -1988,9 +1996,9 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
       mr.start();
       setIsRecording(true);
     } catch (e) {
-      toast.error(`Impossibile accedere al microfono: ${e instanceof Error ? e.message : "permesso negato"}`);
+      toast.error(t("Impossibile accedere al microfono: {errore}", { errore: e instanceof Error ? e.message : t("permesso negato") }));
     }
-  }, [isSilvioChannel, isSilvioAdminChannel, sendToSilvio]);
+  }, [isSilvioChannel, isSilvioAdminChannel, sendToSilvio, t]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
@@ -2022,16 +2030,16 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
     if (!file || !selectedChannelId || !companyId || !userId) return;
     if (isAttaching) return;
     if (!channels.some((channel) => channel.id === selectedChannelId)) {
-      toast.error("Non hai accesso a questa conversazione.");
+      toast.error(t("Non hai accesso a questa conversazione."));
       return;
     }
 
     if (file.size > 10 * 1024 * 1024) {
-      toast.error("File troppo grande (max 10 MB)");
+      toast.error(t("File troppo grande (max 10 MB)"));
       return;
     }
     if (!isAllowedAttachment(file)) {
-      toast.error("Formato allegato non supportato");
+      toast.error(t("Formato allegato non supportato"));
       return;
     }
 
@@ -2068,14 +2076,14 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
       queryClient.invalidateQueries({ queryKey: ["internal-chat-channels"] });
       queryClient.invalidateQueries({ queryKey: ["internal-chat-sidebar-state"] });
       refetchUnread();
-      toast.success(`Allegato inviato: ${file.name}`);
+      toast.success(t("Allegato inviato: {nome}", { nome: file.name }));
     } catch (err: unknown) {
-      toast.error("Errore invio allegato", { description: err instanceof Error ? err.message : "Errore sconosciuto" });
+      toast.error(t("Errore invio allegato"), { description: err instanceof Error ? err.message : t("Errore sconosciuto") });
     } finally {
       setIsAttaching(false);
       if (attachInputRef.current) attachInputRef.current.value = "";
     }
-  }, [selectedChannelId, companyId, userId, channels, isAttaching, newMsg, replyTo, queryClient, refetchUnread]);
+  }, [selectedChannelId, companyId, userId, channels, isAttaching, newMsg, replyTo, queryClient, refetchUnread, t]);
 
   const togglePin = useCallback(async (msgId: string, currentPinned: boolean) => {
     const { error } = await supabase.from("internal_chat_messages").update({ is_pinned: !currentPinned }).eq("id", msgId);
@@ -2084,8 +2092,8 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
       return;
     }
     queryClient.invalidateQueries({ queryKey: ["internal-chat-messages", selectedChannelId] });
-    toast.success(currentPinned ? "Pin rimosso" : "Messaggio pinnato");
-  }, [selectedChannelId, queryClient]);
+    toast.success(currentPinned ? t("Pin rimosso") : t("Messaggio pinnato"));
+  }, [selectedChannelId, queryClient, t]);
 
   const toggleReaction = useCallback(async (msgId: string, emoji: string, currentReactions: Record<string, string[]> | null | undefined) => {
     if (!userId) return;
@@ -2108,7 +2116,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
   const deleteMessageMutation = useMutation({
     mutationFn: async (message: Message) => {
       if (!userId || message.sender_id !== userId) {
-        throw new Error("Puoi eliminare solo i messaggi inviati da te.");
+        throw new Error(t("Puoi eliminare solo i messaggi inviati da te."));
       }
       const { error } = await supabase
         .from("internal_chat_messages")
@@ -2124,7 +2132,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
       queryClient.invalidateQueries({ queryKey: ["internal-chat-sidebar-state"] });
       queryClient.invalidateQueries({ queryKey: ["internal-chat-channels"] });
       refetchUnread();
-      toast.success("Messaggio eliminato");
+      toast.success(t("Messaggio eliminato"));
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -2146,15 +2154,15 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
       .eq("user_id", userId);
     if (error) {
       if (/is_pinned.*does not exist/i.test(error.message ?? "")) {
-        toast.error("Pin chat: funzionalità in attivazione (migration DB pending)");
+        toast.error(t("Pin chat: funzionalità in attivazione (migration DB pending)"));
         return;
       }
-      toast.error(`Errore pin: ${error.message ?? "errore sconosciuto"}`);
+      toast.error(t("Errore pin: {errore}", { errore: error.message ?? t("errore sconosciuto") }));
       return;
     }
     queryClient.invalidateQueries({ queryKey: ["internal-chat-my-memberships"] });
-    toast.success(next ? "Chat pinnata in alto" : "Pin rimosso");
-  }, [userId, myMemberships, queryClient]);
+    toast.success(next ? t("Chat pinnata in alto") : t("Pin rimosso"));
+  }, [userId, myMemberships, queryClient, t]);
 
   // v8.6.51 — Ordinamento sidebar:
   //   1. Canali PINNATI dall'utente (membership.is_pinned = true) in cima
@@ -2218,7 +2226,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
       ? "Silvio AI"
       : selectedChannel?.is_dm
         ? profileName(getDmProfile(selectedChannel))
-        : selectedChannel?.name ?? "";
+        : nomeCanaleLeggibile(selectedChannel?.name, t);
 
   const groupProfileOptions = useMemo(
     () => filterChatProfiles(profiles, userId, memberDialogSearch),
@@ -2293,25 +2301,25 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                 </AvatarFallback>
               </Avatar>
             )}
-            <span className="font-semibold text-[15px]">Chat</span>
+            <span className="font-semibold text-[15px]">{t("Chat")}</span>
           </div>
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-[#54656f] dark:text-gray-400"
-              onClick={() => setCreateDmOpen(true)} title="Nuovo messaggio interno" aria-label="Nuovo messaggio interno">
+              onClick={() => setCreateDmOpen(true)} title={t("Nuovo messaggio interno")} aria-label={t("Nuovo messaggio interno")}>
               <UserPlus className="h-5 w-5" />
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-[#54656f] dark:text-gray-400" aria-label="Apri menu chat">
+                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-[#54656f] dark:text-gray-400" aria-label={t("Apri menu chat")}>
                   <Plus className="h-5 w-5" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => setCreateDmOpen(true)}>
-                  <MessageCircle className="h-4 w-4 mr-2" /> Nuovo messaggio interno
+                  <MessageCircle className="h-4 w-4 mr-2" /> {t("Nuovo messaggio interno")}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setCreateOpen(true)}>
-                  <UsersRound className="h-4 w-4 mr-2" /> Nuovo gruppo
+                  <UsersRound className="h-4 w-4 mr-2" /> {t("Nuovo gruppo")}
                 </DropdownMenuItem>
                 {isCompanyAdmin && (
                   <DropdownMenuItem
@@ -2325,7 +2333,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                       );
                       if (existing) {
                         handleSelectChannel(existing.id);
-                        toast.success("Canale Comunicazioni team aperto");
+                        toast.success(t("Canale Comunicazioni team aperto"));
                         return;
                       }
                       setChannelName("📢 Comunicazioni");
@@ -2335,7 +2343,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                       setCreateOpen(true);
                     }}
                   >
-                    <Megaphone className="h-4 w-4 mr-2" /> Comunicazioni team (azienda)
+                    <Megaphone className="h-4 w-4 mr-2" /> {t("Comunicazioni team (azienda)")}
                   </DropdownMenuItem>
                 )}
               </DropdownMenuContent>
@@ -2350,7 +2358,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#54656f] dark:text-gray-500" />
             <Input
-              placeholder="Cerca nella chat interna"
+              placeholder={t("Cerca nella chat interna")}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               inputMode="search"
@@ -2379,7 +2387,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                   : "text-[#54656f] dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 active:bg-gray-200 dark:active:bg-white/10",
               )}
             >
-              {f === "all" ? "Tutte" : f === "groups" ? "Gruppi" : "Messaggi"}
+              {f === "all" ? t("Tutte") : f === "groups" ? t("Gruppi") : t("Messaggi")}
             </button>
           ))}
         </div>
@@ -2392,7 +2400,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                 <div className="mb-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-[13px] text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-100">
                   <div className="flex items-center gap-2 font-medium">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    Il caricamento della chat sta impiegando più del previsto
+                    {t("Il caricamento della chat sta impiegando più del previsto")}
                   </div>
                   <Button
                     type="button"
@@ -2402,7 +2410,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                     onClick={refetchChatData}
                   >
                     <RefreshCw className="mr-2 h-3.5 w-3.5" />
-                    Riprova caricamento
+                    {t("Riprova caricamento")}
                   </Button>
                 </div>
               )}
@@ -2420,32 +2428,32 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
             <div className="p-4">
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Chat non caricata</AlertTitle>
+                <AlertTitle>{t("Chat non caricata")}</AlertTitle>
                 <AlertDescription>
-                  Non riesco a recuperare conversazioni e partecipanti. Riprova tra poco.
+                  {t("Non riesco a recuperare conversazioni e partecipanti. Riprova tra poco.")}
                 </AlertDescription>
               </Alert>
               <Button size="sm" variant="outline" className="mt-3 w-full" onClick={refetchChatData}>
-                <RefreshCw className="h-4 w-4 mr-2" /> Riprova
+                <RefreshCw className="h-4 w-4 mr-2" /> {t("Riprova")}
               </Button>
             </div>
           ) : filteredChannels.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center px-4">
               <MessageCircle className="h-12 w-12 text-[#54656f]/30 mb-4" />
               <p className="text-[15px] text-[#54656f] dark:text-gray-400">
-                {searchQuery ? "Nessun risultato" : "Nessuna chat"}
+                {searchQuery ? t("Nessun risultato") : t("Nessuna chat")}
               </p>
               <p className="text-[13px] text-muted-foreground mt-1">
                 {isImpersonating && role === "super_admin"
-                  ? "Vedi le chat del tuo account. Le conversazioni private dei colleghi restano visibili ai partecipanti."
-                  : "Inizia una conversazione con una persona dell'azienda"}
+                  ? t("Vedi le chat del tuo account. Le conversazioni private dei colleghi restano visibili ai partecipanti.")
+                  : t("Inizia una conversazione con una persona dell'azienda")}
               </p>
               <div className="flex gap-2 mt-4">
                 <Button size="sm" variant="outline" className="rounded-full" onClick={() => setCreateDmOpen(true)}>
-                  <UserPlus className="h-3.5 w-3.5 mr-1.5" /> Messaggio
+                  <UserPlus className="h-3.5 w-3.5 mr-1.5" /> {t("Messaggio")}
                 </Button>
                 <Button size="sm" variant="outline" className="rounded-full" onClick={() => setCreateOpen(true)}>
-                  <UsersRound className="h-3.5 w-3.5 mr-1.5" /> Gruppo
+                  <UsersRound className="h-3.5 w-3.5 mr-1.5" /> {t("Gruppo")}
                 </Button>
               </div>
             </div>
@@ -2484,10 +2492,10 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                 </svg>
               </div>
               <h2 className="text-[28px] font-light text-[#41525d] dark:text-gray-300 mb-2">
-                Chat Team
+                {t("Chat Team")}
               </h2>
               <p className="text-[14px] text-[#8696a0] leading-relaxed">
-                Invia e ricevi messaggi dal tuo team. Crea gruppi di lavoro e comunica in tempo reale.
+                {t("Invia e ricevi messaggi dal tuo team. Crea gruppi di lavoro e comunica in tempo reale.")}
               </p>
             </div>
           </div>
@@ -2502,7 +2510,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                     compensa l'allargamento mantenendo l'allineamento visivo
                     rispetto al bordo sinistro dell'header. */}
                 <Button variant="ghost" size="icon" className="h-11 w-11 -ml-2 md:hidden shrink-0"
-                  onClick={() => setShowMobile(false)} aria-label="Torna alla lista chat">
+                  onClick={() => setShowMobile(false)} aria-label={t("Torna alla lista chat")}>
                   <ArrowLeft className="h-5 w-5" />
                 </Button>
                 {/* Avatar — v8.6.75 (LUCIA-FULL-REMOVAL): branch Lucia
@@ -2529,10 +2537,10 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                   </h3>
                   <p className="text-[12px] text-[#667781] dark:text-gray-400 truncate">
                     {typingUsers.length > 0
-                      ? `${typingUsers.join(", ")} sta scrivendo...`
+                      ? t("{nomi} sta scrivendo...", { nomi: typingUsers.join(", ") })
                       : selectedChannel.is_dm
-                        ? "Online"
-                        : `${channelMembers.length} partecipanti`}
+                        ? t("Online")
+                        : channelMembers.length === 1 ? t("{n} partecipante", { n: channelMembers.length }) : t("{n} partecipanti", { n: channelMembers.length })}
                   </p>
                 </div>
               </div>
@@ -2541,32 +2549,32 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                   <Button variant="ghost" size="sm"
                     className="h-9 gap-1.5 rounded-full px-3 text-orange-600 hover:bg-orange-50 hover:text-orange-700"
                     onClick={() => navigate("/azienda/silvio-ai")}
-                    title="Apri Silvio AI — conversazioni complete, documenti, attività">
-                    <Sparkles className="h-4 w-4" /> <span className="hidden sm:inline">Apri Silvio AI</span>
+                    title={t("Apri Silvio AI — conversazioni complete, documenti, attività")}>
+                    <Sparkles className="h-4 w-4" /> <span className="hidden sm:inline">{t("Apri Silvio AI")}</span>
                   </Button>
                 )}
                 <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-[#54656f] dark:text-gray-400"
-                  onClick={() => { setShowSearch((s) => !s); setMsgSearch(""); }} aria-label="Cerca nei messaggi">
+                  onClick={() => { setShowSearch((s) => !s); setMsgSearch(""); }} aria-label={t("Cerca nei messaggi")}>
                   <Search className="h-5 w-5" />
                 </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-[#54656f] dark:text-gray-400" aria-label="Opzioni conversazione">
+                    <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-[#54656f] dark:text-gray-400" aria-label={t("Opzioni conversazione")}>
                       <MoreVertical className="h-5 w-5" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={() => setShowSearch(true)}>
-                      <Search className="h-4 w-4 mr-2" /> Cerca nei messaggi
+                      <Search className="h-4 w-4 mr-2" /> {t("Cerca nei messaggi")}
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => toggleChannelPin(selectedChannel.id)}>
                       {membershipByChannel.get(selectedChannel.id)?.is_pinned
-                        ? <><PinOff className="h-4 w-4 mr-2" /> Togli dall'alto</>
-                        : <><Pin className="h-4 w-4 mr-2" /> Fissa in alto</>}
+                        ? <><PinOff className="h-4 w-4 mr-2" /> {t("Togli dall'alto")}</>
+                        : <><Pin className="h-4 w-4 mr-2" /> {t("Fissa in alto")}</>}
                     </DropdownMenuItem>
                     {!selectedChannel.is_dm && (
                       <DropdownMenuItem>
-                        <Users className="h-4 w-4 mr-2" /> Info gruppo
+                        <Users className="h-4 w-4 mr-2" /> {t("Info gruppo")}
                       </DropdownMenuItem>
                     )}
                   </DropdownMenuContent>
@@ -2582,7 +2590,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Cerca nei messaggi..."
+                    placeholder={t("Cerca nei messaggi...")}
                     value={msgSearch} onChange={(e) => setMsgSearch(e.target.value)}
                     inputMode="search"
                     enterKeyHint="search"
@@ -2590,13 +2598,13 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                     autoFocus
                   />
                   <button type="button" onClick={() => { setShowSearch(false); setMsgSearch(""); }}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2" aria-label="Chiudi ricerca messaggi">
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2" aria-label={t("Chiudi ricerca messaggi")}>
                     <X className="h-4 w-4 text-muted-foreground" />
                   </button>
                 </div>
                 {msgSearch && (
                   <p className="text-xs text-muted-foreground mt-1">
-                    {filteredMessages.length} risultati
+                    {t("{n} risultati", { n: filteredMessages.length })}
                   </p>
                 )}
               </div>
@@ -2618,8 +2626,8 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
             >
               {messagesError ? (
                 <div className="text-center py-12">
-                  <p className="text-sm text-destructive mb-3">Errore nel caricamento.</p>
-                  <Button variant="outline" size="sm" onClick={() => retryMessages()}>Riprova</Button>
+                  <p className="text-sm text-destructive mb-3">{t("Errore nel caricamento.")}</p>
+                  <Button variant="outline" size="sm" onClick={() => retryMessages()}>{t("Riprova")}</Button>
                 </div>
               ) : messages.length === 0 ? (
                 <div className="flex items-center justify-center h-full">
@@ -2630,7 +2638,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                       bianco + border slate per coerenza white-theme. */}
                   <div className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-3 shadow-sm max-w-md text-center">
                     <p className="text-[13px] text-slate-600 dark:text-gray-300">
-                      🔒 I messaggi in questa chat sono visibili solo ai partecipanti.
+                      🔒 {t("I messaggi in questa chat sono visibili solo ai partecipanti.")}
                     </p>
                   </div>
                 </div>
@@ -2655,7 +2663,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                         ) : (
                           <RefreshCw className="mr-2 h-3.5 w-3.5" />
                         )}
-                        Carica messaggi precedenti
+                        {t("Carica messaggi precedenti")}
                       </Button>
                     </div>
                   )}
@@ -2674,7 +2682,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                         {showDateSep && (
                           <div className="flex justify-center my-4">
                             <span className="bg-white dark:bg-[#202c33] text-[#54656f] dark:text-gray-400 text-[12px] font-medium px-3 py-1 rounded-lg shadow-sm">
-                              {formatDateSeparator(msg.created_at)}
+                              {t(formatDateSeparator(msg.created_at))}
                             </span>
                           </div>
                         )}
@@ -2704,7 +2712,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                             <span className="w-2 h-2 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: "300ms" }} />
                           </div>
                           <span className="text-xs text-violet-500">
-                            Silvio sta pensando...
+                            {t("Silvio sta pensando...")}
                           </span>
                         </div>
                       </div>
@@ -2723,12 +2731,12 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                   <div className="w-1 h-10 rounded-full bg-blue-600 shrink-0" />
                   <div className="min-w-0">
                     <p className="text-[12px] font-semibold" style={{ color: getColorHex(replyTo.sender_id) }}>
-                      {replyTo.sender_id === userId ? "Tu" : profileName(profileMap.get(replyTo.sender_id))}
+                      {replyTo.sender_id === userId ? t("Tu") : profileName(profileMap.get(replyTo.sender_id))}
                     </p>
                     <p className="text-[13px] text-[#667781] truncate">{replyTo.content.slice(0, 80)}</p>
                   </div>
                 </div>
-                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => setReplyTo(null)} aria-label="Annulla risposta">
+                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => setReplyTo(null)} aria-label={t("Annulla risposta")}>
                   <X className="h-4 w-4" />
                 </Button>
               </div>
@@ -2743,7 +2751,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                     <span className="w-1 h-1 rounded-full bg-[#667781] animate-bounce" style={{ animationDelay: "150ms" }} />
                     <span className="w-1 h-1 rounded-full bg-[#667781] animate-bounce" style={{ animationDelay: "300ms" }} />
                   </span>
-                  {typingUsers.join(", ")} {typingUsers.length === 1 ? "sta" : "stanno"} scrivendo…
+                  {typingUsers.length === 1 ? t("{nomi} sta scrivendo…", { nomi: typingUsers.join(", ") }) : t("{nomi} stanno scrivendo…", { nomi: typingUsers.join(", ") })}
                 </p>
               </div>
             )}
@@ -2754,7 +2762,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                   <div className="flex min-w-0 items-start gap-2">
                     <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                     <p className="min-w-0">
-                      Silvio non ha completato la risposta: <span className="font-medium">{silvioError}</span>
+                      {t("Silvio non ha completato la risposta:")} <span className="font-medium">{silvioError}</span>
                     </p>
                   </div>
                   <div className="flex shrink-0 gap-2">
@@ -2767,7 +2775,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                         onClick={() => sendToSilvio(lastSilvioPrompt)}
                         disabled={aiTyping}
                       >
-                        Riprova
+                        {t("Riprova")}
                       </Button>
                     )}
                     <Button
@@ -2777,7 +2785,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                       className="h-8 text-orange-700 hover:bg-orange-100"
                       onClick={() => setSilvioError(null)}
                     >
-                      Chiudi
+                      {t("Chiudi")}
                     </Button>
                   </div>
                 </div>
@@ -2820,8 +2828,8 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                       variant="ghost"
                       size="icon"
                       className="h-9 w-9 rounded-full text-orange-600 hover:text-orange-700 hover:bg-orange-100 shrink-0"
-                      title="Skill di Silvio (azioni rapide)"
-                      aria-label="Apri skill rapide di Silvio"
+                      title={t("Skill di Silvio (azioni rapide)")}
+                      aria-label={t("Apri skill rapide di Silvio")}
                     >
                       <Plus className="h-6 w-6" strokeWidth={2.4} />
                     </Button>
@@ -2836,9 +2844,9 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                     <div className="bg-gradient-to-br from-orange-500 to-eic-amber px-3 py-2 text-white shrink-0">
                       <div className="flex items-center gap-2">
                         <Sparkles className="h-4 w-4" fill="currentColor" />
-                        <p className="text-xs font-semibold">Skill rapide di Silvio</p>
+                        <p className="text-xs font-semibold">{t("Skill rapide di Silvio")}</p>
                       </div>
-                      <p className="text-[10px] opacity-90 leading-tight">Click su una skill → riempie il messaggio</p>
+                      <p className="text-[10px] opacity-90 leading-tight">{t("Click su una skill → riempie il messaggio")}</p>
                     </div>
                     <div className="overflow-y-auto p-2 space-y-3 flex-1">
                       {(["data", "doc", "operations", "advisor"] as const).map((cat) => {
@@ -2847,7 +2855,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                         return (
                           <div key={cat}>
                             <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 px-1.5 mb-1">
-                              {SILVIO_SKILL_CATEGORY_LABELS[cat]}
+                              {t(SILVIO_SKILL_CATEGORY_LABELS[cat])}
                             </p>
                             <div className="space-y-0.5">
                               {items.map((skill) => (
@@ -2863,9 +2871,9 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                                   <span className="text-base shrink-0 mt-0.5">{skill.emoji}</span>
                                   <div className="flex-1 min-w-0">
                                     <p className="text-[12px] font-semibold text-slate-800 group-hover:text-orange-700 leading-tight">
-                                      {skill.label}
+                                      {t(skill.label)}
                                     </p>
-                                    <p className="text-[10px] text-slate-500 leading-tight truncate">{skill.hint}</p>
+                                    <p className="text-[10px] text-slate-500 leading-tight truncate">{t(skill.hint)}</p>
                                   </div>
                                 </button>
                               ))}
@@ -2892,7 +2900,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                     // Mobile no: la tastiera del telefono ha già le emoji.
                     className="h-10 w-10 rounded-full shrink-0 transition-colors text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30 max-md:hidden"
                     type="button"
-                    aria-label="Inserisci emoji"
+                    aria-label={t("Inserisci emoji")}
                   >
                     <Smile className="h-5 w-5" />
                   </Button>
@@ -2902,8 +2910,8 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                 className="h-10 w-10 rounded-full shrink-0 transition-colors text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30"
                 onClick={() => isSilvioChannel ? silvioImageInputRef.current?.click() : attachInputRef.current?.click()}
                 disabled={isAttaching || silvioUploading}
-                title={isSilvioChannel ? "Carica foto cantiere o fattura" : "Invia allegato"}
-                aria-label={isSilvioChannel ? "Carica foto cantiere o fattura" : "Invia allegato"}
+                title={isSilvioChannel ? t("Carica foto cantiere o fattura") : t("Invia allegato")}
+                aria-label={isSilvioChannel ? t("Carica foto cantiere o fattura") : t("Invia allegato")}
               >
                 {(isAttaching || silvioUploading) ? <Loader2 className="h-5 w-5 animate-spin" /> : <Paperclip className="h-5 w-5" />}
               </Button>
@@ -2937,7 +2945,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                     capitalizzazione naturale italiana. */}
                 <textarea
                   ref={newMsgTextareaRef}
-                  placeholder={isSilvioChannel ? "Scrivi a Silvio..." : "Scrivi un messaggio"}
+                  placeholder={isSilvioChannel ? t("Scrivi a Silvio...") : t("Scrivi un messaggio")}
                   value={newMsg}
                   onChange={(e) => { setNewMsg(e.target.value); broadcastTyping(); }}
                   onKeyDown={handleKeyDown}
@@ -2963,7 +2971,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                   onClick={handleSend}
                   disabled={sendMutation.isPending || aiTyping}
                   size="icon"
-                  aria-label={isAIChannel ? "Invia messaggio a Silvio" : "Invia messaggio"}
+                  aria-label={isAIChannel ? t("Invia messaggio a Silvio") : t("Invia messaggio")}
                   className={cn(
                     // v8.6.75 (LOOP-CHAT-ADMIN Round 6 / SLATE-THEME):
                     // Send button BLU UNIFORME (compose bar uniforme blu,
@@ -2996,12 +3004,12 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                         : "text-[#54656f]"
                   )}
                   title={
-                    isRecording ? "Stop registrazione" :
-                    isTranscribing ? "Trascrivendo…" : "Registra messaggio vocale"
+                    isRecording ? t("Stop registrazione") :
+                    isTranscribing ? t("Trascrivendo…") : t("Registra messaggio vocale")
                   }
                   aria-label={
-                    isRecording ? "Ferma registrazione" :
-                    isTranscribing ? "Trascrizione in corso" : "Registra messaggio vocale"
+                    isRecording ? t("Ferma registrazione") :
+                    isTranscribing ? t("Trascrizione in corso") : t("Registra messaggio vocale")
                   }
                 >
                   {isTranscribing ? (
@@ -3029,40 +3037,40 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <UsersRound className="h-5 w-5 text-[#00a884]" /> Nuovo Gruppo
+              <UsersRound className="h-5 w-5 text-[#00a884]" /> {t("Nuovo Gruppo")}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label>Nome gruppo</Label>
+              <Label>{t("Nome gruppo")}</Label>
               <Input value={channelName} onChange={(e) => setChannelName(e.target.value)}
-                placeholder="es. Team Cantiere, Ufficio Tecnico" className="mt-1" />
+                placeholder={t("es. Team Cantiere, Ufficio Tecnico")} className="mt-1" />
             </div>
             <div>
-              <Label>Descrizione</Label>
+              <Label>{t("Descrizione")}</Label>
               <Input value={channelDesc} onChange={(e) => setChannelDesc(e.target.value)}
-                placeholder="Opzionale" className="mt-1" />
+                placeholder={t("Opzionale")} className="mt-1" />
             </div>
             <div>
-              <Label>Partecipanti</Label>
+              <Label>{t("Partecipanti")}</Label>
               <div className="relative mt-1">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   value={memberDialogSearch}
                   onChange={(e) => setMemberDialogSearch(e.target.value)}
-                  placeholder="Cerca nome o email"
+                  placeholder={t("Cerca nome o email")}
                   className="pl-9"
                 />
               </div>
               <ScrollArea className="h-[200px] border rounded-lg p-2 mt-1">
                 {groupProfileOptions.length === 0 ? (
                   <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-                    Nessun partecipante trovato.
+                    {t("Nessun partecipante trovato.")}
                   </div>
                 ) : groupProfileOptions.map((p) => (
                   <label key={p.id} className="flex items-center gap-3 py-2 px-2 hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg cursor-pointer">
                     <Checkbox
-                      aria-label={`Seleziona ${profileName(p)}`}
+                      aria-label={t("Seleziona {nome}", { nome: profileName(p) })}
                       checked={selectedMembers.includes(p.id)}
                       onCheckedChange={(checked) => {
                         setSelectedMembers((prev) =>
@@ -3085,12 +3093,12 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
               </ScrollArea>
               {selectedMembers.length > 0 && (
                 <p className="text-xs text-[#00a884] mt-1 font-medium">
-                  {selectedMembers.length} selezionati
+                  {t("{n} selezionati", { n: selectedMembers.length })}
                 </p>
               )}
               {selectedMembers.length === 0 && (
                 <p className="text-xs text-muted-foreground mt-1">
-                  Puoi creare il gruppo ora e aggiungere persone in seguito.
+                  {t("Puoi creare il gruppo ora e aggiungere persone in seguito.")}
                 </p>
               )}
             </div>
@@ -3101,7 +3109,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
               onClick={() => createChannelMutation.mutate()}
               className="bg-[#00a884] hover:bg-[#008f72]"
             >
-              <UsersRound className="h-4 w-4 mr-2" /> Crea Gruppo
+              <UsersRound className="h-4 w-4 mr-2" /> {t("Crea Gruppo")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -3115,17 +3123,17 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <MessageCircle className="h-5 w-5 text-[#00a884]" /> Nuovo messaggio interno
+              <MessageCircle className="h-5 w-5 text-[#00a884]" /> {t("Nuovo messaggio interno")}
             </DialogTitle>
           </DialogHeader>
           <div>
-            <Label>Seleziona persona aziendale</Label>
+            <Label>{t("Seleziona persona aziendale")}</Label>
             <div className="relative mt-2">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={dmDialogSearch}
                 onChange={(e) => setDmDialogSearch(e.target.value)}
-                placeholder="Cerca nome o email"
+                placeholder={t("Cerca nome o email")}
                 className="pl-9"
               />
             </div>
@@ -3133,14 +3141,14 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
               {dmProfileOptions.length === 0 ? (
                 <div className="px-4 py-8 text-center text-sm text-muted-foreground">
                   {dmDialogSearch
-                    ? "Nessuna persona trovata."
-                    : "Nessuna persona interna disponibile. I clienti non vengono mostrati nella chat aziendale."}
+                    ? t("Nessuna persona trovata.")
+                    : t("Nessuna persona interna disponibile. I clienti non vengono mostrati nella chat aziendale.")}
                 </div>
               ) : dmProfileOptions.map((p) => (
                 <button
                   key={p.id}
                   onClick={() => createDm(p.id)}
-                  aria-label={`Apri chat con ${profileName(p)}`}
+                  aria-label={t("Apri chat con {nome}", { nome: profileName(p) })}
                   className="w-full flex items-center gap-3 py-3 px-3 hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg text-left transition-colors"
                 >
                   <Avatar className="h-11 w-11">
@@ -3163,13 +3171,13 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
       <AlertDialog open={!!messageToDelete} onOpenChange={(open) => !open && setMessageToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare il messaggio?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Eliminare il messaggio?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Il messaggio verrà rimosso dalla conversazione. L'operazione è consentita solo per i messaggi inviati da te.
+              {t("Il messaggio verrà rimosso dalla conversazione. L'operazione è consentita solo per i messaggi inviati da te.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteMessageMutation.isPending}>Annulla</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleteMessageMutation.isPending}>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-red-600 hover:bg-red-700"
               disabled={!messageToDelete || deleteMessageMutation.isPending}
@@ -3183,7 +3191,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
               ) : (
                 <Trash2 className="h-4 w-4 mr-2" />
               )}
-              Elimina
+              {t("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

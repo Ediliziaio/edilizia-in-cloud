@@ -1,58 +1,66 @@
 /**
- * Tesserino digitale — card con dati operaio + QR code (user ID).
- * Il QR viene generato client-side con la lib qrcode.
+ * Tesserino digitale — card con i dati dell'operaio e un QR che si può verificare.
+ *
+ * 23/11/2026: prima il QR conteneva un testo con l'id dell'account e il nome. Non portava a nessuna pagina e
+ * chiunque poteva scriverne uno uguale. Ora contiene l'indirizzo /tesserino#<codice>: chi controlla in cantiere lo
+ * inquadra con la fotocamera e vede se il lavoratore è in forza e se formazione e idoneità sono valide
+ * (`verifica_tesserino`). Il codice lo dà il database (`campo_mio_tesserino`), legato alla scheda del personale:
+ * senza scheda niente QR, e la pagina dice di chiedere all'ufficio.
  */
 import { useEffect, useRef, useState } from "react";
-import { HardHat, Building2, Download, Loader2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Building2, Download, ExternalLink, HardHat, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { useMyHrProfilo } from "@/hooks/useTimbratura";
+import { useLinguaCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { indirizzoVerificaTesserino } from "@/lib/campo/tesserino";
 
 export default function CampoTesserino() {
+  const { t, lingua } = useLinguaCampo();
   const { user, profile, role, company, effectiveCompany } = useAuth();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [qrReady, setQrReady] = useState(false);
   const [qrError, setQrError] = useState(false);
 
-  const p = profile as any;
+  const p = profile as { first_name?: string | null; last_name?: string | null; avatar_url?: string | null } | null;
   const nome = [p?.first_name, p?.last_name].filter(Boolean).join(" ") || user?.email || "—";
   const initials = [p?.first_name?.[0], p?.last_name?.[0]].filter(Boolean).join("").toUpperCase() || "?";
-  // La ragione sociale vive su useAuth().company: AuthContext RIMUOVE `company`
-  // dall'oggetto profile, quindi p?.company?.name era sempre undefined e il
-  // tesserino mostrava "Edilizia in Cloud" al posto dell'azienda vera.
+  // La ragione sociale vive su useAuth().company: AuthContext RIMUOVE `company` dall'oggetto profile.
   const companyName = (effectiveCompany ?? company)?.name ?? "Edilizia in Cloud";
   const isSubappaltatore = role === "subcontractor";
-  // Il tesserino lo EMETTE l'ufficio: i dati (matricola, mansione, foto,
-  // assunzione) vengono dalla scheda HR compilata dall'admin nel modulo
-  // Personale. Qui si mostrano soltanto.
+  // Il tesserino lo EMETTE l'ufficio: matricola, mansione, foto e assunzione vengono dalla scheda del personale.
   const { data: hrProfilo } = useMyHrProfilo();
   const hr = hrProfilo as {
     matricola?: string | null;
     mansione?: string | null;
     foto_url?: string | null;
     data_assunzione?: string | null;
-    tipo_contratto?: string | null;
   } | null;
-  const mansione = hr?.mansione ?? (isSubappaltatore ? "Subappaltatore" : "Operaio");
+  const foto = hr?.foto_url || p?.avatar_url || null;
+  const mansione = hr?.mansione ?? t(isSubappaltatore ? "Subappaltatore" : "Operaio");
   const assuntoIl = hr?.data_assunzione
-    ? new Date(hr.data_assunzione).toLocaleDateString("it-IT", { month: "2-digit", year: "numeric" })
+    ? new Date(hr.data_assunzione).toLocaleDateString(lingua.locale, { month: "2-digit", year: "numeric" })
     : null;
 
+  const codice = useQuery({
+    queryKey: ["campo-mio-tesserino", user?.id],
+    enabled: !!user?.id,
+    staleTime: 60 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("campo_mio_tesserino");
+      if (error) throw error;
+      return (data as string | null) ?? null;
+    },
+  });
+  const indirizzo = codice.data ? indirizzoVerificaTesserino(window.location.origin, codice.data) : null;
 
   useEffect(() => {
-    if (!user?.id || !canvasRef.current) return;
-
+    if (!indirizzo || !canvasRef.current) return;
+    setQrReady(false);
     import("qrcode")
       .then(QRCode => {
-        // Payload strutturato con versione schema e scadenza 24h
-        const qrPayload = JSON.stringify({
-          v: 1,
-          uid: user.id,
-          cid: profile?.company_id,
-          nome: `${profile?.first_name} ${profile?.last_name}`,
-          ruolo: isSubappaltatore ? "subcontractor" : "employee",
-          exp: Date.now() + 24 * 60 * 60 * 1000,
-        });
-        QRCode.toCanvas(canvasRef.current!, qrPayload, {
+        QRCode.toCanvas(canvasRef.current!, indirizzo, {
           width: 180,
           margin: 1,
           color: { dark: "#0f172a", light: "#f1f5f9" },
@@ -62,179 +70,141 @@ export default function CampoTesserino() {
         });
       })
       .catch(() => setQrError(true));
-  }, [user?.id]);
+  }, [indirizzo]);
 
   const handleDownload = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
-    // Create a larger canvas with the card design
     const out = document.createElement("canvas");
     out.width = 600;
     out.height = 380;
     const ctx = out.getContext("2d")!;
-
-    // Background
     ctx.fillStyle = "#0f172a";
     ctx.beginPath();
     ctx.roundRect(0, 0, 600, 380, 20);
     ctx.fill();
-
-    // Amber accent bar
     ctx.fillStyle = "#f59e0b";
     ctx.beginPath();
     ctx.roundRect(0, 0, 600, 8, [20, 20, 0, 0]);
     ctx.fill();
-
-    // Name
     ctx.fillStyle = "#ffffff";
     ctx.font = "bold 28px Arial";
     ctx.fillText(nome, 30, 70);
-
-    // Mansione (dalla scheda HR)
     ctx.fillStyle = "#f59e0b";
     ctx.font = "16px Arial";
     ctx.fillText(mansione, 30, 100);
-
-    // Company
     ctx.fillStyle = "#94a3b8";
     ctx.font = "14px Arial";
     ctx.fillText(companyName, 30, 130);
     if (hr?.matricola) {
       ctx.fillStyle = "#e2e8f0";
       ctx.font = "13px monospace";
-      ctx.fillText(`Matricola ${hr.matricola}`, 30, 156);
+      ctx.fillText(`${t("Matricola")} ${hr.matricola}`, 30, 156);
     }
-
-    // QR code
     ctx.drawImage(canvas, 390, 80, 180, 180);
-
-    // ID
-    ctx.fillStyle = "#64748b";
-    ctx.font = "10px monospace";
-    ctx.fillText(`ID: ${user?.id?.slice(0, 8)}`, 30, 340);
-
-    const url = out.toDataURL("image/png");
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = "12px Arial";
+    ctx.fillText(t("Inquadra il QR per verificare"), 390, 285);
     const a = document.createElement("a");
-    a.href = url;
+    a.href = out.toDataURL("image/png");
     a.download = `tesserino-${nome.replace(/\s+/g, "-").toLowerCase()}.png`;
     a.click();
   };
 
   return (
-    // min-h-full (non h-full): con h-full + justify-center il contenuto più
-    // alto del viewport veniva centrato sbordando anche SOPRA l'area
-    // scrollabile — la parte alta della card era irraggiungibile.
-    <div className="flex min-h-full flex-col items-center justify-center px-4 py-6 gap-6">
-
-      {/* Card tesserino */}
-      <div className="w-full max-w-sm bg-muted rounded-3xl overflow-hidden border border-border shadow-2xl">
-        {/* Amber top bar */}
+    // min-h-full (non h-full): con h-full + justify-center la parte alta della card era irraggiungibile.
+    <div className="flex min-h-full flex-col items-center justify-center gap-6 py-3 md:px-4 md:py-6">
+      <div className="w-full max-w-sm overflow-hidden rounded-3xl border border-border bg-muted shadow-2xl">
         <div className="h-2 bg-primary" />
-
         <div className="p-6">
-          {/* Header */}
-          <div className="flex items-center gap-2 mb-6">
-            <HardHat className="w-5 h-5 text-primary" />
-            <span className="truncate text-xs text-primary font-semibold uppercase tracking-widest">
-              {companyName}
-            </span>
+          <div className="mb-6 flex items-center gap-2">
+            <HardHat className="size-5 text-primary" aria-hidden="true" />
+            <span dir="auto" className="truncate text-xs font-semibold uppercase tracking-widest text-primary">{companyName}</span>
           </div>
 
           <div className="flex gap-4">
-            {/* Left: dati */}
-            <div className="flex-1">
-              {/* Avatar */}
-              {hr?.foto_url ? (
-                <img
-                  src={hr.foto_url}
-                  alt={`Foto di ${nome}`}
-                  className="mb-3 h-16 w-16 rounded-2xl object-cover"
-                />
+            <div className="min-w-0 flex-1">
+              {foto ? (
+                <img src={foto} alt={t("Foto di {nome}", { nome })} className="mb-3 size-16 rounded-2xl object-cover" />
               ) : (
-                <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center mb-3">
+                <div className="mb-3 flex size-16 items-center justify-center rounded-2xl bg-primary">
                   <span className="text-2xl font-bold text-primary-foreground">{initials}</span>
                 </div>
               )}
-
-              <p className="text-xl font-bold text-foreground leading-tight">{nome}</p>
-              <div className="flex items-center gap-1 mt-1">
-                {isSubappaltatore ? (
-                  <Building2 className="w-3.5 h-3.5 text-primary" />
-                ) : (
-                  <HardHat className="w-3.5 h-3.5 text-primary" />
-                )}
+              <p dir="auto" className="text-xl font-bold leading-tight text-foreground">{nome}</p>
+              <div className="mt-1 flex items-center gap-1">
+                {isSubappaltatore
+                  ? <Building2 className="size-3.5 text-primary" aria-hidden="true" />
+                  : <HardHat className="size-3.5 text-primary" aria-hidden="true" />}
                 <span className="text-sm text-primary">{mansione}</span>
               </div>
-
-              <p className="text-xs text-muted-foreground mt-2">{companyName}</p>
-
+              <p dir="auto" className="mt-2 text-xs text-muted-foreground">{companyName}</p>
               {hr?.matricola && (
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Matricola <span className="font-mono font-semibold text-foreground">{hr.matricola}</span>
+                  {t("Matricola")} <span className="font-mono font-semibold text-foreground">{hr.matricola}</span>
                 </p>
               )}
-              {assuntoIl && (
-                <p className="mt-0.5 text-xs text-muted-foreground">In forza dal {assuntoIl}</p>
-              )}
-
-              {user?.email && (
-                <p className="text-xs text-muted-foreground mt-1 break-all">{user.email}</p>
-              )}
+              {assuntoIl && <p className="mt-0.5 text-xs text-muted-foreground">{t("In forza dal {data}", { data: assuntoIl })}</p>}
             </div>
 
-            {/* Right: QR code */}
-            <div className="flex flex-col items-center justify-center">
-              <div className="bg-slate-100 rounded-xl p-1.5">
-                <canvas
-                  ref={canvasRef}
-                  className={qrReady ? "block" : "hidden"}
-                  style={{ width: 90, height: 90 }}
-                />
-                {!qrReady && !qrError && (
-                  <div className="w-[90px] h-[90px] flex items-center justify-center">
-                    <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-                  </div>
-                )}
-                {qrError && (
-                  <div className="w-[90px] h-[90px] flex items-center justify-center">
-                    <p className="text-[10px] text-muted-foreground text-center">QR non disponibile</p>
-                  </div>
-                )}
+            {indirizzo && (
+              <div className="flex flex-col items-center justify-center">
+                <div className="rounded-xl bg-slate-100 p-1.5">
+                  <canvas ref={canvasRef} className={qrReady ? "block" : "hidden"} style={{ width: 90, height: 90 }}
+                    aria-label={t("QR per verificare il tesserino")} role="img" />
+                  {!qrReady && !qrError && (
+                    <div className="flex size-[90px] items-center justify-center">
+                      <Loader2 className="size-6 animate-spin text-muted-foreground" aria-hidden="true" />
+                    </div>
+                  )}
+                  {qrError && (
+                    <div className="flex size-[90px] items-center justify-center">
+                      <p className="text-center text-[10px] text-muted-foreground">{t("QR non disponibile")}</p>
+                    </div>
+                  )}
+                </div>
+                <p className="mt-1 text-center text-[10px] text-muted-foreground">{t("Scansiona per verificare")}</p>
               </div>
-              <p className="text-[10px] text-muted-foreground mt-1">Scansiona per verifica</p>
-            </div>
-          </div>
-
-          {/* ID footer */}
-          <div className="mt-4 pt-3 border-t border-border">
-            <p className="text-[10px] text-muted-foreground font-mono">
-              ID: {user?.id?.slice(0, 16)}...
-            </p>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Download button */}
-      <button
-        onClick={handleDownload}
-        disabled={!qrReady}
-        className="flex items-center gap-2 bg-muted text-foreground font-medium px-6 py-3 rounded-xl disabled:opacity-40 active:scale-[0.98] transition-transform"
-      >
-        <Download className="w-4 h-4" />
-        Salva immagine
-      </button>
+      {codice.isSuccess && !codice.data && (
+        <p className="max-w-xs rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-center text-xs text-amber-900">
+          {t("Il QR per la verifica compare quando l'ufficio collega il tuo account alla tua scheda nel modulo Personale.")}
+        </p>
+      )}
+      {codice.isError && (
+        <button type="button" onClick={() => void codice.refetch()} className="min-h-11 rounded-xl border px-4 text-sm font-semibold">
+          {t("QR non disponibile. Riprova")}
+        </button>
+      )}
+
+      {indirizzo && (
+        <div className="flex flex-wrap justify-center gap-2">
+          <button type="button" onClick={handleDownload} disabled={!qrReady}
+            className="flex min-h-11 items-center gap-2 rounded-xl bg-muted px-5 font-medium text-foreground transition-transform active:scale-[0.98] disabled:opacity-40">
+            <Download className="size-4" aria-hidden="true" /> {t("Salva immagine")}
+          </button>
+          <a href={indirizzo} target="_blank" rel="noreferrer"
+            className="flex min-h-11 items-center gap-2 rounded-xl border px-5 font-medium text-foreground">
+            <ExternalLink className="size-4" aria-hidden="true" /> {t("Vedi cosa vede chi controlla")}
+          </a>
+        </div>
+      )}
 
       {!hr && (
         <p className="max-w-xs rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-center text-xs text-amber-800">
-          Matricola, mansione e foto compaiono quando l'ufficio completa la tua
-          scheda nel modulo Personale.
+          {t("Matricola, mansione e foto compaiono quando l'ufficio completa la tua scheda nel modulo Personale.")}
         </p>
       )}
 
-      <p className="text-xs text-muted-foreground text-center max-w-xs">
-        Il codice QR può essere scansionato in cantiere per verificare la tua identità.
-      </p>
+      {indirizzo && (
+        <p className="max-w-xs text-center text-xs text-muted-foreground">
+          {t("Chi controlla in cantiere inquadra il QR con la fotocamera: vede se sei in regola con formazione e visita medica. Non vede i tuoi documenti.")}
+        </p>
+      )}
     </div>
   );
 }

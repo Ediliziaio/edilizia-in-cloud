@@ -55,7 +55,9 @@ import {
   Trash2,
   UserCheck,
   FileText,
+  HeartPulse,
 } from "lucide-react";
+import { RegistroEventiSicurezza } from "@/components/sicurezza/RegistroEventiSicurezza";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -108,6 +110,7 @@ const SCHEDE = [
   "verbali",
   "subappaltatori",
   "scadenzario",
+  "eventi",
 ];
 
 export default function SicurezzaCantiere() {
@@ -1007,6 +1010,10 @@ export default function SicurezzaCantiere() {
           <TabsTrigger value="scadenzario" className="shrink-0 gap-1.5">
             <CalendarClock className="h-4 w-4" /> Scadenze
           </TabsTrigger>
+          {/* Infortuni e quasi-incidenti segnalati dagli operai (23/11/2026). */}
+          <TabsTrigger value="eventi" className="shrink-0 gap-1.5">
+            <HeartPulse className="h-4 w-4" /> Infortuni
+          </TabsTrigger>
         </TabsList>
 
         {/* ───── DOCUMENTI: archivio di tutti i cantieri (PSC, notifica, PiMUS, DURC…) ───── */}
@@ -1612,6 +1619,10 @@ export default function SicurezzaCantiere() {
               ]}
             />
           )}
+        </TabsContent>
+
+        <TabsContent value="eventi" className="mt-4 max-sm:mt-3">
+          {companyId && <RegistroEventiSicurezza companyId={companyId} puoScrivere={canWrite} />}
         </TabsContent>
       </Tabs>
 

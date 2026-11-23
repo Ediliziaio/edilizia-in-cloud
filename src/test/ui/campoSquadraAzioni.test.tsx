@@ -70,8 +70,8 @@ describe("Squadra di oggi: il capo agisce", () => {
     ];
     render(<CampoSquadra />);
     expect(screen.getByRole("heading", { name: "Fine giornata" })).toBeInTheDocument();
-    expect(screen.getByText("1/2")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "2 Ore da verificare" }));
+    expect(screen.getByText("1 di 2")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "2 Persone con ore da verificare" }));
     expect(screen.getByText("Ion Popescu")).toBeInTheDocument();
     expect(screen.getByText("Marco Ancora Dentro")).toBeInTheDocument();
     expect(screen.queryByText("Paolo Ore Complete")).not.toBeInTheDocument();

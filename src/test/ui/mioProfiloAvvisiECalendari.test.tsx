@@ -137,7 +137,7 @@ describe("Il mio profilo: gli avvisi si regolano in un posto solo", () => {
     stato.telefono = true;
     apri("/campo/impostazioni?tab=notifiche");
     expect(await screen.findByRole("heading", { level: 2, name: "Avvisi" })).toBeInTheDocument();
-    expect(schede()).toEqual(["Profilo", "Sicurezza", "Calendari", "Email", "Notifiche"]);
+    expect(schede()).toEqual(["Profilo", "Sicurezza", "Calendari", "Email", "Notifiche", "Lingua"]);
   });
 
   it("nel team della piattaforma la scheda c'è e porta anche «Su questo dispositivo»", async () => {

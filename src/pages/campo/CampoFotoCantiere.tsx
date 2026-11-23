@@ -20,10 +20,12 @@ import { useFotoCantiere } from "@/hooks/useFotoCantiere";
 import { useOfflineSync } from "@/hooks/campo/useOfflineSync";
 import { ScattaFoto } from "@/components/campo/ScattaFoto";
 import { FotoGrid } from "@/components/foto-cantiere/FotoGrid";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export default function CampoFotoCantiere() {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
+  const t = useT();
   const { queueCount } = useOfflineSync();
   const { foto, isLoading, elimina, getSignedUrl } = useFotoCantiere(orderId);
 
@@ -47,7 +49,7 @@ export default function CampoFotoCantiere() {
       <div className="sticky top-0 z-10 flex items-center gap-2 border-b bg-background/95 px-2 py-2 backdrop-blur">
         <button
           onClick={() => navigate(`/campo/lavoro/${orderId}`)}
-          aria-label="Torna al lavoro"
+          aria-label={t("Torna al lavoro")}
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl active:bg-muted max-md:hidden"
         >
           <ArrowLeft className="h-5 w-5" />
@@ -55,7 +57,7 @@ export default function CampoFotoCantiere() {
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1.5 text-sm font-semibold">
             <Camera className="h-4 w-4 shrink-0 text-primary" />
-            Foto cantiere
+            {t("Foto cantiere")}
           </p>
           {nomeCantiere && (
             <p className="truncate text-xs text-muted-foreground">{nomeCantiere}</p>
@@ -64,26 +66,26 @@ export default function CampoFotoCantiere() {
         {queueCount > 0 && (
           <span className="flex shrink-0 items-center gap-1 rounded-full bg-amber-500/15 px-2 py-1 text-xs font-semibold text-amber-700">
             <WifiOff className="h-3.5 w-3.5" />
-            {queueCount} in attesa
+            {t("{n} in attesa", { n: queueCount })}
           </span>
         )}
       </div>
 
-      <div className="space-y-4 p-3">
+      <div className="space-y-3 py-3 md:space-y-4 md:p-3">
         {orderId && (
           <div className="grid grid-cols-2 gap-2">
             <ScattaFoto orderId={orderId} nomeCantiere={nomeCantiere} className="min-h-14 rounded-xl bg-primary text-sm text-primary-foreground">
-              <Camera className="h-5 w-5" aria-hidden="true" />Scatta
+              <Camera className="h-5 w-5" aria-hidden="true" />{t("Scatta")}
             </ScattaFoto>
             <ScattaFoto orderId={orderId} nomeCantiere={nomeCantiere} galleria className="min-h-14 rounded-xl border text-sm">
-              <ImageIcon className="h-5 w-5" aria-hidden="true" />Galleria
+              <ImageIcon className="h-5 w-5" aria-hidden="true" />{t("Galleria")}
             </ScattaFoto>
           </div>
         )}
 
         <div>
           <p className="mb-2 text-sm font-semibold text-muted-foreground">
-            {foto.length > 0 ? `${foto.length} foto su questa commessa` : "Nessuna foto"}
+            {foto.length > 0 ? t("{n} foto su questa commessa", { n: foto.length }) : t("Nessuna foto")}
           </p>
           <FotoGrid
             foto={foto}

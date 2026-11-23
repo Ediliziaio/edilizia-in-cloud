@@ -9,6 +9,7 @@ import { Mic, Square, Play, Pause, RotateCcw, Check, Loader2 } from "lucide-reac
 import type { JSX } from "react";
 import { CAMPO_AUDIO_MAX_SECONDI, CAMPO_AUDIO_MIN_SECONDI } from "@/lib/campo/dettaTesto";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import "./CampoAudioRecorder.css";
 
 // Un solo limite per registratore e server: prima il registratore si fermava a 2 minuti e il hook ne accettava 30.
@@ -50,9 +51,10 @@ function formatTime(sec: number): string {
 export default function CampoAudioRecorder({
   onConfirm,
   disabled,
-  confirmLabel = 'Usa questo',
+  confirmLabel,
   confirmAvailable = true,
 }: CampoAudioRecorderProps): JSX.Element {
+  const tr = useT();
   const [state, setState] = useState<RecorderState>("idle");
   const [elapsed, setElapsed] = useState(0);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -197,7 +199,7 @@ export default function CampoAudioRecorder({
     setState("requesting");
 
     if (typeof MediaRecorder === "undefined" || typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
-      setErrorMsg("Registrazione audio non supportata su questo dispositivo");
+      setErrorMsg(tr("Registrazione audio non supportata su questo dispositivo"));
       setState("error");
       stateRef.current = "error";
       return;
@@ -234,7 +236,7 @@ export default function CampoAudioRecorder({
           runRef.current += 1;
           disposeRecording();
           stateRef.current = "error";
-          setErrorMsg("Registrazione vuota. Riprova.");
+          setErrorMsg(tr("Registrazione vuota. Riprova."));
           setState("error");
           return;
         }
@@ -250,7 +252,7 @@ export default function CampoAudioRecorder({
         if (!isCurrent()) return;
         runRef.current += 1;
         disposeRecording();
-        setErrorMsg("Errore durante la registrazione");
+        setErrorMsg(tr("Errore durante la registrazione"));
         stateRef.current = "error";
         setState("error");
       };
@@ -277,14 +279,14 @@ export default function CampoAudioRecorder({
       const error = err as DOMException;
       if (error.name === "NotAllowedError") {
         setErrorMsg(
-          "Permesso microfono negato. Attiva il microfono nelle impostazioni del browser.",
+          tr("Permesso microfono negato. Attiva il microfono nelle impostazioni del browser."),
         );
       } else if (error.name === "NotFoundError") {
-        setErrorMsg("Microfono non trovato sul dispositivo.");
+        setErrorMsg(tr("Microfono non trovato sul dispositivo."));
       } else if (error.name === "NotReadableError") {
-        setErrorMsg("Il microfono è occupato. Chiudi le altre app che lo usano e riprova.");
+        setErrorMsg(tr("Il microfono è occupato. Chiudi le altre app che lo usano e riprova."));
       } else {
-        setErrorMsg("Impossibile accedere al microfono");
+        setErrorMsg(tr("Impossibile accedere al microfono"));
       }
       setState("error");
       stateRef.current = "error";
@@ -302,7 +304,7 @@ export default function CampoAudioRecorder({
         disposeRecording();
         stateRef.current = "error";
         setState("error");
-        setErrorMsg("Errore durante la registrazione. Riprova.");
+        setErrorMsg(tr("Errore durante la registrazione. Riprova."));
       }
     }
   };
@@ -345,7 +347,7 @@ export default function CampoAudioRecorder({
         if (mountedRef.current && runRef.current === run && playRunRef.current === playRun) {
           playbackWantedRef.current = false;
           setIsPlaying(false);
-          setErrorMsg("Non riesco a riascoltare. Puoi usare l’audio o registrarlo di nuovo.");
+          setErrorMsg(tr("Non riesco a riascoltare. Puoi usare l’audio o registrarlo di nuovo."));
         }
       } finally {
         if (playRunRef.current === playRun) playingRequestRef.current = false;
@@ -367,7 +369,7 @@ export default function CampoAudioRecorder({
     try {
       await onConfirm(audioBlob, durationRef.current, mimeRef.current);
     } catch {
-      if (mountedRef.current) setErrorMsg("Non riesco a usare l’audio. Riprova.");
+      if (mountedRef.current) setErrorMsg(tr("Non riesco a usare l’audio. Riprova."));
     } finally {
       confirmingRef.current = false;
       if (mountedRef.current) setConfirming(false);
@@ -379,12 +381,12 @@ export default function CampoAudioRecorder({
   const inAttesa = state === "requesting" || state === "finalizing";
   const riproduzione = elapsed > 0 ? Math.min(1, ascoltato / elapsed) : 0;
   const titolo: Record<RecorderState, string> = {
-    idle: "Tocca per registrare",
-    error: "Tocca per registrare",
-    requesting: "Accesso al microfono…",
-    recording: "Registrazione in corso",
-    finalizing: "Preparo l’audio…",
-    stopped: "Registrazione pronta",
+    idle: tr("Tocca per registrare"),
+    error: tr("Tocca per registrare"),
+    requesting: tr("Accesso al microfono…"),
+    recording: tr("Registrazione in corso"),
+    finalizing: tr("Preparo l’audio…"),
+    stopped: tr("Registrazione pronta"),
   };
 
   return (
@@ -398,7 +400,7 @@ export default function CampoAudioRecorder({
               type="button"
               onClick={togglePlay}
               disabled={disabled || confirming}
-              aria-label={isPlaying ? "Pausa" : "Riproduci"}
+              aria-label={isPlaying ? tr("Pausa") : tr("Riproduci")}
               className="flex size-12 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm outline-offset-4 motion-safe:transition-transform motion-safe:active:scale-95 disabled:opacity-50"
             >
               {isPlaying ? <Pause className="size-5" aria-hidden="true" /> : <Play className="ml-0.5 size-5" aria-hidden="true" />}
@@ -407,7 +409,7 @@ export default function CampoAudioRecorder({
             <button
               type="button"
               onClick={stopRecording}
-              aria-label="Ferma registrazione"
+              aria-label={tr("Ferma registrazione")}
               className="flex size-12 shrink-0 items-center justify-center rounded-full bg-red-600 text-white shadow-sm outline-offset-4 motion-safe:transition-transform motion-safe:active:scale-95"
             >
               <Square className="size-4 fill-current" aria-hidden="true" />
@@ -421,7 +423,7 @@ export default function CampoAudioRecorder({
               type="button"
               onClick={startRecording}
               disabled={disabled || confirming}
-              aria-label="Inizia registrazione"
+              aria-label={tr("Inizia registrazione")}
               className="flex size-12 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm outline-offset-4 motion-safe:transition-transform motion-safe:active:scale-95 disabled:opacity-50"
             >
               <Mic className="size-5" aria-hidden="true" />
@@ -432,8 +434,8 @@ export default function CampoAudioRecorder({
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               {registra && <span className="size-2 shrink-0 rounded-full bg-red-600" aria-hidden="true" />}
               {pronto || registra || state === "finalizing" ? (
-                <span className="font-mono tabular-nums" role="timer" aria-label="Durata della registrazione">{formatTime(elapsed)}</span>
-              ) : <span>Fino a {MAX_DURATION_SEC / 60} minuti</span>}
+                <span className="font-mono tabular-nums" role="timer" aria-label={tr("Durata della registrazione")}>{formatTime(elapsed)}</span>
+              ) : <span>{tr("Fino a {n} minuti", { n: MAX_DURATION_SEC / 60 })}</span>}
             </div>
           </div>
           <div
@@ -465,13 +467,13 @@ export default function CampoAudioRecorder({
 
       {state === "requesting" && (
         <button type="button" className="min-h-11 rounded-lg px-2 text-sm font-semibold text-primary" onClick={resetRecording}>
-          Annulla richiesta
+          {tr("Annulla richiesta")}
         </button>
       )}
 
       {pronto && (
         <>
-          {elapsed < MIN_DURATION_SEC && <p role="status" className="text-sm text-muted-foreground">Registra almeno {MIN_DURATION_SEC} secondi. Tocca Riprova.</p>}
+          {elapsed < MIN_DURATION_SEC && <p role="status" className="text-sm text-muted-foreground">{tr("Registra almeno {n} secondi. Tocca Riprova.", { n: MIN_DURATION_SEC })}</p>}
           <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.45fr)] gap-2">
             <button
               type="button"
@@ -479,7 +481,7 @@ export default function CampoAudioRecorder({
               disabled={disabled || confirming}
               className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl border bg-background px-2 text-sm font-semibold text-foreground motion-safe:transition-transform motion-safe:active:scale-95 disabled:opacity-50"
             >
-              <RotateCcw className="size-4 shrink-0" aria-hidden="true" /> Riprova
+              <RotateCcw className="size-4 shrink-0" aria-hidden="true" /> {tr("Riprova")}
             </button>
             <button
               type="button"
@@ -488,7 +490,7 @@ export default function CampoAudioRecorder({
               className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl bg-primary px-2 py-2 text-center text-sm font-bold text-primary-foreground motion-safe:transition-transform motion-safe:active:scale-95 disabled:opacity-50"
             >
               {confirming ? <Loader2 className="size-4 shrink-0 motion-safe:animate-spin" aria-hidden="true" /> : <Check className="size-4 shrink-0" aria-hidden="true" />}
-              {confirmLabel}
+              {confirmLabel ?? tr("Usa questo")}
             </button>
           </div>
         </>

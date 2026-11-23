@@ -29,11 +29,13 @@ import {
   type MezzoInCarico,
 } from "@/types/mezzi";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import { ViaggiMezzoWorkspace } from "@/components/mezzi/ViaggiMezzoWorkspace";
 
 const ORDINE_STATO: Record<string, number> = { scaduto: 0, in_scadenza: 1, valido: 2, senza_scadenza: 3 };
 
 export default function CampoMezzi() {
+  const tr = useT();
   const { data: mezzi = [], isLoading, isError, error, refetch, isFetching } = useMieiMezzi();
   // Foto e documenti firmati in un colpo solo, al caricamento: sul telefono un
   // link che si apre dopo un'attesa viene bloccato come popup.
@@ -46,7 +48,7 @@ export default function CampoMezzi() {
   const principali = mezzi.filter((m) => !m.su_mezzo_id || !ids.has(m.su_mezzo_id));
   const aBordo = (id: string) => mezzi.filter((m) => m.su_mezzo_id === id);
 
-  const titolo = principali.length > 1 ? "I miei mezzi" : "Il mio mezzo";
+  const titolo = principali.length > 1 ? tr("I miei mezzi") : tr("Il mio mezzo");
 
   // Scansiona l'etichetta di un attrezzo: si apre la sua pagina con le azioni
   // (lo prendo io, lo lascio in cantiere…). «?scansiona=1» riapre lo scanner
@@ -64,12 +66,12 @@ export default function CampoMezzi() {
     (testo: string) => {
       const c = leggiCodiceScansionato(testo);
       if (!c) {
-        toast.error("Non riconosco questo codice.");
+        toast.error(tr("Non riconosco questo codice."));
         return;
       }
       navigate(`/campo/mezzi/scansione/${encodeURIComponent(c.codice)}${c.companyId ? `?c=${c.companyId}` : ""}`);
     },
-    [navigate],
+    [navigate, tr],
   );
   const lettoRef = useRef<(testo: string) => void>(letto);
   useEffect(() => {
@@ -83,10 +85,10 @@ export default function CampoMezzi() {
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
         <h1 className="text-lg font-bold tracking-tight text-foreground">{titolo}</h1>
-        <p className="mt-0.5 text-xs text-muted-foreground">Documenti per i controlli, km e segnalazioni all'ufficio.</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">{tr("Documenti per i controlli, km e segnalazioni all'ufficio.")}</p>
       </div>
       <Button variant="outline" className="h-11 shrink-0 gap-2" onClick={() => setScanner(true)}>
-        <ScanLine className="h-4 w-4 text-orange-600" />Scansiona
+        <ScanLine className="h-4 w-4 text-orange-600" />{tr("Scansiona")}
       </Button>
       <BarcodeScanner open={scanner} onOpenChange={setScanner} onScan={suLettura} />
     </div>
@@ -108,8 +110,8 @@ export default function CampoMezzi() {
       <div className="mx-auto max-w-3xl space-y-4">
         {header}
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
-          <p className="text-sm font-bold">Mezzi non caricati</p>
-          <p className="mt-1 text-xs">{error instanceof Error ? error.message : "La richiesta non ha risposto."} Riprova quando la rete è stabile.</p>
+          <p className="text-sm font-bold">{tr("Mezzi non caricati")}</p>
+          <p className="mt-1 text-xs">{error instanceof Error ? error.message : tr("La richiesta non ha risposto.")} {tr("Riprova quando la rete è stabile.")}</p>
           <button
             type="button"
             onClick={() => refetch()}
@@ -117,7 +119,7 @@ export default function CampoMezzi() {
             className="mt-3 inline-flex h-11 items-center gap-2 rounded-xl bg-background px-3 text-xs font-bold shadow-sm disabled:opacity-60"
           >
             {isFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
-            Riprova
+            {tr("Riprova")}
           </button>
         </div>
       </div>
@@ -130,8 +132,8 @@ export default function CampoMezzi() {
       {principali.length === 0 ? (
         <div className="rounded-2xl border border-dashed bg-background px-4 py-10 text-center">
           <Truck className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" />
-          <p className="text-sm font-medium">Non hai mezzi in carico</p>
-          <p className="mt-1 text-xs text-muted-foreground">Quando l'ufficio ti affida un mezzo, lo trovi qui con i suoi documenti. Per un attrezzo con l'etichetta QR, tocca «Scansiona».</p>
+          <p className="text-sm font-medium">{tr("Non hai mezzi in carico")}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{tr("Quando l'ufficio ti affida un mezzo, lo trovi qui con i suoi documenti. Per un attrezzo con l'etichetta QR, tocca «Scansiona».")}</p>
         </div>
       ) : (
         principali.map((m) => (
@@ -143,6 +145,7 @@ export default function CampoMezzi() {
 }
 
 function SchedaMezzo({ mezzo, link, attrezzi }: { mezzo: MezzoInCarico; link: Map<string, string> | undefined; attrezzi: MezzoInCarico[] }) {
+  const t = useT();
   const [routeParams] = useSearchParams();
   const [km, setKm] = useState(false);
   const [segnala, setSegnala] = useState(false);
@@ -175,7 +178,7 @@ function SchedaMezzo({ mezzo, link, attrezzi }: { mezzo: MezzoInCarico; link: Ma
       else window.location.assign(url);
     } catch {
       scheda?.close();
-      toast.error("Non riesco ad aprire il documento. Riprova tra poco.");
+      toast.error(t("Non riesco ad aprire il documento. Riprova tra poco."));
     } finally {
       setAprendo(null);
     }
@@ -184,7 +187,7 @@ function SchedaMezzo({ mezzo, link, attrezzi }: { mezzo: MezzoInCarico; link: Ma
   return (
     <section className="overflow-hidden rounded-2xl border bg-background shadow-sm" aria-label={mezzo.nome}>
       {copertina ? (
-        <img src={copertina} alt={`Foto di ${mezzo.nome}`} className="h-44 w-full object-cover sm:h-56" />
+        <img src={copertina} alt={t("Foto di {nome}", { nome: mezzo.nome })} className="h-44 w-full object-cover sm:h-56" />
       ) : (
         <div className="flex h-24 items-center justify-center bg-slate-100">
           <IconaMezzo tipo={mezzo.tipo} className="h-10 w-10 text-slate-400" />
@@ -195,10 +198,10 @@ function SchedaMezzo({ mezzo, link, attrezzi }: { mezzo: MezzoInCarico; link: Ma
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-base font-bold">{mezzo.nome}</h2>
-            {mezzo.stato !== "in_servizio" && <Badge variant="outline" className={`text-[11px] ${stato.cls}`}>{stato.label}</Badge>}
+            {mezzo.stato !== "in_servizio" && <Badge variant="outline" className={`text-[11px] ${stato.cls}`}>{t(stato.label)}</Badge>}
           </div>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {[tipoMezzoLabel(mezzo.tipo), [mezzo.marca, mezzo.modello].filter(Boolean).join(" ")].filter(Boolean).join(" · ")}
+            {[t(tipoMezzoLabel(mezzo.tipo)), [mezzo.marca, mezzo.modello].filter(Boolean).join(" ")].filter(Boolean).join(" · ")}
           </p>
           {mezzo.targa && (
             <p className="mt-2 inline-block rounded-md border-2 border-slate-800 px-2 py-0.5 font-mono text-lg font-bold tracking-widest">
@@ -210,7 +213,7 @@ function SchedaMezzo({ mezzo, link, attrezzi }: { mezzo: MezzoInCarico; link: Ma
               <Gauge className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
               {formatContatore(mezzo.contatore, mezzo.contatore_unita)}
               {mezzo.contatore_aggiornato_il && (
-                <span className="text-xs text-muted-foreground">· al {formatData(mezzo.contatore_aggiornato_il)}</span>
+                <span className="text-xs text-muted-foreground">· {t("al {data}", { data: formatData(mezzo.contatore_aggiornato_il) })}</span>
               )}
             </p>
           )}
@@ -221,11 +224,11 @@ function SchedaMezzo({ mezzo, link, attrezzi }: { mezzo: MezzoInCarico; link: Ma
           {mostraContatore && (
             <Button variant="outline" className="h-12 min-w-0 whitespace-normal leading-tight" onClick={() => setKm(true)}>
               <Gauge className="mr-2 h-4 w-4 shrink-0" />
-              {mezzo.contatore_unita === "ore" ? "Aggiorna ore" : "Aggiorna km"}
+              {mezzo.contatore_unita === "ore" ? t("Aggiorna ore") : t("Aggiorna km")}
             </Button>
           )}
           <Button className="h-12 min-w-0 whitespace-normal leading-tight" onClick={() => setSegnala(true)}>
-            <Wrench className="mr-2 h-4 w-4 shrink-0" />Segnala un problema
+            <Wrench className="mr-2 h-4 w-4 shrink-0" />{t("Segnala un problema")}
           </Button>
         </div>
 
@@ -240,15 +243,15 @@ function SchedaMezzo({ mezzo, link, attrezzi }: { mezzo: MezzoInCarico; link: Ma
           <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-800">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
             <span>
-              {scaduti.map((d) => categoriaDocumentoLabel(d.categoria).toLowerCase()).join(", ")}: scadenza passata. Avvisa l'ufficio prima di usare il mezzo.
+              {t("{documenti}: scadenza passata. Avvisa l'ufficio prima di usare il mezzo.", { documenti: scaduti.map((d) => t(categoriaDocumentoLabel(d.categoria)).toLowerCase()).join(", ") })}
             </span>
           </div>
         )}
 
         <div>
-          <h3 className="mb-2 text-sm font-semibold">Documenti</h3>
+          <h3 className="mb-2 text-sm font-semibold">{t("Documenti")}</h3>
           {documenti.length === 0 ? (
-            <p className="text-xs text-muted-foreground">L'ufficio non ha ancora caricato documenti per questo mezzo.</p>
+            <p className="text-xs text-muted-foreground">{t("L'ufficio non ha ancora caricato documenti per questo mezzo.")}</p>
           ) : (
             <ul className="divide-y rounded-xl border">
               {documenti.map((d) => {
@@ -256,20 +259,20 @@ function SchedaMezzo({ mezzo, link, attrezzi }: { mezzo: MezzoInCarico; link: Ma
                 return (
                   <li key={d.id} className="flex items-center gap-3 px-3 py-2.5">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{d.titolo || categoriaDocumentoLabel(d.categoria)}</p>
+                      <p className="truncate text-sm font-medium">{d.titolo || t(categoriaDocumentoLabel(d.categoria))}</p>
                       <p className="text-xs text-muted-foreground">
-                        {categoriaDocumentoLabel(d.categoria)}
-                        {d.data_scadenza ? ` · scade il ${formatData(d.data_scadenza)}` : ""}
+                        {t(categoriaDocumentoLabel(d.categoria))}
+                        {d.data_scadenza ? ` · ${t("scade il {data}", { data: formatData(d.data_scadenza) })}` : ""}
                       </p>
                     </div>
-                    {d.data_scadenza && badge && <Badge variant="outline" className={`shrink-0 text-[10px] ${badge.cls}`}>{badge.label}</Badge>}
+                    {d.data_scadenza && badge && <Badge variant="outline" className={`shrink-0 text-[10px] ${badge.cls}`}>{t(badge.label)}</Badge>}
                     {d.file_path && link?.get(d.file_path) ? (
                       <Button asChild size="sm" variant="ghost" className="h-11 shrink-0 px-3">
                         <a
                           href={link.get(d.file_path)}
                           target="_blank"
                           rel="noopener noreferrer"
-                          aria-label={`Apri ${d.titolo || categoriaDocumentoLabel(d.categoria)}`}
+                          aria-label={t("Apri {nome}", { nome: d.titolo || t(categoriaDocumentoLabel(d.categoria)) })}
                         >
                           <ExternalLink className="h-4 w-4" />
                         </a>
@@ -281,7 +284,7 @@ function SchedaMezzo({ mezzo, link, attrezzi }: { mezzo: MezzoInCarico; link: Ma
                         className="h-11 shrink-0 px-3"
                         onClick={() => apri(d.file_path!)}
                         disabled={aprendo === d.file_path}
-                        aria-label={`Apri ${d.titolo || categoriaDocumentoLabel(d.categoria)}`}
+                        aria-label={t("Apri {nome}", { nome: d.titolo || t(categoriaDocumentoLabel(d.categoria)) })}
                       >
                         {aprendo === d.file_path ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
                       </Button>
@@ -295,13 +298,13 @@ function SchedaMezzo({ mezzo, link, attrezzi }: { mezzo: MezzoInCarico; link: Ma
 
         {attrezzi.length > 0 && (
           <div>
-            <h3 className="mb-2 text-sm font-semibold">Attrezzi a bordo</h3>
+            <h3 className="mb-2 text-sm font-semibold">{t("Attrezzi a bordo")}</h3>
             <ul className="space-y-1.5">
               {attrezzi.map((a) => (
                 <li key={a.id} className="flex items-center gap-2 text-sm">
                   <Package className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                   <span className="min-w-0 truncate">{a.nome}</span>
-                  <span className="shrink-0 text-xs text-muted-foreground">{tipoMezzoLabel(a.tipo)}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">{t(tipoMezzoLabel(a.tipo))}</span>
                 </li>
               ))}
             </ul>
@@ -310,15 +313,15 @@ function SchedaMezzo({ mezzo, link, attrezzi }: { mezzo: MezzoInCarico; link: Ma
 
         {ultime.length > 0 && (
           <div>
-            <h3 className="mb-2 text-sm font-semibold">Ultime segnalazioni</h3>
+            <h3 className="mb-2 text-sm font-semibold">{t("Ultime segnalazioni")}</h3>
             <ul className="space-y-2">
               {ultime.map((s) => {
                 const st = statoSegnalazione(s.stato);
                 return (
                   <li key={s.id} className="rounded-xl bg-muted/40 px-3 py-2">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-medium">{tipoSegnalazioneLabel(s.tipo)}</span>
-                      <Badge variant="outline" className={`text-[10px] ${st.cls}`}>{st.label}</Badge>
+                      <span className="text-sm font-medium">{t(tipoSegnalazioneLabel(s.tipo))}</span>
+                      <Badge variant="outline" className={`text-[10px] ${st.cls}`}>{t(st.label)}</Badge>
                       <span className="text-xs text-muted-foreground">{formatData(giornoItaliano(s.created_at))}</span>
                     </div>
                     {s.descrizione && <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{s.descrizione}</p>}
@@ -350,6 +353,7 @@ function SchedaMezzo({ mezzo, link, attrezzi }: { mezzo: MezzoInCarico; link: Ma
 }
 
 function DialogKm({ mezzo, onClose }: { mezzo: MezzoInCarico; onClose: () => void }) {
+  const t = useT();
   const invia = useInviaSegnalazione(mezzo.id, mezzo.company_id);
   const [valore, setValore] = useState("");
   const unita = mezzo.contatore_unita === "ore" ? "ore" : "km";
@@ -371,33 +375,33 @@ function DialogKm({ mezzo, onClose }: { mezzo: MezzoInCarico; onClose: () => voi
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>{unita === "ore" ? "Ore di lavoro" : "Chilometri"} di {mezzo.nome}</DialogTitle>
+          <DialogTitle>{unita === "ore" ? t("Ore di lavoro di {nome}", { nome: mezzo.nome }) : t("Chilometri di {nome}", { nome: mezzo.nome })}</DialogTitle>
           <DialogDescription>
-            {mezzo.contatore != null ? `Ultimo valore: ${formatContatore(mezzo.contatore, mezzo.contatore_unita)}.` : "Leggi il valore sul cruscotto."}
+            {mezzo.contatore != null ? t("Ultimo valore: {valore}.", { valore: formatContatore(mezzo.contatore, mezzo.contatore_unita) }) : t("Leggi il valore sul cruscotto.")}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-1.5">
-          <Label htmlFor="campo-km">{unita === "ore" ? "Ore segnate adesso" : "Km segnati adesso"}</Label>
+          <Label htmlFor="campo-km">{unita === "ore" ? t("Ore segnate adesso") : t("Km segnati adesso")}</Label>
           <Input
             id="campo-km"
             inputMode="numeric"
             autoComplete="off"
             value={valore}
             onChange={(e) => setValore(e.target.value)}
-            placeholder={mezzo.contatore != null ? String(mezzo.contatore) : "es. 84500"}
+            placeholder={mezzo.contatore != null ? String(mezzo.contatore) : t("es. 84500")}
             className="h-12 text-lg"
             aria-describedby={indietro ? "campo-km-errore" : undefined}
           />
           {indietro && (
             <p id="campo-km-errore" className="text-xs text-red-700">
-              È meno dell'ultimo valore. Controlla il numero; se è sbagliato quello vecchio, segnalalo come problema.
+              {t("È meno dell'ultimo valore. Controlla il numero; se è sbagliato quello vecchio, segnalalo come problema.")}
             </p>
           )}
         </div>
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={onClose}>Annulla</Button>
+          <Button variant="outline" onClick={onClose}>{t("Annulla")}</Button>
           <Button onClick={salva} disabled={!valido || indietro || invia.isPending}>
-            {invia.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Salva
+            {invia.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{t("Salva")}
           </Button>
         </DialogFooter>
       </DialogContent>

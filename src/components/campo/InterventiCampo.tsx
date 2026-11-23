@@ -9,16 +9,18 @@ import { Wrench, Navigation, Phone, CalendarClock } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { linkMappa, linkTelefono } from "@/hooks/campo/useCampoGiornata";
 import { useMieiInterventi, type InterventoCampo } from "@/hooks/campo/useMieiInterventi";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
-function quando(iso: string | null): string {
-  if (!iso) return "Data da fissare";
+function quando(iso: string | null, t: ReturnType<typeof useT>): string {
+  if (!iso) return t("Data da fissare");
   const d = parseISO(iso);
   const ora = format(d, "HH:mm");
-  const giorno = isToday(d) ? "Oggi" : isTomorrow(d) ? "Domani" : format(d, "EEE d MMM", { locale: it });
+  const giorno = isToday(d) ? t("Oggi") : isTomorrow(d) ? t("Domani") : format(d, "EEE d MMM", { locale: it });
   return ora === "00:00" ? giorno : `${giorno} · ${ora}`;
 }
 
 function Scheda({ i }: { i: InterventoCampo }) {
+  const t = useT();
   const mappa = linkMappa(i.indirizzo);
   const tel = linkTelefono(i.telefono_cliente);
   const oggi = i.data ? isToday(parseISO(i.data)) : false;
@@ -26,23 +28,23 @@ function Scheda({ i }: { i: InterventoCampo }) {
     <div className={`rounded-2xl border p-3 ${oggi ? "border-orange-200 bg-orange-50/60 dark:border-orange-900 dark:bg-orange-950/30" : "bg-background"}`}>
       <div className="flex items-start justify-between gap-2">
         <p className="min-w-0 font-semibold leading-tight">{i.titolo}</p>
-        <span className="shrink-0 rounded-full border px-2 py-0.5 text-xs tabular-nums text-muted-foreground">{quando(i.data)}</span>
+        <span className="shrink-0 rounded-full border px-2 py-0.5 text-xs tabular-nums text-muted-foreground">{quando(i.data, t)}</span>
       </div>
       {i.cliente && <p className="mt-0.5 text-sm text-muted-foreground">{i.cliente}</p>}
-      {i.squadra && i.da_squadra && <p className="text-xs text-muted-foreground">con {i.squadra}</p>}
+      {i.squadra && i.da_squadra && <p className="text-xs text-muted-foreground">{t("con {squadra}", { squadra: i.squadra })}</p>}
       {i.indirizzo && <p className="mt-1 text-sm">{i.indirizzo}</p>}
       {i.note && <p className="mt-1 rounded-lg bg-muted/50 p-2 text-sm">{i.note}</p>}
       <div className="mt-2 flex flex-wrap gap-2">
         {mappa && (
           <a href={mappa} target="_blank" rel="noopener noreferrer"
              className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-blue-600 text-sm font-semibold text-white active:bg-blue-700">
-            <Navigation className="h-4 w-4" aria-hidden="true" />Portami lì
+            <Navigation className="h-4 w-4" aria-hidden="true" />{t("Portami lì")}
           </a>
         )}
         {tel && (
-          <a href={tel} aria-label={`Chiama ${i.cliente ?? "il cliente"}`}
+          <a href={tel} aria-label={i.cliente ? t("Chiama {nome}", { nome: i.cliente }) : t("Chiama il cliente")}
              className="flex h-11 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-semibold active:bg-muted">
-            <Phone className="h-4 w-4" aria-hidden="true" />Chiama
+            <Phone className="h-4 w-4" aria-hidden="true" />{t("Chiama")}
           </a>
         )}
       </div>
@@ -51,6 +53,7 @@ function Scheda({ i }: { i: InterventoCampo }) {
 }
 
 export function InterventiCampo() {
+  const t = useT();
   const { data: interventi = [], isLoading } = useMieiInterventi(30);
 
   if (isLoading) return <Skeleton className="h-28 w-full rounded-2xl" />;
@@ -61,7 +64,7 @@ export function InterventiCampo() {
       <div className="flex items-center gap-2">
         <CalendarClock className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
         <h2 id="campo-interventi" className="text-base font-semibold">
-          <Wrench className="mr-1 inline h-4 w-4 align-[-2px]" aria-hidden="true" />Interventi da fare
+          <Wrench className="mr-1 inline h-4 w-4 align-[-2px]" aria-hidden="true" />{t("Interventi da fare")}
         </h2>
         <span className="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">{interventi.length}</span>
       </div>

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { formatoQuantitaMagazzino } from "@/lib/campo/magazzino";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ScortaFurgone {
   id: string;
@@ -23,6 +24,7 @@ const statiScorta = {
 } as const;
 
 export function CampoScorteFurgone({ companyId }: { companyId: string }) {
+  const t = useT();
   const { user } = useAuth();
   const qc = useQueryClient();
   const [scortaApertaId, setScortaApertaId] = useState<string | null>(null);
@@ -48,7 +50,7 @@ export function CampoScorteFurgone({ companyId }: { companyId: string }) {
   const updateQtaMutation = useMutation({
     mutationFn: async ({ id, delta }: { id: string; delta: number }) => {
       const scorta = scorte.find((s) => s.id === id);
-      if (!scorta) throw new Error("Scorta non trovata");
+      if (!scorta) throw new Error(t("Scorta non trovata"));
       const newQta = Math.max(0, (scorta.quantita ?? 0) + delta);
       const { error } = await supabase
         .from("scorte_furgone")
@@ -60,15 +62,15 @@ export function CampoScorteFurgone({ companyId }: { companyId: string }) {
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["scorte-furgone-campo"] }),
     onError: (err: unknown) =>
-      toast.error("Errore aggiornamento", {
-        description: err instanceof Error ? err.message : "Riprova tra qualche istante.",
+      toast.error(t("Errore aggiornamento"), {
+        description: err instanceof Error ? err.message : t("Riprova tra qualche istante."),
       }),
   });
 
   // Riordino → ticket all'ufficio (stessa forma di CampoTicketNuovo)
   const segnalaMutation = useMutation({
     mutationFn: async (scorta: ScortaFurgone) => {
-      if (!companyId) throw new Error("Azienda non disponibile, riprova tra un istante");
+      if (!companyId) throw new Error(t("Azienda non disponibile, riprova tra un istante"));
       const testo = `Scorta furgone in esaurimento: ${scorta.descrizione}. Quantità attuale: ${scorta.quantita ?? 0} ${scorta.unita_misura ?? "pz"} (minimo ${scorta.quantita_minima ?? 1}).`;
       const { error } = await supabase.from("tickets").insert({
         company_id: companyId,
@@ -84,36 +86,39 @@ export function CampoScorteFurgone({ companyId }: { companyId: string }) {
       });
       if (error) throw error;
     },
-    onSuccess: () => toast.success("Segnalazione inviata all'ufficio"),
+    onSuccess: () => toast.success(t("Segnalazione inviata all'ufficio")),
     onError: (err: unknown) =>
-      toast.error("Errore segnalazione riordino", {
-        description: err instanceof Error ? err.message : "Riprova tra qualche istante.",
+      toast.error(t("Errore segnalazione riordino"), {
+        description: err instanceof Error ? err.message : t("Riprova tra qualche istante."),
       }),
   });
 
   if (scorteQuery.isLoading) return (
     <div role="status" className="flex justify-center py-5 text-muted-foreground">
       <Loader2 className="h-5 w-5 animate-spin" />
-      <span className="sr-only">Carico le scorte</span>
+      <span className="sr-only">{t("Carico le scorte")}</span>
     </div>
   );
   if (scorteQuery.isError) return (
     <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border p-2.5 text-sm">
-      <p>Impossibile caricare le scorte.</p>
+      <p>{t("Impossibile caricare le scorte.")}</p>
       <Button variant="outline" size="sm" className="min-h-11" onClick={() => void scorteQuery.refetch()} disabled={scorteQuery.isFetching}>
-        {scorteQuery.isFetching ? "Riprovo…" : "Riprova"}
+        {scorteQuery.isFetching ? t("Riprovo…") : t("Riprova")}
       </Button>
     </div>
   );
   if (scorte.length === 0) return (
-    <p className="rounded-xl border border-dashed px-3 py-4 text-center text-sm text-muted-foreground">Nessuna scorta assegnata.</p>
+    <div className="rounded-xl border border-dashed px-3 py-4 text-center text-sm text-muted-foreground">
+      <p className="font-medium text-foreground">{t("Nessuna scorta sul furgone")}</p>
+      <p className="mt-1 text-xs">{t("Le scorte del furgone le assegna l’ufficio: qui vedrai cosa hai a bordo e cosa va riordinato.")}</p>
+    </div>
   );
 
   const scarseCount = scorte.filter((s) => (s.quantita ?? 0) <= (s.quantita_minima ?? 1)).length;
   return (
     <>
-      {scarseCount > 0 && <p className="mb-1.5 px-0.5 text-xs font-medium text-muted-foreground">{scarseCount} da riordinare</p>}
-      <ul aria-label="Scorte furgone" className="divide-y rounded-xl border bg-card">
+      {scarseCount > 0 && <p className="mb-1.5 px-0.5 text-xs font-medium text-muted-foreground">{t("{n} da riordinare", { n: scarseCount })}</p>}
+      <ul aria-label={t("Scorte furgone")} className="divide-y rounded-xl border bg-card">
         {scorte.map((s) => {
           const qta = s.quantita ?? 0;
           const isScarso = qta <= (s.quantita_minima ?? 1);
@@ -131,8 +136,8 @@ export function CampoScorteFurgone({ companyId }: { companyId: string }) {
                   </span>
                   <span className={`justify-self-end rounded-full px-1.5 text-xs font-semibold leading-5 ${stato.className}`}>
                     {stato === statiScorta.disponibile ? (
-                      <><span aria-hidden="true">{stato.label}</span><span className="sr-only">Disponibile</span></>
-                    ) : stato.label}
+                      <><span aria-hidden="true">{t(stato.label)}</span><span className="sr-only">{t("Disponibile")}</span></>
+                    ) : t(stato.label)}
                   </span>
                   <ChevronDown aria-hidden="true" className="h-4 w-4 text-muted-foreground group-data-[state=open]:rotate-180" />
                 </CollapsibleTrigger>
@@ -141,21 +146,21 @@ export function CampoScorteFurgone({ companyId }: { companyId: string }) {
                     <Button type="button" variant="outline" size="icon" className="min-h-11 w-11"
                       onClick={() => updateQtaMutation.mutate({ id: s.id, delta: -1 })}
                       disabled={qta <= 0 || updateQtaMutation.isPending}
-                      aria-label={`Diminuisci ${s.descrizione}`}>
+                      aria-label={t("Diminuisci {nome}", { nome: s.descrizione })}>
                       <Minus aria-hidden="true" />
                     </Button>
                     <Button type="button" variant="outline" size="icon" className="min-h-11 w-11"
                       onClick={() => updateQtaMutation.mutate({ id: s.id, delta: 1 })}
                       disabled={updateQtaMutation.isPending}
-                      aria-label={`Aumenta ${s.descrizione}`}>
+                      aria-label={t("Aumenta {nome}", { nome: s.descrizione })}>
                       <Plus aria-hidden="true" />
                     </Button>
                   </div>
                   {isScarso && (
                     <Button type="button" variant="outline" size="sm" className="min-h-11 text-xs"
-                      aria-label={`Segnala riordino ${s.descrizione}`} aria-busy={invioSegnalazione}
+                      aria-label={t("Segnala riordino {nome}", { nome: s.descrizione })} aria-busy={invioSegnalazione}
                       onClick={() => segnalaMutation.mutate(s)} disabled={segnalaMutation.isPending}>
-                      {invioSegnalazione ? "Invio…" : "Segnala"}
+                      {invioSegnalazione ? t("Invio…") : t("Segnala")}
                     </Button>
                   )}
                 </CollapsibleContent>

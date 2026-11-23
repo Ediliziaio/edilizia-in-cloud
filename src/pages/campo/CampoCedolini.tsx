@@ -12,6 +12,8 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { apriDocumentoPaghe } from "@/lib/paghe/apriDocumentoPaghe";
 import { useMieiDocumentiPaghe } from "@/hooks/useMyCedolini";
+import { euroCampo, oreBrevi } from "@/lib/campo/numeriItaliani";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const MESI = [
   "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
@@ -26,6 +28,7 @@ const STATO_BADGE: Record<string, { label: string; className: string }> = {
 
 export default function CampoCedolini() {
   const { user, profile } = useAuth();
+  const t = useT();
   const companyId = profile?.company_id ?? null;
 
   // Cerca employee_id. Con l'azienda: chi lavora per due aziende ha due schede, e `maybeSingle` su due righe
@@ -81,17 +84,17 @@ export default function CampoCedolini() {
   return (
     <div className="space-y-4 md:space-y-6 max-w-3xl mx-auto">
       <div>
-        <h1 className="text-lg md:text-xl font-semibold tracking-tight">I miei cedolini</h1>
-        <p className="text-xs md:text-sm text-muted-foreground mt-0.5">Buste paga e retribuzioni</p>
+        <h1 className="text-lg md:text-xl font-semibold tracking-tight">{t("I miei cedolini")}</h1>
+        <p className="text-xs md:text-sm text-muted-foreground mt-0.5">{t("Le tue buste paga")}</p>
       </div>
 
       {nonRiesco && (
         <div role="alert" className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-          <p className="font-semibold">Non riesco a leggere i cedolini</p>
-          <p className="mt-0.5">Non vuol dire che non ce ne siano: riprova tra poco.</p>
+          <p className="font-semibold">{t("Non riesco a leggere i cedolini")}</p>
+          <p className="mt-0.5">{t("Non vuol dire che non ce ne siano: riprova tra poco.")}</p>
           <button type="button" onClick={() => { void rileggiScheda(); void rileggiCedolini(); }}
             className="mt-3 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">
-            Riprova
+            {t("Riprova")}
           </button>
         </div>
       )}
@@ -100,15 +103,15 @@ export default function CampoCedolini() {
       {!nonRiesco && <div className="grid grid-cols-2 gap-2 md:gap-3">
         <Card>
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Cedolini disponibili</p>
+            <p className="text-xs text-muted-foreground">{t("Cedolini disponibili")}</p>
             <p className="text-2xl font-bold mt-1 text-foreground">{cedolini.length}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Ultimo cedolino</p>
+            <p className="text-xs text-muted-foreground">{t("Ultimo cedolino")}</p>
             <p className="text-2xl font-bold mt-1 text-primary">
-              {ultimoCedolino ? `${MESI[(ultimoCedolino.mese ?? 1) - 1]?.slice(0, 3)} ${ultimoCedolino.anno}` : "—"}
+              {ultimoCedolino ? `${t(MESI[(ultimoCedolino.mese ?? 1) - 1] ?? "").slice(0, 3)} ${ultimoCedolino.anno}` : "—"}
             </p>
           </CardContent>
         </Card>
@@ -117,7 +120,7 @@ export default function CampoCedolini() {
       {/* Lista cedolini */}
       {!nonRiesco && <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Storico cedolini</CardTitle>
+          <CardTitle className="text-base">{t("Storico cedolini")}</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -127,15 +130,15 @@ export default function CampoCedolini() {
           ) : cedolini.length === 0 ? (
             <div className="text-center py-12">
               <Receipt className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
-              <p className="text-muted-foreground text-sm">Nessun cedolino disponibile</p>
-              <p className="text-xs text-muted-foreground mt-1">I cedolini verranno aggiunti dall'ufficio</p>
+              <p className="text-muted-foreground text-sm">{t("Nessun cedolino disponibile")}</p>
+              <p className="text-xs text-muted-foreground mt-1">{t("I cedolini verranno aggiunti dall'ufficio")}</p>
             </div>
           ) : (
             <div className="space-y-3">
               {cedolini.map((c: any) => {
                 const netto = nettoDi(c);
                 const statoConf = STATO_BADGE[c.stato] || STATO_BADGE.bozza;
-                const meseLabel = MESI[(c.mese ?? 1) - 1] ?? "";
+                const meseLabel = t(MESI[(c.mese ?? 1) - 1] ?? "");
 
                 return (
                   <div
@@ -151,26 +154,26 @@ export default function CampoCedolini() {
                           {meseLabel} {c.anno}
                         </span>
                         <Badge className={cn("text-[10px]", statoConf.className)}>
-                          {statoConf.label}
+                          {t(statoConf.label)}
                         </Badge>
                       </div>
                       <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                        {c.lordo != null && <span>Lordo: {c.lordo.toFixed(2)}</span>}
-                        {c.ore_lavorate != null && <span>{c.ore_lavorate}h lavorate</span>}
+                        {c.lordo != null && <span>{t("Lordo: {importo}", { importo: euroCampo(Number(c.lordo)) })}</span>}
+                        {c.ore_lavorate != null && <span>{t("{ore} lavorate", { ore: oreBrevi(Number(c.ore_lavorate)) })}</span>}
                       </div>
                     </div>
                     <div className="text-right shrink-0">
                       <p className="text-sm font-bold text-foreground">
-                        {netto > 0 ? `${netto.toFixed(2)}` : "—"}
+                        {netto > 0 ? euroCampo(netto) : "—"}
                       </p>
-                      <p className="text-[10px] text-muted-foreground">Netto</p>
+                      <p className="text-[10px] text-muted-foreground">{t("Netto")}</p>
                     </div>
                     {c.documento_id ? (
                       // Il PDF vero del consulente: aprirlo vale come consegna.
                       <button
                         type="button"
-                        aria-label="Apri la busta paga"
-                        onClick={() => apriDocumentoPaghe(c.documento_id).catch(() => toast.error("Non riesco ad aprire la busta paga. Riprova tra poco."))}
+                        aria-label={t("Apri la busta paga")}
+                        onClick={() => apriDocumentoPaghe(c.documento_id).catch(() => toast.error(t("Non riesco ad aprire la busta paga. Riprova tra poco.")))}
                         className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 hover:bg-primary/20 transition-colors"
                       >
                         <Download className="w-4 h-4 text-primary" />
@@ -197,14 +200,14 @@ export default function CampoCedolini() {
       {!nonRiesco && altriDocumenti.length > 0 && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Altri documenti</CardTitle>
+            <CardTitle className="text-base">{t("Altri documenti")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {altriDocumenti.map((d) => (
               <button
                 key={d.id}
                 type="button"
-                onClick={() => apriDocumentoPaghe(d.id).catch(() => toast.error("Non riesco ad aprire il documento. Riprova tra poco."))}
+                onClick={() => apriDocumentoPaghe(d.id).catch(() => toast.error(t("Non riesco ad aprire il documento. Riprova tra poco.")))}
                 className="flex w-full items-center gap-3 rounded-xl border p-3 text-left text-sm hover:bg-muted/50"
               >
                 <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />

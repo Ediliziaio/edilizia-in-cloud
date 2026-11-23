@@ -317,8 +317,9 @@ describe("Ore del rapportino: interazione e arrivo asincrono dei dati", () => {
     expect(screen.getByText(/Se hai lavorato anche tu/)).toBeInTheDocument();
     changeFormControl(screen.getByLabelText("Ore di Luca Bianchi"), { target: { value: "4" } });
     fireEvent.click(screen.getByRole("button", { name: "Avanti" }));
-    expect(screen.getByText("Ore personali ordinarie")).toBeInTheDocument();
-    expect(screen.getByText("Vedi presenze squadra")).toBeInTheDocument();
+    // Collaudo 23/11: con le presenze la riga delle ore personali («Vedi presenze squadra») era un doppione.
+    expect(screen.queryByText(/ore ordinarie/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("Vedi presenze squadra")).not.toBeInTheDocument();
     expect(screen.getByText("Presenze squadra")).toBeInTheDocument();
     expect(screen.getByText("4 h")).toBeInTheDocument();
   });

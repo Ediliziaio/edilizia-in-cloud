@@ -5,8 +5,10 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } 
 import CampoAudioRecorder from "@/components/campo/CampoAudioRecorder";
 import { useNetworkStatus } from "@/hooks/campo/useNetworkStatus";
 import { supabase } from "@/integrations/supabase/client";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function CampoDettaMessaggio({ onTesto, disabled }: { onTesto: (testo: string) => void; disabled?: boolean }) {
+  const t = useT();
   const [aperto, setAperto] = useState(false);
   const [trascrive, setTrascrive] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
@@ -42,13 +44,13 @@ export function CampoDettaMessaggio({ onTesto, disabled }: { onTesto: (testo: st
       if (error) throw error;
       const testo = typeof data?.text === "string" ? data.text.trim() : "";
       if (!testo) {
-        setErrore("Nessuna parola riconosciuta. Puoi registrare di nuovo.");
+        setErrore(t("Nessuna parola riconosciuta. Puoi registrare di nuovo."));
         return;
       }
       cambiaApertura(false);
       onTesto(testo);
     } catch {
-      if (!controller.signal.aborted) setErrore("Trascrizione non riuscita. Puoi riprovare con lo stesso audio.");
+      if (!controller.signal.aborted) setErrore(t("Trascrizione non riuscita. Puoi riprovare con lo stesso audio."));
     } finally {
       if (richiesta.current === controller) {
         richiesta.current = null;
@@ -61,7 +63,7 @@ export function CampoDettaMessaggio({ onTesto, disabled }: { onTesto: (testo: st
     <Dialog open={aperto} onOpenChange={cambiaApertura}>
       <DialogTrigger asChild>
         <Button type="button" variant="ghost" size="icon" disabled={disabled}
-          aria-label="Detta messaggio" title="Detta messaggio"
+          aria-label={t("Detta messaggio")} title={t("Detta messaggio")}
           className="size-11 shrink-0 rounded-full text-primary hover:bg-primary/10">
           <Mic className="size-5" aria-hidden="true" />
         </Button>
@@ -69,15 +71,15 @@ export function CampoDettaMessaggio({ onTesto, disabled }: { onTesto: (testo: st
       <DialogContent overlayClassName="z-[70] bg-black/55 motion-reduce:animate-none"
         className="z-[71] max-h-[calc(100dvh-2rem)] w-[calc(100%-1rem)] max-w-md gap-3 overflow-y-auto rounded-2xl p-4 motion-reduce:animate-none sm:p-5">
         <div className="space-y-1 pr-7">
-          <DialogTitle>Detta un messaggio</DialogTitle>
-          <DialogDescription>Riascolta l’audio e usa la trascrizione. Potrai modificare il testo prima di inviare.</DialogDescription>
+          <DialogTitle>{t("Detta un messaggio")}</DialogTitle>
+          <DialogDescription>{t("Riascolta l’audio e usa la trascrizione. Potrai modificare il testo prima di inviare.")}</DialogDescription>
         </div>
-        <CampoAudioRecorder onConfirm={trascrivi} disabled={trascrive} confirmAvailable={online} confirmLabel="Usa trascrizione" />
+        <CampoAudioRecorder onConfirm={trascrivi} disabled={trascrive} confirmAvailable={online} confirmLabel={t("Usa trascrizione")} />
         {!online && <p role="status" className="flex items-center gap-2 rounded-xl bg-muted p-2.5 text-sm">
-          <WifiOff className="size-4 shrink-0" aria-hidden="true" /> Torna online per trascrivere.
+          <WifiOff className="size-4 shrink-0" aria-hidden="true" /> {t("Torna online per trascrivere.")}
         </p>}
         {trascrive && <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="size-4 motion-safe:animate-spin" aria-hidden="true" /> Trascrizione in corso…
+          <Loader2 className="size-4 motion-safe:animate-spin" aria-hidden="true" /> {t("Trascrizione in corso…")}
         </p>}
         {errore && <p role="alert" className="rounded-xl bg-destructive/5 p-2.5 text-sm text-destructive">{errore}</p>}
       </DialogContent>

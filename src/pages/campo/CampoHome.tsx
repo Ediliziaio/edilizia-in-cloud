@@ -36,6 +36,10 @@ import { RapportiniDaCompilareOggi, RapportiniSospesi } from "@/components/campo
 import { useCampoRapportiniDaCompilare } from "@/hooks/useCampoRapportiniDaCompilare";
 import { isNative } from "@/lib/mobile";
 import { Skeleton } from "@/components/ui/skeleton";
+import { giorniRitardoCantiere, testoRitardoCantiere } from "@/lib/campo/ritardoCantiere";
+import { AvvisoScadenzePersonali } from "@/components/campo/AvvisoScadenzePersonali";
+import { useLinguaCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
+import { useCampoWorkDay } from "@/hooks/campo/useCampoWorkDay";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // ── Priority config ──
@@ -86,6 +90,7 @@ interface CampoAiTask {
 
 export default function CampoHome() {
   const { profile, user, effectiveCompany } = useAuth();
+  const { t, lingua } = useLinguaCampo();
   const { isOperaio, isSubappaltatore } = useIsCampo();
   const magazzino = useCampoMagazzinoConfig(isOperaio);
   const azienda = effectiveCompany?.id ?? profile?.company_id;
@@ -116,7 +121,7 @@ export default function CampoHome() {
     || (!giornata.isError && !!giorni[0] && (giorni[0].cantieri.length > 0 || giorni.slice(1).some(g => g.cantieri.length > 0)));
 
   const ora = new Date().getHours();
-  const saluto = ora < 12 ? "Buongiorno" : ora < 18 ? "Buon pomeriggio" : "Buonasera";
+  const saluto = t(ora < 12 ? "Buongiorno" : ora < 18 ? "Buon pomeriggio" : "Buonasera");
   const sera = ora >= 15;
   return (
     <div className="mx-auto max-w-4xl space-y-3 md:space-y-6">
@@ -126,22 +131,26 @@ export default function CampoHome() {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
               <p className="capitalize text-xs text-muted-foreground md:text-sm">
-                {format(new Date(), "EEEE d MMMM yyyy", { locale: it })}
+                {lingua.codice === "it" ? format(new Date(), "EEEE d MMMM yyyy", { locale: it })
+                  : new Intl.DateTimeFormat(lingua.locale, { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date())}
               </p>
               {isOperaio && isCapocantiere && (
-                <span className="rounded-md bg-primary/10 px-1.5 text-[11px] font-semibold text-primary md:hidden">Capocantiere</span>
+                <span className="rounded-md bg-primary/10 px-1.5 text-[11px] font-semibold text-primary md:hidden">{t("Capocantiere")}</span>
               )}
             </div>
             <h1 className="truncate text-xl font-bold tracking-tight md:text-2xl">{saluto}, {profile?.first_name ?? ""}</h1>
           </div>
-          <Link to="/campo/invii" aria-label="Invii e bozze" className="flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-xl border px-2 text-xs font-semibold sm:px-3">
-            <CloudUpload className="size-4" aria-hidden="true" /><span className="max-[355px]:sr-only">Invii</span>
+          <Link to="/campo/invii" aria-label={t("Invii e bozze")} className="flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-xl border px-2 text-xs font-semibold sm:px-3">
+            <CloudUpload className="size-4" aria-hidden="true" /><span className="max-[355px]:sr-only">{t("Invii")}</span>
           </Link>
         </div>
       </div>
 
       {/* Timbratura: l'azione di ogni mattina, in cima. Un tocco per iniziare, un tocco per ogni posto. */}
       {isOperaio && <CampoTimbroCard />}
+
+      {/* Visita medica, corsi, patentini scaduti o in scadenza: solo se c'è qualcosa (collaudo 23/11). */}
+      {isOperaio && <AvvisoScadenzePersonali />}
 
       {/* Senza il permesso gli avvisi restano nella campanella. L'app nativa ha le sue push. */}
       {import.meta.env.PROD && !isNative && (
@@ -394,12 +403,14 @@ function AssistenteCampoOperaio() {
 // ─────────────────────────────────────────────────────────────────────────────
 function CantieriAssegnati() {
   const navigate = useNavigate();
+  const t = useT();
   const { data: lavori = [], isLoading, isError, refetch, isFetching } = useCampoAssignments();
+  const oggiCampo = useCampoWorkDay();
   return (
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base">Cantieri assegnati</CardTitle>
+          <CardTitle className="text-base">{t("Cantieri assegnati")}</CardTitle>
           {lavori.length > 0 && (
             <Badge variant="secondary" className="text-xs">
               {lavori.length}
@@ -421,7 +432,7 @@ function CantieriAssegnati() {
         ) : lavori.length === 0 ? (
           <div className="flex flex-col items-center py-6 text-center">
             <CheckCircle className="w-8 h-8 text-muted-foreground/50 mb-2" />
-            <p className="text-sm text-muted-foreground">Nessun cantiere assegnato</p>
+            <p className="text-sm text-muted-foreground">{t("Nessun cantiere assegnato")}</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -437,7 +448,7 @@ function CantieriAssegnati() {
                       <p className="font-semibold text-sm text-foreground">{a.order?.order_code}</p>
                       {a.is_capocantiere && (
                         <Badge variant="outline" className="text-[10px] h-4 px-1.5 border-primary/30 text-primary">
-                          Capocantiere
+                          {t("Capocantiere")}
                         </Badge>
                       )}
                     </div>
@@ -462,15 +473,20 @@ function CantieriAssegnati() {
                     {a.order?.percentuale_avanzamento ?? 0}%
                   </span>
                 </div>
+                {(() => {
+                  // Ritardo del cantiere sempre visibile (collaudo 23/11).
+                  const giorni = giorniRitardoCantiere(a.order?.work_end_date, oggiCampo, a.order?.status);
+                  return giorni != null && <p className="mt-1 text-xs font-semibold text-red-700 dark:text-red-400">{t(testoRitardoCantiere(giorni).replace(/\d+/, "{n}"), { n: giorni })}</p>;
+                })()}
                 {a.is_capocantiere && (
                   <span
                     role="link"
                     tabIndex={0}
                     onClick={(e) => { e.stopPropagation(); navigate(`/campo/squadra/${a.order?.id}`); }}
                     onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); navigate(`/campo/squadra/${a.order?.id}`); } }}
-                    className="mt-2 inline-flex h-9 items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/5 px-3 text-xs font-semibold text-primary"
+                    className="mt-2 inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/5 px-3 text-[13px] font-semibold text-primary"
                   >
-                    <Users className="h-3.5 w-3.5" /> Squadra di oggi
+                    <Users className="h-3.5 w-3.5" /> {t("Squadra di oggi")}
                   </span>
                 )}
               </button>

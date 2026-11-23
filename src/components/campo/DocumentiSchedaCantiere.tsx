@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { apriDocumentoDopoAttesa } from "@/lib/campo/apriDocumento";
 import type { DocumentoSchedaCantiere } from "@/lib/campo/schedaCantiere";
 import { TIPI_DOCUMENTO_CANTIERE } from "@/lib/commesse/documentiCantiere";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const TIPI_ANTEPRIMA = {
   pdf: "application/pdf",
@@ -31,6 +32,7 @@ const nomeCategoria = (doc: DocumentoSchedaCantiere) =>
   TIPI_DOCUMENTO_CANTIERE[doc.categoria] || "Altro documento di cantiere";
 
 export function DocumentiSchedaCantiere({ documenti }: { documenti: DocumentoSchedaCantiere[] }) {
+  const t = useT();
   const [ricerca, setRicerca] = useState("");
   const [categoria, setCategoria] = useState("");
   const [attivo, setAttivo] = useState<string | null>(null);
@@ -57,41 +59,44 @@ export function DocumentiSchedaCantiere({ documenti }: { documenti: DocumentoSch
         window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
         return url;
       });
-      if (!esito) toast.error("Documento non disponibile. Riprova.");
+      if (!esito) toast.error(t("Documento non disponibile. Riprova."));
     } catch {
-      toast.error("Documento non disponibile. Riprova.");
+      toast.error(t("Documento non disponibile. Riprova."));
     } finally {
       setAttivo(null);
     }
   }
 
-  if (!documenti.length) return <p className="rounded-xl border bg-card p-3 text-sm text-muted-foreground">Nessun documento operativo disponibile.</p>;
+  if (!documenti.length) return <div className="rounded-xl border bg-card p-3 text-sm text-muted-foreground">
+    <p className="font-medium text-foreground">{t("Nessun documento per questo cantiere")}</p>
+    <p className="mt-1 text-xs">{t("Qui trovi disegni, piani di sicurezza e schede tecniche che l’ufficio mette a disposizione della squadra.")}</p>
+  </div>;
 
   return <div className="space-y-2">
     <div className="grid gap-2 sm:grid-cols-[1fr_14rem]">
-      <Input className="h-11 text-base" type="search" aria-label="Cerca documenti" placeholder="Cerca documenti" value={ricerca}
+      <Input className="h-11 text-base" type="search" aria-label={t("Cerca documenti")} placeholder={t("Cerca documenti")} value={ricerca}
         onChange={event => setRicerca(event.target.value)} />
-      {categorie.length > 1 && <UniformSelect className="min-h-11 w-full bg-card" aria-label="Categoria documento" value={categoria}
+      {categorie.length > 1 && <UniformSelect className="min-h-11 w-full bg-card" aria-label={t("Categoria documento")} value={categoria}
         onChange={event => setCategoria(event.target.value)}>
-        <option value="">Tutte le categorie</option>
-        {categorie.map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
+        <option value="">{t("Tutte le categorie")}</option>
+        {categorie.map(([id, nome]) => <option key={id} value={id}>{t(nome)}</option>)}
       </UniformSelect>}
     </div>
-    {visibili.length === 0 ? <p className="py-3 text-sm text-muted-foreground">Nessun documento corrisponde alla ricerca.</p> :
-      <ul className="divide-y rounded-xl border bg-card" aria-label="Documenti operativi">
+    {visibili.length === 0 ? <p className="py-3 text-sm text-muted-foreground">{t("Nessun documento corrisponde alla ricerca.")}</p> :
+      <ul className="divide-y rounded-xl border bg-card" aria-label={t("Documenti operativi")}>
         {visibili.map(doc => {
           const mime = mimeAnteprima(doc);
           const scheda = <span className="min-w-0 flex-1">
             <span className="block text-sm font-medium [overflow-wrap:anywhere]">{doc.nome}</span>
-            <span className="block text-xs text-muted-foreground">{nomeCategoria(doc)}{doc.revisione && ` · Rev. ${doc.revisione}`}</span>
+            <span className="block text-xs text-muted-foreground">{t(nomeCategoria(doc))}{doc.revisione && ` · ${t("Rev. {n}", { n: doc.revisione })}`}</span>
           </span>;
           return <li key={doc.id} className="flex items-center gap-1.5 px-2 py-2.5 sm:gap-2.5 sm:px-3">
             <FileText className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
             {mime ? <button type="button" className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-md pr-2 text-left hover:bg-muted"
-              aria-label={`Apri ${doc.nome}`} disabled={!!attivo} onClick={() => void apri(doc, mime)}>
+              aria-label={t("Apri {nome}", { nome: doc.nome })} disabled={!!attivo} onClick={() => void apri(doc, mime)}>
               {scheda}<ExternalLink className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
             </button> : scheda}
-            <Button type="button" variant="outline" size="icon" className="size-11 shrink-0" aria-label={`Scarica ${doc.nome}`}
+            <Button type="button" variant="outline" size="icon" className="size-11 shrink-0" aria-label={t("Scarica {nome}", { nome: doc.nome })}
               disabled={!!attivo} onClick={() => void apri(doc, null)}>
               {attivo === doc.id ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Download className="size-4" aria-hidden="true" />}
             </Button>

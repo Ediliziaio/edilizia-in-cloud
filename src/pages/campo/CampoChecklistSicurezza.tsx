@@ -15,9 +15,11 @@ import {
 import CampoChecklistItem from "@/components/campo/CampoChecklistItem";
 import { isChecklistCompleta } from "@/lib/campo/checklist-items";
 import type { JSX } from "react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export default function CampoChecklistSicurezza(): JSX.Element {
   const navigate = useNavigate();
+  const tr = useT();
   // Turno di default dall'orologio: chi attacca il pomeriggio firmava per
   // forza la checklist "mattina" (la chiave DB è per turno).
   const [turno, setTurno] = useState<"mattina" | "pomeriggio">(
@@ -70,11 +72,11 @@ export default function CampoChecklistSicurezza(): JSX.Element {
     const esito = await conferma(null, gps);
     setConfermando(false);
     if (esito) {
-      if (esito === "accodata") toast.info("Checklist salvata sul dispositivo. Invio in attesa di connessione.");
-      else toast.success("Checklist confermata — buon lavoro!", { duration: 3000 });
+      if (esito === "accodata") toast.info(tr("Checklist salvata sul dispositivo. Invio in attesa di connessione."));
+      else toast.success(tr("Checklist confermata — buon lavoro!"), { duration: 3000 });
       setTimeout(() => navigate("/campo"), 800);
     } else {
-      toast.error(error ?? "Impossibile confermare la checklist");
+      toast.error(error ?? tr("Impossibile confermare la checklist"));
     }
   };
 
@@ -86,16 +88,16 @@ export default function CampoChecklistSicurezza(): JSX.Element {
           <button
             type="button"
             onClick={() => navigate("/campo")}
-            aria-label="Torna alla home"
+            aria-label={tr("Torna alla home")}
             className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted transition-transform active:scale-95"
           >
             <ChevronLeft className="h-5 w-5 text-foreground" />
           </button>
           <div>
             <h1 className="text-lg font-bold leading-tight text-foreground">
-              Checklist Sicurezza
+              {tr("Checklist Sicurezza")}
             </h1>
-            <p className="text-xs text-muted-foreground">Caricamento controllo giornaliero...</p>
+            <p className="text-xs text-muted-foreground">{tr("Caricamento controllo giornaliero...")}</p>
           </div>
         </div>
         {Array.from({ length: 8 }).map((_, i) => (
@@ -108,19 +110,19 @@ export default function CampoChecklistSicurezza(): JSX.Element {
   // ─── Già compilata oggi ──
   if (record?.completata) {
     return (
-      <div className="p-4 space-y-4">
+      <div className="space-y-3 md:space-y-4 md:p-4">
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => navigate("/campo")}
-            aria-label="Torna alla home"
+            aria-label={tr("Torna alla home")}
             className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center active:scale-95 transition-transform"
           >
             <ChevronLeft className="w-5 h-5 text-foreground" />
           </button>
           <div>
             <h1 className="text-lg font-bold text-foreground leading-tight">
-              Checklist Sicurezza
+              {tr("Checklist Sicurezza")}
             </h1>
             <p className="text-xs text-muted-foreground">{capitalizedDate}</p>
           </div>
@@ -128,15 +130,15 @@ export default function CampoChecklistSicurezza(): JSX.Element {
 
         <div className="rounded-2xl bg-emerald-50 border-2 border-emerald-500 p-6 text-center">
           <CheckCircle2 className="w-16 h-16 text-emerald-600 mx-auto mb-3" />
-          <h2 className="text-xl font-bold text-foreground mb-1">Già completata</h2>
+          <h2 className="text-xl font-bold text-foreground mb-1">{tr("Già completata")}</h2>
           <p className="text-sm text-foreground">
-            Hai già compilato la checklist di oggi. Buon lavoro!
+            {tr("Hai già compilato la checklist di oggi. Buon lavoro!")}
           </p>
         </div>
 
         <div className="space-y-2">
           <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide">
-            Riepilogo
+            {tr("Riepilogo")}
           </p>
           {CHECKLIST_ITEMS.map((item) => {
             const r = risposte.find((x) => x.itemId === item.id);
@@ -152,7 +154,7 @@ export default function CampoChecklistSicurezza(): JSX.Element {
                     className={`w-5 h-5 ${r?.checked ? "text-foreground" : "text-muted-foreground"}`}
                   />
                 </div>
-                <span className="text-sm text-foreground flex-1">{item.label}</span>
+                <span className="text-sm text-foreground flex-1">{tr(item.label)}</span>
               </div>
             );
           })}
@@ -161,7 +163,7 @@ export default function CampoChecklistSicurezza(): JSX.Element {
         {note && (
           <div className="rounded-xl bg-muted border border-border p-3">
             <p className="text-xs font-bold text-muted-foreground uppercase mb-1">
-              Note
+              {tr("Note")}
             </p>
             <p className="text-sm text-foreground">{note}</p>
           </div>
@@ -172,13 +174,13 @@ export default function CampoChecklistSicurezza(): JSX.Element {
 
   // ─── Form compilazione ──
   return (
-    <div className="p-4 space-y-4 pb-32">
+    <div className="space-y-3 pb-32 md:space-y-4 md:p-4 md:pb-32">
       {/* Header */}
       <div className="flex items-center gap-3">
         <button
           type="button"
           onClick={() => navigate("/campo")}
-          aria-label="Torna alla home"
+          aria-label={tr("Torna alla home")}
           className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center active:scale-95 transition-transform"
         >
           <ChevronLeft className="w-5 h-5 text-foreground" />
@@ -186,7 +188,7 @@ export default function CampoChecklistSicurezza(): JSX.Element {
         <div className="flex-1 min-w-0">
           <h1 className="text-lg font-bold text-foreground leading-tight flex items-center gap-2">
             <ShieldCheck className="w-5 h-5 text-primary" />
-            Checklist Sicurezza
+            {tr("Checklist Sicurezza")}
           </h1>
           <p className="text-xs text-muted-foreground">{capitalizedDate}</p>
         </div>
@@ -203,7 +205,7 @@ export default function CampoChecklistSicurezza(): JSX.Element {
                   : "rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground"
               }
             >
-              {t === "mattina" ? "Mattina" : "Pomeriggio"}
+              {t === "mattina" ? tr("Mattina") : tr("Pomeriggio")}
             </button>
           ))}
         </div>
@@ -212,9 +214,9 @@ export default function CampoChecklistSicurezza(): JSX.Element {
       {/* Info box */}
       <div className="rounded-xl bg-primary/10 border border-primary/40 p-3">
         <p className="text-xs text-primary leading-relaxed">
-          Controlla ogni elemento prima di iniziare i lavori. Gli elementi
-          segnati come <strong>Obbligatorio</strong> sono necessari per
-          confermare la checklist.
+          {tr("Controlla ogni elemento prima di iniziare i lavori. Gli elementi segnati come")}{" "}
+          <strong>{tr("Obbligatorio")}</strong>{" "}
+          {tr("sono necessari per confermare la checklist.")}
         </p>
       </div>
 
@@ -250,13 +252,13 @@ export default function CampoChecklistSicurezza(): JSX.Element {
           htmlFor="checklist-note"
           className="text-xs font-bold text-muted-foreground uppercase tracking-wide block"
         >
-          Note aggiuntive (opzionale)
+          {tr("Note aggiuntive (opzionale)")}
         </label>
         <textarea
           id="checklist-note"
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          placeholder="Anomalie o osservazioni…"
+          placeholder={tr("Anomalie o osservazioni…")}
           rows={3}
           className="w-full rounded-xl bg-muted border border-border p-3 text-sm text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none resize-none"
         />
@@ -284,18 +286,18 @@ export default function CampoChecklistSicurezza(): JSX.Element {
           {confermando || saving ? (
             <>
               <Loader2 className="w-5 h-5 animate-spin" />
-              Salvataggio…
+              {tr("Salvataggio…")}
             </>
           ) : (
             <>
               <ShieldCheck className="w-5 h-5" />
-              CONFERMA CHECKLIST
+              {tr("CONFERMA CHECKLIST")}
             </>
           )}
         </button>
         {!completaLocale && (
           <p className="text-[11px] text-center text-muted-foreground mt-2">
-            Spunta tutti gli elementi obbligatori per continuare
+            {tr("Spunta tutti gli elementi obbligatori per continuare")}
           </p>
         )}
       </div>

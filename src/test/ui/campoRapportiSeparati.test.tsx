@@ -138,6 +138,6 @@ describe("Consultazione dei rapportini del cantiere", () => {
  it.each(["errore","caricamento"])("ruolo in %s: non allarga né avvia la lettura", (caso) => {
   state.ruoloErrore=caso==="errore";state.ruoloCarica=caso==="caricamento";open();
   expect(state.historyOptions?.enabled).toBe(false);
-  if(state.ruoloErrore)expect(screen.getByRole("alert")).toHaveTextContent("Non riesco a verificare quali rapportini");
+  if(state.ruoloErrore)expect(screen.getByRole("alert")).toHaveTextContent("Non riesco a caricare i rapportini");
  });
 });

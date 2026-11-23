@@ -1,0 +1,51 @@
+/* Area campo, telefono (collaudo 23/11/2026, regola del founder): una scala sola.
+   17 titolo pagina · 15 titoli dei riquadri · 14 contenuti · 13–14 pulsanti · 12 dettagli · 11 minimo, mai sotto.
+
+   Dal 23/11 il <main> di CampoLayout ha id="main-content": titoli 17/15 e minimo 11 arrivano da index.css,
+   come nell'area azienda. Qui restano SOLO le regole in più che valgono per il campo (sull'area azienda non sono
+   state misurate): testo di base 14, «text-base» non titolo, numeri grandi, pulsanti, campi a 16.
+   L'aggancio è la campanella (CampanellaCampo, data-campo-campanella), che c'è solo nell'intestazione del campo:
+   così queste regole non toccano l'area azienda, che usa lo stesso id.
+
+   Misure prima delle regole (giro di tutte le 34 route, 390 px): testo senza classe a 16 px (eredità del
+   browser), pulsanti e scelte a 16, numeri da 18 a 36 px («0h» della timbratura). */
+@media (max-width: 767px) {
+  /* Testo di base: quello senza una grandezza propria eredita 14, non i 16 del browser. */
+  header:has([data-campo-campanella]) ~ main {
+    font-size: 14px;
+  }
+
+  /* Numeri e testi grandi che non sono titoli (contatori, ore del giorno, iniziali): al massimo 17, in grassetto
+     restano i più visibili della pagina. Prima andavano fino a 36 px («0h» della timbratura). */
+  header:has([data-campo-campanella]) ~ main :is(.text-lg, .text-xl, .text-2xl, .text-3xl, .text-4xl, .text-5xl):not(h1, h2, h3) {
+    font-size: 17px;
+    line-height: 1.25;
+  }
+
+  /* «text-base» fuori dai titoli: in grassetto fa da titolo di riquadro (15), altrimenti è contenuto (14).
+     Esempi misurati: nome del cantiere nella Home, nome della fase nella scheda lavoro, a 16. */
+  header:has([data-campo-campanella]) ~ main :is(p, span, div, li, label, dt, dd).text-base {
+    font-size: 14px;
+  }
+  header:has([data-campo-campanella]) ~ main :is(p, span, div, li, label, dt, dd).text-base:is(.font-semibold, .font-bold, .font-black) {
+    font-size: 15px;
+  }
+
+  /* Pulsanti, scelte e tendine: 14. Il pulsante principale a tutta larghezza resta un gradino sopra, 15, come i
+     pulsanti fissi in fondo alle finestre (index.css). */
+  header:has([data-campo-campanella]) ~ main :is(button, a, [role="button"], [data-uniform-select-trigger]):is(.text-base, .text-lg, .text-xl) {
+    font-size: 14px;
+  }
+  header:has([data-campo-campanella]) ~ main [data-uniform-select-trigger] {
+    font-size: 14px;
+  }
+  header:has([data-campo-campanella]) ~ main :is(button, a).w-full:is(.bg-primary, .bg-green-600, .bg-red-600, .bg-destructive) {
+    font-size: 15px;
+  }
+
+  /* Campi in cui si scrive: 16, sotto Safari su iPhone ingrandisce la pagina al tocco. */
+  header:has([data-campo-campanella]) ~ main :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"]), textarea) {
+    font-size: 16px;
+  }
+
+}
