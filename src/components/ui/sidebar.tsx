@@ -4,6 +4,8 @@ import { VariantProps, cva } from "class-variance-authority";
 import { PanelLeft } from "lucide-react";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+// Una regola sola per la larghezza: ignota = computer, non telefono (vedi useSottoLarghezza).
+import { useSottoLarghezza } from "@/hooks/useSottoLarghezza";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,25 +40,6 @@ function useSidebar() {
   }
 
   return context;
-}
-
-/**
- * Vero sotto la larghezza data. Parte subito col valore reale (come
- * useIsMobile) per non far lampeggiare la barra al primo disegno.
- */
-function useSottoLarghezza(px: number | undefined) {
-  const [sotto, setSotto] = React.useState<boolean>(() =>
-    px !== undefined && typeof window !== "undefined" ? window.innerWidth < px : false,
-  );
-  React.useEffect(() => {
-    if (px === undefined) return;
-    const mql = window.matchMedia(`(max-width: ${px - 1}px)`);
-    const onChange = () => setSotto(window.innerWidth < px);
-    mql.addEventListener?.("change", onChange);
-    onChange();
-    return () => mql.removeEventListener?.("change", onChange);
-  }, [px]);
-  return sotto;
 }
 
 const SidebarProvider = React.forwardRef<
