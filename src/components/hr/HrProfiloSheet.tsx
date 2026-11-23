@@ -14,6 +14,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { CostoPersonaHr } from "@/components/hr/CostoPersonaHr";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { TesserinoQrUfficio } from "@/components/hr/TesserinoQrUfficio";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { accessoPiattaforma, ETICHETTA_ACCESSO, spiegazioneAccesso } from "@/lib/hr/accessoPiattaforma";
@@ -551,7 +552,12 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili, onApriProfil
           <TabsContent value="documenti" className="flex-1 min-h-0 m-0">
             <ScrollArea className="h-full px-6 max-sm:px-4"><div className="py-4 max-sm:py-3">
               {isEditing && profilo
-                ? <HrDocumentiSection profiloId={profilo.id} companyId={profilo.company_id} />
+                ? <>
+                  {/* QR del tesserino: solo per chi lavora in cantiere (23/11/2026). */}
+                  {profilo.lavora_in_cantiere && <TesserinoQrUfficio profiloId={profilo.id}
+                    nome={[profilo.nome, profilo.cognome].filter(Boolean).join(" ")} puoModificare />}
+                  <HrDocumentiSection profiloId={profilo.id} companyId={profilo.company_id} />
+                </>
                 : <p className="text-sm text-muted-foreground py-8 text-center">Salva prima il profilo per gestire i documenti.</p>}
             </div></ScrollArea>
           </TabsContent>
