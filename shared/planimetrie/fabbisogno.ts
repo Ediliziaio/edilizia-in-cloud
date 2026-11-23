@@ -91,6 +91,10 @@ export const FASI_FABBISOGNO = [
   { id: "finiture", nome: "5 · Finiture", posa: "Battiscopa per ultimo, a pittura asciutta: incollato o fissato, tagli a 45° negli angoli." },
 ] as const;
 export type FaseFabbisogno = typeof FASI_FABBISOGNO[number]["id"];
+/** Il lavoro, detto in una parola, per sceglierlo. */
+export const NOME_LAVORO: Record<FaseFabbisogno, string> = {
+  murature: "Tramezzi nuovi", radiante: "Pavimento radiante", pavimenti: "Pavimenti e rivestimenti", tinteggiatura: "Tinteggiatura", finiture: "Battiscopa",
+};
 
 const FASE_DI: Record<string, FaseFabbisogno> = {
   tramezzo_laterizio: "murature", tramezzo_malta: "murature", tramezzo_intonaco: "murature",
@@ -169,10 +173,26 @@ function tramezziNuovi(p: Planimetria, ambito: string): Array<{ nome: string; mq
     .map((m, i) => ({ nome: `${l.nome} · tramezzo ${i + 1}`, mq: Math.hypot(m.p2.x - m.p1.x, m.p2.y - m.p1.y) * (m.altezza ?? 270) / 10_000 })));
 }
 
-export function fabbisognoMateriali(p: Planimetria, ambito: string, ipotesi: Partial<IpotesiFabbisogno> = {}): RigaFabbisogno[] {
+/** Quali lavori e in quali stanze: senza scelta, tutti i lavori in tutte le stanze. */
+export interface SceltaFabbisogno { fasi?: readonly FaseFabbisogno[]; stanze?: readonly string[] }
+
+/** Le stanze dell'ambito, per sceglierle; `toccata` = nuova o cambiata rispetto allo stato di fatto. */
+export function stanzeFabbisogno(p: Planimetria, ambito: string): Array<{ id: string; nome: string; toccata: boolean }> {
+  const fatto = new Map(p.livelli.flatMap((l) => l.fatto.locali).map((l) => [l.id, l]));
+  const propostaId = ambito.startsWith("progetto:") ? ambito.slice("progetto:".length) : null;
+  const progetto = new Map(propostaId ? p.livelli.flatMap((l) => l.proposte.find((x) => x.id === propostaId)?.locali ?? []).map((l) => [l.id, l]) : []);
+  return stanzeDellAmbito(p, ambito).map((s) => {
+    const prima = fatto.get(s.id), dopo = progetto.get(s.id);
+    const toccata = !!propostaId && (!prima || !dopo || JSON.stringify(prima.contorno) !== JSON.stringify(dopo.contorno)
+      || JSON.stringify(prima.finiture ?? null) !== JSON.stringify(dopo.finiture ?? null) || prima.destinazione !== dopo.destinazione);
+    return { id: s.id, nome: s.nome, toccata };
+  });
+}
+
+export function fabbisognoMateriali(p: Planimetria, ambito: string, ipotesi: Partial<IpotesiFabbisogno> = {}, scelta: SceltaFabbisogno = {}): RigaFabbisogno[] {
   const h = { ...IPOTESI_FABBISOGNO, ...ipotesi };
-  const stanze = stanzeDellAmbito(p, ambito);
-  if (!stanze.length) return [];
+  const stanze = stanzeDellAmbito(p, ambito).filter((s) => !scelta.stanze || scelta.stanze.includes(s.id));
+  if (!stanze.length && !tramezziNuovi(p, ambito).length) return [];
   const righe: RigaFabbisogno[] = [];
   const riga = (r: Omit<RigaFabbisogno, "quantita" | "stanze" | "fase"> & { stanze: Array<{ nome: string; valore: number }> }) => {
     const quantita = arrotonda(r.stanze.reduce((t, s) => t + s.valore, 0));
@@ -307,5 +327,5 @@ export function fabbisognoMateriali(p: Planimetria, ambito: string, ipotesi: Par
   }
 
   const ordine = FASI_FABBISOGNO.map((f) => f.id);
-  return righe.sort((a, b) => ordine.indexOf(a.fase) - ordine.indexOf(b.fase));
+  return righe.filter((r) => !scelta.fasi || scelta.fasi.includes(r.fase)).sort((a, b) => ordine.indexOf(a.fase) - ordine.indexOf(b.fase));
 }

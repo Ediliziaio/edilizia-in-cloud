@@ -9,7 +9,7 @@ import { coloriContraddittori } from "../../../shared/render-room/colours.ts";
 import { COLORI_INFISSI_PROGETTO, PROFILI_PROGETTO, descrizionePavimento, statoConMateriali } from "../../../shared/planimetrie/materialiProgetto.ts";
 import { svgPiantaStanza } from "../../../shared/render-planimetria/piantaStanza.ts";
 import { NOMI_VERIFICA, verificaPianta, type Verifica } from "../../../shared/planimetrie/verifiche.ts";
-import { FASI_FABBISOGNO, fabbisognoMateriali } from "../../../shared/planimetrie/fabbisogno.ts";
+import { FASI_FABBISOGNO, fabbisognoMateriali, stanzeFabbisogno } from "../../../shared/planimetrie/fabbisogno.ts";
 import { DATI_URBANISTICI, firmaRiscontroTecnico, RISCONTRI_TECNICI, RUOLI_TAVOLA, valutaUrbanistica } from "../../../shared/planimetrie/urbanistica.ts";
 import { selectedRoomVisuals } from "../../../shared/render-references/roomVisualCatalog.ts";
 import { makeReferenceImage } from "../../../shared/render-references/referenceUrl.ts";
@@ -458,10 +458,13 @@ export async function esportaFascicolo(d: DatiFascicolo): Promise<{ dati: Uint8A
     }
   }
   // La lista della spesa dalla pianta: quantità, confezioni e come sono calcolate (23/11/2026).
-  const materiali = fabbisognoMateriali(d.documento, d.ambito);
+  // Come nel pannello: in una variante i materiali sono per le stanze che cambiano.
+  const stanzeMateriali = stanzeFabbisogno(d.documento, d.ambito);
+  const toccate = stanzeMateriali.filter((s) => s.toccata);
+  const materiali = fabbisognoMateriali(d.documento, d.ambito, {}, toccate.length ? { stanze: toccate.map((s) => s.id) } : {});
   if (materiali.length) {
     avanza("Materiali da comprare");
-    nuovaPagina("Materiali da comprare", `${nomeAmbito} · rese tipiche di cantiere, da confermare con le schede dei prodotti`, true);
+    nuovaPagina("Materiali da comprare", `${nomeAmbito} · ${toccate.length ? `stanze che cambiano: ${toccate.map((s) => s.nome).join(", ").slice(0, 90)}` : "tutta la casa"} · rese tipiche, da confermare`, true);
     for (const f of FASI_FABBISOGNO.filter((f) => materiali.some((r) => r.fase === f.id))) {
       testo(f.nome, 12, true);
       testo(f.posa);

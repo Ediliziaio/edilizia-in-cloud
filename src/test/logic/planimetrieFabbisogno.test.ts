@@ -130,3 +130,29 @@ describe("frazionare una stanza con il pavimento radiante", () => {
     expect(riga(fabbisognoMateriali(p, "fatto"), "tramezzo_laterizio")).toBeUndefined();
   });
 });
+
+describe("scegliere i lavori e le stanze", () => {
+  it("solo la tinteggiatura del soggiorno: niente pavimenti, pittura della sola stanza", async () => {
+    const { stanzeFabbisogno } = await import("../../../shared/planimetrie/fabbisogno");
+    const p = base();
+    const soggiorno = stanzeFabbisogno(p, "fatto").find((s) => s.nome === "Soggiorno")!;
+    const righe = fabbisognoMateriali(p, "fatto", {}, { fasi: ["tinteggiatura"], stanze: [soggiorno.id] });
+    expect(righe.map((r) => r.id).sort()).toEqual(["fissativo", "pittura"]);
+    expect(riga(righe, "pittura")!.stanze.map((s) => s.nome)).toEqual(["Soggiorno"]);
+    expect(riga(righe, "pittura")!.quantita).toBeLessThan(riga(fabbisognoMateriali(p, "fatto"), "pittura")!.quantita);
+  });
+
+  it("in una variante le stanze toccate sono quelle nuove o cambiate", async () => {
+    const { stanzeFabbisogno } = await import("../../../shared/planimetrie/fabbisogno");
+    const p = base();
+    const fatto = p.livelli[0].fatto;
+    const soggiorno = fatto.locali.find((l) => l.nome === "Soggiorno")!;
+    const taglio = frazionaContorno(fatto, soggiorno, "y", [50]);
+    if (!taglio.ok) throw new Error("taglio non valido");
+    p.livelli[0].proposte = [{ ...structuredClone(fatto), id: "v", nome: "V",
+      locali: [...fatto.locali.filter((l) => l.id !== soggiorno.id),
+        { ...soggiorno, id: "s1", nome: "Soggiorno A", contorno: taglio.parti[0] }, { ...soggiorno, id: "s2", nome: "Soggiorno B", contorno: taglio.parti[1] }] } as never];
+    expect(stanzeFabbisogno(p, "progetto:v").filter((s) => s.toccata).map((s) => s.nome).sort()).toEqual(["Soggiorno A", "Soggiorno B"]);
+    expect(stanzeFabbisogno(p, "fatto").some((s) => s.toccata)).toBe(false);
+  });
+});
