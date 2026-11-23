@@ -10,7 +10,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { INITIAL, LS_KEY_NEW } from "@/pages/azienda/fotovoltaico/FotovoltaicoWizard/constants";
+import { INITIAL } from "@/pages/azienda/fotovoltaico/FotovoltaicoWizard/constants";
 
 const { stato, ARTICOLI, NESSUNO, apiInvoke, aggiorna } = vi.hoisted(() => ({
   stato: { margini: true, id: undefined as string | undefined },
