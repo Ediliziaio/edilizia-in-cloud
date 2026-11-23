@@ -15,7 +15,7 @@ import { percorsoStorageSicuro } from "../_shared/posPercorsi.ts";
 import { oggiRoma } from "../_shared/posData.ts";
 import { normalizzaRiferimentoPsc } from "../_shared/posPsc.ts";
 import { AZIONI_POS, eAzioneBrowserPos, scriveAzionePos, type AzionePos } from "../_shared/posAzioni.ts";
-import { applicaFontiProposteAiPos, capitoliComputoPos, preparaContestoAiPos } from "../_shared/posAiContesto.ts";
+import { applicaFontiProposteAiPos, capitoliComputoPos, ISTRUZIONE_VOCI_DA_CLASSIFICARE, preparaContestoAiPos, vociDaClassificarePerAi } from "../_shared/posAiContesto.ts";
 import { computoPerAiPos, fasiPerAiPos, leggiPaginePscConOcr, pscPerAiPos } from "../_shared/posAiFonti.ts";
 import { controlliApprovazione } from "../_shared/posApprovazione.ts";
 import { leggiRichiestaPos } from "../_shared/posRichiesta.ts";
@@ -175,6 +175,7 @@ async function proponiLavorazioni(db: Db, companyId: string, userId: string, pos
     computo: fonti.computo?.voci.map(({ titolo, capitolo, codice, quantita, unita }, i) => ({
       ref: "C" + (i + 1), titolo: titolo.slice(0, 180), capitolo: capitolo.slice(0, 84), codice, quantita, unita,
     })),
+    voci_computo_da_classificare: vociDaClassificarePerAi(fonti),
     psc: fonti.psc ? { revisione: fonti.psc.riferimento.revisione, pagine: fonti.psc.pagine } : undefined,
     schede_standard: fonti.schede.map(({ id, titolo, prima, durante, dopo, rischi }) => ({ id, titolo, prima, durante, dopo, rischi })),
   };
@@ -193,7 +194,8 @@ async function proponiLavorazioni(db: Db, companyId: string, userId: string, pos
       taskKey: "documento_pos",
       messages: [
         { role: "system", content: SISTEMA_LAVORAZIONI + (capitoli.length
-          ? " Con capitoli_selezionati proponi solo lavorazioni riscontrate nelle voci del computo fornite e cita almeno un riferimento C per ogni scheda." : "") },
+          ? " Con capitoli_selezionati proponi solo lavorazioni riscontrate nelle voci del computo fornite e cita almeno un riferimento C per ogni scheda." : "")
+          + (dati.voci_computo_da_classificare ? ISTRUZIONE_VOCI_DA_CLASSIFICARE : "") },
         { role: "user", content: `Dati del cantiere:\n${JSON.stringify(dati, null, 2)}` },
       ],
       params: { temperature: 0.2, max_tokens: 7000 },

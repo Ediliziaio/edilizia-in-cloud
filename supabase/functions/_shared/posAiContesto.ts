@@ -6,6 +6,7 @@ import { rischioTecnicoVuoto, tecnicaPosVuota } from "./posTecnica.ts";
 import { suggerisciSchedePos, testoRicercaSchedePos, VERSIONE_SCHEDE_POS } from "./posSchedeStandard.ts";
 
 const MAX_VOCI_PROMPT = 200;
+const MAX_VOCI_DA_CLASSIFICARE = 40;
 const MAX_CARATTERI_PSC_PROMPT = 18_000;
 const oggetto = (v: unknown): Record<string, unknown> =>
   v !== null && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : {};
@@ -50,14 +51,15 @@ export function preparaContestoAiPos(dati: {
   if (dati.limitaAlPerimetro && dati.computo && !voci.length) avvisi.push("Nessuna voce del computo abbinata al perimetro indicato.");
   // Una voce che il perimetro non aggancia per parole chiave resta fuori dalla proposta: va detto, e con il nome.
   // Senza questo avviso «Movimentazione dei materiali al piano» spariva accanto alle fasi dei serramenti (23/11/2026).
-  const vociNonAbbinate = dati.limitaAlPerimetro && !dati.capitoli?.length && voci.length
+  // Se il perimetro non ne aggancia nessuna, l'avviso generico qui sopra basta, ma all'AI vanno comunque da classificare.
+  const vociNonAbbinate = dati.limitaAlPerimetro && !dati.capitoli?.length
     ? (dati.computo?.voci ?? []).filter(v => !voci.includes(v)) : [];
-  if (vociNonAbbinate.length) {
+  if (vociNonAbbinate.length && voci.length) {
     const nomi = vociNonAbbinate.slice(0, 5).map(v => `«${[v.codice, v.titolo.slice(0, 80)].filter(Boolean).join(" ")}»`).join(", ");
     const altre = vociNonAbbinate.length > 5 ? ` e altre ${vociNonAbbinate.length - 5}` : "";
     avvisi.push(vociNonAbbinate.length === 1
-      ? `Una voce del computo non è abbinata alle fasi scelte e la proposta non l’ha considerata: ${nomi}. Se la esegue la tua impresa, aggiungi la sua fase al perimetro o scegli i capitoli del computo.`
-      : `${vociNonAbbinate.length} voci del computo non sono abbinate alle fasi scelte e la proposta non le ha considerate: ${nomi}${altre}. Se le esegue la tua impresa, aggiungi le loro fasi al perimetro o scegli i capitoli del computo.`);
+      ? `Una voce del computo non è abbinata alle fasi scelte: ${nomi}. La proposta non ne ricava schede, al massimo ti chiede se la esegue la tua impresa. Per includerla, aggiungi la sua fase al perimetro o scegli i capitoli del computo.`
+      : `${vociNonAbbinate.length} voci del computo non sono abbinate alle fasi scelte: ${nomi}${altre}. La proposta non ne ricava schede, al massimo ti chiede se le esegue la tua impresa. Per includerle, aggiungi le loro fasi al perimetro o scegli i capitoli del computo.`);
   }
   if (dati.computo?.stato === "bozza" && voci.length) avvisi.push("Il computo collegato è ancora in bozza: verifica voci e quantità.");
   const vociRidotte = voci.slice(0, MAX_VOCI_PROMPT);
@@ -91,8 +93,21 @@ export function preparaContestoAiPos(dati: {
     computo: dati.computo && vociRidotte.length ? { ...dati.computo, voci: vociRidotte } : null,
     psc: dati.psc && paginePsc.length ? { riferimento: dati.psc.riferimento, pagine: paginePsc } : null,
     schede,
+    /** Voci fuori dal perimetro: all'AI solo per farle chiedere, mai come fonte di una scheda (niente riferimento C). */
+    daClassificare: vociNonAbbinate.slice(0, MAX_VOCI_DA_CLASSIFICARE),
   };
 }
+
+/** Le voci da classificare come le vede il modello: senza riferimento C, quindi non citabili in riferimenti_computo. */
+export function vociDaClassificarePerAi(contesto: Pick<ContestoAiPos, "daClassificare">) {
+  return contesto.daClassificare.length
+    ? contesto.daClassificare.map(({ codice, titolo, capitolo, quantita, unita }) => ({
+      codice, titolo: titolo.slice(0, 180), capitolo: capitolo.slice(0, 84), quantita, unita,
+    }))
+    : undefined;
+}
+
+export const ISTRUZIONE_VOCI_DA_CLASSIFICARE = " voci_computo_da_classificare elenca voci del computo che il perimetro non ha abbinato. Non proporre schede a partire da queste voci e non indicarle in riferimenti_computo. Se una di esse può far parte delle attività di questa impresa nelle fasi indicate, aggiungi alla scheda più vicina un quesito che la nomini con codice e titolo e chieda se l’impresa la esegue e con quali modalità o mezzi. Ignora le voci chiaramente estranee alle fasi indicate.";
 
 export type ContestoAiPos = ReturnType<typeof preparaContestoAiPos>;
 

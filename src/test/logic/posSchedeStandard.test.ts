@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applicaFontiProposteAiPos, preparaContestoAiPos } from "../../../supabase/functions/_shared/posAiContesto";
+import { applicaFontiProposteAiPos, ISTRUZIONE_VOCI_DA_CLASSIFICARE, preparaContestoAiPos, vociDaClassificarePerAi } from "../../../supabase/functions/_shared/posAiContesto";
 import { normalizzaPos, posVuoto, vociMancanti } from "../../../supabase/functions/_shared/posModello";
 import { applicaRiusoPos } from "../../../supabase/functions/_shared/posRiuso";
 import { nuovaDaSchedaStandard, SCHEDE_STANDARD_POS, suggerisciSchedePos } from "../../../supabase/functions/_shared/posSchedeStandard";
@@ -32,7 +32,7 @@ const genera = () => applicaFontiProposteAiPos([
 
 describe("fonti delle schede POS", () => {
   it("dice quali voci del computo restano fuori dal perimetro, con il loro nome", () => {
-    expect(fonti().avvisi).toContain("Una voce del computo non è abbinata alle fasi scelte e la proposta non l’ha considerata: «DM-10.01 Quadro elettrico generale». Se la esegue la tua impresa, aggiungi la sua fase al perimetro o scegli i capitoli del computo.");
+    expect(fonti().avvisi).toContain("Una voce del computo non è abbinata alle fasi scelte: «DM-10.01 Quadro elettrico generale». La proposta non ne ricava schede, al massimo ti chiede se la esegue la tua impresa. Per includerla, aggiungi la sua fase al perimetro o scegli i capitoli del computo.");
     const serramenti: ComputoPerPos = { id: "cm-2", titolo: "Computo condominio", stato: "contrattuale", voci: [
       { id: "s1", codice: "SR.01", capitolo: "Serramenti", titolo: "Rimozione di serramento esistente in legno" },
       { id: "s2", codice: "SR.03", capitolo: "Movimentazioni", titolo: "Movimentazione dei materiali al piano con mezzi idonei o a mano" },
@@ -45,7 +45,38 @@ describe("fonti delle schede POS", () => {
     const molte: ComputoPerPos = { ...serramenti, voci: [serramenti.voci[0], ...Array.from({ length: 7 }, (_, i) => ({ id: `q${i}`, codice: `EL.${i}`, capitolo: "Elettrico", titolo: `Quadro ${i}` }))] };
     const avviso = preparaContestoAiPos({ fasi: [{ id: "f2", name: "Rimozione serramenti esistenti" }], ambito: "", descrizione: "",
       limitaAlPerimetro: true, computo: molte, psc: null }).avvisi.find(a => a.includes("non sono abbinate"));
-    expect(avviso).toMatch(/^7 voci del computo .*«EL\.4 Quadro 4» e altre 2\. Se le esegue/);
+    expect(avviso).toMatch(/^7 voci del computo .*«EL\.4 Quadro 4» e altre 2\. La proposta non ne ricava schede/);
+  });
+
+  it("passa all’AI le voci fuori perimetro da classificare, senza riferimento C, e tiene il quesito che le nomina", () => {
+    const serramenti: ComputoPerPos = { id: "cm-3", titolo: "Computo condominio", stato: "contrattuale", voci: [
+      { id: "s1", codice: "SR.01", capitolo: "Serramenti", titolo: "Rimozione di serramento esistente in legno", quantita: 48, unita: "cad" },
+      { id: "s2", codice: "SR.03", capitolo: "Movimentazioni", titolo: "Movimentazione dei materiali al piano con mezzi idonei o a mano", quantita: 1, unita: "corpo" },
+    ] };
+    const contesto = preparaContestoAiPos({ fasi: [{ id: "f2", name: "Rimozione serramenti esistenti" }], ambito: "", descrizione: "",
+      limitaAlPerimetro: true, computo: serramenti, psc: null });
+    expect(contesto.daClassificare.map(v => v.id)).toEqual(["s2"]);
+    expect(vociDaClassificarePerAi(contesto)).toEqual([{ codice: "SR.03", titolo: "Movimentazione dei materiali al piano con mezzi idonei o a mano",
+      capitolo: "Movimentazioni", quantita: 1, unita: "corpo" }]);
+    expect(JSON.stringify(vociDaClassificarePerAi(contesto))).not.toContain("\"ref\"");
+    expect(ISTRUZIONE_VOCI_DA_CLASSIFICARE).toContain("non indicarle in riferimenti_computo");
+    const domanda = "La voce SR.03 «Movimentazione dei materiali al piano» è eseguita dalla tua impresa, e con quali mezzi?";
+    const [scheda] = applicaFontiProposteAiPos([{ fase_id: "f2", titolo: "Rimozione serramenti esistenti", riferimenti_computo: ["C1", "C2"], quesiti: [domanda] }],
+      "t", contesto, { perimetroEsplicito: true, inSubappalto: false, subappaltatori: [] });
+    expect(scheda.fonti_scheda?.computo?.voci.map(v => v.codice)).toEqual(["SR.01"]);
+    expect(scheda.fonti_scheda?.quesiti?.map(q => q.domanda)).toContain(domanda);
+    const nessunaAbbinata = preparaContestoAiPos({ fasi: [{ id: "f9", name: "Tinteggiatura vano scale" }], ambito: "", descrizione: "",
+      limitaAlPerimetro: true, computo: serramenti, psc: null });
+    expect(nessunaAbbinata.computo).toBeNull();
+    expect(nessunaAbbinata.daClassificare.map(v => v.id)).toEqual(["s1", "s2"]);
+    expect(nessunaAbbinata.avvisi).toContain("Nessuna voce del computo abbinata al perimetro indicato.");
+    expect(nessunaAbbinata.avvisi.some(a => a.includes("non è abbinata") || a.includes("non sono abbinate"))).toBe(false);
+    const senzaPerimetro = preparaContestoAiPos({ fasi: [], ambito: "", descrizione: "serramenti", limitaAlPerimetro: false, computo: serramenti, psc: null });
+    expect(senzaPerimetro.daClassificare).toEqual([]);
+    expect(vociDaClassificarePerAi(senzaPerimetro)).toBeUndefined();
+    const tante: ComputoPerPos = { ...serramenti, voci: [serramenti.voci[0], ...Array.from({ length: 45 }, (_, i) => ({ id: `e${i}`, codice: `EL.${i}`, capitolo: "Elettrico", titolo: `Quadro ${i}` }))] };
+    expect(preparaContestoAiPos({ fasi: [{ id: "f2", name: "Rimozione serramenti esistenti" }], ambito: "", descrizione: "",
+      limitaAlPerimetro: true, computo: tante, psc: null }).daClassificare).toHaveLength(40);
   });
 
   it("non segnala voci escluse quando non c’è un perimetro o i capitoli li ha scelti l’utente", () => {
