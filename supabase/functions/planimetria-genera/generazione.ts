@@ -44,6 +44,8 @@ export interface InfoGenerazione {
   verifica_aperture?: { controllate: boolean; confermate: number; escluse: number; dubbie: number };
   /** Contorni che non tornano con i metri quadri scritti nella stanza. */
   superfici_da_rivedere?: Array<{ locale_id: string; nome: string; scritta: number; calcolata: number }>;
+  /** Controllore della disposizione: quanti giri del modello e quanti difetti sono rimasti. */
+  controllo_disposizione?: { giri: number; rimasti: number };
   sorgente_path: string | null;
   sfondo_dxf: SfondoDxf | null;
   /** Superficie scritta sul documento per locale (id → mq), per il confronto. */

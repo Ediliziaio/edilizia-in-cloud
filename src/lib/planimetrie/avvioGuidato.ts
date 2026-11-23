@@ -1,8 +1,6 @@
 import type { FieldDefinition, SurveyAreaRow } from "@/types/surveys";
 import { costruisciPiani, quotaDalNome } from "../../../supabase/functions/planimetria-genera/costruisci.ts";
 import { destinazioneDa, type LocaleAI } from "../../../supabase/functions/planimetria-genera/rispostaAI.ts";
-import { areaPoligono } from "../../../shared/planimetrie/geometria.ts";
-import type { Planimetria } from "../../../shared/planimetrie/modello.ts";
 
 export type AmbienteGuida = { nome: string; superficieMq: number; larghezzaM?: number; profonditaM?: number; altezzaM?: number; piano?: string };
 const PIANO_TERRA = "Piano terra";
@@ -125,25 +123,6 @@ export function ambientiDaAreeSalvate(aree: SurveyAreaRow[], campi: FieldDefinit
     if (dallaScheda) return [{ ...dallaScheda, ...(piano ? { piano } : {}) }];
     const appunti = [area.notes, area.audio_transcription].filter(Boolean).join("\n");
     return ambientiDaAppunti(appunti).filter((a) => a.nome.toLocaleLowerCase("it-IT") === area.name.trim().toLocaleLowerCase("it-IT"));
-  });
-}
-
-/**
- * Le stanze che la pianta ricavata dall'AI ha disegnato con una superficie diversa da
- * quella scritta (oltre il 10%). Il 23/11/2026, su «disimpegno 3,00 × 1,20 m»,
- * l'AI ha disegnato un disimpegno di 5,17 m² per far combaciare le stanze, e
- * l'unico avviso diceva «tutte le misure sono stimate».
- */
-export function stanzeFuoriMisura(testo: string, planimetria: Pick<Planimetria, "livelli">): string[] {
-  const scritte = ambientiDaAppunti(testo);
-  const fmt = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 2 });
-  return scritte.flatMap((a) => {
-    const livelli = planimetria.livelli.filter((l) => !a.piano || l.nome === a.piano || planimetria.livelli.length === 1);
-    const locale = livelli.flatMap((l) => l.fatto.locali).find((l) => l.nome.trim().toLocaleLowerCase("it-IT") === a.nome.trim().toLocaleLowerCase("it-IT"));
-    if (!locale || locale.contorno.length < 3) return [];
-    const disegnata = areaPoligono(locale.contorno) / 10_000;
-    if (Math.abs(disegnata - a.superficieMq) / a.superficieMq <= 0.1) return [];
-    return [`${locale.nome}: scritti ${fmt.format(a.superficieMq)} m², disegnati ${fmt.format(disegnata)} m²`];
   });
 }
 

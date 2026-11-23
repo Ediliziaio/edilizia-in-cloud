@@ -1,7 +1,10 @@
 import { assiDelMuro, distanzaDalContorno, puntoNelPoligono } from "../../../shared/planimetrie/geometria.ts";
-import { eAmbienteInterno, type Apertura, type Locale, type Muro, type Planimetria, type Punto, type StatoPianta } from "../../../shared/planimetrie/modello.ts";
+import { eAmbienteInterno, type Locale, type Planimetria, type Punto, type StatoPianta } from "../../../shared/planimetrie/modello.ts";
 import { firmaRiscontroTecnico } from "../../../shared/planimetrie/urbanistica.ts";
 import { eParteComune } from "./unita";
+import { vaniDiPassaggio, type VanoDiPassaggio } from "../../../shared/planimetrie/passaggi.ts";
+
+export { vaniDiPassaggio };
 
 export interface EsitoAccesso {
   localeId: string;
@@ -17,34 +20,6 @@ const NOMI_ESITI: Record<EsitoAccesso["esito"],string> = {
   assente:"Nessun accesso rilevato",
 };
 export const nomeEsitoAccesso = (esito: EsitoAccesso["esito"]) => NOMI_ESITI[esito];
-
-function latoDelVano(locali: Locale[], p: Punto, interno: Punto): string[] {
-  const dentro=locali.filter(l=>puntoNelPoligono(interno,l.contorno));
-  if (dentro.length) return dentro.map(l=>l.id);
-  return locali.filter(l=>distanzaDalContorno(p,l.contorno)<=MARGINE_CM).map(l=>l.id);
-}
-
-type VanoDiPassaggio = { apertura: Apertura; muro: Muro; centro: Punto; lati: [string[], string[]] };
-
-export function vaniDiPassaggio(stato: StatoPianta): VanoDiPassaggio[] {
-  const attivi = new Map(stato.muri.filter(m => m.stato !== "da_demolire").map(m => [m.id, m]));
-  const vani: VanoDiPassaggio[] = [];
-  for (const apertura of stato.aperture) {
-    if (apertura.stato === "da_demolire" || apertura.tipo === "finestra" || apertura.sistema === "fisso" || !(apertura.larghezza > 0)) continue;
-    const muro = attivi.get(apertura.muroId);
-    if (!muro) continue;
-    const { dir, normale } = assiDelMuro(muro);
-    const offset = apertura.offset + apertura.larghezza / 2;
-    const centro = { x: muro.p1.x + dir.x * offset, y: muro.p1.y + dir.y * offset };
-    const lato = (segno: number) => {
-      const faccia = { x: centro.x + normale.x * segno * muro.spessore / 2, y: centro.y + normale.y * segno * muro.spessore / 2 };
-      const interno = { x: faccia.x + normale.x * segno * MARGINE_CM, y: faccia.y + normale.y * segno * MARGINE_CM };
-      return latoDelVano(stato.locali, faccia, interno);
-    };
-    vani.push({ apertura, muro, centro, lati: [lato(1), lato(-1)] });
-  }
-  return vani;
-}
 
 /** Verifica i collegamenti ricostruiti nella tavola, anche attraverso un altro vano della proposta. */
 export function controllaAccessiLocali(stato: StatoPianta, nuoviLocali: readonly string[]): EsitoAccesso[] {

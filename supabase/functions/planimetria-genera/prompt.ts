@@ -108,7 +108,8 @@ REGOLE:
 - Rispetta le misure e le superfici della descrizione (es. "bagno 2×2,5" → 2,00 × 2,50 m; "75 mq" → la somma delle stanze circa 75 mq, al netto dei muri un 10% in meno).
 - Pianta compatta, perimetro rettangolare o a L. Ingresso o disimpegno che collega le stanze; bagno e camere raggiungibili senza passare da un'altra camera.
 - Misure tipiche italiane se non dette: camera matrimoniale 14 mq, singola 9–10 mq, bagno 4–5 mq, cucina abitabile 9–12 mq, soggiorno 18–25 mq.
-- Ogni stanza ha la sua porta; finestre sui lati esterni (non nei bagni ciechi se la descrizione lo dice).
+- Ogni stanza ha la sua porta verso l'INTERNO: su una parete in comune con l'ingresso, il disimpegno, il corridoio o il soggiorno. Una sola porta d'ingresso sul perimetro esterno, nell'ingresso, nel disimpegno o nel soggiorno. Bagni e camere non hanno mai porte che danno fuori. Prima di rispondere controlla che da quella porta d'ingresso si arrivi a ogni stanza passando solo da porte interne.
+- Finestre solo sui muri verso l'esterno, mai fra due stanze (non nei bagni ciechi se la descrizione lo dice).
 - Più piani (es. "su due piani", "duplex", "con mansarda", "con interrato", "con taverna"): ogni stanza ha il campo piano con un nome chiaro ("Interrato", "Piano terra", "Primo piano", "Sottotetto"…), e ogni piano usa le sue coordinate a partire da [0, 0] con lo stesso perimetro esterno; il vano scala sta nella stessa posizione su tutti i piani (nome "Vano scala", destinazione altro). Interrato: garage, cantine, taverna, locale tecnico. Sottotetto o mansarda: camere, bagno, ripostigli, altezza minore.
 - Edificio con più piani uguali (condominio "di 4 piani"): disegna UN solo piano tipo (piano "Piano tipo") più il piano terra se è diverso: i piani uguali si duplicano dopo, nell'editor, con «Piano identico».
 - Più appartamenti (bifamiliare, condominio): ogni stanza ha il campo unita ("A", "B"…; scale e androne "Parti comuni"); bifamiliare = due appartamenti speculari affiancati con un muro in comune.
@@ -160,6 +161,14 @@ export function promptCorrezione(errori: string[]): string {
 ${errori.map((e) => `- ${e}`).join("\n")}
 
 Correggi questi problemi e rispondi di nuovo con il JSON COMPLETO, nello stesso formato, senza testo prima o dopo. Ricontrolla in particolare che i contorni non si incrocino, che le stanze non si sovrappongano e che ogni porta o finestra stia sul lato di una stanza.`;
+}
+
+/** Il correttore: riceve i difetti di disposizione trovati dal controllore, uno per uno. */
+export function promptCorrezioneDisposizione(difetti: string[]): string {
+  return `La pianta è leggibile ma ha questi difetti di disposizione, trovati da un controllo automatico:
+${difetti.map((e) => `- ${e}`).join("\n")}
+
+Correggi SOLO questi difetti: lascia invariate le stanze e le aperture che vanno bene, non cambiare i nomi. Una porta interna sta su una parete in comune fra due stanze (stesso tratto di muro per entrambe); se due stanze non si toccano, sposta o allunga una delle due finché hanno un lato in comune di almeno 1 m. Rispetta le misure dettate. Rispondi di nuovo con il JSON COMPLETO, nello stesso formato, senza testo prima o dopo.`;
 }
 
 /** Seconda lettura quando la scala sembra sbagliata: si chiede di cercare una misura scritta sul disegno. */

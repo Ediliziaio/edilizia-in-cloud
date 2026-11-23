@@ -215,6 +215,12 @@ serveConMetricheRapida(NOME, async (req: Request) => {
       testo: typeof body.testo === "string" ? body.testo : undefined,
       nota: typeof body.nota === "string" ? body.nota : undefined,
       sorgentePath: typeof body.file_path === "string" ? body.file_path : null,
+      // Le superfici dettate, già lette dall'app: servono solo al controllore, non sono istruzioni.
+      attese: (Array.isArray(body.misure_attese) ? body.misure_attese : []).slice(0, 40).flatMap((m: unknown) => {
+        const x = m as { nome?: unknown; mq?: unknown; piano?: unknown } | null;
+        return x && typeof x.nome === "string" && typeof x.mq === "number" && x.mq > 0 && x.mq < 100_000
+          ? [{ nome: x.nome.slice(0, 80), mq: x.mq, ...(typeof x.piano === "string" ? { piano: x.piano.slice(0, 60) } : {}) }] : [];
+      }),
     };
     let impronta = String(body.testo ?? "");
     if (ingresso === "rilievo") {

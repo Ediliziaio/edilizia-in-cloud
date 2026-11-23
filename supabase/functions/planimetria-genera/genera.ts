@@ -14,7 +14,8 @@ import { costruisciPiani, ErroreCostruzione } from "./costruisci.ts";
 import { estraiJson, leggiRispostaAI } from "./rispostaAI.ts";
 import { controllaScala, controllaSuperfici, pulisciLocali } from "./pulizia.ts";
 import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
-import { PROMPT_DESCRIZIONE, PROMPT_DOCUMENTO, PROMPT_RILIEVO, PROMPT_SCHIZZO, promptCorrezione, promptScalaSospetta } from "./prompt.ts";
+import { controllaDisposizione, type MisuraAttesa, type ProblemaDisposizione } from "../../../shared/planimetrie/controlloDisposizione.ts";
+import { PROMPT_DESCRIZIONE, PROMPT_DOCUMENTO, PROMPT_RILIEVO, PROMPT_SCHIZZO, promptCorrezione, promptCorrezioneDisposizione, promptScalaSospetta } from "./prompt.ts";
 
 export type ParteContenuto =
   | { type: "text"; text: string }
@@ -44,6 +45,8 @@ export interface RichiestaGenerazione {
   sorgentePath?: string | null;
   /** Solo «rilievo»: foto delle stanze (data URL di immagini), al massimo sei. */
   foto?: string[];
+  /** Le superfici dettate stanza per stanza, per il controllore della disposizione. */
+  attese?: MisuraAttesa[];
 }
 
 export const MASSIMO_FOTO_RILIEVO = 6;
@@ -180,10 +183,24 @@ export async function generaPlanimetria(
   let primaSospetta: PiantaGenerata | null = null;
   let daCompletare: PiantaGenerata | null = null;
   let daSistemare: { pianta: PiantaGenerata; dettagli: string[] } | null = null;
+  // Coordinatore (23/11/2026). Dove la disposizione la inventa il modello (descrizione, rilievo)
+  // il controllore — codice, non AI — verifica accessi, finestre e superfici dettate; se trova
+  // difetti il correttore (secondo giro del modello) li riceve uno per uno. Si tiene la pianta
+  // con meno difetti e quelli rimasti si dicono all'utente.
+  const disposizioneDaControllare = req.ingresso === "descrizione" || req.ingresso === "rilievo";
+  let conDifetti: { pianta: PiantaGenerata; problemi: ProblemaDisposizione[] } | null = null;
+  const consegnaConDifetti = (scelta: { pianta: PiantaGenerata; problemi: ProblemaDisposizione[] }, corretta: boolean) => {
+    const { pianta, problemi } = scelta;
+    pianta.generazione.controllo_disposizione = { giri: corretta ? 2 : 1, rimasti: problemi.length };
+    if (problemi.length) pianta.generazione.avvisi.push(`Da sistemare nell'editor (${problemi.length}): ${problemi.slice(0, 6).map((x) => x.dettaglio).join(" ")}`);
+    else if (corretta) pianta.generazione.avvisi.push("Ho ricontrollato porte, finestre e superfici e corretto la prima versione.");
+    return consegna(pianta);
+  };
   for (let n = 1; n <= 2; n++) {
     const t0 = ora();
     let r: Awaited<ReturnType<ChiamaModello>>;
     try { r = await chiama(messaggi, n); } catch (e) {
+      if (conDifetti) return consegnaConDifetti(conDifetti, false);
       if (daCompletare) return consegna(daCompletare, false);
       throw e;
     }
@@ -194,6 +211,21 @@ export async function generaPlanimetria(
       if (daCompletare) return consegna(daCompletare);
       return { ok: false, codice: "non_leggibile", messaggio: MESSAGGI_UTENTE.non_leggibile, tentativi };
     }
+    if (disposizioneDaControllare && lettura.pianta && !lettura.errori.length) {
+      const problemi = controllaDisposizione(lettura.pianta.planimetria, req.attese);
+      const tempoPerCorreggere = !opzioni.tempoMassimoMs || ora() - inizio <= opzioni.tempoMassimoMs / 2;
+      if (n === 1 && problemi.length && tempoPerCorreggere) {
+        conDifetti = { pianta: lettura.pianta, problemi };
+        tentativi[tentativi.length - 1].errori.push(...problemi.map((x) => x.codice));
+        messaggi.push({ role: "assistant", content: r.testo.slice(0, 30_000) });
+        messaggi.push({ role: "user", content: promptCorrezioneDisposizione(problemi.map((x) => x.dettaglio).slice(0, 12)) });
+        continue;
+      }
+      if (conDifetti) return consegnaConDifetti(problemi.length < conDifetti.problemi.length ? { pianta: lettura.pianta, problemi } : conDifetti, true);
+      if (problemi.length) return consegnaConDifetti({ pianta: lettura.pianta, problemi }, false);
+    }
+    // La correzione ha rotto la geometria: meglio la prima versione, con i suoi difetti detti chiaramente.
+    if (conDifetti && n === 2) return consegnaConDifetti(conDifetti, false);
     if (lettura.pianta && !lettura.errori.length) {
       // Pianta valida ma scala sospetta: una seconda lettura, se c'è tempo, con l'invito a cercare una misura scritta.
       const sospetta = lettura.pianta.generazione.avvisi.find((a) => a.startsWith("La scala letta dal disegno non sembra giusta"));

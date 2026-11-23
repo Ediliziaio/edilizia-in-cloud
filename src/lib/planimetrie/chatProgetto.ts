@@ -1,6 +1,7 @@
 import { areaPoligono } from "../../../shared/planimetrie/geometria.ts";
 import { PAVIMENTI_STANZA } from "../../../shared/planimetrie/finiture.ts";
-import { ambitiDi, origineMisura, scalaModelloDaVerificare, type Locale, type Planimetria, type Proposta, type Punto } from "../../../shared/planimetrie/modello.ts";
+import { ambitiDi, origineMisura, scalaModelloDaVerificare, type Locale, type Planimetria, type Proposta, type Punto, type StatoPianta } from "../../../shared/planimetrie/modello.ts";
+import { controllaDisposizioneStato } from "../../../shared/planimetrie/controlloDisposizione.ts";
 import { statoPerAmbito } from "../../../shared/render-planimetria/vincoli.ts";
 import { descrizionePavimento } from "../../../shared/planimetrie/materialiProgetto.ts";
 import {
@@ -150,6 +151,22 @@ function modificaStanza(documento:Planimetria, ambito:string, locale:Locale, con
   return {proposta,evidenzaLocali,evidenzaMuri,modifiche};
 }
 
+/**
+ * Gli accessi delle stanze nuove, più un controllo che prima mancava: se il tramezzo
+ * taglia fuori una parte della casa (per esempio separa la stanza con l'ingresso dal
+ * resto) le parti risultano «da verificare» e si dice che serve una porta nel tramezzo.
+ * Il 23/11/2026 un soggiorno diviso senza porta risultava «Collegamento disegnato».
+ */
+export function accessiDopoLaDivisione(prima: StatoPianta, dopo: StatoPianta, parti: readonly string[]): EsitoAccesso[] {
+  const esiti = controllaAccessiLocali(dopo, parti);
+  if (!parti.length) return esiti;
+  const giaIsolate = new Set(controllaDisposizioneStato(prima).filter(p => p.codice !== "finestra_interna").map(p => p.localeId));
+  const nuove = controllaDisposizioneStato(dopo).filter(p => ["stanza_isolata", "porta_su_esterno", "senza_ingresso"].includes(p.codice) && !giaIsolate.has(p.localeId));
+  if (!nuove.length) return esiti;
+  return esiti.map(e => e.esito === "assente" ? e : { ...e, esito: "da_verificare" as const,
+    dettaglio: "Il tramezzo chiude un passaggio: una parte della casa non comunica più con l'ingresso. Aggiungi una porta nel tramezzo dall'editor." });
+}
+
 function documentoConVariante(documento: Planimetria, origine: string, id: string, nome: string, modificati: ReadonlyMap<string, Proposta>): Planimetria {
   const materiali = documento.materialiProgetto?.[origine];
   return {
@@ -249,7 +266,7 @@ export function anteprimaDaChatProgetto(documento: Planimetria, selezione: Ambit
   const nome=nuova.nomeVariante || precedente?.nomeVariante ||
     (dati.altri.length ? `Variante ${id} · Silvio` : `Variante ${id} · ${dati.principale.locale.nome}`.slice(0,100));
   const modifiche:CambioVisibile[]=[];
-  const aggiornati=new Map<string,{proposta:Proposta; piano:PianoAnteprimaChat; parti:string[]}>();
+  const aggiornati=new Map<string,{proposta:Proposta; piano:PianoAnteprimaChat; parti:string[]; base:StatoPianta}>();
   for (const bersaglio of [dati.principale,...dati.altri]) {
     const istruzioni=comandi.filter(m=>(m.ambienteId ?? AMBIENTE_PRINCIPALE_CHAT)===bersaglio.id);
     if (!istruzioni.length) continue;
@@ -263,10 +280,10 @@ export function anteprimaDaChatProgetto(documento: Planimetria, selezione: Ambit
     const evidenzaLocali=[...(corrente?.piano.evidenzaLocali ?? []),...cambi.evidenzaLocali];
     const evidenzaMuri=[...(corrente?.piano.evidenzaMuri ?? []),...cambi.evidenzaMuri];
     const parti=[...(corrente?.parti ?? []),...(cambi.evidenzaMuri.length ? cambi.evidenzaLocali : [])];
-    aggiornati.set(piano.id,{proposta:cambi.proposta,piano:{livelloId:piano.id,nome:piano.nome,evidenzaLocali,evidenzaMuri,accessi:[]},parti});
+    aggiornati.set(piano.id,{proposta:cambi.proposta,piano:{livelloId:piano.id,nome:piano.nome,evidenzaLocali,evidenzaMuri,accessi:[]},parti,base:corrente?.base ?? stato});
   }
   if (!modifiche.length) return null;
-  const piani=[...aggiornati.values()].map(v=>({...v.piano,accessi:controllaAccessiLocali(v.proposta,v.parti)}));
+  const piani=[...aggiornati.values()].map(v=>({...v.piano,accessi:accessiDopoLaDivisione(v.base,v.proposta,v.parti)}));
   const primo=piani.find(p=>p.livelloId===selezione.livelloId) ?? piani[0];
 
   const ambito = `progetto:${id}`;

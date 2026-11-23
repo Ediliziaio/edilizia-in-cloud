@@ -31,6 +31,8 @@ export interface RichiestaAI {
   altezza?: number;
   /** Solo «rilievo»: foto delle stanze in JPEG, base64 senza intestazione. */
   foto_base64?: string[];
+  /** Le superfici dettate stanza per stanza: il controllore le confronta con la pianta disegnata. */
+  misure_attese?: Array<{ nome: string; mq: number; piano?: string }>;
 }
 
 /** Una foto di stanza ridotta per l'AI: lato lungo 1280 px, JPEG. Basta per vedere finestre e sanitari. */

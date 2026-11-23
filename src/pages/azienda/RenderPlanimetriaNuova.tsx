@@ -51,7 +51,7 @@ import { ChatAvvioPlanimetria } from "@/components/planimetrie/ChatAvvioPlanimet
 import { TaccuinoPlanimetria } from "@/components/planimetrie/TaccuinoPlanimetria";
 import { SchizzoSopralluogo } from "@/components/planimetrie/SchizzoSopralluogo";
 import { SopralluogoSalvatoPlanimetria, type DatiSopralluogoPlanimetria } from "@/components/planimetrie/SopralluogoSalvatoPlanimetria";
-import { ambientiDaAppunti, bozzaDaAmbienti, chiaveAmbienteGuida, stanzeFuoriMisura } from "@/lib/planimetrie/avvioGuidato";
+import { ambientiDaAppunti, bozzaDaAmbienti, chiaveAmbienteGuida } from "@/lib/planimetrie/avvioGuidato";
 import { creaRiconoscitore, dettaturaDisponibile, type Riconoscitore } from "@/lib/planimetrie/dettatura";
 import { PERCORSO_TAVOLA_NON_SALVATA } from "@/lib/planimetrie/ricalco";
 import { AnalisiTavolaImportata, ImmagineTecnica, SelettoreLivelliTecnici } from "@/components/planimetrie/AnalisiTavolaImportata";
@@ -525,6 +525,7 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
       let sorgente: Generata["sorgente"];
       if (ingresso === "descrizione" || ingresso === "rilievo") {
         richiesta.testo = appunti;
+        richiesta.misure_attese = ambientiDaAppunti(appunti).map((x) => ({ nome: x.nome, mq: Math.round(x.superficieMq * 100) / 100, ...(x.piano ? { piano: x.piano } : {}) }));
       }
       if (ingresso === "rilievo" && foto.length) {
         try {
@@ -555,12 +556,6 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
       if (esito.ok === false) {
         setErrore(esito.messaggio);
         return;
-      }
-      // Dal testo: le stanze che l'AI ha disegnato con misure diverse da quelle scritte.
-      if (modo === "testo" && richiesta.testo) {
-        const fuori = stanzeFuoriMisura(richiesta.testo, esito.planimetria);
-        if (fuori.length) esito.generazione.avvisi = [...esito.generazione.avvisi,
-          `Misure diverse da quelle che hai scritto, per far combaciare le stanze — ${fuori.join("; ")}. Correggile nella chat del disegno (es. «Il disimpegno misura 3 × 1,2 m»).`];
       }
       const titolo = esito.planimetria.titolo ?? (modo === "sopralluogo" ? datiSopralluogo?.titolo ?? "Pianta dal sopralluogo" : ambito === "ambiente" && nomeAmbiente.trim() ? nomeAmbiente.trim() : file ? (nomeOriginale || file.name).replace(/\.[^.]+$/, "") : "Pianta da descrizione");
       // Il PDF viene rasterizzato per la lettura, ma l'origine resta il file scelto.
