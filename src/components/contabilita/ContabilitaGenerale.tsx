@@ -8,13 +8,14 @@ import { TabellaContabile } from "./TabellaContabile";
  * chiamano le funzioni, niente scritture dirette sulle tabelle.
  */
 import { Link } from "react-router-dom";
-import { useId, useMemo, useState } from "react";
+import { Suspense, useId, useMemo, useState } from "react";
+import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from "recharts";
 import { COLORI_GRAFICO, StatGrafico, TESTO_ASSE, TooltipScheda, defsGrafico, euroAsse, idSvg } from "@/components/charts/grafici/comune";
 import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Download, FileInput, Lock, Plus, Printer, Search, Trash2, Undo2, X } from "lucide-react";
+import { Download, FileInput, Lock, Plus, Printer, ReceiptText, Search, Trash2, Undo2, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFiscalPeriod } from "@/hooks/useFiscalPeriod";
@@ -48,6 +49,16 @@ const RUOLI_TFR: readonly RuoloConto[] = [
 const RUOLI_UTILI_A_NUOVO: RuoloConto = { ruolo: "10.04", etichetta: "Utili (perdite) portati a nuovo (A.VIII): ci va il risultato dell'anno chiuso", natura: "passivo" };
 const RUOLI_UTILE: RuoloConto = { ruolo: "10.05", etichetta: "Utile (perdita) dell'esercizio (A.IX): ci va il risultato della chiusura", natura: "passivo" };
 import { RimanenzeFineAnno } from "@/components/contabilita/RimanenzeFineAnno";
+import { FiscalPeriodFilters } from "@/components/fatturazione/FiscalPeriodFilters";
+import { usePermissions } from "@/hooks/usePermissions";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+import { csvLiquidazioneContabile, htmlLiquidazioneContabile, righeLiquidazione, type EsitoLiquidazione } from "@/lib/contabilita/liquidazioneContabile";
+import { avvisoPeriodo, incompletiPerPeriodo, type DocumentoSenzaImporti } from "@/lib/contabilita/controlloIva";
+import { useControlloIva } from "@/hooks/useControlloIva";
+import { CosaMancaIva } from "@/components/contabilita/ControlloIva";
+// Gli stessi strumenti IVA di Fatture → Fiscalità (23/11/2026): registri, liquidazione e LIPE, F24, impostazioni.
+const RegistroIVA = lazy(() => import("@/pages/azienda/fatturazione/RegistroIVA"));
+const LiquidazioneIvaEF24 = lazy(() => import("@/pages/azienda/ContabilitaFiscale").then((m) => ({ default: m.LiquidazioneIvaEF24 })));
 import { bilancioASezioni, bilancioCee, bilancioDiVerifica, htmlBilancioCee, htmlBilancioSezioni, htmlBilancioVerifica, ricaviECostiPerMese, saldiPerConto, type LatoBilancio } from "@/lib/contabilita/bilancioCee";
 import { RiquadroNumero } from "@/components/dashboard/RiquadroNumero";
 import { GraficoRicaviCosti } from "@/components/charts/grafici/GraficoRicaviCosti";
@@ -61,6 +72,8 @@ import {
   csvPianoDeiConti,
   htmlLibroGiornale,
   importo,
+  numeriGiornale,
+  riferimentoDocumento,
   type ContoContabile,
   type RigaBozza,
   type Scrittura,
@@ -167,7 +180,7 @@ export default function ContabilitaGenerale() {
       />
       {/* Le viste su una riga sola, come linguette (16/11/2026): prima andavano a capo e sembravano pulsanti d'azione. */}
       <div role="tablist" aria-label="Viste della contabilità" className="flex gap-1 overflow-x-auto rounded-xl border bg-card p-1">
-        {([["scritture", "Scritture"], ["giornale", "Libro giornale"], ["mastrini", "Mastrini e partitari"], ["iva", "Liquidazione IVA"], ["bilancio", "Bilancio"], ["fine", "Fine anno e chiusura"], ["conti", "Piano dei conti"]] as const).map(([k, l]) => (
+        {([["scritture", "Scritture"], ["giornale", "Libro giornale"], ["mastrini", "Mastrini e partitari"], ["iva", "IVA"], ["bilancio", "Bilancio"], ["fine", "Fine anno e chiusura"], ["conti", "Piano dei conti"]] as const).map(([k, l]) => (
           <button
             key={k}
             type="button"
@@ -190,7 +203,7 @@ export default function ContabilitaGenerale() {
       ) : vista === "mastrini" ? (
         <Mastrini companyId={companyId!} anno={p.anno} conti={conti.data!} />
       ) : vista === "iva" ? (
-        <LiquidazioneIva companyId={companyId!} anno={p.anno} />
+        <IvaContabilita companyId={companyId!} anno={p.anno} />
       ) : vista === "fine" ? (
         <FineAnno companyId={companyId!} anno={p.anno} />
       ) : vista === "bilancio" ? (
@@ -445,6 +458,7 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
   const conFiltri = !!q || !!mese;
   const filtroGiornale = conFiltri ? new Set(filtrate.map(s => s.id)) : undefined;
   const g = costruisciGiornale(elenco, conti, 0, filtroGiornale);
+  const nGiornale = useMemo(() => numeriGiornale(scritture.data ?? []), [scritture.data]);
   // Il filtro dell'origine vale per l'elenco delle scritture; ricerca e mese valgono anche nel libro giornale.
   const visibili = filtro === "tutte" ? filtrate : filtrate.filter((s) => gruppoDi(s.origine) === filtro);
   const selezione = useSelezioneRighe(visibili.slice(0, mostra), JSON.stringify([companyId, anno, filtro, mese, cerca, mostra, giornale]));
@@ -538,6 +552,9 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
         </span>
         <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="outline" onClick={() => apriStampa()}><Printer className="mr-1 h-4 w-4" />Stampa libro giornale · esercizio</Button>
+          <Button size="sm" variant="outline" onClick={() => periodo.set({ vista: "iva", iva: "registri" })} title="Registri IVA vendite e acquisti: stampa, Excel e CSV">
+            <ReceiptText className="mr-1 h-4 w-4" />Stampa registri IVA
+          </Button>
           {giornale ? (
             <>
               {conFiltri && <>
@@ -607,10 +624,23 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
             <p className="rounded-xl border p-4 text-sm text-muted-foreground">Nessuna scrittura nel {anno}. Fatture, incassi e pagamenti si registrano da soli ogni quarto d'ora («Aggiorna adesso» per non aspettare); le altre operazioni si registrano con «Nuova scrittura».</p>
           ) : visibili.length === 0 ? (
             <p className="rounded-xl border p-4 text-sm text-muted-foreground">{conFiltri ? "Nessuna scrittura con questi filtri." : `Nessuna scrittura di questo tipo nel ${anno}.`}</p>
-          ) : <TabellaContabile>
+          ) : <>
+          <p className="text-xs text-muted-foreground">
+            «N. scrittura» è il numero della registrazione in contabilità, progressivo nell'esercizio, nell'ordine in cui sono state registrate (di solito il n. 1 è l'apertura dei conti del 1° gennaio).
+            Il numero della fattura è nella colonna «Documento». Il libro giornale stampato rinumera le scritture in ordine di data.
+          </p>
+          <TabellaContabile>
             <table className="w-full whitespace-nowrap text-sm">
               <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
-                <tr><th className="relative w-10 p-2"><span className="sr-only">Selezione</span></th>{["N.", "Data", "Causale", "Descrizione", "Importo"].map(t => <th key={t} className={t === "Importo" ? "p-2 text-right" : "p-2"}>{t}</th>)}</tr>
+                <tr>
+                  <th className="relative w-10 p-2"><span className="sr-only">Selezione</span></th>
+                  <th className="p-2" title="Numero di registrazione in contabilità: progressivo dell'esercizio, non il numero della fattura">N. scrittura</th>
+                  <th className="p-2">Data</th>
+                  <th className="p-2">Causale</th>
+                  <th className="p-2" title="Numero e data della fattura o del documento da cui viene la scrittura">Documento</th>
+                  <th className="p-2">Descrizione</th>
+                  <th className="p-2 text-right">Importo</th>
+                </tr>
               </thead>
               <tbody>{visibili.slice(0, mostra).map(s => (
                 <tr key={s.id} className="cursor-pointer border-t" onClick={e => {
@@ -621,12 +651,14 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
                   <td className="px-2"><button type="button" aria-haspopup="dialog" aria-label={`Apri scrittura ${s.numero}/${s.esercizio}`} className="py-2 font-mono text-xs text-primary hover:underline">{s.numero}/{s.esercizio}</button></td>
                   <td className="px-2">{dataIt(s.data_registrazione)}</td>
                   <td className="px-2">{s.causale}{s.storno_di || stornate.has(s.id) ? <span className="ml-2 text-xs text-muted-foreground">{s.storno_di ? "storno" : "stornata"}</span> : null}</td>
+                  <td className="px-2 font-medium">{riferimentoDocumento(s) || <span className="font-normal text-muted-foreground">—</span>}</td>
                   <td className="max-w-xs truncate px-2 text-muted-foreground" title={s.descrizione || undefined}>{s.descrizione || "—"}</td>
                   <td className="px-2 text-right tabular-nums">{euro(s.contabilita_righe.reduce((t, r) => t + Number(r.dare || 0), 0))}</td>
                 </tr>
               ))}</tbody>
             </table>
-          </TabellaContabile>}
+          </TabellaContabile>
+          </>}
         </div>
       )}
       {(giornale ? g.righe.length > mostra * 5 : visibili.length > mostra) ? (
@@ -636,7 +668,7 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
         </div>
       ) : null}
 
-      <DettaglioScrittura dettaglio={dettaglio} companyId={companyId} nomi={nomi}
+      <DettaglioScrittura dettaglio={dettaglio} companyId={companyId} nomi={nomi} numeroGiornale={dettaglio ? nGiornale.get(dettaglio.id) : undefined}
         onClose={() => setDettaglioId(null)}
         onConto={conto => periodo.set({ vista: "mastrini", conto, anno: String(anno) })}
         onStorno={dettaglio && !dettaglio.storno_di && !stornate.has(dettaglio.id) ? setStorno : undefined}
@@ -664,8 +696,10 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
   );
 }
 
-function DettaglioScrittura({ dettaglio, companyId, nomi, onClose, onConto, onStorno, onRettifica, onElimina, modificabile }: {
+function DettaglioScrittura({ dettaglio, companyId, nomi, numeroGiornale, onClose, onConto, onStorno, onRettifica, onElimina, modificabile }: {
   dettaglio: Scrittura | undefined;
+  /** Il numero nel libro giornale (ordine di data): può differire da quello di registrazione. */
+  numeroGiornale?: number;
   companyId: string;
   nomi: ReadonlyMap<string, string>;
   onClose: () => void;
@@ -679,14 +713,17 @@ function DettaglioScrittura({ dettaglio, companyId, nomi, onClose, onConto, onSt
     <Dialog open={!!dettaglio} onOpenChange={open => { if (!open) onClose(); }}>
         {dettaglio && <DialogContent className="max-h-[88dvh] w-[calc(100%-2rem)] overflow-y-auto sm:max-w-4xl">
           <DialogHeader>
-            <DialogTitle>Scrittura {dettaglio.numero}/{dettaglio.esercizio}</DialogTitle>
-            <p className="text-sm text-muted-foreground">{dataIt(dettaglio.data_registrazione)} · {dettaglio.causale}</p>
+            <DialogTitle>Scrittura {dettaglio.numero}/{dettaglio.esercizio}{riferimentoDocumento(dettaglio) ? ` · ${riferimentoDocumento(dettaglio)}` : ""}</DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              {dataIt(dettaglio.data_registrazione)} · {dettaglio.causale}
+              {numeroGiornale && numeroGiornale !== dettaglio.numero ? ` · n. ${numeroGiornale}/${dettaglio.esercizio} nel libro giornale` : ""}
+            </p>
           </DialogHeader>
           {dettaglio.descrizione && <p className="break-words text-sm">{dettaglio.descrizione}</p>}
           <div className="flex flex-wrap items-baseline gap-2 border-y py-3 text-sm">
             <span className="text-muted-foreground">Documento collegato</span>
             <DocumentoScrittura companyId={companyId} scrittura={dettaglio} />
-            {dettaglio.documento_data && <span>{dataIt(dettaglio.documento_data)}</span>}
+            {dettaglio.documento_data && <span>del {dataIt(dettaglio.documento_data)}</span>}
           </div>
           <TabellaContabile>
             <table className="w-full text-sm">
@@ -1361,12 +1398,6 @@ function periodiIva(anno: number, trimestrale: boolean) {
     : MESI.map((nome, i) => ({ dal: `${anno}-${mm(i + 1)}-01`, al: fine(i + 1), nome: `${nome} ${anno}` }));
 }
 
-interface EsitoLiquidazione {
-  iva_vendite: number; iva_acquisti: number; saldo: number; credito_precedente: number; compensato: number;
-  da_versare: number; a_credito: number; gia_liquidato: boolean; sotto_minimo?: boolean;
-  /** Trimestrale: l'1% di interessi che si aggiunge al versamento. */
-  interessi?: number;
-}
 
 /**
  * IVA a debito (vendite) e a credito (acquisti) periodo per periodo, con la
@@ -1419,16 +1450,78 @@ function GraficoIva({ periodi, esiti }: { periodi: Array<{ nome: string; dal: st
   );
 }
 
+const SOTTOVISTE_IVA = [
+  ["registri", "Registri IVA"],
+  ["liquidazione", "Liquidazione periodica, LIPE e F24"],
+  ["contabile", "Giroconto in contabilità"],
+] as const;
+type SottovistaIva = (typeof SOTTOVISTE_IVA)[number][0];
+
+/**
+ * L'IVA in Contabilità generale (23/11/2026): gli stessi strumenti di Fatture → Fiscalità, senza
+ * cambiare pagina. Un cliente: «come stampo i registri IVA? non li ho trovati» e «in contabilità
+ * generale non fa scaricare l'IVA». Registri (stampa, Excel, CSV, protocolli), liquidazione
+ * periodica con righi VP e file LIPE, F24, ritenute e impostazioni IVA sono gli stessi componenti
+ * di Fiscalità; il giroconto su Erario c/IVA è quello della partita doppia.
+ */
+function IvaContabilita({ companyId, anno }: { companyId: string; anno: number }) {
+  const p = useFiscalPeriod();
+  const permessi = usePermissions();
+  const documenti = useFeatureAccess("documenti");
+  const richiesta = p.params.get("iva");
+  const sotto: SottovistaIva = richiesta === "liquidazione" || richiesta === "contabile" ? richiesta : "registri";
+  const vistaLiquidazione = p.params.get("iva_vista");
+  // Mese o trimestre servono ai registri, all'F24 e alle ritenute; la liquidazione elenca da sola i periodi dell'anno.
+  const conPeriodo = sotto === "registri" || (sotto === "liquidazione" && (vistaLiquidazione === "f24" || vistaLiquidazione === "ritenute_bancarie"));
+  const registriAperti = permessi.canViewBilling && (documenti.isEnabled || documenti.isPreview);
+  const controllo = useControlloIva(companyId, anno);
+  return (
+    <div className="space-y-3">
+      <CosaMancaIva stato={controllo.data} anno={anno}
+        onImpostazioni={() => p.set({ iva: "liquidazione", iva_vista: "impostazioni_iva" })}
+        onRicezione={() => p.set({ iva: "registri", registro: "acquisti" })} />
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div role="group" aria-label="Strumenti IVA" className="flex flex-wrap gap-1">
+          {SOTTOVISTE_IVA.map(([k, l]) => (
+            <Button key={k} size="sm" variant={sotto === k ? "default" : "outline"} aria-pressed={sotto === k} onClick={() => p.set({ iva: k })}>{l}</Button>
+          ))}
+        </div>
+        {conPeriodo && <FiscalPeriodFilters anno={p.anno} mese={p.mese} trimestre={p.trimestre} tipo={p.tipo} showPeriod onChange={p.set} />}
+      </div>
+      <Suspense fallback={<p role="status" className="p-6 text-sm text-muted-foreground">Caricamento…</p>}>
+        {sotto === "registri" ? (
+          permessi.isLoading || documenti.isLoading ? (
+            <p role="status" className="p-6 text-sm text-muted-foreground">Verifica accesso ai registri…</p>
+          ) : registriAperti ? (
+            <RegistroIVA embedded onApriLiquidazione={() => p.set({ iva: "liquidazione", iva_vista: "iva" })} />
+          ) : (
+            <p className="rounded-xl border p-4 text-sm text-muted-foreground">I registri IVA leggono le fatture: servono il permesso di vedere la fatturazione e la sezione Documenti attiva nel piano.</p>
+          )
+        ) : sotto === "liquidazione" ? (
+          <LiquidazioneIvaEF24 chiaveVista="iva_vista" onApriRegistro={() => p.set({ iva: "registri" })} />
+        ) : (
+          <LiquidazioneIva companyId={companyId} anno={anno} senzaImporti={controllo.data?.senzaImporti ?? []} />
+        )}
+      </Suspense>
+    </div>
+  );
+}
+
 /**
  * Liquidazione IVA in contabilità: l'IVA su vendite e su acquisti del periodo si gira su
  * Erario c/IVA (contabilita_liquida_iva). L'importo si legge dalle scritture: un documento
  * non ancora registrato non c'è, quindi prima si genera dai documenti.
  */
-function LiquidazioneIva({ companyId, anno }: { companyId: string; anno: number }) {
+function LiquidazioneIva({ companyId, anno, senzaImporti = [] }: { companyId: string; anno: number; senzaImporti?: readonly DocumentoSenzaImporti[] }) {
   const qc = useQueryClient();
+  // Un periodo con documenti col solo totale: la liquidazione non ne vede l'IVA, e va detto prima di registrarla.
+  const [daConfermare, setDaConfermare] = useState<{ dal: string; al: string; nome: string; avviso: string } | null>(null);
   const isMobile = useIsMobile();
+  const anagrafica = useAnagraficaAzienda();
+  const [stampa, setStampa] = useState<string | null>(null);
   const [trimestrale, setTrimestrale] = useState(false);
   const periodi = periodiIva(anno, trimestrale);
+  const incompleti = incompletiPerPeriodo(senzaImporti, periodi);
   const esiti = useQuery({
     queryKey: chiave(companyId, "liquidazioni-iva", anno, trimestrale),
     queryFn: async () => {
@@ -1468,7 +1561,36 @@ function LiquidazioneIva({ companyId, anno }: { companyId: string; anno: number 
         <details className="text-xs text-muted-foreground"><summary className="cursor-pointer font-medium">Come si calcola la liquidazione</summary><p className="mt-2 max-w-prose">
           Gli importi sono l'IVA non ancora liquidata a fine periodo: genera prima dai documenti. Il credito di un periodo abbatte il debito dei successivi; sotto 25,82 € il debito passa al periodo dopo.
         </p></details>
+        {esiti.data && (
+          <div className="ml-auto flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" onClick={() => setStampa(htmlLiquidazioneContabile({ azienda: intestazioneDa(anagrafica.data), anno, trimestrale, righe: righeLiquidazione(periodi, esiti.data!, incompleti) }))}>
+              <Printer className="mr-1 h-4 w-4" />Stampa liquidazioni
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => scaricaCsv(`liquidazioni-iva-${anno}-${trimestrale ? "trimestrali" : "mensili"}`, csvLiquidazioneContabile(righeLiquidazione(periodi, esiti.data!, incompleti)))}>
+              <Download className="mr-1 h-4 w-4" />Esporta
+            </Button>
+          </div>
+        )}
       </div>
+      {stampa && (
+        <PrintPreviewModal open onOpenChange={(v) => { if (!v) setStampa(null); }} htmlContent={stampa}
+          title="Liquidazioni IVA — anteprima di stampa" fileName={`liquidazioni-iva-${anno}`} soloPdf />
+      )}
+      <Dialog open={!!daConfermare} onOpenChange={(v) => { if (!v) setDaConfermare(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Il periodo {daConfermare?.nome} non è completo</DialogTitle>
+            <DialogDescription>
+              Ci sono {daConfermare?.avviso}: hanno solo il totale, quindi la loro IVA non è nelle scritture e questa liquidazione non la conta.
+              Completa le fatture con l'XML prima di registrare, oppure registra lo stesso se l'IVA di quel periodo l'ha liquidata un altro programma e la riporti a mano.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDaConfermare(null)}>Annulla</Button>
+            <Button variant="destructive" disabled={registra.isPending} onClick={() => { if (daConfermare) registra.mutate(daConfermare); setDaConfermare(null); }}>Registra lo stesso</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {!isMobile && esiti.data && <GraficoIva periodi={periodi} esiti={esiti.data} />}
       {esiti.isLoading || esiti.isError ? (
         <FiscalQueryState loading={esiti.isLoading} error={esiti.isError} onRetry={() => void esiti.refetch()} />
@@ -1490,7 +1612,14 @@ function LiquidazioneIva({ companyId, anno }: { companyId: string; anno: number 
                 });
                 return (
                   <tr key={per.dal} className="border-t">
-                    <td className="p-2 capitalize">{per.nome}</td>
+                    <td className="p-2">
+                      <span className="capitalize">{per.nome}</span>
+                      {avvisoPeriodo(incompleti[i]) ? (
+                        <span className="block text-[11px] text-amber-700 dark:text-amber-300" title="Documenti col solo totale: la loro IVA non è in questa liquidazione">
+                          {avvisoPeriodo(incompleti[i])}: importi parziali
+                        </span>
+                      ) : null}
+                    </td>
                     <td className="p-2 text-right tabular-nums">{euro(r.iva_vendite)}</td>
                     <td className="p-2 text-right tabular-nums">{euro(r.iva_acquisti)}</td>
                     <td className="p-2 text-right tabular-nums text-muted-foreground">{r.compensato ? euro(r.compensato) : ""}</td>
@@ -1507,7 +1636,11 @@ function LiquidazioneIva({ companyId, anno }: { companyId: string; anno: number 
                       ) : (
                         <Button size="sm" variant="outline" disabled={registra.isPending || primaInSospeso}
                           title={primaInSospeso ? "Prima registra i periodi precedenti" : undefined}
-                          onClick={() => registra.mutate(per)}>Registra</Button>
+                          onClick={() => {
+                            const avviso = avvisoPeriodo(incompleti[i]);
+                            if (avviso) setDaConfermare({ ...per, avviso });
+                            else registra.mutate(per);
+                          }}>Registra</Button>
                       )}
                     </td>
                   </tr>

@@ -59,6 +59,20 @@ vi.mock("@/integrations/supabase/client", () => ({
   },
 }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "azienda-finta" } }) }));
+const accesso = vi.hoisted(() => ({ fatturazione: true }));
+vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ isLoading: false, canViewBilling: accesso.fatturazione }) }));
+vi.mock("@/hooks/useFeatureAccess", () => ({ useFeatureAccess: () => ({ isLoading: false, isEnabled: true, isPreview: false }) }));
+// Registro IVA e liquidazione periodica sono quelli di Fatture → Fiscalità, provati nei loro test: qui conta che ci siano.
+vi.mock("@/pages/azienda/fatturazione/RegistroIVA", () => ({
+  default: (p: { onApriLiquidazione?: () => void }) => <button type="button" onClick={p.onApriLiquidazione}>REGISTRO IVA DI FISCALITÀ</button>,
+}));
+vi.mock("@/pages/azienda/ContabilitaFiscale", () => ({
+  LiquidazioneIvaEF24: (p: { chiaveVista?: string }) => <div>LIQUIDAZIONE E F24 DI FISCALITÀ ({p.chiaveVista})</div>,
+}));
+const controllo = vi.hoisted(() => ({ stato: undefined as undefined | { impostazioniCompilate: boolean; acquistiSenzaRicezione: number; senzaImporti: Array<{ data: string; lato: "emesse" | "ricevute" }> } }));
+vi.mock("@/hooks/useControlloIva", () => ({ useControlloIva: () => ({ data: controllo.stato }) }));
+const csv = vi.hoisted(() => ({ file: [] as Array<{ nome: string; contenuto: string }> }));
+vi.mock("@/lib/csv", () => ({ scaricaCsv: (nome: string, contenuto: string) => { csv.file.push({ nome, contenuto }); } }));
 vi.mock("@/hooks/useAnagraficaAzienda", () => ({ useAnagraficaAzienda: () => ({ data: { ragione_sociale: "Prova srl" } }) }));
 
 import ContabilitaGenerale from "@/components/contabilita/ContabilitaGenerale";
@@ -74,6 +88,8 @@ function apri(vista: string) {
 }
 
 beforeEach(() => {
+  controllo.stato = undefined;
+  accesso.fatturazione = true;
   state.rpc = [];
   state.liquidati = new Set();
 });
@@ -92,11 +108,12 @@ it("mastrini: il conto clienti si apre a partite, un soggetto apre il suo mastri
 });
 
 it("liquidazione IVA: dodici mesi, il primo da registrare e i successivi in attesa", async () => {
-  apri("iva");
+  apri("iva&iva=contabile");
   expect(await screen.findByText("gennaio 2026")).toBeTruthy();
   expect(screen.getByText("dicembre 2026")).toBeTruthy();
   await waitFor(() => expect(state.rpc.filter((c) => c.fn === "contabilita_liquida_iva")).toHaveLength(12));
-  expect(state.rpc.every((c) => c.args.p_anteprima === true)).toBe(true);
+  // La vista IVA chiede anche il piano (per i registri): qui contano le liquidazioni.
+  expect(state.rpc.filter((c) => c.fn === "contabilita_liquida_iva").every((c) => c.args.p_anteprima === true)).toBe(true);
   const registra = screen.getAllByRole("button", { name: "Registra" });
   expect(registra).toHaveLength(2);
   expect((registra[0] as HTMLButtonElement).disabled).toBe(false);
@@ -105,9 +122,61 @@ it("liquidazione IVA: dodici mesi, il primo da registrare e i successivi in atte
 
 it("liquidazione IVA: un periodo registrato lo dice e sblocca il successivo", async () => {
   state.liquidati.add("2026-01-01");
-  apri("iva");
+  apri("iva&iva=contabile");
   expect(await screen.findByText("registrata")).toBeTruthy();
   const registra = screen.getAllByRole("button", { name: "Registra" });
   expect(registra).toHaveLength(1);
   expect((registra[0] as HTMLButtonElement).disabled).toBe(false);
+});
+
+it("liquidazione IVA in contabilità: si stampa e si scarica (23/11/2026)", async () => {
+  csv.file = [];
+  apri("iva&iva=contabile");
+  expect(await screen.findByText("gennaio 2026")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: /Esporta/ }));
+  expect(csv.file).toHaveLength(1);
+  expect(csv.file[0].nome).toBe("liquidazioni-iva-2026-mensili");
+  expect(csv.file[0].contenuto.split("\r\n")).toHaveLength(13);
+  expect(screen.getByRole("button", { name: /Stampa liquidazioni/ })).toBeTruthy();
+});
+
+it("vista IVA: si apre sui registri IVA, che portano alla liquidazione periodica con LIPE e F24", async () => {
+  apri("iva");
+  fireEvent.click(await screen.findByRole("button", { name: "REGISTRO IVA DI FISCALITÀ" }));
+  expect(await screen.findByText("LIQUIDAZIONE E F24 DI FISCALITÀ (iva_vista)")).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Liquidazione periodica, LIPE e F24", pressed: true })).toBeTruthy();
+});
+
+it("vista IVA: senza il permesso sulla fatturazione i registri lo dicono", async () => {
+  accesso.fatturazione = false;
+  apri("iva");
+  expect(await screen.findByText(/servono il permesso di vedere la fatturazione/)).toBeTruthy();
+  expect(screen.queryByText("REGISTRO IVA DI FISCALITÀ")).toBeNull();
+});
+
+it("scritture: «Stampa registri IVA» porta ai registri", async () => {
+  apri("scritture");
+  fireEvent.click(await screen.findByRole("button", { name: /Stampa registri IVA/ }));
+  expect(await screen.findByText("REGISTRO IVA DI FISCALITÀ")).toBeTruthy();
+});
+
+it("vista IVA: dice cosa blocca la LIPE e porta dove si sistema (23/11/2026)", async () => {
+  controllo.stato = { impostazioniCompilate: false, acquistiSenzaRicezione: 732, senzaImporti: [{ data: "2026-01-10", lato: "emesse" }, { data: "2026-07-03", lato: "ricevute" }] };
+  apri("iva&iva=contabile");
+  expect(await screen.findByText(/Impostazioni IVA 2026 non sono compilate/)).toBeTruthy();
+  expect(screen.getByText(/732 fatture ricevute non hanno la data di ricezione SDI/)).toBeTruthy();
+  expect(screen.getByText(/1 fattura emessa e 1 ricevuta hanno solo il totale.*gennaio, luglio/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Compila le impostazioni" }));
+  expect(await screen.findByText("LIQUIDAZIONE E F24 DI FISCALITÀ (iva_vista)")).toBeTruthy();
+});
+
+it("liquidazione in contabilità: un mese con documenti senza importi chiede conferma prima di registrare", async () => {
+  controllo.stato = { impostazioniCompilate: true, acquistiSenzaRicezione: 0, senzaImporti: [{ data: "2026-01-10", lato: "ricevute" }] };
+  apri("iva&iva=contabile");
+  expect(await screen.findByText("1 ricevuta senza importi: importi parziali")).toBeTruthy();
+  fireEvent.click(screen.getAllByRole("button", { name: "Registra" })[0]);
+  expect(await screen.findByText(/non è completo/)).toBeTruthy();
+  expect(state.rpc.some((c) => c.fn === "contabilita_liquida_iva" && c.args.p_anteprima === false)).toBe(false);
+  fireEvent.click(screen.getByRole("button", { name: "Registra lo stesso" }));
+  await waitFor(() => expect(state.rpc.some((c) => c.fn === "contabilita_liquida_iva" && c.args.p_anteprima === false)).toBe(true));
 });

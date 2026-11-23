@@ -33,10 +33,31 @@ export default function ContabilitaFiscale({
     />
   );
 }
-function Content() {
+/**
+ * Liquidazione IVA, registro F24, ritenute bancarie e impostazioni IVA.
+ * Vive in Fatture → Fiscalità e, dal 23/11/2026, anche nella vista IVA della Contabilità
+ * generale: lì `vista` è già la linguetta della pagina, quindi la sottovista usa un'altra
+ * chiave dell'indirizzo e il ritorno al registro lo decide chi la ospita.
+ */
+export function LiquidazioneIvaEF24({
+  chiaveVista = "vista",
+  onApriRegistro,
+}: {
+  chiaveVista?: string;
+  onApriRegistro?: () => void;
+} = {}) {
+  return <Content chiaveVista={chiaveVista} onApriRegistro={onApriRegistro} />;
+}
+function Content({
+  chiaveVista = "vista",
+  onApriRegistro,
+}: {
+  chiaveVista?: string;
+  onApriRegistro?: () => void;
+}) {
   const p = useFiscalPeriod(),
     f = useF24(p.anno);
-  const requestedView = p.params.get("vista");
+  const requestedView = p.params.get(chiaveVista);
   const view =
     requestedView === "f24" ||
     requestedView === "ritenute_bancarie" ||
@@ -64,28 +85,28 @@ function Content() {
         <Button
           size="sm"
           variant={view === "iva" ? "default" : "outline"}
-          onClick={() => p.set({ vista: "iva" })}
+          onClick={() => p.set({ [chiaveVista]: "iva" })}
         >
           Liquidazione IVA
         </Button>
         <Button
           size="sm"
           variant={view === "f24" ? "default" : "outline"}
-          onClick={() => p.set({ vista: "f24" })}
+          onClick={() => p.set({ [chiaveVista]: "f24" })}
         >
           Registro F24
         </Button>
         <Button
           size="sm"
           variant={view === "ritenute_bancarie" ? "default" : "outline"}
-          onClick={() => p.set({ vista: "ritenute_bancarie" })}
+          onClick={() => p.set({ [chiaveVista]: "ritenute_bancarie" })}
         >
           Ritenute bancarie
         </Button>
         <Button
           size="sm"
           variant={view === "impostazioni_iva" ? "default" : "outline"}
-          onClick={() => p.set({ vista: "impostazioni_iva" })}
+          onClick={() => p.set({ [chiaveVista]: "impostazioni_iva" })}
         >
           Impostazioni IVA
         </Button>
@@ -105,12 +126,12 @@ function Content() {
           <RitenuteBonificiPanel />
         </Suspense>
       ) : view === "impostazioni_iva" ? (
-        <ImpostazioniIVA anno={p.anno} onSalvate={() => p.set({ vista: "iva" })} />
+        <ImpostazioniIVA anno={p.anno} onSalvate={() => p.set({ [chiaveVista]: "iva" })} />
       ) : view === "iva" ? (
         <LiquidazioniIVA
           anno={p.anno}
-          onApriImpostazioni={() => p.set({ vista: "impostazioni_iva" })}
-          onApriRegistro={() => p.set({ sezione: "iva", vista: "" })}
+          onApriImpostazioni={() => p.set({ [chiaveVista]: "impostazioni_iva" })}
+          onApriRegistro={onApriRegistro ?? (() => p.set({ sezione: "iva", vista: "" }))}
         />
       ) : (
         <>

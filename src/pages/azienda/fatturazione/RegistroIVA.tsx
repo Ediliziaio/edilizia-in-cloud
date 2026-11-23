@@ -45,14 +45,19 @@ function etichettaAliquota(r: { rate: string; nature: string }): string {
 
 export default function RegistroIVA({
   embedded = false,
-}: { embedded?: boolean } = {}) {
+  onApriLiquidazione,
+}: {
+  embedded?: boolean;
+  /** Dove porta «Vai alla liquidazione IVA»: in Contabilità generale resta nella pagina. */
+  onApriLiquidazione?: () => void;
+} = {}) {
   return embedded ? (
-    <RegistroContent />
+    <RegistroContent onApriLiquidazione={onApriLiquidazione} />
   ) : (
     <FiscalLegacyRedirect section="iva" />
   );
 }
-function RegistroContent() {
+function RegistroContent({ onApriLiquidazione }: { onApriLiquidazione?: () => void }) {
   const company = useEffectiveCompanyId(),
     p = useFiscalPeriod();
   const search = p.params.get("q_iva") ?? "";
@@ -288,7 +293,7 @@ function RegistroContent() {
           </>
         }
         actions={
-          <Button size="sm" onClick={() => p.set({ sezione: "contabilita", vista: "iva" })}>
+          <Button size="sm" onClick={onApriLiquidazione ?? (() => p.set({ sezione: "contabilita", vista: "iva" }))}>
             Vai alla liquidazione IVA
           </Button>
         }

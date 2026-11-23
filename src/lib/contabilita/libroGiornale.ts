@@ -123,6 +123,41 @@ export interface RigaGiornale {
   primaDellaScrittura: boolean;
 }
 
+/**
+ * Il numero di libro giornale di ogni scrittura: progressivo per esercizio in ordine di data
+ * (a parità di data, di registrazione): l'apertura dei conti del 1° gennaio di solito è la prima.
+ * Il numero di registrazione (`numero`) resta quello dato all'inserimento: una fattura
+ * registrata dopo, con una data precedente, ha i due numeri diversi.
+ */
+export function numeriGiornale(scritture: readonly Pick<Scrittura, "id" | "esercizio" | "numero" | "data_registrazione">[]): Map<string, number> {
+  const ordinate = [...scritture].sort((a, b) =>
+    a.data_registrazione.localeCompare(b.data_registrazione) || a.esercizio - b.esercizio || a.numero - b.numero);
+  const giornale = new Map<string, number>();
+  const perEsercizio = new Map<number, number>();
+  for (const s of ordinate) {
+    const n = (perEsercizio.get(s.esercizio) ?? 0) + 1;
+    perEsercizio.set(s.esercizio, n);
+    giornale.set(s.id, n);
+  }
+  return giornale;
+}
+
+/**
+ * Il documento da cui viene la scrittura, come lo legge chi lo cerca: «Fattura 47 del 20/10/2026».
+ * Il numero della scrittura NON è il numero della fattura (segnalazione di un cliente, 23/11/2026): va detto accanto.
+ */
+export function riferimentoDocumento(s: Pick<Scrittura, "documento_numero" | "documento_data" | "origine" | "causale">): string {
+  const numero = s.documento_numero?.trim();
+  if (!numero) return "";
+  const data = s.documento_data ? ` del ${s.documento_data.slice(0, 10).split("-").reverse().join("/")}` : "";
+  // Qualche movimento di prima nota ci scrive una frase («Segnata pagata dalla fattura…»): non è un numero.
+  if (/\s/.test(numero)) return `${numero}${data}`;
+  const tipo = /nota di credito/i.test(s.causale) ? "Nota di credito"
+    : ["fattura_emessa", "fattura_ricevuta", "incasso", "incasso_fattura", "pagamento"].includes(s.origine) ? "Fattura"
+    : "Doc.";
+  return `${tipo} ${numero}${data}`;
+}
+
 export function costruisciGiornale(scritture: readonly Scrittura[], conti: readonly ContoContabile[], riporto = 0, selezione?: ReadonlySet<string>) {
   const nomi = new Map(conti.map((c) => [c.id, `${c.codice} ${c.descrizione}`]));
   const ordinate = [...scritture].sort((a, b) =>
@@ -245,13 +280,7 @@ export function csvGiornale(scritture: readonly Scrittura[], conti: readonly Con
   const perId = new Map(conti.map((c) => [c.id, c]));
   const ordinate = [...scritture].sort((a, b) =>
     a.data_registrazione.localeCompare(b.data_registrazione) || a.esercizio - b.esercizio || a.numero - b.numero);
-  const giornale = new Map<string, number>();
-  const perEsercizio = new Map<number, number>();
-  for (const s of ordinate) {
-    const n = (perEsercizio.get(s.esercizio) ?? 0) + 1;
-    perEsercizio.set(s.esercizio, n);
-    giornale.set(s.id, n);
-  }
+  const giornale = numeriGiornale(scritture);
   const righe = [["Esercizio", "N. giornale", "N. registrazione", "Data", "Causale", "Descrizione", "N. documento", "Data documento",
     "Codice conto", "Conto", "Descrizione riga", "Dare", "Avere", "Origine"].join(";")];
   for (const s of ordinate) {
