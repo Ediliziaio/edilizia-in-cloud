@@ -11,7 +11,8 @@ import { normalizeTagList } from "@/lib/marketingTags";
 import { formeTelefono, telefonoInternazionale } from "@/lib/contactUtils";
 import { aLotti, perOgniLotto } from "@/lib/lottiDiId";
 import { creaImportazioneProgrammata, descriviProgrammazione, fineStimata, formatoData } from "@/lib/importazione/programmata";
-import { numeroRiga, type AnteprimaImport, type EsitoImportazione, type OpzioniImport, type RigaDaRivedere } from "@/lib/importazione/tipi";
+import { apriRegistro, segnaCreati } from "@/lib/importazione/registro";
+import { assegnaATurno, numeroRiga, type AnteprimaImport, type EsitoImportazione, type OpzioniImport, type RigaDaRivedere } from "@/lib/importazione/tipi";
 
 interface Db {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -206,30 +207,44 @@ export async function importaContatti(ctx: ContestoContatti, rows: Record<string
   // A scaglioni: le righe vanno in coda sul server, che le fa entrare un gruppo alla volta.
   if (opzioni.programmazione) {
     const p = opzioni.programmazione;
-    await creaImportazioneProgrammata(ctx.db, {
+    const job = await creaImportazioneProgrammata(ctx.db, {
       companyId: ctx.companyId,
       oggetto: "contatti",
       nomeFile: opzioni.nomeFile,
       modalita: mode,
       automazioni: opzioni.automazioni ?? [],
       programmazione: p,
-      righe: pronti.map(({ riga, row, nomeVero, data }) => {
+      righe: pronti.map(({ riga, row, nomeVero, data }, i) => {
         const { company_id: _azienda, ...contatto } = data;
+        // Il venditore vale solo se il contatto viene creato: uno già presente tiene il suo.
+        const assegnato = assegnaATurno(i, opzioni.assegnatari);
         return {
           riga,
-          contatto: { ...contatto, first_name: nomeVero ? contatto.first_name : "" },
+          contatto: { ...contatto, first_name: nomeVero ? contatto.first_name : "", ...(assegnato ? { assigned_to: assegnato } : {}) },
           forme: data.phone ? formeTelefono(data.phone) : [],
           custom: valoriCustom(ctx, row),
         };
       }),
     });
     const quando = fineStimata(pronti.length, p);
-    return fine({ programmata: { totale: pronti.length, descrizione: descriviProgrammazione(p), fine: quando ? formatoData(quando) : null } });
+    if (opzioni.assegnatari?.length) fatto.push(testoAssegnazione(opzioni.assegnatari, null, "contatti"));
+    return fine({
+      programmata: { totale: pronti.length, descrizione: descriviProgrammazione(p), fine: quando ? formatoData(quando) : null },
+      importazioneId: job.annullabile ? job.id : undefined,
+    });
   }
 
+  const registro = await apriRegistro(ctx.db, { companyId: ctx.companyId, oggetto: "contatti", nomeFile: opzioni.nomeFile });
+  let registroCompleto = !!registro;
+  let nuoviAssegnati = 0;
   const inserisci = async (lista: ContattoPronto[]) => {
     for (const lotto of aLotti(lista, LOTTO_INSERIMENTO)) {
-      const { data, error } = await ctx.db.from("marketing_contacts").insert(lotto.map((p) => p.data)).select("id");
+      // Solo i contatti nuovi prendono il venditore scelto, a turno se sono più d'uno.
+      const righe = lotto.map((p) => {
+        const assegnato = assegnaATurno(nuoviAssegnati++, opzioni.assegnatari);
+        return assegnato ? { ...p.data, assigned_to: assegnato } : p.data;
+      });
+      const { data, error } = await ctx.db.from("marketing_contacts").insert(righe).select("id");
       if (error) {
         // Un blocco andato male non ferma gli altri: le sue righe si possono scaricare e riprovare.
         for (const p of lotto) errori.push({ riga: p.riga, motivo: `non importato (${error.message})` });
@@ -238,6 +253,7 @@ export async function importaContatti(ctx: ContestoContatti, rows: Record<string
       const nuovi = (data ?? []) as { id: string }[];
       created += nuovi.length;
       idsImportati.push(...nuovi.map((c) => c.id));
+      if (!(await segnaCreati(ctx.db, registro, "contatto", nuovi.map((c) => c.id)))) registroCompleto = false;
       const valori = nuovi.flatMap((c, i) => valoriCustom(ctx, lotto[i].row).map((v) => ({ contact_id: c.id, ...v })));
       if (valori.length) {
         const { error: errValori } = await ctx.db.from("marketing_contact_field_values").insert(valori);
@@ -293,6 +309,8 @@ export async function importaContatti(ctx: ContestoContatti, rows: Record<string
   }
 
   const idsUnici = [...new Set(idsImportati)];
+  if (opzioni.assegnatari?.length && created) fatto.push(testoAssegnazione(opzioni.assegnatari, created, "contatti"));
+  if (created && !registroCompleto) nonRiuscito.push("Questa importazione non si potrà annullare con un clic: se serve, i contatti nuovi vanno tolti a mano.");
   if (etichetteExtra.length && idsUnici.length) {
     fatto.push(`${etichetteExtra.length === 1 ? "Etichetta" : "Etichette"} ${etichetteExtra.map((e) => `«${e}»`).join(", ")} su ${idsUnici.length} contatti`);
   }
@@ -314,5 +332,18 @@ export async function importaContatti(ctx: ContestoContatti, rows: Record<string
     }
   }
 
-  return fine();
+  return fine({ importazioneId: registro && created ? registro : undefined });
+}
+
+/**
+ * «12 contatti nuovi assegnati a Mario Rossi», «… a turno tra Mario e Sara».
+ * Senza numero (a scaglioni): «I contatti nuovi saranno assegnati a …».
+ */
+export function testoAssegnazione(persone: { nome: string }[], quanti: number | null, cosa: "contatti" | "opportunità"): string {
+  const nomi = persone.map((p) => p.nome || "una persona senza nome");
+  const elenco = nomi.length > 1 ? `${nomi.slice(0, -1).join(", ")} e ${nomi[nomi.length - 1]}` : nomi[0];
+  const a = persone.length > 1 ? `a turno tra ${elenco}` : `a ${elenco}`;
+  if (quanti === null) return `${cosa === "contatti" ? "I contatti nuovi saranno assegnati" : "Le opportunità saranno assegnate"} ${a}`;
+  if (cosa === "contatti") return quanti === 1 ? `1 contatto nuovo assegnato ${a}` : `${quanti} contatti nuovi assegnati ${a}`;
+  return quanti === 1 ? `1 opportunità assegnata ${a}` : `${quanti} opportunità assegnate ${a}`;
 }

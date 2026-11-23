@@ -8,7 +8,10 @@ import { StepStart, type ObjectType } from "./import-wizard/StepStart";
 import { StepUpload, type ImportMode } from "./import-wizard/StepUpload";
 import { StepMap } from "./import-wizard/StepMap";
 import { StepReview } from "./import-wizard/StepReview";
-import type { AnteprimaImport, AutomazioneScelta, EsitoImportazione, OpzioniImport } from "@/lib/importazione/tipi";
+import type { AnteprimaImport, AutomazioneScelta, EsitoImportazione, OpzioniImport, PersonaScelta } from "@/lib/importazione/tipi";
+import { supabase } from "@/integrations/supabase/client";
+import { annullaImportazione, testoAnnullamento } from "@/lib/importazione/registro";
+import { applicaColonneRicordate, caricaColonne, salvaColonne } from "@/lib/importazione/colonneRicordate";
 import { programmazioneValida, type Programmazione } from "@/lib/importazione/programmata";
 import { scaricaRigheDaRivedere } from "./import-wizard/scaricaRighe";
 import { PAGINA_IMPORTAZIONE } from "./import-wizard/useImportaDaUrl";
@@ -28,6 +31,10 @@ export interface ImportWizardProps {
   conOpzioni?: boolean;
   /** Cosa succederà premendo «Importa», calcolato prima. */
   onAnteprima?: (rows: Record<string, string>[], options: OpzioniImport) => Promise<AnteprimaImport>;
+  /** L'azienda: serve a ricordare come sono state collegate le colonne l'ultima volta. */
+  companyId?: string;
+  /** Dopo un annullamento: la pagina ricarica i suoi elenchi. */
+  onAnnullata?: () => void;
 }
 
 export type { OpzioniImport, EsitoImportazione, AnteprimaImport } from "@/lib/importazione/tipi";
@@ -111,7 +118,7 @@ function parseFileData(file: File): Promise<{ headers: string[]; rows: string[][
 
 export function ImportWizard({
   open, onClose, defaultObjectType, contactFields, opportunityFields,
-  onImportContacts, onImportOpportunities, destinazione, conOpzioni, onAnteprima,
+  onImportContacts, onImportOpportunities, destinazione, conOpzioni, onAnteprima, companyId, onAnnullata,
 }: ImportWizardProps) {
   const [step, setStep] = useState(0);
   const [objectType, setObjectType] = useState<ObjectType>(defaultObjectType);
@@ -127,6 +134,7 @@ export function ImportWizard({
   const [result, setResult] = useState<EsitoImportazione | null>(null);
   const [etichette, setEtichette] = useState<string[]>([]);
   const [automazioni, setAutomazioni] = useState<AutomazioneScelta[]>([]);
+  const [assegnatari, setAssegnatari] = useState<PersonaScelta[]>([]);
   const [programmazione, setProgrammazione] = useState<Programmazione | null>(null);
   const [anteprima, setAnteprima] = useState<{ dati: AnteprimaImport | null; errore: boolean } | null>(null);
 
@@ -150,11 +158,17 @@ export function ImportWizard({
       setFileHeaders(headers);
       setFileRows(rows);
       setFileNumeri(numeri);
-      setMapping(autoMatch(headers, fields));
+      const automatico = autoMatch(headers, fields);
+      setMapping(automatico);
+      // Le colonne come l'azienda le ha collegate l'ultima volta vincono su quelle indovinate.
+      if (companyId) {
+        const ricordate = await caricaColonne(supabase, companyId, objectType === "contacts" ? "contatti" : "opportunita");
+        setMapping(applicaColonneRicordate(headers, automatico, ricordate, fields.map((f) => f.key)));
+      }
     } catch {
       setFile(null);
     }
-  }, [fields]);
+  }, [fields, companyId, objectType]);
 
   const missingRequired = useMemo(() => {
     return campiObbligatoriMancanti(fields, mapping);
@@ -180,7 +194,7 @@ export function ImportWizard({
     .map(({ obj, riga }) => ({ ...obj, __riga: String(riga) })), [fileRows, fileNumeri, fileHeaders, mapping]);
 
   const opzioniCorrenti = (): OpzioniImport => ({
-    mode: importMode, etichette, automazioni, programmazione, nomeFile: file?.name,
+    mode: importMode, etichette, automazioni, assegnatari, programmazione, nomeFile: file?.name,
   });
 
   const calcolaAnteprima = useCallback(async () => {
@@ -196,6 +210,7 @@ export function ImportWizard({
   const handleImport = useCallback(async () => {
     setIsImporting(true);
     const mappedRows = righeMappate();
+    if (companyId) void salvaColonne(supabase, companyId, objectType === "contacts" ? "contatti" : "opportunita", fileHeaders, mapping);
 
     try {
       const res = objectType === "contacts"
@@ -208,7 +223,7 @@ export function ImportWizard({
       setIsImporting(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [righeMappate, objectType, importMode, etichette, automazioni, programmazione, file, onImportContacts, onImportOpportunities]);
+  }, [righeMappate, objectType, importMode, etichette, automazioni, assegnatari, programmazione, file, onImportContacts, onImportOpportunities, companyId, fileHeaders, mapping]);
 
   const handleNext = () => {
     if (step === 3) { handleImport(); return; }
@@ -275,7 +290,17 @@ export function ImportWizard({
             isImporting={isImporting}
             result={result}
             opzioni={conOpzioni
-              ? { etichette, onEtichetteChange: setEtichette, automazioni, onAutomazioniChange: setAutomazioni, programmazione, onProgrammazioneChange: setProgrammazione }
+              ? {
+                etichette, onEtichetteChange: setEtichette, automazioni, onAutomazioniChange: setAutomazioni,
+                programmazione, onProgrammazioneChange: setProgrammazione, assegnatari, onAssegnatariChange: setAssegnatari,
+              }
+              : undefined}
+            onAnnulla={result?.importazioneId
+              ? async () => {
+                const testo = testoAnnullamento(await annullaImportazione(supabase, result.importazioneId!));
+                onAnnullata?.();
+                return testo;
+              }
               : undefined}
             anteprima={anteprima}
             onRiprovaAnteprima={calcolaAnteprima}

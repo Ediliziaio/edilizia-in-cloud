@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Clock, Tag, Workflow, X } from "lucide-react";
+import { Clock, Tag, UserCheck, Workflow, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import type { AutomazioneScelta } from "@/lib/importazione/tipi";
+import type { AutomazioneScelta, PersonaScelta } from "@/lib/importazione/tipi";
+import { useCompanyStaff } from "@/hooks/useOpportunitiesData";
 import {
   PROGRAMMAZIONE_PREDEFINITA, descriviProgrammazione, fineStimata, formatoData, type Programmazione,
 } from "@/lib/importazione/programmata";
@@ -100,7 +101,42 @@ function QuandoImportare({ programmazione, onChange, totale }: {
  * Cosa fare ai contatti appena importati: etichette da aggiungere a tutti e
  * automazioni in cui farli entrare. Solo i flussi pubblicati: gli altri non partono.
  */
-export function OpzioniImportazione({ etichette, onEtichetteChange, automazioni, onAutomazioniChange, programmazione, onProgrammazioneChange, totale }: {
+/** A chi vanno i contatti nuovi: nessuno (come oggi), una persona, o più persone a turno. */
+function AChiAssegnarli({ assegnatari, onChange, opportunita }: { assegnatari: PersonaScelta[]; onChange: (v: PersonaScelta[]) => void; opportunita: boolean }) {
+  const { data: persone = [], isLoading } = useCompanyStaff();
+  const scelte = new Set(assegnatari.map((a) => a.id));
+  const cosa = opportunita ? "Le opportunità" : "I contatti nuovi";
+  const spiegazione = assegnatari.length === 0
+    ? `${cosa} restano senza nessuno assegnato, come oggi.`
+    : assegnatari.length === 1
+      ? `${cosa} vanno tutti a ${assegnatari[0].nome}.`
+      : `${cosa} vanno a turno, uno a testa, tra ${assegnatari.map((a) => a.nome).join(", ")}.`;
+  return (
+    <div>
+      <p className="flex items-center gap-2 text-sm font-medium"><UserCheck className="h-4 w-4 text-primary" /> A chi assegnarli</p>
+      <p className="mb-2 text-xs text-muted-foreground">
+        {spiegazione} {opportunita ? "Un contatto nuovo va alla stessa persona della sua opportunità." : "I contatti che c'erano già tengono chi hanno."}
+      </p>
+      {isLoading ? (
+        <p className="text-xs text-muted-foreground">Caricamento delle persone…</p>
+      ) : (
+        <div className="grid max-h-48 gap-1.5 overflow-y-auto sm:grid-cols-2">
+          {persone.filter((p) => p.name).map((p) => (
+            <label key={p.id} className="flex cursor-pointer items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm hover:border-primary/50">
+              <Checkbox
+                checked={scelte.has(p.id)}
+                onCheckedChange={(v) => onChange(v ? [...assegnatari, { id: p.id, nome: p.name }] : assegnatari.filter((a) => a.id !== p.id))}
+              />
+              <span className="truncate">{p.name}</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function OpzioniImportazione({ etichette, onEtichetteChange, automazioni, onAutomazioniChange, programmazione, onProgrammazioneChange, totale, assegnatari, onAssegnatariChange, opportunita = false }: {
   etichette: string[];
   onEtichetteChange: (v: string[]) => void;
   automazioni: AutomazioneScelta[];
@@ -109,6 +145,10 @@ export function OpzioniImportazione({ etichette, onEtichetteChange, automazioni,
   onProgrammazioneChange?: (p: Programmazione | null) => void;
   /** Quante righe entreranno: serve a dire quando finisce. */
   totale?: number;
+  assegnatari?: PersonaScelta[];
+  onAssegnatariChange?: (v: PersonaScelta[]) => void;
+  /** Si importano opportunità (cambia solo come lo si dice). */
+  opportunita?: boolean;
 }) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -139,6 +179,10 @@ export function OpzioniImportazione({ etichette, onEtichetteChange, automazioni,
     <div className="space-y-4 rounded-lg border bg-muted/20 p-4">
       {onProgrammazioneChange && (
         <QuandoImportare programmazione={programmazione ?? null} onChange={onProgrammazioneChange} totale={totale} />
+      )}
+
+      {onAssegnatariChange && (
+        <AChiAssegnarli assegnatari={assegnatari ?? []} onChange={onAssegnatariChange} opportunita={opportunita} />
       )}
 
       <div>

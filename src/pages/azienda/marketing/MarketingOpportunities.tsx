@@ -661,6 +661,8 @@ function MarketingOpportunitiesContent() {
         opportunityFields={oppImportFields}
         onImportContacts={async () => ({ success: 0, errors: [] })}
         conOpzioni
+        companyId={companyId}
+        onAnnullata={() => queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all })}
         onAnteprima={contestoImportOpp ? (rows) => anteprimaOpportunita(contestoImportOpp, rows) : undefined}
         onImportOpportunities={async (rows, opzioni) => {
           if (!contestoImportOpp) {
@@ -758,7 +760,7 @@ function MarketingOpportunitiesContent() {
     <div className="flex flex-col h-full min-h-0 gap-3 md:h-[calc(100vh-137px)] md:pb-0">
       <h1 className="sr-only">Opportunità</h1>
       <div className="shrink-0 empty:hidden">
-        <ImportazioniProgrammate companyId={companyId} oggetto="opportunita" />
+        <ImportazioniProgrammate companyId={companyId} oggetto="opportunita" onAnnullata={() => queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all })} />
       </div>
       <div className="flex shrink-0 flex-nowrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-3 shadow-sm sm:flex-wrap sm:gap-3 max-md:rounded-none max-md:border-0 max-md:bg-none max-md:p-0 max-md:shadow-none">
         <div className="flex min-w-0 items-center gap-2 max-md:flex-1">

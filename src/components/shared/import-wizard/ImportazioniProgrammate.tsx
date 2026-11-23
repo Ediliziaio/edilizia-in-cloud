@@ -1,12 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { CalendarClock, Download, Pause, Play, X } from "lucide-react";
+import { CalendarClock, Download, Pause, Play, Undo2, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { userErrorMessage } from "@/lib/userErrorMessage";
 import { descriviProgrammazione, fineStimata, formatoData } from "@/lib/importazione/programmata";
+import { annullaImportazione, testoAnnullamento } from "@/lib/importazione/registro";
 import { csvRigheProgrammate, scaricaCsv, type RigaProgrammataFallita } from "./scaricaRighe";
 
 interface Riga {
@@ -23,7 +24,14 @@ const ora = (t: string | null) => (t ? t.slice(0, 5) : undefined);
  * e i pulsanti per metterle in pausa, riprenderle o annullarle. Le concluse restano
  * visibili per una settimana, con le righe andate male da scaricare, poi spariscono.
  */
-export function ImportazioniProgrammate({ companyId, oggetto }: { companyId: string | undefined; oggetto: "contatti" | "opportunita" }) {
+interface UltimaImportazione { id: string; nome_file: string | null; created_at: string; importazioni_registro_creati: { count: number }[] }
+
+export function ImportazioniProgrammate({ companyId, oggetto, onAnnullata }: {
+  companyId: string | undefined;
+  oggetto: "contatti" | "opportunita";
+  /** Dopo un annullamento: la pagina ricarica i suoi elenchi. */
+  onAnnullata?: () => void;
+}) {
   const queryClient = useQueryClient();
   const chiave = ["importazioni-programmate", companyId, oggetto];
   const { data: righe = [], dataUpdatedAt } = useQuery({
@@ -43,6 +51,36 @@ export function ImportazioniProgrammate({ companyId, oggetto }: { companyId: str
       return (data ?? []) as Riga[];
     },
   });
+  // L'ultima importazione fatta subito, nelle ultime 24 ore: si può ancora annullare con un clic.
+  const chiaveUltima = ["importazione-ultima", companyId, oggetto];
+  const { data: ultima } = useQuery({
+    queryKey: chiaveUltima,
+    enabled: !!companyId,
+    queryFn: async () => {
+      const ieri = new Date(Date.now() - 24 * 3600_000).toISOString();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).from("importazioni_registro")
+        .select("id, nome_file, created_at, importazioni_registro_creati(count)")
+        .eq("company_id", companyId).eq("oggetto", oggetto).eq("programmata", false)
+        .is("annullata_at", null).gte("created_at", ieri)
+        .order("created_at", { ascending: false }).limit(1);
+      if (error) return null;
+      const r = ((data ?? []) as UltimaImportazione[])[0];
+      return r && (r.importazioni_registro_creati?.[0]?.count ?? 0) > 0 ? r : null;
+    },
+  });
+  const annulla = useMutation({
+    mutationFn: (id: string) => annullaImportazione(supabase, id),
+    onSuccess: (esito) => {
+      toast.success(testoAnnullamento(esito));
+      queryClient.invalidateQueries({ queryKey: chiave });
+      queryClient.invalidateQueries({ queryKey: chiaveUltima });
+      onAnnullata?.();
+    },
+    onError: (e) => toast.error(userErrorMessage(e, "Non sono riuscito ad annullare l'importazione")),
+  });
+  const chiediAnnulla = (id: string, testo: string) => { if (window.confirm(testo)) annulla.mutate(id); };
+
   const cambiaStato = useMutation({
     mutationFn: async ({ id, stato }: { id: string; stato: Riga["stato"] }) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -81,10 +119,23 @@ export function ImportazioniProgrammate({ companyId, oggetto }: { companyId: str
     }
   };
 
-  if (!righe.length) return null;
+  if (!righe.length && !ultima) return null;
   const nome = oggetto === "contatti" ? "contatti" : "opportunità";
+  const settimanaFa = dataUpdatedAt - 7 * 24 * 3600_000;
   return (
     <div className="space-y-2">
+      {ultima && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-muted/30 p-3 text-sm">
+          <p className="min-w-0 flex-1">
+            Ultima importazione{ultima.nome_file ? ` · ${ultima.nome_file}` : ""}: {ultima.importazioni_registro_creati[0].count} creati
+            {" "}il {new Date(ultima.created_at).toLocaleString("it-IT", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}
+          </p>
+          <Button size="sm" variant="outline" disabled={annulla.isPending}
+            onClick={() => chiediAnnulla(ultima.id, `Annullare l'importazione? Quello che ha creato va nel cestino. I ${nome} che c'erano già e sono stati solo aggiornati restano come sono.`)}>
+            <Undo2 className="mr-1 h-3.5 w-3.5" /> Annulla questa importazione
+          </Button>
+        </div>
+      )}
       {righe.map((r) => {
         const programmazione = {
           perGiro: r.per_giro, ogniMinuti: r.ogni_minuti, inizio: new Date(Math.max(dataUpdatedAt, new Date(r.prossimo_giro).getTime())),
@@ -127,6 +178,12 @@ export function ImportazioniProgrammate({ companyId, oggetto }: { companyId: str
               {r.errori ? ` · ${r.errori} con errore` : ""}
             </p>
             {r.ultimo_errore && <p className="mt-1 text-xs text-amber-800">{r.ultimo_errore}</p>}
+            {(r.creati > 0 || r.stato === "attiva" || r.stato === "in_pausa") && new Date(r.inizio).getTime() > settimanaFa && (
+              <Button size="sm" variant="ghost" className="mt-2 mr-2" disabled={annulla.isPending}
+                onClick={() => chiediAnnulla(r.id, `Annullare tutta l'importazione? Le righe non ancora entrate non entreranno, e i ${nome} già creati vanno nel cestino. Quelli che c'erano già restano come sono.`)}>
+                <Undo2 className="mr-1 h-3.5 w-3.5" /> Annulla e togli quelli già entrati
+              </Button>
+            )}
             {r.errori > 0 && (
               <Button size="sm" variant="outline" className="mt-2" disabled={scaricando === r.id} onClick={() => void scaricaErrori(r)}>
                 <Download className="mr-1 h-3.5 w-3.5" />

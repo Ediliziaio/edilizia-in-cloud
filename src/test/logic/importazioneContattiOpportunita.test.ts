@@ -237,3 +237,97 @@ describe("righe andate male di un'importazione a scaglioni", () => {
     expect(csv[1]).toBe("3;Infissi;1200;;;Ugo;;;;;;;non è entrata per un errore: controlla i dati della riga");
   });
 });
+
+describe("assegnare i contatti importati", () => {
+  const persone = [{ id: "mario", nome: "Mario" }, { id: "sara", nome: "Sara" }];
+
+  it("i contatti nuovi vanno a turno; quelli già presenti tengono chi hanno", async () => {
+    const f = dbFinto([{ id: "gia", email: "gia@example.test" }]);
+    const esito = await importaContatti(ctx(f.db), [
+      { first_name: "A", email: "a@example.test" },
+      { first_name: "Già", email: "gia@example.test" },
+      { first_name: "B", email: "b@example.test" },
+      { first_name: "C", email: "c@example.test" },
+    ], { mode: "upsert", assegnatari: persone });
+    const nuovi = f.inseriti.marketing_contacts[0] as { email: string; assigned_to?: string }[];
+    expect(nuovi.map((c) => [c.email, c.assigned_to])).toEqual([
+      ["a@example.test", "mario"], ["b@example.test", "sara"], ["c@example.test", "mario"],
+    ]);
+    expect(f.aggiornati[0]).not.toHaveProperty("assigned_to");
+    expect(esito.fatto).toContain("3 contatti nuovi assegnati a turno tra Mario e Sara");
+  });
+
+  it("nessuno scelto: come oggi, nessun venditore scritto", async () => {
+    const f = dbFinto();
+    await importaContatti(ctx(f.db), [{ first_name: "A", email: "a@example.test" }], { mode: "create" });
+    expect(f.inseriti.marketing_contacts[0][0]).not.toHaveProperty("assigned_to");
+  });
+
+  it("a scaglioni il venditore viaggia nella riga", async () => {
+    const f = dbFinto();
+    const programmazione: Programmazione = { perGiro: 10, ogniMinuti: 10, inizio: new Date(), giorni: [1, 2, 3, 4, 5, 6, 7] };
+    await importaContatti(ctx(f.db), [{ first_name: "A", phone: "3331112222" }, { first_name: "B", phone: "3331112223" }],
+      { mode: "create", programmazione, assegnatari: persone });
+    const righe = f.inseriti.importazioni_programmate_righe[0] as { dati: { contatto: { assigned_to: string } } }[];
+    expect(righe.map((r) => r.dati.contatto.assigned_to)).toEqual(["mario", "sara"]);
+  });
+
+  it("opportunità: a turno, e il contatto nuovo va alla stessa persona", async () => {
+    const f = dbFinto();
+    const ctxOpp = { db: f.db, companyId: "azienda-a", pipelineId: "pipe", faseId: "fase", customKeys: [] as string[], nomeCampoContatto: () => "campo" };
+    await importaOpportunita(ctxOpp, [
+      { name: "Uno", contact_email: "uno@example.test" },
+      { name: "Due", contact_email: "due@example.test" },
+    ], { mode: "create", assegnatari: persone });
+    const opp = f.inseriti.marketing_opportunities.map((l) => (l[0] as { assigned_to: string }).assigned_to);
+    const contatti = f.inseriti.marketing_contacts.map((l) => (l[0] as { assigned_to: string }).assigned_to);
+    expect(opp).toEqual(["mario", "sara"]);
+    expect(contatti).toEqual(["mario", "sara"]);
+  });
+});
+
+describe("annullare un'importazione", () => {
+  it("il registro segna solo ciò che è stato creato, e l'esito lo rende annullabile", async () => {
+    const f = dbFinto([{ id: "gia", email: "gia@example.test" }]);
+    const esito = await importaContatti(ctx(f.db), [
+      { first_name: "Già", email: "gia@example.test" },
+      { first_name: "Nuovo", email: "nuovo@example.test" },
+    ], { mode: "upsert", nomeFile: "fiera.csv" });
+    expect(f.inseriti.importazioni_registro[0][0]).toMatchObject({ company_id: "azienda-a", oggetto: "contatti", nome_file: "fiera.csv", programmata: false });
+    const creati = f.inseriti.importazioni_registro_creati[0] as { registro_id: string; tipo: string; elemento_id: string }[];
+    expect(creati).toHaveLength(1);
+    expect(creati[0]).toMatchObject({ registro_id: esito.importazioneId, tipo: "contatto" });
+    expect(creati[0].elemento_id).not.toBe("gia");
+  });
+
+  it("le opportunità segnano opportunità e contatti nuovi", async () => {
+    const f = dbFinto([{ id: "gia", email: "gia@example.test" }]);
+    const ctxOpp = { db: f.db, companyId: "azienda-a", pipelineId: "pipe", faseId: "fase", customKeys: [] as string[], nomeCampoContatto: () => "campo" };
+    const esito = await importaOpportunita(ctxOpp, [
+      { name: "Uno", contact_email: "gia@example.test" },
+      { name: "Due", contact_email: "nuovo@example.test" },
+    ], { mode: "create" });
+    const tipi = f.inseriti.importazioni_registro_creati.flat().map((r) => (r as { tipo: string }).tipo).sort();
+    expect(tipi).toEqual(["contatto", "opportunita", "opportunita"]);
+    expect(esito.importazioneId).toBeTruthy();
+  });
+
+  it("il messaggio dice cosa è andato nel cestino e cosa è rimasto", async () => {
+    const { testoAnnullamento } = await import("@/lib/importazione/registro");
+    expect(testoAnnullamento({ contatti: 118, opportunita: 0, tenuti: 2 }))
+      .toBe("Importazione annullata: spostati nel cestino 118 contatti. 2 contatti sono rimasti perché nel frattempo hanno altre opportunità.");
+    expect(testoAnnullamento({ contatti: 1, opportunita: 3, tenuti: 0 }))
+      .toBe("Importazione annullata: spostati nel cestino 3 opportunità e 1 contatto.");
+  });
+});
+
+describe("colonne ricordate", () => {
+  it("la scelta dell'ultima volta vince su quella indovinata; '' vuol dire non importare", async () => {
+    const { applicaColonneRicordate } = await import("@/lib/importazione/colonneRicordate");
+    const intestazioni = ["Cellulare", "Nome e cognome", "Note interne", "Vecchio campo"];
+    const automatico = { "Nome e cognome": "first_name", "Note interne": "notes" };
+    const ricordate = { cellulare: "phone", "nome e cognome": "fullname", "note interne": "", "vecchio campo": "custom_cancellato" };
+    expect(applicaColonneRicordate(intestazioni, automatico, ricordate, ["phone", "fullname", "first_name", "notes"]))
+      .toEqual({ Cellulare: "phone", "Nome e cognome": "fullname" });
+  });
+});

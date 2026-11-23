@@ -1,4 +1,5 @@
-import { FileSpreadsheet, CheckCircle2, AlertCircle, AlertTriangle, CalendarClock, Download, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { FileSpreadsheet, CheckCircle2, AlertCircle, AlertTriangle, CalendarClock, Download, Loader2, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -7,7 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import type { ImportField } from "@/components/shared/CSVImportDialog";
 import type { ObjectType } from "./StepStart";
 import type { ImportMode } from "./StepUpload";
-import type { AnteprimaImport, EsitoImportazione } from "@/lib/importazione/tipi";
+import type { AnteprimaImport, EsitoImportazione, PersonaScelta } from "@/lib/importazione/tipi";
 import type { Programmazione } from "@/lib/importazione/programmata";
 import { OpzioniImportazione, type AutomazioneScelta } from "./OpzioniImportazione";
 
@@ -31,10 +32,43 @@ interface StepReviewProps {
     onAutomazioniChange: (v: AutomazioneScelta[]) => void;
     programmazione: Programmazione | null;
     onProgrammazioneChange: (p: Programmazione | null) => void;
+    assegnatari?: PersonaScelta[];
+    onAssegnatariChange?: (v: PersonaScelta[]) => void;
   };
   anteprima?: { dati: AnteprimaImport | null; errore: boolean } | null;
   onRiprovaAnteprima?: () => void;
   onScaricaRighe?: () => void;
+  /** Annulla l'importazione appena fatta: ritorna il testo da mostrare. */
+  onAnnulla?: () => Promise<string>;
+}
+
+/** «Ho sbagliato file»: sposta nel cestino quello che l'importazione ha creato. */
+function AnnullaImportazione({ onAnnulla, programmata }: { onAnnulla: () => Promise<string>; programmata: boolean }) {
+  const [stato, setStato] = useState<{ fase: "pronto" | "in_corso" | "fatto" | "errore"; testo?: string }>({ fase: "pronto" });
+  if (stato.fase === "fatto") return <p className="rounded-md border bg-muted/40 p-3 text-sm">{stato.testo}</p>;
+  return (
+    <div className="space-y-1">
+      <Button
+        variant="outline" className="w-full" disabled={stato.fase === "in_corso"}
+        onClick={async () => {
+          const domanda = programmata
+            ? "Annullare l'importazione? Le righe non ancora entrate non entreranno, e quello che è già entrato come nuovo va nel cestino."
+            : "Annullare l'importazione? Quello che è stato creato va nel cestino. I contatti che c'erano già e sono stati solo aggiornati restano come sono.";
+          if (!window.confirm(domanda)) return;
+          setStato({ fase: "in_corso" });
+          try {
+            setStato({ fase: "fatto", testo: await onAnnulla() });
+          } catch (e) {
+            setStato({ fase: "errore", testo: (e as { message?: string })?.message });
+          }
+        }}
+      >
+        <Undo2 className="mr-2 h-4 w-4" /> {stato.fase === "in_corso" ? "Annullo…" : "Ho sbagliato file: annulla questa importazione"}
+      </Button>
+      {stato.fase === "errore" && <p className="text-xs text-destructive">Non sono riuscito ad annullarla{stato.testo ? `: ${stato.testo}` : ""}. Riprova.</p>}
+      {stato.fase === "pronto" && <p className="text-xs text-muted-foreground">Si può fare anche dopo, per 7 giorni, dall'elenco.</p>}
+    </div>
+  );
 }
 
 /** Cosa succederà: i numeri prima di premere il pulsante. */
@@ -108,7 +142,7 @@ function formatSize(bytes: number) {
 export function StepReview({
   objectType, fields, fileHeaders, mapping, fileName, fileSize,
   importMode, consent, onConsentChange, isImporting, result, fileRows, opzioni,
-  anteprima, onRiprovaAnteprima, onScaricaRighe,
+  anteprima, onRiprovaAnteprima, onScaricaRighe, onAnnulla,
 }: StepReviewProps) {
   const mappedEntries = fileHeaders
     .filter((h) => mapping[h])
@@ -143,6 +177,11 @@ export function StepReview({
             <p className="mt-2 pl-7 text-sm text-foreground">
               {result.programmata.descrizione}.{result.programmata.fine ? <> Finisce verso <strong>{result.programmata.fine}</strong>.</> : null}
             </p>
+            {(result.fatto ?? []).length > 0 && (
+              <ul className="mt-2 space-y-1 pl-7 text-sm text-foreground">
+                {result.fatto!.map((f, i) => <li key={i}>✓ {f}</li>)}
+              </ul>
+            )}
             <p className="mt-1 pl-7 text-xs text-muted-foreground">
               Va avanti da sola anche a computer spento. La segui, la metti in pausa o la annulli dall'elenco dei {label}.
             </p>
@@ -176,6 +215,9 @@ export function StepReview({
             )}
           </div>
         )}
+        {onAnnulla && result.importazioneId && (result.success > 0 || result.programmata) && (
+          <AnnullaImportazione onAnnulla={onAnnulla} programmata={!!result.programmata} />
+        )}
         {(result.nonRiuscito ?? []).length > 0 && (
           <Elenco tono="amber" titolo="Da completare a mano" righe={result.nonRiuscito!} />
         )}
@@ -208,6 +250,7 @@ export function StepReview({
           <h3 className="text-sm font-semibold mb-3">Quando e dopo l'importazione</h3>
           <OpzioniImportazione
             {...opzioni}
+            opportunita={objectType !== "contacts"}
             totale={anteprima?.dati
               ? (objectType === "contacts" ? anteprima.dati.nuovi + anteprima.dati.aggiornati + anteprima.dati.saltati : anteprima.dati.nuovi)
               : fileRows.length}

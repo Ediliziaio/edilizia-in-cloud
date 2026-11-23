@@ -7,7 +7,9 @@ import { normalizeTagList } from "@/lib/marketingTags";
 import { formeTelefono, telefonoInternazionale } from "@/lib/contactUtils";
 import { aLotti, perOgniLotto } from "@/lib/lottiDiId";
 import { creaImportazioneProgrammata, descriviProgrammazione, fineStimata, formatoData } from "@/lib/importazione/programmata";
-import { numeroRiga, type AnteprimaImport, type EsitoImportazione, type OpzioniImport, type RigaDaRivedere } from "@/lib/importazione/tipi";
+import { apriRegistro, segnaCreati } from "@/lib/importazione/registro";
+import { testoAssegnazione } from "@/lib/marketing/importaContatti";
+import { assegnaATurno, numeroRiga, type AnteprimaImport, type EsitoImportazione, type OpzioniImport, type RigaDaRivedere } from "@/lib/importazione/tipi";
 import type { ImportField } from "@/components/shared/CSVImportDialog";
 
 const PREFISSO_CUSTOM = "contact_custom_";
@@ -147,23 +149,31 @@ export async function importaOpportunita(ctx: ContestoOpportunita, rows: Record<
 
   if (opzioni.programmazione) {
     const p = opzioni.programmazione;
-    if (pronte.length) {
-      await creaImportazioneProgrammata(ctx.db, {
+    if (!pronte.length) return fine({});
+    {
+      const job = await creaImportazioneProgrammata(ctx.db, {
         companyId: ctx.companyId, oggetto: "opportunita", nomeFile: opzioni.nomeFile, modalita: "create",
         pipelineId: ctx.pipelineId, faseId: ctx.faseId, automazioni: opzioni.automazioni ?? [], programmazione: p,
-        righe: pronte.map(({ riga, row, contatto, valore }) => ({
+        righe: pronte.map(({ riga, row, contatto, valore }, i) => ({
           riga,
           contatto: { ...contatto, first_name: row.contact_first_name?.trim() || "", ...datiContattoDaRiga(row) },
           forme: contatto.phone ? formeTelefono(contatto.phone) : [],
           custom_contatto: valoriCustomContatto(row, "").map(({ field_id, value }) => ({ field_id, value })),
-          opportunita: { name: row.name?.trim() || `Opportunità riga ${riga}`, value: valore, source: row.source?.trim() || "importazione", tags: tagsDi(row), notes: row.notes?.trim() || null },
+          opportunita: {
+            name: row.name?.trim() || `Opportunità riga ${riga}`, value: valore, source: row.source?.trim() || "importazione",
+            tags: tagsDi(row), notes: row.notes?.trim() || null,
+            ...(assegnaATurno(i, opzioni.assegnatari) ? { assigned_to: assegnaATurno(i, opzioni.assegnatari) } : {}),
+          },
           custom: customOpp(row),
         })),
       });
+      const quando = fineStimata(pronte.length, p);
+      if (opzioni.assegnatari?.length) fatto.push(testoAssegnazione(opzioni.assegnatari, null, "opportunità"));
+      return fine({
+        programmata: { totale: pronte.length, descrizione: descriviProgrammazione(p), fine: quando ? formatoData(quando) : null },
+        importazioneId: job.annullabile ? job.id : undefined,
+      });
     }
-    if (!pronte.length) return fine({});
-    const quando = fineStimata(pronte.length, p);
-    return fine({ programmata: { totale: pronte.length, descrizione: descriviProgrammazione(p), fine: quando ? formatoData(quando) : null } });
   }
 
   let trova: Awaited<ReturnType<typeof contattiEsistenti>>;
@@ -173,27 +183,35 @@ export async function importaOpportunita(ctx: ContestoOpportunita, rows: Record<
     return { ...fine(), errors: [...errori.map(testoRiga), "Impossibile verificare i contatti esistenti. Riprova l’importazione."] };
   }
   const creatiOra = new Map<string, string>();
-  for (const p of pronte) {
+  const registro = await apriRegistro(ctx.db, { companyId: ctx.companyId, oggetto: "opportunita", nomeFile: opzioni.nomeFile });
+  const contattiCreati: string[] = [];
+  const opportunitaCreate: string[] = [];
+  for (const [i, p] of pronte.entries()) {
     const r = p.row;
+    // L'opportunità va al venditore scelto (a turno se più d'uno); un contatto nuovo va alla stessa persona.
+    const assegnato = assegnaATurno(i, opzioni.assegnatari);
+    const conAssegnato = assegnato ? { assigned_to: assegnato } : {};
     try {
       const chiave = p.contatto.email ?? p.contatto.phone ?? "";
       let contactId = trova(p.contatto) ?? (chiave ? creatiOra.get(chiave) ?? null : null);
       let contattoNuovo = false;
       if (!contactId) {
         const { data: nuovo, error } = await ctx.db.from("marketing_contacts")
-          .insert({ company_id: ctx.companyId, ...p.contatto, ...datiContattoDaRiga(r) }).select("id").single();
+          .insert({ company_id: ctx.companyId, ...p.contatto, ...datiContattoDaRiga(r), ...conAssegnato }).select("id").single();
         if (error) throw error;
         contactId = nuovo.id as string;
+        contattiCreati.push(contactId);
         contattoNuovo = true;
         if (chiave) creatiOra.set(chiave, contactId);
       }
       const { data: opp, error: oErr } = await ctx.db.from("marketing_opportunities").insert({
         company_id: ctx.companyId, pipeline_id: ctx.pipelineId, stage_id: ctx.faseId, contact_id: contactId,
         name: r.name?.trim() || `Opportunità riga ${p.riga}`, value: p.valore,
-        source: r.source?.trim() || "importazione", tags: tagsDi(r), notes: r.notes?.trim() || null,
+        source: r.source?.trim() || "importazione", tags: tagsDi(r), notes: r.notes?.trim() || null, ...conAssegnato,
       }).select("id").single();
       if (oErr) throw oErr;
       success++;
+      opportunitaCreate.push(opp.id as string);
       contattiImportati.push(contactId);
       // Dopo l'opportunità, uno alla volta: un valore rifiutato non deve far perdere gli altri.
       if (contattoNuovo) {
@@ -212,6 +230,12 @@ export async function importaOpportunita(ctx: ContestoOpportunita, rows: Record<
     }
   }
 
+  // Cosa ha creato, per poterla annullare: a blocchi alla fine, non una scrittura per riga.
+  const registroCompleto = !!registro
+    && await segnaCreati(ctx.db, registro, "opportunita", opportunitaCreate)
+    && await segnaCreati(ctx.db, registro, "contatto", contattiCreati);
+  if (opzioni.assegnatari?.length && success) fatto.push(testoAssegnazione(opzioni.assegnatari, success, "opportunità"));
+  if (success && !registroCompleto) nonRiuscito.push("Questa importazione non si potrà annullare con un clic: se serve, le opportunità vanno tolte a mano.");
   if (etichetteExtra.length && success) {
     fatto.push(`${etichetteExtra.length === 1 ? "Etichetta" : "Etichette"} ${etichetteExtra.map((e) => `«${e}»`).join(", ")} su ${success} opportunità`);
   }
@@ -230,5 +254,5 @@ export async function importaOpportunita(ctx: ContestoOpportunita, rows: Record<
       nonRiuscito.push(`Automazione «${flusso.nome}»: ${iscritti ? `entrati ${iscritti} contatti, poi si è fermata` : "i contatti non sono entrati"}. Riprova dalla lista contatti.`);
     }
   }
-  return fine();
+  return fine({ importazioneId: registro && success ? registro : undefined });
 }

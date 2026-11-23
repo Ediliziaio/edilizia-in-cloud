@@ -4,10 +4,22 @@ export type ModoImport = "create" | "update" | "upsert";
 
 export interface AutomazioneScelta { id: string; nome: string }
 
+/** Una persona dell'azienda a cui assegnare i contatti importati. */
+export interface PersonaScelta { id: string; nome: string }
+
+/**
+ * A chi va l'elemento numero `indice` (contando solo quelli nuovi): con una persona
+ * tutti a lei, con più persone a turno, uno a testa. Nessuna persona: nessuno, come oggi.
+ */
+export const assegnaATurno = (indice: number, persone: PersonaScelta[] | undefined): string | null =>
+  persone?.length ? persone[indice % persone.length].id : null;
+
 export interface OpzioniImport {
   mode: ModoImport;
   etichette?: string[];
   automazioni?: AutomazioneScelta[];
+  /** A chi assegnare ciò che viene creato: vuoto = nessuno, una = tutti a lei, più = a turno. */
+  assegnatari?: PersonaScelta[];
   /** A scaglioni sul server invece che subito. */
   programmazione?: Programmazione | null;
   nomeFile?: string;
@@ -32,6 +44,8 @@ export interface EsitoImportazione {
   nonRiuscito?: string[];
   /** Le righe non importate, per scaricarle e correggerle. */
   righeDaRivedere?: RigaDaRivedere[];
+  /** Il registro dell'importazione, per poterla annullare. */
+  importazioneId?: string;
   /** Importazione messa in coda a scaglioni. */
   programmata?: { totale: number; descrizione: string; fine: string | null };
 }

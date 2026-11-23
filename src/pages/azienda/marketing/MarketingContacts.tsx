@@ -1432,6 +1432,8 @@ export default function MarketingContacts() {
         onImportContacts={async (rows, opts) => handleImport(rows, opts)}
         onAnteprima={(rows, opts) => anteprimaContatti(contestoImport(), rows, opts)}
         conOpzioni
+        companyId={companyId}
+        onAnnullata={invalidate}
         onImportOpportunities={async () => ({ success: 0, errors: [] })}
       />
     );
@@ -1439,7 +1441,7 @@ export default function MarketingContacts() {
 
   return (
     <div className="space-y-4 max-sm:space-y-3">
-      <ImportazioniProgrammate companyId={companyId} oggetto="contatti" />
+      <ImportazioniProgrammate companyId={companyId} oggetto="contatti" onAnnullata={invalidate} />
       {/* Banner preset (?filter=stale|stale_2h) — deep-link da dashboard */}
       {stalePresetActive && (
         <div className="flex flex-col gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between max-sm:flex-row max-sm:items-center max-sm:justify-between max-sm:rounded-lg max-sm:px-3 max-sm:py-1.5 max-sm:text-xs">

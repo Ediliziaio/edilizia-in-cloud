@@ -104,7 +104,7 @@ export async function creaImportazioneProgrammata(db: ClientDb, dati: {
   automazioni: { id: string; nome: string }[];
   programmazione: Programmazione;
   righe: Record<string, unknown>[];
-}): Promise<{ id: string }> {
+}): Promise<{ id: string; annullabile: boolean }> {
   const p = dati.programmazione;
   const { data: job, error } = await db.from("importazioni_programmate").insert({
     company_id: dati.companyId,
@@ -126,6 +126,17 @@ export async function creaImportazioneProgrammata(db: ClientDb, dati: {
     stato: "in_pausa",
   }).select("id").single();
   if (error) throw error;
+  // Il registro ha lo stesso id: serve ad annullarla. Se non si riesce a scriverlo, si importa lo stesso.
+  const registro = await (async () => {
+    try {
+      const { error: errRegistro } = await db.from("importazioni_registro").insert({
+        id: job.id, company_id: dati.companyId, oggetto: dati.oggetto, nome_file: dati.nomeFile ?? null, programmata: true,
+      });
+      return !errRegistro;
+    } catch {
+      return false;
+    }
+  })();
   try {
     let ordine = 0;
     for (const lotto of aLotti(dati.righe, 500)) {
@@ -139,5 +150,5 @@ export async function creaImportazioneProgrammata(db: ClientDb, dati: {
     await db.from("importazioni_programmate").delete().eq("id", job.id);
     throw e;
   }
-  return { id: job.id };
+  return { id: job.id, annullabile: registro };
 }
