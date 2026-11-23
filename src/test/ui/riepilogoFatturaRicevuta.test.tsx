@@ -135,6 +135,24 @@ describe("riepilogo della fattura ricevuta", () => {
     expect(originale).toHaveTextContent('BANCA DEL FORNITORE');
     expect(originale).toHaveTextContent('IT60X0542811101000000123456');
   });
+  // 23/11/2026: prima il riepilogo spariva e al suo posto si apriva il popup dei pagamenti.
+  it("«Pagamenti e residuo» apre i pagamenti dentro il riepilogo, che resta aperto",async()=>{
+    finto.dati.fatture_ricevute={...FIC,company_cost_id:'c1'};
+    finto.dati.company_costs={id:'c1',amount:356};
+    finto.rpc.mockImplementation(async(name:string)=>({data:name==='dettaglio_pagamento_costo'?{id:'c1',company_id:'co',nome:'Costo c1',totale:434.32,pagato:0,residuo:434.32,da_verificare:false,movimenti:[]}:null,error:null}));
+    apri();
+    fireEvent.click(await screen.findByRole('button',{name:'Pagamenti e residuo'}));
+    // Il pannello è dentro la sezione dei pagamenti del riepilogo: un dialogo solo, la fattura resta lì.
+    const sezione=within(screen.getByLabelText('Pagamenti della fattura'));
+    expect(await sezione.findByRole('button',{name:'Registra pagamento'})).toBeVisible();
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    expect(screen.getByRole('button',{name:'Chiudi riepilogo'})).toBeVisible();
+    expect(screen.queryByRole('button',{name:'Vedi movimenti e registra pagamento'})).toBeNull();
+    // «Chiudi» del pannello lo richiude, e il riepilogo resta.
+    fireEvent.click(sezione.getByRole('button',{name:'Chiudi'}));
+    await waitFor(()=>expect(screen.getByRole('button',{name:'Vedi movimenti e registra pagamento'})).toBeVisible());
+    expect(screen.getByRole('button',{name:'Chiudi riepilogo'})).toBeVisible();
+  });
   it("il residuo deriva dai movimenti effettivi anche quando le rate risultano ancora aperte",async()=>{
     finto.dati.fatture_ricevute={...FIC,company_cost_id:'c1'};
     finto.dati.company_costs={id:'c1',amount:356};

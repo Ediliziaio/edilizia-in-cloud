@@ -25,7 +25,7 @@ export type { ExpensePaymentDetail } from '@/hooks/useExpensePaymentDetail';
  * il conto già scelto se ce n'è uno solo: si conferma con un clic. Prima «Segna pagata» dallo
  * scadenzario portava alla pagina Costi, e da lì riepilogo, popup, modulo.
  */
-export function ExpensePaymentDialog({ costId, onClose, importoProposto, apriInRegistrazione = false }: {costId: string; onClose: () => void; importoProposto?: number; apriInRegistrazione?: boolean}) {
+export function ExpensePaymentDialog({ costId, onClose, importoProposto, apriInRegistrazione = false, inline = false }: {costId: string; onClose: () => void; importoProposto?: number; apriInRegistrazione?: boolean; /** Dentro una scheda che mostra già il riepilogo del pagato: senza Dialog e senza secondo riepilogo. */ inline?: boolean}) {
   const qc = useQueryClient();
   const permissions = usePermissions();
   // null = nessuno l'ha ancora scritto: vale la proposta (se il pannello si apre sul modulo).
@@ -80,11 +80,9 @@ export function ExpensePaymentDialog({ costId, onClose, importoProposto, apriInR
     onError: (e: Error) => toast.error(e.message),
   });
   const movimentiProposti = proposti.data?.candidati ?? [];
-  return <Dialog open onOpenChange={open => {if (!open && !pay.isPending) onClose();}}>
-    <DialogContent struttura="scorrevole" ampiezza="modulo" className="max-w-2xl max-h-[90dvh] overflow-y-auto" onPointerDownOutside={e => {if (pay.isPending) e.preventDefault();}}>
-      <DialogHeader><DialogTitle>{d?.nome ?? 'Pagamento fornitore'}</DialogTitle><DialogDescription>Più pagamenti sulla stessa fattura, anche con metodi, date e conti diversi.</DialogDescription></DialogHeader>
+  const corpo = <>
       {detail.isPending ? <p role="status">Caricamento pagamento…</p> : detail.isError ? <p role="alert">{detail.error.message} <Button variant="link" onClick={() => void detail.refetch()}>Riprova</Button></p> : d && <>
-        <ExpensePaymentSummary totale={Number(d.totale)} pagato={Number(d.pagato)} residuo={Number(d.residuo)} />
+        {!inline && <ExpensePaymentSummary totale={Number(d.totale)} pagato={Number(d.pagato)} residuo={Number(d.residuo)} />}
         {Number(d.compensato) > 0 && <p className="text-sm text-muted-foreground">Del saldo già coperto, {formatCurrency(Number(d.compensato))} provengono da anticipi compensati.</p>}
         {d.da_verificare && <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">I pagamenti registrati non tornano col dovuto: vanno controllati prima di aggiungerne altri. Non aggiungere un pagamento per correggere uno stato.</p>}
         {/* 23/11/2026: pagata per il gestionale (o segnata a mano), ma senza un movimento collegato. */}
@@ -118,12 +116,24 @@ export function ExpensePaymentDialog({ costId, onClose, importoProposto, apriInR
           {conti.isError ? <p role="alert" className="text-sm text-destructive">Non riesco a leggere i conti. <Button variant="link" onClick={() => void conti.refetch()}>Riprova</Button></p> : disponibili.length > 0 ? <div><Label htmlFor="expense-account">Conto del pagamento</Label><OfficeSelect id="expense-account" label="Conto del pagamento" value={conto} onValueChange={v => {setConto(v);resetRequest();}} options={[{value:'',label:'Scegli il conto effettivo…'},...disponibili.map(c => ({value:c.valore,label:c.etichetta}))]} /></div> : conti.isFetching ? <p role="status" className="text-xs">Caricamento conti…</p> : <p className="text-xs text-muted-foreground">{method === 'contanti' ? 'Il movimento sarà registrato in cassa.' : 'Nessun conto specifico disponibile per il tuo accesso: il movimento userà il conto Banca.'}</p>}
         </div>}
       </>}
-      <DialogFooter><Button variant="outline" disabled={pay.isPending} onClick={() => { if (editing) { setEditing(false); setFormChiuso(true); } else onClose(); }}>{editing ? 'Annulla' : 'Chiudi'}</Button>
+  </>;
+  const azioni = <>
+      <Button variant="outline" disabled={pay.isPending} onClick={() => { if (editing) { setEditing(false); setFormChiuso(true); } else onClose(); }}>{editing ? 'Annulla' : 'Chiudi'}</Button>
         {d?.puo_compensare && !d.da_verificare && d.residuo > 0 && !editing && !compensazione && (
           <Button variant="outline" onClick={() => setCompensazione(true)}>Compensa con un anticipo</Button>
         )}
         {d && !compensazione && !d.da_verificare && d.residuo>0 && permissions.canViewCosts && !permissions.solaLettura && <Button disabled={pay.isPending || detail.isFetching || (editing && (importo == null || importo<=0 || Math.round(importo*100)>Math.round(d.residuo*100) || !date || date>oggi || conti.isFetching || conti.isError || (disponibili.length>0 && !scelto)))} onClick={() => {if(editing) pay.mutate(); else {setAmount(String(d.residuo));resetRequest();setEditing(true);}}}>{pay.isPending ? 'Registrazione…' : editing ? 'Conferma pagamento' : 'Registra pagamento'}</Button>}
-      </DialogFooter>
+  </>;
+  // Dentro il riepilogo della fattura (23/11/2026): niente secondo popup, il pannello si apre lì.
+  if (inline) return <div className="space-y-3" data-pagamento-in-linea="">
+    {corpo}
+    <div className="flex flex-wrap justify-end gap-2">{azioni}</div>
+  </div>;
+  return <Dialog open onOpenChange={open => {if (!open && !pay.isPending) onClose();}}>
+    <DialogContent struttura="scorrevole" ampiezza="modulo" className="max-w-2xl max-h-[90dvh] overflow-y-auto" onPointerDownOutside={e => {if (pay.isPending) e.preventDefault();}}>
+      <DialogHeader><DialogTitle>{d?.nome ?? 'Pagamento fornitore'}</DialogTitle><DialogDescription>Più pagamenti sulla stessa fattura, anche con metodi, date e conti diversi.</DialogDescription></DialogHeader>
+      {corpo}
+      <DialogFooter>{azioni}</DialogFooter>
     </DialogContent>
   </Dialog>;
 }

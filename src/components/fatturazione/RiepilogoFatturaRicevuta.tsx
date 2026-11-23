@@ -296,6 +296,13 @@ function ContenutoRiepilogo({
   const [modificaQuote, setModificaQuote] = useState(false);
   const [confronto, setConfronto] = useState(apriConfronto);
   const [pagamenti, setPagamenti] = useState<string | null>(null);
+  // 23/11/2026: i pagamenti si aprono dentro il riepilogo, nella loro sezione. Prima il riepilogo
+  // spariva e al suo posto compariva il popup dei pagamenti: si perdeva la fattura di vista.
+  const sezionePagamenti = useRef<HTMLElement | null>(null);
+  const apriPagamenti = (costo: string) => {
+    setPagamenti(costo);
+    requestAnimationFrame(() => sezionePagamenti.current?.scrollIntoView?.({ block: "start", behavior: "smooth" }));
+  };
   const [vistaCompleta, setVistaCompleta] = useState<FatturaRicevutaVista | null>(null);
   const pagamentoCosto = useExpensePaymentDetail(d?.costo?.id, !!permessi.canViewCosts);
   const statoPagamento = pagamentoCosto.data?.id === d?.costo?.id && Number.isFinite(Number(pagamentoCosto.data?.totale)) ? pagamentoCosto.data : null;
@@ -450,10 +457,9 @@ function ContenutoRiepilogo({
       fattura={{ id: String(f.id), numero: String(f.numero_fattura ?? ""), fornitore: String(f.cedente_ragione_sociale ?? ""),
         imponibile, totale, companyCostId: d.costo?.id ?? null, suOrdini: !!d.ordini.length }}
       onChiudi={() => setModificaQuote(false)} />}
-    {pagamenti && <ExpensePaymentDialog key={pagamenti} costId={pagamenti} onClose={() => { setPagamenti(null); aggiorna(); }} />}
     {confronto && permessi.canViewCosts && f && companyId && <ConfrontoFatturaDialog key={`${companyId}-${fatturaId}`} fattura={f} companyId={companyId} ordineIds={d.ordini.map((o) => o.id)} puoModificare={!!permessi.canViewCosts && !permessi.solaLettura}
       daAttivita={apriConfronto} analisiDaAprire={analisiDaAprire} onClose={() => setConfronto(false)} onVersioneCompleta={azioni.onVersioneCompleta} />}
-    {!!fatturaId && !(confronto && permessi.canViewCosts && f) && !modificaQuote && !rataScelta && !pagamenti && !vistaCompleta && <Radice open onOpenChange={(o) => { if (!o) chiudiRiepilogo(); }}>
+    {!!fatturaId && !(confronto && permessi.canViewCosts && f) && !modificaQuote && !rataScelta && !vistaCompleta && <Radice open onOpenChange={(o) => { if (!o) chiudiRiepilogo(); }}>
       <Contenuto
         {...(isMobile ? { side: "bottom" as const } : { onOpenAutoFocus: (e: Event) => e.preventDefault() })}
         className={`commessa-modal-layout ricevuta-riepilogo ${isMobile ? "max-h-[94dvh] rounded-t-2xl px-4 pb-4" : "max-h-[92dvh]"} [&_dl_a]:min-h-0 [&_dl_a]:min-w-0`}
@@ -648,7 +654,7 @@ function ContenutoRiepilogo({
               {azioni.extraCollegamenti?.(d)}
             </section>
 
-            <section aria-label="Pagamenti della fattura" className="ricevuta-pagamenti rounded-lg border p-3 space-y-3">
+            <section ref={sezionePagamenti} aria-label="Pagamenti della fattura" className="ricevuta-pagamenti rounded-lg border p-3 space-y-3 scroll-mt-4">
               <h3 className="text-sm font-semibold">Pagamenti e residuo</h3>
               {statoPagamento && <ExpensePaymentSummary totale={Number(statoPagamento.totale)} pagato={Number(statoPagamento.pagato)} residuo={Number(statoPagamento.residuo)} />}
               {pagamentoCosto.isError && <p role="alert" className="text-xs text-destructive">Pagamenti non disponibili. <Button variant="link" size="sm" onClick={() => void pagamentoCosto.refetch()}>Riprova</Button></p>}
@@ -683,7 +689,9 @@ function ContenutoRiepilogo({
 
 
               </dl>
-              {d.costo && permessi.canViewCosts && <Button variant="outline" size="sm" onClick={() => setPagamenti(d.costo!.id)}>Vedi movimenti e registra pagamento</Button>}
+              {d.costo && permessi.canViewCosts && (pagamenti === d.costo.id
+                ? <ExpensePaymentDialog inline key={pagamenti} costId={pagamenti} onClose={() => { setPagamenti(null); aggiorna(); }} />
+                : <Button variant="outline" size="sm" onClick={() => apriPagamenti(d.costo!.id)}>Vedi movimenti e registra pagamento</Button>)}
             {/* Pagamento (01/11/2026): rate, metodo e quello che cambia quanto si paga al fornitore. */}
             {(() => {
               const p = nota ? null : pianoDocumento;
@@ -840,7 +848,7 @@ function ContenutoRiepilogo({
           </Button>}
 
           <Button variant="outline" onClick={chiudiRiepilogo}>Chiudi riepilogo</Button>
-          {!isLoading && d && f && (d.costo && permessi.canViewCosts ? <Button onClick={()=>setPagamenti(d.costo!.id)}>Pagamenti e residuo</Button> : <PagamentoRicevutaCella forma="pulsante" id={String(f.id)} numero={String(f.numero_fattura??'')} tipo={String(f.tipo_documento??'')} pagataIl={f.pagata_il?String(f.pagata_il):null} />)}
+          {!isLoading && d && f && (d.costo && permessi.canViewCosts ? <Button onClick={()=>apriPagamenti(d.costo!.id)}>Pagamenti e residuo</Button> : <PagamentoRicevutaCella forma="pulsante" id={String(f.id)} numero={String(f.numero_fattura??'')} tipo={String(f.tipo_documento??'')} pagataIl={f.pagata_il?String(f.pagata_il):null} />)}
         </DialogFooter>
       </Contenuto>
     </Radice>}
