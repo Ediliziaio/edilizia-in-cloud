@@ -63,6 +63,11 @@ const MOBILE_HIDDEN_URLS = new Set<string>([
   // telefono non si imposta; i corsi si vedono da «La mia formazione» (le
   // due voci mostravano gli stessi corsi, con avanzamenti diversi).
   "/azienda/personale/portale",
+  // 23/11/2026 (founder): da telefono non compaiono proprio; da tablet sì. Se ci si arriva da un
+  // link, la pagina dice dove trovarla (SoloDaTabletOComputer).
+  "/azienda/contabilita-generale",
+  "/azienda/planimetrie",
+  "/azienda/fabbisogno-materiali",
 ]);
 
 /**
@@ -410,18 +415,18 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
         key={`${areaId ?? "recent"}-${item.url}`}
         to={itemUrl}
         onClick={() => handleNavigate(item.url)}
-        className="flex flex-col items-center gap-1 min-w-0 active:scale-95 transition-transform"
+        className="flex flex-col items-center gap-1 min-w-0 rounded-xl py-1 active:scale-95 transition-transform"
       >
         <div className="relative">
           <div
             className={cn(
-              "w-12 h-12 rounded-2xl flex items-center justify-center border transition-colors",
+              "w-[52px] h-[52px] rounded-2xl flex items-center justify-center border transition-colors",
               isActive ? cn(tone.activeBg, tone.activeBorder) : cn(tone.iconBg, tone.iconBorder),
             )}
           >
             <Icon
               className={cn(
-                "h-5 w-5",
+                "h-6 w-6",
                 isActive ? tone.activeColor : tone.iconColor,
               )}
             />
@@ -434,7 +439,7 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
         </div>
         <span
           className={cn(
-            "text-[11px] leading-tight text-center line-clamp-2 font-medium",
+            "text-xs leading-tight text-center line-clamp-2 font-medium",
             isActive ? "text-foreground font-semibold" : "text-foreground",
           )}
         >
@@ -448,12 +453,12 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
     <Sheet open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) setSearch(""); }}>
       <SheetContent
         side="bottom"
-        className="h-[92dvh] rounded-t-3xl p-0 overflow-hidden [&>button]:hidden"
+        className="h-[92dvh] rounded-t-3xl p-0 overflow-hidden [&>button]:hidden max-sm:p-0 max-sm:pt-[env(safe-area-inset-top)] max-sm:pb-[env(safe-area-inset-bottom)]"
       >
         <SheetTitle className="sr-only">Menu app</SheetTitle>
         <div className="flex flex-col h-full">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 sm:px-5 pt-4 sm:pt-5 pb-2.5">
+          <div className="flex items-center justify-between px-3 sm:px-5 pt-3 sm:pt-5 pb-2">
             <h2 className="text-lg font-bold text-foreground">App</h2>
             <button
               onClick={() => { onOpenChange(false); setSearch(""); }}
@@ -465,7 +470,7 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
           </div>
 
           {/* Search */}
-          <div className="px-4 sm:px-5 pb-3">
+          <div className="px-3 sm:px-5 pb-2.5">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <input
@@ -480,13 +485,13 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
           </div>
 
           {/* Grid content */}
-          <div className="flex-1 overflow-y-auto px-4 sm:px-5 pb-8">
+          <div className="flex-1 overflow-y-auto px-2 sm:px-5 pb-8">
             {gatingLoading && (
               <div className="space-y-3" aria-label="Caricamento menu">
                 {Array.from({ length: 3 }).map((_, areaIdx) => (
                   <div key={areaIdx} className="bg-background border border-border/60 rounded-2xl p-3">
                     <Skeleton className="h-3 w-24 mb-3" />
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className="grid grid-cols-5 gap-x-0.5 gap-y-2">
                       {Array.from({ length: 8 }).map((_, itemIdx) => (
                         <div key={itemIdx} className="flex flex-col items-center gap-1.5">
                           <Skeleton className="w-12 h-12 rounded-2xl" />
@@ -501,13 +506,13 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
 
             {/* Sezione Recenti — solo se ci sono e non sto cercando */}
             {!gatingLoading && recentsItems.length > 0 && (
-              <div className="mb-3">
-                <div className="bg-background border border-border/60 rounded-2xl p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide mb-2.5 flex items-center gap-1.5 text-muted-foreground">
+              <div className="mb-2">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide mb-1 px-1 flex items-center gap-1.5 text-muted-foreground">
                     <Clock className="h-3 w-3" />
                     Recenti
                   </p>
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-5 gap-x-0.5 gap-y-2">
                     {recentsItems.map(({ item, areaId }) => renderTile(item, areaId))}
                   </div>
                 </div>
@@ -517,15 +522,17 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
             {!gatingLoading && filteredAreas.map((area) => {
               const tone = AREA_TONES[area.id] || DEFAULT_TONE;
               return (
-                <div key={area.id} className="mb-3">
-                  <div className="bg-background border border-border/60 rounded-2xl p-3">
+                <div key={area.id} className="mb-2 border-t border-border/50 pt-2">
+                  {/* Senza riquadro per sezione: le cornici e i margini prendevano metà dello
+                      schermo (segnalazione del founder, 23/11/2026). */}
+                  <div>
                     <p className={cn(
-                      "text-[11px] font-semibold uppercase tracking-wide mb-2.5",
+                      "text-[11px] font-semibold uppercase tracking-wide mb-1 px-1",
                       tone.sectionLabel,
                     )}>
                       {area.title}
                     </p>
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className="grid grid-cols-5 gap-x-0.5 gap-y-2">
                       {area.items.map((item) => renderTile(item, area.id))}
                     </div>
                   </div>

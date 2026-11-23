@@ -80,27 +80,35 @@ export function DateFiltro({ dal, al, cambiaDal, cambiaAl }: {
  * riquadri numero (nome + cifra) e righe compatte.
  */
 
-export function SelettoreSezione<T extends string>({ nome, valore, sezioni, onScegli, className }: {
+/**
+ * Le sezioni di una pagina da telefono e tablet: pillole arrotondate che scorrono di lato, come
+ * Assistenza · Manutenzioni (decisione del founder, 23/11/2026). Prima era una tendina a tutta
+ * riga: una forma diversa da tutte le altre schede e una scelta nascosta dietro un tocco in più.
+ * `azione`: il bottone principale della pagina (es. «+ Nuova»), a destra sulla stessa riga.
+ */
+export function SelettoreSezione<T extends string>({ nome, valore, sezioni, onScegli, className, azione }: {
   nome: string;
   valore: T;
   sezioni: ReadonlyArray<{ id: T; label: string }>;
   onScegli: (id: T) => void;
   className?: string;
+  azione?: ReactNode;
 }) {
   return (
-    <div className={cn("relative min-w-0", className)}>
-      <select
-        aria-label={nome}
-        value={valore}
-        onChange={(e) => {
-          const sezione = sezioni.find(({ id }) => id === e.target.value);
-          if (sezione) onScegli(sezione.id);
-        }}
-        className="h-11 w-full min-w-0 appearance-none truncate rounded-lg border bg-background pl-3 pr-9 text-base font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        {sezioni.map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
-      </select>
-      <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+    <div className={cn("flex min-w-0 items-center gap-2", className)}>
+      <div role="group" aria-label={nome} className="-mx-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-1 py-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {sezioni.map(({ id, label }) => {
+          const attiva = id === valore;
+          return (
+            <button key={id} type="button" aria-pressed={attiva} onClick={() => onScegli(id)}
+              className={cn("h-9 shrink-0 whitespace-nowrap rounded-full border px-3.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                attiva ? "border-orange-200 bg-orange-50 text-orange-700" : "border-border bg-background text-muted-foreground hover:text-foreground")}>
+              {label}
+            </button>
+          );
+        })}
+      </div>
+      {azione && <div className="flex shrink-0 items-center gap-1.5">{azione}</div>}
     </div>
   );
 }
@@ -229,11 +237,11 @@ export function PilloleFiltro<T extends string>({
               aria-pressed={attiva}
               className={cn(
                 "min-h-11 rounded-full border px-3 text-sm font-medium transition-colors",
-                attiva ? "border-slate-900 bg-slate-900 text-white" : "border-border bg-background text-slate-700",
+                attiva ? "border-orange-200 bg-orange-50 text-orange-700" : "border-border bg-background text-slate-700",
               )}
             >
               {c.label}
-              {c.n !== undefined && <span className={cn("ml-1 tabular-nums", attiva ? "text-white/70" : "text-muted-foreground")}>{c.n}</span>}
+              {c.n !== undefined && <span className={cn("ml-1 tabular-nums", attiva ? "text-orange-700/70" : "text-muted-foreground")}>{c.n}</span>}
             </button>
           );
         })}
@@ -254,29 +262,30 @@ export interface VoceKpiMobile {
 
 /** Riquadri numero su telefono: solo nome e cifra, due per riga. */
 export function KpiMobili({ voci, className }: { voci: VoceKpiMobile[]; className?: string }) {
+  // Una riga di pillole tonde «numero etichetta» (decisione del founder, 23/11/2026: stesse forme
+  // in tutte le pagine; prima riquadri 2×2 alti ~150px). Toccata, la pillola filtra come prima.
   return (
-    <div className={cn("grid grid-cols-2 gap-2", className)}>
+    <div className={cn("-mx-1 flex gap-1.5 overflow-x-auto px-1 py-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", className)}>
       {voci.map((v) => {
         const contenuto = (
           <>
-            <p className="truncate text-[11px] font-medium text-muted-foreground">{v.label}</p>
-            <p className={cn("truncate text-base font-bold leading-tight tabular-nums", v.tono)}>{v.valore}</p>
+            <span className={cn("font-semibold tabular-nums text-foreground", v.tono)}>{v.valore}</span>
+            <span className="text-muted-foreground">{/^[A-ZÀ-Ý][a-zà-ÿ]/.test(v.label) ? v.label.charAt(0).toLowerCase() + v.label.slice(1) : v.label}</span>
           </>
         );
-        // border-border: sui <button> il colore del bordo non eredita quello del tema (veniva quasi nero).
-        const base = "min-w-0 rounded-lg border border-border bg-card px-3 py-2 text-left";
+        const base = "inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-sm";
         return v.onClick ? (
           <button
             key={v.label}
             type="button"
             onClick={v.onClick}
             aria-pressed={v.attivo}
-            className={cn("tap-compact", base, v.attivo && "border-slate-900 ring-1 ring-slate-900")}
+            className={cn("tap-compact", base, v.attivo ? "border-orange-200 bg-orange-50" : "border-border bg-background")}
           >
             {contenuto}
           </button>
         ) : (
-          <div key={v.label} className={base}>{contenuto}</div>
+          <div key={v.label} className={cn(base, "border-border bg-background")}>{contenuto}</div>
         );
       })}
     </div>
@@ -311,12 +320,12 @@ export function RigaMobile({
     <>
       {sinistra}
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[13px] font-semibold leading-tight">{titolo}</div>
-        {sottotitolo && <div className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">{sottotitolo}</div>}
+        <div className="truncate text-sm font-semibold leading-snug">{titolo}</div>
+        {sottotitolo && <div className="mt-0.5 truncate text-xs leading-tight text-muted-foreground">{sottotitolo}</div>}
       </div>
       {(valore !== undefined || stato !== undefined) && (
         <div className="shrink-0 text-right">
-          {valore !== undefined && <div className="text-[13px] font-semibold leading-tight tabular-nums">{valore}</div>}
+          {valore !== undefined && <div className="text-sm font-semibold leading-tight tabular-nums">{valore}</div>}
           {stato !== undefined && <div className="mt-0.5 text-[11px] leading-tight">{stato}</div>}
         </div>
       )}

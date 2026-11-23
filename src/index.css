@@ -1103,8 +1103,11 @@ html .react-flow .react-flow__edges svg {
 /* Telefono (collaudo 23/11/2026, regola del founder): nel contenuto e nelle finestre niente
    testo sotto gli 11px. Le classi da 9–10,5px erano 3.784 nel codice, spesso accanto a testi
    da 14–17px: una regola sola qui invece che a mano in centinaia di file. La barra in basso
-   (fuori da #main-content) ha il suo disegno e resta com'è. */
-@media (max-width: 767px) {
+   (fuori da #main-content) ha il suo disegno e resta com'è.
+   Anche tablet (collaudo 23/11/2026, sera): fino a 1024px e su ogni schermo touch, perché a 768
+   e a 1024 i contatori «(182)», le etichette «Garanzia ok» e i riquadri della home restavano a
+   9–10px. Da computer (mouse, oltre 1024px) le etichette fitte restano com'erano. */
+@media (max-width: 1024px), (pointer: coarse) {
   #main-content :is(.text-\[9px\], .text-\[9\.5px\], .text-\[10px\], .text-\[10\.5px\]),
   [role="dialog"] :is(.text-\[9px\], .text-\[9\.5px\], .text-\[10px\], .text-\[10\.5px\]),
   /* Anche le varianti «solo telefono» (max-sm:/max-md:): le etichette della scheda commessa

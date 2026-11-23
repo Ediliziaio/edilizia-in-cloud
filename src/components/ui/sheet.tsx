@@ -39,6 +39,12 @@ SheetOverlay.displayName = SheetPrimitive.Overlay.displayName;
 //  • apertura 300ms come la chiusura (500ms percepita lenta su mobile);
 //  • bottom su telefono (<640px): pagina intera in dissolvenza, come le finestre (dialog.tsx).
 //    Il founder, 23/11/2026: «non mi piace che compaia da sotto».
+// Chi chiede «p-0» (menu App, filtri, scanner) disegna da sé i margini: anche da telefono, dove
+// la variante aggiunge max-sm:p-4 che un semplice p-0 non scavalca (16px di bianco ai lati, 23/11/2026).
+// Restano le aree sicure di iPhone in alto e in basso.
+const SENZA_MARGINE = /(^|\s)p-0(\s|$)/;
+const SENZA_MARGINE_TELEFONO = "max-sm:p-0 max-sm:pt-[env(safe-area-inset-top)] max-sm:pb-[env(safe-area-inset-bottom)]";
+
 const sheetVariants = cva(
   "fixed z-50 gap-4 overflow-y-auto bg-background p-6 shadow-lg transition ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-300",
   {
@@ -73,7 +79,7 @@ const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Con
   ({ side = "right", className, overlayClassName, closeButtonClassName, children, onOpenAutoFocus, ...props }, ref) => (
     <SheetPortal>
       <SheetOverlay className={overlayClassName} />
-      <SheetPrimitive.Content ref={ref} className={cn(sheetVariants({ side }), className)} onOpenAutoFocus={focusInizialeMobile(onOpenAutoFocus)} {...props}>
+      <SheetPrimitive.Content ref={ref} className={cn(sheetVariants({ side }), SENZA_MARGINE.test(className ?? "") && SENZA_MARGINE_TELEFONO, className)} onOpenAutoFocus={focusInizialeMobile(onOpenAutoFocus)} {...props}>
         {/* Handle visivo da bottom-sheet: comunica che il pannello sale dal basso e si chiude */}
         {side === "bottom" && (
           <div aria-hidden="true" className="mx-auto -mt-2 mb-2 h-1.5 w-12 shrink-0 rounded-full bg-muted max-sm:hidden" />
