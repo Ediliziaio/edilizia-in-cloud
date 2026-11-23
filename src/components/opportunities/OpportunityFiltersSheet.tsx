@@ -135,6 +135,11 @@ export function OpportunityFiltersSheet({ open, onOpenChange, filters, onApply, 
           {/* Status */}
           <FilterSection title="Stato" defaultOpen>
             <div className="space-y-2.5 sm:space-y-2">
+              {local.statuses.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Nessuno spuntato: vedi le aperte. Vinte e perse compaiono solo nelle loro colonne di chiusura. Spunta uno stato per vederlo in tutte le fasi.
+                </p>
+              )}
               {STATUS_OPTIONS.map((opt) => (
                 <label key={opt.value} className="flex items-center gap-2.5 text-sm cursor-pointer py-1 sm:py-0">
                   <Checkbox

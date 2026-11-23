@@ -156,6 +156,12 @@ export interface FiltriServerOpportunita {
   /** «Vede solo i propri» in «Vista come»: la sessione resta del super admin. */
   visibili_a?: string;
   striscia?: "stallo" | "azioni_scadute";
+  /**
+   * Senza filtro di stato: le chiuse (vinte, perse, abbandonate) solo nelle
+   * fasi di chiusura (quelle con `auto_status` vinto/perso/abbandonato), non
+   * mescolate alle aperte nelle colonne normali. Migrazione 20290525090000.
+   */
+  chiuse_al_loro_posto?: true;
 }
 
 /**
@@ -198,6 +204,13 @@ export function filtriPerServer({
   if (cerca) out.cerca = cerca;
   const stati = Array.isArray(filters.statuses) ? filters.statuses.filter(Boolean) : [];
   if (stati.length > 0) out.stati = [...stati].sort();
+  // Nessuno stato scelto e nessuna ricerca: la pagina si apre come il vecchio
+  // gestionale, con le aperte nelle colonne e le chiuse solo nelle colonne di
+  // chiusura. Prima le perse finivano nelle colonne insieme alle aperte e le
+  // colonne non tornavano più (Solaria, 23/11/2026, «colonne sfalsate»).
+  // Chi cerca un nome lo trova comunque, anche se è chiuso; chi vuole vedere
+  // tutte le perse spunta «Persa» nel filtro Stato.
+  else if (!cerca) out.chiuse_al_loro_posto = true;
   if (filters.assignedTo) out.venditore = filters.assignedTo;
   if (filters.followerId) out.follower = filters.followerId;
   if (filters.callCenterId) out.call_center = filters.callCenterId;

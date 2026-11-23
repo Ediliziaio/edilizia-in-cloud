@@ -128,13 +128,20 @@ describe("marketing opportunities helpers", () => {
 });
 
 describe("filtri per il database (opportunita_filtrate)", () => {
-  it("senza filtri non manda niente: la chiave della cache resta la stessa", () => {
-    expect(filtriPerServer({})).toEqual({});
+  it("senza filtri manda solo «chiuse al loro posto»: la chiave della cache resta la stessa", () => {
+    expect(filtriPerServer({})).toEqual({ chiuse_al_loro_posto: true });
     expect(filtriPerServer({
       searchQuery: "   ",
       filters: { statuses: [], assignedTo: "", source: "", valueMin: "", valueMax: "", dateFrom: "", dateTo: "", tags: [] },
       onlyMine: false,
-    })).toEqual({});
+    })).toEqual({ chiuse_al_loro_posto: true });
+  });
+
+  // Solaria, 23/11/2026: le perse importate stavano nelle colonne normali
+  // insieme alle aperte e le colonne non tornavano col vecchio gestionale.
+  it("le chiuse restano nelle loro colonne finché non si sceglie uno stato o si cerca", () => {
+    expect(filtriPerServer({ filters: { statuses: ["lost"] } })).toEqual({ stati: ["lost"] });
+    expect(filtriPerServer({ searchQuery: "Rossi" })).toEqual({ cerca: "rossi" });
   });
 
   it("traduce ogni filtro della pagina nel nome che usa il database", () => {
@@ -173,7 +180,7 @@ describe("filtri per il database (opportunita_filtrate)", () => {
   });
 
   it("«I miei deal» senza utente non filtra (non si vede una pagina vuota)", () => {
-    expect(filtriPerServer({ onlyMine: true, currentUserId: null })).toEqual({});
+    expect(filtriPerServer({ onlyMine: true, currentUserId: null })).toEqual({ chiuse_al_loro_posto: true });
   });
 });
 
