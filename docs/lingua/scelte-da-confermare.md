@@ -100,3 +100,23 @@ Varianti già scelte:
   ore, foto troppo pesanti in alcune schermate), la riga «Compilato da … alle …» della scheda rapportino, il testo per il
   lettore di schermo «Chiudi» delle finestre, il paragrafo sulla privacy del profilo (contiene un link).
 - **Pulsanti e pannelli che vede solo l'ufficio** nel sopralluogo (assegna, riassunto AI, preventivo).
+
+## Notifiche della campanella: scadenze dei mezzi e frasi senza codice
+
+Le parole del tipo di scadenza («revisione», «bollo», «tagliando»…) sono state rese con quello che si usa in ogni paese.
+Da confermare:
+
+| Italiano | en | de | fr | ro | sq | es | es-AR | es-PE | ar-MA | ar-EG |
+|---|---|---|---|---|---|---|---|---|---|---|
+| revisione | MOT | Hauptuntersuchung (TÜV) | contrôle technique | ITP | kolaudimi | revisión técnica | = es | = es | الفيزيت التقنية | الفحص الفني |
+| bollo | road tax | Kfz-Steuer | taxe du véhicule (in Francia non c'è: è la parola più vicina) | impozit auto | taksa e automjetit | impuesto de circulación | patente | impuesto vehicular | الفينيات (vignette) | الرخصة |
+| tagliando | service | Inspektion | révision | revizie | servisi | mantenimiento programado | service | = es | الفيدانج (vidange) | الصيانة الدورية |
+| verifica periodica | — | wiederkehrende Prüfung | — | — | — | inspección periódica | = es | = es | الكونطرول الدوري | الكشف الدوري |
+| noleggio | hire | Miete | location | închiriere | qiraja | — | — | — | — | — |
+
+Altre scelte:
+- **«Nuovo cantiere: un cantiere»** (notifica senza codice del cantiere): resa come «Nuovo cantiere assegnato» in tutte le lingue.
+- In ar-EG «Sei capocantiere di un cantiere» → «sei diventato capo di un cantiere».
+- **Tedesco:** i tipi di scadenza vanno con la maiuscola, come vuole la lingua; in albanese hanno l'articolo («sigurimi»).
+- **«In scadenza:» dei mezzi:** è reso come «scade presto»; in es-ES «A punto de vencer».
+- **«Tocca Aggiorna per riprovare»:** il nome del bottone è quello che si vede sullo schermo nella lingua.
