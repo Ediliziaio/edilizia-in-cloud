@@ -12,7 +12,9 @@ export function TestataPlanimetrie({ indietro, titolo, sottotitolo, azioni }: { 
           <ArrowLeft className="h-5 w-5" />
         </Link>
       </Button>}
-      <div className="min-w-0 flex-1 basis-[calc(100%-3.5rem)] sm:basis-0">
+      {/* Larghezza minima del titolo: sotto, i pulsanti vanno a capo. Senza, a ~800 px
+          i cinque pulsanti lo schiacciavano a «Dem / o ·…» (23/11/2026). */}
+      <div className="min-w-0 flex-1 basis-[calc(100%-3.5rem)] sm:min-w-[18rem] sm:basis-0">
         <h1 className="line-clamp-2 break-words text-2xl font-bold leading-tight text-foreground max-md:text-lg">{titolo}</h1>
         {sottotitolo && <p className="text-sm text-muted-foreground max-md:text-xs">{sottotitolo}</p>}
       </div>

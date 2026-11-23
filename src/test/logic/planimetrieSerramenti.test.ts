@@ -13,13 +13,15 @@ describe("serramenti", () => {
     expect(anteDi({ tipo: "finestra", larghezza: 120, manovra: "battente" })).toBe(2);
     expect(anteDi({ tipo: "portafinestra", larghezza: 120, manovra: "battente" })).toBe(2);
     expect(anteDi({ tipo: "finestra", larghezza: 160, manovra: "battente" })).toBe(2);
-    expect(anteDi({ tipo: "porta", larghezza: 160, manovra: "battente" })).toBe(1);
+    expect(anteDi({ tipo: "porta", larghezza: 90, manovra: "battente" })).toBe(1);
+    // 23/11/2026: il portone da 140 cm del condominio demo nasceva a un'anta da 135 cm
+    expect(anteDi({ tipo: "porta", larghezza: 140, manovra: "battente" })).toBe(2);
     expect(anteDi({ tipo: "finestra", larghezza: 160, manovra: "battente", ante: 3 })).toBe(3);
     expect(anteDi({ tipo: "varco", larghezza: 100, manovra: "nessuna" })).toBe(0);
   });
   it("le ante di default non fanno mai scattare la verifica «ante molto larghe»", () => {
     for (let larghezza = 40; larghezza <= 400; larghezza += 1) {
-      for (const tipo of ["finestra", "portafinestra"] as const) {
+      for (const tipo of ["porta", "finestra", "portafinestra"] as const) {
         const a = { tipo, larghezza, altezza: 140, manovra: "battente" as const };
         expect(misureSerramento(a).anta, `${tipo} ${larghezza} cm`).toBeLessThanOrEqual(100);
       }

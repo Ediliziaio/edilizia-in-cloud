@@ -43,8 +43,8 @@ export function manovraDi(s: SistemaApertura): Apertura["manovra"] {
 }
 
 /**
- * Quante ante ha: quelle scritte, altrimenti una per le porte e, per finestre e
- * portefinestre, quante bastano perché nessuna anta superi i 100 cm.
+ * Quante ante ha: quelle scritte, altrimenti quante bastano perché nessuna anta
+ * superi i 100 cm (porte, finestre e portefinestre).
  *
  * È la soglia della verifica «ante molto larghe» (`interferenze.ts`): con il
  * telaio (5 cm) e i montanti (6 cm) ogni anta resta ≤ 100 cm se le ante sono
@@ -55,7 +55,8 @@ export function manovraDi(s: SistemaApertura): Apertura["manovra"] {
 export function anteDi(a: Dati): number {
   if (a.ante && a.ante >= 1) return Math.round(a.ante);
   if (a.tipo === "varco") return 0;
-  if (a.tipo === "porta") return 1;
+  // Vale anche per le porte: un portone da 140 cm è a due ante, non a un'anta da
+  // 135 (il condominio demo lo segnalava come «ante molto larghe», 23/11/2026).
   return Math.max(1, Math.ceil((a.larghezza + 1) / 106));
 }
 
