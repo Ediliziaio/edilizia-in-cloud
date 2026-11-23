@@ -18,7 +18,7 @@ import { telaTramaGenerata } from "./textureFiniture";
 import { soleIndicativo } from "../../../../shared/planimetrie/orientamento";
 
 // Le scelte (facciata, infissi, ora…) stanno in un modulo senza three.js, così anche i dialoghi le leggono senza appesantire il bundle.
-import { ammetteAlberiDiContesto, ASPETTO_PREDEFINITO, FACCIATE, ID_FACCIATE, ID_INFISSI, INFISSI, type IdFacciata, type IdInfissi, type OpzioniAspetto } from "@/lib/planimetrie/tred/aspettoOpzioni";
+import { coloreDellaFacciata, ammetteAlberiDiContesto, ASPETTO_PREDEFINITO, FACCIATE, ID_FACCIATE, ID_INFISSI, INFISSI, type IdFacciata, type IdInfissi, type OpzioniAspetto } from "@/lib/planimetrie/tred/aspettoOpzioni";
 export { ASPETTO_PREDEFINITO, FACCIATE, ID_FACCIATE, ID_INFISSI, INFISSI };
 export type { IdFacciata, IdInfissi, OpzioniAspetto };
 
@@ -294,6 +294,10 @@ export const TRAME: Record<string, { lato: number; disegna: Disegnatore; rilievo
   },
 };
 
+// le varianti di colore usano lo stesso disegno di riserva (quello vero è in trameGenerate)
+TRAME.mattone_chiaro = TRAME.mattone;
+TRAME.pietra_grigia = TRAME.pietra;
+
 /** Come si vede ogni materiale della scena nell'aspetto realistico: tessitura, lato in metri, e quanto è metallico. */
 const LOOK: Record<string, { trama: string; metri: number; metallo?: number; ruvidita?: number }> = {
   tegole: { trama: "tegole", metri: 1.2 },
@@ -436,8 +440,8 @@ export function creaAspetto({ renderer, scene, camera }: Avvio): Aspetto {
     const faccia = chiave === "muro" && !opz.dentro ? FACCIATE[opz.facciata] : null;
     const look = faccia ? { trama: faccia.trama, metri: faccia.metri } : chiave === "muro" ? { trama: "intonaco", metri: 1 } : LOOK[chiave];
     const colorePerInfissi = chiave === "telaio" || (chiave === "oscurante" && !opz.dentro) ? INFISSI[opz.infissi].colore : null;
-    if (!look && !colorePerInfissi && chiave !== "vetro") return null;
-    const id = `${chiave}|${opz.dentro ? "interno" : opz.facciata}|${colorePerInfissi ? opz.infissi : ""}`;
+    if (!look && !colorePerInfissi && chiave !== "vetro" && !(chiave === "zoccolo" && opz.zoccolo)) return null;
+    const id = `${chiave}|${opz.dentro ? "interno" : opz.facciata + "/" + (opz.coloreFacciata ?? "") + "/" + (opz.zoccolo ?? "")}|${colorePerInfissi ? opz.infissi : ""}`;
     const gia = materiali.get(id);
     if (gia) return gia;
     const m = base.clone();
@@ -454,14 +458,16 @@ export function creaAspetto({ renderer, scene, camera }: Avvio): Aspetto {
       m.metalness = 0.1;
       m.envMapIntensity = 2.2;
     }
-    const facciataVera = faccia ? TRAME_GENERATE["facciata_" + faccia.trama] : undefined;
-    if (faccia && facciataVera) {
-      // facciata con rilievo vero: i mattoni e le pietre prendono la luce radente, la malta resta opaca
+    // facciata e zoccolo con rilievo vero: i mattoni e le pietre prendono la luce radente, la malta resta opaca
+    const zoccolo = chiave === "zoccolo" && !opz.dentro && opz.zoccolo && opz.zoccolo !== "intonaco" ? opz.zoccolo : undefined;
+    const tramaVera = faccia ? "facciata_" + faccia.trama : zoccolo === "pietra" ? "facciata_pietra" : zoccolo === "mattone" ? "facciata_mattone" : zoccolo === "scuro" ? "facciata_intonaco" : "";
+    const facciataVera = tramaVera ? TRAME_GENERATE[tramaVera] : undefined;
+    if (facciataVera) {
       const mappa = (canale: "colore" | "normale" | "rugosita") => {
-        const idMappa = `facciata_${faccia.trama}:${canale}`;
+        const idMappa = `${tramaVera}:${canale}`;
         let t = texture.get(idMappa);
         if (!t) {
-          const tela = telaTramaGenerata("facciata_" + faccia.trama, canale);
+          const tela = telaTramaGenerata(tramaVera, canale);
           if (!tela) return null;
           t = new THREE.CanvasTexture(tela);
           t.wrapS = t.wrapT = THREE.RepeatWrapping;
@@ -478,7 +484,7 @@ export function creaAspetto({ renderer, scene, camera }: Avvio): Aspetto {
         m.normalScale.setScalar(facciataVera.rilievo);
         m.roughnessMap = mappa("rugosita");
         m.roughness = 1;
-        m.color = new THREE.Color(facciataVera.colori ? "#ffffff" : faccia.colore);
+        m.color = new THREE.Color(facciataVera.colori ? "#ffffff" : zoccolo === "scuro" ? "#5b5d60" : coloreDellaFacciata(opz));
         m.userData.metri = facciataVera.metri[0];
         m.userData.mappeCondivise = true;
         m.needsUpdate = true;
@@ -494,7 +500,7 @@ export function creaAspetto({ renderer, scene, camera }: Avvio): Aspetto {
         m.map = tm;
         const def = TRAME[look.trama];
         if (def?.rilievo) { m.bumpMap = tm; m.bumpScale = def.rilievo * 2; }
-        if (faccia) m.color = new THREE.Color(faccia.colore);
+        if (faccia) m.color = new THREE.Color(coloreDellaFacciata(opz));
         else if (look.trama !== "intonaco" && look.trama !== "tessuto" && chiave !== "stipite") m.color.set("#ffffff");
         if ("metallo" in look && look.metallo) m.metalness = look.metallo;
         if ("ruvidita" in look && look.ruvidita) m.roughness = look.ruvidita;

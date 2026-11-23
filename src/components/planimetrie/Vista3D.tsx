@@ -40,7 +40,7 @@ import { vistaDettaglioInterno } from "@/lib/planimetrie/tred/inquadraturaArredi
 import type { StratoEsploso3D } from "@/lib/planimetrie/tred/tipi";
 import { adattaAmbiente, aggiornaGruppo, applicaTelecamera, creaGruppo, liberaGruppo, preparaAmbiente } from "./tred/scenaThree";
 import { creaAspetto, finestraPerLuce, FACCIATE, ID_FACCIATE, ID_INFISSI, INFISSI, type Aspetto, type OpzioniAspetto } from "./tred/aspetto";
-import { leggiAspetto, salvaAspetto } from "@/lib/planimetrie/tred/aspettoOpzioni";
+import { coloreDellaFacciata, ID_STILI_CASA, ID_ZOCCOLI, leggiAspetto, salvaAspetto, STILI_CASA, stileCasa, ZOCCOLI, type IdStileCasa, type IdZoccolo } from "@/lib/planimetrie/tred/aspettoOpzioni";
 import { fotorealisticoDisponibile } from "@/lib/planimetrie/renderFotorealisticoLocale";
 import { esportaGlbConFiniture } from "@/lib/planimetrie/esportaGlbConFiniture";
 import { eCampo } from "@/lib/planimetrie/campiSport";
@@ -1024,9 +1024,24 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
             </div>
             {asp.realistico && (
               <>
-                {modo !== "dentro" && <Select value={asp.facciata} onValueChange={(v) => cambiaAsp({ facciata: v as OpzioniAspetto["facciata"] })}>
-                  <SelectTrigger className="h-8 w-44" aria-label="Facciata"><SelectValue /></SelectTrigger>
+                {modo !== "dentro" && <Select value={stileCasa(asp) ?? "personale"} onValueChange={(v) => { if (v !== "personale") cambiaAsp(STILI_CASA[v as IdStileCasa].scelte); }}>
+                  <SelectTrigger className="h-8 w-44" aria-label="Stile della casa"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {ID_STILI_CASA.map((id) => <SelectItem key={id} value={id}>Stile: {STILI_CASA[id].nome.toLowerCase()}</SelectItem>)}
+                    <SelectItem value="personale">Stile: a modo tuo</SelectItem>
+                  </SelectContent>
+                </Select>}
+                {modo !== "dentro" && <Select value={asp.facciata} onValueChange={(v) => cambiaAsp({ facciata: v as OpzioniAspetto["facciata"], coloreFacciata: undefined })}>
+                  <SelectTrigger className="h-8 w-48" aria-label="Facciata"><SelectValue /></SelectTrigger>
                   <SelectContent>{ID_FACCIATE.map((id) => <SelectItem key={id} value={id}>{FACCIATE[id].nome}</SelectItem>)}</SelectContent>
+                </Select>}
+                {modo !== "dentro" && FACCIATE[asp.facciata].trama === "intonaco" && <label className="flex items-center gap-1.5 text-xs">Colore
+                  <input type="color" aria-label="Colore della facciata" value={coloreDellaFacciata(asp)}
+                    onChange={(e) => cambiaAsp({ coloreFacciata: e.currentTarget.value })} className="h-8 w-10 cursor-pointer rounded border bg-background p-0.5" />
+                </label>}
+                {modo !== "dentro" && <Select value={asp.zoccolo ?? "intonaco"} onValueChange={(v) => cambiaAsp({ zoccolo: v === "intonaco" ? undefined : v as IdZoccolo })}>
+                  <SelectTrigger className="h-8 w-48" aria-label="Zoccolo della facciata"><SelectValue /></SelectTrigger>
+                  <SelectContent>{ID_ZOCCOLI.map((id) => <SelectItem key={id} value={id}>{ZOCCOLI[id]}</SelectItem>)}</SelectContent>
                 </Select>}
                 {!studio && <Select disabled={!!pianta.infissiProgetto} value={pianta.infissiProgetto?.colore ?? asp.infissi} onValueChange={(v) => cambiaAsp({ infissi: v as OpzioniAspetto["infissi"] })}>
                   <SelectTrigger className="h-8 w-52" aria-label={pianta.infissiProgetto ? "Infissi comuni del progetto" : "Infissi"}><SelectValue /></SelectTrigger>

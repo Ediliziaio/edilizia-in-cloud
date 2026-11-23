@@ -144,3 +144,25 @@ it("con la siepe già piantata il vialetto si fa lo stesso e la siepe si apre al
   expect(siepi.length).toBeLessThan(prima);
   for (const s of siepi) expect(Math.abs(s.centro.x - cancello.centro.x) < 60 && Math.abs(s.centro.y - cancello.centro.y) < 60).toBe(false);
 });
+
+describe("aspetto della casa", () => {
+  it("ogni stile è una combinazione valida e si riconosce; un colore a mano vale solo sugli intonaci", async () => {
+    const o = await import("@/lib/planimetrie/tred/aspettoOpzioni");
+    const { TRAME_GENERATE } = await import("@/lib/planimetrie/tred/trameGenerate");
+    for (const id of o.ID_STILI_CASA) {
+      const s = o.STILI_CASA[id].scelte;
+      expect(o.FACCIATE[s.facciata], id).toBeDefined();
+      expect(o.INFISSI[s.infissi], id).toBeDefined();
+      expect(o.stileCasa(s), id).toBe(id);
+    }
+    expect(o.stileCasa({ ...o.STILI_CASA.moderna.scelte, coloreFacciata: "#aabbcc" })).toBeUndefined();
+    expect(o.coloreDellaFacciata({ facciata: "intonaco_bianco", coloreFacciata: "#aabbcc" })).toBe("#aabbcc");
+    expect(o.coloreDellaFacciata({ facciata: "mattone", coloreFacciata: "#aabbcc" })).toBe("#ffffff");
+    expect(o.coloreDellaFacciata({ facciata: "intonaco_bianco", coloreFacciata: "rosso" })).toBe(o.FACCIATE.intonaco_bianco.colore);
+    // mattoni, pietre e intonaci hanno tutti il disegno con rilievo
+    for (const id of o.ID_FACCIATE) if (!["legno", "cemento"].includes(o.FACCIATE[id].trama)) expect(TRAME_GENERATE["facciata_" + o.FACCIATE[id].trama], id).toBeDefined();
+    const frase = o.descriviAspetto({ ...o.ASPETTO_PREDEFINITO, coloreFacciata: "#aabbcc", zoccolo: "pietra" });
+    expect(frase).toContain("#aabbcc");
+    expect(frase).toContain("zoccolo in pietra");
+  });
+});

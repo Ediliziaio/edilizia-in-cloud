@@ -58,6 +58,10 @@ export const TRAME_GENERATE: Readonly<Record<string, FormatoTrama>> = {
     colori: { pezzo: [176, 96, 70], fuga: [196, 188, 172] }, ruviditaPezzo: .88, provenienza: GENERATA },
   facciata_pietra: { metri: [1.6, 1.6], colonne: 4, righe: 8, sfalsata: true, fugaMm: 9, biselloMm: 9, stonalizzazione: .2, nuvole: .2, scalaNuvoleM: .09, grana: .07, superficieIrregolare: 1.1, rilievo: 1.6,
     colori: { pezzo: [198, 186, 164], fuga: [150, 142, 128] }, ruviditaPezzo: .9, provenienza: GENERATA },
+  facciata_mattone_chiaro: { metri: [1.04, 1.04], colonne: 4, righe: 16, sfalsata: true, fugaMm: 10, biselloMm: 3, stonalizzazione: .14, nuvole: .1, scalaNuvoleM: .06, grana: .08, superficieIrregolare: .7, rilievo: 1.5,
+    colori: { pezzo: [214, 190, 158], fuga: [226, 220, 208] }, ruviditaPezzo: .88, provenienza: GENERATA },
+  facciata_pietra_grigia: { metri: [1.6, 1.6], colonne: 4, righe: 8, sfalsata: true, fugaMm: 9, biselloMm: 9, stonalizzazione: .22, nuvole: .2, scalaNuvoleM: .09, grana: .07, superficieIrregolare: 1.1, rilievo: 1.6,
+    colori: { pezzo: [158, 160, 160], fuga: [112, 113, 114] }, ruviditaPezzo: .9, provenienza: GENERATA },
   facciata_intonaco: { metri: [2, 2], colonne: 1, righe: 1, fugaMm: 0, biselloMm: 0, stonalizzazione: 0, nuvole: .035, scalaNuvoleM: .5, grana: .05, superficieIrregolare: .35, rilievo: .6, ruviditaPezzo: .95, provenienza: GENERATA },
   resina: { metri: [2.4, 2.4], colonne: 1, righe: 1, fugaMm: 0, biselloMm: 0, stonalizzazione: 0, nuvole: .1, scalaNuvoleM: .7, grana: .025, superficieIrregolare: .25, rilievo: .35, provenienza: GENERATA },
 };

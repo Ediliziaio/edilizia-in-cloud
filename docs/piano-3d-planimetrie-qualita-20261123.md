@@ -101,6 +101,13 @@ Sulla tela vera sono una ogni 7,5 cm, misurate sui pixel.
   «Pietra» e gli intonaci hanno rilievo vero: mattoni 25×5,5 con malta chiara, pietra squadrata a corsi.
   ![ingresso](piano-3d-planimetrie-immagini/dopo-esterno-ingresso-mattoni.jpg)
 
+- **Aspetto della casa.** In «Vista», accanto alla facciata: sei stili pronti (moderna, mediterranea, rustica,
+  industriale, nordica, classica) che impostano insieme facciata, infissi e zoccolo; sette facciate in più
+  (intonaci salvia, azzurro, ocra, rosa, antracite, mattoni chiari, pietra grigia); colore a scelta per gli
+  intonaci; zoccolo in pietra, in mattoni o scuro. Le scelte si ricordano nel browser come prima e finiscono
+  nella frase per il render AI.
+  ![stile](piano-3d-planimetrie-immagini/dopo-stile-mediterraneo.jpg)
+
 ### Solo impostato o non fatto
 
 - **Inquadratura della camera**: parte ancora con mezzo fotogramma coperto. Ho provato una correzione al
@@ -109,6 +116,8 @@ Sulla tela vera sono una ogni 7,5 cm, misurate sui pixel.
   prato con fili d'erba veri, cancello carrabile e posto auto posati da soli, vialetti con curve.
   Nella vista tagliata dall'alto la facciata scelta (mattoni, pietra) si vede anche sulle facce interne dei
   muri: era già così, ora si nota di più.
+- **Zoccolo quando c'è il giardino**: la fascia bassa della facciata oggi viene disegnata solo nelle piante senza
+  aree esterne e senza terreno, quindi con prato o lotto la scelta dello zoccolo non si vede.
 - **Finiture chieste in chat (lotto 5)**: «arreda …» in chat c'era già e ora fa di più; i comandi per le
   finiture («parquet a spina in soggiorno», «gres in diagonale in bagno») non sono stati scritti: si fanno
   dallo Studio. Il file dei comandi (`editor/comandiChat.ts`) ha modifiche non pubblicate di un'altra sessione.

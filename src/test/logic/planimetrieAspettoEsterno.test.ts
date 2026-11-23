@@ -173,7 +173,7 @@ describe("aspetto realistico: funzioni pure", () => {
     expect(Array.from(laterale)).toEqual([7, 2]);
   });
   it("facciate, infissi e tessiture sono coerenti", () => {
-    expect(ID_FACCIATE.length).toBe(8);
+    expect(ID_FACCIATE.length).toBe(15);
     for (const id of ID_FACCIATE) expect(TRAME[FACCIATE[id].trama]).toBeDefined();
     for (const id of ID_INFISSI) expect(INFISSI[id].colore).toMatch(/^#[0-9a-f]{6}$/);
     for (const t of Object.values(TRAME)) expect([256, 512]).toContain(t.lato);
