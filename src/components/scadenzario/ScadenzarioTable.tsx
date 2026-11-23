@@ -96,7 +96,9 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
 
   return (
     <>
-    {onSelezionaPagina && <label className="flex min-h-11 items-center gap-2 px-2 text-sm lg:hidden">
+    {/* Sul telefono niente selezione multipla (le distinte si fanno da computer o tablet): una
+        casella per riga e «Seleziona pagina» occupavano una colonna e una riga in più. */}
+    {onSelezionaPagina && <label className="flex min-h-11 items-center gap-2 px-2 text-sm lg:hidden max-sm:hidden">
       <Checkbox aria-label="Seleziona le scadenze di questa pagina" checked={tutteSelezionate ? true : selezioneParziale ? "indeterminate" : false} disabled={inCorso} onCheckedChange={v => onSelezionaPagina(v === true)} />
       Seleziona pagina
     </label>}
@@ -132,13 +134,13 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
             <div
               className={`flex items-center gap-2.5 px-3 py-2.5 ${showMonthHeader ? "" : "border-t"} ${isOverdue ? "bg-destructive/5" : isDueToday ? "bg-amber-50 dark:bg-amber-950/20" : ""} ${isCancelled || isPaid ? "opacity-60" : ""}`}
             >
-              {onSeleziona && <span onClick={(e) => e.stopPropagation()}><Checkbox aria-label={`Seleziona ${s.description}`} checked={selezionate?.has(s.id) ?? false} disabled={inCorso} onCheckedChange={() => onSeleziona(s.id)} /></span>}
+              {onSeleziona && <span className="max-sm:hidden" onClick={(e) => e.stopPropagation()}><Checkbox aria-label={`Seleziona ${s.description}`} checked={selezionate?.has(s.id) ?? false} disabled={inCorso} onCheckedChange={() => onSeleziona(s.id)} /></span>}
               <div className="min-w-0 flex-1">
                 {onRowClick ? (
-                  <button type="button" className="min-h-11 w-full break-words text-left text-sm font-semibold leading-tight hover:underline" onClick={() => onRowClick(s)}>
+                  <button type="button" className="min-h-11 w-full text-left text-sm font-semibold leading-tight hover:underline max-sm:min-h-0 max-sm:truncate" onClick={() => onRowClick(s)}>
                     {s.description}
                   </button>
-                ) : <p className="break-words text-sm font-semibold leading-tight">{s.description}</p>}
+                ) : <p className="break-words text-sm font-semibold leading-tight max-sm:truncate">{s.description}</p>}
                 <p className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
                   {dueDate ? format(dueDate, "dd/MM", { locale: it }) : "Senza data"}
                   {refLabel ? ` · ${refLabel}` : ""}
@@ -157,7 +159,8 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
                 ) : (
                   <button
                     type="button"
-                    className="min-h-11 px-1 text-xs font-medium leading-tight text-primary"
+                    // «Apri fonte» sul telefono sta nel dettaglio che si apre toccando la riga.
+                    className={`min-h-11 px-1 text-xs font-medium leading-tight text-primary max-sm:min-h-8 ${scadenzaDaFonte(s) ? "max-sm:hidden" : ""}`}
                     onClick={(e) => { e.stopPropagation(); onMarkPaid(s); }}
                   >
                     {azionePagamento(s)}

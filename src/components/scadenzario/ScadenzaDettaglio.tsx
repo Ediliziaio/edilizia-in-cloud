@@ -119,7 +119,7 @@ export function ScadenzaDettaglio({ scadenza: s, onClose, onMarkPaid, onAnnullaI
 
   return (
     <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent struttura="scorrevole" className="w-[calc(100%-2rem)] max-w-3xl rounded-xl">
+      <DialogContent struttura="scorrevole" className="w-[calc(100%-2rem)] max-w-3xl rounded-xl max-sm:w-full max-sm:rounded-none">
         <DialogHeader className="pr-8">
           <DialogTitle className="flex items-center gap-2">
             {entrata ? <ArrowDownLeft className="h-5 w-5 text-emerald-600" /> : <ArrowUpRight className="h-5 w-5 text-red-600" />}
@@ -231,7 +231,8 @@ export function ScadenzaDettaglio({ scadenza: s, onClose, onMarkPaid, onAnnullaI
           <div className="flex flex-wrap gap-2 border-t pt-3">
             {onModifica && !percheScadenzaNonModificabile(s) && <Button variant="outline" onClick={() => onModifica(s)}>Modifica scadenza</Button>}
             {onAnnullaScadenza && !percheScadenzaNonModificabile(s) && <Button variant="outline" onClick={() => onAnnullaScadenza(s)}>Annulla scadenza</Button>}
-            {percheScadenzaNonModificabile(s) && <p className="w-full text-xs text-muted-foreground">{percheScadenzaNonModificabile(s)}</p>}
+            {/* Per le scadenze da fonte la frase sopra dice già dove si modifica: niente doppione. */}
+            {percheScadenzaNonModificabile(s) && !daFonte && <p className="w-full text-xs text-muted-foreground">{percheScadenzaNonModificabile(s)}</p>}
             {(aperta || daFonte) && <Button onClick={() => onMarkPaid(s)}><CreditCard className="mr-1 h-4 w-4" />{pagaSulPosto?.(s) ? "Paga" : daFonte ? "Apri fonte" : entrata ? "Incassa" : "Paga"}</Button>}
             {onAnnullaIncasso && siAnnullaIncasso(s) && <Button variant="outline" onClick={() => onAnnullaIncasso(s)}><Undo2 className="mr-1 h-4 w-4" />Annulla incasso</Button>}
             {s.invoice_id && !nativa.isPending && <Button variant="outline" asChild><Link to={linkFattura(s.invoice_id, !!nativa.data)}>Apri la fattura</Link></Button>}

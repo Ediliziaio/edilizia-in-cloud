@@ -252,6 +252,7 @@ function DocumentiFiscaliListInner() {
     if (stato === "all") params.delete("stato");
     else params.set("stato", stato);
     if (azzeraRicerca) params.delete("cerca");
+    params.delete("pagina");
     setSearchParams(params, { replace: true });
   };
 
@@ -269,7 +270,35 @@ function DocumentiFiscaliListInner() {
   // «?cerca=» arriva da Clienti fiscali: le fatture di quel cliente.
   const [searchRaw, setSearchRaw] = useState(() => searchParams.get("cerca") ?? "");
   const search = useDebounce(searchRaw, 300);
-  const [page, setPage] = useState(0);
+  // «?pagina=» (da 1): con la ricerca, è ciò che riporta ai risultati chi apre
+  // una fattura e torna indietro. Prima stavano solo in memoria e si perdevano.
+  const [page, setPage] = useState(() => Math.max(0, (Number(searchParams.get("pagina")) || 1) - 1));
+  // La pagina va nell'indirizzo da chi la cambia (vaiAPagina, o i filtri che la tolgono
+  // da sé), nello stesso tocco: un effetto che la riscriveva dopo faceva gara con i filtri.
+  const vaiAPagina = (n: number) => {
+    setPage(n);
+    const attesa = n > 0 ? String(n + 1) : null;
+    if (searchParams.get("pagina") === attesa) return;
+    setSearchParams((attuali) => {
+      const prossimi = new URLSearchParams(attuali);
+      if (attesa) prossimi.set("pagina", attesa); else prossimi.delete("pagina");
+      return prossimi;
+    }, { replace: true });
+  };
+  useEffect(() => {
+    // Solo la ricerca già «ferma» (300ms): i filtri che la azzerano scrivono l'indirizzo da
+    // sé, e reagire al campo appena svuotato faceva gara con loro («?stato=bozza» spariva).
+    // Solo se cambia davvero: ogni riscrittura è una voce nuova di cronologia.
+    const testo = search.trim();
+    if ((searchParams.get("cerca") ?? "") === testo) return;
+    setSearchParams((attuali) => {
+      const prossimi = new URLSearchParams(attuali);
+      if (testo) prossimi.set("cerca", testo); else prossimi.delete("cerca");
+      prossimi.delete("pagina");
+      return prossimi;
+    }, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- si scrive l'URL quando cambia la ricerca, non quando lo cambiano altri
+  }, [search]);
   const [deleteTarget, setDeleteTarget] = useState<DocumentoFiscale | null>(null);
   const [payTarget, setPayTarget] = useState<DocumentoFiscale | null>(null);
   // «Incassi e banca» dal menu della riga: l'id, così la finestra segue la fattura aggiornata.
@@ -302,6 +331,7 @@ function DocumentiFiscaliListInner() {
     const params = new URLSearchParams(searchParams);
     params.delete("stato");
     params.delete("cerca");
+    params.delete("pagina");
     if (tabId === "fattura") params.delete("tipo");
     else params.set("tipo", tabId);
     setSearchParams(params, { replace: true });
@@ -518,7 +548,7 @@ function DocumentiFiscaliListInner() {
   const cambiaFiltriEmesse = (patch: Partial<FiltriEmesse>) => {
     setFiltriEmesse(v => ({ ...v, ...patch }));
     if ("dal" in patch || "al" in patch) setSelectedMonth(null);
-    setPage(0);
+    vaiAPagina(0);
     clearSelection();
   };
 
@@ -751,14 +781,14 @@ function DocumentiFiscaliListInner() {
             onSelectMonth={(m) => {
               setSelectedMonth(m);
               setFiltriEmesse(v => ({ ...v, dal: "", al: "" }));
-              setPage(0);
+              vaiAPagina(0);
               clearSelection();
             }}
             year={timelineYear}
             onYearChange={(y) => {
               setTimelineYear(y);
               setSelectedMonth(null);
-              setPage(0);
+              vaiAPagina(0);
               clearSelection();
             }}
           />
@@ -851,7 +881,7 @@ function DocumentiFiscaliListInner() {
         </div>
 
         {elencoEmesse && <FiltriFattureEmesse valore={filtriEmesse} cambia={cambiaFiltriEmesse} />}
-        {elencoEmesse && !soloBozzeFatture && <Select value={ordinamento} onValueChange={v => { setOrdinamento(v as "progressivo" | "data"); setPage(0); clearSelection(); }}>
+        {elencoEmesse && !soloBozzeFatture && <Select value={ordinamento} onValueChange={v => { setOrdinamento(v as "progressivo" | "data"); vaiAPagina(0); clearSelection(); }}>
           <SelectTrigger aria-label="Ordina fatture" className="h-9 w-[170px] text-xs"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="progressivo">Anno e numero ↓</SelectItem><SelectItem value="data">Data emissione ↓</SelectItem></SelectContent>
         </Select>}
@@ -1385,10 +1415,10 @@ function DocumentiFiscaliListInner() {
             Pagina {page + 1} di {totalPages}
           </p>
           <div className="flex items-center gap-2">
-            <Button aria-label="Pagina precedente" variant="outline" size="sm" className="max-lg:size-11" disabled={page === 0} onClick={() => { setPage(page - 1); clearSelection(); }}>
+            <Button aria-label="Pagina precedente" variant="outline" size="sm" className="max-lg:size-11" disabled={page === 0} onClick={() => { vaiAPagina(page - 1); clearSelection(); }}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <Button aria-label="Pagina successiva" variant="outline" size="sm" className="max-lg:size-11" disabled={page >= totalPages - 1} onClick={() => { setPage(page + 1); clearSelection(); }}>
+            <Button aria-label="Pagina successiva" variant="outline" size="sm" className="max-lg:size-11" disabled={page >= totalPages - 1} onClick={() => { vaiAPagina(page + 1); clearSelection(); }}>
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>

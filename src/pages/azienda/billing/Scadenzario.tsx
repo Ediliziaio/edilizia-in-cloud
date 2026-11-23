@@ -469,7 +469,7 @@ export default function Scadenzario() {
       )}
 
       {companyId && !permessi.solaLettura && (permessi.canManagePayments || role === "company_admin" || role === "super_admin") &&
-        <div className="flex justify-end"><DistintePagamenti key={companyId} companyId={companyId} /></div>}
+        <div className="flex justify-end max-sm:hidden"><DistintePagamenti key={companyId} companyId={companyId} /></div>}
 
       {/* Fatture passive caricate in chat (Silvio) da confermare */}
       <FattureDaRegistrareCard companyId={companyId} />

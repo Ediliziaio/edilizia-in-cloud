@@ -211,7 +211,7 @@ export function DailyHoursView({
         <p role="status">Caricamento registro…</p>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 max-sm:gap-2 lg:grid-cols-4">
             {[
               [
                 "Ore confermate",
@@ -236,17 +236,19 @@ export function DailyHoursView({
                   ]
                 : []),
             ].map(([label, value]) => (
-              <div key={label} className="rounded-lg bg-slate-50 p-3">
+              <div key={label} className="rounded-lg bg-slate-50 p-3 max-sm:px-2.5 max-sm:py-2">
                 <p className="text-xs text-muted-foreground">{label}</p>
                 <p className="mt-1 font-semibold">{value}</p>
               </div>
             ))}
           </div>
           {!!pending.length && (
-            <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
-              Le ore in attesa non sono ancora nei costi effettivi. Per quelle
+            <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm max-sm:px-2.5 max-sm:py-2 max-sm:text-[13px]">
+              Le ore in attesa non sono ancora nei costi effettivi.
+              {/* Telefono: la frase che conta; il come resta da tablet in su (collaudo 23/11/2026). */}
+              <span className="max-sm:hidden"> Per quelle
               senza tariffa, completa la scheda dipendente e approva il
-              rapportino dalla commessa.
+              rapportino dalla commessa.</span>
             </p>
           )}
           <DailyHoursLedger

@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { ArrowDownLeft, ArrowUpRight, BookOpen, Bot, ChevronLeft, ChevronRight, Download, ExternalLink, FileSpreadsheet, FileText, Loader2, MoreHorizontal, Pencil, Plus, Printer, RefreshCw, Search, Trash2 } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, BookOpen, Bot, ChevronLeft, ChevronRight, Download, ExternalLink, Landmark, FileSpreadsheet, FileText, Loader2, MoreHorizontal, Pencil, Plus, Printer, RefreshCw, Search, Trash2 } from "lucide-react";
 import { CercaConFiltri, DateFiltro, DettaglioFiltri, GruppoFiltri, KpiMobili, PannelloFiltri, SceltaFiltro } from "@/components/mobile/FiltriMobile";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { perchePrimaNotaNonModificabile, usePrimaNota, type PrimaNotaEntry } from "@/hooks/usePrimaNota";
@@ -343,6 +343,14 @@ function PrimaNotaInner() {
                 <RefreshCw className="h-4 w-4" />
                 Allinea banca e fatture
               </DropdownMenuItem>
+              <DropdownMenuItem className="gap-2 sm:hidden" onSelect={() => navigate("/azienda/documenti?tab=fiscalita&sezione=contabilita&vista=scritture")}>
+                <BookOpen className="h-4 w-4" />
+                Scritture Dare/Avere
+              </DropdownMenuItem>
+              <DropdownMenuItem className="gap-2 sm:hidden" onSelect={() => navigate("/azienda/tesoreria")}>
+                <Landmark className="h-4 w-4" />
+                Banca e riconciliazione
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem className="gap-2" onSelect={() => { void apriStampa(); }} disabled={preparo}>
                 {preparo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
@@ -368,7 +376,8 @@ function PrimaNotaInner() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-3 text-sm">
+      {/* Sul telefono questo riquadro (una frase e tre bottoni, ~200 px) sta nel menu «⋯». */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-3 text-sm max-sm:hidden">
         <p className="text-muted-foreground">Per rilevare un costo prima del pagamento, registrare gli stipendi o gestire più conti usa le scritture Dare/Avere.</p>
         <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => navigate("/azienda/documenti?tab=fiscalita&sezione=contabilita&vista=scritture")}>Scritture Dare/Avere</Button><Button size="sm" variant="outline" onClick={() => setAllineaAperto(true)}>Verifica allineamento</Button><Button size="sm" variant="outline" onClick={() => navigate("/azienda/tesoreria")}>Banca e riconciliazione</Button></div>
       </div>
@@ -494,20 +503,21 @@ function PrimaNotaInner() {
         </div>
       </div>
 
-      {permessi.isAdmin && entries.length > 0 && <BarraSelezioneRighe
+      {/* Sul telefono niente selezione multipla: le eliminazioni in blocco si fanno da computer. */}
+      {permessi.isAdmin && entries.length > 0 && <div className="max-sm:hidden"><BarraSelezioneRighe
         nome="i movimenti" selezionate={selezione.selezionate.length} consentite={eliminabili.length}
         tutte={selezione.tutte} parziale={selezione.parziale}
         entrate={eliminabili.filter((e) => e.direction === "entrata").reduce((n, e) => n + Number(e.amount), 0)}
         uscite={eliminabili.filter((e) => e.direction === "uscita").reduce((n, e) => n + Number(e.amount), 0)}
         azione="Elimina selezionate" inCorso={removeMany.isPending} escluse={escluse}
-        onPagina={selezione.pagina} onAzione={() => void eliminaSelezionate()} />}
+        onPagina={selezione.pagina} onAzione={() => void eliminaSelezionate()} /></div>}
       <ErroriOperazioneRighe errori={erroriEliminazione} />
       {permessi.isAdmin && selezione.selezionate.length > 0 && <div className="mb-3 space-y-2">
         {eliminabili.length === 0 && <p className="text-sm text-muted-foreground">Le registrazioni selezionate hanno collegamenti da gestire nella schermata di origine.</p>}
         <StornaPagamentiCosto righe={selezione.selezionate} />
       </div>}
       {vistaCompatta && entriesWithBalance.length > 0 && (
-        <div className="flex justify-end">
+        <div className="flex justify-end max-sm:hidden">
           <Button type="button" variant="outline" className="min-h-11" onClick={() => setTabella(v => !v)}>
             {tabella ? "Vista compatta" : "Vista tabella"}
           </Button>
@@ -537,7 +547,7 @@ function PrimaNotaInner() {
           {entriesWithBalance.map(e => (
             <li key={e.id} className="flex items-center data-[selected=true]:bg-primary/5" data-selected={selezione.ids.has(e.id)}>
               {permessi.isAdmin && (
-                <label className="grid size-11 shrink-0 place-items-center">
+                <label className="grid size-11 shrink-0 place-items-center max-sm:hidden">
                   <Checkbox aria-label={`Seleziona ${e.description}`} checked={selezione.ids.has(e.id)}
                     disabled={removeMany.isPending} onCheckedChange={() => selezione.alterna(e.id)} />
                 </label>
@@ -545,7 +555,7 @@ function PrimaNotaInner() {
               <button type="button" aria-label={e.description} aria-haspopup="dialog" onClick={() => setDettaglioId(e.id)}
                 className="flex min-h-14 min-w-0 flex-1 items-center gap-2 px-3 py-2 text-left hover:bg-muted/50 active:bg-muted">
                 <span className="min-w-0 flex-1">
-                  <span className="block break-words text-sm font-semibold leading-tight">{e.description}</span>
+                  <span className="block break-words text-sm font-semibold leading-tight max-sm:truncate">{e.description}</span>
                   <span className="mt-1 block truncate text-xs text-muted-foreground">
                     {format(new Date(e.entry_date), "dd/MM/yyyy")} · {e.account_label || CATEGORY_LABELS[e.category] || e.category}
                   </span>

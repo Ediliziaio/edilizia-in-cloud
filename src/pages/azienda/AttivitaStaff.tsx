@@ -9,7 +9,7 @@
  *  4. Ferie        — saldo ferie/permessi e richieste
  *  5. Cedolini     — lista cedolini con download PDF
  */
-import { lazy, Suspense, useState, useMemo, useCallback, useRef, useEffect } from "react";
+import { Fragment, lazy, Suspense, useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { flushSync } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
@@ -881,8 +881,8 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
         <CardHeader className="p-3 sm:p-4 sm:pb-3">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2 flex-wrap min-w-0">
-              <h2 className="flex items-center gap-2 text-base font-semibold shrink-0">
-                <ClipboardCheck className="h-5 w-5 text-primary" />Attività mie e delle mie aree
+              <h2 className="flex items-center gap-2 text-base font-semibold shrink-0 max-md:text-[15px]">
+                <ClipboardCheck className="h-4 w-4 text-primary" />Attività mie e delle mie aree
                 {!calendarDate && stats.total > 0 && <Badge variant="secondary" className="text-xs">{stats.total}</Badge>}
               </h2>
               {calendarDate && (
@@ -965,7 +965,7 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
             >
               <Users className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
               <span className="truncate">Opzioni</span>
-              {groupBy !== "none" && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden />}
+              {(groupBy !== "none" || areaView !== "all") && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden />}
               <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             </button>
             <div className="hidden sm:flex items-center gap-2">
@@ -996,8 +996,10 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
         </CardHeader>
 
         <CardContent className="p-3 pt-0 sm:p-4 sm:pt-0">
+          {/* Sul telefono la scelta «di chi» sta nel pannello «Opzioni»: qui era una riga intera
+              in più tra la ricerca e l'elenco. */}
           <Select value={areaView} onValueChange={setAreaView}>
-            <SelectTrigger aria-label="Ambito attività" className="mb-3"><SelectValue /></SelectTrigger>
+            <SelectTrigger aria-label="Ambito attività" className="mb-3 max-sm:hidden"><SelectValue /></SelectTrigger>
             <SelectContent><SelectItem value="all">Mie e delle mie aree</SelectItem><SelectItem value="personal">Solo individuali</SelectItem>
               {(offices.data ?? []).filter(o => o.membri.includes(user?.id ?? "")).map(o => <SelectItem key={o.id} value={o.id}>{o.nome}</SelectItem>)}
             </SelectContent>
@@ -1252,12 +1254,23 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
 
       {/* Le opzioni cambiano il raggruppamento, mai la visibilità personale. */}
       <Sheet open={filtriAperti} onOpenChange={setFiltriAperti}>
-        <SheetContent side="bottom" className="rounded-t-2xl px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] max-h-[80dvh] overflow-y-auto">
+        <SheetContent side="bottom" className="rounded-t-2xl max-sm:rounded-none px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] max-h-[80dvh] max-sm:max-h-none overflow-y-auto">
           <SheetHeader className="text-left">
             <SheetTitle>Filtri</SheetTitle>
-            <SheetDescription>Come raggruppare le tue attività.</SheetDescription>
+            <SheetDescription>Quali attività vedere e come raggrupparle.</SheetDescription>
           </SheetHeader>
           <div className="mt-4 space-y-5">
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Quali</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[{ id: "all", nome: "Mie e delle mie aree" }, { id: "personal", nome: "Solo individuali" }, ...(offices.data ?? []).filter(o => o.membri.includes(user?.id ?? ""))].map(o => (
+                  <button key={o.id} type="button" onClick={() => setAreaView(o.id)}
+                    className={`min-h-11 rounded-lg border px-2 text-sm font-medium transition-colors ${areaView === o.id ? "border-primary bg-primary/10 text-primary" : "bg-background"}`}>
+                    {o.nome}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="space-y-2">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Raggruppa per</p>
               <div className="grid grid-cols-2 gap-2">
@@ -1319,7 +1332,19 @@ function TabAttivita() {
           da ogni pagina, non più qui nel corpo di Attività. */}
 
       {/* Focus del giorno: cosa aspetta l'utente, in un colpo d'occhio. */}
-      <div className="flex flex-wrap gap-2" aria-busy={taskQuery.isLoading}>
+      {/* Sul telefono una riga sola (decisione del founder, 23/11/2026, come nel calendario):
+          i tre riquadri ripetevano le pillole «Scadute · Oggi · 7 giorni» dell'elenco qui sotto. */}
+      <p className="flex flex-wrap items-center gap-x-1 text-[13px] text-muted-foreground sm:hidden" aria-busy={taskQuery.isLoading}>
+        {taskQuery.isLoading || taskQuery.isError ? "Attività…" : focusTiles.map((t, i) => (
+          <Fragment key={t.key}>
+            {i > 0 && <span aria-hidden="true">·</span>}
+            <button type="button" onClick={t.onClick} className={cn("underline-offset-2 hover:underline", t.key === "scadute" && "font-semibold text-red-700")}>
+              {t.n} {t.key === "settimana" ? "in 7 giorni" : t.label.toLowerCase()}
+            </button>
+          </Fragment>
+        ))}
+      </p>
+      <div className="flex flex-wrap gap-2 max-sm:hidden" aria-busy={taskQuery.isLoading}>
         {focusTiles.map((t) => (
           <button key={t.key} type="button" disabled={taskQuery.isLoading || taskQuery.isError} onClick={t.onClick} className={cn("flex min-w-[88px] flex-1 flex-col rounded-xl border px-3 py-2 text-left transition hover:brightness-[0.97] disabled:cursor-default", t.cls)}>
             <span className="text-xl font-bold tabular-nums">{taskQuery.isLoading || taskQuery.isError ? "—" : t.n}</span>
