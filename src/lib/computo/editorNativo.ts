@@ -36,6 +36,17 @@ const voceSchema = z.object({
   daQuantificare: z.boolean().default(false),
   noteMisure: testo.default(""),
   descrizioneComune: testo.default(""),
+  /**
+   * Da dove viene il prezzo, in forma leggibile da un programma (23/11/2026): lo scrive «Verifica prezzi e fonti»
+   * quando una proposta viene accettata, e sparisce appena qualcuno ritocca il prezzo a mano. `fonte` resta il
+   * testo che si legge (e che può andare nel PDF).
+   */
+  verifica: z.object({
+    stato: z.enum(["verificata", "da_confermare", "manuale", "stima", "senza_fonte"]),
+    tipo: z.enum(["contratto", "offerta_fornitore", "listino_aziendale", "acquisto_recente", "storico", "prezzario", "stima", "regola"]),
+    riferimento: z.string().max(200), data: z.string().max(40).nullable(), validoAl: z.string().max(40).nullable(),
+    verificataIl: z.string().max(40),
+  }).optional(),
   sicurezza: z.boolean(), detrazione: z.boolean(), corpo: z.boolean(),
   misure: z.array(misuraSchema).max(MAX_MISURE_VOCE),
 });

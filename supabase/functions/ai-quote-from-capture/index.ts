@@ -29,6 +29,7 @@ import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { generateEmbedding } from "../_shared/brainEmbed.ts";
 import { addebitaEmbedding } from "../_shared/addebitoEmbedding.ts";
 import { requireCompanyAccess } from "../_shared/auth.ts";
+import { MAX_FOTO_CATTURA, percorsoCatturaDellAzienda } from "../_shared/percorsoCattura.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
 interface CaptureRequest {
@@ -226,6 +227,18 @@ Deno.serve(async (req) => {
   // Gate carta (audit AI 2026-06): strumento a costo senza controllo pagamento.
   const paymentBlock = await gateAiPayment(supabase, companyId, cors);
   if (paymentBlock) return paymentBlock;
+
+  // 23/11/2026: i file e il run arrivano dal corpo della richiesta e si leggono con la chiave di servizio.
+  // Valgono solo quelli dell'azienda appena verificata: prima bastava conoscere un percorso o un id.
+  const percorsi = [...(Array.isArray(body.image_paths) ? body.image_paths : []), ...(body.audio_path ? [body.audio_path] : [])];
+  if ((Array.isArray(body.image_paths) && body.image_paths.length > MAX_FOTO_CATTURA) || percorsi.some(p => !percorsoCatturaDellAzienda(p, companyId))) {
+    return jsonOk({ error: "file_non_dell_azienda" }, 403, cors);
+  }
+  if (body.run_id) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: run } = await (supabase as any).from("preventivo_da_foto_runs").select("id").eq("id", body.run_id).eq("company_id", companyId).maybeSingle();
+    if (!run) return jsonOk({ error: "run_non_trovato" }, 404, cors);
+  }
 
   const t0 = Date.now();
   const summary: {

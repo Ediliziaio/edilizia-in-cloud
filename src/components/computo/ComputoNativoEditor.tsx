@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { ArrowDown, ArrowLeft, ArrowUp, Calculator, Copy, Download, History, Eye, FileDown, FileSpreadsheet, FileUp, LayoutPanelTop, Loader2, Map as MapIcon, Maximize2, MoreHorizontal, Sparkles, Table2, Trash2, Undo2, Upload, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Calculator, Copy, Download, History, Eye, FileDown, FileSpreadsheet, FileUp, LayoutPanelTop, ListChecks, Loader2, Map as MapIcon, Maximize2, MoreHorizontal, Sparkles, Table2, Trash2, Undo2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -66,6 +66,7 @@ const AddVocePicker = lazy(() => import("@/components/ristrutturazione/ComputoEd
 // Gli stessi strumenti AI di Ristrutturazione e degli altri moduli; si caricano solo quando si aprono.
 const ImportaVociDialog = lazy(() => import("./ImportaVociDialog"));
 const ComputoSilvioAi = lazy(() => import("./ComputoSilvioAi"));
+const VerificaPrezziFonti = lazy(() => import("./VerificaPrezziFonti"));
 const AnalisiCostiComputoDialog = lazy(() => import("./AnalisiCostiComputoDialog"));
 const ComputoDallaPianta = lazy(() => import("./ComputoDallaPianta"));
 const ProgettoPlanimetria = lazy(() => import("./ProgettoPlanimetria"));
@@ -119,7 +120,8 @@ function aggiornaVoceManuale(voce: VoceEditor, patch: Partial<VoceEditor>): Voce
   const prezzoModificato = patch.prezzo !== undefined && numeroEditor(patch.prezzo) !== numeroEditor(voce.prezzo);
   return {
     ...voce,
-    ...(prezzoModificato ? { fonte: numeroEditor(patch.prezzo!) === null ? "" : "Prezzo inserito manualmente" } : {}),
+    // Un prezzo ritoccato a mano non è più quello verificato: la verifica registrata cade con la fonte.
+    ...(prezzoModificato ? { fonte: numeroEditor(patch.prezzo!) === null ? "" : "Prezzo inserito manualmente", verifica: undefined } : {}),
     ...patch,
   };
 }
@@ -231,6 +233,7 @@ export default function ComputoNativoEditor({ storageKey, companyId, azienda, de
   const [storico, setStorico] = useState<BozzaComputo[]>([]);
   const [scelta, setScelta] = useState<string | null>(null);
   const [picker, setPicker] = useState<{ capitolo?: string } | null>(null);
+  const [verificaAperta, setVerificaAperta] = useState(false);
   const [aiAperta, setAiAperta] = useState<{
     capitolo?: string; file?: File; progetto?: boolean; sessione?: number;
     bozzaDaProgetto?: BozzaComputo; continuazione?: WizardAiSnapshot; chiediChiusura?: boolean;
@@ -850,6 +853,9 @@ export default function ComputoNativoEditor({ storageKey, companyId, azienda, de
               onClick={() => setAiAperta({})}><Sparkles className="mr-1 h-4 w-4 text-orange-300" />Apri Silvio AI</Button>
           </>}
           <Button size="sm" variant="outline" className="bg-white" disabled={bozza.voci.length >= 5000} onClick={() => setImportAperto(true)}><FileUp className="mr-1 h-4 w-4" />Importa voci</Button>
+          {idAzienda && <Button size="sm" variant="outline" className="bg-white" disabled={!bozza.voci.length}
+            title="Confronta ogni voce con listino, storico e regole dell'azienda: propone prezzi con la fonte, senza costo AI"
+            onClick={() => setVerificaAperta(true)}><ListChecks className="mr-1 h-4 w-4" />Verifica prezzi e fonti</Button>}
           <span className="ml-auto flex items-center gap-2">
             <Button variant="outline" size="sm" title="Annulla ultima modifica" aria-label="Annulla ultima modifica" disabled={!storico.length} onClick={() => {
               const ripristinata = storico.at(-1)!;
@@ -1001,6 +1007,15 @@ export default function ComputoNativoEditor({ storageKey, companyId, azienda, de
             if (aggiornate.size && step !== 2) cambiaFase(2, false);
             toast.success("Modifiche di Silvio applicate al computo", { description: "Con «Annulla» si torna indietro." });
           }} />
+    </Suspense>}
+    {verificaAperta && idAzienda && <Suspense fallback={<p role="status">Apro la verifica…</p>}>
+      <VerificaPrezziFonti open onOpenChange={setVerificaAperta} companyId={idAzienda} voci={bozza.voci} vediCosti={vediMargini}
+        onApplica={({ voci, applicate, risposteScritte, cambiateNelFrattempo }) => {
+          if (applicate || risposteScritte) cambiaParte({ voci });
+          const fatte = applicate + risposteScritte;
+          if (cambiateNelFrattempo) toast.warning(`${cambiateNelFrattempo} ${cambiateNelFrattempo === 1 ? "voce è cambiata" : "voci sono cambiate"} durante la verifica: non le ho toccate. Ricontrolla.`);
+          if (fatte) toast.success(`${fatte} ${fatte === 1 ? "modifica applicata" : "modifiche applicate"}. Con «Annulla» torni indietro.`);
+        }} />
     </Suspense>}
     {importAperto && <Suspense fallback={<p role="status">Apro l'import…</p>}>
       <ImportaVociDialog open onOpenChange={open => { if (!open) setImportAperto(false); }} onAggiungi={daImport} vociPresenti={bozza.voci.length} consentiAi={!!ai}
