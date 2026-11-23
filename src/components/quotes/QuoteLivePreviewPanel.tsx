@@ -7,6 +7,7 @@ import { recalcPhaseAmounts, paymentPlanError, type QuotePaymentPhase } from "@/
 import { importoRiga, subtotaleFinoA } from "@/hooks/usePreventivoCosti";
 import { substituteMergeTags, type MergeContext } from "../../../supabase/functions/_shared/quoteTemplateComposer";
 import type { AnteprimaModello } from "@/lib/quoteTemplatePreview";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface QuoteLivePreviewProps {
   /** Il modello risolto coi blocchi collegati (colore della copertina compreso). */
@@ -55,6 +56,7 @@ export interface QuoteLivePreviewProps {
 /** Anteprima locale reattiva, senza salvataggi né richieste di generazione PDF.
  * È una composizione di lettura: non promette l'impaginazione del renderer PDF. */
 export function QuoteLivePreviewPanel(props: QuoteLivePreviewProps) {
+  const tr = useT();
   const [page, setPage] = useState<"cover" | "offer">("offer");
   const [failedCover, setFailedCover] = useState<string | null>(null);
   const [failedLogo, setFailedLogo] = useState<string | null>(null);
@@ -90,16 +92,16 @@ export function QuoteLivePreviewPanel(props: QuoteLivePreviewProps) {
     ? <img src={props.logoSrc} onError={() => setFailedLogo(props.logoSrc ?? null)} alt={props.companyName} className="mb-3 max-h-10 max-w-36 object-contain" /> : null;
 
   return (
-    <section aria-label="Anteprima live dell'offerta" className={`overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ${props.workspaceReview ? 'quote-workbench-preview' : ''}`}>
+    <section aria-label={tr("Anteprima live dell'offerta")} className={`overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ${props.workspaceReview ? 'quote-workbench-preview' : ''}`}>
       <div className="border-b p-4">
-        <div className="flex items-center justify-between gap-2"><h2 className="flex items-center gap-2 text-sm font-semibold"><Eye className="h-4 w-4 text-orange-600" /> Anteprima live</h2><span className="quote-preview-status flex items-center gap-1.5 text-[11px] text-emerald-700"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Dati aggiornati</span></div>
-        <p className="mt-1 truncate text-xs text-slate-500">{props.workspaceReview ? 'Si aggiorna mentre componi il preventivo' : t.name}</p>
-        {props.workspaceReview && <div className="quote-preview-review"><div aria-live="polite"><span><strong>{visibleItems.length}</strong> incluse nel parziale</span><span>{props.workspaceReview.incomplete} da completare · {props.workspaceReview.awaiting} da confermare</span></div><button type="button" onClick={props.workspaceReview.onReview}>Rivedi voci <span aria-hidden="true">↗</span></button></div>}
-        {!props.offerOnly && <div className="mt-3 grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1" aria-label="Vista anteprima">
-          {([['cover', 'Copertina', ImageIcon], ['offer', 'Offerta', FileText]] as const).map(([key, label, Icon]) => <button key={key} type="button" aria-pressed={page === key} onClick={() => setPage(key)} className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-xs font-medium ${page === key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}><Icon className="h-3.5 w-3.5" />{label}</button>)}
+        <div className="flex items-center justify-between gap-2"><h2 className="flex items-center gap-2 text-sm font-semibold"><Eye className="h-4 w-4 text-orange-600" /> {tr("Anteprima live")}</h2><span className="quote-preview-status flex items-center gap-1.5 text-[11px] text-emerald-700"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> {tr("Dati aggiornati")}</span></div>
+        <p className="mt-1 truncate text-xs text-slate-500">{props.workspaceReview ? tr("Si aggiorna mentre componi il preventivo") : t.name}</p>
+        {props.workspaceReview && <div className="quote-preview-review"><div aria-live="polite"><span><strong>{visibleItems.length}</strong> {tr("incluse nel parziale")}</span><span>{tr("{incomplete} da completare · {awaiting} da confermare", { incomplete: props.workspaceReview.incomplete, awaiting: props.workspaceReview.awaiting })}</span></div><button type="button" onClick={props.workspaceReview.onReview}>{tr("Rivedi voci")} <span aria-hidden="true">↗</span></button></div>}
+        {!props.offerOnly && <div className="mt-3 grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1" aria-label={tr("Vista anteprima")}>
+          {([['cover', 'Copertina', ImageIcon], ['offer', 'Offerta', FileText]] as const).map(([key, label, Icon]) => <button key={key} type="button" aria-pressed={page === key} onClick={() => setPage(key)} className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-xs font-medium ${page === key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}><Icon className="h-3.5 w-3.5" />{tr(label)}</button>)}
         </div>}
       </div>
-      <div className="quote-live-document max-h-[min(55vh,calc(100dvh-400px))] overflow-y-auto overscroll-contain bg-slate-100 p-3" tabIndex={0} aria-label="Documento in anteprima">
+      <div className="quote-live-document max-h-[min(55vh,calc(100dvh-400px))] overflow-y-auto overscroll-contain bg-slate-100 p-3" tabIndex={0} aria-label={tr("Documento in anteprima")}>
         <article className="min-h-[420px] break-words bg-white shadow-sm" style={{ color: t.text_color, fontFamily: t.font_family === 'times' ? 'Georgia, serif' : 'Arial, sans-serif' }}>
           {!props.offerOnly && page === 'cover' ? <div className="relative flex min-h-[490px] flex-col justify-between overflow-hidden p-7 text-white" style={{ backgroundColor: fondoCopertina }}>
             {t.show_cover_image && props.coverSrc && failedCover !== props.coverSrc && <><img alt="" src={props.coverSrc} onError={() => setFailedCover(props.coverSrc ?? null)} className="absolute inset-0 h-full w-full object-cover" /><div className="absolute inset-0 bg-gradient-to-b from-slate-950/45 via-slate-950/40 to-slate-950/95" /></>}
@@ -109,7 +111,7 @@ export function QuoteLivePreviewPanel(props: QuoteLivePreviewProps) {
             <header className="mb-5 border-b-4 pb-4" style={{ borderColor: primary }}>{logo}{!logo && <p className="font-bold" style={{ color: primary }}>{props.companyName}</p>}<h3 className="mt-4 text-xl font-semibold">{props.title || 'La tua offerta'}</h3>{props.description && <p className="mt-2 whitespace-pre-line text-slate-500">{props.description}</p>}</header>
             {meta}
             {!props.onlyTotal && <><h4 className="mb-2 mt-6 font-semibold" style={{ color: primary }}>Prodotti e lavorazioni</h4>
-            {visibleItems.length === 0 && !props.workspaceReview?.pending?.length ? <p className="rounded-lg border border-dashed p-6 text-center text-slate-400">{props.workspaceReview ? 'Le voci complete appariranno qui dopo la tua conferma. Le proposte restano nella tab Voci del preventivo.' : 'Aggiungi un prodotto o una lavorazione: li vedrai qui.'}</p> : <div>
+            {visibleItems.length === 0 && !props.workspaceReview?.pending?.length ? <p className="rounded-lg border border-dashed p-6 text-center text-slate-400">{props.workspaceReview ? tr("Le voci complete appariranno qui dopo la tua conferma. Le proposte restano nella tab Voci del preventivo.") : tr("Aggiungi un prodotto o una lavorazione: li vedrai qui.")}</p> : <div>
               {visibleItems.map((item, index) => <div key={`${item.id ?? `${item.client_temp_id ?? 'line'}-${index}`}${props.animateChanges ? `:${item.quantity}:${item.unit_price}:${item.discount_percent}` : ''}`} className={`border-b p-2.5 ${props.animateChanges ? 'quote-preview-row-motion' : ''}`} style={{ backgroundColor: t.table_zebra && index % 2 === 0 ? t.accent_color : undefined, animationDelay: props.animateChanges ? `${Math.min(index, 5) * 18}ms` : undefined }}>
                 {props.showImages && props.imageForItem?.(item) && <img src={props.imageForItem(item)!} alt="" className="mb-2 h-16 w-16 rounded object-contain" />}
                 <div className="flex items-start justify-between gap-3"><p className="min-w-0 font-semibold">{item.name || 'Descrizione da completare'}</p>{prices && !['nota', 'subtotale'].includes(item.item_category) && <span className="shrink-0 tabular-nums">{formatCurrency(importoRiga(item))}</span>}</div>
@@ -120,10 +122,10 @@ export function QuoteLivePreviewPanel(props: QuoteLivePreviewProps) {
                 {item.is_optional && !["nota", "subtotale"].includes(item.item_category) && <p className="mt-1 text-[10px] font-medium text-amber-700">Opzionale · escluso dal totale</p>}
               </div>)}
             </div>}
-            {!!props.workspaceReview?.pending?.length && <section className="mt-5 rounded-lg border border-orange-200 bg-orange-50/40 p-3" aria-label="Proposte non incluse nel parziale">
-              <h5 className="font-semibold text-orange-800">Proposte in lavorazione</h5><p className="mb-3 text-[11px] text-slate-600">Non incluse nel parziale. Completa i dati e conferma le singole voci.</p>
-              {props.workspaceReview.pending.map(row => <div className="border-t border-orange-100 py-2" key={row.id}><p className="font-semibold">{row.title || "Titolo da definire"}</p><p className="mt-1 text-[11px] text-slate-600">{row.description.slice(0, 260)}{row.description.length > 260 ? "…" : ""}</p><p className="mt-1 text-[11px]">{row.quantity == null ? "Quantità da definire" : `${row.quantity.toLocaleString("it-IT")} ${row.unit}`} · {row.price == null ? "Prezzo da definire" : `${formatCurrency(row.price)}/${row.unit} · da confermare`}</p><p className="text-[10px] text-slate-500">{row.issue ?? "Completa · attende la tua conferma"} · {row.reference}</p></div>)}
-              <button type="button" className="mt-2 text-[11px] underline underline-offset-2" onClick={props.workspaceReview.onReview}>Modifica o conferma le voci ↗</button>
+            {!!props.workspaceReview?.pending?.length && <section className="mt-5 rounded-lg border border-orange-200 bg-orange-50/40 p-3" aria-label={tr("Proposte non incluse nel parziale")}>
+              <h5 className="font-semibold text-orange-800">{tr("Proposte in lavorazione")}</h5><p className="mb-3 text-[11px] text-slate-600">{tr("Non incluse nel parziale. Completa i dati e conferma le singole voci.")}</p>
+              {props.workspaceReview.pending.map(row => <div className="border-t border-orange-100 py-2" key={row.id}><p className="font-semibold">{row.title || tr("Titolo da definire")}</p><p className="mt-1 text-[11px] text-slate-600">{row.description.slice(0, 260)}{row.description.length > 260 ? "…" : ""}</p><p className="mt-1 text-[11px]">{row.quantity == null ? tr("Quantità da definire") : `${row.quantity.toLocaleString(intlCampo())} ${row.unit}`} · {row.price == null ? tr("Prezzo da definire") : tr("{prezzo}/{unita} · da confermare", { prezzo: formatCurrency(row.price), unita: row.unit })}</p><p className="text-[10px] text-slate-500">{row.issue ?? tr("Completa · attende la tua conferma")} · {row.reference}</p></div>)}
+              <button type="button" className="mt-2 text-[11px] underline underline-offset-2" onClick={props.workspaceReview.onReview}>{tr("Modifica o conferma le voci ↗")}</button>
             </section>}</>}
             <div className="mt-6 space-y-2">
               <>
@@ -145,11 +147,11 @@ export function QuoteLivePreviewPanel(props: QuoteLivePreviewProps) {
         </article>
       </div>
       <div className="space-y-1 border-t px-4 py-3 text-[11px] leading-relaxed text-slate-500">
-        <div className="mb-2 flex items-center justify-between gap-2 text-slate-900"><span>{totalLabel}</span><strong key={props.animateChanges ? displayedTotal : 'footer-total'} aria-live={props.animateChanges ? 'polite' : undefined} className={`text-base tabular-nums ${props.animateChanges ? 'quote-preview-total-motion' : ''}`}>{displayedMoney}</strong></div>
-        <p>{props.previewNotice ?? "Bozza visiva, non il PDF definitivo. «Salva e apri PDF» salva il preventivo e genera il documento con impaginazione e allegati."}</p>
+        <div className="mb-2 flex items-center justify-between gap-2 text-slate-900"><span>{props.taxPending ? tr("Parziale netto · IVA da definire") : tr("Totale IVA inclusa")}</span><strong key={props.animateChanges ? displayedTotal : 'footer-total'} aria-live={props.animateChanges ? 'polite' : undefined} className={`text-base tabular-nums ${props.animateChanges ? 'quote-preview-total-motion' : ''}`}>{props.totalPending ? tr("Da determinare") : displayedMoney}</strong></div>
+        <p>{props.previewNotice ?? tr("Bozza visiva, non il PDF definitivo. «Salva e apri PDF» salva il preventivo e genera il documento con impaginazione e allegati.")}</p>
         {paymentPlanError(props.paymentPhases) && <p role="alert" className="text-amber-700">{paymentPlanError(props.paymentPhases)}</p>}
-        {props.manualPrice && <p className="text-orange-700">Prezzo manuale attivo: il totale non segue la somma delle righe.</p>}
-        {props.items.some((item) => item.mostra_nel_pdf === false && !item.is_optional) && <p className="text-orange-700">Le righe nascoste nel PDF restano incluse nel calcolo del totale.</p>}
+        {props.manualPrice && <p className="text-orange-700">{tr("Prezzo manuale attivo: il totale non segue la somma delle righe.")}</p>}
+        {props.items.some((item) => item.mostra_nel_pdf === false && !item.is_optional) && <p className="text-orange-700">{tr("Le righe nascoste nel PDF restano incluse nel calcolo del totale.")}</p>}
       </div>
     </section>
   );

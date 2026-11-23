@@ -221,6 +221,7 @@ function SortableItem({
   index?: number;
   children: (dragHandle: React.ReactNode) => React.ReactNode;
 }) {
+  const t = useT();
   const {
     attributes,
     listeners,
@@ -244,8 +245,8 @@ function SortableItem({
       {...listeners}
       className="group/grip cursor-grab active:cursor-grabbing inline-flex items-center gap-1 h-7 px-1.5 rounded-md text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors touch-none shrink-0"
       tabIndex={-1}
-      aria-label="Riordina riga"
-      title="Trascina per riordinare"
+      aria-label={t("Riordina riga")}
+      title={t("Trascina per riordinare")}
     >
       <GripVertical className="h-3.5 w-3.5 opacity-60 group-hover/grip:opacity-100" />
       {typeof index === "number" && (
@@ -283,6 +284,7 @@ const CONTACT_SELECT =
 // MP-MKT-001: STEPS estratto in ./QuoteBuilder/constants.ts
 import { STEPS } from "./QuoteBuilder/constants";
 import { SedeSelect } from "@/components/sedi/SedeSelect";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Le griglie prezzi delle famiglie «a griglia» scelte dall'AI (05/10/2026):
@@ -319,6 +321,7 @@ async function caricaGriglieFamiglie(ids: string[]): Promise<Record<string, Grid
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function QuoteBuilder({ localEditor }: { localEditor?: { initial: QuoteDraft; projectContext?: QuoteWizardProjectContext; onChange: (draft: QuoteDraft) => void; onBack: () => void } } = {}) {
+  const tr = useT();
   const formId = useId();
   const localEditorInitial = useRef(localEditor?.initial);
   const localEditorChange = useRef(localEditor?.onChange);
@@ -847,7 +850,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
   // vuoto "fantasma" → avvisa l'utente e torna alla lista (niente dead-end silenzioso).
   useEffect(() => {
     if (isEdit && quoteError) {
-      toast.error("Preventivo non trovato o non più accessibile.");
+      toast.error(tr("Preventivo non trovato o non più accessibile."));
       navigate("/azienda/marketing/preventivi");
     }
   }, [isEdit, quoteError, navigate]);
@@ -1103,7 +1106,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
   const prezziRigaTariffa = (tariffa: TariffaPro) => {
     const { quantita, mancaDistanza } = quantitaInizialeTariffa(tariffa, kmCantiere);
     if (mancaDistanza) {
-      toast.info(`«${tariffa.nome}» è al km: scrivi la distanza del cantiere nei dati del preventivo, oppure i km nella quantità della riga.`);
+      toast.info(tr("«{nome}» è al km: scrivi la distanza del cantiere nei dati del preventivo, oppure i km nella quantità della riga.", { nome: String(tariffa.nome ?? "") }));
     }
     // Prezzo e costo di UNA unità (un km, un'ora, il prezzo a corpo): la quantità li moltiplica.
     const unita = calcolaTariffaAutomatica(tariffa, 1, pianoInstallazione);
@@ -1343,7 +1346,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
     });
 
     if (fuoriListino.length > 0) {
-      toast.warning(`Misura fuori listino, prezzo da scrivere: ${fuoriListino.join(", ")}`);
+      toast.warning(tr("Misura fuori listino, prezzo da scrivere: {fuoriListino}", { fuoriListino: fuoriListino.join(", ") }));
     }
 
     if (contestoQuoteRef.current !== contestoInserimento) throw new Error("Preventivo cambiato durante la preparazione delle righe.");
@@ -1624,7 +1627,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
       next.add(s.key);
       return next;
     });
-    toast.success(`Sconto -${s.scontoPct}% applicato a ${s.productName}`);
+    toast.success(tr("Sconto -{scontoPct}% applicato a {productName}", { scontoPct: String(s.scontoPct ?? ""), productName: String(s.productName ?? "") }));
   };
 
   const applicaBundleSuggestion = (s: BundleSuggestion) => {
@@ -1636,7 +1639,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
       (v) => v.prodotto_id && !quoteArticleIds.has(v.prodotto_id),
     );
     if (vociDaAggiungere.length === 0) {
-      toast.info("Tutte le voci del bundle sono già presenti");
+      toast.info(tr("Tutte le voci del bundle sono già presenti"));
       return;
     }
     const newItems = espondiBundle(
@@ -1656,7 +1659,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
       next.add(s.key);
       return next;
     });
-    toast.success(`Bundle '${s.bundle.nome}' applicato (-${s.bundle.sconto_bundle_pct}%)`);
+    toast.success(tr("Bundle '{nome}' applicato (-{sconto_bundle_pct}%)", { nome: String(s.bundle.nome ?? ""), sconto_bundle_pct: String(s.bundle.sconto_bundle_pct ?? "") }));
   };
 
   const ignoraSuggestion = (key: string) => {
@@ -1763,7 +1766,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
       } catch {
         draftReadFailedRef.current = true;
         setLocalDraftFailed(true);
-        toast.error("Impossibile leggere la bozza locale", { description: "I dati non vengono cancellati. Conserva questa pagina aperta e salva il preventivo prima di uscire." });
+        toast.error(tr("Impossibile leggere la bozza locale"), { description: tr("I dati non vengono cancellati. Conserva questa pagina aperta e salva il preventivo prima di uscire.") });
       }
     }, 0);
     return () => clearTimeout(timer);
@@ -1812,7 +1815,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
       navigate(`/azienda/marketing/preventivi/${quoteId}/modifica`);
     } catch {
       setLocalDraftFailed(true);
-      toast.error("Impossibile trasferire la bozza: conserva questa pagina aperta.");
+      toast.error(tr("Impossibile trasferire la bozza: conserva questa pagina aperta."));
     }
   };
 
@@ -1877,7 +1880,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
     if (d.pdfWatermarkText !== undefined) setPdfWatermarkText(d.pdfWatermarkText);
     if (d.pdfCopiaDestinatario !== undefined) setPdfCopiaDestinatario(d.pdfCopiaDestinatario);
     setRecoverableDraft(null);
-    if (!provided) toast.success("Bozza ripristinata", { description: "Ripresi anche modello, pagamenti e impostazioni PDF, se presenti nella bozza." });
+    if (!provided) toast.success(tr("Bozza ripristinata"), { description: tr("Ripresi anche modello, pagamenti e impostazioni PDF, se presenti nella bozza.") });
   };
 
   useEffect(() => {
@@ -1897,23 +1900,23 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
     switch (currentStep) {
       case 0: {
         if (!clientName.trim()) {
-          toast.error("Inserisci il nome del cliente prima di procedere");
+          toast.error(tr("Inserisci il nome del cliente prima di procedere"));
           return false;
         }
         return true;
       }
       case 1: {
-        if (righeConMisureIncomplete(items)) { toast.error("Completa le misure o correggi le formule prima di procedere."); return false; }
+        if (righeConMisureIncomplete(items)) { toast.error(tr("Completa le misure o correggi le formule prima di procedere.")); return false; }
         const activeItems = items.filter(
           (i) => !["nota", "subtotale", "sconto"].includes(i.item_category)
         );
         if (activeItems.length === 0) {
-          toast.error("Aggiungi almeno un prodotto o servizio");
+          toast.error(tr("Aggiungi almeno un prodotto o servizio"));
           return false;
         }
         const vuoti = activeItems.filter((i) => !i.name.trim());
         if (vuoti.length > 0) {
-          toast.error(`${vuoti.length} riga/e senza nome — completale prima di procedere`);
+          toast.error(tr("{n} riga/e senza nome — completale prima di procedere", { n: vuoti.length }));
           return false;
         }
         return true;
@@ -2119,35 +2122,35 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
 
   // Save
   const handleSave = async (status: string = "bozza", opts?: { anteprima?: boolean; autosave?: boolean; complete?: boolean }) => {
-    if (localEditor) { toast.info('Bozza AI locale: nessuna scrittura nel gestionale e nessun PDF remoto.'); return; }
+    if (localEditor) { toast.info(tr("Bozza AI locale: nessuna scrittura nel gestionale e nessun PDF remoto.")); return; }
     if (!companyId || !user) return;
     if (righeConMisureIncomplete(items)) {
-      if (!opts?.autosave) toast.error("Completa le misure", { description: "Correggi le misure o le formule evidenziate prima di salvare." });
+      if (!opts?.autosave) toast.error(tr("Completa le misure"), { description: tr("Correggi le misure o le formule evidenziate prima di salvare.") });
       return;
     }
     if (recoverableDraft) {
-      toast.error("Scegli se ripristinare o ignorare la bozza prima di salvare.");
+      toast.error(tr("Scegli se ripristinare o ignorare la bozza prima di salvare."));
       return;
     }
     if ((opts?.anteprima || opts?.complete || status !== 'bozza') && contractErrors.length) {
-      toast.error('Completa i dati contrattuali', { description: contractErrors.slice(0, 3).join(' · ') });
+      toast.error(tr("Completa i dati contrattuali"), { description: contractErrors.slice(0, 3).join(' · ') });
       return;
     }
     if ((opts?.anteprima || opts?.complete || status !== "bozza") && !prezziVenditaCompleti(items, prezzoManuale)) {
-      toast.error("Completa i prezzi di vendita", { description: "I costi d’acquisto non sono prezzi cliente. Puoi comunque salvare una bozza." });
+      toast.error(tr("Completa i prezzi di vendita"), { description: tr("I costi d’acquisto non sono prezzi cliente. Puoi comunque salvare una bozza.") });
       return;
     }
     if (isEdit && (!existingQuote || !existingItemsLoaded || !existingAttachmentsLoaded)) {
-      if (!opts?.autosave) toast.error("Caricamento incompleto", {
-        description: "Attendi il caricamento di righe e allegati. Se il problema continua, ricarica la pagina prima di salvare.",
+      if (!opts?.autosave) toast.error(tr("Caricamento incompleto"), {
+        description: tr("Attendi il caricamento di righe e allegati. Se il problema continua, ricarica la pagina prima di salvare."),
       });
       return;
     }
     const canResumeCreated = !isEdit && !!createdQuoteRef.current && !!versioneCaricataRef.current;
     if (!isEdit && !canResumeCreated && (partialQuoteId || pendingEditNavId)) {
-      toast.error("Questo preventivo è già stato creato", {
-        description: "Apri la versione salvata per completarla senza creare un duplicato.",
-        action: { label: "Apri preventivo", onClick: () => openCreatedQuoteWithDraft((partialQuoteId || pendingEditNavId)!) },
+      toast.error(tr("Questo preventivo è già stato creato"), {
+        description: tr("Apri la versione salvata per completarla senza creare un duplicato."),
+        action: { label: tr("Apri preventivo"), onClick: () => openCreatedQuoteWithDraft((partialQuoteId || pendingEditNavId)!) },
       });
       return;
     }
@@ -2307,14 +2310,14 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
       if (isEdit && !laterInput) clearQuoteDraft();
       if (opts?.autosave) return; // Nessun refetch che possa cancellare input in corso.
       if (laterInput) {
-        toast.info("Versione salvata. Le modifiche inserite durante il salvataggio restano da salvare.");
+        toast.info(tr("Versione salvata. Le modifiche inserite durante il salvataggio restano da salvare."));
         return;
       }
       if (!isEdit) newQuoteCompletedRef.current = true;
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.detail(quoteId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.items(quoteId) });
-      toast.success(isEdit ? "Preventivo aggiornato" : "Preventivo creato");
+      toast.success(isEdit ? tr("Preventivo aggiornato") : tr("Preventivo creato"));
       clearQuoteDraft(); // salvato a DB → la bozza locale non serve più
       if (opts?.anteprima && quoteId) {
         setAnteprimaLoading(true);
@@ -2330,7 +2333,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
           await rileggiVersione(quoteId);
           if (!isEdit) setPendingEditNavId(quoteId);
         } catch (ePrev: unknown) {
-          toast.error("Anteprima non riuscita", {
+          toast.error(tr("Anteprima non riuscita"), {
             description: ePrev instanceof Error ? ePrev.message : String(ePrev),
           });
           navigate(`/azienda/marketing/preventivi/${quoteId}`);
@@ -2357,15 +2360,15 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
       if (isConflittoModifica(err)) {
         // Non è un guasto: è una persona che ha salvato prima di te. Quello
         // che hai scritto resta sullo schermo, così non va perso.
-        toast.error("Qualcun altro ha salvato questo preventivo", {
+        toast.error(tr("Qualcun altro ha salvato questo preventivo"), {
           description: err.message,
           duration: 10000,
-          action: { label: "Ricarica", onClick: () => window.location.reload() },
+          action: { label: tr("Ricarica"), onClick: () => window.location.reload() },
         });
         return;
       }
       const errMsg = err instanceof Error ? err.message : (err as { message?: string })?.message || "Errore salvataggio";
-      toast.error("Salvataggio non completato", { description: `${errMsg} I dati inseriti restano in questa pagina.`, duration: 10000 });
+      toast.error(tr("Salvataggio non completato"), { description: tr("{errMsg} I dati inseriti restano in questa pagina.", { errMsg: String(errMsg ?? "") }), duration: 10000 });
     } finally {
       saveInFlightRef.current = false;
       setSaving(false);
@@ -2394,17 +2397,17 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
   const priceAndDiscountPanel = productLines.length > 0 ? (
         <Card className="border-orange-200">
           <CardHeader className="pb-3 max-sm:p-3 max-sm:pb-2">
-            <CardTitle className="text-base">Prezzo e sconto</CardTitle>
+            <CardTitle className="text-base">{tr("Prezzo e sconto")}</CardTitle>
             {/* Telefono no: la spiegazione sotto il titolo. */}
-            <p className="text-sm text-muted-foreground max-sm:hidden">Usa i prezzi dei prodotti oppure concorda un prezzo unico. L'anteprima si aggiorna con i valori applicati.</p>
+            <p className="text-sm text-muted-foreground max-sm:hidden">{tr("Usa i prezzi dei prodotti oppure concorda un prezzo unico. L'anteprima si aggiorna con i valori applicati.")}</p>
           </CardHeader>
           <CardContent className="space-y-4 max-sm:space-y-3 max-sm:p-3 max-sm:pt-0">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 {isEdit && id ? <QuoteDiscountControl quoteId={id} currentDiscount={discountPercent} approvalStatus={approvalStatus} onDiscountChange={setDiscountPercent} />
                   : <ScontoGlobaleField id="quote-sconto-globale" value={discountPercent} onCommit={setDiscountPercent} imponibileLordo={subtotal} tipoLavoro={tipoLavoro || "classico"} />}
-                {!isEdit && listinoCliente?.attivo && (listinoCliente.sconto_globale_pct ?? 0) > 0 && <p className="text-xs text-muted-foreground">Sconto concordato nel listino cliente: {listinoCliente.sconto_globale_pct}%. Inseriscilo qui per verificarlo con le regole aziendali.</p>}
-                {discountPercent > 0 && <p className="text-xs font-medium text-emerald-700">Risparmio sul prezzo IVA esclusa: {formatCurrency(discountAmt)}</p>}
+                {!isEdit && listinoCliente?.attivo && (listinoCliente.sconto_globale_pct ?? 0) > 0 && <p className="text-xs text-muted-foreground">{tr("Sconto concordato nel listino cliente: {sconto_globale_pct}%. Inseriscilo qui per verificarlo con le regole aziendali.", { sconto_globale_pct: String(listinoCliente.sconto_globale_pct ?? "") })}</p>}
+                {discountPercent > 0 && <p className="text-xs font-medium text-emerald-700">{tr("Risparmio sul prezzo IVA esclusa: {discountAmt}", { discountAmt: formatCurrency(discountAmt) })}</p>}
               </div>
               <div className="space-y-2">
                 <PrezzoPreventivoAMano id="quote-prezzo-manuale" companyId={companyId} value={prezzoManuale} sommaVoci={totaliPro.somma_voci} showDisabledHint onCommit={(v) => {
@@ -2413,14 +2416,14 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                   if (!v) setPrezzoManualeIvaPct(null);
                 }} />
                 {totaliPro.prezzo_manuale && <div className="flex items-center justify-between gap-3">
-                  <Label htmlFor="quote-prezzo-manuale-iva">IVA sul prezzo manuale (%)</Label>
+                  <Label htmlFor="quote-prezzo-manuale-iva">{tr("IVA sul prezzo manuale (%)")}</Label>
                   <Input id="quote-prezzo-manuale-iva" type="number" min={0} max={100} step={0.5} className="w-20" value={prezzoManualeIvaPct ?? 0} onChange={(e) => setPrezzoManualeIvaPct(Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))} />
                 </div>}
               </div>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-50 p-3 text-sm max-sm:gap-1 max-sm:px-3 max-sm:py-2 max-sm:text-xs">
-              <span className="text-slate-500">Imponibile {formatCurrency(imponibilePreventivo)} + IVA {formatCurrency(vatAmount)}</span>
-              <span className="font-semibold">Totale IVA inclusa <strong className="ml-2 text-lg text-primary">{formatCurrency(total)}</strong></span>
+              <span className="text-slate-500">{tr("Imponibile {imponibilePreventivo} + IVA {vatAmount}", { imponibilePreventivo: formatCurrency(imponibilePreventivo), vatAmount: formatCurrency(vatAmount) })}</span>
+              <span className="font-semibold">{tr("Totale IVA inclusa")} <strong className="ml-2 text-lg text-primary">{formatCurrency(total)}</strong></span>
             </div>
             {/* Margine per chi lo può vedere (05/10/2026). Con una riga venduta
                 senza costo non si mostra: contava zero quel costo, fino al 100%.
@@ -2428,16 +2431,16 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
             {canViewImpresa && imponibilePreventivo > 0 && (
               <div className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm max-sm:hidden ${totaliPro.costi_completi ? "border-slate-200" : "border-amber-300 bg-amber-50/60"}`}>
                 <span className="flex items-center gap-1.5 text-slate-600">
-                  <TrendingUp className="h-3.5 w-3.5" /> Margine
+                  <TrendingUp className="h-3.5 w-3.5" /> {tr("Margine")}
                 </span>
                 {totaliPro.costi_completi ? (
                   <span className={`font-semibold tabular-nums ${{ red: "text-red-600", yellow: "text-amber-600", green: "text-emerald-700" }[semaforo(totaliPro.margine_totale_pct, impostazioni.margine_minimo_percentuale ?? 15, impostazioni.margine_target_default ?? 25)]}`}>
-                    {totaliPro.margine_totale_pct.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%
+                    {totaliPro.margine_totale_pct.toLocaleString(intlCampo(), { maximumFractionDigits: 1 })}%
                   </span>
                 ) : (
                   <span className="flex items-center gap-1.5 font-semibold text-amber-700">
                     <AlertTriangle className="h-3.5 w-3.5" />
-                    Costi incompleti
+                    {tr("Costi incompleti")}
                     {totaliPro.righe_senza_costo > 0 && ` · ${totaliPro.righe_senza_costo === 1 ? "1 riga senza costo" : `${totaliPro.righe_senza_costo} righe senza costo`}`}
                   </span>
                 )}
@@ -2462,7 +2465,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
       <div className="flex min-h-[60vh] items-center justify-center" aria-busy="true">
         <div className="flex flex-col items-center gap-3 text-muted-foreground">
           <Loader2 className="h-7 w-7 animate-spin text-primary" />
-          <p>Caricamento preventivo…</p>
+          <p>{tr("Caricamento preventivo…")}</p>
         </div>
       </div>
     );
@@ -2470,26 +2473,26 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
 
   return (
     <div className="preventivo-touch space-y-4 pb-24 [&_label]:text-xs sm:[&_label]:text-sm">
-      {localEditor && <p role="note" className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">Stessa bozza della chat, solo su questo browser. Le modifiche tornano a Silvio AI. Le voci incomplete restano opzionali, fuori dal totale. Nessun salvataggio nel gestionale o PDF remoto.</p>}
+      {localEditor && <p role="note" className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">{tr("Stessa bozza della chat, solo su questo browser. Le modifiche tornano a Silvio AI. Le voci incomplete restano opzionali, fuori dal totale. Nessun salvataggio nel gestionale o PDF remoto.")}</p>}
       {/* Recupero bozza locale, anche per un preventivo in modifica. */}
-      {paymentError && step === 2 && <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{paymentError} Correggi il piano prima di salvare o aprire il PDF. Le modifiche restano nella pagina.</div>}
+      {paymentError && step === 2 && <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{tr("{paymentError} Correggi il piano prima di salvare o aprire il PDF. Le modifiche restano nella pagina.", { paymentError: String(paymentError ?? "") })}</div>}
       {recoverableDraft && (
         // Telefono: una riga («Bozza non salvata» + Ripristina / Ignora).
         <div className="flex flex-col gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 sm:flex-row sm:items-center sm:justify-between max-sm:flex-row max-sm:items-center max-sm:gap-2 max-sm:px-3 max-sm:py-2">
           <div className="flex items-start gap-2 text-sm text-amber-900 max-sm:min-w-0 max-sm:flex-1 max-sm:items-center max-sm:text-xs">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 max-sm:mt-0" />
             <span className="max-sm:hidden">
-              Hai una <strong>bozza non salvata</strong> di un preventivo
-              {recoverableDraft.savedAt ? ` del ${new Date(recoverableDraft.savedAt).toLocaleString("it-IT")}` : ""}. Vuoi riprenderla?
+              {tr("Hai una")} <strong>{tr("bozza non salvata")}</strong> {tr("di un preventivo")}
+              {recoverableDraft.savedAt ? tr(" del {valore}", { valore: new Date(recoverableDraft.savedAt).toLocaleString(intlCampo()) }) : ""}{tr(". Vuoi riprenderla?")}
             </span>
-            <span className="truncate font-medium sm:hidden">Bozza non salvata</span>
+            <span className="truncate font-medium sm:hidden">{tr("Bozza non salvata")}</span>
           </div>
           <div className="flex shrink-0 items-center gap-2 max-sm:gap-1">
             <Button size="sm" variant="outline" className="tap-compact h-8 bg-white" onClick={() => restoreQuoteDraft()}>
-              Ripristina
+              {tr("Ripristina")}
             </Button>
             <Button size="sm" variant="ghost" className="tap-compact h-8 max-sm:px-2" onClick={() => { setRecoverableDraft(null); clearQuoteDraft(); }}>
-              Ignora
+              {tr("Ignora")}
             </Button>
           </div>
         </div>
@@ -2497,8 +2500,8 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
       {/* Header (replica FvPageHeader) — telefono: senza riquadro né icona. */}
       <QuotePageHeader
         className="testata-pagina"
-        title={localEditor ? "Editor classico · bozza AI locale" : isEdit ? "Modifica preventivo" : "Nuovo preventivo"}
-        subtitle={!isEdit && localDraftSaved && !localDraftFailed ? "Bozza su questo dispositivo" : undefined}
+        title={localEditor ? tr("Editor classico · bozza AI locale") : isEdit ? tr("Modifica preventivo") : tr("Nuovo preventivo")}
+        subtitle={!isEdit && localDraftSaved && !localDraftFailed ? tr("Bozza su questo dispositivo") : undefined}
         icon={<FileCheck className="h-5 w-5" />}
         actions={
           <>
@@ -2508,7 +2511,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
               size="sm"
               className="h-9 max-sm:hidden"
               onClick={() => localEditor ? localEditor.onBack() : navigate("/azienda/marketing/preventivi")}
-              title={localEditor ? 'Torna alla chat' : 'Torna alla lista'}
+              title={localEditor ? tr("Torna alla chat") : tr("Torna alla lista")}
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               {localEditor ? 'Torna alla chat' : 'Lista'}
@@ -2517,21 +2520,21 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
             {total > 0 && (
               <div className="hidden md:flex items-center gap-3 px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs">
                 <div>
-                  <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold">Subtotale</p>
+                  <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold">{tr("Subtotale")}</p>
                   <p className="font-semibold tabular-nums text-slate-900">{formatCurrency(subtotal)}</p>
                 </div>
                 {discountAmt > 0 && (
                   <>
                     <div className="h-6 w-px bg-slate-200" />
                     <div>
-                      <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold">Sconto</p>
+                      <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold">{tr("Sconto")}</p>
                       <p className="font-semibold tabular-nums text-orange-600">-{formatCurrency(discountAmt)}</p>
                     </div>
                   </>
                 )}
                 <div className="h-6 w-px bg-slate-200" />
                 <div>
-                  <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold">Totale</p>
+                  <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold">{tr("Totale")}</p>
                   <p className="font-bold tabular-nums text-orange-600">{formatCurrency(total)}</p>
                 </div>
               </div>
@@ -2542,7 +2545,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                 className="inline-flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition-colors h-9 max-sm:hidden"
               >
                 <TrendingUp className="h-3.5 w-3.5" />
-                Margini
+                {tr("Margini")}
               </Link>
             )}
           </>
@@ -2552,7 +2555,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
       {(erroreAttuale || localDraftFailed) && (
         <div role="status" className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           <AlertTriangle aria-hidden="true" className="h-4 w-4 shrink-0" />
-          {localDraftFailed ? "Bozza locale non protetta. Salva prima di uscire." : erroreAttuale?.messaggio}
+          {localDraftFailed ? tr("Bozza locale non protetta. Salva prima di uscire.") : erroreAttuale?.messaggio}
         </div>
       )}
 
@@ -2571,12 +2574,12 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_380px] 2xl:grid-cols-[minmax(0,1fr)_420px]">
       <div className="min-w-0 space-y-4">
-      {localEditor?.projectContext && <Suspense fallback={<p role="status">Recupero ipotesi e fasi…</p>}><QuoteWizardProjectPanel context={localEditor.projectContext} /></Suspense>}
+      {localEditor?.projectContext && <Suspense fallback={<p role="status">{tr("Recupero ipotesi e fasi…")}</p>}><QuoteWizardProjectPanel context={localEditor.projectContext} /></Suspense>}
 
       {/* ── STEP 0: Cliente ── */}
       {step === 0 && (
         <QuoteCard
-          title="Dati cliente"
+          title={tr("Dati cliente")}
           icon={<User className="h-4 w-4" />}
           className="max-sm:p-3"
           titoloSoloDaComputer
@@ -2589,7 +2592,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                 collegatoId={contactId ?? customerId}
                 collegatoOrigine={contactId ? "contatto" : "cliente"}
                 collegatoNome={(contactId || customerId) ? (clientCompany || clientName || null) : null}
-                etichetta="Cerca contatto o cliente"
+                etichetta={tr("Cerca contatto o cliente")}
                 onScegli={handleClienteScelto}
                 onScollega={() => { setContactId(null); setCustomerIdScelto(null); }}
                 className="border-0 bg-transparent p-0"
@@ -2599,22 +2602,22 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
             {/* Blocco 2: Anagrafica cliente */}
             <div className="space-y-3">
               <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground max-sm:hidden">
-                Anagrafica cliente
+                {tr("Anagrafica cliente")}
               </h4>
               {/* Prima privato, azienda o Pubblica Amministrazione, poi il nome (30/10/2026). */}
               <SceltaTipoCliente valore={tipoCliente} onChange={setTipoClienteScelto} />
               {/* Telefono: email e telefono affiancati, il resto a tutta riga. */}
               <div className="grid grid-cols-2 gap-4 max-sm:gap-3">
                 <div className="max-md:col-span-2">
-                  <Label htmlFor={`${formId}-clientName`}>Nome cliente *</Label>
-                  <Input id={`${formId}-clientName`} value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Mario Rossi" />
+                  <Label htmlFor={`${formId}-clientName`}>{tr("Nome cliente *")}</Label>
+                  <Input id={`${formId}-clientName`} value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder={tr("Mario Rossi")} />
                 </div>
                 <div>
                   <Label htmlFor={`${formId}-clientEmail`}>Email</Label>
                   <Input id={`${formId}-clientEmail`} type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="mario@example.com" />
                 </div>
                 <div>
-                  <Label htmlFor={`${formId}-clientPhone`}>Telefono</Label>
+                  <Label htmlFor={`${formId}-clientPhone`}>{tr("Telefono")}</Label>
                   <Input id={`${formId}-clientPhone`} value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="+39 333 1234567" />
                 </div>
                 {/* Privato o azienda (30/10/2026): i dati fiscali stavano in un riquadro chiuso «facoltativi»;
@@ -2622,29 +2625,29 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                 <div className="col-span-2 space-y-3">
                   <div className={`grid grid-cols-1 items-start gap-4 ${tipoCliente === "pa" ? "md:grid-cols-2 lg:grid-cols-4" : tipoCliente !== "privato" ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
                     {tipoCliente !== "privato" && <div>
-                      <Label htmlFor="quote-client-company">{tipoCliente === "pa" ? "Ente" : "Ragione sociale"}</Label>
-                      <Input id="quote-client-company" value={clientCompany} onChange={(e) => setClientCompany(e.target.value)} placeholder={tipoCliente === "pa" ? "Comune di …" : "Rossi Costruzioni S.r.l."} />
+                      <Label htmlFor="quote-client-company">{tipoCliente === "pa" ? tr("Ente") : tr("Ragione sociale")}</Label>
+                      <Input id="quote-client-company" value={clientCompany} onChange={(e) => setClientCompany(e.target.value)} placeholder={tipoCliente === "pa" ? tr("Comune di …") : tr("Rossi Costruzioni S.r.l.")} />
                     </div>}
                     {tipoCliente !== "privato" && <div>
-                      <Label htmlFor="quote-client-vat">{tipoCliente === "pa" ? "Partita IVA (se c'è)" : "Partita IVA"}</Label>
-                      <Input id="quote-client-vat" inputMode="numeric" className="font-mono" value={clientVatNumber} onChange={(e) => setClientVatNumber(e.target.value)} placeholder="11 cifre" />
+                      <Label htmlFor="quote-client-vat">{tipoCliente === "pa" ? tr("Partita IVA (se c'è)") : tr("Partita IVA")}</Label>
+                      <Input id="quote-client-vat" inputMode="numeric" className="font-mono" value={clientVatNumber} onChange={(e) => setClientVatNumber(e.target.value)} placeholder={tr("11 cifre")} />
                       {avvisiFiscali.partitaIva && <p role="status" className="mt-1 text-[11px] text-amber-700">{avvisiFiscali.partitaIva}</p>}
                     </div>}
                     <div>
-                      <Label htmlFor="quote-client-cf">{tipoCliente === "azienda" ? "Codice fiscale (se diverso)" : "Codice fiscale"}</Label>
-                      <Input id="quote-client-cf" className="font-mono [&:not(:placeholder-shown)]:uppercase" value={clientFiscalCode} onChange={(e) => setClientFiscalCode(e.target.value)} placeholder={tipoCliente === "azienda" ? "Di solito uguale alla partita IVA" : tipoCliente === "pa" ? "11 cifre dell'ente" : "16 caratteri"} />
+                      <Label htmlFor="quote-client-cf">{tipoCliente === "azienda" ? tr("Codice fiscale (se diverso)") : tr("Codice fiscale")}</Label>
+                      <Input id="quote-client-cf" className="font-mono [&:not(:placeholder-shown)]:uppercase" value={clientFiscalCode} onChange={(e) => setClientFiscalCode(e.target.value)} placeholder={tipoCliente === "azienda" ? tr("Di solito uguale alla partita IVA") : tipoCliente === "pa" ? tr("11 cifre dell'ente") : tr("16 caratteri")} />
                       {avvisiFiscali.codiceFiscale && <p role="status" className="mt-1 text-[11px] text-amber-700">{avvisiFiscali.codiceFiscale}</p>}
                     </div>
                     {tipoCliente === "pa" && <div>
-                      <Label htmlFor="quote-client-univoco">Codice univoco ufficio</Label>
-                      <Input id="quote-client-univoco" className="font-mono [&:not(:placeholder-shown)]:uppercase" maxLength={10} value={clientCodiceUnivoco} onChange={(e) => setClientCodiceUnivoco(e.target.value)} placeholder="6 caratteri (IPA)" />
+                      <Label htmlFor="quote-client-univoco">{tr("Codice univoco ufficio")}</Label>
+                      <Input id="quote-client-univoco" className="font-mono [&:not(:placeholder-shown)]:uppercase" maxLength={10} value={clientCodiceUnivoco} onChange={(e) => setClientCodiceUnivoco(e.target.value)} placeholder={tr("6 caratteri (IPA)")} />
                       {avvisiFiscali.codiceSdi && <p role="status" className="mt-1 text-[11px] text-amber-700">{avvisiFiscali.codiceSdi}</p>}
                     </div>}
                   </div>
                 </div>
                 <div className="col-span-2">
-                  <Label htmlFor="quote-client-address">Indirizzo</Label>
-                  <CampoIndirizzo id="quote-client-address" value={clientAddress} onChange={setClientAddress} placeholder="Via Roma 1, 20100 Milano (MI)" />
+                  <Label htmlFor="quote-client-address">{tr("Indirizzo")}</Label>
+                  <CampoIndirizzo id="quote-client-address" value={clientAddress} onChange={setClientAddress} placeholder={tr("Via Roma 1, 20100 Milano (MI)")} />
                 </div>
               </div>
             </div>
@@ -2652,16 +2655,16 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
             {/* Blocco 3: Offerta */}
             <div className="space-y-3 border-t pt-4">
               <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Offerta
+                {tr("Offerta")}
               </h4>
               {/* Telefono: titolo e validità sulla stessa riga. */}
               <div className="grid grid-cols-3 gap-4 max-sm:gap-3">
                 <div className="col-span-2">
-                  <Label htmlFor={`${formId}-title`}>Titolo offerta</Label>
-                  <Input id={`${formId}-title`} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="es. Fornitura e posa serramenti PVC" />
+                  <Label htmlFor={`${formId}-title`}>{tr("Titolo offerta")}</Label>
+                  <Input id={`${formId}-title`} value={title} onChange={(e) => setTitle(e.target.value)} placeholder={tr("es. Fornitura e posa serramenti PVC")} />
                 </div>
                 <div>
-                  <Label htmlFor={`${formId}-validity`}><span className="max-sm:hidden">Validità (giorni)</span><span className="sm:hidden">Validità gg</span></Label>
+                  <Label htmlFor={`${formId}-validity`}><span className="max-sm:hidden">{tr("Validità (giorni)")}</span><span className="sm:hidden">{tr("Validità gg")}</span></Label>
                   <Input
                     id={`${formId}-validity`}
                     type="number"
@@ -2672,22 +2675,22 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                   />
                 </div>
                 <div className="col-span-3">
-                  <Label htmlFor={`${formId}-description`}>Descrizione</Label>
+                  <Label htmlFor={`${formId}-description`}>{tr("Descrizione")}</Label>
                   <Textarea id={`${formId}-description`} value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
-                    placeholder="Breve descrizione dei lavori (appare sul PDF)" />
+                    placeholder={tr("Breve descrizione dei lavori (appare sul PDF)")} />
                 </div>
                 <details className="col-span-3 rounded-lg border p-3">
-                  <summary className="cursor-pointer text-sm font-medium">Note per il cliente e per il team</summary>
+                  <summary className="cursor-pointer text-sm font-medium">{tr("Note per il cliente e per il team")}</summary>
                 <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor={`${formId}-notes`}>Note visibili al cliente</Label>
+                    <Label htmlFor={`${formId}-notes`}>{tr("Note visibili al cliente")}</Label>
                     <Textarea id={`${formId}-notes`} value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} maxLength={localEditor ? 3000 : undefined}
-                      placeholder="Pagamento, tempi consegna, garanzia..." />
+                      placeholder={tr("Pagamento, tempi consegna, garanzia...")} />
                   </div>
                   <div>
-                    <Label htmlFor={`${formId}-internal-notes`}>Note interne <span className="text-muted-foreground font-normal">(non mostrate al cliente)</span></Label>
+                    <Label htmlFor={`${formId}-internal-notes`}>{tr("Note interne")} <span className="text-muted-foreground font-normal">{tr("(non mostrate al cliente)")}</span></Label>
                     <Textarea id={`${formId}-internal-notes`} value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} rows={2}
-                      placeholder="Info riservate per il team" />
+                      placeholder={tr("Info riservate per il team")} />
                   </div>
                 </div>
                 </details>
@@ -2716,7 +2719,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
             {/* Blocco 4: Dettagli lavoro */}
             <div className="space-y-3 border-t pt-4">
               <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Dettagli lavoro e assegnazione
+                {tr("Dettagli lavoro e assegnazione")}
               </h4>
             {!dettagliLavoroAperti ? (
               <button
@@ -2726,22 +2729,22 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
               >
                 <span>
                   <span className="font-medium">
-                    Tipo di lavoro, commerciale, sede, indirizzo{impostazioni.chiedi_trasporto || haTariffeAlKm ? ", distanza" : ""}
+                    {tr("Tipo di lavoro, commerciale, sede, indirizzo")}{impostazioni.chiedi_trasporto || haTariffeAlKm ? tr(", distanza") : ""}
                   </span>
-                  <span className="block text-xs text-muted-foreground">{tipoLavoro || salespersonId || sedeId || indirizzoLavori || kmCantiere > 0 ? "Compilati: tocca per vedere" : "Facoltativi: tocca per compilare"}</span>
+                  <span className="block text-xs text-muted-foreground">{tipoLavoro || salespersonId || sedeId || indirizzoLavori || kmCantiere > 0 ? tr("Compilati: tocca per vedere") : tr("Facoltativi: tocca per compilare")}</span>
                 </span>
                 <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
               </button>
             ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2">
-                <Label>Tipo di lavoro</Label>
+                <Label>{tr("Tipo di lavoro")}</Label>
                 <Select value={tipoLavoro || "__none__"} onValueChange={(v) => setTipoLavoro(v === "__none__" ? "" : v)}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Seleziona tipo..." />
+                    <SelectValue placeholder={tr("Seleziona tipo...")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__none__">Nessuno specificato</SelectItem>
+                    <SelectItem value="__none__">{tr("Nessuno specificato")}</SelectItem>
                     {categorie.map((c) => (
                       <SelectItem key={c.id} value={c.nome}>
                         {c.nome}
@@ -2751,51 +2754,51 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                 </Select>
               </div>
               <div className="md:col-span-2">
-                <Label>Commerciale assegnato</Label>
+                <Label>{tr("Commerciale assegnato")}</Label>
                 <Select
                   value={salespersonId ?? "__none__"}
                   onValueChange={(v) => setSalespersonId(v === "__none__" ? null : v)}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Seleziona commerciale" />
+                    <SelectValue placeholder={tr("Seleziona commerciale")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__none__">Nessuno (provvigione non calcolata)</SelectItem>
+                    <SelectItem value="__none__">{tr("Nessuno (provvigione non calcolata)")}</SelectItem>
                     {salespeople.map((s) => (
                       <SelectItem key={s.id} value={s.id}>
                         {s.first_name} {s.last_name}
-                        {s.compensation_mode === "fixed_only" && " — solo fisso"}
-                        {s.compensation_mode === "fixed_plus_commission" && " — fisso+provv"}
+                        {s.compensation_mode === "fixed_only" && ` ${tr("— solo fisso")}`}
+                        {s.compensation_mode === "fixed_plus_commission" && ` ${tr("— fisso+provv")}`}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground mt-1">
-                  La provvigione teorica viene calcolata automaticamente in base alla configurazione del commerciale.
+                  {tr("La provvigione teorica viene calcolata automaticamente in base alla configurazione del commerciale.")}
                 </p>
               </div>
               {/* v8.6.42 — Sede operativa del preventivo (analytics MV) */}
               <div className="md:col-span-2">
                 <SedeSelect
-                  label="Sede operativa"
-                  placeholder="Sede operativa (opzionale)"
+                  label={tr("Sede operativa")}
+                  placeholder={tr("Sede operativa (opzionale)")}
                   value={sedeId}
                   onChange={setSedeId}
                 />
               </div>
               <div className="md:col-span-2">
-                <Label htmlFor="quote-work-address">Indirizzo lavori (se diverso da cliente)</Label>
+                <Label htmlFor="quote-work-address">{tr("Indirizzo lavori (se diverso da cliente)")}</Label>
                 <CampoIndirizzo
                   id="quote-work-address"
                   value={indirizzoLavori}
                   maxLength={localEditor ? 300 : undefined}
                   onChange={setIndirizzoLavori}
-                  placeholder="Via, Città"
+                  placeholder={tr("Via, Città")}
                 />
               </div>
               {impostazioni.chiedi_piano_installazione && (
                 <div className="md:col-span-2">
-                  <Label>Piano di installazione</Label>
+                  <Label>{tr("Piano di installazione")}</Label>
                   <div className="flex flex-wrap gap-2 mt-2">
                     {[
                       { v: 0, l: "Piano Terra" },
@@ -2824,7 +2827,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                   la distanza è la quantità delle loro righe (05/10/2026). */}
               {(impostazioni.chiedi_trasporto || haTariffeAlKm) && (
                 <div>
-                  <Label>Distanza cantiere (km)</Label>
+                  <Label>{tr("Distanza cantiere (km)")}</Label>
                   <Input
                     type="number"
                     value={kmCantiere}
@@ -2865,7 +2868,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                 righe con l'AI dal cantiere è il caso d'uso; lì è compatto. */}
               {companyId && !localEditor && (
               <div>
-              {consentiPreventivoConversazionale(companyId) ? <Suspense fallback={<p role="status">Preparo Silvio AI…</p>}><ClassicWizardAiEntry companyId={companyId} draft={draftSnapshot} preview={livePreviewProps} defaultVat={ivaPredefinita()} onApply={(righe, richiestaId) => {
+              {consentiPreventivoConversazionale(companyId) ? <Suspense fallback={<p role="status">{tr("Preparo Silvio AI…")}</p>}><ClassicWizardAiEntry companyId={companyId} draft={draftSnapshot} preview={livePreviewProps} defaultVat={ivaPredefinita()} onApply={(righe, richiestaId) => {
                 setItems(righe);
                 if (idAttivitaValido(richiestaId)) setPropostaAiUsata({ ambito: ambitoRichiestaAi, id: richiestaId });
               }} autoOpen={searchParams.get('ai') === '1' && !aiEntryOpened} onAutoOpened={() => setAiEntryOpened(true)} /></Suspense> : <AIQuotePanel
@@ -2885,8 +2888,8 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
             <Card>
               <CardHeader className="max-sm:p-3">
                 <div className="flex items-center justify-between flex-wrap gap-2">
-                  <CardTitle className="max-sm:text-base">Prodotti e lavori</CardTitle>
-                  <Button type="button" size="sm" variant="outline" className="max-lg:hidden" onClick={() => addItemPro("nota")}><StickyNote className="mr-2 h-4 w-4" />Aggiungi descrizione</Button>
+                  <CardTitle className="max-sm:text-base">{tr("Prodotti e lavori")}</CardTitle>
+                  <Button type="button" size="sm" variant="outline" className="max-lg:hidden" onClick={() => addItemPro("nota")}><StickyNote className="mr-2 h-4 w-4" />{tr("Aggiungi descrizione")}</Button>
                   {preventivatoreUnifiedOn ? (
                     // Sprint A: entry point unificato. Le azioni secondarie
                     // (Riga libera/Sconto/Subtotale) sono dentro il dialog
@@ -2896,41 +2899,41 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                     // Telefono: i tre bottoni su una riga, «Aggiungi prodotti» a riempire.
                     <div className="flex flex-wrap gap-2 max-sm:w-full">
                       <Button size="sm" variant="brand" className="max-sm:min-w-0 max-sm:flex-1" onClick={() => {setAddItemTab("prodotti"); setAddItemOpen(true);}}>
-                        <Plus className="h-4 w-4 mr-1" /> Prodotti
+                        <Plus className="h-4 w-4 mr-1" /> {tr("Prodotti")}
                       </Button>
                       <Button type="button" size="sm" variant="outline" className="max-sm:flex-1" onClick={() => {setAddItemTab("manodopera"); setAddItemOpen(true);}}>
-                        <Plus className="h-4 w-4 mr-1" /> Manodopera
+                        <Plus className="h-4 w-4 mr-1" /> {tr("Manodopera")}
                       </Button>
                       <Button type="button" size="sm" variant="outline" className="max-sm:flex-1" onClick={() => {setAddItemTab("servizi"); setAddItemOpen(true);}}>
-                        <Plus className="h-4 w-4 mr-1" /> Servizi
+                        <Plus className="h-4 w-4 mr-1" /> {tr("Servizi")}
                       </Button>
                       {vociDalContratto.length > 0 && (
                         <Button type="button" size="sm" variant="outline" className="max-sm:flex-1" onClick={() => setVociContrattoOpen(true)}>
-                          <FileSignature className="h-4 w-4 mr-1" /> Dal contratto
+                          <FileSignature className="h-4 w-4 mr-1" /> {tr("Dal contratto")}
                         </Button>
                       )}
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="outline" size="sm" className="max-sm:w-9 max-sm:shrink-0 max-sm:px-0" aria-label="Altro">
-                            <ChevronDown className="h-4 w-4 mr-1 max-sm:mr-0" /> <span className="max-sm:hidden">Altro</span>
+                          <Button variant="outline" size="sm" className="max-sm:w-9 max-sm:shrink-0 max-sm:px-0" aria-label={tr("Altro")}>
+                            <ChevronDown className="h-4 w-4 mr-1 max-sm:mr-0" /> <span className="max-sm:hidden">{tr("Altro")}</span>
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
                           <DropdownMenuItem onClick={() => addItemPro("posa")}>
-                            <Plus className="h-4 w-4 mr-2" /> Lavorazione libera
+                            <Plus className="h-4 w-4 mr-2" /> {tr("Lavorazione libera")}
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => setBundleOpen(true)}>
-                            <Layers className="h-4 w-4 mr-2" /> Bundle
+                            <Layers className="h-4 w-4 mr-2" /> {tr("Bundle")}
                           </DropdownMenuItem>
                           {haSerramenti && (
                             <DropdownMenuItem onClick={() => setRilievoOpen(true)}>
-                              <Ruler className="h-4 w-4 mr-2" /> Rilievo per posizioni
+                              <Ruler className="h-4 w-4 mr-2" /> {tr("Rilievo per posizioni")}
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuItem onClick={() => addItemPro("nota")}>
-                            <StickyNote className="h-4 w-4 mr-2" /> Descrizione senza prezzo
+                            <StickyNote className="h-4 w-4 mr-2" /> {tr("Descrizione senza prezzo")}
                           </DropdownMenuItem>
-                          {!localEditor && <DropdownMenuItem onClick={() => setImportaComputo(true)}><FileStack className="mr-2 h-4 w-4" />Importa computo o elenco voci</DropdownMenuItem>}
+                          {!localEditor && <DropdownMenuItem onClick={() => setImportaComputo(true)}><FileStack className="mr-2 h-4 w-4" />{tr("Importa computo o elenco voci")}</DropdownMenuItem>}
                           {tariffe.filter((t) => t.tipo === "trasporto")
                             .length > 0 && (
                             <DropdownMenuItem
@@ -2941,7 +2944,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                                 if (t) addTariffa(t, "trasporto");
                               }}
                             >
-                              <Truck className="h-4 w-4 mr-2" /> Trasporto
+                              <Truck className="h-4 w-4 mr-2" /> {tr("Trasporto")}
                             </DropdownMenuItem>
                           )}
                           {tariffe.filter((t) => t.tipo === "nolo").length >
@@ -2954,7 +2957,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                                 if (t) addTariffa(t, "nolo");
                               }}
                             >
-                              <Layers className="h-4 w-4 mr-2" /> Nolo
+                              <Layers className="h-4 w-4 mr-2" /> {tr("Nolo")}
                             </DropdownMenuItem>
                           )}
                         </DropdownMenuContent>
@@ -2963,11 +2966,11 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                   ) : (
                     <div className="flex flex-wrap gap-2">
                       <Button onClick={() => setSearchOpen(true)} size="sm">
-                        <Plus className="h-4 w-4 mr-1" /> Dal listino
+                        <Plus className="h-4 w-4 mr-1" /> {tr("Dal listino")}
                       </Button>
                       {vociDalContratto.length > 0 && (
                         <Button type="button" size="sm" variant="outline" onClick={() => setVociContrattoOpen(true)}>
-                          <FileSignature className="h-4 w-4 mr-1" /> Dal contratto
+                          <FileSignature className="h-4 w-4 mr-1" /> {tr("Dal contratto")}
                         </Button>
                       )}
                       <Button
@@ -2975,7 +2978,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                         size="sm"
                         onClick={() => setBundleOpen(true)}
                       >
-                        <Layers className="h-4 w-4 mr-1" /> Bundle
+                        <Layers className="h-4 w-4 mr-1" /> {tr("Bundle")}
                       </Button>
                       {/* MP-preventivi-v2: bottone "Serramento" top-level rimosso.
                           Il wizard serramenti e` ora accessibile tramite "Dal listino"
@@ -2986,28 +2989,28 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                         size="sm"
                         onClick={() => addItemPro("posa")}
                       >
-                        <Plus className="h-4 w-4 mr-1" /> Lavorazione libera
+                        <Plus className="h-4 w-4 mr-1" /> {tr("Lavorazione libera")}
                       </Button>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="outline" size="sm">
-                            <ChevronDown className="h-4 w-4 mr-1" /> Altro
+                            <ChevronDown className="h-4 w-4 mr-1" /> {tr("Altro")}
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
                           <DropdownMenuItem onClick={() => addItemPro("nota")}>
-                            <StickyNote className="h-4 w-4 mr-2" /> Descrizione senza prezzo
+                            <StickyNote className="h-4 w-4 mr-2" /> {tr("Descrizione senza prezzo")}
                           </DropdownMenuItem>
-                          {!localEditor && <DropdownMenuItem onClick={() => setImportaComputo(true)}><FileStack className="mr-2 h-4 w-4" />Importa computo o elenco voci</DropdownMenuItem>}
+                          {!localEditor && <DropdownMenuItem onClick={() => setImportaComputo(true)}><FileStack className="mr-2 h-4 w-4" />{tr("Importa computo o elenco voci")}</DropdownMenuItem>}
                           <DropdownMenuItem
                             onClick={() => addItemPro("sconto")}
                           >
-                            <Tag className="h-4 w-4 mr-2" /> Sconto
+                            <Tag className="h-4 w-4 mr-2" /> {tr("Sconto")}
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => addItemPro("subtotale")}
                           >
-                            <Hash className="h-4 w-4 mr-2" /> Subtotale
+                            <Hash className="h-4 w-4 mr-2" /> {tr("Subtotale")}
                           </DropdownMenuItem>
                           {tariffe.filter((t) => t.tipo === "trasporto")
                             .length > 0 && (
@@ -3019,7 +3022,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                                 if (t) addTariffa(t, "trasporto");
                               }}
                             >
-                              <Truck className="h-4 w-4 mr-2" /> Trasporto
+                              <Truck className="h-4 w-4 mr-2" /> {tr("Trasporto")}
                             </DropdownMenuItem>
                           )}
                           {tariffe.filter((t) => t.tipo === "nolo").length >
@@ -3032,7 +3035,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                                 if (t) addTariffa(t, "nolo");
                               }}
                             >
-                              <Layers className="h-4 w-4 mr-2" /> Nolo
+                              <Layers className="h-4 w-4 mr-2" /> {tr("Nolo")}
                             </DropdownMenuItem>
                           )}
                         </DropdownMenuContent>
@@ -3053,21 +3056,15 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                         <div className="flex-1">
                           {s.kind === "sconto" ? (
                             <>
-                              <span className="font-medium text-amber-900 dark:text-amber-200">
-                                Sconto quantità applicabile: -{s.scontoPct}%
-                              </span>
+                              <span className="font-medium text-amber-900 dark:text-amber-200">{tr("Sconto quantità applicabile: -{scontoPct}%", { scontoPct: String(s.scontoPct ?? "") })}</span>
                               <span className="text-amber-800 dark:text-amber-300">
-                                {" "}su <b>{s.productName}</b> (da {s.daQuantita} pz)
+                                {" "}{tr("su")} <b>{s.productName}</b> {tr("(da")} {s.daQuantita} {tr("pz)")}
                               </span>
                             </>
                           ) : (
                             <>
-                              <span className="font-medium text-amber-900 dark:text-amber-200">
-                                Bundle suggerito: {s.bundle.nome} (-{s.bundle.sconto_bundle_pct}%)
-                              </span>
-                              <span className="text-amber-800 dark:text-amber-300">
-                                {" "}({s.matchedCount}/{s.totalCount} prodotti già presenti)
-                              </span>
+                              <span className="font-medium text-amber-900 dark:text-amber-200">{tr("Bundle suggerito: {nome} (-{sconto_bundle_pct}%)", { nome: String(s.bundle.nome ?? ""), sconto_bundle_pct: String(s.bundle.sconto_bundle_pct ?? "") })}</span>
+                              <span className="text-amber-800 dark:text-amber-300">{" "}{tr("({matchedCount}/{totalCount} prodotti già presenti)", { matchedCount: String(s.matchedCount ?? ""), totalCount: String(s.totalCount ?? "") })}</span>
                             </>
                           )}
                         </div>
@@ -3081,14 +3078,14 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                                 : applicaBundleSuggestion(s)
                             }
                           >
-                            Applica
+                            {tr("Applica")}
                           </Button>
                           <Button
                             size="sm"
                             variant="ghost"
                             onClick={() => ignoraSuggestion(s.key)}
                           >
-                            Ignora
+                            {tr("Ignora")}
                           </Button>
                         </div>
                       </div>
@@ -3098,9 +3095,9 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                 {items.length === 0 ? (
                   <div className="text-center py-12 text-muted-foreground max-sm:py-5">
                     <Package className="h-12 w-12 mx-auto mb-3 opacity-30 max-sm:hidden" />
-                    <p className="font-medium max-sm:text-[13px]">Nessuna voce</p>
+                    <p className="font-medium max-sm:text-[13px]">{tr("Nessuna voce")}</p>
                     <p className="text-sm max-sm:hidden">
-                      Aggiungi dal listino o crea una riga libera
+                      {tr("Aggiungi dal listino o crea una riga libera")}
                     </p>
                   </div>
                 ) : (
@@ -3156,7 +3153,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                           {isSubtotale ? (
                             <div className="flex items-center justify-between">
                               <span className="font-semibold text-sm">
-                                Subtotale
+                                {tr("Subtotale")}
                               </span>
                               <span className="font-bold">
                                 {/* Come il PDF: senza le righe opzionali, che non sono nel totale. */}
@@ -3209,16 +3206,16 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                                 })()}
                                 <div className="flex-1 min-w-0">
                               {!isSconto && <QuoteLineKindFields item={item} onChange={patch => setItems(prev => prev.map((r, i) => i === idx ? { ...r, ...patch } : r))} />}
-                              {!isSconto && item.unit_price === 0 && <Button type="button" variant="ghost" size="sm" onClick={() => updateItem(idx, "item_category", "nota")}>Usa come descrizione senza prezzo</Button>}
+                              {!isSconto && item.unit_price === 0 && <Button type="button" variant="ghost" size="sm" onClick={() => updateItem(idx, "item_category", "nota")}>{tr("Usa come descrizione senza prezzo")}</Button>}
                               {/* Nome a larghezza piena: i campi numerici restano leggibili anche con l'anteprima a destra. */}
                               <div className="grid grid-cols-12 gap-2 items-end">
                                 <div className="col-span-12">
                                   <Label className="text-xs max-sm:flex max-sm:items-baseline max-sm:justify-between">
                                     <span>
-                                    Nome{" "}
+                                    {tr("Nome")}{" "}
                                     {isSconto && (
                                       <span className="text-red-500">
-                                        (sconto)
+                                        {tr("(sconto)")}
                                       </span>
                                     )}
                                     </span>
@@ -3232,7 +3229,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                                     onChange={(e) =>
                                       updateItem(idx, "name", e.target.value)
                                     }
-                                    placeholder="Nome prodotto/servizio"
+                                    placeholder={tr("Nome prodotto/servizio")}
                                     className={isSconto ? "text-red-600" : ""}
                                   />
                                   {/* La descrizione si scrive qui, per ogni riga (14/11/2026): prima si vedeva solo
@@ -3243,7 +3240,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                                       aria-label={`Descrizione: ${item.name || "riga"}`}
                                       value={item.description ?? ""}
                                       onChange={(e) => updateItem(idx, "description", e.target.value)}
-                                      placeholder="Descrizione per il cliente (facoltativa): gli a capo restano nel PDF"
+                                      placeholder={tr("Descrizione per il cliente (facoltativa): gli a capo restano nel PDF")}
                                       minRighe={1}
                                       maxLength={20000}
                                       className="mt-1.5 text-sm"
@@ -3253,7 +3250,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                                 {/* Da 768px quantità, prezzo, sconto, IVA e totale su una riga (prima solo da 1536):
                                     con 30 voci su tablet la pagina si accorcia di una riga per voce (collaudo 23/11/2026). */}
                                 <div className="col-span-6 md:col-span-3 max-sm:col-span-4">
-                                  <Label className="text-xs"><span className="max-sm:hidden">Quantità</span><span className="sm:hidden">Q.tà</span></Label>
+                                  <Label className="text-xs"><span className="max-sm:hidden">{tr("Quantità")}</span><span className="sm:hidden">{tr("Q.tà")}</span></Label>
                                   <Input
                                     type="number"
                                     inputMode="decimal"
@@ -3274,13 +3271,13 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                                 {/* Riga di sconto (05/10/2026): si scrive l'importo, si salva in
                                     negativo e il totale scende. Prima il 100 scritto si sommava. */}
                                 <div className="col-span-6 md:col-span-3 max-sm:col-span-4">
-                                  <Label className="text-xs">{isSconto ? "Sconto €" : <><span className="max-sm:hidden">Prezzo unitario €</span><span className="sm:hidden">Prezzo €</span></>}</Label>
+                                  <Label className="text-xs">{isSconto ? tr("Sconto €") : <><span className="max-sm:hidden">{tr("Prezzo unitario €")}</span><span className="sm:hidden">{tr("Prezzo €")}</span></>}</Label>
                                   <Input
                                     type="number"
                                     inputMode="decimal"
                                     min={0}
                                     step={0.01}
-                                    aria-label={`${isSconto ? "Importo sconto" : "Prezzo unitario"}: ${item.name || "riga"}`}
+                                    aria-label={isSconto ? tr("Importo sconto: {nome}", { nome: item.name || tr("riga") }) : tr("Prezzo unitario: {nome}", { nome: item.name || tr("riga") })}
                                     value={localEditor && (item as QuoteItemPro & { ai_missing_price?: boolean }).ai_missing_price ? '' : isSconto ? Math.abs(item.unit_price) : item.unit_price}
                                     onChange={(e) => {
                                       const valore = parseFloat(e.target.value) || 0;
@@ -3290,13 +3287,13 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                                   />
                                 </div>
                                 {!isSconto && <div className="col-span-4 md:col-span-2">
-                                  <Label className="text-xs">Sconto %</Label>
+                                  <Label className="text-xs">{tr("Sconto %")}</Label>
                                   <Input
                                     type="number"
                                     inputMode="decimal"
                                     min={0}
                                     max={100}
-                                    aria-label={`Sconto riga: ${item.name || "riga"}`}
+                                    aria-label={tr("Sconto riga: {nome}", { nome: item.name || tr("riga") })}
                                     value={item.discount_percent}
                                     onChange={(e) =>
                                       updateItem(
@@ -3308,7 +3305,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                                   />
                                 </div>}
                                 <div className="col-span-4 md:col-span-2">
-                                  <Label className="text-xs">IVA%</Label>
+                                  <Label className="text-xs">{tr("IVA%")}</Label>
                                   <Input
                                     type="number"
                                     inputMode="decimal"
@@ -3329,7 +3326,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                                       isSconto ? "text-red-600" : ""
                                     }`}
                                   >
-                                    {localEditor && ((item as QuoteItemPro & { ai_missing_price?: boolean; ai_missing_quantity?: boolean }).ai_missing_price || (item as QuoteItemPro & { ai_missing_quantity?: boolean }).ai_missing_quantity) ? 'Da definire' : formatCurrency(importoRiga(item))}
+                                    {localEditor && ((item as QuoteItemPro & { ai_missing_price?: boolean; ai_missing_quantity?: boolean }).ai_missing_price || (item as QuoteItemPro & { ai_missing_quantity?: boolean }).ai_missing_quantity) ? tr("Da definire") : formatCurrency(importoRiga(item))}
                                   </p>
                                   <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
@@ -3337,7 +3334,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                                         variant="ghost"
                                         size="icon"
                                         className="h-8 w-8 max-sm:h-10 max-sm:w-10"
-                                        aria-label={`Azioni voce: ${item.name || 'riga'}`}
+                                        aria-label={tr("Azioni voce: {nome}", { nome: item.name || tr("riga") })}
                                       >
                                         <MoreVertical className="h-4 w-4" />
                                       </Button>
@@ -3346,7 +3343,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                                       <DropdownMenuItem
                                         onClick={() => duplicaRiga(idx)}
                                       >
-                                        Duplica
+                                        {tr("Duplica")}
                                       </DropdownMenuItem>
                                       <DropdownMenuItem
                                         onClick={() =>
@@ -3358,8 +3355,8 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                                         }
                                       >
                                         {item.is_optional
-                                          ? localEditor ? 'Conferma e includi nel parziale' : "Rimuovi optional"
-                                          : "Rendi opzionale"}
+                                          ? localEditor ? tr("Conferma e includi nel parziale") : tr("Rimuovi optional")
+                                          : tr("Rendi opzionale")}
                                       </DropdownMenuItem>
                                       <DropdownMenuItem
                                         onClick={() =>
@@ -3371,14 +3368,14 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                                         }
                                       >
                                         {item.mostra_nel_pdf
-                                          ? "Nascondi nel PDF"
-                                          : "Mostra nel PDF"}
+                                          ? tr("Nascondi nel PDF")
+                                          : tr("Mostra nel PDF")}
                                       </DropdownMenuItem>
                                       <DropdownMenuItem
                                         onClick={() => removeItem(idx)}
                                         className="text-destructive"
                                       >
-                                        Elimina
+                                        {tr("Elimina")}
                                       </DropdownMenuItem>
                                     </DropdownMenuContent>
                                   </DropdownMenu>
@@ -3389,7 +3386,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                                 <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                                   {(item.misura_x || item.misura_y) && (
                                     <div className="flex items-center gap-1.5">
-                                      <span className="font-medium text-foreground/70">Misure:</span>
+                                      <span className="font-medium text-foreground/70">{tr("Misure:")}</span>
                                       <Input
                                         type="number"
                                         value={item.misura_x ?? ""}
@@ -3405,7 +3402,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                                         className="h-7 w-20 text-xs"
                                         placeholder="H"
                                       />
-                                      <span>mm</span>
+                                      <span>{tr("mm")}</span>
                                     </div>
                                   )}
                                   {item.axis_selections && Object.entries(item.axis_selections).length > 0 && (
@@ -3430,12 +3427,12 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                                 <div className="flex items-center gap-2 mt-1">
                                   {item.is_optional && (
                                     <Badge variant="outline" className="text-xs">
-                                      Opzionale
+                                      {tr("Opzionale")}
                                     </Badge>
                                   )}
                                   {!item.mostra_nel_pdf && (
                                     <Badge variant="secondary" className="text-xs">
-                                      Nascosto PDF
+                                      {tr("Nascosto PDF")}
                                     </Badge>
                                   )}
                                 </div>
@@ -3467,7 +3464,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
       {/* Advisor AI facoltativo: richieste solo su azione esplicita. */}
       {step === 1 && (
             // Telefono no: niente assistenti AI dentro il modulo.
-            <details className="rounded-xl border p-4 max-sm:hidden"><summary className="cursor-pointer text-sm font-medium">Consigli commerciali AI (facoltativi)</summary>
+            <details className="rounded-xl border p-4 max-sm:hidden"><summary className="cursor-pointer text-sm font-medium">{tr("Consigli commerciali AI (facoltativi)")}</summary>
               <QuoteAdvisorPanel
                 contactId={contactId}
                 clientName={clientName}
@@ -3497,27 +3494,27 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
       {/* ── STEP 3: Riepilogo ── */}
       {step === 2 && (
         <QuoteCard
-          title="Controlla la tua offerta"
+          title={tr("Controlla la tua offerta")}
           icon={<FileCheck className="h-4 w-4" />}
           className="max-sm:p-3"
         >
           <div className="space-y-6 max-sm:space-y-4">
             {!prezziVenditaCompleti(items, prezzoManuale) && (
               <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                <span>Completa i prezzi di vendita prima di preparare l’offerta. I costi d’acquisto restano interni; puoi salvare una bozza.</span>
-                <Button size="sm" variant="outline" onClick={() => setStep(1)}>Completa prezzi</Button>
+                <span>{tr("Completa i prezzi di vendita prima di preparare l’offerta. I costi d’acquisto restano interni; puoi salvare una bozza.")}</span>
+                <Button size="sm" variant="outline" onClick={() => setStep(1)}>{tr("Completa prezzi")}</Button>
               </div>
             )}
             {(!clientReady || !productsReady) && (
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 max-sm:gap-2 max-sm:p-2.5 max-sm:text-xs">
-                <span>{!clientReady ? "Inserisci il nome del cliente per preparare il PDF." : "Aggiungi almeno un prodotto o servizio e completa i nomi delle righe."}</span>
-                <Button size="sm" variant="outline" onClick={() => setStep(!clientReady ? 0 : 1)}>{!clientReady ? "Completa cliente" : "Completa prodotti"}</Button>
+                <span>{!clientReady ? tr("Inserisci il nome del cliente per preparare il PDF.") : tr("Aggiungi almeno un prodotto o servizio e completa i nomi delle righe.")}</span>
+                <Button size="sm" variant="outline" onClick={() => setStep(!clientReady ? 0 : 1)}>{!clientReady ? tr("Completa cliente") : tr("Completa prodotti")}</Button>
               </div>
             )}
             {/* Client summary */}
             {contractFields.length > 0 && <section className="space-y-3 rounded-lg border border-blue-200 bg-blue-50/40 p-4">
-              <h3 className="font-semibold">Dati per le condizioni contrattuali</h3>
-              <p className="text-sm text-slate-600">Questi valori vengono inseriti nel contratto allegato al preventivo. Puoi salvare una bozza anche se mancano dati.</p>
+              <h3 className="font-semibold">{tr("Dati per le condizioni contrattuali")}</h3>
+              <p className="text-sm text-slate-600">{tr("Questi valori vengono inseriti nel contratto allegato al preventivo. Puoi salvare una bozza anche se mancano dati.")}</p>
               <div className="grid gap-3 sm:grid-cols-2">{contractFields.map(field => <div key={field.nome} className="space-y-1">
                 <Label htmlFor={`contract-${field.nome}`}>{field.etichetta} *</Label>
                 <Input id={`contract-${field.nome}`} type={field.tipo === 'data' ? 'date' : 'text'}
@@ -3525,38 +3522,38 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                   value={templateValues[field.nome] ?? ''}
                   onChange={e => setTemplateValues(v => ({ ...v, [field.nome]: e.target.value }))} />
               </div>)}</div>
-              {contractErrors.length > 0 && <p role="status" className="text-sm text-amber-800">{contractErrors.length} campi da completare prima di generare il PDF.</p>}
+              {contractErrors.length > 0 && <p role="status" className="text-sm text-amber-800">{tr("{n} campi da completare prima di generare il PDF.", { n: contractErrors.length })}</p>}
             </section>}
             <div>
               <h4 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
-                <User className="h-3.5 w-3.5 text-orange-500" /> Cliente
+                <User className="h-3.5 w-3.5 text-orange-500" /> {tr("Cliente")}
               </h4>
               <div className="grid grid-cols-2 gap-2 text-sm rounded-lg border border-slate-200 bg-slate-50/50 p-3">
                 <div>
-                  <span className="text-slate-500">Nome:</span>{" "}
+                  <span className="text-slate-500">{tr("Nome:")}</span>{" "}
                   <span className="font-medium">{clientName || "—"}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500">Email:</span>{" "}
+                  <span className="text-slate-500">{tr("Email:")}</span>{" "}
                   <span className="font-medium">{clientEmail || "—"}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500">Azienda:</span>{" "}
+                  <span className="text-slate-500">{tr("Azienda:")}</span>{" "}
                   <span className="font-medium">{clientCompany || "—"}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500">Telefono:</span>{" "}
+                  <span className="text-slate-500">{tr("Telefono:")}</span>{" "}
                   <span className="font-medium">{clientPhone || "—"}</span>
                 </div>
                 {tipoLavoro && (
                   <div className="col-span-2">
-                    <span className="text-slate-500">Tipo di lavoro:</span>{" "}
+                    <span className="text-slate-500">{tr("Tipo di lavoro:")}</span>{" "}
                     <span className="font-medium">{tipoLavoro}</span>
                   </div>
                 )}
                 {indirizzoLavori && (
                   <div className="col-span-2">
-                    <span className="text-slate-500">Indirizzo lavori:</span>{" "}
+                    <span className="text-slate-500">{tr("Indirizzo lavori:")}</span>{" "}
                     <span className="font-medium">{indirizzoLavori}</span>
                   </div>
                 )}
@@ -3566,7 +3563,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
             {/* Items summary */}
             <div>
               <h4 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
-                <Package className="h-3.5 w-3.5 text-orange-500" /> Prodotti ({items.length})
+                <Package className="h-3.5 w-3.5 text-orange-500" /> {tr("Prodotti (")}{items.length})
               </h4>
               {items.length > 0 ? (
                 <>
@@ -3575,10 +3572,10 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Prodotto</TableHead>
-                          <TableHead className="text-right">Qtà</TableHead>
-                          <TableHead className="text-right">Prezzo</TableHead>
-                          <TableHead className="text-right">Totale</TableHead>
+                          <TableHead>{tr("Prodotto")}</TableHead>
+                          <TableHead className="text-right">{tr("Qtà")}</TableHead>
+                          <TableHead className="text-right">{tr("Prezzo")}</TableHead>
+                          <TableHead className="text-right">{tr("Totale")}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -3588,7 +3585,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                               {it.name || "—"}
                               {it.is_optional && (
                                 <Badge variant="outline" className="ml-2 text-xs">
-                                  Opzionale
+                                  {tr("Opzionale")}
                                 </Badge>
                               )}
                             </TableCell>
@@ -3616,7 +3613,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                             {it.name || "—"}
                             {it.is_optional && (
                               <Badge variant="outline" className="ml-1.5 text-[10px]">
-                                Opzionale
+                                {tr("Opzionale")}
                               </Badge>
                             )}
                           </p>
@@ -3633,7 +3630,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                   </div>
                 </>
               ) : (
-                <p className="text-sm text-muted-foreground">Nessuna voce</p>
+                <p className="text-sm text-muted-foreground">{tr("Nessuna voce")}</p>
               )}
             </div>
 
@@ -3645,11 +3642,8 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
               <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
                 <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-600" />
                 <div>
-                  <p className="font-medium">Richiede doppia approvazione</p>
-                  <p className="text-xs mt-0.5">
-                    {approvazioneEsito.motivo} Puoi comunque salvare e inviare: è un controllo di
-                    governance, non un blocco.
-                  </p>
+                  <p className="font-medium">{tr("Richiede doppia approvazione")}</p>
+                  <p className="text-xs mt-0.5">{tr("{motivo} Puoi comunque salvare e inviare: è un controllo di governance, non un blocco.", { motivo: String(approvazioneEsito.motivo ?? "") })}</p>
                 </div>
               </div>
             )}
@@ -3659,9 +3653,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
 
             {selectedMaterials.length > 0 && (
               <div>
-                <h3 className="font-medium mb-2">
-                  Documenti allegati ({selectedMaterials.length})
-                </h3>
+                <h3 className="font-medium mb-2">{tr("Documenti allegati ({n})", { n: selectedMaterials.length })}</h3>
                 <div className="flex flex-wrap gap-2">
                   {selectedMaterials.map((mId) => {
                     const m = materials.find((x) => x.id === mId);
@@ -3682,13 +3674,13 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
               <div className="border-t pt-4">
                 <h3 className="font-medium mb-3 flex items-center gap-2">
                   <Palette className="h-4 w-4" />
-                  Aspetto del Documento
+                  {tr("Aspetto del Documento")}
                 </h3>
                 <div className="space-y-4">
                   <div>
-                    <Label className="text-sm">Offerta completa</Label>
+                    <Label className="text-sm">{tr("Offerta completa")}</Label>
                     <p className="mt-1 text-xs text-muted-foreground max-sm:hidden">
-                      Copertina, testi, condizioni e stile sono inclusi nello stesso modello.
+                      {tr("Copertina, testi, condizioni e stile sono inclusi nello stesso modello.")}
                     </p>
                     <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
                         {offerTemplates.map((tmpl) => {
@@ -3698,7 +3690,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                             onClick={() => { setSelectedTemplateId(tmpl.id); setLayoutOverride(null); }}
                             className={`flex flex-col items-center gap-3 rounded-xl border-2 p-4 text-left transition max-sm:gap-1 max-sm:p-3 ${effectiveSelectedTemplateId === tmpl.id ? "border-orange-500 bg-orange-50/50" : "border-slate-200 bg-slate-50 hover:border-orange-300"}`}>
                             <div className="pointer-events-none max-sm:hidden" aria-hidden="true"><QuoteTemplatePreview template={preview} companyName={effectiveCompany?.name} logoSrc={templateAssetUrl(tmpl.logo_url)} logoLightSrc={effectiveCompany?.brand_logo_dark_url ?? undefined} coverSrc={templateAssetUrl(preview.cover_image_url)} scale={0.25} /></div>
-                            <span className="w-full text-sm font-semibold">{tmpl.name}{tmpl.is_default ? " · Predefinito" : ""}</span>
+                            <span className="w-full text-sm font-semibold">{tmpl.name}{tmpl.is_default ? ` ${tr("· Predefinito")}` : ""}</span>
                             {tmpl.description && <span className="line-clamp-2 w-full text-xs text-muted-foreground max-sm:hidden">{tmpl.description}</span>}
                           </button>
                           );
@@ -3708,7 +3700,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                   {/* Layout quick-select — su telefono 2 per riga: a 4 le anteprime erano francobolli */}
                   {/* Telefono no: l'impaginazione si ritocca dal computer. */}
                   <details className="rounded-lg border p-3 max-sm:hidden">
-                    <summary className="cursor-pointer text-sm">Cambia solo l'impaginazione</summary>
+                    <summary className="cursor-pointer text-sm">{tr("Cambia solo l'impaginazione")}</summary>
                   <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {(
                       ["classic", "modern", "minimal", "bold"] as QuoteTemplateLayout[]
@@ -3747,7 +3739,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
       {step === 2 && (
         // Telefono no: opzioni del PDF, render e allegati sono da scrivania.
         <details className="rounded-xl border border-slate-200 bg-white p-4 max-sm:hidden">
-          <summary className="cursor-pointer font-medium">Personalizza PDF e allegati <span className="text-xs font-normal text-muted-foreground">· facoltativo{selectedMaterials.length ? ` · ${selectedMaterials.length} allegati` : ""}</span></summary>
+          <summary className="cursor-pointer font-medium">{tr("Personalizza PDF e allegati")} <span className="text-xs font-normal text-muted-foreground">{tr("· facoltativo")}{selectedMaterials.length ? tr(" · {n} allegati", { n: selectedMaterials.length }) : ""}</span></summary>
         <div className="mt-4 space-y-4">
             <QuoteRenderPicker
               contactId={contactId}
@@ -3759,17 +3751,17 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Settings2 className="h-4 w-4" />
-                Contenuto del documento
-                <Badge variant="secondary" className="ml-2 text-[10px]">Admin</Badge>
+                {tr("Contenuto del documento")}
+                <Badge variant="secondary" className="ml-2 text-[10px]">{tr("Admin")}</Badge>
               </CardTitle>
               <p className="text-xs text-muted-foreground mt-1">
-                Le modifiche qui valgono solo per questo preventivo. I valori di default si configurano in{" "}
-                <Link to="/azienda/impostazioni/margini#pdf-e-firma" className="underline">Impostazioni → Modelli preventivi e contratti → Prezzo e margini</Link>.
+                {tr("Le modifiche qui valgono solo per questo preventivo. I valori di default si configurano in")}{" "}
+                <Link to="/azienda/impostazioni/margini#pdf-e-firma" className="underline">{tr("Impostazioni → Modelli preventivi e contratti → Prezzo e margini")}</Link>.
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Struttura tabella</h4>
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{tr("Struttura tabella")}</h4>
                 {[
                   { k: "pdfPrezziRiga", v: pdfPrezziRiga, s: setPdfPrezziRiga, l: "Mostra prezzo per ogni riga", h: "Colonne Prezzo/Sconto/IVA sulla riga. Se off: solo Nome+Q.tà+Totale." },
                   { k: "pdfSoloTotale", v: pdfSoloTotale, s: setPdfSoloTotale, l: "Solo totale finale (senza dettaglio righe)", h: "Omette del tutto la tabella prodotti." },
@@ -3786,7 +3778,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
               </div>
 
               <div className="space-y-2 border-t pt-3">
-                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Dettagli prodotto</h4>
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{tr("Dettagli prodotto")}</h4>
                 {[
                   { k: "pdfImmagini", v: pdfImmagini, s: setPdfImmagini, l: "Includi miniature prodotti", h: "Foto 40x40 nella riga (se disponibili in listino)." },
                   { k: "pdfMisure", v: pdfMisure, s: setPdfMisure, l: "Mostra misure (L × H mm)", h: "Sotto al nome per prodotti configurati con misure." },
@@ -3804,7 +3796,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
               </div>
 
               <div className="space-y-2 border-t pt-3">
-                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Note & condizioni</h4>
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{tr("Note & condizioni")}</h4>
                 {[
                   { k: "pdfNoteCliente", v: pdfNoteCliente, s: setPdfNoteCliente, l: "Stampa note cliente", h: "Le note compilate nello Step 0 (visibili al cliente)." },
                 ].map(({ k, v, s, l, h }) => (
@@ -3832,38 +3824,38 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
               </div>
 
               <div className="space-y-2 border-t pt-3">
-                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Firma & presentazione</h4>
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{tr("Firma & presentazione")}</h4>
                 <div className="flex items-start justify-between gap-4 py-1.5">
                   <div className="flex-1">
-                    <Label className="font-normal">Firma digitale abilitata</Label>
-                    <p className="text-xs text-muted-foreground">Il cliente firma online con il codice OTP, dal link che riceve.</p>
+                    <Label className="font-normal">{tr("Firma digitale abilitata")}</Label>
+                    <p className="text-xs text-muted-foreground">{tr("Il cliente firma online con il codice OTP, dal link che riceve.")}</p>
                   </div>
                   <Switch checked={pdfFirma} onCheckedChange={setPdfFirma} />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-1.5">
                   <div>
-                    <Label className="font-normal text-sm">Watermark (opzionale)</Label>
+                    <Label className="font-normal text-sm">{tr("Watermark (opzionale)")}</Label>
                     <Input
                       value={pdfWatermarkText}
                       onChange={(e) => setPdfWatermarkText(e.target.value)}
-                      placeholder='es. "BOZZA", "RISERVATO"'
+                      placeholder={tr("es. \"BOZZA\", \"RISERVATO\"")}
                       className="mt-1 h-9"
                     />
-                    <p className="text-xs text-muted-foreground mt-1">Vuoto = nessun watermark.</p>
+                    <p className="text-xs text-muted-foreground mt-1">{tr("Vuoto = nessun watermark.")}</p>
                   </div>
                   <div>
-                    <Label className="font-normal text-sm">Destinatario copia</Label>
+                    <Label className="font-normal text-sm">{tr("Destinatario copia")}</Label>
                     <Select value={pdfCopiaDestinatario || "cliente"} onValueChange={setPdfCopiaDestinatario}>
                       <SelectTrigger className="mt-1 h-9">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="cliente">Copia cliente</SelectItem>
-                        <SelectItem value="archivio">Copia archivio</SelectItem>
-                        <SelectItem value="commerciale">Copia commerciale</SelectItem>
+                        <SelectItem value="cliente">{tr("Copia cliente")}</SelectItem>
+                        <SelectItem value="archivio">{tr("Copia archivio")}</SelectItem>
+                        <SelectItem value="commerciale">{tr("Copia commerciale")}</SelectItem>
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-muted-foreground mt-1">Intestazione visibile nel PDF.</p>
+                    <p className="text-xs text-muted-foreground mt-1">{tr("Intestazione visibile nel PDF.")}</p>
                   </div>
                 </div>
               </div>
@@ -3874,8 +3866,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
               <CardContent className="p-4 flex items-start gap-3 text-sm text-muted-foreground">
                 <Lock className="h-4 w-4 mt-0.5 shrink-0" />
                 <div>
-                  Le impostazioni di generazione PDF sono gestite dall'amministratore. I valori
-                  correnti verranno applicati automaticamente al salvataggio.
+                  {tr("Le impostazioni di generazione PDF sono gestite dall'amministratore. I valori correnti verranno applicati automaticamente al salvataggio.")}
                 </div>
               </CardContent>
             </Card>
@@ -3883,15 +3874,15 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
 
           <Card>
             <CardHeader>
-              <CardTitle>Documenti Allegati</CardTitle>
+              <CardTitle>{tr("Documenti Allegati")}</CardTitle>
             </CardHeader>
             <CardContent>
               {materials.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <FileStack className="h-10 w-10 mx-auto mb-2 opacity-50" />
-                  <p>Nessun materiale disponibile.</p>
+                  <p>{tr("Nessun materiale disponibile.")}</p>
                   <p className="text-sm">
-                    Carica i PDF in Contenuti Multimediali, poi selezionali qui.
+                    {tr("Carica i PDF in Contenuti Multimediali, poi selezionali qui.")}
                   </p>
                 </div>
               ) : (
@@ -3923,9 +3914,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                       </div>
                     </div>
                   ))}
-                  <p className="text-sm text-muted-foreground mt-2">
-                    {selectedMaterials.length} documenti selezionati
-                  </p>
+                  <p className="text-sm text-muted-foreground mt-2">{tr("{n} documenti selezionati", { n: selectedMaterials.length })}</p>
                 </div>
               )}
             </CardContent>
@@ -3938,7 +3927,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-primary" />
-                Render nella proposta
+                {tr("Render nella proposta")}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -3950,11 +3939,11 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                         <figure className="space-y-1">
                           <img
                             src={fotoPrima}
-                            alt="Come è adesso"
+                            alt={tr("Come è adesso")}
                             loading="lazy"
                             className="h-28 w-40 rounded-lg border object-cover"
                           />
-                          <figcaption className="text-center text-[11px] text-muted-foreground">Adesso</figcaption>
+                          <figcaption className="text-center text-[11px] text-muted-foreground">{tr("Adesso")}</figcaption>
                         </figure>
                         <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
                       </>
@@ -3962,21 +3951,20 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                     <figure className="space-y-1">
                       <img
                         src={renderUrl}
-                        alt="Anteprima render AI allegato al preventivo"
+                        alt={tr("Anteprima render AI allegato al preventivo")}
                         loading="lazy"
                         className="h-28 w-40 rounded-lg border object-cover"
                       />
-                      <figcaption className="text-center text-[11px] text-muted-foreground">Dopo il lavoro</figcaption>
+                      <figcaption className="text-center text-[11px] text-muted-foreground">{tr("Dopo il lavoro")}</figcaption>
                     </figure>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Il PDF del preventivo includerà una pagina finale "Anteprima
-                    render AI" con questa immagine e il disclaimer di legge.
+                    {tr("Il PDF del preventivo includerà una pagina finale \"Anteprima render AI\" con questa immagine e il disclaimer di legge.")}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     <Button type="button" variant="outline" size="sm" onClick={() => setSceltaRenderOpen(true)}>
                       <Sparkles className="mr-1 h-4 w-4" />
-                      Cambia render
+                      {tr("Cambia render")}
                     </Button>
                     <Button
                       type="button"
@@ -3989,19 +3977,18 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                       }}
                     >
                       <Trash2 className="mr-1 h-4 w-4" />
-                      Rimuovi dal preventivo
+                      {tr("Rimuovi dal preventivo")}
                     </Button>
                   </div>
                 </div>
               ) : (
                 <div className="space-y-2">
                   <p className="text-sm text-muted-foreground">
-                    Un render di come verrà il lavoro, accanto ai numeri. Puoi
-                    sceglierne uno fra quelli già fatti, di qualunque verticale.
+                    {tr("Un render di come verrà il lavoro, accanto ai numeri. Puoi sceglierne uno fra quelli già fatti, di qualunque verticale.")}
                   </p>
                   <Button type="button" variant="outline" size="sm" onClick={() => setSceltaRenderOpen(true)}>
                     <Sparkles className="mr-1 h-4 w-4" />
-                    Scegli un render
+                    {tr("Scegli un render")}
                   </Button>
                 </div>
               )}
@@ -4055,10 +4042,10 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
               onModalita={impostaModalitaAnteprima}
               pdfDisponibile
               nota={conPdfVero
-                ? "Il documento vero, come lo riceve il cliente: si rifà da solo poco dopo ogni modifica."
-                : "Bozza visiva: il documento vero è in «PDF vero»."}
+                ? tr("Il documento vero, come lo riceve il cliente: si rifà da solo poco dopo ogni modifica.")
+                : tr("Bozza visiva: il documento vero è in «PDF vero».")}
             >
-              {righeConMisureIncomplete(items) ? <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm">Completa le misure o correggi le formule per aggiornare l'anteprima e salvare.</p> : conPdfVero && bozzaPerIlPdf
+              {righeConMisureIncomplete(items) ? <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm">{tr("Completa le misure o correggi le formule per aggiornare l'anteprima e salvare.")}</p> : conPdfVero && bozzaPerIlPdf
                 ? <PdfVeroPreventivoClassico quoteId={isEdit ? id : null} bozza={bozzaPerIlPdf}
                     // Un preventivo salvato si stampa quando testata e righe sono arrivate: prima uscirebbe a metà.
                     attivo={colonnaAnteprimaVisibile && (!isEdit || (!!existingQuote && existingItemsLoaded))} />
@@ -4068,7 +4055,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
         </div>
         {/* Telefono no: l'anteprima è il passo «Conferma», il totale sta nella barra in basso. */}
         <details className="rounded-xl border bg-white p-3 lg:hidden max-sm:hidden">
-          <summary className="cursor-pointer text-sm font-semibold">Mostra anteprima live · {formatCurrency(total)}</summary>
+          <summary className="cursor-pointer text-sm font-semibold">{tr("Mostra anteprima live · {total}", { total: formatCurrency(total) })}</summary>
           <div className="mt-3"><QuoteLivePreviewPanel {...livePreviewProps} /></div>
         </details>
       </aside>
@@ -4090,20 +4077,20 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
             <div className="hidden lg:flex items-center gap-1.5 text-xs text-slate-500">
               {saving ? (
                 <span className="flex items-center gap-1.5 text-blue-600 font-medium">
-                  <Loader2 className="h-3 w-3 animate-spin" /> Salvataggio…
+                  <Loader2 className="h-3 w-3 animate-spin" /> {tr("Salvataggio…")}
                 </span>
               ) : autosaveFailed || localDraftFailed ? (
                 <span className="flex items-center gap-1.5 text-red-600 font-medium">
-                  <span className="w-2 h-2 rounded-full bg-red-500" /> Errore salvataggio
+                  <span className="w-2 h-2 rounded-full bg-red-500" /> {tr("Errore salvataggio")}
                 </span>
-              ) : localEditor ? <span>Bozza locale condivisa con la chat</span> : isEdit ? (
+              ) : localEditor ? <span>{tr("Bozza locale condivisa con la chat")}</span> : isEdit ? (
                 <span className="flex items-center gap-1.5 text-emerald-600 font-medium">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  {lastSavedHash === draftSerialized ? "Modifiche salvate" : "Modifiche da salvare"}
+                  {lastSavedHash === draftSerialized ? tr("Modifiche salvate") : tr("Modifiche da salvare")}
                 </span>
               ) : (
                 <span className="flex items-center gap-1.5 text-slate-400">
-                  <span className="w-2 h-2 rounded-full bg-slate-300" /> {recoverableDraft ? "Bozza da recuperare" : localDraftSaved ? "Bozza su questo dispositivo" : "Non ancora salvato"}
+                  <span className="w-2 h-2 rounded-full bg-slate-300" /> {recoverableDraft ? tr("Bozza da recuperare") : localDraftSaved ? tr("Bozza su questo dispositivo") : tr("Non ancora salvato")}
                 </span>
               )}
             </div>
@@ -4113,10 +4100,10 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
               onClick={() => setStep(Math.max(0, step - 1))}
               disabled={step === 0}
               className="min-h-11 shrink-0 max-lg:w-11 max-lg:px-0"
-              aria-label="Indietro"
+              aria-label={tr("Indietro")}
             >
               <ArrowLeft className="size-4 lg:mr-1.5" />
-              <span className="hidden lg:inline">Indietro</span>
+              <span className="hidden lg:inline">{tr("Indietro")}</span>
             </Button>
           </div>
 
@@ -4131,7 +4118,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
 
           {/* Telefono: il bottone principale prende il posto che resta. */}
           <div className="flex gap-2 items-center shrink-0 max-sm:flex-1 max-sm:justify-end">
-            {localEditor && <Button size="sm" onClick={localEditor.onBack}>Chat</Button>}
+            {localEditor && <Button size="sm" onClick={localEditor.onBack}>{tr("Chat")}</Button>}
             {!localEditor && step === STEPS.length - 1 && (
               <Button
                 variant="outline"
@@ -4139,14 +4126,14 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                 onClick={() => handleSave("bozza", { anteprima: true })}
                 disabled={saving || anteprimaLoading || !quoteReady}
                 className="min-h-11 max-lg:px-2.5"
-                aria-label="Salva e apri PDF"
+                aria-label={tr("Salva e apri PDF")}
               >
                 {anteprimaLoading ? (
                   <Loader2 className="h-4 w-4 lg:mr-2 animate-spin" />
                 ) : (
                   <Eye className="h-4 w-4 lg:mr-2" />
                 )}
-                <span className="lg:hidden">PDF</span><span className="hidden lg:inline">Salva e apri PDF</span>
+                <span className="lg:hidden">PDF</span><span className="hidden lg:inline">{tr("Salva e apri PDF")}</span>
               </Button>
             )}
             {!localEditor && <Button
@@ -4155,14 +4142,14 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
               onClick={() => handleSave("bozza")}
               disabled={saving}
               className={`min-h-11 px-2.5 text-slate-600 ${quoteReady && step === STEPS.length - 1 ? "max-lg:hidden" : ""}`}
-              aria-label="Salva bozza"
+              aria-label={tr("Salva bozza")}
             >
               {saving ? (
                 <Loader2 className="h-4 w-4 lg:mr-2 animate-spin" />
               ) : (
                 <Save className="h-4 w-4 max-lg:hidden lg:mr-2" />
               )}
-              <span>Salva</span>
+              <span>{tr("Salva")}</span>
             </Button>}
             {step < STEPS.length - 1 ? (
               <button
@@ -4171,7 +4158,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                 disabled={saving}
                 className="inline-flex items-center gap-1.5 px-3.5 sm:px-5 py-2 text-sm font-bold rounded-lg text-white transition-all bg-gradient-to-br from-orange-500 to-eic-amber shadow-[0_4px_12px_rgba(249,115,22,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(249,115,22,0.4)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 min-h-11 max-sm:flex-1 max-sm:justify-center"
               >
-                Avanti<span className="hidden lg:inline"> · {STEPS[step + 1]?.label}</span>
+                {tr("Avanti")}<span className="hidden lg:inline"> · {STEPS[step + 1]?.label}</span>
                 <ArrowRight className="h-4 w-4" />
               </button>
             ) : (
@@ -4186,8 +4173,8 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                 ) : (
                   <FileCheck className="h-4 w-4" />
                 )}
-                <span className="hidden sm:inline">{localEditor ? 'Torna alla chat' : 'Salva preventivo'}</span>
-                <span className="sm:hidden">Salva</span>
+                <span className="hidden sm:inline">{localEditor ? tr("Torna alla chat") : tr("Salva preventivo")}</span>
+                <span className="sm:hidden">{tr("Salva")}</span>
               </button>
             )}
           </div>
@@ -4209,8 +4196,8 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
       >
         <DialogContent className="flex h-[min(88dvh,58rem)] w-[calc(100%_-_1rem)] max-w-4xl flex-col gap-2 rounded-xl p-3 sm:p-4">
           <DialogHeader className="shrink-0 pr-8 text-left">
-            <DialogTitle>Anteprima PDF</DialogTitle>
-            <DialogDescription className="sr-only">Il PDF del preventivo salvato.</DialogDescription>
+            <DialogTitle>{tr("Anteprima PDF")}</DialogTitle>
+            <DialogDescription className="sr-only">{tr("Il PDF del preventivo salvato.")}</DialogDescription>
           </DialogHeader>
           {anteprimaPdf && (
             <>
@@ -4218,13 +4205,13 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                 className="h-auto min-h-0 flex-1 xl:h-auto xl:min-h-0" />
               <DialogFooter className="shrink-0">
                 <Button type="button" variant="outline" className="min-h-11" onClick={() => downloadQuotePdf(anteprimaPdf.blob, anteprimaPdf.path)}>
-                  Scarica PDF
+                  {tr("Scarica PDF")}
                 </Button>
                 {canEditPreventivi && (!existingQuote || ["bozza", "inviata"].includes(existingQuote.status)) && (
                   <Button type="button" className="min-h-11" onClick={() => navigate(
                     `/azienda/marketing/preventivi/${anteprimaPdf.quoteId}`, { state: { apriInvioFirma: true } },
                   )}>
-                    Invia per firma
+                    {tr("Invia per firma")}
                   </Button>
                 )}
               </DialogFooter>
@@ -4246,29 +4233,29 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
         <Dialog open={true} onOpenChange={() => setSmaltimentoAsk(null)}>
           <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Smaltimento materiale vecchio?</DialogTitle>
+              <DialogTitle>{tr("Smaltimento materiale vecchio?")}</DialogTitle>
             </DialogHeader>
             <p className="text-sm text-muted-foreground">
-              Aggiungere una riga per lo smaltimento del materiale esistente?
+              {tr("Aggiungere una riga per lo smaltimento del materiale esistente?")}
             </p>
             <DialogFooter className="gap-2">
               <Button
                 variant="outline"
                 onClick={() => setSmaltimentoAsk(null)}
               >
-                No grazie
+                {tr("No grazie")}
               </Button>
               <Button onClick={() => addSmaltimento(smaltimentoAsk.parentIdx)}>
-                Sì, aggiungi
+                {tr("Sì, aggiungi")}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
 
-      {importaComputo && <Suspense fallback={<p role="status">Apro l'importazione…</p>}><ImportaVociPreventivo open onOpenChange={setImportaComputo}
+      {importaComputo && <Suspense fallback={<p role="status">{tr("Apro l'importazione…")}</p>}><ImportaVociPreventivo open onOpenChange={setImportaComputo}
         vociPresenti={items.length} massimoVoci={1000} consentiAi={consentiPreventivoConversazionale(companyId)}
-        notaDestinazione="Le voci entrano in questo preventivo, con misure modificabili, IVA e sconti per riga."
+        notaDestinazione={tr("Le voci entrano in questo preventivo, con misure modificabili, IVA e sconti per riga.")}
         onAggiungi={voci => { setItems(prev => [...prev, ...righePreventivoDaComputo(voci, ivaPredefinita(), prev.length)]); setImportaComputo(false); }} /></Suspense>}
       {/* FASE 10.4: Apply bundle dialog (famiglie + prodotti + tariffe) */}
       <ApplyBundleDialog

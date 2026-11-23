@@ -63,6 +63,7 @@ import { NewQuoteDialog } from "@/components/marketing/preventivi/moduli/NewQuot
 import { useModuliVendita } from "@/lib/moduli-vendita";
 import { UnifiedPreventiviList } from "@/components/marketing/preventivi/UnifiedPreventiviList";
 import { consentiPreventivoConversazionale } from "@/lib/preventivi/quoteRollout";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const AnalisiPreventivi = lazy(() => import("./AnalisiPreventivi"));
 const QuoteApprovals = lazy(() => import("./QuoteApprovals"));
@@ -76,17 +77,19 @@ const LISTINO_SLUGS = new Set(["ristrutturazione", "bagni", "tetti", "climatizza
 const ALLOWED_USER_TABS = new Set(["lista"]);
 
 function AttesaImportazione({ open, onOpenChange, titolo }: { open: boolean; onOpenChange: (open: boolean) => void; titolo: string }) {
+  const t = useT();
   return <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogContent className="max-w-sm">
       <DialogHeader>
         <DialogTitle>{titolo}</DialogTitle>
-        <DialogDescription role="status">Apertura in corso…</DialogDescription>
+        <DialogDescription role="status">{t("Apertura in corso…")}</DialogDescription>
       </DialogHeader>
     </DialogContent>
   </Dialog>;
 }
 
 export default function Preventivi() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const permissions = usePermissions();
   const companyId = effectiveCompany?.id;
@@ -210,12 +213,12 @@ export default function Preventivi() {
   const isMobile = useIsMobile();
   const vistaCompatta = useIsMobile(1024);
   const hubTabs: HubTab[] = [
-    { key: "lista", label: "Lista Preventivi", icon: <FileSignature className="h-4 w-4" /> },
+    { key: "lista", label: t("Lista Preventivi"), icon: <FileSignature className="h-4 w-4" /> },
     ...(canSeeApprovazioni
       ? [
           {
             key: "approvazioni",
-            label: "Approvazioni sconto",
+            label: t("Approvazioni sconto"),
             icon: <Percent className="h-4 w-4" />,
             badge: pendingApprovalsCount > 0 ? (
               <Badge variant="destructive" className="ml-1 h-5 px-1.5 text-[10px]">
@@ -229,7 +232,7 @@ export default function Preventivi() {
       ? [
           {
             key: "analisi",
-            label: "Analisi AI",
+            label: t("Analisi AI"),
             icon: <BrainCircuit className="h-4 w-4" />,
           },
         ]
@@ -239,7 +242,7 @@ export default function Preventivi() {
   return (
     <div className="space-y-4 max-lg:space-y-3">
       {hubTabs.length > 1 && (
-        <SelettoreSezione nome="Sezioni preventivi" valore={activeTab} onScegli={handleTabChange}
+        <SelettoreSezione nome={t("Sezioni preventivi")} valore={activeTab} onScegli={handleTabChange}
           sezioni={hubTabs.map(({ key, label }) => ({ id: key, label: key === "approvazioni" && pendingApprovalsCount > 0 ? `${label} (${pendingApprovalsCount})` : label }))}
           className="lg:hidden" />
       )}
@@ -249,59 +252,59 @@ export default function Preventivi() {
         <>
           {vistaCompatta ? (
             <div className="flex items-center justify-between gap-2">
-              <h1 className="text-lg font-bold text-slate-900">Preventivi</h1>
+              <h1 className="text-lg font-bold text-slate-900">{t("Preventivi")}</h1>
               <div className="flex shrink-0 items-center gap-2">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="icon" className="size-11" aria-label="Azioni preventivi">
+                    <Button variant="outline" size="icon" className="size-11" aria-label={t("Azioni preventivi")}>
                       <MoreHorizontal aria-hidden="true" className="size-4" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-60 [&_[role=menuitem]]:min-h-11">
                     {localAiEnabled && (
                       <DropdownMenuItem onSelect={() => setShowAiQuote(true)}>
-                        <Sparkles className="mr-2 h-4 w-4 text-orange-600" />Preventivo AI
+                        <Sparkles className="mr-2 h-4 w-4 text-orange-600" />{t("Preventivo AI")}
                       </DropdownMenuItem>
                     )}
                     {puoCreare && <>
-                      <DropdownMenuItem onSelect={() => setShowComputoModal(true)}><FileUp className="mr-2 h-4 w-4" />Computo metrico</DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => setShowSmartImportModal(true)}><FileUp className="mr-2 h-4 w-4" />Importa documento</DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => setShowFotoModal(true)}><Sparkles className="mr-2 h-4 w-4" />Foto, schizzi o audio</DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => setShowSmartInbox(true)}><Inbox className="mr-2 h-4 w-4" />Importazioni recenti</DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => setShowComputoModal(true)}><FileUp className="mr-2 h-4 w-4" />{t("Computo metrico")}</DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => setShowSmartImportModal(true)}><FileUp className="mr-2 h-4 w-4" />{t("Importa documento")}</DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => setShowFotoModal(true)}><Sparkles className="mr-2 h-4 w-4" />{t("Foto, schizzi o audio")}</DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => setShowSmartInbox(true)}><Inbox className="mr-2 h-4 w-4" />{t("Importazioni recenti")}</DropdownMenuItem>
                       <DropdownMenuSeparator />
                     </>}
                     {permissions.canViewSettingsPricing && (
                       <DropdownMenuItem onSelect={() => navigate("/azienda/impostazioni/template-preventivi")}>
-                        <Library className="mr-2 h-4 w-4" />Modelli dei preventivi
+                        <Library className="mr-2 h-4 w-4" />{t("Modelli dei preventivi")}
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuItem onSelect={() => setCestinoOpen(true)}>
-                      <Trash2 className="mr-2 h-4 w-4" />Cestino
+                      <Trash2 className="mr-2 h-4 w-4" />{t("Cestino")}
                     </DropdownMenuItem>
                     {listiniModuli.length > 0 && <>
                       <DropdownMenuSeparator />
-                      <DropdownMenuLabel>Listini lavorazioni</DropdownMenuLabel>
+                      <DropdownMenuLabel>{t("Listini lavorazioni")}</DropdownMenuLabel>
                       {renderListiniItems()}
                     </>}
                   </DropdownMenuContent>
                 </DropdownMenu>
                 {puoCreare && <NewQuoteDialog open={quoteDialogOpen} onOpenChange={handleQuoteDialog} params={searchParams}
-                  trigger={<Button size="sm" className="min-h-11 px-3"><Plus className="mr-1 h-4 w-4" />Nuovo</Button>} />}
+                  trigger={<Button size="sm" className="min-h-11 px-3"><Plus className="mr-1 h-4 w-4" />{t("Nuovo")}</Button>} />}
                 {localAiEnabled && <NewQuoteDialog ai open={showAiQuote} onOpenChange={setShowAiQuote} params={searchParams} />}
               </div>
             </div>
           ) : (
             <QuotePageHeader
-              title="Preventivi"
+              title={t("Preventivi")}
               icon={<FileSignature className="h-5 w-5" />}
               actions={
                 <>
-                  {localAiEnabled && <NewQuoteDialog ai open={showAiQuote} onOpenChange={setShowAiQuote} params={searchParams} trigger={<Button variant="outline" size="sm" aria-label="Preventivo AI" title="Preventivo AI"><Sparkles className="h-4 w-4 xl:mr-2" /><span className="hidden xl:inline">Preventivo AI</span></Button>} />}
+                  {localAiEnabled && <NewQuoteDialog ai open={showAiQuote} onOpenChange={setShowAiQuote} params={searchParams} trigger={<Button variant="outline" size="sm" aria-label={t("Preventivo AI")} title={t("Preventivo AI")}><Sparkles className="h-4 w-4 xl:mr-2" /><span className="hidden xl:inline">{t("Preventivo AI")}</span></Button>} />}
                   {puoCreare && <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="sm" className="h-10 sm:h-9 flex-1 sm:flex-initial" aria-label="Crea preventivo da fonte" title="Crea da documento, computo, foto o audio">
+                      <Button variant="outline" size="sm" className="h-10 sm:h-9 flex-1 sm:flex-initial" aria-label={t("Crea preventivo da fonte")} title={t("Crea da documento, computo, foto o audio")}>
                         <Sparkles className="h-4 w-4 xl:mr-2" />
-                        <span className="hidden xl:inline">Crea da...</span>
+                        <span className="hidden xl:inline">{t("Crea da...")}</span>
                         <ChevronDown className="h-3.5 w-3.5 ml-1 opacity-60" />
                       </Button>
                     </DropdownMenuTrigger>
@@ -311,22 +314,22 @@ export default function Preventivi() {
                         className="font-semibold"
                       >
                         <Sparkles className="h-4 w-4 mr-2 text-orange-500" />
-                        Documento intelligente
-                        <span className="ml-auto text-[10px] text-orange-600">AI sceglie</span>
+                        {t("Documento intelligente")}
+                        <span className="ml-auto text-[10px] text-orange-600">{t("AI sceglie")}</span>
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => setShowSmartInbox(true)}>
                         <Inbox className="h-4 w-4 mr-2" />
-                        Inbox documenti AI
+                        {t("Inbox documenti AI")}
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={() => setShowComputoModal(true)}>
                         <FileUp className="h-4 w-4 mr-2" />
-                        Computo metrico
+                        {t("Computo metrico")}
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => setShowFotoModal(true)}>
                         <Sparkles className="h-4 w-4 mr-2 text-orange-500" />
-                        Foto, schizzi o audio (AI)
-                        <span className="ml-auto text-[10px] text-orange-600">Smart</span>
+                        {t("Foto, schizzi o audio (AI)")}
+                        <span className="ml-auto text-[10px] text-orange-600">{t("Smart")}</span>
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>}
@@ -334,21 +337,21 @@ export default function Preventivi() {
                   {listiniModuli.length > 0 && !isMobile && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="sm" className="h-10 sm:h-9 flex-1 sm:flex-initial" aria-label="Listini lavorazioni" title="Listini lavorazioni">
+                        <Button variant="outline" size="sm" className="h-10 sm:h-9 flex-1 sm:flex-initial" aria-label={t("Listini lavorazioni")} title={t("Listini lavorazioni")}>
                           <Library className="h-4 w-4 xl:mr-2" />
-                          <span className="hidden xl:inline">Listini</span>
+                          <span className="hidden xl:inline">{t("Listini")}</span>
                           <ChevronDown className="h-3.5 w-3.5 ml-1 opacity-60" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-64">
-                        <DropdownMenuLabel>Listini lavorazioni</DropdownMenuLabel>
+                        <DropdownMenuLabel>{t("Listini lavorazioni")}</DropdownMenuLabel>
                         <DropdownMenuSeparator />
                         {renderListiniItems()}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   )}
                   {puoCreare && <NewQuoteDialog open={quoteDialogOpen} onOpenChange={handleQuoteDialog} params={searchParams}
-                    trigger={<Button size="sm" className="h-11 sm:h-10"><Plus className="mr-1.5 h-4 w-4" />Nuovo preventivo</Button>} />}
+                    trigger={<Button size="sm" className="h-11 sm:h-10"><Plus className="mr-1.5 h-4 w-4" />{t("Nuovo preventivo")}</Button>} />}
                 </>
               }
             />
@@ -360,14 +363,14 @@ export default function Preventivi() {
         </>
       )}
 
-      <Suspense fallback={<p role="status" className="py-8 text-sm text-muted-foreground">Caricamento della scheda…</p>}>
+      <Suspense fallback={<p role="status" className="py-8 text-sm text-muted-foreground">{t("Caricamento della scheda…")}</p>}>
         {activeTab === "approvazioni" && canSeeApprovazioni && <QuoteApprovals />}
         {activeTab === "analisi" && canSeeAnalisi && <AnalisiPreventivi />}
       </Suspense>
 
       {/* Modal AI: Computo metrico → Preventivo */}
       {showComputoModal !== null && (
-        <Suspense fallback={<AttesaImportazione open={showComputoModal} onOpenChange={handleComputoModalOpenChange} titolo="Importa computo metrico" />}>
+        <Suspense fallback={<AttesaImportazione open={showComputoModal} onOpenChange={handleComputoModalOpenChange} titolo={t("Importa computo metrico")} />}>
           <ComputoUploadModal
             open={showComputoModal}
             onOpenChange={handleComputoModalOpenChange}
@@ -379,7 +382,7 @@ export default function Preventivi() {
 
       {/* Modal AI: Foto/audio/testo → Preventivo (multi-foto, audio 3min) */}
       {showFotoModal !== null && (
-        <Suspense fallback={<AttesaImportazione open={showFotoModal} onOpenChange={setShowFotoModal} titolo="Importa foto, schizzi o audio" />}>
+        <Suspense fallback={<AttesaImportazione open={showFotoModal} onOpenChange={setShowFotoModal} titolo={t("Importa foto, schizzi o audio")} />}>
           <QuoteFromCaptureDialog
             open={showFotoModal}
             onOpenChange={setShowFotoModal}
@@ -390,7 +393,7 @@ export default function Preventivi() {
 
       {/* Storico operativo degli import AI: riprende computi/listini/fatture senza perderli. */}
       {showSmartInbox !== null && (
-        <Suspense fallback={<AttesaImportazione open={showSmartInbox} onOpenChange={setShowSmartInbox} titolo="Importazioni recenti" />}>
+        <Suspense fallback={<AttesaImportazione open={showSmartInbox} onOpenChange={setShowSmartInbox} titolo={t("Importazioni recenti")} />}>
           <SmartDocumentInboxDialog
             open={showSmartInbox}
             onOpenChange={setShowSmartInbox}
@@ -405,7 +408,7 @@ export default function Preventivi() {
 
       {/* Smart Document Router — AI classifica e smista al modulo giusto */}
       {showSmartImportModal !== null && (
-        <Suspense fallback={<AttesaImportazione open={showSmartImportModal} onOpenChange={setShowSmartImportModal} titolo="Importa documento" />}>
+        <Suspense fallback={<AttesaImportazione open={showSmartImportModal} onOpenChange={setShowSmartImportModal} titolo={t("Importa documento")} />}>
           <SmartDocumentImportModal
             open={showSmartImportModal}
             onOpenChange={setShowSmartImportModal}

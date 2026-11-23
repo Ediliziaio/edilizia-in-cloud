@@ -38,6 +38,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Calculator, UserPlus, Check, X } from "lucide-react";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ContactLite {
   id: string;
@@ -51,6 +52,7 @@ function contactLabel(c: ContactLite): string {
 }
 
 export default function RoiSimulatorPage() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id ?? null;
 
@@ -116,9 +118,9 @@ export default function RoiSimulatorPage() {
         results: payload.results,
         contactId: linkedContact?.id ?? null,
       });
-      toast.success("Simulazione salvata");
+      toast.success(t("Simulazione salvata"));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Errore nel salvataggio");
+      toast.error(e instanceof Error ? e.message : t("Errore nel salvataggio"));
     }
   };
 
@@ -129,11 +131,10 @@ export default function RoiSimulatorPage() {
         <div>
           <h1 className="flex items-center gap-2 text-xl font-bold sm:text-2xl">
             <Calculator className="h-6 w-6 text-primary" />
-            Simulatore ROI
+            {t("Simulatore ROI")}
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Mostra al cliente quanto gli costa <strong>non cambiare</strong> e perché
-            EdiliziaInCloud non è un costo: si ripaga da solo. Muovi i valori durante la trattativa.
+            {t("Mostra al cliente quanto gli costa")} <strong>{t("non cambiare")}</strong> {t("e perché EdiliziaInCloud non è un costo: si ripaga da solo. Muovi i valori durante la trattativa.")}
           </p>
         </div>
       </div>
@@ -141,7 +142,7 @@ export default function RoiSimulatorPage() {
       {/* Collegamento opzionale al contatto CRM */}
       <Card className="border-dashed">
         <CardContent className="flex flex-wrap items-center gap-3 p-3">
-          <Label className="text-xs text-muted-foreground">Collega a un contatto (opzionale)</Label>
+          <Label className="text-xs text-muted-foreground">{t("Collega a un contatto (opzionale)")}</Label>
           {linkedContact ? (
             <Badge variant="secondary" className="gap-1.5 py-1 pl-2.5 pr-1">
               {contactLabel(linkedContact)}
@@ -149,7 +150,7 @@ export default function RoiSimulatorPage() {
                 type="button"
                 onClick={() => setLinkedContact(null)}
                 className="ml-0.5 rounded-full p-0.5 hover:bg-background/60"
-                aria-label="Rimuovi collegamento"
+                aria-label={t("Rimuovi collegamento")}
               >
                 <X className="h-3 w-3" />
               </button>
@@ -159,18 +160,18 @@ export default function RoiSimulatorPage() {
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className="h-8 gap-1.5">
                   <UserPlus className="h-3.5 w-3.5" />
-                  Scegli contatto
+                  {t("Scegli contatto")}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-72 p-0" align="start">
                 <Command shouldFilter={false}>
                   <CommandInput
-                    placeholder="Cerca contatto..."
+                    placeholder={t("Cerca contatto...")}
                     value={search}
                     onValueChange={setSearch}
                   />
                   <CommandList>
-                    <CommandEmpty>Nessun contatto trovato</CommandEmpty>
+                    <CommandEmpty>{t("Nessun contatto trovato")}</CommandEmpty>
                     <CommandGroup>
                       {contacts.map((c) => (
                         <CommandItem

@@ -24,6 +24,7 @@ import {
   chiaveEsigenza,
   esigenzaScelta,
 } from "@/lib/preventivatore/esigenze";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   /** Le esigenze scelte per questo preventivo. */
@@ -54,6 +55,7 @@ export function EsigenzeCliente({
   disabled,
   className,
 }: Props) {
+  const t = useT();
   const haLibreria = libreria.length > 0;
   const opzioniId = useId();
   const [espansa, setEspansa] = useState(valore.length > 0);
@@ -94,19 +96,19 @@ export function EsigenzeCliente({
       <CardContent className="space-y-3 p-4 max-sm:p-3">
         <div className="flex items-center gap-2">
           <MessageCircle className="h-4 w-4 shrink-0 text-orange-500" aria-hidden="true" />
-          <h3 className="min-w-0 text-sm font-semibold leading-tight text-slate-900">Cosa ti ha detto il cliente?</h3>
-          <Badge variant="outline" className="text-[10px] font-medium text-slate-500">Facoltativo</Badge>
-          {valore.length > 0 && <span className="ml-auto shrink-0 text-xs text-slate-500">{valore.length} {valore.length === 1 ? "scelta" : "scelte"}</span>}
+          <h3 className="min-w-0 text-sm font-semibold leading-tight text-slate-900">{t("Cosa ti ha detto il cliente?")}</h3>
+          <Badge variant="outline" className="text-[10px] font-medium text-slate-500">{t("Facoltativo")}</Badge>
+          {valore.length > 0 && <span className="ml-auto shrink-0 text-xs text-slate-500">{t(valore.length === 1 ? "{n} scelta" : "{n} scelte", { n: valore.length })}</span>}
           <button type="button" className="ml-auto -my-1.5 inline-flex size-11 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 lg:hidden"
-            aria-label="Opzioni esigenze del cliente" aria-expanded={espansa} aria-controls={opzioniId}
+            aria-label={t("Opzioni esigenze del cliente")} aria-expanded={espansa} aria-controls={opzioniId}
             onClick={() => setEspansa((aperta) => !aperta)}>
             <ChevronDown aria-hidden="true" className={cn("size-4", espansa && "rotate-180")} />
           </button>
         </div>
         <div id={opzioniId} className={cn("space-y-2.5", !espansa && "max-lg:hidden")}>
-          <p className="text-xs text-slate-500">Le esigenze selezionate compaiono {nelPdf}.</p>
+          <p className="text-xs text-slate-500">{t("Le esigenze selezionate compaiono {dove}.", { dove: t(nelPdf) })}</p>
 
-          <div className="flex flex-wrap gap-2" role="group" aria-label="Esigenze del cliente">
+          <div className="flex flex-wrap gap-2" role="group" aria-label={t("Esigenze del cliente")}>
             {opzioni.map((o) => {
               const scelta = esigenzaScelta(valore, o);
               return (
@@ -134,12 +136,12 @@ export function EsigenzeCliente({
 
           {massimoNelPdf != null && valore.length > massimoNelPdf && (
             <p role="status" className="rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900">
-              Nel PDF escono le prime {massimoNelPdf}, nell'ordine in cui le hai scelte. Le altre restano fuori.
+              {t("Nel PDF escono le prime {n}, nell'ordine in cui le hai scelte. Le altre restano fuori.", { n: massimoNelPdf })}
             </p>
           )}
 
           {valore.length > 0 && (
-            <ul className="space-y-1.5 border-t border-slate-100 pt-3" aria-label="Esigenze scelte">
+            <ul className="space-y-1.5 border-t border-slate-100 pt-3" aria-label={t("Esigenze scelte")}>
               {valore.map((v) => {
                 const aperto = inModifica.has(chiaveEsigenza(v.titolo));
                 const haTesto = Boolean(v.descrizione?.trim());
@@ -149,7 +151,7 @@ export function EsigenzeCliente({
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-slate-900">
                           {v.titolo}
-                          {soloSue.includes(v) && <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-amber-700">solo per questo cliente</span>}
+                          {soloSue.includes(v) && <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-amber-700">{t("solo per questo cliente")}</span>}
                         </p>
                         {!aperto && haTesto && <p className="truncate text-xs text-slate-500">{v.descrizione}</p>}
                       </div>
@@ -158,15 +160,15 @@ export function EsigenzeCliente({
                           <button
                             type="button"
                             aria-expanded={aperto}
-                            aria-label={`${aperto ? "Chiudi" : haTesto ? "Modifica" : "Aggiungi"} il testo di «${v.titolo}»`}
+                            aria-label={aperto ? t("Chiudi il testo di «{voce}»", { voce: v.titolo }) : haTesto ? t("Modifica il testo di «{voce}»", { voce: v.titolo }) : t("Aggiungi il testo di «{voce}»", { voce: v.titolo })}
                             onClick={() => alternaModifica(v.titolo)}
                             className="tap-compact shrink-0 rounded px-1.5 py-0.5 text-xs font-medium text-orange-700 hover:bg-orange-50"
                           >
-                            {aperto ? "Chiudi" : haTesto ? "Modifica testo" : "Aggiungi testo"}
+                            {aperto ? t("Chiudi") : haTesto ? t("Modifica testo") : t("Aggiungi testo")}
                           </button>
                           <button
                             type="button"
-                            aria-label={`Togli «${v.titolo}»`}
+                            aria-label={t("Togli «{voce}»", { voce: v.titolo })}
                             onClick={() => onChange(valore.filter((s) => chiaveEsigenza(s.titolo) !== chiaveEsigenza(v.titolo)))}
                             className="tap-compact shrink-0 rounded p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700"
                           >
@@ -180,8 +182,8 @@ export function EsigenzeCliente({
                         value={v.descrizione ?? ""}
                         disabled={disabled}
                         rows={2}
-                        aria-label={`Testo di «${v.titolo}» nel PDF`}
-                        placeholder="Come lo racconti a questo cliente (facoltativo)"
+                        aria-label={t("Testo di «{voce}» nel PDF", { voce: v.titolo })}
+                        placeholder={t("Come lo racconti a questo cliente (facoltativo)")}
                         onChange={(e) => aggiornaDescrizione(v.titolo, e.target.value)}
                         className="mt-1.5 min-h-0 bg-white text-xs"
                       />
@@ -198,8 +200,8 @@ export function EsigenzeCliente({
                 autoFocus
                 value={nuova.titolo}
                 maxLength={60}
-                placeholder="Il problema, in poche parole (es. «Rumore dalla strada»)"
-                aria-label="Titolo della nuova esigenza"
+                placeholder={t("Il problema, in poche parole (es. «Rumore dalla strada»)")}
+                aria-label={t("Titolo della nuova esigenza")}
                 onChange={(e) => setNuova({ ...nuova, titolo: e.target.value })}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); aggiungiSua(); } }}
                 className="h-9 text-sm"
@@ -207,14 +209,14 @@ export function EsigenzeCliente({
               <Textarea
                 value={nuova.descrizione}
                 rows={2}
-                placeholder="Cosa fai per risolverlo (facoltativo)"
-                aria-label="Testo della nuova esigenza"
+                placeholder={t("Cosa fai per risolverlo (facoltativo)")}
+                aria-label={t("Testo della nuova esigenza")}
                 onChange={(e) => setNuova({ ...nuova, descrizione: e.target.value })}
                 className="min-h-0 text-xs"
               />
               <div className="flex gap-2">
-                <Button type="button" size="sm" onClick={aggiungiSua} disabled={!nuova.titolo.trim()}>Aggiungi</Button>
-                <Button type="button" size="sm" variant="ghost" onClick={() => setNuova(null)}>Annulla</Button>
+                <Button type="button" size="sm" onClick={aggiungiSua} disabled={!nuova.titolo.trim()}>{t("Aggiungi")}</Button>
+                <Button type="button" size="sm" variant="ghost" onClick={() => setNuova(null)}>{t("Annulla")}</Button>
               </div>
             </div>
           )}
@@ -228,7 +230,7 @@ export function EsigenzeCliente({
                   onClick={() => setIdeeAperte((a) => !a)}
                   className="tap-compact text-xs font-medium text-orange-700 underline-offset-2 hover:underline"
                 >
-                  {ideeAperte ? "Nascondi le idee pronte" : `Altre idee pronte (${ideePronte.length})`}
+                  {ideeAperte ? t("Nascondi le idee pronte") : t("Altre idee pronte ({n})", { n: ideePronte.length })}
                 </button>
               )}
               {!disabled && !nuova && (
@@ -237,7 +239,7 @@ export function EsigenzeCliente({
                   onClick={() => setNuova({ titolo: "", descrizione: "" })}
                   className="tap-compact inline-flex items-center gap-1 text-xs font-medium text-orange-700 underline-offset-2 hover:underline"
                 >
-                  <Plus className="h-3.5 w-3.5" aria-hidden="true" /> Aggiungi una tua
+                  <Plus className="h-3.5 w-3.5" aria-hidden="true" /> {t("Aggiungi una tua")}
                 </button>
               )}
             </div>

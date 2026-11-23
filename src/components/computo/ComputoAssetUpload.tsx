@@ -3,11 +3,13 @@ import { ImagePlus, Loader2, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { caricaAssetModello, urlAssetModello, type TipoAssetModello } from "@/lib/computo/assetModello";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function ComputoAssetUpload({ companyId, tipo, label, valore, onChange, onBusy, disabled }: {
   companyId?: string; tipo: TipoAssetModello; label: string; valore: string;
   onChange: (percorso: string, nome: string) => void; onBusy: (busy: boolean) => void; disabled?: boolean;
 }) {
+  const t = useT();
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false), [anteprima, setAnteprima] = useState({ percorso: "", url: "" });
   const url = anteprima.percorso === valore ? anteprima.url : "";
@@ -24,14 +26,14 @@ export function ComputoAssetUpload({ companyId, tipo, label, valore, onChange, o
         const file = e.currentTarget.files?.[0]; e.currentTarget.value = "";
         if (!file || !companyId) return;
         setBusy(true); onBusy(true);
-        try { onChange(await caricaAssetModello(companyId, file, tipo), file.name.replace(/\.ttf$/i, "")); toast.success("File caricato", { description: "Salva il modello per mantenere la modifica." }); }
-        catch (e) { toast.error(e instanceof Error ? e.message : "Caricamento non riuscito."); }
+        try { onChange(await caricaAssetModello(companyId, file, tipo), file.name.replace(/\.ttf$/i, "")); toast.success(t("File caricato"), { description: t("Salva il modello per mantenere la modifica.") }); }
+        catch (e) { toast.error(e instanceof Error ? e.message : t("Caricamento non riuscito.")); }
         finally { setBusy(false); onBusy(false); }
       }} />
-      <Button type="button" size="sm" variant="outline" disabled={disabled || busy || !companyId} onClick={() => input.current?.click()}>{busy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : tipo === "font" ? <Upload className="mr-1.5 h-3.5 w-3.5" /> : <ImagePlus className="mr-1.5 h-3.5 w-3.5" />}{valore ? "Sostituisci" : "Carica"} {label.toLowerCase()}</Button>
-      {valore && <Button type="button" size="icon" variant="ghost" disabled={disabled || busy} aria-label={`Rimuovi ${label.toLowerCase()}`} onClick={() => onChange("", "")}><Trash2 className="h-4 w-4" /></Button>}
-      {valore && tipo === "font" && <span className="text-xs text-emerald-700">TTF caricato</span>}
+      <Button type="button" size="sm" variant="outline" disabled={disabled || busy || !companyId} onClick={() => input.current?.click()}>{busy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : tipo === "font" ? <Upload className="mr-1.5 h-3.5 w-3.5" /> : <ImagePlus className="mr-1.5 h-3.5 w-3.5" />}{valore ? t("Sostituisci") : t("Carica")} {label.toLowerCase()}</Button>
+      {valore && <Button type="button" size="icon" variant="ghost" disabled={disabled || busy} aria-label={t("Rimuovi {label}", { label: label.toLowerCase() })} onClick={() => onChange("", "")}><Trash2 className="h-4 w-4" /></Button>}
+      {valore && tipo === "font" && <span className="text-xs text-emerald-700">{t("TTF caricato")}</span>}
     </div>
-    <p className="text-[11px] leading-relaxed text-muted-foreground">{tipo === "font" ? "TrueType statico (.ttf), massimo 3 MB. Carica solo caratteri che puoi usare nei tuoi documenti." : tipo === "logo" ? "PNG o JPG, massimo 2 MB. Dedicato a questo modello; il marchio aziendale resta disponibile." : "PNG o JPG, massimo 5 MB. L'immagine viene adattata allo spazio della copertina."}</p>
+    <p className="text-[11px] leading-relaxed text-muted-foreground">{tipo === "font" ? t("TrueType statico (.ttf), massimo 3 MB. Carica solo caratteri che puoi usare nei tuoi documenti.") : tipo === "logo" ? t("PNG o JPG, massimo 2 MB. Dedicato a questo modello; il marchio aziendale resta disponibile.") : t("PNG o JPG, massimo 5 MB. L'immagine viene adattata allo spazio della copertina.")}</p>
   </div>;
 }

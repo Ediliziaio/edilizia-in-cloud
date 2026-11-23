@@ -11,6 +11,7 @@ import QuoteLineEditor, { type EditableQuoteLine } from "./QuoteLineEditor";
 import type { QuoteItemPro } from "@/types/quoteItem";
 import { advanceApartment, apartmentCodes, apartmentQuestions, apartmentQuoteItems, apartmentSimulations, APARTMENT_GAPS,
   buildApartmentLines, type ApartmentConversation, type ApartmentKey, type ApartmentLine, type ApartmentOverride, type ApartmentStep } from "@/lib/preventivi/devLombardiaApartment";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import "./QuoteAiSimulation.css";
 
 type Action = { label: string; command: string };
@@ -26,6 +27,7 @@ const answers: Record<ApartmentStep, string[]> = {
 };
 
 export default function QuoteConversationWorkspace({ companyName = "Demo Azienda 2", onOpenPlan, onOpenReal }: { companyId?: string; companyName?: string; onOpenPlan?: () => void; onOpenReal?: () => void }) {
+  const t = useT();
   const [intent, setIntent] = useState<"regional" | "synthetic" | null>(null);
   const [sourceId, setSourceId] = useState<string | null>(null);
   const fonti = usePrezzarioFonti(intent === "regional");
@@ -50,7 +52,7 @@ export default function QuoteConversationWorkspace({ companyName = "Demo Azienda
     const title = change.title ?? item.name; const unit = change.unit ?? item.unit_of_measure ?? "mq";
     const quantity = Object.hasOwn(change, "quantity") ? change.quantity ?? null : item.quantity;
     const price = Object.hasOwn(change, "price") ? change.price ?? null : item.unit_price;
-    const issue = !title.trim() || !unit.trim() ? "Titolo e unità sono obbligatori." : quantity == null || price == null ? "Completa quantità e prezzo." : null;
+    const issue = !title.trim() || !unit.trim() ? t("Titolo e unità sono obbligatori.") : quantity == null || price == null ? t("Completa quantità e prezzo.") : null;
     return { id: String(index), title, description: change.description ?? item.description ?? "", unit, quantity, price, issue,
       included: !issue && change.approved !== false, reference: "Esempio sintetico, non un prezzo regionale" };
   });
@@ -183,29 +185,29 @@ export default function QuoteConversationWorkspace({ companyName = "Demo Azienda
   };
 
   return <main className="simulation-shell chat-only-workspace">
-    <header className="simulation-head"><div><span className="simulation-kicker">{companyName.toUpperCase()} · PROVA LOCALE</span><h1>Dal dialogo al preventivo.</h1><p>Creazione e listini nella chat. Ogni voce resta modificabile anche sotto.</p></div><span className="simulation-safe">Nessun invio · Nessuna scrittura</span></header>
+    <header className="simulation-head"><div><span className="simulation-kicker">{companyName.toUpperCase()} · {t("PROVA LOCALE")}</span><h1>{t("Dal dialogo al preventivo.")}</h1><p>{t("Creazione e listini nella chat. Ogni voce resta modificabile anche sotto.")}</p></div><span className="simulation-safe">{t("Nessun invio · Nessuna scrittura")}</span></header>
     <div className="simulation-columns regional-layout">
-      <div className="chat-editing-column"><section className="quote-lab-chat" aria-label="Chat unica preventivo">
-        <header className="chat-workspace-header"><div><span>Assistente preventivi</span><small>Prototipo guidato · nessuna chiamata AI a pagamento</small></div><span className={`chat-operation-status ${reading ? 'working' : ''}`}><i aria-hidden="true" />{reading ? "Consulto il listino" : "Pronto"}</span></header>
+      <div className="chat-editing-column"><section className="quote-lab-chat" aria-label={t("Chat unica preventivo")}>
+        <header className="chat-workspace-header"><div><span>{t("Assistente preventivi")}</span><small>{t("Prototipo guidato · nessuna chiamata AI a pagamento")}</small></div><span className={`chat-operation-status ${reading ? 'working' : ''}`}><i aria-hidden="true" />{reading ? t("Consulto il listino") : t("Pronto")}</span></header>
         <div className="quote-lab-messages" ref={transcript} role="log" aria-live="polite">
-          {messages.length === 1 && onOpenPlan && <article className="quote-lab-message assistant"><small>Nuovo caso di prova</small><p>Prova anche il progetto dalla planimetria: misure parziali, ambito e voci da confermare. Simulazione dichiarata, senza OCR o LLM.</p><div className="quote-lab-suggestions"><button onClick={onOpenPlan}>Simula dalla planimetria</button>{onOpenReal && <button onClick={onOpenReal}>Apri chat AI locale</button>}</div></article>}
-          {messages.map((m, i) => <article key={i} className={`quote-lab-message ${m.role}`}><small>{m.role === "user" ? "Tu" : "Assistente · prova locale"}</small><p>{m.text}</p>
-            {m.lines && <ol className="chat-source-lines">{m.lines.map((line, index) => <li key={line.key}><strong>{index + 1}. {line.title}</strong><p>{line.quantity ?? "Da misurare"} {line.unit} × {line.price == null ? "Prezzo mancante" : formatCurrency(line.price)} · {line.included ? "Inclusa" : line.issue ?? "Da confermare"}</p><small>{line.code}{line.manualPrice ? ` · prezzo manuale; riferimento ${line.referencePrice == null ? "assente" : formatCurrency(line.referencePrice)}` : ""}</small><details><summary>Leggi specifiche originali del listino</summary><p>{line.referenceDescription || line.issue}</p></details></li>)}</ol>}
+          {messages.length === 1 && onOpenPlan && <article className="quote-lab-message assistant"><small>{t("Nuovo caso di prova")}</small><p>{t("Prova anche il progetto dalla planimetria: misure parziali, ambito e voci da confermare. Simulazione dichiarata, senza OCR o LLM.")}</p><div className="quote-lab-suggestions"><button onClick={onOpenPlan}>{t("Simula dalla planimetria")}</button>{onOpenReal && <button onClick={onOpenReal}>{t("Apri chat AI locale")}</button>}</div></article>}
+          {messages.map((m, i) => <article key={i} className={`quote-lab-message ${m.role}`}><small>{m.role === "user" ? t("Tu") : t("Assistente · prova locale")}</small><p>{m.text}</p>
+            {m.lines && <ol className="chat-source-lines">{m.lines.map((line, index) => <li key={line.key}><strong>{index + 1}. {line.title}</strong><p>{line.quantity ?? t("Da misurare")} {line.unit} × {line.price == null ? t("Prezzo mancante") : formatCurrency(line.price)} · {line.included ? t("Inclusa") : line.issue ?? t("Da confermare")}</p><small>{line.code}{line.manualPrice ? ` · prezzo manuale; riferimento ${line.referencePrice == null ? "assente" : formatCurrency(line.referencePrice)}` : ""}</small><details><summary>{t("Leggi specifiche originali del listino")}</summary><p>{line.referenceDescription || line.issue}</p></details></li>)}</ol>}
             {m.actions && <div className="quote-lab-suggestions">{m.actions.map(a => <button key={a.command} disabled={reading} onClick={() => {
               if (m.lines && signature(m.lines) !== signature(lines)) { append({ role: "assistant", text: "Le voci sono cambiate rispetto a quel messaggio: verifica questo elenco aggiornato prima di confermare.", lines, actions: [action("Conferma tutte le voci disponibili")] }); return; }
               send(a.command, a.label);
             }}>{a.label}</button>)}</div>}
           </article>)}
-          {reading && <ThinkingProgress status="thinking" steps={[{ id: "regional-read", text: sourceId ? "Leggo i codici esatti dalla fonte confermata" : "Verifico le fonti pubblicate già presenti", status: "active" }]} />}
+          {reading && <ThinkingProgress status="thinking" steps={[{ id: "regional-read", text: sourceId ? t("Leggo i codici esatti dalla fonte confermata") : t("Verifico le fonti pubblicate già presenti"), status: "active" }]} />}
         </div>
         <ThinkingPromptInput value={input} onValueChange={setInput} onSubmit={() => send()} busy={reading} onStop={() => { setIntent(null); setSourceId(null); notices.current.clear(); append({ role: "assistant", text: "Lettura interrotta: nessun risultato tardivo verrà applicato. Scrivi «ricomincia» per un nuovo progetto." }); }} />
-        <p className="quote-lab-caption">Invio per rispondere · «Mostra voci» per i dettagli · «Ricomincia» per un nuovo progetto. Numeri suggeriti e simulazioni non sostituiscono un rilievo.</p>
+        <p className="quote-lab-caption">{t("Invio per rispondere · «Mostra voci» per i dettagli · «Ricomincia» per un nuovo progetto. Numeri suggeriti e simulazioni non sostituiscono un rilievo.")}</p>
       </section><QuoteLineEditor rows={editorRows} onPatch={editRow} onReset={resetRow} /></div>
       <aside><QuoteLivePreviewPanel template={{ name: source ? `PARZIALE · ${source.nome}` : "Bozza locale · dati da confermare", primary_color: "#173f39", show_validity_date: false, show_payment_terms: false }} companyName={companyName} clientName="Cliente DEMO" title={intent === "regional" ? "Trilocale 80 m² · ristrutturazione" : "Preventivo in composizione"} validityDays={30}
         items={items} subtotal={totals.subtotale} net={totals.subtotale_netto} total={intent === "regional" ? totals.subtotale_netto : totals.totale} vatBreakdown={intent === "regional" ? {} : totals.iva_breakdown}
         discountPercent={discount} manualPrice={false} showPrices onlyTotal={false} showDiscounts showNotes showConditions={false} showSignature={false} paymentMethod="" paymentPhases={[]}
         taxPending={intent !== "synthetic"} offerOnly animateChanges notes={intent === "regional" ? `${items.length} voci confermate. Impianti, completamenti, tempi e costi interni ancora da valutare: chiedi «Cosa manca?» in chat. Non è un preventivo completo.` : "Misure, prezzi e IVA sintetici, solo per provare l’esperienza. Non è un’offerta."}
-        previewNotice="PROVA LOCALE. Creazione in chat, modifiche anche nella tabella sotto. Nessun documento reale viene salvato o inviato." />
+        previewNotice={t("PROVA LOCALE. Creazione in chat, modifiche anche nella tabella sotto. Nessun documento reale viene salvato o inviato.")} />
       </aside>
     </div>
   </main>;

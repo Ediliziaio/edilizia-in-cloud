@@ -12,6 +12,7 @@ import type { ReactNode } from "react";
 import { PanelRightClose } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { VistaAnteprima } from "@/lib/preventivatore/anteprima";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type ModalitaAnteprima = "veloce" | "pdf";
 
@@ -58,31 +59,32 @@ function Interruttore<T extends string>({
 export function PannelloAnteprima({
   children, modalita = "veloce", onModalita, pdfDisponibile, vista = "cliente", onVista, puoVedereImpresa, onNascondi, nota, className,
 }: Props) {
+  const t = useT();
   return (
     <div className={cn("space-y-2", className)}>
       <div className="flex flex-wrap items-center gap-2">
         {pdfDisponibile && (
           <Interruttore
-            etichetta="Che anteprima vedere"
+            etichetta={t("Che anteprima vedere")}
             valore={modalita}
             onChange={onModalita}
-            opzioni={[{ v: "veloce", label: "Anteprima" }, { v: "pdf", label: "PDF vero" }]}
+            opzioni={[{ v: "veloce", label: t("Anteprima") }, { v: "pdf", label: t("PDF vero") }]}
           />
         )}
         {puoVedereImpresa && modalita === "veloce" && (
           <Interruttore
-            etichetta="Per chi è l'anteprima"
+            etichetta={t("Per chi è l'anteprima")}
             valore={vista}
             onChange={onVista}
-            opzioni={[{ v: "cliente", label: "Cliente" }, { v: "impresa", label: "Impresa" }]}
+            opzioni={[{ v: "cliente", label: t("Cliente") }, { v: "impresa", label: t("Impresa") }]}
           />
         )}
         {onNascondi && (
           <button
             type="button"
             onClick={onNascondi}
-            title="Nascondi l'anteprima"
-            aria-label="Nascondi l'anteprima"
+            title={t("Nascondi l'anteprima")}
+            aria-label={t("Nascondi l'anteprima")}
             className="tap-compact ml-auto rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
           >
             <PanelRightClose className="h-4 w-4" aria-hidden="true" />

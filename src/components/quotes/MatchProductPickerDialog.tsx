@@ -31,6 +31,7 @@ import { useCatalogItems } from "@/hooks/useCatalogItems";
 import { useCatalogCategories } from "@/hooks/useCatalogCategories";
 import { useCatalogMacrocategories } from "@/hooks/useCatalogMacrocategories";
 import type { CatalogItem } from "@/types/catalogItem";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   open: boolean;
@@ -43,15 +44,16 @@ interface Props {
 
 type SourceFilter = "all" | "family" | "article";
 
-function formatPriceHint(item: CatalogItem): string {
+function formatPriceHint(tr: ReturnType<typeof useT>, item: CatalogItem): string {
   const mod = item.modalita_prezzo;
   if (mod === "mq") return `${formatCurrency(item.prezzo_base_vendita)}/mq`;
   if (mod === "griglia" || mod === "misura_libera")
-    return `da ${formatCurrency(item.prezzo_base_vendita)}`;
+    return tr("da {prezzo}", { prezzo: formatCurrency(item.prezzo_base_vendita) });
   return `${formatCurrency(item.prezzo_base_vendita)}/${item.unit_of_measure || "pz"}`;
 }
 
 export function MatchProductPickerDialog({ open, onOpenChange, initialQuery = "", onSelect }: Props) {
+  const tr = useT();
   // ── Scroll container ref per virtualizer ──────────────────────────────────
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -126,13 +128,13 @@ export function MatchProductPickerDialog({ open, onOpenChange, initialQuery = ""
     for (const item of filteredItems) {
       const catId = item.categoria_id ?? "_none";
       const catName = catId === "_none"
-        ? "Senza categoria"
-        : (allCategorie.find((c) => c.id === catId)?.nome ?? "Categoria");
+        ? tr("Senza categoria")
+        : (allCategorie.find((c) => c.id === catId)?.nome ?? tr("Categoria"));
       if (!map.has(catId)) map.set(catId, { categoria_nome: catName, items: [] });
       map.get(catId)!.items.push(item);
     }
     return [...map.values()];
-  }, [filteredItems, allCategorie]);
+  }, [filteredItems, allCategorie, tr]);
 
   // Fix 5: Flatten grouped items into virtual rows:
   //   { type: 'header', name, count } → 36px
@@ -187,11 +189,10 @@ export function MatchProductPickerDialog({ open, onOpenChange, initialQuery = ""
         <SheetHeader className="px-6 pt-6 pb-3 border-b shrink-0">
           <SheetTitle className="flex items-center gap-2">
             <Package className="h-5 w-5 text-primary" />
-            Abbina al listino
+            {tr("Abbina al listino")}
           </SheetTitle>
           <SheetDescription>
-            Trova un articolo o una famiglia del catalogo aziendale e cliccalo per abbinarlo
-            alla voce.
+            {tr("Trova un articolo o una famiglia del catalogo aziendale e cliccalo per abbinarlo alla voce.")}
           </SheetDescription>
         </SheetHeader>
 
@@ -202,7 +203,7 @@ export function MatchProductPickerDialog({ open, onOpenChange, initialQuery = ""
             <Input
               value={searchRaw}
               onChange={(e) => setSearchRaw(e.target.value)}
-              placeholder="Cerca per nome, descrizione, SKU…"
+              placeholder={tr("Cerca per nome, descrizione, SKU…")}
               className="pl-9 pr-9"
               autoFocus
             />
@@ -211,7 +212,7 @@ export function MatchProductPickerDialog({ open, onOpenChange, initialQuery = ""
                 type="button"
                 onClick={() => setSearchRaw("")}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                aria-label="Cancella ricerca"
+                aria-label={tr("Cancella ricerca")}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -222,7 +223,7 @@ export function MatchProductPickerDialog({ open, onOpenChange, initialQuery = ""
           {macros.length > 1 ? (
             <div>
               <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
-                Macrocategoria
+                {tr("Macrocategoria")}
               </div>
               <div className="flex flex-wrap gap-1.5">
                 <FilterChip
@@ -231,7 +232,7 @@ export function MatchProductPickerDialog({ open, onOpenChange, initialQuery = ""
                     setMacroId(null);
                     setCategoriaId(null);
                   }}
-                  label="Tutte"
+                  label={tr("Tutte")}
                 />
                 {macros.map((m) => (
                   <FilterChip
@@ -254,13 +255,13 @@ export function MatchProductPickerDialog({ open, onOpenChange, initialQuery = ""
           {visibleCategorie.length > 0 ? (
             <div>
               <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
-                Categoria
+                {tr("Categoria")}
               </div>
               <div className="flex flex-wrap gap-1.5">
                 <FilterChip
                   active={categoriaId === null}
                   onClick={() => setCategoriaId(null)}
-                  label="Tutte"
+                  label={tr("Tutte")}
                 />
                 {visibleCategorie.slice(0, 30).map((c) => (
                   <FilterChip
@@ -278,7 +279,7 @@ export function MatchProductPickerDialog({ open, onOpenChange, initialQuery = ""
 
           {/* Tipo (famiglia / articolo) */}
           <div className="flex items-center gap-2">
-            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Tipo</span>
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{tr("Tipo")}</span>
             <div className="inline-flex rounded-md border bg-background p-0.5">
               {(["all", "family", "article"] as const).map((s) => (
                 <button
@@ -291,7 +292,7 @@ export function MatchProductPickerDialog({ open, onOpenChange, initialQuery = ""
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  {s === "all" ? "Tutto" : s === "family" ? "Famiglie" : "Articoli"}
+                  {s === "all" ? tr("Tutto") : s === "family" ? tr("Famiglie") : tr("Articoli")}
                 </button>
               ))}
             </div>
@@ -302,14 +303,14 @@ export function MatchProductPickerDialog({ open, onOpenChange, initialQuery = ""
                 className="ml-auto h-6 text-[10px]"
                 onClick={clearAllFilters}
               >
-                <X className="h-3 w-3 mr-1" /> Reset filtri
+                <X className="h-3 w-3 mr-1" /> {tr("Reset filtri")}
               </Button>
             ) : null}
           </div>
 
           {/* Riepilogo risultati */}
           <div className="text-[10px] text-muted-foreground">
-            {isLoading ? "Caricamento…" : `${filteredItems.length} prodott${filteredItems.length === 1 ? "o" : "i"} trovat${filteredItems.length === 1 ? "o" : "i"}`}
+            {isLoading ? tr("Caricamento…") : tr(filteredItems.length === 1 ? "{n} prodotto trovato" : "{n} prodotti trovati", { n: filteredItems.length })}
           </div>
         </div>
 
@@ -415,6 +416,7 @@ interface ProductCardProps {
 }
 
 function ProductCard({ item, onSelect }: ProductCardProps) {
+  const tr = useT();
   return (
     <button
       type="button"
@@ -442,7 +444,7 @@ function ProductCard({ item, onSelect }: ProductCardProps) {
             variant={item.source === "family" ? "default" : "secondary"}
             className="shrink-0 text-[9px] uppercase"
           >
-            {item.source === "family" ? "Famiglia" : "Articolo"}
+            {item.source === "family" ? tr("Famiglia") : tr("Articolo")}
           </Badge>
         </div>
         {item.descrizione ? (
@@ -450,13 +452,14 @@ function ProductCard({ item, onSelect }: ProductCardProps) {
             {item.descrizione}
           </div>
         ) : null}
-        <div className="mt-1 text-xs font-medium text-foreground/80">{formatPriceHint(item)}</div>
+        <div className="mt-1 text-xs font-medium text-foreground/80">{formatPriceHint(tr, item)}</div>
       </div>
     </button>
   );
 }
 
 function EmptyState({ hasQuery, query }: { hasQuery: boolean; query?: string }) {
+  const tr = useT();
   const trimmedQuery = query?.trim();
   return (
     <div className="rounded-md border border-dashed p-8 text-center">
@@ -464,9 +467,9 @@ function EmptyState({ hasQuery, query }: { hasQuery: boolean; query?: string }) 
       <p className="text-sm text-muted-foreground">
         {hasQuery
           ? trimmedQuery
-            ? `Nessun prodotto trovato per "${trimmedQuery}".`
-            : "Nessun prodotto corrisponde ai filtri."
-          : "Inizia a digitare o seleziona una categoria."}
+            ? tr("Nessun prodotto trovato per \"{ricerca}\".", { ricerca: trimmedQuery })
+            : tr("Nessun prodotto corrisponde ai filtri.")
+          : tr("Inizia a digitare o seleziona una categoria.")}
       </p>
       {hasQuery ? (
         <a
@@ -477,8 +480,8 @@ function EmptyState({ hasQuery, query }: { hasQuery: boolean; query?: string }) 
         >
           <Sparkles className="h-3 w-3" />
           {trimmedQuery
-            ? `Crea "${trimmedQuery}" nel listino`
-            : "Apri il listino e crea questo prodotto"}
+            ? tr("Crea \"{ricerca}\" nel listino", { ricerca: trimmedQuery })
+            : tr("Apri il listino e crea questo prodotto")}
         </a>
       ) : null}
     </div>

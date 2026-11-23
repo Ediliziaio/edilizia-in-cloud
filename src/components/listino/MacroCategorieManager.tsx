@@ -93,6 +93,7 @@ import { FamilyTemplateBulkDialog } from "./FamilyTemplateBulkDialog";
 import { firstGallerySlugFor } from "@/lib/verticalMapping";
 import { useAuthSelector } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // Valori coerenti con companies_vertical_check + fotovoltaico (gestito a parte).
 const VERTICALI_OPTIONS: { value: string; label: string }[] = [
@@ -128,6 +129,7 @@ type DeleteTarget = {
 // Componente
 // ─────────────────────────────────────────────────────────────────────────
 export function MacroCategorieManager() {
+  const tr = useT();
   const { macrocategorie, isLoading: loadingMacro } = useListinoMacrocategorie();
   const { createMacrocategoria, updateMacrocategoria, deleteMacrocategoria } =
     useMacrocategorieMutations();
@@ -222,7 +224,7 @@ export function MacroCategorieManager() {
     if (editMode.kind !== "macro-edit") return;
     const res = await macroImage.upload(editMode.row.id, file);
     if (res.ok === false) {
-      toast.error("Upload fallito", { description: res.error });
+      toast.error(tr("Upload fallito"), { description: res.error });
       return;
     }
     setFormImmagineUrl(res.url);
@@ -234,10 +236,10 @@ export function MacroCategorieManager() {
         id: editMode.row.id,
         patch: { immagine_url: res.url },
       });
-      toast.success("Foto caricata");
+      toast.success(tr("Foto caricata"));
     } catch (err) {
       const { message } = translateListinoError(err);
-      toast.error("Foto caricata ma non salvata sulla riga", { description: message });
+      toast.error(tr("Foto caricata ma non salvata sulla riga"), { description: message });
     }
   };
 
@@ -248,7 +250,7 @@ export function MacroCategorieManager() {
    */
   const handlePhotoTemplateSelect = async (photo: { image_url: string; nome: string }) => {
     if (editMode.kind !== "macro-edit") {
-      toast.error("Salva prima la tipologia, poi scegli una foto.");
+      toast.error(tr("Salva prima la tipologia, poi scegli una foto."));
       return;
     }
     try {
@@ -257,10 +259,10 @@ export function MacroCategorieManager() {
         patch: { immagine_url: photo.image_url },
       });
       setFormImmagineUrl(photo.image_url);
-      toast.success(`Foto "${photo.nome}" applicata`);
+      toast.success(tr("Foto \"{nome}\" applicata", { nome: photo.nome }));
     } catch (err) {
       const { message } = translateListinoError(err);
-      toast.error("Errore applicazione foto", { description: message });
+      toast.error(tr("Errore applicazione foto"), { description: message });
     }
   };
 
@@ -268,7 +270,7 @@ export function MacroCategorieManager() {
     if (editMode.kind !== "macro-edit") return;
     const res = await macroImage.remove(editMode.row.id);
     if (res.ok === false) {
-      toast.error("Rimozione fallita", { description: res.error });
+      toast.error(tr("Rimozione fallita"), { description: res.error });
       return;
     }
     setFormImmagineUrl(null);
@@ -277,10 +279,10 @@ export function MacroCategorieManager() {
         id: editMode.row.id,
         patch: { immagine_url: null },
       });
-      toast.success("Foto rimossa");
+      toast.success(tr("Foto rimossa"));
     } catch (err) {
       const { message } = translateListinoError(err);
-      toast.error("Errore rimozione foto", { description: message });
+      toast.error(tr("Errore rimozione foto"), { description: message });
     }
   };
 
@@ -305,13 +307,13 @@ export function MacroCategorieManager() {
   const handleSubmit = async () => {
     const nome = formNome.trim();
     if (!nome) {
-      toast.error("Nome obbligatorio");
+      toast.error(tr("Nome obbligatorio"));
       return;
     }
 
     const excludeId = editMode.kind === "macro-edit" ? editMode.row.id : undefined;
     if (isDuplicateMacroName(nome, excludeId)) {
-      toast.error("Esiste già una tipologia con questo nome.");
+      toast.error(tr("Esiste già una tipologia con questo nome."));
       return;
     }
 
@@ -328,7 +330,7 @@ export function MacroCategorieManager() {
           tipologia: formTipologia,
           fv_categoria: formTipologia === "fotovoltaico" ? formFvCategoria : null,
         });
-        toast.success("Tipologia creata");
+        toast.success(tr("Tipologia creata"));
         // Post-refactor 20270513200000: bypassiamo il livello categoria
         // (deprecato) e proponiamo SUBITO l'import dei template articolo per
         // il verticale scelto. Lo step subcategorie standard è stato rimosso.
@@ -353,17 +355,17 @@ export function MacroCategorieManager() {
             fv_categoria: formTipologia === "fotovoltaico" ? formFvCategoria : null,
           },
         });
-        toast.success("Tipologia aggiornata");
+        toast.success(tr("Tipologia aggiornata"));
       }
       closeForm();
     } catch (err) {
       const { message, isTransient } = translateListinoError(err);
-      toast.error("Errore salvataggio", {
+      toast.error(tr("Errore salvataggio"), {
         description: message,
         // Su errori transitori (es. schema cache), suggerisci retry rapido.
         ...(isTransient && {
           action: {
-            label: "Riprova",
+            label: tr("Riprova"),
             onClick: () => void handleSubmit(),
           },
         }),
@@ -413,11 +415,11 @@ export function MacroCategorieManager() {
     if (!toDelete) return;
     try {
       await deleteMacrocategoria.mutateAsync(toDelete.row.id);
-      toast.success("Tipologia eliminata");
+      toast.success(tr("Tipologia eliminata"));
       setToDelete(null);
     } catch (err) {
       const { message } = translateListinoError(err);
-      toast.error("Errore eliminazione", { description: message });
+      toast.error(tr("Errore eliminazione"), { description: message });
     }
   };
 
@@ -425,9 +427,9 @@ export function MacroCategorieManager() {
 
   const formTitle =
     editMode.kind === "macro-new"
-      ? "Nuova tipologia"
+      ? tr("Nuova tipologia")
       : editMode.kind === "macro-edit"
-        ? "Modifica tipologia"
+        ? tr("Modifica tipologia")
         : "";
 
   return (
@@ -436,7 +438,7 @@ export function MacroCategorieManager() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-2 border-b">
         <div className="flex items-center gap-3 text-sm">
           <span className="font-medium">
-            {macrocategorie.length} {macrocategorie.length === 1 ? "tipologia" : "tipologie"}
+            {macrocategorie.length} {macrocategorie.length === 1 ? tr("tipologia") : tr("tipologie")}
           </span>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -446,7 +448,7 @@ export function MacroCategorieManager() {
             className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 text-white shadow-sm"
           >
             <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" />
-            Nuova tipologia
+            {tr("Nuova tipologia")}
           </Button>
         </div>
       </div>
@@ -455,25 +457,24 @@ export function MacroCategorieManager() {
         {isLoading ? (
           <div className="flex items-center justify-center py-12 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin mr-2" aria-hidden="true" />
-            Caricamento…
+            {tr("Caricamento…")}
           </div>
         ) : macrocategorie.length === 0 ? (
           <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground space-y-3">
             <Folder className="h-10 w-10 mx-auto opacity-40" aria-hidden="true" />
             <div className="space-y-1">
               <p className="font-medium text-foreground">
-                Nessuna tipologia
+                {tr("Nessuna tipologia")}
               </p>
               <p className="text-xs max-w-md mx-auto">
-                Crea la prima tipologia (es. <em>Serramenti</em>, <em>Tapparelle</em>)
-                per iniziare a strutturare il listino. I prodotti (es.
-                <em> Finestra 1 anta</em>) andranno al suo interno.
+                {tr("Crea la prima tipologia (es.")} <em>{tr("Serramenti")}</em>, <em>{tr("Tapparelle")}</em>{tr(") per iniziare a strutturare il listino. I prodotti (es.")}
+                <em> {tr("Finestra 1 anta")}</em>{tr(") andranno al suo interno.")}
               </p>
             </div>
             <div className="flex flex-wrap gap-2 justify-center pt-1">
               <Button size="sm" onClick={() => openForm({ kind: "macro-new" })}>
                 <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" />
-                Crea tipologia
+                {tr("Crea tipologia")}
               </Button>
             </div>
           </div>
@@ -497,7 +498,7 @@ export function MacroCategorieManager() {
                     const slug = firstGallerySlugFor(m.verticali_abilitati);
                     if (!slug) {
                       toast.error(
-                        "Imposta prima almeno un verticale (in Modifica tipologia).",
+                        tr("Imposta prima almeno un verticale (in Modifica tipologia)."),
                       );
                       return;
                     }
@@ -527,7 +528,7 @@ export function MacroCategorieManager() {
               <div className="min-w-0">
                 <DialogTitle>{formTitle}</DialogTitle>
                 <DialogDescription>
-                  La tipologia raccoglie i prodotti di un tipo (es. <em>Serramenti</em>, <em>Tapparelle</em>) e sta in un'area: i verticali scelti qui sotto decidono in quale preventivatore compare.
+                  {tr("La tipologia raccoglie i prodotti di un tipo (es.")} <em>{tr("Serramenti")}</em>, <em>{tr("Tapparelle")}</em>{tr(") e sta in un'area: i verticali scelti qui sotto decidono in quale preventivatore compare.")}
                 </DialogDescription>
               </div>
             </div>
@@ -535,12 +536,12 @@ export function MacroCategorieManager() {
 
           <div className="space-y-3">
             <div>
-              <Label htmlFor="mc-nome">Nome *</Label>
+              <Label htmlFor="mc-nome">{tr("Nome *")}</Label>
               <Input
                 id="mc-nome"
                 value={formNome}
                 onChange={(e) => setFormNome(e.target.value)}
-                placeholder="es. SERRAMENTI WND SQUARE"
+                placeholder={tr("es. SERRAMENTI WND SQUARE")}
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && formNome.trim() && !saving) {
@@ -554,12 +555,12 @@ export function MacroCategorieManager() {
               <div className="rounded-md border border-orange-200 bg-orange-50/60 p-3 space-y-1">
                 <div className="flex items-center gap-2 text-sm font-medium text-orange-900">
                   <Sparkles className="h-4 w-4 text-orange-600" />
-                  Template pronti per <span className="font-semibold">
-                    {VERTICALI_OPTIONS.find((v) => v.value === formVerticali[0])?.label ?? formVerticali[0]}
+                  {tr("Template pronti per")} <span className="font-semibold">
+                    {(() => { const v = VERTICALI_OPTIONS.find((o) => o.value === formVerticali[0]); return v ? tr(v.label) : formVerticali[0]; })()}
                   </span>
                 </div>
                 <p className="text-xs text-orange-900/80 leading-relaxed">
-                  Dopo il salvataggio ti proporremo di importare i <strong>modelli pronti</strong> del settore (foto, varianti di colore e vetro, griglia prezzi). Potrai personalizzare tutto dopo.
+                  {tr("Dopo il salvataggio ti proporremo di importare i")} <strong>{tr("modelli pronti")}</strong> {tr("del settore (foto, varianti di colore e vetro, griglia prezzi). Potrai personalizzare tutto dopo.")}
                 </p>
               </div>
             )}
@@ -568,7 +569,7 @@ export function MacroCategorieManager() {
                   • principale  → ListinoPickerDialog principale (serramenti veri)
                   • accessorio  → sezione "Accessori e complementi" del progetto */}
             <div className="space-y-2 pt-1 border-t" role="group" aria-labelledby="mc-tipo-etichetta">
-              <Label id="mc-tipo-etichetta" className="text-sm font-medium">Come compare nel preventivo</Label>
+              <Label id="mc-tipo-etichetta" className="text-sm font-medium">{tr("Come compare nel preventivo")}</Label>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -580,9 +581,9 @@ export function MacroCategorieManager() {
                       : "border-slate-200 hover:border-orange-300"
                   }`}
                 >
-                  <div className="text-sm font-medium">📦 Prodotto principale</div>
+                  <div className="text-sm font-medium">{tr("📦 Prodotto principale")}</div>
                   <div className="text-[11px] text-muted-foreground mt-0.5">
-                    Es. Infissi, Persiane, Sanitari. Appare come scelta principale del preventivo.
+                    {tr("Es. Infissi, Persiane, Sanitari. Appare come scelta principale del preventivo.")}
                   </div>
                 </button>
                 <button
@@ -595,9 +596,9 @@ export function MacroCategorieManager() {
                       : "border-slate-200 hover:border-orange-300"
                   }`}
                 >
-                  <div className="text-sm font-medium">🔗 Accessorio</div>
+                  <div className="text-sm font-medium">{tr("🔗 Accessorio")}</div>
                   <div className="text-[11px] text-muted-foreground mt-0.5">
-                    Es. Tapparelle, Cassonetti, Zanzariere. Appare nella sezione "Accessori e complementi".
+                    {tr("Es. Tapparelle, Cassonetti, Zanzariere. Appare nella sezione \"Accessori e complementi\".")}
                   </div>
                 </button>
               </div>
@@ -608,7 +609,7 @@ export function MacroCategorieManager() {
                 prodotti della macro vengono sincronizzati automaticamente nel
                 catalogo Componenti FV (trigger fv_sync_listino_macro). */}
             <div className="space-y-2 pt-1 border-t">
-              <Label htmlFor="mc-tipologia" className="text-sm font-medium">Tipologia listino (per i preventivatori)</Label>
+              <Label htmlFor="mc-tipologia" className="text-sm font-medium">{tr("Tipologia listino (per i preventivatori)")}</Label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <Select
                   value={formTipologia ?? "__none__"}
@@ -619,10 +620,10 @@ export function MacroCategorieManager() {
                   }}
                 >
                   <SelectTrigger id="mc-tipologia">
-                    <SelectValue placeholder="Nessuna tipologia" />
+                    <SelectValue placeholder={tr("Nessuna tipologia")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__none__">— Nessuna tipologia —</SelectItem>
+                    <SelectItem value="__none__">— {tr("Nessuna tipologia")} —</SelectItem>
                     {TIPOLOGIE_LISTINO.map((t) => (
                       <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
                     ))}
@@ -635,11 +636,11 @@ export function MacroCategorieManager() {
                       setFormFvCategoria(v === "__none__" ? null : (v as CategoriaFvListino))
                     }
                   >
-                    <SelectTrigger aria-label="Componente fotovoltaico">
-                      <SelectValue placeholder="Componente FV" />
+                    <SelectTrigger aria-label={tr("Componente fotovoltaico")}>
+                      <SelectValue placeholder={tr("Componente FV")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="__none__">— Scegli componente FV —</SelectItem>
+                      <SelectItem value="__none__">— {tr("Scegli componente FV")} —</SelectItem>
                       {CATEGORIE_FV_LISTINO.map((c) => (
                         <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
                       ))}
@@ -648,9 +649,7 @@ export function MacroCategorieManager() {
                 )}
               </div>
               <p className="text-[11px] text-muted-foreground">
-                Con tipologia <strong>Fotovoltaico</strong> + componente, i prodotti di questa
-                tipologia vengono collegati automaticamente al preventivatore FV
-                (anche quelli aggiunti in futuro).
+                {tr("Con tipologia")} <strong>{tr("Fotovoltaico")}</strong> {tr("+ componente, i prodotti di questa tipologia vengono collegati automaticamente al preventivatore FV (anche quelli aggiunti in futuro).")}
               </p>
             </div>
 
@@ -659,11 +658,11 @@ export function MacroCategorieManager() {
               <div className="space-y-2 pt-1 border-t">
                 <div className="flex items-center gap-2">
                   <ImageIcon className="h-4 w-4 text-muted-foreground" />
-                  <Label id="mc-foto-etichetta" className="text-sm font-medium">Foto della tipologia (facoltativa)</Label>
+                  <Label id="mc-foto-etichetta" className="text-sm font-medium">{tr("Foto della tipologia (facoltativa)")}</Label>
                 </div>
                 {editMode.kind === "macro-new" ? (
                   <p className="text-xs text-muted-foreground italic">
-                    Salva prima la tipologia, poi rientra in modifica per caricare la foto.
+                    {tr("Salva prima la tipologia, poi rientra in modifica per caricare la foto.")}
                   </p>
                 ) : (
                   <div className="flex items-start gap-3">
@@ -672,7 +671,7 @@ export function MacroCategorieManager() {
                       {formImmagineUrl ? (
                         <img loading="lazy"
                           src={formImmagineUrl}
-                          alt={formNome || "Macrocategoria"}
+                          alt={formNome || tr("Macrocategoria")}
                           className="h-full w-full object-cover"
                         />
                       ) : (
@@ -681,9 +680,7 @@ export function MacroCategorieManager() {
                     </div>
                     <div className="flex-1 space-y-2">
                       <p className="text-xs text-muted-foreground">
-                        Foto rappresentativa (es. tipologia infisso/persiana).
-                        Appare nel picker preventivo e nell'elenco. Max 3 MB,
-                        PNG/JPG/WEBP.
+                        {tr("Foto rappresentativa (es. tipologia infisso/persiana). Appare nel picker preventivo e nell'elenco. Max 3 MB, PNG/JPG/WEBP.")}
                       </p>
                       <input
                         ref={fileInputRef}
@@ -707,12 +704,12 @@ export function MacroCategorieManager() {
                           {macroImage.isUploading ? (
                             <>
                               <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                              Carico…
+                              {tr("Carico…")}
                             </>
                           ) : (
                             <>
                               <Upload className="h-3.5 w-3.5 mr-1.5" />
-                              {formImmagineUrl ? "Cambia foto" : "Carica foto"}
+                              {formImmagineUrl ? tr("Cambia foto") : tr("Carica foto")}
                             </>
                           )}
                         </Button>
@@ -725,7 +722,7 @@ export function MacroCategorieManager() {
                           className="border-orange-300 text-orange-700 hover:bg-orange-50"
                         >
                           <ImageIcon className="h-3.5 w-3.5 mr-1.5" />
-                          Scegli da galleria
+                          {tr("Scegli da galleria")}
                         </Button>
                         {formImmagineUrl && (
                           <Button
@@ -737,7 +734,7 @@ export function MacroCategorieManager() {
                             disabled={macroImage.isUploading || macroImage.isRemoving}
                           >
                             <XIcon className="h-3.5 w-3.5 mr-1.5" />
-                            Rimuovi
+                            {tr("Rimuovi")}
                           </Button>
                         )}
                       </div>
@@ -747,12 +744,11 @@ export function MacroCategorieManager() {
                 <div className="pt-2 border-t mt-2" />
                 <div className="flex items-center gap-2">
                   <Tag className="h-4 w-4 text-muted-foreground" />
-                  <Label id="mc-verticali-etichetta" className="text-sm font-medium">Verticali abilitati</Label>
+                  <Label id="mc-verticali-etichetta" className="text-sm font-medium">{tr("Verticali abilitati")}</Label>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Scegli in quali moduli preventivo (Serramenti, Bagno, Fotovoltaico…)
-                  questa tipologia dovrà essere visibile. Lascia <em>tutto deselezionato</em>{" "}
-                  per renderla visibile in tutti i moduli.
+                  {tr("Scegli in quali moduli preventivo (Serramenti, Bagno, Fotovoltaico…) questa tipologia dovrà essere visibile. Lascia")} <em>{tr("tutto deselezionato")}</em>{" "}
+                  {tr("per renderla visibile in tutti i moduli.")}
                 </p>
                 <div className="grid grid-cols-2 gap-x-3 gap-y-2 pt-1 max-h-48 overflow-y-auto" role="group" aria-labelledby="mc-verticali-etichetta">
                   {VERTICALI_OPTIONS.map((v) => (
@@ -764,13 +760,13 @@ export function MacroCategorieManager() {
                         checked={formVerticali.includes(v.value)}
                         onCheckedChange={() => toggleVerticale(v.value)}
                       />
-                      <span>{v.label}</span>
+                      <span>{tr(v.label)}</span>
                     </label>
                   ))}
                 </div>
                 {formVerticali.length === 0 && (
                   <p className="text-xs text-amber-600 dark:text-amber-400 italic">
-                    ⚠️ Nessun verticale selezionato → macro visibile ovunque (generica)
+                    {tr("⚠️ Nessun verticale selezionato → macro visibile ovunque (generica)")}
                   </p>
                 )}
               </div>
@@ -794,16 +790,13 @@ export function MacroCategorieManager() {
                       htmlFor="mc-descrizione-estesa"
                       className="flex items-center justify-between text-sm font-medium"
                     >
-                      <span>Descrizione</span>
+                      <span>{tr("Descrizione")}</span>
                       <span className="text-[10px] text-muted-foreground font-normal">
                         {formDescrizioneEstesa.length}/3000
                       </span>
                     </Label>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Riassunto del modello/linea: caratteristiche distintive,
-                      vantaggi, storytelling. Mostrato nel picker preventivo
-                      (in versione breve) e nella pagina dedicata del PDF
-                      (se attivata nelle impostazioni del preventivo).
+                      {tr("Riassunto del modello/linea: caratteristiche distintive, vantaggi, storytelling. Mostrato nel picker preventivo (in versione breve) e nella pagina dedicata del PDF (se attivata nelle impostazioni del preventivo).")}
                     </p>
                   </div>
                 </div>
@@ -813,12 +806,11 @@ export function MacroCategorieManager() {
                   onChange={(e) => setFormDescrizioneEstesa(e.target.value.slice(0, 3000))}
                   rows={8}
                   placeholder={
-                    "Esempio:\n\nI serramenti WND Square Plus rappresentano il top di gamma del PVC: profilo a 7 camere con guarnizione centrale, Uw fino a 0.9 W/m²K, vetro triplo basso-emissivo di serie. Garanzia 10 anni.\n\nCaratteristiche:\n- Profilo PVC riciclabile classe A\n- Rinforzi in acciaio zincato\n- Disponibile in 24 colori RAL"
+                    tr("Esempio:\n\nI serramenti WND Square Plus rappresentano il top di gamma del PVC: profilo a 7 camere con guarnizione centrale, Uw fino a 0.9 W/m²K, vetro triplo basso-emissivo di serie. Garanzia 10 anni.\n\nCaratteristiche:\n- Profilo PVC riciclabile classe A\n- Rinforzi in acciaio zincato\n- Disponibile in 24 colori RAL")
                   }
                 />
                 <p className="text-[10px] text-muted-foreground">
-                  A capo doppio per nuovi paragrafi. Righe che iniziano con
-                  "<code className="font-mono">- </code>" diventano elenco puntato nel PDF.
+                  {tr("A capo doppio per nuovi paragrafi. Righe che iniziano con \"")}<code className="font-mono">- </code>{tr("\" diventano elenco puntato nel PDF.")}
                 </p>
               </div>
             )}
@@ -826,7 +818,7 @@ export function MacroCategorieManager() {
 
           <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2 pt-2 border-t mt-2">
             <Button variant="ghost" onClick={closeForm} disabled={saving}>
-              Annulla
+              {tr("Annulla")}
             </Button>
             <Button
               onClick={handleSubmit}
@@ -836,10 +828,10 @@ export function MacroCategorieManager() {
               {saving ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />
-                  Salvataggio…
+                  {tr("Salvataggio…")}
                 </>
               ) : (
-                "Salva"
+                tr("Salva")
               )}
             </Button>
           </DialogFooter>
@@ -857,40 +849,39 @@ export function MacroCategorieManager() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {toDelete ? `Eliminare "${toDelete.row.nome}"?` : ""}
+              {toDelete ? tr("Eliminare \"{nome}\"?", { nome: toDelete.row.nome }) : ""}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {!toDelete ? null : toDelete.counts === "loading" ? (
-                "Verifica delle linee e dei prodotti collegati…"
+                tr("Verifica delle linee e dei prodotti collegati…")
               ) : toDelete.counts === "error" ? (
-                'Impossibile verificare i collegamenti. Eventuali linee e prodotti collegati diventeranno "senza tipologia" e nessun prodotto verrà eliminato; le schede delle sue linee invece si cancellano.'
+                tr("Impossibile verificare i collegamenti. Eventuali linee e prodotti collegati diventeranno \"senza tipologia\" e nessun prodotto verrà eliminato; le schede delle sue linee invece si cancellano.")
               ) : toDelete.counts.categorie > 0 || toDelete.counts.famiglie > 0 ? (
                 <>
-                  Collegati a questa tipologia:{" "}
+                  {tr("Collegati a questa tipologia:")}{" "}
                   {toDelete.counts.categorie > 0 && (
                     <>
                       <strong>{toDelete.counts.categorie}</strong>{" "}
-                      {toDelete.counts.categorie === 1 ? "linea" : "linee"}
+                      {toDelete.counts.categorie === 1 ? tr("linea") : tr("linee")}
                     </>
                   )}
                   {toDelete.counts.categorie > 0 && toDelete.counts.famiglie > 0 && " e "}
                   {toDelete.counts.famiglie > 0 && (
                     <>
                       <strong>{toDelete.counts.famiglie}</strong>{" "}
-                      {toDelete.counts.famiglie === 1 ? "prodotto" : "prodotti"}
+                      {toDelete.counts.famiglie === 1 ? tr("prodotto") : tr("prodotti")}
                     </>
                   )}
-                  . Diventeranno &quot;senza tipologia&quot;: nessun prodotto verrà eliminato, ma le
-                  schede delle sue linee si cancellano.
+                  {tr(". Diventeranno \"senza tipologia\": nessun prodotto verrà eliminato, ma le schede delle sue linee si cancellano.")}
                 </>
               ) : (
-                "Nessuna linea o prodotto collegato. Le eventuali schede delle linee si cancellano con la tipologia."
+                tr("Nessuna linea o prodotto collegato. Le eventuali schede delle linee si cancellano con la tipologia.")
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2">
             <AlertDialogCancel disabled={deleting} className="mt-0">
-              Annulla
+              {tr("Annulla")}
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
@@ -900,10 +891,10 @@ export function MacroCategorieManager() {
               {deleting ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />
-                  Eliminazione…
+                  {tr("Eliminazione…")}
                 </>
               ) : (
-                "Elimina"
+                tr("Elimina")
               )}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -974,6 +965,7 @@ function MacroRow({
   onEditSchedaTecnica,
   onImportTemplates,
 }: MacroRowProps) {
+  const tr = useT();
   const verticali = macro.verticali_abilitati ?? [];
   return (
     <div className={`rounded-lg border bg-card transition-shadow hover:shadow-sm ${isOpen ? "ring-1 ring-primary/15" : ""}`}>
@@ -984,7 +976,7 @@ function MacroRow({
           onClick={onToggle}
           className="h-9 w-9 shrink-0 rounded-md inline-flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/60 transition-colors"
           aria-expanded={isOpen}
-          aria-label={isOpen ? `Chiudi ${macro.nome}` : `Apri ${macro.nome}`}
+          aria-label={isOpen ? tr("Chiudi {nome}", { nome: macro.nome }) : tr("Apri {nome}", { nome: macro.nome })}
         >
           {isOpen ? (
             <ChevronDown className="h-4 w-4" aria-hidden="true" />
@@ -998,7 +990,7 @@ function MacroRow({
           type="button"
           onClick={onToggle}
           className="h-11 w-11 shrink-0 rounded-md overflow-hidden border bg-slate-50 dark:bg-slate-900 inline-flex items-center justify-center"
-          aria-label={isOpen ? "Chiudi" : "Apri"}
+          aria-label={isOpen ? tr("Chiudi") : tr("Apri")}
         >
           {macro.immagine_url ? (
             <img loading="lazy"
@@ -1026,9 +1018,9 @@ function MacroRow({
               <Badge
                 variant="outline"
                 className="text-[10px] h-4 px-1.5 py-0 border-orange-300 bg-orange-50/70 text-orange-700 dark:bg-orange-950/30 dark:border-orange-700 dark:text-orange-300 font-medium"
-                title="Accessorio collegato (Tapparelle, Cassonetti, ecc.) — appare nella sezione Accessori del preventivo"
+                title={tr("Accessorio collegato (Tapparelle, Cassonetti, ecc.) — appare nella sezione Accessori del preventivo")}
               >
-                🔗 Accessorio
+                {tr("🔗 Accessorio")}
               </Badge>
             )}
           </div>
@@ -1040,9 +1032,9 @@ function MacroRow({
                     key={v}
                     variant="outline"
                     className="text-[10px] h-4 px-1.5 py-0 border-blue-200 bg-blue-50/70 dark:bg-blue-950/30 dark:border-blue-800 text-blue-700 dark:text-blue-300 font-normal"
-                    title={`Visibile nel modulo ${VERTICAL_LABEL_BY_VALUE.get(v) ?? v}`}
+                    title={tr("Visibile nel modulo {v}", { v: VERTICAL_LABEL_BY_VALUE.has(v) ? tr(VERTICAL_LABEL_BY_VALUE.get(v)!) : v })}
                   >
-                    {VERTICAL_LABEL_BY_VALUE.get(v) ?? v}
+                    {VERTICAL_LABEL_BY_VALUE.has(v) ? tr(VERTICAL_LABEL_BY_VALUE.get(v)!) : v}
                   </Badge>
                 ))}
                 {verticali.length > 4 && (
@@ -1052,7 +1044,7 @@ function MacroRow({
                 )}
               </>
             ) : (
-              <span className="text-[10px] text-muted-foreground italic">Generica (tutti i moduli)</span>
+              <span className="text-[10px] text-muted-foreground italic">{tr("Generica (tutti i moduli)")}</span>
             )}
           </div>
         </button>
@@ -1063,8 +1055,8 @@ function MacroRow({
             variant="ghost"
             size="icon"
             onClick={onEditSchedaTecnica}
-            title="Scheda tecnica — campi del prodotto"
-            aria-label={`Scheda tecnica di ${macro.nome}`}
+            title={tr("Scheda tecnica — campi del prodotto")}
+            aria-label={tr("Scheda tecnica di {nome}", { nome: macro.nome })}
             className="h-9 w-9"
           >
             <Settings2 className="h-4 w-4" aria-hidden="true" />
@@ -1073,8 +1065,8 @@ function MacroRow({
             variant="ghost"
             size="icon"
             onClick={onImportTemplates}
-            title="Importa articoli template del verticale"
-            aria-label={`Importa i modelli pronti in ${macro.nome}`}
+            title={tr("Importa articoli template del verticale")}
+            aria-label={tr("Importa i modelli pronti in {nome}", { nome: macro.nome })}
             className="h-9 w-9 text-orange-700 hover:text-orange-800 hover:bg-orange-50"
           >
             <Sparkles className="h-4 w-4" aria-hidden="true" />
@@ -1083,8 +1075,8 @@ function MacroRow({
             variant="ghost"
             size="icon"
             onClick={onEditMacro}
-            title="Modifica tipologia"
-            aria-label={`Modifica ${macro.nome}`}
+            title={tr("Modifica tipologia")}
+            aria-label={tr("Modifica {nome}", { nome: macro.nome })}
             className="h-9 w-9"
           >
             <Edit2 className="h-4 w-4" aria-hidden="true" />
@@ -1094,8 +1086,8 @@ function MacroRow({
             size="icon"
             onClick={onDeleteMacro}
             className="h-9 w-9 text-destructive hover:text-destructive hover:bg-destructive/10"
-            title="Elimina"
-            aria-label={`Elimina ${macro.nome}`}
+            title={tr("Elimina")}
+            aria-label={tr("Elimina {nome}", { nome: macro.nome })}
           >
             <Trash2 className="h-4 w-4" aria-hidden="true" />
           </Button>
@@ -1105,10 +1097,9 @@ function MacroRow({
       {isOpen && (
         <div className="border-t bg-muted/20">
           <div className="px-6 py-5 text-sm text-muted-foreground text-center">
-            I prodotti di questa tipologia si gestiscono dal{" "}
-            <strong>Listino</strong>. Usa il pulsante{" "}
-            <Sparkles className="inline h-3.5 w-3.5 text-orange-600" /> qui sopra per
-            importare i modelli pronti.
+            {tr("I prodotti di questa tipologia si gestiscono dal")}{" "}
+            <strong>{tr("Listino")}</strong>{tr(". Usa il pulsante")}{" "}
+            <Sparkles className="inline h-3.5 w-3.5 text-orange-600" /> {tr("qui sopra per importare i modelli pronti.")}
           </div>
         </div>
       )}

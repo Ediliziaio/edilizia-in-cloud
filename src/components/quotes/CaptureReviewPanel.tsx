@@ -36,6 +36,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MatchProductPickerDialog } from "./MatchProductPickerDialog";
 import type { CatalogItem } from "@/types/catalogItem";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ExtractedCustomer {
   nome?: string;
@@ -94,6 +95,7 @@ interface Props {
 type ContactStrategy = "auto" | "manual" | "always_new" | "use_existing";
 
 export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const [customer, setCustomer] = useState<ExtractedCustomer>({});
   const [products, setProducts] = useState<MatchedProduct[]>([]);
@@ -135,7 +137,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
         };
       }),
     );
-    toast.success(`Abbinato: ${item.nome}`);
+    toast.success(t("Abbinato: {nome}", { nome: item.nome }));
   };
 
   // Rimuove l'abbinamento (utile se l'utente vuole rifare il match)
@@ -234,23 +236,23 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
   const totalIva = subtotal * 0.22;
   const total = subtotal + totalIva;
   const formatter = useMemo(
-    () => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }),
-    [],
+    () => new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", useGrouping: "always" }),
+    [t],
   );
 
   const reviewIssues = useMemo(() => {
     const issues: string[] = [];
     products.forEach((p, i) => {
-      const label = p.name || p.descrizione_grezza || `Voce ${i + 1}`;
-      if (!String(label).trim()) issues.push(`Voce ${i + 1}: descrizione mancante`);
-      if (Number(p.quantita ?? 0) <= 0) issues.push(`${label}: quantità non valida`);
-      if (Number(p.unit_price ?? 0) <= 0) issues.push(`${label}: prezzo da verificare`);
+      const label = p.name || p.descrizione_grezza || t("Voce {n}", { n: i + 1 });
+      if (!String(label).trim()) issues.push(t("Voce {n}: descrizione mancante", { n: i + 1 }));
+      if (Number(p.quantita ?? 0) <= 0) issues.push(t("{voce}: quantità non valida", { voce: label }));
+      if (Number(p.unit_price ?? 0) <= 0) issues.push(t("{voce}: prezzo da verificare", { voce: label }));
       if ((p.match_confidence ?? 1) < 0.55 && p.match_type !== "manual") {
-        issues.push(`${label}: match listino incerto`);
+        issues.push(t("{voce}: match listino incerto", { voce: label }));
       }
     });
     return issues.slice(0, 6);
-  }, [products]);
+  }, [products, t]);
 
   const updateProduct = (idx: number, patch: Partial<MatchedProduct>) => {
     setProducts((prev) =>
@@ -262,10 +264,10 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
   const removeProduct = (idx: number) => {
     const removed = products[idx];
     setProducts((prev) => prev.filter((_, i) => i !== idx));
-    toast(`Voce rimossa`, {
+    toast(t("Voce rimossa"), {
       description: removed.name ?? removed.descrizione_grezza,
       action: {
-        label: "Annulla",
+        label: t("Annulla"),
         onClick: () =>
           setProducts((prev) => {
             const next = [...prev];
@@ -281,13 +283,13 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
   const validateCustomerField = (field: keyof ExtractedCustomer, value: string) => {
     let error = "";
     if (field === "email" && value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-      error = "Email non valida";
+      error = t("Email non valida");
     }
     if (field === "cf" && value && value.length !== 16) {
-      error = "Codice fiscale deve essere 16 caratteri";
+      error = t("Codice fiscale deve essere 16 caratteri");
     }
     if (field === "piva" && value && !/^\d{11}$/.test(value)) {
-      error = "P.IVA deve essere 11 cifre";
+      error = t("P.IVA deve essere 11 cifre");
     }
     setCustomerErrors((prev) => ({ ...prev, [field]: error || undefined }));
   };
@@ -321,7 +323,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
     setSelectedContactId(c.id);
     setContactStrategy("use_existing");
     setShowNomeSuggestions(false);
-    toast.success(`Contatto selezionato: ${c.first_name ?? ""} ${c.last_name ?? ""}`.trim());
+    toast.success(t("Contatto selezionato: {nome}", { nome: `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() }));
   };
 
   // Rimuove in blocco tutte le voci non abbinate al listino
@@ -334,7 +336,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
     );
     if (unmatched.length === 0) return;
     const ok = window.confirm(
-      `Rimuovere ${unmatched.length} ${unmatched.length === 1 ? "voce non abbinata" : "voci non abbinate"}?`,
+      t(unmatched.length === 1 ? "Rimuovere {n} voce non abbinata?" : "Rimuovere {n} voci non abbinate?", { n: unmatched.length }),
     );
     if (!ok) return;
     setProducts((prev) =>
@@ -357,13 +359,13 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
   const handleApply = async () => {
     if (!companyId) return;
     if (products.length === 0) {
-      toast.error("Nessun prodotto da preventivare");
+      toast.error(t("Nessun prodotto da preventivare"));
       return;
     }
     const invalidProduct = products.find((p) => !String(p.name ?? p.descrizione_grezza ?? "").trim() || Number(p.quantita ?? 0) <= 0);
     if (invalidProduct) {
-      toast.error("Controlla le voci prima di creare il preventivo", {
-        description: "Ogni riga deve avere descrizione e quantità maggiore di zero.",
+      toast.error(t("Controlla le voci prima di creare il preventivo"), {
+        description: t("Ogni riga deve avere descrizione e quantità maggiore di zero."),
       });
       return;
     }
@@ -396,7 +398,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
       });
 
       if (error) {
-        toast.error("Errore creazione preventivo", { description: error.message });
+        toast.error(t("Errore creazione preventivo"), { description: error.message });
         setSaving(false);
         return;
       }
@@ -411,23 +413,23 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
       };
 
       if (!result.ok) {
-        toast.error(result.error ?? "Non è stato possibile applicare le modifiche. Riprova.");
+        toast.error(result.error ?? t("Non è stato possibile applicare le modifiche. Riprova."));
         setSaving(false);
         return;
       }
 
       const actionLabel: Record<string, string> = {
-        created: "✓ Cliente creato",
-        reused: "✓ Cliente esistente collegato",
-        updated: `✓ Cliente aggiornato (${result.updated_contact_fields?.length ?? 0} campi)`,
-        skipped: "✓ Cliente: nessuna azione",
+        created: t("✓ Cliente creato"),
+        reused: t("✓ Cliente esistente collegato"),
+        updated: t("✓ Cliente aggiornato ({n} campi)", { n: result.updated_contact_fields?.length ?? 0 }),
+        skipped: t("✓ Cliente: nessuna azione"),
       };
       // Fix 15: toast con CTA per il prossimo step (invia / PDF)
-      toast.success(`Preventivo creato (${result.items_count} voci)`, {
+      toast.success(t("Preventivo creato ({n} voci)", { n: result.items_count ?? 0 }), {
         description: actionLabel[result.contact_action ?? ""] ?? "",
         action: result.quote_id
           ? {
-              label: "Apri preventivo",
+              label: t("Apri preventivo"),
               onClick: () => {
                 window.location.href = `/azienda/marketing/preventivi/${result.quote_id}`;
               },
@@ -440,7 +442,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
         onApplied(result.quote_id);
       }
     } catch (e) {
-      toast.error("Errore", { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Errore"), { description: e instanceof Error ? e.message : String(e) });
     }
     setSaving(false);
   };
@@ -465,16 +467,16 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
           )}
           {/* Telefono: senza «confidence», basta il segno verde o giallo. */}
           <span className="max-sm:hidden">
-            Estrazione AI completata · confidence{" "}
+            {t("Estrazione AI completata · confidence")}{" "}
             <strong>{(confidence * 100).toFixed(0)}%</strong>
           </span>
-          <span className="sm:hidden font-medium">Ecco cosa ho capito</span>
+          <span className="sm:hidden font-medium">{t("Ecco cosa ho capito")}</span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline">{products.length} voci estratte</Badge>
+          <Badge variant="outline">{t("{n} voci estratte", { n: products.length })}</Badge>
           {reviewIssues.length > 0 && (
             <Badge variant="outline" className="border-amber-300 text-amber-700">
-              {reviewIssues.length} controlli
+              {t("{n} controlli", { n: reviewIssues.length })}
             </Badge>
           )}
         </div>
@@ -482,7 +484,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
 
       {reviewIssues.length > 0 && (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-          <p className="font-medium">Da verificare prima della conferma</p>
+          <p className="font-medium">{t("Da verificare prima della conferma")}</p>
           <ul className="mt-1 space-y-0.5">
             {reviewIssues.map((issue) => (
               <li key={issue}>· {issue}</li>
@@ -495,7 +497,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
       {avvertenze.length > 0 ? (
         <div className="rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-900/10 p-3">
           <p className="text-xs font-medium text-amber-900 dark:text-amber-200 mb-1">
-            ⚠ L'AI ha segnalato alcuni dubbi:
+            {t("⚠ L'AI ha segnalato alcuni dubbi:")}
           </p>
           <ul className="text-xs text-amber-800 dark:text-amber-300 space-y-0.5">
             {avvertenze.map((a, i) => (
@@ -511,11 +513,10 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
           <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
           <div className="text-xs">
             <p className="font-semibold text-rose-900 dark:text-rose-200">
-              Estrazione parziale — confidenza bassa ({(confidence * 100).toFixed(0)}%)
+              {t("Estrazione parziale — confidenza bassa ({n}%)", { n: (confidence * 100).toFixed(0) })}
             </p>
             <p className="mt-0.5 text-rose-800 dark:text-rose-300 max-sm:hidden">
-              L'AI ha operato con confidenza ridotta. Verifica attentamente ogni voce e
-              abbina al listino prima di creare il preventivo.
+              {t("L'AI ha operato con confidenza ridotta. Verifica attentamente ogni voce e abbina al listino prima di creare il preventivo.")}
             </p>
           </div>
         </div>
@@ -525,7 +526,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
       <Card>
         <CardHeader className="pb-2 max-sm:p-3 max-sm:pb-2">
           <CardTitle className="text-sm flex items-center gap-2">
-            <User className="h-4 w-4" /> Dati cliente
+            <User className="h-4 w-4" /> {t("Dati cliente")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 max-sm:p-3 max-sm:pt-0">
@@ -537,7 +538,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
                   <UserCheck className="h-4 w-4 text-emerald-600 mt-0.5" />
                   <div>
                     <p className="text-sm font-medium text-emerald-900 dark:text-emerald-200">
-                      Cliente esistente trovato
+                      {t("Cliente esistente trovato")}
                     </p>
                     <p className="text-xs text-emerald-800 dark:text-emerald-300">
                       {exactMatch.first_name} {exactMatch.last_name}
@@ -546,9 +547,8 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
                       {exactMatch.phone ? ` · ${exactMatch.phone}` : ""}
                     </p>
                     <p className="text-[10px] text-muted-foreground mt-1 max-sm:hidden">
-                      Match: <strong>{exactMatch.match_type}</strong> ·{" "}
-                      {(exactMatch.match_confidence * 100).toFixed(0)}%. I campi vuoti del contatto
-                      esistente verranno aggiornati con i nuovi dati.
+                      {t("Match:")} <strong>{exactMatch.match_type}</strong> ·{" "}
+                      {(exactMatch.match_confidence * 100).toFixed(0)}%. {t("I campi vuoti del contatto esistente verranno aggiornati con i nuovi dati.")}
                     </p>
                   </div>
                 </div>
@@ -577,9 +577,9 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
                 }`}
               >
                 <div className="flex items-center gap-1 font-medium max-sm:justify-center">
-                  <opt.icon className="h-3 w-3" /> {opt.label}
+                  <opt.icon className="h-3 w-3" /> {t(opt.label)}
                 </div>
-                <p className="text-[10px] text-muted-foreground mt-0.5 max-sm:hidden">{opt.hint}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5 max-sm:hidden">{t(opt.hint)}</p>
               </button>
             ))}
           </div>
@@ -612,7 +612,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
           ) : null}
           {contactStrategy === "use_existing" && contactCandidates.length === 0 ? (
             <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
-              Nessun contatto trovato con i dati estratti. Aggiungi email/telefono oppure scegli "Nuovo".
+              {t("Nessun contatto trovato con i dati estratti. Aggiungi email/telefono oppure scegli \"Nuovo\".")}
             </div>
           ) : null}
 
@@ -620,7 +620,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
           {/* Fix 21: Nome con autocomplete dropdown dai candidati contatto */}
           <div className="grid grid-cols-2 gap-2">
             <div className="relative">
-              <Label className="text-xs">Nome <span className="text-red-500">*</span></Label>
+              <Label className="text-xs">{t("Nome")} <span className="text-red-500">*</span></Label>
               <Input
                 ref={nomeInputRef}
                 value={customer.nome ?? ""}
@@ -637,7 +637,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
               {showNomeSuggestions && contactCandidates.length > 0 && (
                 <div className="absolute top-full left-0 right-0 z-50 mt-0.5 border rounded-md bg-background shadow-lg max-h-44 overflow-y-auto">
                   <p className="px-2 pt-1.5 pb-0.5 text-[9px] font-medium text-muted-foreground uppercase tracking-wide">
-                    Contatti trovati
+                    {t("Contatti trovati")}
                   </p>
                   {contactCandidates.slice(0, 6).map((c) => (
                     <button
@@ -668,7 +668,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
               )}
             </div>
             <div>
-              <Label className="text-xs">Cognome <span className="text-red-500">*</span></Label>
+              <Label className="text-xs">{t("Cognome")} <span className="text-red-500">*</span></Label>
               <Input
                 value={customer.cognome ?? ""}
                 onChange={(e) => setCustomer((c) => ({ ...c, cognome: e.target.value }))}
@@ -677,7 +677,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
               />
             </div>
             <div>
-              <Label className="text-xs">Telefono <span className="text-red-500">*</span></Label>
+              <Label className="text-xs">{t("Telefono")} <span className="text-red-500">*</span></Label>
               <Input
                 value={customer.telefono ?? ""}
                 onChange={(e) => setCustomer((c) => ({ ...c, telefono: e.target.value }))}
@@ -686,7 +686,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
               />
             </div>
             <div>
-              <Label className="text-xs">Email</Label>
+              <Label className="text-xs">{t("Email")}</Label>
               <Input
                 value={customer.email ?? ""}
                 onChange={(e) => setCustomer((c) => ({ ...c, email: e.target.value }))}
@@ -699,7 +699,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
               )}
             </div>
             <div className="col-span-2">
-              <Label className="text-xs">Azienda</Label>
+              <Label className="text-xs">{t("Azienda")}</Label>
               <Input
                 value={customer.azienda ?? ""}
                 onChange={(e) => setCustomer((c) => ({ ...c, azienda: e.target.value }))}
@@ -707,7 +707,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
               />
             </div>
             <div className="col-span-2">
-              <Label htmlFor="capture-cliente-indirizzo" className="text-xs">Indirizzo</Label>
+              <Label htmlFor="capture-cliente-indirizzo" className="text-xs">{t("Indirizzo")}</Label>
               <CampoIndirizzo
                 id="capture-cliente-indirizzo"
                 value={customer.indirizzo ?? ""}
@@ -717,7 +717,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
               />
             </div>
             <div>
-              <Label className="text-xs">Città</Label>
+              <Label className="text-xs">{t("Città")}</Label>
               <Input
                 value={customer.citta ?? ""}
                 onChange={(e) => setCustomer((c) => ({ ...c, citta: e.target.value }))}
@@ -726,7 +726,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <Label className="text-xs">Provincia</Label>
+                <Label className="text-xs">{t("Provincia")}</Label>
                 <Input
                   value={customer.provincia ?? ""}
                   onChange={(e) =>
@@ -737,7 +737,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
                 />
               </div>
               <div>
-                <Label className="text-xs">CAP</Label>
+                <Label className="text-xs">{t("CAP")}</Label>
                 <Input
                   value={customer.cap ?? ""}
                   onChange={(e) => setCustomer((c) => ({ ...c, cap: e.target.value }))}
@@ -747,7 +747,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
               </div>
             </div>
             <div>
-              <Label className="text-xs">CF</Label>
+              <Label className="text-xs">{t("CF")}</Label>
               <Input
                 value={customer.cf ?? ""}
                 onChange={(e) => setCustomer((c) => ({ ...c, cf: e.target.value.toUpperCase() }))}
@@ -759,7 +759,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
               )}
             </div>
             <div>
-              <Label className="text-xs">P.IVA</Label>
+              <Label className="text-xs">{t("P.IVA")}</Label>
               <Input
                 value={customer.piva ?? ""}
                 onChange={(e) => setCustomer((c) => ({ ...c, piva: e.target.value }))}
@@ -779,7 +779,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
         <CardHeader className="pb-2 max-sm:p-3 max-sm:pb-2">
           <CardTitle className="text-sm flex items-center justify-between">
             <span className="flex items-center gap-2">
-              <Package className="h-4 w-4" /> Voci preventivo
+              <Package className="h-4 w-4" /> {t("Voci preventivo")}
             </span>
             <div className="flex items-center gap-1.5">
               {products.some(
@@ -794,13 +794,13 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
                   // Telefono no: si toglie una voce alla volta col cestino.
                   className="h-7 text-[10px] px-2 text-amber-700 hover:text-amber-800 hover:bg-amber-50 max-sm:hidden"
                   onClick={handleRemoveUnmatched}
-                  title="Rimuovi tutte le voci non abbinate al listino"
+                  title={t("Rimuovi tutte le voci non abbinate al listino")}
                 >
-                  Rimuovi non abbinati
+                  {t("Rimuovi non abbinati")}
                 </Button>
               )}
               <Button size="sm" variant="outline" className="h-7 text-xs tap-compact" onClick={addProduct}>
-                <Plus className="h-3 w-3 mr-1" /> Aggiungi voce
+                <Plus className="h-3 w-3 mr-1" /> {t("Aggiungi voce")}
               </Button>
             </div>
           </CardTitle>
@@ -827,12 +827,12 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
                     {isUnmatched ? (
                       <Badge variant="outline" className="text-[9px] border-amber-400 text-amber-700 bg-amber-50">
                         <AlertTriangle className="h-2.5 w-2.5 mr-0.5" />
-                        Da abbinare al listino
+                        {t("Da abbinare al listino")}
                       </Badge>
                     ) : p.match_type === "manual" ? (
                       <Badge variant="outline" className="text-[9px] border-emerald-300 text-emerald-700 bg-emerald-50">
                         <Link2 className="h-2.5 w-2.5 mr-0.5" />
-                        Abbinato manualmente
+                        {t("Abbinato manualmente")}
                       </Badge>
                     ) : (
                       <Badge
@@ -857,7 +857,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
                     ) : null}
                     {p.unit_price_source ? (
                       <Badge variant="outline" className="text-[9px] max-sm:hidden">
-                        prezzo: {p.unit_price_source}
+                        {t("prezzo: {fonte}", { fonte: p.unit_price_source })}
                       </Badge>
                     ) : null}
                     <div className="ml-auto flex items-center gap-1">
@@ -869,7 +869,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
                         onClick={() => setPickerOpenForIndex(i)}
                       >
                         <Search className="h-3 w-3 mr-1" />
-                        {isUnmatched ? "Abbina dal listino" : "Cambia"}
+                        {isUnmatched ? t("Abbina dal listino") : t("Cambia")}
                       </Button>
                       {!isUnmatched ? (
                         <Button
@@ -877,7 +877,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
                           size="icon"
                           variant="ghost"
                           className="h-6 w-6"
-                          title="Rimuovi abbinamento"
+                          title={t("Rimuovi abbinamento")}
                           onClick={() => handleClearMatch(i)}
                         >
                           <Link2Off className="h-3 w-3" />
@@ -888,13 +888,13 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
                   <Input
                     value={p.name ?? p.descrizione_grezza}
                     onChange={(e) => updateProduct(i, { name: e.target.value })}
-                    placeholder="Descrizione"
+                    placeholder={t("Descrizione")}
                     className="h-8 text-sm"
                   />
                   {/* Telefono: quantità, unità e misure su una riga sola. */}
                   <div className="grid grid-cols-4 gap-2">
                     <div>
-                      <Label className="text-[10px]">Q.tà</Label>
+                      <Label className="text-[10px]">{t("Q.tà")}</Label>
                       <Input
                         type="number"
                         value={p.quantita ?? 1}
@@ -905,7 +905,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
                       />
                     </div>
                     <div>
-                      <Label className="text-[10px]">U.M.</Label>
+                      <Label className="text-[10px]">{t("U.M.")}</Label>
                       <Input
                         value={p.unit_of_measure ?? "pz"}
                         onChange={(e) => updateProduct(i, { unit_of_measure: e.target.value })}
@@ -913,7 +913,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
                       />
                     </div>
                     <div>
-                      <Label className="text-[10px]">Larg. (mm)</Label>
+                      <Label className="text-[10px]">{t("Larg. (mm)")}</Label>
                       <Input
                         type="number"
                         value={p.misure?.x ?? ""}
@@ -929,7 +929,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
                       />
                     </div>
                     <div>
-                      <Label className="text-[10px]">Alt. (mm)</Label>
+                      <Label className="text-[10px]">{t("Alt. (mm)")}</Label>
                       <Input
                         type="number"
                         value={p.misure?.y ?? ""}
@@ -946,7 +946,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
                     </div>
                   </div>
                   <div>
-                    <Label className="text-[10px]">Prezzo unitario (€)</Label>
+                    <Label className="text-[10px]">{t("Prezzo unitario (€)")}</Label>
                     <Input
                       type="number"
                       step="0.01"
@@ -975,13 +975,13 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
                       (p.name && p.name !== p.descrizione_grezza);
                     if (hasUserData) {
                       const ok = window.confirm(
-                        `Rimuovere "${p.name ?? p.descrizione_grezza}"?\n\nLe misure, il prezzo e l'abbinamento al listino verranno persi.`,
+                        t("Rimuovere \"{voce}\"?\n\nLe misure, il prezzo e l'abbinamento al listino verranno persi.", { voce: p.name ?? p.descrizione_grezza }),
                       );
                       if (!ok) return;
                     }
                     removeProduct(i);
                   }}
-                  title="Rimuovi voce"
+                  title={t("Rimuovi voce")}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
@@ -991,7 +991,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
           })}
           {products.length === 0 ? (
             <p className="text-xs text-center text-muted-foreground py-4">
-              Nessuna voce. Clicca "Aggiungi voce" per crearne una manualmente.
+              {t("Nessuna voce. Clicca \"Aggiungi voce\" per crearne una manualmente.")}
             </p>
           ) : null}
         </CardContent>
@@ -1021,15 +1021,15 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
       {/* TOTALI */}
       <div className="border rounded-md p-3 bg-muted/30 space-y-1 text-sm">
         <div className="flex justify-between">
-          <span className="text-muted-foreground">Subtotale</span>
+          <span className="text-muted-foreground">{t("Subtotale")}</span>
           <span className="tabular-nums font-medium">{formatter.format(subtotal)}</span>
         </div>
         <div className="flex justify-between text-xs">
-          <span className="text-muted-foreground">IVA 22%</span>
+          <span className="text-muted-foreground">{t("IVA 22%")}</span>
           <span className="tabular-nums">{formatter.format(totalIva)}</span>
         </div>
         <div className="flex justify-between font-semibold border-t pt-1">
-          <span>Totale</span>
+          <span>{t("Totale")}</span>
           <span className="tabular-nums text-primary">{formatter.format(total)}</span>
         </div>
       </div>
@@ -1046,11 +1046,10 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
             <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
             <div className="flex-1">
               <div className="font-medium text-amber-800 dark:text-amber-300">
-                {zeroPriceCount} {zeroPriceCount === 1 ? "voce ha prezzo a 0 €" : "voci hanno prezzo a 0 €"}
+                {t(zeroPriceCount === 1 ? "{n} voce ha prezzo a 0 €" : "{n} voci hanno prezzo a 0 €", { n: zeroPriceCount })}
               </div>
               <div className="text-amber-700 dark:text-amber-400">
-                Imposta un prezzo unitario o abbina al listino prima di creare
-                il preventivo.
+                {t("Imposta un prezzo unitario o abbina al listino prima di creare il preventivo.")}
               </div>
             </div>
           </div>
@@ -1060,7 +1059,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
       {/* AZIONI — telefono: sempre visibili in fondo mentre si scorre la revisione. */}
       <div className="flex gap-2 pt-2 border-t max-sm:sticky max-sm:bottom-0 max-sm:-mx-4 max-sm:bg-background max-sm:px-4 max-sm:pb-1">
         <Button variant="ghost" onClick={onCancel} disabled={saving}>
-          Indietro
+          {t("Indietro")}
         </Button>
         <Button
           onClick={handleApply}
@@ -1079,7 +1078,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
           ) : (
             <CheckCircle2 className="h-4 w-4 mr-2" />
           )}
-          Crea preventivo
+          {t("Crea preventivo")}
         </Button>
       </div>
     </div>

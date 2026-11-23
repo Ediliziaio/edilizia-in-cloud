@@ -87,6 +87,7 @@ import {
 import { CODICE_ASSE, VALORE_COLORE, VALORE_VETRO } from "@/lib/listino/standardSerramenti";
 import { messaggioErroreListino, translateListinoError } from "@/lib/listinoErrors";
 import { parseDecimalField } from "@/lib/listino/numeriEditor";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Valore dei select per «nessuna tipologia» e «nessuna linea». */
 const NESSUNA = "__nessuna__";
@@ -113,6 +114,7 @@ interface FamilyCatalogProps {
 }
 
 export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps = {}) {
+  const tr = useT();
   const navigate = useNavigate();
   const [parametri, setParametri] = useSearchParams();
   const { role, effectiveCompany } = useAuth();
@@ -287,7 +289,7 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
     const viste = new Set<string>();
     const gruppi = aree
       .map((a) => ({
-        etichetta: `Area ${a.nome}`,
+        etichetta: tr("Area {nome}", { nome: a.nome }),
         tipologie: a.tipologie.flatMap((t) => {
           if (!t.macrocategoriaId) return [];
           viste.add(t.macrocategoriaId);
@@ -296,8 +298,8 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
       }))
       .filter((g) => g.tipologie.length > 0);
     const altre = macrocategorie.filter((m) => !viste.has(m.id)).map((m) => ({ id: m.id, nome: m.nome }));
-    return altre.length > 0 ? [...gruppi, { etichetta: "Altre tipologie", tipologie: altre }] : gruppi;
-  }, [aree, macrocategorie]);
+    return altre.length > 0 ? [...gruppi, { etichetta: tr("Altre tipologie"), tipologie: altre }] : gruppi;
+  }, [aree, macrocategorie, tr]);
 
   /** Le linee in cui si può spostare un prodotto: le categorie vere della tipologia. */
   const lineeDi = (macroId: string): Array<{ id: string; nome: string }> => {
@@ -322,9 +324,9 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
     markTogglePending(f.id, true);
     try {
       await updateFamily.mutateAsync({ id: f.id, patch: { attivo: !f.attivo } });
-      toast.success(f.attivo ? "Prodotto disattivato" : "Prodotto riattivato");
+      toast.success(f.attivo ? tr("Prodotto disattivato") : tr("Prodotto riattivato"));
     } catch (e) {
-      toast.error("Modifica non riuscita", { description: messaggioErrore(e) });
+      toast.error(tr("Modifica non riuscita"), { description: messaggioErrore(e) });
     } finally {
       markTogglePending(f.id, false);
     }
@@ -336,9 +338,9 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
     markTogglePending(f.id, true);
     try {
       await updateFamily.mutateAsync({ id: f.id, patch: { mostra_preventivo: !eraVisibile } });
-      toast.success(eraVisibile ? "Nascosto dai preventivi" : "Proposto nei preventivi");
+      toast.success(eraVisibile ? tr("Nascosto dai preventivi") : tr("Proposto nei preventivi"));
     } catch (e) {
-      toast.error("Modifica non riuscita", { description: messaggioErrore(e) });
+      toast.error(tr("Modifica non riuscita"), { description: messaggioErrore(e) });
     } finally {
       markTogglePending(f.id, false);
     }
@@ -357,7 +359,7 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
     // si toglieva ogni punto e «550.50» diventava 55.050 € (05/10/2026).
     const prezzoParsed = dupPrezzo.trim() === "" ? undefined : leggiPrezzoScritto(dupPrezzo);
     if (prezzoParsed != null && (!Number.isFinite(prezzoParsed) || prezzoParsed < 0)) {
-      toast.error("Prezzo non valido", { description: "Scrivi un numero, per esempio 800 o 550,50" });
+      toast.error(tr("Prezzo non valido"), { description: tr("Scrivi un numero, per esempio 800 o 550,50") });
       return;
     }
     try {
@@ -367,11 +369,11 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
         targetMacrocategoriaId: dupMacroId !== "same" ? dupMacroId : undefined,
         newPrezzoVendita: prezzoParsed,
       });
-      toast.success("Prodotto duplicato");
+      toast.success(tr("Prodotto duplicato"));
       chiudiDuplica();
       apriProdotto(newId);
     } catch (err) {
-      toast.error("Duplicazione non riuscita", { description: messaggioErrore(err) });
+      toast.error(tr("Duplicazione non riuscita"), { description: messaggioErrore(err) });
     }
   };
 
@@ -379,12 +381,12 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
     if (!toDelete) return;
     try {
       await deleteFamily.mutateAsync(toDelete.id);
-      toast.success("Prodotto eliminato", {
-        description: "Spostato nel cestino. Verrà cancellato per sempre fra 15 giorni.",
+      toast.success(tr("Prodotto eliminato"), {
+        description: tr("Spostato nel cestino. Verrà cancellato per sempre fra 15 giorni."),
       });
       setToDelete(null);
     } catch (err) {
-      toast.error("Eliminazione non riuscita", { description: messaggioErrore(err) });
+      toast.error(tr("Eliminazione non riuscita"), { description: messaggioErrore(err) });
     }
   };
 
@@ -404,23 +406,23 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
         id: familyId,
         patch: { macrocategoria_id: macro, categoria_id: linea } as never,
       });
-      toast.success("Prodotto spostato");
+      toast.success(tr("Prodotto spostato"));
       setToMove(null);
     } catch (err) {
-      toast.error("Spostamento non riuscito", { description: messaggioErrore(err) });
+      toast.error(tr("Spostamento non riuscito"), { description: messaggioErrore(err) });
     }
   };
 
   const handleRestore = async (id: string) => {
     try {
       await restoreFamily.mutateAsync(id);
-      toast.success("Prodotto ripristinato");
+      toast.success(tr("Prodotto ripristinato"));
     } catch (err) {
       // Il caso del nome doppio si riconosce dal testo del database, prima di tradurlo.
       const grezzo = err instanceof Error ? err.message : String((err as { message?: unknown } | null)?.message ?? "");
-      toast.error("Ripristino non riuscito", {
+      toast.error(tr("Ripristino non riuscito"), {
         description: /duplicate key|23505/i.test(grezzo)
-          ? "C'è già un prodotto attivo con lo stesso nome: rinominalo o disattivalo, poi ripristina questo."
+          ? tr("C'è già un prodotto attivo con lo stesso nome: rinominalo o disattivalo, poi ripristina questo.")
           : messaggioErrore(err),
       });
     }
@@ -430,10 +432,10 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
     if (!toHardDelete) return;
     try {
       await hardDeleteFamily.mutateAsync(toHardDelete.id);
-      toast.success("Prodotto eliminato definitivamente");
+      toast.success(tr("Prodotto eliminato definitivamente"));
       setToHardDelete(null);
     } catch (err) {
-      toast.error("Eliminazione definitiva non riuscita", { description: messaggioErrore(err) });
+      toast.error(tr("Eliminazione definitiva non riuscita"), { description: messaggioErrore(err) });
     }
   };
 
@@ -442,9 +444,9 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
     const delta = aperturaCestino - new Date(deletedAt).getTime();
     const giorniPassati = Math.floor(delta / (1000 * 60 * 60 * 24));
     const giorniResidui = Math.max(0, 15 - giorniPassati);
-    if (giorniResidui <= 0) return "eliminazione imminente";
-    if (giorniResidui === 1) return "1 giorno residuo";
-    return `${giorniResidui} giorni residui`;
+    if (giorniResidui <= 0) return tr("eliminazione imminente");
+    if (giorniResidui === 1) return tr("1 giorno residuo");
+    return tr("{giorniResidui} giorni residui", { giorniResidui });
   };
 
   const prossimoOrdine = () => Math.max(0, ...macrocategorie.map((m) => Number(m.sort_order) || 0)) + 10;
@@ -489,11 +491,11 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
     setCreazioneInCorso(true);
     try {
       const id = await creaStandard(area.standard, standard, prossimoOrdine(), [...macrocategorie]);
-      toast.success(`Tipologia «${standard.nome}» aggiunta all'area ${area.nome}`);
+      toast.success(tr("Tipologia «{nome}» aggiunta all'area {nome2}", { nome: standard.nome, nome2: area.nome }));
       setNuovaTipologia(null);
       cambiaSelezione({ area: area.chiave, tipologia: `macro:${id}` });
     } catch (err) {
-      toast.error("Tipologia non creata", { description: translateListinoError(err).message });
+      toast.error(tr("Tipologia non creata"), { description: translateListinoError(err).message });
     } finally {
       setCreazioneInCorso(false);
     }
@@ -510,10 +512,10 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
         await creaStandard(area.standard, standard, base + i * 10, nomi);
         create += 1;
       }
-      toast.success(`${create} tipologie standard aggiunte all'area ${area.nome}`);
+      toast.success(tr("{create} tipologie standard aggiunte all'area {nome}", { create, nome: area.nome }));
       setNuovaTipologia(null);
     } catch (err) {
-      toast.error(create > 0 ? `Aggiunte ${create} tipologie su ${area.mancanti.length}` : "Tipologie non create", {
+      toast.error(create > 0 ? tr("Aggiunte {create} tipologie su {n}", { create, n: area.mancanti.length }) : tr("Tipologie non create"), {
         description: translateListinoError(err).message,
       });
     } finally {
@@ -528,13 +530,13 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
     setCreazioneInCorso(true);
     try {
       const esito = await creaAreaListino.mutateAsync({ area: areaStd, tipologie });
-      toast.success(`Area ${areaStd.nome} aggiunta con ${esito.tipologie} ${esito.tipologie === 1 ? "tipologia" : "tipologie"}`);
+      toast.success(tr(esito.tipologie === 1 ? "Area {nome} aggiunta con {n} tipologia" : "Area {nome} aggiunta con {n} tipologie", { nome: areaStd.nome, n: esito.tipologie }));
       setCerca("");
       setFiltri(FILTRI_LISTINO_INIZIALI);
       setNuovaArea(false);
       cambiaSelezione({ area: areaStd.chiave, tipologia: `macro:${esito.prima_id}` });
     } catch (err) {
-      toast.error("Area non aggiunta", { description: translateListinoError(err).message });
+      toast.error(tr("Area non aggiunta"), { description: translateListinoError(err).message });
     } finally {
       invioAreaInCorso.current = false;
       setCreazioneInCorso(false);
@@ -557,13 +559,13 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
       };
       const creata = await createMacrocategoria.mutateAsync(payload);
       toast.success(
-        `Tipologia «${creata.nome}» creata nell'area ${area.nome}`,
-        etichetta ? undefined : { description: "Compare nel listino quando ci metti il primo prodotto." },
+        tr("Tipologia «{nome}» creata nell'area {nome2}", { nome: creata.nome, nome2: area.nome }),
+        etichetta ? undefined : { description: tr("Compare nel listino quando ci metti il primo prodotto.") },
       );
       setNuovaTipologia(null);
       cambiaSelezione({ area: area.chiave, tipologia: `macro:${creata.id}` });
     } catch (err) {
-      toast.error("Tipologia non creata", { description: translateListinoError(err).message });
+      toast.error(tr("Tipologia non creata"), { description: translateListinoError(err).message });
     } finally {
       setCreazioneInCorso(false);
     }
@@ -580,15 +582,15 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
         variazionePct: dati.variazionePct,
         conProdotti: dati.conProdotti,
       });
-      toast.success(`Tipologia «${esito.nome}» creata da ${dati.origine.nome}`, {
+      toast.success(tr("Tipologia «{nome}» creata da {nome2}", { nome: esito.nome, nome2: dati.origine.nome }), {
         description: dati.conProdotti
-          ? `${esito.prodotti} ${esito.prodotti === 1 ? "prodotto copiato" : "prodotti copiati"}${esito.linee > 0 ? `, ${esito.linee} linee` : ""}.`
-          : "Senza prodotti: la trovi vuota, con le sue linee.",
+          ? `${tr(esito.prodotti === 1 ? "{n} prodotto copiato" : "{n} prodotti copiati", { n: esito.prodotti })}${esito.linee > 0 ? `, ${tr("{n} linee", { n: esito.linee })}` : ""}.`
+          : tr("Senza prodotti: la trovi vuota, con le sue linee."),
       });
       setNuovaTipologia(null);
       cambiaSelezione({ area: area.chiave, tipologia: `macro:${esito.id}` });
     } catch (err) {
-      toast.error("Tipologia non copiata", { description: messaggioErrore(err) });
+      toast.error(tr("Tipologia non copiata"), { description: messaggioErrore(err) });
     }
   };
 
@@ -598,13 +600,13 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
     try {
       await updateMacrocategoria.mutateAsync({ id: tipologia.macrocategoriaId, patch: { attivo: !tipologia.attiva } });
       toast.success(
-        tipologia.attiva ? `«${tipologia.nome}» tolta dai preventivi` : `«${tipologia.nome}» di nuovo nei preventivi`,
+        tipologia.attiva ? tr("«{nome}» tolta dai preventivi", { nome: tipologia.nome }) : tr("«{nome}» di nuovo nei preventivi", { nome: tipologia.nome }),
         tipologia.attiva
-          ? { description: "Resta nel listino con i suoi prodotti; i preventivi già fatti non cambiano." }
+          ? { description: tr("Resta nel listino con i suoi prodotti; i preventivi già fatti non cambiano.") }
           : undefined,
       );
     } catch (err) {
-      toast.error("Modifica non riuscita", { description: messaggioErrore(err) });
+      toast.error(tr("Modifica non riuscita"), { description: messaggioErrore(err) });
     }
   };
 
@@ -615,9 +617,9 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
         id: tipologia.macrocategoriaId,
         patch: { verticali_abilitati: [area.standard.verticale] },
       });
-      toast.success(`«${tipologia.nome}» ora compare nel ${(area.standard.preventivatore ?? "preventivatore").toLowerCase()}`);
+      toast.success(tr("«{nome}» ora compare nel {preventivatore}", { nome: tipologia.nome, preventivatore: (area.standard.preventivatore ?? tr("preventivatore")).toLowerCase() }));
     } catch (err) {
-      toast.error("Collegamento non riuscito", { description: messaggioErrore(err) });
+      toast.error(tr("Collegamento non riuscito"), { description: messaggioErrore(err) });
     }
   };
 
@@ -629,9 +631,9 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
         id: tipologia.macrocategoriaId,
         patch: { categoria_tipo: "accessorio" },
       });
-      toast.success(`«${tipologia.nome}» ora si aggiunge alla finestra, fra gli accessori del preventivatore`);
+      toast.success(tr("«{nome}» ora si aggiunge alla finestra, fra gli accessori del preventivatore", { nome: tipologia.nome }));
     } catch (err) {
-      toast.error("Modifica non riuscita", { description: messaggioErrore(err) });
+      toast.error(tr("Modifica non riuscita"), { description: messaggioErrore(err) });
     }
   };
 
@@ -648,19 +650,19 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
     try {
       if (nuovaLinea.area.chiave === "serramenti" && chiaveTesto(nuovaLinea.tipologia.nome) === "serramenti") {
         const esito = await completaInfissi.mutateAsync({ macrocategoriaId: macroId, nomeLinea: nome });
-        toast.success(`Linea «${nome}» pronta: ${esito.configurazioni_standard} configurazioni`, { description: "Compila i tuoi prezzi e verifica la gamma del fornitore. I listini esistenti non cambiano." });
+        toast.success(tr("Linea «{nome}» pronta: {configurazioni_standard} configurazioni", { nome, configurazioni_standard: esito.configurazioni_standard }), { description: tr("Compila i tuoi prezzi e verifica la gamma del fornitore. I listini esistenti non cambiano.") });
         cambiaSelezione({ area: nuovaLinea.area.chiave, tipologia: nuovaLinea.tipologia.chiave, linea: `cat:${esito.categoria_id}` });
         chiudiNuovaLinea();
         return;
       }
       const creata = await createCategoria.mutateAsync({ nome, macrocategoria_id: macroId, sort_order: ordine });
-      toast.success(`Linea «${creata.nome}» creata in ${nuovaLinea.tipologia.nome}`, {
-        description: "Sposta i prodotti nella linea dal menu di ogni prodotto.",
+      toast.success(tr("Linea «{nome}» creata in {nome2}", { nome: creata.nome, nome2: nuovaLinea.tipologia.nome }), {
+        description: tr("Sposta i prodotti nella linea dal menu di ogni prodotto."),
       });
       cambiaSelezione({ area: nuovaLinea.area.chiave, tipologia: nuovaLinea.tipologia.chiave, linea: `cat:${creata.id}` });
       chiudiNuovaLinea();
     } catch (err) {
-      toast.error("Linea non creata", { description: translateListinoError(err).message });
+      toast.error(tr("Linea non creata"), { description: translateListinoError(err).message });
     }
   };
 
@@ -672,12 +674,12 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
       const esito = await aggiungiLinea.mutateAsync({ macrocategoriaId: macroId, ...dati });
       const parti = [
         esito.aggiunte > 0 ? `aggiunta a ${esito.aggiunte} ${esito.aggiunte === 1 ? "prodotto" : "prodotti"}` : null,
-        esito.riattivate > 0 ? `riaccesa su ${esito.riattivate}` : null,
-        esito.gia_presenti > 0 ? `c'era già su ${esito.gia_presenti}` : null,
-        esito.saltati > 0 ? `${esito.saltati} senza linee non l'hanno ricevuta` : null,
+        esito.riattivate > 0 ? tr("riaccesa su {riattivate}", { riattivate: esito.riattivate }) : null,
+        esito.gia_presenti > 0 ? tr("c'era già su {gia_presenti}", { gia_presenti: esito.gia_presenti }) : null,
+        esito.saltati > 0 ? tr("{saltati} senza linee non l'hanno ricevuta", { saltati: esito.saltati }) : null,
       ].filter(Boolean);
       const testo = parti.join(", ");
-      toast.success(`Linea «${esito.linea}» in ${nuovaLinea.tipologia.nome}`, {
+      toast.success(tr("Linea «{linea}» in {nome}", { linea: esito.linea, nome: nuovaLinea.tipologia.nome }), {
         description: testo ? `${testo.charAt(0).toUpperCase()}${testo.slice(1)}.` : undefined,
       });
       cambiaSelezione({
@@ -687,7 +689,7 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
       });
       chiudiNuovaLinea();
     } catch (err) {
-      toast.error("Linea non creata", { description: messaggioErrore(err) });
+      toast.error(tr("Linea non creata"), { description: messaggioErrore(err) });
     }
   };
 
@@ -699,18 +701,18 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
       // I prodotti a ricarico non prendono il prezzo di vendita al m² (lo
       // calcola il ricarico): prima diventavano «vendita diretta» in silenzio.
       const aRicarico = esito.prodotti_a_ricarico ?? 0;
-      toast.success(`Prezzi delle linee di ${tipologia.nome} salvati`, {
+      toast.success(tr("Prezzi delle linee di {nome} salvati", { nome: tipologia.nome }), {
         description:
           [
-            esito.prodotti_prezzo > 0 ? `Nuovo prezzo al m² su ${esito.prodotti_prezzo} prodotti.` : null,
+            esito.prodotti_prezzo > 0 ? tr("Nuovo prezzo al m² su {prodotti_prezzo} prodotti.", { prodotti_prezzo: esito.prodotti_prezzo }) : null,
             aRicarico > 0
-              ? `${aRicarico === 1 ? "1 prodotto si vende" : `${aRicarico} prodotti si vendono`} a costo + ricarico: per loro conta il prezzo d'acquisto.`
+              ? (aRicarico === 1 ? tr("1 prodotto si vende a costo + ricarico: per loro conta il prezzo d'acquisto.") : tr("{n} prodotti si vendono a costo + ricarico: per loro conta il prezzo d'acquisto.", { n: aRicarico }))
               : null,
           ].filter(Boolean).join(" ") || undefined,
       });
       setPrezziAperti(null);
     } catch (err) {
-      toast.error("Prezzi non salvati", { description: messaggioErrore(err) });
+      toast.error(tr("Prezzi non salvati"), { description: messaggioErrore(err) });
     }
   };
 
@@ -720,17 +722,17 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
     try {
       const esito = await variantiTipologia.mutateAsync({ macrocategoriaId: tipologia.macrocategoriaId, assi, familyIds });
       const dettagli = [
-        esito.valori > 0 ? `${esito.valori} valori aggiornati` : null,
+        esito.valori > 0 ? tr("{valori} valori aggiornati", { valori: esito.valori }) : null,
         esito.elenchi > 0 ? `${esito.elenchi} ${esito.elenchi === 1 ? "elenco aggiornato" : "elenchi aggiornati"}` : null,
-        esito.aggiunti > 0 ? `${esito.aggiunti} aggiunti dove mancavano` : null,
-        esito.assi > 0 ? `variante messa in ${esito.assi} ${esito.assi === 1 ? "prodotto" : "prodotti"}` : null,
+        esito.aggiunti > 0 ? tr("{aggiunti} aggiunti dove mancavano", { aggiunti: esito.aggiunti }) : null,
+        esito.assi > 0 ? tr(esito.assi === 1 ? "variante messa in {n} prodotto" : "variante messa in {n} prodotti", { n: esito.assi }) : null,
       ].filter(Boolean);
-      toast.success(`Colori e varianti di ${tipologia.nome} salvati`, {
+      toast.success(tr("Colori e varianti di {nome} salvati", { nome: tipologia.nome }), {
         description: dettagli.length > 0 ? `${dettagli.join(", ")}.` : undefined,
       });
       setVariantiAperte(null);
     } catch (err) {
-      toast.error("Varianti non salvate", { description: messaggioErrore(err) });
+      toast.error(tr("Varianti non salvate"), { description: messaggioErrore(err) });
     }
   };
 
@@ -740,11 +742,11 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
     try {
       const esito = await allineaLinee.mutateAsync(tipologia.macrocategoriaId);
       toast.success(
-        `${esito.prodotti} ${esito.prodotti === 1 ? "prodotto ha" : "prodotti hanno"} ora le ${esito.linee} linee di ${tipologia.nome}`,
+        tr(esito.prodotti === 1 ? "{n} prodotto ha ora le {linee} linee di {tipologia}" : "{n} prodotti hanno ora le {linee} linee di {tipologia}", { n: esito.prodotti, linee: esito.linee, tipologia: tipologia.nome }),
       );
       setDaAllineare(null);
     } catch (err) {
-      toast.error("Linee non assegnate", { description: messaggioErrore(err) });
+      toast.error(tr("Linee non assegnate"), { description: messaggioErrore(err) });
     }
   };
 
@@ -762,15 +764,15 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
   // «Importa» porta dati nel listino. Gli altri tre non importano niente: organizzano il listino (modelli pronti,
   // serie di profilo, prezzi delle linee), quindi stanno in «Imposta».
   const azioniImporta: AzioneImporta[] = [
-    { etichetta: "Excel o CSV", descrizione: "Da un foglio di calcolo", icona: FileSpreadsheet, href: "/azienda/impostazioni/listino/import" },
-    { etichetta: "Listino fornitore in PDF", descrizione: "Letto dall'intelligenza artificiale", icona: Sparkles, href: "/azienda/impostazioni/listino/import?tab=ai" },
+    { etichetta: tr("Excel o CSV"), descrizione: tr("Da un foglio di calcolo"), icona: FileSpreadsheet, href: "/azienda/impostazioni/listino/import" },
+    { etichetta: tr("Listino fornitore in PDF"), descrizione: tr("Letto dall'intelligenza artificiale"), icona: Sparkles, href: "/azienda/impostazioni/listino/import?tab=ai" },
   ];
   const azioniImposta: AzioneImporta[] = companyId
     ? [
-        { etichetta: "Modelli pronti", descrizione: "Tipologie con disegno e variabili", icona: Package, onClick: () => setTemplatePickerOpen(true) },
-        { etichetta: "Serie di profilo", descrizione: "Marca e serie diventano una linea", icona: Layers, onClick: () => setSerieOpen(true) },
+        { etichetta: tr("Modelli pronti"), descrizione: tr("Tipologie con disegno e variabili"), icona: Package, onClick: () => setTemplatePickerOpen(true) },
+        { etichetta: tr("Serie di profilo"), descrizione: tr("Marca e serie diventano una linea"), icona: Layers, onClick: () => setSerieOpen(true) },
         ...(haSerramenti
-          ? [{ etichetta: "Prezzi delle linee infissi", descrizione: "Prezzo al metro quadro e scostamenti", icona: Wand2, onClick: () => setStandardSerramentiOpen(true) }]
+          ? [{ etichetta: tr("Prezzi delle linee infissi"), descrizione: tr("Prezzo al metro quadro e scostamenti"), icona: Wand2, onClick: () => setStandardSerramentiOpen(true) }]
           : []),
       ]
     : [];
@@ -782,15 +784,15 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
     <div className="space-y-3">
       {isAdmin && scelta.area?.chiave === "serramenti" && scelta.tipologia?.macrocategoriaId && chiaveTesto(scelta.tipologia.nome) === "serramenti" && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/20 px-3 py-2 max-md:hidden">
-          <p className="text-xs text-muted-foreground">Configurazioni comuni. Prezzi mancanti dalla base della stessa linea, se presente; fattibilità da verificare col fornitore.</p>
+          <p className="text-xs text-muted-foreground">{tr("Configurazioni comuni. Prezzi mancanti dalla base della stessa linea, se presente; fattibilità da verificare col fornitore.")}</p>
           <div className="flex flex-wrap gap-2">
-          {!!prezziMancanti && <Button size="sm" variant="outline" onClick={() => setPrezziMancantiAperto(true)}>Completa prezzi mancanti ({prezziMancanti})</Button>}
+          {!!prezziMancanti && <Button size="sm" variant="outline" onClick={() => setPrezziMancantiAperto(true)}>{tr("Completa prezzi mancanti ({prezziMancanti})", { prezziMancanti })}</Button>}
           <Button size="sm" variant="outline" disabled={completaInfissi.isPending} onClick={async () => {
             try {
               const esito = await completaInfissi.mutateAsync({ macrocategoriaId: scelta.tipologia!.macrocategoriaId!, categoriaId: lineaContenitore?.categoriaId });
-              toast.success(esito.prodotti_nuovi ? `${esito.prodotti_nuovi} configurazioni aggiunte` : "Configurazioni già presenti", { description: `${esito.prezzi_completati ?? 0} prezzi mancanti completati dalla base della linea. Importi già impostati e preventivi salvati invariati.` });
-            } catch (err) { toast.error("Configurazioni non completate", { description: messaggioErrore(err) }); }
-          }}>{completaInfissi.isPending ? "Completamento…" : "Completa configurazioni"}</Button>
+              toast.success(esito.prodotti_nuovi ? tr("{prodotti_nuovi} configurazioni aggiunte", { prodotti_nuovi: esito.prodotti_nuovi }) : tr("Configurazioni già presenti"), { description: tr("{prezzi_completati} prezzi mancanti completati dalla base della linea. Importi già impostati e preventivi salvati invariati.", { prezzi_completati: esito.prezzi_completati ?? 0 }) });
+            } catch (err) { toast.error(tr("Configurazioni non completate"), { description: messaggioErrore(err) }); }
+          }}>{completaInfissi.isPending ? tr("Completamento…") : tr("Completa configurazioni")}</Button>
           </div>
         </div>
       )}
@@ -844,19 +846,19 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
       {isLoading ? (
         <div className="flex items-center justify-center py-12 text-muted-foreground">
           <Loader2 className="mr-2 h-5 w-5 animate-spin" aria-hidden="true" />
-          Caricamento del listino…
+          {tr("Caricamento del listino…")}
         </div>
       ) : errorFamilies ? (
         // Un errore di caricamento non è un listino vuoto: si dice e si riprova.
         <Card>
           <CardContent className="px-4 py-10 text-center sm:py-14">
             <AlertTriangle className="mx-auto mb-3 h-12 w-12 text-destructive/70" aria-hidden="true" />
-            <p className="font-medium">Il listino non si è caricato</p>
+            <p className="font-medium">{tr("Il listino non si è caricato")}</p>
             <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-              Controlla la connessione e riprova. Se il problema resta, ricarica la pagina.
+              {tr("Controlla la connessione e riprova. Se il problema resta, ricarica la pagina.")}
             </p>
             <Button variant="outline" className="mt-4 h-10 w-full sm:w-auto" onClick={() => void refetchFamilies()}>
-              Riprova
+              {tr("Riprova")}
             </Button>
           </CardContent>
         </Card>
@@ -918,7 +920,7 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Duplica prodotto</DialogTitle>
+            <DialogTitle>{tr("Duplica prodotto")}</DialogTitle>
             <DialogDescription>
               Crea una copia di &quot;{toDuplicate?.nome}&quot; con variabili, valori e griglia prezzi. Potrai
               modificarla separatamente.
@@ -926,7 +928,7 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="dup-name">Nome della copia</Label>
+              <Label htmlFor="dup-name">{tr("Nome della copia")}</Label>
               <Input
                 id="dup-name"
                 value={dupName}
@@ -942,13 +944,13 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="dup-macro">Tipologia di destinazione</Label>
+              <Label htmlFor="dup-macro">{tr("Tipologia di destinazione")}</Label>
               <Select value={dupMacroId} onValueChange={setDupMacroId}>
                 <SelectTrigger id="dup-macro" className="h-10">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="same">Stessa tipologia</SelectItem>
+                  <SelectItem value="same">{tr("Stessa tipologia")}</SelectItem>
                   {opzioniTipologie.map((gruppo) => (
                     <SelectGroup key={gruppo.etichetta}>
                       <SelectLabel>{gruppo.etichetta}</SelectLabel>
@@ -964,7 +966,7 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
             </div>
             <div className="space-y-2">
               <Label htmlFor="dup-prezzo">
-                Prezzo base della copia <span className="font-normal text-muted-foreground">(facoltativo)</span>
+                {tr("Prezzo base della copia")} <span className="font-normal text-muted-foreground">{tr("(facoltativo)")}</span>
               </Label>
               <Input
                 id="dup-prezzo"
@@ -973,8 +975,8 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
                 onChange={(e) => setDupPrezzo(e.target.value)}
                 placeholder={
                   toDuplicate && Number(toDuplicate.prezzo_base_vendita) > 0
-                    ? `Vuoto = ${Number(toDuplicate.prezzo_base_vendita).toLocaleString("it-IT")} € (come l'originale)`
-                    : "Vuoto = come l'originale"
+                    ? tr("Vuoto = {prezzo} € (come l'originale)", { prezzo: Number(toDuplicate.prezzo_base_vendita).toLocaleString(intlCampo()) })
+                    : tr("Vuoto = come l'originale")
                 }
                 className="h-10"
               />
@@ -982,7 +984,7 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
           </div>
           <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2">
             <Button variant="ghost" onClick={chiudiDuplica} disabled={duplicateFamily.isPending} className="h-10 w-full sm:w-auto">
-              Annulla
+              {tr("Annulla")}
             </Button>
             <Button
               onClick={() => void handleDuplicate()}
@@ -992,10 +994,10 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
               {duplicateFamily.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                  Duplicazione…
+                  {tr("Duplicazione…")}
                 </>
               ) : (
-                "Duplica"
+                tr("Duplica")
               )}
             </Button>
           </DialogFooter>
@@ -1012,14 +1014,14 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Sposta prodotto</DialogTitle>
+            <DialogTitle>{tr("Sposta prodotto")}</DialogTitle>
             <DialogDescription>
               Dove va &quot;{toMove?.nome}&quot;: la tipologia decide in quale preventivatore compare.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="move-tipologia">Tipologia</Label>
+              <Label htmlFor="move-tipologia">{tr("Tipologia")}</Label>
               <Select
                 value={moveMacroId}
                 onValueChange={(valore) => {
@@ -1031,7 +1033,7 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={NESSUNA}>Senza tipologia</SelectItem>
+                  <SelectItem value={NESSUNA}>{tr("Senza tipologia")}</SelectItem>
                   {opzioniTipologie.map((gruppo) => (
                     <SelectGroup key={gruppo.etichetta}>
                       <SelectLabel>{gruppo.etichetta}</SelectLabel>
@@ -1047,13 +1049,13 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
             </div>
             {moveMacroId !== NESSUNA && (
               <div className="space-y-1.5">
-                <Label htmlFor="move-linea">Linea</Label>
+                <Label htmlFor="move-linea">{tr("Linea")}</Label>
                 <Select value={moveLineaId} onValueChange={setMoveLineaId}>
                   <SelectTrigger id="move-linea" className="h-10">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={NESSUNA}>Nessuna linea</SelectItem>
+                    <SelectItem value={NESSUNA}>{tr("Nessuna linea")}</SelectItem>
                     {lineeDi(moveMacroId).map((l) => (
                       <SelectItem key={l.id} value={l.id}>
                         {l.nome}
@@ -1062,14 +1064,14 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Le serie di profilo come Salamander e Aluplast non si scelgono qui: stanno nelle variabili del prodotto.
+                  {tr("Le serie di profilo come Salamander e Aluplast non si scelgono qui: stanno nelle variabili del prodotto.")}
                 </p>
               </div>
             )}
           </div>
           <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2">
             <Button variant="ghost" onClick={() => setToMove(null)} disabled={updateFamily.isPending} className="h-10 w-full sm:w-auto">
-              Annulla
+              {tr("Annulla")}
             </Button>
             <Button
               onClick={() => toMove && void handleMove(toMove.id)}
@@ -1079,10 +1081,10 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
               {updateFamily.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                  Spostamento…
+                  {tr("Spostamento…")}
                 </>
               ) : (
-                "Sposta"
+                tr("Sposta")
               )}
             </Button>
           </DialogFooter>
@@ -1103,9 +1105,7 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
               Eliminare &quot;{toDelete?.nome}&quot;?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Il prodotto va nel <strong>cestino per 15 giorni</strong>, poi viene
-              cancellato per sempre. Fino ad allora lo puoi ripristinare. I
-              preventivi già fatti non cambiano.
+              {tr("Il prodotto va nel")} <strong>{tr("cestino per 15 giorni")}</strong>{tr(", poi viene cancellato per sempre. Fino ad allora lo puoi ripristinare. I preventivi già fatti non cambiano.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2">
@@ -1113,7 +1113,7 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
               disabled={deleteFamily.isPending}
               className="h-10 mt-0 w-full sm:w-auto"
             >
-              Annulla
+              {tr("Annulla")}
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
@@ -1126,10 +1126,10 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
                     className="h-4 w-4 mr-2 animate-spin"
                     aria-hidden="true"
                   />
-                  Eliminazione…
+                  {tr("Eliminazione…")}
                 </>
               ) : (
-                "Elimina"
+                tr("Elimina")
               )}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -1148,19 +1148,17 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Trash className="h-5 w-5" aria-hidden="true" />
-              Cestino
+              {tr("Cestino")}
             </DialogTitle>
             <DialogDescription>
-              I prodotti eliminati restano <strong>15 giorni</strong> nel
-              cestino, poi vengono cancellati per sempre. Puoi ripristinarli con
-              un clic o cancellarli subito.
+              {tr("I prodotti eliminati restano")} <strong>{tr("15 giorni")}</strong> {tr("nel cestino, poi vengono cancellati per sempre. Puoi ripristinarli con un clic o cancellarli subito.")}
             </DialogDescription>
           </DialogHeader>
           <div className="flex-1 overflow-y-auto -mx-6 px-6 py-2">
             {loadingCestino ? (
               <div className="flex items-center justify-center py-10 text-muted-foreground text-sm">
                 <Loader2 className="h-4 w-4 animate-spin mr-2" aria-hidden="true" />
-                Caricamento cestino…
+                {tr("Caricamento cestino…")}
               </div>
             ) : errorCestino ? (
               // M-D (audit): l'errore query mostrava "Il cestino è vuoto" —
@@ -1168,26 +1166,26 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
               // già stati purgati. Stato errore esplicito con riprova.
               <div className="flex flex-col items-center justify-center py-10 text-center text-muted-foreground">
                 <AlertTriangle className="h-10 w-10 mb-3 text-destructive/70" aria-hidden="true" />
-                <p className="text-sm font-medium">Il cestino non si è caricato</p>
+                <p className="text-sm font-medium">{tr("Il cestino non si è caricato")}</p>
                 <Button
                   variant="outline"
                   size="sm"
                   className="mt-3 h-9"
                   onClick={() => void refetchCestino()}
                 >
-                  Riprova
+                  {tr("Riprova")}
                 </Button>
               </div>
             ) : cestino.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-10 text-center text-muted-foreground">
                 <ImageOff className="h-10 w-10 mb-3 opacity-40" aria-hidden="true" />
-                <p className="text-sm font-medium">Il cestino è vuoto</p>
+                <p className="text-sm font-medium">{tr("Il cestino è vuoto")}</p>
                 <p className="text-xs mt-1">
-                  I prodotti eliminati compaiono qui per 15 giorni.
+                  {tr("I prodotti eliminati compaiono qui per 15 giorni.")}
                 </p>
               </div>
             ) : (
-              <ul className="divide-y" aria-label="Prodotti nel cestino">
+              <ul className="divide-y" aria-label={tr("Prodotti nel cestino")}>
                 {cestino.map((f) => (
                   <li
                     key={f.id}
@@ -1212,9 +1210,9 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm truncate">{f.nome}</p>
                       <p className="text-xs text-muted-foreground">
-                        Eliminato il{" "}
+                        {tr("Eliminato il")}{" "}
                         {f.deleted_at
-                          ? new Date(f.deleted_at).toLocaleDateString("it-IT", {
+                          ? new Date(f.deleted_at).toLocaleDateString(intlCampo(), {
                               day: "2-digit",
                               month: "short",
                               year: "numeric",
@@ -1239,10 +1237,10 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
                         disabled={
                           restoreFamily.isPending || hardDeleteFamily.isPending
                         }
-                        aria-label={`Ripristina ${f.nome}`}
+                        aria-label={tr("Ripristina {nome}", { nome: f.nome })}
                       >
                         <Undo2 className="h-4 w-4 sm:mr-1" aria-hidden="true" />
-                        <span className="hidden sm:inline">Ripristina</span>
+                        <span className="hidden sm:inline">{tr("Ripristina")}</span>
                       </Button>
                       <Button
                         size="sm"
@@ -1252,13 +1250,13 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
                         disabled={
                           restoreFamily.isPending || hardDeleteFamily.isPending
                         }
-                        aria-label={`Elimina definitivamente ${f.nome}`}
+                        aria-label={tr("Elimina definitivamente {nome}", { nome: f.nome })}
                       >
                         <Trash2
                           className="h-4 w-4 sm:mr-1"
                           aria-hidden="true"
                         />
-                        <span className="hidden sm:inline">Elimina</span>
+                        <span className="hidden sm:inline">{tr("Elimina")}</span>
                       </Button>
                     </div>
                   </li>
@@ -1273,7 +1271,7 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
               className="h-10"
               disabled={restoreFamily.isPending || hardDeleteFamily.isPending}
             >
-              Chiudi
+              {tr("Chiudi")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1293,9 +1291,7 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
               Eliminare definitivamente &quot;{toHardDelete?.nome}&quot;?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Non si può tornare indietro. Il prodotto e le sue opzioni vengono
-              cancellati subito, senza aspettare i 15 giorni. I preventivi già
-              fatti non cambiano.
+              {tr("Non si può tornare indietro. Il prodotto e le sue opzioni vengono cancellati subito, senza aspettare i 15 giorni. I preventivi già fatti non cambiano.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2">
@@ -1303,7 +1299,7 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
               disabled={hardDeleteFamily.isPending}
               className="h-10 mt-0 w-full sm:w-auto"
             >
-              Annulla
+              {tr("Annulla")}
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleHardDelete}
@@ -1316,10 +1312,10 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
                     className="h-4 w-4 mr-2 animate-spin"
                     aria-hidden="true"
                   />
-                  Eliminazione…
+                  {tr("Eliminazione…")}
                 </>
               ) : (
-                "Elimina definitivamente"
+                tr("Elimina definitivamente")
               )}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -1438,15 +1434,14 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Dare le linee di {daAllineare?.nome} ai prodotti che non le hanno?</AlertDialogTitle>
+            <AlertDialogTitle>{tr("Dare le linee di {nome} ai prodotti che non le hanno?", { nome: daAllineare?.nome })}</AlertDialogTitle>
             <AlertDialogDescription>
-              Ognuno riceve le stesse linee e gli stessi scostamenti del prodotto che ne ha di più. La «Linea base» dei
-              modelli pronti si spegne. I preventivi già fatti non cambiano.
+              {tr("Ognuno riceve le stesse linee e gli stessi scostamenti del prodotto che ne ha di più. La «Linea base» dei modelli pronti si spegne. I preventivi già fatti non cambiano.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2">
             <AlertDialogCancel disabled={allineaLinee.isPending} className="mt-0 h-10 w-full sm:w-auto">
-              Annulla
+              {tr("Annulla")}
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
@@ -1456,7 +1451,7 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
               disabled={allineaLinee.isPending}
               className="h-10 w-full sm:w-auto"
             >
-              {allineaLinee.isPending ? "Assegno le linee…" : "Dai le linee"}
+              {allineaLinee.isPending ? tr("Assegno le linee…") : tr("Dai le linee")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

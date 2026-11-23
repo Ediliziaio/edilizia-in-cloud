@@ -19,6 +19,7 @@ import {
   rigaDaPrezzare,
   righeSenzaPrezzo,
 } from "@/lib/preventivatore/anteprima";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   dati: AnteprimaPreventivo;
@@ -42,6 +43,7 @@ function Mancante({ children }: { children: string }) {
 }
 
 function AnteprimaVeloceBase({ dati, vista = "cliente", evidenzia, className, decimali = 2 }: Props) {
+  const t = useT();
   const euro = (value: number | null | undefined) => formattaEuro(value, decimali);
   const impresa = vista === "impresa";
   const aCorpo = Boolean(dati.prezzoACorpo);
@@ -51,12 +53,12 @@ function AnteprimaVeloceBase({ dati, vista = "cliente", evidenzia, className, de
 
   return (
     <article
-      aria-label="Anteprima del preventivo"
+      aria-label={t("Anteprima del preventivo")}
       className={cn("rounded-xl border border-slate-200 bg-white p-4 text-[12px] leading-snug text-slate-800 shadow-sm max-md:p-3", className)}
     >
       <header className="border-b-2 border-eic-navy-deep pb-2">
         <p className="truncate text-sm font-extrabold tracking-tight text-eic-navy-deep">
-          {dati.emittente?.trim() || <Mancante>La tua azienda</Mancante>}
+          {dati.emittente?.trim() || <Mancante>{t("La tua azienda")}</Mancante>}
         </p>
         {(dati.codice || dati.dataEtichetta) && (
           <p className="mt-0.5 flex flex-wrap justify-between gap-x-3 text-[10.5px] leading-tight text-slate-500">
@@ -69,7 +71,7 @@ function AnteprimaVeloceBase({ dati, vista = "cliente", evidenzia, className, de
       <section className="mt-3">
         <h4 className="mb-1 text-[10px] font-semibold uppercase tracking-[0.09em] text-slate-500">Cliente</h4>
         <p className="text-[12.5px]">
-          {nome ? <b>{nome}</b> : <Mancante>Nome del cliente</Mancante>}
+          {nome ? <b>{nome}</b> : <Mancante>{t("Nome del cliente")}</Mancante>}
         </p>
         {dati.cliente.righe.map((riga) => (
           <p key={riga} className="text-slate-600">{riga}</p>
@@ -113,7 +115,7 @@ function AnteprimaVeloceBase({ dati, vista = "cliente", evidenzia, className, de
       {haRighe ? (
         <div className="mt-1">
           <table className="w-full table-fixed border-collapse">
-            <caption className="sr-only">Voci del preventivo</caption>
+            <caption className="sr-only">{t("Voci del preventivo")}</caption>
             <colgroup>
               <col />
               <col className="w-[17%]" />
@@ -124,7 +126,7 @@ function AnteprimaVeloceBase({ dati, vista = "cliente", evidenzia, className, de
               <tr className="border-b border-slate-200 text-left text-[9.5px] font-semibold uppercase tracking-[0.06em] text-slate-500">
                 <th scope="col" className="py-1 pr-1 font-semibold">Descrizione</th>
                 <th scope="col" className="py-1 text-right font-semibold">Qtà</th>
-                {impresa && <th scope="col" className="py-1 text-right font-semibold">Costo</th>}
+                {impresa && <th scope="col" className="py-1 text-right font-semibold">{t("Costo")}</th>}
                 <th scope="col" className="py-1 text-right font-semibold">Totale</th>
               </tr>
             </thead>
@@ -172,7 +174,7 @@ function AnteprimaVeloceBase({ dati, vista = "cliente", evidenzia, className, de
                         {compresa ? (
                           <span className="whitespace-nowrap text-[10.5px] text-slate-400">compresa</span>
                         ) : dap ? (
-                          <span className="whitespace-nowrap rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">da prezzare</span>
+                          <span className="whitespace-nowrap rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">{t("da prezzare")}</span>
                         ) : (
                           <b>{euro(r.totale)}</b>
                         )}
@@ -185,7 +187,7 @@ function AnteprimaVeloceBase({ dati, vista = "cliente", evidenzia, className, de
           </table>
         </div>
       ) : (
-        <p className="py-4 text-center text-slate-400">Qui compaiono le voci mano a mano che le aggiungi.</p>
+        <p className="py-4 text-center text-slate-400">{t("Qui compaiono le voci mano a mano che le aggiungi.")}</p>
       )}
 
       {/* Il riepilogo resta in vista in fondo alla colonna anche quando le righe sono tante:
@@ -210,19 +212,19 @@ function AnteprimaVeloceBase({ dati, vista = "cliente", evidenzia, className, de
           {impresa && dati.impresa && (
             <div className="mt-2 rounded-lg bg-amber-50 px-2.5 py-2 text-[11.5px] text-amber-900">
               <p>
-                <b>Vista impresa</b> · costi {euro(dati.impresa.costi)} · margine{" "}
+                <b>{t("Vista impresa")}</b> · {t("costi")} {euro(dati.impresa.costi)} · {t("margine")}{" "}
                 <b>{dati.impresa.margine != null && (dati.impresa.costiCompleti || dati.impresa.costi > 0) ? euro(dati.impresa.margine) : "—"}</b>
                 {dati.impresa.marginePct != null && <> ({dati.impresa.marginePct.toFixed(0)}%)</>}
               </p>
               {!dati.impresa.costiCompleti && dati.impresa.righeSenzaCosto > 0 && (
                 <p className="mt-0.5 text-amber-800">
                   {dati.impresa.margine == null
-                    ? `Costi incompleti · ${dati.impresa.righeSenzaCosto} ${dati.impresa.righeSenzaCosto === 1 ? "voce" : "voci"} senza costo: il margine non si può calcolare.`
-                    : `Manca il costo su ${dati.impresa.righeSenzaCosto} ${dati.impresa.righeSenzaCosto === 1 ? "voce" : "voci"}: il margine è parziale.`}
+                    ? t(dati.impresa.righeSenzaCosto === 1 ? "Costi incompleti · {n} voce senza costo: il margine non si può calcolare." : "Costi incompleti · {n} voci senza costo: il margine non si può calcolare.", { n: dati.impresa.righeSenzaCosto })
+                    : t(dati.impresa.righeSenzaCosto === 1 ? "Manca il costo su {n} voce: il margine è parziale." : "Manca il costo su {n} voci: il margine è parziale.", { n: dati.impresa.righeSenzaCosto })}
                 </p>
               )}
               {dati.impresa.sottoTarget && dati.impresa.margineMinPct != null && (
-                <p className="mt-0.5 font-semibold text-red-700">Sotto il margine minimo ({dati.impresa.margineMinPct}%).</p>
+                <p className="mt-0.5 font-semibold text-red-700">{t("Sotto il margine minimo ({margineMinPct}%).", { margineMinPct: dati.impresa.margineMinPct })}</p>
               )}
             </div>
           )}
@@ -251,7 +253,7 @@ function AnteprimaVeloceBase({ dati, vista = "cliente", evidenzia, className, de
           {senzaPrezzo > 0 && (
             <li className="flex gap-1.5 rounded-md bg-amber-50 px-2 py-1.5 text-amber-900">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              <span>{senzaPrezzo === 1 ? "1 voce senza prezzo" : `${senzaPrezzo} voci senza prezzo`}: il totale non le comprende.</span>
+              <span>{senzaPrezzo === 1 ? t("1 voce senza prezzo: il totale non le comprende.") : t("{n} voci senza prezzo: il totale non le comprende.", { n: senzaPrezzo })}</span>
             </li>
           )}
           {dati.avvisi.map((a) => (

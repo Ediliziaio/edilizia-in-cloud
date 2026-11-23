@@ -25,6 +25,7 @@ import {
   caricaModello, haModelloSalvato, risolviTipoModello, classificaCopia,
   copiaConfigurazioneSuModulo, type AnagraficaDocumento, type TipoModello, type EsitoCopia,
 } from "@/lib/moduli-vendita/copiaModello";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Sorgente { areaId: string; moduleId: string; titolo: string; areaTitolo: string }
 
@@ -49,6 +50,7 @@ export function CopiaConfigurazioneDialog({
   sorgente: Sorgente | null;
   onCopiato?: () => void;
 }) {
+  const t = useT();
   const [caricato, setCaricato] = useState<{ template: unknown; tipo: TipoModello } | null>(null);
   const [errore, setErrore] = useState<string | null>(null);
   const [selezione, setSelezione] = useState<Set<string>>(new Set());
@@ -145,26 +147,26 @@ export function CopiaConfigurazioneDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Copia configurazione su…</DialogTitle>
+          <DialogTitle>{t("Copia configurazione su…")}</DialogTitle>
           <DialogDescription>
             {sorgente
-              ? <>Copia il modello di <strong>{sorgente.titolo}</strong> ({sorgente.areaTitolo}) su altri interventi. Ogni copia è indipendente: potrai modificarla senza toccare l&apos;originale.</>
-              : "Scegli i moduli su cui copiare la configurazione."}
+              ? t("Copia il modello di {modello} ({area}) su altri interventi. Ogni copia è indipendente: potrai modificarla senza toccare l'originale.", { modello: sorgente.titolo, area: sorgente.areaTitolo })
+              : t("Scegli i moduli su cui copiare la configurazione.")}
           </DialogDescription>
         </DialogHeader>
 
         {errore && (
           <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            {errore}
+            {t(errore)}
           </div>
         )}
 
         {esiti ? (
           <div className="space-y-3">
             <div className="flex flex-wrap gap-2 text-sm">
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-emerald-800"><Check className="h-3.5 w-3.5" />{copiati.length} copiati</span>
-              {saltati.length > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-slate-700">{saltati.length} saltati</span>}
-              {errori.length > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-3 py-1 text-red-800"><AlertTriangle className="h-3.5 w-3.5" />{errori.length} non riusciti</span>}
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-emerald-800"><Check className="h-3.5 w-3.5" />{t("{n} copiati", { n: copiati.length })}</span>
+              {saltati.length > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-slate-700">{t("{n} saltati", { n: saltati.length })}</span>}
+              {errori.length > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-3 py-1 text-red-800"><AlertTriangle className="h-3.5 w-3.5" />{t("{n} non riusciti", { n: errori.length })}</span>}
             </div>
             {(saltati.length > 0 || errori.length > 0) && (
               <ScrollArea className="max-h-52 rounded-lg border">
@@ -185,21 +187,21 @@ export function CopiaConfigurazioneDialog({
               </ScrollArea>
             )}
             <p className="text-xs text-muted-foreground">
-              I modelli copiati sono salvati per l&apos;azienda. Se qualcosa non arriva online, la libreria lo segnala e puoi riprovare.
+              {t("I modelli copiati sono salvati per l'azienda. Se qualcosa non arriva online, la libreria lo segnala e puoi riprovare.")}
             </p>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setEsiti(null)}>Copia su altri moduli</Button>
-              <Button onClick={() => onOpenChange(false)}>Chiudi</Button>
+              <Button variant="outline" onClick={() => setEsiti(null)}>{t("Copia su altri moduli")}</Button>
+              <Button onClick={() => onOpenChange(false)}>{t("Chiudi")}</Button>
             </DialogFooter>
           </div>
         ) : caricato ? (
           <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> Copia completa (stesso tipo)</span>
-                <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-sky-500" /> Solo impostazioni comuni</span>
+                <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> {t("Copia completa (stesso tipo)")}</span>
+                <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-sky-500" /> {t("Solo impostazioni comuni")}</span>
               </div>
-              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={selezionaStessoTipo}>Seleziona i moduli dello stesso tipo</Button>
+              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={selezionaStessoTipo}>{t("Seleziona i moduli dello stesso tipo")}</Button>
             </div>
 
             <ScrollArea className="max-h-[45vh] rounded-lg border">
@@ -217,7 +219,7 @@ export function CopiaConfigurazioneDialog({
                               <Checkbox checked={selezione.has(k)} disabled={incompatibile} onCheckedChange={() => commuta(v)} />
                               <span className="flex-1">{v.titolo}</span>
                               {v.presente && !incompatibile && (
-                                <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] text-amber-800">già configurato</span>
+                                <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] text-amber-800">{t("già configurato")}</span>
                               )}
                               <span
                                 className={`rounded-full px-2 py-0.5 text-[10px] ${
@@ -226,7 +228,7 @@ export function CopiaConfigurazioneDialog({
                                       : "bg-sky-50 text-sky-700"
                                 }`}
                               >
-                                {incompatibile ? "non compatibile" : v.modo === "completa" ? "copia completa" : "solo impostazioni comuni"}
+                                {incompatibile ? t("non compatibile") : v.modo === "completa" ? t("copia completa") : t("solo impostazioni comuni")}
                               </span>
                             </label>
                           </li>
@@ -240,8 +242,7 @@ export function CopiaConfigurazioneDialog({
 
             {nComuni > 0 && (
               <p className="rounded-lg border border-sky-100 bg-sky-50/70 px-3 py-2 text-xs leading-relaxed text-sky-950">
-                Sui moduli di tipo diverso vengono copiati solo dati azienda, branding e testi generali; le parti tecniche
-                (esigenze, lavorazioni, computo, pagine del PDF) restano ai valori predefiniti del modulo di destinazione.
+                {t("Sui moduli di tipo diverso vengono copiati solo dati azienda, branding e testi generali; le parti tecniche (esigenze, lavorazioni, computo, pagine del PDF) restano ai valori predefiniti del modulo di destinazione.")}
               </p>
             )}
 
@@ -249,28 +250,29 @@ export function CopiaConfigurazioneDialog({
               <label className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                 <Checkbox checked={sovrascrivi} onCheckedChange={(v) => setSovrascrivi(v === true)} className="mt-0.5" />
                 <span>
-                  <strong>{nDaSovrascrivere}</strong> {nDaSovrascrivere === 1 ? "modulo selezionato ha" : "moduli selezionati hanno"} già un modello salvato.
-                  Sovrascrivi{nDaSovrascrivere === 1 ? "lo" : "li"} con questa configurazione. Senza la spunta {nDaSovrascrivere === 1 ? "verrà saltato" : "verranno saltati"}.
+                  {t(nDaSovrascrivere === 1
+                    ? "{n} modulo selezionato ha già un modello salvato. Sovrascrivilo con questa configurazione. Senza la spunta verrà saltato."
+                    : "{n} moduli selezionati hanno già un modello salvato. Sovrascrivili con questa configurazione. Senza la spunta verranno saltati.", { n: nDaSovrascrivere })}
                 </span>
               </label>
             )}
 
             <DialogFooter className="items-center gap-2 sm:justify-between">
               <span className="text-xs text-muted-foreground">
-                {selezionate.length === 0 ? "Nessun modulo selezionato" : `${selezionate.length} ${selezionate.length === 1 ? "modulo selezionato" : "moduli selezionati"}`}
+                {selezionate.length === 0 ? t("Nessun modulo selezionato") : t(selezionate.length === 1 ? "{n} modulo selezionato" : "{n} moduli selezionati", { n: selezionate.length })}
               </span>
               <div className="flex gap-2">
-                <Button variant="outline" onClick={() => onOpenChange(false)}><X className="mr-1 h-4 w-4" />Annulla</Button>
+                <Button variant="outline" onClick={() => onOpenChange(false)}><X className="mr-1 h-4 w-4" />{t("Annulla")}</Button>
                 <Button onClick={esegui} disabled={selezionate.length === 0}>
                   <Copy className="mr-1 h-4 w-4" />
-                  Copia {selezionate.length > 0 ? `su ${selezionate.length}` : ""}
+                  {selezionate.length > 0 ? t("Copia su {n}", { n: selezionate.length }) : t("Copia")}
                   <ArrowRight className="ml-1 h-4 w-4" />
                 </Button>
               </div>
             </DialogFooter>
           </div>
         ) : !errore ? (
-          <p role="status" className="flex items-center gap-2 py-6 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Carico il modello di partenza…</p>
+          <p role="status" className="flex items-center gap-2 py-6 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> {t("Carico il modello di partenza…")}</p>
         ) : null}
       </DialogContent>
     </Dialog>

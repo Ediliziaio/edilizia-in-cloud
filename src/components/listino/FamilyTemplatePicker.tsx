@@ -35,6 +35,7 @@ import {
 import { formatCurrency } from "@/lib/formatters";
 import { etichettaModalita } from "@/lib/listino/prodottiLibreria";
 import { VERTICALI_GALLERIA } from "@/lib/verticalMapping";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // Gli stessi elenchi che usa il super admin in Libreria listino → Prodotti singoli.
 const VERTICALI = [{ value: "all", label: "Tutti i verticali" }, ...VERTICALI_GALLERIA];
@@ -57,6 +58,7 @@ interface Props {
 export function FamilyTemplatePicker({
   open, onOpenChange, companyId, initialVertical, targetMacrocategoriaId, onImported,
 }: Props) {
+  const tr = useT();
   const [vertical, setVertical] = useState<string>(initialVertical ?? "all");
   const [search, setSearch] = useState("");
   const [categoriaFiltro, setCategoriaFiltro] = useState<string>("all");
@@ -90,16 +92,16 @@ export function FamilyTemplatePicker({
         companyId,
         macrocategoriaId: targetMacrocategoriaId ?? null,
       });
-      toast.success(`«${selected.nome}» aggiunto al listino`, {
+      toast.success(tr("«{nome}» aggiunto al listino", { nome: selected.nome }), {
         description: selected.prezzo_base_vendita === null && !selected.griglia_default
-          ? "Completa il prezzo di vendita nel listino."
-          : "Puoi personalizzare il prodotto nel listino.",
+          ? tr("Completa il prezzo di vendita nel listino.")
+          : tr("Puoi personalizzare il prodotto nel listino."),
       });
       onImported?.(familyId, selected);
       onOpenChange(false);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Errore import";
-      toast.error("Import fallito", { description: msg });
+      const msg = err instanceof Error ? err.message : tr("Errore import");
+      toast.error(tr("Import fallito"), { description: msg });
     }
   };
 
@@ -109,18 +111,17 @@ export function FamilyTemplatePicker({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-orange-600" />
-            Importa articolo da template
+            {tr("Importa articolo da template")}
           </DialogTitle>
           <DialogDescription>
-            Scegli un template pre-configurato (foto, variabili standard, griglia prezzi).
-            Verrà creato come nuovo articolo nel tuo listino, pronto da personalizzare.
+            {tr("Scegli un template pre-configurato (foto, variabili standard, griglia prezzi). Verrà creato come nuovo articolo nel tuo listino, pronto da personalizzare.")}
           </DialogDescription>
         </DialogHeader>
 
         {/* Filtri */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pb-1 shrink-0">
           <div>
-            <Label className="text-xs text-muted-foreground">Verticale</Label>
+            <Label className="text-xs text-muted-foreground">{tr("Verticale")}</Label>
             <Select value={vertical} onValueChange={(v) => { setVertical(v); setCategoriaFiltro("all"); }}>
               <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -132,11 +133,11 @@ export function FamilyTemplatePicker({
           </div>
           {categoriesAvailable.length > 1 && (
             <div>
-              <Label className="text-xs text-muted-foreground">Categoria</Label>
+              <Label className="text-xs text-muted-foreground">{tr("Categoria")}</Label>
               <Select value={categoriaFiltro} onValueChange={setCategoriaFiltro}>
                 <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tutte le categorie</SelectItem>
+                  <SelectItem value="all">{tr("Tutte le categorie")}</SelectItem>
                   {categoriesAvailable.map((c) => (
                     <SelectItem key={c} value={c}>{prettyLabel(c)}</SelectItem>
                   ))}
@@ -145,13 +146,13 @@ export function FamilyTemplatePicker({
             </div>
           )}
           <div className={categoriesAvailable.length > 1 ? "" : "sm:col-span-2"}>
-            <Label className="text-xs text-muted-foreground">Cerca</Label>
+            <Label className="text-xs text-muted-foreground">{tr("Cerca")}</Label>
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Nome, materiale, tag…"
+                placeholder={tr("Nome, materiale, tag…")}
                 className="h-9 text-xs pl-8"
               />
             </div>
@@ -165,23 +166,23 @@ export function FamilyTemplatePicker({
             {isLoading ? (
               <div className="flex items-center justify-center py-16 text-muted-foreground gap-2">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                <span className="text-sm">Caricamento template…</span>
+                <span className="text-sm">{tr("Caricamento template…")}</span>
               </div>
             ) : isError ? (
               <div className="text-center py-12 text-sm text-rose-700">
-                Errore caricamento. Riprova.
+                {tr("Errore caricamento. Riprova.")}
               </div>
             ) : filtered.length === 0 ? (
               <div className="text-center py-12 text-sm text-muted-foreground">
                 <Package className="h-10 w-10 mx-auto text-muted-foreground/30 mb-2" />
-                Nessun template con questi filtri.
+                {tr("Nessun template con questi filtri.")}
                 {search && (
                   <Button
                     variant="ghost" size="sm"
                     onClick={() => { setSearch(""); setCategoriaFiltro("all"); setVertical("all"); }}
                     className="mt-2 text-xs gap-1"
                   >
-                    <X className="h-3.5 w-3.5" /> Azzera filtri
+                    <X className="h-3.5 w-3.5" /> {tr("Azzera filtri")}
                   </Button>
                 )}
               </div>
@@ -196,7 +197,7 @@ export function FamilyTemplatePicker({
                       key={t.id}
                       onClick={() => setSelectedId(t.id)}
                       aria-pressed={isSelected}
-                      aria-label={`Seleziona template ${t.nome}`}
+                      aria-label={tr("Seleziona template {nome}", { nome: t.nome })}
                       className={cn(
                         "group relative aspect-[4/5] border-2 rounded-md overflow-hidden transition-all bg-slate-50 text-left flex flex-col",
                         isSelected
@@ -253,7 +254,7 @@ export function FamilyTemplatePicker({
             {!selected ? (
               <div className="text-center text-xs text-muted-foreground my-auto py-8">
                 <Package className="h-10 w-10 mx-auto opacity-30 mb-2" />
-                Seleziona un template per vedere il dettaglio.
+                {tr("Seleziona un template per vedere il dettaglio.")}
               </div>
             ) : (
               <div className="space-y-3">
@@ -271,15 +272,15 @@ export function FamilyTemplatePicker({
                   )}
                 </div>
                 <div className="space-y-1.5 text-xs">
-                  <Row label="Verticale" value={prettyLabel(selected.vertical_slug)} />
-                  {selected.categoria_slug && <Row label="Categoria" value={prettyLabel(selected.categoria_slug)} />}
-                  {selected.tipologia && <Row label="Tipologia" value={prettyLabel(selected.tipologia)} />}
-                  {selected.materiale && <Row label="Materiale" value={prettyLabel(selected.materiale)} />}
-                  <Row label="Modalità prezzo" value={etichettaModalita(selected.modalita_prezzo_base)} />
-                  <Row label="Prezzo di vendita" value={selected.griglia_default
-                    ? "Griglia per misura"
+                  <Row label={tr("Verticale")} value={prettyLabel(selected.vertical_slug)} />
+                  {selected.categoria_slug && <Row label={tr("Categoria")} value={prettyLabel(selected.categoria_slug)} />}
+                  {selected.tipologia && <Row label={tr("Tipologia")} value={prettyLabel(selected.tipologia)} />}
+                  {selected.materiale && <Row label={tr("Materiale")} value={prettyLabel(selected.materiale)} />}
+                  <Row label={tr("Modalità prezzo")} value={etichettaModalita(selected.modalita_prezzo_base)} />
+                  <Row label={tr("Prezzo di vendita")} value={selected.griglia_default
+                    ? tr("Griglia per misura")
                     : selected.prezzo_base_vendita === null
-                      ? "Da compilare"
+                      ? tr("Da compilare")
                       : [formatCurrency(selected.prezzo_base_vendita), selected.unit_of_measure].filter(Boolean).join(" / ")} />
                   {selected.vat_rate != null && <Row label="IVA" value={`${selected.vat_rate}%`} />}
                   {selected.unit_of_measure && <Row label="UM" value={selected.unit_of_measure} />}
@@ -288,7 +289,7 @@ export function FamilyTemplatePicker({
                   <div className="pt-2 border-t">
                     <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground mb-1.5">
                       <Ruler className="h-3 w-3" />
-                      Variabili Standard ({selected.assi_default.length})
+                      {tr("Variabili Standard ({n})", { n: selected.assi_default.length })}
                     </div>
                     <ul className="space-y-1">
                       {selected.assi_default.map((a) => (
@@ -324,12 +325,12 @@ export function FamilyTemplatePicker({
         <DialogFooter className="border-t pt-3 sm:items-center sm:justify-between flex-wrap gap-2 shrink-0">
           <div className="text-xs text-muted-foreground">
             {selected
-              ? <>Selezionato: <strong>{selected.nome}</strong></>
-              : `${filtered.length} template disponibili`}
+              ? <>{tr("Selezionato:")} <strong>{selected.nome}</strong></>
+              : tr("{n} template disponibili", { n: filtered.length })}
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={importMutation.isPending}>
-              Annulla
+              {tr("Annulla")}
             </Button>
             <Button
               onClick={handleImport}
@@ -337,9 +338,9 @@ export function FamilyTemplatePicker({
               className="bg-orange-500 hover:bg-orange-600"
             >
               {importMutation.isPending ? (
-                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Importazione…</>
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{tr("Importazione…")}</>
               ) : (
-                <><Sparkles className="h-4 w-4 mr-2" />Importa template</>
+                <><Sparkles className="h-4 w-4 mr-2" />{tr("Importa template")}</>
               )}
             </Button>
           </div>

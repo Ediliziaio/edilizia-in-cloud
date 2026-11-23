@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function TemplateSectionCard({ icon: Icon, title, description, toggle, children }: {
   icon: ComponentType<{ className?: string }>;
@@ -26,6 +27,7 @@ export function TemplateRowsEditor<T extends object>({ items, onChange, fields, 
   items: T[]; onChange: (items: T[]) => void; fields: RowField<T>[]; empty: T;
   itemLabel: string; addLabel: string; emptyMessage: string;
 }) {
+  const t = useT();
   const id = useId();
   const move = (index: number, direction: -1 | 1) => {
     const nextIndex = index + direction;
@@ -47,9 +49,9 @@ export function TemplateRowsEditor<T extends object>({ items, onChange, fields, 
         </div>;
       })}
       <div className="flex flex-wrap gap-1 border-t pt-2">
-        <Button type="button" variant="ghost" size="sm" disabled={index === 0} aria-label={`Sposta su ${itemLabel.toLowerCase()} ${index + 1}`} onClick={() => move(index, -1)}><ArrowUp className="h-3.5 w-3.5" />Su</Button>
-        <Button type="button" variant="ghost" size="sm" disabled={index === items.length - 1} aria-label={`Sposta giù ${itemLabel.toLowerCase()} ${index + 1}`} onClick={() => move(index, 1)}><ArrowDown className="h-3.5 w-3.5" />Giù</Button>
-        <Button type="button" variant="ghost" size="sm" className="ml-auto text-destructive" aria-label={`Rimuovi ${itemLabel.toLowerCase()} ${index + 1}`} onClick={() => onChange(items.filter((_, i) => i !== index))}><Trash2 className="h-3.5 w-3.5" />Rimuovi</Button>
+        <Button type="button" variant="ghost" size="sm" disabled={index === 0} aria-label={t("Sposta su {voce} {n}", { voce: itemLabel.toLowerCase(), n: index + 1 })} onClick={() => move(index, -1)}><ArrowUp className="h-3.5 w-3.5" />{t("Su")}</Button>
+        <Button type="button" variant="ghost" size="sm" disabled={index === items.length - 1} aria-label={t("Sposta giù {voce} {n}", { voce: itemLabel.toLowerCase(), n: index + 1 })} onClick={() => move(index, 1)}><ArrowDown className="h-3.5 w-3.5" />{t("Giù")}</Button>
+        <Button type="button" variant="ghost" size="sm" className="ml-auto text-destructive" aria-label={t("Rimuovi {voce} {n}", { voce: itemLabel.toLowerCase(), n: index + 1 })} onClick={() => onChange(items.filter((_, i) => i !== index))}><Trash2 className="h-3.5 w-3.5" />{t("Rimuovi")}</Button>
       </div>
     </fieldset>)}
     <Button type="button" size="sm" variant="outline" onClick={() => onChange([...items, structuredClone(empty)])}><Plus className="mr-1.5 h-4 w-4" />{addLabel}</Button>
@@ -64,31 +66,35 @@ interface Phase { fase: string; durata?: string | null; descrizione?: string | n
 export function TemplateListItemsEditor({ items, onChange, addLabel, titlePlaceholder, descPlaceholder }: {
   items: ListItem[]; onChange: (items: ListItem[]) => void; addLabel: string; titlePlaceholder: string; descPlaceholder: string;
 }) {
+  const t = useT();
   return <TemplateRowsEditor items={items} onChange={onChange} fields={[
-    { key: "titolo", label: "Titolo", placeholder: titlePlaceholder },
-    { key: "descrizione", label: "Descrizione", placeholder: descPlaceholder, multiline: true },
-  ]} empty={{ titolo: "", descrizione: "" }} itemLabel="Voce" addLabel={addLabel} emptyMessage="Nessuna voce. Aggiungi solo contenuti pertinenti alla tua proposta." />;
+    { key: "titolo", label: t("Titolo"), placeholder: titlePlaceholder },
+    { key: "descrizione", label: t("Descrizione"), placeholder: descPlaceholder, multiline: true },
+  ]} empty={{ titolo: "", descrizione: "" }} itemLabel={t("Voce")} addLabel={addLabel} emptyMessage={t("Nessuna voce. Aggiungi solo contenuti pertinenti alla tua proposta.")} />;
 }
 
 export function TemplateTestimonianzeEditor({ items, onChange }: { items: Testimonial[]; onChange: (items: Testimonial[]) => void }) {
+  const t = useT();
   return <TemplateRowsEditor items={items} onChange={onChange} fields={[
-    { key: "testo", label: "Testimonianza", placeholder: "Inserisci una testimonianza autentica", multiline: true },
-    { key: "autore", label: "Autore", placeholder: "Nome cliente" },
-    { key: "ruolo", label: "Contesto", placeholder: "Città / tipo lavoro" },
-  ]} empty={{ autore: "", ruolo: "", testo: "" }} itemLabel="Testimonianza" addLabel="Aggiungi testimonianza" emptyMessage="Nessuna testimonianza. Inserisci soltanto recensioni autentiche autorizzate." />;
+    { key: "testo", label: t("Testimonianza"), placeholder: t("Inserisci una testimonianza autentica"), multiline: true },
+    { key: "autore", label: t("Autore"), placeholder: t("Nome cliente") },
+    { key: "ruolo", label: t("Contesto"), placeholder: t("Città / tipo lavoro") },
+  ]} empty={{ autore: "", ruolo: "", testo: "" }} itemLabel={t("Testimonianza")} addLabel={t("Aggiungi testimonianza")} emptyMessage={t("Nessuna testimonianza. Inserisci soltanto recensioni autentiche autorizzate.")} />;
 }
 
 export function TemplateFaqEditor({ items, onChange }: { items: Faq[]; onChange: (items: Faq[]) => void }) {
+  const t = useT();
   return <TemplateRowsEditor items={items} onChange={onChange} fields={[
-    { key: "domanda", label: "Domanda", placeholder: "Domanda (es. Servono permessi per i lavori?)" },
-    { key: "risposta", label: "Risposta", placeholder: "Risposta", multiline: true },
-  ]} empty={{ domanda: "", risposta: "" }} itemLabel="Domanda" addLabel="Aggiungi FAQ" emptyMessage="Nessuna FAQ. Aggiungi le domande più frequenti dei tuoi clienti." />;
+    { key: "domanda", label: t("Domanda"), placeholder: t("Domanda (es. Servono permessi per i lavori?)") },
+    { key: "risposta", label: t("Risposta"), placeholder: t("Risposta"), multiline: true },
+  ]} empty={{ domanda: "", risposta: "" }} itemLabel={t("Domanda")} addLabel={t("Aggiungi FAQ")} emptyMessage={t("Nessuna FAQ. Aggiungi le domande più frequenti dei tuoi clienti.")} />;
 }
 
 export function TemplateCronoEditor({ items, onChange }: { items: Phase[]; onChange: (items: Phase[]) => void }) {
+  const t = useT();
   return <TemplateRowsEditor items={items} onChange={onChange} fields={[
-    { key: "fase", label: "Fase", placeholder: "Fase (es. Demolizioni)" },
-    { key: "durata", label: "Durata", placeholder: "Durata (es. 1 settimana)" },
-    { key: "descrizione", label: "Descrizione", placeholder: "Dettaglio (opzionale)", multiline: true },
-  ]} empty={{ fase: "", durata: "", descrizione: "" }} itemLabel="Fase" addLabel="Aggiungi fase" emptyMessage="Nessuna fase. Aggiungi le tappe del cantiere e le durate previste." />;
+    { key: "fase", label: t("Fase"), placeholder: t("Fase (es. Demolizioni)") },
+    { key: "durata", label: t("Durata"), placeholder: t("Durata (es. 1 settimana)") },
+    { key: "descrizione", label: t("Descrizione"), placeholder: t("Dettaglio (opzionale)"), multiline: true },
+  ]} empty={{ fase: "", durata: "", descrizione: "" }} itemLabel={t("Fase")} addLabel={t("Aggiungi fase")} emptyMessage={t("Nessuna fase. Aggiungi le tappe del cantiere e le durate previste.")} />;
 }

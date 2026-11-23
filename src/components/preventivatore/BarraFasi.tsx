@@ -16,6 +16,7 @@ import { SelettoreFase } from "./SelettoreFase";
 import { cn } from "@/lib/utils";
 import { minutiRimasti } from "@/lib/preventivatore/fasi";
 import { TotaleBarra } from "./TotaleBarra";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface PassoPreventivatore {
   key: string;
@@ -45,8 +46,9 @@ export interface BarraFasiProps {
 }
 
 export function BarraFasi({
-  passi, corrente, completati, conAvviso, bloccati, onSelect, totale, destra, className, ariaLabel = "Fasi del preventivo",
+  passi, corrente, completati, conAvviso, bloccati, onSelect, totale, destra, className, ariaLabel,
 }: BarraFasiProps) {
+  const t = useT();
   const indice = Math.max(0, passi.findIndex((p) => p.key === corrente));
   const pct = Math.round(((indice + 1) / Math.max(1, passi.length)) * 100);
   const minuti = minutiRimasti(passi.length, indice);
@@ -65,7 +67,7 @@ export function BarraFasi({
       <div className="flex items-stretch px-4 sm:px-6 max-md:px-2 lg:max-xl:px-3">
         <nav
           ref={rigaRef}
-          aria-label={ariaLabel}
+          aria-label={ariaLabel ?? t("Fasi del preventivo")}
           className={cn("fv-tab-scroll flex min-h-0 min-w-0 flex-1 gap-0 overflow-x-auto max-xl:gap-1 max-xl:py-1 max-xl:[scrollbar-width:none] max-xl:[&::-webkit-scrollbar]:hidden", passi.length > 1 && "max-lg:hidden")}
         >
           {passi.map((p, i) => {
@@ -108,13 +110,13 @@ export function BarraFasi({
                   {fatto && !attivo ? <Check className="h-3 w-3" strokeWidth={3} aria-hidden="true" /> : i + 1}
                 </span>
                 <span className="flex flex-col items-start text-left leading-tight">
-                  <span className="text-[10px] font-medium uppercase tracking-wider text-slate-400 max-xl:hidden">Passo {i + 1}</span>
+                  <span className="text-[10px] font-medium uppercase tracking-wider text-slate-400 max-xl:hidden">{t("Passo {n}", { n: i + 1 })}</span>
                   <span>{p.breve ?? p.label}</span>
                 </span>
                 {avviso && (
                   <span
                     role="img"
-                    aria-label="Manca qualcosa"
+                    aria-label={t("Manca qualcosa")}
                     className="absolute right-1 top-1.5 h-2 w-2 rounded-full bg-red-500 max-md:right-0.5 max-md:top-0.5"
                   />
                 )}
@@ -136,13 +138,13 @@ export function BarraFasi({
       {/* Telefono: la fase la dicono già le pillole e il totale sta nella barra in basso. */}
       <div className="flex items-center gap-3 border-t border-slate-100 bg-slate-50 px-4 py-1.5 text-xs text-slate-500 sm:px-6 max-lg:hidden lg:max-xl:px-3">
         <span>
-          <strong className="text-slate-900">Passo {indice + 1} di {passi.length}</strong> · {passi[indice]?.label}
+          <strong className="text-slate-900">{t("Passo {n} di {totale}", { n: indice + 1, totale: passi.length })}</strong> · {passi[indice]?.label}
         </span>
         <div className="h-1 max-w-[200px] flex-1 overflow-hidden rounded-full bg-slate-200" role="presentation">
           <div className="h-full rounded-full bg-gradient-to-r from-orange-500 to-eic-amber transition-all duration-500" style={{ width: `${pct}%` }} />
         </div>
         <span>
-          {pct}%{minuti > 0 && ` · ~${minuti} min`}
+          {pct}%{minuti > 0 && <> · {t("~{n} min", { n: minuti })}</>}
         </span>
       </div>
     </div>

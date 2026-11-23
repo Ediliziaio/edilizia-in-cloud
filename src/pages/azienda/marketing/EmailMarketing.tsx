@@ -13,8 +13,10 @@ import { MarketingDomainGateWall } from "@/components/email-marketing/MarketingD
 import { useMarketingDomainGate } from "@/hooks/useMarketingDomainGate";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const EmailMarketing = () => {
+  const t = useT();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get("tab");
   // Default = "campagne" (primo tab): all'apertura si atterra sulla lista
@@ -62,8 +64,8 @@ const EmailMarketing = () => {
           c'erano un riquadro sfumato, l'icona e un sottotitolo che ripeteva
           le schede qui sotto. */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground max-sm:text-lg">Email Marketing</h1>
-        <p className="text-[11px] text-muted-foreground sm:hidden">le campagne si creano da computer o tablet</p>
+        <h1 className="text-2xl font-bold text-foreground max-sm:text-lg">{t("Email Marketing")}</h1>
+        <p className="text-[11px] text-muted-foreground sm:hidden">{t("le campagne si creano da computer o tablet")}</p>
       </div>
 
       {/* Banner riepilogo crediti — minimal, mostra alert solo se saldo basso o
@@ -78,15 +80,15 @@ const EmailMarketing = () => {
         <TabsList className="gap-1 max-sm:h-auto max-sm:w-full max-sm:rounded-xl max-sm:border max-sm:bg-card max-sm:p-1">
           <TabsTrigger value="campagne" className="gap-1.5 max-sm:flex-1 max-sm:data-[state=active]:bg-orange-50 max-sm:data-[state=active]:text-orange-700 max-sm:dark:data-[state=active]:bg-orange-950/50 max-sm:dark:data-[state=active]:text-orange-300">
             <Send className="h-4 w-4 max-sm:hidden" />
-            Campagne
+            {t("Campagne")}
           </TabsTrigger>
           <TabsTrigger value="modelli" className="gap-1.5 max-sm:hidden">
             <FileText className="h-4 w-4" />
-            Modelli
+            {t("Modelli")}
           </TabsTrigger>
           <TabsTrigger value="statistiche" className="gap-1.5 max-sm:flex-1 max-sm:data-[state=active]:bg-orange-50 max-sm:data-[state=active]:text-orange-700 max-sm:dark:data-[state=active]:bg-orange-950/50 max-sm:dark:data-[state=active]:text-orange-300">
             <BarChart3 className="h-4 w-4 max-sm:hidden" />
-            Statistiche
+            {t("Statistiche")}
           </TabsTrigger>
         </TabsList>
 

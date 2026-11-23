@@ -13,6 +13,7 @@ import {
 import { leggiVociDaFile, type Avanzamento, type EsitoFile } from "@/lib/computo/leggiVoci";
 import type { StatoServer } from "@/lib/computo/estrazioneServer";
 import { DocumentiDelGestionale } from "./DocumentiDelGestionale";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Il popup di «Importa voci», uguale nel computo e nei preventivatori.
@@ -79,8 +80,9 @@ function percentuale(l: Lavoro): number {
 }
 
 function Fasi({ lavoro }: { lavoro: Lavoro }) {
+  const t = useT();
   const attuale = lavoro.stato === "fatto" ? FASI.length - 1 : FASI.indexOf(lavoro.avanzamento.fase);
-  return <ol className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs" aria-label="Fasi della lettura">
+  return <ol className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs" aria-label={t("Fasi della lettura")}>
     {FASI.map((f, i) => {
       const fatta = i < attuale || lavoro.stato === "fatto";
       const ora = i === attuale && lavoro.stato === "lettura";
@@ -122,6 +124,7 @@ function FoglioInLettura({ lavoro, percento }: { lavoro: Lavoro; percento: numbe
 }
 
 function SchedaFile({ lavoro }: { lavoro: Lavoro }) {
+  const t = useT();
   const p = percentuale(lavoro);
   return <li className="space-y-2 rounded-lg border bg-card p-3">
     <div className="flex items-center gap-3">
@@ -130,19 +133,19 @@ function SchedaFile({ lavoro }: { lavoro: Lavoro }) {
         <p className="truncate text-sm font-medium">{lavoro.file.name}</p>
         <p className="text-xs text-muted-foreground">
           {lavoro.formato}
-          {lavoro.letto?.via === "server" && " · letto con l'AI"}
+          {lavoro.letto?.via === "server" && ` ${t("· letto con l'AI")}`}
           {lavoro.stato === "lettura" && lavoro.avanzamento.dettaglio && ` · ${lavoro.avanzamento.dettaglio}`}
-          {lavoro.stato === "attesa" && " · in coda"}
+          {lavoro.stato === "attesa" && ` ${t("· in coda")}`}
         </p>
       </div>
-      {lavoro.stato === "fatto" && <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" aria-label="Letto" />}
-      {lavoro.stato === "errore" && <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600" aria-label="Non letto" />}
+      {lavoro.stato === "fatto" && <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" aria-label={t("Letto")} />}
+      {lavoro.stato === "errore" && <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600" aria-label={t("Non letto")} />}
     </div>
     {lavoro.stato === "errore"
       ? <p role="alert" className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-900">{lavoro.errore}</p>
       : <>
         <Fasi lavoro={lavoro} />
-        <div className="h-1.5 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={p} aria-label={`Lettura di ${lavoro.file.name}`}>
+        <div className="h-1.5 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={p} aria-label={t("Lettura di {name}", { name: String(lavoro.file.name ?? "") })}>
           <div className="h-full rounded-full bg-primary transition-[width] duration-500 motion-reduce:transition-none" style={{ width: `${p}%` }} />
         </div>
       </>}
@@ -162,6 +165,7 @@ function Campo({ etichetta, valore, onCambia, etichettaMobile = etichetta, numer
 }
 
 export function ImportaVociDialog({ open, onOpenChange, onAggiungi, vociPresenti, consentiAi, massimoVoci = 5000, titolo, descrizione, etichettaConferma, notaDestinazione, altreFonti, daComputi }: ImportaVociDialogProps) {
+  const tTesto = useT();
   const { effectiveCompany, user } = useAuth();
   const [lavori, setLavori] = useState<Lavoro[]>([]);
   const [voci, setVoci] = useState<VoceImportata[]>([]);
@@ -317,37 +321,37 @@ export function ImportaVociDialog({ open, onOpenChange, onAggiungi, vociPresenti
         @media (prefers-reduced-motion: reduce){.importa-voci-scan{animation:none;top:0;height:100%;background:hsl(var(--primary)/.12)}.importa-voci-foglio-vivo,.importa-voci-fatto{animation:none}}
       `}</style>
       <DialogHeader>
-        <DialogTitle>{titolo ?? "Importa voci"}</DialogTitle>
+        <DialogTitle>{titolo ?? tTesto("Importa voci")}</DialogTitle>
         <DialogDescription>
-          {passo === "scegli" && (daArchivio ? "Scegli un computo e poi seleziona i capitoli o le singole lavorazioni da copiare." : descrizione ?? "Apri un file e rivedi le lavorazioni prima di aggiungerle.")}
-          {passo === "lettura" && (inLettura ? "Sto leggendo i file. Puoi chiudere quando vuoi: niente cambia finché non confermi." : "Lettura finita.")}
-          {passo === "anteprima" && (copiaDaComputo ? "Seleziona le lavorazioni da copiare. Controlla quantità, misure e prezzi per il nuovo lavoro." : `${voci.length} ${voci.length === 1 ? "voce trovata" : "voci trovate"}${incerte ? `, ${incerte} da controllare` : ""}. Scegli quali importare, correggi quello che non va: niente cambia finché non confermi.`)}
+          {passo === "scegli" && (daArchivio ? tTesto("Scegli un computo e poi seleziona i capitoli o le singole lavorazioni da copiare.") : descrizione ?? tTesto("Apri un file e rivedi le lavorazioni prima di aggiungerle."))}
+          {passo === "lettura" && (inLettura ? tTesto("Sto leggendo i file. Puoi chiudere quando vuoi: niente cambia finché non confermi.") : tTesto("Lettura finita."))}
+          {passo === "anteprima" && (copiaDaComputo ? tTesto("Seleziona le lavorazioni da copiare. Controlla quantità, misure e prezzi per il nuovo lavoro.") : `${voci.length} ${voci.length === 1 ? "voce trovata" : "voci trovate"}${incerte ? `, ${incerte} da controllare` : ""}. Scegli quali importare, correggi quello che non va: niente cambia finché non confermi.`)}
         </DialogDescription>
       </DialogHeader>
 
-      <input ref={input} type="file" multiple hidden accept={ACCEPT_IMPORTA_VOCI} aria-label="File da cui importare le voci"
+      <input ref={input} type="file" multiple hidden accept={ACCEPT_IMPORTA_VOCI} aria-label={tTesto("File da cui importare le voci")}
         data-rilascio={passo === "scegli" && !daArchivio ? "senza-filtro" : "no"}
         onChange={e => { const fs = Array.from(e.target.files ?? []); e.target.value = ""; void leggi(fs); }} />
 
-      {passo === "scegli" && daComputi && <div role="group" aria-label="Origine delle lavorazioni" className="flex flex-wrap gap-1 rounded-lg border bg-slate-50 p-1">
-        <Button type="button" size="sm" variant={!daArchivio ? "secondary" : "ghost"} aria-pressed={!daArchivio} onClick={() => setSorgente("file")}><FileUp className="mr-1.5 h-4 w-4" />Da file</Button>
-        <Button type="button" size="sm" variant={daArchivio ? "secondary" : "ghost"} aria-pressed={daArchivio} onClick={() => setSorgente("computo")}><Files className="mr-1.5 h-4 w-4" />Da un computo salvato</Button>
+      {passo === "scegli" && daComputi && <div role="group" aria-label={tTesto("Origine delle lavorazioni")} className="flex flex-wrap gap-1 rounded-lg border bg-slate-50 p-1">
+        <Button type="button" size="sm" variant={!daArchivio ? "secondary" : "ghost"} aria-pressed={!daArchivio} onClick={() => setSorgente("file")}><FileUp className="mr-1.5 h-4 w-4" />{tTesto("Da file")}</Button>
+        <Button type="button" size="sm" variant={daArchivio ? "secondary" : "ghost"} aria-pressed={daArchivio} onClick={() => setSorgente("computo")}><Files className="mr-1.5 h-4 w-4" />{tTesto("Da un computo salvato")}</Button>
       </div>}
 
       {passo === "scegli" && !daArchivio && <div data-zona-rilascio
         className="flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 px-4 py-10 text-center">
         <Upload className="h-8 w-8 text-primary" aria-hidden />
         <div>
-          <p className="text-sm font-medium">Trascina qui i file</p>
-          <p className="text-xs text-muted-foreground">anche più di uno insieme</p>
+          <p className="text-sm font-medium">{tTesto("Trascina qui i file")}</p>
+          <p className="text-xs text-muted-foreground">{tTesto("anche più di uno insieme")}</p>
         </div>
-        <Button type="button" onClick={() => input.current?.click()}><FileUp className="mr-1 h-4 w-4" />Scegli file</Button>
-        <ul className="flex flex-wrap justify-center gap-1.5" aria-label="Formati letti">
-          {FORMATI.map(f => <li key={f} className="rounded-full border bg-background px-2 py-0.5 text-[11px] text-muted-foreground">{f}</li>)}
+        <Button type="button" onClick={() => input.current?.click()}><FileUp className="mr-1 h-4 w-4" />{tTesto("Scegli file")}</Button>
+        <ul className="flex flex-wrap justify-center gap-1.5" aria-label={tTesto("Formati letti")}>
+          {FORMATI.map(f => <li key={f} className="rounded-full border bg-background px-2 py-0.5 text-[11px] text-muted-foreground">{tTesto(f)}</li>)}
         </ul>
         <p className="max-w-sm text-[11px] text-muted-foreground">
-          PriMus, Excel, CSV e Word con una tabella si leggono così come sono scritti.
-          {consentiAi ? " Scansioni, foto e altri PDF li legge l'AI: controlla le voci segnalate." : " Scansioni e foto richiedono l'AI, che qui non è attiva."}
+          {tTesto("PriMus, Excel, CSV e Word con una tabella si leggono così come sono scritti.")}
+          {consentiAi ? ` ${tTesto("Scansioni, foto e altri PDF li legge l'AI: controlla le voci segnalate.")}` : ` ${tTesto("Scansioni e foto richiedono l'AI, che qui non è attiva.")}`}
         </p>
       </div>}
       {passo === "scegli" && daArchivio && daComputi && <DocumentiDelGestionale companyId={daComputi.companyId} soloComputi={daComputi} mostraImporti onScelto={caricaDaFonte} />}
@@ -356,8 +360,8 @@ export function ImportaVociDialog({ open, onOpenChange, onAggiungi, vociPresenti
       {passo === "lettura" && <div className="space-y-3">
         <ul className="space-y-2">{lavori.map(l => <SchedaFile key={l.chiave} lavoro={l} />)}</ul>
         {!inLettura && !voci.length && <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/40 p-3 text-sm">
-          <span>{errori.length ? "Nessuna voce letta." : "Nei file non ho trovato voci."} Il documento non è stato modificato.</span>
-          <Button size="sm" variant="outline" onClick={() => { setLavori([]); setPasso("scegli"); }}>Prova un altro file</Button>
+          <span>{errori.length ? tTesto("Nessuna voce letta.") : tTesto("Nei file non ho trovato voci.")} {tTesto("Il documento non è stato modificato.")}</span>
+          <Button size="sm" variant="outline" onClick={() => { setLavori([]); setPasso("scegli"); }}>{tTesto("Prova un altro file")}</Button>
         </div>}
       </div>}
 
@@ -368,49 +372,49 @@ export function ImportaVociDialog({ open, onOpenChange, onAggiungi, vociPresenti
             const torna = e.totaleDocumento !== null && Math.abs(e.totaleDocumento - e.totaleRicalcolato) < 0.005;
             return <p key={l.chiave} className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
               <span className="font-medium">{l.file.name}</span>
-              <span className="text-muted-foreground">{l.letto!.voci.length} voci · {l.formato}{l.letto!.via === "server" ? " · letto con l'AI" : ""}</span>
-              {torna && <span className="flex items-center gap-1 text-emerald-700"><CheckCircle2 className="h-3.5 w-3.5" />totale uguale al documento</span>}
-              {e.totaleDocumento !== null && !torna && <span className="text-amber-800">il documento dice {formatEuro(e.totaleDocumento)} €, ricalcolato {formatEuro(e.totaleRicalcolato)} €</span>}
-              {e.descrizioniTroncate > 0 && <span className="text-amber-800">{e.descrizioniTroncate} descrizioni accorciate da PriMus nel PDF: il testo intero è nel file XPWE</span>}
+              <span className="text-muted-foreground">{l.letto!.voci.length} {tTesto("voci ·")} {l.formato}{l.letto!.via === "server" ? ` ${tTesto("· letto con l'AI")}` : ""}</span>
+              {torna && <span className="flex items-center gap-1 text-emerald-700"><CheckCircle2 className="h-3.5 w-3.5" />{tTesto("totale uguale al documento")}</span>}
+              {e.totaleDocumento !== null && !torna && <span className="text-amber-800">{tTesto("il documento dice {totaleDocumento} €, ricalcolato {totaleRicalcolato} €", { totaleDocumento: formatEuro(e.totaleDocumento), totaleRicalcolato: formatEuro(e.totaleRicalcolato) })}</span>}
+              {e.descrizioniTroncate > 0 && <span className="text-amber-800">{tTesto("{descrizioniTroncate} descrizioni accorciate da PriMus nel PDF: il testo intero è nel file XPWE", { descrizioniTroncate: String(e.descrizioniTroncate ?? "") })}</span>}
             </p>;
           })}
           {fonte && <p className="flex flex-wrap items-center gap-x-2">
             <span className="font-medium">{fonte.nome}</span>
-            <span className="text-muted-foreground">{voci.length} voci · {fonte.tipo} del gestionale</span>
-            <Button type="button" size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => { setVoci([]); setFonte(null); setPasso("scegli"); }}>Scegli un altro documento</Button>
+            <span className="text-muted-foreground">{tTesto("{n} voci · {tipo} del gestionale", { n: voci.length, tipo: String(fonte.tipo ?? "") })}</span>
+            <Button type="button" size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => { setVoci([]); setFonte(null); setPasso("scegli"); }}>{tTesto("Scegli un altro documento")}</Button>
           </p>}
-          {errori.map(l => <p key={l.chiave} role="alert" className="text-amber-800"><strong>{l.file.name}</strong> non letto: {l.errore}</p>)}
+          {errori.map(l => <p key={l.chiave} role="alert" className="text-amber-800"><strong>{l.file.name}</strong> {tTesto("non letto:")} {l.errore}</p>)}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs">
-            <input type="checkbox" className="h-3.5 w-3.5 accent-[hsl(var(--primary))]" aria-label="Seleziona tutte le voci"
+            <input type="checkbox" className="h-3.5 w-3.5 accent-[hsl(var(--primary))]" aria-label={tTesto("Seleziona tutte le voci")}
               checked={!!voci.length && selezionate.length === voci.length}
               ref={el => { if (el) el.indeterminate = selezionate.length > 0 && selezionate.length < voci.length; }}
               onChange={e => seleziona(voci.map(v => v.id), e.target.checked)} />
-            <span className="tabular-nums" data-testid="contatore-selezione"><strong>{selezionate.length}</strong> selezionate su {voci.length}</span>
+            <span className="tabular-nums" data-testid="contatore-selezione"><strong>{selezionate.length}</strong> {tTesto("selezionate su")} {voci.length}</span>
           </label>
-          {!copiaDaComputo && nonLavori > 0 && <span className="text-xs text-muted-foreground">Spente {nonLavori} voci di oneri tecnici, IVA e visto: non sono lavori. Riaccendile se servono.</span>}
+          {!copiaDaComputo && nonLavori > 0 && <span className="text-xs text-muted-foreground">{tTesto("Spente {nonLavori} voci di oneri tecnici, IVA e visto: non sono lavori. Riaccendile se servono.", { nonLavori: String(nonLavori ?? "") })}</span>}
           {!!incerte && <Button size="sm" variant={soloIncerte ? "default" : "outline"} aria-pressed={soloIncerte} onClick={() => setSoloIncerte(s => !s)}>
-            <AlertTriangle className="mr-1 h-3.5 w-3.5" />Da controllare ({incerte})
+            <AlertTriangle className="mr-1 h-3.5 w-3.5" />{tTesto("Da controllare (")}{incerte})
           </Button>}
           <span className="ml-auto text-xs text-muted-foreground">
-            {vociPresenti ? "Le voci selezionate si aggiungono in fondo al documento." : (notaDestinazione ?? "Le voci si aggiungono al documento.")}
+            {vociPresenti ? tTesto("Le voci selezionate si aggiungono in fondo al documento.") : (notaDestinazione ?? tTesto("Le voci si aggiungono al documento."))}
           </span>
         </div>
 
         <div className="min-h-0 flex-1 overflow-auto rounded-md border">
-          <table role="table" aria-label="Lavorazioni da importare" className="importa-voci-tabella w-full text-xs sm:min-w-[760px]">
+          <table role="table" aria-label={tTesto("Lavorazioni da importare")} className="importa-voci-tabella w-full text-xs sm:min-w-[760px]">
             <thead role="rowgroup" className="sticky top-0 z-10 bg-muted/90 text-left text-muted-foreground backdrop-blur max-sm:sr-only">
               <tr role="row">
-                <th className="w-8 px-2 py-1.5"><span className="sr-only">Importa</span></th>
-                <th className="w-24 px-2 py-1.5 font-medium">Codice</th>
-                <th className="px-2 py-1.5 font-medium">Descrizione</th>
+                <th className="w-8 px-2 py-1.5"><span className="sr-only">{tTesto("Importa")}</span></th>
+                <th className="w-24 px-2 py-1.5 font-medium">{tTesto("Codice")}</th>
+                <th className="px-2 py-1.5 font-medium">{tTesto("Descrizione")}</th>
                 <th className="w-16 px-2 py-1.5 font-medium">U.M.</th>
-                <th className="w-24 px-2 py-1.5 text-right font-medium">Quantità</th>
-                <th className="w-24 px-2 py-1.5 text-right font-medium">Prezzo</th>
-                <th className="w-24 px-2 py-1.5 text-right font-medium">Importo</th>
-                <th className="w-9 px-1 py-1.5"><span className="sr-only">Togli</span></th>
+                <th className="w-24 px-2 py-1.5 text-right font-medium">{tTesto("Quantità")}</th>
+                <th className="w-24 px-2 py-1.5 text-right font-medium">{tTesto("Prezzo")}</th>
+                <th className="w-24 px-2 py-1.5 text-right font-medium">{tTesto("Importo")}</th>
+                <th className="w-9 px-1 py-1.5"><span className="sr-only">{tTesto("Togli")}</span></th>
               </tr>
             </thead>
             {gruppi.map(([capitolo, gruppo]) => {
@@ -420,12 +424,12 @@ export function ImportaVociDialog({ open, onOpenChange, onAggiungi, vociPresenti
               return <tbody role="rowgroup" key={capitolo} data-capitolo={capitolo}>
               <tr role="row" className="importa-voci-capitolo border-t bg-muted/50">
                 <td role="cell" className="px-2 py-1.5">
-                  <input type="checkbox" className="h-3.5 w-3.5 accent-[hsl(var(--primary))] max-sm:h-5 max-sm:w-5" aria-label={`Seleziona il capitolo ${capitolo}`}
+                  <input type="checkbox" className="h-3.5 w-3.5 accent-[hsl(var(--primary))] max-sm:h-5 max-sm:w-5" aria-label={tTesto("Seleziona il capitolo {capitolo}", { capitolo: String(capitolo ?? "") })}
                     checked={scelte.length === ids.length} ref={el => { if (el) el.indeterminate = scelte.length > 0 && scelte.length < ids.length; }}
                     onChange={e => seleziona(ids, e.target.checked)} />
                 </td>
                 <td role="cell" colSpan={5} className="px-2 py-1.5 text-xs font-semibold max-sm:min-w-0 max-sm:flex-1 max-sm:break-words max-sm:pl-0">{capitolo}
-                  <span className="ml-2 font-normal text-muted-foreground tabular-nums">{scelte.length} su {ids.length}</span></td>
+                  <span className="ml-2 font-normal text-muted-foreground tabular-nums">{tTesto("{n} su {n2}", { n: scelte.length, n2: ids.length })}</span></td>
                 <td role="cell" className="px-2 py-1.5 text-right text-xs font-semibold tabular-nums max-sm:shrink-0">{formatEuro(totaleCapitolo)} €</td>
                 <td role="cell" className="max-sm:hidden" />
               </tr>
@@ -439,27 +443,27 @@ export function ImportaVociDialog({ open, onOpenChange, onAggiungi, vociPresenti
                       checked={scelta} onChange={e => seleziona([v.id], e.target.checked)} />
                   </td>
                   <td role="cell" data-campo="codice" className="px-2 py-1.5">
-                    <Campo etichetta="Codice" valore={v.tariffa} onCambia={t => modifica(v.id, { tariffa: t })} />
+                    <Campo etichetta={tTesto("Codice")} valore={v.tariffa} onCambia={t => modifica(v.id, { tariffa: t })} />
                     {piuFile && <span className="mt-1 block truncate text-[10px] text-muted-foreground" title={v.origine}>{v.origine}</span>}
                   </td>
                   <td role="cell" data-campo="descrizione" className="px-2 py-1.5">
-                    <textarea aria-label="Descrizione" rows={2} value={v.descrizione} onChange={e => modifica(v.id, { descrizione: e.target.value })}
+                    <textarea aria-label={tTesto("Descrizione")} rows={2} value={v.descrizione} onChange={e => modifica(v.id, { descrizione: e.target.value })}
                       className="w-full resize-y rounded-md border border-input bg-background px-2 py-1 text-xs max-sm:min-h-[3.5rem]" />
                     {!!v.avvisi.length && <p className="mt-0.5 flex items-start gap-1 text-[11px] text-amber-800">
                       <AlertTriangle className="mt-px h-3 w-3 shrink-0" aria-hidden />{v.avvisi.join(" · ")}
                     </p>}
-                    {copiaDaComputo && v.opzionale && <span className="text-[11px] font-medium text-blue-700">Opzionale · fuori dal totale</span>}
-                    <input aria-label="Capitolo" value={v.capitolo} placeholder="Capitolo" onChange={e => modifica(v.id, { capitolo: e.target.value })}
+                    {copiaDaComputo && v.opzionale && <span className="text-[11px] font-medium text-blue-700">{tTesto("Opzionale · fuori dal totale")}</span>}
+                    <input aria-label={tTesto("Capitolo")} value={v.capitolo} placeholder={tTesto("Capitolo")} onChange={e => modifica(v.id, { capitolo: e.target.value })}
                       className="mt-1 h-6 w-full rounded border border-transparent bg-transparent px-1 text-[11px] text-muted-foreground hover:border-input focus:border-input focus:bg-background" />
                   </td>
-                  <td role="cell" data-campo="unita" className="px-2 py-1.5"><Campo etichetta="Unità di misura" etichettaMobile="U.M." valore={v.unita} onCambia={t => modifica(v.id, { unita: t })} /></td>
+                  <td role="cell" data-campo="unita" className="px-2 py-1.5"><Campo etichetta={tTesto("Unità di misura")} etichettaMobile="U.M." valore={v.unita} onCambia={t => modifica(v.id, { unita: t })} /></td>
                   <td role="cell" data-campo="quantita" className="px-2 py-1.5">
-                    <Campo etichetta="Quantità" numero disabilitato={conMisure}
-                      valore={conMisure ? (calcolaVoce(v).quantita ?? "").toLocaleString("it-IT") : v.quantita} onCambia={t => modifica(v.id, { quantita: t })} />
-                    {conMisure && <span className="mt-0.5 block text-right text-[10px] text-muted-foreground">da {v.misure.length} {v.misure.length === 1 ? "misura" : "misure"}</span>}
+                    <Campo etichetta={tTesto("Quantità")} numero disabilitato={conMisure}
+                      valore={conMisure ? (calcolaVoce(v).quantita ?? "").toLocaleString(intlCampo()) : v.quantita} onCambia={t => modifica(v.id, { quantita: t })} />
+                    {conMisure && <span className="mt-0.5 block text-right text-[10px] text-muted-foreground">{tTesto("da")} {v.misure.length} {v.misure.length === 1 ? tTesto("misura") : tTesto("misure")}</span>}
                   </td>
-                  <td role="cell" data-campo="prezzo" className="px-2 py-1.5"><Campo etichetta="Prezzo" numero valore={v.prezzo} onCambia={t => modifica(v.id, { prezzo: t })} /></td>
-                  <td role="cell" data-campo="importo" className="px-2 py-1.5 pt-3 text-right tabular-nums"><span className="mr-1 text-muted-foreground sm:hidden" aria-hidden>Importo</span>{importo === null ? "—" : `${formatEuro(importo)} €`}</td>
+                  <td role="cell" data-campo="prezzo" className="px-2 py-1.5"><Campo etichetta={tTesto("Prezzo")} numero valore={v.prezzo} onCambia={t => modifica(v.id, { prezzo: t })} /></td>
+                  <td role="cell" data-campo="importo" className="px-2 py-1.5 pt-3 text-right tabular-nums"><span className="mr-1 text-muted-foreground sm:hidden" aria-hidden>{tTesto("Importo")}</span>{importo === null ? "—" : `${formatEuro(importo)} €`}</td>
                   <td role="cell" data-campo="rimuovi" className="px-1 py-1.5">
                     <Button type="button" size="icon" variant="ghost" className="h-8 w-8" aria-label={`Togli ${v.descrizione.split("\n")[0].slice(0, 60) || "la voce"}`} onClick={() => togli(v.id)}>
                       <Trash2 className="h-3.5 w-3.5" />
@@ -471,19 +475,19 @@ export function ImportaVociDialog({ open, onOpenChange, onAggiungi, vociPresenti
             })}
           </table>
           {visibili.length > mostrate.length && <div className="border-t p-2 text-center">
-            <Button size="sm" variant="ghost" onClick={() => setTutte(true)}>Mostra tutte le {visibili.length} voci</Button>
+            <Button size="sm" variant="ghost" onClick={() => setTutte(true)}>{tTesto("Mostra tutte le {n} voci", { n: visibili.length })}</Button>
           </div>}
-          {!visibili.length && <p className="p-4 text-center text-sm text-muted-foreground">{soloIncerte ? "Nessuna voce da controllare." : "Hai tolto tutte le voci."}</p>}
+          {!visibili.length && <p className="p-4 text-center text-sm text-muted-foreground">{soloIncerte ? tTesto("Nessuna voce da controllare.") : tTesto("Hai tolto tutte le voci.")}</p>}
         </div>
-        {troppe && <p role="alert" className="text-xs text-amber-800">Con queste voci il documento ne avrebbe {vociPresenti + selezionate.length}: il massimo è {massimoVoci}. Togline qualcuna.</p>}
+        {troppe && <p role="alert" className="text-xs text-amber-800">{tTesto("Con queste voci il documento ne avrebbe {vociPresenti}: il massimo è {massimoVoci}. Togline qualcuna.", { vociPresenti: vociPresenti + selezionate.length, massimoVoci: String(massimoVoci ?? "") })}</p>}
       </>}
 
       <DialogFooter className="flex-wrap items-center gap-2 max-sm:flex-col max-sm:items-stretch sm:justify-between">
         {passo === "anteprima"
-          ? <span className="text-sm tabular-nums max-sm:w-full">{selezionate.length} di {voci.length} voci · {copiaDaComputo ? "importo lavori" : "totale selezionate"} <strong>{formatEuro(totale)} €</strong></span>
+          ? <span className="text-sm tabular-nums max-sm:w-full">{selezionate.length} {tTesto("di")} {voci.length} {tTesto("voci ·")} {copiaDaComputo ? tTesto("importo lavori") : tTesto("totale selezionate")} <strong>{formatEuro(totale)} €</strong></span>
           : <span />}
         <div className="flex gap-2 max-sm:w-full max-sm:justify-end">
-          <Button variant="outline" onClick={chiudi}><X className="mr-1 h-4 w-4" />{passo === "anteprima" ? "Annulla" : "Chiudi"}</Button>
+          <Button variant="outline" onClick={chiudi}><X className="mr-1 h-4 w-4" />{passo === "anteprima" ? tTesto("Annulla") : tTesto("Chiudi")}</Button>
           {passo === "anteprima" && <Button onClick={conferma} disabled={!selezionate.length || troppe}>
             <Check className="mr-1 h-4 w-4" />{etichettaConferma ? etichettaConferma(selezionate.length) : `Aggiungi ${selezionate.length} ${selezionate.length === 1 ? "voce" : "voci"}`}
           </Button>}

@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { BozzaComputo } from "@/lib/computo/editorNativo";
 import { confrontaRevisioni, fotografaRevisione, MAX_REVISIONI, prossimaRevisione } from "@/lib/computo/revisioniComputo";
 import { formatEuro } from "@/lib/computo/computoStrutturato";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const ADESSO = "adesso";
 const segno = (n: number) => `${n > 0 ? "+" : n < 0 ? "-" : ""}${formatEuro(Math.abs(n))} €`;
@@ -20,6 +21,7 @@ export default function ComputoRevisioni({ bozza, open, onOpenChange, onChange }
   bozza: BozzaComputo; open: boolean; onOpenChange: (open: boolean) => void;
   onChange: (patch: Pick<Partial<BozzaComputo>, "revisioni" | "revisione">) => void;
 }) {
+  const t = useT();
   const revisioni = bozza.revisioni;
   const [nome, setNome] = useState("");
   const [base, setBase] = useState<string>("");
@@ -32,7 +34,7 @@ export default function ComputoRevisioni({ bozza, open, onOpenChange, onChange }
     return a && b && a.id !== b.id ? confrontaRevisioni(a, b) : null;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `trova` dipende solo da questi
   }, [scelta, contro, revisioni, adesso]);
-  const data = (iso: string) => new Date(iso).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  const data = (iso: string) => new Date(iso).toLocaleString(intlCampo(), { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
   const salva = () => {
     const n = nome.trim() || prossimaRevisione(revisioni);
@@ -43,31 +45,31 @@ export default function ComputoRevisioni({ bozza, open, onOpenChange, onChange }
 
   return <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogContent className="max-h-[90dvh] max-w-3xl overflow-y-auto">
-      <DialogHeader><DialogTitle>Revisioni del preventivo</DialogTitle>
-        <DialogDescription>Salva la versione che mandi al cliente: poi vedi cosa è cambiato, voce per voce.</DialogDescription></DialogHeader>
+      <DialogHeader><DialogTitle>{t("Revisioni del preventivo")}</DialogTitle>
+        <DialogDescription>{t("Salva la versione che mandi al cliente: poi vedi cosa è cambiato, voce per voce.")}</DialogDescription></DialogHeader>
       <div className="flex flex-wrap items-end gap-2">
-        <div className="min-w-[12rem] flex-1 space-y-1"><label htmlFor="revisione-nome" className="text-xs font-medium">Nome della revisione</label>
+        <div className="min-w-[12rem] flex-1 space-y-1"><label htmlFor="revisione-nome" className="text-xs font-medium">{t("Nome della revisione")}</label>
           <Input id="revisione-nome" className="h-9" maxLength={80} placeholder={prossimaRevisione(revisioni)} value={nome} onChange={e => setNome(e.target.value)} /></div>
-        <Button size="sm" onClick={salva} disabled={!bozza.voci.length}><Save className="mr-1 h-4 w-4" />Salva revisione</Button>
+        <Button size="sm" onClick={salva} disabled={!bozza.voci.length}><Save className="mr-1 h-4 w-4" />{t("Salva revisione")}</Button>
       </div>
-      {!revisioni.length ? <p className="rounded-md bg-slate-50 p-3 text-sm text-muted-foreground">Ancora nessuna revisione. Salvane una prima di mandare il preventivo: alla prossima modifica vedrai le differenze.</p> : <>
+      {!revisioni.length ? <p className="rounded-md bg-slate-50 p-3 text-sm text-muted-foreground">{t("Ancora nessuna revisione. Salvane una prima di mandare il preventivo: alla prossima modifica vedrai le differenze.")}</p> : <>
         <ul className="divide-y rounded-md border text-sm">{[...revisioni].reverse().map(r => <li key={r.id} className="flex items-center justify-between gap-2 px-3 py-1.5">
-          <span className="min-w-0"><strong>{r.nome}</strong> <span className="text-xs text-muted-foreground">· {data(r.data)} · {r.voci.length} voci</span></span>
+          <span className="min-w-0"><strong>{r.nome}</strong> <span className="text-xs text-muted-foreground">{t("· {data} · {n} voci", { data: String(data(r.data) ?? ""), n: r.voci.length })}</span></span>
           <span className="flex items-center gap-2"><span className="tabular-nums">{formatEuro(r.totale)} €</span>
-            <Button variant="ghost" size="icon" className="h-7 w-7" aria-label={`Togli la revisione ${r.nome}`} onClick={() => onChange({ revisioni: revisioni.filter(x => x.id !== r.id) })}><Trash2 className="h-3.5 w-3.5" /></Button></span>
+            <Button variant="ghost" size="icon" className="h-7 w-7" aria-label={t("Togli la revisione {nome}", { nome: String(r.nome ?? "") })} onClick={() => onChange({ revisioni: revisioni.filter(x => x.id !== r.id) })}><Trash2 className="h-3.5 w-3.5" /></Button></span>
         </li>)}</ul>
         <div className="grid gap-2 sm:grid-cols-2">
-          <div className="space-y-1"><span className="text-xs font-medium">Confronta</span>
-            <Select value={scelta} onValueChange={setBase}><SelectTrigger aria-label="Revisione di partenza" className="h-9"><SelectValue /></SelectTrigger>
+          <div className="space-y-1"><span className="text-xs font-medium">{t("Confronta")}</span>
+            <Select value={scelta} onValueChange={setBase}><SelectTrigger aria-label={t("Revisione di partenza")} className="h-9"><SelectValue /></SelectTrigger>
               <SelectContent>{revisioni.map(r => <SelectItem key={r.id} value={r.id}>{r.nome}</SelectItem>)}</SelectContent></Select></div>
-          <div className="space-y-1"><span className="text-xs font-medium">con</span>
-            <Select value={contro} onValueChange={setContro}><SelectTrigger aria-label="Revisione di confronto" className="h-9"><SelectValue /></SelectTrigger>
-              <SelectContent><SelectItem value={ADESSO}>Il computo di adesso</SelectItem>{revisioni.map(r => <SelectItem key={r.id} value={r.id}>{r.nome}</SelectItem>)}</SelectContent></Select></div>
+          <div className="space-y-1"><span className="text-xs font-medium">{t("con")}</span>
+            <Select value={contro} onValueChange={setContro}><SelectTrigger aria-label={t("Revisione di confronto")} className="h-9"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value={ADESSO}>{t("Il computo di adesso")}</SelectItem>{revisioni.map(r => <SelectItem key={r.id} value={r.id}>{r.nome}</SelectItem>)}</SelectContent></Select></div>
         </div>
-        {confronto && <section aria-label="Differenze" className="space-y-2">
-          <p className="text-sm">Totale: <strong className={confronto.delta > 0 ? "text-emerald-700" : confronto.delta < 0 ? "text-red-700" : ""}>{segno(confronto.delta)}</strong> · {confronto.differenze.length ? `${confronto.differenze.length} ${confronto.differenze.length === 1 ? "voce cambiata" : "voci cambiate"}` : "nessuna differenza nelle voci"}</p>
+        {confronto && <section aria-label={t("Differenze")} className="space-y-2">
+          <p className="text-sm">{t("Totale:")} <strong className={confronto.delta > 0 ? "text-emerald-700" : confronto.delta < 0 ? "text-red-700" : ""}>{segno(confronto.delta)}</strong> · {confronto.differenze.length ? `${confronto.differenze.length} ${confronto.differenze.length === 1 ? "voce cambiata" : "voci cambiate"}` : t("nessuna differenza nelle voci")}</p>
           {!!confronto.differenze.length && <div className="overflow-x-auto"><table className="w-full min-w-[560px] text-sm">
-            <thead><tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground"><th className="py-1 pr-2 font-medium">Voce</th><th className="py-1 pr-2 font-medium">Cosa</th><th className="w-28 py-1 text-right font-medium">Totale</th></tr></thead>
+            <thead><tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground"><th className="py-1 pr-2 font-medium">{t("Voce")}</th><th className="py-1 pr-2 font-medium">{t("Cosa")}</th><th className="w-28 py-1 text-right font-medium">{t("Totale")}</th></tr></thead>
             <tbody>{confronto.differenze.map((d, k) => {
               const v = d.tipo === "tolta" ? d.prima : d.dopo;
               const cosa = d.tipo === "aggiunta" ? "aggiunta" : d.tipo === "tolta" ? "tolta" : d.cosa.map(c => c === "quantità" ? `quantità ${d.prima.quantita ?? "-"} → ${d.dopo.quantita ?? "-"}` : c === "prezzo" ? `prezzo ${d.prima.prezzo == null ? "-" : formatEuro(d.prima.prezzo)} → ${d.dopo.prezzo == null ? "-" : formatEuro(d.dopo.prezzo)}` : c).join(", ");

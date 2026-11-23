@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ImgRiservata } from "@/components/common/ImgRiservata";
 import { riferimentoImmagine } from "@/lib/storage/immaginiModelloPdf";
 import { readLocalTemplateImage } from "@/lib/moduli-vendita/localTemplateImage";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   localOnly?: boolean;
@@ -24,19 +25,20 @@ interface Props {
 }
 
 export function CampoFotoModello({ valore, onChange, bucket, cartella, localOnly = false }: Props) {
+  const t = useT();
   const input = useRef<HTMLInputElement>(null);
   const [carica, setCarica] = useState(false);
 
   const scegli = async (file: File | undefined) => {
     if (!file) return;
-    if (!file.type.startsWith("image/")) { toast.error("Carica un file immagine (PNG, JPG, WebP)"); return; }
-    if (file.size > 8 * 1024 * 1024) { toast.error("File troppo grande (max 8 MB)"); return; }
-    if (!cartella) { toast.error("Profilo senza azienda"); return; }
+    if (!file.type.startsWith("image/")) { toast.error(t("Carica un file immagine (PNG, JPG, WebP)")); return; }
+    if (file.size > 8 * 1024 * 1024) { toast.error(t("File troppo grande (max 8 MB)")); return; }
+    if (!cartella) { toast.error(t("Profilo senza azienda")); return; }
     setCarica(true);
     try {
       if (localOnly) {
         onChange(await readLocalTemplateImage(file));
-        toast.success("Foto caricata nella bozza locale. Salva per conservarla.");
+        toast.success(t("Foto caricata nella bozza locale. Salva per conservarla."));
         return;
       }
       const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "jpg";
@@ -44,9 +46,9 @@ export function CampoFotoModello({ valore, onChange, bucket, cartella, localOnly
       const { error } = await supabase.storage.from(bucket).upload(percorso, file, { contentType: file.type, upsert: false });
       if (error) throw new Error(error.message);
       onChange(riferimentoImmagine(bucket, percorso));
-      toast.success("Foto caricata. Salva per applicare.");
+      toast.success(t("Foto caricata. Salva per applicare."));
     } catch (e) {
-      toast.error("Foto non caricata", { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Foto non caricata"), { description: e instanceof Error ? e.message : String(e) });
     } finally {
       setCarica(false);
       if (input.current) input.current.value = "";
@@ -59,7 +61,7 @@ export function CampoFotoModello({ valore, onChange, bucket, cartella, localOnly
       {valore ? (
         <div className="relative overflow-hidden rounded-md border">
           <ImgRiservata src={valore} alt="" className="aspect-[16/9] w-full object-cover" loading="lazy" />
-          <Button size="icon" variant="secondary" className="absolute right-1.5 top-1.5 h-7 w-7" onClick={() => onChange(null)} aria-label="Togli la foto">
+          <Button size="icon" variant="secondary" className="absolute right-1.5 top-1.5 h-7 w-7" onClick={() => onChange(null)} aria-label={t("Togli la foto")}>
             <Trash2 className="h-3.5 w-3.5" />
           </Button>
         </div>
@@ -71,7 +73,7 @@ export function CampoFotoModello({ valore, onChange, bucket, cartella, localOnly
           className="flex aspect-[16/9] w-full flex-col items-center justify-center gap-1 rounded-md border-2 border-dashed text-xs text-muted-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50"
         >
           {carica ? <Loader2 className="h-5 w-5 animate-spin" /> : <ImageIcon className="h-5 w-5" />}
-          {carica ? "Caricamento…" : "Carica una vostra foto"}
+          {carica ? t("Caricamento…") : t("Carica una vostra foto")}
         </button>
       )}
     </div>

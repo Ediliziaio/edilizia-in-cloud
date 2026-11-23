@@ -3,8 +3,10 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { usePermissions } from "@/hooks/usePermissions";
 import { PlanimetrieAssociate } from "@/components/planimetrie/PlanimetrieAssociate";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function CollegamentiComputoNativo({ companyId, draftId }: { companyId: string; draftId: string }) {
+  const t = useT();
   const permessi = usePermissions();
   const quote = useQuery({
     queryKey: ["planimetrie", "preventivo-computo-nativo", companyId, draftId],
@@ -18,7 +20,7 @@ export function CollegamentiComputoNativo({ companyId, draftId }: { companyId: s
     },
   });
   if (!permessi.canViewPreventivi) return null;
-  if (quote.error) return <p role="alert" className="text-sm text-muted-foreground">Non riesco a leggere i collegamenti del preventivo.</p>;
+  if (quote.error) return <p role="alert" className="text-sm text-muted-foreground">{t("Non riesco a leggere i collegamenti del preventivo.")}</p>;
   if (!quote.data) return null;
-  return <div className="space-y-2"><Link className="text-sm text-primary hover:underline" to={`/azienda/marketing/preventivi/${quote.data.id}`}>Apri preventivo {quote.data.quote_number}</Link><PlanimetrieAssociate companyId={companyId} tipo="preventivo" schedaId={quote.data.id} /></div>;
+  return <div className="space-y-2"><Link className="text-sm text-primary hover:underline" to={`/azienda/marketing/preventivi/${quote.data.id}`}>{t("Apri preventivo {quote_number}", { quote_number: String(quote.data.quote_number ?? "") })}</Link><PlanimetrieAssociate companyId={companyId} tipo="preventivo" schedaId={quote.data.id} /></div>;
 }

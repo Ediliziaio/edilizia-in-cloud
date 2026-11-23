@@ -11,6 +11,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Check, Loader2, Camera, Mic, FileText, Sparkles, SearchCheck, Euro } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Mode = "foto" | "audio" | "testo" | "mixed";
 
@@ -37,6 +38,7 @@ function buildSteps(mode: Mode): Step[] {
 }
 
 export function AIExtractionProgress({ mode }: { mode: Mode }) {
+  const tr = useT();
   const [steps] = useState(() => buildSteps(mode));
   const [elapsed, setElapsed] = useState(0);
 
@@ -88,7 +90,7 @@ export function AIExtractionProgress({ mode }: { mode: Mode }) {
                 <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
               )}
               <span className={active ? "font-medium" : done ? "text-muted-foreground" : "text-muted-foreground"}>
-                {s.label}
+                {tr(s.label)}
               </span>
             </div>
             <div className="h-1.5 rounded-full bg-muted overflow-hidden">

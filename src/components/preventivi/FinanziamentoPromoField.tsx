@@ -24,6 +24,7 @@ import {
   type FinanziamentoPromo,
 } from "@/lib/preventivi/finanziamentoLite";
 import { formatCurrency } from "@/lib/formatters";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   /** Valore raw dal template (colonna jsonb, può essere null). */
@@ -33,6 +34,7 @@ interface Props {
 }
 
 export function FinanziamentoPromoField({ rawValue, onChange }: Props) {
+  const t = useT();
   const parsed = parseFinanziamentoPromo(rawValue);
   const [local, setLocal] = useState<FinanziamentoPromo>(
     parsed ?? { attivo: false, rate: 24, tan_pct: 0 },
@@ -53,11 +55,10 @@ export function FinanziamentoPromoField({ rawValue, onChange }: Props) {
         <div>
           <p className="text-sm font-medium flex items-center gap-1.5">
             <BadgeEuro className="h-4 w-4 text-emerald-600" />
-            Finanziamento nel PDF
+            {t("Finanziamento nel PDF")}
           </p>
           <p className="text-[11px] text-muted-foreground">
-            Mostra "da €X/mese" sotto il totale di ogni preventivo. Simulazione
-            indicativa, con rimando all'approvazione della finanziaria.
+            {t("Mostra \"da €X/mese\" sotto il totale di ogni preventivo. Simulazione indicativa, con rimando all'approvazione della finanziaria.")}
           </p>
         </div>
         <Switch checked={local.attivo} onCheckedChange={(v) => update({ attivo: v })} />
@@ -65,18 +66,18 @@ export function FinanziamentoPromoField({ rawValue, onChange }: Props) {
       {local.attivo && (
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label className="text-xs">Numero rate</Label>
+            <Label className="text-xs">{t("Numero rate")}</Label>
             <Select value={String(local.rate)} onValueChange={(v) => update({ rate: Number(v) })}>
               <SelectTrigger className="h-8 mt-1"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {FINANZIAMENTO_RATE_OPZIONI.map((r) => (
-                  <SelectItem key={r} value={String(r)}>{r} mesi</SelectItem>
+                  <SelectItem key={r} value={String(r)}>{t("{n} mesi", { n: r })}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div>
-            <Label className="text-xs">TAN % (0 = tasso zero)</Label>
+            <Label className="text-xs">{t("TAN % (0 = tasso zero)")}</Label>
             <Input
               type="number" min={0} max={30} step={0.1}
               className="h-8 mt-1"
@@ -85,7 +86,7 @@ export function FinanziamentoPromoField({ rawValue, onChange }: Props) {
             />
           </div>
           <p className="col-span-2 text-[11px] text-muted-foreground">
-            Esempio su 10.000 €: <span className="font-semibold text-foreground">da {formatCurrency(rataEsempio)}/mese</span> per {local.rate} mesi{local.tan_pct > 0 ? ` (TAN ${local.tan_pct}%)` : " a tasso zero"}.
+            {t("Esempio su 10.000 €:")} <span className="font-semibold text-foreground">{t("da {importo}/mese", { importo: formatCurrency(rataEsempio) })}</span> {local.tan_pct > 0 ? t("per {n} mesi (TAN {tan}%).", { n: local.rate, tan: local.tan_pct }) : t("per {n} mesi a tasso zero.", { n: local.rate })}
           </p>
         </div>
       )}

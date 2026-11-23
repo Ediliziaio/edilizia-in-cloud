@@ -19,10 +19,11 @@ import type { ControlliEditorPlanimetria } from "@/components/planimetrie/editor
 import { ConversazioneProgettoSilvio, riferimentoProgettoSilvio } from "@/components/quotes/conversazioneProgettoSilvio";
 import { AnteprimaComputoSilvio, type PropostaPdfComputo, type RendiPdfComputo } from "./AnteprimaComputoSilvio";
 import LavorazioniDallaPianta from "./LavorazioniDallaPianta";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const EditorPianta = lazy(() => import("@/components/planimetrie/editor/EditorConSalvataggio").then(m => ({ default: m.EditorConSalvataggio })));
 
-const numero = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 2 });
+const numero = new Intl.NumberFormat(intlCampo(), { maximumFractionDigits: 2 });
 const sigle: Readonly<Record<string, string>> = { mq: "m²", mc: "m³", ml: "m" };
 const unitaVisibile = (unita: string) => sigle[unita] ?? unita;
 const nessunaMisura: MisuraPropostaDallaPianta[] = [];
@@ -54,6 +55,7 @@ export default function ComputoDallaPianta({ origine, voci, companyId, modifica,
   chiavePdf?: string;
   tavolaNelPdf?: boolean;
 }) {
+  const t = useT();
   const conversazione = useContext(ConversazioneProgettoSilvio);
   const pianta = usePlanimetria(companyId ? origine.id : null, true);
   const [mostraPdf, setMostraPdf] = useState(false);
@@ -232,21 +234,21 @@ export default function ComputoDallaPianta({ origine, voci, companyId, modifica,
       setVersioneSalvata(versione);
       void pianta.refetch();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Ripristino non riuscito.");
+      toast.error(e instanceof Error ? e.message : t("Ripristino non riuscito."));
     } finally { setAttesa(false); }
   }
 
   const riquadroVariazioni = confrontoInAggiornamento
-    ? <p role="status" className="self-start rounded-xl border bg-white p-3 text-sm text-muted-foreground">Ricalcolo le quantità del computo…</p>
+    ? <p role="status" className="self-start rounded-xl border bg-white p-3 text-sm text-muted-foreground">{t("Ricalcolo le quantità del computo…")}</p>
     : confronto ? <LavorazioniDallaPianta confronto={confronto} voci={voci} selezione={selezione} bozzaPianta={lavoroInBozza}
       attesa={inLettura || pianta.isError} modifica={modifica} inSilvio={inSilvio} propostaDaChat={!!propostaChat}
       puoConfermareDisegno={puoConfermareDisegno} novitaDisegno={novitaDisegno}
       onPunta={oggetto => controlli.current?.evidenzia(oggetto, oggetto.vista ?? "progetto")}
       onRivedi={apriConfronto} />
-    : <p role="status" className="rounded-xl border p-3 text-sm text-muted-foreground">{dati?.errore ?? "Le misure saranno disponibili al termine della lettura."}</p>;
+    : <p role="status" className="rounded-xl border p-3 text-sm text-muted-foreground">{dati?.errore ?? t("Le misure saranno disponibili al termine della lettura.")}</p>;
 
   return <>
-    <section aria-label="Planimetria collegata" className="shrink-0 rounded-lg border border-blue-200 bg-blue-50/50 px-3 py-2.5 text-sm">
+    <section aria-label={t("Planimetria collegata")} className="shrink-0 rounded-lg border border-blue-200 bg-blue-50/50 px-3 py-2.5 text-sm">
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="flex min-w-0 items-start gap-2">
         <Map aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-blue-700" />
@@ -254,30 +256,30 @@ export default function ComputoDallaPianta({ origine, voci, companyId, modifica,
           <h3 className="break-words font-medium">{origine.titolo}</h3>
           <p role="status" className="text-xs text-muted-foreground">
             {inSilvio && piano && <>{piano.nome} · {nomeVariante} · </>}
-            {pianta.isLoading || attendeVersioneSalvata ? "Leggo la versione della planimetria…" : dati?.errore || (pianta.isError || !dati ? "Planimetria non disponibile." :
-              dati.numero > origine.versione ? `Nuova versione ${dati.numero} · computo dalla versione ${origine.versione}` :
-                inSilvio ? `v${origine.versione} nel computo` : `Planimetria collegata · versione ${origine.versione}`)}
-            {!!confronto?.daVerificare.length && ` · ${confronto.daVerificare.length} misure da verificare`}
+            {pianta.isLoading || attendeVersioneSalvata ? t("Leggo la versione della planimetria…") : dati?.errore || (pianta.isError || !dati ? t("Planimetria non disponibile.") :
+              dati.numero > origine.versione ? t("Nuova versione {numero} · computo dalla versione {versione}", { numero: String(dati.numero ?? ""), versione: String(origine.versione ?? "") }) :
+                inSilvio ? t("v{versione} nel computo", { versione: String(origine.versione ?? "") }) : t("Planimetria collegata · versione {versione}", { versione: String(origine.versione ?? "") }))}
+            {!!confronto?.daVerificare.length && t(" · {n} misure da verificare", { n: confronto.daVerificare.length })}
           </p>
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
-        {puoAnnullare && <Button type="button" variant="outline" size="sm" onClick={() => void annullaUltimo()}>Annulla ultimo aggiornamento</Button>}
-        {!bloccaUscita && <Button asChild variant="ghost" size="sm"><Link to={percorsiPlanimetrie.pianta(origine.id, origine.livelloId, origine.propostaId ? `progetto:${origine.propostaId}` : undefined)}>Apri planimetria</Link></Button>}
-        <Button type="button" variant="ghost" size="icon" aria-label="Controlla la versione della planimetria"
+        {puoAnnullare && <Button type="button" variant="outline" size="sm" onClick={() => void annullaUltimo()}>{t("Annulla ultimo aggiornamento")}</Button>}
+        {!bloccaUscita && <Button asChild variant="ghost" size="sm"><Link to={percorsiPlanimetrie.pianta(origine.id, origine.livelloId, origine.propostaId ? `progetto:${origine.propostaId}` : undefined)}>{t("Apri planimetria")}</Link></Button>}
+        <Button type="button" variant="ghost" size="icon" aria-label={t("Controlla la versione della planimetria")}
           disabled={!companyId || pianta.isFetching} onClick={() => void pianta.refetch()}><RefreshCcw aria-hidden="true" className={`size-4 ${pianta.isFetching ? "motion-safe:animate-spin" : ""}`} /></Button>
         {!affiancata && confronto && (daAggiornare || disponibili.length > 0 || confronto.daVerificare.length > 0) &&
           <Button type="button" size="sm" variant="outline" disabled={pianta.isError || inLettura}
             onClick={apriConfronto}>
-            {daAggiornare || confronto.daVerificare.length ? "Rivedi misure" : "Scegli misure dalla pianta"}
+            {daAggiornare || confronto.daVerificare.length ? t("Rivedi misure") : t("Scegli misure dalla pianta")}
           </Button>}
       </div>
     </div>
     </section>
     {affiancata && versioneEditor && ambitoDisponibile && piano && !attendeVersioneSalvata && companyId && <div className="quote-wizard-ai-project-layout grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(320px,30%)]">
-      <section aria-label="Disegno collegato" className="quote-wizard-ai-project-drawing min-w-0 rounded-xl border bg-white p-3">
+      <section aria-label={t("Disegno collegato")} className="quote-wizard-ai-project-drawing min-w-0 rounded-xl border bg-white p-3">
         {!inSilvio && <p className="mb-2 text-xs text-muted-foreground">{piano.nome} · {nomeVariante}</p>}
-        <Suspense fallback={<p role="status" className="text-sm">Apro l’editor della pianta…</p>}>
+        <Suspense fallback={<p role="status" className="text-sm">{t("Apro l’editor della pianta…")}</p>}>
           <EditorPianta key={`${origine.id}:${versioneEditor.numero}:${resetEditor}`}
             companyId={companyId} titoloPagina="Planimetria" iniziale={versioneEditor.documento}
             planimetriaId={origine.id} versioneAttesa={versioneEditor.numero}
@@ -295,23 +297,23 @@ export default function ComputoDallaPianta({ origine, voci, companyId, modifica,
             onSalvata={salvata => { setVersioneSalvata(salvata.versione); chiudiModifica(); void pianta.refetch(); }} />
         </Suspense>
       </section>
-      {renderPdf ? <aside className="quote-wizard-ai-project-results flex min-h-0 min-w-0 flex-col gap-2" aria-label="Computo e PDF del progetto">
-        <div role="group" aria-label="Vista del preventivo" className="flex shrink-0 flex-wrap gap-1 rounded-lg border bg-white p-1.5">
+      {renderPdf ? <aside className="quote-wizard-ai-project-results flex min-h-0 min-w-0 flex-col gap-2" aria-label={t("Computo e PDF del progetto")}>
+        <div role="group" aria-label={t("Vista del preventivo")} className="flex shrink-0 flex-wrap gap-1 rounded-lg border bg-white p-1.5">
           <Button type="button" size="sm" variant={mostraPdf ? "ghost" : "secondary"} aria-pressed={!mostraPdf} onClick={() => setMostraPdf(false)}>
-            <ListChecks aria-hidden="true" className="size-4" /> Variazioni
+            <ListChecks aria-hidden="true" className="size-4" /> {t("Variazioni")}
           </Button>
           <Button type="button" size="sm" variant={mostraPdf ? "secondary" : "ghost"} aria-pressed={mostraPdf} onClick={() => setMostraPdf(true)}>
-            <FileText aria-hidden="true" className="size-4" /> PDF preventivo
+            <FileText aria-hidden="true" className="size-4" /> {t("PDF preventivo")}
           </Button>
         </div>
         <div hidden={mostraPdf}>{riquadroVariazioni}</div>
         {mostraPdf && <div className="quote-wizard-ai-project-pdf flex min-w-0 flex-col overflow-hidden rounded-xl border bg-white">
           {lavoroInBozza && <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b bg-blue-50 p-2.5">
             <p role="status" className="text-xs text-blue-950">{propostaPdf
-              ? tavolaNelPdf ? "Misure proposte. La tavola entra nel PDF dopo il salvataggio." : "Misure proposte da confermare."
-              : confrontoInAggiornamento ? "Ricalcolo le quantità del computo…" : "Mostro il preventivo salvato. Controlla le misure in Variazioni."}</p>
+              ? tavolaNelPdf ? t("Misure proposte. La tavola entra nel PDF dopo il salvataggio.") : t("Misure proposte da confermare.")
+              : confrontoInAggiornamento ? t("Ricalcolo le quantità del computo…") : t("Mostro il preventivo salvato. Controlla le misure in Variazioni.")}</p>
             {puoConfermareDisegno && <Button type="button" size="sm" disabled={inLettura}
-              className={propostaChat ? "hidden xl:inline-flex" : undefined} onClick={apriConfronto}>Rivedi modifiche</Button>}
+              className={propostaChat ? "hidden xl:inline-flex" : undefined} onClick={apriConfronto}>{t("Rivedi modifiche")}</Button>}
           </div>}
           <div className="min-h-0 flex-1"><AnteprimaComputoSilvio renderPdf={renderPdf} chiave={chiavePdf ?? ""}
             proposta={propostaPdf} voce={vocePdf} visibile={!confrontoInAggiornamento} /></div>
@@ -321,14 +323,14 @@ export default function ComputoDallaPianta({ origine, voci, companyId, modifica,
     <Dialog open={aperto} onOpenChange={v => { if (!attesa) setAperto(v); }}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{lavoroInBozza ? "Conferma le modifiche al progetto" : "Misure dalla planimetria"}</DialogTitle>
-          <DialogDescription>{lavoroInBozza ? "Con un salvataggio aggiorni il disegno e le quantità della stessa bozza."
+          <DialogTitle>{lavoroInBozza ? t("Conferma le modifiche al progetto") : t("Misure dalla planimetria")}</DialogTitle>
+          <DialogDescription>{lavoroInBozza ? t("Con un salvataggio aggiorni il disegno e le quantità della stessa bozza.")
             : `Versione ${dati?.numero ?? origine.versione} di ${origine.titolo}. Gli importi seguono i prezzi già inseriti.`}</DialogDescription>
         </DialogHeader>
-        {cambiaVersione && <p role="alert" className="text-sm text-amber-800">Il disegno o le voci sono cambiati. Chiudi e riapri il confronto.</p>}
+        {cambiaVersione && <p role="alert" className="text-sm text-amber-800">{t("Il disegno o le voci sono cambiati. Chiudi e riapri il confronto.")}</p>}
         {erroreSalvataggio && <p role="alert" className="text-sm text-red-800">{erroreSalvataggio}</p>}
         {confronto && <>
-          {!!confronto.variazioni.length && <ul aria-label="Quantità e importi prima e dopo" className="divide-y rounded-md border">
+          {!!confronto.variazioni.length && <ul aria-label={t("Quantità e importi prima e dopo")} className="divide-y rounded-md border">
             {confronto.variazioni.map(({ prima, dopo }) => {
               const a = calcolaVoce(prima);
               const b = calcolaVoce(dopo);
@@ -344,12 +346,12 @@ export default function ComputoDallaPianta({ origine, voci, companyId, modifica,
                 </label>
                 <dl className="grid grid-cols-2 gap-2 tabular-nums">
                   <div className="rounded-md bg-muted/50 p-2">
-                    <dt className="text-xs text-muted-foreground">Prima</dt>
+                    <dt className="text-xs text-muted-foreground">{t("Prima")}</dt>
                     <dd className="font-medium">{a.quantita === null ? "—" : `${numero.format(a.quantita)} ${unitaVisibile(prima.unita)}`}</dd>
                     {a.importo !== null && <dd className="text-xs text-muted-foreground">{formatCurrency(a.importo)}</dd>}
                   </div>
                   <div className="rounded-md bg-blue-50 p-2">
-                    <dt className="text-xs text-blue-900">Dopo</dt>
+                    <dt className="text-xs text-blue-900">{t("Dopo")}</dt>
                     <dd className="font-semibold">{b.quantita === null ? "—" : `${numero.format(b.quantita)} ${unitaVisibile(prima.unita)}`}</dd>
                     {b.importo !== null && <dd className="text-xs text-blue-900">{formatCurrency(b.importo)}</dd>}
                   </div>
@@ -357,13 +359,13 @@ export default function ComputoDallaPianta({ origine, voci, companyId, modifica,
               </li>;
             })}
           </ul>}
-          {!confronto.variazioni.length && daAggiornare && <p className="text-sm text-muted-foreground">Le quantità coincidono. Puoi aggiornare il riferimento alla nuova versione.</p>}
+          {!confronto.variazioni.length && daAggiornare && <p className="text-sm text-muted-foreground">{t("Le quantità coincidono. Puoi aggiornare il riferimento alla nuova versione.")}</p>}
           {!!confronto.daVerificare.length && <div className="rounded-md border border-amber-300 bg-amber-50 p-2.5 text-sm text-amber-950">
-            <p className="font-medium">Controlla queste misure nel computo</p>
+            <p className="font-medium">{t("Controlla queste misure nel computo")}</p>
             <ul className="mt-1 space-y-1">{confronto.daVerificare.map(({ voce, misura, motivo }) => <li key={`${voce.id}:${misura.id}`}>{voce.descrizione} · {motivo}</li>)}</ul>
           </div>}
           {modifica && !!misurePerConferma.length && <fieldset className="space-y-1 rounded-md border p-2.5">
-            <legend className="px-1 text-sm font-medium">Misure da aggiungere</legend>
+            <legend className="px-1 text-sm font-medium">{t("Misure da aggiungere")}</legend>
             {gruppiMisureDallaPianta(misurePerConferma).map(({ prima, misure, quantita }) => <label key={prima.chiave} className="flex min-h-9 items-center gap-2 text-sm">
               <Checkbox checked={misure.every(m => scelte.has(m.chiave))} onCheckedChange={valore => setScelte(precedenti => {
                 const nuove = new Set(precedenti);
@@ -373,7 +375,7 @@ export default function ComputoDallaPianta({ origine, voci, companyId, modifica,
                 }
                 return nuove;
               })} />
-              <span className="min-w-0 flex-1 break-words">{prima.nome} · {prima.riferimento}{misure.some(m => m.origine === "stimata") && " · Stima"}
+              <span className="min-w-0 flex-1 break-words">{prima.nome} · {prima.riferimento}{misure.some(m => m.origine === "stimata") && ` ${t("· Stima")}`}
                 {prima.prezzo && <span className="block text-xs text-muted-foreground">{formatCurrency(prima.prezzo.importo)}/{unitaVisibile(prima.unita)} · {prima.prezzo.fonte}</span>}</span>
               <span className="shrink-0 text-right tabular-nums">{numero.format(quantita)} {unitaVisibile(prima.unita)}
                 {prima.prezzo && <span className="block text-xs text-muted-foreground">{formatCurrency(importoProposto(quantita, prima.prezzo)!)}</span>}</span>
@@ -381,10 +383,10 @@ export default function ComputoDallaPianta({ origine, voci, companyId, modifica,
           </fieldset>}
         </>}
         <DialogFooter>
-          <Button type="button" variant="outline" disabled={attesa} onClick={() => setAperto(false)}>{lavoroInBozza ? "Torna al progetto" : "Chiudi"}</Button>
+          <Button type="button" variant="outline" disabled={attesa} onClick={() => setAperto(false)}>{lavoroInBozza ? t("Torna al progetto") : t("Chiudi")}</Button>
           {modifica && <Button type="button" disabled={attesa || cambiaVersione || inLettura || pianta.isError ||
             (lavoroInBozza ? !puoConfermareDisegno : !ciSonoAggiornamenti && !scelteValide.length)}
-            onClick={() => void applica()}>{attesa ? "Salvo…" : lavoroInBozza ? "Salva progetto e computo" : "Aggiorna il computo"}</Button>}
+            onClick={() => void applica()}>{attesa ? t("Salvo…") : lavoroInBozza ? t("Salva progetto e computo") : t("Aggiorna il computo")}</Button>}
         </DialogFooter>
       </DialogContent>
     </Dialog>

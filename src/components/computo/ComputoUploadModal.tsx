@@ -68,6 +68,7 @@ import {
 } from "@/lib/computo/quoteItemMapping";
 import type { ComputoVoceLocal } from "@/types/computo";
 import type { CatalogItem } from "@/types/catalogItem";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   open: boolean;
@@ -120,6 +121,7 @@ function getFileIcon(name: string) {
 }
 
 export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComputoId = null, intent = "computo", onConfirmVoci, confirmLabel }: Props) {
+  const tr = useT();
   const isFotoMode = intent === "foto";
   const navigate = useNavigate();
   const {
@@ -252,7 +254,7 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
           };
         }),
       );
-      toast.success(`Abbinato: ${item.nome}`);
+      toast.success(tr("Abbinato: {nome}", { nome: String(item.nome ?? "") }));
       setPickerVoceId(null);
     },
     [pickerVoceId, ricarico, applyRicarico],
@@ -287,7 +289,7 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
           };
         }),
       );
-      toast.success(`Tariffa abbinata: ${item.nome}`);
+      toast.success(tr("Tariffa abbinata: {nome}", { nome: String(item.nome ?? "") }));
       setTariffaPickerVoceId(null);
     },
     [tariffaPickerVoceId],
@@ -297,11 +299,11 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
   const handleFileSelect = useCallback((f: File) => {
     const ext = "." + f.name.split(".").pop()?.toLowerCase();
     if (!ACCEPTED_EXT.includes(ext) && !ACCEPTED_TYPES.includes(f.type)) {
-      toast.error("Formato file non supportato. Usa PDF, Excel, XPWE o DCF.");
+      toast.error(tr("Formato file non supportato. Usa PDF, Excel, XPWE o DCF."));
       return;
     }
     if (f.size > MAX_SIZE) {
-      toast.error("File troppo grande. Massimo 50MB.");
+      toast.error(tr("File troppo grande. Massimo 50MB."));
       return;
     }
     setFile(f);
@@ -342,10 +344,10 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
       hasInitializedRef.current = true;
       if (voci.length === 0) {
         // Fix 12: 0 voci — mostra errore con 3 azioni chiare invece di toast generico
-        toast.error("Nessuna voce trovata nel documento", {
-          description: "L'AI non ha rilevato voci di lavorazione. Prova a usare 'Da Foto' se il file non è un computo strutturato.",
+        toast.error(tr("Nessuna voce trovata nel documento"), {
+          description: tr("L'AI non ha rilevato voci di lavorazione. Prova a usare 'Da Foto' se il file non è un computo strutturato."),
           action: {
-            label: "Ricomincia",
+            label: tr("Ricomincia"),
             onClick: () => { reset(); setStep(1); setFile(null); },
           },
           duration: 8000,
@@ -380,7 +382,7 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
   // ── Step 4 → Generate ──────────────────────────────────────────────────────
   const handleGenerate = () => {
     if (!canGenerateFromReview || !canConfirmDocument || isGenerating) {
-      toast.error("Verifica le voci e gli avvisi del documento prima di proseguire.");
+      toast.error(tr("Verifica le voci e gli avvisi del documento prima di proseguire."));
       return;
     }
     // Modalità "ritorna voci" (es. Ristrutturazione): consegna al chiamante le voci
@@ -431,24 +433,24 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-orange-500" />
-            {step === 1 && (isFotoMode ? "Da Foto o PDF — estrai preventivo con AI" : "Importa Computo Metrico")}
-            {step === 2 && "Configurazione"}
-            {step === 3 && "Estrazione AI in corso..."}
-            {step === 4 && "Revisione Voci Estratte"}
+            {step === 1 && (isFotoMode ? tr("Da Foto o PDF — estrai preventivo con AI") : tr("Importa Computo Metrico"))}
+            {step === 2 && tr("Configurazione")}
+            {step === 3 && tr("Estrazione AI in corso...")}
+            {step === 4 && tr("Revisione Voci Estratte")}
           </DialogTitle>
           {/* Fix 6: Indicatore step */}
           <div className="flex items-center gap-1 pt-1">
             {(onConfirmVoci
               ? [
-                  { n: 1, label: "File" },
+                  { n: 1, label: tr("File") },
                   { n: 3, label: "AI" },
-                  { n: 4, label: "Revisione" },
+                  { n: 4, label: tr("Revisione") },
                 ]
               : [
-                  { n: 1, label: "File" },
-                  { n: 2, label: "Config" },
+                  { n: 1, label: tr("File") },
+                  { n: 2, label: tr("Config") },
                   { n: 3, label: "AI" },
-                  { n: 4, label: "Revisione" },
+                  { n: 4, label: tr("Revisione") },
                 ]
             ).map(({ n, label }, idx, arr) => (
               <div key={n} className="flex items-center gap-1">
@@ -472,13 +474,11 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
           </div>
           {step === 1 && isFotoMode && (
             <p className="text-sm text-muted-foreground">
-              Scatta o carica la foto di un preventivo scritto a mano / stampato.
-              L'AI leggerà prodotti, misure, quantità e prezzi, poi farà match col tuo listino.
-              Potrai rivedere e modificare tutto prima di salvare.
+              {tr("Scatta o carica la foto di un preventivo scritto a mano / stampato. L'AI leggerà prodotti, misure, quantità e prezzi, poi farà match col tuo listino. Potrai rivedere e modificare tutto prima di salvare.")}
             </p>
           )}
         </DialogHeader>
-        {reviewError && <p role="alert" className="text-xs text-destructive">Impossibile caricare i dati di revisione. Chiudi e riapri il computo; le voci restano salvate.</p>}
+        {reviewError && <p role="alert" className="text-xs text-destructive">{tr("Impossibile caricare i dati di revisione. Chiudi e riapri il computo; le voci restano salvate.")}</p>}
 
         {/* ── Step 1: Upload ────────────────────────────────────────────── */}
         {step === 1 && (
@@ -520,9 +520,9 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
               ) : (
                 <>
                   <Upload className="h-10 w-10 mx-auto text-slate-300 mb-3" />
-                  <p className="text-sm font-medium">Trascina qui il computo metrico</p>
+                  <p className="text-sm font-medium">{tr("Trascina qui il computo metrico")}</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    PDF, Excel (.xlsx), XPWE, DCF — Max 50MB
+                    {tr("PDF, Excel (.xlsx), XPWE, DCF — Max 50MB")}
                   </p>
                 </>
               )}
@@ -534,9 +534,9 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
                 disabled={!file}
               >
                 {onConfirmVoci ? (
-                  <><Sparkles className="h-4 w-4 mr-1" /> Avvia estrazione AI</>
+                  <><Sparkles className="h-4 w-4 mr-1" /> {tr("Avvia estrazione AI")}</>
                 ) : (
-                  <>Avanti <ArrowRight className="h-4 w-4 ml-1" /></>
+                  <>{tr("Avanti")} <ArrowRight className="h-4 w-4 ml-1" /></>
                 )}
               </Button>
             </div>
@@ -557,23 +557,23 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
             <div className="space-y-3">
               <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
                 <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Dati preventivo
+                  {tr("Dati preventivo")}
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="computo-oggetto" className="text-sm">
-                    Oggetto offerta
+                    {tr("Oggetto offerta")}
                   </Label>
                   <Input
                     id="computo-oggetto"
                     value={oggettoPreventivo}
                     onChange={(e) => setOggettoPreventivo(e.target.value)}
-                    placeholder="Es. Ristrutturazione appartamento via Roma"
+                    placeholder={tr("Es. Ristrutturazione appartamento via Roma")}
                   />
                 </div>
                 <div className="grid gap-3 sm:grid-cols-[140px_1fr]">
                   <div className="space-y-1.5">
                     <Label htmlFor="computo-margine-target" className="text-sm">
-                      Margine target %
+                      {tr("Margine target %")}
                     </Label>
                     <Input
                       id="computo-margine-target"
@@ -586,13 +586,13 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="computo-note" className="text-sm">
-                      Note interne
+                      {tr("Note interne")}
                     </Label>
                     <Textarea
                       id="computo-note"
                       value={notePreventivo}
                       onChange={(e) => setNotePreventivo(e.target.value)}
-                      placeholder="Vincoli, esclusioni, condizioni commerciali..."
+                      placeholder={tr("Vincoli, esclusioni, condizioni commerciali...")}
                       className="min-h-[72px]"
                     />
                   </div>
@@ -608,12 +608,12 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
                   className="rounded"
                 />
                 <Label htmlFor="applyRicarico" className="text-sm">
-                  Applica ricarico automatico ai prezzi
+                  {tr("Applica ricarico automatico ai prezzi")}
                 </Label>
               </div>
               {applyRicarico && (
                 <div className="flex items-center gap-2">
-                  <Label className="text-sm min-w-fit">Ricarico %</Label>
+                  <Label className="text-sm min-w-fit">{tr("Ricarico %")}</Label>
                   <Input
                     type="number"
                     value={ricarico}
@@ -628,7 +628,7 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
 
             <div className="flex justify-between">
               <Button variant="outline" onClick={() => setStep(1)}>
-                <ArrowLeft className="h-4 w-4 mr-1" /> Indietro
+                <ArrowLeft className="h-4 w-4 mr-1" /> {tr("Indietro")}
               </Button>
               <Button onClick={handleStartProcessing} disabled={isUploading}>
                 {isUploading ? (
@@ -636,7 +636,7 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
                 ) : (
                   <Sparkles className="h-4 w-4 mr-1" />
                 )}
-                Avvia Estrazione AI
+                {tr("Avvia Estrazione AI")}
               </Button>
             </div>
           </div>
@@ -656,21 +656,20 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="ghost" size="sm" className="text-muted-foreground">
-                    Annulla
+                    {tr("Annulla")}
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Chiudere l'estrazione?</AlertDialogTitle>
+                    <AlertDialogTitle>{tr("Chiudere l'estrazione?")}</AlertDialogTitle>
                     <AlertDialogDescription>
-                      Chiudere questa schermata non interrompe l'analisi sul server.
-                      Il file e le voci già salvate non vengono eliminati.
+                      {tr("Chiudere questa schermata non interrompe l'analisi sul server. Il file e le voci già salvate non vengono eliminati.")}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Continua l'estrazione</AlertDialogCancel>
+                    <AlertDialogCancel>{tr("Continua l'estrazione")}</AlertDialogCancel>
                     <AlertDialogAction onClick={handleClose} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                      Chiudi schermata
+                      {tr("Chiudi schermata")}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
@@ -686,10 +685,10 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
             {computoUpload && (
               <div className="flex items-center gap-4 text-xs text-muted-foreground pb-3 border-b mb-3 flex-wrap">
                 {computoUpload.oggetto_lavori && (
-                  <span><strong>Oggetto:</strong> {computoUpload.oggetto_lavori}</span>
+                  <span><strong>{tr("Oggetto:")}</strong> {computoUpload.oggetto_lavori}</span>
                 )}
                 {computoUpload.committente && (
-                  <span><strong>Committente:</strong> {computoUpload.committente}</span>
+                  <span><strong>{tr("Committente:")}</strong> {computoUpload.committente}</span>
                 )}
                 {computoUpload.extraction_method && (
                   <Badge variant="outline" className="text-[10px]">
@@ -706,34 +705,32 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
                         ? "border-amber-400 text-amber-600"
                         : "border-red-400 text-red-600"
                     }`}
-                  >
-                    Confidence: {(computoUpload.extraction_confidence * 100).toFixed(0)}%
-                  </Badge>
+                  >{tr("Confidence: {valore}%", { valore: (computoUpload.extraction_confidence * 100).toFixed(0) })}</Badge>
                 )}
               </div>
             )}
 
-            {!computoUpload && <p role="status" className="text-xs mb-3">Caricamento dei controlli del documento…</p>}
+            {!computoUpload && <p role="status" className="text-xs mb-3">{tr("Caricamento dei controlli del documento…")}</p>}
             <ComputoDocumentChecks review={documentReview} acknowledged={documentAcknowledged} onAcknowledge={setDocumentAcknowledged} />
 
             {/* Stats */}
             <div className="flex gap-4 text-xs mb-3">
               <span>
                 <strong>{vociLocali.filter((v) => v._isIncluded).length}</strong> /{" "}
-                {vociLocali.length} voci incluse
+                {vociLocali.length} {tr("voci incluse")}
               </span>
               <span>
                 <strong>
                   {new Set(vociLocali.map((v) => v.capitolo_nome)).size}
                 </strong>{" "}
-                capitoli
+                {tr("capitoli")}
               </span>
               <span>
-                <strong>{reviewSummary.matchRatePct}%</strong> match listino
+                <strong>{reviewSummary.matchRatePct}%</strong> {tr("match listino")}
               </span>
               <span>
-                <strong>{reviewSummary.blockingCount}</strong> blocchi ·{" "}
-                <strong>{reviewSummary.warningCount}</strong> avvisi
+                <strong>{reviewSummary.blockingCount}</strong> {tr("blocchi ·")}{" "}
+                <strong>{reviewSummary.warningCount}</strong> {tr("avvisi")}
               </span>
             </div>
 
@@ -754,16 +751,16 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
                   <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
                   <span className="text-amber-800 dark:text-amber-300">
                     {reviewSummary.includedRows === 0
-                      ? "Seleziona almeno una voce prima di generare il preventivo."
-                      : `${reviewSummary.blockingCount} problema bloccante: correggi o escludi le righe evidenziate prima di generare il preventivo.`}
+                      ? tr("Seleziona almeno una voce prima di generare il preventivo.")
+                      : tr("{blockingCount} problema bloccante: correggi o escludi le righe evidenziate prima di generare il preventivo.", { blockingCount: String(reviewSummary.blockingCount ?? "") })}
                   </span>
                 </div>
               )}
               <div className="flex items-center justify-between">
                 <div className="text-sm">
-                  <span className="text-muted-foreground">Totale impresa: </span>
+                  <span className="text-muted-foreground">{tr("Totale impresa:")} </span>
                   <strong className="text-orange-600">
-                    {new Intl.NumberFormat("it-IT", {
+                    {new Intl.NumberFormat(intlCampo(), {
                       style: "currency",
                       currency: "EUR", useGrouping: "always" }).format(
                       vociLocali
@@ -774,7 +771,7 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
                 </div>
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={handleClose}>
-                    Annulla
+                    {tr("Annulla")}
                   </Button>
                   <Button
                     onClick={handleGenerate}
@@ -788,7 +785,7 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
                     ) : (
                       <CheckCircle2 className="h-4 w-4 mr-1" />
                     )}
-                    {confirmLabel ?? "Genera Preventivo"}
+                    {confirmLabel ?? tr("Genera Preventivo")}
                   </Button>
                 </div>
               </div>

@@ -80,6 +80,7 @@ import {
   matrixToCells,
   type MatrixParseResult,
 } from "@/features/serramenti-listini/utils/matrixImport";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type BulkTargetField = "prezzo_acquisto" | "prezzo_vendita";
 export type AiProvider = "auto" | "openai" | "anthropic" | "gemini";
@@ -231,6 +232,7 @@ export function GridBulkImportDialog({
   asseYLabel = "Altezza",
   prezzoBaseMode = "vendita",
 }: Props) {
+  const t = useT();
   const [text, setText] = useState("");
   const [targetField, setTargetField] = useState<BulkTargetField>(() =>
     campoImportoGriglia(prezzoBaseMode),
@@ -306,12 +308,12 @@ export function GridBulkImportDialog({
       return;
     }
     if (!ALLOWED_MIME.includes(file.type)) {
-      toast.error(`Formato non supportato. Usa PNG, JPEG, WebP o GIF.`);
+      toast.error(t("Formato non supportato. Usa PNG, JPEG, WebP o GIF."));
       return;
     }
     if (file.size > MAX_IMAGE_BYTES) {
       toast.error(
-        `Immagine troppo grande (${(file.size / 1024 / 1024).toFixed(1)} MB, max ${MAX_IMAGE_BYTES / 1024 / 1024} MB).`,
+        t("Immagine troppo grande ({valore} MB, max {max_image_bytes} MB).", { valore: (file.size / 1024 / 1024).toFixed(1), max_image_bytes: MAX_IMAGE_BYTES / 1024 / 1024 }),
       );
       return;
     }
@@ -323,7 +325,7 @@ export function GridBulkImportDialog({
 
   const handleAnalyzeImage = async () => {
     if (!imageFile) {
-      toast.error("Seleziona prima un'immagine");
+      toast.error(t("Seleziona prima un'immagine"));
       return;
     }
     setAiLoading(true);
@@ -358,17 +360,17 @@ export function GridBulkImportDialog({
         cellCount: data.data.cells.length,
       });
       if (data.warnings && data.warnings.length > 0) {
-        toast.info(`AI ha completato l'analisi con ${data.warnings.length} avvisi`, {
+        toast.info(t("AI ha completato l'analisi con {n} avvisi", { n: data.warnings.length }), {
           description: data.warnings.slice(0, 2).join("; "),
         });
       } else {
-        toast.success(`AI ha riconosciuto ${data.data.cells.length} celle`);
+        toast.success(t("AI ha riconosciuto {n} celle", { n: data.data.cells.length }));
       }
       // Sposta focus sulla preview — tabMode rimane "image" così l'utente vede provider/tokens
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setAiError(msg);
-      toast.error("Errore analisi AI", { description: msg });
+      toast.error(t("Errore analisi AI"), { description: msg });
     } finally {
       setAiLoading(false);
     }
@@ -376,7 +378,7 @@ export function GridBulkImportDialog({
 
   const handleApply = () => {
     if (!canApply) {
-      toast.error("Correggi gli errori prima di applicare");
+      toast.error(t("Correggi gli errori prima di applicare"));
       return;
     }
     onApply({
@@ -386,7 +388,7 @@ export function GridBulkImportDialog({
       targetField: campo,
     });
     toast.success(
-      `Matrice importata: ${result.cells.length} celle (${result.xValues.length}×${result.yValues.length})`,
+      t("Matrice importata: {n} celle ({n2}×{n3})", { n: result.cells.length, n2: result.xValues.length, n3: result.yValues.length }),
     );
     resetAll();
     onOpenChange(false);
@@ -403,11 +405,10 @@ export function GridBulkImportDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Upload className="h-5 w-5" aria-hidden="true" />
-            Importa matrice
+            {t("Importa matrice")}
           </DialogTitle>
           <DialogDescription>
-            Incolla una tabella {asseXLabel} × {asseYLabel} da Excel/PDF, oppure
-            carica lo screenshot del listino e lascia che l'AI la trascriva.
+            {t("Incolla una tabella {asseXLabel} × {asseYLabel} da Excel/PDF, oppure carica lo screenshot del listino e lascia che l'AI la trascriva.", { asseXLabel, asseYLabel })}
           </DialogDescription>
         </DialogHeader>
 
@@ -415,7 +416,7 @@ export function GridBulkImportDialog({
           {/* Scelta campo target — comune a entrambi i tab */}
           <div className="space-y-2">
             <Label className="text-sm font-medium">
-              I valori della tabella sono:
+              {t("I valori della tabella sono:")}
             </Label>
             <RadioGroup
               value={campo}
@@ -425,11 +426,11 @@ export function GridBulkImportDialog({
               <div className="flex items-start gap-2 p-3 rounded-md border hover:bg-muted/30">
                 <RadioGroupItem value="prezzo_acquisto" id="target-acq" className="mt-0.5" />
                 <Label htmlFor="target-acq" className="cursor-pointer flex-1">
-                  <div className="font-medium">Prezzo di acquisto (fornitore)</div>
+                  <div className="font-medium">{t("Prezzo di acquisto (fornitore)")}</div>
                   <div className="text-xs text-muted-foreground">
                     {soloAcquisto
-                      ? "Listino del fornitore. Il prezzo di vendita verrà calcolato dal markup configurato nella famiglia."
-                      : "Quanto lo paghi al fornitore: serve al margine, il prezzo al cliente non cambia."}
+                      ? t("Listino del fornitore. Il prezzo di vendita verrà calcolato dal markup configurato nella famiglia.")
+                      : t("Quanto lo paghi al fornitore: serve al margine, il prezzo al cliente non cambia.")}
                   </div>
                 </Label>
               </div>
@@ -443,11 +444,11 @@ export function GridBulkImportDialog({
                   disabled={soloAcquisto}
                 />
                 <Label htmlFor="target-vend" className={`flex-1 ${soloAcquisto ? "" : "cursor-pointer"}`}>
-                  <div className="font-medium">Prezzo di vendita (cliente)</div>
+                  <div className="font-medium">{t("Prezzo di vendita (cliente)")}</div>
                   <div className="text-xs text-muted-foreground">
                     {soloAcquisto
-                      ? "Non per questo prodotto: la vendita la calcola il ricarico sul prezzo del fornitore."
-                      : "Prezzo di cartellino già maggiorato, da mostrare al cliente finale."}
+                      ? t("Non per questo prodotto: la vendita la calcola il ricarico sul prezzo del fornitore.")
+                      : t("Prezzo di cartellino già maggiorato, da mostrare al cliente finale.")}
                   </div>
                 </Label>
               </div>
@@ -459,11 +460,11 @@ export function GridBulkImportDialog({
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="text" className="gap-2">
                 <FileText className="h-4 w-4" aria-hidden="true" />
-                Testo (copia-incolla)
+                {t("Testo (copia-incolla)")}
               </TabsTrigger>
               <TabsTrigger value="image" className="gap-2">
                 <Sparkles className="h-4 w-4" aria-hidden="true" />
-                Immagine (AI)
+                {t("Immagine (AI)")}
               </TabsTrigger>
             </TabsList>
 
@@ -471,31 +472,25 @@ export function GridBulkImportDialog({
             <TabsContent value="text" className="space-y-3 mt-4">
               <details className="text-sm">
                 <summary className="cursor-pointer font-medium text-primary hover:underline">
-                  Formato atteso (esempio)
+                  {t("Formato atteso (esempio)")}
                 </summary>
                 <pre className="mt-2 p-3 bg-muted rounded text-xs overflow-x-auto">
-{`L/H    500    600    700    800
-500    207    207    228    250
-600    207    207    234    250
-700    222    234    250    255
-800    234    234    255    282`}
+{t("L/H    500    600    700    800\n500    207    207    228    250\n600    207    207    234    250\n700    222    234    250    255\n800    234    234    255    282")}
                 </pre>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Prima riga: header con le {asseXLabel.toLowerCase()}. Prima colonna
-                  di ogni riga: valore {asseYLabel.toLowerCase()}. Celle vuote =
-                  taglia non disponibile.
+                  {t("Prima riga: header con le {toLowerCase}. Prima colonna di ogni riga: valore {toLowerCase2}. Celle vuote = taglia non disponibile.", { toLowerCase: asseXLabel.toLowerCase(), toLowerCase2: asseYLabel.toLowerCase() })}
                 </p>
               </details>
 
               <div className="space-y-2">
                 <Label htmlFor="bulk-text" className="text-sm font-medium">
-                  Incolla la matrice qui:
+                  {t("Incolla la matrice qui:")}
                 </Label>
                 <Textarea
                   id="bulk-text"
                   value={text}
                   onChange={(e) => setText(e.target.value)}
-                  placeholder={"L/H\t500\t600\t700\n500\t207\t207\t228\n600\t207\t207\t234"}
+                  placeholder={t("L/H\t500\t600\t700\n500\t207\t207\t228\n600\t207\t207\t234")}
                   className="font-mono text-xs min-h-[200px]"
                   spellCheck={false}
                 />
@@ -507,38 +502,35 @@ export function GridBulkImportDialog({
               <Alert>
                 <Sparkles className="h-4 w-4" aria-hidden="true" />
                 <AlertDescription className="text-xs">
-                  Carica uno screenshot o una foto del listino del fornitore. L'AI
-                  leggerà larghezze, altezze e prezzi producendo una matrice editabile.
-                  Puoi correggere eventuali errori nel tab "Testo" prima di applicare.
+                  {t("Carica uno screenshot o una foto del listino del fornitore. L'AI leggerà larghezze, altezze e prezzi producendo una matrice editabile. Puoi correggere eventuali errori nel tab \"Testo\" prima di applicare.")}
                 </AlertDescription>
               </Alert>
 
               {/* Provider selector */}
               <div className="space-y-2">
                 <Label htmlFor="ai-provider" className="text-sm font-medium">
-                  Modello AI
+                  {t("Modello AI")}
                 </Label>
                 <Select value={aiProvider} onValueChange={(v) => setAiProvider(v as AiProvider)}>
                   <SelectTrigger id="ai-provider">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="auto">Auto (primo disponibile)</SelectItem>
-                    <SelectItem value="openai">OpenAI GPT-4o</SelectItem>
-                    <SelectItem value="anthropic">Anthropic Claude Sonnet 4</SelectItem>
-                    <SelectItem value="gemini">Google Gemini 2.5 Pro</SelectItem>
+                    <SelectItem value="auto">{t("Auto (primo disponibile)")}</SelectItem>
+                    <SelectItem value="openai">{t("OpenAI GPT-4o")}</SelectItem>
+                    <SelectItem value="anthropic">{t("Anthropic Claude Sonnet 4")}</SelectItem>
+                    <SelectItem value="gemini">{t("Google Gemini 2.5 Pro")}</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Se il modello scelto non è configurato, l'admin deve aggiungere la
-                  rispettiva API key nei secrets della Edge Function.
+                  {t("Se il modello scelto non è configurato, l'admin deve aggiungere la rispettiva API key nei secrets della Edge Function.")}
                 </p>
               </div>
 
               {/* File input */}
               <div className="space-y-2">
                 <Label htmlFor="bulk-image" className="text-sm font-medium">
-                  Immagine del listino
+                  {t("Immagine del listino")}
                 </Label>
                 <input
                   id="bulk-image"
@@ -549,7 +541,7 @@ export function GridBulkImportDialog({
                   className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 file:cursor-pointer cursor-pointer"
                 />
                 <p className="text-xs text-muted-foreground">
-                  PNG, JPEG, WebP o GIF. Max 10 MB.
+                  {t("PNG, JPEG, WebP o GIF. Max 10 MB.")}
                 </p>
               </div>
 
@@ -559,7 +551,7 @@ export function GridBulkImportDialog({
                   <div className="border rounded-md p-2 bg-muted/20">
                     <img loading="lazy"
                       src={imagePreview}
-                      alt="Anteprima listino"
+                      alt={t("Anteprima listino")}
                       className="max-h-[280px] w-auto mx-auto rounded"
                     />
                   </div>
@@ -572,12 +564,12 @@ export function GridBulkImportDialog({
                     {aiLoading ? (
                       <>
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />
-                        Analisi AI in corso…
+                        {t("Analisi AI in corso…")}
                       </>
                     ) : (
                       <>
                         <Sparkles className="h-4 w-4 mr-2" aria-hidden="true" />
-                        Analizza immagine con AI
+                        {t("Analizza immagine con AI")}
                       </>
                     )}
                   </Button>
@@ -589,7 +581,7 @@ export function GridBulkImportDialog({
                 <Alert variant="destructive">
                   <AlertCircle className="h-4 w-4" aria-hidden="true" />
                   <AlertDescription>
-                    <div className="font-medium">Analisi AI non riuscita</div>
+                    <div className="font-medium">{t("Analisi AI non riuscita")}</div>
                     <div className="text-xs mt-1">{aiError}</div>
                   </AlertDescription>
                 </Alert>
@@ -601,16 +593,16 @@ export function GridBulkImportDialog({
                   <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                   <AlertDescription className="space-y-1 text-xs">
                     <div>
-                      <span className="font-medium">{aiInfo.cellCount} celle riconosciute</span>{" "}
+                      <span className="font-medium">{t("{cellCount} celle riconosciute", { cellCount: aiInfo.cellCount })}</span>{" "}
                       via <span className="font-medium">{aiInfo.provider}</span> ({aiInfo.model})
                     </div>
                     {aiInfo.inputTokens !== undefined && (
                       <div className="text-muted-foreground">
-                        Token: {aiInfo.inputTokens} input + {aiInfo.outputTokens} output
+                        {t("Token: {inputTokens} input + {outputTokens} output", { inputTokens: aiInfo.inputTokens, outputTokens: aiInfo.outputTokens })}
                       </div>
                     )}
                     <div className="text-muted-foreground">
-                      Controlla l'anteprima sotto. Per correggere, modifica il TSV nel tab "Testo".
+                      {t("Controlla l'anteprima sotto. Per correggere, modifica il TSV nel tab \"Testo\".")}
                     </div>
                   </AlertDescription>
                 </Alert>
@@ -619,8 +611,8 @@ export function GridBulkImportDialog({
               {!imagePreview && (
                 <div className="flex flex-col items-center justify-center border-2 border-dashed rounded-md p-8 text-center text-muted-foreground">
                   <ImageIcon className="h-10 w-10 mb-2" aria-hidden="true" />
-                  <p className="text-sm">Nessuna immagine caricata</p>
-                  <p className="text-xs mt-1">Seleziona un file per iniziare</p>
+                  <p className="text-sm">{t("Nessuna immagine caricata")}</p>
+                  <p className="text-xs mt-1">{t("Seleziona un file per iniziare")}</p>
                 </div>
               )}
             </TabsContent>
@@ -640,7 +632,7 @@ export function GridBulkImportDialog({
               <AlertDescription className="space-y-1">
                 <div>
                   <span className="font-medium">
-                    {result.cells.length} celle pronte
+                    {t("{n} celle pronte", { n: result.cells.length })}
                   </span>{" "}
                   ({result.xValues.length} {asseXLabel.toLowerCase()} ×{" "}
                   {result.yValues.length} {asseYLabel.toLowerCase()})
@@ -648,8 +640,7 @@ export function GridBulkImportDialog({
                 {result.warnings.length > 0 && (
                   <details className="text-xs">
                     <summary className="cursor-pointer">
-                      {result.warnings.length} avviso
-                      {result.warnings.length === 1 ? "" : "i"}
+                      {t("{n} avviso{valore}", { n: result.warnings.length, valore: result.warnings.length === 1 ? "" : "i" })}
                     </summary>
                     <ul className="list-disc pl-4 mt-1">
                       {result.warnings.map((w, i) => (
@@ -660,7 +651,7 @@ export function GridBulkImportDialog({
                 )}
                 {needsAiConfirm && !aiConfirmed && (
                   <div className="text-xs text-amber-700 dark:text-amber-400 pt-1">
-                    ⚠ Conferma la verifica dei valori AI per abilitare "Applica".
+                    {t("⚠ Conferma la verifica dei valori AI per abilitare \"Applica\".")}
                   </div>
                 )}
               </AlertDescription>
@@ -670,7 +661,7 @@ export function GridBulkImportDialog({
           {/* Preview tabella parsata — comune */}
           {hasContent && !result.fatalError && result.cells.length > 0 && (
             <div className="space-y-2">
-              <Label className="text-sm font-medium">Anteprima matrice:</Label>
+              <Label className="text-sm font-medium">{t("Anteprima matrice:")}</Label>
               <div className="border rounded-md overflow-x-auto max-h-[300px]">
                 <table className="w-full text-xs">
                   <thead className="bg-muted/50 sticky top-0">
@@ -700,7 +691,7 @@ export function GridBulkImportDialog({
                                 v === undefined ? "bg-muted/20 text-muted-foreground" : ""
                               }`}
                             >
-                              {v !== undefined ? v.toLocaleString("it-IT") : "—"}
+                              {v !== undefined ? v.toLocaleString(intlCampo()) : "—"}
                             </td>
                           );
                         })}
@@ -723,13 +714,11 @@ export function GridBulkImportDialog({
               <ShieldAlert className="h-4 w-4 text-amber-600 dark:text-amber-400" aria-hidden="true" />
               <AlertDescription className="space-y-2">
                 <div className="font-medium">
-                  Verifica i valori letti dall'AI prima di applicare.
+                  {t("Verifica i valori letti dall'AI prima di applicare.")}
                 </div>
                 <div className="text-xs">
-                  L'estrazione automatica può fraintendere cifre (es. <strong>7</strong> vs{" "}
-                  <strong>1</strong>), decimali IT/EN, o saltare righe. Valori errati entreranno
-                  nel motore prezzi e impatteranno vendita, margine e preventivi. Controlla
-                  l'anteprima sopra, correggi eventuali celle nel tab "Testo", poi conferma.
+                  {t("L'estrazione automatica può fraintendere cifre (es.")} <strong>7</strong> vs{" "}
+                  <strong>1</strong>{t("), decimali IT/EN, o saltare righe. Valori errati entreranno nel motore prezzi e impatteranno vendita, margine e preventivi. Controlla l'anteprima sopra, correggi eventuali celle nel tab \"Testo\", poi conferma.")}
                 </div>
                 <label className="flex items-start gap-2 pt-1 cursor-pointer select-none">
                   <Checkbox
@@ -739,7 +728,7 @@ export function GridBulkImportDialog({
                     className="mt-0.5 border-amber-600 data-[state=checked]:bg-amber-600 data-[state=checked]:border-amber-600"
                   />
                   <span className="text-xs font-medium">
-                    Ho verificato tutti i valori estratti dall'AI e confermo che sono corretti.
+                    {t("Ho verificato tutti i valori estratti dall'AI e confermo che sono corretti.")}
                   </span>
                 </label>
               </AlertDescription>
@@ -749,11 +738,11 @@ export function GridBulkImportDialog({
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={handleClose}>
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button type="button" onClick={handleApply} disabled={!canApply}>
             <Upload className="h-4 w-4 mr-2" aria-hidden="true" />
-            Applica alla matrice
+            {t("Applica alla matrice")}
           </Button>
         </DialogFooter>
       </DialogContent>

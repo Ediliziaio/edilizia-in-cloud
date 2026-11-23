@@ -35,6 +35,7 @@ import {
   type ListinoMacrocategoria,
 } from "@/hooks/useListinoMacrocategorie";
 import { sinonimiVerticale } from "@/lib/listino/areeStandard";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   /**
@@ -46,6 +47,7 @@ interface Props {
 }
 
 export function MacroPagineDedicateManager({ vertical }: Props) {
+  const t = useT();
   const { macrocategorie, isLoading } = useListinoMacrocategorie();
   const { updateMacrocategoria } = useMacrocategorieMutations();
   const qc = useQueryClient();
@@ -73,7 +75,7 @@ export function MacroPagineDedicateManager({ vertical }: Props) {
       });
       // Forza un re-fetch immediato della lista per riflettere il nuovo stato.
       void qc.invalidateQueries({ queryKey: ["listino-macrocategorie"] });
-      toast.success(next ? "Pagina dedicata attivata" : "Pagina dedicata disattivata");
+      toast.success(next ? t("Pagina dedicata attivata") : t("Pagina dedicata disattivata"));
     } finally {
       setPendingId(null);
     }
@@ -85,31 +87,28 @@ export function MacroPagineDedicateManager({ vertical }: Props) {
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
         <p className="text-muted-foreground">
-          Scegli quali macrocategorie del listino avranno una <strong>pagina
-          dedicata</strong> nel PDF preventivo (foto + descrizione). Le
-          modifiche sono salvate sul listino e visibili anche nella scheda
-          macrocategoria.
+          {t("Scegli quali macrocategorie del listino avranno una")} <strong>{t("pagina dedicata")}</strong> {t("nel PDF preventivo (foto + descrizione). Le modifiche sono salvate sul listino e visibili anche nella scheda macrocategoria.")}
         </p>
         <Badge variant="secondary" className="shrink-0">
-          {attiveCount} di {visible.length} attive
+          {t("{attiveCount} di {n} attive", { attiveCount, n: visible.length })}
         </Badge>
       </div>
 
       {isLoading ? (
         <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin mr-2" /> Caricamento…
+          <Loader2 className="h-4 w-4 animate-spin mr-2" /> {t("Caricamento…")}
         </div>
       ) : visible.length === 0 ? (
         <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground space-y-2">
           <FileText className="h-6 w-6 mx-auto opacity-40" />
           <p>
-            Nessuna macrocategoria configurata
-            {vertical ? ` per il verticale "${vertical}"` : ""}.
+            {t("Nessuna macrocategoria configurata")}
+            {vertical ? t(" per il verticale \"{vertical}\"", { vertical }) : ""}.
           </p>
           <Button asChild variant="outline" size="sm">
             <Link to="/azienda/impostazioni/listino">
               <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
-              Vai al listino
+              {t("Vai al listino")}
             </Link>
           </Button>
         </div>
@@ -147,7 +146,7 @@ export function MacroPagineDedicateManager({ vertical }: Props) {
                         className="text-[10px] h-5 border-orange-200 bg-orange-100/50 text-orange-600 dark:bg-orange-950/40 dark:border-orange-900/50 dark:text-orange-300"
                       >
                         <Sparkles className="h-2.5 w-2.5 mr-0.5" />
-                        Attiva
+                        {t("Attiva")}
                       </Badge>
                     )}
                   </div>
@@ -155,12 +154,12 @@ export function MacroPagineDedicateManager({ vertical }: Props) {
                     {!canActivate ? (
                       <span className="text-[11px] text-amber-700 dark:text-amber-400 inline-flex items-center gap-1">
                         <AlertTriangle className="h-3 w-3" />
-                        Manca la descrizione
+                        {t("Manca la descrizione")}
                       </span>
                     ) : !m.immagine_url ? (
                       <span className="text-[11px] text-muted-foreground inline-flex items-center gap-1">
                         <AlertTriangle className="h-3 w-3 text-amber-500" />
-                        Aggiungi una foto per un risultato migliore
+                        {t("Aggiungi una foto per un risultato migliore")}
                       </span>
                     ) : (
                       <span className="text-[11px] text-muted-foreground line-clamp-1">
@@ -178,7 +177,7 @@ export function MacroPagineDedicateManager({ vertical }: Props) {
                   asChild
                   className="text-xs text-muted-foreground hover:text-foreground"
                 >
-                  <Link to="/azienda/impostazioni/listino" title="Modifica nel listino">
+                  <Link to="/azienda/impostazioni/listino" title={t("Modifica nel listino")}>
                     <ExternalLink className="h-3.5 w-3.5" />
                   </Link>
                 </Button>
@@ -190,7 +189,7 @@ export function MacroPagineDedicateManager({ vertical }: Props) {
                     checked={isActive}
                     onCheckedChange={(v) => void handleToggle(m, v)}
                     disabled={!canActivate || isPending}
-                    aria-label={`Pagina dedicata per ${m.nome}`}
+                    aria-label={t("Pagina dedicata per {nome}", { nome: m.nome })}
                   />
                 </div>
               </li>

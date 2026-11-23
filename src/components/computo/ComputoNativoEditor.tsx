@@ -60,6 +60,7 @@ import { percorsoMisuraSullaPianta } from "@/lib/planimetrie/studioImmobiliare";
 import { percorsoVariantePlanimetria } from "@/lib/planimetrie/render/percorsi";
 import { ComputoVerificaPlanimetria } from "./ComputoVerificaPlanimetria";
 import { misuraRigaStudio, NOTA_QUANTITA_RIPRESA, type RigaStudio } from "@/lib/planimetrie/studioImmobiliare";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const desktopSnapshot = () => window.matchMedia("(min-width: 1024px)").matches;
 const AddVocePicker = lazy(() => import("@/components/ristrutturazione/ComputoEditor/AddVocePicker"));
@@ -170,6 +171,7 @@ export default function ComputoNativoEditor({ storageKey, companyId, azienda, de
     progettoPronto?: boolean;
   };
 }) {
+  const tr = useT();
   const [dettagliEconomici, setDettagliEconomici] = useState(false);
   const mostraDatiInterni = vediMargini && dettagliEconomici;
   const puoUsareAnalisi = vediMargini && !!companyId && !!analisiCosti;
@@ -188,7 +190,7 @@ export default function ComputoNativoEditor({ storageKey, companyId, azienda, de
   const cambiaFase = (n: number, scorriInizio = true) => {
     if (caricando || esportando) return;
     if (piantaInModifica && n !== step) {
-      toast.info("Salva la pianta o annulla le modifiche per cambiare passo.");
+      toast.info(tr("Salva la pianta o annulla le modifiche per cambiare passo."));
       return;
     }
     setFaseLocale(n); onFaseChange?.(n);
@@ -501,20 +503,20 @@ export default function ComputoNativoEditor({ storageKey, companyId, azienda, de
       cambia(esito);
       corrente.current = esito;
       setStorico([]);
-      toast.success(`Progetto v${origine.versione} e stessa bozza aggiornati`);
+      toast.success(tr("Progetto v{versione} e stessa bozza aggiornati", { versione: String(origine.versione ?? "") }));
       setAiAperta(sessione => sessione && { ...sessione, bozzaDaProgetto: esito });
       return esito.voci;
     } else {
       corrente.current = aggiornato;
       cambia(aggiornato);
       setAiAperta(sessione => sessione && { ...sessione, bozzaDaProgetto: aggiornato });
-      toast.success("Misure aggiornate nel computo");
+      toast.success(tr("Misure aggiornate nel computo"));
     }
   }
 
   function vistaProgetto(affiancata: boolean, inSilvio = false) {
     const origine = bozza.piantaOrigine;
-    return origine && <Suspense fallback={<p role="status" className="text-sm">Apro il collegamento alla planimetria…</p>}>
+    return origine && <Suspense fallback={<p role="status" className="text-sm">{tr("Apro il collegamento alla planimetria…")}</p>}>
       <ComputoDallaPianta origine={origine} companyId={companyId} voci={bozza.voci}
         modifica={puoAggiornarePianta && !conflitto && !erroreLettura} affiancata={affiancata} onModificaPianta={setPiantaInModifica}
         ripristino={ripristinoProgetto} onRipristino={setRipristinoProgetto}
@@ -620,7 +622,7 @@ export default function ComputoNativoEditor({ storageKey, companyId, azienda, de
     return nuova.id;
   };
   const daListino = (scelte: PickedVoce[]): void | false => {
-    if (bozza.voci.length + scelte.length > 5000) { toast.error("Il computo supererebbe le 5000 lavorazioni: togli qualche voce."); return false; }
+    if (bozza.voci.length + scelte.length > 5000) { toast.error(tr("Il computo supererebbe le 5000 lavorazioni: togli qualche voce.")); return false; }
     const nuove = scelte.map(picked => {
       const unita = picked.unita_originale?.trim() || picked.unita_misura;
       return { ...voceVuota(), capitolo: picker?.capitolo || picked.capitolo_nome || "Opere edili",
@@ -641,7 +643,7 @@ export default function ComputoNativoEditor({ storageKey, companyId, azienda, de
       cambia(esito ? applicaImportComputo(bozza, { ...esito, voci }) : { ...bozza, voci: [...bozza.voci, ...voci] });
     } catch (e) { setErrore(e instanceof Error ? e.message : "Import non riuscito."); return; }
     setScelta("");
-    toast.success(`${voci.length} ${voci.length === 1 ? "voce aggiunta" : "voci aggiunte"} al computo`, { description: "Con «Annulla» si torna indietro." });
+    toast.success(tr(voci.length === 1 ? "{n} voce aggiunta al computo" : "{n} voci aggiunte al computo", { n: voci.length }), { description: tr("Con «Annulla» si torna indietro.") });
   };
   const riordina = (delta: number) => {
     if (!v) return;
@@ -651,21 +653,21 @@ export default function ComputoNativoEditor({ storageKey, companyId, azienda, de
     cambia({ ...bozza, voci: righe });
   };
 
-  const dettaglioVoce = <fieldset disabled={conflitto || erroreLettura || esportando || caricando} aria-label="Modifica lavorazione nella riga" className="min-w-0" onFocusCapture={() => { if (v) puntaVocePdf(v.id); }}>{v && <div className="min-w-0 space-y-4">
-    {puoUsareAnalisi && mostraDatiInterni && <Button type="button" size="sm" variant="outline" onClick={() => apriAnalisi({ voce: v.id })}><Calculator className="mr-1.5 h-4 w-4" />Analizza costi</Button>}
-            <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-semibold">Voce {v.numero || bozza.voci.indexOf(v) + 1}</h3><div className="flex flex-wrap items-center gap-1"><Button type="button" variant="ghost" size="sm" aria-label="Chiudi dettagli" className="h-8 gap-1 max-md:h-10 max-md:w-10 max-md:p-0" onClick={() => setScelta("")}><X className="h-3.5 w-3.5" /><span className="max-md:hidden">Chiudi dettagli</span></Button>
-              <Button variant="ghost" size="icon" aria-label="Sposta voce su" title="Sposta su" disabled={bozza.voci.indexOf(v) === 0} onClick={() => riordina(-1)}><ArrowUp className="h-4 w-4" /></Button>
-              <Button variant="ghost" size="icon" aria-label="Sposta voce giù" title="Sposta giù" disabled={bozza.voci.indexOf(v) === bozza.voci.length - 1} onClick={() => riordina(1)}><ArrowDown className="h-4 w-4" /></Button>
-              <Button variant="ghost" size="icon" aria-label="Duplica voce" title="Duplica voce" disabled={bozza.voci.length >= 5000} onClick={() => {
+  const dettaglioVoce = <fieldset disabled={conflitto || erroreLettura || esportando || caricando} aria-label={tr("Modifica lavorazione nella riga")} className="min-w-0" onFocusCapture={() => { if (v) puntaVocePdf(v.id); }}>{v && <div className="min-w-0 space-y-4">
+    {puoUsareAnalisi && mostraDatiInterni && <Button type="button" size="sm" variant="outline" onClick={() => apriAnalisi({ voce: v.id })}><Calculator className="mr-1.5 h-4 w-4" />{tr("Analizza costi")}</Button>}
+            <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-semibold">{tr("Voce")} {v.numero || bozza.voci.indexOf(v) + 1}</h3><div className="flex flex-wrap items-center gap-1"><Button type="button" variant="ghost" size="sm" aria-label={tr("Chiudi dettagli")} className="h-8 gap-1 max-md:h-10 max-md:w-10 max-md:p-0" onClick={() => setScelta("")}><X className="h-3.5 w-3.5" /><span className="max-md:hidden">{tr("Chiudi dettagli")}</span></Button>
+              <Button variant="ghost" size="icon" aria-label={tr("Sposta voce su")} title={tr("Sposta su")} disabled={bozza.voci.indexOf(v) === 0} onClick={() => riordina(-1)}><ArrowUp className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="icon" aria-label={tr("Sposta voce giù")} title={tr("Sposta giù")} disabled={bozza.voci.indexOf(v) === bozza.voci.length - 1} onClick={() => riordina(1)}><ArrowDown className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="icon" aria-label={tr("Duplica voce")} title={tr("Duplica voce")} disabled={bozza.voci.length >= 5000} onClick={() => {
                 const copia = { ...v, id: crypto.randomUUID(), misure: v.misure.map(m => ({ ...misuraSenzaCollegamento(m), id: crypto.randomUUID() })) };
                 const i = bozza.voci.indexOf(v);
                 cambia({ ...bozza, voci: [...bozza.voci.slice(0, i + 1), copia, ...bozza.voci.slice(i + 1)] }); setScelta(copia.id);
               }}><Copy className="h-4 w-4" /></Button>
-              <Button variant="ghost" size="icon" aria-label="Elimina voce" title="Elimina voce" onClick={() => { cambia({ ...bozza, voci: bozza.voci.filter(r => r.id !== v.id) }); setScelta(""); }}><Trash2 className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="icon" aria-label={tr("Elimina voce")} title={tr("Elimina voce")} onClick={() => { cambia({ ...bozza, voci: bozza.voci.filter(r => r.id !== v.id) }); setScelta(""); }}><Trash2 className="h-4 w-4" /></Button>
             </div></div>
-            <div className="space-y-1"><Label htmlFor="voce-descrizione">Descrizione della lavorazione</Label><TestoCheCresce id="voce-descrizione" minRighe={2} maxLength={30000} value={v.descrizione} onChange={e => modificaVoce({ descrizione: e.target.value })} /></div>
-            {percorsoMisura && <Button asChild size="sm" variant="outline"><Link to={percorsoMisura}>Vedi la misura sulla pianta</Link></Button>}
-            {percorsoPiano && <Button asChild size="sm" variant="outline"><Link to={percorsoPiano}>Vedi il piano di origine</Link></Button>}
+            <div className="space-y-1"><Label htmlFor="voce-descrizione">{tr("Descrizione della lavorazione")}</Label><TestoCheCresce id="voce-descrizione" minRighe={2} maxLength={30000} value={v.descrizione} onChange={e => modificaVoce({ descrizione: e.target.value })} /></div>
+            {percorsoMisura && <Button asChild size="sm" variant="outline"><Link to={percorsoMisura}>{tr("Vedi la misura sulla pianta")}</Link></Button>}
+            {percorsoPiano && <Button asChild size="sm" variant="outline"><Link to={percorsoPiano}>{tr("Vedi il piano di origine")}</Link></Button>}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{([['Codice tariffa', 'tariffa'], ['Unità di misura', 'unita'], ['Quantità', 'quantita'], ['Prezzo unitario', 'prezzo']] as const).map(([label, key]) =>
               <div key={key} className="min-w-0 space-y-1"><Label htmlFor={`voce-${key}`}>{label}</Label>{key === "unita"
                 ? <ComputoUnitaSelect key={v.id} value={v.unita} onChange={unita => modificaVoce({ unita, corpo: unita === "corpo" || unita === "a corpo" })} />
@@ -675,112 +677,111 @@ export default function ComputoNativoEditor({ storageKey, companyId, azienda, de
               const r = calcolaVoce(v); const cu = numeroEditor(v.costo ?? "");
               const margine = cu != null && r.prezzo != null && r.prezzo > 0 ? (r.prezzo - cu) / r.prezzo * 100 : null;
               return <div className="flex flex-wrap items-end gap-3 rounded-md border border-dashed bg-white p-2">
-                <div className="w-44 max-w-full space-y-1"><Label htmlFor="voce-costo" className="text-xs">Costo unitario stimato</Label>
-                  <Input id="voce-costo" className="h-9" inputMode="decimal" maxLength={40} placeholder="€ per unità" value={v.costo ?? ""} onChange={e => modificaVoce({ costo: e.target.value })} /></div>
-                <p className="pb-2 text-xs text-muted-foreground">{margine == null ? "Serve per margini e cassa nel passo Economia. Non va nel PDF." : <>Margine sulla voce <strong className={margine < 10 ? "text-red-700" : margine < 20 ? "text-amber-700" : "text-emerald-700"}>{margine.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%</strong> · non va nel PDF</>}</p>
+                <div className="w-44 max-w-full space-y-1"><Label htmlFor="voce-costo" className="text-xs">{tr("Costo unitario stimato")}</Label>
+                  <Input id="voce-costo" className="h-9" inputMode="decimal" maxLength={40} placeholder={tr("€ per unità")} value={v.costo ?? ""} onChange={e => modificaVoce({ costo: e.target.value })} /></div>
+                <p className="pb-2 text-xs text-muted-foreground">{margine == null ? tr("Serve per margini e cassa nel passo Economia. Non va nel PDF.") : <>{tr("Margine sulla voce")} <strong className={margine < 10 ? "text-red-700" : margine < 20 ? "text-amber-700" : "text-emerald-700"}>{margine.toLocaleString(intlCampo(), { maximumFractionDigits: 1 })}%</strong> {tr("· non va nel PDF")}</>}</p>
               </div>;
             })()}
             <ComputoMisure misure={v.misure} unita={v.unita} onChange={misure => modificaVoce({ misure })} />
-            <details className="border-y py-3"><summary className="cursor-pointer text-sm font-medium">Classificazione e opzioni tecniche</summary><div className="mt-3 space-y-4">
+            <details className="border-y py-3"><summary className="cursor-pointer text-sm font-medium">{tr("Classificazione e opzioni tecniche")}</summary><div className="mt-3 space-y-4">
               <div className="grid gap-3 sm:grid-cols-3">{([['Capitolo', 'capitolo'], ['Categoria', 'categoria'], ['Sottocategoria', 'sottocategoria']] as const).map(([label, key]) =>
                 <div key={key} className="min-w-0 space-y-1"><Label htmlFor={`voce-${key}`}>{label}</Label><Input id={`voce-${key}`} maxLength={300} value={v[key]} onChange={e => modificaVoce({ [key]: e.target.value })} /></div>)}</div>
-              <div className="space-y-1"><Label htmlFor="voce-fonte">Fonte del prezzo</Label><Input id="voce-fonte" maxLength={500} value={v.fonte ?? ""} onChange={e => modificaVoce({ fonte: e.target.value })} /></div>
-              <div className="space-y-1"><Label htmlFor="voce-note-misure">Misure di riferimento originali (non usate nel calcolo)</Label><TestoCheCresce id="voce-note-misure" minRighe={4} maxLength={30000} value={v.noteMisure ?? ""} onChange={e => modificaVoce({ noteMisure: e.target.value })} /></div>
-              <div className="space-y-1"><Label htmlFor="voce-comune">Descrizione comune del gruppo</Label><TestoCheCresce id="voce-comune" minRighe={4} maxLength={30000} value={v.descrizioneComune ?? ""} onChange={e => modificaVoce({ descrizioneComune: e.target.value })} /></div>
+              <div className="space-y-1"><Label htmlFor="voce-fonte">{tr("Fonte del prezzo")}</Label><Input id="voce-fonte" maxLength={500} value={v.fonte ?? ""} onChange={e => modificaVoce({ fonte: e.target.value })} /></div>
+              <div className="space-y-1"><Label htmlFor="voce-note-misure">{tr("Misure di riferimento originali (non usate nel calcolo)")}</Label><TestoCheCresce id="voce-note-misure" minRighe={4} maxLength={30000} value={v.noteMisure ?? ""} onChange={e => modificaVoce({ noteMisure: e.target.value })} /></div>
+              <div className="space-y-1"><Label htmlFor="voce-comune">{tr("Descrizione comune del gruppo")}</Label><TestoCheCresce id="voce-comune" minRighe={4} maxLength={30000} value={v.descrizioneComune ?? ""} onChange={e => modificaVoce({ descrizioneComune: e.target.value })} /></div>
               <div>{([['Opzionale (fuori dal totale)', 'opzionale'], ['Da quantificare più avanti', 'daQuantificare'], ['A corpo', 'corpo'], ['Oneri sicurezza', 'sicurezza'], ['Detrazione', 'detrazione']] as const).map(([label, key]) =>
                 <ComputoOpzione key={key} label={label} checked={v[key]} onChange={value => modificaVoce({ [key]: value })} />)}</div>
             </div></details>
-            <div className="flex flex-wrap justify-between gap-3 text-sm"><ul className="text-amber-800">{calcolaVoce(v, senzaPrezzi).errori.map(e => <li key={e}>{e}</li>)}</ul><strong>Importo voce: {calcolaVoce(v).importo == null ? "Da completare" : `${formatEuro(calcolaVoce(v).importo!)} €`}</strong></div>
+            <div className="flex flex-wrap justify-between gap-3 text-sm"><ul className="text-amber-800">{calcolaVoce(v, senzaPrezzi).errori.map(e => <li key={e}>{e}</li>)}</ul><strong>{tr("Importo voce:")} {calcolaVoce(v).importo == null ? tr("Da completare") : `${formatEuro(calcolaVoce(v).importo!)} €`}</strong></div>
           </div>}</fieldset>;
 
   const anteprimaDisponibile = !!bozza.voci.length && !!bozza.titolo.trim();
   const comandoPdf = <Button type="button" variant="outline" size="sm" className="aria-pressed:bg-slate-100 aria-pressed:text-slate-900 max-lg:min-h-11 max-lg:px-2.5"
     aria-pressed={desktop && !affiancata ? anteprimaVisibile : undefined}
-    title={desktop && !affiancata ? anteprimaVisibile ? "Nascondi il PDF affiancato" : "Mostra il PDF affiancato" : "Apri l’anteprima PDF"}
+    title={desktop && !affiancata ? anteprimaVisibile ? tr("Nascondi il PDF affiancato") : tr("Mostra il PDF affiancato") : tr("Apri l’anteprima PDF")}
     disabled={caricando || esportando || ((!desktop || affiancata) && !anteprimaDisponibile)}
     onClick={() => { if (desktop && !affiancata) setAnteprimePassi(v => ({ ...v, [step]: !anteprimaVisibile })); else void esporta(true); }}>
-    <Eye className="mr-1.5 h-4 w-4" />Anteprima
+    <Eye className="mr-1.5 h-4 w-4" />{tr("Anteprima")}
   </Button>;
   const titoloPreventivo = bozza.titolo.trim() || "Preventivo / computo metrico";
   const statoSalvataggio = conflitto || erroreLettura ? "Salvataggio sospeso" : cloud ? cloud.status
     : salvato ? "Salvato su questo dispositivo" : "Modifiche da salvare…";
   const importiVisibili = !!bozza.voci.length && !senzaPrezzi;
 
-  return <section className="min-w-0 space-y-2" aria-label="Editor computo metrico">
+  return <section className="min-w-0 space-y-2" aria-label={tr("Editor computo metrico")}>
     {onBack && <Button variant="ghost" size="sm" disabled={caricando || esportando} onClick={() => {
-      if (piantaInModifica) { toast.info("Salva la pianta o annulla le modifiche prima di uscire."); return; }
+      if (piantaInModifica) { toast.info(tr("Salva la pianta o annulla le modifiche prima di uscire.")); return; }
       onBack();
-    }}><ArrowLeft className="mr-1 h-4 w-4" />Preventivi</Button>}
+    }}><ArrowLeft className="mr-1 h-4 w-4" />{tr("Preventivi")}</Button>}
     <header className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
     <QuotePageHeader className="rounded-none border-0 px-3 py-3 shadow-none sm:px-4 sm:py-3 [&_h1]:text-lg sm:[&_h1]:text-xl [&_h1+p]:block [&_h1+p]:whitespace-normal"
       title={<span title={titoloPreventivo}>{titoloPreventivo}</span>}
       subtitle={<span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
         {bozza.committente.trim() && <span className="max-w-full truncate font-medium text-slate-700">{bozza.committente.trim()}</span>}
-        <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-slate-700">{bozza.numero.trim() || "Bozza"}</span>
-        <span role="status" aria-label="Salvataggio bozza" className="text-muted-foreground">{statoSalvataggio}</span>
+        <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-slate-700">{bozza.numero.trim() || tr("Bozza")}</span>
+        <span role="status" aria-label={tr("Salvataggio bozza")} className="text-muted-foreground">{statoSalvataggio}</span>
       </span>}
       icon={<FileSpreadsheet className="h-5 w-5" />} actions={<>
         {onComputoDaPlanimetria && <Button type="button" variant="outline" size="sm" disabled={caricando || esportando}
-          onClick={onComputoDaPlanimetria}><LayoutPanelTop className="mr-1 h-4 w-4" />Da planimetria</Button>}
+          onClick={onComputoDaPlanimetria}><LayoutPanelTop className="mr-1 h-4 w-4" />{tr("Da planimetria")}</Button>}
         {/* Le copie di sicurezza servono di rado: stanno qui. Quando c'è un problema compaiono nell'avviso. */}
         <DropdownMenu>
-          <DropdownMenuTrigger asChild><Button variant="outline" size="sm" aria-label="Altro" className="max-sm:w-9 max-sm:px-0" disabled={caricando || esportando}>
-            <MoreHorizontal className="h-4 w-4 sm:mr-1" /><span className="hidden sm:inline">Altro</span>
+          <DropdownMenuTrigger asChild><Button variant="outline" size="sm" aria-label={tr("Altro")} className="max-sm:w-9 max-sm:px-0" disabled={caricando || esportando}>
+            <MoreHorizontal className="h-4 w-4 sm:mr-1" /><span className="hidden sm:inline">{tr("Altro")}</span>
           </Button></DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             {vediMargini && <>
-              {puoUsareAnalisi && <DropdownMenuItem onSelect={() => apriAnalisi({})}><Calculator className="mr-2 h-4 w-4" />Analisi costi</DropdownMenuItem>}
+              {puoUsareAnalisi && <DropdownMenuItem onSelect={() => apriAnalisi({})}><Calculator className="mr-2 h-4 w-4" />{tr("Analisi costi")}</DropdownMenuItem>}
               <DropdownMenuCheckboxItem checked={mostraDatiInterni} onCheckedChange={setDettagliEconomici} className="max-md:min-h-11">
-                Mostra costi e margini nell’editor
+                {tr("Mostra costi e margini nell’editor")}
               </DropdownMenuCheckboxItem>
               <DropdownMenuSeparator />
             </>}
-            <DropdownMenuItem onSelect={() => setRevisioniAperte(true)}><History className="mr-2 h-4 w-4" />Revisioni e confronto{bozza.revisioni.length ? ` (${bozza.revisioni.length})` : ""}</DropdownMenuItem>
-            <DropdownMenuItem disabled={!bozza.voci.length} onSelect={() => { void scaricaExcel(); }}><FileSpreadsheet className="mr-2 h-4 w-4" />Scarica in Excel</DropdownMenuItem>
-            <DropdownMenuItem disabled={!bozza.voci.length} onSelect={() => scaricaXpwe()}><FileDown className="mr-2 h-4 w-4" />Scarica per PriMus (XPWE)</DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => { void copiaBozza(); }}><Download className="mr-2 h-4 w-4" />Scarica una copia della bozza</DropdownMenuItem>
-            <DropdownMenuItem disabled={conflitto} onSelect={() => importInput.current?.click()}><Upload className="mr-2 h-4 w-4" />Riapri una copia salvata…</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setRevisioniAperte(true)}><History className="mr-2 h-4 w-4" />{tr("Revisioni e confronto")}{bozza.revisioni.length ? ` (${bozza.revisioni.length})` : ""}</DropdownMenuItem>
+            <DropdownMenuItem disabled={!bozza.voci.length} onSelect={() => { void scaricaExcel(); }}><FileSpreadsheet className="mr-2 h-4 w-4" />{tr("Scarica in Excel")}</DropdownMenuItem>
+            <DropdownMenuItem disabled={!bozza.voci.length} onSelect={() => scaricaXpwe()}><FileDown className="mr-2 h-4 w-4" />{tr("Scarica per PriMus (XPWE)")}</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => { void copiaBozza(); }}><Download className="mr-2 h-4 w-4" />{tr("Scarica una copia della bozza")}</DropdownMenuItem>
+            <DropdownMenuItem disabled={conflitto} onSelect={() => importInput.current?.click()}><Upload className="mr-2 h-4 w-4" />{tr("Riapri una copia salvata…")}</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
         {comandoPdf}
-        <QuotePrimaryButton aria-label="Scarica preventivo" className="max-lg:hidden" size="sm" disabled={esportando || caricando || !bozza.voci.length || !!invalide || !!erroreIva || !!sconto.errore || !bozza.titolo.trim()} onClick={() => esporta()}>
-          {esportando ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}Scarica PDF
+        <QuotePrimaryButton aria-label={tr("Scarica preventivo")} className="max-lg:hidden" size="sm" disabled={esportando || caricando || !bozza.voci.length || !!invalide || !!erroreIva || !!sconto.errore || !bozza.titolo.trim()} onClick={() => esporta()}>
+          {esportando ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}{tr("Scarica PDF")}
         </QuotePrimaryButton>
       </>} />
       {importiVisibili && <div className="flex flex-col gap-2 border-t border-slate-200 bg-slate-50/70 px-3 py-2 sm:flex-row sm:items-center sm:justify-between sm:px-4">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-          <span className="font-medium text-slate-700">Importi del documento</span>
-          {!!invalide && <span className="text-amber-800">Parziale</span>}
-          {!!bozza.capitoliEsclusiPdf.length && <span className="text-muted-foreground">Capitoli inclusi nel PDF</span>}
+          <span className="font-medium text-slate-700">{tr("Importi del documento")}</span>
+          {!!invalide && <span className="text-amber-800">{tr("Parziale")}</span>}
+          {!!bozza.capitoliEsclusiPdf.length && <span className="text-muted-foreground">{tr("Capitoli inclusi nel PDF")}</span>}
         </div>
-        <dl aria-label="Importi del documento" className="grid grid-cols-3 divide-x divide-slate-200 tabular-nums sm:w-[27rem]">
+        <dl aria-label={tr("Importi del documento")} className="grid grid-cols-3 divide-x divide-slate-200 tabular-nums sm:w-[27rem]">
           <div className="min-w-0 px-2 sm:px-3">
-            <dt className="text-xs text-muted-foreground">Imponibile</dt>
+            <dt className="text-xs text-muted-foreground">{tr("Imponibile")}</dt>
             <dd className="break-words text-sm font-medium">{formatEuro(fiscaleDocumento.imponibile ?? 0)} €</dd>
           </div>
           <div className="min-w-0 px-2 sm:px-3">
             <dt className="text-xs text-muted-foreground">IVA</dt>
             <dd className={fiscaleDocumento.iva == null ? "text-xs text-amber-800" : "break-words text-sm font-medium"}>
-              {fiscaleDocumento.iva == null ? fiscaleDocumento.errore ? "Da correggere" : "Da definire" : `${formatEuro(fiscaleDocumento.iva)} €`}
+              {fiscaleDocumento.iva == null ? fiscaleDocumento.errore ? tr("Da correggere") : tr("Da definire") : `${formatEuro(fiscaleDocumento.iva)} €`}
             </dd>
           </div>
           <div className="min-w-0 px-2 sm:px-3">
-            <dt className="text-xs text-muted-foreground">{fiscaleDocumento.modalita === "applicata" ? "Totale IVA inclusa" : "Totale cliente"}</dt>
+            <dt className="text-xs text-muted-foreground">{fiscaleDocumento.modalita === "applicata" ? tr("Totale IVA inclusa") : tr("Totale cliente")}</dt>
             <dd className="break-words text-sm font-semibold text-blue-900 sm:text-base">{fiscaleDocumento.totale == null ? "—" : `${formatEuro(fiscaleDocumento.totale)} €`}</dd>
           </div>
         </dl>
       </div>}
     </header>
     {avvisoXpwe && <div role="status" className="rounded-md border p-3 text-sm">
-      Il file XPWE conserva quantità e prezzi, ma non tutte le formule originali o i costi interni.
-      Per riaprire il computo completo in Edilizia in Cloud usa «Scarica una copia della bozza» e poi «Riapri una copia salvata».
-      <Button variant="outline" size="sm" className="ml-2" onClick={() => { void copiaBozza(); }}>Scarica copia completa</Button>
+      {tr("Il file XPWE conserva quantità e prezzi, ma non tutte le formule originali o i costi interni. Per riaprire il computo completo in Edilizia in Cloud usa «Scarica una copia della bozza» e poi «Riapri una copia salvata».")}
+      <Button variant="outline" size="sm" className="ml-2" onClick={() => { void copiaBozza(); }}>{tr("Scarica copia completa")}</Button>
     </div>}
     <div ref={testaFasi} aria-hidden="true" className="scroll-mt-4" />
     <BarraFasi passi={[{ key: "0", label: "Dati" }, { key: "1", label: "Progetto" }, { key: "2", label: "Computo" }, { key: "3", label: "Economia" }, { key: "4", label: "Documento" }]}
       corrente={String(step)} completati={new Set([!!bozza.titolo.trim() && !!bozza.committente.trim(), true, !!bozza.voci.length && !invalide, !!bozza.voci.length && !invalide && !erroreIva && !sconto.errore, documentoPronto].flatMap((ok, n) => ok ? [String(n)] : []))}
-      onSelect={n => cambiaFase(Number(n))} className={`max-lg:sticky max-lg:z-30 ${STICKY_ALTO}`} ariaLabel="Fasi del preventivo / computo metrico" />
-    <input type="file" aria-label="File bozza computo" ref={importInput} accept=".json" hidden onChange={async e => {
+      onSelect={n => cambiaFase(Number(n))} className={`max-lg:sticky max-lg:z-30 ${STICKY_ALTO}`} ariaLabel={tr("Fasi del preventivo / computo metrico")} />
+    <input type="file" aria-label={tr("File bozza computo")} ref={importInput} accept=".json" hidden onChange={async e => {
       const file = e.target.files?.[0]; e.target.value = ""; if (!file) return;
       setCaricando(true);
       try {
@@ -792,14 +793,14 @@ export default function ComputoNativoEditor({ storageKey, companyId, azienda, de
     {errore && <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
       <span>{errore}</span>
       <span className="flex flex-wrap gap-2">
-        {(erroreLettura || conflitto || errore.startsWith("Salvataggio locale")) && <Button variant="outline" size="sm" disabled={caricando} onClick={() => { void copiaBozza(); }}><Download className="mr-1 h-4 w-4" />{erroreLettura ? "Conserva il file originale" : "Scarica una copia della bozza"}</Button>}
-        {conflitto && <Button variant="outline" size="sm" onClick={() => window.location.reload()}>Ricarica versione salvata</Button>}
+        {(erroreLettura || conflitto || errore.startsWith("Salvataggio locale")) && <Button variant="outline" size="sm" disabled={caricando} onClick={() => { void copiaBozza(); }}><Download className="mr-1 h-4 w-4" />{erroreLettura ? tr("Conserva il file originale") : tr("Scarica una copia della bozza")}</Button>}
+        {conflitto && <Button variant="outline" size="sm" onClick={() => window.location.reload()}>{tr("Ricarica versione salvata")}</Button>}
       </span>
     </div>}
     <CorpoPreventivatore anteprimaCompatta className="gap-3 px-0 py-0 sm:px-0" anteprimaNascosta={!anteprimaVisibile} anteprima={<div className="flex h-[65dvh] min-h-[420px] flex-col gap-2">
       <div className="flex items-center gap-2">
-        <div className="min-w-0 flex-1"><ComputoFormatoSelect label="Variante anteprima PDF" value={bozza.formatoPdf} disabled={esportando || caricando || conflitto || erroreLettura} onChange={value => cambia(applicaVarianteComputo(bozza, value))} /></div>
-        <Button type="button" variant="outline" size="icon" aria-label="Ingrandisci anteprima" title="Ingrandisci anteprima"
+        <div className="min-w-0 flex-1"><ComputoFormatoSelect label={tr("Variante anteprima PDF")} value={bozza.formatoPdf} disabled={esportando || caricando || conflitto || erroreLettura} onChange={value => cambia(applicaVarianteComputo(bozza, value))} /></div>
+        <Button type="button" variant="outline" size="icon" aria-label={tr("Ingrandisci anteprima")} title={tr("Ingrandisci anteprima")}
           disabled={!anteprimaDisponibile || caricando || esportando} onClick={() => void esporta(true)}><Maximize2 className="h-4 w-4" /></Button>
       </div>
       <div className="min-h-0 flex-1"><PdfBlobLivePreviewPanel renderBlobUrl={renderLive} depsKey={liveKey} debounceMs={900} enabled={desktop && anteprimaVisibile} downloadFileName="preventivo-computo.pdf"
@@ -809,7 +810,7 @@ export default function ComputoNativoEditor({ storageKey, companyId, azienda, de
     <fieldset disabled={conflitto || erroreLettura || esportando || caricando} className="min-w-0 space-y-4">
       {step === 0 && <ComputoDati bozza={bozza} onChange={cambiaParte} />}
       {step === 1 && <>
-        {companyId && puoAggiornarePianta && <Suspense fallback={<p role="status" className="text-sm">Apro il collegamento alla planimetria…</p>}>
+        {companyId && puoAggiornarePianta && <Suspense fallback={<p role="status" className="text-sm">{tr("Apro il collegamento alla planimetria…")}</p>}>
           <ProgettoPlanimetria companyId={companyId} scope={storageKey} titolo={bozza.titolo} allegati={bozza.allegati ?? []}
             origine={bozza.piantaOrigine} puoCambiare={!bozza.voci.some(v => v.misure.some(m => m.dallaPianta))}
             onApriSilvio={ai && bozza.voci.length <= MAX_VOCI_SILVIO ? () => setAiAperta({ progetto: true }) : undefined}
@@ -822,23 +823,23 @@ export default function ComputoNativoEditor({ storageKey, companyId, azienda, de
         <ComputoProgetto scope={storageKey} allegati={bozza.allegati ?? []} onBusy={setCaricando} onChange={allegati => cambiaParte({ allegati })}
           fotoCopertina={idFoto} onFotoCopertina={id => cambiaParte({ fotoCopertina: id })} />
       </>}
-      {step === 2 && bozza.piantaOrigine && <div role="group" aria-label="Vista del computo" className="flex w-fit flex-wrap items-center gap-1 rounded-lg border bg-slate-50 p-1">
+      {step === 2 && bozza.piantaOrigine && <div role="group" aria-label={tr("Vista del computo")} className="flex w-fit flex-wrap items-center gap-1 rounded-lg border bg-slate-50 p-1">
         <Button type="button" size="sm" variant={affiancata ? "ghost" : "secondary"} aria-pressed={!affiancata} onClick={() => {
-          if (piantaInModifica) { toast.info("Salva la pianta o annulla le modifiche per tornare alla tabella."); return; }
+          if (piantaInModifica) { toast.info(tr("Salva la pianta o annulla le modifiche per tornare alla tabella.")); return; }
           setVistaPianta(false);
-        }}><Table2 aria-hidden="true" className="size-4" /> Tabella voci</Button>
+        }}><Table2 aria-hidden="true" className="size-4" /> {tr("Tabella voci")}</Button>
         <Button type="button" size="sm" variant={affiancata ? "secondary" : "ghost"} aria-pressed={affiancata} onClick={() => setVistaPianta(true)}>
-          <MapIcon aria-hidden="true" className="size-4" /> Pianta e computo
+          <MapIcon aria-hidden="true" className="size-4" /> {tr("Pianta e computo")}
         </Button>
       </div>}
       {(step === 2 || step === 4) && !aiAperta && vistaProgetto(affiancata)}
       {step === 2 && !affiancata && <div className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2 py-1">
-        <h2 className="text-base font-semibold">Lavorazioni</h2>
-        <div aria-label="Riepilogo del computo" className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground tabular-nums">
-          <span>{bozza.voci.length} {bozza.voci.length === 1 ? "voce" : "voci"}</span>
-          {!!invalide && <span className="text-amber-800">· {invalide} da completare</span>}
-          {(!importiVisibili || totale !== totaleDocumento) && <span>· Totale lavori <strong className="text-slate-800">{formatEuro(totale)} €</strong></span>}
+        <h2 className="text-base font-semibold">{tr("Lavorazioni")}</h2>
+        <div aria-label={tr("Riepilogo del computo")} className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground tabular-nums">
+          <span>{bozza.voci.length} {bozza.voci.length === 1 ? tr("voce") : tr("voci")}</span>
+          {!!invalide && <span className="text-amber-800">{tr("· {invalide} da completare", { invalide: String(invalide ?? "") })}</span>}
+          {(!importiVisibili || totale !== totaleDocumento) && <span>{tr("· Totale lavori")} <strong className="text-slate-800">{formatEuro(totale)} €</strong></span>}
         </div>
       </div>
       {fonte && <ComputoVerificaPlanimetria fonte={fonte} righe={righeVerificate} variante={datiPianta?.pdf.variante} scalaIncerta={datiPianta?.scalaIncerta}
@@ -846,18 +847,18 @@ export default function ComputoNativoEditor({ storageKey, companyId, azienda, de
         avviso={!idAzienda || collegamento.isError || (datiPianta && !datiPianta.pdf.tavole.length) ? "Tavola non disponibile per questa versione." : collegamento.isPending ? "Caricamento della variante…" : undefined} />}
       {/* Una riga sola (29/10/2026): prima erano un riquadro arancione con tre righe di spiegazione e, sotto, un'altra riga di pulsanti. */}
       <div>
-        <div role="group" aria-label="Azioni del computo" className="flex flex-wrap items-center gap-1.5 [&>button]:h-8 [&>button]:text-xs [&>span>button]:h-8 [&>span>button]:text-xs">
+        <div role="group" aria-label={tr("Azioni del computo")} className="flex flex-wrap items-center gap-1.5 [&>button]:h-8 [&>button]:text-xs [&>span>button]:h-8 [&>span>button]:text-xs">
           {ai && <>
             <Button size="sm" className="bg-blue-950 text-white hover:bg-blue-900" disabled={bozza.voci.length > MAX_VOCI_SILVIO}
-              title={bozza.voci.length > MAX_VOCI_SILVIO ? `Silvio lavora su preventivi fino a ${MAX_VOCI_SILVIO} voci: questo ne ha ${bozza.voci.length}.` : "Descrivi il lavoro, anche a voce: Silvio propone le voci e tu le rivedi"}
-              onClick={() => setAiAperta({})}><Sparkles className="mr-1 h-4 w-4 text-orange-300" />Apri Silvio AI</Button>
+              title={bozza.voci.length > MAX_VOCI_SILVIO ? tr("Silvio lavora su preventivi fino a {MAX_VOCI_SILVIO} voci: questo ne ha {n}.", { MAX_VOCI_SILVIO: String(MAX_VOCI_SILVIO ?? ""), n: bozza.voci.length }) : tr("Descrivi il lavoro, anche a voce: Silvio propone le voci e tu le rivedi")}
+              onClick={() => setAiAperta({})}><Sparkles className="mr-1 h-4 w-4 text-orange-300" />{tr("Apri Silvio AI")}</Button>
           </>}
-          <Button size="sm" variant="outline" className="bg-white" disabled={bozza.voci.length >= 5000} onClick={() => setImportAperto(true)}><FileUp className="mr-1 h-4 w-4" />Importa voci</Button>
+          <Button size="sm" variant="outline" className="bg-white" disabled={bozza.voci.length >= 5000} onClick={() => setImportAperto(true)}><FileUp className="mr-1 h-4 w-4" />{tr("Importa voci")}</Button>
           {idAzienda && <Button size="sm" variant="outline" className="bg-white" disabled={!bozza.voci.length}
-            title="Confronta ogni voce con listino, storico e regole dell'azienda: propone prezzi con la fonte, senza costo AI"
-            onClick={() => setVerificaAperta(true)}><ListChecks className="mr-1 h-4 w-4" />Verifica prezzi e fonti</Button>}
+            title={tr("Confronta ogni voce con listino, storico e regole dell'azienda: propone prezzi con la fonte, senza costo AI")}
+            onClick={() => setVerificaAperta(true)}><ListChecks className="mr-1 h-4 w-4" />{tr("Verifica prezzi e fonti")}</Button>}
           <span className="ml-auto flex items-center gap-2">
-            <Button variant="outline" size="sm" title="Annulla ultima modifica" aria-label="Annulla ultima modifica" disabled={!storico.length} onClick={() => {
+            <Button variant="outline" size="sm" title={tr("Annulla ultima modifica")} aria-label={tr("Annulla ultima modifica")} disabled={!storico.length} onClick={() => {
               const ripristinata = storico.at(-1)!;
               rivalutaErroreLavorazioni(ripristinata);
               setBozza(ripristinata); setStorico(h => h.slice(0, -1)); modificato.current = true; setSalvato(false); setDocumentoPronto(false);
@@ -866,15 +867,15 @@ export default function ComputoNativoEditor({ storageKey, companyId, azienda, de
         </div>
       </div>
       {/* I file del passo Progetto lavorano anche qui: Silvio legge la pianta e propone le voci con le misure. */}
-      {ai && (bozza.allegati ?? []).some(a => a.tipo === "planimetria" || a.mime.startsWith("image/")) && <div role="group" aria-label="File del progetto" className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed bg-white px-3 py-2 text-xs">
-        <span className="text-muted-foreground">Dal progetto:</span>
+      {ai && (bozza.allegati ?? []).some(a => a.tipo === "planimetria" || a.mime.startsWith("image/")) && <div role="group" aria-label={tr("File del progetto")} className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed bg-white px-3 py-2 text-xs">
+        <span className="text-muted-foreground">{tr("Dal progetto:")}</span>
         {(bozza.allegati ?? []).filter(a => a.tipo === "planimetria" || a.mime.startsWith("image/")).slice(0, 6).map(a => <Button key={a.id} type="button" size="sm" variant="outline" className="h-7 gap-1 text-xs" disabled={bozza.voci.length > MAX_VOCI_SILVIO}
-          title={`Fai leggere «${a.nome}» a Silvio`} onClick={async () => {
+          title={tr("Fai leggere «{nome}» a Silvio", { nome: String(a.nome ?? "") })} onClick={async () => {
             const blob = await leggiAllegatoLocale(storageKey, a.id).catch((): null => null);
-            if (!blob) { toast.error(`«${a.nome}» non è disponibile in questo browser: ricaricalo nel passo Progetto.`); return; }
+            if (!blob) { toast.error(tr("«{nome}» non è disponibile in questo browser: ricaricalo nel passo Progetto.", { nome: String(a.nome ?? "") })); return; }
             setAiAperta({ file: new File([blob], a.nome, { type: a.mime }) });
           }}><Sparkles className="h-3 w-3 text-orange-500" />{a.nome.length > 28 ? `${a.nome.slice(0, 26)}…` : a.nome}</Button>)}
-        <span className="text-muted-foreground">· Silvio la legge e propone le voci</span>
+        <span className="text-muted-foreground">{tr("· Silvio la legge e propone le voci")}</span>
       </div>}
       <ComputoCapitoli indiceLaterale={!anteprimaVisibile} voci={bozza.voci} capitoliVuoti={bozza.capitoli ?? []} aperta={v?.id}
         vociAggiornateDaSilvio={vociAggiornateDaSilvio}
@@ -893,24 +894,24 @@ export default function ComputoNativoEditor({ storageKey, companyId, azienda, de
         onCostiDalListino={firmaOnline?.companyId ? costiDalListino : undefined} conModelliAzienda={!!firmaOnline?.companyId} />}
       {step === 4 && <ComputoDocumento bozza={bozza} onChange={cambiaParte} onSostituisci={cambia} spesaCliente={spesaCliente} ivaInclusa={fiscaleDocumento.totale != null}
         controlli={(!bozza.titolo.trim() || !bozza.voci.length || !!invalide || !!erroreIva || !!sconto.errore || !!pianoErrore || !!daQuantificare ||
-          !!affidabilita?.daControllare.length || !!affidabilita?.sovrapposizioni.length) && <div role="region" aria-label="Controlli prima del PDF" className="space-y-2 rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-sm">
+          !!affidabilita?.daControllare.length || !!affidabilita?.sovrapposizioni.length) && <div role="region" aria-label={tr("Controlli prima del PDF")} className="space-y-2 rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-sm">
           <h3 className="font-medium">{bloccaDocumento ? "Da completare prima del download" : pianoErrore ? "Da sistemare prima di mandarlo" : "Da sapere su questo preventivo"}</h3>
-          {!bozza.titolo.trim() && <Button variant="link" className="h-auto p-0" onClick={() => cambiaFase(0)}>Inserisci il titolo del preventivo</Button>}
-          {!bozza.voci.length && <Button variant="link" className="h-auto p-0" onClick={() => cambiaFase(2)}>Inserisci almeno una lavorazione</Button>}
-          {(!!erroreIva || !!sconto.errore) && <Button variant="link" className="h-auto p-0" onClick={() => cambiaFase(3)}>Sistema IVA e sconto nel passo Economia</Button>}
-          {!!sconto.errore && <p className="text-xs text-amber-800">{sconto.errore} Il calcolo usa i capitoli inclusi nel documento.</p>}
+          {!bozza.titolo.trim() && <Button variant="link" className="h-auto p-0" onClick={() => cambiaFase(0)}>{tr("Inserisci il titolo del preventivo")}</Button>}
+          {!bozza.voci.length && <Button variant="link" className="h-auto p-0" onClick={() => cambiaFase(2)}>{tr("Inserisci almeno una lavorazione")}</Button>}
+          {(!!erroreIva || !!sconto.errore) && <Button variant="link" className="h-auto p-0" onClick={() => cambiaFase(3)}>{tr("Sistema IVA e sconto nel passo Economia")}</Button>}
+          {!!sconto.errore && <p className="text-xs text-amber-800">{tr("{errore} Il calcolo usa i capitoli inclusi nel documento.", { errore: String(sconto.errore ?? "") })}</p>}
           {/* Un piano incompleto non ferma più il PDF (11/11/2026): il documento esce senza il piano, e lo dice. */}
           {!!pianoErrore && <div className="space-y-0.5">
-            <Button variant="link" className="h-auto max-w-full whitespace-normal p-0 text-left" onClick={() => cambiaFase(3)}>Sistema le rate nel passo Economia</Button>
-            <p className="text-xs text-muted-foreground">{pianoErrore} Il PDF si scarica lo stesso, ma senza il piano dei pagamenti; per la firma e per la commessa il piano deve quadrare.</p>
+            <Button variant="link" className="h-auto max-w-full whitespace-normal p-0 text-left" onClick={() => cambiaFase(3)}>{tr("Sistema le rate nel passo Economia")}</Button>
+            <p className="text-xs text-muted-foreground">{tr("{pianoErrore} Il PDF si scarica lo stesso, ma senza il piano dei pagamenti; per la firma e per la commessa il piano deve quadrare.", { pianoErrore: String(pianoErrore ?? "") })}</p>
           </div>}
           {bozza.voci.flatMap((r, i) => risultati[i].errori.length ? [<div key={r.id} className="space-y-0.5">
-            <Button variant="link" className="h-auto max-w-full whitespace-normal p-0 text-left" onClick={() => { setScelta(r.id); cambiaFase(2); }}>Completa lavorazione {i + 1}</Button>
+            <Button variant="link" className="h-auto max-w-full whitespace-normal p-0 text-left" onClick={() => { setScelta(r.id); cambiaFase(2); }}>{tr("Completa lavorazione {i}", { i: i + 1 })}</Button>
             <p className="text-xs text-muted-foreground">{risultati[i].errori.join(" ")}</p>
           </div>] : []).slice(0, 10)}
-          {invalide > 10 && <p className="text-muted-foreground">Altre {invalide - 10} lavorazioni da completare nel computo.</p>}
+          {invalide > 10 && <p className="text-muted-foreground">{tr("Altre {invalide} lavorazioni da completare nel computo.", { invalide: invalide - 10 })}</p>}
           {/* Le voci che si misurano dopo non fermano niente: il documento le porta e lo dice (11/11/2026). */}
-          {!!daQuantificare && <p className="text-xs text-muted-foreground">{daQuantificare === 1 ? "1 lavorazione è segnata «da quantificare»" : `${daQuantificare} lavorazioni sono segnate «da quantificare»`}: escono nel documento senza importo, si contabilizzano a misura e non bloccano il download.</p>}
+          {!!daQuantificare && <p className="text-xs text-muted-foreground">{daQuantificare === 1 ? "1 lavorazione è segnata «da quantificare»" : `${daQuantificare} lavorazioni sono segnate «da quantificare»`}{tr(": escono nel documento senza importo, si contabilizzano a misura e non bloccano il download.")}</p>}
           {affidabilita?.daControllare.slice(0, 5).map(({ voce, motivo }) => <div key={`${voce.id}:${motivo}`} className="text-xs">
             <span>{motivo} · </span><Button type="button" variant="link" className="h-auto max-w-full whitespace-normal p-0 text-left"
               onClick={() => { apriVoce(voce.id); cambiaFase(2); }}>{voce.descrizione.split("\n")[0]}</Button>
@@ -923,13 +924,13 @@ export default function ComputoNativoEditor({ storageKey, companyId, azienda, de
         condizioniDelModello={modello?.condizioniContrattuali}
         puoRiscrivereCondizioni={puoRiscrivereCondizioni}
         invioFirma={firmaOnline && <InviaFirmaCard companyId={firmaOnline.companyId} moduleKey="computo" progettoId={firmaOnline.draftId}
-          titolo={bozza.titolo.trim() || "Preventivo con computo"} clientName={bozza.committente.trim() || "Cliente"} clientEmail={bozza.clienteEmail || null} clientPhone={bozza.clienteTelefono || null}
+          titolo={bozza.titolo.trim() || tr("Preventivo con computo")} clientName={bozza.committente.trim() || "Cliente"} clientEmail={bozza.clienteEmail || null} clientPhone={bozza.clienteTelefono || null}
           cointestatario={nomeCointestatario(bozza) ? { nome: nomeCointestatario(bozza)!, email: bozza.cointestatario_email || null, telefono: bozza.cointestatario_telefono || null } : null}
           subtotal={fiscaleDocumento.imponibile ?? 0} vatAmount={fiscaleDocumento.iva ?? 0} total={fiscaleDocumento.totale ?? fiscaleDocumento.imponibile ?? 0}
           numeroDocumento={personalizzazioneDocumento(firmaOnline.companyId).numeroAutomaticoComputo ? bozza.numero : null}
           validityDays={modello?.giorniValidita} pdfDisponibile={!!bozza.voci.length}
           disabled={!bozza.voci.length || !!invalide || !!erroreIva || !!sconto.errore || !!pianoErrore || !bozza.titolo.trim()}
-          disabledReason="Completa il preventivo (voci, IVA, sconto e rate) prima di mandarlo in firma."
+          disabledReason={tr("Completa il preventivo (voci, IVA, sconto e rate) prima di mandarlo in firma.")}
           generaPdfBlob={generaPdfDefinitivo}
           preparaPreventivo={async (input) => ({ id: await preparaPreventivoComputo(input) })} />}
         creaCommessa={firmaOnline?.userId && firmaOnline.onApriCommessa ? creaCommessa : undefined} />}
@@ -937,14 +938,14 @@ export default function ComputoNativoEditor({ storageKey, companyId, azienda, de
         onFirmato={() => { const id = daFirmare.id; setDaFirmare(null); firmaOnline?.onApriCommessa?.(id); }} /></Suspense>}
     </fieldset>
     </CorpoPreventivatore>
-    <nav aria-label="Navigazione fasi" className={`flex items-center justify-between gap-2 border-t pt-4 max-lg:sticky max-lg:z-30 max-lg:rounded-lg max-lg:border max-lg:bg-white max-lg:p-2 max-lg:shadow-md ${STICKY_BASSO}`}>
-      <Button variant="outline" disabled={step === 0 || caricando || esportando} onClick={() => cambiaFase(step - 1)} className="min-h-11"><ArrowLeft className="mr-1 h-4 w-4" />Indietro</Button>
-      {step < 4 && <QuotePrimaryButton disabled={caricando || esportando} onClick={() => cambiaFase(step === 0 ? 2 : step + 1)} className="min-h-11">{step === 0 ? "Vai al computo" : "Avanti"}</QuotePrimaryButton>}
+    <nav aria-label={tr("Navigazione fasi")} className={`flex items-center justify-between gap-2 border-t pt-4 max-lg:sticky max-lg:z-30 max-lg:rounded-lg max-lg:border max-lg:bg-white max-lg:p-2 max-lg:shadow-md ${STICKY_BASSO}`}>
+      <Button variant="outline" disabled={step === 0 || caricando || esportando} onClick={() => cambiaFase(step - 1)} className="min-h-11"><ArrowLeft className="mr-1 h-4 w-4" />{tr("Indietro")}</Button>
+      {step < 4 && <QuotePrimaryButton disabled={caricando || esportando} onClick={() => cambiaFase(step === 0 ? 2 : step + 1)} className="min-h-11">{step === 0 ? tr("Vai al computo") : tr("Avanti")}</QuotePrimaryButton>}
       {step === 4 && <QuotePrimaryButton className="min-h-11" disabled={caricando || esportando || !bozza.voci.length || !!invalide || !!erroreIva || !!sconto.errore || !bozza.titolo.trim()} onClick={() => esporta()}>
-        {esportando ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}Scarica PDF
+        {esportando ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}{tr("Scarica PDF")}
       </QuotePrimaryButton>}
     </nav>
-    {analisiAperta && puoUsareAnalisi && <Suspense fallback={<p role="status">Apro l’analisi…</p>}>
+    {analisiAperta && puoUsareAnalisi && <Suspense fallback={<p role="status">{tr("Apro l’analisi…")}</p>}>
       <AnalisiCostiComputoDialog open onOpenChange={open => { if (!open) apriAnalisi(null); }} voceIniziale={analisiAperta.voce} stimaIniziale={analisiAperta.stima}
         companyId={companyId} draftId={analisiCosti.draftId} modifica={analisiCosti.modifica && !conflitto}
         title={bozza.titolo} numero={bozza.numero} revisione={bozza.revisione ? `Rev. ${bozza.revisione}` : "Bozza"} azienda={azienda}
@@ -977,7 +978,7 @@ export default function ComputoNativoEditor({ storageKey, companyId, azienda, de
         }} />
     </Suspense>}
     {revisioniAperte && <ComputoRevisioni bozza={bozza} open onOpenChange={setRevisioniAperte} onChange={cambiaParte} />}
-    {aiAperta && ai && <Suspense fallback={<p role="status">Apro Silvio AI…</p>}>
+    {aiAperta && ai && <Suspense fallback={<p role="status">{tr("Apro Silvio AI…")}</p>}>
       <ComputoSilvioAi key={aiAperta.sessione ?? 0} open bozza={bozza} fileIniziale={aiAperta.file} capitoloIniziale={aiAperta.capitolo} companyId={ai.companyId} draftId={ai.draftId}
           renderPdf={renderLive} chiavePdf={liveKey}
           apriProgetto={aiAperta.progetto}
@@ -1005,26 +1006,26 @@ export default function ComputoNativoEditor({ storageKey, companyId, azienda, de
             setScelta("");
             setVociAggiornateDaSilvio(aggiornate.size ? aggiornate : undefined);
             if (aggiornate.size && step !== 2) cambiaFase(2, false);
-            toast.success("Modifiche di Silvio applicate al computo", { description: "Con «Annulla» si torna indietro." });
+            toast.success(tr("Modifiche di Silvio applicate al computo"), { description: tr("Con «Annulla» si torna indietro.") });
           }} />
     </Suspense>}
-    {verificaAperta && idAzienda && <Suspense fallback={<p role="status">Apro la verifica…</p>}>
+    {verificaAperta && idAzienda && <Suspense fallback={<p role="status">{tr("Apro la verifica…")}</p>}>
       <VerificaPrezziFonti open onOpenChange={setVerificaAperta} companyId={idAzienda} voci={bozza.voci} vediCosti={vediMargini}
         onApplica={({ voci, applicate, risposteScritte, cambiateNelFrattempo }) => {
           if (applicate || risposteScritte) cambiaParte({ voci });
           const fatte = applicate + risposteScritte;
-          if (cambiateNelFrattempo) toast.warning(`${cambiateNelFrattempo} ${cambiateNelFrattempo === 1 ? "voce è cambiata" : "voci sono cambiate"} durante la verifica: non le ho toccate. Ricontrolla.`);
-          if (fatte) toast.success(`${fatte} ${fatte === 1 ? "modifica applicata" : "modifiche applicate"}. Con «Annulla» torni indietro.`);
+          if (cambiateNelFrattempo) toast.warning(tr(cambiateNelFrattempo === 1 ? "{n} voce è cambiata durante la verifica: non le ho toccate. Ricontrolla." : "{n} voci sono cambiate durante la verifica: non le ho toccate. Ricontrolla.", { n: cambiateNelFrattempo }));
+          if (fatte) toast.success(tr(fatte === 1 ? "{n} modifica applicata. Con «Annulla» torni indietro." : "{n} modifiche applicate. Con «Annulla» torni indietro.", { n: fatte }));
         }} />
     </Suspense>}
-    {importAperto && <Suspense fallback={<p role="status">Apro l'import…</p>}>
+    {importAperto && <Suspense fallback={<p role="status">{tr("Apro l'import…")}</p>}>
       <ImportaVociDialog open onOpenChange={open => { if (!open) setImportAperto(false); }} onAggiungi={daImport} vociPresenti={bozza.voci.length} consentiAi={!!ai}
         daComputi={consentiRiuso && firmaOnline?.userId ? { companyId: firmaOnline.companyId, draftId: firmaOnline.draftId, userId: firmaOnline.userId } : undefined} />
     </Suspense>}
-    {picker && consentiListini && <Suspense fallback={<p role="status">Apertura listini…</p>}><AddVocePicker open onOpenChange={open => { if (!open) setPicker(null); }} onPick={daListino} targetCapitolo={picker.capitolo} vociPresenti={bozza.voci.map(v => v.descrizione)} capitoliComputo={bozza.voci.map(v => v.capitolo)} /></Suspense>}
+    {picker && consentiListini && <Suspense fallback={<p role="status">{tr("Apertura listini…")}</p>}><AddVocePicker open onOpenChange={open => { if (!open) setPicker(null); }} onPick={daListino} targetCapitolo={picker.capitolo} vociPresenti={bozza.voci.map(v => v.descrizione)} capitoliComputo={bozza.voci.map(v => v.capitolo)} /></Suspense>}
     <Dialog open={!!anteprima} onOpenChange={open => { if (!open) setAnteprima(null); }}>
       <DialogContent className="flex h-[90dvh] max-w-5xl flex-col max-sm:p-3">
-        <DialogHeader><DialogTitle>{anteprimaParziale ? "Anteprima bozza parziale" : "Anteprima preventivo"}</DialogTitle><DialogDescription>{anteprimaParziale ? "Contiene lavorazioni da completare. Il documento definitivo resta bloccato fino alla correzione." : "PDF della bozza, non ancora inviata."}</DialogDescription></DialogHeader>
+        <DialogHeader><DialogTitle>{anteprimaParziale ? tr("Anteprima bozza parziale") : tr("Anteprima preventivo")}</DialogTitle><DialogDescription>{anteprimaParziale ? tr("Contiene lavorazioni da completare. Il documento definitivo resta bloccato fino alla correzione.") : tr("PDF della bozza, non ancora inviata.")}</DialogDescription></DialogHeader>
         {anteprima && <div className="min-h-0 flex-1"><PdfBlobLivePreviewPanel renderBlobUrl={renderAnteprima} depsKey="computo" debounceMs={0} downloadFileName={anteprimaParziale ? "bozza-parziale-computo.pdf" : "preventivo-computo.pdf"} showDownloadOnMobile /></div>}
       </DialogContent>
     </Dialog>

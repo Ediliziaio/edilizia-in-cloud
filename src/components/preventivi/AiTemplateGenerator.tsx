@@ -22,6 +22,7 @@ import {
 } from "@/hooks/useCompanySalesProfile";
 import { AiSalesProfileForm } from "@/components/preventivi/AiSalesProfileForm";
 import { AiTemplateReviewDialog, type AiTemplateDraft } from "@/components/preventivi/AiTemplateReviewDialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   /** Nome edge function di settore, es. "ai-genera-template-fotovoltaico". */
@@ -32,6 +33,7 @@ interface Props {
 }
 
 export function AiTemplateGenerator({ settoreFn, onApply, className }: Props) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const { profile: salesProfile, save: saveSalesProfile } = useCompanySalesProfile();
   const [intake, setIntake] = useState<CompanySalesProfile>(EMPTY_SALES_PROFILE);
@@ -45,7 +47,7 @@ export function AiTemplateGenerator({ settoreFn, onApply, className }: Props) {
   const handleGenerate = async () => {
     if (aiLoading) return;
     if (!companyId) {
-      toast.error("Azienda non disponibile");
+      toast.error(t("Azienda non disponibile"));
       return;
     }
     setAiLoading(true);
@@ -71,14 +73,14 @@ export function AiTemplateGenerator({ settoreFn, onApply, className }: Props) {
       if (error) throw error;
       const payload = data as { success?: boolean; error?: string; generated?: AiTemplateDraft };
       if (!payload?.success || !payload.generated) {
-        throw new Error(payload?.error ?? "Generazione non riuscita");
+        throw new Error(payload?.error ?? t("Generazione non riuscita"));
       }
       setAiDraft(payload.generated);
       setAiOpen(false);
       setReviewOpen(true);
     } catch (e) {
-      toast.error("Generazione non riuscita", {
-        description: e instanceof Error ? e.message : "Riprova tra poco.",
+      toast.error(t("Generazione non riuscita"), {
+        description: e instanceof Error ? e.message : t("Riprova tra poco."),
       });
     } finally {
       setAiLoading(false);
@@ -93,7 +95,7 @@ export function AiTemplateGenerator({ settoreFn, onApply, className }: Props) {
         className={className ?? "gap-1.5 bg-orange-500 hover:bg-orange-600"}
       >
         <Sparkles className="h-4 w-4" />
-        Genera testi con AI
+        {t("Genera testi con AI")}
       </Button>
 
       <Dialog open={aiOpen} onOpenChange={(o) => !aiLoading && setAiOpen(o)}>
@@ -101,11 +103,10 @@ export function AiTemplateGenerator({ settoreFn, onApply, className }: Props) {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-orange-500" />
-              Genera testi con AI
+              {t("Genera testi con AI")}
             </DialogTitle>
             <DialogDescription>
-              Rispondi a poche domande sulla tua impresa: l&apos;AI scrive la bozza dei testi.
-              Le risposte si salvano nel profilo vendita e si riusano in ogni modulo.
+              {t("Rispondi a poche domande sulla tua impresa: l'AI scrive la bozza dei testi. Le risposte si salvano nel profilo vendita e si riusano in ogni modulo.")}
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-[60vh] overflow-y-auto pr-1">
@@ -113,7 +114,7 @@ export function AiTemplateGenerator({ settoreFn, onApply, className }: Props) {
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setAiOpen(false)} disabled={aiLoading}>
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button
               type="button"
@@ -122,9 +123,9 @@ export function AiTemplateGenerator({ settoreFn, onApply, className }: Props) {
               className="gap-1.5 bg-orange-500 hover:bg-orange-600"
             >
               {aiLoading ? (
-                <><Loader2 className="h-4 w-4 animate-spin" />Generazione…</>
+                <><Loader2 className="h-4 w-4 animate-spin" />{t("Generazione…")}</>
               ) : (
-                <><Wand2 className="h-4 w-4" />Genera bozza</>
+                <><Wand2 className="h-4 w-4" />{t("Genera bozza")}</>
               )}
             </Button>
           </DialogFooter>
@@ -138,7 +139,7 @@ export function AiTemplateGenerator({ settoreFn, onApply, className }: Props) {
         onApply={(d) => {
           onApply(d);
           setReviewOpen(false);
-          toast.success("Testi applicati al template", { description: "Rivedi le sezioni e salva." });
+          toast.success(t("Testi applicati al template"), { description: t("Rivedi le sezioni e salva.") });
         }}
       />
     </>

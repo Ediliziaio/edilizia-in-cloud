@@ -54,6 +54,7 @@ import { isFullPavModuleId } from "@/lib/moduli-vendita/fullPavModules";
 import { loadLocalPavTemplate } from "@/lib/moduli-vendita/localPavTemplates";
 import { isFullPscModuleId } from "@/lib/moduli-vendita/fullPscModules";
 import { loadLocalPscTemplate } from "@/lib/moduli-vendita/localPscTemplates";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 const Climatizzazione = lazy(() => import("@/components/climatizzazione/ClmModuleTemplatePanel").then(m => ({ default: m.ClmModuleTemplatePanel })));
 const Elettrico = lazy(() => import("@/components/elettrico/EltModuleTemplatePanel").then(m => ({ default: m.EltModuleTemplatePanel })));
 const Pavimenti = lazy(() => import("@/components/pavimenti/PavModuleTemplatePanel").then(m => ({ default: m.PavModuleTemplatePanel })));
@@ -152,6 +153,7 @@ function savedStatus(company: string | null, area: string, module: string) {
  * anche fuori dall'app (anteprime, test).
  */
 function useSincroniaModelli(companyId: string | null | undefined) {
+  const t = useT();
   const [giro, setGiro] = useState(0);
   const [concluso, setConcluso] = useState<{ chiave: string; errore: boolean } | null>(null);
   const chiave = companyId ? `${companyId}:${giro}` : null;
@@ -174,13 +176,13 @@ function useSincroniaModelli(companyId: string | null | undefined) {
   useEffect(() => {
     const avvisa = () => {
       setMancatiOnline((n) => n + 1);
-      toast.error("Modello salvato solo in questo browser", {
-        description: "Non riesco a mandarlo online: i colleghi non lo vedono ancora. Dalla libreria dei modelli puoi riprovare.",
+      toast.error(t("Modello salvato solo in questo browser"), {
+        description: t("Non riesco a mandarlo online: i colleghi non lo vedono ancora. Dalla libreria dei modelli puoi riprovare."),
       });
     };
     window.addEventListener(MODELLO_NON_ONLINE, avvisa);
     return () => window.removeEventListener(MODELLO_NON_ONLINE, avvisa);
-  }, []);
+  }, [t]);
   const inCorso = !!chiave && concluso?.chiave !== chiave;
   return { inCorso, errore: !inCorso && !!concluso?.errore, riprova: () => setGiro((g) => g + 1) };
 }
@@ -190,6 +192,7 @@ export default function ModuleTemplateLibrary({
 }: {
   renderLegacy: () => ReactNode;
 }) {
+  const t = useT();
   const [params, setParams] = useSearchParams();
   const [query, setQuery] = useState("");
   const [copiaSorgente, setCopiaSorgente] = useState<{ areaId: string; moduleId: string; titolo: string; areaTitolo: string } | null>(null);
@@ -239,9 +242,9 @@ export default function ModuleTemplateLibrary({
     if (!canEdit)
       return (
         <div role="alert" className="rounded-xl border p-5">
-          Non hai i permessi per modificare i modelli.
+          {t("Non hai i permessi per modificare i modelli.")}
           <Button variant="link" onClick={() => navigate(area)}>
-            Torna ai moduli
+            {t("Torna ai moduli")}
           </Button>
         </div>
       );
@@ -249,7 +252,7 @@ export default function ModuleTemplateLibrary({
       <>
         <Button variant="ghost" className="mb-4" onClick={() => navigate(area)}>
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Moduli dell'area {area.title}
+          {t("Moduli dell'area {area}", { area: area.title })}
         </Button>
         {renderLegacy()}
       </>
@@ -259,16 +262,16 @@ export default function ModuleTemplateLibrary({
     if (!canEdit)
       return (
         <div role="alert" className="rounded-xl border p-5">
-          Non hai i permessi per modificare i modelli.
+          {t("Non hai i permessi per modificare i modelli.")}
           <Button variant="link" onClick={() => navigate(area)}>
-            Torna ai moduli
+            {t("Torna ai moduli")}
           </Button>
         </div>
       );
-    if (!companyId) return <p role="status">Caricamento azienda…</p>;
-    if (sincronia.inCorso) return <p role="status">Caricamento dei modelli dell'azienda…</p>;
+    if (!companyId) return <p role="status">{t("Caricamento azienda…")}</p>;
+    if (sincronia.inCorso) return <p role="status">{t("Caricamento dei modelli dell'azienda…")}</p>;
     return (
-      <Suspense fallback={<p role="status">Caricamento editor e anteprima…</p>}>
+      <Suspense fallback={<p role="status">{t("Caricamento editor e anteprima…")}</p>}>
         {area.id === "serramenti" ? (
           <Serramenti />
         ) : area.id === "tetti" ? (
@@ -327,8 +330,8 @@ export default function ModuleTemplateLibrary({
         className="flex flex-col overflow-hidden rounded-2xl border bg-white transition-shadow hover:shadow-md"
       >
         {cover && <div className="relative h-36 overflow-hidden max-sm:h-24">
-          <img src={coverThumb(cover)} alt={`Copertina illustrativa — ${m.title}`} loading="lazy" className="h-full w-full object-cover object-center" />
-          <span className="absolute bottom-2 left-3 rounded-full bg-black/65 px-2 py-1 text-[10px] text-white max-sm:hidden">Immagine del modello · illustrativa</span>
+          <img src={coverThumb(cover)} alt={t("Copertina illustrativa — {titolo}", { titolo: m.title })} loading="lazy" className="h-full w-full object-cover object-center" />
+          <span className="absolute bottom-2 left-3 rounded-full bg-black/65 px-2 py-1 text-[10px] text-white max-sm:hidden">{t("Immagine del modello · illustrativa")}</span>
         </div>}
         <div className="flex items-center gap-3 border-b bg-slate-50/60 px-5 py-4 max-sm:px-3 max-sm:py-2">
           <span
@@ -342,12 +345,12 @@ export default function ModuleTemplateLibrary({
             <p
               className={`text-xs ${status === "Salvato" ? "text-emerald-700" : "text-muted-foreground"}`}
             >
-              {status}
+              {t(status)}
             </p>
           </div>
         </div>
         <div className="flex flex-1 flex-col p-5 max-sm:p-3">
-          <span className={`mb-3 w-fit rounded-full px-2 py-1 text-xs max-sm:hidden ${cover ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}>{cover ? "PDF con pagine dedicate" : "Edizione essenziale · da completare"}</span>
+          <span className={`mb-3 w-fit rounded-full px-2 py-1 text-xs max-sm:hidden ${cover ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}>{cover ? t("PDF con pagine dedicate") : t("Edizione essenziale · da completare")}</span>
           <h3 className="text-lg font-semibold leading-snug max-sm:text-base">{m.title}</h3>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
             {m.summary}
@@ -368,7 +371,7 @@ export default function ModuleTemplateLibrary({
               disabled={!canEdit || !companyId}
               aria-describedby={spiegaSolaLettura}
             >
-              Personalizza PDF
+              {t("Personalizza PDF")}
               <ArrowRight className="h-4 w-4" />
             </Button>
             {canEdit && companyId && puoiCopiare(status) && (
@@ -378,7 +381,7 @@ export default function ModuleTemplateLibrary({
                 className="w-full justify-between text-xs text-slate-600"
                 onClick={() => setCopiaSorgente({ areaId: a.id, moduleId: m.id, titolo: m.title, areaTitolo: a.title })}
               >
-                <span className="inline-flex items-center gap-1"><Copy className="h-3.5 w-3.5" /> Copia configurazione su…</span>
+                <span className="inline-flex items-center gap-1"><Copy className="h-3.5 w-3.5" /> {t("Copia configurazione su…")}</span>
                 <ArrowRight className="h-4 w-4" />
               </Button>
             )}
@@ -392,13 +395,13 @@ export default function ModuleTemplateLibrary({
       {/* Chi non può modificare lo legge per primo; i pulsanti spenti qui sotto rimandano a questa frase. */}
       {mostraAvvisoSolaLettura && (
         <Alert id={ID_AVVISO_SOLA_LETTURA_MODULI}>
-          <AlertDescription>{TESTO_SOLA_LETTURA}</AlertDescription>
+          <AlertDescription>{t(TESTO_SOLA_LETTURA)}</AlertDescription>
         </Alert>
       )}
       <header>
         <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <button className="hover:underline" onClick={() => navigate()}>
-            Moduli
+            {t("Moduli")}
           </button>
           {area && (
             <>
@@ -411,23 +414,23 @@ export default function ModuleTemplateLibrary({
           <div>
             {/* Il titolo della pagina è nel layout (h1): quello di questa scheda è un h2. */}
             <h2 className="text-lg font-semibold tracking-tight">
-              {area ? `Moduli ${area.title}` : "Un modello per ogni intervento"}
+              {area ? t("Moduli {area}", { area: area.title }) : t("Un modello per ogni intervento")}
             </h2>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
               {area
-                ? "Scegli l’intervento: ogni modello ha testi, immagini e pagine dedicati. Personalizza i contenuti e controlla l’anteprima PDF."
-                : `${DOCUMENT_MODULE_COUNT} modelli in ${SALES_AREAS.length} aree. Trova l’intervento, adatta i contenuti alla tua azienda e verifica l’anteprima.`}
+                ? t("Scegli l’intervento: ogni modello ha testi, immagini e pagine dedicati. Personalizza i contenuti e controlla l’anteprima PDF.")
+                : t("{modelli} modelli in {aree} aree. Trova l’intervento, adatta i contenuti alla tua azienda e verifica l’anteprima.", { modelli: DOCUMENT_MODULE_COUNT, aree: SALES_AREAS.length })}
             </p>
             {!area && (
               <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                Gli interruttori «Area nel menu Nuovo preventivo» decidono quali preventivi compaiono ai tuoi colleghi.
+                {t("Gli interruttori «Area nel menu Nuovo preventivo» decidono quali preventivi compaiono ai tuoi colleghi.")}
               </p>
             )}
           </div>
           {area && (
             <Button variant="outline" onClick={() => navigate()}>
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Tutte le aree
+              {t("Tutte le aree")}
             </Button>
           )}
         </div>
@@ -435,32 +438,28 @@ export default function ModuleTemplateLibrary({
       <div className="flex items-start gap-2 rounded-xl border border-sky-100 bg-sky-50/60 px-4 py-3 text-xs leading-relaxed text-sky-950">
         <Monitor className="mt-0.5 h-4 w-4 shrink-0" />
         <p>
-          <strong>Modelli dell&apos;azienda.</strong> Le personalizzazioni si
-          salvano online e le vedono tutti i colleghi. Quando crei un preventivo
-          da un intervento, il PDF usa il suo modello. Fanno eccezione solo le
-          Facciate, che non hanno ancora un preventivatore. Il modello dell&apos;area
-          resta invariato.
+          <strong>{t("Modelli dell'azienda.")}</strong> {t("Le personalizzazioni si salvano online e le vedono tutti i colleghi. Quando crei un preventivo da un intervento, il PDF usa il suo modello. Fanno eccezione solo le Facciate, che non hanno ancora un preventivatore. Il modello dell'area resta invariato.")}
         </p>
       </div>
       {sincronia.errore && (
         <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-950">
-          <span>Non riesco a leggere i modelli salvati online: stai vedendo le copie di questo browser.</span>
-          <Button variant="outline" size="sm" className="h-8 bg-white" onClick={sincronia.riprova}>Riprova</Button>
+          <span>{t("Non riesco a leggere i modelli salvati online: stai vedendo le copie di questo browser.")}</span>
+          <Button variant="outline" size="sm" className="h-8 bg-white" onClick={sincronia.riprova}>{t("Riprova")}</Button>
         </div>
       )}
       {daMandareOnline.length > 0 && (
         <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-950">
           <span>
             {daMandareOnline.length === 1
-              ? "Un modello è salvato solo in questo browser: non è ancora online e i colleghi non lo vedono."
-              : `${daMandareOnline.length} modelli sono salvati solo in questo browser: non sono ancora online e i colleghi non li vedono.`}
+              ? t("Un modello è salvato solo in questo browser: non è ancora online e i colleghi non lo vedono.")
+              : t("{n} modelli sono salvati solo in questo browser: non sono ancora online e i colleghi non li vedono.", { n: daMandareOnline.length })}
           </span>
-          <Button variant="outline" size="sm" className="h-8 bg-white" onClick={sincronia.riprova}>Riprova</Button>
+          <Button variant="outline" size="sm" className="h-8 bg-white" onClick={sincronia.riprova}>{t("Riprova")}</Button>
         </div>
       )}
       {selected && !module && (
         <p role="alert" className="text-sm text-amber-800">
-          Modello non disponibile. Scegli uno degli interventi dell'area.
+          {t("Modello non disponibile. Scegli uno degli interventi dell'area.")}
         </p>
       )}
       {area && (
@@ -470,19 +469,19 @@ export default function ModuleTemplateLibrary({
               style={{ color: AREA_DESIGN[area.id].color }}
               className="text-xs font-semibold uppercase tracking-widest"
             >
-              {area.interventions.length} modelli · {area.interventions.filter(m => fullModuleCover(area.id, m.id)).length} PDF con pagine dedicate
+              {t("{n} modelli · {pdf} PDF con pagine dedicate", { n: area.interventions.length, pdf: area.interventions.filter(m => fullModuleCover(area.id, m.id)).length })}
             </p>
             <h3 className="mt-2 text-xl font-semibold">
               {AREA_DESIGN[area.id].intro}
             </h3>
             <p className="mt-2 text-sm text-muted-foreground">{area.summary}</p>
             <p className="mt-2 text-xs text-muted-foreground max-sm:hidden">
-              Immagine illustrativa dell'area, generata con AI.
+              {t("Immagine illustrativa dell'area, generata con AI.")}
             </p>
           </div>
           <img
             src={documentImage(area.id, "")}
-            alt={`Illustrazione dell'area ${area.title}`}
+            alt={t("Illustrazione dell'area {area}", { area: area.title })}
             className="hidden h-36 w-full object-cover sm:block md:h-full md:max-h-44"
           />
         </div>
@@ -491,23 +490,23 @@ export default function ModuleTemplateLibrary({
         <div className="relative w-full sm:max-w-md">
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
           <Input
-            aria-label="Cerca un modulo"
+            aria-label={t("Cerca un modulo")}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="pl-9 max-sm:text-base"
             placeholder={
               area
-                ? "Cerca tra gli interventi dell’area…"
-                : "Cerca: zanzariere, vasca, accumulo…"
+                ? t("Cerca tra gli interventi dell’area…")
+                : t("Cerca: zanzariere, vasca, accumulo…")
             }
           />
         </div>
         <span role="status" className="text-xs text-muted-foreground">
           {query.trim()
-            ? `${results.length} ${results.length === 1 ? "modello trovato" : "modelli trovati"}`
+            ? t(results.length === 1 ? "{n} modello trovato" : "{n} modelli trovati", { n: results.length })
             : area
-              ? `${area.interventions.length} modelli`
-              : `${SALES_AREAS.length} aree · ${DOCUMENT_MODULE_COUNT} modelli`}
+              ? t("{n} modelli", { n: area.interventions.length })
+              : t("{aree} aree · {modelli} modelli", { aree: SALES_AREAS.length, modelli: DOCUMENT_MODULE_COUNT })}
         </span>
       </div>
       {!area && !query.trim() ? (
@@ -520,7 +519,7 @@ export default function ModuleTemplateLibrary({
               <button
                 className="w-full text-left"
                 onClick={() => navigate(a)}
-                aria-label={`Apri area ${a.title}`}
+                aria-label={t("Apri area {area}", { area: a.title })}
               >
                 <img
                   src={`/module-art/${a.id}-thumb.jpg`}
@@ -532,7 +531,7 @@ export default function ModuleTemplateLibrary({
                   <div className="flex items-center justify-between gap-2">
                     <h3 className="text-lg font-semibold">{a.title}</h3>
                     <span className="rounded-full bg-slate-100 px-2 py-1 text-xs">
-                      {a.interventions.length} modelli
+                      {t("{n} modelli", { n: a.interventions.length })}
                     </span>
                   </div>
                   <p className="mt-2 min-h-10 text-sm text-muted-foreground">
@@ -542,7 +541,7 @@ export default function ModuleTemplateLibrary({
                     className="mt-4 flex items-center justify-between text-sm font-medium"
                     style={{ color: AREA_DESIGN[a.id].color }}
                   >
-                    Scegli l’intervento
+                    {t("Scegli l’intervento")}
                     <ArrowRight className="h-4 w-4" />
                   </span>
                 </div>
@@ -554,7 +553,7 @@ export default function ModuleTemplateLibrary({
                     htmlFor={`area-active-${a.id}`}
                     className="flex min-h-11 flex-1 cursor-pointer items-center text-xs text-muted-foreground"
                   >
-                    Area nel menu Nuovo preventivo
+                    {t("Area nel menu Nuovo preventivo")}
                   </label>
                   <Switch
                     id={`area-active-${a.id}`}
@@ -577,9 +576,9 @@ export default function ModuleTemplateLibrary({
       ) : (
         <div className="rounded-xl border border-dashed p-10 text-center">
           <Search className="mx-auto mb-3 h-6 w-6 text-muted-foreground" />
-          <p>Nessun modulo trovato.</p>
+          <p>{t("Nessun modulo trovato.")}</p>
           <Button variant="link" onClick={() => setQuery("")}>
-            Mostra tutti i moduli
+            {t("Mostra tutti i moduli")}
           </Button>
         </div>
       )}
@@ -587,7 +586,7 @@ export default function ModuleTemplateLibrary({
         <details className="rounded-xl border bg-slate-50 p-4">
           <summary className="flex cursor-pointer items-center gap-2 text-sm font-medium">
             <Settings2 className="h-4 w-4" aria-hidden="true" />
-            Modello dell&apos;area e visibilità
+            {t("Modello dell'area e visibilità")}
           </summary>
           <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -599,7 +598,7 @@ export default function ModuleTemplateLibrary({
                 onCheckedChange={(v) => setAreaVisibile(area, v)}
               />
               <label htmlFor="area-active-detail" className="text-xs">
-                Area visibile nel menu Nuovo preventivo · impostazione online
+                {t("Area visibile nel menu Nuovo preventivo · impostazione online")}
               </label>
             </div>
             <Button
@@ -609,19 +608,17 @@ export default function ModuleTemplateLibrary({
               onClick={() => navigate(area, "generale")}
             >
               <FileText className="mr-2 h-4 w-4" aria-hidden="true" />
-              Apri il modello dell&apos;area
+              {t("Apri il modello dell'area")}
             </Button>
           </div>
           <p className="mt-3 text-xs text-muted-foreground">
-            Il modello dell&apos;area è quello usato dal preventivatore attuale. Non
-            viene sostituito dai modelli degli interventi qui sopra.
+            {t("Il modello dell'area è quello usato dal preventivatore attuale. Non viene sostituito dai modelli degli interventi qui sopra.")}
           </p>
         </details>
       )}
       {!area && (
         <p className="text-xs text-muted-foreground">
-          Le immagini delle aree sono illustrative, generate con AI: non
-          rappresentano lavori eseguiti o prodotti inclusi nell'offerta.
+          {t("Le immagini delle aree sono illustrative, generate con AI: non rappresentano lavori eseguiti o prodotti inclusi nell'offerta.")}
         </p>
       )}
       {companyId && copiaSorgente && (

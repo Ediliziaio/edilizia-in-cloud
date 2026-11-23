@@ -41,6 +41,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { importoRiga } from "@/hooks/usePreventivoCosti";
 import { captureVelocityEvent, captureVelocityError } from "@/lib/velocity/sentry";
 import { leggiPreventivoAi, confermaPreventivoAi, riepilogoPreventivoAi, type SezionePreventivoAi, type SezionePreventivoAiConfermata } from "@/lib/preventivi/aiQuoteReview";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Misura {
   label: string;
@@ -96,6 +97,7 @@ function AIQuotePanelSession({
   pianoInstallazione,
   generazioneSimulata,
 }: AIQuotePanelProps) {
+  const tr = useT();
   const simulazione = import.meta.env.DEV && !!generazioneSimulata;
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"testo" | "voce" | "foto">("testo");
@@ -135,7 +137,7 @@ function AIQuotePanelSession({
     requestRef.current?.abort();
     requestRef.current = null;
     setStato("idle");
-    toast.info(simulazione ? "Simulazione interrotta. Nessun costo e nessuna riga inserita." : "Analisi interrotta. Nessuna riga inserita; un’elaborazione già avviata può avere un costo.");
+    toast.info(simulazione ? tr("Simulazione interrotta. Nessun costo e nessuna riga inserita.") : tr("Analisi interrotta. Nessuna riga inserita; un’elaborazione già avviata può avere un costo."));
   };
 
   const stopRecording = useCallback(() => {
@@ -195,12 +197,12 @@ function AIQuotePanelSession({
     if (simulazione) return; // Never call the paid transcription service in the lab.
     // FIX 16 (A7): MediaRecorder fallback robusto Safari/iOS — mp4/aac quando webm KO
     if (typeof MediaRecorder === "undefined") {
-      toast.error("Browser non supporta registrazione audio. Usa la modalità testo.");
+      toast.error(tr("Browser non supporta registrazione audio. Usa la modalità testo."));
       setActiveTab("testo");
       return;
     }
     if (!navigator.mediaDevices?.getUserMedia) {
-      toast.error("Microfono non disponibile (richiede HTTPS). Usa la modalità testo.");
+      toast.error(tr("Microfono non disponibile (richiede HTTPS). Usa la modalità testo."));
       setActiveTab("testo");
       return;
     }
@@ -238,7 +240,7 @@ function AIQuotePanelSession({
         stream.getTracks().forEach((t) => t.stop());
         setIsRecording(false);
         if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
-        toast.error("Errore registrazione. Usa la modalità testo.");
+        toast.error(tr("Errore registrazione. Usa la modalità testo."));
       };
       mr.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop());
@@ -251,7 +253,7 @@ function AIQuotePanelSession({
             : "webm";
         const blob = new Blob(chunksRef.current, { type: effectiveMimeType });
         if (blob.size === 0) {
-          toast.warning("Nessun audio registrato — controlla il microfono.");
+          toast.warning(tr("Nessun audio registrato — controlla il microfono."));
           return;
         }
         const fd = new FormData();
@@ -259,13 +261,13 @@ function AIQuotePanelSession({
         fd.append("language", "it");
         const { data, error } = await supabase.functions.invoke("trascrizione-audio", { body: fd });
         if (error || !data?.testo) {
-          toast.error("Trascrizione fallita");
+          toast.error(tr("Trascrizione fallita"));
           return;
         }
         setTrascrizione(data.testo);
         setDescrizione(data.testo);
         setActiveTab("testo");
-        toast.success("Audio trascritto!");
+        toast.success(tr("Audio trascritto!"));
       };
       mr.start(100);
       mediaRecorderRef.current = mr;
@@ -283,11 +285,11 @@ function AIQuotePanelSession({
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes("NotAllowedError") || msg.includes("Permission")) {
-        toast.error("Permesso microfono negato. Usa la modalità testo.");
+        toast.error(tr("Permesso microfono negato. Usa la modalità testo."));
       } else if (msg.includes("NotFoundError")) {
-        toast.error("Nessun microfono rilevato. Usa la modalità testo.");
+        toast.error(tr("Nessun microfono rilevato. Usa la modalità testo."));
       } else {
-        toast.error(`Microfono non disponibile: ${msg.slice(0, 80)}`);
+        toast.error(tr("Microfono non disponibile: {errore}", { errore: msg.slice(0, 80) }));
       }
       setActiveTab("testo");
     }
@@ -297,7 +299,7 @@ function AIQuotePanelSession({
     // Ref, not just disabled state: two clicks in the same render make one call.
     if (requestRef.current || insertingRef.current) return;
     if (!companyId) {
-      toast.error("Azienda non caricata, riprova");
+      toast.error(tr("Azienda non caricata, riprova"));
       return;
     }
     const controller = new AbortController();
@@ -341,7 +343,7 @@ function AIQuotePanelSession({
       });
     } catch (err: unknown) {
       if (!attuale()) return;
-      const msg = err instanceof Error ? err.message : "Errore generazione";
+      const msg = err instanceof Error ? err.message : tr("Errore generazione");
       toast.error(msg);
       setStato("errore");
       captureVelocityEvent("preventivatore.ai.generate.error", {
@@ -359,12 +361,12 @@ function AIQuotePanelSession({
   };
 
   const genera = async () => {
-    if (!descrizione.trim()) { toast.error("Inserisci una descrizione"); return; }
+    if (!descrizione.trim()) { toast.error(tr("Inserisci una descrizione")); return; }
     await avviaGenerazione(async () => ({
       descrizione,
       misure: misure.filter(m => m.valore.trim() !== "").map(m => {
         const valore = Number(m.valore.trim().replace(",", "."));
-        if (!Number.isFinite(valore) || valore <= 0) throw new Error(`Valore misura non valido: "${m.label || "senza etichetta"}"`);
+        if (!Number.isFinite(valore) || valore <= 0) throw new Error(tr("Valore misura non valido: \"{misura}\"", { misura: m.label || tr("senza etichetta") }));
         return { label: m.label, valore, unita: m.unita };
       }),
     }), activeTab === "voce" ? "voce" : "testo");
@@ -374,7 +376,7 @@ function AIQuotePanelSession({
   // Converte file in base64 e invoca ai-genera-preventivo-v2 con input_mode="foto".
   const generaDaFoto = async () => {
     if (fotoFiles.length === 0) {
-      toast.error("Carica almeno una foto");
+      toast.error(tr("Carica almeno una foto"));
       return;
     }
     await avviaGenerazione(async () => {
@@ -415,7 +417,7 @@ function AIQuotePanelSession({
           <div className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-violet-600" />
             {/* Telefono: dice cosa fa (scrivi, detta o fotografa i lavori), senza «BETA». */}
-            <span className="font-medium text-sm"><span className="max-sm:hidden">Genera con AI</span><span className="sm:hidden">Genera le righe con l'AI</span></span>
+            <span className="font-medium text-sm"><span className="max-sm:hidden">{tr("Genera con AI")}</span><span className="sm:hidden">{tr("Genera le righe con l'AI")}</span></span>
             <Badge variant="secondary" className="text-xs max-sm:hidden">BETA</Badge>
           </div>
           {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -428,15 +430,15 @@ function AIQuotePanelSession({
           {(stato === "idle" || stato === "errore") && (
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "testo" | "voce" | "foto")}>
               <TabsList className="w-full">
-                <TabsTrigger value="testo" className="flex-1 tap-compact"><ChevronRight className="h-3.5 w-3.5 mr-1.5" />Testo</TabsTrigger>
-                {!simulazione && <TabsTrigger value="voce" className="flex-1 tap-compact"><Mic className="h-3.5 w-3.5 mr-1.5" />Voce</TabsTrigger>}
-                {!simulazione && <TabsTrigger value="foto" className="flex-1 tap-compact"><Camera className="h-3.5 w-3.5 mr-1.5" />Foto</TabsTrigger>}
+                <TabsTrigger value="testo" className="flex-1 tap-compact"><ChevronRight className="h-3.5 w-3.5 mr-1.5" />{tr("Testo")}</TabsTrigger>
+                {!simulazione && <TabsTrigger value="voce" className="flex-1 tap-compact"><Mic className="h-3.5 w-3.5 mr-1.5" />{tr("Voce")}</TabsTrigger>}
+                {!simulazione && <TabsTrigger value="foto" className="flex-1 tap-compact"><Camera className="h-3.5 w-3.5 mr-1.5" />{tr("Foto")}</TabsTrigger>}
               </TabsList>
 
               <TabsContent value="testo" className="space-y-3 mt-3">
-                {simulazione && <p className="text-xs text-muted-foreground">Prova testuale con dati sintetici. Voce e foto non sono attive in questa simulazione.</p>}
+                {simulazione && <p className="text-xs text-muted-foreground">{tr("Prova testuale con dati sintetici. Voce e foto non sono attive in questa simulazione.")}</p>}
                 <Textarea
-                  placeholder="Es: Sostituzione 2 finestre PVC a 2 ante, circa 100×140cm, soggiorno piano terra..."
+                  placeholder={tr("Es: Sostituzione 2 finestre PVC a 2 ante, circa 100×140cm, soggiorno piano terra...")}
                   value={descrizione}
                   onChange={(e) => setDescrizione(e.target.value)}
                   rows={4}
@@ -445,13 +447,13 @@ function AIQuotePanelSession({
                 {/* Telefono no: le misure si scrivono nel testo («100×140cm»). */}
                 <details className="max-sm:hidden">
                   <summary className="cursor-pointer text-sm text-muted-foreground">
-                    + Aggiungi misure (opzionale)
+                    + {tr("Aggiungi misure (opzionale)")}
                   </summary>
                   <div className="mt-2 space-y-2">
                     {misure.map((m, i) => (
                       <div key={i} className="flex gap-2 items-center">
                         <Input
-                          placeholder="Etichetta (es: larghezza finestra)"
+                          placeholder={tr("Etichetta (es: larghezza finestra)")}
                           value={m.label}
                           onChange={(e) => {
                             const updated = [...misure];
@@ -462,7 +464,7 @@ function AIQuotePanelSession({
                         />
                         <Input
                           type="number"
-                          placeholder="Valore"
+                          placeholder={tr("Valore")}
                           value={m.valore}
                           onChange={(e) => {
                             const updated = [...misure];
@@ -502,7 +504,7 @@ function AIQuotePanelSession({
                       size="sm"
                       onClick={() => setMisure([...misure, { label: "", valore: "", unita: "m" }])}
                     >
-                      <Plus className="h-4 w-4 mr-1" /> Misura
+                      <Plus className="h-4 w-4 mr-1" /> {tr("Misura")}
                     </Button>
                   </div>
                 </details>
@@ -512,7 +514,7 @@ function AIQuotePanelSession({
                   disabled={isGenerating || !descrizione.trim()}
                   className="w-full bg-violet-600 hover:bg-violet-700 text-white"
                 >
-                  <Sparkles className="h-4 w-4 mr-2" /> Genera preventivo →
+                  <Sparkles className="h-4 w-4 mr-2" /> {tr("Genera preventivo")} →
                 </Button>
               </TabsContent>
 
@@ -530,9 +532,9 @@ function AIQuotePanelSession({
                         </button>
                       </div>
                       <p className="mt-3 text-sm font-medium text-red-600">
-                        Registrazione: {recordingSeconds}s / 90s
+                        {tr("Registrazione: {n}s / 90s", { n: recordingSeconds })}
                       </p>
-                      <p className="text-xs text-muted-foreground">Rilascia per fermare</p>
+                      <p className="text-xs text-muted-foreground">{tr("Rilascia per fermare")}</p>
                     </div>
                   ) : (
                     <div className="text-center">
@@ -544,14 +546,14 @@ function AIQuotePanelSession({
                         <Mic className="h-8 w-8 text-white" />
                       </button>
                       <p className="mt-3 text-sm text-muted-foreground">
-                        Tieni premuto per registrare
+                        {tr("Tieni premuto per registrare")}
                       </p>
-                      <p className="text-xs text-muted-foreground">Max 90 secondi</p>
+                      <p className="text-xs text-muted-foreground">{tr("Max 90 secondi")}</p>
                     </div>
                   )}
                   {trascrizione && (
                     <div className="w-full bg-muted/50 rounded p-3 text-sm text-muted-foreground">
-                      <p className="font-medium text-xs mb-1 text-foreground">Trascrizione:</p>
+                      <p className="font-medium text-xs mb-1 text-foreground">{tr("Trascrizione:")}</p>
                       {trascrizione}
                     </div>
                   )}
@@ -561,7 +563,7 @@ function AIQuotePanelSession({
                       disabled={isGenerating}
                       className="w-full bg-violet-600 hover:bg-violet-700 text-white"
                     >
-                      <Sparkles className="h-4 w-4 mr-2" /> Genera preventivo →
+                      <Sparkles className="h-4 w-4 mr-2" /> {tr("Genera preventivo")} →
                     </Button>
                   )}
                 </div>
@@ -570,11 +572,9 @@ function AIQuotePanelSession({
               <TabsContent value="foto" className="space-y-3 mt-3">
                 {/* Telefono no: la spiegazione, l'area della foto dice già cosa fare. */}
                 <div className="rounded-md bg-violet-50 border border-violet-200 p-3 text-xs text-violet-900 max-sm:hidden">
-                  <p className="font-medium mb-1">Come funziona</p>
+                  <p className="font-medium mb-1">{tr("Come funziona")}</p>
                   <p>
-                    Scatta o carica fino a 5 foto: schizzo, preventivo cartaceo, foto del
-                    luogo, scheda tecnica prodotto. L'AI estrae prodotti/misure/quantità,
-                    le fa matchare col tuo listino e genera le righe del preventivo.
+                    {tr("Scatta o carica fino a 5 foto: schizzo, preventivo cartaceo, foto del luogo, scheda tecnica prodotto. L'AI estrae prodotti/misure/quantità, le fa matchare col tuo listino e genera le righe del preventivo.")}
                   </p>
                 </div>
 
@@ -589,7 +589,7 @@ function AIQuotePanelSession({
                     const files = Array.from(e.target.files ?? []).slice(0, MAX_FOTO_COUNT);
                     const valid = files.filter((f) => f.type.startsWith(FOTO_MIME_PREFIX) && f.size <= MAX_FOTO_MB * 1024 * 1024);
                     if (valid.length < files.length) {
-                      toast.error(`Alcune foto sono state escluse (solo immagini, max ${MAX_FOTO_MB}MB)`);
+                      toast.error(tr("Alcune foto sono state escluse (solo immagini, max {n}MB)", { n: MAX_FOTO_MB }));
                     }
                     clearFotoPreviews();
                     setFotoFiles(valid);
@@ -605,15 +605,15 @@ function AIQuotePanelSession({
                     className="w-full border-2 border-dashed border-violet-300 rounded-lg p-6 text-center hover:bg-violet-50 transition-colors"
                   >
                     <Camera className="h-10 w-10 mx-auto mb-2 text-violet-400" />
-                    <p className="text-sm font-medium text-violet-700">Scatta o carica foto</p>
-                    <p className="text-xs text-muted-foreground mt-1">Max {MAX_FOTO_COUNT} foto · max {MAX_FOTO_MB}MB ciascuna</p>
+                    <p className="text-sm font-medium text-violet-700">{tr("Scatta o carica foto")}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{tr("Max {n} foto · max {mb}MB ciascuna", { n: MAX_FOTO_COUNT, mb: MAX_FOTO_MB })}</p>
                   </button>
                 ) : (
                   <div className="space-y-2">
                     <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                       {fotoPreviewUrls.map((url, i) => (
                         <div key={i} className="relative group rounded-md overflow-hidden border bg-muted">
-                          <img loading="lazy" src={url} alt={`Foto ${i + 1}`} className="w-full aspect-square object-cover" />
+                          <img loading="lazy" src={url} alt={tr("Foto {n}", { n: i + 1 })} className="w-full aspect-square object-cover" />
                           <button
                             type="button"
                             onClick={() => {
@@ -638,7 +638,7 @@ function AIQuotePanelSession({
                       )}
                     </div>
                     <Textarea
-                      placeholder="Nota aggiuntiva (opzionale): contesto, cliente, urgenze..."
+                      placeholder={tr("Nota aggiuntiva (opzionale): contesto, cliente, urgenze...")}
                       value={descrizione}
                       onChange={(e) => setDescrizione(e.target.value)}
                       rows={2}
@@ -651,7 +651,7 @@ function AIQuotePanelSession({
                   disabled={fotoFiles.length === 0 || isGenerating}
                   className="w-full bg-violet-600 hover:bg-violet-700 text-white"
                 >
-                  <Sparkles className="h-4 w-4 mr-2" /> Estrai e genera preventivo →
+                  <Sparkles className="h-4 w-4 mr-2" /> {tr("Estrai e genera preventivo")} →
                 </Button>
               </TabsContent>
             </Tabs>
@@ -661,12 +661,12 @@ function AIQuotePanelSession({
             <div className="space-y-3 py-4">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin text-violet-600" />
-                {simulazione ? "Preparazione delle lavorazioni simulate, senza consultare listini reali..." : "L’AI sta consultando il tuo listino e le tariffe..."}
+                {simulazione ? tr("Preparazione delle lavorazioni simulate, senza consultare listini reali...") : tr("L’AI sta consultando il tuo listino e le tariffe...")}
               </div>
               {[1, 2, 3].map((i) => (
                 <div key={i} className="h-12 bg-muted animate-pulse rounded" />
               ))}
-              <Button type="button" variant="outline" onClick={annullaGenerazione}>Interrompi analisi</Button>
+              <Button type="button" variant="outline" onClick={annullaGenerazione}>{tr("Interrompi analisi")}</Button>
             </div>
           )}
 
@@ -674,9 +674,9 @@ function AIQuotePanelSession({
             <div className="space-y-4">
               {!riepilogo.completo && (
                 <div role="status" className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                  <p className="font-medium">Completa i dati prima di inserire le righe</p>
+                  <p className="font-medium">{tr("Completa i dati prima di inserire le righe")}</p>
                   <ul className="mt-1 list-disc pl-4">{riepilogo.mancanti.map((m, i) => <li key={i}>{m}</li>)}</ul>
-                  <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => { setStato("idle"); setRisultato(null); }}>Aggiungi dettagli alla richiesta</Button>
+                  <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => { setStato("idle"); setRisultato(null); }}>{tr("Aggiungi dettagli alla richiesta")}</Button>
                 </div>
               )}
               {avvertenze.length > 0 && (
@@ -709,12 +709,10 @@ function AIQuotePanelSession({
                       <p>
                         <span className="font-medium">
                           {senzaMatch === 1
-                            ? "1 voce non ha un prezzo"
-                            : `${senzaMatch} voci non hanno un prezzo`}
+                            ? tr("1 voce non ha un prezzo")
+                            : tr("{n} voci non hanno un prezzo", { n: senzaMatch })}
                         </span>{" "}
-                        perché nel tuo listino non c'è una tariffa o un prodotto
-                        corrispondente. Puoi scrivere il prezzo concordato qui sotto
-                        oppure completare il listino e rigenerare. Nessun prezzo è inventato.
+                        {tr("perché nel tuo listino non c'è una tariffa o un prodotto corrispondente. Puoi scrivere il prezzo concordato qui sotto oppure completare il listino e rigenerare. Nessun prezzo è inventato.")}
                       </p>
                       <a
                         href="/azienda/impostazioni/listino"
@@ -722,7 +720,7 @@ function AIQuotePanelSession({
                         rel="noreferrer"
                         className="inline-flex items-center gap-1 text-sky-700 font-medium underline underline-offset-2"
                       >
-                        Apri il listino
+                        {tr("Apri il listino")}
                       </a>
                     </div>
                   </div>
@@ -750,7 +748,7 @@ function AIQuotePanelSession({
                         className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium flex-shrink-0 ${categoryColor(r.item_category)}`}
                       >
                         {categoryIcon(r.item_category)}
-                        {r.item_category}
+                        {tr(r.item_category)}
                       </span>
                       <div className="flex-1 min-w-0">
                         <p className="font-medium truncate">{r.nome}</p>
@@ -761,8 +759,8 @@ function AIQuotePanelSession({
                       {r.item_category !== "nota" && <div className="flex flex-wrap items-center gap-2">
                         <Input
                           type="number" min="0.01" step="0.01"
-                          aria-label={`Quantità di ${r.nome}`}
-                          placeholder="Quantità" value={r.quantita ?? ""} disabled={isInserting}
+                          aria-label={tr("Quantità di {voce}", { voce: r.nome })}
+                          placeholder={tr("Quantità")} value={r.quantita ?? ""} disabled={isInserting}
                           className="w-24"
                           onChange={e => {
                             const value = e.target.value === "" ? null : Number(e.target.value);
@@ -770,15 +768,15 @@ function AIQuotePanelSession({
                           }}
                         />
                         <Input
-                          aria-label={`Unità di ${r.nome}`} placeholder="Unità" className="w-20" disabled={isInserting} value={r.unita_misura}
+                          aria-label={tr("Unità di {voce}", { voce: r.nome })} placeholder={tr("Unità")} className="w-20" disabled={isInserting} value={r.unita_misura}
                           onChange={e => {
                             const value = e.target.value;
                             setRisultato(prev => prev?.map((s, index) => index !== si ? s : { ...s, righe: s.righe.map((row, index) => index !== ri ? row : { ...row, unita_misura: value }) }) ?? null);
                           }}
                         />
                         {!r.article_template_id && !r.family_id && !r.tariffa_id && <label className="text-xs text-muted-foreground">
-                          Prezzo unitario netto
-                          <Input type="number" min="0" step="0.01" aria-label={`Prezzo netto di ${r.nome}`} placeholder="Da definire" value={r.unit_price ?? ""} className="w-28" disabled={isInserting}
+                          {tr("Prezzo unitario netto")}
+                          <Input type="number" min="0" step="0.01" aria-label={tr("Prezzo netto di {voce}", { voce: r.nome })} placeholder={tr("Da definire")} value={r.unit_price ?? ""} className="w-28" disabled={isInserting}
                             onChange={e => {
                               const value = e.target.value === "" ? null : Number(e.target.value);
                               setRisultato(prev => prev?.map((s, index) => index !== si ? s : { ...s, righe: s.righe.map((row, index) => index !== ri ? row : { ...row, unit_price: value != null && Number.isFinite(value) && value >= 0 ? value : null }) }) ?? null);
@@ -788,15 +786,15 @@ function AIQuotePanelSession({
                           <span className="text-sm font-medium">
                             {formatCurrency(importoRiga({ quantity: r.quantita, unit_price: r.unit_price }))}
                           </span>
-                        ) : <span className="text-xs text-amber-700">Importo da completare</span>}
+                        ) : <span className="text-xs text-amber-700">{tr("Importo da completare")}</span>}
                         {(r.article_template_id || r.family_id) && (
                           <span className="text-xs px-1 py-0.5 bg-green-100 text-green-700 rounded flex items-center gap-0.5">
-                            <CheckCircle2 className="h-3 w-3" /> Listino
+                            <CheckCircle2 className="h-3 w-3" /> {tr("Listino")}
                           </span>
                         )}
                         {r.tariffa_id && (
                           <span className="text-xs px-1 py-0.5 bg-blue-100 text-blue-700 rounded">
-                            Tariffa
+                            {tr("Tariffa")}
                           </span>
                         )}
                       </div>}
@@ -806,10 +804,10 @@ function AIQuotePanelSession({
               ))}
 
               <div className="flex flex-wrap justify-end gap-2 pt-2 border-t" aria-live="polite">
-                <span className="text-sm text-muted-foreground">{riepilogo.completo ? "Stima netta, IVA esclusa:" : "Parziale valorizzato, IVA esclusa:"}</span>
+                <span className="text-sm text-muted-foreground">{riepilogo.completo ? tr("Stima netta, IVA esclusa:") : tr("Parziale valorizzato, IVA esclusa:")}</span>
                 <span className="font-bold">{formatCurrency(riepilogo.totale)}</span>
               </div>
-              <p className="text-xs text-muted-foreground">{simulazione ? "La conferma aggiorna solo questa prova locale. Prezzi, costi e IVA restano fittizi; nessun documento viene salvato o inviato." : "All’inserimento, il preventivo verifica listino, costi e IVA. Nessun documento viene inviato."}</p>
+              <p className="text-xs text-muted-foreground">{simulazione ? tr("La conferma aggiorna solo questa prova locale. Prezzi, costi e IVA restano fittizi; nessun documento viene salvato o inviato.") : tr("All’inserimento, il preventivo verifica listino, costi e IVA. Nessun documento viene inviato.")}</p>
 
               {note && <p className="text-xs text-muted-foreground italic">{note}</p>}
 
@@ -836,10 +834,10 @@ function AIQuotePanelSession({
                     setDescrizione("");
                     setIsOpen(false);
                     toast.success(
-                      `${righeTot.length} righe aggiunte al preventivo`
+                      tr("{n} righe aggiunte al preventivo", { n: righeTot.length })
                     );
                     } catch {
-                      if (mountedRef.current) toast.error("Inserimento non completato. L’anteprima è conservata: verifica il listino e riprova.");
+                      if (mountedRef.current) toast.error(tr("Inserimento non completato. L’anteprima è conservata: verifica il listino e riprova."));
                     } finally {
                       insertingRef.current = false;
                       if (mountedRef.current) setIsInserting(false);
@@ -847,7 +845,7 @@ function AIQuotePanelSession({
                   }}
                   className="flex-1 bg-violet-600 hover:bg-violet-700 text-white"
                 >
-                  {isInserting ? "Inserimento in corso…" : "Inserisci nel preventivo"}
+                  {isInserting ? tr("Inserimento in corso…") : tr("Inserisci nel preventivo")}
                 </Button>
                 <Button
                   variant="outline"
@@ -863,7 +861,7 @@ function AIQuotePanelSession({
 	                      genera();
 	                    }
 	                  }}
-                  title="Rigenera con la stessa descrizione"
+                  title={tr("Rigenera con la stessa descrizione")}
                 >
                   <Sparkles className="h-4 w-4" />
                 </Button>
@@ -878,7 +876,7 @@ function AIQuotePanelSession({
                     setRisultato(null);
                   }}
                 >
-                  Scarta
+                  {tr("Scarta")}
                 </Button>
               </div>
             </div>

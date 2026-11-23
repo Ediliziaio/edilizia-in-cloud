@@ -17,6 +17,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link2, Unlink, Package, ExternalLink, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ArticleFamilyLinked {
   id: string;
@@ -103,6 +104,7 @@ export function esitoScollegamento(modalita: string | null): { fatto: boolean; t
 }
 
 export function TariffaProdottiCollegati({ tariffaId, tariffaName }: Props) {
+  const t = useT();
   const qc = useQueryClient();
   const [unlinkingId, setUnlinkingId] = useState<string | null>(null);
 
@@ -125,10 +127,10 @@ export function TariffaProdottiCollegati({ tariffaId, tariffaName }: Props) {
       qc.invalidateQueries({ queryKey: queryKeys.articleFamilies.all });
       invalidaListinoNelPreventivatore(qc);
       const esito = esitoScollegamento(modalita);
-      if (esito.fatto) toast.success(esito.testo);
-      else toast.info(esito.testo);
+      if (esito.fatto) toast.success(t(esito.testo));
+      else toast.info(t(esito.testo));
     },
-    onError: (e) => toast.error("Scollegamento fallito", { description: String(e) }),
+    onError: (e) => toast.error(t("Scollegamento fallito"), { description: String(e) }),
     onSettled: () => setUnlinkingId(null),
   });
 
@@ -146,7 +148,7 @@ export function TariffaProdottiCollegati({ tariffaId, tariffaName }: Props) {
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <p className="text-xs text-muted-foreground">
           <Link2 className="h-3 w-3 inline mr-1" />
-          Prodotti del listino che usano <strong>{tariffaName}</strong> come manodopera automatica
+          {t("Prodotti del listino che usano")} <strong>{tariffaName}</strong> {t("come manodopera automatica")}
           {products.length > 0 && ` (${products.length})`}
         </p>
       </div>
@@ -155,10 +157,10 @@ export function TariffaProdottiCollegati({ tariffaId, tariffaName }: Props) {
         <Card className="p-4 text-center bg-slate-50">
           <Package className="h-8 w-8 mx-auto text-muted-foreground/30 mb-2" />
           <p className="text-xs text-muted-foreground">
-            Nessun prodotto usa questa tariffa come manodopera automatica.
+            {t("Nessun prodotto usa questa tariffa come manodopera automatica.")}
           </p>
           <p className="text-[11px] text-muted-foreground mt-1">
-            Vai in <strong>Listino → modifica un prodotto → sezione Manodopera</strong> per collegarlo.
+            {t("Vai in")} <strong>{t("Listino → modifica un prodotto → sezione Manodopera")}</strong> {t("per collegarlo.")}
           </p>
         </Card>
       ) : (
@@ -173,10 +175,10 @@ export function TariffaProdottiCollegati({ tariffaId, tariffaName }: Props) {
                 <p className="text-[11px] text-muted-foreground flex gap-2 flex-wrap mt-0.5">
                   {p.vertical && <span>📦 {p.vertical}</span>}
                   {p.posa_quantita_default != null && (
-                    <span>× {Number(p.posa_quantita_default).toLocaleString("it-IT")}</span>
+                    <span>× {Number(p.posa_quantita_default).toLocaleString(intlCampo())}</span>
                   )}
                   {p.posa_linked && (
-                    <span className="text-emerald-700">🔗 sync attiva</span>
+                    <span className="text-emerald-700">{t("🔗 sync attiva")}</span>
                   )}
                 </p>
               </div>
@@ -192,7 +194,7 @@ export function TariffaProdottiCollegati({ tariffaId, tariffaName }: Props) {
                 ) : (
                   <Unlink className="h-3 w-3 mr-1" />
                 )}
-                Scollega
+                {t("Scollega")}
               </Button>
             </div>
           ))}
@@ -200,7 +202,7 @@ export function TariffaProdottiCollegati({ tariffaId, tariffaName }: Props) {
             href="/azienda/impostazioni/listino"
             className="text-[11px] text-emerald-700 hover:underline flex items-center gap-1 mt-2"
           >
-            <ExternalLink className="h-3 w-3" /> Vai al listino per collegarne altri
+            <ExternalLink className="h-3 w-3" /> {t("Vai al listino per collegarne altri")}
           </a>
         </div>
       )}

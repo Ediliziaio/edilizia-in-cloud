@@ -15,6 +15,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertCircle, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   /** Fa il PDF, come il bottone «Scarica». */
@@ -40,6 +41,7 @@ function useSchedaInVista(): boolean {
 }
 
 export function AnteprimaPdfVero({ genera, chiave, attivo, className }: Props) {
+  const tr = useT();
   const [stato, setStato] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [inCorso, setInCorso] = useState(false);
   const [pagine, setPagine] = useState(0);
@@ -80,12 +82,12 @@ export function AnteprimaPdfVero({ genera, chiave, attivo, className }: Props) {
       setPagine(pdf.numPages);
       setStato("ready");
       setErrore("");
-      setAggiornatoAlle(new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }));
+      setAggiornatoAlle(new Date().toLocaleTimeString(intlCampo(), { hour: "2-digit", minute: "2-digit" }));
       setRev((n) => n + 1);
     } catch (e) {
       if (smontato.current) return;
       console.error("[pdf-vero] errore", e);
-      setErrore(e instanceof Error ? e.message : "Errore sconosciuto");
+      setErrore(e instanceof Error ? e.message : tr("Errore sconosciuto"));
       setStato((s) => (s === "ready" ? s : "error"));
     } finally {
       occupato.current = false;
@@ -95,7 +97,7 @@ export function AnteprimaPdfVero({ genera, chiave, attivo, className }: Props) {
         void giro();
       }
     }
-  }, []);
+  }, [tr]);
 
   useEffect(() => {
     if (!vivo || chiave === ultimaChiave.current) return;
@@ -155,26 +157,26 @@ export function AnteprimaPdfVero({ genera, chiave, attivo, className }: Props) {
         <span className="flex items-center gap-1.5" role="status">
           {inCorso && <Loader2 className="h-3 w-3 animate-spin" />}
           {inCorso
-            ? "Aggiorno il PDF…"
+            ? tr("Aggiorno il PDF…")
             : stato === "ready"
-              ? `${pagine} ${pagine === 1 ? "pagina" : "pagine"} · aggiornato alle ${aggiornatoAlle}`
-              : "PDF del preventivo"}
+              ? tr(pagine === 1 ? "{n} pagina · aggiornato alle {ora}" : "{n} pagine · aggiornato alle {ora}", { n: pagine, ora: aggiornatoAlle })
+              : tr("PDF del preventivo")}
         </span>
-        <Button type="button" variant="ghost" size="sm" className="h-6 px-1.5" onClick={() => void giro()} aria-label="Aggiorna il PDF ora">
+        <Button type="button" variant="ghost" size="sm" className="h-6 px-1.5" onClick={() => void giro()} aria-label={tr("Aggiorna il PDF ora")}>
           <RefreshCw className="h-3 w-3" />
         </Button>
       </div>
       <div ref={contenitore} className="flex-1 space-y-2 overflow-y-auto p-1">
         {stato === "error" ? (
           <div className="m-3 space-y-2 rounded border border-red-200 bg-red-50 p-3 text-xs text-red-800">
-            <p className="flex items-start gap-2"><AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> Il PDF non si è generato: {errore}</p>
-            <Button type="button" size="sm" variant="outline" className="h-7" onClick={() => void giro()}>Riprova</Button>
+            <p className="flex items-start gap-2"><AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {tr("Il PDF non si è generato: {errore}", { errore })}</p>
+            <Button type="button" size="sm" variant="outline" className="h-7" onClick={() => void giro()}>{tr("Riprova")}</Button>
           </div>
         ) : stato !== "ready" ? (
-          <p className="m-6 text-center text-xs text-slate-500">{attivo ? "Preparo il PDF…" : "Il PDF si prepara quando il pannello è aperto."}</p>
+          <p className="m-6 text-center text-xs text-slate-500">{attivo ? tr("Preparo il PDF…") : tr("Il PDF si prepara quando il pannello è aperto.")}</p>
         ) : (
           Array.from({ length: pagine }, (_, i) => (
-            <canvas key={i} data-pagina={i + 1} className="block h-auto w-full bg-white shadow-sm" aria-label={`Pagina ${i + 1} di ${pagine}`} />
+            <canvas key={i} data-pagina={i + 1} className="block h-auto w-full bg-white shadow-sm" aria-label={tr("Pagina {i} di {pagine}", { i: i + 1, pagine })} />
           ))
         )}
       </div>

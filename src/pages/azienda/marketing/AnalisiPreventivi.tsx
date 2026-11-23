@@ -6,7 +6,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,6 +21,7 @@ import {
   TrendingUp, Target, Award, AlertTriangle, Users,
 } from "lucide-react";
 import { Navigate, Link } from "react-router-dom";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -54,6 +54,7 @@ const DOMANDE_RAPIDE = [
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function AnalisiPreventivi() {
+  const t = useT();
   const [periodoMesi, setPeriodoMesi] = useState("12");
   const [domanda, setDomanda] = useState("");
   const [analisi, setAnalisi] = useState<string | null>(null);
@@ -157,7 +158,7 @@ export default function AnalisiPreventivi() {
       })
       .then(({ data, error }) => {
         if (error) {
-          toast.error("Errore nel caricamento dei dati");
+          toast.error(t("Errore nel caricamento dei dati"));
         } else if (data) {
           setDati(data.dati ?? data);
         }
@@ -168,7 +169,7 @@ export default function AnalisiPreventivi() {
   // ─── Analisi AI ───────────────────────────────────────────────────────────
   const handleAnalizza = useCallback(async (domandaOverride?: string) => {
     if (!companyId) {
-      toast.error("Azienda non caricata, riprova");
+      toast.error(t("Azienda non caricata, riprova"));
       return;
     }
     setLoading(true);
@@ -183,14 +184,14 @@ export default function AnalisiPreventivi() {
         },
       });
       if (error) {
-        toast.error("Errore durante l'analisi AI");
+        toast.error(t("Errore durante l'analisi AI"));
       } else if (data) {
         setAnalisi(data.analisi ?? null);
         setDati(data.dati ?? data);
         if (data.analisi) setAnalisiTimestamp(new Date());
       }
     } catch {
-      toast.error("Errore imprevisto durante l'analisi");
+      toast.error(t("Errore imprevisto durante l'analisi"));
     } finally {
       setLoading(false);
     }
@@ -304,10 +305,10 @@ export default function AnalisiPreventivi() {
           </div>
           <div>
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
-              Analisi preventivi <span className="text-violet-600">AI</span>
+              {t("Analisi preventivi")} <span className="text-violet-600">AI</span>
             </h1>
             <p className="text-sm text-muted-foreground">
-              Insights intelligenti sui tuoi preventivi storici
+              {t("Insights intelligenti sui tuoi preventivi storici")}
             </p>
           </div>
         </div>
@@ -316,26 +317,26 @@ export default function AnalisiPreventivi() {
       {/* Filtri compatti */}
       <div className="flex items-center gap-2 flex-wrap p-3 border rounded-lg bg-muted/30">
         <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide mr-2">
-          Filtri
+          {t("Filtri")}
         </span>
         <Select value={periodoMesi} onValueChange={setPeriodoMesi}>
           <SelectTrigger className="w-[140px] h-8 text-xs">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="3">Ultimi 3 mesi</SelectItem>
-            <SelectItem value="6">Ultimi 6 mesi</SelectItem>
-            <SelectItem value="12">Ultimo anno</SelectItem>
-            <SelectItem value="24">Ultimi 2 anni</SelectItem>
+            <SelectItem value="3">{t("Ultimi 3 mesi")}</SelectItem>
+            <SelectItem value="6">{t("Ultimi 6 mesi")}</SelectItem>
+            <SelectItem value="12">{t("Ultimo anno")}</SelectItem>
+            <SelectItem value="24">{t("Ultimi 2 anni")}</SelectItem>
           </SelectContent>
         </Select>
         <Select value={spFilter} onValueChange={setSpFilter}>
           <SelectTrigger className="w-[180px] h-8 text-xs">
-            <SelectValue placeholder="Commerciale" />
+            <SelectValue placeholder={t("Commerciale")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="tutti">Tutti i commerciali</SelectItem>
-            <SelectItem value="none">Senza commerciale</SelectItem>
+            <SelectItem value="tutti">{t("Tutti i commerciali")}</SelectItem>
+            <SelectItem value="none">{t("Senza commerciale")}</SelectItem>
             {salespeopleList.map((s) => (
               <SelectItem key={s.id} value={s.id}>
                 {s.first_name} {s.last_name}
@@ -345,15 +346,15 @@ export default function AnalisiPreventivi() {
         </Select>
         <Select value={statusRowFilter} onValueChange={setStatusRowFilter}>
           <SelectTrigger className="w-[170px] h-8 text-xs">
-            <SelectValue placeholder="Stato approvazione" />
+            <SelectValue placeholder={t("Stato approvazione")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="tutti">Tutti gli stati</SelectItem>
-            <SelectItem value="not_required">Normali</SelectItem>
-            <SelectItem value="pending">In approvazione</SelectItem>
-            <SelectItem value="approved">Approvati</SelectItem>
-            <SelectItem value="rejected">Rifiutati</SelectItem>
-            <SelectItem value="counter_proposed">Contro-proposta</SelectItem>
+            <SelectItem value="tutti">{t("Tutti gli stati")}</SelectItem>
+            <SelectItem value="not_required">{t("Normali")}</SelectItem>
+            <SelectItem value="pending">{t("In approvazione")}</SelectItem>
+            <SelectItem value="approved">{t("Approvati")}</SelectItem>
+            <SelectItem value="rejected">{t("Rifiutati")}</SelectItem>
+            <SelectItem value="counter_proposed">{t("Contro-proposta")}</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -366,11 +367,11 @@ export default function AnalisiPreventivi() {
             </div>
             <div>
               <p className="font-medium text-sm">
-                {pendingApprovals.length} richiest
-                {pendingApprovals.length === 1 ? "a" : "e"} di sconto in attesa
+                {pendingApprovals.length} {t("richiest")}
+                {pendingApprovals.length === 1 ? "a" : "e"} {t("di sconto in attesa")}
               </p>
               <p className="text-xs text-muted-foreground">
-                Totale impattato:{" "}
+                {t("Totale impattato:")}{" "}
                 <span className="font-medium text-foreground">
                   {formatCurrency(
                     pendingApprovals.reduce(
@@ -384,7 +385,7 @@ export default function AnalisiPreventivi() {
           </div>
           <Button asChild size="sm" className="bg-orange-600 hover:bg-orange-700">
             <Link to="/azienda/marketing/preventivi?tab=approvazioni">
-              Gestisci richieste
+              {t("Gestisci richieste")}
             </Link>
           </Button>
         </div>
@@ -396,7 +397,7 @@ export default function AnalisiPreventivi() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                Analizzati
+                {t("Analizzati")}
               </p>
               <Users className="h-4 w-4 text-slate-500" />
             </div>
@@ -407,14 +408,14 @@ export default function AnalisiPreventivi() {
                 dati?.totalPreventivi ?? "—"
               )}
             </div>
-            <p className="text-xs text-muted-foreground mt-0.5">preventivi nel periodo</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{t("preventivi nel periodo")}</p>
           </CardContent>
         </Card>
         <Card className="overflow-hidden border-l-4 border-l-primary">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                Ricavo totale
+                {t("Ricavo totale")}
               </p>
               <TrendingUp className="h-4 w-4 text-primary" />
             </div>
@@ -427,7 +428,7 @@ export default function AnalisiPreventivi() {
                 "—"
               )}
             </div>
-            <p className="text-xs text-muted-foreground mt-0.5">su preventivi chiusi</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{t("su preventivi chiusi")}</p>
           </CardContent>
         </Card>
         <Card
@@ -444,7 +445,7 @@ export default function AnalisiPreventivi() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                Margine medio
+                {t("Margine medio")}
               </p>
               <Target
                 className={`h-4 w-4 ${
@@ -467,16 +468,14 @@ export default function AnalisiPreventivi() {
                 "—"
               )}
             </div>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              target {margineTarget}% · min {margineMin}%
-            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">{t("target {margineTarget}% · min {margineMin}%", { margineTarget: String(margineTarget ?? ""), margineMin: String(margineMin ?? "") })}</p>
           </CardContent>
         </Card>
         <Card className="overflow-hidden border-l-4 border-l-blue-500">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                Valore medio
+                {t("Valore medio")}
               </p>
               <Award className="h-4 w-4 text-blue-500" />
             </div>
@@ -489,7 +488,7 @@ export default function AnalisiPreventivi() {
                 "—"
               )}
             </div>
-            <p className="text-xs text-muted-foreground mt-0.5">per preventivo</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{t("per preventivo")}</p>
           </CardContent>
         </Card>
       </div>
@@ -502,9 +501,9 @@ export default function AnalisiPreventivi() {
               <BrainCircuit className="h-5 w-5 text-violet-600" />
             </div>
             <div className="flex-1">
-              <h3 className="text-base font-semibold">Chiedi all'AI</h3>
+              <h3 className="text-base font-semibold">{t("Chiedi all'AI")}</h3>
               <p className="text-xs text-muted-foreground">
-                Fai una domanda sul tuo storico — o usa un suggerimento rapido
+                {t("Fai una domanda sul tuo storico — o usa un suggerimento rapido")}
               </p>
             </div>
           </div>
@@ -523,14 +522,14 @@ export default function AnalisiPreventivi() {
                 }}
                 disabled={loading}
               >
-                {q}
+                {t(q)}
               </Button>
             ))}
           </div>
 
           <div className="flex gap-2 items-stretch">
             <Textarea
-              placeholder="Scrivi la tua domanda o scegli un suggerimento sopra… (Cmd/Ctrl+Enter per inviare)"
+              placeholder={t("Scrivi la tua domanda o scegli un suggerimento sopra… (Cmd/Ctrl+Enter per inviare)")}
               value={domanda}
               onChange={(e) => setDomanda(e.target.value)}
               rows={2}
@@ -551,7 +550,7 @@ export default function AnalisiPreventivi() {
                 ) : (
                   <BrainCircuit className="h-4 w-4 mr-1" />
                 )}
-                Analizza
+                {t("Analizza")}
               </Button>
               <Button
                 variant="ghost"
@@ -562,9 +561,9 @@ export default function AnalisiPreventivi() {
                 }}
                 disabled={loading}
                 className="text-xs h-7"
-                title="Genera un'analisi completa senza domanda specifica"
+                title={t("Genera un'analisi completa senza domanda specifica")}
               >
-                Generale
+                {t("Generale")}
               </Button>
               <Button
                 variant="outline"
@@ -580,7 +579,7 @@ export default function AnalisiPreventivi() {
                   window.location.href = "/azienda/chat";
                 }}
               >
-                ✨ Chiedi a Silvio
+                {t("✨ Chiedi a Silvio")}
               </Button>
             </div>
           </div>
@@ -588,7 +587,7 @@ export default function AnalisiPreventivi() {
           {loading && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground py-3 px-3 rounded-md bg-violet-50/50 dark:bg-violet-950/20 border border-violet-200 dark:border-violet-900/50">
               <Loader2 className="h-4 w-4 animate-spin text-violet-600" />
-              L'AI sta analizzando {dati?.totalPreventivi ?? ""} preventivi…
+              {t("L'AI sta analizzando")} {dati?.totalPreventivi ?? ""} {t("preventivi…")}
             </div>
           )}
 
@@ -597,12 +596,12 @@ export default function AnalisiPreventivi() {
               <div className="flex items-center justify-between border-b border-violet-100 dark:border-violet-900/50 px-4 py-2 bg-violet-50/40 dark:bg-violet-950/20 rounded-t-lg">
                 <div className="flex items-center gap-2 text-xs font-medium text-violet-900 dark:text-violet-200">
                   <BrainCircuit className="h-3.5 w-3.5" />
-                  Risposta AI
+                  {t("Risposta AI")}
                   {analisiTimestamp && (
                     <span className="font-normal text-muted-foreground">
                       ·{" "}
                       {format(analisiTimestamp, "d MMM 'ore' HH:mm", {
-                        locale: it,
+                        locale: dateFnsCampo(),
                       })}
                     </span>
                   )}
@@ -612,7 +611,7 @@ export default function AnalisiPreventivi() {
                   variant="ghost"
                   className="h-7 w-7 text-muted-foreground hover:text-foreground"
                   onClick={handleCopy}
-                  title="Copia analisi"
+                  title={t("Copia analisi")}
                 >
                   {copied ? (
                     <Check className="h-4 w-4 text-emerald-600" />
@@ -634,10 +633,10 @@ export default function AnalisiPreventivi() {
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
             <BrainCircuit className="h-12 w-12 mx-auto mb-4 text-violet-300" />
-            <p className="font-medium">Nessun dato disponibile</p>
-            <p className="text-sm mt-1">Accetta alcuni preventivi per iniziare l'analisi</p>
+            <p className="font-medium">{t("Nessun dato disponibile")}</p>
+            <p className="text-sm mt-1">{t("Accetta alcuni preventivi per iniziare l'analisi")}</p>
             <Button className="mt-4" onClick={() => handleAnalizza()}>
-              Prova l'analisi
+              {t("Prova l'analisi")}
             </Button>
           </CardContent>
         </Card>
@@ -647,8 +646,8 @@ export default function AnalisiPreventivi() {
       {dati && (!dati.preventivi || dati.preventivi.length === 0) && (
         <Card>
           <CardContent className="py-10 text-center text-muted-foreground">
-            <p className="font-medium">Nessun preventivo accettato nel periodo selezionato</p>
-            <p className="text-sm mt-1">Prova ad allargare il range temporale</p>
+            <p className="font-medium">{t("Nessun preventivo accettato nel periodo selezionato")}</p>
+            <p className="text-sm mt-1">{t("Prova ad allargare il range temporale")}</p>
           </CardContent>
         </Card>
       )}
@@ -660,9 +659,9 @@ export default function AnalisiPreventivi() {
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
                 <Target className="h-4 w-4 text-violet-600" />
-                Salute margine
+                {t("Salute margine")}
               </CardTitle>
-              <p className="text-xs text-muted-foreground">Distribuzione dei preventivi per fascia di margine</p>
+              <p className="text-xs text-muted-foreground">{t("Distribuzione dei preventivi per fascia di margine")}</p>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={180}>
@@ -694,9 +693,9 @@ export default function AnalisiPreventivi() {
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
                 <Percent className="h-4 w-4 text-orange-500" />
-                Distribuzione sconti
+                {t("Distribuzione sconti")}
               </CardTitle>
-              <p className="text-xs text-muted-foreground">Quanto stai scontando in media</p>
+              <p className="text-xs text-muted-foreground">{t("Quanto stai scontando in media")}</p>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={180}>
@@ -723,7 +722,7 @@ export default function AnalisiPreventivi() {
                 <div className="mt-2 p-2 rounded bg-red-50 border border-red-200 text-xs text-red-800 flex items-start gap-1.5">
                   <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                   <span>
-                    {insightsV3.discountBuckets.forte} preventivo{insightsV3.discountBuckets.forte > 1 ? "i" : ""} con sconto ≥20%: verifica che siano autorizzati correttamente.
+                    {insightsV3.discountBuckets.forte} {t("preventivo")}{insightsV3.discountBuckets.forte > 1 ? "i" : ""} {t("con sconto ≥20%: verifica che siano autorizzati correttamente.")}
                   </span>
                 </div>
               )}
@@ -734,13 +733,13 @@ export default function AnalisiPreventivi() {
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
                 <Award className="h-4 w-4 text-green-600" />
-                Top commerciali per ricavo
+                {t("Top commerciali per ricavo")}
               </CardTitle>
-              <p className="text-xs text-muted-foreground">Chi sta performando meglio</p>
+              <p className="text-xs text-muted-foreground">{t("Chi sta performando meglio")}</p>
             </CardHeader>
             <CardContent className="space-y-2">
               {insightsV3.topSalespeople.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nessun commerciale assegnato ai preventivi del periodo.</p>
+                <p className="text-sm text-muted-foreground">{t("Nessun commerciale assegnato ai preventivi del periodo.")}</p>
               ) : (
                 insightsV3.topSalespeople.map((sp, i) => (
                   <div key={sp.name + i} className="flex items-center justify-between gap-2 py-1.5 border-b last:border-0">
@@ -750,9 +749,7 @@ export default function AnalisiPreventivi() {
                       </span>
                       <div className="min-w-0">
                         <div className="text-sm font-medium truncate">{sp.name}</div>
-                        <div className="text-[11px] text-muted-foreground">
-                          {sp.count} preventivi · margine medio {sp.marginAvg.toFixed(1)}%
-                        </div>
+                        <div className="text-[11px] text-muted-foreground">{t("{count} preventivi · margine medio {marginAvg}%", { count: String(sp.count ?? ""), marginAvg: sp.marginAvg.toFixed(1) })}</div>
                       </div>
                     </div>
                     <div className="text-sm font-semibold shrink-0">{formatCurrency(sp.ricavoTot)}</div>
@@ -768,7 +765,7 @@ export default function AnalisiPreventivi() {
       {chartData.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Margine per tipo di lavoro</CardTitle>
+            <CardTitle>{t("Margine per tipo di lavoro")}</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={280}>
@@ -810,11 +807,11 @@ export default function AnalisiPreventivi() {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>Preventivi analizzati</CardTitle>
+              <CardTitle>{t("Preventivi analizzati")}</CardTitle>
               <span className="text-sm text-muted-foreground">
                 {showAllRows
-                  ? `${dati.preventivi.length} preventivi`
-                  : `Mostrando 10 di ${dati.preventivi.length}`}
+                  ? t("{n} preventivi", { n: dati.preventivi.length })
+                  : t("Mostrando 10 di {n}", { n: dati.preventivi.length })}
               </span>
             </div>
           </CardHeader>
@@ -825,13 +822,13 @@ export default function AnalisiPreventivi() {
               <TableHeader>
                 <TableRow>
                   <TableHead>N°</TableHead>
-                  <TableHead>Tipo lavoro</TableHead>
-                  <TableHead className="text-right">Ricavo</TableHead>
-                  <TableHead className="text-right">Costo</TableHead>
-                  <TableHead className="text-right">Sconto</TableHead>
-                  <TableHead className="text-right">Margine %</TableHead>
-                  <TableHead className="text-right">Provv.</TableHead>
-                  <TableHead>Approv.</TableHead>
+                  <TableHead>{t("Tipo lavoro")}</TableHead>
+                  <TableHead className="text-right">{t("Ricavo")}</TableHead>
+                  <TableHead className="text-right">{t("Costo")}</TableHead>
+                  <TableHead className="text-right">{t("Sconto")}</TableHead>
+                  <TableHead className="text-right">{t("Margine %")}</TableHead>
+                  <TableHead className="text-right">{t("Provv.")}</TableHead>
+                  <TableHead>{t("Approv.")}</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
@@ -870,10 +867,10 @@ export default function AnalisiPreventivi() {
                       {extra?.commission_amount_snapshot != null ? formatCurrency(extra.commission_amount_snapshot) : "—"}
                     </TableCell>
                     <TableCell>
-                      {extra?.approval_status === "pending" && <Badge variant="outline" className="border-orange-500 text-orange-600">Pending</Badge>}
+                      {extra?.approval_status === "pending" && <Badge variant="outline" className="border-orange-500 text-orange-600">{t("Pending")}</Badge>}
                       {extra?.approval_status === "approved" && <Badge className="bg-green-600">OK</Badge>}
-                      {extra?.approval_status === "rejected" && <Badge variant="destructive">Rifiutato</Badge>}
-                      {extra?.approval_status === "counter_proposed" && <Badge className="bg-blue-600">Contro</Badge>}
+                      {extra?.approval_status === "rejected" && <Badge variant="destructive">{t("Rifiutato")}</Badge>}
+                      {extra?.approval_status === "counter_proposed" && <Badge className="bg-blue-600">{t("Contro")}</Badge>}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="icon" asChild>
@@ -895,9 +892,9 @@ export default function AnalisiPreventivi() {
                 onClick={() => setShowAllRows((v) => !v)}
               >
                 {showAllRows ? (
-                  <><ChevronUp className="h-4 w-4 mr-1" /> Mostra meno</>
+                  <><ChevronUp className="h-4 w-4 mr-1" /> {t("Mostra meno")}</>
                 ) : (
-                  <><ChevronDown className="h-4 w-4 mr-1" /> Mostra tutti ({dati.preventivi.length})</>
+                  <><ChevronDown className="h-4 w-4 mr-1" /> {t("Mostra tutti (")}{dati.preventivi.length})</>
                 )}
               </Button>
             )}

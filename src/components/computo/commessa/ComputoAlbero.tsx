@@ -4,9 +4,10 @@ import { Badge } from "@/components/ui/badge";
 import { alberoComputo, numeroVoce, tariffaVoce, type MisuraComputo, type NodoComputo, type VoceComputo } from "@/lib/computo/alberoComputo";
 import { cn } from "@/lib/utils";
 import { formatEuro } from "@/lib/computo/computoStrutturato";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const euro = (n: number | null | undefined) => n == null ? "—" : `${formatEuro(n)} €`;
-const numero = (n: number | null | undefined) => n == null ? "" : n.toLocaleString("it-IT", { maximumFractionDigits: 3 });
+const numero = (n: number | null | undefined) => n == null ? "" : n.toLocaleString(intlCampo(), { maximumFractionDigits: 3 });
 
 const idVoceComputo = (numeroOrdine: string) => `computo-voce-${numeroOrdine}`;
 
@@ -27,6 +28,7 @@ export interface ExtraVoci {
 }
 
 function RigaVoce({ voce, aperta, onToggle, mostraImporti, extra }: { voce: VoceComputo; aperta: boolean; onToggle: () => void; mostraImporti: boolean; extra?: ExtraVoci }) {
+  const tr = useT();
   const avvisi = voce.warnings?.filter(Boolean) ?? [];
   const n = numeroVoce(voce);
   return (
@@ -38,10 +40,10 @@ function RigaVoce({ voce, aperta, onToggle, mostraImporti, extra }: { voce: Voce
         <span className="min-w-0">
           <span className={cn("block", !aperta && "line-clamp-2")}>{voce.descrizione_breve}</span>
           <span className="mt-1 flex flex-wrap gap-1">
-            {voce.is_sicurezza && <Badge variant="outline" className="border-emerald-300 text-emerald-800"><ShieldCheck className="mr-1 h-3 w-3" />Sicurezza</Badge>}
-            {voce.is_detrazione && <Badge variant="outline" className="border-rose-300 text-rose-800">Si detrae</Badge>}
-            {voce.a_corpo && <Badge variant="outline">A corpo</Badge>}
-            {avvisi.length > 0 && <Badge variant="outline" className="border-amber-300 text-amber-800"><AlertTriangle className="mr-1 h-3 w-3" />Da ricontrollare</Badge>}
+            {voce.is_sicurezza && <Badge variant="outline" className="border-emerald-300 text-emerald-800"><ShieldCheck className="mr-1 h-3 w-3" />{tr("Sicurezza")}</Badge>}
+            {voce.is_detrazione && <Badge variant="outline" className="border-rose-300 text-rose-800">{tr("Si detrae")}</Badge>}
+            {voce.a_corpo && <Badge variant="outline">{tr("A corpo")}</Badge>}
+            {avvisi.length > 0 && <Badge variant="outline" className="border-amber-300 text-amber-800"><AlertTriangle className="mr-1 h-3 w-3" />{tr("Da ricontrollare")}</Badge>}
           </span>
         </span>
         <span className="text-right tabular-nums text-slate-700 max-sm:col-start-3 max-sm:row-start-1">
@@ -52,20 +54,20 @@ function RigaVoce({ voce, aperta, onToggle, mostraImporti, extra }: { voce: Voce
       </button>
       {aperta && (
         <div className="space-y-3 px-2 pb-3 sm:pl-12">
-          {tariffaVoce(voce) && <p className="text-xs text-slate-500 sm:hidden">Tariffa: <span className="font-mono">{tariffaVoce(voce)}</span></p>}
+          {tariffaVoce(voce) && <p className="text-xs text-slate-500 sm:hidden">{tr("Tariffa:")} <span className="font-mono">{tariffaVoce(voce)}</span></p>}
           <p className="whitespace-pre-line text-sm text-slate-700">{voce.descrizione_estesa || voce.descrizione_breve}</p>
           {voce.misure.length > 0 && (
             <div className="overflow-x-auto rounded border bg-white">
               <table className="w-full min-w-[34rem] text-xs">
-                <caption className="sr-only">Righe di misura della voce {n}</caption>
+                <caption className="sr-only">{tr("Righe di misura della voce {n}", { n })}</caption>
                 <thead className="bg-slate-100 text-slate-600">
                   <tr>
-                    <th className="px-2 py-1 text-left font-medium">Misura</th>
-                    <th className="px-2 py-1 text-right font-medium">par.ug.</th>
-                    <th className="px-2 py-1 text-right font-medium">lung.</th>
-                    <th className="px-2 py-1 text-right font-medium">larg.</th>
-                    <th className="px-2 py-1 text-right font-medium">H/peso</th>
-                    <th className="px-2 py-1 text-right font-medium">Quantità</th>
+                    <th className="px-2 py-1 text-left font-medium">{tr("Misura")}</th>
+                    <th className="px-2 py-1 text-right font-medium">{tr("par.ug.")}</th>
+                    <th className="px-2 py-1 text-right font-medium">{tr("lung.")}</th>
+                    <th className="px-2 py-1 text-right font-medium">{tr("larg.")}</th>
+                    <th className="px-2 py-1 text-right font-medium">{tr("H/peso")}</th>
+                    <th className="px-2 py-1 text-right font-medium">{tr("Quantità")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -86,7 +88,7 @@ function RigaVoce({ voce, aperta, onToggle, mostraImporti, extra }: { voce: Voce
                 </tbody>
                 <tfoot>
                   <tr className="border-t bg-slate-50 font-semibold">
-                    <td className="px-2 py-1" colSpan={5}>{voce.is_detrazione ? "Si detraggono" : "Sommano"} {voce.unita_misura}{extra?.notaVoce?.(voce)}</td>
+                    <td className="px-2 py-1" colSpan={5}>{voce.is_detrazione ? tr("Si detraggono") : tr("Sommano")} {voce.unita_misura}{extra?.notaVoce?.(voce)}</td>
                     <td className="px-2 py-1 text-right tabular-nums">{numero(voce.quantita)}</td>
                   </tr>
                 </tfoot>
@@ -111,6 +113,7 @@ function Nodo({ nodo, apertiForzati, voceInEvidenza, vociAperte, toggleVoce, mos
   nodo: NodoComputo; apertiForzati: boolean; voceInEvidenza: EvidenzaVoce | null;
   vociAperte: (n: string) => boolean; toggleVoce: (n: string) => void; mostraImporti: boolean; extra?: ExtraVoci;
 }) {
+  const tr = useT();
   // Aperto a mano, oppure perché contiene la voce appena indicata dal controllo dei totali
   // (finché l'utente non lo richiude dopo quell'indicazione).
   const [stato, setStato] = useState({ aperto: nodo.livello === 0, volta: -1 });
@@ -124,9 +127,9 @@ function Nodo({ nodo, apertiForzati, voceInEvidenza, vociAperte, toggleVoce, mos
           nodo.livello === 0 && "font-semibold", nodo.livello === 1 && "pl-6 font-medium", nodo.livello === 2 && "pl-9 text-sm")}>
         <Icona className="h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
         <span className="min-w-0 flex-1 truncate">{nodo.nome}</span>
-        <span className="hidden text-xs text-slate-500 sm:inline">{nodo.numeroVoci} voci</span>
+        <span className="hidden text-xs text-slate-500 sm:inline">{tr("{numeroVoci} voci", { numeroVoci: nodo.numeroVoci })}</span>
         {mostraImporti && <span className="tabular-nums">{euro(nodo.importo)}</span>}
-        <span className="w-14 text-right text-xs tabular-nums text-slate-500">{nodo.percentuale.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%</span>
+        <span className="w-14 text-right text-xs tabular-nums text-slate-500">{nodo.percentuale.toLocaleString(intlCampo(), { maximumFractionDigits: 1 })}%</span>
       </button>
       {visibile && (
         <div className={cn(nodo.livello === 0 && "pb-1")}>
@@ -151,6 +154,7 @@ function Nodo({ nodo, apertiForzati, voceInEvidenza, vociAperte, toggleVoce, mos
 export function ComputoAlbero({ voci, totaleComputo, ricercaAttiva, voceInEvidenza, mostraImporti, extra }: {
   voci: VoceComputo[]; totaleComputo: number; ricercaAttiva: boolean; voceInEvidenza: EvidenzaVoce | null; mostraImporti: boolean; extra?: ExtraVoci;
 }) {
+  const tr = useT();
   const { nodi } = alberoComputo(voci, totaleComputo);
   // Per ogni voce: aperta o chiusa a mano, e a quale «indicazione» risale la scelta.
   const [scelte, setScelte] = useState<Record<string, { aperta: boolean; volta: number }>>({});
@@ -165,7 +169,7 @@ export function ComputoAlbero({ voci, totaleComputo, ricercaAttiva, voceInEviden
     const t = window.setTimeout(() => document.getElementById(idVoceComputo(voceInEvidenza.numero))?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
     return () => window.clearTimeout(t);
   }, [voceInEvidenza]);
-  if (!voci.length) return <p className="rounded-lg border bg-white p-4 text-sm text-slate-600">Nessuna voce corrisponde alla ricerca.</p>;
+  if (!voci.length) return <p className="rounded-lg border bg-white p-4 text-sm text-slate-600">{tr("Nessuna voce corrisponde alla ricerca.")}</p>;
   return (
     <div className="space-y-2">
       {nodi.map(n => (

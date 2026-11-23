@@ -22,6 +22,7 @@ import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { nomeCointestatario, type CampoCointestatario } from "@/lib/preventivatore/cointestatario";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export { nomeCointestatario, type CampoCointestatario };
 
@@ -40,6 +41,7 @@ interface ContattoCointestatario {
 }
 
 export function Cointestatario({ form, onChange }: Props) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const compilato = Boolean(nomeCointestatario(form) || (form.cointestatario_codice_fiscale ?? "").trim());
   const [aperto, setAperto] = useState(compilato);
@@ -78,8 +80,8 @@ export function Cointestatario({ form, onChange }: Props) {
     <div className="space-y-3 rounded-lg border p-3 max-sm:col-span-2">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <Label htmlFor="preventivo-cointestato" className="text-sm font-medium">Preventivo cointestato</Label>
-          <p className={cn("text-xs text-muted-foreground", !attivo && "max-lg:hidden")}>Il cointestatario appare nel PDF e firma.</p>
+          <Label htmlFor="preventivo-cointestato" className="text-sm font-medium">{t("Preventivo cointestato")}</Label>
+          <p className={cn("text-xs text-muted-foreground", !attivo && "max-lg:hidden")}>{t("Il cointestatario appare nel PDF e firma.")}</p>
         </div>
         <Switch
           id="preventivo-cointestato"
@@ -101,19 +103,19 @@ export function Cointestatario({ form, onChange }: Props) {
           <Popover open={scelta} onOpenChange={setScelta}>
             <PopoverTrigger asChild>
               <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5 text-xs">
-                <Users className="h-3.5 w-3.5" /> Scegli dai contatti
+                <Users className="h-3.5 w-3.5" /> {t("Scegli dai contatti")}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-72 p-0" align="start">
               <Command shouldFilter={false}>
-                <CommandInput placeholder="Cerca contatto..." value={cerca} onValueChange={setCerca} />
+                <CommandInput placeholder={t("Cerca contatto...")} value={cerca} onValueChange={setCerca} />
                 <CommandList>
-                  <CommandEmpty>Nessun contatto trovato</CommandEmpty>
+                  <CommandEmpty>{t("Nessun contatto trovato")}</CommandEmpty>
                   <CommandGroup>
                     {contatti.map((c) => (
                       <CommandItem key={c.id} value={c.id} onSelect={() => prendi(c)}>
                         <div className="min-w-0">
-                          <p className="truncate text-sm">{[c.first_name, c.last_name].filter(Boolean).join(" ") || c.email || "Senza nome"}</p>
+                          <p className="truncate text-sm">{[c.first_name, c.last_name].filter(Boolean).join(" ") || c.email || t("Senza nome")}</p>
                           {c.fiscal_code && <p className="truncate text-[11px] text-muted-foreground">{c.fiscal_code}</p>}
                         </div>
                       </CommandItem>
@@ -125,11 +127,11 @@ export function Cointestatario({ form, onChange }: Props) {
           </Popover>
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="space-y-1">
-              <Label htmlFor="cointestatario-nome" className="text-xs">Nome</Label>
+              <Label htmlFor="cointestatario-nome" className="text-xs">{t("Nome")}</Label>
               <Input id="cointestatario-nome" value={form.cointestatario_nome ?? ""} onChange={cambia("cointestatario_nome")} />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="cointestatario-cognome" className="text-xs">Cognome</Label>
+              <Label htmlFor="cointestatario-cognome" className="text-xs">{t("Cognome")}</Label>
               <Input id="cointestatario-cognome" value={form.cointestatario_cognome ?? ""} onChange={cambia("cointestatario_cognome")} />
             </div>
             <div className="space-y-1">
@@ -138,11 +140,11 @@ export function Cointestatario({ form, onChange }: Props) {
                 onChange={(e) => onChange("cointestatario_codice_fiscale", e.target.value.trim() === "" ? null : e.target.value.toUpperCase())} />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="cointestatario-email" className="text-xs">Email (per la firma online)</Label>
+              <Label htmlFor="cointestatario-email" className="text-xs">{t("Email (per la firma online)")}</Label>
               <Input id="cointestatario-email" type="email" value={form.cointestatario_email ?? ""} onChange={cambia("cointestatario_email")} />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="cointestatario-telefono" className="text-xs">Cellulare</Label>
+              <Label htmlFor="cointestatario-telefono" className="text-xs">{t("Cellulare")}</Label>
               <Input id="cointestatario-telefono" type="tel" inputMode="tel" value={form.cointestatario_telefono ?? ""} onChange={cambia("cointestatario_telefono")} />
             </div>
           </div>

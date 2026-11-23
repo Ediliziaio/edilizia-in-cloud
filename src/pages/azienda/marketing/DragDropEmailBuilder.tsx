@@ -19,6 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { toast } from "sonner";
 import { ArrowLeft, Save, Eye, Send, Pencil, Check, Monitor, Tablet, Smartphone, Loader2, Undo2, Redo2 } from "lucide-react";
 import type { Json } from "@/integrations/supabase/types";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const PREVIEW_WIDTHS = {
   desktop: "600px",
@@ -29,6 +30,7 @@ const PREVIEW_WIDTHS = {
 const MAX_HISTORY = 50;
 
 export default function DragDropEmailBuilder() {
+  const t = useT();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const emailBase = useEmailMarketingBase();
@@ -368,8 +370,8 @@ export default function DragDropEmailBuilder() {
   if (!campaign) {
     return (
       <div className="flex flex-col items-center justify-center h-screen gap-4">
-        <p className="text-muted-foreground">Campagna non trovata</p>
-        <Button onClick={() => navigate(emailBase)}>Torna alla lista</Button>
+        <p className="text-muted-foreground">{t("Campagna non trovata")}</p>
+        <Button onClick={() => navigate(emailBase)}>{t("Torna alla lista")}</Button>
       </div>
     );
   }
@@ -380,21 +382,21 @@ export default function DragDropEmailBuilder() {
       <div className="flex items-center justify-between px-4 py-2 bg-background border-b shrink-0">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" className="hidden md:inline-flex" onClick={() => navigate(emailBase)}>
-            <ArrowLeft className="h-4 w-4 mr-1" /> Indietro
+            <ArrowLeft className="h-4 w-4 mr-1" /> {t("Indietro")}
           </Button>
           <Separator orientation="vertical" className="h-6" />
           {/* Undo/Redo buttons */}
-          <Button variant="ghost" size="icon" className="h-8 w-8" disabled={undoStack.length === 0} onClick={handleUndo} title="Annulla (Ctrl+Z)">
+          <Button variant="ghost" size="icon" className="h-8 w-8" disabled={undoStack.length === 0} onClick={handleUndo} title={t("Annulla (Ctrl+Z)")}>
             <Undo2 className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8" disabled={redoStack.length === 0} onClick={handleRedo} title="Ripristina (Ctrl+Y)">
+          <Button variant="ghost" size="icon" className="h-8 w-8" disabled={redoStack.length === 0} onClick={handleRedo} title={t("Ripristina (Ctrl+Y)")}>
             <Redo2 className="h-4 w-4" />
           </Button>
           <Separator orientation="vertical" className="h-6" />
           <span className="text-xs text-muted-foreground">
-            {autoSaveStatus === "saved" && "✓ Salvato"}
-            {autoSaveStatus === "saving" && "Salvataggio..."}
-            {autoSaveStatus === "unsaved" && "● Modifiche non salvate"}
+            {autoSaveStatus === "saved" && t("✓ Salvato")}
+            {autoSaveStatus === "saving" && t("Salvataggio...")}
+            {autoSaveStatus === "unsaved" && t("● Modifiche non salvate")}
           </span>
         </div>
 
@@ -441,13 +443,13 @@ export default function DragDropEmailBuilder() {
           </div>
 
           <Button variant="outline" size="sm" onClick={() => setPreviewOpen(true)}>
-            <Eye className="h-4 w-4 mr-1" /> Anteprima
+            <Eye className="h-4 w-4 mr-1" /> {t("Anteprima")}
           </Button>
           <Button variant="outline" size="sm" onClick={handleManualSave} disabled={saveMut.isPending}>
-            <Save className="h-4 w-4 mr-1" /> Salva
+            <Save className="h-4 w-4 mr-1" /> {t("Salva")}
           </Button>
           <Button size="sm" onClick={() => { handleManualSave(); navigate(`${emailBase}/campagna/${id}/impostazioni`); }}>
-            <Send className="h-4 w-4 mr-1" /> Invia
+            <Send className="h-4 w-4 mr-1" /> {t("Invia")}
           </Button>
         </div>
       </div>
@@ -473,7 +475,7 @@ export default function DragDropEmailBuilder() {
           <DragOverlay>
             {activeDragId ? (
               <div className="bg-primary/10 border-2 border-primary border-dashed rounded-md px-4 py-2 text-xs font-medium text-primary">
-                Rilascia sul canvas
+                {t("Rilascia sul canvas")}
               </div>
             ) : null}
           </DragOverlay>
@@ -485,12 +487,12 @@ export default function DragDropEmailBuilder() {
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
         <DialogContent className="max-w-3xl max-h-[85vh]">
           <DialogHeader>
-            <DialogTitle>Anteprima email</DialogTitle>
+            <DialogTitle>{t("Anteprima email")}</DialogTitle>
           </DialogHeader>
           <iframe
             srcDoc={generateEmailHtml(blocks)}
             className="w-full h-[70vh] border rounded-md"
-            title="Anteprima email"
+            title={t("Anteprima email")}
           />
         </DialogContent>
       </Dialog>

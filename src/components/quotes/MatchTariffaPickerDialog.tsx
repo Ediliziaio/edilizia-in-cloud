@@ -18,6 +18,7 @@ import { costoTariffaConosciuto as costoTariffa, formatPrezzoUnitario as formatC
 import { unitaTariffa } from "@/lib/listino/costoTariffa";
 import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
 import { testoErrore } from "@/lib/impostazioni/testoErrore";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface ComputoTariffaCatalogItem {
   id: string;
@@ -70,6 +71,7 @@ function MatchTariffaPickerContent({
   initialQuery = "",
   onSelect,
 }: Props) {
+  const tr = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const [searchRaw, setSearchRaw] = useState(initialQuery);
@@ -136,10 +138,10 @@ function MatchTariffaPickerContent({
         <SheetHeader className="shrink-0 border-b px-6 pb-3 pt-6">
           <SheetTitle className="flex items-center gap-2">
             <Wrench className="h-5 w-5 text-orange-500" />
-            Abbina tariffa / manodopera
+            {tr("Abbina tariffa / manodopera")}
           </SheetTitle>
           <SheetDescription>
-            Usa il listino tariffe per posa, manodopera, trasporti, smaltimenti, pratiche e noli.
+            {tr("Usa il listino tariffe per posa, manodopera, trasporti, smaltimenti, pratiche e noli.")}
           </SheetDescription>
         </SheetHeader>
 
@@ -149,7 +151,7 @@ function MatchTariffaPickerContent({
             <Input
               value={searchRaw}
               onChange={(e) => setSearchRaw(e.target.value)}
-              placeholder="Cerca posa, manodopera, trasporto..."
+              placeholder={tr("Cerca posa, manodopera, trasporto...")}
               className="pl-9 pr-9"
               autoFocus
             />
@@ -158,7 +160,7 @@ function MatchTariffaPickerContent({
                 type="button"
                 onClick={() => setSearchRaw("")}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                aria-label="Cancella ricerca tariffa"
+                aria-label={tr("Cancella ricerca tariffa")}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -172,7 +174,7 @@ function MatchTariffaPickerContent({
               className="h-7 rounded-md px-2 text-[11px]"
               onClick={() => setTipoFilter("all")}
             >
-              Tutte {tariffe.length}
+              {tr("Tutte {n}", { n: tariffe.length })}
             </Button>
             {tipi.map(([tipo, count]) => (
               <Button
@@ -196,12 +198,12 @@ function MatchTariffaPickerContent({
                 <Skeleton key={index} className="h-20 rounded-md" />
               ))}
             </div>
-          ) : isError ? <div role="alert" className="rounded-lg border p-6 text-sm"><p>{testoErrore(error, "Le tariffe non si sono caricate.")}</p><Button variant="outline" size="sm" className="mt-3" onClick={() => void refetch()}>Riprova</Button></div> : filtered.length === 0 ? (
+          ) : isError ? <div role="alert" className="rounded-lg border p-6 text-sm"><p>{testoErrore(error, tr("Le tariffe non si sono caricate."))}</p><Button variant="outline" size="sm" className="mt-3" onClick={() => void refetch()}>{tr("Riprova")}</Button></div> : filtered.length === 0 ? (
             <div className="rounded-lg border border-dashed p-8 text-center">
               <Wrench className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
-              <p className="text-sm font-medium">Nessuna tariffa trovata</p>
+              <p className="text-sm font-medium">{tr("Nessuna tariffa trovata")}</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Aggiungila da Impostazioni → Listino → Manodopera e servizi, poi torna qui per abbinarla.
+                {tr("Aggiungila da Impostazioni → Listino → Manodopera e servizi, poi torna qui per abbinarla.")}
               </p>
             </div>
           ) : (
@@ -227,9 +229,9 @@ function MatchTariffaPickerContent({
                           </Badge>
                         </div>
                         <div className="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                          <span>Unità: {unit}</span>
-                          {tariffa.vertical_associato ? <span>Verticale: {tariffa.vertical_associato}</span> : null}
-                          {costo != null ? <span>Costo: {formatCurrency(costo)}</span> : null}
+                          <span>{tr("Unità: {unita}", { unita: unit })}</span>
+                          {tariffa.vertical_associato ? <span>{tr("Verticale: {verticale}", { verticale: tariffa.vertical_associato })}</span> : null}
+                          {costo != null ? <span>{tr("Costo: {importo}", { importo: formatCurrency(costo) })}</span> : null}
                         </div>
                       </div>
                       <div className="shrink-0 text-right">

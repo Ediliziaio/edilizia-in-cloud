@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 
 import { useComputeMaxDiscount } from "@/hooks/useDiscountRules";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   quoteId: string;
@@ -34,6 +35,7 @@ export function QuoteDiscountControl({
   approvalStatus = "not_required",
   onDiscountChange,
 }: Props) {
+  const t = useT();
   const qc = useQueryClient();
   // Autorizzazione a IMPOSTARE sconti oltre soglia = permesso PER-AZIENDA
   // (admin d'azienda o staff con can_approve_discounts). Prima arrivava come prop
@@ -83,12 +85,12 @@ export function QuoteDiscountControl({
         p_note: requestNote || null,
       });
       if (error) throw error;
-      toast.success("Richiesta di autorizzazione inviata all'admin");
+      toast.success(t("Richiesta di autorizzazione inviata all'admin"));
       setShowRequestDialog(false);
       qc.invalidateQueries({ queryKey: ["quote", quoteId] });
       qc.invalidateQueries({ queryKey: ["max-discount", quoteId] });
     } catch (e) {
-      toast.error(`Errore: ${(e as Error).message}`);
+      toast.error(t("Errore: {messaggio}", { messaggio: (e as Error).message }));
     } finally {
       setSubmitting(false);
     }
@@ -97,13 +99,13 @@ export function QuoteDiscountControl({
   const statusBadge = () => {
     switch (approvalStatus) {
       case "pending":
-        return <Badge variant="outline" className="border-orange-500 text-orange-600"><Clock className="h-3 w-3 mr-1" />In attesa admin</Badge>;
+        return <Badge variant="outline" className="border-orange-500 text-orange-600"><Clock className="h-3 w-3 mr-1" />{t("In attesa admin")}</Badge>;
       case "approved":
-        return <Badge className="bg-green-600"><Check className="h-3 w-3 mr-1" />Approvato</Badge>;
+        return <Badge className="bg-green-600"><Check className="h-3 w-3 mr-1" />{t("Approvato")}</Badge>;
       case "rejected":
-        return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Rifiutato</Badge>;
+        return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />{t("Rifiutato")}</Badge>;
       case "counter_proposed":
-        return <Badge className="bg-blue-600"><Send className="h-3 w-3 mr-1" />Contro-proposta</Badge>;
+        return <Badge className="bg-blue-600"><Send className="h-3 w-3 mr-1" />{t("Contro-proposta")}</Badge>;
       default:
         return null;
     }
@@ -114,15 +116,15 @@ export function QuoteDiscountControl({
       <div className="flex items-start justify-between gap-2">
         <div>
           <h4 className="font-medium text-sm flex items-center gap-2">
-            Sconto applicato
+            {t("Sconto applicato")}
             {statusBadge()}
           </h4>
           {!isLoading && (
             <p className="text-xs text-muted-foreground mt-1">
-              Max consentito: <strong>{maxSconto.toFixed(1)}%</strong>
-              {approvaOltre != null && <> · approvazione oltre {approvaOltre.toFixed(1)}%</>}
+              {t("Max consentito:")} <strong>{maxSconto.toFixed(1)}%</strong>
+              {approvaOltre != null && <> · {t("approvazione oltre {pct}%", { pct: approvaOltre.toFixed(1) })}</>}
               {limits && limits.applied_rules.length > 0 && (
-                <> · {limits.applied_rules.length} regol{limits.applied_rules.length > 1 ? "e" : "a"} applicat{limits.applied_rules.length > 1 ? "e" : "a"}</>
+                <> · {t(limits.applied_rules.length > 1 ? "{n} regole applicate" : "{n} regola applicata", { n: limits.applied_rules.length })}</>
               )}
             </p>
           )}
@@ -153,14 +155,13 @@ export function QuoteDiscountControl({
       {!canApproveDiscounts && needsApproval && approvalStatus !== "pending" && (
         <Alert className="border-orange-500 bg-orange-50 dark:bg-orange-950/30">
           <AlertTriangle className="h-4 w-4 text-orange-600" />
-          <AlertTitle className="text-orange-900 dark:text-orange-200">Sconto oltre il consentito</AlertTitle>
+          <AlertTitle className="text-orange-900 dark:text-orange-200">{t("Sconto oltre il consentito")}</AlertTitle>
           <AlertDescription className="text-sm text-orange-900 dark:text-orange-200">
-            Il limite per questo preventivo è {maxSconto.toFixed(1)}%. Per applicare uno sconto superiore
-            serve l'autorizzazione di un admin.
+            {t("Il limite per questo preventivo è {pct}%. Per applicare uno sconto superiore serve l'autorizzazione di un admin.", { pct: maxSconto.toFixed(1) })}
             <div className="mt-2">
               <Button size="sm" variant="outline" onClick={openRequest}>
                 <Send className="h-3.5 w-3.5 mr-1.5" />
-                Richiedi autorizzazione admin
+                {t("Richiedi autorizzazione admin")}
               </Button>
             </div>
           </AlertDescription>
@@ -171,7 +172,7 @@ export function QuoteDiscountControl({
         <Alert>
           <Clock className="h-4 w-4" />
           <AlertDescription>
-            Hai inviato una richiesta di autorizzazione. Attendi la decisione dell'admin prima di continuare.
+            {t("Hai inviato una richiesta di autorizzazione. Attendi la decisione dell'admin prima di continuare.")}
           </AlertDescription>
         </Alert>
       )}
@@ -179,10 +180,10 @@ export function QuoteDiscountControl({
       {canApproveDiscounts && margine != null && (
         <div className="text-xs text-muted-foreground flex items-center gap-1">
           <Info className="h-3 w-3" />
-          Visibile solo admin: margine pre-sconto stimato <strong>{margine.toFixed(1)}%</strong>
+          {t("Visibile solo admin: margine pre-sconto stimato")} <strong>{margine.toFixed(1)}%</strong>
           {limits && limits.applied_rules.length > 0 && (
             <span className="ml-2">
-              · Regole: {limits.applied_rules.map((r) => r.name).join(", ")}
+              · {t("Regole: {elenco}", { elenco: limits.applied_rules.map((r) => r.name).join(", ") })}
             </span>
           )}
         </div>
@@ -191,14 +192,14 @@ export function QuoteDiscountControl({
       <Dialog open={showRequestDialog} onOpenChange={setShowRequestDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Richiedi autorizzazione sconto</DialogTitle>
+            <DialogTitle>{t("Richiedi autorizzazione sconto")}</DialogTitle>
             <DialogDescription>
-              L'admin riceverà una notifica e potrà approvare, rifiutare o proporre un contro-sconto.
+              {t("L'admin riceverà una notifica e potrà approvare, rifiutare o proporre un contro-sconto.")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label>Sconto richiesto (%)</Label>
+              <Label>{t("Sconto richiesto (%)")}</Label>
               <Input
                 type="number"
                 step="0.1"
@@ -209,9 +210,9 @@ export function QuoteDiscountControl({
               />
             </div>
             <div>
-              <Label>Motivazione (opzionale)</Label>
+              <Label>{t("Motivazione (opzionale)")}</Label>
               <Textarea
-                placeholder="es. cliente strategico, primo ordine, trattativa già avanzata..."
+                placeholder={t("es. cliente strategico, primo ordine, trattativa già avanzata...")}
                 value={requestNote}
                 onChange={(e) => setRequestNote(e.target.value)}
                 rows={3}
@@ -219,9 +220,9 @@ export function QuoteDiscountControl({
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowRequestDialog(false)}>Annulla</Button>
+            <Button variant="outline" onClick={() => setShowRequestDialog(false)}>{t("Annulla")}</Button>
             <Button onClick={submitRequest} disabled={submitting}>
-              {submitting ? "Invio..." : "Invia richiesta"}
+              {submitting ? t("Invio...") : t("Invia richiesta")}
             </Button>
           </DialogFooter>
         </DialogContent>

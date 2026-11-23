@@ -25,7 +25,6 @@ import {
   isSameDay,
   parseISO,
 } from "date-fns";
-import { it } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -72,6 +71,7 @@ import { appuntamentiMappa } from "@/components/calendar/mappa/dati";
 import { useDataMappaCalendario, useMappaCalendario } from "@/components/calendar/mappa/useMappaCalendario";
 
 import { preparaSfondoMappa } from "@/components/calendar/mappa/caricaSfondo";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 const MappaOperativa = lazy(() => import("@/components/calendar/mappa/MappaOperativa"));
 type TabKey = "calendar" | "list" | "map";
 type CalendarView = "day" | "week" | "month";
@@ -79,6 +79,7 @@ const CAMPI_MAPPA = "id,title,appointment_date,appointment_time,appointment_end_
 const CAMPI_SCHEDA = `${CAMPI_MAPPA},description,is_completed,internal_notes,address_notes,opportunity_id,meeting_status,meeting_created_at`;
 
 export default function MarketingCalendar() {
+  const tr = useT();
   const navigate = useNavigate();
   const isAdminContext = useIsAdminMarketing();
   const { effectiveCompany, user } = useAuth();
@@ -745,12 +746,12 @@ export default function MarketingCalendar() {
   };
 
   const dateLabel = useMemo(() => {
-    if (calendarView === "day") return format(currentDate, "d MMMM yyyy", { locale: it });
+    if (calendarView === "day") return format(currentDate, "d MMMM yyyy", { locale: dateFnsCampo() });
     if (calendarView === "week") {
       const end = addDays(weekStart, 6);
-      return `${format(weekStart, "d MMM", { locale: it })} – ${format(end, "d MMM yyyy", { locale: it })}`;
+      return `${format(weekStart, "d MMM", { locale: dateFnsCampo() })} – ${format(end, "d MMM yyyy", { locale: dateFnsCampo() })}`;
     }
-    return format(currentDate, "MMMM yyyy", { locale: it });
+    return format(currentDate, "MMMM yyyy", { locale: dateFnsCampo() });
   }, [calendarView, currentDate, weekStart]);
 
   // True solo se currentDate è oggi (feedback visivo bottone "Oggi")
@@ -862,7 +863,7 @@ export default function MarketingCalendar() {
     // In sola lettura clic su slot e giorni non aprono un modulo che non salverebbe.
     if (permissions.solaLettura) return;
     if (!hasCalendars) {
-      toast.error("Prima configura almeno un calendario CRM");
+      toast.error(tr("Prima configura almeno un calendario CRM"));
       return;
     }
     setEditingAppointment(null);
@@ -912,7 +913,7 @@ export default function MarketingCalendar() {
   const apriSchedaMappa = async (id: string, proposta?: PropostaAppuntamentoMappa) => {
     const { data, error } = await supabase.from("appointments").select(CAMPI_SCHEDA)
       .eq("company_id", companyId!).eq("id", id).maybeSingle();
-    if (error || !data) { toast.error("Impossibile aprire la scheda dell’appuntamento"); return; }
+    if (error || !data) { toast.error(tr("Impossibile aprire la scheda dell’appuntamento")); return; }
     openEditDialog(data, proposta);
   };
   const puoProporre = (tipo: TipoCandidato, id: string) =>
@@ -1013,14 +1014,14 @@ export default function MarketingCalendar() {
       // Rollback optimistic update.
       queryClient.setQueryData(queryKey, (rows: typeof previousData) => rollbackAppointmentTiming(rows, previousData, appointmentId, updateData));
       void refetchAppointments();
-      toast.error("Errore nello spostamento", { description: error?.message || "Appuntamento non modificabile. Ricarica e riprova." });
+      toast.error(tr("Errore nello spostamento"), { description: error?.message || tr("Appuntamento non modificabile. Ricarica e riprova.") });
       return;
     }
 
     const label = newTime ? `${newDate} alle ${newTime}` : newDate;
-    toast.success(`Appuntamento spostato al ${label}`, {
+    toast.success(tr("Appuntamento spostato al {label}", { label: String(label ?? "") }), {
       action: {
-        label: "Annulla",
+        label: tr("Annulla"),
         onClick: async () => {
           const rollback: TablesUpdate<"appointments"> = {};
           if (oldDate) rollback.appointment_date = oldDate;
@@ -1035,9 +1036,9 @@ export default function MarketingCalendar() {
           if (updateData.appointment_end_time) undoQuery = undoQuery.eq("appointment_end_time", updateData.appointment_end_time);
           const { data: undone, error: undoError } = await undoQuery.select("id").single();
           if (undoError || !undone?.id) {
-            toast.error("Errore nell'annullamento");
+            toast.error(tr("Errore nell'annullamento"));
           } else {
-            toast.info("Spostamento annullato");
+            toast.info(tr("Spostamento annullato"));
             // Ri-sincronizza anche i calendari esterni: il drop aveva già
             // spinto il NUOVO orario su Google/Apple — senza questo, l'evento
             // esterno restava spostato mentre il DB era tornato indietro.
@@ -1076,7 +1077,7 @@ export default function MarketingCalendar() {
     const currentAppt = previousData?.find((a) => a.id === appointmentId);
     const startHHMM = currentAppt?.appointment_time?.slice(0, 5);
     if (startHHMM && newEndTime <= startHHMM) {
-      toast.error("L'orario di fine deve essere successivo all'inizio");
+      toast.error(tr("L'orario di fine deve essere successivo all'inizio"));
       return;
     }
     queryClient.setQueryData<any[]>(queryKey, (old) => {
@@ -1097,10 +1098,10 @@ export default function MarketingCalendar() {
     if (error || !resized?.id) {
       queryClient.setQueryData(queryKey, (rows: typeof previousData) => rollbackAppointmentTiming(rows, previousData, appointmentId, { appointment_end_time: newEndTime }));
       void refetchAppointments();
-      toast.error("Errore nel ridimensionamento", { description: error?.message || "Appuntamento non modificabile. Ricarica e riprova." });
+      toast.error(tr("Errore nel ridimensionamento"), { description: error?.message || tr("Appuntamento non modificabile. Ricarica e riprova.") });
       return;
     }
-    toast.success(`Durata aggiornata fino alle ${newEndTime}`);
+    toast.success(tr("Durata aggiornata fino alle {newEndTime}", { newEndTime: String(newEndTime ?? "") }));
     void syncExternalCalendarsForAppointment(appointmentId);
     refetchAppointments();
     queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
@@ -1118,10 +1119,10 @@ export default function MarketingCalendar() {
   const handleSyncExternalCalendars = useCallback(async () => {
     const hasAny = googleSync.hasGoogleConnection || appleSync.hasAppleConnection || outlookSync.hasOutlookConnection;
     if (!hasAny) {
-      toast("Nessun calendario esterno collegato", {
-        description: "Collega Google Calendar, Outlook o Apple Calendar dalle impostazioni del tuo profilo.",
+      toast(tr("Nessun calendario esterno collegato"), {
+        description: tr("Collega Google Calendar, Outlook o Apple Calendar dalle impostazioni del tuo profilo."),
         action: {
-          label: "Apri impostazioni",
+          label: tr("Apri impostazioni"),
           onClick: () => {
             window.open(`${calendarSettingsPath}?tab=calendari`, "_blank", "noopener");
           },
@@ -1148,16 +1149,16 @@ export default function MarketingCalendar() {
       ]);
 
       if (failed === 0) {
-        toast.success("Sincronizzazione completata", {
-          description: "Calendari esterni aggiornati.",
+        toast.success(tr("Sincronizzazione completata"), {
+          description: tr("Calendari esterni aggiornati."),
         });
       } else if (failed < results.length) {
-        toast.warning("Sync parziale", {
-          description: `${failed} su ${results.length} provider con errori. Verifica il collegamento.`,
+        toast.warning(tr("Sync parziale"), {
+          description: tr("{failed} su {n} provider con errori. Verifica il collegamento.", { failed: String(failed ?? ""), n: results.length }),
         });
       } else {
-        toast.error("Sincronizzazione non riuscita", {
-          description: "Riprova tra poco o riconnetti il calendario dalle impostazioni.",
+        toast.error(tr("Sincronizzazione non riuscita"), {
+          description: tr("Riprova tra poco o riconnetti il calendario dalle impostazioni."),
         });
       }
     } finally {
@@ -1175,9 +1176,9 @@ export default function MarketingCalendar() {
   ]);
 
   const tabs = [
-    { key: "calendar" as const, label: "Calendario", icon: CalendarIcon },
-    ...(!isAdminContext ? [{ key: "map" as const, label: "Mappa", icon: MapIcon }] : []),
-    { key: "list" as const, label: "Elenco", icon: ListIcon },
+    { key: "calendar" as const, label: tr("Calendario"), icon: CalendarIcon },
+    ...(!isAdminContext ? [{ key: "map" as const, label: tr("Mappa"), icon: MapIcon }] : []),
+    { key: "list" as const, label: tr("Elenco"), icon: ListIcon },
   ];
 
   // 2026-05-27: helper per stato sync. Se l'utente ha collegato Google
@@ -1203,8 +1204,8 @@ export default function MarketingCalendar() {
           <div className="flex items-start gap-2 min-w-0">
             <RefreshCw className="h-4 w-4 mt-0.5 shrink-0 text-amber-600" />
             <p className="text-amber-900 leading-snug">
-              <strong>Google Calendar collegato</strong> ma non ancora sincronizzato.
-              {" "}Clicca <em>Sincronizza ora</em> per importare i tuoi appuntamenti delle prossime 4 settimane.
+              <strong>{tr("Google Calendar collegato")}</strong> {tr("ma non ancora sincronizzato.")}
+              {" "}{tr("Clicca")} <em>{tr("Sincronizza ora")}</em> {tr("per importare i tuoi appuntamenti delle prossime 4 settimane.")}
             </p>
           </div>
           <Button
@@ -1214,7 +1215,7 @@ export default function MarketingCalendar() {
             className="shrink-0 bg-amber-600 hover:bg-amber-700 text-white gap-1.5"
           >
             {syncingExternal ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-            Sincronizza ora
+            {tr("Sincronizza ora")}
           </Button>
         </div>
       )}
@@ -1228,26 +1229,24 @@ export default function MarketingCalendar() {
             due righe). Sul telefono la riga dei numeri resta. */}
         <div className="flex items-center gap-3 max-sm:min-w-0">
           <div className="max-sm:min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight max-sm:truncate max-sm:text-lg">Calendario<span className="hidden xl:inline"> appuntamenti</span></h1>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight max-sm:truncate max-sm:text-lg">{tr("Calendario")}<span className="hidden xl:inline"> {tr("appuntamenti")}</span></h1>
             <p className="text-sm text-muted-foreground max-sm:text-xs sm:hidden">
               {/* Telefono (founder, 23/11/2026): niente riquadri, una riga sola — quanti oggi e,
                   se ce ne sono, quanti da assegnare (tocco = filtro). */}
-              <span className="font-medium text-foreground">{headerStats.todayCount}</span> {headerStats.todayCount === 1 ? "appuntamento" : "appuntamenti"} oggi
+              <span className="font-medium text-foreground">{headerStats.todayCount}</span> {headerStats.todayCount === 1 ? tr("appuntamento") : tr("appuntamenti")} {tr("oggi")}
               {headerStats.unassigned > 0 && (
                 <>
                   {" "}·{" "}
                   <button type="button" aria-pressed={kpiFilter === "unassigned"}
                     onClick={() => setKpiFilter((f) => (f === "unassigned" ? "all" : "unassigned"))}
-                    className={cn("font-medium text-amber-700 underline-offset-2 hover:underline", kpiFilter === "unassigned" && "underline")}>
-                    {headerStats.unassigned} da assegnare
-                  </button>
+                    className={cn("font-medium text-amber-700 underline-offset-2 hover:underline", kpiFilter === "unassigned" && "underline")}>{tr("{unassigned} da assegnare", { unassigned: String(headerStats.unassigned ?? "") })}</button>
                 </>
               )}
               {activeFilterCount > 0 && (
                 <>
                   {" "}·{" "}
                   <span className="text-primary font-medium">
-                    {activeFilterCount} filtro{activeFilterCount > 1 ? "i" : ""} attiv{activeFilterCount > 1 ? "i" : "o"}
+                    {activeFilterCount} {tr("filtro")}{activeFilterCount > 1 ? "i" : ""} {tr("attiv")}{activeFilterCount > 1 ? "i" : "o"}
                   </span>
                 </>
               )}
@@ -1261,40 +1260,40 @@ export default function MarketingCalendar() {
             onClick={handleSyncExternalCalendars}
             disabled={syncingExternal}
             className="h-9 gap-1.5 max-sm:hidden"
-            title="Sincronizza disponibilità e appuntamenti con i calendari esterni collegati"
+            title={tr("Sincronizza disponibilità e appuntamenti con i calendari esterni collegati")}
           >
             <RefreshCw className={cn("h-4 w-4", syncingExternal && "animate-spin")} />
-            <span className="hidden sm:inline">Sync</span>
+            <span className="hidden sm:inline">{tr("Sync")}</span>
           </Button>
           <Button
             size="sm"
             variant="ghost"
             onClick={() => navigate(calendarSettingsPath)}
             className="h-9 gap-1 text-muted-foreground hover:text-foreground max-md:hidden"
-            title="Impostazioni calendari"
+            title={tr("Impostazioni calendari")}
           >
             <Settings className="h-4 w-4" />
-            <span className="hidden md:inline">Impostazioni</span>
+            <span className="hidden md:inline">{tr("Impostazioni")}</span>
           </Button>
           <Button
             size="sm"
             onClick={() => (hasCalendars ? openNewDialog() : navigate(calendarSettingsPath))}
             disabled={hasCalendars && permissions.solaLettura}
-            title={hasCalendars && permissions.solaLettura ? "Sei in sola lettura" : undefined}
+            title={hasCalendars && permissions.solaLettura ? tr("Sei in sola lettura") : undefined}
             // Senza calendari il bottone porta alla configurazione, che dal telefono non si fa.
-            aria-label={hasCalendars ? "Nuovo appuntamento" : "Configura calendario"}
+            aria-label={hasCalendars ? tr("Nuovo appuntamento") : tr("Configura calendario")}
             className={cn("h-9 max-sm:h-11", !hasCalendars && "max-md:hidden")}
           >
             {hasCalendars ? (
               <>
                 <Plus className="h-4 w-4 mr-1.5" />
-                <span className="max-sm:hidden">Nuovo appuntamento</span>
-                <span className="sm:hidden">Nuovo</span>
+                <span className="max-sm:hidden">{tr("Nuovo appuntamento")}</span>
+                <span className="sm:hidden">{tr("Nuovo")}</span>
               </>
             ) : (
               <>
                 <CalendarPlus className="h-4 w-4 mr-1.5" />
-                Configura calendario
+                {tr("Configura calendario")}
               </>
             )}
           </Button>
@@ -1309,20 +1308,20 @@ export default function MarketingCalendar() {
       {/* Telefono: i riquadri non ci sono, i numeri stanno nella riga sotto il titolo. */}
       <div className="grid grid-cols-2 gap-2 md:grid-cols-5 max-sm:hidden">
         <div className="rounded-lg border bg-card px-3 py-2 max-sm:hidden">
-          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">Visibili</p>
+          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">{tr("Visibili")}</p>
           <p className="text-xl font-bold tabular-nums max-md:text-base">{headerStats.visible}</p>
         </div>
         <button
           type="button"
           onClick={goToday}
           className="rounded-lg border bg-card px-3 py-2 text-left transition-colors hover:bg-muted/50 max-sm:hidden"
-          title="Vai a oggi"
+          title={tr("Vai a oggi")}
         >
-          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">Oggi</p>
+          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">{tr("Oggi")}</p>
           <p className="text-xl font-bold tabular-nums max-md:text-base">{headerStats.todayCount}</p>
         </button>
         <div className="rounded-lg border bg-card px-3 py-2 max-sm:hidden">
-          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">Settimana</p>
+          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">{tr("Settimana")}</p>
           <p className="text-xl font-bold tabular-nums max-md:text-base">{headerStats.weekCount}</p>
         </div>
         {/* KPI-filtro (toggle): mostra solo il sottoinsieme sulla griglia/elenco. */}
@@ -1330,7 +1329,7 @@ export default function MarketingCalendar() {
           type="button"
           onClick={() => setKpiFilter((f) => (f === "unassigned" ? "all" : "unassigned"))}
           aria-pressed={kpiFilter === "unassigned"}
-          title={kpiFilter === "unassigned" ? "Mostra tutti gli appuntamenti" : "Mostra solo i non assegnati"}
+          title={kpiFilter === "unassigned" ? tr("Mostra tutti gli appuntamenti") : tr("Mostra solo i non assegnati")}
           className={cn(
             "rounded-lg border px-3 py-2 text-left transition-colors hover:bg-amber-50/70 dark:hover:bg-amber-950/40",
             headerStats.unassigned > 0 ? "border-amber-200 bg-amber-50 dark:bg-amber-950/30" : "bg-card max-sm:hidden",
@@ -1338,7 +1337,7 @@ export default function MarketingCalendar() {
           )}
         >
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">
-            Da assegnare<span className="max-sm:hidden">{kpiFilter === "unassigned" && " · filtro attivo"}</span>
+            {tr("Da assegnare")}<span className="max-sm:hidden">{kpiFilter === "unassigned" && ` ${tr("· filtro attivo")}`}</span>
           </p>
           <p className={cn(
             "text-xl font-bold tabular-nums max-md:text-base",
@@ -1350,8 +1349,8 @@ export default function MarketingCalendar() {
           onClick={() => setKpiFilter((f) => (f === "conflicts" ? "all" : "conflicts"))}
           aria-pressed={kpiFilter === "conflicts"}
           title={kpiFilter === "conflicts"
-            ? "Mostra tutti gli appuntamenti"
-            : "Conflitti: appuntamenti della stessa persona che si accavallano negli orari, lo stesso giorno. Clicca per vedere solo quelli."}
+            ? tr("Mostra tutti gli appuntamenti")
+            : tr("Conflitti: appuntamenti della stessa persona che si accavallano negli orari, lo stesso giorno. Clicca per vedere solo quelli.")}
           className={cn(
             "col-span-2 rounded-lg border px-3 py-2 text-left transition-colors hover:bg-red-50/70 dark:hover:bg-red-950/40 md:col-span-1",
             headerStats.conflicts > 0 ? "border-red-200 bg-red-50 dark:bg-red-950/30" : "bg-card max-sm:hidden",
@@ -1359,7 +1358,7 @@ export default function MarketingCalendar() {
           )}
         >
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">
-            Conflitti{kpiFilter === "conflicts" && " · filtro attivo"}
+            {tr("Conflitti")}{kpiFilter === "conflicts" && ` ${tr("· filtro attivo")}`}
           </p>
           <p className={cn(
             "text-xl font-bold tabular-nums max-md:text-base",
@@ -1373,25 +1372,22 @@ export default function MarketingCalendar() {
       {kpiFilter !== "all" && (
         <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
           <span>
-            Stai vedendo solo{" "}
-            <strong>{kpiFilter === "unassigned" ? "gli appuntamenti da assegnare" : "gli appuntamenti in conflitto"}</strong>{" "}
+            {tr("Stai vedendo solo")}{" "}
+            <strong>{kpiFilter === "unassigned" ? tr("gli appuntamenti da assegnare") : tr("gli appuntamenti in conflitto")}</strong>{" "}
             ({displayAppointments.length}).
             {kpiFilter === "conflicts" && (
-              <span className="block text-xs text-muted-foreground">
-                Un conflitto è una persona con due appuntamenti che si accavallano negli orari, lo stesso giorno.
-                Senza ora di fine, l'appuntamento conta per {slotDurationMinutes} minuti. Sposta o riassegna uno dei due.
-              </span>
+              <span className="block text-xs text-muted-foreground">{tr("Un conflitto è una persona con due appuntamenti che si accavallano negli orari, lo stesso giorno. Senza ora di fine, l'appuntamento conta per {slotDurationMinutes} minuti. Sposta o riassegna uno dei due.", { slotDurationMinutes: String(slotDurationMinutes ?? "") })}</span>
             )}
           </span>
           <Button variant="ghost" size="sm" className="h-7 shrink-0" onClick={() => setKpiFilter("all")}>
-            Mostra tutti
+            {tr("Mostra tutti")}
           </Button>
         </div>
       )}
 
       {/* Tab bar con icona */}
       <div className="border-b">
-        <nav className="-mb-px flex min-h-0 items-center gap-1 max-sm:justify-between" role="tablist" aria-label="Viste appuntamenti">
+        <nav className="-mb-px flex min-h-0 items-center gap-1 max-sm:justify-between" role="tablist" aria-label={tr("Viste appuntamenti")}>
           {tabs.map((t) => (
             <button
               key={t.key}
@@ -1420,7 +1416,7 @@ export default function MarketingCalendar() {
           <div className="flex items-start gap-2">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
             <div>
-              <p className="font-semibold">Alcuni dati del calendario non sono stati caricati.</p>
+              <p className="font-semibold">{tr("Alcuni dati del calendario non sono stati caricati.")}</p>
               <p className="mt-0.5 text-xs text-red-700">{calendarLoadErrorMessage}</p>
             </div>
           </div>
@@ -1437,13 +1433,13 @@ export default function MarketingCalendar() {
               void refetchOutlookBusySlots();
             }}
           >
-            Riprova
+            {tr("Riprova")}
           </Button>
         </div>
       )}
 
       {activeTab === "map" && (
-        <Suspense fallback={<p role="status" className="p-3 text-sm">Caricamento mappa…</p>}>
+        <Suspense fallback={<p role="status" className="p-3 text-sm">{tr("Caricamento mappa…")}</p>}>
           <MappaOperativa key={`${companyId}:${user?.id}:vendite`} {...statoMappa} ambito="vendite"
             giorno={giornoMappa} onGiorno={d => setCurrentDate(parseISO(d))}
             voci={appuntamentiDelGiorno}
@@ -1480,9 +1476,9 @@ export default function MarketingCalendar() {
                 size="sm"
                 className="h-9 px-3 max-sm:h-11"
                 onClick={goToday}
-                aria-label="Vai a oggi"
+                aria-label={tr("Vai a oggi")}
               >
-                Oggi
+                {tr("Oggi")}
               </Button>
               <div className="flex h-9 items-center rounded-md border max-sm:h-11">
                 <Button
@@ -1490,7 +1486,7 @@ export default function MarketingCalendar() {
                   size="icon"
                   className="h-full w-9 rounded-r-none max-sm:w-11"
                   onClick={goPrev}
-                  aria-label="Periodo precedente"
+                  aria-label={tr("Periodo precedente")}
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
@@ -1500,7 +1496,7 @@ export default function MarketingCalendar() {
                   size="icon"
                   className="h-full w-9 rounded-l-none max-sm:w-11"
                   onClick={goNext}
-                  aria-label="Periodo successivo"
+                  aria-label={tr("Periodo successivo")}
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
@@ -1510,7 +1506,7 @@ export default function MarketingCalendar() {
                 <PopoverTrigger asChild>
                   <button
                     className="flex h-9 min-w-0 max-w-[160px] items-center gap-1.5 rounded-md px-2 text-sm font-medium transition-colors hover:bg-muted/50 hover:text-primary max-sm:order-first max-sm:h-11 max-sm:max-w-none max-sm:basis-full max-sm:border md:max-w-none"
-                    aria-label="Apri selezione data"
+                    aria-label={tr("Apri selezione data")}
                   >
                     <CalendarIcon className="h-3.5 w-3.5 opacity-60 shrink-0" />
                     <span className="truncate">{dateLabel}</span>
@@ -1521,7 +1517,7 @@ export default function MarketingCalendar() {
                     mode="single"
                     selected={currentDate}
                     onSelect={handleDateSelect}
-                    locale={it}
+                    locale={dateFnsCampo()}
                     className="p-3 pointer-events-auto"
                   />
                 </PopoverContent>
@@ -1536,10 +1532,10 @@ export default function MarketingCalendar() {
                     variant="outline"
                     size="sm"
                     className="h-9 gap-1.5 max-sm:h-11 xl:hidden"
-                    aria-label="Apri filtri"
+                    aria-label={tr("Apri filtri")}
                   >
                     <SlidersHorizontal className="h-3.5 w-3.5" />
-                    <span>Filtri</span>
+                    <span>{tr("Filtri")}</span>
                     {activeFilterCount > 0 && (
                       <Badge
                         variant="secondary"
@@ -1554,7 +1550,7 @@ export default function MarketingCalendar() {
                   <SheetHeader className="p-4 border-b">
                     <SheetTitle className="flex items-center gap-2 text-base">
                       <SlidersHorizontal className="h-4 w-4 text-primary" />
-                      Filtri
+                      {tr("Filtri")}
                     </SheetTitle>
                   </SheetHeader>
                   <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
@@ -1588,10 +1584,10 @@ export default function MarketingCalendar() {
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   )}
                   aria-pressed={calendarView === "day"}
-                  title="Vista giornaliera"
+                  title={tr("Vista giornaliera")}
                 >
                   <CalendarIcon className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Giorno</span>
+                  <span className="hidden sm:inline">{tr("Giorno")}</span>
                 </button>
                 <button
                   type="button"
@@ -1603,10 +1599,10 @@ export default function MarketingCalendar() {
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   )}
                   aria-pressed={calendarView === "week"}
-                  title="Vista settimanale"
+                  title={tr("Vista settimanale")}
                 >
                   <ListIcon className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Settimana</span>
+                  <span className="hidden sm:inline">{tr("Settimana")}</span>
                 </button>
                 <button
                   type="button"
@@ -1618,10 +1614,10 @@ export default function MarketingCalendar() {
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   )}
                   aria-pressed={calendarView === "month"}
-                  title="Vista mensile"
+                  title={tr("Vista mensile")}
                 >
                   <Grid3x3 className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Mese</span>
+                  <span className="hidden sm:inline">{tr("Mese")}</span>
                 </button>
               </div>
 
@@ -1641,11 +1637,11 @@ export default function MarketingCalendar() {
                       : "bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
                   )}
                   title={showOperativi
-                    ? "Stai vedendo anche i lavori operativi. Clicca per nasconderli."
-                    : "Mostra anche i lavori operativi (cantieri, pose) di questo periodo"}
+                    ? tr("Stai vedendo anche i lavori operativi. Clicca per nasconderli.")
+                    : tr("Mostra anche i lavori operativi (cantieri, pose) di questo periodo")}
                 >
                   <Clock className="h-3.5 w-3.5" />
-                  <span className="hidden xl:inline">{showOperativi ? "Operativi visibili" : "Mostra operativi"}</span>
+                  <span className="hidden xl:inline">{showOperativi ? tr("Operativi visibili") : tr("Mostra operativi")}</span>
                 </button>
               )}
             </div>
@@ -1653,7 +1649,7 @@ export default function MarketingCalendar() {
             {!hasCalendars ? (
               <>
               <p className="rounded-lg border bg-muted/30 px-3 py-2.5 text-[13px] text-muted-foreground md:hidden">
-                Il calendario si imposta da computer o tablet.
+                {tr("Il calendario si imposta da computer o tablet.")}
               </p>
               <div className="flex min-h-0 flex-1 items-center justify-center rounded-lg border bg-background p-4 sm:p-6 max-md:hidden">
                 <div className="mx-auto w-full max-w-3xl">
@@ -1662,31 +1658,31 @@ export default function MarketingCalendar() {
                       <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
                         <CalendarPlus className="h-6 w-6 text-primary" />
                       </div>
-                      <h2 className="mt-4 text-xl font-semibold tracking-tight">Configura il calendario marketing</h2>
+                      <h2 className="mt-4 text-xl font-semibold tracking-tight">{tr("Configura il calendario marketing")}</h2>
                       <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                        Crea calendari per singolo commerciale, team o evento. Ogni calendario genera un link pubblico da inviare al cliente o embeddare nel sito.
+                        {tr("Crea calendari per singolo commerciale, team o evento. Ogni calendario genera un link pubblico da inviare al cliente o embeddare nel sito.")}
                       </p>
                       <div className="mt-4 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-left text-xs text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
                         <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                        <span>Prima crea almeno un calendario attivo, poi imposta disponibilità e collegamenti Google/Apple.</span>
+                        <span>{tr("Prima crea almeno un calendario attivo, poi imposta disponibilità e collegamenti Google/Apple.")}</span>
                       </div>
                       <div className="mt-5 flex flex-wrap gap-2">
                         <Button className="gap-1.5" onClick={() => navigate(calendarSettingsPath)}>
                           <CalendarPlus className="h-4 w-4" />
-                          Crea calendario
+                          {tr("Crea calendario")}
                         </Button>
                         <Button variant="outline" className="gap-1.5" onClick={() => navigate(`${calendarSettingsPath}?tab=connections`)}>
                           <Settings className="h-4 w-4" />
-                          Collegamenti
+                          {tr("Collegamenti")}
                         </Button>
                       </div>
                     </div>
 
                     <div className="grid gap-2 text-sm">
                       {[
-                        { icon: Users, title: "Assegna al team", text: "Ogni link puo' puntare a un commerciale o reparto." },
-                        { icon: Clock, title: "Definisci disponibilità", text: "Imposta giorni e orari prima di pubblicare il link." },
-                        { icon: Link2, title: "Condividi o embedda", text: "Usa link diretto, iframe o bottone sul sito." },
+                        { icon: Users, title: tr("Assegna al team"), text: tr("Ogni link puo' puntare a un commerciale o reparto.") },
+                        { icon: Clock, title: tr("Definisci disponibilità"), text: tr("Imposta giorni e orari prima di pubblicare il link.") },
+                        { icon: Link2, title: tr("Condividi o embedda"), text: tr("Usa link diretto, iframe o bottone sul sito.") },
                       ].map((item) => (
                         <div key={item.title} className="rounded-lg border bg-muted/20 p-3">
                           <div className="flex items-center gap-2 font-medium">

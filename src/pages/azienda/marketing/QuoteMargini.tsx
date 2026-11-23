@@ -44,6 +44,7 @@ import {
   type FonteCosto,
   type MargineQuoteItem,
 } from "@/types/costVariants";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // ─── Semaforo ────────────────────────────────────────────────────────────────
 function semaforoClass(pct: number): { bg: string; text: string; label: string } {
@@ -75,6 +76,7 @@ function fonteBadge(fonte: FonteCosto) {
 function VarianteSelector({
   quoteId, riga,
 }: { quoteId: string; riga: MargineQuoteItem }) {
+  const t = useT();
   const { data: varianti = [] } = useTariffaVarianti(riga.tariffa_id);
   const { assignVariante, removeAssegnazione } = useAssegnazioniMutations();
 
@@ -84,9 +86,9 @@ function VarianteSelector({
     if (varId === "__none__") {
       try {
         await removeAssegnazione.mutateAsync({ quoteItemId: riga.quote_item_id, quoteId });
-        toast.success("Assegnazione rimossa");
+        toast.success(t("Assegnazione rimossa"));
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Errore rimozione");
+        toast.error(err instanceof Error ? err.message : t("Errore rimozione"));
       }
       return;
     }
@@ -100,16 +102,16 @@ function VarianteSelector({
         varianteId: variante.id,
         costo: variante.costo,
       });
-      toast.success(`Variante "${variante.nome}" assegnata`);
+      toast.success(t("Variante \"{nome}\" assegnata", { nome: String(variante.nome ?? "") }));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Errore assegnazione");
+      toast.error(err instanceof Error ? err.message : t("Errore assegnazione"));
     }
   };
 
   if (varianti.length === 0) {
     return (
       <span className="text-xs text-muted-foreground">
-        Nessuna variante. <Link to="/azienda/impostazioni/tariffe" className="underline">Configura</Link>
+        {t("Nessuna variante.")} <Link to="/azienda/impostazioni/tariffe" className="underline">{t("Configura")}</Link>
       </span>
     );
   }
@@ -117,16 +119,16 @@ function VarianteSelector({
   return (
     <Select value={riga.variante_scelta_id ?? "__none__"} onValueChange={handleChange}>
       <SelectTrigger className="h-8 text-xs min-w-[200px]">
-        <SelectValue placeholder="Scegli variante…" />
+        <SelectValue placeholder={t("Scegli variante…")} />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="__none__">— Nessuna (usa default) —</SelectItem>
+        <SelectItem value="__none__">{t("— Nessuna (usa default) —")}</SelectItem>
         {varianti.map((v) => (
           <SelectItem key={v.id} value={v.id}>
             <span className="mr-1">{MODALITA_CONTABILE_ICONS[v.modalita_contabile]}</span>
             <span>{v.nome}</span>
             <span className="text-muted-foreground ml-2">— {formatCurrency(v.costo)}</span>
-            {v.is_default && <Badge variant="outline" className="ml-2 text-xs">Default</Badge>}
+            {v.is_default && <Badge variant="outline" className="ml-2 text-xs">{t("Default")}</Badge>}
           </SelectItem>
         ))}
       </SelectContent>
@@ -136,6 +138,7 @@ function VarianteSelector({
 
 // ─── Main ────────────────────────────────────────────────────────────────────
 export default function QuoteMargini() {
+  const t = useT();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
@@ -176,7 +179,7 @@ export default function QuoteMargini() {
   );
 
   if (permsLoading) {
-    return <div className="p-6 text-muted-foreground">Verifica permessi…</div>;
+    return <div className="p-6 text-muted-foreground">{t("Verifica permessi…")}</div>;
   }
   if (!canView) {
     return (
@@ -184,12 +187,12 @@ export default function QuoteMargini() {
         <Card className="max-w-md mx-auto">
           <CardContent className="pt-6 space-y-3 text-center">
             <AlertTriangle className="h-10 w-10 mx-auto text-amber-500" />
-            <h2 className="text-lg font-semibold">Accesso riservato</h2>
+            <h2 className="text-lg font-semibold">{t("Accesso riservato")}</h2>
             <p className="text-sm text-muted-foreground">
-              Per vedere i margini del preventivo serve il permesso «Visualizza Margini» o «Costi»: chiedilo all'amministratore.
+              {t("Per vedere i margini del preventivo serve il permesso «Visualizza Margini» o «Costi»: chiedilo all'amministratore.")}
             </p>
             <Button onClick={() => navigate(`/azienda/marketing/preventivi/${id}`)}>
-              Torna al preventivo
+              {t("Torna al preventivo")}
             </Button>
           </CardContent>
         </Card>
@@ -218,34 +221,34 @@ export default function QuoteMargini() {
             <div>
               <h1 className="text-2xl font-bold flex items-center gap-2">
                 <TrendingUp className="h-6 w-6 text-primary" />
-                Margine &amp; Pianificazione
+                {t("Margine & Pianificazione")}
               </h1>
               <p className="text-sm text-muted-foreground">
-                Preventivo {quote?.numero ?? id.slice(0, 8)} · Cliente: {contactName}
+                {t("Preventivo")} {quote?.numero ?? id.slice(0, 8)} {t("· Cliente:")} {contactName}
               </p>
             </div>
           </div>
           <Button variant="outline" onClick={() => navigate(`/azienda/marketing/preventivi/${id}`)}>
-            Vai al preventivo
+            {t("Vai al preventivo")}
           </Button>
         </div>
 
         {/* Summary */}
-        {bdLoading && <p className="text-muted-foreground">Calcolo margine…</p>}
+        {bdLoading && <p className="text-muted-foreground">{t("Calcolo margine…")}</p>}
         {breakdown && sem && statoInfo && (
           <Card>
             <CardContent className="pt-6">
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Ricavo totale</p>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">{t("Ricavo totale")}</p>
                   <p className="text-2xl font-bold">{formatCurrency(breakdown.totale_vendita)}</p>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Costo stimato</p>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">{t("Costo stimato")}</p>
                   <p className="text-2xl font-bold">{formatCurrency(breakdown.totale_costo)}</p>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Margine</p>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">{t("Margine")}</p>
                   <p className={`text-2xl font-bold ${sem.text}`}>
                     {formatCurrency(breakdown.margine_totale_euro)}
                   </p>
@@ -254,7 +257,7 @@ export default function QuoteMargini() {
                   </span>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Completezza</p>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">{t("Completezza")}</p>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Badge variant="outline" className={`${statoInfo.class} cursor-help text-sm mt-1`}>
@@ -271,10 +274,7 @@ export default function QuoteMargini() {
                   lavoro. Non spesi, diventano utile; non messi, il preventivo
                   lavora gratis. */}
               <p className="mt-4 border-t pt-3 text-xs text-muted-foreground">
-                Nel margine devono starci gli imprevisti: serramenti 2-3%, bagni 5-8%,
-                ristrutturazioni pesanti 8-10% del prezzo — se il cantiere fila diventano utile.
-                E le voci fantasma (smaltimento, trasporto, ponteggio, ripristini, pratiche):
-                insieme valgono il 4-6%.
+                {t("Nel margine devono starci gli imprevisti: serramenti 2-3%, bagni 5-8%, ristrutturazioni pesanti 8-10% del prezzo — se il cantiere fila diventano utile. E le voci fantasma (smaltimento, trasporto, ponteggio, ripristini, pratiche): insieme valgono il 4-6%.")}
               </p>
               {/* Check dell'acconto (clausola 1): minimo 25-30%, incassato
                   prima di ordinare qualunque materiale. Se le fasi di
@@ -285,11 +285,7 @@ export default function QuoteMargini() {
                 const acconto = fasi.filter((f) => f.type === "deposit").reduce((s2, f) => s2 + (Number(f.percent) || 0), 0);
                 if (acconto >= 25) return null;
                 return (
-                  <p className="mt-2 text-xs font-medium text-orange-700">
-                    Acconto al {acconto.toLocaleString("it-IT")}%: sotto il minimo del 25-30%.
-                    L'acconto si incassa prima di ordinare qualunque materiale — il cliente che
-                    non lo dà è quasi sempre lo stesso che poi contesta il saldo.
-                  </p>
+                  <p className="mt-2 text-xs font-medium text-orange-700">{t("Acconto al {acconto}%: sotto il minimo del 25-30%. L'acconto si incassa prima di ordinare qualunque materiale — il cliente che non lo dà è quasi sempre lo stesso che poi contesta il saldo.", { acconto: acconto.toLocaleString(intlCampo()) })}</p>
                 );
               })()}
 
@@ -297,11 +293,9 @@ export default function QuoteMargini() {
                   dall'utile, non dal prezzo. Col margine attuale, il conto. */}
               {breakdown.margine_totale_pct > 0 && (
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Effetto sconto: con questo margine, un 5% di sconto al cliente brucia il{" "}
-                  <strong className={5 / breakdown.margine_totale_pct >= 0.3 ? "text-orange-700" : "text-foreground"}>
-                    {Math.round((5 / breakdown.margine_totale_pct) * 100)}% dell'utile
-                  </strong>{" "}
-                  della commessa. Lo sconto si decide coi numeri, non a sensazione.
+                  {t("Effetto sconto: con questo margine, un 5% di sconto al cliente brucia il")}{" "}
+                  <strong className={5 / breakdown.margine_totale_pct >= 0.3 ? "text-orange-700" : "text-foreground"}>{t("{valore}% dell'utile", { valore: Math.round((5 / breakdown.margine_totale_pct) * 100) })}</strong>{" "}
+                  {t("della commessa. Lo sconto si decide coi numeri, non a sensazione.")}
                 </p>
               )}
             </CardContent>
@@ -312,19 +306,19 @@ export default function QuoteMargini() {
         {breakdown && (
           <Card>
             <CardContent className="pt-4">
-              <h2 className="text-sm font-semibold mb-3">Righe preventivo — assegnazione varianti</h2>
+              <h2 className="text-sm font-semibold mb-3">{t("Righe preventivo — assegnazione varianti")}</h2>
               <div className="rounded-md border overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Voce</TableHead>
-                      <TableHead className="text-right">Qty</TableHead>
-                      <TableHead className="text-right">Prezzo vendita</TableHead>
-                      <TableHead>Variante costo</TableHead>
-                      <TableHead className="text-right">Costo unit.</TableHead>
-                      <TableHead className="text-right">Totale costo</TableHead>
-                      <TableHead className="text-right">Margine</TableHead>
-                      <TableHead>Fonte</TableHead>
+                      <TableHead>{t("Voce")}</TableHead>
+                      <TableHead className="text-right">{t("Qty")}</TableHead>
+                      <TableHead className="text-right">{t("Prezzo vendita")}</TableHead>
+                      <TableHead>{t("Variante costo")}</TableHead>
+                      <TableHead className="text-right">{t("Costo unit.")}</TableHead>
+                      <TableHead className="text-right">{t("Totale costo")}</TableHead>
+                      <TableHead className="text-right">{t("Margine")}</TableHead>
+                      <TableHead>{t("Fonte")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -373,14 +367,14 @@ export default function QuoteMargini() {
                           {formatCurrency(r.margine_euro)}
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline" className="text-xs">Prodotto/altro</Badge>
+                          <Badge variant="outline" className="text-xs">{t("Prodotto/altro")}</Badge>
                         </TableCell>
                       </TableRow>
                     ))}
                     {breakdown.righe.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={8} className="text-center py-6 text-muted-foreground">
-                          Nessuna riga nel preventivo.
+                          {t("Nessuna riga nel preventivo.")}
                         </TableCell>
                       </TableRow>
                     )}
@@ -390,14 +384,12 @@ export default function QuoteMargini() {
               {breakdown.prezzo_manuale_attivo && (
                 <p className="mt-3 flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
                   <Info className="h-3.5 w-3.5 shrink-0" />
-                  Il prezzo di questo preventivo è scritto a mano: le righe sotto restano a 0€
-                  di vendita (non caricano un prezzo dal listino). Ricavo, costo e margine qui
-                  sopra usano il prezzo reale del preventivo, non la somma delle righe.
+                  {t("Il prezzo di questo preventivo è scritto a mano: le righe sotto restano a 0€ di vendita (non caricano un prezzo dal listino). Ricavo, costo e margine qui sopra usano il prezzo reale del preventivo, non la somma delle righe.")}
                 </p>
               )}
               {breakdown.stato_completezza === "stimato" && righeAssegnabili.length > 0 && (
                 <p className="mt-3 text-xs text-amber-600">
-                  ⚠ Nessuna variante configurata per le tariffe usate. <Link to="/azienda/impostazioni/tariffe" className="underline">Configura varianti</Link> per calcoli più accurati.
+                  {t("⚠ Nessuna variante configurata per le tariffe usate.")} <Link to="/azienda/impostazioni/tariffe" className="underline">{t("Configura varianti")}</Link> {t("per calcoli più accurati.")}
                 </p>
               )}
             </CardContent>

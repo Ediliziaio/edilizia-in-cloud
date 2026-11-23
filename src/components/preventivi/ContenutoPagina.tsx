@@ -12,6 +12,7 @@ import { EditorTestata } from "@/components/preventivi/EditorTestata";
 import type { PaginaEditor } from "@/components/preventivi/pagineEditor";
 import type { SettoreBlocchi } from "../../../supabase/functions/_shared/blocchiPreventivo";
 import type { MotoreTestate } from "../../../supabase/functions/_shared/testatePagine";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type CampoFoto = (valore: string | null, onChange: (url: string | null) => void) => ReactNode;
 
@@ -32,6 +33,7 @@ interface Props {
 }
 
 export function ContenutoPagina({ pagina, motore, settore, blocchi, onBlocchi, contenuto, campoFoto, visibile, soloFoto = false }: Props) {
+  const t = useT();
   const foto = pagina.foto ? (
     <EditorFotoPagina
       chiave={pagina.foto.chiave}
@@ -50,9 +52,9 @@ export function ContenutoPagina({ pagina, motore, settore, blocchi, onBlocchi, c
         <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/30 px-3 py-2">
           <span className="flex items-center gap-1.5 text-xs font-medium">
             {visibile.valore ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />}
-            {visibile.valore ? "Esce nel preventivo" : "Spenta: nel preventivo non esce"}
+            {visibile.valore ? t("Esce nel preventivo") : t("Spenta: nel preventivo non esce")}
           </span>
-          <Switch checked={visibile.valore} onCheckedChange={visibile.onChange} aria-label={`Mostra «${pagina.voce}» nel PDF`} />
+          <Switch checked={visibile.valore} onCheckedChange={visibile.onChange} aria-label={t("Mostra «{voce}» nel PDF", { voce: t(pagina.voce) })} />
         </div>
       ) : null}
       {pagina.testata ? (

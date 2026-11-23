@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
 import { riempiCampi } from "@/lib/indirizzi/ricercaIndirizzi";
 import type { CampoIndirizzo as CampoLavori, Indirizzo } from "@/lib/preventivatore/indirizzoLavori";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   /** I lavori sono in un altro posto: si vedono i campi. */
@@ -40,11 +41,12 @@ export function IndirizzoDeiLavori({
   etichettaUguale = "Lavori allo stesso indirizzo del cliente",
   suggerimentoVuoto = "Scrivi qui sopra l'indirizzo del cliente.",
 }: Props) {
+  const t = useT();
   const id = useId();
   return (
     <div className={cn("border-t border-slate-100 pt-3 max-sm:pt-2", className)}>
       <p className="flex items-center gap-1.5 text-xs font-semibold text-slate-900">
-        <HardHat className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" /> Indirizzo dei lavori
+        <HardHat className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" /> {t("Indirizzo dei lavori")}
       </p>
       {conSpunta && (
         <label htmlFor={`${id}-uguale`} className="mt-1 flex min-h-11 cursor-pointer items-start gap-2.5 rounded-md py-2">
@@ -55,10 +57,10 @@ export function IndirizzoDeiLavori({
             className="mt-0.5"
           />
           <span className="min-w-0">
-            <span className="block text-sm text-slate-900">{etichettaUguale}</span>
+            <span className="block text-sm text-slate-900">{t(etichettaUguale)}</span>
             {!altrove && (
               <span className="block break-words text-xs text-slate-500">
-                {riassunto || suggerimentoVuoto}
+                {riassunto || t(suggerimentoVuoto)}
               </span>
             )}
           </span>
@@ -66,9 +68,9 @@ export function IndirizzoDeiLavori({
       )}
 
       {(altrove || !conSpunta) && (
-        <div role="group" aria-label="Indirizzo dei lavori" className={cn("grid grid-cols-12 gap-3 max-sm:gap-2", conSpunta ? "mt-1" : "mt-2")}>
+        <div role="group" aria-label={t("Indirizzo dei lavori")} className={cn("grid grid-cols-12 gap-3 max-sm:gap-2", conSpunta ? "mt-1" : "mt-2")}>
           <div className="col-span-12">
-            <Label htmlFor={`${id}-via`} className="text-xs">Via e numero</Label>
+            <Label htmlFor={`${id}-via`} className="text-xs">{t("Via e numero")}</Label>
             {/* La ricerca riempie anche città, CAP e provincia qui accanto. */}
             <CampoIndirizzo
               id={`${id}-via`}
@@ -80,7 +82,7 @@ export function IndirizzoDeiLavori({
             />
           </div>
           <div className="col-span-6 max-sm:col-span-5">
-            <Label htmlFor={`${id}-citta`} className="text-xs">Città</Label>
+            <Label htmlFor={`${id}-citta`} className="text-xs">{t("Città")}</Label>
             <Input
               id={`${id}-citta`}
               value={lavori.citta ?? ""}
@@ -103,7 +105,7 @@ export function IndirizzoDeiLavori({
             />
           </div>
           <div className="col-span-3 max-sm:col-span-4">
-            <Label htmlFor={`${id}-provincia`} className="text-xs">Provincia</Label>
+            <Label htmlFor={`${id}-provincia`} className="text-xs">{t("Provincia")}</Label>
             <Input
               id={`${id}-provincia`}
               value={lavori.provincia ?? ""}

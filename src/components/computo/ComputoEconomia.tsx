@@ -19,6 +19,7 @@ import { durataTotale } from "@/lib/computo/cronoprogramma";
 import { calcolaVoce, type BozzaComputo } from "@/lib/computo/editorNativo";
 import { calcolaSconto } from "@/lib/computo/scontoComputo";
 import { formatEuro } from "@/lib/computo/computoStrutturato";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // Legge l'azienda dal contesto: si carica solo dove il preventivo è agganciato a un'azienda vera.
 const ModelliPagamentoAzienda = lazy(() => import("./ComputoModelliPagamento"));
@@ -34,6 +35,7 @@ export default function ComputoEconomia({ bozza, totale, onChange, vediMargini =
   /** Il preventivo è di un'azienda vera: si offrono i suoi modelli di pagamento. */
   conModelliAzienda?: boolean;
 }) {
+  const tTesto = useT();
   const daCercare = codiciSenzaCosto(bozza.voci).length;
   const senzaCostoNeCodice = bozza.voci.filter(v => !v.opzionale && (!v.costo.trim() || Number(v.costo.replace(",", ".")) <= 0) && !v.tariffa.trim()).length;
   const [cerca, setCerca] = useState<{ stato: "fermo" | "cerca" | "fatto"; trovate?: number; errore?: string }>({ stato: "fermo" });
@@ -101,50 +103,50 @@ export default function ComputoEconomia({ bozza, totale, onChange, vediMargini =
 
   return <div className="space-y-4">
     <div className="flex flex-wrap items-end justify-between gap-3">
-      <div className="min-w-0"><h2 className="text-base font-semibold">Economia del preventivo</h2>
-        {!!bozza.capitoliEsclusiPdf.length && <p className="text-xs text-muted-foreground">L’economia riepiloga il computo completo. In testata trovi gli importi dei capitoli inclusi nel PDF.</p>}</div>
+      <div className="min-w-0"><h2 className="text-base font-semibold">{tTesto("Economia del preventivo")}</h2>
+        {!!bozza.capitoliEsclusiPdf.length && <p className="text-xs text-muted-foreground">{tTesto("L’economia riepiloga il computo completo. In testata trovi gli importi dei capitoli inclusi nel PDF.")}</p>}</div>
     </div>
     <div className="grid items-start gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 440px), 1fr))" }}>
-    <section aria-label="Riepilogo per capitolo" className="min-w-0 overflow-hidden rounded-lg border bg-white">
-      <h3 className="border-b px-3 py-2 text-sm font-semibold">Riepilogo per capitolo <span className="ml-1 text-xs font-normal text-muted-foreground">{capitoli.size} capitoli</span></h3>
+    <section aria-label={tTesto("Riepilogo per capitolo")} className="min-w-0 overflow-hidden rounded-lg border bg-white">
+      <h3 className="border-b px-3 py-2 text-sm font-semibold">{tTesto("Riepilogo per capitolo")} <span className="ml-1 text-xs font-normal text-muted-foreground">{tTesto("{size} capitoli", { size: String(capitoli.size ?? "") })}</span></h3>
       <div className="max-h-[420px] overflow-auto">
       <table className="w-full min-w-[440px] table-fixed text-xs">
         <thead className="sticky top-0 z-10"><tr className="border-b bg-slate-50 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-          <th className="px-3 py-2 font-medium">Capitolo</th><th className="w-10 px-1 py-2 text-right font-medium">Voci</th><th className="w-16 px-1 py-2 text-right font-medium">Incidenza</th><th className="w-32 px-2 py-2 text-right font-medium">Importo</th>{vediMargini && <th className="w-16 px-2 py-2 text-right font-medium">Margine</th>}
+          <th className="px-3 py-2 font-medium">{tTesto("Capitolo")}</th><th className="w-10 px-1 py-2 text-right font-medium">{tTesto("Voci")}</th><th className="w-16 px-1 py-2 text-right font-medium">{tTesto("Incidenza")}</th><th className="w-32 px-2 py-2 text-right font-medium">{tTesto("Importo")}</th>{vediMargini && <th className="w-16 px-2 py-2 text-right font-medium">{tTesto("Margine")}</th>}
         </tr></thead>
         <tbody>{[...capitoli].map(([nome, c]) => {
           const perc = totale > 0 ? c.importo / totale * 100 : 0;
           return <tr key={nome} className="border-b last:border-0">
-            <td className="px-3 py-2"><span className="line-clamp-2" title={nome}>{nome}</span>{!!c.daCompletare && <span className="text-[11px] text-amber-800">{c.daCompletare} da completare</span>}</td>
+            <td className="px-3 py-2"><span className="line-clamp-2" title={nome}>{nome}</span>{!!c.daCompletare && <span className="text-[11px] text-amber-800">{tTesto("{daCompletare} da completare", { daCompletare: String(c.daCompletare ?? "") })}</span>}</td>
             <td className="px-2 py-2 text-right tabular-nums">{c.voci}</td>
-            <td className="px-1 py-2 text-right tabular-nums text-muted-foreground">{perc.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%</td>
+            <td className="px-1 py-2 text-right tabular-nums text-muted-foreground">{perc.toLocaleString(intlCampo(), { maximumFractionDigits: 1 })}%</td>
             <td className="px-3 py-2 text-right font-medium tabular-nums">{formatEuro(c.importo)} €</td>
             {vediMargini && (() => { const m = analisi.perCapitolo.get(nome); const p = m && m.costo > 0 && m.ricavo > 0 ? (m.ricavo - m.costo) / m.ricavo * 100 : null;
-              return <td className={`px-3 py-2 text-right text-xs tabular-nums ${p == null ? "text-muted-foreground" : p < 10 ? "text-red-700" : p < 20 ? "text-amber-700" : "text-emerald-700"}`}>{p == null ? "senza costo" : `${p.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%`}</td>; })()}
+              return <td className={`px-3 py-2 text-right text-xs tabular-nums ${p == null ? "text-muted-foreground" : p < 10 ? "text-red-700" : p < 20 ? "text-amber-700" : "text-emerald-700"}`}>{p == null ? tTesto("senza costo") : `${p.toLocaleString(intlCampo(), { maximumFractionDigits: 1 })}%`}</td>; })()}
           </tr>;
         })}</tbody>
-        <tfoot><tr className="border-t bg-slate-50 font-semibold"><td className="px-3 py-2" colSpan={3}>Totale dei lavori{sicurezza > 0 && <span className="ml-2 text-xs font-normal text-muted-foreground">di cui oneri della sicurezza {formatEuro(sicurezza)} €</span>}</td><td className="px-3 py-2 text-right tabular-nums">{formatEuro(totale)} €</td>{vediMargini && <td />}</tr></tfoot>
+        <tfoot><tr className="border-t bg-slate-50 font-semibold"><td className="px-3 py-2" colSpan={3}>{tTesto("Totale dei lavori")}{sicurezza > 0 && <span className="ml-2 text-xs font-normal text-muted-foreground">{tTesto("di cui oneri della sicurezza {sicurezza} €", { sicurezza: formatEuro(sicurezza) })}</span>}</td><td className="px-3 py-2 text-right tabular-nums">{formatEuro(totale)} €</td>{vediMargini && <td />}</tr></tfoot>
       </table>
       </div>
     </section>
     <div className="min-w-0 space-y-3">
-    <section aria-label="Sconto" className="space-y-3 rounded-lg border bg-white p-3">
-      <h3 className="text-sm font-semibold">Sconto</h3>
+    <section aria-label={tTesto("Sconto")} className="space-y-3 rounded-lg border bg-white p-3">
+      <h3 className="text-sm font-semibold">{tTesto("Sconto")}</h3>
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1"><Label htmlFor="sconto-tipo" className="text-xs">Tipo di sconto</Label>
+        <div className="space-y-1"><Label htmlFor="sconto-tipo" className="text-xs">{tTesto("Tipo di sconto")}</Label>
           <Select value={s.tipo} onValueChange={tipo => cambiaSconto({ tipo: tipo as BozzaComputo["sconto"]["tipo"] })}>
             <SelectTrigger id="sconto-tipo" className="h-9"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="nessuno">Nessuno sconto</SelectItem><SelectItem value="percentuale">In percentuale</SelectItem><SelectItem value="importo">In euro</SelectItem></SelectContent>
+            <SelectContent><SelectItem value="nessuno">{tTesto("Nessuno sconto")}</SelectItem><SelectItem value="percentuale">{tTesto("In percentuale")}</SelectItem><SelectItem value="importo">{tTesto("In euro")}</SelectItem></SelectContent>
           </Select></div>
         {s.tipo !== "nessuno" && <>
-          <div className="space-y-1"><Label htmlFor="sconto-valore" className="text-xs">{s.tipo === "percentuale" ? "Percentuale" : "Importo in euro"}</Label>
-            <Input id="sconto-valore" className="h-9 tabular-nums" inputMode="decimal" maxLength={40} placeholder={s.tipo === "percentuale" ? "Es. 5" : "Es. 1.500"} value={s.valore} aria-invalid={!!sconto.errore} onChange={e => cambiaSconto({ valore: e.target.value })} /></div>
-          <div className="space-y-1 sm:col-span-2"><Label htmlFor="sconto-descrizione" className="text-xs">Come si legge nel PDF</Label>
-            <Input id="sconto-descrizione" className="h-9" maxLength={120} placeholder="Sconto" value={s.descrizione} onChange={e => cambiaSconto({ descrizione: e.target.value })} /></div>
+          <div className="space-y-1"><Label htmlFor="sconto-valore" className="text-xs">{s.tipo === "percentuale" ? tTesto("Percentuale") : tTesto("Importo in euro")}</Label>
+            <Input id="sconto-valore" className="h-9 tabular-nums" inputMode="decimal" maxLength={40} placeholder={s.tipo === "percentuale" ? tTesto("Es. 5") : tTesto("Es. 1.500")} value={s.valore} aria-invalid={!!sconto.errore} onChange={e => cambiaSconto({ valore: e.target.value })} /></div>
+          <div className="space-y-1 sm:col-span-2"><Label htmlFor="sconto-descrizione" className="text-xs">{tTesto("Come si legge nel PDF")}</Label>
+            <Input id="sconto-descrizione" className="h-9" maxLength={120} placeholder={tTesto("Sconto")} value={s.descrizione} onChange={e => cambiaSconto({ descrizione: e.target.value })} /></div>
         </>}
       </div>
       {sconto.errore && <p role="alert" className="text-sm text-amber-800">{sconto.errore}</p>}
-      {sconto.importo > 0 && <p className="text-xs text-muted-foreground">{sicurezza > 0 && <>Calcolato su {formatEuro(totale - sicurezza)} €: gli oneri della sicurezza ({formatEuro(sicurezza)} €) non sono soggetti a ribasso. </>}{sconto.etichetta}: -{formatEuro(sconto.importo)} €{sconto.percentuale != null && s.tipo === "importo" ? `, pari al ${sconto.percentuale.toLocaleString("it-IT")}% dei lavori` : ""}.</p>}
+      {sconto.importo > 0 && <p className="text-xs text-muted-foreground">{sicurezza > 0 && <>{tTesto("Calcolato su {valore} €: gli oneri della sicurezza ({sicurezza} €) non sono soggetti a ribasso.", { valore: formatEuro(totale - sicurezza), sicurezza: formatEuro(sicurezza) })}{" "}</>}{sconto.etichetta}: -{formatEuro(sconto.importo)} €{sconto.percentuale != null && s.tipo === "importo" ? tTesto(", pari al {percentuale}% dei lavori", { percentuale: sconto.percentuale.toLocaleString(intlCampo()) }) : ""}.</p>}
     </section>
 
     <ComputoIva compatto value={bozza} imponibile={netto} onChange={patch => onChange(patch)}
@@ -152,126 +154,126 @@ export default function ComputoEconomia({ bozza, totale, onChange, vediMargini =
     </div>
     </div>
 
-    <section aria-label="Piano dei pagamenti" className="space-y-3 rounded-lg border bg-white p-3">
+    <section aria-label={tTesto("Piano dei pagamenti")} className="space-y-3 rounded-lg border bg-white p-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div><h3 className="text-sm font-semibold">Piano dei pagamenti</h3>
+        <div><h3 className="text-sm font-semibold">{tTesto("Piano dei pagamenti")}</h3>
           <p className="text-xs text-muted-foreground">{analisi.totaleCliente == null
-            ? "Le percentuali sono sul totale che paga il cliente: decidi l'IVA nel riquadro sopra per vedere gli importi."
-            : `Acconto, SAL e saldo sul totale che paga il cliente${ivaRate != null ? `, IVA al ${ivaRate.toLocaleString("it-IT")}% inclusa` : ""}. Esce nel PDF con gli importi.`}</p></div>
+            ? tTesto("Le percentuali sono sul totale che paga il cliente: decidi l'IVA nel riquadro sopra per vedere gli importi.")
+            : `Acconto, SAL e saldo sul totale che paga il cliente${ivaRate != null ? `, IVA al ${ivaRate.toLocaleString(intlCampo())}% inclusa` : ""}. Esce nel PDF con gli importi.`}</p></div>
         <div className="flex flex-wrap gap-1.5">{piani.map(piano => <Button key={piano.nome} type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={() => applicaPiano(piano)}>{piano.nome}</Button>)}</div>
       </div>
       {conModelliAzienda && <Suspense fallback={null}><ModelliPagamentoAzienda onScegli={(nome, rateModello) => applicaPiano({ nome, rate: () => rateModello })} /></Suspense>}
       {presetDaConfermare && <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-xs text-amber-950">
-        <span>«{presetDaConfermare.nome}» sostituisce {rate.length === 1 ? "la rata che hai scritto" : `le ${rate.length} rate che hai scritto`}.</span>
+        <span>«{presetDaConfermare.nome}{tTesto("» sostituisce")} {rate.length === 1 ? tTesto("la rata che hai scritto") : tTesto("le {n} rate che hai scritto", { n: rate.length })}.</span>
         <span className="flex gap-2">
-          <Button type="button" size="sm" variant="outline" className="h-7" onClick={() => setPresetDaConfermare(null)}>Annulla</Button>
-          <Button type="button" size="sm" className="h-7" onClick={() => { const nuove = presetDaConfermare.rate; setPresetDaConfermare(null); cambiaRate(nuove); }}>Sostituisci</Button>
+          <Button type="button" size="sm" variant="outline" className="h-7" onClick={() => setPresetDaConfermare(null)}>{tTesto("Annulla")}</Button>
+          <Button type="button" size="sm" className="h-7" onClick={() => { const nuove = presetDaConfermare.rate; setPresetDaConfermare(null); cambiaRate(nuove); }}>{tTesto("Sostituisci")}</Button>
         </span>
       </div>}
       {!!rate.length && <div className="lg:overflow-x-auto"><table role="table" className="w-full text-sm max-lg:block lg:min-w-[760px]">
-        <thead className="max-lg:hidden"><tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground"><th className="min-w-[10rem] py-1 pr-2 font-medium">Rata</th><th className="w-28 py-1 pr-2 font-medium">%</th><th className="w-72 py-1 pr-2 font-medium">Quando</th><th className="w-40 py-1 pr-2 font-medium">Pagata entro</th><th className="w-28 py-1 text-right font-medium">Importo</th>{conRitenuta && <th className="w-28 py-1 text-right font-medium">Netto incassato</th>}<th className="w-8" /></tr></thead>
+        <thead className="max-lg:hidden"><tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground"><th className="min-w-[10rem] py-1 pr-2 font-medium">{tTesto("Rata")}</th><th className="w-28 py-1 pr-2 font-medium">%</th><th className="w-72 py-1 pr-2 font-medium">{tTesto("Quando")}</th><th className="w-40 py-1 pr-2 font-medium">{tTesto("Pagata entro")}</th><th className="w-28 py-1 text-right font-medium">{tTesto("Importo")}</th>{conRitenuta && <th className="w-28 py-1 text-right font-medium">{tTesto("Netto incassato")}</th>}<th className="w-8" /></tr></thead>
         <tbody className="max-lg:block max-lg:space-y-2">{analisi.rate.map(({ rata: r, importo, trattenuta }, k) => { const aMisura = r.base === "avanzamento"; return <tr key={r.id} className="align-top max-lg:grid max-lg:grid-cols-2 max-lg:gap-2 max-lg:rounded-lg max-lg:border max-lg:bg-slate-50/70 max-lg:p-2.5 lg:border-t">
           <td className="min-w-0 max-lg:col-span-full lg:py-1.5 lg:pr-2">
-            <span aria-hidden="true" className="mb-1 block text-xs font-medium lg:hidden">Rata {k + 1}</span>
-            <Input aria-label={`Nome della rata ${k + 1}`} className="h-10 text-base lg:h-8 lg:text-sm" maxLength={200} value={r.descrizione} onChange={e => cambiaRata(r.id, { descrizione: e.target.value })} />
+            <span aria-hidden="true" className="mb-1 block text-xs font-medium lg:hidden">{tTesto("Rata {k}", { k: k + 1 })}</span>
+            <Input aria-label={tTesto("Nome della rata {k}", { k: k + 1 })} className="h-10 text-base lg:h-8 lg:text-sm" maxLength={200} value={r.descrizione} onChange={e => cambiaRata(r.id, { descrizione: e.target.value })} />
           </td>
-          <td className="min-w-0 lg:py-1.5 lg:pr-2"><span aria-hidden="true" className="mb-1 block text-xs font-medium lg:hidden">Percentuale</span><div className="flex min-h-10 items-center gap-1 lg:min-h-8">
+          <td className="min-w-0 lg:py-1.5 lg:pr-2"><span aria-hidden="true" className="mb-1 block text-xs font-medium lg:hidden">{tTesto("Percentuale")}</span><div className="flex min-h-10 items-center gap-1 lg:min-h-8">
             {aMisura
-              ? <span className="rounded bg-slate-100 px-1.5 py-1 text-[11px] text-slate-700">a misura</span>
-              : <Input aria-label={`Percentuale della rata ${k + 1}`} className="h-10 min-w-0 text-base tabular-nums lg:h-8 lg:text-sm" inputMode="decimal" maxLength={20} value={r.percentuale} onChange={e => cambiaRata(r.id, { percentuale: e.target.value })} />}
+              ? <span className="rounded bg-slate-100 px-1.5 py-1 text-[11px] text-slate-700">{tTesto("a misura")}</span>
+              : <Input aria-label={tTesto("Percentuale della rata {k}", { k: k + 1 })} className="h-10 min-w-0 text-base tabular-nums lg:h-8 lg:text-sm" inputMode="decimal" maxLength={20} value={r.percentuale} onChange={e => cambiaRata(r.id, { percentuale: e.target.value })} />}
             {MOMENTI_SAL.includes(r.evento) && <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0"
-              title={aMisura ? "Dai a questa rata una percentuale fissa" : "L'importo lo dirà il SAL: si paga quello che è stato fatto"}
-              aria-label={aMisura ? `Dai una percentuale fissa alla rata ${k + 1}` : `Paga a misura la rata ${k + 1}`}
+              title={aMisura ? tTesto("Dai a questa rata una percentuale fissa") : tTesto("L'importo lo dirà il SAL: si paga quello che è stato fatto")}
+              aria-label={aMisura ? tTesto("Dai una percentuale fissa alla rata {k}", { k: k + 1 }) : tTesto("Paga a misura la rata {k}", { k: k + 1 })}
               onClick={() => cambiaRata(r.id, aMisura ? { base: "percentuale" } : { base: "avanzamento", percentuale: "" })}><Ruler className={`h-3.5 w-3.5 ${aMisura ? "text-orange-600" : "text-slate-400"}`} /></Button>}
           </div></td>
-          <td className="min-w-0 max-lg:col-span-full lg:py-1.5 lg:pr-2"><span aria-hidden="true" className="mb-1 block text-xs font-medium lg:hidden">Quando</span><div className="flex flex-wrap gap-1.5">
+          <td className="min-w-0 max-lg:col-span-full lg:py-1.5 lg:pr-2"><span aria-hidden="true" className="mb-1 block text-xs font-medium lg:hidden">{tTesto("Quando")}</span><div className="flex flex-wrap gap-1.5">
             <Select value={r.evento} onValueChange={evento => cambiaRata(r.id, { evento: evento as MomentoRata })}>
-              <SelectTrigger aria-label={`Quando si paga la rata ${k + 1}`} className="h-10 min-w-0 flex-1 text-sm lg:h-8 lg:text-xs"><SelectValue /></SelectTrigger>
+              <SelectTrigger aria-label={tTesto("Quando si paga la rata {k}", { k: k + 1 })} className="h-10 min-w-0 flex-1 text-sm lg:h-8 lg:text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>{(Object.keys(MOMENTI_RATA) as MomentoRata[]).map(m => <SelectItem key={m} value={m}>{MOMENTI_RATA[m]}</SelectItem>)}</SelectContent>
             </Select>
-            {r.evento === "sal_numero" && <Input aria-label={`Numero del SAL della rata ${k + 1}`} title="Quale stato avanzamento lavori" className="h-8 w-14 tabular-nums" inputMode="numeric" placeholder="n°"
+            {r.evento === "sal_numero" && <Input aria-label={tTesto("Numero del SAL della rata {k}", { k: k + 1 })} title={tTesto("Quale stato avanzamento lavori")} className="h-8 w-14 tabular-nums" inputMode="numeric" placeholder="n°"
               value={r.numero == null ? "" : String(r.numero)} onChange={e => { const n = Number.parseInt(e.target.value, 10); cambiaRata(r.id, { numero: Number.isFinite(n) && n > 0 ? Math.min(60, n) : null }); }} />}
-            {r.evento === "sal_percentuale" && <Input aria-label={`Percentuale di avanzamento della rata ${k + 1}`} title="A che punto dei lavori" className="h-8 w-16 tabular-nums" inputMode="decimal" placeholder="%"
+            {r.evento === "sal_percentuale" && <Input aria-label={tTesto("Percentuale di avanzamento della rata {k}", { k: k + 1 })} title={tTesto("A che punto dei lavori")} className="h-8 w-16 tabular-nums" inputMode="decimal" placeholder="%"
               value={r.soglia == null ? "" : String(r.soglia).replace(".", ",")} onChange={e => { const n = Number(e.target.value.replace(",", ".")); cambiaRata(r.id, { soglia: Number.isFinite(n) && n > 0 ? Math.min(100, n) : null }); }} />}
             {r.evento === "fase_completata" && <Select value={r.fasi[0] ?? ""} onValueChange={nome => cambiaRata(r.id, { fasi: nome ? [nome] : [] })}>
-              <SelectTrigger aria-label={`Fase della rata ${k + 1}`} className="h-10 w-full text-sm lg:h-8 lg:w-40 lg:text-xs"><SelectValue placeholder="Quale fase" /></SelectTrigger>
+              <SelectTrigger aria-label={tTesto("Fase della rata {k}", { k: k + 1 })} className="h-10 w-full text-sm lg:h-8 lg:w-40 lg:text-xs"><SelectValue placeholder={tTesto("Quale fase")} /></SelectTrigger>
               <SelectContent>{nomiFase.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}</SelectContent>
             </Select>}
           </div></td>
-          <td className="min-w-0 max-lg:col-start-2 max-lg:row-start-2 lg:py-1.5 lg:pr-2"><span aria-hidden="true" className="mb-1 block text-xs font-medium lg:hidden">Pagata entro</span><Select value={`${r.termineGiorni}|${r.termineFineMese}`} onValueChange={v => { const [g, fm] = v.split("|"); cambiaRata(r.id, { termineGiorni: Number(g), termineFineMese: fm === "true" }); }}>
-            <SelectTrigger aria-label={`Termine di pagamento della rata ${k + 1}`} className="h-10 text-sm lg:h-8 lg:text-xs"><SelectValue /></SelectTrigger>
+          <td className="min-w-0 max-lg:col-start-2 max-lg:row-start-2 lg:py-1.5 lg:pr-2"><span aria-hidden="true" className="mb-1 block text-xs font-medium lg:hidden">{tTesto("Pagata entro")}</span><Select value={`${r.termineGiorni}|${r.termineFineMese}`} onValueChange={v => { const [g, fm] = v.split("|"); cambiaRata(r.id, { termineGiorni: Number(g), termineFineMese: fm === "true" }); }}>
+            <SelectTrigger aria-label={tTesto("Termine di pagamento della rata {k}", { k: k + 1 })} className="h-10 text-sm lg:h-8 lg:text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>{TERMINI_RATA.map(t => <SelectItem key={`${t.giorni}|${t.fineMese}`} value={`${t.giorni}|${t.fineMese}`}>{testoTermine(t.giorni, t.fineMese)}</SelectItem>)}</SelectContent>
           </Select></td>
-          <td className="self-center font-medium tabular-nums lg:py-1.5 lg:text-right"><span className="block text-xs font-normal text-muted-foreground lg:hidden">Importo</span>{importo == null ? <span className="text-xs font-normal text-muted-foreground">{aMisura ? "dal SAL" : "dipende dall'IVA"}</span> : `${formatEuro(importo)} €`}</td>
-          {conRitenuta && <td className="self-center tabular-nums lg:py-1.5 lg:text-right"><span className="block text-xs text-muted-foreground lg:hidden">Netto</span>{importo == null ? "—" : `${formatEuro(importo - trattenuta)} €`}</td>}
-          <td className="max-lg:col-start-2 max-lg:justify-self-end lg:py-1.5 lg:pl-1"><Button variant="ghost" size="icon" className="h-10 w-10 lg:h-8 lg:w-8" aria-label={`Togli la rata ${k + 1}`} onClick={() => cambiaRate(rate.filter(x => x.id !== r.id))}><Trash2 className="h-4 w-4" /></Button></td>
+          <td className="self-center font-medium tabular-nums lg:py-1.5 lg:text-right"><span className="block text-xs font-normal text-muted-foreground lg:hidden">{tTesto("Importo")}</span>{importo == null ? <span className="text-xs font-normal text-muted-foreground">{aMisura ? tTesto("dal SAL") : tTesto("dipende dall'IVA")}</span> : `${formatEuro(importo)} €`}</td>
+          {conRitenuta && <td className="self-center tabular-nums lg:py-1.5 lg:text-right"><span className="block text-xs text-muted-foreground lg:hidden">{tTesto("Netto")}</span>{importo == null ? "—" : `${formatEuro(importo - trattenuta)} €`}</td>}
+          <td className="max-lg:col-start-2 max-lg:justify-self-end lg:py-1.5 lg:pl-1"><Button variant="ghost" size="icon" className="h-10 w-10 lg:h-8 lg:w-8" aria-label={tTesto("Togli la rata {k}", { k: k + 1 })} onClick={() => cambiaRate(rate.filter(x => x.id !== r.id))}><Trash2 className="h-4 w-4" /></Button></td>
         </tr>; })}</tbody>
-        <tfoot className="max-lg:mt-2 max-lg:block"><tr className="border-t text-sm max-lg:grid max-lg:grid-cols-2 max-lg:gap-x-2"><td className="py-1.5 font-medium">Totale</td><td className={`py-1.5 tabular-nums max-lg:text-right ${analisi.errorePiano ? "text-amber-700" : ""}`}>{analisi.sommaPercentuali.toLocaleString("it-IT")}%</td><td colSpan={2} className="py-1.5 text-xs text-muted-foreground empty:max-lg:hidden max-lg:col-span-full">{analisi.quotaAMisura > 0 && analisi.rate.some(r => r.rata.base === "avanzamento") ? `più il ${analisi.quotaAMisura.toLocaleString("it-IT")}% che si paga a misura, sull'avanzamento` : ""}</td><td className="py-1.5 font-semibold tabular-nums lg:text-right">{formatEuro(analisi.rate.reduce((t, r) => t + (r.importo ?? 0), 0))} €</td>{conRitenuta && <td className="py-1.5 text-right font-semibold tabular-nums"><span className="text-xs font-normal text-muted-foreground lg:hidden">Netto </span>{formatEuro(analisi.rate.reduce((t, r) => t + ((r.importo ?? 0) - r.trattenuta), 0))} €</td>}<td className="max-lg:hidden" /></tr></tfoot>
+        <tfoot className="max-lg:mt-2 max-lg:block"><tr className="border-t text-sm max-lg:grid max-lg:grid-cols-2 max-lg:gap-x-2"><td className="py-1.5 font-medium">{tTesto("Totale")}</td><td className={`py-1.5 tabular-nums max-lg:text-right ${analisi.errorePiano ? "text-amber-700" : ""}`}>{analisi.sommaPercentuali.toLocaleString(intlCampo())}%</td><td colSpan={2} className="py-1.5 text-xs text-muted-foreground empty:max-lg:hidden max-lg:col-span-full">{analisi.quotaAMisura > 0 && analisi.rate.some(r => r.rata.base === "avanzamento") ? tTesto("più il {quotaAMisura}% che si paga a misura, sull'avanzamento", { quotaAMisura: analisi.quotaAMisura.toLocaleString(intlCampo()) }) : ""}</td><td className="py-1.5 font-semibold tabular-nums lg:text-right">{formatEuro(analisi.rate.reduce((t, r) => t + (r.importo ?? 0), 0))} €</td>{conRitenuta && <td className="py-1.5 text-right font-semibold tabular-nums"><span className="text-xs font-normal text-muted-foreground lg:hidden">{tTesto("Netto")} </span>{formatEuro(analisi.rate.reduce((t, r) => t + ((r.importo ?? 0) - r.trattenuta), 0))} €</td>}<td className="max-lg:hidden" /></tr></tfoot>
       </table></div>}
       {analisi.errorePiano && <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-amber-800">
         <span>{analisi.errorePiano}</span>
-        {percentualiLeggibili && <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={riportaA100}>Riporta le rate a 100%</Button>}
+        {percentualiLeggibili && <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={riportaA100}>{tTesto("Riporta le rate a 100%")}</Button>}
       </div>}
       <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" size="sm" variant="outline" disabled={rate.length >= 24} onClick={() => cambiaRate([...rate, rataVuota(`Rata ${rate.length + 1}`)])}><Plus className="mr-1 h-4 w-4" />Aggiungi rata</Button>
-        {!!rate.length && rate.some(r => MOMENTI_SAL.includes(r.evento)) && !durata && <span className="text-xs text-muted-foreground">I SAL si collocano nel tempo col cronoprogramma{onCronoprogramma && <> · <button type="button" className="underline" onClick={onCronoprogramma}>crealo</button></>}.</span>}
+        <Button type="button" size="sm" variant="outline" disabled={rate.length >= 24} onClick={() => cambiaRate([...rate, rataVuota(`Rata ${rate.length + 1}`)])}><Plus className="mr-1 h-4 w-4" />{tTesto("Aggiungi rata")}</Button>
+        {!!rate.length && rate.some(r => MOMENTI_SAL.includes(r.evento)) && !durata && <span className="text-xs text-muted-foreground">{tTesto("I SAL si collocano nel tempo col cronoprogramma")}{onCronoprogramma && <> · <button type="button" className="underline" onClick={onCronoprogramma}>{tTesto("crealo")}</button></>}.</span>}
       </div>
 
       {/* La ritenuta a garanzia non è una rata: è una trattenuta su ogni pagamento, che torna allo svincolo (11/11/2026). */}
       <div className="space-y-2 rounded-md border border-dashed p-2">
         <div className="flex flex-wrap items-end gap-2">
-          <div className="w-28 space-y-1"><Label htmlFor="ritenuta-perc" className="text-xs">Ritenuta a garanzia</Label>
-            <Input id="ritenuta-perc" className="h-8 tabular-nums" inputMode="decimal" maxLength={10} placeholder="Es. 5" value={ritenuta.percentuale}
+          <div className="w-28 space-y-1"><Label htmlFor="ritenuta-perc" className="text-xs">{tTesto("Ritenuta a garanzia")}</Label>
+            <Input id="ritenuta-perc" className="h-8 tabular-nums" inputMode="decimal" maxLength={10} placeholder={tTesto("Es. 5")} value={ritenuta.percentuale}
               onChange={e => cambiaRitenuta({ percentuale: e.target.value })} /></div>
           {conRitenuta && <>
-            <div className="w-40 space-y-1"><Label htmlFor="ritenuta-su" className="text-xs">Su quali pagamenti</Label>
+            <div className="w-40 space-y-1"><Label htmlFor="ritenuta-su" className="text-xs">{tTesto("Su quali pagamenti")}</Label>
               <Select value={ritenuta.su} onValueChange={su => cambiaRitenuta({ su: su as typeof ritenuta.su })}>
                 <SelectTrigger id="ritenuta-su" className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="sal">Solo sui SAL</SelectItem><SelectItem value="tutte">Su tutte le rate</SelectItem></SelectContent>
+                <SelectContent><SelectItem value="sal">{tTesto("Solo sui SAL")}</SelectItem><SelectItem value="tutte">{tTesto("Su tutte le rate")}</SelectItem></SelectContent>
               </Select></div>
-            <div className="w-44 space-y-1"><Label htmlFor="ritenuta-svincolo" className="text-xs">Si svincola</Label>
+            <div className="w-44 space-y-1"><Label htmlFor="ritenuta-svincolo" className="text-xs">{tTesto("Si svincola")}</Label>
               <Select value={ritenuta.svincolo} onValueChange={sv => cambiaRitenuta({ svincolo: sv as typeof ritenuta.svincolo })}>
                 <SelectTrigger id="ritenuta-svincolo" className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="collaudo">Al collaudo</SelectItem><SelectItem value="mesi">Dopo la fine lavori</SelectItem></SelectContent>
+                <SelectContent><SelectItem value="collaudo">{tTesto("Al collaudo")}</SelectItem><SelectItem value="mesi">{tTesto("Dopo la fine lavori")}</SelectItem></SelectContent>
               </Select></div>
-            {ritenuta.svincolo === "mesi" && <div className="w-24 space-y-1"><Label htmlFor="ritenuta-mesi" className="text-xs">Dopo (mesi)</Label>
+            {ritenuta.svincolo === "mesi" && <div className="w-24 space-y-1"><Label htmlFor="ritenuta-mesi" className="text-xs">{tTesto("Dopo (mesi)")}</Label>
               <Input id="ritenuta-mesi" className="h-8 tabular-nums" inputMode="numeric" value={String(ritenuta.mesi)}
                 onChange={e => { const n = Number.parseInt(e.target.value, 10); cambiaRitenuta({ mesi: Number.isFinite(n) && n >= 0 ? Math.min(60, n) : 0 }); }} /></div>}
           </>}
         </div>
         <p className="text-xs text-muted-foreground">{analisi.ritenuta
           ? `Restano fermi ${formatEuro(analisi.ritenuta.totale)} €, che tornano ${ritenuta.svincolo === "collaudo" ? "al collaudo" : `${ritenuta.mesi} mesi dopo la fine dei lavori`}. Si calcola sull'imponibile, non sull'IVA.`
-          : "In percentuale (di solito il 5%): si trattiene su ogni pagamento e torna allo svincolo. Vuoto = nessuna ritenuta."}</p>
+          : tTesto("In percentuale (di solito il 5%): si trattiene su ogni pagamento e torna allo svincolo. Vuoto = nessuna ritenuta.")}</p>
       </div>
 
-      <div className="space-y-1"><Label htmlFor="native-pagamenti" className="text-xs">Altre condizioni di pagamento</Label>
-        <Textarea id="native-pagamenti" rows={2} maxLength={3000} placeholder="Es. bonifico sul conto indicato in fattura" value={bozza.pagamenti} onChange={e => onChange({ pagamenti: e.target.value })} /></div>
+      <div className="space-y-1"><Label htmlFor="native-pagamenti" className="text-xs">{tTesto("Altre condizioni di pagamento")}</Label>
+        <Textarea id="native-pagamenti" rows={2} maxLength={3000} placeholder={tTesto("Es. bonifico sul conto indicato in fattura")} value={bozza.pagamenti} onChange={e => onChange({ pagamenti: e.target.value })} /></div>
     </section>
 
-    {vediMargini && <section aria-label="Margini e cassa" className="space-y-3 rounded-lg border border-slate-300 bg-slate-50/60 p-3">
-      <div className="flex items-center justify-between gap-2"><h3 className="flex items-center gap-1.5 text-sm font-semibold"><TrendingUp className="h-4 w-4 text-slate-500" />Margini e cassa</h3>
-        <span className="text-[11px] text-muted-foreground">Solo per chi vede costi e margini · mai nel PDF</span></div>
+    {vediMargini && <section aria-label={tTesto("Margini e cassa")} className="space-y-3 rounded-lg border border-slate-300 bg-slate-50/60 p-3">
+      <div className="flex items-center justify-between gap-2"><h3 className="flex items-center gap-1.5 text-sm font-semibold"><TrendingUp className="h-4 w-4 text-slate-500" />{tTesto("Margini e cassa")}</h3>
+        <span className="text-[11px] text-muted-foreground">{tTesto("Solo per chi vede costi e margini · mai nel PDF")}</span></div>
       {onCostiDalListino && (daCercare > 0 || cerca.stato === "fatto") && <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-white px-2 py-1.5 text-xs">
         <span className="text-muted-foreground">
           {cerca.stato === "fatto"
-            ? cerca.errore ?? (cerca.trovate ? `${cerca.trovate === 1 ? "1 voce ha preso" : `${cerca.trovate} voci hanno preso`} il costo dal listino.` : "Nessun codice delle voci senza costo è nel listino aziendale.")
+            ? cerca.errore ?? (cerca.trovate ? `${cerca.trovate === 1 ? "1 voce ha preso" : `${cerca.trovate} voci hanno preso`} il costo dal listino.` : tTesto("Nessun codice delle voci senza costo è nel listino aziendale."))
             : `${daCercare === 1 ? "1 codice" : `${daCercare} codici`} senza costo: il listino aziendale può averlo.`}
           {senzaCostoNeCodice > 0 && ` ${senzaCostoNeCodice === 1 ? "1 voce" : `${senzaCostoNeCodice} voci`} senza costo né codice: il costo va scritto a mano.`}
         </span>
         {daCercare > 0 && <Button type="button" size="sm" variant="outline" className="h-7" disabled={cerca.stato === "cerca"} onClick={cercaCosti}>
-          <Search className="mr-1 h-3.5 w-3.5" />{cerca.stato === "cerca" ? "Cerco…" : "Prendi i costi dal listino"}
+          <Search className="mr-1 h-3.5 w-3.5" />{cerca.stato === "cerca" ? tTesto("Cerco…") : tTesto("Prendi i costi dal listino")}
         </Button>}
       </div>}
       {analisi.costo <= 0
-        ? <p className="text-sm text-muted-foreground">Scrivi il costo stimato delle voci (si apre la voce nel passo Computo, campo «Costo unitario stimato») per vedere margini, cassa e rischi.</p>
+        ? <p className="text-sm text-muted-foreground">{tTesto("Scrivi il costo stimato delle voci (si apre la voce nel passo Computo, campo «Costo unitario stimato») per vedere margini, cassa e rischi.")}</p>
         : <>
           <dl className="grid gap-2 sm:grid-cols-4">
-            {([["Costo stimato", `${formatEuro(analisi.costo)} €`], ["Margine", `${formatEuro(analisi.margine)} €`], ["Margine %", analisi.marginePerc == null ? "—" : `${analisi.marginePerc.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%`],
+            {([["Costo stimato", `${formatEuro(analisi.costo)} €`], ["Margine", `${formatEuro(analisi.margine)} €`], ["Margine %", analisi.marginePerc == null ? "—" : `${analisi.marginePerc.toLocaleString(intlCampo(), { maximumFractionDigits: 1 })}%`],
               ["Esposizione massima", analisi.cassa ? (analisi.esposizioneMassima < 0 ? `${formatEuro(-analisi.esposizioneMassima)} €` : "Nessuna") : "—"]] as const).map(([k, val]) =>
               <div key={k} className="rounded-md border bg-white p-2"><dt className="text-[11px] text-muted-foreground">{k}</dt><dd className="font-semibold tabular-nums">{val}</dd></div>)}
           </dl>
           {analisi.cassa && <GraficoCassa punti={analisi.cassa} />}
-          {!analisi.cassa && <p className="text-xs text-muted-foreground">Per il flusso di cassa servono il cronoprogramma{onCronoprogramma && <> (<button type="button" className="underline" onClick={onCronoprogramma}>passo Documento</button>)</>} e un piano dei pagamenti che fa 100%.</p>}
+          {!analisi.cassa && <p className="text-xs text-muted-foreground">{tTesto("Per il flusso di cassa servono il cronoprogramma")}{onCronoprogramma && <> (<button type="button" className="underline" onClick={onCronoprogramma}>{tTesto("passo Documento")}</button>)</>} {tTesto("e un piano dei pagamenti che fa 100%.")}</p>}
           {!!analisi.rischi.length && <ul className="space-y-1">{analisi.rischi.map(r => <li key={r.testo} className={`flex items-start gap-1.5 text-sm ${r.livello === "alto" ? "text-red-800" : "text-amber-800"}`}><AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />{r.testo}</li>)}</ul>}
           {analisi.accontoConsigliato != null && <Button type="button" size="sm" variant="outline" onClick={() => {
             const acconto = analisi.accontoConsigliato!;
@@ -281,7 +283,7 @@ export default function ComputoEconomia({ bozza, totale, onChange, vediMargini =
             const scala = resto > 0 ? (100 - acconto - analisi.quotaAMisura) / resto : 0;
             cambiaRate([{ ...rataVuota("Acconto"), percentuale: String(acconto), evento: "firma_contratto" },
               ...altre.map(r => r.base === "avanzamento" ? r : { ...r, percentuale: String(Math.round((Number(r.percentuale.replace(",", ".")) || 0) * scala * 100) / 100).replace(".", ",") })]);
-          }}>Porta l'acconto al {analisi.accontoConsigliato}% e riproporziona le altre rate</Button>}
+          }}>{tTesto("Porta l'acconto al {accontoConsigliato}% e riproporziona le altre rate", { accontoConsigliato: String(analisi.accontoConsigliato ?? "") })}</Button>}
         </>}
     </section>}
   </div>;
@@ -289,17 +291,18 @@ export default function ComputoEconomia({ bozza, totale, onChange, vediMargini =
 
 /** Il saldo di cassa del cantiere giorno per giorno: sotto lo zero l'impresa anticipa di tasca sua. */
 function GraficoCassa({ punti }: { punti: { giorno: number; saldo: number }[] }) {
+  const t = useT();
   const W = 600, H = 120, pad = 6;
   const min = Math.min(0, ...punti.map(p => p.saldo)), max = Math.max(0, ...punti.map(p => p.saldo));
   const x = (g: number) => pad + (g / Math.max(1, punti.at(-1)!.giorno)) * (W - pad * 2);
   const y = (v: number) => pad + (max - v) / Math.max(1, max - min) * (H - pad * 2);
   const linea = punti.map((p, k) => `${k ? "L" : "M"}${x(p.giorno).toFixed(1)},${y(p.saldo).toFixed(1)}`).join(" ");
   return <figure className="rounded-md border bg-white p-2">
-    <svg viewBox={`0 0 ${W} ${H}`} className="h-28 w-full" role="img" aria-label="Saldo di cassa del cantiere giorno per giorno">
+    <svg viewBox={`0 0 ${W} ${H}`} className="h-28 w-full" role="img" aria-label={t("Saldo di cassa del cantiere giorno per giorno")}>
       <line x1={pad} x2={W - pad} y1={y(0)} y2={y(0)} stroke="#cbd5e1" strokeDasharray="4 3" />
       <path d={`${linea} L${x(punti.at(-1)!.giorno).toFixed(1)},${y(0).toFixed(1)} L${x(0).toFixed(1)},${y(0).toFixed(1)} Z`} fill="#f97316" fillOpacity={0.08} />
       <path d={linea} fill="none" stroke="#ea580c" strokeWidth={2} />
     </svg>
-    <figcaption className="flex justify-between text-[11px] text-muted-foreground"><span>Inizio</span><span>Saldo di cassa (incassi meno costi), giorno per giorno</span><span>Fine</span></figcaption>
+    <figcaption className="flex justify-between text-[11px] text-muted-foreground"><span>{t("Inizio")}</span><span>{t("Saldo di cassa (incassi meno costi), giorno per giorno")}</span><span>{t("Fine")}</span></figcaption>
   </figure>;
 }

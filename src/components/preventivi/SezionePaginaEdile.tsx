@@ -16,6 +16,7 @@ import { paginaEditor } from "@/components/preventivi/pagineEditor";
 import { capitoloVisibile, conCapitoloVisibile, type VoceOrdine } from "@/components/preventivi/pdf/ordineCapitoli";
 import type { SettoreBlocchi } from "../../../supabase/functions/_shared/blocchiPreventivo";
 import type { PaginaConTestata } from "../../../supabase/functions/_shared/testatePagine";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   /** La sezione aperta nell'editor: se non è una pagina di questo elenco, niente. */
@@ -42,6 +43,7 @@ function Scheda({ icona: Icona, titolo, descrizione, toggle, children }: {
   toggle?: { value: boolean; onChange: (v: boolean) => void };
   children: ReactNode;
 }) {
+  const t = useT();
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -58,8 +60,8 @@ function Scheda({ icona: Icona, titolo, descrizione, toggle, children }: {
           {toggle ? (
             <label className="flex shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground">
               {toggle.value ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-              <span className="hidden sm:inline">Mostra nel PDF</span>
-              <Switch checked={toggle.value} onCheckedChange={toggle.onChange} aria-label={`Mostra «${titolo}» nel PDF`} />
+              <span className="hidden sm:inline">{t("Mostra nel PDF")}</span>
+              <Switch checked={toggle.value} onCheckedChange={toggle.onChange} aria-label={t("Mostra «{voce}» nel PDF", { voce: titolo })} />
             </label>
           ) : null}
         </div>
@@ -72,12 +74,13 @@ function Scheda({ icona: Icona, titolo, descrizione, toggle, children }: {
 export function SezionePaginaEdile({
   sezione, settore, blocchi, onBlocchi, ordine, pagine, onOrdine, mostraGaranzie, onMostraGaranzie, contenuti, campoFoto,
 }: Props) {
+  const t = useT();
   const pagina = paginaEditor("edili", sezione);
   if (!pagina || (pagina.esistente && !pagina.foto)) return null;
 
   if (pagina.esistente) {
     return (
-      <Scheda icona={Camera} titolo="Foto della pagina">
+      <Scheda icona={Camera} titolo={t("Foto della pagina")}>
         <ContenutoPagina pagina={pagina} motore="edili" settore={settore} blocchi={blocchi} onBlocchi={onBlocchi} campoFoto={campoFoto} soloFoto />
       </Scheda>
     );
@@ -101,8 +104,8 @@ export function SezionePaginaEdile({
   return (
     <Scheda
       icona={pagina.icona ?? FileText}
-      titolo={pagina.voce}
-      descrizione={pagina.descrizione}
+      titolo={t(pagina.voce)}
+      descrizione={pagina.descrizione ? t(pagina.descrizione) : undefined}
       toggle={capitolo ? { value: visibile, onChange: cambia } : undefined}
     >
       <ContenutoPagina

@@ -6,6 +6,7 @@ import ComputoNativoEditor from "./ComputoNativoEditor";
 import { creaBackupComputo } from "@/lib/computo/backupComputo";
 import { leggiBozzaComputo, type BozzaComputo } from "@/lib/computo/editorNativo";
 import { confermaProgettoComputo, ConflittoComputoCloud, improntaComputo, leggiComputoCloud, preparaAllegatiCloud, salvaComputoCloud, type AggiornamentoProgettoComputo } from "@/lib/computo/cloudComputo";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type Props = Omit<ComponentProps<typeof ComputoNativoEditor>, "cloud"> & {
   companyId: string;
@@ -34,6 +35,7 @@ const ATTESA_SALVATAGGIO_MS = 1500;
  * salvataggio si ferma invece di sovrascriverla.
  */
 export default function ComputoCloudEditor({ companyId, draftId, soloEsistente = false, configurazioneInCaricamento = false, children, ...props }: Props) {
+  const tr = useT();
   const { storageKey } = props;
   const [stato, setStato] = useState<Stato>({ pronto: false, errore: "", conflitto: false, epoch: 0, serverJson: null });
   const [corrente, setCorrente] = useState<BozzaComputo | null>(null);
@@ -178,7 +180,7 @@ export default function ComputoCloudEditor({ companyId, draftId, soloEsistente =
     finally { setCaricando(false); }
   };
 
-  const ora = (d: Date) => d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+  const ora = (d: Date) => d.toLocaleTimeString(intlCampo(), { hour: "2-digit", minute: "2-digit" });
   const testoStato = stato.conflitto ? "Salvataggio fermo: versione diversa su un altro dispositivo"
     : revision.current == null ? "Non collegato al gestionale: le modifiche restano su questo computer"
       : salvataggio.stato === "in-corso" ? "Salvataggio…"
@@ -196,11 +198,11 @@ export default function ComputoCloudEditor({ companyId, draftId, soloEsistente =
         if (stato.conflitto) { void riapri(); return; }
         flushSync(() => setStato(s => ({ ...s, pronto: false })));
         void carica();
-      }}><CloudDownload className="mr-1 h-4 w-4" />{stato.conflitto ? "Scarica la mia copia e riapri quella salvata" : "Riprova"}</Button>
-      {!soloEsistente && !stato.pronto && <Button variant="ghost" size="sm" disabled={caricando} onClick={() => setStato(s => ({ ...s, pronto: true }))}>Continua con la copia su questo computer</Button>}
+      }}><CloudDownload className="mr-1 h-4 w-4" />{stato.conflitto ? tr("Scarica la mia copia e riapri quella salvata") : tr("Riprova")}</Button>
+      {!soloEsistente && !stato.pronto && <Button variant="ghost" size="sm" disabled={caricando} onClick={() => setStato(s => ({ ...s, pronto: true }))}>{tr("Continua con la copia su questo computer")}</Button>}
     </div>}
     {pronto ? <fieldset disabled={caricando} className="min-w-0"><ComputoNativoEditor key={stato.epoch} {...props} companyId={companyId}
       cloud={{ onChange, status: testoStato, salvaProgetto, progettoPronto }} /></fieldset>
-      : (!stato.errore || caricando) && <p role="status" className="flex items-center gap-2 py-6 text-sm"><Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />Apro il computo…</p>}
+      : (!stato.errore || caricando) && <p role="status" className="flex items-center gap-2 py-6 text-sm"><Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />{tr("Apro il computo…")}</p>}
   </div>;
 }

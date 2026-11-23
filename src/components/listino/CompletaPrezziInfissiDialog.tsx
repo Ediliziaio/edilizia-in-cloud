@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useOrganizzaListino } from "@/hooks/useOrganizzaListino";
 import { parseDecimalField } from "@/lib/listino/numeriEditor";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   macrocategoriaId: string;
@@ -17,6 +18,7 @@ interface Props {
 
 /** Una cifra, solo per gli schemi senza prezzo. Nessun ricalcolo del vecchio listino. */
 export function CompletaPrezziInfissiDialog({ macrocategoriaId, categoriaId, nomeLinea, mancanti, onClose }: Props) {
+  const t = useT();
   const { completaPrezziInfissi } = useOrganizzaListino();
   const [testo, setTesto] = useState("");
   const [salvando, setSalvando] = useState(false);
@@ -28,26 +30,26 @@ export function CompletaPrezziInfissiDialog({ macrocategoriaId, categoriaId, nom
     invio.current = true; setSalvando(true);
     try {
       const esito = await completaPrezziInfissi.mutateAsync({ macrocategoriaId, categoriaId, prezzoMq: prezzo });
-      toast.success(`${esito.prodotti_prezzo} prezzi mancanti completati`, { description: "Prezzi già presenti, costi e preventivi salvati invariati." });
+      toast.success(t("{prodotti_prezzo} prezzi mancanti completati", { prodotti_prezzo: esito.prodotti_prezzo }), { description: t("Prezzi già presenti, costi e preventivi salvati invariati.") });
       onClose();
     } catch (err) {
-      toast.error("Prezzi non completati", { description: err instanceof Error ? err.message : "Riprova." });
+      toast.error(t("Prezzi non completati"), { description: err instanceof Error ? err.message : t("Riprova.") });
     } finally { invio.current = false; setSalvando(false); }
   };
   return <Dialog open onOpenChange={(open) => { if (!open && !salvando) onClose(); }}>
     <DialogContent className="sm:max-w-md">
       <DialogHeader>
-        <DialogTitle>Completa i prezzi di {nomeLinea}</DialogTitle>
-        <DialogDescription>Applica un prezzo di vendita al m² ai {mancanti} schemi attivi senza prezzo. Gli importi già impostati, le maggiorazioni e i costi di acquisto non cambiano.</DialogDescription>
+        <DialogTitle>{t("Completa i prezzi di {nomeLinea}", { nomeLinea })}</DialogTitle>
+        <DialogDescription>{t("Applica un prezzo di vendita al m² ai {mancanti} schemi attivi senza prezzo. Gli importi già impostati, le maggiorazioni e i costi di acquisto non cambiano.", { mancanti })}</DialogDescription>
       </DialogHeader>
       <div className="space-y-2">
-        <Label htmlFor="prezzo-linea-mancante">Prezzo di vendita €/m²</Label>
-        <Input id="prezzo-linea-mancante" inputMode="decimal" value={testo} onChange={(e) => setTesto(e.target.value)} placeholder="Es. 720,00" disabled={salvando} />
-        <p className="text-xs text-muted-foreground">Questo prezzo vale solo per la linea selezionata della tua azienda.</p>
+        <Label htmlFor="prezzo-linea-mancante">{t("Prezzo di vendita €/m²")}</Label>
+        <Input id="prezzo-linea-mancante" inputMode="decimal" value={testo} onChange={(e) => setTesto(e.target.value)} placeholder={t("Es. 720,00")} disabled={salvando} />
+        <p className="text-xs text-muted-foreground">{t("Questo prezzo vale solo per la linea selezionata della tua azienda.")}</p>
       </div>
       <DialogFooter className="gap-2">
-        <Button variant="ghost" onClick={onClose} disabled={salvando}>Annulla</Button>
-        <Button onClick={salva} disabled={!valido || salvando}>{salvando ? "Salvataggio…" : "Completa prezzi mancanti"}</Button>
+        <Button variant="ghost" onClick={onClose} disabled={salvando}>{t("Annulla")}</Button>
+        <Button onClick={salva} disabled={!valido || salvando}>{salvando ? t("Salvataggio…") : t("Completa prezzi mancanti")}</Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>;

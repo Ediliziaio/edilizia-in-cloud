@@ -39,6 +39,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { formatCurrency } from "@/lib/formatters";
 import type { ComputoVoceLocal } from "@/types/computo";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface RigaGenerata {
   item_category?: string;
@@ -137,8 +138,9 @@ export function VoiceComputoDialog({
   onOpenChange,
   onConfirmVoci,
   tipoLavoro,
-  confirmLabel = "Aggiungi al computo",
+  confirmLabel,
 }: Props) {
+  const tr = useT();
   const companyId = useEffectiveCompanyId();
 
   const [fase, setFase] = useState<"input" | "review">("input");
@@ -188,7 +190,7 @@ export function VoiceComputoDialog({
 
   const startRecording = async () => {
     if (typeof MediaRecorder === "undefined" || !navigator.mediaDevices?.getUserMedia) {
-      toast.error("Microfono non disponibile su questo browser. Scrivi la descrizione.");
+      toast.error(tr("Microfono non disponibile su questo browser. Scrivi la descrizione."));
       return;
     }
     try {
@@ -228,7 +230,7 @@ export function VoiceComputoDialog({
         stream.getTracks().forEach((t) => t.stop());
         setIsRecording(false);
         if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
-        toast.error("Errore registrazione. Scrivi la descrizione.");
+        toast.error(tr("Errore registrazione. Scrivi la descrizione."));
       };
       mr.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop());
@@ -240,7 +242,7 @@ export function VoiceComputoDialog({
             : "webm";
         const blob = new Blob(chunksRef.current, { type: effectiveMime });
         if (blob.size === 0) {
-          toast.warning("Nessun audio registrato — controlla il microfono.");
+          toast.warning(tr("Nessun audio registrato — controlla il microfono."));
           return;
         }
         setIsTranscribing(true);
@@ -250,12 +252,12 @@ export function VoiceComputoDialog({
           fd.append("language", "it");
           const { data, error } = await supabase.functions.invoke("trascrizione-audio", { body: fd });
           if (error || !data?.testo) {
-            toast.error("Trascrizione fallita. Riprova o scrivi la descrizione.");
+            toast.error(tr("Trascrizione fallita. Riprova o scrivi la descrizione."));
             return;
           }
           // Append (non replace): l'utente può dettare a più riprese.
           setDescrizione((prev) => (prev.trim() ? `${prev.trim()}\n${data.testo}` : data.testo));
-          toast.success("Audio trascritto");
+          toast.success(tr("Audio trascritto"));
         } finally {
           setIsTranscribing(false);
         }
@@ -276,20 +278,20 @@ export function VoiceComputoDialog({
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes("NotAllowed") || msg.includes("Permission")) {
-        toast.error("Permesso microfono negato. Scrivi la descrizione.");
+        toast.error(tr("Permesso microfono negato. Scrivi la descrizione."));
       } else {
-        toast.error("Microfono non disponibile. Scrivi la descrizione.");
+        toast.error(tr("Microfono non disponibile. Scrivi la descrizione."));
       }
     }
   };
 
   const genera = async () => {
     if (!companyId) {
-      toast.error("Azienda non caricata, riprova");
+      toast.error(tr("Azienda non caricata, riprova"));
       return;
     }
     if (descrizione.trim().length < 10) {
-      toast.error("Descrivi i lavori con qualche dettaglio in più");
+      toast.error(tr("Descrivi i lavori con qualche dettaglio in più"));
       return;
     }
     setGenerating(true);
@@ -306,13 +308,13 @@ export function VoiceComputoDialog({
       const sezioni: SezioneGenerata[] = data?.sezioni ?? [];
       const mapped = mapSezioniToVoci(sezioni, companyId);
       if (mapped.length === 0) {
-        toast.error("Nessuna voce generata: prova ad aggiungere dettagli (lavorazioni, quantità, misure).");
+        toast.error(tr("Nessuna voce generata: prova ad aggiungere dettagli (lavorazioni, quantità, misure)."));
         return;
       }
       setVoci(mapped);
       setFase("review");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Generazione non riuscita, riprova");
+      toast.error(err instanceof Error ? err.message : tr("Generazione non riuscita, riprova"));
     } finally {
       setGenerating(false);
     }
@@ -337,7 +339,7 @@ export function VoiceComputoDialog({
 
   const conferma = () => {
     if (incluse.length === 0) {
-      toast.error("Seleziona almeno una voce");
+      toast.error(tr("Seleziona almeno una voce"));
       return;
     }
     onConfirmVoci(incluse.map((v) => ({ ...v.voce, _isIncluded: true })));
@@ -359,12 +361,11 @@ export function VoiceComputoDialog({
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
             {/* Telefono: titolo su una riga, la spiegazione la dà l'esempio nel campo. */}
-            <span className="max-sm:hidden">Descrivi i lavori — l'AI compone il computo</span>
-            <span className="sm:hidden">Descrivi i lavori</span>
+            <span className="max-sm:hidden">{tr("Descrivi i lavori — l'AI compone il computo")}</span>
+            <span className="sm:hidden">{tr("Descrivi i lavori")}</span>
           </DialogTitle>
           <DialogDescription className="max-sm:sr-only">
-            Detta a voce o scrivi cosa c'è da fare: l'AI propone le voci, tu le
-            rivedi e le aggiungi al computo.
+            {tr("Detta a voce o scrivi cosa c'è da fare: l'AI propone le voci, tu le rivedi e le aggiungi al computo.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -374,7 +375,7 @@ export function VoiceComputoDialog({
               value={descrizione}
               onChange={(e) => setDescrizione(e.target.value)}
               placeholder={
-                'Es. "Rifacimento bagno 6 mq: demolizione pavimento e rivestimenti, nuovo massetto, posa gres 60x60, sostituzione sanitari e rubinetteria, tinteggiatura."'
+                tr("Es. \"Rifacimento bagno 6 mq: demolizione pavimento e rivestimenti, nuovo massetto, posa gres 60x60, sostituzione sanitari e rubinetteria, tinteggiatura.\"")
               }
               rows={6}
               disabled={isRecording || isTranscribing}
@@ -389,21 +390,21 @@ export function VoiceComputoDialog({
               >
                 {isRecording ? (
                   <>
-                    <MicOff className="h-4 w-4 mr-1.5" /> Ferma ({MAX_RECORDING_SECONDS - recordingSeconds}s)
+                    <MicOff className="h-4 w-4 mr-1.5" /> {tr("Ferma ({secondi}s)", { secondi: MAX_RECORDING_SECONDS - recordingSeconds })}
                   </>
                 ) : isTranscribing ? (
                   <>
-                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Trascrizione…
+                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> {tr("Trascrizione…")}
                   </>
                 ) : (
                   <>
-                    <Mic className="h-4 w-4 mr-1.5" /> Detta a voce
+                    <Mic className="h-4 w-4 mr-1.5" /> {tr("Detta a voce")}
                   </>
                 )}
               </Button>
               {isRecording && (
                 <span className="text-xs text-muted-foreground animate-pulse">
-                  ● Registrazione in corso — parla normalmente
+                  {tr("● Registrazione in corso — parla normalmente")}
                 </span>
               )}
             </div>
@@ -416,9 +417,9 @@ export function VoiceComputoDialog({
               <div className="flex gap-2 p-2.5 bg-sky-50 border border-sky-200 rounded text-xs text-sky-900">
                 <Info className="h-4 w-4 mt-0.5 shrink-0" />
                 <p>
-                  {senzaPrezzo === 1 ? "1 voce è" : `${senzaPrezzo} voci sono`} a €0
-                  perché il listino non ha una tariffa corrispondente: inserisci
-                  il prezzo qui sotto prima di importare.
+                  {senzaPrezzo === 1
+                    ? tr("1 voce è a €0 perché il listino non ha una tariffa corrispondente: inserisci il prezzo qui sotto prima di importare.")
+                    : tr("{n} voci sono a €0 perché il listino non ha una tariffa corrispondente: inserisci il prezzo qui sotto prima di importare.", { n: senzaPrezzo })}
                 </p>
               </div>
             )}
@@ -443,13 +444,13 @@ export function VoiceComputoDialog({
                       {v.voce.capitolo_nome}
                       {v.voce.prezzo_unitario_computo === 0 && (
                         <span className="ml-1.5 inline-flex items-center gap-0.5 text-amber-600">
-                          <AlertTriangle className="h-3 w-3" /> prezzo mancante
+                          <AlertTriangle className="h-3 w-3" /> {tr("prezzo mancante")}
                         </span>
                       )}
                     </p>
                     <div className="flex items-center gap-2 flex-wrap">
                       <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                        Q.tà
+                        {tr("Q.tà")}
                         <Input
                           type="number"
                           min={0}
@@ -461,7 +462,7 @@ export function VoiceComputoDialog({
                         {v.voce.unita_misura}
                       </label>
                       <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                        Prezzo €
+                        {tr("Prezzo €")}
                         <Input
                           type="number"
                           min={0}
@@ -483,7 +484,7 @@ export function VoiceComputoDialog({
             </div>
             <div className="flex justify-between items-center text-sm border-t pt-2">
               <span className="text-muted-foreground">
-                {incluse.length} {incluse.length === 1 ? "voce selezionata" : "voci selezionate"}
+                {incluse.length} {incluse.length === 1 ? tr("voce selezionata") : tr("voci selezionate")}
               </span>
               <span className="font-semibold tabular-nums">{formatCurrency(totale)}</span>
             </div>
@@ -493,24 +494,24 @@ export function VoiceComputoDialog({
         <DialogFooter className="gap-2">
           {fase === "review" && (
             <Button type="button" variant="ghost" onClick={() => setFase("input")} disabled={generating}>
-              <ArrowLeft className="h-4 w-4 mr-1" /> Modifica descrizione
+              <ArrowLeft className="h-4 w-4 mr-1" /> {tr("Modifica descrizione")}
             </Button>
           )}
           {fase === "input" ? (
             <Button type="button" onClick={genera} disabled={generating || isRecording || isTranscribing}>
               {generating ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Generazione…
+                  <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> {tr("Generazione…")}
                 </>
               ) : (
                 <>
-                  <Sparkles className="h-4 w-4 mr-1.5" /> Genera voci
+                  <Sparkles className="h-4 w-4 mr-1.5" /> {tr("Genera voci")}
                 </>
               )}
             </Button>
           ) : (
             <Button type="button" onClick={conferma} disabled={incluse.length === 0}>
-              {confirmLabel} ({incluse.length})
+              {confirmLabel ?? tr("Aggiungi al computo")} ({incluse.length})
             </Button>
           )}
         </DialogFooter>

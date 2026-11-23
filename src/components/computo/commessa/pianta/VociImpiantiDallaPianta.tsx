@@ -22,13 +22,15 @@ import { controlloPrimaDellUso, esigiVerificaDocumento } from "../../../../../sh
 import { statiDellaPianta } from "@/lib/planimetrie/computo";
 import { vociDallaPianta, type ProposteVoce } from "@/lib/planimetrie/listinoImpianti";
 import { calcolaQuantita } from "../../../../../shared/planimetrie/quantita.ts";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
-const euro = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n);
+const euro = (n: number) => new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR" }).format(n);
 const selezione = "h-9 w-full rounded-md border bg-background px-2 text-sm";
 
 interface DaCreare { p: ProposteVoce; prezzo: number | null }
 
 function useCreaVoci(uploadId: string, companyId: string) {
+  const tr = useT();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ voci, planimetriaId, versione, ordineDa }: { voci: DaCreare[]; planimetriaId: string; versione: number; ordineDa: number }) => {
@@ -44,13 +46,13 @@ function useCreaVoci(uploadId: string, companyId: string) {
             is_sicurezza: false, nuovo_prezzo: true, quadro_voce: "lavori", ordine: ordineDa + i, super_categoria: p.voce.capitolo,
             confidence: 1, is_included: true,
           }).select("id").single();
-          if (error || !data) throw new Error(error?.message?.startsWith("Computo contrattuale") ? error.message : "Voce non creata: riprova tra qualche secondo.");
+          if (error || !data) throw new Error(error?.message?.startsWith("Computo contrattuale") ? error.message : tr("Voce non creata: riprova tra qualche secondo."));
           create.push(data.id);
           const { error: errRiga } = await supabase.from("computo_voci_misure").insert({
             company_id: companyId, voce_id: data.id, ordine: 1, descrizione: `Dalla pianta${p.stimata ? " (stima)" : ""}`, quantita: p.quantita,
             planimetria_id: planimetriaId, planimetria_versione: versione, planimetria_chiavi: [p.chiave],
           } as never);
-          if (errRiga) throw new Error("Riga di misura non creata: riprova tra qualche secondo.");
+          if (errRiga) throw new Error(tr("Riga di misura non creata: riprova tra qualche secondo."));
         }
       } catch (e) {
         if (create.length) await supabase.from("computo_voci_estratte").delete().in("id", create);
@@ -69,6 +71,7 @@ function useCreaVoci(uploadId: string, companyId: string) {
 export default function VociImpiantiDallaPianta({ uploadId, companyId, orderId, ordineDa, aperta, onChiudi }: {
   uploadId: string; companyId: string; orderId: string; ordineDa: number; aperta: boolean; onChiudi: () => void;
 }) {
+  const tr = useT();
   const { data: piante = [] } = useElencoPlanimetrie(aperta ? companyId : null);
   const diCommessa = piante.filter((p) => p.order_id === orderId);
   const [piantaScelta, setPiantaScelta] = useState<string | null>(null);
@@ -99,8 +102,8 @@ export default function VociImpiantiDallaPianta({ uploadId, companyId, orderId, 
   const conferma = () => {
     if (!pianta || !scelte.length || !verificata) return;
     crea.mutate({ voci: scelte.map((p) => ({ p, prezzo: prezzoDi(p) })), planimetriaId: pianta.riga.id, versione: pianta.versione.numero, ordineDa }, {
-      onSuccess: (n) => { toast.success(`${n} voci impianti aggiunte`, { description: "Sono legate alla pianta: se la cambi, il computo te lo dice." }); onChiudi(); },
-      onError: (e) => toast.error(e instanceof Error ? e.message : "Voci non create."),
+      onSuccess: (n) => { toast.success(tr("{n} voci impianti aggiunte", { n }), { description: tr("Sono legate alla pianta: se la cambi, il computo te lo dice.") }); onChiudi(); },
+      onError: (e) => toast.error(e instanceof Error ? e.message : tr("Voci non create.")),
     });
   };
 
@@ -108,36 +111,36 @@ export default function VociImpiantiDallaPianta({ uploadId, companyId, orderId, 
     <Dialog open={aperta} onOpenChange={(v) => !v && onChiudi()}>
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2"><Zap className="h-5 w-5 text-amber-600" />Voci impianti dalla pianta</DialogTitle>
+          <DialogTitle className="flex items-center gap-2"><Zap className="h-5 w-5 text-amber-600" />{tr("Voci impianti dalla pianta")}</DialogTitle>
           <DialogDescription>
-            Aggiungi al computo le voci misurate nella pianta. Puoi modificare i prezzi proposti o lasciarli da quotare dove manca un prezzo di partenza.
+            {tr("Aggiungi al computo le voci misurate nella pianta. Puoi modificare i prezzi proposti o lasciarli da quotare dove manca un prezzo di partenza.")}
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1">
-            <label className="text-xs font-medium" htmlFor="vi-pianta">Pianta</label>
+            <label className="text-xs font-medium" htmlFor="vi-pianta">{tr("Pianta")}</label>
             <UniformSelect id="vi-pianta" className={selezione} value={piantaId ?? ""} onChange={(e) => setPiantaScelta(e.target.value || null)}>
-              {!piantaId && <option value="">Scegli…</option>}
-              {piante.map((p) => <option key={p.id} value={p.id}>{p.titolo}{p.computo_upload_id === uploadId ? " (associata a questo computo)" : p.order_id === orderId ? " (di questa commessa)" : ""}</option>)}
+              {!piantaId && <option value="">{tr("Scegli…")}</option>}
+              {piante.map((p) => <option key={p.id} value={p.id}>{p.titolo}{p.computo_upload_id === uploadId ? tr(" (associata a questo computo)") : p.order_id === orderId ? tr(" (di questa commessa)") : ""}</option>)}
             </UniformSelect>
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-medium" htmlFor="vi-stato">Quale pianta</label>
+            <label className="text-xs font-medium" htmlFor="vi-stato">{tr("Quale pianta")}</label>
             <UniformSelect id="vi-stato" className={selezione} value={stato?.chiave ?? ""} onChange={(e) => setStatoScelto(e.target.value)}>
               {stati.map((s) => <option key={s.chiave} value={s.chiave}>{s.nome}</option>)}
             </UniformSelect>
           </div>
         </div>
-        {isLoading ? <p className="flex items-center gap-2 text-sm text-slate-600"><Loader2 className="h-4 w-4 animate-spin" />Carico la pianta…</p>
+        {isLoading ? <p className="flex items-center gap-2 text-sm text-slate-600"><Loader2 className="h-4 w-4 animate-spin" />{tr("Carico la pianta…")}</p>
           : !proposte.length ? (
             <p className="rounded-md border border-dashed p-4 text-sm text-slate-600">
-              In questa pianta non ci sono impianti da contare. Nell'editor: stanza → «Impianto elettrico minimo» o «Clima», oppure posa prese, sanitari, split e le partenze (quadro, collettore, colonna di scarico, unità esterna) da Arredi → Impianti.
+              {tr("In questa pianta non ci sono impianti da contare. Nell'editor: stanza → «Impianto elettrico minimo» o «Clima», oppure posa prese, sanitari, split e le partenze (quadro, collettore, colonna di scarico, unità esterna) da Arredi → Impianti.")}
             </p>
           ) : (
             <div className="overflow-x-auto rounded-md border">
               <table className="w-full text-sm">
                 <thead className="bg-muted/50 text-xs text-slate-600">
-                  <tr><th className="w-8 p-2" /><th className="p-2 text-left">Voce</th><th className="p-2 text-right">Quantità</th><th className="p-2 text-right">Prezzo</th><th className="p-2 text-right">Importo</th></tr>
+                  <tr><th className="w-8 p-2" /><th className="p-2 text-left">{tr("Voce")}</th><th className="p-2 text-right">{tr("Quantità")}</th><th className="p-2 text-right">{tr("Prezzo")}</th><th className="p-2 text-right">{tr("Importo")}</th></tr>
                 </thead>
                 <tbody>
                   {proposte.map((p) => {
@@ -147,10 +150,10 @@ export default function VociImpiantiDallaPianta({ uploadId, companyId, orderId, 
                       <tr key={p.voce.id} className="border-t align-top">
                         <td className="p-2"><Checkbox checked={on} onCheckedChange={(v) => setEsclusi((x) => { const n = new Set(x); if (v) n.delete(p.voce.id); else n.add(p.voce.id); return n; })} aria-label={p.voce.descrizione} /></td>
                         <td className="p-2"><p className="text-xs text-slate-500">{p.voce.capitolo}</p><p>{p.voce.descrizione}</p></td>
-                        <td className="whitespace-nowrap p-2 text-right tabular-nums">{p.quantita.toLocaleString("it-IT")} {p.voce.unita === "ml" ? "m" : p.voce.unita === "mq" ? "m²" : "n."}{p.stimata && <Badge variant="outline" className="ml-1 border-amber-300 text-amber-800">stima</Badge>}</td>
-                        <td className="p-2 text-right"><Input className="h-8 w-24 text-right" inputMode="decimal" placeholder={p.voce.prezzo === null ? "Da quotare" : undefined}
+                        <td className="whitespace-nowrap p-2 text-right tabular-nums">{p.quantita.toLocaleString(intlCampo())} {p.voce.unita === "ml" ? "m" : p.voce.unita === "mq" ? "m²" : "n."}{p.stimata && <Badge variant="outline" className="ml-1 border-amber-300 text-amber-800">{tr("stima")}</Badge>}</td>
+                        <td className="p-2 text-right"><Input className="h-8 w-24 text-right" inputMode="decimal" placeholder={p.voce.prezzo === null ? tr("Da quotare") : undefined}
                           value={prezzi[p.voce.id] ?? (p.voce.prezzo === null ? "" : String(p.voce.prezzo).replace(".", ","))}
-                          onChange={(e) => setPrezzi((x) => ({ ...x, [p.voce.id]: e.target.value }))} aria-label={`Prezzo di ${p.voce.descrizione}`} /></td>
+                          onChange={(e) => setPrezzi((x) => ({ ...x, [p.voce.id]: e.target.value }))} aria-label={tr("Prezzo di {descrizione}", { descrizione: p.voce.descrizione })} /></td>
                         <td className="whitespace-nowrap p-2 text-right tabular-nums">{on && prezzo !== null ? euro(p.quantita * prezzo) : "—"}</td>
                       </tr>
                     );
@@ -161,9 +164,9 @@ export default function VociImpiantiDallaPianta({ uploadId, companyId, orderId, 
           )}
         {documento && <ControlloUsoBloccato documento={documento} uso="computo" modifica={piantaId ? percorsiPlanimetrie.modifica(piantaId) : undefined} />}
         <DialogFooter className="items-center gap-3">
-          {scelte.length > 0 && <span className="text-sm">Totale <strong>{euro(totale)}</strong>{daQuotare > 0 && ` · ${daQuotare} da quotare`}</span>}
+          {scelte.length > 0 && <span className="text-sm">{tr("Totale")} <strong>{euro(totale)}</strong>{daQuotare > 0 && tr(" · {daQuotare} da quotare", { daQuotare })}</span>}
           <Button disabled={!scelte.length || crea.isPending || !verificata} onClick={conferma}>
-            {crea.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}Aggiungi {scelte.length} voci
+            {crea.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}{tr("Aggiungi {n} voci", { n: scelte.length })}
           </Button>
         </DialogFooter>
       </DialogContent>

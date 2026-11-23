@@ -29,6 +29,7 @@ import {
   useImportArticleFamilyTemplatesBatch,
   type ArticleFamilyTemplate,
 } from "@/hooks/useArticleFamilyTemplates";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   open: boolean;
@@ -47,6 +48,7 @@ interface Props {
 export function FamilyTemplateBulkDialog({
   open, onOpenChange, companyId, vertical, macroId, macroNome, onImported,
 }: Props) {
+  const tr = useT();
   const { data: templates = [], isLoading } = useArticleFamilyTemplates({
     vertical: vertical,
   });
@@ -94,19 +96,19 @@ export function FamilyTemplateBulkDialog({
         items,
       });
       if (result.failed.length === 0) {
-        toast.success(`${result.created.length} articoli importati`, {
-          description: macroNome ? `Aggiunti sotto "${macroNome}"` : undefined,
+        toast.success(tr("{n} articoli importati", { n: result.created.length }), {
+          description: macroNome ? tr("Aggiunti sotto \"{macroNome}\"", { macroNome }) : undefined,
         });
       } else {
-        toast.warning(`${result.created.length} importati, ${result.failed.length} falliti`, {
-          description: `Errore: ${result.failed[0]?.error ?? "sconosciuto"}`,
+        toast.warning(tr("{n} importati, {n2} falliti", { n: result.created.length, n2: result.failed.length }), {
+          description: tr("Errore: {errore}", { errore: result.failed[0]?.error ?? tr("sconosciuto") }),
         });
       }
       onImported?.(result.created);
       onOpenChange(false);
     } catch (err) {
-      toast.error("Import fallito", {
-        description: err instanceof Error ? err.message : "Errore sconosciuto",
+      toast.error(tr("Import fallito"), {
+        description: err instanceof Error ? err.message : tr("Errore sconosciuto"),
       });
     }
   };
@@ -132,33 +134,32 @@ export function FamilyTemplateBulkDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-orange-600" />
-            Importa articoli template
+            {tr("Importa articoli template")}
           </DialogTitle>
           <DialogDescription>
-            Pre-popola <strong>{macroNome}</strong> con gli articoli standard del verticale.
-            Ogni template viene clonato nel tuo listino con foto, variabili (Colore, Tipologia Vetro) e griglia prezzi pronta da compilare.
+            {tr("Pre-popola")} <strong>{macroNome}</strong> {tr("con gli articoli standard del verticale. Ogni template viene clonato nel tuo listino con foto, variabili (Colore, Tipologia Vetro) e griglia prezzi pronta da compilare.")}
           </DialogDescription>
         </DialogHeader>
 
         {isLoading ? (
           <div className="flex items-center justify-center py-16 text-muted-foreground gap-2">
             <Loader2 className="h-4 w-4 animate-spin" />
-            <span className="text-sm">Caricamento template…</span>
+            <span className="text-sm">{tr("Caricamento template…")}</span>
           </div>
         ) : templates.length === 0 ? (
           <div className="text-center py-12 text-sm text-muted-foreground">
             <Package className="h-10 w-10 mx-auto text-muted-foreground/30 mb-2" />
-            <p>Nessun template articolo disponibile per questo verticale.</p>
-            <p className="text-xs mt-1">Puoi sempre creare articoli manualmente dal catalogo.</p>
+            <p>{tr("Nessun template articolo disponibile per questo verticale.")}</p>
+            <p className="text-xs mt-1">{tr("Puoi sempre creare articoli manualmente dal catalogo.")}</p>
           </div>
         ) : (
           <>
             <div className="flex items-center justify-between border-b pb-2 shrink-0">
               <span className="text-xs text-muted-foreground">
-                {selectedIds.size}/{templates.length} selezionati
+                {tr("{size}/{n} selezionati", { size: selectedIds.size, n: templates.length })}
               </span>
               <Button variant="ghost" size="sm" onClick={toggleAll} className="text-xs h-7">
-                {allSelected ? "Deseleziona tutti" : "Seleziona tutti"}
+                {allSelected ? tr("Deseleziona tutti") : tr("Seleziona tutti")}
               </Button>
             </div>
 
@@ -225,7 +226,7 @@ export function FamilyTemplateBulkDialog({
             onClick={() => onOpenChange(false)}
             disabled={batchImport.isPending}
           >
-            Salta — creo manualmente
+            {tr("Salta — creo manualmente")}
           </Button>
           <Button
             onClick={handleImport}
@@ -233,9 +234,9 @@ export function FamilyTemplateBulkDialog({
             className="bg-orange-500 hover:bg-orange-600"
           >
             {batchImport.isPending ? (
-              <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Importazione {selectedIds.size}…</>
+              <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{tr("Importazione {n}…", { n: selectedIds.size })}</>
             ) : (
-              <><Sparkles className="h-4 w-4 mr-2" />Importa {selectedIds.size > 0 ? `(${selectedIds.size})` : ""}</>
+              <><Sparkles className="h-4 w-4 mr-2" />{selectedIds.size > 0 ? tr("Importa ({n})", { n: selectedIds.size }) : tr("Importa")}</>
             )}
           </Button>
         </DialogFooter>

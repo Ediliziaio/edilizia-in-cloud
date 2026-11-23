@@ -38,6 +38,7 @@ import {
   prodottiSenzaLinee,
   scriviPercentuale,
 } from "@/lib/listino/organizzaListino";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface DatiLineaAsse {
   nome: string;
@@ -61,6 +62,7 @@ interface Props {
 }
 
 export function NuovaLineaDialog({ area, tipologia, inCorso, onChiudi, onCreaCategoria, onCreaAsse }: Props) {
+  const t = useT();
   const conAsse = haLineeDaAsse(tipologia);
   const serramenti = area.chiave === "serramenti";
   const catalogoInfissi = serramenti && chiaveTesto(tipologia.nome) === "serramenti";
@@ -88,13 +90,13 @@ export function NuovaLineaDialog({ area, tipologia, inCorso, onChiudi, onCreaCat
     tipo !== "asse"
       ? null
       : pctNumero === null
-        ? "Scrivi lo scostamento come numero, per esempio −8 o 0."
+        ? t("Scrivi lo scostamento come numero, per esempio −8 o 0.")
         : pctNumero <= -100
-          ? "Uno scostamento del −100% o meno azzera il prezzo."
+          ? t("Uno scostamento del −100% o meno azzera il prezzo.")
           : null;
   const problemaBase =
     primaLinea && nomeBase.trim() && nome.trim() && chiaveTesto(nomeBase) === chiaveTesto(nome)
-      ? "La linea di adesso e quella nuova devono avere nomi diversi."
+      ? t("La linea di adesso e quella nuova devono avere nomi diversi.")
       : null;
   const pronto =
     nome.trim() !== "" &&
@@ -131,9 +133,9 @@ export function NuovaLineaDialog({ area, tipologia, inCorso, onChiudi, onCreaCat
   };
 
   const fonti: Array<[FonteLinea, string]> = [
-    ...(serramenti ? [["libreria", "Dalla libreria"] as [FonteLinea, string]] : []),
-    ...(!catalogoInfissi && conAsse && copiabili.length > 0 ? [["copia", "Copia una linea"] as [FonteLinea, string]] : []),
-    ["nuova", "Scritta da te"],
+    ...(serramenti ? [["libreria", t("Dalla libreria")] as [FonteLinea, string]] : []),
+    ...(!catalogoInfissi && conAsse && copiabili.length > 0 ? [["copia", t("Copia una linea")] as [FonteLinea, string]] : []),
+    ["nuova", t("Scritta da te")],
   ];
   const fonteVisibile = fonti.some(([f]) => f === fonte) ? fonte : fonti[0][0];
 
@@ -146,23 +148,23 @@ export function NuovaLineaDialog({ area, tipologia, inCorso, onChiudi, onCreaCat
     >
       <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Nuova linea in {tipologia.nome}</DialogTitle>
+          <DialogTitle>{t("Nuova linea in {nome}", { nome: tipologia.nome })}</DialogTitle>
           <DialogDescription>
             {catalogoInfissi
-              ? "Una nuova linea riceve tutte le configurazioni standard con disegno. Prezzi e compatibilità vanno verificati con il tuo fornitore; i prodotti esistenti non cambiano."
+              ? t("Una nuova linea riceve tutte le configurazioni standard con disegno. Prezzi e compatibilità vanno verificati con il tuo fornitore; i prodotti esistenti non cambiano.")
               : conAsse
-              ? `Una linea con gli stessi ${tipologia.articoli} modelli e un altro prezzo, accanto a ${copiabili.map((l) => l.nome).join(", ")}.`
-              : "Scegli se la linea ha gli stessi modelli con un altro prezzo o prodotti diversi."}
+              ? t("Una linea con gli stessi {articoli} modelli e un altro prezzo, accanto a {valore}.", { articoli: tipologia.articoli, valore: copiabili.map((l) => l.nome).join(", ") })
+              : t("Scegli se la linea ha gli stessi modelli con un altro prezzo o prodotti diversi.")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="-mx-6 flex-1 space-y-4 overflow-y-auto px-6 py-1">
           {!conAsse && !catalogoInfissi && (
-            <div role="radiogroup" aria-label="Che cosa cambia nella nuova linea" className="grid gap-2 sm:grid-cols-2">
+            <div role="radiogroup" aria-label={t("Che cosa cambia nella nuova linea")} className="grid gap-2 sm:grid-cols-2">
               {(
                 [
-                  ["asse", "Stessi modelli, altro prezzo", "Un'altra serie di profilo, una classe superiore: ogni prodotto la avrà con uno scostamento in %."],
-                  ["categoria", "Prodotti diversi", "Tapparelle in PVC e in alluminio: una cartella in cui sposti i prodotti."],
+                  ["asse", t("Stessi modelli, altro prezzo"), t("Un'altra serie di profilo, una classe superiore: ogni prodotto la avrà con uno scostamento in %.")],
+                  ["categoria", t("Prodotti diversi"), t("Tapparelle in PVC e in alluminio: una cartella in cui sposti i prodotti.")],
                 ] as Array<[TipoLinea, string, string]>
               ).map(([valore, titolo, testo]) => {
                 const bloccata = valore === "asse" && tipologia.articoli === 0;
@@ -182,7 +184,7 @@ export function NuovaLineaDialog({ area, tipologia, inCorso, onChiudi, onCreaCat
                   >
                     <span className="block text-sm font-medium">{titolo}</span>
                     <span className="block text-xs text-muted-foreground">
-                      {bloccata ? "Serve almeno un prodotto nella tipologia." : testo}
+                      {bloccata ? t("Serve almeno un prodotto nella tipologia.") : testo}
                     </span>
                   </button>
                 );
@@ -206,7 +208,7 @@ export function NuovaLineaDialog({ area, tipologia, inCorso, onChiudi, onCreaCat
 
           {tipo === "asse" && fonteVisibile === "copia" && (
             <div className="space-y-1.5">
-              <Label>Linea da copiare</Label>
+              <Label>{t("Linea da copiare")}</Label>
               <div className="flex flex-wrap gap-1.5">
                 {copiabili.map((l) => (
                   <button
@@ -229,7 +231,7 @@ export function NuovaLineaDialog({ area, tipologia, inCorso, onChiudi, onCreaCat
                 ))}
               </div>
               <p className="text-xs text-muted-foreground">
-                La nuova linea parte dallo scostamento e dalla foto di quella scelta.
+                {t("La nuova linea parte dallo scostamento e dalla foto di quella scelta.")}
               </p>
             </div>
           )}
@@ -237,32 +239,32 @@ export function NuovaLineaDialog({ area, tipologia, inCorso, onChiudi, onCreaCat
           <div className={cn("grid gap-3", tipo === "asse" ? "sm:grid-cols-[1fr_8rem]" : "")}>
             {primaLinea && (
               <div className="space-y-1.5 sm:col-span-2">
-                <Label htmlFor="linea-base">Nome della linea che la tipologia ha adesso</Label>
+                <Label htmlFor="linea-base">{t("Nome della linea che la tipologia ha adesso")}</Label>
                 <Input
                   id="linea-base"
                   value={nomeBase}
                   onChange={(e) => setNomeBase(e.target.value)}
-                  placeholder={serramenti ? "Es. PVC Salamander 76" : "Es. Classe 3"}
+                  placeholder={serramenti ? t("Es. PVC Salamander 76") : t("Es. Classe 3")}
                   className="h-10"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Diventa la linea di riferimento (0%) dei {tipologia.articoli} prodotti, con i prezzi di oggi.
+                  {t("Diventa la linea di riferimento (0%) dei {articoli} prodotti, con i prezzi di oggi.", { articoli: tipologia.articoli })}
                 </p>
                 {problemaBase && <p className="text-xs text-destructive">{problemaBase}</p>}
               </div>
             )}
             <div className="space-y-1.5">
-              <Label htmlFor="linea-nome">{primaLinea ? "Nome della linea nuova" : "Nome della linea"}</Label>
+              <Label htmlFor="linea-nome">{primaLinea ? t("Nome della linea nuova") : t("Nome della linea")}</Label>
               <Input
                 id="linea-nome"
                 value={nome}
                 onChange={(e) => setNome(e.target.value)}
                 placeholder={
-                  catalogoInfissi ? "Es. PVC Rehau Synego" : tipo === "categoria"
-                    ? "Es. PVC, Alluminio coibentato, Linea vasca tipo 1"
+                  catalogoInfissi ? t("Es. PVC Rehau Synego") : tipo === "categoria"
+                    ? t("Es. PVC, Alluminio coibentato, Linea vasca tipo 1")
                     : serramenti
-                      ? "Es. PVC Salamander bluEvolution 73"
-                      : "Es. Classe 4"
+                      ? t("Es. PVC Salamander bluEvolution 73")
+                      : t("Es. Classe 4")
                 }
                 className="h-10"
                 autoFocus={fonteVisibile !== "libreria"}
@@ -271,7 +273,7 @@ export function NuovaLineaDialog({ area, tipologia, inCorso, onChiudi, onCreaCat
             </div>
             {tipo === "asse" && (
               <div className="space-y-1.5">
-                <Label htmlFor="linea-pct">Scostamento %</Label>
+                <Label htmlFor="linea-pct">{t("Scostamento %")}</Label>
                 <Input
                   id="linea-pct"
                   value={pct}
@@ -287,33 +289,33 @@ export function NuovaLineaDialog({ area, tipologia, inCorso, onChiudi, onCreaCat
           {tipo === "asse" && (
             <p className="rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
               {riferimento
-                ? `Lo scostamento si calcola sul prezzo di ${riferimento.nome}: −8 costa l'8% in meno, +12 il 12% in più.`
-                : "Lo scostamento si calcola sul prezzo di oggi dei prodotti: −8 costa l'8% in meno."}{" "}
+                ? t("Lo scostamento si calcola sul prezzo di {nome}: −8 costa l'8% in meno, +12 il 12% in più.", { nome: riferimento.nome })
+                : t("Lo scostamento si calcola sul prezzo di oggi dei prodotti: −8 costa l'8% in meno.")}{" "}
               {senzaLinee > 0 &&
-                `${senzaLinee} ${senzaLinee === 1 ? "prodotto non ha" : "prodotti non hanno"} le linee della tipologia e non la ${senzaLinee === 1 ? "riceverà" : "riceveranno"}: dagli prima le linee dal menu della tipologia.`}
+                t(senzaLinee === 1 ? "{n} prodotto non ha le linee della tipologia e non la riceverà: dagli prima le linee dal menu della tipologia." : "{n} prodotti non hanno le linee della tipologia e non la riceveranno: dagli prima le linee dal menu della tipologia.", { n: senzaLinee })}
             </p>
           )}
           {tipo === "categoria" && (
             <p className="text-xs text-muted-foreground">
-              {catalogoInfissi ? "Tutte le configurazioni saranno disponibili nel preventivatore. Il prezzo da definire non significa fornitura gratuita: puoi inserire un prezzo manuale oppure completare il listino." : "Dopo sposti i prodotti nella linea dal menu di ogni prodotto, oppure li crei già lì con «Prodotto in»."}
+              {catalogoInfissi ? t("Tutte le configurazioni saranno disponibili nel preventivatore. Il prezzo da definire non significa fornitura gratuita: puoi inserire un prezzo manuale oppure completare il listino.") : t("Dopo sposti i prodotti nella linea dal menu di ogni prodotto, oppure li crei già lì con «Prodotto in».")}
             </p>
           )}
         </div>
 
         <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2">
           <Button variant="ghost" onClick={onChiudi} disabled={inCorso} className="h-10 w-full sm:w-auto">
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button onClick={conferma} disabled={inCorso || !pronto} className="h-10 w-full sm:w-auto">
             {inCorso ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                Creazione…
+                {t("Creazione…")}
               </>
             ) : tipo === "asse" && !primaLinea ? (
-              `Aggiungi a ${tipologia.articoli - senzaLinee} prodotti`
+              t("Aggiungi a {articoli} prodotti", { articoli: tipologia.articoli - senzaLinee })
             ) : (
-              "Crea linea"
+              t("Crea linea")
             )}
           </Button>
         </DialogFooter>
@@ -330,16 +332,17 @@ function SceltaSerie({
   scelta: SerieSerramenti | null;
   onScegli: (serie: SerieSerramenti, marca: MarcaConSerie) => void;
 }) {
+  const t = useT();
   const { data: libreria = [], isLoading, isError } = useLibreriaSerramenti();
   const [marcaId, setMarcaId] = useState<string | null>(null);
   const marca = libreria.find((m) => m.id === (marcaId ?? scelta?.marca_id)) ?? null;
 
-  if (isLoading) return <p className="text-sm text-muted-foreground">Carico la libreria delle marche…</p>;
-  if (isError) return <p className="text-sm text-destructive">La libreria delle marche non si è caricata: scrivi la linea a mano.</p>;
+  if (isLoading) return <p className="text-sm text-muted-foreground">{t("Carico la libreria delle marche…")}</p>;
+  if (isError) return <p className="text-sm text-destructive">{t("La libreria delle marche non si è caricata: scrivi la linea a mano.")}</p>;
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Marca">
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label={t("Marca")}>
         {libreria.map((m) => (
           <button
             key={m.id}
@@ -374,7 +377,7 @@ function SceltaSerie({
                   <span className="block text-sm font-medium">{s.nome}</span>
                   <span className="block text-xs text-muted-foreground">
                     {ETICHETTA_MATERIALE[s.materiale] ?? s.materiale}
-                    {Number(s.differenza_pct) ? ` · ${formattaMaggiorazione("percentuale", Number(s.differenza_pct))} suggerito` : ""}
+                    {Number(s.differenza_pct) ? ` · ${t("{valore} suggerito", { valore: formattaMaggiorazione("percentuale", Number(s.differenza_pct)) })}` : ""}
                   </span>
                 </span>
                 <span className="flex shrink-0 items-center gap-1">
@@ -389,7 +392,7 @@ function SceltaSerie({
             );
           })}
           {marca.serie.length === 0 && (
-            <p className="text-sm text-muted-foreground">Per questa marca non ci sono ancora serie in libreria.</p>
+            <p className="text-sm text-muted-foreground">{t("Per questa marca non ci sono ancora serie in libreria.")}</p>
           )}
         </div>
       )}

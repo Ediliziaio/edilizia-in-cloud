@@ -26,8 +26,9 @@ import {
   scriviPercentuale,
   type PrezzoLineaForm,
 } from "@/lib/listino/organizzaListino";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
-const EURO = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
+const EURO = { format: (n: number) => new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR" }).format(n) };
 
 export interface DatiPrezziLinee {
   linee: Array<{ nome: string; pct: number; attiva: boolean }>;
@@ -43,6 +44,7 @@ interface Props {
 }
 
 export function PrezziLineeDialog({ tipologia, inCorso, onChiudi, onSalva }: Props) {
+  const t = useT();
   const iniziali = useMemo<PrezzoLineaForm[]>(
     () => lineeDaAsse(tipologia).map((l) => ({ nome: l.nome, pct: scriviPercentuale(l.scostamentoPct), attiva: true })),
     [tipologia],
@@ -80,10 +82,9 @@ export function PrezziLineeDialog({ tipologia, inCorso, onChiudi, onSalva }: Pro
     >
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>Prezzi delle linee di {tipologia.nome}</DialogTitle>
+          <DialogTitle>{t("Prezzi delle linee di {nome}", { nome: tipologia.nome })}</DialogTitle>
           <DialogDescription>
-            Vale solo per i {tipologia.articoli} prodotti di {tipologia.nome}. Una linea spenta non si propone più nei
-            preventivi, ma i preventivi fatti restano com&apos;erano.
+            {t("Vale solo per i {n} prodotti di {nome}. Una linea spenta non si propone più nei preventivi, ma i preventivi fatti restano com'erano.", { n: tipologia.articoli, nome: tipologia.nome })}
           </DialogDescription>
         </DialogHeader>
 
@@ -92,10 +93,10 @@ export function PrezziLineeDialog({ tipologia, inCorso, onChiudi, onSalva }: Pro
             <table className="w-full text-sm">
               <thead className="bg-muted/40 text-xs text-muted-foreground">
                 <tr>
-                  <th className="px-3 py-2 text-left font-medium">Linea</th>
-                  <th className="w-28 px-3 py-2 text-right font-medium">Scostamento %</th>
-                  <th className="w-28 px-3 py-2 text-right font-medium">Al m²</th>
-                  <th className="w-20 px-3 py-2 text-center font-medium">Accesa</th>
+                  <th className="px-3 py-2 text-left font-medium">{t("Linea")}</th>
+                  <th className="w-28 px-3 py-2 text-right font-medium">{t("Scostamento %")}</th>
+                  <th className="w-28 px-3 py-2 text-right font-medium">{t("Al m²")}</th>
+                  <th className="w-20 px-3 py-2 text-center font-medium">{t("Accesa")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -108,7 +109,7 @@ export function PrezziLineeDialog({ tipologia, inCorso, onChiudi, onSalva }: Pro
                         <span className="block">{l.nome}</span>
                         {aCifraFissa.has(l.nome) && (
                           <span className="block text-[11px] text-amber-700 dark:text-amber-400">
-                            Oggi è a cifra fissa: scrivi lo scostamento in %
+                            {t("Oggi è a cifra fissa: scrivi lo scostamento in %")}
                           </span>
                         )}
                       </td>
@@ -117,7 +118,7 @@ export function PrezziLineeDialog({ tipologia, inCorso, onChiudi, onSalva }: Pro
                           value={l.pct}
                           onChange={(e) => cambia(i, { pct: e.target.value })}
                           inputMode="decimal"
-                          aria-label={`Scostamento di ${l.nome}`}
+                          aria-label={t("Scostamento di {nome}", { nome: l.nome })}
                           className="h-9 text-right tabular-nums"
                         />
                       </td>
@@ -126,7 +127,7 @@ export function PrezziLineeDialog({ tipologia, inCorso, onChiudi, onSalva }: Pro
                         <Switch
                           checked={l.attiva}
                           onCheckedChange={(v) => cambia(i, { attiva: v })}
-                          aria-label={`${l.nome} accesa`}
+                          aria-label={t("{nome} accesa", { nome: l.nome })}
                         />
                       </td>
                     </tr>
@@ -138,14 +139,14 @@ export function PrezziLineeDialog({ tipologia, inCorso, onChiudi, onSalva }: Pro
 
           {prezzo.prodotti > 0 && (
             <fieldset className="space-y-2">
-              <legend className="text-sm font-medium">Prezzo al m² della linea di riferimento</legend>
+              <legend className="text-sm font-medium">{t("Prezzo al m² della linea di riferimento")}</legend>
               <p className="text-xs text-muted-foreground">
-                Vale per i {prezzo.prodotti} prodotti venduti a metro quadro. Vuoto = resta com&apos;è
-                {prezzo.vendita != null ? ` (oggi ${EURO.format(prezzo.vendita)} di vendita)` : ""}.
+                {t("Vale per i {n} prodotti venduti a metro quadro. Vuoto = resta com'è", { n: prezzo.prodotti })}
+                {prezzo.vendita != null ? ` ${t("(oggi {importo} di vendita)", { importo: EURO.format(prezzo.vendita) })}` : ""}.
               </p>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label htmlFor="prezzi-vendita">Vendita €/m²</Label>
+                  <Label htmlFor="prezzi-vendita">{t("Vendita €/m²")}</Label>
                   <Input
                     id="prezzi-vendita"
                     value={vendita}
@@ -156,7 +157,7 @@ export function PrezziLineeDialog({ tipologia, inCorso, onChiudi, onSalva }: Pro
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="prezzi-acquisto">Acquisto €/m²</Label>
+                  <Label htmlFor="prezzi-acquisto">{t("Acquisto €/m²")}</Label>
                   <Input
                     id="prezzi-acquisto"
                     value={acquisto}
@@ -175,16 +176,16 @@ export function PrezziLineeDialog({ tipologia, inCorso, onChiudi, onSalva }: Pro
 
         <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2">
           <Button variant="ghost" onClick={onChiudi} disabled={inCorso} className="h-10 w-full sm:w-auto">
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button onClick={salva} disabled={inCorso || !!problema} className="h-10 w-full sm:w-auto">
             {inCorso ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                Salvataggio…
+                {t("Salvataggio…")}
               </>
             ) : (
-              "Salva i prezzi"
+              t("Salva i prezzi")
             )}
           </Button>
         </DialogFooter>

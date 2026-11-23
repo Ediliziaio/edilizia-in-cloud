@@ -21,6 +21,7 @@ import { testoIndirizzo } from "@/lib/preventivatore/indirizzoLavori";
 import { datiFiscaliBozza, type BozzaComputo } from "@/lib/computo/editorNativo";
 import { avvisiDatiFiscali } from "@/lib/preventivatore/datiFiscaliCliente";
 import { SceltaTipoCliente } from "@/components/preventivatore/DatiFiscaliCliente";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const CANTIERE = ["cantiere_indirizzo", "cantiere_citta", "cantiere_cap", "cantiere_provincia"] as const;
 
@@ -40,6 +41,7 @@ export function cantiereDellaBozza(b: BozzaComputo) {
 }
 
 export default function ComputoDati({ bozza, onChange }: { bozza: BozzaComputo; onChange: (patch: Partial<BozzaComputo>) => void }) {
+  const tr = useT();
   const cantiere = cantiereDellaBozza(bozza);
   // Le scritture dello stesso giro (la spunta copia quattro campi) le somma l'editor; il testo per il PDF lo ricompone lui.
   const scriviCantiere = (chiave: (typeof CANTIERE)[number], valore: string | null) => onChange({ [chiave]: valore ?? "" });
@@ -74,15 +76,15 @@ export default function ComputoDati({ bozza, onChange }: { bozza: BozzaComputo; 
       <Input id={`native-${key}`} className="h-9" maxLength={max} placeholder={placeholder} value={bozza[key] ?? ""} onChange={e => onChange({ [key]: e.target.value })} /></div>;
 
   return <div className="grid items-start gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 400px), 1fr))" }}>
-    <section aria-label="Cliente" className="min-w-0 space-y-3 rounded-xl border bg-white p-4">
+    <section aria-label={tr("Cliente")} className="min-w-0 space-y-3 rounded-xl border bg-white p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="flex items-center gap-2 text-base font-semibold"><User className="h-4 w-4 text-slate-500" />Cliente</h2>
+        <h2 className="flex items-center gap-2 text-base font-semibold"><User className="h-4 w-4 text-slate-500" />{tr("Cliente")}</h2>
       </div>
       <SelezionaCliente clienteSiCollega
         collegatoId={bozza.clienteId || bozza.clienteAnagraficaId || null}
         collegatoOrigine={bozza.clienteId ? "contatto" : "cliente"}
         collegatoNome={bozza.clienteId || bozza.clienteAnagraficaId ? bozza.committente || null : null}
-        etichetta="Cerca contatto o cliente"
+        etichetta={tr("Cerca contatto o cliente")}
         onScegli={scegli}
         onScollega={() => onChange({ clienteId: "", clienteAnagraficaId: "" })}
       />
@@ -91,7 +93,7 @@ export default function ComputoDati({ bozza, onChange }: { bozza: BozzaComputo; 
       <div className="grid items-start gap-3 sm:grid-cols-2">
         <div className="sm:col-span-2">
         {campo("native-committente", tipo === "azienda" ? "Ragione sociale" : tipo === "pa" ? "Ente" : "Nome e cognome", tipo === "privato" ? User : Building2,
-          <Input id="native-committente" className="h-9" maxLength={160} placeholder={tipo === "azienda" ? "Es. Rossi Costruzioni S.r.l." : tipo === "pa" ? "Es. Comune di Torino" : "Es. Mario Rossi"} value={bozza.committente} onChange={e => onChange({ committente: e.target.value })} />)}</div>
+          <Input id="native-committente" className="h-9" maxLength={160} placeholder={tipo === "azienda" ? tr("Es. Rossi Costruzioni S.r.l.") : tipo === "pa" ? tr("Es. Comune di Torino") : tr("Es. Mario Rossi")} value={bozza.committente} onChange={e => onChange({ committente: e.target.value })} />)}</div>
         {campo("native-email", "Email", Mail,
           <Input id="native-email" type="email" className="h-9" maxLength={200} value={bozza.clienteEmail} onChange={e => onChange({ clienteEmail: e.target.value })} />)}
         {campo("native-telefono", "Telefono", Phone,
@@ -99,34 +101,34 @@ export default function ComputoDati({ bozza, onChange }: { bozza: BozzaComputo; 
       </div>
       <div className="grid items-start gap-3 sm:grid-cols-2">
         {tipo !== "privato" && campo("native-piva", tipo === "pa" ? "Partita IVA (se c'è)" : "Partita IVA", FileBadge,
-          <Input id="native-piva" className="h-9 font-mono [&:not(:placeholder-shown)]:uppercase" maxLength={20} inputMode="numeric" placeholder="11 cifre" value={bozza.clientePartitaIva} onChange={e => onChange({ clientePartitaIva: e.target.value })} />, avvisi.partitaIva)}
+          <Input id="native-piva" className="h-9 font-mono [&:not(:placeholder-shown)]:uppercase" maxLength={20} inputMode="numeric" placeholder={tr("11 cifre")} value={bozza.clientePartitaIva} onChange={e => onChange({ clientePartitaIva: e.target.value })} />, avvisi.partitaIva)}
         {campo("native-cf", tipo === "azienda" ? "Codice fiscale (se diverso)" : "Codice fiscale", FileBadge,
-          <Input id="native-cf" className="h-9 font-mono [&:not(:placeholder-shown)]:uppercase" maxLength={20} placeholder={tipo === "azienda" ? "Di solito uguale alla partita IVA" : tipo === "pa" ? "11 cifre dell'ente" : "16 caratteri"} value={bozza.clienteCodiceFiscale} onChange={e => onChange({ clienteCodiceFiscale: e.target.value })} />, avvisi.codiceFiscale)}
+          <Input id="native-cf" className="h-9 font-mono [&:not(:placeholder-shown)]:uppercase" maxLength={20} placeholder={tipo === "azienda" ? tr("Di solito uguale alla partita IVA") : tipo === "pa" ? tr("11 cifre dell'ente") : tr("16 caratteri")} value={bozza.clienteCodiceFiscale} onChange={e => onChange({ clienteCodiceFiscale: e.target.value })} />, avvisi.codiceFiscale)}
         {tipo !== "privato" && campo("native-pec", "PEC", Mail,
           <Input id="native-pec" type="email" className="h-9" maxLength={200} value={bozza.clientePec} onChange={e => onChange({ clientePec: e.target.value })} />)}
         {tipo !== "privato" && campo("native-sdi", tipo === "pa" ? "Codice univoco ufficio" : "Codice destinatario (SDI)", FileBadge,
-          <Input id="native-sdi" className="h-9 font-mono [&:not(:placeholder-shown)]:uppercase" maxLength={10} placeholder={tipo === "pa" ? "6 caratteri (IPA)" : "7 caratteri"} value={bozza.clienteSdi} onChange={e => onChange({ clienteSdi: e.target.value })} />, avvisi.codiceSdi)}
+          <Input id="native-sdi" className="h-9 font-mono [&:not(:placeholder-shown)]:uppercase" maxLength={10} placeholder={tipo === "pa" ? tr("6 caratteri (IPA)") : tr("7 caratteri")} value={bozza.clienteSdi} onChange={e => onChange({ clienteSdi: e.target.value })} />, avvisi.codiceSdi)}
       </div>
       <Cointestatario form={bozza} onChange={(campo, valore) => onChange({ [campo]: valore ?? "" })} />
     </section>
 
-    <section aria-label="Intervento" className="min-w-0 space-y-3 rounded-xl border bg-white p-4">
-      <h2 className="text-base font-semibold">Intervento</h2>
-      <div className="space-y-1"><Label htmlFor="native-titolo" className="text-xs">Titolo del preventivo</Label>
+    <section aria-label={tr("Intervento")} className="min-w-0 space-y-3 rounded-xl border bg-white p-4">
+      <h2 className="text-base font-semibold">{tr("Intervento")}</h2>
+      <div className="space-y-1"><Label htmlFor="native-titolo" className="text-xs">{tr("Titolo del preventivo")}</Label>
         <Textarea id="native-titolo" rows={2} maxLength={160} value={bozza.titolo} onChange={e => onChange({ titolo: e.target.value })} /></div>
-      <div className="space-y-1"><Label htmlFor="native-oggetto" className="text-xs">Oggetto dei lavori</Label>
-        <Textarea id="native-oggetto" rows={3} maxLength={500} placeholder="Descrivi l'intervento e il perimetro dei lavori" value={bozza.oggetto} onChange={e => onChange({ oggetto: e.target.value })} /></div>
+      <div className="space-y-1"><Label htmlFor="native-oggetto" className="text-xs">{tr("Oggetto dei lavori")}</Label>
+        <Textarea id="native-oggetto" rows={3} maxLength={500} placeholder={tr("Descrivi l'intervento e il perimetro dei lavori")} value={bozza.oggetto} onChange={e => onChange({ oggetto: e.target.value })} /></div>
       <div className="grid gap-3 sm:grid-cols-2">{testo("Numero preventivo", "numero", 80)}{testo("Data del documento", "dataDocumento", 40, "gg/mm/aaaa")}</div>
-      <IndirizzoDeiLavori conSpunta={indirizzo.conSpunta} etichettaUguale="Lavori allo stesso indirizzo del contatto"
+      <IndirizzoDeiLavori conSpunta={indirizzo.conSpunta} etichettaUguale={tr("Lavori allo stesso indirizzo del contatto")}
         altrove={indirizzo.altrove} onAltrove={indirizzo.scegliAltrove} lavori={indirizzo.lavori} riassunto={indirizzo.riassunto} onScrivi={indirizzo.scriviLavori} />
     <details className="group border-t pt-3">
-      <summary className="cursor-pointer text-sm font-semibold">Riferimenti del documento <span className="font-normal text-muted-foreground">· revisione, tecnico, prezzi</span></summary>
+      <summary className="cursor-pointer text-sm font-semibold">{tr("Riferimenti del documento")} <span className="font-normal text-muted-foreground">{tr("· revisione, tecnico, prezzi")}</span></summary>
       <div className="mt-3 space-y-3">
         <div className="grid gap-3 sm:grid-cols-2">
           {testo("Revisione", "revisione", 80)}{testo("Tecnico o referente", "tecnico", 300)}
         </div>
-        <div className="space-y-1"><Label htmlFor="native-prezzi" className="text-xs">Riferimenti dei prezzi</Label>
-          <Textarea id="native-prezzi" rows={2} maxLength={2000} placeholder="Es. Prezzario Regione Lombardia 2026, prezzi dell'impresa" value={bozza.riferimentoPrezzi} onChange={e => onChange({ riferimentoPrezzi: e.target.value })} /></div>
+        <div className="space-y-1"><Label htmlFor="native-prezzi" className="text-xs">{tr("Riferimenti dei prezzi")}</Label>
+          <Textarea id="native-prezzi" rows={2} maxLength={2000} placeholder={tr("Es. Prezzario Regione Lombardia 2026, prezzi dell'impresa")} value={bozza.riferimentoPrezzi} onChange={e => onChange({ riferimentoPrezzi: e.target.value })} /></div>
       </div>
     </details>
     </section>

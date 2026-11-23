@@ -8,6 +8,7 @@ import { enrichComputoRowsFromListino } from '@/lib/preventivi/wizardAiListino';
 import { QUOTE_LISTINO_SOURCES } from '../../../supabase/functions/_shared/quoteListinoSource';
 import type { WizardAiCommercialDraft } from '@/lib/preventivi/wizardAiCommercial';
 import type { QuoteItemPro } from '@/types/quoteItem';
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type NativeComputoAiContext = {
   module: NativeComputoModule; title: string; project: object; template?: object | null; media: object[];
@@ -29,11 +30,12 @@ async function nativeComputoPreview(module: NativeComputoModule, payload: Native
 }
 
 function NativeDraftPreview({ context, document, rows, error }: { context: NativeComputoAiContext; document: ChatDocument; rows: NativeComputoRow[]; error?: string }) {
-  return <section className="rounded-2xl border bg-white p-4" aria-label={`Anteprima modello ${context.module}`}><h2 className="font-semibold text-blue-950">{context.title}</h2><p className="mb-3 mt-1 text-xs text-slate-500">PDF del modello già selezionato · anteprima della bozza, nessun salvataggio</p>
+  const t = useT();
+  return <section className="rounded-2xl border bg-white p-4" aria-label={t("Anteprima modello {modulo}", { modulo: context.module })}><h2 className="font-semibold text-blue-950">{context.title}</h2><p className="mb-3 mt-1 text-xs text-slate-500">{t("PDF del modello già selezionato · anteprima della bozza, nessun salvataggio")}</p>
     {error ? <p role="alert" className="text-sm text-orange-800">{error}</p> : <div className="h-[65dvh] min-h-[320px]"><PdfBlobLivePreviewPanel
       renderBlobUrl={() => nativeComputoPreview(context.module, { progetto: context.project, computo: rows, template: context.template, media: context.media })}
       depsKey={JSON.stringify([context, rows])} debounceMs={1000} downloadFileName={`Bozza-${context.module}.pdf`} /></div>}
-    <p className="mt-3 text-xs text-slate-500">{document.lines.filter(row => !row.included).length} proposte fuori dal documento. Cliente, IVA e condizioni restano quelli del wizard.</p>
+    <p className="mt-3 text-xs text-slate-500">{t("{n} proposte fuori dal documento. Cliente, IVA e condizioni restano quelli del wizard.", { n: document.lines.filter(row => !row.included).length })}</p>
   </section>;
 }
 
@@ -41,12 +43,13 @@ export default function NativeComputoAiDialog({ context, rows, companyId, projec
   context: NativeComputoAiContext; rows: NativeComputoRow[]; companyId: string; projectId: string; open: boolean;
   onOpenChange: (open: boolean) => void; onApply: (rows: NativeComputoRow[]) => void;
 }) {
+  const t = useT();
   const [seed] = useState<{ base: NativeComputoRow[]; document: ChatDocument; context: NativeComputoAiContext; error: string | null }>(() => {
     try {
       const project = context.project as Record<string, unknown>;
       const template = context.template as Record<string, unknown> | null | undefined;
       if (project.id !== projectId || project.company_id !== companyId || template?.company_id && template.company_id !== companyId)
-        throw new Error('Progetto o modello di un’altra azienda: riapri il preventivo corretto.');
+        throw new Error(t("Progetto o modello di un’altra azienda: riapri il preventivo corretto."));
       const base = cloneWizardDraft(rows); return { base, document: computoChatDocument(base, context.title), context: cloneWizardDraft(context), error: null };
     }
     catch (error) { return { base: [], document: { revision: 0, title: context.title, lines: [] }, context, error: (error as Error).message }; }

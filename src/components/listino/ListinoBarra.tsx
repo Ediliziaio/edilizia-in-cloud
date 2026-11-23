@@ -28,6 +28,7 @@ import {
   filtriAttivi,
   type FiltriListino,
 } from "@/lib/listino/filtriListino";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface AzioneImporta {
   etichetta: string;
@@ -81,6 +82,7 @@ export function ListinoBarra({
   onNuovoProdotto,
   guida,
 }: ListinoBarraProps) {
+  const t = useT();
   const quantiFiltri = filtriAttivi(filtri);
 
   return (
@@ -90,16 +92,16 @@ export function ListinoBarra({
         <Input
           value={cerca}
           onChange={(e) => onCerca(e.target.value)}
-          placeholder="Cerca in tutto il listino…"
+          placeholder={t("Cerca in tutto il listino…")}
           className="h-9 pl-9 pr-8"
-          aria-label="Cerca in tutto il listino"
+          aria-label={t("Cerca in tutto il listino")}
         />
         {cerca && (
           <button
             type="button"
             onClick={() => onCerca("")}
             className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
-            aria-label="Svuota la ricerca"
+            aria-label={t("Svuota la ricerca")}
           >
             <X className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
@@ -110,7 +112,7 @@ export function ListinoBarra({
         <PopoverTrigger asChild>
           <Button variant="outline" size="sm" className="h-9 gap-1.5">
             <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
-            Filtri
+            {t("Filtri")}
             {quantiFiltri > 0 && (
               <span className="rounded-full bg-primary px-1.5 text-[11px] font-semibold leading-5 text-primary-foreground tabular-nums">
                 {quantiFiltri}
@@ -121,56 +123,56 @@ export function ListinoBarra({
         <PopoverContent align="start" className="w-72 space-y-3">
           <FiltroSelect
             id="filtro-modalita"
-            etichetta="Come si calcola il prezzo"
+            etichetta={t("Come si calcola il prezzo")}
             valore={filtri.modalita}
             onValore={(v) => onFiltri({ ...filtri, modalita: v as FiltriListino["modalita"] })}
-            opzioni={[["all", "Tutte"], ...Object.entries(MODALITA_PREZZO)]}
+            opzioni={[["all", t("Tutte")], ...Object.entries(MODALITA_PREZZO)]}
           />
           <FiltroSelect
             id="filtro-margine"
-            etichetta="Margine"
+            etichetta={t("Margine")}
             valore={filtri.margine}
             onValore={(v) => onFiltri({ ...filtri, margine: v as FiltriListino["margine"] })}
             opzioni={[
-              ["all", "Tutti"],
-              ["ok", `Margine sopra il ${SOGLIA_MARGINE_LISTINO}%`],
-              ["low", "Margine basso o negativo"],
-              ["missing", "Costo mancante"],
+              ["all", t("Tutti")],
+              ["ok", t("Margine sopra il {soglia_margine_listino}%", { soglia_margine_listino: SOGLIA_MARGINE_LISTINO })],
+              ["low", t("Margine basso o negativo")],
+              ["missing", t("Costo mancante")],
             ]}
-            nota={`La soglia del ${SOGLIA_MARGINE_LISTINO}% è fissa in questa pagina: non è il «Margine minimo» di Prezzo e margini.`}
+            nota={t("La soglia del {soglia_margine_listino}% è fissa in questa pagina: non è il «Margine minimo» di Prezzo e margini.", { soglia_margine_listino: SOGLIA_MARGINE_LISTINO })}
           />
           <FiltroSelect
             id="filtro-foto"
-            etichetta="Foto"
+            etichetta={t("Foto")}
             valore={filtri.foto}
             onValore={(v) => onFiltri({ ...filtri, foto: v as FiltriListino["foto"] })}
             opzioni={[
-              ["all", "Tutte"],
-              ["senza", "Senza foto"],
-              ["con", "Con foto"],
+              ["all", t("Tutte")],
+              ["senza", t("Senza foto")],
+              ["con", t("Con foto")],
             ]}
-            nota="Un disegno fatto dal sistema (serramenti) conta come foto."
+            nota={t("Un disegno fatto dal sistema (serramenti) conta come foto.")}
           />
           <FiltroSelect
             id="filtro-stato"
-            etichetta="Stato"
+            etichetta={t("Stato")}
             valore={filtri.stato}
             onValore={(v) => onFiltri({ ...filtri, stato: v as FiltriListino["stato"] })}
             opzioni={[
-              ["all", "Tutti"],
-              ["attivi", "Solo attivi"],
-              ["disattivi", "Solo disattivati"],
+              ["all", t("Tutti")],
+              ["attivi", t("Solo attivi")],
+              ["disattivi", t("Solo disattivati")],
             ]}
           />
           <FiltroSelect
             id="filtro-preventivo"
-            etichetta="Nei preventivi"
+            etichetta={t("Nei preventivi")}
             valore={filtri.preventivo}
             onValore={(v) => onFiltri({ ...filtri, preventivo: v as FiltriListino["preventivo"] })}
             opzioni={[
-              ["all", "Tutti"],
-              ["mostrati", "Proposti nei preventivi"],
-              ["nascosti", "Nascosti dai preventivi"],
+              ["all", t("Tutti")],
+              ["mostrati", t("Proposti nei preventivi")],
+              ["nascosti", t("Nascosti dai preventivi")],
             ]}
           />
           <Button
@@ -181,18 +183,18 @@ export function ListinoBarra({
             disabled={quantiFiltri === 0}
             onClick={() => onFiltri(FILTRI_LISTINO_INIZIALI)}
           >
-            Azzera i filtri
+            {t("Azzera i filtri")}
           </Button>
         </PopoverContent>
       </Popover>
 
       {/* Altezza libera: da telefono i bottoni diventano 44 px (index.css) e un
           contenitore fisso a 36 li faceva uscire dal bordo. */}
-      <div className="inline-flex items-center rounded-md border border-input bg-background p-0.5 max-md:hidden" role="group" aria-label="Vista">
+      <div className="inline-flex items-center rounded-md border border-input bg-background p-0.5 max-md:hidden" role="group" aria-label={t("Vista")}>
         {(
           [
-            ["cards", LayoutGrid, "Schede"],
-            ["table", Rows3, "Tabella"],
+            ["cards", LayoutGrid, t("Schede")],
+            ["table", Rows3, t("Tabella")],
           ] as const
         ).map(([valore, Icona, etichetta]) => (
           <Button
@@ -203,7 +205,7 @@ export function ListinoBarra({
             className="h-8 px-2.5"
             onClick={() => onVista(valore)}
             aria-pressed={vista === valore}
-            aria-label={`Vista ${etichetta.toLowerCase()}`}
+            aria-label={t("Vista {nome}", { nome: etichetta.toLowerCase() })}
             title={etichetta}
           >
             <Icona className="h-4 w-4" aria-hidden="true" />
@@ -216,28 +218,28 @@ export function ListinoBarra({
         {isAdmin && (
           <>
             {onTipologie && (
-              <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={onTipologie} aria-label="Tipologie e linee">
+              <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={onTipologie} aria-label={t("Tipologie e linee")}>
                 <FolderTree className="h-4 w-4" aria-hidden="true" />
-                <span className="hidden sm:inline">Tipologie</span>
+                <span className="hidden sm:inline">{t("Tipologie")}</span>
               </Button>
             )}
             {onModelli && (
-              <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={onModelli} aria-label="Modelli di infissi">
+              <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={onModelli} aria-label={t("Modelli di infissi")}>
                 <Layers className="h-4 w-4" aria-hidden="true" />
-                <span className="hidden sm:inline">Modelli</span>
+                <span className="hidden sm:inline">{t("Modelli")}</span>
               </Button>
             )}
             {onDisegni && (
-              <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={onDisegni} aria-label="Assegna i disegni">
+              <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={onDisegni} aria-label={t("Assegna i disegni")}>
                 <Wand2 className="h-4 w-4" aria-hidden="true" />
-                <span className="hidden sm:inline">Disegni</span>
+                <span className="hidden sm:inline">{t("Disegni")}</span>
               </Button>
             )}
             {azioniImporta && azioniImporta.length > 0 && (
-              <MenuAzioni etichetta="Importa" icona={Upload} azioni={azioniImporta} />
+              <MenuAzioni etichetta={t("Importa")} icona={Upload} azioni={azioniImporta} />
             )}
             {azioniImposta && azioniImposta.length > 0 && (
-              <MenuAzioni etichetta="Imposta" icona={Settings2} azioni={azioniImposta} />
+              <MenuAzioni etichetta={t("Imposta")} icona={Settings2} azioni={azioniImposta} />
             )}
             {onCestino && (
               <Button
@@ -245,8 +247,8 @@ export function ListinoBarra({
                 size="icon"
                 className="relative h-9 w-9"
                 onClick={onCestino}
-                aria-label={`Cestino (${cestino} ${cestino === 1 ? "prodotto" : "prodotti"})`}
-                title={cestino > 0 ? `Cestino (${cestino})` : "Cestino"}
+                aria-label={t(cestino === 1 ? "Cestino ({n} prodotto)" : "Cestino ({n} prodotti)", { n: cestino })}
+                title={cestino > 0 ? t("Cestino ({cestino})", { cestino }) : t("Cestino")}
               >
                 <Trash className="h-4 w-4" aria-hidden="true" />
                 {cestino > 0 && (
@@ -263,7 +265,7 @@ export function ListinoBarra({
                 onClick={onNuovoProdotto}
               >
                 <Plus className="h-4 w-4" aria-hidden="true" />
-                Nuovo<span className="hidden sm:inline"> prodotto</span>
+                {t("Nuovo")}<span className="hidden sm:inline"> {t("prodotto")}</span>
               </Button>
             )}
           </>

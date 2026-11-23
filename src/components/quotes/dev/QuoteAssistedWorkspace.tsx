@@ -9,6 +9,7 @@ import { planningChatIntent } from '@/lib/preventivi/quotePlanningChat';
 import { margineChatIntent, margineChatReply } from '@/lib/preventivi/margineChat';
 import { leggiComandiCostoSilvio, MESSAGGIO_AI_COSTI_SILVIO, MESSAGGIO_AI_COSTO_SILVIO, type ControlliCostiSilvio, type RichiestaCostoSilvio, type RiscontroCostoSilvio } from '@/lib/preventivi/modificaCostoSilvio';
 import { useQuoteChatScroll } from './useQuoteChatScroll';
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 const QuotePlanningChat = lazy(() => import('./QuotePlanningChat'));
 import { QuoteTaxPanel } from './QuoteTaxPanel';
 import { QuoteSchedulePanel } from './QuoteSchedulePanel';
@@ -152,13 +153,15 @@ export default function QuoteAssistedWorkspace(props: WorkspaceProps) {
   </PersistentQuoteSession> : <AssistedWorkspaceBody key={key} {...props} />;
 }
 function LocalPlanPreview({ blob, name, reading, selected }: { blob: Blob; name: string; reading: PlanAttachment["reading"]; selected?: PlanText }) {
+  const tr = useT();
   const image = useRef<HTMLImageElement>(null);
   useEffect(() => { if (!image.current || !blob.type.startsWith("image/")) return;
     const url = URL.createObjectURL(blob); image.current.src = url; return () => URL.revokeObjectURL(url);
   }, [blob]);
-  return blob.type.startsWith("image/") ? <div className="quote-plan-image" style={{ aspectRatio: reading ? `${reading.width}/${reading.height}` : undefined }}><img ref={image} alt={`Planimetria locale: ${name}`} />{selected && <svg viewBox="0 0 1 1" preserveAspectRatio="none" aria-label="Posizione del testo dell’ambiente selezionato"><rect x={selected.bbox[0]} y={selected.bbox[1]} width={selected.bbox[2]} height={selected.bbox[3]} fill="#fb923c44" stroke="#e65e13" strokeWidth=".004" /></svg>}</div> : <p>PDF conservato solo nel browser. Scegli una pagina scrivendo «pagina 2». Le posizioni dei testi sono riportate sotto, senza anteprima grafica del PDF.</p>;
+  return blob.type.startsWith("image/") ? <div className="quote-plan-image" style={{ aspectRatio: reading ? `${reading.width}/${reading.height}` : undefined }}><img ref={image} alt={tr("Planimetria locale: {nome}", { nome: name })} />{selected && <svg viewBox="0 0 1 1" preserveAspectRatio="none" aria-label={tr("Posizione del testo dell’ambiente selezionato")}><rect x={selected.bbox[0]} y={selected.bbox[1]} width={selected.bbox[2]} height={selected.bbox[3]} fill="#fb923c44" stroke="#e65e13" strokeWidth=".004" /></svg>}</div> : <p>{tr("PDF conservato solo nel browser. Scegli una pagina scrivendo «pagina 2». Le posizioni dei testi sono riportate sotto, senza anteprima grafica del PDF.")}</p>;
 }
 function AssistedWorkspaceBody({ strumentiAI = false, companyId, companyName = "Demo Azienda 2", ownerId, localTrialId, onBack, transport, simulated = true, memory, scenarioId, onScenario, templateLibrary, transcribeAudio, cadReader, flow, embedded }: WorkspaceProps & { memory?: MemoryProps }) {
+  const tr = useT();
   const proposteComputo = embedded?.proposedWork;
   const computoLayout = proposteComputo !== undefined;
   const smallViewport = useIsMobile(1051);
@@ -350,7 +353,7 @@ function AssistedWorkspaceBody({ strumentiAI = false, companyId, companyName = "
     try {
       const reading = await readPlanLocally(blob, page, ctrl.signal);
       if (ctrl.signal.aborted || run !== generation.current) return;
-      if (reading.page !== page) throw new Error("Pagina della lettura non coerente.");
+      if (reading.page !== page) throw new Error(tr("Pagina della lettura non coerente."));
       const pageEvidence = quotePlanDossierPage({ ...asset, reading })!;
       setDossier(upsertQuoteDossier(dossier, pageEvidence));
       const candidates = planCandidates(reading); setPlan({ ...asset, reading }); setRooms(candidates.rooms); setSelectedRoom(null); setRectangle(null); setModel(reading.engine);
@@ -359,7 +362,7 @@ function AssistedWorkspaceBody({ strumentiAI = false, companyId, companyName = "
         actions: [...candidates.rooms.slice(0, 12).map((r, i) => `Seleziona ambiente ${i + 1} pagina ${reading.page}`), "Mostra quote lette"],
         warnings: ["Le coordinate indicano dove è stato letto il testo, non il contorno delle stanze. Quote e unità richiedono conferma; non è stato eseguito un rilievo geometrico automatico."],
       });
-    } catch (e) { if (!ctrl.signal.aborted && run === generation.current) setAvvisoAllegato(e instanceof Error ? e.message : "Lettura locale non riuscita."); }
+    } catch (e) { if (!ctrl.signal.aborted && run === generation.current) setAvvisoAllegato(e instanceof Error ? e.message : tr("Lettura locale non riuscita.")); }
     finally { if (run === generation.current) { controller.current = null; setBusy(false); } }
   };
   const attach = async (file: File) => {
@@ -369,32 +372,32 @@ function AssistedWorkspaceBody({ strumentiAI = false, companyId, companyName = "
       const isCad = /\.dwg$/i.test(file.name) || cadSignature(new Uint8Array(await file.slice(0, 6).arrayBuffer()));
       if (ownerGeneration !== generation.current) return;
       if (isCad) {
-        if (!file.size || file.size > CAD_MAX_BYTES) throw new Error('DWG vuoto o oltre 64 MB.');
-        if (plan) throw new Error('Questa bozza ha già una planimetria. Scrivi «nuovo progetto» prima di passare al DWG, per non confondere le misure.');
+        if (!file.size || file.size > CAD_MAX_BYTES) throw new Error(tr("DWG vuoto o oltre 64 MB."));
+        if (plan) throw new Error(tr("Questa bozza ha già una planimetria. Scrivi «nuovo progetto» prima di passare al DWG, per non confondere le misure."));
         const run = ++generation.current; const ctrl = new AbortController(); controller.current = ctrl; setBusy(true); setElapsedSeconds(0); setOperation('cad');
         append({ role: 'user', text: `Leggi il DWG «${file.name.slice(0, 180)}».` });
         try {
           const reading = await (cadReader ? cadReader(file, ctrl.signal) : readCadLocally(file, companyId, ctrl.signal));
           if (ctrl.signal.aborted || run !== generation.current) return;
-          if (cad && cad.reading.id !== reading.id) throw new Error('Questa bozza ha già un altro DWG. Scrivi «nuovo progetto» prima di sostituirlo.');
+          if (cad && cad.reading.id !== reading.id) throw new Error(tr("Questa bozza ha già un altro DWG. Scrivi «nuovo progetto» prima di sostituirlo."));
           setCad({ reading, selectedState: cad?.selectedState ?? 'unknown' });
           append({ role: 'assistant', text: `**DWG letto ${reading.processedBy === 'service' ? 'dal convertitore dedicato' : 'in locale'}.** Ho trovato ${reading.totalTexts} testi e ${reading.layers.length} layer riportati. Non ho aggiunto voci o prezzi: legenda, testi ripetuti e geometrie non sono ancora quantità verificate. L’originale non è stato inviato all’AI; il riepilogo è ripreso con questa bozza.${quoteCadMeasureSummary(reading) ? ` ${quoteCadMeasureSummary(reading)}` : ''}`, questions: quoteCadQuestions(reading) });
-        } catch (error) { if (!ctrl.signal.aborted && run === generation.current) setAvvisoAllegato(error instanceof Error ? error.message : 'DWG non leggibile.'); }
+        } catch (error) { if (!ctrl.signal.aborted && run === generation.current) setAvvisoAllegato(error instanceof Error ? error.message : tr("DWG non leggibile.")); }
         finally { if (run === generation.current) { controller.current = null; setBusy(false); } }
         return;
       }
-      if (cad) throw new Error('Questa bozza contiene un DWG. Scrivi «nuovo progetto» prima di sostituirlo con un’altra planimetria.');
-      if (!file.size || file.size > PLAN_MAX_BYTES) throw new Error("File vuoto o oltre 12 MB.");
+      if (cad) throw new Error(tr("Questa bozza contiene un DWG. Scrivi «nuovo progetto» prima di sostituirlo con un’altra planimetria."));
+      if (!file.size || file.size > PLAN_MAX_BYTES) throw new Error(tr("File vuoto o oltre 12 MB."));
       const bytes = await file.arrayBuffer(); const head = new Uint8Array(bytes);
       const mime = head[0] === 255 && head[1] === 216 && head[2] === 255 ? "image/jpeg" : [137, 80, 78, 71, 13, 10, 26, 10].every((v, i) => head[i] === v) ? "image/png" : new TextDecoder().decode(head.slice(0, 5)) === "%PDF-" ? "application/pdf" : null;
-      if (!mime) throw new Error("Formato non supportato: usa PNG, JPEG o PDF, non SVG o file rinominati.");
+      if (!mime) throw new Error(tr("Formato non supportato: usa PNG, JPEG o PDF, non SVG o file rinominati."));
       const hash = await crypto.subtle.digest("SHA-256", bytes); const id = [...new Uint8Array(hash)].map(v => v.toString(16).padStart(2, "0")).join("");
       if (ownerGeneration !== generation.current) return;
-      if (plan && plan.id !== id) throw new Error("Questa bozza ha già una planimetria. Per non confondere misure e allegati, scrivi «nuovo progetto» e conferma prima di sostituirla.");
+      if (plan && plan.id !== id) throw new Error(tr("Questa bozza ha già una planimetria. Per non confondere misure e allegati, scrivi «nuovo progetto» e conferma prima di sostituirla."));
       const blob = new Blob([bytes], { type: mime });
       const asset: PlanAttachment = { id, name: [...file.name].filter(c => c.charCodeAt(0) >= 32).join("").slice(0, 180), mime, size: blob.size, reading: plan?.reading ?? null };
       setPlan(asset); setPlanBlob(blob); await readPlan(asset, blob);
-    } catch (e) { if (ownerGeneration === generation.current) setAvvisoAllegato(e instanceof Error ? e.message : "Allegato non valido."); }
+    } catch (e) { if (ownerGeneration === generation.current) setAvvisoAllegato(e instanceof Error ? e.message : tr("Allegato non valido.")); }
     finally { attaching.current = false; setPreparingAttachment(false); }
   };
   // Il file passato dal preventivo (la pianta del passo Progetto) si allega da solo, una volta, all'apertura.
@@ -932,11 +935,11 @@ function AssistedWorkspaceBody({ strumentiAI = false, companyId, companyName = "
   const latestSimulationPicker = messages.reduce((last, message, index) => message.picker === 'simulations' ? index : last, -1);
   const latestBudget = quoteHasIndicativePrices(document) ? null : savedBudget;
   const latestConversationAssistant = latestQuoteConversationAssistant(messages);
-  const operationStatus = operation === 'cad' ? 'Leggo testi e layer del DWG sul computer…'
-    : operation === 'ocr' ? 'Leggo il documento sul computer…'
-      : operation === 'catalogue' ? 'Consulto il prezzario selezionato…'
-        : simulated ? 'Riproduco il caso di prova…'
-          : progress ? quoteProgressLabel[progress] : 'Silvio sta preparando la risposta…';
+  const operationStatus = operation === 'cad' ? tr("Leggo testi e layer del DWG sul computer…")
+    : operation === 'ocr' ? tr("Leggo il documento sul computer…")
+      : operation === 'catalogue' ? tr("Consulto il prezzario selezionato…")
+        : simulated ? tr("Riproduco il caso di prova…")
+          : progress ? tr(quoteProgressLabel[progress]) : tr("Silvio sta preparando la risposta…");
   const choose = async (index: number, choice: QuoteChatChoice) => {
     const message = messages[index];
     if (choosing.current || busy || controller.current || memory?.blocked || index !== latestConversationAssistant || message.selectedChoiceId || message.choiceRevision !== current.current.revision || !message.choices?.some(c => c.id === choice.id)) return;
@@ -1018,71 +1021,71 @@ function AssistedWorkspaceBody({ strumentiAI = false, companyId, companyName = "
     showProgress={progress === 'catalogue' || progress === 'validation'} log={log} follow={chatScroll.followIfPinned} inline={!!replyKey} />;
   const riepilogoStime = <>
     {latestBudget?.preliminaryBudget && <QuotePreliminaryBudget budget={latestBudget.preliminaryBudget} stale={latestBudget.budgetRevision !== document.revision} model={latestBudget.budgetModel} compact />}
-    {!!(estimates.count || estimates.unquantified) && <section className="quote-indicative-summary" aria-label="Stime indicative fuori dal totale"><strong>Stime indicative · non incluse nel documento</strong><p>{estimates.count} voci quantificate: {formatCurrency(estimates.low)}–{formatCurrency(estimates.high)} netti.</p>{!!estimates.unquantified && <p>{estimates.unquantified} stime senza quantità, non sommate.</p>}<small>Intervallo parziale, non prezzo dell’intero progetto. Le altre lavorazioni mancanti non valgono zero; IVA e condizioni da verificare.</small></section>}
+    {!!(estimates.count || estimates.unquantified) && <section className="quote-indicative-summary" aria-label={tr("Stime indicative fuori dal totale")}><strong>{tr("Stime indicative · non incluse nel documento")}</strong><p>{tr("{n} voci quantificate: {minimo}–{massimo} netti.", { n: estimates.count, minimo: formatCurrency(estimates.low), massimo: formatCurrency(estimates.high) })}</p>{!!estimates.unquantified && <p>{tr("{n} stime senza quantità, non sommate.", { n: estimates.unquantified })}</p>}<small>{tr("Intervallo parziale, non prezzo dell’intero progetto. Le altre lavorazioni mancanti non valgono zero; IVA e condizioni da verificare.")}</small></section>}
   </>;
   const pannelloVoci = proposteComputo && embedded && <div ref={elencoComputo} tabIndex={-1} className="quote-computo-lines-pane">
     {riepilogoStime}
     {!!(awaiting || undoDepth) && <div className="quote-computo-lines-actions">
-      {!!awaiting && <button type="button" disabled={busy || !!memory?.blocked} onClick={() => void send('Conferma voci complete')}>Conferma voci complete</button>}
-      {!!undoDepth && <button type="button" disabled={busy || !!memory?.blocked} onClick={annullaUltimaModifica}>Annulla ultima modifica</button>}
+      {!!awaiting && <button type="button" disabled={busy || !!memory?.blocked} onClick={() => void send('Conferma voci complete')}>{tr("Conferma voci complete")}</button>}
+      {!!undoDepth && <button type="button" disabled={busy || !!memory?.blocked} onClick={annullaUltimaModifica}>{tr("Annulla ultima modifica")}</button>}
     </div>}
     <fieldset disabled={memory?.blocked} className="quote-computo-lines-fieldset">
       <QuoteComputoLines document={document} original={embedded.document} changes={proposteComputo} rows={rows} metadata={embedded.lineMetadata} {...lineActions} />
     </fieldset>
   </div>;
-  if (editorOpen && nativeBagniDraft) return <Suspense fallback={<p role="status">Apro il computo Bagni…</p>}>{memory?.issue && <p role="alert">{memory.issue}</p>}<fieldset disabled={memory?.blocked}><BagniQuoteEditor document={document} draft={nativeBagniDraft} project={project} projectContext={wizardContext} companyId={companyId} companyName={companyName} onBack={() => setEditorOpen(false)} onChange={next => { if (memory?.blocked) return; setBagniDraft(next.draft); if (next.document !== current.current) change(next.document); }} /></fieldset></Suspense>;
-  if (editorOpen && flow === 'classico') return <Suspense fallback={<p role="status">Apro l’editor classico…</p>}>{memory?.issue && <div role="alert" className="quote-memory-warning">{memory.issue}<button onClick={() => setEditorOpen(false)}>Torna alla chat per il recupero</button></div>}<fieldset disabled={memory?.blocked}><ClassicQuoteEditor localEditor={{ initial: linkedDraft!, projectContext: wizardContext, onBack: () => setEditorOpen(false), onChange: draft => { if (memory?.blocked) return; try { const next = applyAiEditorDraft(current.current, draft, classicDraft); const nextProject = applyAiEditorProject(project, draft); const tax = quoteTaxFromEditor(taxSettings, linkedDraft?.items ?? [], draft.items ?? []); setProject({ ...nextProject, tax }); setClassicDraft(draft); setTemplateId(draft.selectedTemplateId ?? undefined); if (next !== current.current) change(next); } catch (error) { setEditorOpen(false); appendDiagnostic({ role: 'assistant', text: `${error instanceof Error ? error.message : 'Modifica non applicata.'} La precedente bozza è conservata.` }); } } }} /></fieldset></Suspense>;
+  if (editorOpen && nativeBagniDraft) return <Suspense fallback={<p role="status">{tr("Apro il computo Bagni…")}</p>}>{memory?.issue && <p role="alert">{memory.issue}</p>}<fieldset disabled={memory?.blocked}><BagniQuoteEditor document={document} draft={nativeBagniDraft} project={project} projectContext={wizardContext} companyId={companyId} companyName={companyName} onBack={() => setEditorOpen(false)} onChange={next => { if (memory?.blocked) return; setBagniDraft(next.draft); if (next.document !== current.current) change(next.document); }} /></fieldset></Suspense>;
+  if (editorOpen && flow === 'classico') return <Suspense fallback={<p role="status">{tr("Apro l’editor classico…")}</p>}>{memory?.issue && <div role="alert" className="quote-memory-warning">{memory.issue}<button onClick={() => setEditorOpen(false)}>{tr("Torna alla chat per il recupero")}</button></div>}<fieldset disabled={memory?.blocked}><ClassicQuoteEditor localEditor={{ initial: linkedDraft!, projectContext: wizardContext, onBack: () => setEditorOpen(false), onChange: draft => { if (memory?.blocked) return; try { const next = applyAiEditorDraft(current.current, draft, classicDraft); const nextProject = applyAiEditorProject(project, draft); const tax = quoteTaxFromEditor(taxSettings, linkedDraft?.items ?? [], draft.items ?? []); setProject({ ...nextProject, tax }); setClassicDraft(draft); setTemplateId(draft.selectedTemplateId ?? undefined); if (next !== current.current) change(next); } catch (error) { setEditorOpen(false); appendDiagnostic({ role: 'assistant', text: `${error instanceof Error ? error.message : 'Modifica non applicata.'} La precedente bozza è conservata.` }); } } }} /></fieldset></Suspense>;
   return <main className={`simulation-shell chat-only-workspace ${embedded ? 'quote-workspace-embedded' : ''}${computoLayout ? ' quote-computo-workspace' : ''}`}>
-    {!embedded && flow && <nav className="quote-flow-bar" aria-label="Percorso preventivo AI"><span><strong>{bagniModel ? `Bagni · ${BAGNI_AI_MODELS[bagniModel]}` : 'Preventivo classico'}</strong> · Silvio AI → voci live → editor</span><button type="button" disabled={busy || memory?.blocked} onClick={() => setEditorOpen(true)}>{bagniModel ? 'Continua nel computo Bagni ↗' : 'Continua nell’editor classico ↗'}</button></nav>}
-    <header className="simulation-head"><div><span className="simulation-kicker">{companyName.toUpperCase()} · BOZZA LOCALE</span><h1>{document.lines.length || document.title !== emptyChatDocument().title ? document.title : 'Il progetto nasce dal dialogo.'}</h1><p>{document.lines.filter(l => !l.supersededBy?.length).length ? `${items.length} ${items.length === 1 ? 'voce inclusa' : 'voci incluse'} · ${incomplete} da completare · ${awaiting} da confermare` : 'Descrivi il lavoro o allega una planimetria. Lo costruiamo insieme.'}</p></div><span className="simulation-safe">{simulated ? plan?.reading ? "OCR locale · nessun LLM" : "Prova locale · nessun LLM" : "Demo 2 · bozza locale"}</span></header>
-    {localTrialId && <p className="quote-ux-trial-note">Prova UX separata · salvata solo in questo browser. Le altre bozze sono conservate.</p>}
+    {!embedded && flow && <nav className="quote-flow-bar" aria-label={tr("Percorso preventivo AI")}><span><strong>{bagniModel ? `${tr("Bagni")} · ${BAGNI_AI_MODELS[bagniModel]}` : tr("Preventivo classico")}</strong> · {tr("Silvio AI → voci live → editor")}</span><button type="button" disabled={busy || memory?.blocked} onClick={() => setEditorOpen(true)}>{bagniModel ? tr("Continua nel computo Bagni ↗") : tr("Continua nell’editor classico ↗")}</button></nav>}
+    <header className="simulation-head"><div><span className="simulation-kicker">{companyName.toUpperCase()} · {tr("BOZZA LOCALE")}</span><h1>{document.lines.length || document.title !== emptyChatDocument().title ? document.title : tr("Il progetto nasce dal dialogo.")}</h1><p>{document.lines.filter(l => !l.supersededBy?.length).length ? `${tr(items.length === 1 ? "{n} voce inclusa" : "{n} voci incluse", { n: items.length })} ${tr("· {incomplete} da completare · {awaiting} da confermare", { incomplete, awaiting })}` : tr("Descrivi il lavoro o allega una planimetria. Lo costruiamo insieme.")}</p></div><span className="simulation-safe">{simulated ? plan?.reading ? tr("OCR locale · nessun LLM") : tr("Prova locale · nessun LLM") : tr("Demo 2 · bozza locale")}</span></header>
+    {localTrialId && <p className="quote-ux-trial-note">{tr("Prova UX separata · salvata solo in questo browser. Le altre bozze sono conservate.")}</p>}
     <div className="simulation-columns regional-layout quote-workbench-layout"><div className="chat-editing-column">
       <Tabs value={activePane} onValueChange={valore => selezionaScheda(valore, false)} className="quote-workbench">
-      {!computoAffiancato && <TabsList aria-label="Spazio preventivo" className="quote-workbench-tabs" data-pane={activePane}>
+      {!computoAffiancato && <TabsList aria-label={tr("Spazio preventivo")} className="quote-workbench-tabs" data-pane={activePane}>
         {!computoLayout && <span className="quote-workbench-indicator" aria-hidden="true" />}
-        <TabsTrigger value="chat">{computoLayout ? 'Chat' : 'Silvio AI'}{busy && <span className="quote-tab-working" aria-label="Elaborazione in corso" />}</TabsTrigger>
-        <TabsTrigger value="lines">{pannelloSingolo ? 'Voci' : 'Voci del preventivo'} <span className="quote-tab-count" aria-hidden="true">{numeroVoci}</span></TabsTrigger>
-        {pannelloSingolo && costPreview && <TabsTrigger value="costs">Costi</TabsTrigger>}
+        <TabsTrigger value="chat">{computoLayout ? tr("Chat") : 'Silvio AI'}{busy && <span className="quote-tab-working" aria-label={tr("Elaborazione in corso")} />}</TabsTrigger>
+        <TabsTrigger value="lines">{pannelloSingolo ? tr("Voci") : tr("Voci del preventivo")} <span className="quote-tab-count" aria-hidden="true">{numeroVoci}</span></TabsTrigger>
+        {pannelloSingolo && costPreview && <TabsTrigger value="costs">{tr("Costi")}</TabsTrigger>}
         {pannelloSingolo && <TabsTrigger value="pdf">PDF</TabsTrigger>}
       </TabsList>}
       <TabsContent value="chat" forceMount hidden={activePane !== "chat"} className="quote-workbench-panel"
         {...(computoAffiancato ? { role: 'presentation', 'aria-labelledby': undefined } : {})}>
-      <section className="quote-lab-chat" aria-label="Chat unica preventivo">
-        {!computoLayout && <header className="chat-workspace-header"><div className="quote-chat-identity"><span><SilvioAvatar size={30} bg="navy" title="" />Silvio AI</span><small role="status">{memory?.status ?? (embedded?.savedLocally ? 'Bozza ripresa da questo browser · modifiche da salvare' : 'Conversazione non salvata')}</small></div><div className="quote-chat-header-meta">{strumentiAI && <details className="quote-model-details"><summary aria-label="Dettagli modello AI">{simulated ? 'Locale' : preferredModel.includes('sonnet') ? 'Sonnet 5.5' : 'GPT 6.1 Sol'}</summary><div>{!simulated && <p>Prossimo turno: {preferredModel}</p>}<p>{model ? <>Ultimo esito: {model}</> : 'Il modello effettivo viene verificato dopo la risposta.'}</p>{!simulated && <button type="button" disabled={busy || memory?.blocked} onClick={() => void send('Mostra strumenti AI')}>Modello e costi AI</button>}</div></details>}<span className={`chat-operation-status ${busy ? "working" : ""}`}><i aria-hidden="true" />{busy ? 'In corso' : 'Pronto'}</span></div></header>}
-        {memory?.issue && <div role="alert" className="quote-memory-warning"><p>{memory.issue}</p>{memory.blocked ? <button onClick={memory.reload}>Riprendi versione salvata (scarta modifiche di questa scheda)</button> : <button onClick={memory.retry}>Riprova salvataggio</button>}</div>}
+      <section className="quote-lab-chat" aria-label={tr("Chat unica preventivo")}>
+        {!computoLayout && <header className="chat-workspace-header"><div className="quote-chat-identity"><span><SilvioAvatar size={30} bg="navy" title="" />Silvio AI</span><small role="status">{memory?.status ?? (embedded?.savedLocally ? tr("Bozza ripresa da questo browser · modifiche da salvare") : tr("Conversazione non salvata"))}</small></div><div className="quote-chat-header-meta">{strumentiAI && <details className="quote-model-details"><summary aria-label={tr("Dettagli modello AI")}>{simulated ? tr("Locale") : preferredModel.includes('sonnet') ? 'Sonnet 5.5' : 'GPT 6.1 Sol'}</summary><div>{!simulated && <p>{tr("Prossimo turno: {modello}", { modello: preferredModel })}</p>}<p>{model ? <>{tr("Ultimo esito: {modello}", { modello: model })}</> : tr("Il modello effettivo viene verificato dopo la risposta.")}</p>{!simulated && <button type="button" disabled={busy || memory?.blocked} onClick={() => void send('Mostra strumenti AI')}>{tr("Modello e costi AI")}</button>}</div></details>}<span className={`chat-operation-status ${busy ? "working" : ""}`}><i aria-hidden="true" />{busy ? tr("In corso") : tr("Pronto")}</span></div></header>}
+        {memory?.issue && <div role="alert" className="quote-memory-warning"><p>{memory.issue}</p>{memory.blocked ? <button onClick={memory.reload}>{tr("Riprendi versione salvata (scarta modifiche di questa scheda)")}</button> : <button onClick={memory.retry}>{tr("Riprova salvataggio")}</button>}</div>}
         <div className={`quote-lab-messages${avvioComputo ? ' quote-computo-log-start' : ''}`} role="log" aria-live="polite" ref={log} onScroll={chatScroll.onScroll}>{[
           ...messages.map((m, i) => !visibile(m) ? null : <article className={`quote-lab-message ${m.role}${m.replyKey ? ' quote-computo-turn' : stessoAutore(i) ? ' quote-lab-message--segue' : ''}`} key={m.replyKey ?? i} data-turn={m.replyKey}>
-          {(m.replyKey || !stessoAutore(i)) && (m.role === 'user' ? <small>Tu</small> : <div className="quote-message-author">
-            <SilvioAvatar size={24} bg="navy" title="" />{simulated ? plan ? 'Silvio · locale' : 'Silvio · caso preparato' : 'Silvio'}
+          {(m.replyKey || !stessoAutore(i)) && (m.role === 'user' ? <small>{tr("Tu")}</small> : <div className="quote-message-author">
+            <SilvioAvatar size={24} bg="navy" title="" />{simulated ? plan ? tr("Silvio · locale") : tr("Silvio · caso preparato") : 'Silvio'}
           </div>)}
-          {m.origineProgetto && <small className="mb-1 block text-muted-foreground">Progetto</small>}
+          {m.origineProgetto && <small className="mb-1 block text-muted-foreground">{tr("Progetto")}</small>}
           {m.role === 'assistant' && m.sources?.length ? null : m.role === 'assistant' && m.diagnostic && m.text.includes('**Risultato ') ? <QuoteCatalogueMessage content={m.text} actions={m.actions} references={m.catalogueRefs} disabled={busy || memory?.blocked || i !== latestAssistant || m.actionRevision !== document.revision} onAction={a => void send(a)} /> : m.role === "assistant" ? <QuoteChatResponse content={m.receipt ? coherentQuoteReply(m.text) : m.text} /> : <p>{m.text}</p>}
           {avvioComputo && <div className="quote-computo-chat-actions">
-            <button type="button" disabled={busy || !!input.trim()} onClick={() => { setInput('Aggiungi una lavorazione per '); composer.current?.querySelector('textarea')?.focus(); }}>Aggiungi una lavorazione</button>
-            {numeroVoci ? <button type="button" disabled={busy} onClick={() => void send('Verifica computo')}>Verifica il computo</button> :
-              <button type="button" disabled={busy} onClick={() => fileInput.current?.click()}>Allega una planimetria</button>}
+            <button type="button" disabled={busy || !!input.trim()} onClick={() => { setInput('Aggiungi una lavorazione per '); composer.current?.querySelector('textarea')?.focus(); }}>{tr("Aggiungi una lavorazione")}</button>
+            {numeroVoci ? <button type="button" disabled={busy} onClick={() => void send('Verifica computo')}>{tr("Verifica il computo")}</button> :
+              <button type="button" disabled={busy} onClick={() => fileInput.current?.click()}>{tr("Allega una planimetria")}</button>}
           </div>}
-          {simulated && !plan && i === 0 && <details className="quote-chat-attachment"><summary>Immagine del precedente caso preparato (non OCR)</summary><img src={planImage} alt="Planimetria del caso preparato; superficie totale non verificata" loading="lazy" /></details>}
+          {simulated && !plan && i === 0 && <details className="quote-chat-attachment"><summary>{tr("Immagine del precedente caso preparato (non OCR)")}</summary><img src={planImage} alt={tr("Planimetria del caso preparato; superficie totale non verificata")} loading="lazy" /></details>}
           {(!!m.questions?.length || !!m.choices?.length) && <div className="quote-chat-follow-up">
             {!!m.questions?.length && <ul className="quote-chat-questions">{(computoLayout && !m.choices?.length ? m.questions.slice(0, 1) : m.questions).map(q => <li key={q}><QuoteChatResponse content={q.replace(/^\s*(?:[-*•]\s*)?(?:\d{1,3}[.)]\s*)?/, "")} /></li>)}</ul>}
             {computoLayout && !m.choices?.length && (m.questions?.length ?? 0) > 1 && <details className="quote-computo-question-more">
-              <summary>Altri dati da chiarire</summary>
+              <summary>{tr("Altri dati da chiarire")}</summary>
               <ul className="quote-chat-questions">{m.questions?.slice(1).map(q => <li key={q}><QuoteChatResponse content={q.replace(/^\s*(?:[-*•]\s*)?(?:\d{1,3}[.)]\s*)?/, "")} /></li>)}</ul>
             </details>}
             {!!m.choices?.length && <QuoteChatChoices compact={computoLayout} hideCaption={computoLayout || !!m.questions?.length} choices={m.choices} selectedId={m.selectedChoiceId} active={!memory?.blocked && i === latestConversationAssistant && m.choiceRevision === document.revision} busy={busy} draftText={input} onChoose={choice => void choose(i, choice)} onCustomize={customize} />}
             {!!m.questions?.length && !m.choices?.length && i === latestAssistant && <div className="quote-chat-quick-help">
-              {!simulated && m.questions.some(q => /prezzari[oi]|listino|edizione/i.test(q)) && <button type="button" disabled={busy || memory?.blocked} onClick={() => void send('Mostra prezzari')}>Scegli prezzario</button>}
-              {!simulated && <button type="button" disabled={busy || memory?.blocked} onClick={prepareStartingPoint}>Proposta iniziale</button>}
-              <button type="button" disabled={busy || memory?.blocked} onClick={() => { setInput(v => v.trim() ? v : 'Non lo so ancora: aiutami a capire quali dati servono prima di scegliere.'); composer.current?.querySelector('textarea')?.focus(); }}>Aiutami a scegliere</button>
+              {!simulated && m.questions.some(q => /prezzari[oi]|listino|edizione/i.test(q)) && <button type="button" disabled={busy || memory?.blocked} onClick={() => void send('Mostra prezzari')}>{tr("Scegli prezzario")}</button>}
+              {!simulated && <button type="button" disabled={busy || memory?.blocked} onClick={prepareStartingPoint}>{tr("Proposta iniziale")}</button>}
+              <button type="button" disabled={busy || memory?.blocked} onClick={() => { setInput(v => v.trim() ? v : 'Non lo so ancora: aiutami a capire quali dati servono prima di scegliere.'); composer.current?.querySelector('textarea')?.focus(); }}>{tr("Aiutami a scegliere")}</button>
             </div>}
           </div>}
-          {m.editorSummary && <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-3" aria-label="Valori del computo al momento della risposta"><QuoteChatResponse content={m.editorSummary} /></div>}
+          {m.editorSummary && <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-3" aria-label={tr("Valori del computo al momento della risposta")}><QuoteChatResponse content={m.editorSummary} /></div>}
           <QuoteTurnDetails warnings={m.warnings} receipt={m.receipt} revision={m.actionRevision} onReview={apriVoci} compact={computoLayout} />
           {m.preliminaryBudget && <QuotePreliminaryBudget budget={m.preliminaryBudget} stale={m.budgetRevision !== document.revision || i !== latestBudgetMessage || !savedBudget} model={strumentiAI ? m.budgetModel : undefined} vat={budgetVat} />}
-          {strumentiAI && m.benchmarkRaw?.map((t, n) => <details className="quote-chat-caveats" key={`raw-${n}`}><summary>Risposta grezza del modello · passaggio {n + 1}</summary><QuoteChatResponse content={t.message} />{t.questions.map(q => <QuoteChatResponse key={q} content={q} />)}<p>Proposte: {t.proposals.map(p => `${p.id}: ${p.title}`).join("; ") || "nessuna"}</p><p>Esclusioni proposte: {t.excludeIds?.join(", ") || "nessuna"}</p></details>)}
-          {i === latestAssistant && m.actions?.some(a => /^Escludi voce \d+$/.test(a) && document.lines[Number(a.match(/\d+$/)?.[0]) - 1]?.included) && <p className="quote-chat-confirmation"><strong>Esclusione ancora da confermare.</strong> La scelta tecnica non ha tolto importi dal totale: usa il pulsante «Escludi voce» qui sotto per applicarla.</p>}
-          {m.actions?.some(a => /^Escludi voce \d+$/.test(a)) && m.actionRevision !== document.revision && <p className="quote-chat-confirmation">Proposta precedente: prima di escludere, richiedi una nuova verifica delle voci attuali in chat.</p>}
-          {m.actions && <div className="quote-lab-suggestions">{m.actions.filter(a => (strumentiAI || !isAzioneStrumentiAI(a)) && !(m.diagnostic && m.text.includes('**Risultato ') && a.startsWith('Collega codice '))).map(a => <button key={a} disabled={busy || memory?.blocked || / · revisione \d+$/.test(a) && Number(a.match(/(\d+)$/)?.[1]) !== document.revision || /^Componi parti confermate/.test(a) && i !== latestAssistant || /^Escludi voce \d+$/.test(a) && m.actionRevision !== document.revision || a === 'Prepara proposta indicativa dal budget' && (i !== latestBudgetMessage || !savedBudget) || /^Conferma proposta indicativa dal budget/.test(a) && i !== latestAssistant} onClick={() => void send(a)}>{a.startsWith('Usa modello preventivo ') ? `Usa ${workspaceOfferTemplates(templateLibrary).find(t => a.endsWith(t.id))?.name ?? 'modello non disponibile'}` : actionLabel(a, m.text)}</button>)}</div>}
+          {strumentiAI && m.benchmarkRaw?.map((t, n) => <details className="quote-chat-caveats" key={`raw-${n}`}><summary>{tr("Risposta grezza del modello · passaggio {n}", { n: n + 1 })}</summary><QuoteChatResponse content={t.message} />{t.questions.map(q => <QuoteChatResponse key={q} content={q} />)}<p>{tr("Proposte:")} {t.proposals.map(p => `${p.id}: ${p.title}`).join("; ") || tr("nessuna")}</p><p>{tr("Esclusioni proposte:")} {t.excludeIds?.join(", ") || tr("nessuna")}</p></details>)}
+          {i === latestAssistant && m.actions?.some(a => /^Escludi voce \d+$/.test(a) && document.lines[Number(a.match(/\d+$/)?.[0]) - 1]?.included) && <p className="quote-chat-confirmation"><strong>{tr("Esclusione ancora da confermare.")}</strong> {tr("La scelta tecnica non ha tolto importi dal totale: usa il pulsante «Escludi voce» qui sotto per applicarla.")}</p>}
+          {m.actions?.some(a => /^Escludi voce \d+$/.test(a)) && m.actionRevision !== document.revision && <p className="quote-chat-confirmation">{tr("Proposta precedente: prima di escludere, richiedi una nuova verifica delle voci attuali in chat.")}</p>}
+          {m.actions && <div className="quote-lab-suggestions">{m.actions.filter(a => (strumentiAI || !isAzioneStrumentiAI(a)) && !(m.diagnostic && m.text.includes('**Risultato ') && a.startsWith('Collega codice '))).map(a => <button key={a} disabled={busy || memory?.blocked || / · revisione \d+$/.test(a) && Number(a.match(/(\d+)$/)?.[1]) !== document.revision || /^Componi parti confermate/.test(a) && i !== latestAssistant || /^Escludi voce \d+$/.test(a) && m.actionRevision !== document.revision || a === 'Prepara proposta indicativa dal budget' && (i !== latestBudgetMessage || !savedBudget) || /^Conferma proposta indicativa dal budget/.test(a) && i !== latestAssistant} onClick={() => void send(a)}>{a.startsWith('Usa modello preventivo ') ? tr("Usa {modello}", { modello: workspaceOfferTemplates(templateLibrary).find(t => a.endsWith(t.id))?.name ?? tr("modello non disponibile") }) : actionLabel(a, m.text)}</button>)}</div>}
           {m.sources && <QuoteSourcePicker options={m.sources} selectedId={sourceId} disabled={busy || !!memory?.blocked || i !== latestSourceMessage} loading={sources.isFetching} error={!!sources.error} onRetry={() => void send('Mostra prezzari')} onSelect={id => send(`usa fonte ${id}`)} />}
           {!flow && m.picker === 'simulations' && <QuoteSimulationPicker currentId={scenarioId} disabled={busy || !!memory?.blocked || i !== latestSimulationPicker} onSelect={id => send(`Simulazione ${quoteSimulationScenario(id)!.label.toLocaleLowerCase('it')}`)} />}
           {!embedded && !flow && (m.picker === 'templates' || i === 0 && m.role === 'assistant' && !simulated) && <QuoteTemplatePicker library={templateLibrary} selectedId={templateId}
@@ -1094,22 +1097,22 @@ function AssistedWorkspaceBody({ strumentiAI = false, companyId, companyName = "
           ? <article key={replyKey} data-turn={replyKey} className="quote-lab-message assistant quote-computo-turn">{streaming}</article>
           : null,
         ]}
-        {pendingEdits && <section className="space-y-2 rounded-lg border border-amber-200 bg-amber-50/80 p-3 text-sm" aria-label="Modifiche proposte alle righe protette">
-          <strong className="block text-slate-900">Modifiche da approvare</strong>
+        {pendingEdits && <section className="space-y-2 rounded-lg border border-amber-200 bg-amber-50/80 p-3 text-sm" aria-label={tr("Modifiche proposte alle righe protette")}>
+          <strong className="block text-slate-900">{tr("Modifiche da approvare")}</strong>
           {protectedQuoteEdits(document, pendingEdits.proposals).map(edit => {
             const prima = document.lines.find(l => l.id === edit.proposal.id);
             return <div className="border-l-2 border-amber-300 pl-2.5" key={edit.proposal.id}>
               <b className="break-words font-medium text-slate-900">{prima?.title}</b>
-              <ul className="text-xs leading-relaxed text-slate-700">{edit.fields.map(key => <li key={key} className="break-words">{({ title: 'Titolo', description: 'Descrizione', quantity: 'Quantità', unit: 'Unità' })[key]}: {String(prima?.[key] ?? 'da definire')} → {String(edit.proposal[key] ?? 'da definire')}</li>)}</ul>
+              <ul className="text-xs leading-relaxed text-slate-700">{edit.fields.map(key => <li key={key} className="break-words">{tr(({ title: 'Titolo', description: 'Descrizione', quantity: 'Quantità', unit: 'Unità' })[key])}: {String(prima?.[key] ?? tr("da definire"))} → {String(edit.proposal[key] ?? tr("da definire"))}</li>)}</ul>
             </div>;
           })}
           <div className="flex flex-wrap items-center gap-2">
-            <button className="rounded-md border border-amber-300 bg-white px-2.5 py-1.5 text-xs font-medium disabled:opacity-50" disabled={busy || memory?.blocked || pendingEdits.revision !== document.revision} onClick={() => void send(`Conferma modifiche proposte · revisione ${pendingEdits.revision}`)}>Approva queste modifiche</button>
-            <button className="px-1 py-1.5 text-xs font-medium text-blue-800 underline" disabled={busy || memory?.blocked} onClick={() => setPendingEdits(null)}>Scarta proposta</button>
+            <button className="rounded-md border border-amber-300 bg-white px-2.5 py-1.5 text-xs font-medium disabled:opacity-50" disabled={busy || memory?.blocked || pendingEdits.revision !== document.revision} onClick={() => void send(`Conferma modifiche proposte · revisione ${pendingEdits.revision}`)}>{tr("Approva queste modifiche")}</button>
+            <button className="px-1 py-1.5 text-xs font-medium text-blue-800 underline" disabled={busy || memory?.blocked} onClick={() => setPendingEdits(null)}>{tr("Scarta proposta")}</button>
           </div>
-          {pendingEdits.revision !== document.revision && <p role="status" className="text-xs text-amber-900">La bozza è cambiata. Chiedi una nuova proposta prima di applicarla.</p>}
+          {pendingEdits.revision !== document.revision && <p role="status" className="text-xs text-amber-900">{tr("La bozza è cambiata. Chiedi una nuova proposta prima di applicarla.")}</p>}
         </section>}
-        {planningEnabled && planningOpen && <Suspense fallback={<p role="status">Apro gli scenari locali…</p>}><QuotePlanningChat key={`${ownerId}:${companyId}:${planningSession}`} ownerId={ownerId ?? ''} companyId={companyId} sessionId={planningSession} scope={planningScope} document={document} project={project} request={planningRequest} disabled={busy || !!memory?.blocked}
+        {planningEnabled && planningOpen && <Suspense fallback={<p role="status">{tr("Apro gli scenari locali…")}</p>}><QuotePlanningChat key={`${ownerId}:${companyId}:${planningSession}`} ownerId={ownerId ?? ''} companyId={companyId} sessionId={planningSession} scope={planningScope} document={document} project={project} request={planningRequest} disabled={busy || !!memory?.blocked}
           onReply={text => appendDiagnostic({ role: 'assistant', text })} onClose={() => { setPlanningOpen(false); setPlanningRequest(null); }} /></Suspense>}
         {projectTools && <QuoteProjectTools document={document} project={project} vat={nativeBagniDraft?.iva ?? null} commercialTotals={taxTotal} discounts={Object.fromEntries(nativeBagniDraft?.rows.map(r => [r.id, r.discount]) ?? [])} memory={memory} disabled={busy || !!memory?.blocked}
           onChange={next => { setProject(next); if (JSON.stringify(next.target) !== JSON.stringify(project.target) || JSON.stringify(next.rooms) !== JSON.stringify(project.rooms)) setSavedBudget(null); }}
@@ -1126,23 +1129,23 @@ function AssistedWorkspaceBody({ strumentiAI = false, companyId, companyName = "
           onEstimate={(id, estimate, revision) => { try { change(setChatIndicativeEstimate(current.current, id, estimate, revision)); appendDiagnostic({ role: 'assistant', text: `Stima indicativa salvata separatamente: ${formatCurrency(estimate.low)}–${formatCurrency(estimate.high)} / ${estimate.unit}.\nBase: ${estimate.basis}\nIpotesi: ${estimate.assumptions}\nNon è un prezzo regionale verificato e non entra nel totale confermato.` }); } catch (e) { appendDiagnostic({ role: 'assistant', text: (e as Error).message }); } }}
           onSearchEstimate={index => void send(`Stima da prezzario voce ${index + 1}`)} />}
         {cad && <QuoteCadCard cad={cad} disabled={busy || !!memory?.blocked} onAction={text => void send(text)} />}
-        {plan && planBlob && <article className="quote-lab-message assistant quote-plan-card"><details><summary>{plan.name} · {plan.reading ? `pagina ${plan.reading.page}/${plan.reading.pages}` : "da leggere"}</summary><LocalPlanPreview blob={planBlob} name={plan.name} reading={plan.reading} selected={plan.reading && selectedRoom ? plan.reading.lines[rooms.find(r => r.id === selectedRoom)?.line ?? -1] : undefined} />
-          {plan.reading && <details><summary>Testi e posizioni OCR ({plan.reading.lines.length})</summary><ol>{plan.reading.lines.slice(0, 100).map((l, i) => <li key={i}>{i + 1}. {l.text} · posizione {l.bbox.map(n => n.toFixed(3)).join(", ")} · confidenza OCR {Math.round(l.confidence * 100)}% (non accuratezza metrica)</li>)}</ol>{plan.reading.lines.length > 100 && <p>Mostrati i primi 100 testi.</p>}</details>}</details></article>}
+        {plan && planBlob && <article className="quote-lab-message assistant quote-plan-card"><details><summary>{plan.name} · {plan.reading ? tr("pagina {n}/{totale}", { n: plan.reading.page, totale: plan.reading.pages }) : tr("da leggere")}</summary><LocalPlanPreview blob={planBlob} name={plan.name} reading={plan.reading} selected={plan.reading && selectedRoom ? plan.reading.lines[rooms.find(r => r.id === selectedRoom)?.line ?? -1] : undefined} />
+          {plan.reading && <details><summary>{tr("Testi e posizioni OCR ({n})", { n: plan.reading.lines.length })}</summary><ol>{plan.reading.lines.slice(0, 100).map((l, i) => <li key={i}>{i + 1}. {l.text} · {tr("posizione {coordinate} · confidenza OCR {n}% (non accuratezza metrica)", { coordinate: l.bbox.map(n => n.toFixed(3)).join(", "), n: Math.round(l.confidence * 100) })}</li>)}</ol>{plan.reading.lines.length > 100 && <p>{tr("Mostrati i primi 100 testi.")}</p>}</details>}</details></article>}
         {!replyKey && streaming}
         </div>
-        {chatScroll.unread && <div className="quote-chat-unread"><button type="button" onClick={chatScroll.jumpToLatest} aria-label="Vai all’ultima risposta">Nuova risposta ↓</button></div>}
-        {(dossier.length > 0 || dossierOpen) && <details open={dossierOpen} onToggle={e => setDossierOpen(e.currentTarget.open)} className="mx-4 my-2 rounded-lg border border-blue-100 p-3 text-xs"><summary className="cursor-pointer text-blue-800">Documenti del progetto · {dossier.length} {dossier.length === 1 ? 'pagina' : 'pagine'}</summary><p className="my-2 text-slate-500">Estratti locali richiamabili dall’AI. OCR e specifiche non sono misure o prezzi certificati.</p>{dossier.map(page => <details key={`${page.id}:${page.page}`} className="my-2"><summary>{page.name} · p. {page.page} · {page.origin === 'ocr' ? 'OCR da verificare' : 'estratto controllato'}</summary><p className="my-2 text-slate-500">D-{page.id.slice(0, 8)}-P{page.page}{page.excerpt ? ' · estratto parziale' : ''}</p><pre className="max-h-40 overflow-auto whitespace-pre-wrap font-sans">{page.text}</pre><button className="mt-2 text-blue-700 underline" disabled={busy || memory?.blocked} onClick={() => setDossier(previous => readQuoteDossier(previous.filter(p => p.id !== page.id || p.page !== page.page)))}>Rimuovi estratto dal dossier</button></details>)}</details>}
-        {plan?.localFileMissing && <p role="status" className="mx-4 my-2 text-xs text-orange-800">Dossier ripreso, originale non presente su questo dispositivo. Riallega «{plan.name}» per vedere o analizzare di nuovo l’immagine.</p>}
-        <input ref={fileInput} type="file" accept="image/png,image/jpeg,application/pdf,.dwg" aria-label="File planimetria" data-rilascio="senza-filtro" hidden onChange={e => { setAvvisoAllegato(null); const file = e.currentTarget.files?.[0]; e.currentTarget.value = ''; if (file) void attach(file); }} />
-        {avvisoAllegato && <div role="alert" className="quote-chat-attach-alert"><span>{avvisoAllegato}</span><button type="button" aria-label="Chiudi avviso" onClick={() => setAvvisoAllegato(null)}>×</button></div>}
+        {chatScroll.unread && <div className="quote-chat-unread"><button type="button" onClick={chatScroll.jumpToLatest} aria-label={tr("Vai all’ultima risposta")}>{tr("Nuova risposta ↓")}</button></div>}
+        {(dossier.length > 0 || dossierOpen) && <details open={dossierOpen} onToggle={e => setDossierOpen(e.currentTarget.open)} className="mx-4 my-2 rounded-lg border border-blue-100 p-3 text-xs"><summary className="cursor-pointer text-blue-800">{tr(dossier.length === 1 ? "Documenti del progetto · {n} pagina" : "Documenti del progetto · {n} pagine", { n: dossier.length })}</summary><p className="my-2 text-slate-500">{tr("Estratti locali richiamabili dall’AI. OCR e specifiche non sono misure o prezzi certificati.")}</p>{dossier.map(page => <details key={`${page.id}:${page.page}`} className="my-2"><summary>{page.name} · p. {page.page} · {page.origin === 'ocr' ? tr("OCR da verificare") : tr("estratto controllato")}</summary><p className="my-2 text-slate-500">D-{page.id.slice(0, 8)}-P{page.page}{page.excerpt ? ` · ${tr("estratto parziale")}` : ''}</p><pre className="max-h-40 overflow-auto whitespace-pre-wrap font-sans">{page.text}</pre><button className="mt-2 text-blue-700 underline" disabled={busy || memory?.blocked} onClick={() => setDossier(previous => readQuoteDossier(previous.filter(p => p.id !== page.id || p.page !== page.page)))}>{tr("Rimuovi estratto dal dossier")}</button></details>)}</details>}
+        {plan?.localFileMissing && <p role="status" className="mx-4 my-2 text-xs text-orange-800">{tr("Dossier ripreso, originale non presente su questo dispositivo. Riallega «{nome}» per vedere o analizzare di nuovo l’immagine.", { nome: plan.name })}</p>}
+        <input ref={fileInput} type="file" accept="image/png,image/jpeg,application/pdf,.dwg" aria-label={tr("File planimetria")} data-rilascio="senza-filtro" hidden onChange={e => { setAvvisoAllegato(null); const file = e.currentTarget.files?.[0]; e.currentTarget.value = ''; if (file) void attach(file); }} />
+        {avvisoAllegato && <div role="alert" className="quote-chat-attach-alert"><span>{avvisoAllegato}</span><button type="button" aria-label={tr("Chiudi avviso")} onClick={() => setAvvisoAllegato(null)}>×</button></div>}
         <div ref={composer} className="quote-chat-compose-region"><QuoteChatComposer strumentiAI={strumentiAI} value={input} onValueChange={setInput} onSubmit={() => void send()} onStop={stop} busy={busy} disabled={memory?.blocked} real={!simulated} hasPlan={!!plan} hasLines={!!document.lines.length} planningEnabled={planningEnabled} onAttachPlan={() => fileInput.current?.click()} onAction={composerAction} transcribe={transcribeAudio} onEvidence={page => { try { setDossier(upsertQuoteDossier(dossier, page)); return true; } catch (e) { appendDiagnostic({ role: 'assistant', text: (e as Error).message }); return false; } }} /></div>
-        <details className="quote-chat-privacy"><summary>Come funziona <span>· dati e privacy</span></summary><p>{!simulated && 'Invio: messaggi, voci ed estratti pertinenti del dossier al servizio di intelligenza artificiale. Analizza immagine invia una copia PNG/JPEG senza metadati; l’originale resta locale. Materiali e audio si controllano nel messaggio prima di inviarli. '}{memory ? 'Salvataggio automatico su questo browser. Dai controlli puoi salvare e riprendere una copia nell’area backend Demo 2 del tuo account, oppure attivarne esplicitamente l’aggiornamento automatico per questa sessione. Nessuna fusione automatica tra dispositivi; file originali esclusi.' : embedded ? 'Usa «Salva e chiudi» per conservare chat, voci e allegati solo in questo browser, separati per account, azienda e preventivo. Non è un salvataggio del preventivo nel gestionale né una sincronizzazione tra dispositivi.' : 'Sessione senza memoria persistente.'} Interrompi scarta la risposta in arrivo; una chiamata già avviata al provider può comunque essere conteggiata. Nessun invio ai clienti.</p></details>
+        <details className="quote-chat-privacy"><summary>{tr("Come funziona")} <span>{tr("· dati e privacy")}</span></summary><p>{!simulated && `${tr("Invio: messaggi, voci ed estratti pertinenti del dossier al servizio di intelligenza artificiale. Analizza immagine invia una copia PNG/JPEG senza metadati; l’originale resta locale. Materiali e audio si controllano nel messaggio prima di inviarli.")} `}{memory ? tr("Salvataggio automatico su questo browser. Dai controlli puoi salvare e riprendere una copia nell’area backend Demo 2 del tuo account, oppure attivarne esplicitamente l’aggiornamento automatico per questa sessione. Nessuna fusione automatica tra dispositivi; file originali esclusi.") : embedded ? tr("Usa «Salva e chiudi» per conservare chat, voci e allegati solo in questo browser, separati per account, azienda e preventivo. Non è un salvataggio del preventivo nel gestionale né una sincronizzazione tra dispositivi.") : tr("Sessione senza memoria persistente.")} {tr("Interrompi scarta la risposta in arrivo; una chiamata già avviata al provider può comunque essere conteggiata. Nessun invio ai clienti.")}</p></details>
       </section>
       </TabsContent>
       {pannelloSingolo && <TabsContent value="lines" forceMount hidden={activePane !== 'lines'} className="quote-workbench-panel">{pannelloVoci}</TabsContent>}
       {!computoLayout && <TabsContent value="lines" forceMount hidden={activePane !== "lines"} className="quote-workbench-panel quote-lines-panel">
-      {!!document.lines.length && <div className="quote-chat-review"><span>{items.length} incluse · {incomplete} da completare · {awaiting} da confermare</span><button onClick={() => void send("Conferma voci complete")} disabled={busy || memory?.blocked || !awaiting}>Conferma voci complete</button></div>}
-      {!document.lines.length && <div className="quote-lines-empty"><h2>Il tuo preventivo, voce per voce</h2><p>Descrivi il progetto a Silvio AI. Qui troverai le lavorazioni proposte e potrai modificare titolo, descrizione, quantità, unità e prezzo.</p><button onClick={() => setPane("chat")}>Inizia dalla chat</button></div>}
+      {!!document.lines.length && <div className="quote-chat-review"><span>{tr("{n} incluse", { n: items.length })} {tr("· {incomplete} da completare · {awaiting} da confermare", { incomplete, awaiting })}</span><button onClick={() => void send("Conferma voci complete")} disabled={busy || memory?.blocked || !awaiting}>{tr("Conferma voci complete")}</button></div>}
+      {!document.lines.length && <div className="quote-lines-empty"><h2>{tr("Il tuo preventivo, voce per voce")}</h2><p>{tr("Descrivi il progetto a Silvio AI. Qui troverai le lavorazioni proposte e potrai modificare titolo, descrizione, quantità, unità e prezzo.")}</p><button onClick={() => setPane("chat")}>{tr("Inizia dalla chat")}</button></div>}
       <fieldset disabled={memory?.blocked}><QuoteLineEditor rows={rows} {...lineActions} /></fieldset>
       </TabsContent>}
       {pannelloSingolo && costPreview && <TabsContent value="costs" forceMount hidden={activePane !== 'costs'} className="quote-workbench-panel">
@@ -1152,14 +1155,14 @@ function AssistedWorkspaceBody({ strumentiAI = false, companyId, companyName = "
         {anteprimaComputo}
       </TabsContent>}
       </Tabs>
-      {!computoLayout && !!undoDepth && <div className="quote-workspace-undo"><span>Ultima modifica alle voci · questa sessione</span><button disabled={busy || memory?.blocked} onClick={annullaUltimaModifica}>Annulla ultima modifica</button></div>}
-      {!embedded && <button className="quote-chat-back" onClick={onBack}>{flow ? 'Torna ai preventivi' : 'Torna alle altre simulazioni locali'}</button>}
+      {!computoLayout && !!undoDepth && <div className="quote-workspace-undo"><span>{tr("Ultima modifica alle voci · questa sessione")}</span><button disabled={busy || memory?.blocked} onClick={annullaUltimaModifica}>{tr("Annulla ultima modifica")}</button></div>}
+      {!embedded && <button className="quote-chat-back" onClick={onBack}>{flow ? tr("Torna ai preventivi") : tr("Torna alle altre simulazioni locali")}</button>}
     </div>
     {!pannelloSingolo && <aside>
       {proposteComputo ? <Tabs value={activeSidePane} onValueChange={valore => selezionaScheda(valore, true)} className="quote-workbench">
-        <TabsList aria-label="Voci e anteprima" className="quote-workbench-tabs">
-          <TabsTrigger value="lines">Voci <span className="quote-tab-count" aria-hidden="true">{numeroVoci}</span></TabsTrigger>
-          {costPreview && <TabsTrigger value="costs">Analisi costi</TabsTrigger>}
+        <TabsList aria-label={tr("Voci e anteprima")} className="quote-workbench-tabs">
+          <TabsTrigger value="lines">{tr("Voci")} <span className="quote-tab-count" aria-hidden="true">{numeroVoci}</span></TabsTrigger>
+          {costPreview && <TabsTrigger value="costs">{tr("Analisi costi")}</TabsTrigger>}
           <TabsTrigger value="pdf">PDF</TabsTrigger>
         </TabsList>
         <TabsContent value="lines" forceMount hidden={activeSidePane !== 'lines'} className="quote-workbench-panel">

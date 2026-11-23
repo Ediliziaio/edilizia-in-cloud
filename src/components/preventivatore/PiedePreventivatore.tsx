@@ -9,6 +9,7 @@ import type { ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { STICKY_BASSO } from "./posizione";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type StatoSalvataggio = "salvando" | "modifiche" | "salvato" | "errore" | "locale" | "nuovo";
 
@@ -36,6 +37,7 @@ const TESTO_DI_DEFAULT: Record<StatoSalvataggio, string> = {
 };
 
 export function StatoDelSalvataggio({ stato, testo }: StatoProps) {
+  const t = useT();
   const colore = stato === "salvando" ? "text-blue-600" : stato === "errore" ? "text-red-600" : stato === "salvato" ? "text-emerald-700" : "text-slate-500";
   return (
     <span role="status" className={cn("flex min-w-0 items-center gap-1.5 text-xs font-medium", colore)}>
@@ -44,7 +46,7 @@ export function StatoDelSalvataggio({ stato, testo }: StatoProps) {
       ) : (
         <span aria-hidden="true" className={cn("h-2 w-2 shrink-0 rounded-full", PUNTO[stato])} />
       )}
-      <span className="truncate">{testo?.trim() || TESTO_DI_DEFAULT[stato]}</span>
+      <span className="truncate">{testo?.trim() || t(TESTO_DI_DEFAULT[stato])}</span>
     </span>
   );
 }

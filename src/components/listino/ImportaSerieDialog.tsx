@@ -25,6 +25,7 @@ import {
   useImportaSerieSerramenti, useLibreriaSerramenti,
   type SerieSerramenti,
 } from "@/hooks/useSerieSerramenti";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   open: boolean;
@@ -41,7 +42,7 @@ interface Props {
 }
 
 const eur = (n: number) =>
-  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n);
+  new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR" }).format(n);
 
 /** Numero da campo di testo, con la virgola italiana. */
 const num = (s: string) => {
@@ -50,6 +51,7 @@ const num = (s: string) => {
 };
 
 export function ImportaSerieDialog({ open, onOpenChange, companyId, macrocategoriaId, installaMancantiIniziale = true }: Props) {
+  const t = useT();
   const { data: libreria = [], isLoading } = useLibreriaSerramenti();
   const importa = useImportaSerieSerramenti();
 
@@ -97,12 +99,10 @@ export function ImportaSerieDialog({ open, onOpenChange, companyId, macrocategor
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Layers className="h-5 w-5 text-blue-600" aria-hidden="true" />
-            Aggiungi una serie al listino
+            {t("Aggiungi una serie al listino")}
           </DialogTitle>
           <DialogDescription>
-            Scegli la marca e la serie di profilo che monti. Diventa una linea
-            dentro le tue tipologie: le finestre che hai già non vengono
-            duplicate, ti ritrovi una scelta in più nel preventivo.
+            {t("Scegli la marca e la serie di profilo che monti. Diventa una linea dentro le tue tipologie: le finestre che hai già non vengono duplicate, ti ritrovi una scelta in più nel preventivo.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -110,10 +110,10 @@ export function ImportaSerieDialog({ open, onOpenChange, companyId, macrocategor
           <div className="space-y-5 py-1">
             <section>
               <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-                Marca
+                {t("Marca")}
               </Label>
               <div className="mt-2 flex flex-wrap gap-2">
-                {isLoading && <p className="text-sm text-muted-foreground">Carico la libreria…</p>}
+                {isLoading && <p className="text-sm text-muted-foreground">{t("Carico la libreria…")}</p>}
                 {libreria.map((m) => (
                   <button
                     key={m.id}
@@ -141,7 +141,7 @@ export function ImportaSerieDialog({ open, onOpenChange, companyId, macrocategor
             {marcaAttiva && (
               <section>
                 <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Serie
+                  {t("Serie")}
                 </Label>
                 <div className="mt-2 grid gap-2 sm:grid-cols-2">
                   {marcaAttiva.serie.map((s) => (
@@ -160,8 +160,8 @@ export function ImportaSerieDialog({ open, onOpenChange, companyId, macrocategor
                         <span className="block font-medium text-sm">{s.nome}</span>
                         <span className="block text-xs text-muted-foreground">
                           {ETICHETTA_MATERIALE[s.materiale] ?? s.materiale}
-                          {s.profondita_mm ? ` · ${s.profondita_mm} mm` : ""}
-                          {s.camere ? ` · ${s.camere} camere` : ""}
+                          {s.profondita_mm ? t(" · {profondita_mm} mm", { profondita_mm: s.profondita_mm }) : ""}
+                          {s.camere ? t(" · {camere} camere", { camere: s.camere }) : ""}
                         </span>
                       </span>
                       <span className="flex items-center gap-1.5 shrink-0">
@@ -178,7 +178,7 @@ export function ImportaSerieDialog({ open, onOpenChange, companyId, macrocategor
                   ))}
                   {marcaAttiva.serie.length === 0 && (
                     <p className="text-sm text-muted-foreground">
-                      Per questa marca non ci sono ancora serie in libreria.
+                      {t("Per questa marca non ci sono ancora serie in libreria.")}
                     </p>
                   )}
                 </div>
@@ -191,7 +191,7 @@ export function ImportaSerieDialog({ open, onOpenChange, companyId, macrocategor
                 <section className="space-y-4">
                   <div className="grid gap-4 sm:grid-cols-3">
                     <div className="space-y-1.5">
-                      <Label htmlFor="serie-diff">Scostamento dalla linea base</Label>
+                      <Label htmlFor="serie-diff">{t("Scostamento dalla linea base")}</Label>
                       <div className="flex items-center gap-1.5">
                         <Input
                           id="serie-diff"
@@ -203,28 +203,28 @@ export function ImportaSerieDialog({ open, onOpenChange, companyId, macrocategor
                         <span className="text-sm text-muted-foreground">%</span>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Quanto costa in più o in meno di quella base. Negativo se costa meno.
+                        {t("Quanto costa in più o in meno di quella base. Negativo se costa meno.")}
                       </p>
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="serie-pv">Vendita al m² (base)</Label>
+                      <Label htmlFor="serie-pv">{t("Vendita al m² (base)")}</Label>
                       <Input
                         id="serie-pv"
                         value={vendita}
                         onChange={(e) => setVendita(e.target.value)}
                         inputMode="decimal"
-                        placeholder="lascia vuoto per non toccarlo"
+                        placeholder={t("lascia vuoto per non toccarlo")}
                         className="text-right"
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="serie-pa">Acquisto al m² (base)</Label>
+                      <Label htmlFor="serie-pa">{t("Acquisto al m² (base)")}</Label>
                       <Input
                         id="serie-pa"
                         value={acquisto}
                         onChange={(e) => setAcquisto(e.target.value)}
                         inputMode="decimal"
-                        placeholder="facoltativo"
+                        placeholder={t("facoltativo")}
                         className="text-right"
                       />
                     </div>
@@ -233,12 +233,12 @@ export function ImportaSerieDialog({ open, onOpenChange, companyId, macrocategor
                   {prezzoLinea !== null && (
                     <div className="rounded-lg border bg-muted/40 p-3 text-sm">
                       <p className="font-medium">
-                        Una finestra 1200 × 1400 (1,68 m²) con {serie.nome}
+                        {t("Una finestra 1200 × 1400 (1,68 m²) con {nome}", { nome: serie.nome })}
                       </p>
                       <p className="text-muted-foreground">
-                        {eur(prezzoLinea)} al m² → <strong>{eur(prezzoLinea * 1.68)}</strong>
+                        {eur(prezzoLinea)} {t("al m² →")} <strong>{eur(prezzoLinea * 1.68)}</strong>
                         {pa !== null && diff !== 0 && (
-                          <> · acquisto {eur(pa * (1 + diff / 100) * 1.68)}</>
+                          <> {t("· acquisto {pa}", { pa: eur(pa * (1 + diff / 100) * 1.68) })}</>
                         )}
                       </p>
                     </div>
@@ -251,9 +251,9 @@ export function ImportaSerieDialog({ open, onOpenChange, companyId, macrocategor
                       className="mt-0.5"
                     />
                     <span>
-                      Installa anche le tipologie che non ho ancora
+                      {t("Installa anche le tipologie che non ho ancora")}
                       <span className="block text-xs text-muted-foreground">
-                        Togli la spunta per aggiungere la serie solo alle tipologie già a listino.
+                        {t("Togli la spunta per aggiungere la serie solo alle tipologie già a listino.")}
                       </span>
                     </span>
                   </label>
@@ -265,11 +265,11 @@ export function ImportaSerieDialog({ open, onOpenChange, companyId, macrocategor
 
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button onClick={conferma} disabled={!serie || importa.isPending}>
             <PackagePlus className="h-4 w-4 mr-1.5" aria-hidden="true" />
-            {importa.isPending ? "Importo…" : "Aggiungi al listino"}
+            {importa.isPending ? t("Importo…") : t("Aggiungi al listino")}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -7,10 +7,11 @@ import {
   type AnalisiCosti, type RisorsaCosto, type VoceAnalisi,
 } from "@/lib/preventivi/analisiCosti";
 import { conCostiRisorse } from "@/lib/preventivi/modificaCostoSilvio";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type Calcolo = ReturnType<typeof analizzaPreventivo>;
-const percentuale = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 2 });
-const tariffa = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 6 });
+const percentuale = new Intl.NumberFormat(intlCampo(), { maximumFractionDigits: 2 });
+const tariffa = new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", maximumFractionDigits: 6 });
 const euro = (centesimi: number | null) => centesimi === null ? "Da completare" : formatCurrency(soldi(centesimi));
 
 function margineVoce(calcolo: Calcolo, id: string, datiValidi: boolean) {
@@ -39,6 +40,7 @@ export default function ConfrontoModificaCostoSilvio({ analisi, voci, imponibile
   onAnnulla: () => void;
   onSalva: (valore: AnalisiCosti) => Promise<void>;
 }) {
+  const t = useT();
   const id = useId();
   const input = useRef<HTMLInputElement>(null);
   const salvataggio = useRef(false);
@@ -92,16 +94,16 @@ export default function ConfrontoModificaCostoSilvio({ analisi, voci, imponibile
     righe.push(["Margine %", percentuale.format(prima.percentuale) + "%", percentuale.format(dopo.percentuale) + "%"]);
   }
 
-  return <section aria-label="Anteprima della modifica al costo" className="border-b border-blue-200 bg-blue-50/60 p-3 sm:p-4">
+  return <section aria-label={t("Anteprima della modifica al costo")} className="border-b border-blue-200 bg-blue-50/60 p-3 sm:p-4">
     <div className="mb-2.5 flex flex-wrap items-end justify-between gap-2">
       <div className="min-w-0">
-        <h3 className="break-words text-sm font-semibold text-slate-900">{piuRisorse ? "Modifica costi della voce" : risorse[0].risorsa.nome}</h3>
+        <h3 className="break-words text-sm font-semibold text-slate-900">{piuRisorse ? t("Modifica costi della voce") : risorse[0].risorsa.nome}</h3>
         <p className="line-clamp-1 text-xs text-slate-600">{[voce.codice, voce.descrizione].filter(Boolean).join(" · ")}</p>
       </div>
       <div className="flex min-w-0 flex-wrap gap-2">
         {risorse.map(({ risorsa }, indice) => <div key={risorsa.id} className="min-w-0">
           <label htmlFor={`${id}-${indice}`} className="block break-words text-xs font-medium text-slate-700">
-            {piuRisorse ? risorsa.nome : "Nuovo costo unitario"} {risorsa.unita && <span className="text-slate-500">(€/{risorsa.unita})</span>}
+            {piuRisorse ? risorsa.nome : t("Nuovo costo unitario")} {risorsa.unita && <span className="text-slate-500">(€/{risorsa.unita})</span>}
           </label>
           <Input ref={indice === 0 ? input : undefined} id={`${id}-${indice}`} inputMode="decimal" className="mt-1 h-9 w-36 bg-white text-base sm:text-sm" maxLength={32}
             value={testiPrezzi[indice]} disabled={busy} aria-invalid={prezziNuovi[indice] === null}
@@ -114,28 +116,28 @@ export default function ConfrontoModificaCostoSilvio({ analisi, voci, imponibile
       </div>
     </div>
     {superata ? <div className="flex flex-wrap items-center gap-2 text-xs text-amber-900" role="alert">
-      L’analisi è stata aggiornata. Ricalcola il margine con i costi correnti.
-      <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => { setErrore(""); onRicalcola(); }}>Ricalcola confronto</Button>
+      {t("L’analisi è stata aggiornata. Ricalcola il margine con i costi correnti.")}
+      <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => { setErrore(""); onRicalcola(); }}>{t("Ricalcola confronto")}</Button>
     </div> : <div className="overflow-hidden rounded-lg border border-blue-100 bg-white">
-      <table aria-label="Confronto margine prima di confermare" className="w-full text-left text-xs">
+      <table aria-label={t("Confronto margine prima di confermare")} className="w-full text-left text-xs">
         <thead className="bg-slate-50 text-slate-600"><tr className="[&>th]:px-2.5 [&>th]:py-1.5 [&>th]:font-medium">
-          <th scope="col">Valori al netto IVA</th><th scope="col" className="text-right">Attuale</th><th scope="col" className="text-right">Proposto</th>
+          <th scope="col">{t("Valori al netto IVA")}</th><th scope="col" className="text-right">{t("Attuale")}</th><th scope="col" className="text-right">{t("Proposto")}</th>
         </tr></thead>
         <tbody className="divide-y divide-slate-100">{righe.map(([nome, attuale, proposto]) =>
           <tr key={nome} className="[&>*]:p-2"><th scope="row" className="font-medium">{nome}</th><td className="text-right tabular-nums">{attuale}</td>
             <td className="text-right font-semibold tabular-nums">{proposto}</td></tr>)}</tbody>
       </table>
     </div>}
-    {bozzaCommerciale && <p className="mt-2 text-xs text-slate-600">Il confronto usa le quantità e la vendita del computo salvato.</p>}
-    {prima.incompleto && <p className="mt-2 text-xs text-slate-600">Alcuni costi del preventivo sono ancora da completare.</p>}
+    {bozzaCommerciale && <p className="mt-2 text-xs text-slate-600">{t("Il confronto usa le quantità e la vendita del computo salvato.")}</p>}
+    {prima.incompleto && <p className="mt-2 text-xs text-slate-600">{t("Alcuni costi del preventivo sono ancora da completare.")}</p>}
     {errore && <p role="alert" className="mt-2 text-xs text-red-700">{errore}</p>}
     <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
       {variazione !== null && variazione !== 0 && !superata && <p className="mr-auto text-xs font-medium text-slate-700">
-        {dopoTotale !== null && primaTotale !== null ? "Variazione margine" : "Variazione margine voce"} {variazione > 0 ? "+" : ""}{euro(variazione)}
+        {dopoTotale !== null && primaTotale !== null ? t("Variazione margine") : t("Variazione margine voce")} {variazione > 0 ? "+" : ""}{euro(variazione)}
       </p>}
-      <Button type="button" size="sm" variant="outline" disabled={busy} onClick={onAnnulla}>Annulla</Button>
+      <Button type="button" size="sm" variant="outline" disabled={busy} onClick={onAnnulla}>{t("Annulla")}</Button>
       <Button type="button" size="sm" disabled={busy || superata || !candidato || !cambiati} onClick={() => void conferma()}>
-        {busy ? "Salvataggio…" : piuRisorse ? "Conferma costi" : "Conferma costo"}
+        {busy ? t("Salvataggio…") : piuRisorse ? t("Conferma costi") : t("Conferma costo")}
       </Button>
     </div>
   </section>;

@@ -3,6 +3,7 @@ import { ChevronDown } from "lucide-react";
 import { SceltaVistaDocumento, type VistaEditorDocumento } from "@/components/shared/DocumentEditorWorkspace";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Shared visual contract. Sector editors keep their own data and save handlers. */
 export const templateEditorLayout = {
@@ -51,10 +52,11 @@ export function TemplateEditorWorkspace({ children, moduleId }: { children: Reac
 }
 
 export function TemplateEditorNavigation({ children }: { children: ReactNode }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const id = useId();
   return <aside data-template-navigation className={templateEditorLayout.navigation}>
-    <Button type="button" variant="outline" aria-expanded={open} aria-controls={id} onClick={() => setOpen(!open)} className="w-full justify-between md:hidden">Scegli la pagina da modificare<ChevronDown className={cn("h-4 w-4", open && "rotate-180")} /></Button>
+    <Button type="button" variant="outline" aria-expanded={open} aria-controls={id} onClick={() => setOpen(!open)} className="w-full justify-between md:hidden">{t("Scegli la pagina da modificare")}<ChevronDown className={cn("h-4 w-4", open && "rotate-180")} /></Button>
     <div id={id} className={cn(open ? "mt-2 block" : "hidden", "md:mt-0 md:block")} onClick={event => { if ((event.target as HTMLElement).closest("button")) setOpen(false); }}>{children}</div>
   </aside>;
 }

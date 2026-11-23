@@ -13,9 +13,10 @@ import ConfrontoModificaCostoSilvio from "./ConfrontoModificaCostoSilvio";
 import ProposteCostiMultiple, { type RichiestaProposteCosti } from "@/components/quotes/ProposteCostiMultiple";
 import { applicaModificheAnalisi, type ModificaAnalisiProposta } from "@/lib/preventivi/anteprimaAnalisiCosti";
 import { motivoVoceDaCompletare } from "@/lib/preventivi/proposteAnalisiCosti";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
-const numero = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 3 });
-const percentuale = new Intl.NumberFormat("it-IT", { style: "percent", maximumFractionDigits: 2 });
+const numero = new Intl.NumberFormat(intlCampo(), { maximumFractionDigits: 3 });
+const percentuale = new Intl.NumberFormat(intlCampo(), { style: "percent", maximumFractionDigits: 2 });
 const importo = (n: number | null) => n === null ? "—" : formatCurrency(n);
 const differenza = (n: number) => (n > 0 ? "+" : "") + formatCurrency(n);
 
@@ -30,6 +31,7 @@ export default function AnalisiCostiSilvio({ companyId, draftId, bozza, proposta
   richiesta?: RichiestaCostoSilvio | null;
   onRiscontro?: (id: number, riscontro: RiscontroCostoSilvio) => void;
 }) {
+  const t = useT();
   const { analisi, attesa, errore, versione, salva, aggiorna } = useAnalisiCostiPreventivo({ companyId, tipo: "computo", id: draftId });
   const [cerca, setCerca] = useState("");
   const [soloDaCompletare, setSoloDaCompletare] = useState(false);
@@ -78,7 +80,7 @@ export default function AnalisiCostiSilvio({ companyId, draftId, bozza, proposta
     return risorsa ? [{ risorsa, prezzoIniziale: prezzo }] : [];
   });
 
-  if (attesa || errore) return <p role={errore ? "alert" : "status"} className="px-4 py-5 text-sm text-slate-600">{errore || "Carico l’analisi costi…"}</p>;
+  if (attesa || errore) return <p role={errore ? "alert" : "status"} className="px-4 py-5 text-sm text-slate-600">{errore || t("Carico l’analisi costi…")}</p>;
 
   function apriProposte() {
     if (!puoModificare || versione === undefined || proposta || !vociStimabili.length) return;
@@ -93,17 +95,17 @@ export default function AnalisiCostiSilvio({ companyId, draftId, bozza, proposta
   async function salvaProposte(modifiche: ModificaAnalisiProposta[]) {
     if (!proposte || !puoModificare || salvandoProposte || !modifiche.length) return;
     if (proposta || proposte.versione !== versione || proposte.richiesta.tutte !== base.voci || proposte.richiesta.analisi !== analisi) {
-      toast.error("Il computo o l’analisi sono cambiati. Ricalcola le proposte sui dati aggiornati.");
+      toast.error(t("Il computo o l’analisi sono cambiati. Ricalcola le proposte sui dati aggiornati."));
       return;
     }
     setSalvandoProposte(true);
     try {
       await salva(applicaModificheAnalisi(analisi, modifiche), proposte.versione);
       setProposte(null);
-      toast.success("Analisi del computo aggiornata");
+      toast.success(t("Analisi del computo aggiornata"));
     } catch (e) {
       void aggiorna();
-      toast.error(e instanceof Error ? e.message : "Le proposte non sono state salvate.");
+      toast.error(e instanceof Error ? e.message : t("Le proposte non sono state salvate."));
     } finally { setSalvandoProposte(false); }
   }
 
@@ -116,14 +118,14 @@ export default function AnalisiCostiSilvio({ companyId, draftId, bozza, proposta
     variazioneCosti !== 0 && differenza(soldi(variazioneCosti)),
   ].filter(Boolean).join(" · ") || `Comuni ${formatCurrency(soldi(calcolo.comuni))}`;
   const indicatori = [
-    { titolo: "Ricavo netto", valore: dati.errore ? "—" : formatCurrency(dati.imponibile),
-      nota: ricavoParziale ? "Prezzi da completare" : prima && !prima.righe.some(r => r.voce.inclusa && r.voce.vendita === null) ? differenza(dati.imponibile - prima.imponibile) : "Al netto di IVA e sconti" },
-    { titolo: "Costi stimati", valore: haCosti ? formatCurrency(soldi(calcolo.costo)) : "—", nota: notaCosti },
-    { titolo: "Margine stimato", valore: margineDisponibile ? formatCurrency(soldi(calcolo.margine)) : "—",
-      nota: margineDisponibile && calcolo.percentuale !== null ? percentuale.format(calcolo.percentuale / 100) : "Da completare" },
+    { titolo: t("Ricavo netto"), valore: dati.errore ? "—" : formatCurrency(dati.imponibile),
+      nota: ricavoParziale ? t("Prezzi da completare") : prima && !prima.righe.some(r => r.voce.inclusa && r.voce.vendita === null) ? differenza(dati.imponibile - prima.imponibile) : t("Al netto di IVA e sconti") },
+    { titolo: t("Costi stimati"), valore: haCosti ? formatCurrency(soldi(calcolo.costo)) : "—", nota: notaCosti },
+    { titolo: t("Margine stimato"), valore: margineDisponibile ? formatCurrency(soldi(calcolo.margine)) : "—",
+      nota: margineDisponibile && calcolo.percentuale !== null ? percentuale.format(calcolo.percentuale / 100) : t("Da completare") },
   ];
 
-  return <section aria-label="Analisi dei costi del computo" className="flex min-h-0 flex-1 flex-col overflow-auto overscroll-contain">
+  return <section aria-label={t("Analisi dei costi del computo")} className="flex min-h-0 flex-1 flex-col overflow-auto overscroll-contain">
     {puoModificare && modifica && voceModificata && risorseModificate?.length === modifica.risorse.length && <ConfrontoModificaCostoSilvio
       key={modifica.id} analisi={analisi} voci={base.voci} imponibile={base.imponibile} erroreSconto={base.errore}
       voce={voceModificata} risorse={risorseModificate} bozzaCommerciale={!!proposta}
@@ -134,16 +136,16 @@ export default function AnalisiCostiSilvio({ companyId, draftId, bozza, proposta
         try { await salva(valore, modifica.versione); }
         catch (e) { void aggiorna(); throw e; }
         setModifica(attuale => attuale?.id === modifica.id ? null : attuale);
-        toast.success(modifica.risorse.length === 1 ? "Costo aggiornato nell’analisi del computo" : "Costi aggiornati nell’analisi del computo");
+        toast.success(modifica.risorse.length === 1 ? t("Costo aggiornato nell’analisi del computo") : t("Costi aggiornati nell’analisi del computo"));
       }} />}
     {puoModificare && modifica && (!voceModificata || risorseModificate?.length !== modifica.risorse.length) && <div role="alert" className="flex flex-wrap items-center gap-2 border-b p-3 text-sm">
-      Le risorse della proposta sono cambiate. Apri il dettaglio e ripeti la modifica.
-      <Button type="button" size="sm" variant="outline" onClick={() => setModifica(null)}>Chiudi</Button>
+      {t("Le risorse della proposta sono cambiate. Apri il dettaglio e ripeti la modifica.")}
+      <Button type="button" size="sm" variant="outline" onClick={() => setModifica(null)}>{t("Chiudi")}</Button>
     </div>}
     <div className="border-b border-slate-200 px-3 py-3 sm:px-4">
       <header className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h3 className="text-sm font-semibold text-slate-900">{proposta ? "Anteprima delle modifiche" : "Analisi costi"}</h3>
-        <span className="text-xs text-slate-600">{incluse.length - calcolo.mancanti} di {incluse.length} voci con costo completo</span>
+        <h3 className="text-sm font-semibold text-slate-900">{proposta ? t("Anteprima delle modifiche") : t("Analisi costi")}</h3>
+        <span className="text-xs text-slate-600">{t("{n} di {n2} voci con costo completo", { n: incluse.length - calcolo.mancanti, n2: incluse.length })}</span>
       </header>
       <dl className="grid grid-cols-3 gap-1.5 sm:gap-2">
         {indicatori.map(({ titolo, valore, nota }) => <div key={titolo} className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 p-2 sm:p-3">
@@ -153,25 +155,25 @@ export default function AnalisiCostiSilvio({ companyId, draftId, bozza, proposta
         </div>)}
       </dl>
       {dati.errore && <p role="alert" className="mt-2 text-xs text-amber-800">{dati.errore}</p>}
-      {proposta && <p className="mt-2 text-xs text-slate-600">I valori si riferiscono alla bozza della chat. Le variazioni sono rispetto al computo salvato.</p>}
+      {proposta && <p className="mt-2 text-xs text-slate-600">{t("I valori si riferiscono alla bozza della chat. Le variazioni sono rispetto al computo salvato.")}</p>}
     </div>
     <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 p-3 sm:px-4">
       <div className="relative min-w-[160px] flex-1">
         <Search aria-hidden="true" className="pointer-events-none absolute left-2.5 top-2.5 size-4 text-slate-500" />
-        <Input type="search" className="h-9 pl-8 text-base sm:text-sm" aria-label="Cerca nell’analisi costi"
-          placeholder="Cerca voce, codice o capitolo" value={cerca} onChange={e => setCerca(e.currentTarget.value)} />
+        <Input type="search" className="h-9 pl-8 text-base sm:text-sm" aria-label={t("Cerca nell’analisi costi")}
+          placeholder={t("Cerca voce, codice o capitolo")} value={cerca} onChange={e => setCerca(e.currentTarget.value)} />
       </div>
       <Button type="button" size="sm" variant={soloDaCompletare ? "secondary" : "outline"} aria-pressed={soloDaCompletare}
-        onClick={() => setSoloDaCompletare(attiva => !attiva)}>Da completare</Button>
+        onClick={() => setSoloDaCompletare(attiva => !attiva)}>{t("Da completare")}</Button>
       {puoModificare && !proposta && !!vociStimabili.length && <Button type="button" size="sm" variant="outline"
-        onClick={apriProposte}>Proponi costi e tempi</Button>}
+        onClick={apriProposte}>{t("Proponi costi e tempi")}</Button>}
     </div>
     {righe.length ? <div className="min-h-24 min-w-0 flex-1 overflow-auto overscroll-contain">
-      <table role="table" aria-label="Costi delle lavorazioni" className="quote-computo-costi-table w-full text-left text-xs">
+      <table role="table" aria-label={t("Costi delle lavorazioni")} className="quote-computo-costi-table w-full text-left text-xs">
         <thead role="rowgroup" className="sticky top-0 z-[1] bg-slate-100 text-slate-600">
           <tr role="row" className="[&>th]:px-3 [&>th]:py-2 [&>th]:font-semibold">
-            <th scope="col">Lavorazione</th><th scope="col" className="text-right">Ricavo netto</th>
-            <th scope="col" className="text-right">Costo stimato</th><th scope="col" className="text-right">Margine</th>
+            <th scope="col">{t("Lavorazione")}</th><th scope="col" className="text-right">{t("Ricavo netto")}</th>
+            <th scope="col" className="text-right">{t("Costo stimato")}</th><th scope="col" className="text-right">{t("Margine")}</th>
           </tr>
         </thead>
         <tbody role="rowgroup" className="divide-y divide-slate-100">
@@ -187,35 +189,35 @@ export default function AnalisiCostiSilvio({ companyId, draftId, bozza, proposta
                 {!!dettaglio.righe.length && <button type="button" aria-expanded={dettaglioVisibile}
                   className="mt-1 inline-flex min-h-6 items-center gap-0.5 font-medium text-blue-800 hover:underline"
                   onClick={() => setDettaglioAperto(dettaglioVisibile ? null : voce.id)}>
-                  <ChevronDown aria-hidden="true" className={`size-3 ${dettaglioVisibile ? "rotate-180" : ""}`} /> Dettaglio costi
+                  <ChevronDown aria-hidden="true" className={`size-3 ${dettaglioVisibile ? "rotate-180" : ""}`} /> {t("Dettaglio costi")}
                 </button>}
               </td>
-              <td role="cell" className="whitespace-nowrap text-right tabular-nums"><span aria-hidden="true" className="quote-computo-costi-label">Ricavo netto</span>{importo(dati.errore ? null : voce.vendita)}</td>
-              <td role="cell" className="whitespace-nowrap text-right tabular-nums"><span aria-hidden="true" className="quote-computo-costi-label">Costo stimato</span>{importo(costoCompleto === null ? null : soldi(costoCompleto))}</td>
+              <td role="cell" className="whitespace-nowrap text-right tabular-nums"><span aria-hidden="true" className="quote-computo-costi-label">{t("Ricavo netto")}</span>{importo(dati.errore ? null : voce.vendita)}</td>
+              <td role="cell" className="whitespace-nowrap text-right tabular-nums"><span aria-hidden="true" className="quote-computo-costi-label">{t("Costo stimato")}</span>{importo(costoCompleto === null ? null : soldi(costoCompleto))}</td>
               <td role="cell" className={`whitespace-nowrap text-right font-medium tabular-nums ${margine !== null && margine < 0 ? "text-red-700" : ""}`}>
-                <span aria-hidden="true" className="quote-computo-costi-label">Margine</span>{importo(margine)}
+                <span aria-hidden="true" className="quote-computo-costi-label">{t("Margine")}</span>{importo(margine)}
               </td>
             </tr>
             {dettaglioVisibile && <tr role="row" className="quote-computo-costi-detail bg-slate-50"><td role="cell" colSpan={4} className="px-3 py-2">
-              <ul aria-label="Risorse della lavorazione" className="divide-y divide-slate-200">
+              <ul aria-label={t("Risorse della lavorazione")} className="divide-y divide-slate-200">
                 {dettaglio.righe.map(riga => <li key={riga.risorsa.id} className="flex flex-wrap justify-between gap-x-3 py-1.5">
                   <div className="min-w-0">
-                    <span className="break-words font-medium">{riga.risorsa.nome || "Risorsa da definire"}</span>
-                    <p className="text-slate-600">{categorieCosto[riga.risorsa.tipo]} · {riga.risorsa.base === "unitaria" ? "Per unità di lavorazione" : riga.risorsa.base === "percentuale" ? "Percentuale sui costi diretti" : "Importo per l’intera voce"}</p>
+                    <span className="break-words font-medium">{riga.risorsa.nome || t("Risorsa da definire")}</span>
+                    <p className="text-slate-600">{categorieCosto[riga.risorsa.tipo]} · {riga.risorsa.base === "unitaria" ? t("Per unità di lavorazione") : riga.risorsa.base === "percentuale" ? t("Percentuale sui costi diretti") : t("Importo per l’intera voce")}</p>
                     {riga.risorsa.fonte && <p className="text-slate-600">{riga.risorsa.fonte}</p>}
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <span className="tabular-nums">{importo(riga.importo === null ? null : soldi(riga.importo))}</span>
                     {puoModificare && versione !== undefined && riga.risorsa.base !== "percentuale" && base.voci.some(r => r.id === voce.id) &&
                       <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs text-blue-800"
-                        aria-label={`Modifica costo di ${riga.risorsa.nome}`}
+                        aria-label={t("Modifica costo di {nome}", { nome: String(riga.risorsa.nome ?? "") })}
                         onClick={() => setModifica({ id: ++prossimaModifica.current, voce: voce.id, risorse: [{ id: riga.risorsa.id, prezzo: riga.risorsa.prezzo }], versione })}>
-                        <Pencil aria-hidden="true" className="size-3" /> Modifica costo
+                        <Pencil aria-hidden="true" className="size-3" /> {t("Modifica costo")}
                       </Button>}
                   </div>
                 </li>)}
                 {quota && (quota.fase + quota.preventivo !== 0 || quota.parziale) && <li className="flex items-baseline justify-between gap-2 py-1.5 text-slate-700">
-                  <span>Quota costi comuni{quota.parziale && " · parziale"}</span>
+                  <span>{t("Quota costi comuni")}{quota.parziale && ` ${t("· parziale")}`}</span>
                   <span className="shrink-0 tabular-nums">{formatCurrency(soldi(quota.fase + quota.preventivo))}</span>
                 </li>}
               </ul>
@@ -224,6 +226,6 @@ export default function AnalisiCostiSilvio({ companyId, draftId, bozza, proposta
           })}
         </tbody>
       </table>
-    </div> : <p role="status" className="p-4 text-sm text-slate-600">{dati.voci.length ? "Nessuna voce corrisponde ai filtri." : "Aggiungi una lavorazione per vedere i costi."}</p>}
+    </div> : <p role="status" className="p-4 text-sm text-slate-600">{dati.voci.length ? t("Nessuna voce corrisponde ai filtri.") : t("Aggiungi una lavorazione per vedere i costi.")}</p>}
   </section>;
 }

@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { formatCurrency } from "@/lib/formatters";
 import { usePrezzoFinaleAMano } from "@/hooks/usePrezzoFinaleAMano";
 import { prezzoDaTesto } from "@/lib/preventivi/prezzoAMano";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   id: string;
@@ -34,25 +35,26 @@ interface Props {
 }
 
 export function PrezzoPreventivoAMano({ id, companyId, value, sommaVoci, onCommit, showDisabledHint = false, sempre = false }: Props) {
+  const t = useT();
   const { data: attivo = false, isLoading, isError } = usePrezzoFinaleAMano(companyId);
   const scritto = Number(value ?? 0) > 0;
   // Telefono no: un riquadro che spiega una funzione spenta e manda alle impostazioni.
   if (!attivo && !scritto && !sempre) return showDisabledHint ? (
     <div className="rounded-lg border border-dashed p-3 text-sm max-sm:hidden">
-      <p className="font-medium">Prezzo manuale dell'offerta</p>
+      <p className="font-medium">{t("Prezzo manuale dell'offerta")}</p>
       <p className="mt-1 text-xs text-muted-foreground">
-        {isLoading ? "Verifica delle impostazioni aziendali…" : isError
-          ? "Impossibile verificare l'abilitazione. Riprova prima di impostare un prezzo manuale."
-          : "Disponibile quando l'azienda abilita «Scrivi a mano il prezzo del preventivo» in Impostazioni → Modelli preventivi e contratti → Prezzo e margini. Per ora il totale segue i prezzi delle righe."}
+        {isLoading ? t("Verifica delle impostazioni aziendali…") : isError
+          ? t("Impossibile verificare l'abilitazione. Riprova prima di impostare un prezzo manuale.")
+          : t("Disponibile quando l'azienda abilita «Scrivi a mano il prezzo del preventivo» in Impostazioni → Modelli preventivi e contratti → Prezzo e margini. Per ora il totale segue i prezzi delle righe.")}
       </p>
-      {!isLoading && !isError && <a href="/azienda/impostazioni/margini#prezzo" target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-xs font-medium text-orange-700 underline">Apri impostazioni in nuova scheda</a>}
+      {!isLoading && !isError && <a href="/azienda/impostazioni/margini#prezzo" target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-xs font-medium text-orange-700 underline">{t("Apri impostazioni in nuova scheda")}</a>}
     </div>
   ) : null;
 
   return (
     <div className="rounded-lg border border-orange-200 bg-orange-50/50 p-2.5">
       <Label htmlFor={id} className="text-xs font-semibold text-orange-900">
-        Prezzo manuale dell'offerta (IVA esclusa)
+        {t("Prezzo manuale dell'offerta (IVA esclusa)")}
       </Label>
       <Input
         id={id}
@@ -63,7 +65,7 @@ export function PrezzoPreventivoAMano({ id, companyId, value, sommaVoci, onCommi
         // Col key il campo riparte dal valore salvato, anche quando lo si toglie.
         key={`${id}-${value ?? ""}`}
         defaultValue={value ?? ""}
-        placeholder={sommaVoci > 0 ? `Somma delle righe: ${formatCurrency(sommaVoci)}` : "Scrivi il prezzo"}
+        placeholder={sommaVoci > 0 ? t("Somma delle righe: {importo}", { importo: formatCurrency(sommaVoci) }) : t("Scrivi il prezzo")}
         onBlur={(e) => onCommit(prezzoDaTesto(e.target.value))}
         onKeyDown={(e) => {
           if (e.key === "Enter") (e.target as HTMLInputElement).blur();
@@ -72,21 +74,20 @@ export function PrezzoPreventivoAMano({ id, companyId, value, sommaVoci, onCommi
       />
       {/* Telefono: resta solo «Torna alla somma delle righe», la spiegazione è da scrivania. */}
       <p className={`mt-1 text-xs leading-snug text-orange-900/80 ${scritto ? "" : "max-sm:hidden"}`}>
-        <span className="max-sm:hidden">Applica con Invio o uscendo dal campo. {" "}</span>
+        <span className="max-sm:hidden">{t("Applica con Invio o uscendo dal campo.")} {" "}</span>
         {scritto ? (
           <>
             <span className="max-sm:hidden">
-            Prende il posto della somma delle righe{sommaVoci > 0 ? ` (${formatCurrency(sommaVoci)})` : ""}.
-            Sconto e IVA si calcolano su questo prezzo.{" "}
+            {sommaVoci > 0 ? t("Prende il posto della somma delle righe ({importo}).", { importo: formatCurrency(sommaVoci) }) : t("Prende il posto della somma delle righe.")}{" "}
+            {t("Sconto e IVA si calcolano su questo prezzo.")}{" "}
             </span>
             <button type="button" className="underline hover:no-underline" onClick={() => onCommit(null)}>
-              Torna alla somma delle righe
+              {t("Torna alla somma delle righe")}
             </button>
           </>
         ) : (
           <>
-            Vuoto: il prezzo è la somma delle righe ({formatCurrency(sommaVoci)}). Scrivilo se non usi i prezzi del
-            listino: sconto e IVA si calcolano sopra.
+            {t("Vuoto: il prezzo è la somma delle righe ({importo}). Scrivilo se non usi i prezzi del listino: sconto e IVA si calcolano sopra.", { importo: formatCurrency(sommaVoci) })}
           </>
         )}
       </p>

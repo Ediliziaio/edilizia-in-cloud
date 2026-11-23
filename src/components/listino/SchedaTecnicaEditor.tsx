@@ -36,6 +36,7 @@ import {
   useDeleteMacroField, useSeedMacroFields,
 } from "@/lib/serramenti/queries";
 import type { ListinoMacroField, ListinoFieldType, ListinoFieldOption } from "@/lib/serramenti/api";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const FIELD_TYPES: { value: ListinoFieldType; label: string; hint: string }[] = [
   { value: "text", label: "Testo libero", hint: "Una riga di testo (es. nome modello)" },
@@ -111,6 +112,7 @@ function textToOptions(text: string): ListinoFieldOption[] {
 }
 
 export function SchedaTecnicaEditor({ macroId, macroNome, open, onClose }: Props) {
+  const tr = useT();
   const { data: fields = [], isLoading } = useMacroFields(macroId);
   const createField = useCreateMacroField(macroId);
   const updateField = useUpdateMacroField(macroId);
@@ -186,7 +188,7 @@ export function SchedaTecnicaEditor({ macroId, macroNome, open, onClose }: Props
     setShowSeedPanel(false);
   };
 
-  const fieldDialogTitle = editingFieldId === "new" ? "Nuovo campo scheda tecnica" : "Modifica campo";
+  const fieldDialogTitle = editingFieldId === "new" ? tr("Nuovo campo scheda tecnica") : tr("Modifica campo");
   const needsOptions = form.field_type === "select" || form.field_type === "multiselect";
 
   return (
@@ -200,12 +202,10 @@ export function SchedaTecnicaEditor({ macroId, macroNome, open, onClose }: Props
               </div>
               <div className="min-w-0">
                 <DialogTitle className="truncate">
-                  Scheda tecnica · <span className="text-orange-600 dark:text-orange-400">{macroNome}</span>
+                  {tr("Scheda tecnica")} · <span className="text-orange-600 dark:text-orange-400">{macroNome}</span>
                 </DialogTitle>
                 <DialogDescription>
-                  Definisci i campi che descriveranno tecnicamente ogni articolo
-                  di questa macrocategoria (vetro, Uw, potenza…). Verranno mostrati
-                  al commerciale nel picker e stampati nel PDF preventivo.
+                  {tr("Definisci i campi che descriveranno tecnicamente ogni articolo di questa macrocategoria (vetro, Uw, potenza…). Verranno mostrati al commerciale nel picker e stampati nel PDF preventivo.")}
                 </DialogDescription>
               </div>
             </div>
@@ -213,7 +213,7 @@ export function SchedaTecnicaEditor({ macroId, macroNome, open, onClose }: Props
 
           {isLoading ? (
             <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-              <Loader2 className="h-5 w-5 animate-spin mr-2" /> Caricamento scheda tecnica…
+              <Loader2 className="h-5 w-5 animate-spin mr-2" /> {tr("Caricamento scheda tecnica…")}
             </div>
           ) : (
             <div className="space-y-4">
@@ -221,13 +221,13 @@ export function SchedaTecnicaEditor({ macroId, macroNome, open, onClose }: Props
               <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b">
                 <div className="flex items-center gap-3 text-sm">
                   <span className="font-medium">
-                    {fields.length} {fields.length === 1 ? "campo" : "campi"} configurati
+                    {tr(fields.length === 1 ? "{n} campo configurato" : "{n} campi configurati", { n: fields.length })}
                   </span>
                   {fields.length > 0 && (
                     <>
                       <span className="text-muted-foreground hidden sm:inline">·</span>
                       <span className="text-xs text-muted-foreground hidden sm:inline">
-                        {fields.filter((f) => f.required).length} obbligatori
+                        {tr("{n} obbligatori", { n: fields.filter((f) => f.required).length })}
                       </span>
                     </>
                   )}
@@ -241,14 +241,14 @@ export function SchedaTecnicaEditor({ macroId, macroNome, open, onClose }: Props
                     className="border-orange-200 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-600 dark:border-orange-900/50 dark:hover:bg-orange-950/40"
                   >
                     <Wand2 className="h-4 w-4 mr-1.5" />
-                    {fields.length === 0 ? "Inizia con uno standard" : "Genera standard"}
+                    {fields.length === 0 ? tr("Inizia con uno standard") : tr("Genera standard")}
                   </Button>
                   <Button
                     size="sm"
                     onClick={openNew}
                     className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 text-white shadow-sm"
                   >
-                    <Plus className="h-4 w-4 mr-1.5" /> Aggiungi campo
+                    <Plus className="h-4 w-4 mr-1.5" /> {tr("Aggiungi campo")}
                   </Button>
                 </div>
               </div>
@@ -258,7 +258,7 @@ export function SchedaTecnicaEditor({ macroId, macroNome, open, onClose }: Props
                 <div className="rounded-md border border-orange-200 bg-orange-50/60 dark:border-orange-900/50 dark:bg-orange-950/20 p-3 space-y-3">
                   <div className="flex items-center gap-2 text-sm font-medium">
                     <Wand2 className="h-4 w-4 text-orange-600" />
-                    Genera campi standard per il verticale
+                    {tr("Genera campi standard per il verticale")}
                   </div>
                   <Select value={seedVertical} onValueChange={setSeedVertical}>
                     <SelectTrigger className="bg-white dark:bg-background">
@@ -266,17 +266,16 @@ export function SchedaTecnicaEditor({ macroId, macroNome, open, onClose }: Props
                     </SelectTrigger>
                     <SelectContent>
                       {VERTICAL_PRESETS.map((v) => (
-                        <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>
+                        <SelectItem key={v.value} value={v.value}>{tr(v.label)}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                   <div className="text-xs text-muted-foreground">
-                    Aggiungerà i campi tipici del verticale. I campi già esistenti
-                    non vengono duplicati. Puoi modificarli o eliminarli singolarmente dopo.
+                    {tr("Aggiungerà i campi tipici del verticale. I campi già esistenti non vengono duplicati. Puoi modificarli o eliminarli singolarmente dopo.")}
                   </div>
                   <div className="flex justify-end gap-2">
                     <Button size="sm" variant="ghost" onClick={() => setShowSeedPanel(false)}>
-                      Annulla
+                      {tr("Annulla")}
                     </Button>
                     <Button
                       size="sm"
@@ -285,7 +284,7 @@ export function SchedaTecnicaEditor({ macroId, macroNome, open, onClose }: Props
                       className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 text-white"
                     >
                       {seedFields.isPending && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
-                      Genera campi
+                      {tr("Genera campi")}
                     </Button>
                   </div>
                 </div>
@@ -296,11 +295,9 @@ export function SchedaTecnicaEditor({ macroId, macroNome, open, onClose }: Props
                 <div className="rounded-lg border border-dashed border-orange-200 bg-orange-50/30 dark:border-orange-900/40 dark:bg-orange-950/10 p-6 text-center space-y-3">
                   <Settings2 className="h-10 w-10 mx-auto text-orange-400 opacity-60" />
                   <div>
-                    <p className="font-medium text-foreground">Nessun campo configurato</p>
+                    <p className="font-medium text-foreground">{tr("Nessun campo configurato")}</p>
                     <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
-                      Aggiungi i campi tecnici che descriveranno gli articoli di questa
-                      macrocategoria. Suggerimento: parti da uno standard pre-configurato
-                      e poi personalizzalo.
+                      {tr("Aggiungi i campi tecnici che descriveranno gli articoli di questa macrocategoria. Suggerimento: parti da uno standard pre-configurato e poi personalizzalo.")}
                     </p>
                   </div>
                   <div className="flex flex-wrap justify-center gap-2 pt-1">
@@ -310,10 +307,10 @@ export function SchedaTecnicaEditor({ macroId, macroNome, open, onClose }: Props
                       className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 text-white"
                     >
                       <Wand2 className="h-4 w-4 mr-1.5" />
-                      Usa scheda standard
+                      {tr("Usa scheda standard")}
                     </Button>
                     <Button size="sm" variant="outline" onClick={openNew}>
-                      <Plus className="h-4 w-4 mr-1.5" /> Crea manualmente
+                      <Plus className="h-4 w-4 mr-1.5" /> {tr("Crea manualmente")}
                     </Button>
                   </div>
                 </div>
@@ -332,7 +329,7 @@ export function SchedaTecnicaEditor({ macroId, macroNome, open, onClose }: Props
                       <div className="flex flex-col items-center pt-1 pr-1 select-none">
                         <span
                           className="text-[10px] font-mono text-muted-foreground/70 bg-muted/40 rounded px-1 py-0.5 min-w-[22px] text-center"
-                          aria-label={`Campo ${idx + 1}`}
+                          aria-label={tr("Campo {idx}", { idx: idx + 1 })}
                         >
                           {String(idx + 1).padStart(2, "0")}
                         </span>
@@ -346,7 +343,7 @@ export function SchedaTecnicaEditor({ macroId, macroNome, open, onClose }: Props
                             variant="outline"
                             className="text-[10px] h-5 border-slate-200 bg-slate-50 text-slate-700 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-300"
                           >
-                            {FIELD_TYPES.find((t) => t.value === f.field_type)?.label ?? f.field_type}
+                            {(() => { const tipo = FIELD_TYPES.find((t) => t.value === f.field_type); return tipo ? tr(tipo.label) : f.field_type; })()}
                           </Badge>
                           {f.field_unit && (
                             <Badge
@@ -361,7 +358,7 @@ export function SchedaTecnicaEditor({ macroId, macroNome, open, onClose }: Props
                               variant="outline"
                               className="text-[10px] h-5 border-red-200 bg-red-50 text-red-700 dark:bg-red-950/30 dark:border-red-900/50 dark:text-red-300"
                             >
-                              obbligatorio
+                              {tr("obbligatorio")}
                             </Badge>
                           )}
                         </div>
@@ -394,7 +391,7 @@ export function SchedaTecnicaEditor({ macroId, macroNome, open, onClose }: Props
                         <div className="flex flex-wrap items-center gap-2 text-[10px]">
                           <span className={`inline-flex items-center gap-1 ${f.show_in_picker ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground/70 line-through"}`}>
                             <span className={`h-1.5 w-1.5 rounded-full ${f.show_in_picker ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
-                            Picker
+                            {tr("Picker")}
                           </span>
                           <span className={`inline-flex items-center gap-1 ${f.show_in_pdf ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground/70 line-through"}`}>
                             <span className={`h-1.5 w-1.5 rounded-full ${f.show_in_pdf ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
@@ -410,16 +407,16 @@ export function SchedaTecnicaEditor({ macroId, macroNome, open, onClose }: Props
 
                       {/* Actions */}
                       <div className="flex items-center gap-0.5 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity">
-                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(f)} title="Modifica">
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(f)} title={tr("Modifica")}>
                           <Edit2 className="h-3.5 w-3.5" />
                         </Button>
                         <Button
                           size="icon"
                           variant="ghost"
                           className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                          title="Elimina"
+                          title={tr("Elimina")}
                           onClick={() => {
-                            if (confirm(`Eliminare il campo "${f.field_label}"?`)) {
+                            if (confirm(tr("Eliminare il campo \"{field_label}\"?", { field_label: f.field_label }))) {
                               void deleteField.mutateAsync(f.id);
                             }
                           }}
@@ -435,7 +432,7 @@ export function SchedaTecnicaEditor({ macroId, macroNome, open, onClose }: Props
           )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={onClose}>Chiudi</Button>
+            <Button variant="outline" onClick={onClose}>{tr("Chiudi")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -455,15 +452,14 @@ export function SchedaTecnicaEditor({ macroId, macroNome, open, onClose }: Props
               <div>
                 <DialogTitle>{fieldDialogTitle}</DialogTitle>
                 <DialogDescription className="text-xs">
-                  Configura un campo della scheda tecnica. Il tipo determina come
-                  apparirà nel form articolo (Input numerico, dropdown, switch…).
+                  {tr("Configura un campo della scheda tecnica. Il tipo determina come apparirà nel form articolo (Input numerico, dropdown, switch…).")}
                 </DialogDescription>
               </div>
             </div>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label>Etichetta visibile *</Label>
+              <Label>{tr("Etichetta visibile *")}</Label>
               <Input
                 value={form.field_label}
                 onChange={(e) => {
@@ -477,13 +473,13 @@ export function SchedaTecnicaEditor({ macroId, macroNome, open, onClose }: Props
                       : p.field_key,
                   }));
                 }}
-                placeholder="es. Trasmittanza Uw"
+                placeholder={tr("es. Trasmittanza Uw")}
                 autoFocus
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Tipo</Label>
+                <Label>{tr("Tipo")}</Label>
                 <Select
                   value={form.field_type}
                   onValueChange={(v) => setForm((p) => ({ ...p, field_type: v as ListinoFieldType }))}
@@ -491,47 +487,47 @@ export function SchedaTecnicaEditor({ macroId, macroNome, open, onClose }: Props
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {FIELD_TYPES.map((t) => (
-                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                      <SelectItem key={t.value} value={t.value}>{tr(t.label)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label>Unità di misura</Label>
+                <Label>{tr("Unità di misura")}</Label>
                 <Input
                   value={form.field_unit}
                   onChange={(e) => setForm((p) => ({ ...p, field_unit: e.target.value }))}
-                  placeholder="es. W/m²K, mm, Wp"
+                  placeholder={tr("es. W/m²K, mm, Wp")}
                 />
               </div>
             </div>
             <div>
-              <Label className="text-xs text-muted-foreground">Chiave tecnica (snake_case)</Label>
+              <Label className="text-xs text-muted-foreground">{tr("Chiave tecnica (snake_case)")}</Label>
               <Input
                 value={form.field_key}
                 onChange={(e) => setForm((p) => ({ ...p, field_key: slugify(e.target.value) }))}
-                placeholder="es. trasmittanza_uw"
+                placeholder={tr("es. trasmittanza_uw")}
                 className="font-mono text-xs"
               />
             </div>
             {needsOptions && (
               <div>
-                <Label>Opzioni (una per riga, formato <code>chiave,etichetta</code>)</Label>
+                <Label>{tr("Opzioni (una per riga, formato")} <code>{tr("chiave,etichetta")}</code>)</Label>
                 <Textarea
                   value={form.options_text}
                   onChange={(e) => setForm((p) => ({ ...p, options_text: e.target.value }))}
                   rows={5}
-                  placeholder="doppio,Doppio&#10;triplo,Triplo basso-emissivo&#10;antifurto,Antifurto stratificato"
+                  placeholder={tr("doppio,Doppio&#10;triplo,Triplo basso-emissivo&#10;antifurto,Antifurto stratificato")}
                   className="font-mono text-xs"
                 />
               </div>
             )}
             <div>
-              <Label>Testo di aiuto (opzionale)</Label>
+              <Label>{tr("Testo di aiuto (opzionale)")}</Label>
               <Input
                 value={form.field_help}
                 onChange={(e) => setForm((p) => ({ ...p, field_help: e.target.value }))}
-                placeholder="Mostrato sotto il campo nel form"
+                placeholder={tr("Mostrato sotto il campo nel form")}
               />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t">
@@ -540,26 +536,26 @@ export function SchedaTecnicaEditor({ macroId, macroNome, open, onClose }: Props
                   checked={form.required}
                   onCheckedChange={(v) => setForm((p) => ({ ...p, required: v }))}
                 />
-                <span className="text-sm">Obbligatorio</span>
+                <span className="text-sm">{tr("Obbligatorio")}</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <Switch
                   checked={form.show_in_picker}
                   onCheckedChange={(v) => setForm((p) => ({ ...p, show_in_picker: v }))}
                 />
-                <span className="text-sm">Mostra nel picker</span>
+                <span className="text-sm">{tr("Mostra nel picker")}</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <Switch
                   checked={form.show_in_pdf}
                   onCheckedChange={(v) => setForm((p) => ({ ...p, show_in_pdf: v }))}
                 />
-                <span className="text-sm">Mostra in PDF</span>
+                <span className="text-sm">{tr("Mostra in PDF")}</span>
               </label>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={closeFieldDialog}>Annulla</Button>
+            <Button variant="ghost" onClick={closeFieldDialog}>{tr("Annulla")}</Button>
             <Button
               onClick={handleSaveField}
               disabled={!form.field_label.trim() || createField.isPending || updateField.isPending}
@@ -568,7 +564,7 @@ export function SchedaTecnicaEditor({ macroId, macroNome, open, onClose }: Props
               {(createField.isPending || updateField.isPending) && (
                 <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
               )}
-              Salva campo
+              {tr("Salva campo")}
             </Button>
           </DialogFooter>
         </DialogContent>

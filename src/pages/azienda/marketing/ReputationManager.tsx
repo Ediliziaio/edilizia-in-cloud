@@ -48,6 +48,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { testoTecnico } from "@/lib/userErrorMessage";
 import { isDemoCompanyId } from "@/lib/constants/demoCompany";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type ReputationTab = "dashboard" | "richieste" | "recensioni" | "automazioni" | "integrazioni";
 type ReviewSource = "Google" | "Facebook" | "Sito" | "Manuale";
@@ -304,7 +305,7 @@ function buildPublicReviewSlug(companyName: string, companyId: string) {
 }
 
 function formatEventTime(timestamp: string) {
-  return new Date(timestamp).toLocaleString("it-IT", {
+  return new Date(timestamp).toLocaleString(intlCampo(), {
     day: "2-digit",
     month: "short",
     hour: "2-digit",
@@ -344,8 +345,9 @@ function statusBadge(status: ReviewStatus | CampaignStatus) {
 }
 
 function StarRating({ value }: { value: number }) {
+  const t = useT();
   return (
-    <div className="flex items-center gap-0.5" aria-label={`${value} stelle`}>
+    <div className="flex items-center gap-0.5" aria-label={t("{value} stelle", { value: String(value ?? "") })}>
       {Array.from({ length: 5 }).map((_, index) => (
         <Star
           key={index}
@@ -545,6 +547,7 @@ function loadLocalState(key: string, fallback: ReputationLocalState): Reputation
 }
 
 export default function ReputationManager() {
+  const tr = useT();
   const { effectiveCompany, profile, user } = useAuth();
   const companyId = effectiveCompany?.id ?? "local";
   const isDemoCompany = isDemoCompanyId(companyId);
@@ -1001,12 +1004,12 @@ export default function ReputationManager() {
     if (isCreating) return;
     const trimmedName = requestName.trim();
     if (!trimmedName) {
-      toast.error("Inserisci un nome per la richiesta recensioni.");
+      toast.error(tr("Inserisci un nome per la richiesta recensioni."));
       return;
     }
     const trimmedTemplate = messageTemplate.trim();
     if (!trimmedTemplate) {
-      toast.error("Inserisci un messaggio per la richiesta recensioni.");
+      toast.error(tr("Inserisci un messaggio per la richiesta recensioni."));
       return;
     }
     // FIX P1: template senza {{nome}} = invio impersonale ("Ciao , grazie...") — UX
@@ -1019,8 +1022,8 @@ export default function ReputationManager() {
       return;
     }
     if (trimmedTemplate.length < 20) {
-      toast.warning("Messaggio molto corto", {
-        description: "Aggiungi un ringraziamento e il motivo per cui chiedi la recensione (almeno 20 caratteri).",
+      toast.warning(tr("Messaggio molto corto"), {
+        description: tr("Aggiungi un ringraziamento e il motivo per cui chiedi la recensione (almeno 20 caratteri)."),
       });
       return;
     }
@@ -1055,8 +1058,8 @@ export default function ReputationManager() {
       detail: `${newCampaign.name} - ${channelLabel[newCampaign.channel]}${targetLabel ? ` - ${targetLabel}` : ""}`,
       tone: "info",
     });
-    toast.success("Richiesta recensioni creata", {
-      description: "La campagna e pronta per essere avviata dalla tab Richieste.",
+    toast.success(tr("Richiesta recensioni creata"), {
+      description: tr("La campagna e pronta per essere avviata dalla tab Richieste."),
     });
   };
 
@@ -1087,7 +1090,7 @@ export default function ReputationManager() {
       tone: "success",
       actor: automation.enabled ? "Automazione" : actorName,
     });
-    toast.success("Automazione richiesta avviata");
+    toast.success(tr("Automazione richiesta avviata"));
   };
 
   const pauseCampaign = (campaignId: string) => {
@@ -1109,7 +1112,7 @@ export default function ReputationManager() {
       detail: campaignName,
       tone: "warning",
     });
-    toast.info("Campagna messa in pausa");
+    toast.info(tr("Campagna messa in pausa"));
   };
 
   const replyToReview = (review: ReputationReview) => {
@@ -1130,8 +1133,8 @@ export default function ReputationManager() {
       detail: `${review.author} - ${review.source}`,
       tone: "success",
     });
-    toast.success("Risposta pronta", {
-      description: `Bozza AI preparata per ${review.author}.`,
+    toast.success(tr("Risposta pronta"), {
+      description: tr("Bozza AI preparata per {author}.", { author: String(review.author ?? "") }),
     });
   };
 
@@ -1144,10 +1147,10 @@ export default function ReputationManager() {
         detail: publicReviewSlug,
         tone: "info",
       });
-      toast.success("Link recensione copiato");
+      toast.success(tr("Link recensione copiato"));
     } catch {
-      toast.error("Impossibile copiare il link", {
-        description: "Seleziona il campo e copialo manualmente.",
+      toast.error(tr("Impossibile copiare il link"), {
+        description: tr("Seleziona il campo e copialo manualmente."),
       });
     }
   };
@@ -1164,8 +1167,8 @@ export default function ReputationManager() {
       return;
     }
 
-    toast.warning(`Collega ${review.source} prima di aprire la recensione sorgente.`, {
-      description: "Serve l'integrazione reputazione dedicata con permessi recensioni/rating.",
+    toast.warning(tr("Collega {source} prima di aprire la recensione sorgente.", { source: String(review.source ?? "") }), {
+      description: tr("Serve l'integrazione reputazione dedicata con permessi recensioni/rating."),
     });
   };
 
@@ -1177,14 +1180,14 @@ export default function ReputationManager() {
       tone: "success",
       actor: "Regia AI",
     });
-    toast.success("Piano reputazione generato", {
-      description: "Aggiunto al registro operativo.",
+    toast.success(tr("Piano reputazione generato"), {
+      description: tr("Aggiunto al registro operativo."),
     });
   };
 
   const simulateAutomationTrigger = () => {
     if (!automation.enabled) {
-      toast.error("Attiva prima l'automazione.");
+      toast.error(tr("Attiva prima l'automazione."));
       return;
     }
     const triggerLabel = automation.trigger === "commessa_chiusa"
@@ -1218,7 +1221,7 @@ export default function ReputationManager() {
       tone: automation.requireApproval ? "warning" : "success",
       actor: "Automazione",
     });
-    toast.success(automation.requireApproval ? "Bozza automatica creata" : "Richiesta automatica simulata");
+    toast.success(automation.requireApproval ? tr("Bozza automatica creata") : tr("Richiesta automatica simulata"));
   };
 
   const siteReviews = reviews.filter((review) => review.source === "Sito");
@@ -1235,7 +1238,7 @@ export default function ReputationManager() {
       // GBP dedicato): niente numeri finti — 0 finché non c'è il dato vero.
       reviews: 0,
       rating: 0,
-      detail: "Serve un OAuth Google Business Profile dedicato: Google Ads non basta per leggere e rispondere alle recensioni.",
+      detail: tr("Serve un OAuth Google Business Profile dedicato: Google Ads non basta per leggere e rispondere alle recensioni."),
       icon: BadgeCheck,
       color: "text-emerald-700",
     },
@@ -1246,8 +1249,8 @@ export default function ReputationManager() {
       reviews: 0,
       rating: 0,
       detail: metaConnected
-        ? "La connessione Meta esiste, ma servono permessi review/rating dedicati prima di leggere le recensioni."
-        : "Richiede connessione Meta e permessi pagina per recensioni.",
+        ? tr("La connessione Meta esiste, ma servono permessi review/rating dedicati prima di leggere le recensioni.")
+        : tr("Richiede connessione Meta e permessi pagina per recensioni."),
       icon: ThumbsUp,
       color: "text-sky-700",
     },
@@ -1257,7 +1260,7 @@ export default function ReputationManager() {
       connected: true,
       reviews: siteReviews.length,
       rating: siteRating,
-      detail: "Raccolta feedback privati prima di invitare alla recensione pubblica.",
+      detail: tr("Raccolta feedback privati prima di invitare alla recensione pubblica."),
       icon: ShieldCheck,
       color: "text-violet-700",
     },
@@ -1272,11 +1275,11 @@ export default function ReputationManager() {
           <div className="flex items-start gap-3">
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-2xl font-bold text-slate-950 max-sm:text-lg">Reputazione</h1>
+                <h1 className="text-2xl font-bold text-slate-950 max-sm:text-lg">{tr("Reputazione")}</h1>
                 {isHydrating && (
                   <Badge variant="outline" className="gap-1.5 border-blue-200 bg-blue-50 text-blue-700">
                     <Loader2 className="h-3 w-3 animate-spin" />
-                    Sincronizzazione…
+                    {tr("Sincronizzazione…")}
                   </Badge>
                 )}
               </div>
@@ -1285,11 +1288,11 @@ export default function ReputationManager() {
           <div className="flex flex-col gap-2 sm:flex-row">
             <Button variant="outline" onClick={() => navigate("/azienda/impostazioni/integrazioni")} className="max-sm:hidden">
               <Settings className="mr-2 h-4 w-4" />
-              Integrazioni
+              {tr("Integrazioni")}
             </Button>
             <Button onClick={() => handleTabChange("richieste")} className="max-sm:h-9 max-sm:px-3 max-sm:text-[13px]">
               <Send className="mr-2 h-4 w-4" />
-              Chiedi recensioni
+              {tr("Chiedi recensioni")}
             </Button>
           </div>
         </div>
@@ -1297,9 +1300,9 @@ export default function ReputationManager() {
 
       <Alert className="border-amber-200 bg-amber-50 max-sm:px-3 max-sm:py-2 max-sm:[&>svg~*]:pl-0">
         <ShieldCheck className="h-4 w-4 text-amber-700 max-sm:hidden" />
-        <AlertTitle className="max-sm:mb-0 max-sm:text-[13px]">Reputazione in configurazione</AlertTitle>
+        <AlertTitle className="max-sm:mb-0 max-sm:text-[13px]">{tr("Reputazione in configurazione")}</AlertTitle>
         <AlertDescription className="max-sm:hidden">
-          Google e Facebook restano in setup finche non vengono collegati i permessi recensioni. Il link sito invece e gia testabile e salva feedback locale.
+          {tr("Google e Facebook restano in setup finche non vengono collegati i permessi recensioni. Il link sito invece e gia testabile e salva feedback locale.")}
         </AlertDescription>
       </Alert>
 
@@ -1311,7 +1314,7 @@ export default function ReputationManager() {
               <Star className="h-5 w-5" />
             </div>
             <div>
-              <p className={KPI_NOME}>Rating medio</p>
+              <p className={KPI_NOME}>{tr("Rating medio")}</p>
               <div className="flex items-center gap-2">
                 <p className={KPI_CIFRA}>{stats.avgRating.toFixed(1)}</p>
                 <span className="max-sm:hidden"><StarRating value={Math.round(stats.avgRating)} /></span>
@@ -1325,7 +1328,7 @@ export default function ReputationManager() {
               <MessageSquare className="h-5 w-5" />
             </div>
             <div>
-              <p className={KPI_NOME}>Recensioni recenti</p>
+              <p className={KPI_NOME}>{tr("Recensioni recenti")}</p>
               <p className={KPI_CIFRA}>{stats.totalReviews}</p>
             </div>
           </CardContent>
@@ -1336,7 +1339,7 @@ export default function ReputationManager() {
               <TrendingUp className="h-5 w-5" />
             </div>
             <div>
-              <p className={KPI_NOME}>Conversione richieste</p>
+              <p className={KPI_NOME}>{tr("Conversione richieste")}</p>
               <p className={KPI_CIFRA}>{stats.conversionRate}%</p>
             </div>
           </CardContent>
@@ -1347,7 +1350,7 @@ export default function ReputationManager() {
               <AlertTriangle className="h-5 w-5" />
             </div>
             <div>
-              <p className={KPI_NOME}>Da gestire</p>
+              <p className={KPI_NOME}>{tr("Da gestire")}</p>
               <p className={KPI_CIFRA}>{stats.unanswered}</p>
             </div>
           </CardContent>
@@ -1368,7 +1371,7 @@ export default function ReputationManager() {
                 )}
               >
                 <Icon className="h-4 w-4 max-sm:hidden" />
-                {tab.label}
+                {tr(tab.label)}
               </TabsTrigger>
             );
           })}
@@ -1379,8 +1382,8 @@ export default function ReputationManager() {
             {/* Telefono: fonti su due righe (nome e stato, recensioni e voto), niente spiegazioni. */}
             <Card>
               <CardHeader className="max-sm:p-3 max-sm:pb-2">
-                <CardTitle className="max-sm:text-sm">Stato reputazione</CardTitle>
-                <CardDescription className="max-sm:hidden">Andamento sintetico da recensioni pubbliche, feedback privati e campagne.</CardDescription>
+                <CardTitle className="max-sm:text-sm">{tr("Stato reputazione")}</CardTitle>
+                <CardDescription className="max-sm:hidden">{tr("Andamento sintetico da recensioni pubbliche, feedback privati e campagne.")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-5 max-sm:space-y-2 max-sm:p-3 max-sm:pt-0">
                 <div className="grid gap-3 md:grid-cols-3 max-sm:gap-2">
@@ -1397,7 +1400,7 @@ export default function ReputationManager() {
                         <p className="mt-3 text-sm font-semibold text-slate-900 max-sm:order-1 max-sm:mt-0 max-sm:min-w-0 max-sm:flex-1 max-sm:truncate max-sm:text-[13px]">{source.name}</p>
                         <div className="mt-2 flex items-center justify-between text-sm max-sm:order-3 max-sm:mt-0.5 max-sm:basis-full max-sm:text-[11px]">
                           <span className="text-muted-foreground">
-                            {source.connected ? `${source.reviews} recensioni` : "Non collegato"}
+                            {source.connected ? tr("{reviews} recensioni", { reviews: String(source.reviews ?? "") }) : tr("Non collegato")}
                           </span>
                           {source.connected ? (
                             <span className={cn("rounded-full border px-2 py-0.5 text-xs font-semibold", ratingClass(source.rating))}>
@@ -1405,7 +1408,7 @@ export default function ReputationManager() {
                             </span>
                           ) : (
                             <Badge variant="outline" className="text-[10px] max-md:text-[11px]">
-                              dati non live
+                              {tr("dati non live")}
                             </Badge>
                           )}
                         </div>
@@ -1417,19 +1420,19 @@ export default function ReputationManager() {
                 <div className="grid gap-4 md:grid-cols-2 max-sm:gap-2">
                   <div className="space-y-3 rounded-lg border p-4 max-sm:space-y-1.5 max-sm:px-2.5 max-sm:py-2">
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-semibold max-sm:text-[13px]">Sentiment positivo</p>
+                      <p className="text-sm font-semibold max-sm:text-[13px]">{tr("Sentiment positivo")}</p>
                       <span className="text-sm font-semibold">{stats.positiveShare}%</span>
                     </div>
                     <Progress value={stats.positiveShare} className="h-2" indicatorClassName="bg-emerald-500" />
-                    <p className="text-xs text-muted-foreground max-sm:hidden">Le recensioni critiche generano alert operativo e bozza risposta AI.</p>
+                    <p className="text-xs text-muted-foreground max-sm:hidden">{tr("Le recensioni critiche generano alert operativo e bozza risposta AI.")}</p>
                   </div>
                   <div className="space-y-3 rounded-lg border p-4 max-sm:space-y-1.5 max-sm:px-2.5 max-sm:py-2">
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-semibold max-sm:text-[13px]">Click sulle richieste</p>
+                      <p className="text-sm font-semibold max-sm:text-[13px]">{tr("Click sulle richieste")}</p>
                       <span className="text-sm font-semibold">{stats.clickRate}%</span>
                     </div>
                     <Progress value={stats.clickRate} className="h-2" indicatorClassName="bg-sky-500" />
-                    <p className="text-xs text-muted-foreground max-sm:hidden">Il link recensione migliore viene scelto in base al canale collegato.</p>
+                    <p className="text-xs text-muted-foreground max-sm:hidden">{tr("Il link recensione migliore viene scelto in base al canale collegato.")}</p>
                   </div>
                 </div>
               </CardContent>
@@ -1440,15 +1443,15 @@ export default function ReputationManager() {
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <Bot className="h-5 w-5 text-violet-700" />
-                  <CardTitle>Regia AI</CardTitle>
+                  <CardTitle>{tr("Regia AI")}</CardTitle>
                 </div>
-                <CardDescription>Azioni consigliate per aumentare rating e volume recensioni.</CardDescription>
+                <CardDescription>{tr("Azioni consigliate per aumentare rating e volume recensioni.")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {[
-                  { title: "Rispondi alla recensione di Giulia B.", meta: "Impatto: risposta pubblica entro 24h" },
-                  { title: "Invia follow-up a 8 clienti che hanno cliccato", meta: "Canale consigliato: WhatsApp" },
-                  { title: "Apri recupero su Studio Neri", meta: "Criticita: comunicazione varianti" },
+                  { title: tr("Rispondi alla recensione di Giulia B."), meta: tr("Impatto: risposta pubblica entro 24h") },
+                  { title: tr("Invia follow-up a 8 clienti che hanno cliccato"), meta: tr("Canale consigliato: WhatsApp") },
+                  { title: tr("Apri recupero su Studio Neri"), meta: tr("Criticita: comunicazione varianti") },
                 ].map((item, index) => (
                   <div key={item.title} className="rounded-lg border p-3">
                     <div className="flex gap-3">
@@ -1464,7 +1467,7 @@ export default function ReputationManager() {
                 ))}
                 <Button className="w-full" variant="outline" onClick={generateWeeklyPlan}>
                   <Sparkles className="mr-2 h-4 w-4" />
-                  Genera piano settimanale
+                  {tr("Genera piano settimanale")}
                 </Button>
               </CardContent>
             </Card>
@@ -1477,36 +1480,36 @@ export default function ReputationManager() {
           <Card>
             <CardHeader className="max-sm:p-3 max-sm:pb-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <CardTitle className="max-sm:text-sm">Nuova richiesta recensioni</CardTitle>
+                  <CardTitle className="max-sm:text-sm">{tr("Nuova richiesta recensioni")}</CardTitle>
                   <Badge variant={persistenceMode === "database" ? "default" : "outline"} className={cn(persistenceMode === "database" ? "bg-emerald-600 hover:bg-emerald-600" : "", "max-sm:hidden")}>
-                    {persistenceMode === "database" ? "Database attivo" : "Cache locale"}
+                    {persistenceMode === "database" ? tr("Database attivo") : tr("Cache locale")}
                   </Badge>
                 </div>
-                <CardDescription className="max-sm:hidden">Segmento, canale, commessa e messaggio con campi dinamici CRM.</CardDescription>
+                <CardDescription className="max-sm:hidden">{tr("Segmento, canale, commessa e messaggio con campi dinamici CRM.")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 max-sm:space-y-3 max-sm:p-3 max-sm:pt-0">
                 <div className="space-y-2">
-                  <Label htmlFor="request-name">Nome</Label>
+                  <Label htmlFor="request-name">{tr("Nome")}</Label>
                   <Input id="request-name" value={requestName} onChange={(event) => setRequestName(event.target.value)} />
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2 max-sm:grid-cols-2 max-sm:gap-2">
                   <div className="space-y-2">
-                    <Label>Segmento</Label>
+                    <Label>{tr("Segmento")}</Label>
                     <Select value={requestSegment} onValueChange={setRequestSegment}>
-                      <SelectTrigger aria-label="Segmento">
+                      <SelectTrigger aria-label={tr("Segmento")}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="commesse_concluse">Commesse concluse</SelectItem>
-                        <SelectItem value="preventivi_vinti">Preventivi vinti</SelectItem>
-                        <SelectItem value="manuale">Lista manuale</SelectItem>
+                        <SelectItem value="commesse_concluse">{tr("Commesse concluse")}</SelectItem>
+                        <SelectItem value="preventivi_vinti">{tr("Preventivi vinti")}</SelectItem>
+                        <SelectItem value="manuale">{tr("Lista manuale")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Canale</Label>
+                    <Label>{tr("Canale")}</Label>
                     <Select value={requestChannel} onValueChange={(value) => setRequestChannel(value as Channel)}>
-                      <SelectTrigger aria-label="Canale">
+                      <SelectTrigger aria-label={tr("Canale")}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1518,13 +1521,13 @@ export default function ReputationManager() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Commessa o cliente</Label>
+                  <Label>{tr("Commessa o cliente")}</Label>
                   <Select value={targetOrderId} onValueChange={setTargetOrderId}>
-                    <SelectTrigger aria-label="Commessa o cliente">
-                      <SelectValue placeholder="Nessun collegamento specifico" />
+                    <SelectTrigger aria-label={tr("Commessa o cliente")}>
+                      <SelectValue placeholder={tr("Nessun collegamento specifico")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="__none__">Nessun collegamento specifico</SelectItem>
+                      <SelectItem value="__none__">{tr("Nessun collegamento specifico")}</SelectItem>
                       {linkedOrders.map((order) => (
                         <SelectItem key={order.id} value={order.id}>
                           {order.orderCode} - {order.customerName}
@@ -1533,14 +1536,14 @@ export default function ReputationManager() {
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground max-sm:hidden">
-                    Selezionando una commessa, il feedback rientra gia agganciato al lavoro e al cliente.
+                    {tr("Selezionando una commessa, il feedback rientra gia agganciato al lavoro e al cliente.")}
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="message-template">Messaggio</Label>
+                  <Label htmlFor="message-template">{tr("Messaggio")}</Label>
                   <Textarea id="message-template" rows={5} value={messageTemplate} onChange={(event) => setMessageTemplate(event.target.value)} />
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span>Placeholder disponibili:</span>
+                    <span>{tr("Placeholder disponibili:")}</span>
                     <button
                       type="button"
                       onClick={() => setMessageTemplate((t) => `${t}${t.endsWith(" ") ? "" : " "}{{nome}}`)}
@@ -1549,7 +1552,7 @@ export default function ReputationManager() {
                       {`{{nome}}`}
                     </button>
                     {!/{\{\s*nome\s*\}\}/i.test(messageTemplate) && (
-                      <span className="text-amber-600">⚠️ Aggiungi {`{{nome}}`} per personalizzare il messaggio</span>
+                      <span className="text-amber-600">{tr("⚠️ Aggiungi")} {`{{nome}}`} {tr("per personalizzare il messaggio")}</span>
                     )}
                   </div>
                 </div>
@@ -1559,33 +1562,33 @@ export default function ReputationManager() {
                   const preview = messageTemplate.replace(/\{\{\s*nome\s*\}\}/gi, sampleName);
                   return (
                     <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-3 max-sm:hidden">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-blue-700">Anteprima · destinatario "{sampleName}"</p>
-                      <p className="mt-2 whitespace-pre-wrap text-sm text-slate-800">{preview || <span className="text-slate-400 italic">Scrivi un messaggio per vedere l'anteprima…</span>}</p>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-blue-700">{tr("Anteprima · destinatario \"{sampleName}\"", { sampleName: String(sampleName ?? "") })}</p>
+                      <p className="mt-2 whitespace-pre-wrap text-sm text-slate-800">{preview || <span className="text-slate-400 italic">{tr("Scrivi un messaggio per vedere l'anteprima…")}</span>}</p>
                     </div>
                   );
                 })()}
                 <Alert className="max-sm:hidden">
                   <Sparkles className="h-4 w-4" />
-                  <AlertTitle>AI anti-recensione forzata</AlertTitle>
+                  <AlertTitle>{tr("AI anti-recensione forzata")}</AlertTitle>
                   <AlertDescription>
-                    Prima chiede feedback privato ai clienti a rischio; invita alla recensione pubblica solo quando il sentiment e positivo.
+                    {tr("Prima chiede feedback privato ai clienti a rischio; invita alla recensione pubblica solo quando il sentiment e positivo.")}
                   </AlertDescription>
                 </Alert>
                 <div className="rounded-lg border bg-slate-50 p-3 max-sm:hidden">
-                  <p className="text-xs font-semibold uppercase text-muted-foreground">Link inserito nel messaggio</p>
+                  <p className="text-xs font-semibold uppercase text-muted-foreground">{tr("Link inserito nel messaggio")}</p>
                   <p className="mt-1 break-all text-sm text-slate-700">{activeReviewLink}</p>
                 </div>
                 <Button className="w-full" onClick={createCampaign} disabled={isCreating}>
                   <Send className="mr-2 h-4 w-4" />
-                  Crea richiesta
+                  {tr("Crea richiesta")}
                 </Button>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="max-sm:p-3 max-sm:pb-2">
-                <CardTitle className="max-sm:text-sm">Campagne recensioni</CardTitle>
-                <CardDescription className="max-sm:hidden">Richieste attive, performance e conversione in recensioni pubblicate.</CardDescription>
+                <CardTitle className="max-sm:text-sm">{tr("Campagne recensioni")}</CardTitle>
+                <CardDescription className="max-sm:hidden">{tr("Richieste attive, performance e conversione in recensioni pubblicate.")}</CardDescription>
               </CardHeader>
               <CardContent className="max-sm:p-0">
                 <div className="divide-y border-t sm:hidden">
@@ -1594,16 +1597,16 @@ export default function ReputationManager() {
                       <RigaMobile
                         className="min-w-0 flex-1"
                         titolo={campaign.name}
-                        sottotitolo={`${channelLabel[campaign.channel]} · ${campaign.sent} invii · ${pct(campaign.clicked, campaign.sent)}% click · ${campaign.reviews} recensioni`}
+                        sottotitolo={tr("{valore} · {sent} invii · {clicked}% click · {reviews} recensioni", { valore: String(channelLabel[campaign.channel] ?? ""), sent: String(campaign.sent ?? ""), clicked: String(pct(campaign.clicked, campaign.sent) ?? ""), reviews: String(campaign.reviews ?? "") })}
                         stato={statusBadge(campaign.status)}
                       />
                       {campaign.status === "attiva" ? (
                         <Button size="sm" variant="outline" className="tap-compact h-8 shrink-0 px-2.5 text-xs" onClick={() => pauseCampaign(campaign.id)}>
-                          Pausa
+                          {tr("Pausa")}
                         </Button>
                       ) : (
                         <Button size="sm" variant={campaign.status === "bozza" ? "default" : "outline"} className="tap-compact h-8 shrink-0 px-2.5 text-xs" onClick={() => startCampaign(campaign.id)}>
-                          {campaign.status === "bozza" ? "Avvia" : "Rilancia"}
+                          {campaign.status === "bozza" ? tr("Avvia") : tr("Rilancia")}
                         </Button>
                       )}
                     </div>
@@ -1612,13 +1615,13 @@ export default function ReputationManager() {
                 <Table className="max-sm:hidden">
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Campagna</TableHead>
-                      <TableHead>Canale</TableHead>
-                      <TableHead>Invii</TableHead>
-                      <TableHead>Click</TableHead>
-                      <TableHead>Review</TableHead>
-                      <TableHead>Stato</TableHead>
-                      <TableHead className="text-right">Azione</TableHead>
+                      <TableHead>{tr("Campagna")}</TableHead>
+                      <TableHead>{tr("Canale")}</TableHead>
+                      <TableHead>{tr("Invii")}</TableHead>
+                      <TableHead>{tr("Click")}</TableHead>
+                      <TableHead>{tr("Review")}</TableHead>
+                      <TableHead>{tr("Stato")}</TableHead>
+                      <TableHead className="text-right">{tr("Azione")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1649,12 +1652,12 @@ export default function ReputationManager() {
                             <div className="flex justify-end gap-2">
                               {campaign.status === "attiva" ? (
                                 <Button size="sm" variant="outline" onClick={() => pauseCampaign(campaign.id)}>
-                                  Pausa
+                                  {tr("Pausa")}
                                 </Button>
                               ) : (
                                 <Button size="sm" variant={campaign.status === "bozza" ? "default" : "outline"} onClick={() => startCampaign(campaign.id)}>
                                   <Play className="mr-1.5 h-3.5 w-3.5" />
-                                  {campaign.status === "bozza" ? "Avvia" : "Rilancia"}
+                                  {campaign.status === "bozza" ? tr("Avvia") : tr("Rilancia")}
                                 </Button>
                               )}
                             </div>
@@ -1675,25 +1678,25 @@ export default function ReputationManager() {
                 «Rispondi» prende la riga, Apri e Silvio restano a icona. */}
             <CardHeader className="gap-3 lg:flex-row lg:items-center lg:justify-between max-sm:gap-2 max-sm:p-3 max-sm:pb-2">
               <div>
-                <CardTitle className="max-sm:text-sm">Recensioni pubblicate</CardTitle>
-                <CardDescription className="max-sm:hidden">Vista unica da Google, Facebook e moduli proprietari.</CardDescription>
+                <CardTitle className="max-sm:text-sm">{tr("Recensioni pubblicate")}</CardTitle>
+                <CardDescription className="max-sm:hidden">{tr("Vista unica da Google, Facebook e moduli proprietari.")}</CardDescription>
               </div>
               <div className="flex flex-wrap gap-2 max-sm:flex-nowrap max-sm:gap-1.5">
                 <Button variant={reviewFilter === "tutte" ? "default" : "outline"} size="sm" className="max-sm:flex-1 max-sm:px-1 max-sm:text-[13px]" onClick={() => setReviewFilter("tutte")} aria-pressed={reviewFilter === "tutte"}>
                   <Filter className="mr-1.5 h-3.5 w-3.5 max-sm:hidden" />
-                  Tutte
+                  {tr("Tutte")}
                 </Button>
                 <Button variant={reviewFilter === "da_rispondere" ? "default" : "outline"} size="sm" className="max-sm:flex-1 max-sm:px-1 max-sm:text-[13px]" onClick={() => setReviewFilter("da_rispondere")} aria-pressed={reviewFilter === "da_rispondere"}>
                   <Reply className="mr-1.5 h-3.5 w-3.5 max-sm:hidden" />
-                  Da rispondere
+                  {tr("Da rispondere")}
                 </Button>
                 <Button variant={reviewFilter === "critiche" ? "default" : "outline"} size="sm" className="max-sm:flex-1 max-sm:px-1 max-sm:text-[13px]" onClick={() => setReviewFilter("critiche")} aria-pressed={reviewFilter === "critiche"}>
                   <AlertTriangle className="mr-1.5 h-3.5 w-3.5 max-sm:hidden" />
-                  Critiche
+                  {tr("Critiche")}
                 </Button>
-                <Button variant="outline" size="sm" aria-label="Aggiorna" className="max-sm:w-9 max-sm:shrink-0 max-sm:px-0" onClick={() => void hydrateReputationState()}>
+                <Button variant="outline" size="sm" aria-label={tr("Aggiorna")} className="max-sm:w-9 max-sm:shrink-0 max-sm:px-0" onClick={() => void hydrateReputationState()}>
                   <RefreshCw className="mr-1.5 h-3.5 w-3.5 max-sm:mr-0" />
-                  <span className="max-sm:hidden">Aggiorna</span>
+                  <span className="max-sm:hidden">{tr("Aggiorna")}</span>
                 </Button>
               </div>
             </CardHeader>
@@ -1701,10 +1704,10 @@ export default function ReputationManager() {
               {filteredReviews.length === 0 ? (
                 <div className="rounded-lg border border-dashed bg-slate-50 p-6 text-center">
                   <Star className="mx-auto h-8 w-8 text-slate-300" />
-                  <p className="mt-3 text-sm font-semibold text-slate-900">Nessuna recensione in questo filtro</p>
-                  <p className="mt-1 text-sm text-muted-foreground">Cambia filtro o crea una nuova richiesta recensioni.</p>
+                  <p className="mt-3 text-sm font-semibold text-slate-900">{tr("Nessuna recensione in questo filtro")}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{tr("Cambia filtro o crea una nuova richiesta recensioni.")}</p>
                   <Button className="mt-4" variant="outline" onClick={() => setReviewFilter("tutte")} aria-pressed={reviewFilter === "tutte"}>
-                    Mostra tutte
+                    {tr("Mostra tutte")}
                   </Button>
                 </div>
               ) : (
@@ -1719,25 +1722,25 @@ export default function ReputationManager() {
                         </div>
                         <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                           <StarRating value={review.rating} />
-                          <span>{new Date(review.date).toLocaleDateString("it-IT")}</span>
+                          <span>{new Date(review.date).toLocaleDateString(intlCampo())}</span>
                           <span>{review.project}</span>
-                          {review.customerName && <span>Cliente: {review.customerName}</span>}
+                          {review.customerName && <span>{tr("Cliente: {customerName}", { customerName: String(review.customerName ?? "") })}</span>}
                         </div>
                         <p className="mt-3 text-sm text-slate-700 max-sm:mt-1.5 max-sm:text-[13px]">{review.text}</p>
                         {(review.status === "da_rispondere" || review.status === "critica") && (
                           <div className="mt-3 rounded-lg border border-violet-200 bg-violet-50/60 p-3 max-sm:mt-2 max-sm:p-2.5">
                             <div className="flex items-center gap-2 text-sm font-semibold text-violet-900">
                               <Bot className="h-4 w-4" />
-                              Bozza risposta AI
+                              {tr("Bozza risposta AI")}
                             </div>
                             <p className="mt-2 text-sm text-violet-900/80">{review.aiReply}</p>
                           </div>
                         )}
                       </div>
                       <div className="flex shrink-0 flex-wrap items-center gap-2 max-sm:flex-nowrap">
-                        <Button variant="outline" size="sm" aria-label="Apri" className="max-sm:w-9 max-sm:px-0" onClick={() => openReviewSource(review)}>
+                        <Button variant="outline" size="sm" aria-label={tr("Apri")} className="max-sm:w-9 max-sm:px-0" onClick={() => openReviewSource(review)}>
                           <ExternalLink className="mr-1.5 h-3.5 w-3.5 max-sm:mr-0" />
-                          <span className="max-sm:hidden">Apri</span>
+                          <span className="max-sm:hidden">{tr("Apri")}</span>
                         </Button>
                         <Button
                           variant="outline"
@@ -1753,21 +1756,21 @@ export default function ReputationManager() {
                               `Recensione: "${review.text}"`;
                             window.dispatchEvent(new CustomEvent("silvio:open-chat", { detail: { draft } }));
                           }}
-                          aria-label="Risposta con Silvio"
+                          aria-label={tr("Risposta con Silvio")}
                           className="border-orange-200 bg-orange-50 text-orange-900 hover:bg-orange-100 max-sm:w-9 max-sm:px-0"
                         >
                           <Sparkles className="mr-1.5 h-3.5 w-3.5 max-sm:mr-0" />
-                          <span className="max-sm:hidden">Risposta con Silvio</span>
+                          <span className="max-sm:hidden">{tr("Risposta con Silvio")}</span>
                         </Button>
                         {(review.status === "da_rispondere" || review.status === "critica") ? (
                           <Button size="sm" className="max-sm:flex-1" onClick={() => replyToReview(review)}>
                             <Reply className="mr-1.5 h-3.5 w-3.5" />
-                            Rispondi
+                            {tr("Rispondi")}
                           </Button>
                         ) : (
                           <Button size="sm" variant="outline" disabled className="max-sm:flex-1">
                             <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
-                            Gestita
+                            {tr("Gestita")}
                           </Button>
                         )}
                       </div>
@@ -1783,70 +1786,70 @@ export default function ReputationManager() {
           <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
             <Card>
               <CardHeader>
-                <CardTitle>Flusso automatico recensioni</CardTitle>
-                <CardDescription>Invio richiesta, follow-up e alert su feedback critici.</CardDescription>
+                <CardTitle>{tr("Flusso automatico recensioni")}</CardTitle>
+                <CardDescription>{tr("Invio richiesta, follow-up e alert su feedback critici.")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
                 <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
                   <div>
-                    <p className="font-semibold">Automazione attiva</p>
-                    <p className="text-sm text-muted-foreground">Genera richieste quando il trigger viene soddisfatto.</p>
+                    <p className="font-semibold">{tr("Automazione attiva")}</p>
+                    <p className="text-sm text-muted-foreground">{tr("Genera richieste quando il trigger viene soddisfatto.")}</p>
                   </div>
                   <Switch checked={automation.enabled} onCheckedChange={(enabled) => updateAutomation({ enabled }, enabled ? "Automazione attivata" : "Automazione disattivata")} />
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Trigger</Label>
+                    <Label>{tr("Trigger")}</Label>
                     <Select value={automation.trigger} onValueChange={(trigger) => updateAutomation({ trigger }, `Trigger impostato su ${trigger}`)}>
-                      <SelectTrigger aria-label="Trigger">
+                      <SelectTrigger aria-label={tr("Trigger")}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="commessa_chiusa">Commessa chiusa</SelectItem>
-                        <SelectItem value="sal_finale">SAL finale approvato</SelectItem>
-                        <SelectItem value="fattura_saldato">Fattura saldata</SelectItem>
+                        <SelectItem value="commessa_chiusa">{tr("Commessa chiusa")}</SelectItem>
+                        <SelectItem value="sal_finale">{tr("SAL finale approvato")}</SelectItem>
+                        <SelectItem value="fattura_saldato">{tr("Fattura saldata")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Prima richiesta dopo</Label>
+                    <Label>{tr("Prima richiesta dopo")}</Label>
                     <Select value={String(automation.delayDays)} onValueChange={(delayDays) => updateAutomation({ delayDays: Number(delayDays) }, `Prima richiesta dopo ${delayDays} giorni`)}>
-                      <SelectTrigger aria-label="Prima richiesta dopo">
+                      <SelectTrigger aria-label={tr("Prima richiesta dopo")}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="0">Subito</SelectItem>
-                        <SelectItem value="1">1 giorno</SelectItem>
-                        <SelectItem value="2">2 giorni</SelectItem>
-                        <SelectItem value="7">7 giorni</SelectItem>
+                        <SelectItem value="0">{tr("Subito")}</SelectItem>
+                        <SelectItem value="1">{tr("1 giorno")}</SelectItem>
+                        <SelectItem value="2">{tr("2 giorni")}</SelectItem>
+                        <SelectItem value="7">{tr("7 giorni")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Follow-up dopo</Label>
+                    <Label>{tr("Follow-up dopo")}</Label>
                     <Select value={String(automation.followUpAfterDays)} onValueChange={(followUpAfterDays) => updateAutomation({ followUpAfterDays: Number(followUpAfterDays) }, `Follow-up dopo ${followUpAfterDays} giorni`)}>
-                      <SelectTrigger aria-label="Follow-up dopo">
+                      <SelectTrigger aria-label={tr("Follow-up dopo")}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="3">3 giorni</SelectItem>
-                        <SelectItem value="5">5 giorni</SelectItem>
-                        <SelectItem value="7">7 giorni</SelectItem>
-                        <SelectItem value="14">14 giorni</SelectItem>
+                        <SelectItem value="3">{tr("3 giorni")}</SelectItem>
+                        <SelectItem value="5">{tr("5 giorni")}</SelectItem>
+                        <SelectItem value="7">{tr("7 giorni")}</SelectItem>
+                        <SelectItem value="14">{tr("14 giorni")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Alert sotto</Label>
+                    <Label>{tr("Alert sotto")}</Label>
                     <Select value={String(automation.minRatingAlert)} onValueChange={(minRatingAlert) => updateAutomation({ minRatingAlert: Number(minRatingAlert) }, `Alert sotto ${minRatingAlert} stelle`)}>
-                      <SelectTrigger aria-label="Alert sotto">
+                      <SelectTrigger aria-label={tr("Alert sotto")}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="2">2 stelle</SelectItem>
-                        <SelectItem value="3">3 stelle</SelectItem>
-                        <SelectItem value="4">4 stelle</SelectItem>
+                        <SelectItem value="2">{tr("2 stelle")}</SelectItem>
+                        <SelectItem value="3">{tr("3 stelle")}</SelectItem>
+                        <SelectItem value="4">{tr("4 stelle")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -1854,22 +1857,22 @@ export default function ReputationManager() {
 
                 <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
                   <div>
-                    <p className="font-semibold">Approvazione prima dell'invio</p>
-                    <p className="text-sm text-muted-foreground">Utile per clienti delicati, lavori con varianti o criticita aperte.</p>
+                    <p className="font-semibold">{tr("Approvazione prima dell'invio")}</p>
+                    <p className="text-sm text-muted-foreground">{tr("Utile per clienti delicati, lavori con varianti o criticita aperte.")}</p>
                   </div>
                   <Switch checked={automation.requireApproval} onCheckedChange={(requireApproval) => updateAutomation({ requireApproval }, requireApproval ? "Approvazione richiesta prima dell'invio" : "Invio automatico senza approvazione")} />
                 </div>
                 <Button className="w-full" variant="outline" onClick={simulateAutomationTrigger}>
                   <Play className="mr-2 h-4 w-4" />
-                  Simula trigger
+                  {tr("Simula trigger")}
                 </Button>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle>Registro automazioni</CardTitle>
-              <CardDescription>Audit operativo: richieste, risposte, cambi automazione e alert.</CardDescription>
+                <CardTitle>{tr("Registro automazioni")}</CardTitle>
+              <CardDescription>{tr("Audit operativo: richieste, risposte, cambi automazione e alert.")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {events.map((entry) => {
@@ -1890,7 +1893,7 @@ export default function ReputationManager() {
                           <span className="text-[11px] text-muted-foreground">{formatEventTime(entry.timestamp)}</span>
                         </div>
                         <p className="text-xs text-muted-foreground">{entry.detail}</p>
-                        <p className="mt-1 text-[11px] text-slate-500">Da: {entry.actor}</p>
+                        <p className="mt-1 text-[11px] text-slate-500">{tr("Da: {actor}", { actor: String(entry.actor ?? "") })}</p>
                       </div>
                     </div>
                   );
@@ -1903,10 +1906,9 @@ export default function ReputationManager() {
         <TabsContent value="integrazioni" className="space-y-4">
           <Alert className="border-amber-300 bg-amber-50">
             <Link2 className="h-4 w-4 text-amber-700" />
-            <AlertTitle className="text-amber-900">Le connessioni si configurano in Impostazioni → Integrazioni</AlertTitle>
+            <AlertTitle className="text-amber-900">{tr("Le connessioni si configurano in Impostazioni → Integrazioni")}</AlertTitle>
             <AlertDescription className="text-amber-800">
-              Per collegare Google Business Profile e gestire l'OAuth vai alla pagina dedicata.
-              Qui in Reputazione vedi solo lo stato — la configurazione effettiva è centralizzata.
+              {tr("Per collegare Google Business Profile e gestire l'OAuth vai alla pagina dedicata. Qui in Reputazione vedi solo lo stato — la configurazione effettiva è centralizzata.")}
               <div className="mt-3">
                 <Button
                   size="sm"
@@ -1915,7 +1917,7 @@ export default function ReputationManager() {
                   onClick={() => navigate("/azienda/impostazioni/integrazioni")}
                 >
                   <Link2 className="mr-2 h-4 w-4" />
-                  Apri Integrazioni
+                  {tr("Apri Integrazioni")}
                 </Button>
               </div>
             </AlertDescription>
@@ -1938,16 +1940,16 @@ export default function ReputationManager() {
                         </div>
                       </div>
                       {source.connected ? (
-                        <Badge className="bg-emerald-600 hover:bg-emerald-600">Pronto</Badge>
+                        <Badge className="bg-emerald-600 hover:bg-emerald-600">{tr("Pronto")}</Badge>
                       ) : (
-                        <Badge variant="outline">Setup</Badge>
+                        <Badge variant="outline">{tr("Setup")}</Badge>
                       )}
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <p className="text-sm text-muted-foreground">{source.detail}</p>
                     <div className="flex items-center justify-between rounded-lg bg-slate-50 p-3">
-                      <span className="text-sm text-muted-foreground">Rating</span>
+                      <span className="text-sm text-muted-foreground">{tr("Rating")}</span>
                       <span className="font-semibold">{source.connected ? source.rating.toFixed(1) : "N/D"}</span>
                     </div>
                     <Button
@@ -1956,7 +1958,7 @@ export default function ReputationManager() {
                       onClick={() => navigate("/azienda/impostazioni/integrazioni")}
                     >
                       {source.connected ? <ArrowUpRight className="mr-2 h-4 w-4" /> : <Settings className="mr-2 h-4 w-4" />}
-                      {source.connected ? "Gestisci" : "Collega"}
+                      {source.connected ? tr("Gestisci") : tr("Collega")}
                     </Button>
                   </CardContent>
                 </Card>
@@ -1966,20 +1968,20 @@ export default function ReputationManager() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Link recensione pubblico</CardTitle>
-              <CardDescription>Da usare in firma email, QR code, WhatsApp e post-cantiere. Slug: {publicReviewSlug}</CardDescription>
+              <CardTitle>{tr("Link recensione pubblico")}</CardTitle>
+              <CardDescription>{tr("Da usare in firma email, QR code, WhatsApp e post-cantiere. Slug: {publicReviewSlug}", { publicReviewSlug: String(publicReviewSlug ?? "") })}</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3 lg:grid-cols-[1fr_auto]">
               {publicLinkQuery.data?.active === false && (
-                <p role="status" className="text-sm text-amber-700 lg:col-span-2">Questo link è disattivato. La visita a questa pagina non lo riattiva.</p>
+                <p role="status" className="text-sm text-amber-700 lg:col-span-2">{tr("Questo link è disattivato. La visita a questa pagina non lo riattiva.")}</p>
               )}
               {publicLinkQuery.isError && (
-                <p role="alert" className="text-sm text-red-700 lg:col-span-2">Impossibile verificare il link pubblico. Riprova ricaricando la pagina.</p>
+                <p role="alert" className="text-sm text-red-700 lg:col-span-2">{tr("Impossibile verificare il link pubblico. Riprova ricaricando la pagina.")}</p>
               )}
-              <Input aria-label="Link recensione pubblico" readOnly value={reviewLink} />
+              <Input aria-label={tr("Link recensione pubblico")} readOnly value={reviewLink} />
               <Button variant="outline" onClick={copyReviewLink} disabled={publicLinkQuery.data?.active === false || (hasDatabaseCompany && (publicLinkQuery.isLoading || publicLinkQuery.isError))}>
                 <Link2 className="mr-2 h-4 w-4" />
-                Copia link
+                {tr("Copia link")}
               </Button>
             </CardContent>
           </Card>

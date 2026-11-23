@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import {
   MAX_MISURE_PER_VOCE, quantitaDaMisure, quantitaRigaMisura, type DettagliVoce, type MisuraRiga,
 } from "@/lib/computo/vociDettagli";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export const AMBIENTI_COMUNI = ["Bagno", "Cucina", "Soggiorno", "Camera", "Corridoio", "Ingresso", "Studio", "Lavanderia", "Terrazzo", "Esterno", "Tutta la casa"];
 
@@ -32,11 +33,12 @@ const num = (raw: string): number | null => {
   const v = Number(t.replace(",", "."));
   return Number.isFinite(v) ? v : null;
 };
-const it = (v: number) => v.toLocaleString("it-IT", { maximumFractionDigits: 4 });
+const it = (v: number) => v.toLocaleString(intlCampo(), { maximumFractionDigits: 4 });
 const DIMENSIONI = [["parti", "Parti uguali"], ["lunghezza", "Lunghezza"], ["larghezza", "Larghezza"], ["altezza", "Altezza"]] as const;
 const GRIGLIA_MISURA = "md:grid-cols-[minmax(0,1fr)_4rem_4.5rem_4.5rem_4.5rem_4.5rem_1.75rem]";
 
 export function VoceDettagli({ voce, onChange, idBase }: Props) {
+  const tr = useT();
   const [aperto, setAperto] = useState(false);
   const misure = voce.misure ?? [];
   const daMisure = quantitaDaMisure(misure);
@@ -44,10 +46,10 @@ export function VoceDettagli({ voce, onChange, idBase }: Props) {
 
   const sintesi = [
     voce.ambiente?.trim() ? voce.ambiente.trim() : null,
-    misure.length ? `${misure.length} ${misure.length === 1 ? "misura" : "misure"}` : null,
+    misure.length ? tr(misure.length === 1 ? "{n} misura" : "{n} misure", { n: misure.length }) : null,
     voce.ore_previste ? `${it(voce.ore_previste)} h` : null,
     [voce.marca, voce.modello].filter((x) => x?.trim()).join(" ") || null,
-    voce.note_interne?.trim() ? "nota interna" : null,
+    voce.note_interne?.trim() ? tr("nota interna") : null,
   ].filter(Boolean).join(" · ");
 
   const setMisura = (i: number, patch: Partial<MisuraRiga>) =>
@@ -60,8 +62,8 @@ export function VoceDettagli({ voce, onChange, idBase }: Props) {
       <CollapsibleTrigger asChild>
         <button type="button" className="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left text-[11px] text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring max-sm:min-h-9 max-sm:text-xs">
           <ChevronDown className={cn("h-3 w-3 shrink-0 transition-transform", aperto && "rotate-180")} aria-hidden />
-          <span className="font-medium">Dettagli</span>
-          {voce.opzionale === true && <span className="rounded bg-amber-100 px-1.5 py-px text-[10px] font-medium text-amber-900">Opzionale · non nel totale</span>}
+          <span className="font-medium">{tr("Dettagli")}</span>
+          {voce.opzionale === true && <span className="rounded bg-amber-100 px-1.5 py-px text-[10px] font-medium text-amber-900">{tr("Opzionale · non nel totale")}</span>}
           {!aperto && sintesi && <span className="truncate">· {sintesi}</span>}
         </button>
       </CollapsibleTrigger>
@@ -69,31 +71,31 @@ export function VoceDettagli({ voce, onChange, idBase }: Props) {
         <div className="mt-2 space-y-3 rounded-md border bg-muted/20 p-3">
           <div className="grid grid-cols-[repeat(auto-fit,minmax(min(11rem,100%),1fr))] gap-3">
             <div className="space-y-1">
-              <Label htmlFor={`${idBase}-amb`} className="text-xs">Ambiente</Label>
-              <Input id={`${idBase}-amb`} list={`${idBase}-amb-l`} value={voce.ambiente ?? ""} maxLength={80} placeholder="es. Bagno" className="h-8"
+              <Label htmlFor={`${idBase}-amb`} className="text-xs">{tr("Ambiente")}</Label>
+              <Input id={`${idBase}-amb`} list={`${idBase}-amb-l`} value={voce.ambiente ?? ""} maxLength={80} placeholder={tr("es. Bagno")} className="h-8"
                 onChange={(e) => onChange({ ambiente: e.target.value })} />
               <datalist id={`${idBase}-amb-l`}>{AMBIENTI_COMUNI.map((a) => <option key={a} value={a} />)}</datalist>
             </div>
             <div className="space-y-1">
-              <Label htmlFor={`${idBase}-ore`} className="text-xs">Ore previste (ore-persona)</Label>
-              <Input id={`${idBase}-ore`} inputMode="decimal" value={voce.ore_previste ?? ""} placeholder="stima dal costo" className="h-8"
+              <Label htmlFor={`${idBase}-ore`} className="text-xs">{tr("Ore previste (ore-persona)")}</Label>
+              <Input id={`${idBase}-ore`} inputMode="decimal" value={voce.ore_previste ?? ""} placeholder={tr("stima dal costo")} className="h-8"
                 onChange={(e) => onChange({ ore_previste: num(e.target.value) })} />
             </div>
             <div className="space-y-1">
-              <Label htmlFor={`${idBase}-marca`} className="text-xs">Marca</Label>
+              <Label htmlFor={`${idBase}-marca`} className="text-xs">{tr("Marca")}</Label>
               <Input id={`${idBase}-marca`} value={voce.marca ?? ""} maxLength={80} className="h-8" onChange={(e) => onChange({ marca: e.target.value })} />
             </div>
             <div className="space-y-1">
-              <Label htmlFor={`${idBase}-modello`} className="text-xs">Modello</Label>
+              <Label htmlFor={`${idBase}-modello`} className="text-xs">{tr("Modello")}</Label>
               <Input id={`${idBase}-modello`} value={voce.modello ?? ""} maxLength={80} className="h-8" onChange={(e) => onChange({ modello: e.target.value })} />
             </div>
           </div>
 
           <div className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="flex items-center gap-1.5 text-xs font-medium"><Ruler className="h-3.5 w-3.5" aria-hidden /> Misure (come si ricava la quantità)</p>
+              <p className="flex items-center gap-1.5 text-xs font-medium"><Ruler className="h-3.5 w-3.5" aria-hidden /> {tr("Misure (come si ricava la quantità)")}</p>
               <Button type="button" variant="outline" size="sm" className="h-9 px-2 text-xs md:h-7 md:text-[11px]" onClick={aggiungiMisura} disabled={misure.length >= MAX_MISURE_PER_VOCE}>
-                <Plus className="mr-1 h-3 w-3" aria-hidden /> Aggiungi misura
+                <Plus className="mr-1 h-3 w-3" aria-hidden /> {tr("Aggiungi misura")}
               </Button>
             </div>
             {misure.length > 0 && (
@@ -101,46 +103,46 @@ export function VoceDettagli({ voce, onChange, idBase }: Props) {
                 <div className="md:overflow-x-auto">
                   <div className="space-y-2 md:min-w-[34rem] md:space-y-1.5">
                     <div aria-hidden="true" className={cn("hidden gap-1.5 px-0.5 text-[10px] text-muted-foreground md:grid", GRIGLIA_MISURA)}>
-                      <span>Descrizione</span><span>Parti</span><span>Lunghezza</span><span>Larghezza</span><span>Altezza</span><span className="text-right">Totale</span><span />
+                      <span>{tr("Descrizione")}</span><span>{tr("Parti")}</span><span>{tr("Lunghezza")}</span><span>{tr("Larghezza")}</span><span>{tr("Altezza")}</span><span className="text-right">{tr("Totale")}</span><span />
                     </div>
                     {misure.map((m, i) => (
-                      <div key={i} role="group" aria-label={`Misura ${i + 1}`} className={cn("grid grid-cols-2 items-center gap-1.5 max-md:gap-y-2 max-md:rounded-lg max-md:border max-md:bg-background max-md:p-2.5", GRIGLIA_MISURA)}>
+                      <div key={i} role="group" aria-label={tr("Misura {i}", { i: i + 1 })} className={cn("grid grid-cols-2 items-center gap-1.5 max-md:gap-y-2 max-md:rounded-lg max-md:border max-md:bg-background max-md:p-2.5", GRIGLIA_MISURA)}>
                         <label className="min-w-0 max-md:col-span-full">
-                          <span className="mb-1 block text-xs font-medium md:hidden">Descrizione</span>
-                          <Input aria-label={`Descrizione misura ${i + 1}`} value={m.descrizione} maxLength={120} placeholder="es. parete lunga" className="h-10 text-base md:h-8 md:text-xs"
+                          <span className="mb-1 block text-xs font-medium md:hidden">{tr("Descrizione")}</span>
+                          <Input aria-label={tr("Descrizione misura {i}", { i: i + 1 })} value={m.descrizione} maxLength={120} placeholder={tr("es. parete lunga")} className="h-10 text-base md:h-8 md:text-xs"
                             onChange={(e) => setMisura(i, { descrizione: e.target.value })} />
                         </label>
                         {DIMENSIONI.map(([campo, label]) => (
                           <label key={campo} className="min-w-0">
-                            <span className="mb-1 block text-xs font-medium md:hidden">{label}</span>
-                            <Input aria-label={`${label}, misura ${i + 1}`} inputMode="decimal" value={m[campo] ?? ""}
+                            <span className="mb-1 block text-xs font-medium md:hidden">{tr(label)}</span>
+                            <Input aria-label={tr("{label}, misura {i}", { label: tr(label), i: i + 1 })} inputMode="decimal" value={m[campo] ?? ""}
                               className="h-10 text-base tabular-nums md:h-8 md:text-xs"
                               onChange={e => setMisura(i, { [campo]: num(e.target.value) ?? (campo === "parti" ? 0 : null) })} />
                           </label>
                         ))}
-                        <span className="text-xs tabular-nums md:text-right"><span className="mr-1 text-muted-foreground md:hidden">Totale</span><strong>{it(quantitaRigaMisura(m))}</strong></span>
-                        <Button type="button" variant="ghost" size="icon" className="h-9 w-9 max-md:justify-self-end md:h-7 md:w-7" aria-label={`Togli la misura ${i + 1}`}
+                        <span className="text-xs tabular-nums md:text-right"><span className="mr-1 text-muted-foreground md:hidden">{tr("Totale")}</span><strong>{it(quantitaRigaMisura(m))}</strong></span>
+                        <Button type="button" variant="ghost" size="icon" className="h-9 w-9 max-md:justify-self-end md:h-7 md:w-7" aria-label={tr("Togli la misura {i}", { i: i + 1 })}
                           onClick={() => onChange({ misure: misure.filter((_, k) => k !== i) })}><Trash2 className="h-3.5 w-3.5" aria-hidden /></Button>
                       </div>
                     ))}
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs">
-                  <span>Dalle misure: <strong className="tabular-nums">{daMisure === null ? "—" : `${it(daMisure)} ${voce.unita_misura}`}</strong>
-                    {diversa && <span className="ml-2 text-amber-700">La quantità della voce è {it(Number(voce.quantita) || 0)}: diversa.</span>}
-                    {daMisure !== null && !diversa && <span className="ml-2 text-emerald-700">Coincide con la quantità.</span>}
+                  <span>{tr("Dalle misure:")} <strong className="tabular-nums">{daMisure === null ? "—" : `${it(daMisure)} ${voce.unita_misura}`}</strong>
+                    {diversa && <span className="ml-2 text-amber-700">{tr("La quantità della voce è {quantita}: diversa.", { quantita: it(Number(voce.quantita) || 0) })}</span>}
+                    {daMisure !== null && !diversa && <span className="ml-2 text-emerald-700">{tr("Coincide con la quantità.")}</span>}
                   </span>
                   {diversa && daMisure !== null && (
-                    <Button type="button" size="sm" variant="secondary" className="h-7 px-2 text-[11px]" onClick={() => onChange({ quantita: daMisure })}>Usa come quantità</Button>
+                    <Button type="button" size="sm" variant="secondary" className="h-7 px-2 text-[11px]" onClick={() => onChange({ quantita: daMisure })}>{tr("Usa come quantità")}</Button>
                   )}
                 </div>
-                <p className="text-[10px] text-muted-foreground">Le dimensioni lasciate vuote non contano: una parete in mq non ha spessore.</p>
+                <p className="text-[10px] text-muted-foreground">{tr("Le dimensioni lasciate vuote non contano: una parete in mq non ha spessore.")}</p>
               </div>
             )}
           </div>
 
           <div className="space-y-1">
-            <Label htmlFor={`${idBase}-nota`} className="text-xs">Nota interna <span className="font-normal text-muted-foreground">· solo per te, non compare nel PDF del cliente</span></Label>
+            <Label htmlFor={`${idBase}-nota`} className="text-xs">{tr("Nota interna")} <span className="font-normal text-muted-foreground">· {tr("solo per te, non compare nel PDF del cliente")}</span></Label>
             <textarea id={`${idBase}-nota`} value={voce.note_interne ?? ""} maxLength={2000} rows={2}
               className="w-full rounded-md border bg-background px-3 py-1.5 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
               onChange={(e) => onChange({ note_interne: e.target.value })} />
@@ -148,7 +150,7 @@ export function VoceDettagli({ voce, onChange, idBase }: Props) {
 
           <label className="flex items-start gap-2 text-xs">
             <input type="checkbox" checked={voce.opzionale === true} onChange={(e) => onChange({ opzionale: e.target.checked })} className="mt-0.5" />
-            <span><strong>Voce opzionale</strong> · la proponi al cliente ma non è inclusa nel totale (alternativa o extra a sua scelta).</span>
+            <span><strong>{tr("Voce opzionale")}</strong> · {tr("la proponi al cliente ma non è inclusa nel totale (alternativa o extra a sua scelta).")}</span>
           </label>
         </div>
       </CollapsibleContent>

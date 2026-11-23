@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { avvisiDatiFiscali, TIPI_CLIENTE, tipoCliente, type TipoCliente } from "@/lib/preventivatore/datiFiscaliCliente";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type CampoFiscaleCliente = "cliente_tipo" | "cliente_ragione_sociale" | "cliente_codice_fiscale" | "cliente_partita_iva" | "cliente_codice_univoco";
 
@@ -21,9 +22,10 @@ const ICONE: Record<TipoCliente, typeof User> = { privato: User, azienda: Buildi
 
 /** La scelta in cima al passo Cliente: Privato · Azienda · Pubblica Amministrazione. */
 export function SceltaTipoCliente({ valore, onChange, className }: { valore: string | null | undefined; onChange: (tipo: TipoCliente) => void; className?: string }) {
+  const tr = useT();
   const tipo = tipoCliente(valore);
   return (
-    <div role="radiogroup" aria-label="Tipo di cliente" className={cn("inline-flex max-w-full flex-wrap rounded-lg border bg-slate-50 p-0.5", className)}>
+    <div role="radiogroup" aria-label={tr("Tipo di cliente")} className={cn("inline-flex max-w-full flex-wrap rounded-lg border bg-slate-50 p-0.5", className)}>
       {TIPI_CLIENTE.map(({ valore: t, etichetta }) => {
         const Icona = ICONE[t];
         return (
@@ -31,7 +33,7 @@ export function SceltaTipoCliente({ valore, onChange, className }: { valore: str
             className={cn("inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors",
               tipo === t ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800")}
             onClick={() => onChange(t)}>
-            <Icona className="h-3.5 w-3.5" />{etichetta}
+            <Icona className="h-3.5 w-3.5" />{tr(etichetta)}
           </button>
         );
       })}
@@ -47,6 +49,7 @@ interface Props {
 
 /** I dati fiscali del tipo scelto in `SceltaTipoCliente`. */
 export function DatiFiscaliCliente({ form, onChange, className }: Props) {
+  const t = useT();
   const id = useId();
   const tipo = tipoCliente(form.cliente_tipo);
   const avvisi = avvisiDatiFiscali({ tipo, codiceFiscale: form.cliente_codice_fiscale, partitaIva: form.cliente_partita_iva, codiceSdi: form.cliente_codice_univoco });
@@ -65,12 +68,12 @@ export function DatiFiscaliCliente({ form, onChange, className }: Props) {
     // tre o quattro colonne tagliavano etichette e suggerimenti («Codice fiscale (se diverso)» andava a capo).
     <div className={cn("grid items-start gap-3 max-sm:gap-2 sm:grid-cols-2", className)}>
       {tipo === "azienda" && campo("cliente_ragione_sociale", "Ragione sociale", Building2, { placeholder: "Rossi Costruzioni S.r.l.", maxLength: 200, largo: true })}
-      {tipo === "pa" && campo("cliente_ragione_sociale", "Ente", Landmark, { placeholder: "Comune di …", maxLength: 200, largo: true })}
-      {tipo === "azienda" && campo("cliente_partita_iva", "Partita IVA", FileBadge, { placeholder: "11 cifre", maxLength: 20, mono: true, numeri: true }, avvisi.partitaIva)}
+      {tipo === "pa" && campo("cliente_ragione_sociale", t("Ente"), Landmark, { placeholder: "Comune di …", maxLength: 200, largo: true })}
+      {tipo === "azienda" && campo("cliente_partita_iva", "Partita IVA", FileBadge, { placeholder: t("11 cifre"), maxLength: 20, mono: true, numeri: true }, avvisi.partitaIva)}
       {campo("cliente_codice_fiscale", tipo === "azienda" ? "C.F. (se diverso)" : "Codice fiscale", FileBadge,
-        { placeholder: tipo === "azienda" ? "Vuoto = P.IVA" : tipo === "pa" ? "11 cifre dell'ente" : "16 caratteri", maxLength: 20, mono: true, maiuscolo: true }, avvisi.codiceFiscale)}
-      {tipo === "pa" && campo("cliente_partita_iva", "Partita IVA (se c'è)", FileBadge, { placeholder: "11 cifre", maxLength: 20, mono: true, numeri: true }, avvisi.partitaIva)}
-      {tipo === "pa" && campo("cliente_codice_univoco", "Codice univoco ufficio", FileBadge, { placeholder: "6 caratteri (IPA)", maxLength: 10, mono: true, maiuscolo: true }, avvisi.codiceSdi)}
+        { placeholder: tipo === "azienda" ? t("Vuoto = P.IVA") : tipo === "pa" ? t("11 cifre dell'ente") : t("16 caratteri"), maxLength: 20, mono: true, maiuscolo: true }, avvisi.codiceFiscale)}
+      {tipo === "pa" && campo("cliente_partita_iva", "Partita IVA (se c'è)", FileBadge, { placeholder: t("11 cifre"), maxLength: 20, mono: true, numeri: true }, avvisi.partitaIva)}
+      {tipo === "pa" && campo("cliente_codice_univoco", "Codice univoco ufficio", FileBadge, { placeholder: t("6 caratteri (IPA)"), maxLength: 10, mono: true, maiuscolo: true }, avvisi.codiceSdi)}
     </div>
   );
 }

@@ -20,6 +20,7 @@ import {
   TABELLA_PREVENTIVI, TIPO_INTERVENTO_DEL_MODELLO, interventiDelModulo,
   type ModuloConModelli,
 } from "@/lib/moduli/modelloPreventivo";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface InterventoScelto { id: string; title: string }
 
@@ -47,6 +48,7 @@ export function interventiPerTipo(modulo: ModuloConModelli, tipo: string | null 
 }
 
 export function ModelloDelPreventivo({ modulo, tabella, interventi, progetto, snapshot, costruisci, onAggiornato, onVersion }: Props) {
+  const t = useT();
   const scelte: readonly InterventoScelto[] = interventi ?? (modulo ? interventiPerTipo(modulo, progetto?.tipo_intervento) : []);
   const tabellaPreventivi = tabella ?? (modulo ? TABELLA_PREVENTIVI[modulo] : null);
   const [scelta, setScelta] = useState("");
@@ -70,7 +72,7 @@ export function ModelloDelPreventivo({ modulo, tabella, interventi, progetto, sn
     try {
       const nuovo = await costruisci(progetto.company_id, { id: modelId });
       if (!expectedIdentity || currentIdentity.current !== expectedIdentity)
-        throw new Error("Il preventivo è cambiato: riapri il modello prima di aggiornarlo.");
+        throw new Error(t("Il preventivo è cambiato: riapri il modello prima di aggiornarlo."));
       // modello_snapshot non è nei tipi generati di Supabase.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let query = (supabase as any).from(tabellaPreventivi).update({ modello_snapshot: nuovo })
@@ -79,22 +81,22 @@ export function ModelloDelPreventivo({ modulo, tabella, interventi, progetto, sn
       const { data, error } = await query.select("id, updated_at").maybeSingle();
       if (error) throw new Error(error.message);
       if (!data || data.id !== progetto.id)
-        throw new Error("Nessun modello aggiornato: il preventivo è cambiato o non è più modificabile. Ricaricalo e riprova.");
+        throw new Error(t("Nessun modello aggiornato: il preventivo è cambiato o non è più modificabile. Ricaricalo e riprova."));
       onVersion?.(data);
       await onAggiornato();
-      toast.success("Modello aggiornato", { description: "Il PDF ora usa il modello di adesso." });
+      toast.success(t("Modello aggiornato"), { description: t("Il PDF ora usa il modello di adesso.") });
     } catch (e) {
-      toast.error("Modello non aggiornato", { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Modello non aggiornato"), { description: e instanceof Error ? e.message : String(e) });
     } finally {
       lock.current = false;
       setInCorso(false);
     }
   };
 
-  const del = snapshot && new Date(snapshot.capturedAt).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" });
+  const del = snapshot && new Date(snapshot.capturedAt).toLocaleString(intlCampo(), { dateStyle: "short", timeStyle: "short" });
   const nomeModello = snapshot && scelte.find((i) => i.id === snapshot.modelId)?.title;
-  const etichetta = snapshot ? "Aggiorna al modello attuale" : "Usa questo modello";
-  const attesa = snapshot ? "Aggiorno…" : "Collego…";
+  const etichetta = snapshot ? t("Aggiorna al modello attuale") : t("Usa questo modello");
+  const attesa = snapshot ? t("Aggiorno…") : t("Collego…");
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -102,24 +104,24 @@ export function ModelloDelPreventivo({ modulo, tabella, interventi, progetto, sn
           type="button"
           size="sm"
           variant="outline"
-          aria-label="Modello PDF"
-          title="Modello PDF"
+          aria-label={t("Modello PDF")}
+          title={t("Modello PDF")}
           className="shrink-0 gap-1.5 max-lg:w-10 max-lg:px-0"
         >
           <FileText className="h-4 w-4" aria-hidden="true" />
-          <span className="hidden lg:inline">Modello PDF</span>
+          <span className="hidden lg:inline">{t("Modello PDF")}</span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" aria-label="Modello PDF" className="w-80 max-w-[calc(100vw-1.5rem)] space-y-3">
+      <PopoverContent align="end" aria-label={t("Modello PDF")} className="w-80 max-w-[calc(100vw-1.5rem)] space-y-3">
         <div className="space-y-1">
-          <p className="text-sm font-semibold">{nomeModello ?? "Modello PDF"}</p>
+          <p className="text-sm font-semibold">{nomeModello ?? t("Modello PDF")}</p>
           <p className="text-sm text-muted-foreground">
-            {snapshot ? `Il PDF usa il modello del ${del}.` : "Il preventivo usa il modello base. Puoi collegare un modello della libreria."}
+            {snapshot ? t("Il PDF usa il modello del {data}.", { data: del ?? "" }) : t("Il preventivo usa il modello base. Puoi collegare un modello della libreria.")}
           </p>
         </div>
         {!snapshot && (scelte.length > 1 ? (
           <UniformSelect
-            aria-label="Modello della libreria"
+            aria-label={t("Modello della libreria")}
             className="w-full rounded-md border bg-background px-2 py-1 text-sm"
             value={scelto?.id}
             onChange={(e) => setScelta(e.target.value)}

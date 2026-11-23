@@ -13,6 +13,7 @@ import { leggiAllegatoLocale } from "@/lib/computo/allegatiLocali";
 import type { AllegatoComputo } from "@/lib/computo/editorNativo";
 import type { OrigineComputoPianta } from "@/lib/computo/computoDallaPianta";
 import { esigiVerificaDocumento } from "../../../shared/planimetrie/verificaDocumento";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const LeggiPlanimetria = lazy(() => import("@/pages/azienda/RenderPlanimetriaNuova").then(m => ({ default: m.LeggiPlanimetria })));
 
@@ -28,6 +29,7 @@ export default function ProgettoPlanimetria({ companyId, scope, titolo, allegati
   onApriComputo: () => void;
   onApriSilvio?: () => void;
 }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const [dialogo, setDialogo] = useState<"scegli" | "allegati" | "leggi" | null>(null);
   const [piantaId, setPiantaId] = useState("");
@@ -79,10 +81,10 @@ export default function ProgettoPlanimetria({ companyId, scope, titolo, allegati
     setErrore("");
     try {
       const attuale = await caricaPlanimetria(dati.riga.id);
-      if (attuale.riga.company_id !== companyId) throw new Error("Scegli una planimetria di questa azienda.");
+      if (attuale.riga.company_id !== companyId) throw new Error(t("Scegli una planimetria di questa azienda."));
       if (attuale.versione.numero !== dati.versione.numero) {
         void pianta.refetch();
-        throw new Error("La pianta è stata aggiornata. Controlla il piano e la proposta e riprova.");
+        throw new Error(t("La pianta è stata aggiornata. Controlla il piano e la proposta e riprova."));
       }
       esigiVerificaDocumento(attuale.versione.documento, "computo");
       let versione = attuale.versione.numero;
@@ -97,7 +99,7 @@ export default function ProgettoPlanimetria({ companyId, scope, titolo, allegati
       onCollega({ id: attuale.riga.id, titolo: attuale.riga.titolo.slice(0, 160), livelloId: livello.id, propostaId, versione });
       setDialogo(null);
     } catch (e) {
-      if (attivo.current) setErrore(e instanceof Error ? e.message : "Collegamento non riuscito. Riprova.");
+      if (attivo.current) setErrore(e instanceof Error ? e.message : t("Collegamento non riuscito. Riprova."));
     } finally {
       inCorso.current = false;
       if (attivo.current) setOccupato(false);
@@ -110,12 +112,12 @@ export default function ProgettoPlanimetria({ companyId, scope, titolo, allegati
     setOccupato(true); setErrore("");
     try {
       const blob = await leggiAllegatoLocale(scope, allegato.id);
-      if (!blob) throw new Error("L’allegato non è disponibile qui. Carica di nuovo la tavola.");
+      if (!blob) throw new Error(t("L’allegato non è disponibile qui. Carica di nuovo la tavola."));
       if (!attivo.current) return;
       setFile(new File([blob], allegato.nome, { type: allegato.mime }));
       setDialogo("leggi");
     } catch (e) {
-      if (attivo.current) setErrore(e instanceof Error ? e.message : "Non riesco ad aprire l’allegato.");
+      if (attivo.current) setErrore(e instanceof Error ? e.message : t("Non riesco ad aprire l’allegato."));
     } finally {
       inCorso.current = false;
       if (attivo.current) setOccupato(false);
@@ -125,35 +127,35 @@ export default function ProgettoPlanimetria({ companyId, scope, titolo, allegati
   const pianoCollegato = dati?.versione.documento.livelli.find(l => l.id === origine?.livelloId);
   const nomeProposta = pianoCollegato?.proposte.find(p => p.id === origine?.propostaId)?.nome;
   return (
-    <section aria-label="Planimetria del computo" className="space-y-3 rounded-xl border border-blue-200 bg-blue-50/50 p-4">
+    <section aria-label={t("Planimetria del computo")} className="space-y-3 rounded-xl border border-blue-200 bg-blue-50/50 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
           <div className="rounded-lg bg-white p-2 text-blue-700"><Map aria-hidden="true" className="size-5" /></div>
           <div className="min-w-0">
-            <h2 className="break-words font-semibold">{origine ? origine.titolo : "Planimetria del progetto"}</h2>
+            <h2 className="break-words font-semibold">{origine ? origine.titolo : t("Planimetria del progetto")}</h2>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              {origine ? [pianoCollegato?.nome, nomeProposta ?? (pianoCollegato ? "Stato di fatto" : ""), `Versione ${origine.versione} nel computo`].filter(Boolean).join(" · ")
-                : "Facoltativa. Collega una pianta per portare le misure nel computo."}
+              {origine ? [pianoCollegato?.nome, nomeProposta ?? (pianoCollegato ? t("Stato di fatto") : ""), t("Versione {versione} nel computo", { versione: origine.versione })].filter(Boolean).join(" · ")
+                : t("Facoltativa. Collega una pianta per portare le misure nel computo.")}
             </p>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
           {origine && <>
-            {puoCambiare && <Button type="button" size="sm" variant="outline" onClick={() => apriScelta(origine.id)}>Cambia collegamento</Button>}
-            <Button type="button" size="sm" variant={onApriSilvio ? "outline" : "default"} onClick={onApriComputo}>Pianta e computo <ArrowRight aria-hidden="true" className="size-4" /></Button>
-            {onApriSilvio && <Button type="button" size="sm" onClick={onApriSilvio}><Sparkles aria-hidden="true" className="size-4" /> Apri progetto in Silvio</Button>}
+            {puoCambiare && <Button type="button" size="sm" variant="outline" onClick={() => apriScelta(origine.id)}>{t("Cambia collegamento")}</Button>}
+            <Button type="button" size="sm" variant={onApriSilvio ? "outline" : "default"} onClick={onApriComputo}>{t("Pianta e computo")} <ArrowRight aria-hidden="true" className="size-4" /></Button>
+            {onApriSilvio && <Button type="button" size="sm" onClick={onApriSilvio}><Sparkles aria-hidden="true" className="size-4" /> {t("Apri progetto in Silvio")}</Button>}
           </>}
         </div>
       </div>
       {!origine && <div className="grid gap-2 sm:grid-cols-2">
         <Button type="button" variant="outline" className="h-auto justify-start gap-3 whitespace-normal bg-white px-3 py-2.5 text-left" onClick={() => apriScelta()}>
           <Layers3 aria-hidden="true" className="size-4 shrink-0 text-blue-700" />
-          <span className="min-w-0 flex-1">Scegli dall’archivio<span className="block text-xs font-normal text-muted-foreground">Una planimetria già salvata</span></span>
+          <span className="min-w-0 flex-1">{t("Scegli dall’archivio")}<span className="block text-xs font-normal text-muted-foreground">{t("Una planimetria già salvata")}</span></span>
           <ArrowRight aria-hidden="true" className="size-4 shrink-0" />
         </Button>
         <Button type="button" variant="outline" className="h-auto justify-start gap-3 whitespace-normal bg-white px-3 py-2.5 text-left" onClick={apriCaricamento}>
           <FileImage aria-hidden="true" className="size-4 shrink-0 text-blue-700" />
-          <span className="min-w-0 flex-1">Carica una tavola<span className="block text-xs font-normal text-muted-foreground">PDF, foto o schizzo del lavoro</span></span>
+          <span className="min-w-0 flex-1">{t("Carica una tavola")}<span className="block text-xs font-normal text-muted-foreground">{t("PDF, foto o schizzo del lavoro")}</span></span>
           <ArrowRight aria-hidden="true" className="size-4 shrink-0" />
         </Button>
       </div>}
@@ -161,33 +163,33 @@ export default function ProgettoPlanimetria({ companyId, scope, titolo, allegati
       <Dialog open={dialogo !== null} onOpenChange={aperto => { if (!aperto && !inCorso.current) setDialogo(null); }}>
         <DialogContent className={dialogo === "leggi" ? "sm:max-w-[min(96vw,78rem)]" : "sm:max-w-lg"}>
           <DialogHeader>
-            <DialogTitle>{dialogo === "scegli" ? "Collega una planimetria" : "Crea la planimetria del computo"}</DialogTitle>
-            <DialogDescription>{dialogo === "scegli" ? "Scegli il disegno da cui prendere le misure del preventivo." : "Usa una tavola o uno schizzo e verifica le misure prima di collegarlo."}</DialogDescription>
+            <DialogTitle>{dialogo === "scegli" ? t("Collega una planimetria") : t("Crea la planimetria del computo")}</DialogTitle>
+            <DialogDescription>{dialogo === "scegli" ? t("Scegli il disegno da cui prendere le misure del preventivo.") : t("Usa una tavola o uno schizzo e verifica le misure prima di collegarlo.")}</DialogDescription>
           </DialogHeader>
           {dialogo === "scegli" && <div className="space-y-3">
-            {elenco.isLoading && <p role="status" className="text-sm">Carico le planimetrie…</p>}
-            {elenco.isError && <Button variant="outline" type="button" onClick={() => void elenco.refetch()}>Riprova a leggere le planimetrie</Button>}
-            {elenco.data?.length === 0 && <p className="text-sm">Carica una tavola per creare la prima pianta di questo progetto.</p>}
+            {elenco.isLoading && <p role="status" className="text-sm">{t("Carico le planimetrie…")}</p>}
+            {elenco.isError && <Button variant="outline" type="button" onClick={() => void elenco.refetch()}>{t("Riprova a leggere le planimetrie")}</Button>}
+            {elenco.data?.length === 0 && <p className="text-sm">{t("Carica una tavola per creare la prima pianta di questo progetto.")}</p>}
             {!!elenco.data?.length && <div className="space-y-1.5">
               <div className="relative">
                 <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground" />
-                <Input aria-label="Cerca per nome della planimetria" placeholder="Cerca per nome" value={ricerca}
+                <Input aria-label={t("Cerca per nome della planimetria")} placeholder={t("Cerca per nome")} value={ricerca}
                   className="pl-9" disabled={occupato} onChange={e => setRicerca(e.target.value)} />
               </div>
-              <Label htmlFor="computo-scegli-pianta">Planimetria</Label>
+              <Label htmlFor="computo-scegli-pianta">{t("Planimetria")}</Label>
               <select id="computo-scegli-pianta" className="h-10 w-full rounded-md border bg-background px-2 text-sm" value={piantaId} disabled={occupato} onChange={e => {
                 setPiantaId(e.target.value); setLivelloId(""); setScelta(""); setErrore("");
               }}>
-                <option value="">Scegli una pianta</option>
+                <option value="">{t("Scegli una pianta")}</option>
                 {opzioni.map(p => <option key={p.id} value={p.id}>{p.titolo}</option>)}
               </select>
-              {!trovate.length && <p role="status" className="text-xs text-muted-foreground">Nessuna planimetria corrisponde alla ricerca.</p>}
+              {!trovate.length && <p role="status" className="text-xs text-muted-foreground">{t("Nessuna planimetria corrisponde alla ricerca.")}</p>}
             </div>}
-            {piantaId && pianta.isLoading && <p role="status" className="text-sm">Leggo i piani del progetto…</p>}
-            {piantaId && (pianta.isError || (pianta.data && !dati)) && <p role="alert" className="text-sm text-amber-800">Planimetria non disponibile. Scegli un’altra tavola.</p>}
+            {piantaId && pianta.isLoading && <p role="status" className="text-sm">{t("Leggo i piani del progetto…")}</p>}
+            {piantaId && (pianta.isError || (pianta.data && !dati)) && <p role="alert" className="text-sm text-amber-800">{t("Planimetria non disponibile. Scegli un’altra tavola.")}</p>}
             {dati && livello && <>
               {dati.versione.documento.livelli.length > 1 && <div className="space-y-1.5">
-                <Label htmlFor="computo-scegli-piano">Piano</Label>
+                <Label htmlFor="computo-scegli-piano">{t("Piano")}</Label>
                 <select id="computo-scegli-piano" className="h-10 w-full rounded-md border bg-background px-2 text-sm" value={livello.id} disabled={occupato} onChange={e => {
                   setLivelloId(e.target.value); setScelta(""); setErrore("");
                 }}>
@@ -195,15 +197,15 @@ export default function ProgettoPlanimetria({ companyId, scope, titolo, allegati
                 </select>
               </div>}
               <div className="space-y-1.5">
-                <Label htmlFor="computo-scegli-proposta">Variante da collegare</Label>
+                <Label htmlFor="computo-scegli-proposta">{t("Variante da collegare")}</Label>
                 <select id="computo-scegli-proposta" className="h-10 w-full rounded-md border bg-background px-2 text-sm"
                   value={propostaSelezionata} disabled={occupato} onChange={e => setScelta(e.target.value)}>
                   {livello.proposte.map(p => <option key={p.id} value={`p:${p.id}`}>{p.nome}</option>)}
-                  <option value="nuova">Nuova proposta di ristrutturazione</option>
-                  <option value="fatto">Stato di fatto · superfici e misure</option>
+                  <option value="nuova">{t("Nuova proposta di ristrutturazione")}</option>
+                  <option value="fatto">{t("Stato di fatto · superfici e misure")}</option>
                 </select>
-                {propostaSelezionata === "nuova" && <p className="text-xs text-muted-foreground">Crei una variante di lavoro a partire dalla planimetria.</p>}
-                <Link className="text-xs text-blue-700 underline" to={percorsiPlanimetrie.pianta(dati.riga.id, livello.id, propostaSelezionata.startsWith("p:") ? `progetto:${propostaSelezionata.slice(2)}` : undefined)} target="_blank" rel="noopener">Apri il disegno</Link>
+                {propostaSelezionata === "nuova" && <p className="text-xs text-muted-foreground">{t("Crei una variante di lavoro a partire dalla planimetria.")}</p>}
+                <Link className="text-xs text-blue-700 underline" to={percorsiPlanimetrie.pianta(dati.riga.id, livello.id, propostaSelezionata.startsWith("p:") ? `progetto:${propostaSelezionata.slice(2)}` : undefined)} target="_blank" rel="noopener">{t("Apri il disegno")}</Link>
               </div>
             </>}
           </div>}
@@ -211,18 +213,18 @@ export default function ProgettoPlanimetria({ companyId, scope, titolo, allegati
             {allegatiUtili.map(a => <Button key={a.id} type="button" variant="outline" className="h-auto w-full justify-between whitespace-normal text-left" disabled={occupato} onClick={() => void usaAllegato(a)}>
               <span className="min-w-0 break-words">{a.nome}</span><ArrowRight aria-hidden="true" className="size-4 shrink-0" />
             </Button>)}
-            <Button type="button" variant="ghost" disabled={occupato} onClick={() => { setFile(undefined); setDialogo("leggi"); }}>Carica un altro file</Button>
+            <Button type="button" variant="ghost" disabled={occupato} onClick={() => { setFile(undefined); setDialogo("leggi"); }}>{t("Carica un altro file")}</Button>
           </div>}
-          {dialogo === "leggi" && <Suspense fallback={<p role="status" className="text-sm">Apro Planimetrie AI…</p>}>
+          {dialogo === "leggi" && <Suspense fallback={<p role="status" className="text-sm">{t("Apro Planimetrie AI…")}</p>}>
             <LeggiPlanimetria companyId={companyId} per={{ titolo }} fileIniziale={file} onSalvata={id => {
               if (attivo.current && dialogoCorrente.current === "leggi") apriScelta(id);
             }} />
           </Suspense>}
           {errore && dialogo !== "leggi" && <p role="alert" className="rounded-md bg-amber-50 p-2 text-sm text-amber-900">{errore}</p>}
           {dialogo === "scegli" && <DialogFooter>
-            {elenco.data?.length === 0 && <Button type="button" variant="outline" onClick={apriCaricamento}>Carica una tavola</Button>}
+            {elenco.data?.length === 0 && <Button type="button" variant="outline" onClick={apriCaricamento}>{t("Carica una tavola")}</Button>}
             <Button type="button" disabled={!dati || !livello || occupato || pianta.isFetching} onClick={() => void collega()}>
-              {occupato ? "Collego la planimetria…" : inSilvio ? "Collega la planimetria" : "Collega e apri il computo"}
+              {occupato ? t("Collego la planimetria…") : inSilvio ? t("Collega la planimetria") : t("Collega e apri il computo")}
             </Button>
           </DialogFooter>}
         </DialogContent>

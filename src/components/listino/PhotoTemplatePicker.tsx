@@ -48,6 +48,7 @@ import {
   useDeleteCompanyPhoto,
   type CompanyPhoto,
 } from "@/hooks/useCompanyPhotoLibrary";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const VERTICALI = [
   { value: "all",          label: "Tutti i verticali" },
@@ -89,6 +90,7 @@ type Tab = "global" | "company";
 export function PhotoTemplatePicker({
   open, onOpenChange, initialVertical, onSelect,
 }: Props) {
+  const tr = useT();
   const [tab, setTab] = useState<Tab>("global");
   const [vertical, setVertical] = useState<string>(initialVertical ?? "all");
   const [search, setSearch] = useState("");
@@ -179,10 +181,10 @@ export function PhotoTemplatePicker({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ImageIcon className="h-4 w-4 text-orange-600" />
-            Galleria foto
+            {tr("Galleria foto")}
           </DialogTitle>
           <DialogDescription>
-            Scegli una foto dalla galleria globale (curata da EdiliziaInCloud) oppure dalle tue foto private aziendali.
+            {tr("Scegli una foto dalla galleria globale (curata da EdiliziaInCloud) oppure dalle tue foto private aziendali.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -190,18 +192,18 @@ export function PhotoTemplatePicker({
           <TabsList className="grid w-full grid-cols-2 h-9 shrink-0">
             <TabsTrigger value="global" className="text-xs gap-1.5">
               <Globe className="h-3.5 w-3.5" />
-              Galleria globale
+              {tr("Galleria globale")}
             </TabsTrigger>
             <TabsTrigger value="company" className="text-xs gap-1.5">
               <Building2 className="h-3.5 w-3.5" />
-              Le mie foto
+              {tr("Le mie foto")}
             </TabsTrigger>
           </TabsList>
 
           {/* Filtri (comuni a entrambi i tab) */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-3 pb-1 shrink-0">
             <div>
-              <Label className="text-xs text-muted-foreground">Verticale</Label>
+              <Label className="text-xs text-muted-foreground">{tr("Verticale")}</Label>
               <Select
                 value={vertical}
                 onValueChange={(v) => { setVertical(v); setCategoriaFiltro("all"); }}
@@ -209,18 +211,18 @@ export function PhotoTemplatePicker({
                 <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {VERTICALI.map((v) => (
-                    <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>
+                    <SelectItem key={v.value} value={v.value}>{tr(v.label)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             {tab === "global" && categoriesAvailable.length > 1 && (
               <div>
-                <Label className="text-xs text-muted-foreground">Categoria</Label>
+                <Label className="text-xs text-muted-foreground">{tr("Categoria")}</Label>
                 <Select value={categoriaFiltro} onValueChange={setCategoriaFiltro}>
                   <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Tutte le categorie</SelectItem>
+                    <SelectItem value="all">{tr("Tutte le categorie")}</SelectItem>
                     {categoriesAvailable.map((c) => (
                       <SelectItem key={c} value={c}>{prettyLabel(c)}</SelectItem>
                     ))}
@@ -229,13 +231,13 @@ export function PhotoTemplatePicker({
               </div>
             )}
             <div className={tab === "global" && categoriesAvailable.length > 1 ? "" : "sm:col-span-2"}>
-              <Label className="text-xs text-muted-foreground">Cerca</Label>
+              <Label className="text-xs text-muted-foreground">{tr("Cerca")}</Label>
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Nome, materiale, tag…"
+                  placeholder={tr("Nome, materiale, tag…")}
                   className="h-9 text-xs pl-8"
                 />
               </div>
@@ -246,7 +248,7 @@ export function PhotoTemplatePicker({
           <TabsContent value="global" className="flex-1 overflow-hidden mt-2 data-[state=inactive]:hidden">
             <div className="h-full overflow-y-auto pr-1">
               {globalLoading ? (
-                <LoadingState label="Caricamento galleria…" />
+                <LoadingState label={tr("Caricamento galleria…")} />
               ) : globalError ? (
                 <ErrorState />
               ) : filteredGlobal.length === 0 ? (
@@ -290,29 +292,29 @@ export function PhotoTemplatePicker({
           <div className="text-xs text-muted-foreground">
             {selected ? (
               <span>
-                Selezionata: <strong>{selected.nome}</strong>
+                {tr("Selezionata:")} <strong>{selected.nome}</strong>
                 {selected.source === "company" && (
                   <Badge variant="outline" className="ml-2 text-[9px] h-4 px-1 border-orange-300 text-orange-700">
-                    privata
+                    {tr("privata")}
                   </Badge>
                 )}
               </span>
             ) : (
               tab === "global"
-                ? `${filteredGlobal.length} foto disponibili`
-                : `${companyPhotos.length} foto private`
+                ? tr("{n} foto disponibili", { n: filteredGlobal.length })
+                : tr("{n} foto private", { n: companyPhotos.length })
             )}
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Annulla
+              {tr("Annulla")}
             </Button>
             <Button
               onClick={handleConfirm}
               disabled={!selected}
               className="bg-orange-500 hover:bg-orange-600"
             >
-              Usa questa foto
+              {tr("Usa questa foto")}
             </Button>
           </div>
         </DialogFooter>
@@ -341,6 +343,7 @@ function CompanyPhotoTab({
   photos, loading, error, brokenImages, selectedId,
   onSelect, onBroken, onSearchReset, hasSearch, vertical,
 }: CompanyPhotoTabProps) {
+  const tr = useT();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadName, setUploadName] = useState("");
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -364,13 +367,13 @@ function CompanyPhotoTab({
         nome: uploadName.trim(),
         vertical_slug: vertical ?? undefined,
       });
-      toast.success(`Foto "${uploadName}" caricata`);
+      toast.success(tr("Foto \"{uploadName}\" caricata", { uploadName }));
       setPendingFile(null);
       setUploadName("");
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (err) {
-      toast.error("Upload fallito", {
-        description: err instanceof Error ? err.message : "Errore sconosciuto",
+      toast.error(tr("Upload fallito"), {
+        description: err instanceof Error ? err.message : tr("Errore sconosciuto"),
       });
     }
   };
@@ -379,11 +382,11 @@ function CompanyPhotoTab({
     if (!toDelete) return;
     try {
       await deleteMutation.mutateAsync({ id: toDelete.id, storage_path: toDelete.storage_path });
-      toast.success(`Foto "${toDelete.nome}" eliminata`);
+      toast.success(tr("Foto \"{nome}\" eliminata", { nome: toDelete.nome }));
       setToDelete(null);
     } catch (err) {
-      toast.error("Eliminazione fallita", {
-        description: err instanceof Error ? err.message : "Errore sconosciuto",
+      toast.error(tr("Eliminazione fallita"), {
+        description: err instanceof Error ? err.message : tr("Errore sconosciuto"),
       });
     }
   };
@@ -395,8 +398,8 @@ function CompanyPhotoTab({
         {!pendingFile ? (
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="text-xs text-muted-foreground flex-1 min-w-[200px]">
-              <p className="font-medium text-foreground mb-0.5">Carica una nuova foto privata</p>
-              PNG, JPG o WEBP · max 3 MB · visibile <strong>solo alla tua azienda</strong>.
+              <p className="font-medium text-foreground mb-0.5">{tr("Carica una nuova foto privata")}</p>
+              {tr("PNG, JPG o WEBP · max 3 MB · visibile")} <strong>{tr("solo alla tua azienda")}</strong>.
             </div>
             <input
               ref={fileInputRef}
@@ -416,7 +419,7 @@ function CompanyPhotoTab({
               onClick={() => fileInputRef.current?.click()}
             >
               <Upload className="h-3.5 w-3.5 mr-1.5" />
-              Scegli file
+              {tr("Scegli file")}
             </Button>
           </div>
         ) : (
@@ -424,13 +427,13 @@ function CompanyPhotoTab({
             <div className="flex items-center gap-2 text-xs">
               <ImageIcon className="h-3.5 w-3.5 text-orange-600 shrink-0" />
               <span className="truncate flex-1">{pendingFile.name}</span>
-              <span className="text-muted-foreground shrink-0">{(pendingFile.size / 1024).toFixed(0)} KB</span>
+              <span className="text-muted-foreground shrink-0">{tr("{valore} KB", { valore: (pendingFile.size / 1024).toFixed(0) })}</span>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               <Input
                 value={uploadName}
                 onChange={(e) => setUploadName(e.target.value)}
-                placeholder="Nome foto (per ricerca futura)"
+                placeholder={tr("Nome foto (per ricerca futura)")}
                 className="h-8 text-xs flex-1 min-w-[200px]"
                 disabled={uploadMutation.isPending}
                 onKeyDown={(e) => {
@@ -444,9 +447,9 @@ function CompanyPhotoTab({
                 disabled={!uploadName.trim() || uploadMutation.isPending}
               >
                 {uploadMutation.isPending ? (
-                  <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Carico…</>
+                  <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />{tr("Carico…")}</>
                 ) : (
-                  "Carica"
+                  tr("Carica")
                 )}
               </Button>
               <Button
@@ -455,7 +458,7 @@ function CompanyPhotoTab({
                 onClick={() => { setPendingFile(null); setUploadName(""); }}
                 disabled={uploadMutation.isPending}
               >
-                Annulla
+                {tr("Annulla")}
               </Button>
             </div>
           </div>
@@ -465,19 +468,19 @@ function CompanyPhotoTab({
       {/* Lista foto */}
       <div className="flex-1 overflow-y-auto pr-1">
         {loading ? (
-          <LoadingState label="Caricamento foto private…" />
+          <LoadingState label={tr("Caricamento foto private…")} />
         ) : error ? (
           <ErrorState />
         ) : photos.length === 0 ? (
           <div className="text-center py-12 text-sm text-muted-foreground">
             <Building2 className="h-10 w-10 mx-auto text-muted-foreground/30 mb-2" />
-            <p>Nessuna foto privata caricata{hasSearch ? " con questi filtri" : ""}.</p>
+            <p>{hasSearch ? tr("Nessuna foto privata caricata con questi filtri.") : tr("Nessuna foto privata caricata.")}</p>
             <p className="text-xs mt-1">
-              Carica la tua prima foto qui sopra — sarà riutilizzabile su tutti gli articoli del listino.
+              {tr("Carica la tua prima foto qui sopra — sarà riutilizzabile su tutti gli articoli del listino.")}
             </p>
             {hasSearch && (
               <Button variant="ghost" size="sm" onClick={onSearchReset} className="mt-2 text-xs gap-1">
-                <X className="h-3.5 w-3.5" /> Azzera filtri
+                <X className="h-3.5 w-3.5" /> {tr("Azzera filtri")}
               </Button>
             )}
           </div>
@@ -500,7 +503,7 @@ function CompanyPhotoTab({
                     type="button"
                     onClick={() => onSelect(p.id)}
                     aria-pressed={isSelected}
-                    aria-label={`Seleziona foto ${p.nome}`}
+                    aria-label={tr("Seleziona foto {nome}", { nome: p.nome })}
                     className="w-full h-full"
                   >
                     {isBroken ? (
@@ -531,8 +534,8 @@ function CompanyPhotoTab({
                       type="button"
                       onClick={(e) => { e.stopPropagation(); setToDelete(p); }}
                       className="absolute top-1.5 left-1.5 h-6 w-6 rounded-full bg-rose-500 text-white items-center justify-center shadow opacity-0 group-hover:flex hidden group-hover:inline-flex"
-                      title="Elimina"
-                      aria-label={`Elimina foto ${p.nome}`}
+                      title={tr("Elimina")}
+                      aria-label={tr("Elimina foto {nome}", { nome: p.nome })}
                     >
                       <Trash2 className="h-3 w-3" />
                     </button>
@@ -548,22 +551,21 @@ function CompanyPhotoTab({
       <AlertDialog open={!!toDelete} onOpenChange={(o) => { if (!o && !deleteMutation.isPending) setToDelete(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare "{toDelete?.nome}"?</AlertDialogTitle>
+            <AlertDialogTitle>{tr("Eliminare \"{nome}\"?", { nome: toDelete?.nome })}</AlertDialogTitle>
             <AlertDialogDescription>
-              La foto verrà rimossa dalla tua galleria privata. Gli articoli che la usano manterranno l'URL,
-              ma se la foto viene eliminata anche dal cloud apparirà rotta nelle preview.
+              {tr("La foto verrà rimossa dalla tua galleria privata. Gli articoli che la usano manterranno l'URL, ma se la foto viene eliminata anche dal cloud apparirà rotta nelle preview.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteMutation.isPending}>Annulla</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>{tr("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => { e.preventDefault(); void handleDelete(); }}
               disabled={deleteMutation.isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleteMutation.isPending ? (
-                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Eliminazione…</>
-              ) : "Elimina"}
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{tr("Eliminazione…")}</>
+              ) : tr("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -584,6 +586,7 @@ interface PhotoGridProps {
 }
 
 function PhotoGrid({ photos, selectedId, brokenImages, onSelect, onBroken }: PhotoGridProps) {
+  const tr = useT();
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
       {photos.map((p) => {
@@ -595,7 +598,7 @@ function PhotoGrid({ photos, selectedId, brokenImages, onSelect, onBroken }: Pho
             key={p.id}
             onClick={() => onSelect(p.id)}
             aria-pressed={isSelected}
-            aria-label={`Seleziona foto ${p.nome}`}
+            aria-label={tr("Seleziona foto {nome}", { nome: p.nome })}
             className={cn(
               "group relative aspect-square border-2 rounded-md overflow-hidden transition-all bg-slate-50",
               isSelected
@@ -642,21 +645,23 @@ function LoadingState({ label }: { label: string }) {
 }
 
 function ErrorState() {
+  const tr = useT();
   return (
     <div className="text-center py-12 text-sm text-rose-700">
-      Errore caricamento. Riprova fra qualche secondo.
+      {tr("Errore caricamento. Riprova fra qualche secondo.")}
     </div>
   );
 }
 
 function EmptyState({ hasSearch, onReset }: { hasSearch: boolean; onReset: () => void }) {
+  const tr = useT();
   return (
     <div className="text-center py-12 text-sm text-muted-foreground">
       <ImageIcon className="h-10 w-10 mx-auto text-muted-foreground/30 mb-2" />
-      Nessuna foto con questi filtri.
+      {tr("Nessuna foto con questi filtri.")}
       {hasSearch && (
         <Button variant="ghost" size="sm" onClick={onReset} className="mt-2 text-xs gap-1">
-          <X className="h-3.5 w-3.5" /> Azzera filtri
+          <X className="h-3.5 w-3.5" /> {tr("Azzera filtri")}
         </Button>
       )}
     </div>

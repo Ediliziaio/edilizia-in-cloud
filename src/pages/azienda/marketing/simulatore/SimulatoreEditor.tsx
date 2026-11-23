@@ -44,9 +44,11 @@ import { DEFAULT_SCENARI } from "@/lib/simulatore/tipi";
 import type { SimulazioneDoc, VoceSim, FaseSim, ScenariConfig } from "@/lib/simulatore/tipi";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 const AUTOSAVE_DELAY = 500;
 
 export default function SimulatoreEditor() {
+  const tr = useT();
   const isMobile = useIsMobile();
   const { id = null } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -114,10 +116,10 @@ export default function SimulatoreEditor() {
     setExporting(true);
     try {
       await exportSimulazioneXlsx(doc, risultatoConRata, nome);
-      toast.success("Excel scaricato");
+      toast.success(tr("Excel scaricato"));
     } catch (err) {
       console.error("Errore export Excel:", err);
-      toast.error("Errore nella generazione del file Excel");
+      toast.error(tr("Errore nella generazione del file Excel"));
     } finally {
       setExporting(false);
     }
@@ -132,10 +134,10 @@ export default function SimulatoreEditor() {
         "@/components/marketing/simulatore/SimulazionePDF"
       );
       await scaricaSimulazionePDF(doc, risultatoConRata, nome);
-      toast.success("PDF scaricato");
+      toast.success(tr("PDF scaricato"));
     } catch (err) {
       console.error("Errore export PDF:", err);
-      toast.error("Errore nella generazione del PDF");
+      toast.error(tr("Errore nella generazione del PDF"));
     } finally {
       setExporting(false);
     }
@@ -155,9 +157,9 @@ export default function SimulatoreEditor() {
         scenari: doc?.scenari ?? row.scenari,
         as_template: true,
       });
-      toast.success("Template salvato");
+      toast.success(tr("Template salvato"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Errore nel salvataggio del template");
+      toast.error(err instanceof Error ? err.message : tr("Errore nel salvataggio del template"));
     }
   };
 
@@ -222,8 +224,8 @@ export default function SimulatoreEditor() {
         <Card>
           <EmptyState
             tone="error"
-            title="Simulazione non trovata"
-            description="La simulazione richiesta non esiste o non è più disponibile."
+            title={tr("Simulazione non trovata")}
+            description={tr("La simulazione richiesta non esiste o non è più disponibile.")}
             action={{
               label: "Torna al simulatore",
               onClick: () => navigate("/azienda/marketing/simulatore"),
@@ -254,7 +256,7 @@ export default function SimulatoreEditor() {
             size="icon"
             className="shrink-0 mt-0.5"
             onClick={() => navigate("/azienda/marketing/simulatore")}
-            aria-label="Torna alla lista"
+            aria-label={tr("Torna alla lista")}
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
@@ -262,7 +264,7 @@ export default function SimulatoreEditor() {
             <Input
               value={nome}
               onChange={(e) => setNome(e.target.value)}
-              placeholder="Nome simulazione"
+              placeholder={tr("Nome simulazione")}
               className="h-10 w-full max-w-md border-transparent bg-transparent px-2 text-xl font-bold shadow-none hover:border-input focus-visible:border-input max-sm:h-9 max-sm:text-lg"
             />
             {/* Contatto CRM collegato — chip compatto (riuso del picker). */}
@@ -282,12 +284,12 @@ export default function SimulatoreEditor() {
             {update.isPending ? (
               <>
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Salvataggio…
+                {tr("Salvataggio…")}
               </>
             ) : saved ? (
               <>
                 <Check className="h-3.5 w-3.5" style={{ color: "hsl(var(--chart-2))" }} />
-                Salvato
+                {tr("Salvato")}
               </>
             ) : null}
           </span>
@@ -301,17 +303,17 @@ export default function SimulatoreEditor() {
                   ) : (
                     <FileDown className="h-4 w-4" />
                   )}
-                  Esporta
+                  {tr("Esporta")}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => void handleExportExcel()}>
                   <FileSpreadsheet className="mr-2 h-4 w-4" />
-                  Esporta Excel
+                  {tr("Esporta Excel")}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => void handleExportPdf()}>
                   <FileText className="mr-2 h-4 w-4" />
-                  Esporta PDF
+                  {tr("Esporta PDF")}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
@@ -319,14 +321,14 @@ export default function SimulatoreEditor() {
                   disabled={duplicate.isPending}
                 >
                   <FileStack className="mr-2 h-4 w-4" />
-                  Salva come template
+                  {tr("Salva come template")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           )}
           <Button onClick={() => setTrasformaOpen(true)} className="gap-2 max-sm:h-9">
             <Wand2 className="h-4 w-4" />
-            Trasforma
+            {tr("Trasforma")}
           </Button>
         </div>
       </div>

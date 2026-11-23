@@ -43,6 +43,7 @@ import { invalidaListinoNelPreventivatore } from "@/lib/serramenti/cacheListino"
 import type { MarkupTipo } from "@/types/articleFamily";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 interface Cell {
   prezzo_vendita: number;
   prezzo_acquisto: number;
@@ -105,7 +106,7 @@ type ModoPrezzo = "vendita" | "acquisto_markup";
 export function problemaMisuraGriglia(v: number): string | null {
   if (!Number.isFinite(v) || v <= 0) return "Scrivi una misura maggiore di zero, in millimetri.";
   if (!Number.isInteger(v)) {
-    return `Le misure vanno in millimetri interi: ${v.toLocaleString("it-IT")} non si può salvare.`;
+    return `Le misure vanno in millimetri interi: ${v.toLocaleString(intlCampo())} non si può salvare.`;
   }
   return null;
 }
@@ -255,6 +256,7 @@ export function FamilyGridEditor({
   markupValore = 0,
   onEnsureFamilySaved,
 }: Props) {
+  const t = useT();
   const isMobile = useIsMobile();
   const companyId = useEffectiveCompanyId();
   const qc = useQueryClient();
@@ -331,7 +333,7 @@ export function FamilyGridEditor({
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    toast.success(`Esportate ${lines.length - 1} celle`);
+    toast.success(t("Esportate {n} celle", { n: lines.length - 1 }));
   };
 
   // #12 — Import CSV
@@ -341,28 +343,28 @@ export function FamilyGridEditor({
       try {
         const esito = leggiCsvGriglia(String(e.target?.result || ""), prezzoBaseMode, cells);
         if (esito.vuoto) {
-          toast.error("CSV vuoto o senza dati");
+          toast.error(t("CSV vuoto o senza dati"));
           return;
         }
         const note: string[] = [];
         if (esito.scartate > 0) {
-          note.push(`${esito.scartate} righe ignorate (valori mancanti o non numerici).`);
+          note.push(t("{scartate} righe ignorate (valori mancanti o non numerici).", { scartate: esito.scartate }));
         }
         if (esito.senzaAcquisto > 0) {
-          note.push(`${esito.senzaAcquisto} righe senza prezzo di acquisto ignorate.`);
+          note.push(t("{senzaAcquisto} righe senza prezzo di acquisto ignorate.", { senzaAcquisto: esito.senzaAcquisto }));
         }
         if (esito.misureNonIntere.length > 0) {
           const esempi = esito.misureNonIntere.slice(0, 3).map((m) => `«${m}»`).join(", ");
-          note.push(`Misure non intere scartate (${esempi}): servono millimetri interi.`);
+          note.push(t("Misure non intere scartate ({esempi}): servono millimetri interi.", { esempi }));
         }
         if (esito.importate === 0) {
           if (prezzoBaseMode === "acquisto_markup" && esito.senzaAcquisto > 0) {
-            toast.error("Nel file manca il prezzo di acquisto", {
+            toast.error(t("Nel file manca il prezzo di acquisto"), {
               description:
-                "Questo prodotto ricava la vendita dal listino del fornitore: serve la colonna prezzo_acquisto (la quarta).",
+                t("Questo prodotto ricava la vendita dal listino del fornitore: serve la colonna prezzo_acquisto (la quarta)."),
             });
           } else {
-            toast.error("Nessuna cella importata", { description: note.join(" ") || undefined });
+            toast.error(t("Nessuna cella importata"), { description: note.join(" ") || undefined });
           }
           return;
         }
@@ -370,11 +372,11 @@ export function FamilyGridEditor({
         setYAxis(Array.from(new Set([...yAxis, ...esito.ys])).sort((a, b) => a - b));
         setCells(esito.celle);
         markDirty();
-        toast.success(`Importate ${esito.importate} celle. Ricordati di salvare.`, {
+        toast.success(t("Importate {importate} celle. Ricordati di salvare.", { importate: esito.importate }), {
           description: note.length > 0 ? note.join(" ") : undefined,
         });
       } catch (err) {
-        toast.error("Non riesco a leggere il CSV", {
+        toast.error(t("Non riesco a leggere il CSV"), {
           description: messaggioErroreListino(err),
         });
       }
@@ -475,11 +477,11 @@ export function FamilyGridEditor({
     const v = parseAxisValue(newX);
     const problema = problemaMisuraGriglia(v);
     if (problema) {
-      toast.error(`${asseXLabel} non valida`, { description: problema });
+      toast.error(t("{asseXLabel} non valida", { asseXLabel }), { description: problema });
       return;
     }
     if (xAxis.includes(v)) {
-      toast.error("Valore già presente");
+      toast.error(t("Valore già presente"));
       return;
     }
     setXAxis([...xAxis, v].sort((a, b) => a - b));
@@ -491,11 +493,11 @@ export function FamilyGridEditor({
     const v = parseAxisValue(newY);
     const problema = problemaMisuraGriglia(v);
     if (problema) {
-      toast.error(`${asseYLabel} non valida`, { description: problema });
+      toast.error(t("{asseYLabel} non valida", { asseYLabel }), { description: problema });
       return;
     }
     if (yAxis.includes(v)) {
-      toast.error("Valore già presente");
+      toast.error(t("Valore già presente"));
       return;
     }
     setYAxis([...yAxis, v].sort((a, b) => a - b));
@@ -603,8 +605,8 @@ export function FamilyGridEditor({
         (k) => !((cells.get(k)?.prezzo_vendita ?? 0) > 0),
       ).length;
       if (senzaVendita > 0) {
-        toast.warning(`${senzaVendita} celle senza prezzo di vendita`, {
-          description: "Nel preventivo costerebbero 0 €: scrivi la vendita prima di salvare.",
+        toast.warning(t("{senzaVendita} celle senza prezzo di vendita", { senzaVendita }), {
+          description: t("Nel preventivo costerebbero 0 €: scrivi la vendita prima di salvare."),
         });
       }
     }
@@ -628,10 +630,10 @@ export function FamilyGridEditor({
       }
       if (nonIntere.size > 0) {
         const elenco = Array.from(nonIntere)
-          .map((v) => v.toLocaleString("it-IT"))
+          .map((v) => v.toLocaleString(intlCampo()))
           .join(", ");
         throw new Error(
-          `Misure non intere (${elenco}): la griglia vuole millimetri interi. Togli queste misure e aggiungile senza decimali.`,
+          t("Misure non intere ({elenco}): la griglia vuole millimetri interi. Togli queste misure e aggiungile senza decimali.", { elenco }),
         );
       }
 
@@ -643,7 +645,7 @@ export function FamilyGridEditor({
         const ok = await onEnsureFamilySaved();
         if (!ok) {
           throw new Error(
-            "Parametri dell'articolo non salvati: salva prima le impostazioni prezzo, poi la griglia.",
+            t("Parametri dell'articolo non salvati: salva prima le impostazioni prezzo, poi la griglia."),
           );
         }
       }
@@ -788,10 +790,10 @@ export function FamilyGridEditor({
           const rollbackResults = await Promise.all(rollbacks);
           const rollbackClean = rollbackResults.every((r) => !r.error);
           throw new Error(
-            `${failed.length} celle su ${toUpdate.length} non aggiornate (${failed[0].error!.message}). ` +
+            `${t("{n} celle su {n2} non aggiornate ({message}).", { n: failed.length, n2: toUpdate.length, message: failed[0].error!.message })} ` +
               (rollbackClean
-                ? "Le modifiche sono state annullate: la griglia in DB è quella precedente al salvataggio."
-                : "Attenzione: non è stato possibile annullare tutte le modifiche — ricarica la pagina e verifica i prezzi."),
+                ? t("Le modifiche sono state annullate: la griglia in DB è quella precedente al salvataggio.")
+                : t("Attenzione: non è stato possibile annullare tutte le modifiche — ricarica la pagina e verifica i prezzi.")),
           );
         }
       }
@@ -813,7 +815,7 @@ export function FamilyGridEditor({
       return toInsert.length + toUpdate.length;
     },
     onSuccess: (count) => {
-      toast.success(`Griglia salvata: ${count} celle`);
+      toast.success(t("Griglia salvata: {count} celle", { count }));
       // clearDirty PRIMA dell'invalidate: il refetch deve trovare la guardia
       // aperta per riallineare lo stato locale (id delle celle nuove inclusi).
       clearDirty();
@@ -829,7 +831,7 @@ export function FamilyGridEditor({
     },
     onError: (err: Error) => {
       captureVelocityError("family.grid.save", err, { companyId, familyId });
-      toast.error("Griglia non salvata", { description: messaggioErroreListino(err) });
+      toast.error(t("Griglia non salvata"), { description: messaggioErroreListino(err) });
     },
   });
 
@@ -840,7 +842,7 @@ export function FamilyGridEditor({
     return (
       <div className="flex items-center gap-2 text-muted-foreground py-6">
         <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-        Caricamento griglia…
+        {t("Caricamento griglia…")}
       </div>
     );
   }
@@ -851,10 +853,10 @@ export function FamilyGridEditor({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-1">
             <CardTitle className="text-base">
-              Matrice prezzi {asseXLabel} × {asseYLabel}
+              {t("Matrice prezzi {asseXLabel} × {asseYLabel}", { asseXLabel, asseYLabel })}
             </CardTitle>
             <p className="text-sm text-muted-foreground">
-              Definisci le taglie standard. Ogni cella contiene prezzo vendita (€) e acquisto (€). Celle vuote = taglia non disponibile.
+              {t("Definisci le taglie standard. Ogni cella contiene prezzo vendita (€) e acquisto (€). Celle vuote = taglia non disponibile.")}
             </p>
           </div>
           <div className="flex flex-wrap gap-2 shrink-0">
@@ -865,7 +867,7 @@ export function FamilyGridEditor({
               onClick={() => setBulkOpen(true)}
             >
               <Upload className="h-4 w-4 mr-2" aria-hidden="true" />
-              Importa AI
+              {t("Importa AI")}
             </Button>
             {/* #12 — Export CSV */}
             {/* Niente export su telefono. */}
@@ -876,10 +878,10 @@ export function FamilyGridEditor({
                 size="sm"
                 onClick={handleExportCSV}
                 disabled={cells.size === 0}
-                title="Esporta CSV"
+                title={t("Esporta CSV")}
               >
                 <Download className="h-4 w-4 mr-2" aria-hidden="true" />
-                Esporta CSV
+                {t("Esporta CSV")}
               </Button>
             )}
             {/* #12 — Import CSV */}
@@ -897,7 +899,7 @@ export function FamilyGridEditor({
               <Button type="button" variant="outline" size="sm" asChild>
                 <span>
                   <FileUp className="h-4 w-4 mr-2" aria-hidden="true" />
-                  Importa CSV
+                  {t("Importa CSV")}
                 </span>
               </Button>
             </label>
@@ -907,10 +909,10 @@ export function FamilyGridEditor({
               variant="outline"
               size="sm"
               onClick={() => setHistoryOpen((s) => !s)}
-              title="Storico modifiche prezzi"
+              title={t("Storico modifiche prezzi")}
             >
               <History className="h-4 w-4 mr-2" aria-hidden="true" />
-              Storico
+              {t("Storico")}
             </Button>
           </div>
         </div>
@@ -918,35 +920,35 @@ export function FamilyGridEditor({
         {historyOpen ? (
           <div className="mt-3 border rounded-md bg-muted/20 max-h-60 overflow-y-auto">
             <div className="px-3 py-2 text-xs font-medium border-b sticky top-0 bg-muted/40">
-              Ultime modifiche prezzi ({priceHistory.length})
+              {t("Ultime modifiche prezzi ({n})", { n: priceHistory.length })}
             </div>
             {historyError ? (
               // M-33 (audit): in errore lo storico mostrava "nessuna modifica"
               // come se fosse il dato reale. Stato errore esplicito + Riprova.
               <div className="px-3 py-3 text-xs text-destructive flex items-center gap-2">
-                Errore nel caricamento dello storico.
+                {t("Errore nel caricamento dello storico.")}
                 <Button
                   size="sm"
                   variant="outline"
                   className="h-6 px-2 text-[11px]"
                   onClick={() => refetchHistory()}
                 >
-                  Riprova
+                  {t("Riprova")}
                 </Button>
               </div>
             ) : priceHistory.length === 0 ? (
               <p className="px-3 py-3 text-xs text-muted-foreground">
-                Nessuna modifica registrata. Lo storico parte dalle prime modifiche dopo l'attivazione.
+                {t("Nessuna modifica registrata. Lo storico parte dalle prime modifiche dopo l'attivazione.")}
               </p>
             ) : (
               <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead className="bg-muted/30">
                   <tr>
-                    <th className="px-2 py-1 text-left">Quando</th>
-                    <th className="px-2 py-1 text-left">Cella</th>
-                    <th className="px-2 py-1 text-right">Vendita</th>
-                    <th className="px-2 py-1 text-right">Acquisto</th>
+                    <th className="px-2 py-1 text-left">{t("Quando")}</th>
+                    <th className="px-2 py-1 text-left">{t("Cella")}</th>
+                    <th className="px-2 py-1 text-right">{t("Vendita")}</th>
+                    <th className="px-2 py-1 text-right">{t("Acquisto")}</th>
                     <th className="px-2 py-1 text-left">Op</th>
                   </tr>
                 </thead>
@@ -954,7 +956,7 @@ export function FamilyGridEditor({
                   {priceHistory.map((h) => (
                     <tr key={h.id} className="border-t">
                       <td className="px-2 py-1 font-mono">
-                        {new Date(h.changed_at).toLocaleString("it-IT", {
+                        {new Date(h.changed_at).toLocaleString(intlCampo(), {
                           dateStyle: "short",
                           timeStyle: "short",
                         })}
@@ -1001,7 +1003,7 @@ export function FamilyGridEditor({
                   type="button"
                   onClick={() => removeX(v)}
                   className="ml-1 hover:text-destructive"
-                  aria-label={`Rimuovi ${v}`}
+                  aria-label={t("Rimuovi {v}", { v })}
                 >
                   ×
                 </button>
@@ -1015,7 +1017,7 @@ export function FamilyGridEditor({
                 min={1}
                 value={newX}
                 onChange={(e) => setNewX(e.target.value)}
-                placeholder="Aggiungi valore"
+                placeholder={t("Aggiungi valore")}
                 className="w-32 h-8"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
@@ -1042,7 +1044,7 @@ export function FamilyGridEditor({
                   type="button"
                   onClick={() => removeY(v)}
                   className="ml-1 hover:text-destructive"
-                  aria-label={`Rimuovi ${v}`}
+                  aria-label={t("Rimuovi {v}", { v })}
                 >
                   ×
                 </button>
@@ -1056,7 +1058,7 @@ export function FamilyGridEditor({
                 min={1}
                 value={newY}
                 onChange={(e) => setNewY(e.target.value)}
-                placeholder="Aggiungi valore"
+                placeholder={t("Aggiungi valore")}
                 className="w-32 h-8"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
@@ -1078,7 +1080,7 @@ export function FamilyGridEditor({
             {xAxis.length > 8 && (
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <span aria-hidden="true">←</span>
-                Scorri orizzontalmente per vedere tutte le {xAxis.length} colonne
+                {t("Scorri orizzontalmente per vedere tutte le {n} colonne", { n: xAxis.length })}
                 <span aria-hidden="true">→</span>
               </p>
             )}
@@ -1123,7 +1125,7 @@ export function FamilyGridEditor({
                                       type="number"
                                       step="0.01"
                                       placeholder={
-                                        scontiAttivi ? "Lordo €" : "Acq. €"
+                                        scontiAttivi ? t("Lordo €") : t("Acq. €")
                                       }
                                       min={0}
                                       value={c?.prezzo_acquisto ?? ""}
@@ -1147,7 +1149,7 @@ export function FamilyGridEditor({
                                             <>
                                               {scontiAttivi ? (
                                                 <div>
-                                                  netto:{" "}
+                                                  {t("netto:")}{" "}
                                                   <span className="font-medium text-foreground/80">
                                                     {formatCurrency(netto)}
                                                   </span>
@@ -1158,7 +1160,7 @@ export function FamilyGridEditor({
                                                   quando coincide col netto (markup=none, sconti 0).
                                                   Dato visivo cruciale per il serramentista. */}
                                               <div>
-                                                vendita:{" "}
+                                                {t("vendita:")}{" "}
                                                 <span className="font-semibold text-primary">
                                                   {formatCurrency(vendita)}
                                                 </span>
@@ -1175,7 +1177,7 @@ export function FamilyGridEditor({
                                     <Input
                                       type="number"
                                       step="0.01"
-                                      placeholder="Vend. €"
+                                      placeholder={t("Vend. €")}
                                       min={0}
                                       value={c?.prezzo_vendita ?? ""}
                                       onChange={(e) =>
@@ -1191,7 +1193,7 @@ export function FamilyGridEditor({
                                     <Input
                                       type="number"
                                       step="0.01"
-                                      placeholder="Acq. €"
+                                      placeholder={t("Acq. €")}
                                       min={0}
                                       value={c?.prezzo_acquisto ?? ""}
                                       onChange={(e) =>
@@ -1219,8 +1221,8 @@ export function FamilyGridEditor({
                                 }}
                                 className="p-1 text-muted-foreground hover:text-destructive disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
                                 disabled={!c}
-                                aria-label={`Svuota cella ${x}×${y}`}
-                                title="Svuota cella"
+                                aria-label={t("Svuota cella {x}×{y}", { x, y })}
+                                title={t("Svuota cella")}
                               >
                                 <Trash2 className="h-3 w-3" aria-hidden="true" />
                               </button>
@@ -1236,19 +1238,19 @@ export function FamilyGridEditor({
           </>
         ) : (
           <div className="border rounded-md p-6 text-center text-sm text-muted-foreground">
-            Aggiungi valori alle due variabili per iniziare a compilare la matrice.
+            {t("Aggiungi valori alle due variabili per iniziare a compilare la matrice.")}
           </div>
         )}
 
         <div className="flex items-center justify-between pt-2 border-t">
           <span className="text-sm text-muted-foreground flex items-center gap-2">
-            {filledCells} / {totalCells} celle compilate
+            {filledCells} / {totalCells} {t("celle compilate")}
             {dirty ? (
               <Badge
                 variant="outline"
                 className="border-amber-300 text-amber-700 text-[10px]"
               >
-                Modifiche non salvate
+                {t("Modifiche non salvate")}
               </Badge>
             ) : null}
           </span>
@@ -1260,12 +1262,12 @@ export function FamilyGridEditor({
             {saveGrid.isPending ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />
-                Salvataggio…
+                {t("Salvataggio…")}
               </>
             ) : (
               <>
                 <Save className="h-4 w-4 mr-2" aria-hidden="true" />
-                Salva griglia
+                {t("Salva griglia")}
               </>
             )}
           </Button>

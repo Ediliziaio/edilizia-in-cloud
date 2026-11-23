@@ -11,6 +11,7 @@ import { useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AnteprimaPdfVero } from "@/components/preventivatore/AnteprimaPdfVero";
 import { chiaveAnteprimaPdf } from "@/lib/preventivatore/chiaveAnteprimaPdf";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface BozzaPerIlPdf {
   quote: Record<string, unknown>;
@@ -40,6 +41,7 @@ interface Props {
 }
 
 export function PdfVeroPreventivoClassico({ quoteId, bozza, attivo }: Props) {
+  const t = useT();
   const chiave = useMemo(() => chiaveAnteprimaPdf([quoteId ?? null, bozza]), [quoteId, bozza]);
   const genera = useCallback(async () => {
     const { data, error } = await supabase.functions.invoke("generate-quote-pdf", {
@@ -48,10 +50,10 @@ export function PdfVeroPreventivoClassico({ quoteId, bozza, attivo }: Props) {
     if (error) {
       // Il messaggio del server (per esempio un modello che non si compone) è più utile di quello generico.
       const dettaglio = await (error as { context?: Response }).context?.json?.().catch((): null => null);
-      throw new Error((dettaglio as { error?: string } | null)?.error || "Il PDF non si è aggiornato: le modifiche restano qui, riprova.");
+      throw new Error((dettaglio as { error?: string } | null)?.error || t("Il PDF non si è aggiornato: le modifiche restano qui, riprova."));
     }
     return pdfDallaRisposta(data);
-  }, [quoteId, bozza]);
+  }, [quoteId, bozza, t]);
   return <AnteprimaPdfVero genera={genera} chiave={chiave} attivo={attivo} />;
 }
 

@@ -23,6 +23,7 @@ import {
   nomeTipologiaOccupato,
   problemaCopiaTipologia,
 } from "@/lib/listino/organizzaListino";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type ModoNuovaTipologia = "standard" | "nuova" | "copia";
 
@@ -60,6 +61,7 @@ export function NuovaTipologiaDialog({
   onCreaNuova,
   onCopia,
 }: Props) {
+  const tr = useT();
   // Le tipologie del fotovoltaico sono gli slot del configuratore: non si copiano.
   const copiabili = useMemo(
     () =>
@@ -86,7 +88,7 @@ export function NuovaTipologiaDialog({
   const [conProdotti, setConProdotti] = useState(true);
   const problemaCopia = origine
     ? problemaCopiaTipologia({ nome: nomeCopia, suffisso, variazione, conProdotti }, origine, macrocategorie)
-    : "Scegli la tipologia da copiare.";
+    : tr("Scegli la tipologia da copiare.");
   const esempioProdotto = origine?.linee.flatMap((l) => l.righe)[0]?.famiglia.nome ?? null;
   const toccato = nomeCopia.trim() !== "" || suffisso.trim() !== "" || variazione.trim() !== "";
 
@@ -104,19 +106,19 @@ export function NuovaTipologiaDialog({
           <DialogTitle>Nuova tipologia nell&apos;area {area.nome}</DialogTitle>
           <DialogDescription>
             {preventivatore
-              ? `Le tipologie dell'area arrivano nel ${preventivatore}.`
-              : `Le tipologie raccolgono i prodotti dell'area ${area.nome}.`}
+              ? tr("Le tipologie dell'area arrivano nel {preventivatore}.", { preventivatore })
+              : tr("Le tipologie raccolgono i prodotti dell'area {nome}.", { nome: area.nome })}
           </DialogDescription>
         </DialogHeader>
 
         <Tabs value={modo} onValueChange={(v) => setModo(v as ModoNuovaTipologia)}>
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="standard" disabled={!conStandard}>
-              Standard
+              {tr("Standard")}
             </TabsTrigger>
-            <TabsTrigger value="nuova">Su misura</TabsTrigger>
+            <TabsTrigger value="nuova">{tr("Su misura")}</TabsTrigger>
             <TabsTrigger value="copia" disabled={copiabili.length === 0}>
-              Copia
+              {tr("Copia")}
             </TabsTrigger>
           </TabsList>
 
@@ -131,7 +133,7 @@ export function NuovaTipologiaDialog({
                   <li key={s.nome} className="flex items-center gap-2 px-3 py-2">
                     <span className="min-w-0 flex-1 text-sm">
                       {nomeFinale}
-                      {s.accessorio && <span className="ml-1.5 text-xs text-muted-foreground">accessorio</span>}
+                      {s.accessorio && <span className="ml-1.5 text-xs text-muted-foreground">{tr("accessorio")}</span>}
                     </span>
                     <Button
                       variant="outline"
@@ -141,7 +143,7 @@ export function NuovaTipologiaDialog({
                       onClick={() => onCreaStandard?.(s)}
                     >
                       <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                      Aggiungi
+                      {tr("Aggiungi")}
                     </Button>
                   </li>
                 );
@@ -149,33 +151,33 @@ export function NuovaTipologiaDialog({
             </ul>
             {area.mancanti.length > 1 && onCreaTutteStandard && (
               <Button variant="ghost" size="sm" className="h-8 px-2 text-primary" disabled={inCorso} onClick={onCreaTutteStandard}>
-                Aggiungile tutte ({area.mancanti.length})
+                {tr("Aggiungile tutte ({n})", { n: area.mancanti.length })}
               </Button>
             )}
           </TabsContent>
 
           <TabsContent value="nuova" className="space-y-3 pt-2">
             <div className="space-y-1.5">
-              <Label htmlFor="tipologia-nome">Nome della tipologia</Label>
+              <Label htmlFor="tipologia-nome">{tr("Nome della tipologia")}</Label>
               <Input
                 id="tipologia-nome"
                 value={nome}
                 onChange={(e) => setNome(e.target.value)}
-                placeholder={area.chiave === "serramenti" ? "Es. Inferriate, Verande, Motori" : "Es. Kit, Ricambi"}
+                placeholder={area.chiave === "serramenti" ? tr("Es. Inferriate, Verande, Motori") : tr("Es. Kit, Ricambi")}
                 autoFocus
                 className="h-10"
               />
               {nomeOccupato && (
-                <p className="text-xs text-destructive">Esiste già una tipologia «{nome.trim()}».</p>
+                <p className="text-xs text-destructive">{tr("Esiste già una tipologia «{trim}».", { trim: nome.trim() })}</p>
               )}
             </div>
             {area.chiave === "serramenti" && (
               <label className="flex items-start gap-2 text-sm">
                 <Checkbox checked={accessorio} onCheckedChange={(v) => setAccessorio(v === true)} className="mt-0.5" />
                 <span>
-                  Si aggiunge alla finestra
+                  {tr("Si aggiunge alla finestra")}
                   <span className="block text-xs text-muted-foreground">
-                    Nel preventivatore sta fra gli accessori, come tapparelle e zanzariere.
+                    {tr("Nel preventivatore sta fra gli accessori, come tapparelle e zanzariere.")}
                   </span>
                 </span>
               </label>
@@ -184,27 +186,27 @@ export function NuovaTipologiaDialog({
 
           <TabsContent value="copia" className="space-y-3 pt-2">
             <div className="space-y-1.5">
-              <Label htmlFor="copia-origine">Tipologia da copiare</Label>
+              <Label htmlFor="copia-origine">{tr("Tipologia da copiare")}</Label>
               <Select value={origineChiave} onValueChange={setOrigineChiave}>
                 <SelectTrigger id="copia-origine" className="h-10">
-                  <SelectValue placeholder="Scegli la tipologia" />
+                  <SelectValue placeholder={tr("Scegli la tipologia")} />
                 </SelectTrigger>
                 <SelectContent>
                   {copiabili.map((t) => (
                     <SelectItem key={t.chiave} value={t.chiave}>
-                      {t.nome} · {t.articoli} {t.articoli === 1 ? "prodotto" : "prodotti"}
+                      {t.nome} · {t.articoli} {t.articoli === 1 ? tr("prodotto") : tr("prodotti")}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="copia-nome">Nome della nuova tipologia</Label>
+              <Label htmlFor="copia-nome">{tr("Nome della nuova tipologia")}</Label>
               <Input
                 id="copia-nome"
                 value={nomeCopia}
                 onChange={(e) => setNomeCopia(e.target.value)}
-                placeholder={origine ? `Es. ${origine.nome} alluminio` : ""}
+                placeholder={origine ? tr("Es. {nome} alluminio", { nome: origine.nome }) : ""}
                 className="h-10"
               />
             </div>
@@ -212,9 +214,9 @@ export function NuovaTipologiaDialog({
               <label className="flex items-start gap-2 text-sm">
                 <Checkbox checked={conProdotti} onCheckedChange={(v) => setConProdotti(v === true)} className="mt-0.5" />
                 <span>
-                  Copia anche i {origine.articoli} prodotti
+                  {tr("Copia anche i {n} prodotti", { n: origine.articoli })}
                   <span className="block text-xs text-muted-foreground">
-                    Con linee, varianti, griglie e schede. Senza, nasce vuota con le sole linee-cartella.
+                    {tr("Con linee, varianti, griglie e schede. Senza, nasce vuota con le sole linee-cartella.")}
                   </span>
                 </span>
               </label>
@@ -222,23 +224,22 @@ export function NuovaTipologiaDialog({
             {origine && origine.articoli > 0 && conProdotti && (
               <div className="grid gap-3 sm:grid-cols-[1fr_8rem]">
                 <div className="space-y-1.5">
-                  <Label htmlFor="copia-suffisso">Da aggiungere ai nomi dei prodotti</Label>
+                  <Label htmlFor="copia-suffisso">{tr("Da aggiungere ai nomi dei prodotti")}</Label>
                   <Input
                     id="copia-suffisso"
                     value={suffisso}
                     onChange={(e) => setSuffisso(e.target.value)}
-                    placeholder="Es. Alluminio"
+                    placeholder={tr("Es. Alluminio")}
                     className="h-10"
                   />
                   {esempioProdotto && (
                     <p className="text-xs text-muted-foreground">
-                      «{esempioProdotto}» diventa «{esempioProdotto}
-                      {suffisso.trim() ? ` ${suffisso.trim()}` : " …"}»
+                      {tr("«{prima}» diventa «{dopo}»", { prima: esempioProdotto, dopo: `${esempioProdotto}${suffisso.trim() ? ` ${suffisso.trim()}` : " …"}` })}
                     </p>
                   )}
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="copia-variazione">Prezzi %</Label>
+                  <Label htmlFor="copia-variazione">{tr("Prezzi %")}</Label>
                   <Input
                     id="copia-variazione"
                     value={variazione}
@@ -248,7 +249,7 @@ export function NuovaTipologiaDialog({
                     className="h-10 text-right"
                   />
                   <p className="text-xs text-muted-foreground">
-                    {leggiPercentuale(variazione) ? "Acquisto e vendita" : "Uguali all'originale"}
+                    {leggiPercentuale(variazione) ? tr("Acquisto e vendita") : tr("Uguali all'originale")}
                   </p>
                 </div>
               </div>
@@ -259,7 +260,7 @@ export function NuovaTipologiaDialog({
 
         <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2">
           <Button variant="ghost" onClick={onChiudi} disabled={inCorso} className="h-10 w-full sm:w-auto">
-            {modo === "standard" ? "Chiudi" : "Annulla"}
+            {modo === "standard" ? tr("Chiudi") : tr("Annulla")}
           </Button>
           {modo === "nuova" && (
             <Button
@@ -268,7 +269,7 @@ export function NuovaTipologiaDialog({
               className="h-10 w-full sm:w-auto"
             >
               {inCorso ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> : null}
-              Crea tipologia
+              {tr("Crea tipologia")}
             </Button>
           )}
           {modo === "copia" && origine && (
@@ -286,7 +287,7 @@ export function NuovaTipologiaDialog({
               className="h-10 w-full sm:w-auto"
             >
               {inCorso ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> : null}
-              Copia tipologia
+              {tr("Copia tipologia")}
             </Button>
           )}
         </DialogFooter>

@@ -51,6 +51,7 @@ import {
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const FONT_FAMILIES = [
   "Arial", "Georgia", "Helvetica", "Times New Roman", "Verdana", "Courier New", "Trebuchet MS",
@@ -82,6 +83,7 @@ const escapeHtml = (str: string): string =>
   str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#x27;");
 
 export default function CampaignEditor() {
+  const t = useT();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const emailBase = useEmailMarketingBase();
@@ -265,8 +267,8 @@ export default function CampaignEditor() {
   if (!campaign) {
     return (
       <div className="flex flex-col items-center justify-center h-screen gap-4">
-        <p className="text-muted-foreground">Campagna non trovata</p>
-        <Button onClick={() => navigate(emailBase)}>Torna alla lista</Button>
+        <p className="text-muted-foreground">{t("Campagna non trovata")}</p>
+        <Button onClick={() => navigate(emailBase)}>{t("Torna alla lista")}</Button>
       </div>
     );
   }
@@ -277,13 +279,13 @@ export default function CampaignEditor() {
       <div className="flex items-center justify-between px-4 py-2 bg-background border-b shrink-0">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" className="hidden md:inline-flex" onClick={() => navigate(emailBase)}>
-            <ArrowLeft className="h-4 w-4 mr-1" /> Indietro
+            <ArrowLeft className="h-4 w-4 mr-1" /> {t("Indietro")}
           </Button>
           <Separator orientation="vertical" className="h-6" />
           <span className="text-xs text-muted-foreground">
-            {autoSaveStatus === "saved" && "✓ Salvato"}
-            {autoSaveStatus === "saving" && "Salvataggio..."}
-            {autoSaveStatus === "unsaved" && "● Modifiche non salvate"}
+            {autoSaveStatus === "saved" && t("✓ Salvato")}
+            {autoSaveStatus === "saving" && t("Salvataggio...")}
+            {autoSaveStatus === "unsaved" && t("● Modifiche non salvate")}
           </span>
         </div>
 
@@ -317,16 +319,16 @@ export default function CampaignEditor() {
 
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => setPreviewOpen(true)}>
-            <Eye className="h-4 w-4 mr-1" /> Anteprima
+            <Eye className="h-4 w-4 mr-1" /> {t("Anteprima")}
           </Button>
           <Button variant="outline" size="sm" onClick={handleManualSave} disabled={saveMut.isPending}>
-            <Save className="h-4 w-4 mr-1" /> Salva
+            <Save className="h-4 w-4 mr-1" /> {t("Salva")}
           </Button>
           <Button size="sm" onClick={() => {
             handleManualSave();
             navigate(`${emailBase}/campagna/${id}/impostazioni`);
           }}>
-            <Send className="h-4 w-4 mr-1" /> Invia o programma
+            <Send className="h-4 w-4 mr-1" /> {t("Invia o programma")}
           </Button>
         </div>
       </div>
@@ -345,10 +347,10 @@ export default function CampaignEditor() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="paragraph">Paragrafo</SelectItem>
-            <SelectItem value="h1">Titolo 1</SelectItem>
-            <SelectItem value="h2">Titolo 2</SelectItem>
-            <SelectItem value="h3">Titolo 3</SelectItem>
+            <SelectItem value="paragraph">{t("Paragrafo")}</SelectItem>
+            <SelectItem value="h1">{t("Titolo 1")}</SelectItem>
+            <SelectItem value="h2">{t("Titolo 2")}</SelectItem>
+            <SelectItem value="h3">{t("Titolo 3")}</SelectItem>
           </SelectContent>
         </Select>
 
@@ -358,7 +360,7 @@ export default function CampaignEditor() {
           </SelectTrigger>
           <SelectContent>
             {FONT_FAMILIES.map((f) => (
-              <SelectItem key={f} value={f} style={{ fontFamily: f }}>{f}</SelectItem>
+              <SelectItem key={f} value={f} style={{ fontFamily: f }}>{t(f)}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -369,17 +371,17 @@ export default function CampaignEditor() {
           </SelectTrigger>
           <SelectContent>
             {FONT_SIZES.map((s) => (
-              <SelectItem key={s} value={s}>{s}px</SelectItem>
+              <SelectItem key={s} value={s}>{t("{s}px", { s: String(s ?? "") })}</SelectItem>
             ))}
           </SelectContent>
         </Select>
 
         <Separator orientation="vertical" className="h-6 mx-1" />
 
-        <ToolbarBtn icon={Bold} cmd="bold" title="Grassetto" />
-        <ToolbarBtn icon={Italic} cmd="italic" title="Corsivo" />
-        <ToolbarBtn icon={Underline} cmd="underline" title="Sottolineato" />
-        <ToolbarBtn icon={Strikethrough} cmd="strikeThrough" title="Barrato" />
+        <ToolbarBtn icon={Bold} cmd="bold" title={t("Grassetto")} />
+        <ToolbarBtn icon={Italic} cmd="italic" title={t("Corsivo")} />
+        <ToolbarBtn icon={Underline} cmd="underline" title={t("Sottolineato")} />
+        <ToolbarBtn icon={Strikethrough} cmd="strikeThrough" title={t("Barrato")} />
 
         <Separator orientation="vertical" className="h-6 mx-1" />
 
@@ -389,7 +391,7 @@ export default function CampaignEditor() {
               <Link className="h-4 w-4" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Link</TooltipContent>
+          <TooltipContent>{t("Link")}</TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -397,21 +399,21 @@ export default function CampaignEditor() {
               <Image className="h-4 w-4" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Immagine</TooltipContent>
+          <TooltipContent>{t("Immagine")}</TooltipContent>
         </Tooltip>
 
         <Separator orientation="vertical" className="h-6 mx-1" />
 
-        <ToolbarBtn icon={AlignLeft} cmd="justifyLeft" title="Allinea a sinistra" />
-        <ToolbarBtn icon={AlignCenter} cmd="justifyCenter" title="Centra" />
-        <ToolbarBtn icon={AlignRight} cmd="justifyRight" title="Allinea a destra" />
-        <ToolbarBtn icon={AlignJustify} cmd="justifyFull" title="Giustifica" />
+        <ToolbarBtn icon={AlignLeft} cmd="justifyLeft" title={t("Allinea a sinistra")} />
+        <ToolbarBtn icon={AlignCenter} cmd="justifyCenter" title={t("Centra")} />
+        <ToolbarBtn icon={AlignRight} cmd="justifyRight" title={t("Allinea a destra")} />
+        <ToolbarBtn icon={AlignJustify} cmd="justifyFull" title={t("Giustifica")} />
 
         <Separator orientation="vertical" className="h-6 mx-1" />
 
-        <ToolbarBtn icon={List} cmd="insertUnorderedList" title="Elenco puntato" />
-        <ToolbarBtn icon={ListOrdered} cmd="insertOrderedList" title="Elenco numerato" />
-        <ToolbarBtn icon={Code} cmd="formatBlock" value="pre" title="Codice" />
+        <ToolbarBtn icon={List} cmd="insertUnorderedList" title={t("Elenco puntato")} />
+        <ToolbarBtn icon={ListOrdered} cmd="insertOrderedList" title={t("Elenco numerato")} />
+        <ToolbarBtn icon={Code} cmd="formatBlock" value="pre" title={t("Codice")} />
 
         <Separator orientation="vertical" className="h-6 mx-1" />
 
@@ -419,13 +421,13 @@ export default function CampaignEditor() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="h-8 text-xs gap-1">
-              <Variable className="h-4 w-4" /> Variabili
+              <Variable className="h-4 w-4" /> {t("Variabili")}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent>
             {VARIABLES.map((v) => (
               <DropdownMenuItem key={v.value} onClick={() => insertVariable(v.value)}>
-                {v.label} <span className="ml-auto text-xs text-muted-foreground pl-3">{v.value}</span>
+                {t(v.label)} <span className="ml-auto text-xs text-muted-foreground pl-3">{v.value}</span>
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>
@@ -433,8 +435,8 @@ export default function CampaignEditor() {
 
         <Separator orientation="vertical" className="h-6 mx-1" />
 
-        <ToolbarBtn icon={Undo} cmd="undo" title="Annulla" />
-        <ToolbarBtn icon={Redo} cmd="redo" title="Ripristina" />
+        <ToolbarBtn icon={Undo} cmd="undo" title={t("Annulla")} />
+        <ToolbarBtn icon={Redo} cmd="redo" title={t("Ripristina")} />
       </div>
 
       {/* Editor area */}
@@ -453,7 +455,7 @@ export default function CampaignEditor() {
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Anteprima email</DialogTitle>
+            <DialogTitle>{t("Anteprima email")}</DialogTitle>
           </DialogHeader>
           <div
             className="border rounded-md p-6 bg-background"
@@ -466,11 +468,11 @@ export default function CampaignEditor() {
       <Dialog open={linkDialogOpen} onOpenChange={setLinkDialogOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Inserisci link</DialogTitle>
+            <DialogTitle>{t("Inserisci link")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1">
-              <Label>URL *</Label>
+              <Label>{t("URL *")}</Label>
               <Input
                 placeholder="https://esempio.com"
                 value={linkUrl}
@@ -480,18 +482,18 @@ export default function CampaignEditor() {
               />
             </div>
             <div className="space-y-1">
-              <Label>Testo del link</Label>
+              <Label>{t("Testo del link")}</Label>
               <Input
-                placeholder="Clicca qui"
+                placeholder={t("Clicca qui")}
                 value={linkText}
                 onChange={(e) => setLinkText(e.target.value)}
               />
-              <p className="text-xs text-muted-foreground">Lascia vuoto per usare il testo selezionato</p>
+              <p className="text-xs text-muted-foreground">{t("Lascia vuoto per usare il testo selezionato")}</p>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setLinkDialogOpen(false)}>Annulla</Button>
-            <Button onClick={confirmInsertLink} disabled={!linkUrl.trim()}>Inserisci</Button>
+            <Button variant="outline" onClick={() => setLinkDialogOpen(false)}>{t("Annulla")}</Button>
+            <Button onClick={confirmInsertLink} disabled={!linkUrl.trim()}>{t("Inserisci")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -500,11 +502,11 @@ export default function CampaignEditor() {
       <Dialog open={imageDialogOpen} onOpenChange={setImageDialogOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Inserisci immagine</DialogTitle>
+            <DialogTitle>{t("Inserisci immagine")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1">
-              <Label>URL immagine *</Label>
+              <Label>{t("URL immagine *")}</Label>
               <Input
                 placeholder="https://esempio.com/immagine.jpg"
                 value={imageUrl}
@@ -514,9 +516,9 @@ export default function CampaignEditor() {
               />
             </div>
             <div className="space-y-1">
-              <Label>Testo alternativo</Label>
+              <Label>{t("Testo alternativo")}</Label>
               <Input
-                placeholder="Descrizione immagine"
+                placeholder={t("Descrizione immagine")}
                 value={imageAlt}
                 onChange={(e) => setImageAlt(e.target.value)}
               />
@@ -528,8 +530,8 @@ export default function CampaignEditor() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setImageDialogOpen(false)}>Annulla</Button>
-            <Button onClick={confirmInsertImage} disabled={!imageUrl.trim()}>Inserisci</Button>
+            <Button variant="outline" onClick={() => setImageDialogOpen(false)}>{t("Annulla")}</Button>
+            <Button onClick={confirmInsertImage} disabled={!imageUrl.trim()}>{t("Inserisci")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

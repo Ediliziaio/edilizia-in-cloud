@@ -12,7 +12,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { RefreshCw, AlertTriangle, Copy, Check, ShieldCheck, ExternalLink, Activity, CheckCircle2, XCircle, Clock, Loader2, Inbox, Facebook } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -21,6 +20,7 @@ import { userErrorMessage } from "@/lib/userErrorMessage";
 import { MetaIntegrationWizard } from "@/components/integrations/MetaIntegrationWizard";
 import { RientroLeadCard } from "@/components/integrations/RientroLeadCard";
 import type { Integration } from "@/types/integrations";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -33,6 +33,7 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
  * sviluppa l'app e non al cliente.
  */
 export default function FacebookFormsPage({ comeAdmin = false }: { comeAdmin?: boolean }) {
+  const t = useT();
   const { effectiveCompany, role } = useAuth();
   const companyId = (effectiveCompany as any)?.id;
   const queryClient = useQueryClient();
@@ -65,7 +66,7 @@ export default function FacebookFormsPage({ comeAdmin = false }: { comeAdmin?: b
         .maybeSingle();
       if (!data?.value) {
         setMetaConfigMissing(true);
-        toast.error("L'integrazione Meta non è ancora configurata dall'amministratore della piattaforma.");
+        toast.error(t("L'integrazione Meta non è ancora configurata dall'amministratore della piattaforma."));
         return false;
       }
       setMetaConfigMissing(false);
@@ -77,7 +78,7 @@ export default function FacebookFormsPage({ comeAdmin = false }: { comeAdmin?: b
 
   const handleMetaConnect = async () => {
     if (!canManageMeta) {
-      toast.error("Per collegare Meta serve il permesso «Integrazioni & Canali» in modifica (o essere amministratore).");
+      toast.error(t("Per collegare Meta serve il permesso «Integrazioni & Canali» in modifica (o essere amministratore)."));
       return;
     }
     const ok = await checkMetaCredentials();
@@ -216,7 +217,7 @@ export default function FacebookFormsPage({ comeAdmin = false }: { comeAdmin?: b
   const handleBackfill = async (formId: string) => {
     // Importare i contatti passati scrive nel CRM: lo fa chi gestisce le integrazioni (il pulsante è spento per gli altri).
     if (!canManageMeta) {
-      toast.error("Per importare i contatti passati serve il permesso «Integrazioni & Canali» in modifica (o essere amministratore).");
+      toast.error(t("Per importare i contatti passati serve il permesso «Integrazioni & Canali» in modifica (o essere amministratore)."));
       return;
     }
     setBackfillingFormId(formId);
@@ -246,11 +247,11 @@ export default function FacebookFormsPage({ comeAdmin = false }: { comeAdmin?: b
         } catch { /* no-op */ }
         throw new Error(msg);
       }
-      toast.success("Importazione avviata", {
-        description: "I contatti passati arrivano nei prossimi minuti: ricarica la pagina tra un paio di minuti.",
+      toast.success(t("Importazione avviata"), {
+        description: t("I contatti passati arrivano nei prossimi minuti: ricarica la pagina tra un paio di minuti."),
       });
     } catch (err) {
-      toast.error("Importazione non riuscita", {
+      toast.error(t("Importazione non riuscita"), {
         description: userErrorMessage(err, "Riprova tra poco."),
       });
     } finally {
@@ -267,9 +268,9 @@ export default function FacebookFormsPage({ comeAdmin = false }: { comeAdmin?: b
               <Facebook className="h-5 w-5 text-blue-600" />
             </div>
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Moduli Lead Ads</h1>
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight">{t("Moduli Lead Ads")}</h1>
               <p className="text-sm text-muted-foreground">
-                Gestione lead generation Facebook/Instagram
+                {t("Gestione lead generation Facebook/Instagram")}
               </p>
             </div>
           </div>
@@ -279,16 +280,16 @@ export default function FacebookFormsPage({ comeAdmin = false }: { comeAdmin?: b
             <div className="h-14 w-14 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
               <AlertTriangle className="h-7 w-7 text-muted-foreground" />
             </div>
-            <h2 className="text-lg font-semibold mb-1">Facebook e Instagram non sono collegati</h2>
+            <h2 className="text-lg font-semibold mb-1">{t("Facebook e Instagram non sono collegati")}</h2>
             <p className="text-sm text-muted-foreground max-w-md mx-auto mb-4">
-              Per ricevere i contatti dai moduli dei tuoi annunci devi prima collegare il tuo account Meta da questa pagina.
+              {t("Per ricevere i contatti dai moduli dei tuoi annunci devi prima collegare il tuo account Meta da questa pagina.")}
             </p>
             <Button onClick={handleMetaConnect} disabled={!canManageMeta}>
-              Configura Meta
+              {t("Configura Meta")}
             </Button>
             {!canManageMeta && (
               <p className="mt-3 text-xs text-muted-foreground">
-                Per collegare Meta serve il permesso «Integrazioni &amp; Canali» in modifica (o essere amministratore).
+                {t("Per collegare Meta serve il permesso «Integrazioni & Canali» in modifica (o essere amministratore).")}
               </p>
             )}
           </CardContent>
@@ -296,9 +297,9 @@ export default function FacebookFormsPage({ comeAdmin = false }: { comeAdmin?: b
         {metaConfigMissing && (
           <Alert variant="destructive" className="max-w-xl">
             <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Configurazione Meta mancante</AlertTitle>
+            <AlertTitle>{t("Configurazione Meta mancante")}</AlertTitle>
             <AlertDescription>
-              L'integrazione Meta non è ancora configurata dall'amministratore della piattaforma. Contatta il supporto per abilitare App ID e credenziali.
+              {t("L'integrazione Meta non è ancora configurata dall'amministratore della piattaforma. Contatta il supporto per abilitare App ID e credenziali.")}
             </AlertDescription>
           </Alert>
         )}
@@ -326,15 +327,15 @@ export default function FacebookFormsPage({ comeAdmin = false }: { comeAdmin?: b
             </div>
           )}
           <div>
-            {comeAdmin && <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Moduli Lead Ads</h1>}
+            {comeAdmin && <h1 className="text-xl sm:text-2xl font-bold tracking-tight">{t("Moduli Lead Ads")}</h1>}
             <p className="text-sm text-muted-foreground">
               {forms.length === 0
-                ? "Nessun modulo collegato"
+                ? t("Nessun modulo collegato")
                 : <>
-                  <span className="font-medium text-foreground">{activeFormsCount}</span> attivi
-                  <span className="text-muted-foreground"> su {forms.length}</span>
+                  <span className="font-medium text-foreground">{activeFormsCount}</span> {t("attivi")}
+                  <span className="text-muted-foreground">{" "}{t("su {n}", { n: forms.length })}</span>
                   {webhookHealth && (
-                    <> · <span className="font-medium text-foreground">{webhookHealth.recentCount}</span> contatti negli ultimi 7 giorni</>
+                    <> · <span className="font-medium text-foreground">{webhookHealth.recentCount}</span> {t("contatti negli ultimi 7 giorni")}</>
                   )}
                 </>
               }
@@ -354,20 +355,20 @@ export default function FacebookFormsPage({ comeAdmin = false }: { comeAdmin?: b
           <CardHeader className="pb-3">
             <div className="flex flex-wrap items-center gap-2">
               <Activity className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-              <h2 className="text-sm font-medium">Ricezione dei contatti</h2>
+              <h2 className="text-sm font-medium">{t("Ricezione dei contatti")}</h2>
               {webhookHealth.health === "healthy" && (
                 <Badge className="ml-auto bg-emerald-600 hover:bg-emerald-600 gap-1">
-                  <CheckCircle2 className="h-3 w-3" /> Attiva
+                  <CheckCircle2 className="h-3 w-3" /> {t("Attiva")}
                 </Badge>
               )}
               {webhookHealth.health === "warn" && (
                 <Badge variant="outline" className="ml-auto gap-1 border-amber-400 text-amber-700 bg-amber-50 dark:bg-amber-950/30">
-                  <Clock className="h-3 w-3" /> Nessun contatto da più di 48 ore
+                  <Clock className="h-3 w-3" /> {t("Nessun contatto da più di 48 ore")}
                 </Badge>
               )}
               {webhookHealth.health === "unknown" && (
                 <Badge variant="outline" className="ml-auto gap-1 text-muted-foreground">
-                  <XCircle className="h-3 w-3" /> Nessun contatto ricevuto
+                  <XCircle className="h-3 w-3" /> {t("Nessun contatto ricevuto")}
                 </Badge>
               )}
             </div>
@@ -375,33 +376,33 @@ export default function FacebookFormsPage({ comeAdmin = false }: { comeAdmin?: b
           <CardContent className="pt-0">
             <div className="flex gap-6 text-sm flex-wrap">
               <div>
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Ultimi 7 giorni</p>
-                <p className="text-lg font-bold tabular-nums">{webhookHealth.recentCount} <span className="text-xs font-normal text-muted-foreground">contatt{webhookHealth.recentCount === 1 ? "o" : "i"}</span></p>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{t("Ultimi 7 giorni")}</p>
+                <p className="text-lg font-bold tabular-nums">{webhookHealth.recentCount} <span className="text-xs font-normal text-muted-foreground">{t("contatt")}{webhookHealth.recentCount === 1 ? "o" : "i"}</span></p>
               </div>
               <div>
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Ultimo contatto</p>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{t("Ultimo contatto")}</p>
                 <p className="text-sm font-semibold tabular-nums">
                   {webhookHealth.lastEvent
-                    ? format(parseISO(webhookHealth.lastEvent.received_at), "dd MMM HH:mm", { locale: it })
+                    ? format(parseISO(webhookHealth.lastEvent.received_at), "dd MMM HH:mm", { locale: dateFnsCampo() })
                     : "—"}
                 </p>
                 {webhookHealth.hoursSinceLast !== null && webhookHealth.hoursSinceLast < 48 && (
                   <p className="text-[10px] text-muted-foreground">
                     {webhookHealth.hoursSinceLast < 1
-                      ? `${Math.round(webhookHealth.hoursSinceLast * 60)} min fa`
-                      : `${Math.round(webhookHealth.hoursSinceLast)} ore fa`}
+                      ? t("{valore} min fa", { valore: Math.round(webhookHealth.hoursSinceLast * 60) })
+                      : t("{valore} ore fa", { valore: Math.round(webhookHealth.hoursSinceLast) })}
                   </p>
                 )}
               </div>
               {(webhookHealth.health === "warn" || webhookHealth.health === "unknown") && (
                 <div className="flex-1 text-xs self-center rounded px-3 py-2 border bg-muted/40 text-muted-foreground">
                   {comeAdmin ? (
-                    "Se ti aspettavi dei contatti, controlla il collegamento con Meta."
+                    t("Se ti aspettavi dei contatti, controlla il collegamento con Meta.")
                   ) : (
                     <>
-                      Se ti aspettavi dei contatti, apri{" "}
+                      {t("Se ti aspettavi dei contatti, apri")}{" "}
                       <Link to="/azienda/impostazioni/integrazioni" className="text-primary underline">
-                        Integrazioni → Facebook e Instagram → Risolvi problemi
+                        {t("Integrazioni → Facebook e Instagram → Risolvi problemi")}
                       </Link>.
                     </>
                   )}
@@ -414,9 +415,9 @@ export default function FacebookFormsPage({ comeAdmin = false }: { comeAdmin?: b
 
       <Card>
         <CardHeader>
-          <h2 className="text-lg font-semibold leading-none tracking-tight">Moduli collegati</h2>
+          <h2 className="text-lg font-semibold leading-none tracking-tight">{t("Moduli collegati")}</h2>
           <p className="text-sm text-muted-foreground">
-            {forms.length} modul{forms.length === 1 ? "o" : "i"} collegat{forms.length === 1 ? "o" : "i"}
+            {forms.length} {t("modul")}{forms.length === 1 ? "o" : "i"} {t("collegat")}{forms.length === 1 ? "o" : "i"}
           </p>
         </CardHeader>
         <CardContent>
@@ -427,10 +428,9 @@ export default function FacebookFormsPage({ comeAdmin = false }: { comeAdmin?: b
           ) : forms.length === 0 ? (
             <div className="text-center py-10">
               <Inbox className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" />
-              <p className="font-medium">Nessun modulo dei tuoi annunci è collegato</p>
+              <p className="font-medium">{t("Nessun modulo dei tuoi annunci è collegato")}</p>
               <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
-                Completa il collegamento con Meta scegliendo almeno una pagina:
-                i moduli arrivano poi da soli.
+                {t("Completa il collegamento con Meta scegliendo almeno una pagina: i moduli arrivano poi da soli.")}
               </p>
               <Button
                 variant="outline"
@@ -439,7 +439,7 @@ export default function FacebookFormsPage({ comeAdmin = false }: { comeAdmin?: b
                 onClick={handleMetaConnect}
                 disabled={!canManageMeta}
               >
-                Configura integrazione Meta
+                {t("Configura integrazione Meta")}
               </Button>
             </div>
           ) : (
@@ -448,12 +448,12 @@ export default function FacebookFormsPage({ comeAdmin = false }: { comeAdmin?: b
             <Table className="block md:table">
               <TableHeader className="hidden md:table-header-group">
                 <TableRow>
-                  <TableHead>Modulo</TableHead>
-                  <TableHead>Pagina</TableHead>
-                  <TableHead className="text-center">Stato</TableHead>
-                  <TableHead className="text-right">Contatti ricevuti</TableHead>
-                  <TableHead>Ultimo contatto</TableHead>
-                  <TableHead className="text-right">Azioni</TableHead>
+                  <TableHead>{t("Modulo")}</TableHead>
+                  <TableHead>{t("Pagina")}</TableHead>
+                  <TableHead className="text-center">{t("Stato")}</TableHead>
+                  <TableHead className="text-right">{t("Contatti ricevuti")}</TableHead>
+                  <TableHead>{t("Ultimo contatto")}</TableHead>
+                  <TableHead className="text-right">{t("Azioni")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody className="block md:table-row-group">
@@ -465,15 +465,15 @@ export default function FacebookFormsPage({ comeAdmin = false }: { comeAdmin?: b
                         <p className="truncate" title={form.form_name}>{form.form_name}</p>
                         {/* Il codice che Meta dà al modulo serve a chi lo cerca in Meta: sta chiuso. */}
                         <details className="mt-0.5 text-xs font-normal text-muted-foreground">
-                          <summary className="cursor-pointer">Codice del modulo in Meta</summary>
+                          <summary className="cursor-pointer">{t("Codice del modulo in Meta")}</summary>
                           <div className="mt-1 flex items-center gap-1">
                             <span className="font-mono">{form.form_id}</span>
                             <button
                               type="button"
                               className="flex h-8 w-8 items-center justify-center rounded hover:bg-muted transition-colors"
                               onClick={() => handleCopyId(form.form_id)}
-                              aria-label={`Copia il codice del modulo ${form.form_name}`}
-                              title="Copia il codice"
+                              aria-label={t("Copia il codice del modulo {form_name}", { form_name: String(form.form_name ?? "") })}
+                              title={t("Copia il codice")}
                             >
                               {copiedId === form.form_id
                                 ? <Check className="h-3 w-3 text-emerald-500" />
@@ -487,15 +487,15 @@ export default function FacebookFormsPage({ comeAdmin = false }: { comeAdmin?: b
                       </TableCell>
                       <TableCell className="p-0 text-right md:p-4 md:text-center">
                         <Badge variant={form.status === "active" ? "default" : "secondary"}>
-                          {form.status === "active" ? "Attivo" : "Inattivo"}
+                          {form.status === "active" ? t("Attivo") : t("Inattivo")}
                         </Badge>
                       </TableCell>
                       <TableCell className="p-0 font-semibold md:p-4 md:text-right">
-                        <span className="mr-1 text-xs font-normal text-muted-foreground md:hidden">Contatti ricevuti:</span>{leadCountsError ? "–" : counts?.total || 0}
+                        <span className="mr-1 text-xs font-normal text-muted-foreground md:hidden">{t("Contatti ricevuti:")}</span>{leadCountsError ? "–" : counts?.total || 0}
                       </TableCell>
                       <TableCell className="p-0 text-right text-sm text-muted-foreground md:p-4 md:text-left">
-                        <span className="mr-1 text-xs md:hidden">Ultimo:</span>{counts?.lastAt
-                          ? format(parseISO(counts.lastAt), "dd/MM/yyyy HH:mm", { locale: it })
+                        <span className="mr-1 text-xs md:hidden">{t("Ultimo:")}</span>{counts?.lastAt
+                          ? format(parseISO(counts.lastAt), "dd/MM/yyyy HH:mm", { locale: dateFnsCampo() })
                           : "—"}
                       </TableCell>
                       <TableCell className="col-span-2 p-0 md:p-4 md:text-right">
@@ -506,14 +506,14 @@ export default function FacebookFormsPage({ comeAdmin = false }: { comeAdmin?: b
                             className="h-11 w-full text-xs md:h-9 md:w-auto"
                             onClick={() => handleBackfill(form.form_id)}
                             disabled={!canManageMeta || !!backfillingFormId}
-                            title={canManageMeta ? "Porta nel CRM i contatti che questo modulo ha già raccolto" : "Serve il permesso «Integrazioni & Canali» in modifica"}
+                            title={canManageMeta ? t("Porta nel CRM i contatti che questo modulo ha già raccolto") : t("Serve il permesso «Integrazioni & Canali» in modifica")}
                           >
                             {backfillingFormId === form.form_id ? (
                               <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
                             ) : (
                               <RefreshCw className="h-3.5 w-3.5 mr-1" />
                             )}
-                            Importa i contatti passati
+                            {t("Importa i contatti passati")}
                           </Button>
                         </div>
                       </TableCell>
@@ -524,7 +524,7 @@ export default function FacebookFormsPage({ comeAdmin = false }: { comeAdmin?: b
             </Table>
           )}
           {leadCountsError && (
-            <p className="mt-2 text-xs text-muted-foreground">Non riesco a contare i contatti di ogni modulo: ricarica la pagina tra poco.</p>
+            <p className="mt-2 text-xs text-muted-foreground">{t("Non riesco a contare i contatti di ogni modulo: ricarica la pagina tra poco.")}</p>
           )}
         </CardContent>
       </Card>
@@ -540,13 +540,13 @@ export default function FacebookFormsPage({ comeAdmin = false }: { comeAdmin?: b
       {/* Lista di controllo per la revisione dell'app Meta: serve a chi sviluppa l'app, non al cliente. Solo admin. */}
       {comeAdmin && !reviewDismissed && (() => {
         const CHECKLIST = [
-          { id: "privacy_policy", label: "Privacy Policy pubblica raggiungibile da URL", required: true },
-          { id: "lead_ads_tos", label: "Accettazione Lead Ads Terms of Service in Business Manager", required: true },
-          { id: "dati_campi", label: "Campi del modulo configurati correttamente (nome, email, tel)", required: true },
-          { id: "webhook_url", label: "Webhook URL verificato in Meta Developer Console", required: true },
-          { id: "test_lead", label: "Test lead inviato e ricevuto con successo", required: false },
-          { id: "cta_form", label: "CTA del modulo chiara e conforme alle policy Meta", required: false },
-          { id: "disclaimer", label: "Disclaimer GDPR presente nel modulo lead", required: true },
+          { id: "privacy_policy", label: t("Privacy Policy pubblica raggiungibile da URL"), required: true },
+          { id: "lead_ads_tos", label: t("Accettazione Lead Ads Terms of Service in Business Manager"), required: true },
+          { id: "dati_campi", label: t("Campi del modulo configurati correttamente (nome, email, tel)"), required: true },
+          { id: "webhook_url", label: t("Webhook URL verificato in Meta Developer Console"), required: true },
+          { id: "test_lead", label: t("Test lead inviato e ricevuto con successo"), required: false },
+          { id: "cta_form", label: t("CTA del modulo chiara e conforme alle policy Meta"), required: false },
+          { id: "disclaimer", label: t("Disclaimer GDPR presente nel modulo lead"), required: true },
         ];
         const checkedCount = Object.values(reviewChecked).filter(Boolean).length;
         const requiredChecklist = CHECKLIST.filter((c) => c.required);
@@ -556,10 +556,10 @@ export default function FacebookFormsPage({ comeAdmin = false }: { comeAdmin?: b
             <ShieldCheck className="h-4 w-4 text-blue-600" aria-hidden="true" />
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1">
-                <AlertTitle className="text-blue-800">Meta App Review — Checklist</AlertTitle>
+                <AlertTitle className="text-blue-800">{t("Meta App Review — Checklist")}</AlertTitle>
                 <AlertDescription className="mt-2">
                   <p className="text-xs text-blue-700 mb-3">
-                    Per evitare blocchi all'app in fase di review Meta, verifica questi requisiti prima di andare in produzione.
+                    {t("Per evitare blocchi all'app in fase di review Meta, verifica questi requisiti prima di andare in produzione.")}
                   </p>
                   <div className="space-y-2">
                     {CHECKLIST.map((item) => (
@@ -579,9 +579,9 @@ export default function FacebookFormsPage({ comeAdmin = false }: { comeAdmin?: b
                   </div>
                   <div className="flex items-center justify-between mt-3 pt-2 border-t border-blue-200">
                     <div className="text-xs text-blue-700">
-                      {checkedCount}/{CHECKLIST.length} completati
+                      {checkedCount}/{CHECKLIST.length} {t("completati")}
                       {allRequiredDone && (
-                        <span className="ml-2 text-green-700 font-medium">✓ Tutti i requisiti richiesti soddisfatti</span>
+                        <span className="ml-2 text-green-700 font-medium">{t("✓ Tutti i requisiti richiesti soddisfatti")}</span>
                       )}
                     </div>
                     <div className="flex gap-2">
@@ -591,10 +591,10 @@ export default function FacebookFormsPage({ comeAdmin = false }: { comeAdmin?: b
                         rel="noopener noreferrer"
                         className="text-xs text-blue-600 hover:underline flex items-center gap-1"
                       >
-                        Guida Meta <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                        {t("Guida Meta")} <ExternalLink className="h-3 w-3" aria-hidden="true" />
                       </a>
                       <Button variant="ghost" size="sm" className="h-6 text-xs text-blue-600 hover:text-blue-800" onClick={() => setReviewDismissed(true)}>
-                        Chiudi
+                        {t("Chiudi")}
                       </Button>
                     </div>
                   </div>
@@ -608,9 +608,9 @@ export default function FacebookFormsPage({ comeAdmin = false }: { comeAdmin?: b
       {metaConfigMissing && (
         <Alert variant="destructive" className="max-w-xl">
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Configurazione Meta mancante</AlertTitle>
+          <AlertTitle>{t("Configurazione Meta mancante")}</AlertTitle>
           <AlertDescription>
-            L'integrazione Meta non è ancora configurata dall'amministratore della piattaforma. Contatta il supporto per abilitare App ID e credenziali.
+            {t("L'integrazione Meta non è ancora configurata dall'amministratore della piattaforma. Contatta il supporto per abilitare App ID e credenziali.")}
           </AlertDescription>
         </Alert>
       )}

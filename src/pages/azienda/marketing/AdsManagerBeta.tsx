@@ -112,6 +112,7 @@ import {
   type AdsAttributionProvider,
   type AdsAttributionMetrics,
 } from "@/lib/ads/crmAttribution";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type AdsTab = "campagne" | "creativita" | "pubblici" | "impostazioni";
 type CampaignStatus = AdsCampaignStatus;
@@ -526,7 +527,7 @@ const OPZIONI_EURO: Intl.NumberFormatOptions = {
 function formatEuro(cents: number) {
   // Guardia NaN/Infinity: una divisione anomala a monte mostrava "€NaN" nei KPI
   if (!Number.isFinite(cents)) return "—";
-  return new Intl.NumberFormat("it-IT", OPZIONI_EURO).format(cents / 100);
+  return new Intl.NumberFormat(intlCampo(), OPZIONI_EURO).format(cents / 100);
 }
 
 /** Clamp numeric input nel range Meta consentito. */
@@ -1334,6 +1335,7 @@ function isCancelledStatusValue(status: string | null | undefined) {
 }
 
 export default function AdsManagerBeta() {
+  const t = useT();
   const { effectiveCompany, role } = useAuth();
   const companyId = effectiveCompany?.id;
   const companyName = effectiveCompany?.name ?? "La tua azienda";
@@ -1478,8 +1480,8 @@ export default function AdsManagerBeta() {
           status: "review",
           publish_error: null,
         });
-        toast.success("Campagna Google inviata in revisione", {
-          description: "Resta separata da Meta e usa il flusso Google Ads.",
+        toast.success(t("Campagna Google inviata in revisione"), {
+          description: t("Resta separata da Meta e usa il flusso Google Ads."),
         });
         return;
       }
@@ -1488,8 +1490,8 @@ export default function AdsManagerBeta() {
         status: "review",
         publish_error: null,
       });
-      toast.success("Campagna inviata in revisione", {
-        description: "Ora compare nel flusso approvazioni del titolare.",
+      toast.success(t("Campagna inviata in revisione"), {
+        description: t("Ora compare nel flusso approvazioni del titolare."),
       });
     },
     [updateCampaignStatus, updateGoogleCampaignStatus],
@@ -1549,7 +1551,7 @@ export default function AdsManagerBeta() {
         }
         await queryClient.invalidateQueries({ queryKey: metaCampaignKeys.byCompany(companyId) });
         await queryClient.invalidateQueries({ queryKey: ["meta-pending-approvals", companyId] });
-        toast.success("Campagna creata su Meta, in pausa", {
+        toast.success(t("Campagna creata su Meta, in pausa"), {
           description: [
             "Meta ha creato campagna, ad set e annunci senza attivarli.",
             ...(data?.avvisi ?? []),
@@ -1576,7 +1578,7 @@ export default function AdsManagerBeta() {
     async (campaign: CampaignRow) => {
       if (!companyId) return;
       if (campaign.platform !== "meta" || !campaign.metaCampaignId) {
-        toast.info("Disponibile solo per le campagne Meta già pubblicate");
+        toast.info(t("Disponibile solo per le campagne Meta già pubblicate"));
         return;
       }
       const spegni = campaign.status === "active";
@@ -1598,17 +1600,17 @@ export default function AdsManagerBeta() {
           throw new Error(data?.detail ?? data?.error ?? "aggiornamento_fallito");
         }
         await queryClient.invalidateQueries({ queryKey: metaCampaignKeys.byCompany(companyId) });
-        toast.success(spegni ? "Campagna messa in pausa" : "Campagna online", {
+        toast.success(spegni ? t("Campagna messa in pausa") : t("Campagna online"), {
           description: spegni
-            ? "Meta ha smesso di mostrare gli annunci: la spesa si ferma."
-            : "Meta ha ripreso a mostrare gli annunci.",
+            ? t("Meta ha smesso di mostrare gli annunci: la spesa si ferma.")
+            : t("Meta ha ripreso a mostrare gli annunci."),
         });
       } catch (err) {
         const messaggio = err instanceof Error ? err.message : String(err);
-        toast.error(spegni ? "Non sono riuscito a mettere in pausa" : "Non sono riuscito ad attivare", {
+        toast.error(spegni ? t("Non sono riuscito a mettere in pausa") : t("Non sono riuscito ad attivare"), {
           description:
             messaggio === "forbidden_activate"
-              ? "Solo il titolare può mandare online una campagna."
+              ? t("Solo il titolare può mandare online una campagna.")
               : messaggio,
         });
       } finally {
@@ -1775,12 +1777,12 @@ export default function AdsManagerBeta() {
             seeded.creatives = buildDefaultCreatives(seeded);
             try {
               const draft = await saveDraft(seeded);
-              toast.success("Bozza creata in 60 secondi!", {
-                description: `${draft.name} è in PAUSED — revisionala e pubblica quando vuoi.`,
+              toast.success(t("Bozza creata in 60 secondi!"), {
+                description: t("{name} è in PAUSED — revisionala e pubblica quando vuoi.", { name: String(draft.name ?? "") }),
               });
               openDetail(draft.id);
             } catch (err) {
-              toast.error("Errore salvataggio", { description: String((err as Error).message ?? err) });
+              toast.error(t("Errore salvataggio"), { description: String((err as Error).message ?? err) });
             }
           }}
           onCustomize={(parsed) => {
@@ -1842,20 +1844,20 @@ export default function AdsManagerBeta() {
                 try {
                   if (editingDraft) {
                     await updateDraft(editingDraft.id, state);
-                    toast.success("Bozza aggiornata", {
-                      description: `${state.name || "Campagna"} salvata. Se era già approvata, le modifiche richiedono un nuovo ok.`,
+                    toast.success(t("Bozza aggiornata"), {
+                      description: t("{nome} salvata. Se era già approvata, le modifiche richiedono un nuovo ok.", { nome: state.name || t("Campagna") }),
                     });
                     openDetail(editingDraft.id);
                   } else {
                     const draft = await saveDraft(state);
-                    toast.success("Bozza campagna salvata", {
-                      description: `${draft.name} è pronta per revisione prima della pubblicazione.`,
+                    toast.success(t("Bozza campagna salvata"), {
+                      description: t("{name} è pronta per revisione prima della pubblicazione.", { name: String(draft.name ?? "") }),
                     });
                     openDetail(draft.id);
                   }
                 } catch (err) {
                   console.error("[AdsManagerBeta] save failed", err);
-                  toast.error("Errore salvataggio", {
+                  toast.error(t("Errore salvataggio"), {
                     description: String((err as Error).message ?? err),
                   });
                 }
@@ -1884,13 +1886,13 @@ export default function AdsManagerBeta() {
         <div className="min-h-screen bg-slate-50/70 p-6">
           <Card className="mx-auto max-w-xl">
             <CardHeader>
-              <CardTitle>Bozza non trovata</CardTitle>
+              <CardTitle>{t("Bozza non trovata")}</CardTitle>
               <CardDescription>
-                La campagna che stai cercando è stata eliminata o non esiste.
+                {t("La campagna che stai cercando è stata eliminata o non esiste.")}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button onClick={() => backToList()}>Torna alle campagne</Button>
+              <Button onClick={() => backToList()}>{t("Torna alle campagne")}</Button>
             </CardContent>
           </Card>
         </div>
@@ -1914,10 +1916,10 @@ export default function AdsManagerBeta() {
           onDelete={async () => {
             try {
               await removeDraft(draft.id);
-              toast.success("Bozza eliminata");
+              toast.success(t("Bozza eliminata"));
               backToList();
             } catch (err) {
-              toast.error("Errore eliminazione", {
+              toast.error(t("Errore eliminazione"), {
                 description: String((err as Error).message ?? err),
               });
             }
@@ -1932,7 +1934,7 @@ export default function AdsManagerBeta() {
               try {
                 await updateDraft(draft.id, state);
               } catch (err) {
-                toast.error("Errore aggiornamento", {
+                toast.error(t("Errore aggiornamento"), {
                   description: String((err as Error).message ?? err),
                 });
               }
@@ -1943,7 +1945,7 @@ export default function AdsManagerBeta() {
                 const newDraft = await saveDraft(variantState);
                 openDetail(newDraft.id);
               } catch (err) {
-                toast.error("Errore creazione variante", {
+                toast.error(t("Errore creazione variante"), {
                   description: String((err as Error).message ?? err),
                 });
               }
@@ -1997,7 +1999,7 @@ export default function AdsManagerBeta() {
                 return (
                   <TabsTrigger key={tab.value} value={tab.value} className="gap-2 rounded-lg px-3 py-2">
                     <Icon className="h-4 w-4" />
-                    {tab.label}
+                    {t(tab.label)}
                   </TabsTrigger>
                 );
               })}
@@ -2029,13 +2031,13 @@ export default function AdsManagerBeta() {
               onCreate={openWizardNew}
               onOpenCampaign={(c) => {
                 if (c.source === "local") openDetail(c.id);
-                else toast.info(`Anteprima campagna ${platformLabel(c.platform)} — disponibile dopo il collegamento live`);
+                else toast.info(t("Anteprima campagna {platform} — disponibile dopo il collegamento live", { platform: String(platformLabel(c.platform) ?? "") }));
               }}
               onRemoveDraft={async (id) => {
                 try {
                   await removeDraft(id);
                 } catch (err) {
-                  toast.error("Errore eliminazione", {
+                  toast.error(t("Errore eliminazione"), {
                     description: String((err as Error).message ?? err),
                   });
                 }
@@ -2065,6 +2067,7 @@ export default function AdsManagerBeta() {
 }
 
 function ListHeader({ onCreate }: { onCreate: () => void }) {
+  const t = useT();
   return (
     // Telefono: solo il titolo, senza fascia né spiegazione; le campagne si creano dal computer o dal tablet.
     <div className="border-b bg-white max-sm:border-0 max-sm:bg-transparent">
@@ -2072,11 +2075,11 @@ function ListHeader({ onCreate }: { onCreate: () => void }) {
         {/* Titolo a 24px come nelle altre pagine (era 30) e senza le due
             righe di spiegazione sotto. */}
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-950 max-sm:text-lg">Pubblicità</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-950 max-sm:text-lg">{t("Pubblicità")}</h1>
         </div>
         <Button onClick={onCreate} size="lg" className="shrink-0 max-sm:hidden">
           <Plus className="h-4 w-4" />
-          Nuova campagna
+          {t("Nuova campagna")}
         </Button>
       </div>
     </div>
@@ -2092,19 +2095,20 @@ function WizardHeader({
   draftName?: string;
   onCancel: () => void;
 }) {
+  const t = useT();
   return (
     <div className="border-b bg-white">
       <div className="mx-auto flex max-w-[1500px] items-center gap-3 px-4 py-4 sm:px-6">
         <Button variant="ghost" size="sm" onClick={onCancel}>
           <ArrowLeft className="h-4 w-4" />
-          Torna alle campagne
+          {t("Torna alle campagne")}
         </Button>
         <div className="ml-2 min-w-0 flex-1">
           <p className="text-xs uppercase tracking-wide text-slate-500">
-            {editing ? "Modifica campagna" : "Nuova campagna guidata"}
+            {editing ? t("Modifica campagna") : t("Nuova campagna guidata")}
           </p>
           <p className="truncate text-base font-semibold text-slate-950">
-            {editing ? draftName ?? "Bozza" : "Crea una campagna Ads passo passo"}
+            {editing ? draftName ?? t("Bozza") : t("Crea una campagna Ads passo passo")}
           </p>
         </div>
       </div>
@@ -2135,6 +2139,7 @@ function DetailHeader({
   destinationSummary?: string;
   onDelete: () => void;
 }) {
+  const t = useT();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const status = draft.status ?? "draft";
   const canRequestReview = status === "draft" || status === "error";
@@ -2143,7 +2148,7 @@ function DetailHeader({
     try {
       await onPublish();
     } catch (err) {
-      toast.error("Pubblicazione bloccata", {
+      toast.error(t("Pubblicazione bloccata"), {
         description: String((err as Error).message ?? err),
       });
     }
@@ -2154,7 +2159,7 @@ function DetailHeader({
         <div className="flex items-start gap-3">
           <Button variant="ghost" size="sm" onClick={onBack}>
             <ArrowLeft className="h-4 w-4" />
-            Indietro
+            {t("Indietro")}
           </Button>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
@@ -2168,10 +2173,7 @@ function DetailHeader({
             <h1 className="mt-1 truncate text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">
               {draft.name}
             </h1>
-            <p className="text-xs text-slate-500">
-              {draft.zone} · {formatEuro(draft.budgetCents)}/giorno ·{" "}
-              {draft.adSets} gruppi · {draft.ads} annunci
-            </p>
+            <p className="text-xs text-slate-500">{t("{zone} · {budgetCents}/giorno · {adSets} gruppi · {ads} annunci", { zone: String(draft.zone ?? ""), budgetCents: formatEuro(draft.budgetCents), adSets: String(draft.adSets ?? ""), ads: String(draft.ads ?? "") })}</p>
             {destinationSummary && <p className="mt-1 break-words text-xs text-slate-600">{destinationSummary}</p>}
           </div>
         </div>
@@ -2179,36 +2181,36 @@ function DetailHeader({
           {canRequestReview && onRequestReview && (
             <Button variant="outline" onClick={() => void onRequestReview()}>
               <ShieldCheck className="h-4 w-4" />
-              Invia in approvazione
+              {t("Invia in approvazione")}
             </Button>
           )}
           {onPublish && (
             <Button
               onClick={() => void handlePublish()}
               disabled={!canPublish || isPublishing}
-              title={!canPublish ? publishBlockers[0] ?? "Completa la QA pre-pubblicazione" : undefined}
+              title={!canPublish ? publishBlockers[0] ?? t("Completa la QA pre-pubblicazione") : undefined}
             >
               {isPublishing ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <Rocket className="h-4 w-4" />
               )}
-              {isPublishing ? "Creazione in corso…" : "Crea su Meta in pausa"}
+              {isPublishing ? t("Creazione in corso…") : t("Crea su Meta in pausa")}
             </Button>
           )}
           <Button variant="outline" onClick={onEdit}>
             <Pencil className="h-4 w-4" />
-            Modifica completa
+            {t("Modifica completa")}
           </Button>
           <Button variant="outline" onClick={() => setConfirmOpen(true)}>
             <Trash2 className="h-4 w-4" />
-            Elimina
+            {t("Elimina")}
           </Button>
         </div>
-        {onPublish && <p className="w-full text-xs text-slate-600">La campagna nasce in pausa. La attivi solo dopo il controllo finale.</p>}
+        {onPublish && <p className="w-full text-xs text-slate-600">{t("La campagna nasce in pausa. La attivi solo dopo il controllo finale.")}</p>}
         {onPublish && publishBlockers.length > 0 && (
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 lg:max-w-md">
-            <p className="font-semibold">Prima di creare la campagna</p>
+            <p className="font-semibold">{t("Prima di creare la campagna")}</p>
             <p className="mt-1">{publishBlockers.slice(0, 2).join(" · ")}</p>
           </div>
         )}
@@ -2216,20 +2218,18 @@ function DetailHeader({
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare questa bozza?</AlertDialogTitle>
-            <AlertDialogDescription>
-              La bozza &laquo;{draft.name}&raquo; verrà rimossa definitivamente. Non potrai recuperarla.
-            </AlertDialogDescription>
+            <AlertDialogTitle>{t("Eliminare questa bozza?")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("La bozza «{name}» verrà rimossa definitivamente. Non potrai recuperarla.", { name: String(draft.name ?? "") })}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 onDelete();
                 setConfirmOpen(false);
               }}
             >
-              Elimina bozza
+              {t("Elimina bozza")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -2266,6 +2266,7 @@ function ConnectionPill({
   /** Presente solo per admin con più ad account: apre il picker. */
   onPickAdAccount?: () => void;
 }) {
+  const t = useT();
   const metaConnected = meta.integration?.status === "connected";
   const contoScelto = meta.selectedAdAccounts.length === 1;
   const paginaOk = meta.pages.length > 0;
@@ -2281,16 +2282,16 @@ function ConnectionPill({
 
   const passi = [
     {
-      titolo: "Collega Facebook",
+      titolo: t("Collega Facebook"),
       fatto: metaConnected,
       manca: "Serve l'accesso al tuo account Meta.",
       fattoDetail: "account Meta collegato",
       // Senza questo non si pubblica niente.
       obbligatorio: true,
-      azione: { label: "Collega", href: "/azienda/impostazioni/lead-forms" },
+      azione: { label: t("Collega"), href: "/azienda/impostazioni/lead-forms" },
     },
     {
-      titolo: "Scegli conto e pagina",
+      titolo: t("Scegli conto e pagina"),
       fatto: metaConnected && contoScelto && paginaOk,
       manca: !contoScelto
         ? meta.adAccounts.length === 0
@@ -2300,11 +2301,11 @@ function ConnectionPill({
       fattoDetail: `${meta.selectedAdAccounts[0]?.asset_name ?? "conto attivo"} · ${meta.pages.length} ${meta.pages.length === 1 ? "pagina" : "pagine"}`,
       obbligatorio: true,
       azione: onPickAdAccount && metaConnected
-        ? { label: "Configura Meta", onClick: onPickAdAccount }
-        : { label: "Configura", href: "/azienda/impostazioni/lead-forms" },
+        ? { label: t("Configura Meta"), onClick: onPickAdAccount }
+        : { label: t("Configura"), href: "/azienda/impostazioni/lead-forms" },
     },
     {
-      titolo: "Attiva il Pixel",
+      titolo: t("Attiva il Pixel"),
       fatto: pixelMesso && pixelProvato,
       // Il Pixel NON serve per le campagne con il modulo dentro Facebook: lì
       // la conversione la registra Meta. Serve quando mandi la gente sulla
@@ -2314,7 +2315,7 @@ function ConnectionPill({
         : "Solo se mandi la gente sul tuo sito. Con il modulo dentro Facebook non serve.",
       fattoDetail: "eventi in arrivo",
       obbligatorio: false,
-      azione: { label: "Configura", href: "?tab=impostazioni#pixel-config" },
+      azione: { label: t("Configura"), href: "?tab=impostazioni#pixel-config" },
     },
   ];
 
@@ -2327,10 +2328,10 @@ function ConnectionPill({
     return (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-2.5 text-sm max-sm:px-3 max-sm:py-2 max-sm:text-[13px]">
         <Check className="h-4 w-4 shrink-0 text-emerald-600" />
-        <span className="font-semibold text-emerald-900">Tutto pronto: puoi pubblicare.</span>
+        <span className="font-semibold text-emerald-900">{t("Tutto pronto: puoi pubblicare.")}</span>
         <span className="text-emerald-800/80 max-sm:hidden">
-          {meta.selectedAdAccounts[0]?.asset_name ?? "conto Meta"} · Pixel attivo
-          {googleReady ? " · Google Ads collegato" : ""}
+          {meta.selectedAdAccounts[0]?.asset_name ?? t("conto Meta")} {t("· Pixel attivo")}
+          {googleReady ? ` ${t("· Google Ads collegato")}` : ""}
         </span>
       </div>
     );
@@ -2343,7 +2344,7 @@ function ConnectionPill({
       return (
         <p className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-[13px] font-semibold text-emerald-900">
           <Check className="h-4 w-4 shrink-0 text-emerald-600" />
-          Puoi pubblicare
+          {t("Puoi pubblicare")}
         </p>
       );
     }
@@ -2352,9 +2353,9 @@ function ConnectionPill({
         <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
         <span className="min-w-0">
           <span className="font-semibold">
-            {mancanti.length === 1 ? "Manca 1 passaggio per pubblicare" : `Mancano ${mancanti.length} passaggi per pubblicare`}
+            {mancanti.length === 1 ? t("Manca 1 passaggio per pubblicare") : t("Mancano {n} passaggi per pubblicare", { n: mancanti.length })}
           </span>
-          <span className="block text-[11px] text-amber-800/80">si imposta da computer o tablet</span>
+          <span className="block text-[11px] text-amber-800/80">{t("si imposta da computer o tablet")}</span>
         </span>
       </p>
     );
@@ -2365,18 +2366,18 @@ function ConnectionPill({
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-semibold text-slate-900">
           {caricamento
-            ? "Controllo i collegamenti…"
+            ? t("Controllo i collegamenti…")
             : mancanti.length === 0
-              ? "Puoi pubblicare"
+              ? t("Puoi pubblicare")
               : mancanti.length === 1
-                ? "Manca 1 passaggio per pubblicare"
-                : `Mancano ${mancanti.length} passaggi per pubblicare`}
+                ? t("Manca 1 passaggio per pubblicare")
+                : t("Mancano {n} passaggi per pubblicare", { n: mancanti.length })}
         </p>
         {!caricamento && (
           <span className="text-xs text-slate-500">
             {mancanti.length === 0
-              ? "Il Pixel serve solo per le campagne che portano al tuo sito."
-              : "Puoi preparare le campagne intanto: restano in bozza."}
+              ? t("Il Pixel serve solo per le campagne che portano al tuo sito.")
+              : t("Puoi preparare le campagne intanto: restano in bozza.")}
           </span>
         )}
       </div>
@@ -2402,7 +2403,7 @@ function ConnectionPill({
                 {passo.titolo}
                 {!passo.obbligatorio && !passo.fatto && (
                   <span className="rounded bg-slate-200/70 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600 max-md:text-[11px]">
-                    facoltativo
+                    {t("facoltativo")}
                   </span>
                 )}
               </p>
@@ -2431,11 +2432,11 @@ function ConnectionPill({
       </ol>
       {!googleReady && (
         <p className="mt-3 text-xs text-slate-500">
-          Vuoi anche Google?{" "}
+          {t("Vuoi anche Google?")}{" "}
           <Link to="/azienda/impostazioni/integrazioni" className="font-semibold text-slate-700 underline underline-offset-2">
-            Collega Google Ads
+            {t("Collega Google Ads")}
           </Link>{" "}
-          — facoltativo, Facebook e Instagram bastano per partire.
+          {t("— facoltativo, Facebook e Instagram bastano per partire.")}
         </p>
       )}
     </div>
@@ -2541,6 +2542,7 @@ function KpiBar({
   roas: number;
   draftsCount: number;
 }) {
+  const t = useT();
   const isEmpty = monthlySpend === 0 && totalLeads === 0 && draftsCount === 0;
 
   // Soglie edilizia: una richiesta qualificata costa 30-50 €, sopra 70 € c'è
@@ -2563,28 +2565,28 @@ function KpiBar({
           <KpiItem
             icon={BadgeEuro}
             tone="blue"
-            label="Spesa del mese"
+            label={t("Spesa del mese")}
             value={formatEuro(monthlySpend)}
             detail={monthlyCap > 0 ? `limite ${formatEuro(monthlyCap)}` : "nessun limite impostato"}
           />
           <KpiItem
             icon={Users}
             tone="orange"
-            label="Richieste ricevute"
+            label={t("Richieste ricevute")}
             value={String(totalLeads)}
             detail={totalLeads > 0 ? "dal mese in corso" : "nessuna richiesta ancora"}
           />
           <KpiItem
             icon={Target}
             tone="green"
-            label="Costo per richiesta"
+            label={t("Costo per richiesta")}
             value={costPerLead ? formatEuro(costPerLead) : "—"}
             detail={totalLeads > 0 ? "media del mese" : "serve almeno una richiesta"}
           />
           <KpiItem
             icon={Euro}
             tone="violet"
-            label="Lavori chiusi"
+            label={t("Lavori chiusi")}
             value={totalJobs ? formatEuro(totalRevenue) : "—"}
             detail={
               totalJobs > 0
@@ -2599,10 +2601,10 @@ function KpiBar({
             <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2 text-xs">
               <span className="text-slate-500">
                 {tettoRaggiunto
-                  ? "Limite mensile raggiunto: le campagne si fermano da sole."
+                  ? t("Limite mensile raggiunto: le campagne si fermano da sole.")
                   : vicinoAlTetto
-                    ? `Restano ${formatEuro(monthlyCap - monthlySpend)} prima del limite.`
-                    : `Disponibili ${formatEuro(monthlyCap - monthlySpend)} questo mese.`}
+                    ? t("Restano {valore} prima del limite.", { valore: formatEuro(monthlyCap - monthlySpend) })
+                    : t("Disponibili {valore} questo mese.", { valore: formatEuro(monthlyCap - monthlySpend) })}
               </span>
               <span className="font-semibold text-slate-700">
                 {formatEuro(monthlySpend)} / {formatEuro(monthlyCap)}
@@ -2614,9 +2616,7 @@ function KpiBar({
               indicatorClassName={cn(tettoRaggiunto ? "bg-red-500" : vicinoAlTetto ? "bg-amber-500" : "bg-orange-500")}
             />
             {monthlySpend > 0 && sforaIlTetto && (
-              <p className="mt-2 text-xs text-red-700">
-                Di questo passo chiuderai il mese a circa {formatEuro(previsione)}: {formatEuro(previsione - monthlyCap)} oltre il limite.
-              </p>
+              <p className="mt-2 text-xs text-red-700">{t("Di questo passo chiuderai il mese a circa {previsione}: {valore} oltre il limite.", { previsione: formatEuro(previsione), valore: formatEuro(previsione - monthlyCap) })}</p>
             )}
           </div>
         )}
@@ -2631,17 +2631,17 @@ function KpiBar({
             <p className={cn("min-w-0 flex-1 text-sm", cplAlto ? "text-red-900" : "text-amber-900")}>
               <span className="font-semibold">
                 {cplAlto
-                  ? `Ogni richiesta ti costa ${formatEuro(costPerLead)}.`
-                  : `${totalLeads} richieste con ${formatEuro(monthlySpend)} spesi.`}
+                  ? t("Ogni richiesta ti costa {costPerLead}.", { costPerLead: formatEuro(costPerLead) })
+                  : t("{totalLeads} richieste con {monthlySpend} spesi.", { totalLeads: String(totalLeads ?? ""), monthlySpend: formatEuro(monthlySpend) })}
               </span>{" "}
               <span className="max-sm:hidden">
                 {cplAlto
-                  ? "In edilizia si sta fra 30 e 50 €: conviene rivedere pubblico, testo o pagina di atterraggio."
-                  : "Può essere il pubblico troppo stretto, la creatività debole o la pagina che non convince."}
+                  ? t("In edilizia si sta fra 30 e 50 €: conviene rivedere pubblico, testo o pagina di atterraggio.")
+                  : t("Può essere il pubblico troppo stretto, la creatività debole o la pagina che non convince.")}
               </span>
             </p>
             <ChiediASilvio
-              label="Cosa faccio?"
+              label={t("Cosa faccio?")}
               prompt={
                 cplAlto
                   ? `Ogni richiesta mi costa ${(costPerLead / 100).toFixed(2)} € (in edilizia l'obiettivo è 30-50 €). Questo mese ho speso ${(monthlySpend / 100).toFixed(0)} € e ricevuto ${totalLeads} richieste. Dimmi le tre cause più probabili e cosa faccio nei prossimi 7 giorni.`
@@ -2766,6 +2766,7 @@ function CampaignsList({
   onToggleStatus: (campaign: CampaignRow) => void;
   togglingId: string | null;
 }) {
+  const t = useT();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | CampaignStatus>("all");
   const [platformFilter, setPlatformFilter] = useState<"all" | "meta" | "google">("all");
@@ -2822,10 +2823,10 @@ function CampaignsList({
       <CardHeader className="pb-3 max-sm:px-0 max-sm:pb-2 max-sm:pt-1">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between max-sm:gap-2">
           <div>
-            <CardTitle className="text-lg max-sm:text-sm">Le tue campagne</CardTitle>
+            <CardTitle className="text-lg max-sm:text-sm">{t("Le tue campagne")}</CardTitle>
             <CardDescription className="max-sm:hidden">
               {isEmpty
-                ? "Qui compariranno le campagne che crei."
+                ? t("Qui compariranno le campagne che crei.")
                 : `${campaigns.length} in elenco${draftsCount > 0 ? `, ${draftsCount} ancora da pubblicare` : ""}. Clicca una riga per aprirla.`}
             </CardDescription>
           </div>
@@ -2836,7 +2837,7 @@ function CampaignsList({
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <Input
                     className="pl-9"
-                    placeholder="Cerca una campagna"
+                    placeholder={t("Cerca una campagna")}
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                   />
@@ -2844,9 +2845,9 @@ function CampaignsList({
               )}
               {mostraFiltroStato && (
                 <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
-                  <SelectTrigger className="w-full sm:w-44 max-sm:hidden"><SelectValue placeholder="Stato" /></SelectTrigger>
+                  <SelectTrigger className="w-full sm:w-44 max-sm:hidden"><SelectValue placeholder={t("Stato")} /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Tutti gli stati ({campaigns.length})</SelectItem>
+                    <SelectItem value="all">{t("Tutti gli stati ({n})", { n: campaigns.length })}</SelectItem>
                     {availableStatuses.map((status) => (
                       <SelectItem key={status} value={status}>
                         {statusLabel(status)} ({statusCounts[status]})
@@ -2857,10 +2858,10 @@ function CampaignsList({
               )}
               {mostraFiltroPiattaforma && (
                 <Select value={platformFilter} onValueChange={(v) => setPlatformFilter(v as typeof platformFilter)}>
-                  <SelectTrigger className="w-full sm:w-40 max-sm:hidden"><SelectValue placeholder="Canale" /></SelectTrigger>
+                  <SelectTrigger className="w-full sm:w-40 max-sm:hidden"><SelectValue placeholder={t("Canale")} /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Tutti i canali</SelectItem>
-                    <SelectItem value="meta">Facebook e Instagram</SelectItem>
+                    <SelectItem value="all">{t("Tutti i canali")}</SelectItem>
+                    <SelectItem value="meta">{t("Facebook e Instagram")}</SelectItem>
                     <SelectItem value="google">Google</SelectItem>
                   </SelectContent>
                 </Select>
@@ -2873,15 +2874,15 @@ function CampaignsList({
         {isLoading ? (
           <div className="flex items-center justify-center gap-3 py-10 text-sm text-slate-500">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Carico le campagne…
+            {t("Carico le campagne…")}
           </div>
         ) : isEmpty ? (
           <EmptyCampaigns onCreate={onCreate} />
         ) : isFilteredEmpty ? (
           <div className="rounded-xl border border-dashed bg-slate-50 p-8 text-center">
             <Search className="mx-auto mb-2 h-6 w-6 text-slate-400" />
-            <p className="text-sm font-semibold text-slate-700">Nessun risultato</p>
-            <p className="mt-1 text-xs text-slate-500">Cambia ricerca o filtro.</p>
+            <p className="text-sm font-semibold text-slate-700">{t("Nessun risultato")}</p>
+            <p className="mt-1 text-xs text-slate-500">{t("Cambia ricerca o filtro.")}</p>
           </div>
         ) : (
           <>
@@ -2889,13 +2890,13 @@ function CampaignsList({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Campagna</TableHead>
-                    <TableHead>Stato</TableHead>
-                    <TableHead className="text-right">Budget al giorno</TableHead>
-                    <TableHead className="text-right">Speso</TableHead>
-                    <TableHead className="text-right">Richieste</TableHead>
-                    <TableHead className="text-right">Costo per richiesta</TableHead>
-                    <TableHead className="text-right">Azioni</TableHead>
+                    <TableHead>{t("Campagna")}</TableHead>
+                    <TableHead>{t("Stato")}</TableHead>
+                    <TableHead className="text-right">{t("Budget al giorno")}</TableHead>
+                    <TableHead className="text-right">{t("Speso")}</TableHead>
+                    <TableHead className="text-right">{t("Richieste")}</TableHead>
+                    <TableHead className="text-right">{t("Costo per richiesta")}</TableHead>
+                    <TableHead className="text-right">{t("Azioni")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -2942,7 +2943,7 @@ function CampaignsList({
                                       size="icon"
                                       variant="ghost"
                                       disabled={inCorso}
-                                      aria-label={online ? "Metti in pausa" : "Manda online"}
+                                      aria-label={online ? t("Metti in pausa") : t("Manda online")}
                                       onClick={() => onToggleStatus(campaign)}
                                     >
                                       {inCorso ? (
@@ -2955,7 +2956,7 @@ function CampaignsList({
                                     </Button>
                                   </TooltipTrigger>
                                   <TooltipContent>
-                                    {online ? "Metti in pausa su Meta" : "Manda online su Meta"}
+                                    {online ? t("Metti in pausa su Meta") : t("Manda online su Meta")}
                                   </TooltipContent>
                                 </Tooltip>
                               </TooltipProvider>
@@ -2963,22 +2964,22 @@ function CampaignsList({
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button size="icon" variant="ghost" aria-label="Apri" onClick={() => onOpenCampaign(campaign)}>
+                                  <Button size="icon" variant="ghost" aria-label={t("Apri")} onClick={() => onOpenCampaign(campaign)}>
                                     <Pencil className="h-4 w-4" />
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>Apri e modifica</TooltipContent>
+                                <TooltipContent>{t("Apri e modifica")}</TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
                             {campaign.source === "local" && !campaign.metaCampaignId && (
                               <TooltipProvider>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <Button size="icon" variant="ghost" aria-label="Elimina" onClick={() => setConfirmDeleteId(campaign.id)}>
+                                    <Button size="icon" variant="ghost" aria-label={t("Elimina")} onClick={() => setConfirmDeleteId(campaign.id)}>
                                       <Trash2 className="h-4 w-4 text-red-500" />
                                     </Button>
                                   </TooltipTrigger>
-                                  <TooltipContent>Elimina la bozza</TooltipContent>
+                                  <TooltipContent>{t("Elimina la bozza")}</TooltipContent>
                                 </Tooltip>
                               </TooltipProvider>
                             )}
@@ -3007,7 +3008,7 @@ function CampaignsList({
                       <p className="truncate text-[13px] font-semibold leading-tight text-slate-950">{campaign.name}</p>
                       <p className="mt-0.5 truncate text-[11px] leading-tight text-slate-500">
                         {platformLabel(campaign.platform)} · {formatEuro(campaign.budgetCents)}/g · {campaign.leads || 0}{" "}
-                        {campaign.leads === 1 ? "richiesta" : "richieste"}
+                        {campaign.leads === 1 ? t("richiesta") : t("richieste")}
                       </p>
                     </button>
                     <Badge variant="outline" className={cn("shrink-0 px-1.5 text-[11px]", statusClass(campaign.status))}>
@@ -3019,7 +3020,7 @@ function CampaignsList({
                         variant="ghost"
                         className="tap-compact h-9 w-9 shrink-0"
                         disabled={inCorso}
-                        aria-label={online ? "Metti in pausa" : "Manda online"}
+                        aria-label={online ? t("Metti in pausa") : t("Manda online")}
                         onClick={() => onToggleStatus(campaign)}
                       >
                         {inCorso ? (
@@ -3060,10 +3061,10 @@ function CampaignsList({
                         </Badge>
                       </div>
                       <div className="grid grid-cols-4 gap-2 text-sm">
-                        <MiniStat label="Budget/g" value={formatEuro(campaign.budgetCents)} />
-                        <MiniStat label="Speso" value={formatEuro(campaign.spentCents)} />
-                        <MiniStat label="Richieste" value={String(campaign.leads || 0)} />
-                        <MiniStat label="Costo/rich." value={costoRichiesta ? formatEuro(costoRichiesta) : "—"} />
+                        <MiniStat label={t("Budget/g")} value={formatEuro(campaign.budgetCents)} />
+                        <MiniStat label={t("Speso")} value={formatEuro(campaign.spentCents)} />
+                        <MiniStat label={t("Richieste")} value={String(campaign.leads || 0)} />
+                        <MiniStat label={t("Costo/rich.")} value={costoRichiesta ? formatEuro(costoRichiesta) : "—"} />
                       </div>
                     </button>
                     {puoAccendere && (
@@ -3081,7 +3082,7 @@ function CampaignsList({
                         ) : (
                           <Play className="h-4 w-4" />
                         )}
-                        {online ? "Metti in pausa" : "Manda online"}
+                        {online ? t("Metti in pausa") : t("Manda online")}
                       </Button>
                     )}
                   </div>
@@ -3095,20 +3096,18 @@ function CampaignsList({
       <AlertDialog open={!!confirmDeleteId} onOpenChange={(open) => !open && setConfirmDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare questa bozza?</AlertDialogTitle>
-            <AlertDialogDescription>
-              La bozza &laquo;{confirmDeleteCampaign?.name}&raquo; verrà rimossa definitivamente.
-            </AlertDialogDescription>
+            <AlertDialogTitle>{t("Eliminare questa bozza?")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("La bozza «{name}» verrà rimossa definitivamente.", { name: String(confirmDeleteCampaign?.name ?? "") })}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (confirmDeleteId) onRemoveDraft(confirmDeleteId);
                 setConfirmDeleteId(null);
               }}
             >
-              Elimina bozza
+              {t("Elimina bozza")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -3118,23 +3117,23 @@ function CampaignsList({
 }
 
 function EmptyCampaigns({ onCreate }: { onCreate: () => void }) {
+  const t = useT();
   return (
     // Telefono: due righe; la prima campagna si crea dal computer o dal tablet.
     <div className="rounded-2xl border-2 border-dashed bg-gradient-to-br from-white via-slate-50 to-orange-50/50 p-10 text-center max-sm:rounded-xl max-sm:border max-sm:bg-white max-sm:bg-none max-sm:px-3 max-sm:py-4">
       <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-md max-sm:hidden">
         <Rocket className="h-7 w-7" />
       </div>
-      <p className="text-lg font-bold text-slate-950 max-sm:hidden">Crea la tua prima campagna</p>
-      <p className="hidden text-[13px] font-semibold text-slate-900 max-sm:block">Nessuna campagna</p>
+      <p className="text-lg font-bold text-slate-950 max-sm:hidden">{t("Crea la tua prima campagna")}</p>
+      <p className="hidden text-[13px] font-semibold text-slate-900 max-sm:block">{t("Nessuna campagna")}</p>
       <p className="mx-auto mt-1 max-w-md text-sm text-slate-600 max-sm:hidden">
-        Ti guido passo passo: scegli il lavoro che vuoi vendere, io preparo offerta,
-        pubblico, testo e modulo. Niente va online finché non lo dici tu.
+        {t("Ti guido passo passo: scegli il lavoro che vuoi vendere, io preparo offerta, pubblico, testo e modulo. Niente va online finché non lo dici tu.")}
       </p>
-      <p className="mt-0.5 hidden text-[11px] text-slate-500 max-sm:block">si crea da computer o tablet</p>
+      <p className="mt-0.5 hidden text-[11px] text-slate-500 max-sm:block">{t("si crea da computer o tablet")}</p>
       <div className="mt-5 flex justify-center max-sm:hidden">
         <Button onClick={onCreate} size="lg">
           <Plus className="h-4 w-4" />
-          Inizia
+          {t("Inizia")}
         </Button>
       </div>
     </div>
@@ -3172,6 +3171,7 @@ function CampaignBuilderTab({
   initialGoogleChannel?: "SEARCH" | "DISPLAY" | "VIDEO" | "PERFORMANCE_MAX";
   isEditing?: boolean;
 }) {
+  const tr = useT();
   const [step, setStep] = useState(1);
   const [savingDraft, setSavingDraft] = useState(false);
   const saveBusy = useRef(false);
@@ -3344,14 +3344,14 @@ function CampaignBuilderTab({
             <div>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Rocket className="h-5 w-5 text-orange-600" />
-                Nuova campagna guidata
+                {tr("Nuova campagna guidata")}
               </CardTitle>
               <CardDescription>
-                Semplice per l'imprenditore, solida per Meta: offerta, pubblico, modulo lead, creatività e controllo prima del lancio.
+                {tr("Semplice per l'imprenditore, solida per Meta: offerta, pubblico, modulo lead, creatività e controllo prima del lancio.")}
               </CardDescription>
             </div>
             <Button variant="ghost" size="sm" onClick={onCancel}>
-              Chiudi
+              {tr("Chiudi")}
             </Button>
           </div>
         </CardHeader>
@@ -3370,7 +3370,7 @@ function CampaignBuilderTab({
                   type="button"
                   disabled={!reachable}
                   onClick={() => reachable && setStep(current)}
-                  title={!reachable ? "Completa prima gli step precedenti" : undefined}
+                  title={!reachable ? tr("Completa prima gli step precedenti") : undefined}
                   className={cn(
                     "flex items-center gap-2 rounded-xl border p-3 text-left transition",
                     active
@@ -3420,17 +3420,17 @@ function CampaignBuilderTab({
                     )}
                   >
                     {state.platform === "meta" ? (
-                      <>📘 Meta Ads (Facebook + Instagram)</>
+                      <>{tr("📘 Meta Ads (Facebook + Instagram)")}</>
                     ) : (
                       <>
-                        🟧 Google Ads
+                        {tr("🟧 Google Ads")}
                         {state.googleChannel && state.googleChannel !== "SEARCH" && (
                           <> · {state.googleChannel}</>
                         )}
                       </>
                     )}
                   </Badge>
-                  <span className="text-xs text-slate-500">Piattaforma scelta</span>
+                  <span className="text-xs text-slate-500">{tr("Piattaforma scelta")}</span>
                 </div>
                 <Button
                   type="button"
@@ -3439,7 +3439,7 @@ function CampaignBuilderTab({
                   onClick={() => onCancel()}
                   className="text-xs text-slate-600"
                 >
-                  Cambia piattaforma →
+                  {tr("Cambia piattaforma →")}
                 </Button>
               </div>
               {/* OFFERTA AI — sostituisce il vecchio TemplateSelector statico.
@@ -3475,41 +3475,41 @@ function CampaignBuilderTab({
                     next.adSets = buildDefaultAdSets(next);
                     return next;
                   });
-                  toast.success(`Annuncio ${ad.framework} applicato`, {
-                    description: "Hook, titolo e descrizione sono già in 'Creatività' (step 4). Continua per pubblico.",
+                  toast.success(tr("Annuncio {framework} applicato", { framework: String(ad.framework ?? "") }), {
+                    description: tr("Hook, titolo e descrizione sono già in 'Creatività' (step 4). Continua per pubblico."),
                   });
                 }}
               />
               <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Nome campagna">
-                  <Input aria-label="Nome campagna" value={state.name} onChange={(event) => update("name", event.target.value)} placeholder="Es. Serramenti - Lead Milano" />
+                <Field label={tr("Nome campagna")}>
+                  <Input aria-label={tr("Nome campagna")} value={state.name} onChange={(event) => update("name", event.target.value)} placeholder={tr("Es. Serramenti - Lead Milano")} />
                 </Field>
-                <Field label="Cosa vuoi ottenere?">
+                <Field label={tr("Cosa vuoi ottenere?")}>
                   <Select value={state.objective} onValueChange={(value) => update("objective", value)}>
-                    <SelectTrigger aria-label="Cosa vuoi ottenere?">
+                    <SelectTrigger aria-label={tr("Cosa vuoi ottenere?")}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="OUTCOME_LEADS">Richieste preventivo</SelectItem>
-                      <SelectItem value="OUTCOME_TRAFFIC">Visite al sito</SelectItem>
-                      <SelectItem value="OUTCOME_AWARENESS">Farti conoscere</SelectItem>
-                      <SelectItem value="OUTCOME_ENGAGEMENT">Messaggi e interazioni</SelectItem>
+                      <SelectItem value="OUTCOME_LEADS">{tr("Richieste preventivo")}</SelectItem>
+                      <SelectItem value="OUTCOME_TRAFFIC">{tr("Visite al sito")}</SelectItem>
+                      <SelectItem value="OUTCOME_AWARENESS">{tr("Farti conoscere")}</SelectItem>
+                      <SelectItem value="OUTCOME_ENGAGEMENT">{tr("Messaggi e interazioni")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </Field>
               </div>
-              <Field label="Offerta / motivo per lasciare il contatto">
-                <Textarea aria-label="Offerta / motivo per lasciare il contatto"
+              <Field label={tr("Offerta / motivo per lasciare il contatto")}>
+                <Textarea aria-label={tr("Offerta / motivo per lasciare il contatto")}
                   value={state.offer}
                   onChange={(event) => update("offer", event.target.value)}
                   className="min-h-20"
-                  placeholder="Es. sopralluogo gratuito, preventivo entro 48h, guida detrazioni, consulenza tecnica..."
+                  placeholder={tr("Es. sopralluogo gratuito, preventivo entro 48h, guida detrazioni, consulenza tecnica...")}
                 />
               </Field>
               <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Come vuoi ricevere i contatti?">
+                <Field label={tr("Come vuoi ricevere i contatti?")}>
                   <Select value={state.conversionPlace} onValueChange={(value: BuilderState["conversionPlace"]) => update("conversionPlace", value)}>
-                    <SelectTrigger aria-label="Come vuoi ricevere i contatti?">
+                    <SelectTrigger aria-label={tr("Come vuoi ricevere i contatti?")}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -3528,12 +3528,12 @@ function CampaignBuilderTab({
                   */}
                   <p className="mt-1 text-[11px] text-slate-500">
                     {state.conversionPlace === "instant_form"
-                      ? "Il contatto si compila dentro Facebook: non serve il Pixel."
-                      : "La gente esce da Facebook: serve il Pixel sul sito, altrimenti non sai chi ha chiesto il preventivo."}
+                      ? tr("Il contatto si compila dentro Facebook: non serve il Pixel.")
+                      : tr("La gente esce da Facebook: serve il Pixel sul sito, altrimenti non sai chi ha chiesto il preventivo.")}
                   </p>
                 </Field>
-                <Field label="Indirizzo del sito (URL)">
-                  <Input aria-label="Indirizzo del sito (URL)"
+                <Field label={tr("Indirizzo del sito (URL)")}>
+                  <Input aria-label={tr("Indirizzo del sito (URL)")}
                     value={state.landingUrl}
                     onChange={(event) => update("landingUrl", event.target.value)}
                     placeholder="https://..."
@@ -3541,26 +3541,26 @@ function CampaignBuilderTab({
                   />
                   {state.conversionPlace === "instant_form" && (
                     <p className="mt-1 text-[11px] text-slate-500">
-                      Non serve: il modulo è dentro Facebook.
+                      {tr("Non serve: il modulo è dentro Facebook.")}
                     </p>
                   )}
                 </Field>
               </div>
               <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Come gestire il budget">
+                <Field label={tr("Come gestire il budget")}>
                   <Select value={state.budgetMode} onValueChange={(value: BuilderState["budgetMode"]) => update("budgetMode", value)}>
-                    <SelectTrigger aria-label="Come gestire il budget">
+                    <SelectTrigger aria-label={tr("Come gestire il budget")}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="adset">Budget per pubblico (consigliato)</SelectItem>
-                      <SelectItem value="campaign">Budget unico campagna</SelectItem>
+                      <SelectItem value="adset">{tr("Budget per pubblico (consigliato)")}</SelectItem>
+                      <SelectItem value="campaign">{tr("Budget unico campagna")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </Field>
-                <Field label="Budget giornaliero">
+                <Field label={tr("Budget giornaliero")}>
                   <div className="flex items-center gap-3">
-                    <Input aria-label="Budget giornaliero"
+                    <Input aria-label={tr("Budget giornaliero")}
                       type="number"
                       min={5}
                       max={500}
@@ -3573,16 +3573,16 @@ function CampaignBuilderTab({
                         });
                       }}
                     />
-                    <span className="whitespace-nowrap text-sm text-slate-500">euro/giorno</span>
+                    <span className="whitespace-nowrap text-sm text-slate-500">{tr("euro/giorno")}</span>
                   </div>
                 </Field>
               </div>
               {overApprovalLimit && (
                 <Alert className="border-amber-200 bg-amber-50">
                   <AlertTriangle className="h-4 w-4 text-amber-700" />
-                  <AlertTitle>Serve approvazione titolare</AlertTitle>
+                  <AlertTitle>{tr("Serve approvazione titolare")}</AlertTitle>
                   <AlertDescription>
-                    Sopra 30 euro/giorno la campagna rimane in bozza/PAUSED finché il titolare non conferma il lancio.
+                    {tr("Sopra 30 euro/giorno la campagna rimane in bozza/PAUSED finché il titolare non conferma il lancio.")}
                   </AlertDescription>
                 </Alert>
               )}
@@ -3592,9 +3592,9 @@ function CampaignBuilderTab({
           {step === 2 && state.platform === "meta" && (
             <div className="space-y-5">
               <div className="grid gap-3 md:grid-cols-3">
-                <GuidanceCard title="Locale prima" body="Per edilizia e serramenti parti da città/provincia e raggio realistico, poi allarghi solo se i lead diventano opportunità." />
-                <GuidanceCard title="Non stringere troppo" body="Interessi utili sì, ma troppi vincoli riducono il bacino e impediscono all'algoritmo di imparare." />
-                <GuidanceCard title="Usa dati reali" body="Clienti già chiusi, lead buoni e visitatori sito alimentano retargeting e lookalike." />
+                <GuidanceCard title={tr("Locale prima")} body={tr("Per edilizia e serramenti parti da città/provincia e raggio realistico, poi allarghi solo se i lead diventano opportunità.")} />
+                <GuidanceCard title={tr("Non stringere troppo")} body={tr("Interessi utili sì, ma troppi vincoli riducono il bacino e impediscono all'algoritmo di imparare.")} />
+                <GuidanceCard title={tr("Usa dati reali")} body={tr("Clienti già chiusi, lead buoni e visitatori sito alimentano retargeting e lookalike.")} />
               </div>
               {/* === META TARGETING PANEL — multi-luogo, interests reali, placements === */}
               <MetaTargetingPanel
@@ -3659,47 +3659,47 @@ function CampaignBuilderTab({
             <div className="space-y-5">
               <Alert className="border-amber-200 bg-amber-50">
                 <Info className="h-4 w-4 text-amber-700" />
-                <AlertTitle>Targeting Google Ads</AlertTitle>
+                <AlertTitle>{tr("Targeting Google Ads")}</AlertTitle>
                 <AlertDescription className="text-xs">
-                  Google lavora su intenti di ricerca, asset e segnali. Search usa keyword e negative keyword; Performance Max usa asset group, audience signal e conversioni CRM.
+                  {tr("Google lavora su intenti di ricerca, asset e segnali. Search usa keyword e negative keyword; Performance Max usa asset group, audience signal e conversioni CRM.")}
                 </AlertDescription>
               </Alert>
               <div className="grid gap-3 md:grid-cols-3">
-                <GuidanceCard title="Intento prima del volume" body="Parti da ricerche con bisogno esplicito: preventivo, costo, vicino a me, sostituzione, ristrutturazione." />
-                <GuidanceCard title="Esclusioni forti" body="Blocca ricerche da fai-da-te, lavoro, gratis, tutorial, materiale usato e zone non servite." />
-                <GuidanceCard title="Offline conversion" body="Lead, appuntamento e vendita vanno rimandati a Google Ads per far imparare Smart Bidding sul valore reale." />
+                <GuidanceCard title={tr("Intento prima del volume")} body={tr("Parti da ricerche con bisogno esplicito: preventivo, costo, vicino a me, sostituzione, ristrutturazione.")} />
+                <GuidanceCard title={tr("Esclusioni forti")} body={tr("Blocca ricerche da fai-da-te, lavoro, gratis, tutorial, materiale usato e zone non servite.")} />
+                <GuidanceCard title={tr("Offline conversion")} body={tr("Lead, appuntamento e vendita vanno rimandati a Google Ads per far imparare Smart Bidding sul valore reale.")} />
               </div>
               <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Zona principale">
-                  <Input aria-label="Zona principale" value={state.zone} onChange={(e) => setState((p) => ({ ...p, zone: e.target.value }))} placeholder="Es. Milano, Monza, Brianza" />
+                <Field label={tr("Zona principale")}>
+                  <Input aria-label={tr("Zona principale")} value={state.zone} onChange={(e) => setState((p) => ({ ...p, zone: e.target.value }))} placeholder={tr("Es. Milano, Monza, Brianza")} />
                 </Field>
-                <Field label="Lingue">
-                  <Input aria-label="Lingue" value={state.languages} onChange={(e) => setState((p) => ({ ...p, languages: e.target.value }))} placeholder="Italiano" />
+                <Field label={tr("Lingue")}>
+                  <Input aria-label={tr("Lingue")} value={state.languages} onChange={(e) => setState((p) => ({ ...p, languages: e.target.value }))} placeholder={tr("Italiano")} />
                 </Field>
               </div>
-              <Field label="Keyword (separate da virgola)">
-                <Textarea aria-label="Keyword (separate da virgola)"
+              <Field label={tr("Keyword (separate da virgola)")}>
+                <Textarea aria-label={tr("Keyword (separate da virgola)")}
                   value={state.interests}
                   onChange={(e) => setState((p) => ({ ...p, interests: e.target.value }))}
                   className="min-h-24"
-                  placeholder='Es. "ristrutturazione bagno Milano", "preventivo infissi Brianza", "sostituzione finestre"'
+                  placeholder={tr("Es. \"ristrutturazione bagno Milano\", \"preventivo infissi Brianza\", \"sostituzione finestre\"")}
                 />
               </Field>
               <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Keyword negative / ricerche da escludere">
-                  <Textarea aria-label="Keyword negative / ricerche da escludere"
+                <Field label={tr("Keyword negative / ricerche da escludere")}>
+                  <Textarea aria-label={tr("Keyword negative / ricerche da escludere")}
                     value={state.customAudienceSource}
                     onChange={(e) => setState((p) => ({ ...p, customAudienceSource: e.target.value }))}
                     className="min-h-20"
-                    placeholder="gratis, fai da te, lavoro, tutorial, materiale usato, ikea..."
+                    placeholder={tr("gratis, fai da te, lavoro, tutorial, materiale usato, ikea...")}
                   />
                 </Field>
-                <Field label="Segnali audience / PMax">
-                  <Textarea aria-label="Segnali audience / PMax"
+                <Field label={tr("Segnali audience / PMax")}>
+                  <Textarea aria-label={tr("Segnali audience / PMax")}
                     value={state.lookalikeSource}
                     onChange={(e) => setState((p) => ({ ...p, lookalikeSource: e.target.value }))}
                     className="min-h-20"
-                    placeholder="Clienti migliori, liste CRM, visitatori sito, categorie interessate, brand competitor..."
+                    placeholder={tr("Clienti migliori, liste CRM, visitatori sito, categorie interessate, brand competitor...")}
                   />
                 </Field>
               </div>
@@ -3713,13 +3713,13 @@ function CampaignBuilderTab({
           {(false as boolean) && step === 2 && (
             <div className="space-y-5">
               <div className="grid gap-3 md:grid-cols-3">
-                <GuidanceCard title="Locale prima" body="Per edilizia e serramenti parti da città/provincia e raggio realistico, poi allarghi solo se i lead diventano opportunità." />
-                <GuidanceCard title="Non stringere troppo" body="Interessi utili sì, ma troppi vincoli riducono il bacino e impediscono all'algoritmo di imparare." />
-                <GuidanceCard title="Usa dati reali" body="Clienti già chiusi, lead buoni e visitatori sito alimentano retargeting e lookalike." />
+                <GuidanceCard title={tr("Locale prima")} body={tr("Per edilizia e serramenti parti da città/provincia e raggio realistico, poi allarghi solo se i lead diventano opportunità.")} />
+                <GuidanceCard title={tr("Non stringere troppo")} body={tr("Interessi utili sì, ma troppi vincoli riducono il bacino e impediscono all'algoritmo di imparare.")} />
+                <GuidanceCard title={tr("Usa dati reali")} body={tr("Clienti già chiusi, lead buoni e visitatori sito alimentano retargeting e lookalike.")} />
               </div>
               <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Zona principale">
-                  <Input aria-label="Zona principale"
+                <Field label={tr("Zona principale")}>
+                  <Input aria-label={tr("Zona principale")}
                     value={state.zone}
                     onChange={(event) => {
                       const zone = event.target.value;
@@ -3731,8 +3731,8 @@ function CampaignBuilderTab({
                     }}
                   />
                 </Field>
-                <Field label="Raggio km">
-                  <Input aria-label="Raggio km"
+                <Field label={tr("Raggio km")}>
+                  <Input aria-label={tr("Raggio km")}
                     type="number"
                     min={1}
                     max={80}
@@ -3749,8 +3749,8 @@ function CampaignBuilderTab({
                 </Field>
               </div>
               <div className="grid gap-4 md:grid-cols-4">
-                <Field label="Eta minima">
-                  <Input aria-label="Eta minima"
+                <Field label={tr("Eta minima")}>
+                  <Input aria-label={tr("Eta minima")}
                     type="number"
                     min={18}
                     max={65}
@@ -3765,8 +3765,8 @@ function CampaignBuilderTab({
                     }}
                   />
                 </Field>
-                <Field label="Eta massima">
-                  <Input aria-label="Eta massima"
+                <Field label={tr("Eta massima")}>
+                  <Input aria-label={tr("Eta massima")}
                     type="number"
                     min={18}
                     max={65}
@@ -3781,7 +3781,7 @@ function CampaignBuilderTab({
                     }}
                   />
                 </Field>
-                <Field label="Genere">
+                <Field label={tr("Genere")}>
                   <Select
                     value={state.gender}
                     onValueChange={(value: GenderTarget) => {
@@ -3792,18 +3792,18 @@ function CampaignBuilderTab({
                       }));
                     }}
                   >
-                    <SelectTrigger aria-label="Genere">
+                    <SelectTrigger aria-label={tr("Genere")}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Tutti</SelectItem>
-                      <SelectItem value="men">Uomini</SelectItem>
-                      <SelectItem value="women">Donne</SelectItem>
+                      <SelectItem value="all">{tr("Tutti")}</SelectItem>
+                      <SelectItem value="men">{tr("Uomini")}</SelectItem>
+                      <SelectItem value="women">{tr("Donne")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </Field>
-                <Field label="Lingua">
-                  <Input aria-label="Lingua"
+                <Field label={tr("Lingua")}>
+                  <Input aria-label={tr("Lingua")}
                     value={state.languages}
                     onChange={(event) => {
                       const languages = event.target.value;
@@ -3813,13 +3813,13 @@ function CampaignBuilderTab({
                         adSets: prev.adSets.map((adSet) => ({ ...adSet, languages })),
                       }));
                     }}
-                    placeholder="Italiano"
+                    placeholder={tr("Italiano")}
                   />
                 </Field>
               </div>
               <AudienceControlsPanel state={state} setState={setState} />
-              <Field label="Interessi e segnali">
-                <Textarea aria-label="Interessi e segnali"
+              <Field label={tr("Interessi e segnali")}>
+                <Textarea aria-label={tr("Interessi e segnali")}
                   value={state.interests}
                   onChange={(event) => {
                     const interests = event.target.value;
@@ -3845,11 +3845,11 @@ function CampaignBuilderTab({
                 className={cn("flex w-full items-center justify-between rounded-xl border p-4 text-left", state.advantageAudience ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-white")}
               >
                 <div>
-                  <p className="font-semibold text-slate-950">Advantage+ audience</p>
-                  <p className="text-sm text-slate-600">Consenti a Meta di espandere il pubblico quando trova utenti simili.</p>
+                  <p className="font-semibold text-slate-950">{tr("Advantage+ audience")}</p>
+                  <p className="text-sm text-slate-600">{tr("Consenti a Meta di espandere il pubblico quando trova utenti simili.")}</p>
                 </div>
                 <Badge variant="outline" className={state.advantageAudience ? "border-blue-200 bg-white text-blue-700" : "border-slate-200 text-slate-500"}>
-                  {state.advantageAudience ? "Attivo" : "Disattivo"}
+                  {state.advantageAudience ? tr("Attivo") : tr("Disattivo")}
                 </Badge>
               </button>
             </div>
@@ -3859,10 +3859,9 @@ function CampaignBuilderTab({
             <div className="space-y-5">
               <Alert className="border-emerald-200 bg-emerald-50">
                 <ShieldCheck className="h-4 w-4 text-emerald-700" />
-                <AlertTitle>Modulo di contatto — come Meta Lead Ads</AlertTitle>
+                <AlertTitle>{tr("Modulo di contatto — come Meta Lead Ads")}</AlertTitle>
                 <AlertDescription>
-                  Configura il form esattamente come appare a chi clicca l'annuncio: tipologia,
-                  campi pre-compilati Meta, domande qualificanti, privacy e schermata "grazie".
+                  {tr("Configura il form esattamente come appare a chi clicca l'annuncio: tipologia, campi pre-compilati Meta, domande qualificanti, privacy e schermata \"grazie\".")}
                 </AlertDescription>
               </Alert>
 
@@ -3888,15 +3887,15 @@ function CampaignBuilderTab({
               />
 
               <div className="rounded-2xl border bg-white p-4">
-                <h3 className="text-sm font-semibold text-slate-950">Follow-up automatico</h3>
+                <h3 className="text-sm font-semibold text-slate-950">{tr("Follow-up automatico")}</h3>
                 <p className="mb-2 text-xs text-slate-500">
-                  Cosa succede sul tuo CRM appena arriva un lead da questo modulo.
+                  {tr("Cosa succede sul tuo CRM appena arriva un lead da questo modulo.")}
                 </p>
                 <Textarea
                   value={state.followUp}
                   onChange={(event) => update("followUp", event.target.value)}
                   className="min-h-20"
-                  placeholder="Es. Crea lead CRM, assegna al commerciale, invia WhatsApp entro 5 minuti."
+                  placeholder={tr("Es. Crea lead CRM, assegna al commerciale, invia WhatsApp entro 5 minuti.")}
                 />
               </div>
             </div>
@@ -3905,12 +3904,12 @@ function CampaignBuilderTab({
           {step === 4 && (
             <div className="space-y-5">
               {/* Brief — usato come input per AI */}
-              <Field label="Brief per il copy AI (cosa vuoi comunicare)">
-                <Textarea aria-label="Brief per il copy AI (cosa vuoi comunicare)"
+              <Field label={tr("Brief per il copy AI (cosa vuoi comunicare)")}>
+                <Textarea aria-label={tr("Brief per il copy AI (cosa vuoi comunicare)")}
                   value={state.copyBrief}
                   onChange={(event) => update("copyBrief", event.target.value)}
                   className="min-h-20"
-                  placeholder="Es. Sopralluogo gratuito, posa certificata, detrazioni fiscali incluse."
+                  placeholder={tr("Es. Sopralluogo gratuito, posa certificata, detrazioni fiscali incluse.")}
                 />
               </Field>
 
@@ -3942,9 +3941,9 @@ function CampaignBuilderTab({
               <div className="rounded-2xl border bg-white p-4">
                 <div className="mb-2 flex items-start justify-between gap-3">
                   <div>
-                    <h4 className="text-sm font-semibold text-slate-950">🎨 Asset visivi</h4>
+                    <h4 className="text-sm font-semibold text-slate-950">{tr("🎨 Asset visivi")}</h4>
                     <p className="text-[11px] text-slate-500">
-                      Carica o genera immagini/video nella scheda <strong>Creatività</strong>. Verranno usati come asset per gli annunci.
+                      {tr("Carica o genera immagini/video nella scheda")} <strong>{tr("Creatività")}</strong>{tr(". Verranno usati come asset per gli annunci.")}
                     </p>
                   </div>
                   <Button
@@ -3959,15 +3958,15 @@ function CampaignBuilderTab({
                       window.open("/azienda/marketing/pubblicita?tab=creativita", "_blank");
                     }}
                   >
-                    Apri Creatività ↗
+                    {tr("Apri Creatività ↗")}
                   </Button>
                 </div>
-                <Field label="Prompt immagine/video (per generazione AI nello studio)">
-                  <Textarea aria-label="Prompt immagine/video (per generazione AI nello studio)"
+                <Field label={tr("Prompt immagine/video (per generazione AI nello studio)")}>
+                  <Textarea aria-label={tr("Prompt immagine/video (per generazione AI nello studio)")}
                     value={state.imagePrompt}
                     onChange={(event) => update("imagePrompt", event.target.value)}
                     className="min-h-20"
-                    placeholder="Es. Foto realistica di infissi moderni in casa luminosa italiana, prima/dopo elegante."
+                    placeholder={tr("Es. Foto realistica di infissi moderni in casa luminosa italiana, prima/dopo elegante.")}
                   />
                 </Field>
               </div>
@@ -3985,9 +3984,9 @@ function CampaignBuilderTab({
             <div className="space-y-4">
               <Alert className="border-blue-200 bg-blue-50">
                 <Info className="h-4 w-4 text-blue-700" />
-                <AlertTitle>Controllo prima del lancio</AlertTitle>
+                <AlertTitle>{tr("Controllo prima del lancio")}</AlertTitle>
                 <AlertDescription>
-                  Salviamo una bozza locale pronta per review. In produzione gli oggetti Meta nasceranno in PAUSED e andranno attivati solo dopo i test.
+                  {tr("Salviamo una bozza locale pronta per review. In produzione gli oggetti Meta nasceranno in PAUSED e andranno attivati solo dopo i test.")}
                 </AlertDescription>
               </Alert>
               <PerformanceRulesPanel state={state} setState={setState} />
@@ -3996,9 +3995,9 @@ function CampaignBuilderTab({
               </div>
               <LaunchChecklist readiness={readiness} />
               <div className="grid gap-3 md:grid-cols-3">
-                <MiniStat label="Budget/giorno" value={formatEuro(dailyBudgetCents)} />
-                <MiniStat label="Gruppi pubblico" value={String(state.adSets.length)} />
-                <MiniStat label="Creatività" value={`${state.creatives.length} formati`} />
+                <MiniStat label={tr("Budget/giorno")} value={formatEuro(dailyBudgetCents)} />
+                <MiniStat label={tr("Gruppi pubblico")} value={String(state.adSets.length)} />
+                <MiniStat label={tr("Creatività")} value={`${state.creatives.length} formati`} />
               </div>
             </div>
           )}
@@ -4012,17 +4011,17 @@ function CampaignBuilderTab({
 
           <div className="mt-6 flex flex-col gap-3 border-t pt-5 sm:flex-row sm:items-center">
             <Button variant="outline" disabled={step === 1} onClick={() => setStep((prev) => Math.max(1, prev - 1))}>
-              Indietro
+              {tr("Indietro")}
             </Button>
             <div className="flex-1" />
             {step < 5 ? (
               <Button disabled={!isStepValid} onClick={() => setStep((prev) => Math.min(5, prev + 1))}>
-                Continua
+                {tr("Continua")}
                 <ArrowRight className="h-4 w-4" />
               </Button>
             ) : (
               <Button onClick={() => void save()} disabled={savingDraft || readiness.score < 40}>
-                {savingDraft ? "Salvataggio…" : isEditing ? "Salva modifiche" : "Salva bozza"}
+                {savingDraft ? tr("Salvataggio…") : isEditing ? tr("Salva modifiche") : tr("Salva bozza")}
                 <Check className="h-4 w-4" />
               </Button>
             )}
@@ -4032,21 +4031,19 @@ function CampaignBuilderTab({
 
       <Card className="h-fit xl:sticky xl:top-5">
         <CardHeader>
-          <CardTitle className="text-lg">Anteprima esperienza cliente</CardTitle>
-          <CardDescription>Annuncio e modulo lead visti con gli occhi di chi deve chiedere un preventivo.</CardDescription>
+          <CardTitle className="text-lg">{tr("Anteprima esperienza cliente")}</CardTitle>
+          <CardDescription>{tr("Annuncio e modulo lead visti con gli occhi di chi deve chiedere un preventivo.")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="rounded-xl border bg-slate-50 p-3">
             <div className="mb-2 flex items-center justify-between gap-3">
-              <p className="text-sm font-semibold text-slate-950">Prontezza lancio</p>
+              <p className="text-sm font-semibold text-slate-950">{tr("Prontezza lancio")}</p>
               <Badge variant="outline" className={readiness.score >= 80 ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"}>
                 {readiness.score}/100
               </Badge>
             </div>
             <Progress value={readiness.score} className="h-2 bg-white" indicatorClassName={readiness.score >= 80 ? "bg-emerald-600" : "bg-orange-500"} />
-            <p className="mt-2 text-xs text-slate-500">
-              {readiness.passed}/{readiness.total} controlli superati prima della pubblicazione.
-            </p>
+            <p className="mt-2 text-xs text-slate-500">{tr("{passed}/{total} controlli superati prima della pubblicazione.", { passed: String(readiness.passed ?? ""), total: String(readiness.total ?? "") })}</p>
           </div>
           <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
             <div className="flex items-center gap-3 border-b p-3">
@@ -4054,8 +4051,8 @@ function CampaignBuilderTab({
                 {(companyName ?? "Azienda").trim().charAt(0).toUpperCase()}
               </div>
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">{companyName ?? "La tua azienda"}</p>
-                <p className="text-xs text-slate-500">Sponsorizzato</p>
+                <p className="truncate text-sm font-semibold">{companyName ?? tr("La tua azienda")}</p>
+                <p className="text-xs text-slate-500">{tr("Sponsorizzato")}</p>
               </div>
             </div>
             <div className="p-3">
@@ -4072,7 +4069,7 @@ function CampaignBuilderTab({
             <div className="flex aspect-[4/3] items-center justify-center bg-gradient-to-br from-slate-800 to-orange-500 text-white">
               <div className="text-center">
                 <ImageIcon className="mx-auto mb-2 h-8 w-8" />
-                <p className="text-sm font-semibold">Creatività AI</p>
+                <p className="text-sm font-semibold">{tr("Creatività AI")}</p>
                 <p className="mx-auto mt-1 max-w-[240px] text-xs text-white/75">{state.imagePrompt}</p>
               </div>
             </div>
@@ -4083,7 +4080,7 @@ function CampaignBuilderTab({
                 <p className="text-xs text-slate-500">{objectiveLabel(state.objective)}</p>
               </div>
               <Button size="sm" variant="secondary">
-                {state.cta === "GET_QUOTE" ? "Preventivo" : state.cta === "WHATSAPP_MESSAGE" ? "WhatsApp" : "Scopri"}
+                {state.cta === "GET_QUOTE" ? tr("Preventivo") : state.cta === "WHATSAPP_MESSAGE" ? "WhatsApp" : tr("Scopri")}
               </Button>
             </div>
           </div>
@@ -4102,6 +4099,7 @@ function OfferStrategyCheck({
   state: BuilderState;
   onChange: (offerStrategy: OfferStrategyState) => void;
 }) {
+  const t = useT();
   const strategy = state.offerStrategy ?? {};
   const averageTicket = Number(strategy.averageTicketEur ?? 0);
   const averageMargin = Number(strategy.averageMarginPct ?? 0);
@@ -4131,23 +4129,21 @@ function OfferStrategyCheck({
         <div>
           <p className="flex items-center gap-2 text-sm font-semibold text-slate-950">
             <ShieldCheck className="h-4 w-4 text-emerald-600" />
-            Strategia offerta
+            {t("Strategia offerta")}
           </p>
           <p className="mt-1 text-xs text-slate-600">
-            Check economico non vincolante: aiuta a capire se la campagna puo reggere CPL, appuntamenti e vendita.
+            {t("Check economico non vincolante: aiuta a capire se la campagna puo reggere CPL, appuntamenti e vendita.")}
           </p>
         </div>
         <Badge
           variant="outline"
           className={score >= 75 ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"}
-        >
-          {readyCount}/{checks.length} segnali
-        </Badge>
+        >{t("{readyCount}/{n} segnali", { readyCount: String(readyCount ?? ""), n: checks.length })}</Badge>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <Field label="Ticket medio vendita">
-          <Input aria-label="Ticket medio vendita"
+        <Field label={t("Ticket medio vendita")}>
+          <Input aria-label={t("Ticket medio vendita")}
             type="number"
             min={0}
             value={strategy.averageTicketEur ?? ""}
@@ -4155,8 +4151,8 @@ function OfferStrategyCheck({
             placeholder="3500"
           />
         </Field>
-        <Field label="Margine medio %">
-          <Input aria-label="Margine medio %"
+        <Field label={t("Margine medio %")}>
+          <Input aria-label={t("Margine medio %")}
             type="number"
             min={0}
             max={100}
@@ -4165,8 +4161,8 @@ function OfferStrategyCheck({
             placeholder="30"
           />
         </Field>
-        <Field label="CPL massimo sostenibile">
-          <Input aria-label="CPL massimo sostenibile"
+        <Field label={t("CPL massimo sostenibile")}>
+          <Input aria-label={t("CPL massimo sostenibile")}
             type="number"
             min={0}
             value={strategy.maxSustainableCplEur ?? ""}
@@ -4177,56 +4173,57 @@ function OfferStrategyCheck({
       </div>
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
-        <Field label="Zona servibile">
-          <Input aria-label="Zona servibile"
+        <Field label={t("Zona servibile")}>
+          <Input aria-label={t("Zona servibile")}
             value={strategy.serviceArea ?? state.zone}
             onChange={(event) => setStrategy("serviceArea", event.target.value)}
-            placeholder="Comuni/province dove puoi lavorare davvero"
+            placeholder={t("Comuni/province dove puoi lavorare davvero")}
           />
         </Field>
-        <Field label="Capacita commerciale">
-          <Input aria-label="Capacita commerciale"
+        <Field label={t("Capacita commerciale")}>
+          <Input aria-label={t("Capacita commerciale")}
             value={strategy.commercialCapacity ?? ""}
             onChange={(event) => setStrategy("commercialCapacity", event.target.value)}
-            placeholder="Lead/settimana e tempo massimo di risposta"
+            placeholder={t("Lead/settimana e tempo massimo di risposta")}
           />
         </Field>
-        <Field label="Cliente ideale">
-          <Textarea aria-label="Cliente ideale"
+        <Field label={t("Cliente ideale")}>
+          <Textarea aria-label={t("Cliente ideale")}
             value={strategy.idealCustomer ?? ""}
             onChange={(event) => setStrategy("idealCustomer", event.target.value)}
             className="min-h-20"
-            placeholder="Tipo immobile, budget, urgenza, decisore, zona"
+            placeholder={t("Tipo immobile, budget, urgenza, decisore, zona")}
           />
         </Field>
         <div className="grid gap-4">
-          <Field label="Urgenza">
-            <Input aria-label="Urgenza"
+          <Field label={t("Urgenza")}>
+            <Input aria-label={t("Urgenza")}
               value={strategy.urgency ?? ""}
               onChange={(event) => setStrategy("urgency", event.target.value)}
-              placeholder="Subito, 30 giorni, 90 giorni, solo preventivo"
+              placeholder={t("Subito, 30 giorni, 90 giorni, solo preventivo")}
             />
           </Field>
-          <Field label="Stagionalita">
-            <Input aria-label="Stagionalita"
+          <Field label={t("Stagionalita")}>
+            <Input aria-label={t("Stagionalita")}
               value={strategy.seasonality ?? ""}
               onChange={(event) => setStrategy("seasonality", event.target.value)}
-              placeholder="Mesi forti/deboli e vincoli operativi"
+              placeholder={t("Mesi forti/deboli e vincoli operativi")}
             />
           </Field>
         </div>
       </div>
 
       <div className="mt-4 grid gap-3 md:grid-cols-3">
-        <MiniStat label="Margine lordo stimato" value={grossMarginEur > 0 ? formatEuro(grossMarginEur * 100) : "—"} />
-        <MiniStat label="Lead → vendita break-even" value={breakEvenLeadToSalePct > 0 ? `${breakEvenLeadToSalePct.toFixed(1)}%` : "—"} />
-        <MiniStat label="CPL target wizard" value={formatEuro(state.targetCpl * 100)} />
+        <MiniStat label={t("Margine lordo stimato")} value={grossMarginEur > 0 ? formatEuro(grossMarginEur * 100) : "—"} />
+        <MiniStat label={t("Lead → vendita break-even")} value={breakEvenLeadToSalePct > 0 ? `${breakEvenLeadToSalePct.toFixed(1)}%` : "—"} />
+        <MiniStat label={t("CPL target wizard")} value={formatEuro(state.targetCpl * 100)} />
       </div>
     </div>
   );
 }
 
 function ReadinessBanner({ readiness }: { readiness: ReturnType<typeof getReadinessScore> }) {
+  const t = useT();
   const missing = readiness.items.filter((item) => !item.ok);
   const [expanded, setExpanded] = useState(false);
   const visible = expanded ? missing : missing.slice(0, 2);
@@ -4235,16 +4232,16 @@ function ReadinessBanner({ readiness }: { readiness: ReturnType<typeof getReadin
     <div className="mb-5 rounded-2xl border bg-white p-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="text-sm font-semibold text-slate-950">Semaforo pre-lancio</p>
+          <p className="text-sm font-semibold text-slate-950">{t("Semaforo pre-lancio")}</p>
           <p className="text-sm text-slate-600">
             {readiness.score >= 80
-              ? "La campagna è pronta per una revisione finale prima del live."
+              ? t("La campagna è pronta per una revisione finale prima del live.")
               : `${missing.length} controll${missing.length === 1 ? "o" : "i"} ancora da sistemare prima di pubblicare o aumentare il budget.`}
           </p>
         </div>
         <div className="min-w-[220px]">
           <div className="mb-2 flex items-center justify-between text-sm">
-            <span className="text-slate-500">Prontezza</span>
+            <span className="text-slate-500">{t("Prontezza")}</span>
             <span className="font-bold text-slate-950">{readiness.score}/100</span>
           </div>
           <Progress
@@ -4271,7 +4268,7 @@ function ReadinessBanner({ readiness }: { readiness: ReturnType<typeof getReadin
               className="mt-2 h-7 px-2 text-xs"
               onClick={() => setExpanded(!expanded)}
             >
-              {expanded ? "Mostra meno" : `Mostra altri ${missing.length - 2} controlli da sistemare`}
+              {expanded ? t("Mostra meno") : t("Mostra altri {n} controlli da sistemare", { n: missing.length - 2 })}
             </Button>
           )}
         </>
@@ -4281,6 +4278,7 @@ function ReadinessBanner({ readiness }: { readiness: ReturnType<typeof getReadin
 }
 
 function LeadFormPreview({ state }: { state: BuilderState }) {
+  const t = useT();
   const lf = state.metaLeadForm;
   // Preferisci metaLeadForm.questions; fallback su requiredFields stringa legacy
   const questions = lf
@@ -4313,7 +4311,7 @@ function LeadFormPreview({ state }: { state: BuilderState }) {
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-slate-950">
-            {state.platform === "google" ? "Destinazione lead Google" : "Modulo lead Meta"}
+            {state.platform === "google" ? t("Destinazione lead Google") : t("Modulo lead Meta")}
           </p>
           <p className="text-xs text-slate-500">{formTypeLabel}</p>
         </div>
@@ -4330,7 +4328,7 @@ function LeadFormPreview({ state }: { state: BuilderState }) {
         <p className="mb-1 text-sm font-semibold text-slate-900">{introHeadline}</p>
       )}
       <p className="rounded-xl bg-slate-50 p-3 text-sm leading-relaxed text-slate-700">{introBody}</p>
-      <p className="mt-3 text-[10px] font-semibold uppercase text-slate-500 max-md:text-[11px]">Campi del modulo ({questions.length})</p>
+      <p className="mt-3 text-[10px] font-semibold uppercase text-slate-500 max-md:text-[11px]">{t("Campi del modulo ({n})", { n: questions.length })}</p>
       <div className="mt-1 grid gap-1.5">
         {questions.slice(0, 8).map((field, i) => (
           <div
@@ -4342,18 +4340,18 @@ function LeadFormPreview({ state }: { state: BuilderState }) {
           >
             <span className="truncate">{field.label}</span>
             <span className="text-[9px] text-slate-500 max-md:text-[11px]">
-              {field.kind === "custom" ? "custom" : "auto"}
-              {field.options?.length ? ` · ${field.options.length} opz` : ""}
+              {field.kind === "custom" ? t("custom") : t("auto")}
+              {field.options?.length ? t(" · {n} opz", { n: field.options.length }) : ""}
             </span>
           </div>
         ))}
         {questions.length > 8 && (
-          <p className="text-[10px] text-slate-500 max-md:text-[11px]">+ {questions.length - 8} altri campi</p>
+          <p className="text-[10px] text-slate-500 max-md:text-[11px]">{t("+ {n} altri campi", { n: questions.length - 8 })}</p>
         )}
       </div>
       {qualifying && (
         <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
-          <p className="text-xs font-semibold uppercase text-emerald-700">Qualificazione</p>
+          <p className="text-xs font-semibold uppercase text-emerald-700">{t("Qualificazione")}</p>
           <p className="mt-1 text-sm text-emerald-900">{qualifying.label}</p>
           {qualifying.options && qualifying.options.length > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1">
@@ -4367,7 +4365,7 @@ function LeadFormPreview({ state }: { state: BuilderState }) {
         </div>
       )}
       <div className="mt-3 rounded-xl border bg-white p-3">
-        <p className="text-xs font-semibold uppercase text-slate-500">Follow-up</p>
+        <p className="text-xs font-semibold uppercase text-slate-500">{t("Follow-up")}</p>
         <p className="mt-1 text-sm text-slate-700">{state.followUp}</p>
       </div>
     </div>
@@ -4375,13 +4373,12 @@ function LeadFormPreview({ state }: { state: BuilderState }) {
 }
 
 function CampaignStructurePreview({ state }: { state: BuilderState }) {
+  const t = useT();
   return (
     <div className="rounded-2xl border bg-white p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <p className="text-sm font-semibold text-slate-950">Struttura test</p>
-        <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700">
-          {state.adSets.length} gruppi · {state.creatives.length} creatività
-        </Badge>
+        <p className="text-sm font-semibold text-slate-950">{t("Struttura test")}</p>
+        <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700">{t("{n} gruppi · {n2} creatività", { n: state.adSets.length, n2: state.creatives.length })}</Badge>
       </div>
       <div className="space-y-2">
         {state.adSets.slice(0, 3).map((adSet) => (
@@ -4404,12 +4401,10 @@ function CampaignStructurePreview({ state }: { state: BuilderState }) {
         ))}
       </div>
       <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-        <p className="text-xs font-semibold uppercase text-slate-500">Matrice controllata</p>
-        <p className="mt-1 text-sm font-semibold text-slate-950">
-          {getAdMatrixSize(state)} ads potenziali · {formatEuro(Math.round(getBudgetPerAd(state) * 100))}/giorno per ad
-        </p>
+        <p className="text-xs font-semibold uppercase text-slate-500">{t("Matrice controllata")}</p>
+        <p className="mt-1 text-sm font-semibold text-slate-950">{t("{state} ads potenziali · {valore}/giorno per ad", { state: String(getAdMatrixSize(state) ?? ""), valore: formatEuro(Math.round(getBudgetPerAd(state) * 100)) })}</p>
         <p className="mt-1 text-xs text-slate-500">
-          Se il budget per ad è troppo basso, riduci creatività o pubblici prima di scalare.
+          {t("Se il budget per ad è troppo basso, riduci creatività o pubblici prima di scalare.")}
         </p>
       </div>
     </div>
@@ -4423,34 +4418,35 @@ function PerformanceRulesPanel({
   state: BuilderState;
   setState: React.Dispatch<React.SetStateAction<BuilderState>>;
 }) {
+  const t = useT();
   return (
     <div className="rounded-2xl border bg-white p-4">
       <div className="mb-4 flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <p className="text-sm font-semibold text-slate-950">Performance max: regole prima del budget</p>
+          <p className="text-sm font-semibold text-slate-950">{t("Performance max: regole prima del budget")}</p>
           <p className="text-xs leading-relaxed text-slate-500">
-            Il sistema deve decidere con numeri semplici: costo lead, qualità opportunità e tempo di risposta commerciale.
+            {t("Il sistema deve decidere con numeri semplici: costo lead, qualità opportunità e tempo di risposta commerciale.")}
           </p>
         </div>
         <Badge variant="outline" className="w-fit border-emerald-200 bg-emerald-50 text-emerald-700">
-          Anti-spreco attivo
+          {t("Anti-spreco attivo")}
         </Badge>
       </div>
       <div className="grid gap-4 md:grid-cols-3">
-        <Field label="CPL target">
+        <Field label={t("CPL target")}>
           <div className="flex items-center gap-2">
-            <Input aria-label="CPL target"
+            <Input aria-label={t("CPL target")}
               type="number"
               min={1}
               value={state.targetCpl}
               onChange={(event) => updateBuilderState(setState, "targetCpl", Number(event.target.value || 0))}
             />
-            <span className="text-sm text-slate-500">euro</span>
+            <span className="text-sm text-slate-500">{t("euro")}</span>
           </div>
         </Field>
-        <Field label="Tasso opportunità target">
+        <Field label={t("Tasso opportunità target")}>
           <div className="flex items-center gap-2">
-            <Input aria-label="Tasso opportunità target"
+            <Input aria-label={t("Tasso opportunità target")}
               type="number"
               min={1}
               max={100}
@@ -4460,25 +4456,25 @@ function PerformanceRulesPanel({
             <span className="text-sm text-slate-500">%</span>
           </div>
         </Field>
-        <Field label="Durata test minimo">
+        <Field label={t("Durata test minimo")}>
           <div className="flex items-center gap-2">
-            <Input aria-label="Durata test minimo"
+            <Input aria-label={t("Durata test minimo")}
               type="number"
               min={3}
               max={14}
               value={state.testDurationDays}
               onChange={(event) => updateBuilderState(setState, "testDurationDays", Number(event.target.value || 0))}
             />
-            <span className="text-sm text-slate-500">giorni</span>
+            <span className="text-sm text-slate-500">{t("giorni")}</span>
           </div>
         </Field>
       </div>
       <div className="mt-4 grid gap-4 md:grid-cols-2">
-        <Field label="Regola pausa">
-          <Textarea aria-label="Regola pausa" value={state.pauseRule} onChange={(event) => updateBuilderState(setState, "pauseRule", event.target.value)} className="min-h-20" />
+        <Field label={t("Regola pausa")}>
+          <Textarea aria-label={t("Regola pausa")} value={state.pauseRule} onChange={(event) => updateBuilderState(setState, "pauseRule", event.target.value)} className="min-h-20" />
         </Field>
-        <Field label="Regola scaling">
-          <Textarea aria-label="Regola scaling" value={state.scaleRule} onChange={(event) => updateBuilderState(setState, "scaleRule", event.target.value)} className="min-h-20" />
+        <Field label={t("Regola scaling")}>
+          <Textarea aria-label={t("Regola scaling")} value={state.scaleRule} onChange={(event) => updateBuilderState(setState, "scaleRule", event.target.value)} className="min-h-20" />
         </Field>
       </div>
     </div>
@@ -4510,6 +4506,7 @@ function AudienceControlsPanel({
   state: BuilderState;
   setState: React.Dispatch<React.SetStateAction<BuilderState>>;
 }) {
+  const t = useT();
   const addInterest = (signal: string) => {
     setState((prev) => {
       const current = splitList(prev.interests);
@@ -4527,60 +4524,60 @@ function AudienceControlsPanel({
     <div className="rounded-2xl border bg-white p-4">
       <div className="mb-4 flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <p className="text-sm font-semibold text-slate-950">Controlli pubblico Meta</p>
+          <p className="text-sm font-semibold text-slate-950">{t("Controlli pubblico Meta")}</p>
           <p className="text-xs leading-relaxed text-slate-500">
-            Località, età e lingua restano controlli rigidi. Gli interessi sono segnali: se Advantage+ è attivo, Meta può espandere oltre i suggerimenti quando trova lead migliori.
+            {t("Località, età e lingua restano controlli rigidi. Gli interessi sono segnali: se Advantage+ è attivo, Meta può espandere oltre i suggerimenti quando trova lead migliori.")}
           </p>
         </div>
         <Badge variant="outline" className="w-fit border-blue-200 bg-blue-50 text-blue-700">
-          {state.advantageAudience ? "Advantage+ attivo" : "Pubblico stretto"}
+          {state.advantageAudience ? t("Advantage+ attivo") : t("Pubblico stretto")}
         </Badge>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Field label="Escludi zone non lavorabili">
-          <Textarea aria-label="Escludi zone non lavorabili"
+        <Field label={t("Escludi zone non lavorabili")}>
+          <Textarea aria-label={t("Escludi zone non lavorabili")}
             value={state.excludedLocations}
             onChange={(event) => updateBuilderState(setState, "excludedLocations", event.target.value)}
             className="min-h-20"
-            placeholder="Comuni lontani, zone dove non fai sopralluoghi, aree a basso margine..."
+            placeholder={t("Comuni lontani, zone dove non fai sopralluoghi, aree a basso margine...")}
           />
         </Field>
-        <Field label="Sorgenti retargeting">
-          <Textarea aria-label="Sorgenti retargeting"
+        <Field label={t("Sorgenti retargeting")}>
+          <Textarea aria-label={t("Sorgenti retargeting")}
             value={state.customAudienceSource}
             onChange={(event) => updateBuilderState(setState, "customAudienceSource", event.target.value)}
             className="min-h-20"
-            placeholder="Visitatori sito, video viewers, engagement Instagram, lead CRM..."
+            placeholder={t("Visitatori sito, video viewers, engagement Instagram, lead CRM...")}
           />
         </Field>
-        <Field label="Base lookalike">
-          <Textarea aria-label="Base lookalike"
+        <Field label={t("Base lookalike")}>
+          <Textarea aria-label={t("Base lookalike")}
             value={state.lookalikeSource}
             onChange={(event) => updateBuilderState(setState, "lookalikeSource", event.target.value)}
             className="min-h-20"
-            placeholder="Clienti migliori, commesse chiuse, preventivi accettati..."
+            placeholder={t("Clienti migliori, commesse chiuse, preventivi accettati...")}
           />
         </Field>
-        <Field label="Ampiezza lookalike">
+        <Field label={t("Ampiezza lookalike")}>
           <div className="flex items-center gap-3">
-            <Input aria-label="Ampiezza lookalike"
+            <Input aria-label={t("Ampiezza lookalike")}
               type="number"
               min={1}
               max={10}
               value={state.lookalikePercent}
               onChange={(event) => updateBuilderState(setState, "lookalikePercent", Number(event.target.value || 1))}
             />
-            <span className="whitespace-nowrap text-sm text-slate-500">% simili</span>
+            <span className="whitespace-nowrap text-sm text-slate-500">{t("% simili")}</span>
           </div>
           <p className="mt-2 text-xs text-slate-500">
-            1-2% è più simile ai clienti migliori; 5-10% scala di più ma perde precisione.
+            {t("1-2% è più simile ai clienti migliori; 5-10% scala di più ma perde precisione.")}
           </p>
         </Field>
       </div>
 
       <div className="mt-4">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Segnali rapidi per edilizia</p>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{t("Segnali rapidi per edilizia")}</p>
         <div className="flex flex-wrap gap-2">
           {[
             "ristrutturazione casa",
@@ -4625,22 +4622,21 @@ function AdSetPlanner({
   onRemove: (id: string) => void;
   onUpdate: <K extends keyof CampaignAdSet>(id: string, key: K, value: CampaignAdSet[K]) => void;
 }) {
+  const t = useT();
   return (
     <div className="space-y-3 rounded-2xl border bg-slate-50 p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm font-semibold text-slate-950">Gruppi pubblico / Ad Set</p>
+          <p className="text-sm font-semibold text-slate-950">{t("Gruppi pubblico / Ad Set")}</p>
           <p className="text-xs text-slate-500">
-            Una campagna può testare più pubblici: freddo locale, retargeting, lookalike, urgenza o zona diversa.
+            {t("Una campagna può testare più pubblici: freddo locale, retargeting, lookalike, urgenza o zona diversa.")}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Badge variant="outline" className="border-blue-200 bg-white text-blue-700">
-            Totale {formatEuro(totalBudget * 100)}/giorno
-          </Badge>
+          <Badge variant="outline" className="border-blue-200 bg-white text-blue-700">{t("Totale {valore}/giorno", { valore: formatEuro(totalBudget * 100) })}</Badge>
           <Button type="button" size="sm" variant="outline" onClick={onAdd}>
             <Plus className="h-4 w-4" />
-            Aggiungi pubblico
+            {t("Aggiungi pubblico")}
           </Button>
         </div>
       </div>
@@ -4648,56 +4644,54 @@ function AdSetPlanner({
         {adSets.map((adSet, index) => (
           <div key={adSet.id} className="rounded-xl border bg-white p-4">
             <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <Badge variant="outline" className="w-fit border-slate-200 bg-slate-50 text-slate-700">
-                Gruppo {index + 1}
-              </Badge>
+              <Badge variant="outline" className="w-fit border-slate-200 bg-slate-50 text-slate-700">{t("Gruppo {index}", { index: index + 1 })}</Badge>
               <Button type="button" size="sm" variant="ghost" disabled={adSets.length <= 1} onClick={() => onRemove(adSet.id)}>
-                Rimuovi
+                {t("Rimuovi")}
               </Button>
             </div>
             <div className="grid gap-3 md:grid-cols-2">
-              <Field label="Nome gruppo">
-                <Input aria-label="Nome gruppo" value={adSet.name} onChange={(event) => onUpdate(adSet.id, "name", event.target.value)} />
+              <Field label={t("Nome gruppo")}>
+                <Input aria-label={t("Nome gruppo")} value={adSet.name} onChange={(event) => onUpdate(adSet.id, "name", event.target.value)} />
               </Field>
-              <Field label="Angolo di test">
-                <Input aria-label="Angolo di test" value={adSet.angle} onChange={(event) => onUpdate(adSet.id, "angle", event.target.value)} />
+              <Field label={t("Angolo di test")}>
+                <Input aria-label={t("Angolo di test")} value={adSet.angle} onChange={(event) => onUpdate(adSet.id, "angle", event.target.value)} />
               </Field>
-              <Field label="Strategia pubblico">
+              <Field label={t("Strategia pubblico")}>
                 <Select value={adSet.audienceStrategy} onValueChange={(value: AudienceStrategy) => onUpdate(adSet.id, "audienceStrategy", value)}>
-                  <SelectTrigger aria-label="Strategia pubblico">
+                  <SelectTrigger aria-label={t("Strategia pubblico")}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="advantage_plus">Advantage+ suggerito</SelectItem>
-                    <SelectItem value="manual">Manuale controllato</SelectItem>
-                    <SelectItem value="retargeting">Retargeting</SelectItem>
-                    <SelectItem value="lookalike">Lookalike</SelectItem>
+                    <SelectItem value="advantage_plus">{t("Advantage+ suggerito")}</SelectItem>
+                    <SelectItem value="manual">{t("Manuale controllato")}</SelectItem>
+                    <SelectItem value="retargeting">{t("Retargeting")}</SelectItem>
+                    <SelectItem value="lookalike">{t("Lookalike")}</SelectItem>
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label="Zona">
-                <Input aria-label="Zona" value={adSet.zone} onChange={(event) => onUpdate(adSet.id, "zone", event.target.value)} />
+              <Field label={t("Zona")}>
+                <Input aria-label={t("Zona")} value={adSet.zone} onChange={(event) => onUpdate(adSet.id, "zone", event.target.value)} />
               </Field>
-              <Field label="Budget gruppo">
+              <Field label={t("Budget gruppo")}>
                 <div className="flex items-center gap-3">
-                  <Input aria-label="Budget gruppo"
+                  <Input aria-label={t("Budget gruppo")}
                     type="number"
                     min={5}
                     max={500}
                     value={adSet.dailyBudget}
                     onChange={(event) => onUpdate(adSet.id, "dailyBudget", clampMetaBudget(Number(event.target.value || 0)))}
                   />
-                  <span className="whitespace-nowrap text-sm text-slate-500">euro/giorno</span>
+                  <span className="whitespace-nowrap text-sm text-slate-500">{t("euro/giorno")}</span>
                 </div>
               </Field>
-              <Field label="Limite automatico min/max">
+              <Field label={t("Limite automatico min/max")}>
                 <div className="grid grid-cols-2 gap-2">
-                  <Input aria-label="Budget minimo automatico del gruppo" type="number" min={1} value={adSet.minDailyBudget} onChange={(event) => onUpdate(adSet.id, "minDailyBudget", Number(event.target.value || 0))} />
-                  <Input aria-label="Budget massimo automatico del gruppo" type="number" min={1} value={adSet.maxDailyBudget} onChange={(event) => onUpdate(adSet.id, "maxDailyBudget", Number(event.target.value || 0))} />
+                  <Input aria-label={t("Budget minimo automatico del gruppo")} type="number" min={1} value={adSet.minDailyBudget} onChange={(event) => onUpdate(adSet.id, "minDailyBudget", Number(event.target.value || 0))} />
+                  <Input aria-label={t("Budget massimo automatico del gruppo")} type="number" min={1} value={adSet.maxDailyBudget} onChange={(event) => onUpdate(adSet.id, "maxDailyBudget", Number(event.target.value || 0))} />
                 </div>
               </Field>
-              <Field label="Raggio km (max 80)">
-                <Input aria-label="Raggio km (max 80)"
+              <Field label={t("Raggio km (max 80)")}>
+                <Input aria-label={t("Raggio km (max 80)")}
                   type="number"
                   min={1}
                   max={80}
@@ -4705,55 +4699,55 @@ function AdSetPlanner({
                   onChange={(event) => onUpdate(adSet.id, "radiusKm", clampMetaRadius(Number(event.target.value || 0)))}
                 />
               </Field>
-              <Field label="Età">
-                <Input aria-label="Età" value={adSet.ageRange} onChange={(event) => onUpdate(adSet.id, "ageRange", event.target.value)} placeholder="Es. 28-65" />
+              <Field label={t("Età")}>
+                <Input aria-label={t("Età")} value={adSet.ageRange} onChange={(event) => onUpdate(adSet.id, "ageRange", event.target.value)} placeholder={t("Es. 28-65")} />
               </Field>
-              <Field label="Genere">
+              <Field label={t("Genere")}>
                 <Select value={adSet.gender} onValueChange={(value: GenderTarget) => onUpdate(adSet.id, "gender", value)}>
-                  <SelectTrigger aria-label="Genere">
+                  <SelectTrigger aria-label={t("Genere")}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Tutti</SelectItem>
-                    <SelectItem value="men">Uomini</SelectItem>
-                    <SelectItem value="women">Donne</SelectItem>
+                    <SelectItem value="all">{t("Tutti")}</SelectItem>
+                    <SelectItem value="men">{t("Uomini")}</SelectItem>
+                    <SelectItem value="women">{t("Donne")}</SelectItem>
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label="Evento ottimizzazione">
+              <Field label={t("Evento ottimizzazione")}>
                 <Select value={adSet.optimizationEvent} onValueChange={(value: CampaignAdSet["optimizationEvent"]) => onUpdate(adSet.id, "optimizationEvent", value)}>
-                  <SelectTrigger aria-label="Evento ottimizzazione">
+                  <SelectTrigger aria-label={t("Evento ottimizzazione")}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="qualified_lead">Lead qualificato</SelectItem>
+                    <SelectItem value="qualified_lead">{t("Lead qualificato")}</SelectItem>
                     <SelectItem value="lead">Lead</SelectItem>
-                    <SelectItem value="message">Messaggio</SelectItem>
-                    <SelectItem value="landing_page_view">Visita landing</SelectItem>
+                    <SelectItem value="message">{t("Messaggio")}</SelectItem>
+                    <SelectItem value="landing_page_view">{t("Visita landing")}</SelectItem>
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label="Lingue">
-                <Input aria-label="Lingue" value={adSet.languages} onChange={(event) => onUpdate(adSet.id, "languages", event.target.value)} placeholder="Italiano" />
+              <Field label={t("Lingue")}>
+                <Input aria-label={t("Lingue")} value={adSet.languages} onChange={(event) => onUpdate(adSet.id, "languages", event.target.value)} placeholder={t("Italiano")} />
               </Field>
             </div>
             <div className="mt-3 grid gap-3 md:grid-cols-2">
-              <Field label="Segnali pubblico">
-                <Textarea aria-label="Segnali pubblico" value={adSet.audience} onChange={(event) => onUpdate(adSet.id, "audience", event.target.value)} className="min-h-20" />
+              <Field label={t("Segnali pubblico")}>
+                <Textarea aria-label={t("Segnali pubblico")} value={adSet.audience} onChange={(event) => onUpdate(adSet.id, "audience", event.target.value)} className="min-h-20" />
               </Field>
-              <Field label="Esclusioni pubblico">
-                <Textarea aria-label="Esclusioni pubblico" value={adSet.excludedAudiences} onChange={(event) => onUpdate(adSet.id, "excludedAudiences", event.target.value)} className="min-h-20" />
+              <Field label={t("Esclusioni pubblico")}>
+                <Textarea aria-label={t("Esclusioni pubblico")} value={adSet.excludedAudiences} onChange={(event) => onUpdate(adSet.id, "excludedAudiences", event.target.value)} className="min-h-20" />
               </Field>
-              <Field label="Posizionamenti">
-                <Textarea aria-label="Posizionamenti" value={adSet.placementStrategy} onChange={(event) => onUpdate(adSet.id, "placementStrategy", event.target.value)} className="min-h-20" />
+              <Field label={t("Posizionamenti")}>
+                <Textarea aria-label={t("Posizionamenti")} value={adSet.placementStrategy} onChange={(event) => onUpdate(adSet.id, "placementStrategy", event.target.value)} className="min-h-20" />
               </Field>
               <div className="rounded-xl border border-blue-100 bg-blue-50 p-3">
-                <p className="text-xs font-semibold uppercase text-blue-700">Sintesi Meta</p>
+                <p className="text-xs font-semibold uppercase text-blue-700">{t("Sintesi Meta")}</p>
                 <p className="mt-1 text-sm text-blue-950">
                   {audienceStrategyLabel(adSet.audienceStrategy)} · {genderLabel(adSet.gender)} · {optimizationEventLabel(adSet.optimizationEvent)}
                 </p>
                 <p className="mt-1 text-xs text-blue-800">
-                  Mantieni almeno 3-5 giorni di test prima di giudicare, salvo errori evidenti su qualità lead.
+                  {t("Mantieni almeno 3-5 giorni di test prima di giudicare, salvo errori evidenti su qualità lead.")}
                 </p>
               </div>
             </div>
@@ -4789,15 +4783,16 @@ function CreativeMixPlanner({
   onRemove: (id: string) => void;
   onUpdate: <K extends keyof CampaignCreative>(id: string, key: K, value: CampaignCreative[K]) => void;
 }) {
+  const t = useT();
   const formats: CreativeFormat[] = ["image", "video", "carousel", "story"];
   const coveredAngles = new Set(creatives.map((creative) => creative.angle).filter(Boolean));
   return (
     <div className="space-y-3 rounded-2xl border bg-slate-50 p-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="text-sm font-semibold text-slate-950">Mix creatività</p>
+          <p className="text-sm font-semibold text-slate-950">{t("Mix creatività")}</p>
           <p className="text-xs text-slate-500">
-            Non testare solo una foto: prepara formati diversi per capire cosa genera lead qualificati.
+            {t("Non testare solo una foto: prepara formati diversi per capire cosa genera lead qualificati.")}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -4824,8 +4819,8 @@ function CreativeMixPlanner({
                   : "border-slate-200 bg-white text-slate-600 hover:border-orange-200 hover:bg-orange-50",
               )}
             >
-              <span className="font-semibold">{preset.label}</span>
-              <span className="mt-0.5 block opacity-75">{covered ? "coperto" : creativeFormatLabel(preset.format)}</span>
+              <span className="font-semibold">{t(preset.label)}</span>
+              <span className="mt-0.5 block opacity-75">{covered ? t("coperto") : creativeFormatLabel(preset.format)}</span>
             </button>
           );
         })}
@@ -4845,22 +4840,22 @@ function CreativeMixPlanner({
                 )}
               </div>
               <Button type="button" size="sm" variant="ghost" disabled={creatives.length <= 1} onClick={() => onRemove(creative.id)}>
-                Rimuovi
+                {t("Rimuovi")}
               </Button>
             </div>
             <div className="grid gap-3 md:grid-cols-2">
-              <Field label="Nome creatività">
-                <Input aria-label="Nome creatività" value={creative.title} onChange={(event) => onUpdate(creative.id, "title", event.target.value)} />
+              <Field label={t("Nome creatività")}>
+                <Input aria-label={t("Nome creatività")} value={creative.title} onChange={(event) => onUpdate(creative.id, "title", event.target.value)} />
               </Field>
-              <Field label="Angolo">
+              <Field label={t("Angolo")}>
                 <Select value={creative.angle ?? ""} onValueChange={(value) => onUpdate(creative.id, "angle", value as CreativeAngle)}>
-                  <SelectTrigger aria-label="Angolo">
-                    <SelectValue placeholder="Seleziona angolo" />
+                  <SelectTrigger aria-label={t("Angolo")}>
+                    <SelectValue placeholder={t("Seleziona angolo")} />
                   </SelectTrigger>
                   <SelectContent>
                     {CREATIVE_ANGLE_PRESETS.map((preset) => (
                       <SelectItem key={preset.angle} value={preset.angle}>
-                        {preset.label}
+                        {t(preset.label)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -4868,16 +4863,16 @@ function CreativeMixPlanner({
               </Field>
             </div>
             <div className="mt-3">
-              <Field label="Hook">
-                <Input aria-label="Hook" value={creative.hook} onChange={(event) => onUpdate(creative.id, "hook", event.target.value)} />
+              <Field label={t("Hook")}>
+                <Input aria-label={t("Hook")} value={creative.hook} onChange={(event) => onUpdate(creative.id, "hook", event.target.value)} />
               </Field>
             </div>
             <div className="mt-3 grid gap-3 md:grid-cols-2">
-              <Field label="Obiettivo del test">
-                <Textarea aria-label="Obiettivo del test" value={creative.goal} onChange={(event) => onUpdate(creative.id, "goal", event.target.value)} className="min-h-20" />
+              <Field label={t("Obiettivo del test")}>
+                <Textarea aria-label={t("Obiettivo del test")} value={creative.goal} onChange={(event) => onUpdate(creative.id, "goal", event.target.value)} className="min-h-20" />
               </Field>
-              <Field label="Prompt operativo">
-                <Textarea aria-label="Prompt operativo" value={creative.prompt} onChange={(event) => onUpdate(creative.id, "prompt", event.target.value)} className="min-h-20" />
+              <Field label={t("Prompt operativo")}>
+                <Textarea aria-label={t("Prompt operativo")} value={creative.prompt} onChange={(event) => onUpdate(creative.id, "prompt", event.target.value)} className="min-h-20" />
               </Field>
             </div>
           </div>
@@ -4926,6 +4921,7 @@ function conversionPlaceLabel(place: BuilderState["conversionPlace"], platform: 
  * Evita il "muro di 14 card" che rendeva difficile vedere cosa va sistemato.
  */
 function LaunchChecklist({ readiness }: { readiness: ReturnType<typeof getReadinessScore> }) {
+  const t = useT();
   const missing = readiness.items.filter((i) => !i.ok);
   const passed = readiness.items.filter((i) => i.ok);
   const [showPassed, setShowPassed] = useState(false);
@@ -4938,7 +4934,7 @@ function LaunchChecklist({ readiness }: { readiness: ReturnType<typeof getReadin
           <div className="mb-2 flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-amber-600" />
             <p className="text-sm font-bold text-amber-900">
-              {missing.length} controll{missing.length === 1 ? "o" : "i"} da sistemare
+              {missing.length} {t("controll")}{missing.length === 1 ? "o" : "i"} {t("da sistemare")}
             </p>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
@@ -4961,9 +4957,7 @@ function LaunchChecklist({ readiness }: { readiness: ReturnType<typeof getReadin
         <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-4">
           <div className="flex items-center gap-2">
             <Check className="h-5 w-5 text-emerald-600" />
-            <p className="text-sm font-bold text-emerald-900">
-              Tutti i {readiness.total} controlli superati — pronto per il lancio
-            </p>
+            <p className="text-sm font-bold text-emerald-900">{t("Tutti i {total} controlli superati — pronto per il lancio", { total: String(readiness.total ?? "") })}</p>
           </div>
         </div>
       )}
@@ -4979,7 +4973,7 @@ function LaunchChecklist({ readiness }: { readiness: ReturnType<typeof getReadin
             <div className="flex items-center gap-2">
               <Check className="h-4 w-4 text-emerald-600" />
               <p className="text-sm font-semibold text-slate-700">
-                {passed.length} controll{passed.length === 1 ? "o" : "i"} già OK
+                {passed.length} {t("controll")}{passed.length === 1 ? "o" : "i"} {t("già OK")}
               </p>
             </div>
             <ChevronRight
@@ -5006,16 +5000,17 @@ function LaunchChecklist({ readiness }: { readiness: ReturnType<typeof getReadin
 }
 
 function CampaignTree({ state }: { state: BuilderState }) {
+  const t = useT();
   return (
     <div className="space-y-3 text-sm">
-      <TreeRow icon={Megaphone} label="Campagna" value={`${state.name} - ${objectiveLabel(state.objective)}`} />
-      <TreeRow icon={Target} label="Gruppi pubblico" value={`${state.adSets.length} gruppi: ${state.adSets.map((adSet) => `${adSet.name} (${audienceStrategyLabel(adSet.audienceStrategy)}, ${formatEuro(adSet.dailyBudget * 100)}/giorno)`).join(" · ")}`} indent />
-      <TreeRow icon={Users} label="Controlli rigidi" value={`${state.zone} + ${state.radiusKm} km, età ${state.ageMin}-${state.ageMax}, ${genderLabel(state.gender)}, lingua ${state.languages}`} indent />
-      <TreeRow icon={MousePointerClick} label="Conversione" value={`${conversionPlaceLabel(state.conversionPlace, state.platform)} - ${state.formIntent === "higher_intent" ? "maggiore intenzione" : "più volume"}`} indent />
-      <TreeRow icon={ShieldCheck} label="Modulo lead" value={`${state.requiredFields}. Domanda: ${state.qualityQuestion}`} indent />
-      <TreeRow icon={Euro} label="Budget" value={`${formatEuro(getCampaignDailyBudget(state) * 100)}/giorno con ${budgetModeLabel(state.budgetMode)}`} indent />
-      <TreeRow icon={ImageIcon} label="Annunci e creatività" value={`${state.copyVariants.length} copy + ${state.creatives.map((creative) => creativeFormatLabel(creative.format)).join(", ")}`} indent />
-      <TreeRow icon={TrendingUp} label="Regole performance" value={`CPL target ${formatEuro(state.targetCpl * 100)}, opportunità target ${state.targetOpportunityRate}%, test minimo ${state.testDurationDays} giorni`} indent />
+      <TreeRow icon={Megaphone} label={t("Campagna")} value={`${state.name} - ${objectiveLabel(state.objective)}`} />
+      <TreeRow icon={Target} label={t("Gruppi pubblico")} value={`${state.adSets.length} gruppi: ${state.adSets.map((adSet) => `${adSet.name} (${audienceStrategyLabel(adSet.audienceStrategy)}, ${formatEuro(adSet.dailyBudget * 100)}/giorno)`).join(" · ")}`} indent />
+      <TreeRow icon={Users} label={t("Controlli rigidi")} value={`${state.zone} + ${state.radiusKm} km, età ${state.ageMin}-${state.ageMax}, ${genderLabel(state.gender)}, lingua ${state.languages}`} indent />
+      <TreeRow icon={MousePointerClick} label={t("Conversione")} value={`${conversionPlaceLabel(state.conversionPlace, state.platform)} - ${state.formIntent === "higher_intent" ? t("maggiore intenzione") : t("più volume")}`} indent />
+      <TreeRow icon={ShieldCheck} label={t("Modulo lead")} value={`${state.requiredFields}. Domanda: ${state.qualityQuestion}`} indent />
+      <TreeRow icon={Euro} label={t("Budget")} value={t("{importo}/giorno con {modalita}", { importo: formatEuro(getCampaignDailyBudget(state) * 100), modalita: budgetModeLabel(state.budgetMode) })} indent />
+      <TreeRow icon={ImageIcon} label={t("Annunci e creatività")} value={`${state.copyVariants.length} copy + ${state.creatives.map((creative) => creativeFormatLabel(creative.format)).join(", ")}`} indent />
+      <TreeRow icon={TrendingUp} label={t("Regole performance")} value={t("CPL target {cpl}, opportunità target {percentuale}%, test minimo {giorni} giorni", { cpl: formatEuro(state.targetCpl * 100), percentuale: state.targetOpportunityRate, giorni: state.testDurationDays })} indent />
     </div>
   );
 }
@@ -5053,6 +5048,7 @@ function TreeRow({
  *   5. Libreria asset (filtri tipo+formato, delete)
  */
 function CreativeStudioTab({ companyId }: { companyId?: string }) {
+  const t = useT();
   // ─── Brief unificato ──────────────────────────────────────────────
   const [brief, setBrief] = useState("Serramenti premium con sopralluogo gratuito e posa certificata");
   const [segment, setSegment] = useState("serramenti");
@@ -5138,7 +5134,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
     });
     if (result) {
       setLastGeneratedImage(result);
-      toast.success("Immagine generata e salvata in libreria", {
+      toast.success(t("Immagine generata e salvata in libreria"), {
         description: `${result.width_px}×${result.height_px}px${result.cost_eur_cents ? ` · ${(result.cost_eur_cents / 100).toFixed(3)}€` : ""}`,
       });
       qc.invalidateQueries({ queryKey: ["ad-media-library", companyId] });
@@ -5163,9 +5159,9 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
       const { error } = await (supabase as any).from("ad_media").delete().eq("id", id);
       if (error) throw error;
       qc.invalidateQueries({ queryKey: ["ad-media-library", companyId] });
-      toast.success("Asset eliminato dalla libreria");
+      toast.success(t("Asset eliminato dalla libreria"));
     } catch {
-      toast.error("Errore durante l'eliminazione");
+      toast.error(t("Errore durante l'eliminazione"));
     }
   };
 
@@ -5181,34 +5177,34 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
     (lastGeneratedImage ? aspectRatio === "4:5" || aspectRatio === "9:16" : false);
   const creativeQaItems = [
     {
-      label: "Copy e hook",
+      label: t("Copy e hook"),
       ok: Boolean(generatedCopy && generatedCopy.copy_variants.length >= 5 && generatedCopy.hooks.length >= 3),
       detail: generatedCopy
-        ? `${generatedCopy.copy_variants.length} copy e ${generatedCopy.hooks.length} hook generati`
-        : "Genera copy AI prima del lancio.",
+        ? t("{n} copy e {n2} hook generati", { n: generatedCopy.copy_variants.length, n2: generatedCopy.hooks.length })
+        : t("Genera copy AI prima del lancio."),
     },
     {
-      label: "Angoli creativi",
+      label: t("Angoli creativi"),
       ok: Boolean(generatedCopy && generatedCopy.copy_variants.length >= 5),
-      detail: "Servono varianti su problema, prova, autorita, urgenza e incentivo.",
+      detail: t("Servono varianti su problema, prova, autorita, urgenza e incentivo."),
     },
     {
-      label: "Asset verticali Meta",
+      label: t("Asset verticali Meta"),
       ok: hasVerticalAsset,
-      detail: hasVerticalAsset ? "Hai almeno un asset 4:5 o 9:16." : "Aggiungi almeno un formato 4:5 o 9:16 per feed, Story e Reels.",
+      detail: hasVerticalAsset ? t("Hai almeno un asset 4:5 o 9:16.") : t("Aggiungi almeno un formato 4:5 o 9:16 per feed, Story e Reels."),
     },
     {
-      label: "Video o script",
+      label: t("Video o script"),
       ok: Boolean(generatedScript || videoAssetsCount > 0),
-      detail: generatedScript || videoAssetsCount > 0 ? "Video/script pronto per test Reels." : "Prepara almeno uno script o un video breve.",
+      detail: generatedScript || videoAssetsCount > 0 ? t("Video/script pronto per test Reels.") : t("Prepara almeno uno script o un video breve."),
     },
     {
-      label: "Google PMax",
+      label: t("Google PMax"),
       ok: imageAssetsCount >= 7 && videoAssetsCount > 0,
       detail:
         imageAssetsCount >= 7 && videoAssetsCount > 0
-          ? "Asset sufficienti per un gruppo Performance Max."
-          : `${imageAssetsCount}/7 immagini e ${videoAssetsCount}/1 video: PMax rende meglio con piu asset.`,
+          ? t("Asset sufficienti per un gruppo Performance Max.")
+          : t("{imageAssetsCount}/7 immagini e {videoAssetsCount}/1 video: PMax rende meglio con piu asset.", { imageAssetsCount: String(imageAssetsCount ?? ""), videoAssetsCount: String(videoAssetsCount ?? "") }),
     },
   ];
   const creativeQaScore = Math.round(
@@ -5236,10 +5232,10 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
   };
 
   const ASPECT_RATIOS: Array<{ value: "1:1"|"4:5"|"9:16"|"16:9"; rw: number; rh: number; label: string; sub: string }> = [
-    { value: "1:1",  rw: 20, rh: 20, label: "1:1",  sub: "Feed" },
-    { value: "4:5",  rw: 17, rh: 22, label: "4:5",  sub: "Vert." },
-    { value: "9:16", rw: 12, rh: 21, label: "9:16", sub: "Story" },
-    { value: "16:9", rw: 26, rh: 15, label: "16:9", sub: "Banner" },
+    { value: "1:1",  rw: 20, rh: 20, label: "1:1",  sub: t("Feed") },
+    { value: "4:5",  rw: 17, rh: 22, label: "4:5",  sub: t("Vert.") },
+    { value: "9:16", rw: 12, rh: 21, label: "9:16", sub: t("Story") },
+    { value: "16:9", rw: 26, rh: 15, label: "16:9", sub: t("Banner") },
   ];
 
   return (
@@ -5278,7 +5274,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
               </span>
             )}
             <p className="min-w-0 flex-1 truncate text-sm text-slate-600">
-              {brief || <span className="italic text-slate-400">Nessun brief — clicca Modifica per impostarlo</span>}
+              {brief || <span className="italic text-slate-400">{t("Nessun brief — clicca Modifica per impostarlo")}</span>}
             </p>
             <div className="flex shrink-0 items-center gap-2">
               {brief && (
@@ -5291,14 +5287,14 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                     ? <Loader2 className="h-3 w-3 animate-spin" />
                     : <Sparkles className="h-3 w-3" />
                   }
-                  Genera tutto
+                  {t("Genera tutto")}
                 </button>
               )}
               <button
                 type="button"
                 onClick={() => setIsBriefOpen(true)}
                 className="flex items-center gap-1.5 rounded-lg bg-orange-100 px-2.5 py-1 text-[11px] font-semibold text-orange-700 transition hover:bg-orange-200">
-                <Pencil className="h-3 w-3" /> Modifica brief
+                <Pencil className="h-3 w-3" /> {t("Modifica brief")}
               </button>
             </div>
           </div>
@@ -5311,11 +5307,11 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                   <FileText className="h-4 w-4 text-orange-600" />
                 </div>
                 <div>
-                  <p className="text-sm font-bold text-slate-900">Brief campagna</p>
-                  <p className="text-[11px] text-slate-500">Condiviso con Copy AI · Immagine AI · Video AI</p>
+                  <p className="text-sm font-bold text-slate-900">{t("Brief campagna")}</p>
+                  <p className="text-[11px] text-slate-500">{t("Condiviso con Copy AI · Immagine AI · Video AI")}</p>
                 </div>
                 <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-semibold text-orange-600 max-md:text-[11px]">
-                  ✦ Sincronizzato
+                  {t("✦ Sincronizzato")}
                 </span>
               </div>
               <button
@@ -5326,36 +5322,34 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
               </button>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Settore">
+              <Field label={t("Settore")}>
                 <Select value={segment} onValueChange={setSegment}>
-                  <SelectTrigger aria-label="Settore"><SelectValue /></SelectTrigger>
+                  <SelectTrigger aria-label={t("Settore")}><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="serramenti">Serramenti / Infissi</SelectItem>
-                    <SelectItem value="bagni">Ristrutturazione bagni</SelectItem>
-                    <SelectItem value="ristrutturazioni">Ristrutturazioni casa</SelectItem>
-                    <SelectItem value="fotovoltaico">Fotovoltaico</SelectItem>
-                    <SelectItem value="tetti">Tetti e facciate</SelectItem>
-                    <SelectItem value="manutenzione">Manutenzioni</SelectItem>
-                    <SelectItem value="generico">Generico edilizia</SelectItem>
+                    <SelectItem value="serramenti">{t("Serramenti / Infissi")}</SelectItem>
+                    <SelectItem value="bagni">{t("Ristrutturazione bagni")}</SelectItem>
+                    <SelectItem value="ristrutturazioni">{t("Ristrutturazioni casa")}</SelectItem>
+                    <SelectItem value="fotovoltaico">{t("Fotovoltaico")}</SelectItem>
+                    <SelectItem value="tetti">{t("Tetti e facciate")}</SelectItem>
+                    <SelectItem value="manutenzione">{t("Manutenzioni")}</SelectItem>
+                    <SelectItem value="generico">{t("Generico edilizia")}</SelectItem>
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label="Zona (opzionale)">
-                <Input aria-label="Zona (opzionale)" value={zone} onChange={(e) => setZone(e.target.value)} placeholder="Es. Monza e Brianza" />
+              <Field label={t("Zona (opzionale)")}>
+                <Input aria-label={t("Zona (opzionale)")} value={zone} onChange={(e) => setZone(e.target.value)} placeholder={t("Es. Monza e Brianza")} />
               </Field>
             </div>
             <div className="space-y-1">
               <div className="flex items-center justify-between">
-                <Label className="text-xs font-medium text-slate-700">Descrivi l'offerta e l'angolo di vendita</Label>
-                <span className={cn("text-[10px] tabular-nums", brief.length > 200 ? "text-amber-600" : "text-slate-400")}>
-                  {brief.length} car.
-                </span>
+                <Label className="text-xs font-medium text-slate-700">{t("Descrivi l'offerta e l'angolo di vendita")}</Label>
+                <span className={cn("text-[10px] tabular-nums", brief.length > 200 ? "text-amber-600" : "text-slate-400")}>{t("{n} car.", { n: brief.length })}</span>
               </div>
               <Textarea
                 value={brief}
                 onChange={(e) => setBrief(e.target.value)}
                 className="min-h-20 resize-none"
-                placeholder="Serramenti premium con sopralluogo gratuito e posa certificata..."
+                placeholder={t("Serramenti premium con sopralluogo gratuito e posa certificata...")}
               />
             </div>
             <Button
@@ -5363,8 +5357,8 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
               disabled={!brief.trim() || isGeneratingCopy || isGeneratingImage || isGeneratingScript}
               className="w-full bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 text-white shadow-sm">
               {(isGeneratingCopy || isGeneratingImage || isGeneratingScript)
-                ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generazione in corso...</>
-                : <><Sparkles className="mr-2 h-4 w-4" /> Genera tutto con AI — Copy · Immagine · Script</>
+                ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t("Generazione in corso...")}</>
+                : <><Sparkles className="mr-2 h-4 w-4" /> {t("Genera tutto con AI — Copy · Immagine · Script")}</>
               }
             </Button>
           </div>
@@ -5377,7 +5371,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
           <div className="h-px flex-1 bg-gradient-to-r from-transparent to-slate-100" />
           <div className="flex items-center gap-1.5 rounded-full border border-slate-100 bg-white px-2.5 py-1 shadow-sm">
             <span className="h-1.5 w-1.5 rounded-full bg-orange-400" />
-            <span className="text-[10px] font-medium text-slate-400 max-md:text-[11px]">Brief attivo → Copy · Immagine · Script</span>
+            <span className="text-[10px] font-medium text-slate-400 max-md:text-[11px]">{t("Brief attivo → Copy · Immagine · Script")}</span>
           </div>
           <div className="h-px flex-1 bg-gradient-to-l from-transparent to-slate-100" />
         </div>
@@ -5403,8 +5397,8 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                   <Sparkles className="h-4 w-4 text-violet-600" />
                 </div>
                 <div>
-                  <CardTitle className="text-base">Copy AI</CardTitle>
-                  <CardDescription className="text-[11px]">5 varianti · hook · CTA per Meta Ads</CardDescription>
+                  <CardTitle className="text-base">{t("Copy AI")}</CardTitle>
+                  <CardDescription className="text-[11px]">{t("5 varianti · hook · CTA per Meta Ads")}</CardDescription>
                 </div>
               </div>
               {brief ? (
@@ -5413,7 +5407,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                 </span>
               ) : (
                 <span className="shrink-0 rounded-full border border-amber-100 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-600 max-md:text-[11px]">
-                  Brief mancante
+                  {t("Brief mancante")}
                 </span>
               )}
             </div>
@@ -5421,7 +5415,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
           <CardContent className="space-y-3">
             <Button onClick={onGenerateCopy} disabled={isGeneratingCopy || !brief.trim()} className="w-full bg-violet-600 hover:bg-violet-700">
               {isGeneratingCopy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              {isGeneratingCopy ? "Generazione copy..." : "Genera 5 copy con AI"}
+              {isGeneratingCopy ? t("Generazione copy...") : t("Genera 5 copy con AI")}
             </Button>
 
             {isGeneratingCopy && (
@@ -5436,14 +5430,14 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
               <div className="rounded-xl border border-dashed border-violet-100 bg-gradient-to-b from-violet-50/60 to-transparent p-4">
                 <div className="mb-3 flex items-center gap-2">
                   <Sparkles className="h-3.5 w-3.5 text-violet-400" />
-                  <p className="text-[11px] font-semibold text-violet-700">Genererai in un click:</p>
+                  <p className="text-[11px] font-semibold text-violet-700">{t("Genererai in un click:")}</p>
                 </div>
                 <div className="space-y-2">
                   {[
-                    { icon: "✦", label: "5 varianti copy", sub: "Adatti al tuo settore e zona" },
-                    { icon: "🪝", label: "3 hook apertura", sub: "Per catturare l'attenzione nei primi 3s" },
-                    { icon: "🎯", label: "CTA suggerite", sub: "Frasi d'azione efficaci" },
-                    { icon: "🖼️", label: "Prompt immagine",  sub: "Pronti per Immagine AI" },
+                    { icon: "✦", label: t("5 varianti copy"), sub: t("Adatti al tuo settore e zona") },
+                    { icon: "🪝", label: t("3 hook apertura"), sub: t("Per catturare l'attenzione nei primi 3s") },
+                    { icon: "🎯", label: t("CTA suggerite"), sub: t("Frasi d'azione efficaci") },
+                    { icon: "🖼️", label: t("Prompt immagine"),  sub: t("Pronti per Immagine AI") },
                   ].map(({ icon, label, sub }) => (
                     <div key={label} className="flex items-center gap-2.5">
                       <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-white text-sm shadow-sm">{icon}</span>
@@ -5461,10 +5455,10 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
               <div className="space-y-3 rounded-xl border bg-slate-50/50 p-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold uppercase text-slate-500">
-                    Output AI {generatedCopy.model_used ? `· ${generatedCopy.model_used}` : ""}
+                    {t("Output AI")} {generatedCopy.model_used ? `· ${generatedCopy.model_used}` : ""}
                   </span>
                   <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] max-md:text-[11px]" onClick={onGenerateCopy} disabled={isGeneratingCopy}>
-                    <RefreshCw className="mr-1 h-3 w-3" /> Rigenera
+                    <RefreshCw className="mr-1 h-3 w-3" /> {t("Rigenera")}
                   </Button>
                 </div>
 
@@ -5472,13 +5466,11 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                 {generatedCopy.copy_variants.map((c, i) => (
                   <div key={i} className="rounded-lg border bg-white p-3 text-sm">
                     <div className="mb-1.5 flex items-center justify-between">
-                      <span className="text-xs font-semibold text-slate-500">Variante {i + 1}</span>
+                      <span className="text-xs font-semibold text-slate-500">{t("Variante {i}", { i: i + 1 })}</span>
                       <div className="flex items-center gap-1">
-                        <span className={cn("text-[10px] tabular-nums", c.length > 150 ? "text-amber-600" : "text-slate-400")}>
-                          {c.length} car.
-                        </span>
+                        <span className={cn("text-[10px] tabular-nums", c.length > 150 ? "text-amber-600" : "text-slate-400")}>{t("{n} car.", { n: c.length })}</span>
                         <Button variant="ghost" size="sm" className="h-6 w-6 p-0"
-                          onClick={() => { void navigator.clipboard?.writeText(c); toast.success("Copy copiato"); }}>
+                          onClick={() => { void navigator.clipboard?.writeText(c); toast.success(t("Copy copiato")); }}>
                           <Copy className="h-3 w-3" />
                         </Button>
                       </div>
@@ -5490,11 +5482,11 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                 {/* Hooks */}
                 {generatedCopy.hooks.length > 0 && (
                   <div>
-                    <p className="mb-1 text-xs font-semibold uppercase text-slate-500">🪝 Hook</p>
+                    <p className="mb-1 text-xs font-semibold uppercase text-slate-500">{t("🪝 Hook")}</p>
                     <div className="flex flex-wrap gap-1">
                       {generatedCopy.hooks.map((h, i) => (
                         <button key={i} type="button"
-                          onClick={() => { void navigator.clipboard?.writeText(h); toast.success("Hook copiato"); }}
+                          onClick={() => { void navigator.clipboard?.writeText(h); toast.success(t("Hook copiato")); }}
                           className="rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-700 hover:bg-violet-100">
                           {h}
                         </button>
@@ -5506,7 +5498,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                 {/* CTA */}
                 {generatedCopy.cta_suggestions?.length > 0 && (
                   <div>
-                    <p className="mb-1 text-xs font-semibold uppercase text-slate-500">🎯 CTA suggerite</p>
+                    <p className="mb-1 text-xs font-semibold uppercase text-slate-500">{t("🎯 CTA suggerite")}</p>
                     <div className="flex flex-wrap gap-1">
                       {generatedCopy.cta_suggestions.map((c, i) => (
                         <Badge key={i} variant="outline" className="border-orange-200 bg-orange-50 text-orange-700 text-[10px] max-md:text-[11px]">{c}</Badge>
@@ -5518,14 +5510,14 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                 {/* Image prompts → genera immagine */}
                 {generatedCopy.image_prompts.length > 0 && (
                   <div>
-                    <p className="mb-1 text-xs font-semibold uppercase text-slate-500">🖼️ Prompt immagine suggeriti</p>
+                    <p className="mb-1 text-xs font-semibold uppercase text-slate-500">{t("🖼️ Prompt immagine suggeriti")}</p>
                     <div className="space-y-1">
                       {generatedCopy.image_prompts.map((p, i) => (
                         <button key={i} type="button"
                           onClick={() => { setImagePrompt(p); onGenerateImage(p); }}
                           disabled={isGeneratingImage}
                           className="w-full rounded-lg border bg-white p-2 text-left text-xs hover:bg-slate-50 disabled:opacity-50">
-                          <span className="mr-1 font-semibold text-orange-600">Genera →</span>{p}
+                          <span className="mr-1 font-semibold text-orange-600">{t("Genera →")}</span>{p}
                         </button>
                       ))}
                     </div>
@@ -5536,7 +5528,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                 {generatedCopy.warnings.length > 0 && (
                   <Alert className="border-amber-200 bg-amber-50">
                     <AlertTriangle className="h-4 w-4 text-amber-700" />
-                    <AlertTitle>Compliance</AlertTitle>
+                    <AlertTitle>{t("Compliance")}</AlertTitle>
                     <AlertDescription className="text-xs">{generatedCopy.warnings.join(" · ")}</AlertDescription>
                   </Alert>
                 )}
@@ -5555,18 +5547,18 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                   <Wand2 className="h-4 w-4 text-amber-600" />
                 </div>
                 <div>
-                  <CardTitle className="text-base">Immagine AI</CardTitle>
-                  <CardDescription className="text-[11px]">DALL-E · preview inline · salvata in libreria</CardDescription>
+                  <CardTitle className="text-base">{t("Immagine AI")}</CardTitle>
+                  <CardDescription className="text-[11px]">{t("DALL-E · preview inline · salvata in libreria")}</CardDescription>
                 </div>
               </div>
               {brief && imagePrompt !== brief ? (
                 <button type="button" onClick={() => setImagePrompt(brief)}
                   className="flex shrink-0 items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 transition hover:bg-amber-100 max-md:text-[11px]">
-                  <RefreshCw className="h-2.5 w-2.5" /> Sincronizza
+                  <RefreshCw className="h-2.5 w-2.5" /> {t("Sincronizza")}
                 </button>
               ) : brief ? (
                 <span className="flex shrink-0 items-center gap-1 rounded-full border border-amber-100 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-600 max-md:text-[11px]">
-                  <Check className="h-2.5 w-2.5" /> Sincronizzato
+                  <Check className="h-2.5 w-2.5" /> {t("Sincronizzato")}
                 </span>
               ) : null}
             </div>
@@ -5574,7 +5566,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
           <CardContent className="space-y-3.5">
             {/* Aspect ratio visual picker */}
             <div>
-              <p className="mb-2 text-xs font-medium text-slate-600">Formato</p>
+              <p className="mb-2 text-xs font-medium text-slate-600">{t("Formato")}</p>
               <div className="grid grid-cols-4 gap-2">
                 {ASPECT_RATIOS.map(({ value, rw, rh, label, sub }) => (
                   <button key={value} type="button"
@@ -5604,11 +5596,11 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
 
             {/* Qualità — visual toggle */}
             <div>
-              <p className="mb-2 text-xs font-medium text-slate-600">Qualità</p>
+              <p className="mb-2 text-xs font-medium text-slate-600">{t("Qualità")}</p>
               <div className="grid grid-cols-2 gap-2">
                 {([
-                  { value: "standard", label: "Standard", price: "~0.04€", desc: "Veloce" },
-                  { value: "hd",       label: "HD",       price: "~0.07€", desc: "Più nitida" },
+                  { value: "standard", label: t("Standard"), price: "~0.04€", desc: t("Veloce") },
+                  { value: "hd",       label: "HD",       price: "~0.07€", desc: t("Più nitida") },
                 ] as const).map(({ value, label, price, desc }) => (
                   <button key={value} type="button"
                     onClick={() => setImageQuality(value)}
@@ -5631,23 +5623,23 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
             {/* Prompt visivo */}
             <div>
               <div className="mb-1.5 flex items-center justify-between">
-                <Label className="text-xs font-medium text-slate-600">Prompt visivo</Label>
+                <Label className="text-xs font-medium text-slate-600">{t("Prompt visivo")}</Label>
                 <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] text-slate-500 hover:text-amber-600 max-md:text-[11px]"
                   onClick={() => setImagePrompt(brief)}>
-                  <RefreshCw className="mr-1 h-3 w-3" /> Da brief
+                  <RefreshCw className="mr-1 h-3 w-3" /> {t("Da brief")}
                 </Button>
               </div>
               <Textarea
                 value={imagePrompt}
                 onChange={(e) => setImagePrompt(e.target.value)}
                 className="min-h-20 resize-none"
-                placeholder="Operaio che installa finestre, casa ristrutturata, luce naturale, colori caldi..."
+                placeholder={t("Operaio che installa finestre, casa ristrutturata, luce naturale, colori caldi...")}
               />
             </div>
 
             <Button onClick={() => onGenerateImage(imagePrompt)} disabled={isGeneratingImage || !imagePrompt.trim()} className="w-full bg-amber-500 hover:bg-amber-600 text-white">
               {isGeneratingImage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-              {isGeneratingImage ? "DALL-E sta dipingendo..." : "Genera immagine"}
+              {isGeneratingImage ? t("DALL-E sta dipingendo...") : t("Genera immagine")}
             </Button>
 
             {/* Preview inline dopo generazione */}
@@ -5678,13 +5670,13 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
             {isGeneratingImage && (
               <div className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-amber-200 bg-amber-50 p-6 text-sm text-amber-700">
                 <Loader2 className="h-5 w-5 animate-spin" />
-                DALL-E sta dipingendo...
+                {t("DALL-E sta dipingendo...")}
               </div>
             )}
             {lastGeneratedImage && !isGeneratingImage && (
               <div className="overflow-hidden rounded-xl border shadow-sm">
                 <div className="relative">
-                  <img loading="lazy" src={lastGeneratedImage.public_url} alt="Immagine generata" className="w-full object-cover" />
+                  <img loading="lazy" src={lastGeneratedImage.public_url} alt={t("Immagine generata")} className="w-full object-cover" />
                   <div className="absolute right-2 top-2 flex gap-1">
                     <Badge className="bg-black/60 text-white text-[10px] backdrop-blur-sm max-md:text-[11px]">
                       {lastGeneratedImage.width_px}×{lastGeneratedImage.height_px}
@@ -5693,11 +5685,11 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                   </div>
                 </div>
                 <div className="flex items-center justify-between bg-slate-50 px-3 py-2">
-                  <span className="text-[11px] text-slate-500">✅ Salvata in Libreria asset</span>
+                  <span className="text-[11px] text-slate-500">{t("✅ Salvata in Libreria asset")}</span>
                   <div className="flex gap-1">
                     <Button variant="ghost" size="sm" className="h-7 px-2 text-xs"
                       onClick={() => window.open(lastGeneratedImage.public_url, "_blank")}>
-                      Apri
+                      {t("Apri")}
                     </Button>
                     <Button variant="ghost" size="sm" className="h-7 w-7 p-0"
                       onClick={() => setLastGeneratedImage(null)}>
@@ -5722,8 +5714,8 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                 <Film className="h-4 w-4 text-rose-600" />
               </div>
               <div>
-                <CardTitle className="text-base">Video AI</CardTitle>
-                <CardDescription className="text-[11px]">Pianifica lo script e genera il video con AI.</CardDescription>
+                <CardTitle className="text-base">{t("Video AI")}</CardTitle>
+                <CardDescription className="text-[11px]">{t("Pianifica lo script e genera il video con AI.")}</CardDescription>
               </div>
             </div>
             {/* Tab switcher */}
@@ -5733,14 +5725,14 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                   "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition",
                   videoTab === "script" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-900"
                 )}>
-                <Clapperboard className="h-3.5 w-3.5" /> Script
+                <Clapperboard className="h-3.5 w-3.5" /> {t("Script")}
               </button>
               <button type="button" onClick={() => setVideoTab("studio")}
                 className={cn(
                   "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition",
                   videoTab === "studio" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-900"
                 )}>
-                <Sparkles className="h-3.5 w-3.5" /> Genera video
+                <Sparkles className="h-3.5 w-3.5" /> {t("Genera video")}
               </button>
             </div>
           </div>
@@ -5748,11 +5740,11 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
             <div className="mt-1">
               {brief ? (
                 <span className="flex w-fit items-center gap-1 rounded-full border border-rose-100 bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-600 max-md:text-[11px]">
-                  <Check className="h-2.5 w-2.5" /> {SEGMENT_LABELS[segment] ?? segment} · Brief attivo
+                  <Check className="h-2.5 w-2.5" /> {SEGMENT_LABELS[segment] ?? segment} {t("· Brief attivo")}
                 </span>
               ) : (
                 <span className="flex w-fit items-center gap-1 rounded-full border border-amber-100 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-600 max-md:text-[11px]">
-                  Brief mancante — impostalo in cima
+                  {t("Brief mancante — impostalo in cima")}
                 </span>
               )}
             </div>
@@ -5761,7 +5753,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
         <CardContent className="space-y-4">
         {videoTab === "script" && (<>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Durata">
+            <Field label={t("Durata")}>
               <div className="flex gap-2">
                 {(["15", "30", "60"] as const).map((d) => (
                   <button key={d} type="button"
@@ -5774,20 +5766,20 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                     )}>
                     {d}s
                     <span className="ml-1 text-[10px] font-normal text-slate-400 max-md:text-[11px]">
-                      {d === "15" ? "Stories" : d === "30" ? "Reels" : "Feed"}
+                      {d === "15" ? t("Stories") : d === "30" ? t("Reels") : t("Feed")}
                     </span>
                   </button>
                 ))}
               </div>
             </Field>
-            <Field label="Stile narrativo">
+            <Field label={t("Stile narrativo")}>
               <Select value={videoStyle} onValueChange={(v) => setVideoStyle(v as VideoScriptStyle)}>
-                <SelectTrigger aria-label="Stile narrativo"><SelectValue /></SelectTrigger>
+                <SelectTrigger aria-label={t("Stile narrativo")}><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="problema-soluzione">🔥 Problema → Soluzione</SelectItem>
-                  <SelectItem value="prima-dopo">✨ Prima → Dopo</SelectItem>
-                  <SelectItem value="testimonial">💬 Testimonial / Cliente</SelectItem>
-                  <SelectItem value="offerta-diretta">🎯 Offerta diretta + CTA</SelectItem>
+                  <SelectItem value="problema-soluzione">{t("🔥 Problema → Soluzione")}</SelectItem>
+                  <SelectItem value="prima-dopo">{t("✨ Prima → Dopo")}</SelectItem>
+                  <SelectItem value="testimonial">{t("💬 Testimonial / Cliente")}</SelectItem>
+                  <SelectItem value="offerta-diretta">{t("🎯 Offerta diretta + CTA")}</SelectItem>
                 </SelectContent>
               </Select>
             </Field>
@@ -5795,13 +5787,13 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
 
           {!brief && (
             <div className="rounded-xl border border-dashed border-orange-200 bg-orange-50 px-3 py-2 text-[11px] text-orange-700">
-              Inserisci il brief in cima alla pagina prima di generare lo script.
+              {t("Inserisci il brief in cima alla pagina prima di generare lo script.")}
             </div>
           )}
 
           <Button onClick={onGenerateScript} disabled={isGeneratingScript || !brief.trim()} className="w-full bg-rose-600 hover:bg-rose-700">
             {isGeneratingScript ? <Loader2 className="h-4 w-4 animate-spin" /> : <Film className="h-4 w-4" />}
-            {isGeneratingScript ? "Generazione script..." : "Genera script video AI"}
+            {isGeneratingScript ? t("Generazione script...") : t("Genera script video AI")}
           </Button>
 
           {/* Script output — timeline a scene */}
@@ -5816,13 +5808,13 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                   )}
                 </div>
                 <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] max-md:text-[11px]" onClick={onGenerateScript} disabled={isGeneratingScript}>
-                  <RefreshCw className="mr-1 h-3 w-3" /> Rigenera
+                  <RefreshCw className="mr-1 h-3 w-3" /> {t("Rigenera")}
                 </Button>
               </div>
 
               {/* Hook headline */}
               <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3">
-                <p className="mb-0.5 text-[10px] font-semibold uppercase text-rose-500 max-md:text-[11px]">🪝 Hook video</p>
+                <p className="mb-0.5 text-[10px] font-semibold uppercase text-rose-500 max-md:text-[11px]">{t("🪝 Hook video")}</p>
                 <p className="text-sm font-semibold text-rose-900">{generatedScript.hook}</p>
               </div>
 
@@ -5841,17 +5833,17 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                     </div>
                     <div className="grid gap-1.5 sm:grid-cols-2">
                       <div>
-                        <p className="mb-0.5 text-[9px] font-bold uppercase opacity-70 max-md:text-[11px]">📺 Testo overlay</p>
+                        <p className="mb-0.5 text-[9px] font-bold uppercase opacity-70 max-md:text-[11px]">{t("📺 Testo overlay")}</p>
                         <p className="text-xs font-semibold leading-snug">{scene.overlay_text}</p>
                       </div>
                       <div>
-                        <p className="mb-0.5 text-[9px] font-bold uppercase opacity-70 max-md:text-[11px]">🎤 Voiceover</p>
+                        <p className="mb-0.5 text-[9px] font-bold uppercase opacity-70 max-md:text-[11px]">{t("🎤 Voiceover")}</p>
                         <p className="text-xs leading-snug opacity-90">{scene.voiceover}</p>
                       </div>
                     </div>
                     {scene.visual_direction && (
                       <div className="mt-1.5 rounded-md border border-white/40 bg-white/30 px-2 py-1">
-                        <p className="text-[9px] font-bold uppercase opacity-60 max-md:text-[11px]">🎬 Regia</p>
+                        <p className="text-[9px] font-bold uppercase opacity-60 max-md:text-[11px]">{t("🎬 Regia")}</p>
                         <p className="text-[11px] opacity-80">{scene.visual_direction}</p>
                       </div>
                     )}
@@ -5863,11 +5855,11 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
               <div className="flex items-center gap-2 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3">
                 <ArrowRightCircle className="h-4 w-4 shrink-0 text-orange-600" />
                 <div>
-                  <p className="text-[10px] font-semibold uppercase text-orange-500 max-md:text-[11px]">CTA finale</p>
+                  <p className="text-[10px] font-semibold uppercase text-orange-500 max-md:text-[11px]">{t("CTA finale")}</p>
                   <p className="text-sm font-semibold text-orange-900">{generatedScript.cta_final}</p>
                 </div>
                 <Button variant="ghost" size="sm" className="ml-auto h-6 px-2 text-xs"
-                  onClick={() => { void navigator.clipboard?.writeText(generatedScript.cta_final); toast.success("CTA copiata"); }}>
+                  onClick={() => { void navigator.clipboard?.writeText(generatedScript.cta_final); toast.success(t("CTA copiata")); }}>
                   <Copy className="h-3 w-3" />
                 </Button>
               </div>
@@ -5886,9 +5878,9 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                     `🎯 CTA finale: ${generatedScript.cta_final}`,
                   ].join("\n");
                   void navigator.clipboard?.writeText(fullScript);
-                  toast.success("Script completo copiato negli appunti");
+                  toast.success(t("Script completo copiato negli appunti"));
                 }}>
-                <Copy className="mr-2 h-3.5 w-3.5" /> Copia script completo
+                <Copy className="mr-2 h-3.5 w-3.5" /> {t("Copia script completo")}
               </Button>
             </div>
           )}
@@ -5916,11 +5908,11 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                 <ImageIcon className="h-4 w-4 text-slate-600" />
               </div>
               <div>
-                <CardTitle className="text-base">Libreria asset</CardTitle>
+                <CardTitle className="text-base">{t("Libreria asset")}</CardTitle>
                 <CardDescription className="text-[11px]">
                   {mediaLib.length === 0
-                    ? "Nessun asset ancora · genera o carica"
-                    : `${mediaLib.length} asset · ${mediaLib.filter(m => m.source === "ai_generated").length} AI · ${mediaLib.filter(m => m.source === "upload").length} upload`}
+                    ? t("Nessun asset ancora · genera o carica")
+                    : t("{n} asset · {n2} AI · {n3} upload", { n: mediaLib.length, n2: mediaLib.filter(m => m.source === "ai_generated").length, n3: mediaLib.filter(m => m.source === "upload").length })}
                 </CardDescription>
               </div>
             </div>
@@ -5935,7 +5927,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                       "rounded-md px-2 py-1 text-[11px] font-medium transition",
                       mediaKindFilter === k ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-100"
                     )}>
-                    {k === "all" ? "Tutti" : k === "image" ? "🖼️ Img" : "🎬 Video"}
+                    {k === "all" ? t("Tutti") : k === "image" ? t("🖼️ Img") : t("🎬 Video")}
                   </button>
                 ))}
               </div>
@@ -5947,7 +5939,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                       "rounded-md px-2 py-1 text-[11px] font-medium transition",
                       mediaFormatFilter === f ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-100"
                     )}>
-                    {f === "all" ? "Tutti" : f}
+                    {f === "all" ? t("Tutti") : f}
                   </button>
                 ))}
               </div>
@@ -5960,14 +5952,14 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
             <AdMediaUploader
               companyId={companyId}
               onUploaded={(media) => {
-                toast.success("Immagine salvata in libreria", { description: media.public_url ? "Pronta da usare nelle campagne." : undefined });
+                toast.success(t("Immagine salvata in libreria"), { description: media.public_url ? t("Pronta da usare nelle campagne.") : undefined });
                 qc.invalidateQueries({ queryKey: ["ad-media-library", companyId] });
               }}
             />
             <AdVideoUploader
               companyId={companyId}
               onUploaded={(media) => {
-                toast.success("Video salvato in libreria", { description: media.public_url ? "Pronto da usare nelle campagne." : undefined });
+                toast.success(t("Video salvato in libreria"), { description: media.public_url ? t("Pronto da usare nelle campagne.") : undefined });
                 qc.invalidateQueries({ queryKey: ["ad-media-library", companyId] });
               }}
             />
@@ -5976,15 +5968,15 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
           {mediaLib.length === 0 ? (
             <div className="rounded-xl border border-dashed bg-slate-50 p-10 text-center">
               <ImageIcon className="mx-auto mb-2 h-6 w-6 text-slate-400" />
-              <p className="text-sm font-semibold text-slate-700">Libreria vuota</p>
+              <p className="text-sm font-semibold text-slate-700">{t("Libreria vuota")}</p>
               <p className="mt-1 text-xs text-slate-500">
-                Genera un'immagine AI o carica un video per iniziare.
+                {t("Genera un'immagine AI o carica un video per iniziare.")}
               </p>
             </div>
           ) : filteredMedia.length === 0 ? (
             <div className="rounded-xl border border-dashed bg-slate-50 p-8 text-center">
               <Filter className="mx-auto mb-2 h-5 w-5 text-slate-400" />
-              <p className="text-sm font-medium text-slate-500">Nessun asset con questi filtri.</p>
+              <p className="text-sm font-medium text-slate-500">{t("Nessun asset con questi filtri.")}</p>
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -6029,7 +6021,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                                 <ArrowRightCircle className="h-3.5 w-3.5 text-slate-700" />
                               </button>
                             </TooltipTrigger>
-                            <TooltipContent>Apri originale</TooltipContent>
+                            <TooltipContent>{t("Apri originale")}</TooltipContent>
                           </Tooltip>
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -6039,7 +6031,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                                 <Trash2 className="h-3.5 w-3.5 text-red-500" />
                               </button>
                             </TooltipTrigger>
-                            <TooltipContent>Elimina</TooltipContent>
+                            <TooltipContent>{t("Elimina")}</TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
                       </div>
@@ -6052,7 +6044,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                             m.source === "ai_generated"
                               ? "border-violet-200 bg-violet-50 text-violet-700"
                               : "border-slate-200 bg-slate-50 text-slate-600")}>
-                          {m.source === "ai_generated" ? "✨ AI" : "⬆️ Upload"}
+                          {m.source === "ai_generated" ? t("✨ AI") : t("⬆️ Upload")}
                         </Badge>
                         <Badge variant="outline"
                           className={cn("text-[9px]",
@@ -6091,6 +6083,7 @@ function CreativeQaPanel({
   imageAssetsCount: number;
   videoAssetsCount: number;
 }) {
+  const t = useT();
   const missing = items.filter((item) => !item.ok);
   const scoreTone =
     score >= 80
@@ -6106,22 +6099,18 @@ function CreativeQaPanel({
           <div>
             <CardTitle className="flex items-center gap-2 text-base">
               <ShieldCheck className="h-4 w-4 text-emerald-600" />
-              QA creativo advertiser
+              {t("QA creativo advertiser")}
             </CardTitle>
             <CardDescription className="text-xs">
-              Controllo finale per evitare campagne con pochi angoli, asset incompleti o formati deboli.
+              {t("Controllo finale per evitare campagne con pochi angoli, asset incompleti o formati deboli.")}
             </CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline" className={cn("font-semibold", scoreTone)}>
               {score}/100
             </Badge>
-            <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
-              {imageAssetsCount} immagini
-            </Badge>
-            <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700">
-              {videoAssetsCount} video
-            </Badge>
+            <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">{t("{imageAssetsCount} immagini", { imageAssetsCount: String(imageAssetsCount ?? "") })}</Badge>
+            <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700">{t("{videoAssetsCount} video", { videoAssetsCount: String(videoAssetsCount ?? "") })}</Badge>
           </div>
         </div>
       </CardHeader>
@@ -6150,9 +6139,9 @@ function CreativeQaPanel({
         {missing.length > 0 && (
           <Alert className="border-amber-200 bg-amber-50">
             <AlertTriangle className="h-4 w-4 text-amber-700" />
-            <AlertTitle className="text-sm">Ultimi gap creativi</AlertTitle>
+            <AlertTitle className="text-sm">{t("Ultimi gap creativi")}</AlertTitle>
             <AlertDescription className="text-xs">
-              {missing.map((item) => item.label).join(", ")}. Prima del live conviene chiudere questi punti o tenere budget basso in test.
+              {missing.map((item) => item.label).join(", ")}{t(". Prima del live conviene chiudere questi punti o tenere budget basso in test.")}
             </AlertDescription>
           </Alert>
         )}
@@ -6187,6 +6176,7 @@ type CopyGenResult = {
 };
 
 function AudiencesTab({ onUseInWizard }: { onUseInWizard?: () => void }) {
+  const t = useT();
   const audiences = [
     {
       step: 1,
@@ -6265,16 +6255,16 @@ function AudiencesTab({ onUseInWizard }: { onUseInWizard?: () => void }) {
       {/* ─── Come funziona concretamente ──────────────────────────── */}
       <Card className="border-slate-200 bg-white">
         <CardContent className="pt-5 pb-5">
-          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Come funziona nel sistema</p>
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t("Come funziona nel sistema")}</p>
           <p className="mb-4 text-base font-semibold text-slate-900">
-            I pubblici qui sotto sono configurazioni pronte da usare nel wizard campagne.
+            {t("I pubblici qui sotto sono configurazioni pronte da usare nel wizard campagne.")}
           </p>
           {/* 3 passi concreti */}
           <div className="grid gap-3 sm:grid-cols-3">
             {[
-              { n: "1", icon: "👆", title: "Scegli il pubblico", body: "Usa la scheda qui sotto che corrisponde alla tua fase." },
-              { n: "2", icon: "🧙", title: "Clicca Crea campagna", body: "Il wizard si apre. Freddo + Retargeting sono già pre-impostati." },
-              { n: "3", icon: "🎯", title: "Meta gestisce il targeting", body: "Nel passo Gruppi trovi la strategia già selezionata e personalizzabile." },
+              { n: "1", icon: "👆", title: t("Scegli il pubblico"), body: t("Usa la scheda qui sotto che corrisponde alla tua fase.") },
+              { n: "2", icon: "🧙", title: t("Clicca Crea campagna"), body: t("Il wizard si apre. Freddo + Retargeting sono già pre-impostati.") },
+              { n: "3", icon: "🎯", title: t("Meta gestisce il targeting"), body: t("Nel passo Gruppi trovi la strategia già selezionata e personalizzabile.") },
             ].map((s) => (
               <div key={s.n} className="flex gap-3 rounded-xl border border-slate-100 bg-slate-50/60 p-3">
                 <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-200 text-[11px] font-bold text-slate-700">{s.n}</div>
@@ -6287,10 +6277,10 @@ function AudiencesTab({ onUseInWizard }: { onUseInWizard?: () => void }) {
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px]">
             <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 font-semibold text-emerald-700">
-              <Check className="h-3 w-3" /> Freddo + Retargeting: automatici in ogni nuova campagna
+              <Check className="h-3 w-3" /> {t("Freddo + Retargeting: automatici in ogni nuova campagna")}
             </span>
             <span className="flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-600">
-              + Manuale + Lookalike: si aggiungono manualmente
+              {t("+ Manuale + Lookalike: si aggiungono manualmente")}
             </span>
           </div>
         </CardContent>
@@ -6298,32 +6288,32 @@ function AudiencesTab({ onUseInWizard }: { onUseInWizard?: () => void }) {
 
       <Card className="border-slate-200 bg-white">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Meta e Google: pubblici diversi</CardTitle>
+          <CardTitle className="text-base">{t("Meta e Google: pubblici diversi")}</CardTitle>
           <CardDescription>
-            Meta lavora meglio con segnali larghi e creatività; Google deve partire da intenzione, keyword, località e conversioni CRM.
+            {t("Meta lavora meglio con segnali larghi e creatività; Google deve partire da intenzione, keyword, località e conversioni CRM.")}
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 lg:grid-cols-2">
           <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-4">
             <div className="mb-3 flex items-center gap-2">
               <Users className="h-4 w-4 text-blue-700" />
-              <p className="text-sm font-semibold text-blue-950">Meta: audience signals</p>
+              <p className="text-sm font-semibold text-blue-950">{t("Meta: audience signals")}</p>
             </div>
             <div className="grid gap-2 text-xs text-slate-700">
-              <p><strong>Base:</strong> Advantage+ Audience con zona, lingua ed esclusioni business.</p>
-              <p><strong>Segmenti:</strong> retargeting, engagement, visitatori sito, lead CRM non chiusi.</p>
-              <p><strong>Decisione:</strong> scala solo se CPL, qualita lead e risposta commerciale restano sani.</p>
+              <p><strong>{t("Base:")}</strong> {t("Advantage+ Audience con zona, lingua ed esclusioni business.")}</p>
+              <p><strong>{t("Segmenti:")}</strong> {t("retargeting, engagement, visitatori sito, lead CRM non chiusi.")}</p>
+              <p><strong>{t("Decisione:")}</strong> {t("scala solo se CPL, qualita lead e risposta commerciale restano sani.")}</p>
             </div>
           </div>
           <div className="rounded-xl border border-amber-100 bg-amber-50/40 p-4">
             <div className="mb-3 flex items-center gap-2">
               <Search className="h-4 w-4 text-amber-700" />
-              <p className="text-sm font-semibold text-amber-950">Google: intento, keyword e segnali</p>
+              <p className="text-sm font-semibold text-amber-950">{t("Google: intento, keyword e segnali")}</p>
             </div>
             <div className="grid gap-2 text-xs text-slate-700">
-              <p><strong>Search:</strong> gruppi keyword per servizio, match type controllati e negative keyword.</p>
-              <p><strong>PMax:</strong> audience signals da clienti migliori, lead qualificati e zone servibili.</p>
-              <p><strong>Conversioni:</strong> importa appuntamento fissato, vendita vinta e valore commessa dal CRM.</p>
+              <p><strong>{t("Search:")}</strong> {t("gruppi keyword per servizio, match type controllati e negative keyword.")}</p>
+              <p><strong>{t("PMax:")}</strong> {t("audience signals da clienti migliori, lead qualificati e zone servibili.")}</p>
+              <p><strong>{t("Conversioni:")}</strong> {t("importa appuntamento fissato, vendita vinta e valore commessa dal CRM.")}</p>
             </div>
           </div>
         </CardContent>
@@ -6343,7 +6333,7 @@ function AudiencesTab({ onUseInWizard }: { onUseInWizard?: () => void }) {
                     <div className="flex flex-wrap items-center gap-2">
                       <CardTitle className="text-base">{audience.name}</CardTitle>
                       {audience.recommended && (
-                        <Badge className="bg-blue-600 text-white text-[10px] max-md:text-[11px]">⭐ Inizia qui</Badge>
+                        <Badge className="bg-blue-600 text-white text-[10px] max-md:text-[11px]">{t("⭐ Inizia qui")}</Badge>
                       )}
                     </div>
                     <p className="mt-0.5 text-xs text-slate-500">{audience.use}</p>
@@ -6353,25 +6343,25 @@ function AudiencesTab({ onUseInWizard }: { onUseInWizard?: () => void }) {
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <div className="grid grid-cols-2 gap-2">
-                <MiniStat label="Località" value={audience.zone} />
-                <MiniStat label="Età" value={audience.age} />
+                <MiniStat label={t("Località")} value={audience.zone} />
+                <MiniStat label={t("Età")} value={audience.age} />
               </div>
               <div className="rounded-lg bg-white/70 p-3">
-                <p className="text-[11px] text-slate-500">Segnali / interessi</p>
+                <p className="text-[11px] text-slate-500">{t("Segnali / interessi")}</p>
                 <p className="mt-0.5 text-xs font-medium text-slate-900">{audience.signals}</p>
               </div>
               <div className="rounded-lg bg-amber-50 p-2.5">
-                <p className="text-[11px] text-amber-700">Escludi</p>
+                <p className="text-[11px] text-amber-700">{t("Escludi")}</p>
                 <p className="mt-0.5 text-xs font-medium text-amber-900">{audience.excludes}</p>
               </div>
 
               {/* ─── NEL WIZARD ─────────────────────────────────── */}
               <div className={cn("rounded-xl border p-3 space-y-1.5", audience.color.wizard)}>
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-[10px] font-bold uppercase tracking-wide opacity-70 max-md:text-[11px]">Nel wizard</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wide opacity-70 max-md:text-[11px]">{t("Nel wizard")}</p>
                   {audience.wizardAuto
-                    ? <span className="flex items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-semibold max-md:text-[11px]"><Check className="h-2.5 w-2.5" /> Automatico</span>
-                    : <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-semibold max-md:text-[11px]">+ Manuale</span>
+                    ? <span className="flex items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-semibold max-md:text-[11px]"><Check className="h-2.5 w-2.5" /> {t("Automatico")}</span>
+                    : <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-semibold max-md:text-[11px]">{t("+ Manuale")}</span>
                   }
                 </div>
                 <p className="text-[11px] font-medium leading-snug">{audience.wizardNote}</p>
@@ -6383,7 +6373,7 @@ function AudiencesTab({ onUseInWizard }: { onUseInWizard?: () => void }) {
 
               <div className="flex items-center gap-1.5 rounded-lg border border-dashed border-current/20 bg-white/50 px-3 py-2 text-[11px] text-slate-500">
                 <Info className="h-3.5 w-3.5 shrink-0" />
-                <span>Quando: <strong className="text-slate-700">{audience.when}</strong></span>
+                <span>{t("Quando:")} <strong className="text-slate-700">{audience.when}</strong></span>
               </div>
 
               <Button
@@ -6392,10 +6382,10 @@ function AudiencesTab({ onUseInWizard }: { onUseInWizard?: () => void }) {
                   try { sessionStorage.setItem("audiencePreset", audience.strategy); } catch { /* ignore */ }
                   if (onUseInWizard) {
                     onUseInWizard();
-                    toast.success(`Pubblico "${audience.name}" pronto`, {
+                    toast.success(t("Pubblico \"{name}\" pronto", { name: String(audience.name ?? "") }), {
                       description: audience.wizardAuto
-                        ? "Il wizard si apre con questo pubblico già configurato nel gruppo annunci."
-                        : "Nel wizard: aggiungi un nuovo gruppo e scegli questa strategia.",
+                        ? t("Il wizard si apre con questo pubblico già configurato nel gruppo annunci.")
+                        : t("Nel wizard: aggiungi un nuovo gruppo e scegli questa strategia."),
                     });
                   }
                 }}
@@ -6437,6 +6427,7 @@ function CampaignDetailEditor({
   onEditFull: () => void;
   onCreateVariant?: (variantState: BuilderState) => Promise<void>;
 }) {
+  const t = useT();
   const [abTestOpen, setAbTestOpen] = useState(false);
   const baseState = draft.builderState ?? DEFAULT_BUILDER;
   const [state, setState] = useState<BuilderState>(baseState);
@@ -6447,7 +6438,7 @@ function CampaignDetailEditor({
 
   const save = () => {
     onUpdate(state);
-    toast.success("Modifiche salvate", { description: `${state.name} aggiornata.` });
+    toast.success(t("Modifiche salvate"), { description: t("{name} aggiornata.", { name: String(state.name ?? "") }) });
   };
 
   const resetChanges = () => setState(baseState);
@@ -6542,17 +6533,17 @@ function CampaignDetailEditor({
         <div className="sticky top-4 z-20 flex flex-col gap-3 rounded-2xl border-2 border-orange-300 bg-orange-50 p-3 shadow-md sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2 text-sm">
             <AlertTriangle className="h-4 w-4 text-orange-600" />
-            <span className="font-semibold text-orange-900">Modifiche non salvate</span>
-            <span className="text-orange-700">— ricordati di salvare prima di uscire.</span>
+            <span className="font-semibold text-orange-900">{t("Modifiche non salvate")}</span>
+            <span className="text-orange-700">{t("— ricordati di salvare prima di uscire.")}</span>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={resetChanges}>
               <X className="h-4 w-4" />
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button size="sm" onClick={save}>
               <Check className="h-4 w-4" />
-              Salva modifiche
+              {t("Salva modifiche")}
             </Button>
           </div>
         </div>
@@ -6564,29 +6555,29 @@ function CampaignDetailEditor({
           <KpiItem
             icon={BadgeEuro}
             tone="blue"
-            label="Budget/giorno"
+            label={t("Budget/giorno")}
             value={formatEuro(getCampaignDailyBudget(state) * 100)}
             detail={budgetModeLabel(state.budgetMode)}
           />
           <KpiItem
             icon={Target}
             tone="orange"
-            label="CPL target"
+            label={t("CPL target")}
             value={state.targetCpl ? formatEuro(state.targetCpl * 100) : "—"}
             detail={`Opp target ${state.targetOpportunityRate}%`}
           />
           <KpiItem
             icon={Users}
             tone="violet"
-            label="Ad Set"
+            label={t("Ad Set")}
             value={String(state.adSets.length)}
-            detail={`${state.creatives.length} creatività · ${getAdMatrixSize(state)} ads matrice`}
+            detail={t("{n} creatività · {annunci} ads matrice", { n: state.creatives.length, annunci: getAdMatrixSize(state) })}
           />
           {/* Prontezza con tono verde (score positivo) — coerente con readiness banner */}
           <KpiItem
             icon={ShieldCheck}
             tone="green"
-            label="Prontezza"
+            label={t("Prontezza")}
             value={`${readiness.score}/100`}
             detail={`${readiness.passed}/${readiness.total} controlli OK`}
           />
@@ -6602,13 +6593,13 @@ function CampaignDetailEditor({
             className="border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100"
           >
             <Sparkles className="h-4 w-4" />
-            Crea variante A/B
+            {t("Crea variante A/B")}
           </Button>
         )}
         {dirty && (
           <Button onClick={save}>
             <Check className="h-4 w-4" />
-            Salva modifiche
+            {t("Salva modifiche")}
           </Button>
         )}
       </div>
@@ -6635,8 +6626,8 @@ function CampaignDetailEditor({
             variantState.copyBrief = `[A/B TEST — variabile: ${variable}] ${description}\n\n${variantState.copyBrief}`;
             await onCreateVariant(variantState);
             setAbTestOpen(false);
-            toast.success("Variante A/B creata", {
-              description: `${variant_name} è ora in bozza. Personalizza la variabile testata.`,
+            toast.success(t("Variante A/B creata"), {
+              description: t("{variant_name} è ora in bozza. Personalizza la variabile testata.", { variant_name: String(variant_name ?? "") }),
             });
           }}
         />
@@ -6648,16 +6639,16 @@ function CampaignDetailEditor({
           <TabsList className="inline-flex w-auto min-w-full px-4 sm:grid sm:px-0 sm:max-w-2xl sm:grid-cols-5">
             <TabsTrigger value="panoramica" className="gap-2 whitespace-nowrap">
               <FileText className="h-4 w-4" />
-              <span className="hidden xs:inline sm:inline">Campagna</span>
-              <span className="xs:hidden sm:hidden">Camp.</span>
+              <span className="hidden xs:inline sm:inline">{t("Campagna")}</span>
+              <span className="xs:hidden sm:hidden">{t("Camp.")}</span>
             </TabsTrigger>
             <TabsTrigger value="adsets" className="gap-2 whitespace-nowrap">
               <Target className="h-4 w-4" />
-              Ad Set ({state.adSets.length})
+              {t("Ad Set (")}{state.adSets.length})
             </TabsTrigger>
             <TabsTrigger value="ads" className="gap-2 whitespace-nowrap">
               <ImageIcon className="h-4 w-4" />
-              Ads ({state.creatives.length})
+              {t("Ads (")}{state.creatives.length})
             </TabsTrigger>
             <TabsTrigger value="leads" className="gap-2 whitespace-nowrap">
               <Users className="h-4 w-4" />
@@ -6665,8 +6656,8 @@ function CampaignDetailEditor({
             </TabsTrigger>
             <TabsTrigger value="performance" className="gap-2 whitespace-nowrap">
               <TrendingUp className="h-4 w-4" />
-              <span className="hidden xs:inline">Performance</span>
-              <span className="xs:hidden">Perf.</span>
+              <span className="hidden xs:inline">{t("Performance")}</span>
+              <span className="xs:hidden">{t("Perf.")}</span>
             </TabsTrigger>
           </TabsList>
         </div>
@@ -6676,43 +6667,43 @@ function CampaignDetailEditor({
           <div className="grid gap-5 xl:grid-cols-[1fr_360px]">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Configurazione campagna</CardTitle>
+                <CardTitle className="text-lg">{t("Configurazione campagna")}</CardTitle>
                 <CardDescription>
-                  Nome, obiettivo, offerta, budget. Per cambiare il template di partenza usa il wizard completo.
+                  {t("Nome, obiettivo, offerta, budget. Per cambiare il template di partenza usa il wizard completo.")}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid gap-4 md:grid-cols-2">
-                  <Field label="Nome campagna">
-                    <Input aria-label="Nome campagna" value={state.name} onChange={(e) => update("name", e.target.value)} />
+                  <Field label={t("Nome campagna")}>
+                    <Input aria-label={t("Nome campagna")} value={state.name} onChange={(e) => update("name", e.target.value)} />
                   </Field>
-                  <Field label="Obiettivo">
+                  <Field label={t("Obiettivo")}>
                     <Select value={state.objective} onValueChange={(v) => update("objective", v)}>
-                      <SelectTrigger aria-label="Obiettivo">
+                      <SelectTrigger aria-label={t("Obiettivo")}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="OUTCOME_LEADS">Richieste preventivo</SelectItem>
-                        <SelectItem value="OUTCOME_TRAFFIC">Visite al sito</SelectItem>
-                        <SelectItem value="OUTCOME_AWARENESS">Farti conoscere</SelectItem>
-                        <SelectItem value="OUTCOME_ENGAGEMENT">Messaggi e interazioni</SelectItem>
+                        <SelectItem value="OUTCOME_LEADS">{t("Richieste preventivo")}</SelectItem>
+                        <SelectItem value="OUTCOME_TRAFFIC">{t("Visite al sito")}</SelectItem>
+                        <SelectItem value="OUTCOME_AWARENESS">{t("Farti conoscere")}</SelectItem>
+                        <SelectItem value="OUTCOME_ENGAGEMENT">{t("Messaggi e interazioni")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </Field>
                 </div>
-                <Field label="Offerta / motivo per lasciare il contatto">
-                  <Textarea aria-label="Offerta / motivo per lasciare il contatto"
+                <Field label={t("Offerta / motivo per lasciare il contatto")}>
+                  <Textarea aria-label={t("Offerta / motivo per lasciare il contatto")}
                     value={state.offer}
                     onChange={(e) => update("offer", e.target.value)}
                     className="min-h-20"
                   />
                 </Field>
                 <div className="grid gap-4 md:grid-cols-3">
-                  <Field label="Zona">
-                    <Input aria-label="Zona" value={state.zone} onChange={(e) => update("zone", e.target.value)} />
+                  <Field label={t("Zona")}>
+                    <Input aria-label={t("Zona")} value={state.zone} onChange={(e) => update("zone", e.target.value)} />
                   </Field>
-                  <Field label="Raggio km">
-                    <Input aria-label="Raggio km"
+                  <Field label={t("Raggio km")}>
+                    <Input aria-label={t("Raggio km")}
                       type="number"
                       min={1}
                       max={80}
@@ -6720,8 +6711,8 @@ function CampaignDetailEditor({
                       onChange={(e) => update("radiusKm", Number(e.target.value || 0))}
                     />
                   </Field>
-                  <Field label="Budget campagna (€/giorno)">
-                    <Input aria-label="Budget campagna (€/giorno)"
+                  <Field label={t("Budget campagna (€/giorno)")}>
+                    <Input aria-label={t("Budget campagna (€/giorno)")}
                       type="number"
                       min={5}
                       max={500}
@@ -6731,36 +6722,36 @@ function CampaignDetailEditor({
                   </Field>
                 </div>
                 <div className="grid gap-4 md:grid-cols-2">
-                  <Field label="Privacy URL">
-                    <Input aria-label="Privacy URL"
+                  <Field label={t("Privacy URL")}>
+                    <Input aria-label={t("Privacy URL")}
                       value={state.privacyUrl}
                       onChange={(e) => update("privacyUrl", e.target.value)}
                       placeholder="https://..."
                     />
                   </Field>
-                  <Field label="Landing URL">
-                    <Input aria-label="Landing URL"
+                  <Field label={t("Landing URL")}>
+                    <Input aria-label={t("Landing URL")}
                       value={state.landingUrl}
                       onChange={(e) => update("landingUrl", e.target.value)}
                       placeholder="https://..."
                     />
                   </Field>
                 </div>
-                <Field label="Campi modulo lead">
-                  <Textarea aria-label="Campi modulo lead"
+                <Field label={t("Campi modulo lead")}>
+                  <Textarea aria-label={t("Campi modulo lead")}
                     value={state.requiredFields}
                     onChange={(e) => update("requiredFields", e.target.value)}
                     className="min-h-20"
                   />
                 </Field>
-                <Field label="Domanda di qualificazione">
-                  <Input aria-label="Domanda di qualificazione"
+                <Field label={t("Domanda di qualificazione")}>
+                  <Input aria-label={t("Domanda di qualificazione")}
                     value={state.qualityQuestion}
                     onChange={(e) => update("qualityQuestion", e.target.value)}
                   />
                 </Field>
-                <Field label="Follow-up dopo il lead">
-                  <Textarea aria-label="Follow-up dopo il lead"
+                <Field label={t("Follow-up dopo il lead")}>
+                  <Textarea aria-label={t("Follow-up dopo il lead")}
                     value={state.followUp}
                     onChange={(e) => update("followUp", e.target.value)}
                     className="min-h-20"
@@ -6771,7 +6762,7 @@ function CampaignDetailEditor({
 
             <Card className="h-fit xl:sticky xl:top-20">
               <CardHeader>
-                <CardTitle className="text-base">Anteprima esperienza cliente</CardTitle>
+                <CardTitle className="text-base">{t("Anteprima esperienza cliente")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
@@ -6781,7 +6772,7 @@ function CampaignDetailEditor({
                     </div>
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold">{companyName}</p>
-                      <p className="text-xs text-slate-500">Sponsorizzato</p>
+                      <p className="text-xs text-slate-500">{t("Sponsorizzato")}</p>
                     </div>
                   </div>
                   <div className="p-3">
@@ -6792,7 +6783,7 @@ function CampaignDetailEditor({
                   <div className="flex aspect-[4/3] items-center justify-center bg-gradient-to-br from-slate-800 to-orange-500 text-white">
                     <div className="text-center">
                       <ImageIcon className="mx-auto mb-2 h-8 w-8" />
-                      <p className="text-sm font-semibold">Creatività AI</p>
+                      <p className="text-sm font-semibold">{t("Creatività AI")}</p>
                     </div>
                   </div>
                   <div className="flex items-center justify-between border-t p-3">
@@ -6801,7 +6792,7 @@ function CampaignDetailEditor({
                       <p className="text-xs text-slate-500">{objectiveLabel(state.objective)}</p>
                     </div>
                     <Button size="sm" variant="secondary">
-                      Richiedi preventivo
+                      {t("Richiedi preventivo")}
                     </Button>
                   </div>
                 </div>
@@ -6816,14 +6807,14 @@ function CampaignDetailEditor({
             <CardHeader>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <CardTitle className="text-lg">Ad Set / Gruppi pubblico</CardTitle>
+                  <CardTitle className="text-lg">{t("Ad Set / Gruppi pubblico")}</CardTitle>
                   <CardDescription>
-                    Ogni ad set è un pubblico testato separatamente. Mantieni 2-4 ad set per leggibilità dei risultati.
+                    {t("Ogni ad set è un pubblico testato separatamente. Mantieni 2-4 ad set per leggibilità dei risultati.")}
                   </CardDescription>
                 </div>
                 <Button onClick={addAdSet}>
                   <Plus className="h-4 w-4" />
-                  Nuovo ad set
+                  {t("Nuovo ad set")}
                 </Button>
               </div>
             </CardHeader>
@@ -6844,14 +6835,14 @@ function CampaignDetailEditor({
           <div className="space-y-5">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Copy varianti</CardTitle>
+                <CardTitle className="text-lg">{t("Copy varianti")}</CardTitle>
                 <CardDescription>
-                  Ogni variante diventa un annuncio separato. Mantieni almeno 3 varianti per testare angoli diversi.
+                  {t("Ogni variante diventa un annuncio separato. Mantieni almeno 3 varianti per testare angoli diversi.")}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {state.copyVariants.map((copy, index) => (
-                  <Field key={`copy-${index}`} label={`Copy ${index + 1}`}>
+                  <Field key={`copy-${index}`} label={t("Copy {index}", { index: index + 1 })}>
                     <Textarea
                       value={copy}
                       onChange={(e) => {
@@ -6873,7 +6864,7 @@ function CampaignDetailEditor({
                     }}
                   >
                     <Plus className="h-4 w-4" />
-                    Aggiungi variante
+                    {t("Aggiungi variante")}
                   </Button>
                   <Button
                     variant="outline"
@@ -6892,7 +6883,7 @@ function CampaignDetailEditor({
                         const cost = aiResult.cost_eur_cents
                           ? ` (${(aiResult.cost_eur_cents / 100).toFixed(3)}€)`
                           : "";
-                        toast.success(`Copy rigenerati con AI${cost}`);
+                        toast.success(t("Copy rigenerati con AI{cost}", { cost: String(cost ?? "") }));
                       } else {
                         // Fallback locale
                         update("copyVariants", buildCopyVariants(state));
@@ -6904,7 +6895,7 @@ function CampaignDetailEditor({
                     ) : (
                       <Sparkles className="h-4 w-4" />
                     )}
-                    {isGeneratingCopy ? "AI in elaborazione..." : "Rigenera con AI"}
+                    {isGeneratingCopy ? t("AI in elaborazione...") : t("Rigenera con AI")}
                   </Button>
                 </div>
               </CardContent>
@@ -6912,9 +6903,9 @@ function CampaignDetailEditor({
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Creatività</CardTitle>
+                <CardTitle className="text-lg">{t("Creatività")}</CardTitle>
                 <CardDescription>
-                  Mix di formati per capire cosa fa il lead più qualificato.
+                  {t("Mix di formati per capire cosa fa il lead più qualificato.")}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -6925,8 +6916,8 @@ function CampaignDetailEditor({
                   onUpdate={updateCreative}
                 />
                 <div className="mt-4">
-                  <Field label="Prompt immagine principale">
-                    <Textarea aria-label="Prompt immagine principale"
+                  <Field label={t("Prompt immagine principale")}>
+                    <Textarea aria-label={t("Prompt immagine principale")}
                       value={state.imagePrompt}
                       onChange={(e) => update("imagePrompt", e.target.value)}
                       className="min-h-24"
@@ -6998,6 +6989,7 @@ function SettingsTab({
   companyId?: string;
   pixelConfig: MetaConversionPixelRow | null | undefined;
 }) {
+  const t = useT();
   /**
    * La lista di controllo contiene solo cose che il sistema sa verificare.
    *
@@ -7017,26 +7009,26 @@ function SettingsTab({
 
   const setupBlocks = [
     {
-      title: "Facebook e Instagram",
+      title: t("Facebook e Instagram"),
       icon: "🔗",
-      body: "Account, pagina e misurazione: servono per pubblicare.",
+      body: t("Account, pagina e misurazione: servono per pubblicare."),
       items: [
-        { label: "Account Meta collegato", ok: meta.integration?.status === "connected", detail: meta.integration?.status === "connected" ? "collegato" : "non collegato", action: { label: "Collega", href: "/azienda/impostazioni/lead-forms" } },
-        { label: "Conto pubblicitario scelto", ok: meta.selectedAdAccounts.length === 1, detail: meta.selectedAdAccounts[0]?.asset_name ?? (meta.adAccounts.length === 0 ? "nessun conto trovato" : `${meta.adAccounts.length} conti, scegline uno`), action: meta.adAccounts.length === 0 ? { label: "Crea su Meta", href: "https://www.facebook.com/adsmanager/", external: true } : { label: "Scegli", href: "/azienda/impostazioni/lead-forms" } },
-        { label: "Pagina Facebook", ok: meta.pages.length > 0, detail: meta.pages.length > 0 ? `${meta.pages.length} ${meta.pages.length === 1 ? "pagina disponibile" : "pagine disponibili"}` : "nessuna pagina collegata", action: meta.pages.length === 0 ? { label: "Collega pagina", href: "/azienda/impostazioni/lead-forms" } : null },
+        { label: t("Account Meta collegato"), ok: meta.integration?.status === "connected", detail: meta.integration?.status === "connected" ? t("collegato") : t("non collegato"), action: { label: t("Collega"), href: "/azienda/impostazioni/lead-forms" } },
+        { label: t("Conto pubblicitario scelto"), ok: meta.selectedAdAccounts.length === 1, detail: meta.selectedAdAccounts[0]?.asset_name ?? (meta.adAccounts.length === 0 ? t("nessun conto trovato") : t("{n} conti, scegline uno", { n: meta.adAccounts.length })), action: meta.adAccounts.length === 0 ? { label: t("Crea su Meta"), href: "https://www.facebook.com/adsmanager/", external: true } : { label: t("Scegli"), href: "/azienda/impostazioni/lead-forms" } },
+        { label: t("Pagina Facebook"), ok: meta.pages.length > 0, detail: meta.pages.length > 0 ? `${meta.pages.length} ${meta.pages.length === 1 ? "pagina disponibile" : "pagine disponibili"}` : t("nessuna pagina collegata"), action: meta.pages.length === 0 ? { label: t("Collega pagina"), href: "/azienda/impostazioni/lead-forms" } : null },
         // Fuori dal punteggio: con il modulo dentro Facebook la conversione la
         // registra Meta e il Pixel non serve. Serve quando la campagna porta
         // sul sito, perché lì la conversione avviene fuori da Facebook.
         {
-          label: "Pixel attivo",
+          label: t("Pixel attivo"),
           ok: pixelMesso && pixelProvato,
           opzionale: true,
           detail: !pixelMesso
-            ? "serve solo per le campagne che portano al tuo sito"
+            ? t("serve solo per le campagne che portano al tuo sito")
             : pixelProvato
-              ? "eventi in arrivo"
-              : "configurato, mai testato",
-          action: { label: "Configura", href: "?tab=impostazioni#pixel-config" },
+              ? t("eventi in arrivo")
+              : t("configurato, mai testato"),
+          action: { label: t("Configura"), href: "?tab=impostazioni#pixel-config" },
         },
       ],
     },
@@ -7045,10 +7037,10 @@ function SettingsTab({
           {
             title: "Google",
             icon: "G",
-            body: "Facoltativo: Facebook e Instagram bastano per partire.",
+            body: t("Facoltativo: Facebook e Instagram bastano per partire."),
             items: [
-              { label: "Account Google Ads collegato", ok: google.integration?.status === "connected", detail: google.integration?.status === "connected" ? "collegato" : "non collegato", action: { label: "Configura", href: "/azienda/impostazioni/integrazioni" } },
-              { label: "Numero cliente scelto", ok: google.accounts.length > 0, detail: google.selectedAccount?.customer_id ?? "nessun account", action: google.accounts.length === 0 ? { label: "Configura", href: "/azienda/impostazioni/integrazioni" } : null },
+              { label: t("Account Google Ads collegato"), ok: google.integration?.status === "connected", detail: google.integration?.status === "connected" ? t("collegato") : t("non collegato"), action: { label: t("Configura"), href: "/azienda/impostazioni/integrazioni" } },
+              { label: t("Numero cliente scelto"), ok: google.accounts.length > 0, detail: google.selectedAccount?.customer_id ?? t("nessun account"), action: google.accounts.length === 0 ? { label: t("Configura"), href: "/azienda/impostazioni/integrazioni" } : null },
             ],
           },
         ]
@@ -7058,9 +7050,9 @@ function SettingsTab({
   // Suggerimenti che il sistema non può spuntare da solo: restano fuori dal
   // contatore, così il punteggio può davvero arrivare a fondo.
   const consigli = [
-    { label: "Rispondi entro 5 minuti", detail: "Un messaggio WhatsApp automatico appena arriva la richiesta.", href: "/azienda/automazioni" },
-    { label: "Email di recupero", detail: "Per chi non risponde alla prima chiamata.", href: "/azienda/automazioni" },
-    { label: "Prova il modulo", detail: "Compila tu stesso il modulo prima di mandare online la campagna.", href: null },
+    { label: t("Rispondi entro 5 minuti"), detail: t("Un messaggio WhatsApp automatico appena arriva la richiesta."), href: "/azienda/automazioni" },
+    { label: t("Email di recupero"), detail: t("Per chi non risponde alla prima chiamata."), href: "/azienda/automazioni" },
+    { label: t("Prova il modulo"), detail: t("Compila tu stesso il modulo prima di mandare online la campagna."), href: null },
   ];
 
   // Il punteggio conta solo quello che impedisce di pubblicare.
@@ -7088,15 +7080,15 @@ function SettingsTab({
             <div>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <ShieldCheck className="h-5 w-5 text-slate-600" />
-                Cosa manca per pubblicare
+                {t("Cosa manca per pubblicare")}
               </CardTitle>
               <CardDescription>
-                Quando questi passaggi sono tutti verdi puoi mandare online una campagna.
+                {t("Quando questi passaggi sono tutti verdi puoi mandare online una campagna.")}
               </CardDescription>
             </div>
             <div className="text-right">
               <p className="text-2xl font-bold text-slate-900">{doneCount}<span className="text-sm font-normal text-slate-400">/{totalCount}</span></p>
-              <p className="text-[11px] text-slate-500">passaggi completati</p>
+              <p className="text-[11px] text-slate-500">{t("passaggi completati")}</p>
             </div>
           </div>
           {/* Progress bar */}
@@ -7109,16 +7101,16 @@ function SettingsTab({
           <div className="mt-2 flex flex-wrap gap-2">
             <Button size="sm" asChild>
               <Link to="/azienda/impostazioni/lead-forms">
-                Configura Meta <ArrowRight className="ml-1 h-3 w-3" />
+                {t("Configura Meta")} <ArrowRight className="ml-1 h-3 w-3" />
               </Link>
             </Button>
             <Button size="sm" variant="outline" asChild>
               <Link to="/azienda/impostazioni/integrazioni">
-                Configura Google Ads <ArrowRight className="ml-1 h-3 w-3" />
+                {t("Configura Google Ads")} <ArrowRight className="ml-1 h-3 w-3" />
               </Link>
             </Button>
-            <Button size="sm" variant="outline" onClick={() => toast.info("Checklist pre-lancio disponibile nella revisione della bozza")}>
-              Checklist pre-lancio
+            <Button size="sm" variant="outline" onClick={() => toast.info(t("Checklist pre-lancio disponibile nella revisione della bozza"))}>
+              {t("Checklist pre-lancio")}
             </Button>
           </div>
         </CardHeader>
@@ -7169,7 +7161,7 @@ function SettingsTab({
                                   : "border-amber-200 bg-amber-50 text-amber-700",
                             )}
                           >
-                            {item.ok ? "✓ OK" : "opzionale" in item && item.opzionale ? "Facoltativo" : "Da fare"}
+                            {item.ok ? t("✓ OK") : "opzionale" in item && item.opzionale ? t("Facoltativo") : t("Da fare")}
                           </Badge>
                         </div>
                       </div>
@@ -7181,9 +7173,9 @@ function SettingsTab({
           </div>
 
           <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-            <p className="text-sm font-semibold text-slate-900">Consigliati, ma non obbligatori</p>
+            <p className="text-sm font-semibold text-slate-900">{t("Consigliati, ma non obbligatori")}</p>
             <p className="mt-0.5 text-xs text-slate-500">
-              Non li possiamo spuntare noi: dipendono da come lavori tu.
+              {t("Non li possiamo spuntare noi: dipendono da come lavori tu.")}
             </p>
             <ul className="mt-3 space-y-2">
               {consigli.map((c) => (
@@ -7192,7 +7184,7 @@ function SettingsTab({
                   <span className="text-slate-600">{c.detail}</span>
                   {c.href && (
                     <Link to={c.href} className="font-semibold text-orange-700 underline underline-offset-2">
-                      Imposta
+                      {t("Imposta")}
                     </Link>
                   )}
                 </li>
@@ -7235,6 +7227,7 @@ function LeadsListPanel({
   metaCampaignId?: string | null;
   googleCampaignId?: string | null;
 }) {
+  const t = useT();
   const { leads, isLoading, count } = useCampaignLeads({
     companyId,
     platform,
@@ -7249,7 +7242,7 @@ function LeadsListPanel({
       <Card>
         <CardContent className="flex items-center justify-center gap-3 py-10 text-sm text-slate-500">
           <Loader2 className="h-4 w-4 animate-spin" />
-          Caricamento lead...
+          {t("Caricamento lead...")}
         </CardContent>
       </Card>
     );
@@ -7262,14 +7255,12 @@ function LeadsListPanel({
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
             <Users className="h-6 w-6" />
           </div>
-          <p className="text-lg font-bold text-slate-950">Nessun lead arrivato</p>
-          <p className="max-w-md text-sm text-slate-600">
-            Quando i lead {providerName} entreranno nel CRM li vedrai qui. Tieni d'occhio anche il CRM principale, dove sono raggruppati per source.
-          </p>
+          <p className="text-lg font-bold text-slate-950">{t("Nessun lead arrivato")}</p>
+          <p className="max-w-md text-sm text-slate-600">{t("Quando i lead {providerName} entreranno nel CRM li vedrai qui. Tieni d'occhio anche il CRM principale, dove sono raggruppati per source.", { providerName: String(providerName ?? "") })}</p>
           <Button variant="outline" asChild size="sm">
             <Link to="/azienda/clienti">
               <ArrowRight className="h-3 w-3" />
-              Vai al CRM clienti
+              {t("Vai al CRM clienti")}
             </Link>
           </Button>
         </CardContent>
@@ -7282,14 +7273,12 @@ function LeadsListPanel({
       <CardHeader className="pb-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <CardTitle className="text-base">{count} lead arrivati (ultimi 90 giorni)</CardTitle>
-            <CardDescription>
-              Lead attribuiti a {providerName} e letti dal CRM aziendale.
-            </CardDescription>
+            <CardTitle className="text-base">{t("{count} lead arrivati (ultimi 90 giorni)", { count: String(count ?? "") })}</CardTitle>
+            <CardDescription>{t("Lead attribuiti a {providerName} e letti dal CRM aziendale.", { providerName: String(providerName ?? "") })}</CardDescription>
           </div>
           <Button variant="outline" size="sm" asChild>
             <Link to="/azienda/clienti">
-              Apri CRM completo
+              {t("Apri CRM completo")}
               <ArrowRight className="ml-1 h-3 w-3" />
             </Link>
           </Button>
@@ -7300,13 +7289,13 @@ function LeadsListPanel({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Telefono</TableHead>
+                <TableHead>{t("Nome")}</TableHead>
+                <TableHead>{t("Telefono")}</TableHead>
                 <TableHead>Email</TableHead>
-                <TableHead>Città</TableHead>
-                <TableHead>Stato</TableHead>
-                <TableHead>Data arrivo</TableHead>
-                <TableHead className="text-right">Azioni</TableHead>
+                <TableHead>{t("Città")}</TableHead>
+                <TableHead>{t("Stato")}</TableHead>
+                <TableHead>{t("Data arrivo")}</TableHead>
+                <TableHead className="text-right">{t("Azioni")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -7318,11 +7307,11 @@ function LeadsListPanel({
                   <TableCell>{lead.city ?? "—"}</TableCell>
                   <TableCell>
                     <Badge variant="outline" className="border-blue-200 bg-blue-50 text-[10px] text-blue-700 max-md:text-[11px]">
-                      {lead.status ?? "nuovo"}
+                      {lead.status ?? t("nuovo")}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-xs text-slate-600">
-                    {new Date(lead.created_at).toLocaleDateString("it-IT", {
+                    {new Date(lead.created_at).toLocaleDateString(intlCampo(), {
                       day: "2-digit",
                       month: "short",
                     })}
@@ -7341,7 +7330,7 @@ function LeadsListPanel({
         </div>
         {leads.length > 50 && (
           <p className="mt-3 text-xs text-slate-500">
-            Mostrati i primi 50 lead. Apri il CRM per vederli tutti.
+            {t("Mostrati i primi 50 lead. Apri il CRM per vederli tutti.")}
           </p>
         )}
       </CardContent>
@@ -7389,6 +7378,7 @@ function GoogleCampaignPerformancePanel({
   campaignName: string;
   googleCampaignId?: string | null;
 }) {
+  const t = useT();
   const { campaigns, isLoading, refetch } = useGoogleAdsStats();
   const row = useMemo(() => {
     const terms = [googleCampaignId, campaignName].map(normalizeLookup).filter((term) => term.length >= 3);
@@ -7404,14 +7394,14 @@ function GoogleCampaignPerformancePanel({
       <CardHeader className="pb-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <CardTitle className="text-base">Performance Google Ads</CardTitle>
+            <CardTitle className="text-base">{t("Performance Google Ads")}</CardTitle>
             <CardDescription>
-              Dati importati da google_ads_stats. Il fatturato resta calcolato dal CRM nel pannello sopra.
+              {t("Dati importati da google_ads_stats. Il fatturato resta calcolato dal CRM nel pannello sopra.")}
             </CardDescription>
           </div>
           <Button variant="outline" size="sm" onClick={refetch}>
             <RefreshCw className={cn("h-3.5 w-3.5", isLoading && "animate-spin")} />
-            Aggiorna
+            {t("Aggiorna")}
           </Button>
         </div>
       </CardHeader>
@@ -7419,23 +7409,23 @@ function GoogleCampaignPerformancePanel({
         {isLoading ? (
           <div className="flex items-center gap-2 rounded-lg border bg-white p-3 text-sm text-slate-500">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Caricamento Google Ads stats...
+            {t("Caricamento Google Ads stats...")}
           </div>
         ) : !row ? (
           <div className="rounded-xl border border-dashed bg-slate-50 p-6 text-center">
             <Search className="mx-auto mb-2 h-6 w-6 text-slate-400" />
-            <p className="text-sm font-semibold text-slate-700">Nessuna statistica Google collegata</p>
+            <p className="text-sm font-semibold text-slate-700">{t("Nessuna statistica Google collegata")}</p>
             <p className="mt-1 text-xs text-slate-500">
-              Sincronizza Google Ads o importa la campagna con stesso nome/ID per leggere impressioni, click e spesa.
+              {t("Sincronizza Google Ads o importa la campagna con stesso nome/ID per leggere impressioni, click e spesa.")}
             </p>
           </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            <MiniMetric label="Spesa" value={formatEuro(Math.round(row.spend * 100))} />
-            <MiniMetric label="Impressioni" value={row.impressions.toLocaleString("it-IT")} />
-            <MiniMetric label="Click" value={row.clicks.toLocaleString("it-IT")} />
+            <MiniMetric label={t("Spesa")} value={formatEuro(Math.round(row.spend * 100))} />
+            <MiniMetric label={t("Impressioni")} value={row.impressions.toLocaleString(intlCampo())} />
+            <MiniMetric label={t("Click")} value={row.clicks.toLocaleString(intlCampo())} />
             <MiniMetric label="CTR" value={`${row.ctr.toFixed(2)}%`} />
-            <MiniMetric label="Conversioni" value={row.conversions.toLocaleString("it-IT")} />
+            <MiniMetric label={t("Conversioni")} value={row.conversions.toLocaleString(intlCampo())} />
           </div>
         )}
       </CardContent>
@@ -7465,6 +7455,7 @@ function MiniMetric({ label, value }: { label: string; value: string }) {
  * Salvataggio: hook useAdSpendGuard con fallback localStorage se schema non applicato.
  */
 function SpendGuardCard({ companyId }: { companyId?: string }) {
+  const t = useT();
   const { config, isLoading, update, isUpdating } = useAdSpendGuard(companyId);
   const [draft, setDraft] = useState<AdSpendGuardConfig>(config);
   const [dirty, setDirty] = useState(false);
@@ -7505,10 +7496,10 @@ function SpendGuardCard({ companyId }: { companyId?: string }) {
           <div>
             <CardTitle className="flex items-center gap-2 text-lg">
               <ShieldCheck className="h-5 w-5 text-emerald-600" />
-              Spend Guard
+              {t("Spend Guard")}
             </CardTitle>
             <CardDescription>
-              Cap di spesa anti-spreco. Il sistema mette in pausa le campagne se superano i limiti.
+              {t("Cap di spesa anti-spreco. Il sistema mette in pausa le campagne se superano i limiti.")}
             </CardDescription>
           </div>
           <Badge
@@ -7519,7 +7510,7 @@ function SpendGuardCard({ companyId }: { companyId?: string }) {
                 : "border-slate-200 bg-white text-slate-500"
             }
           >
-            {draft.is_active ? "Attivo" : "Disattivato"}
+            {draft.is_active ? t("Attivo") : t("Disattivato")}
           </Badge>
         </div>
       </CardHeader>
@@ -7527,44 +7518,44 @@ function SpendGuardCard({ companyId }: { companyId?: string }) {
         {isLoading && (
           <div className="flex items-center gap-2 text-xs text-slate-500">
             <Loader2 className="h-3 w-3 animate-spin" />
-            Caricamento configurazione...
+            {t("Caricamento configurazione...")}
           </div>
         )}
 
         <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Cap mensile (€)">
+          <Field label={t("Cap mensile (€)")}>
             <div className="flex items-center gap-2">
-              <Input aria-label="Cap mensile (€)"
+              <Input aria-label={t("Cap mensile (€)")}
                 type="number"
                 min={0}
                 step={50}
                 value={draft.monthly_cap_cents / 100}
                 onChange={(e) => set("monthly_cap_cents", Math.max(0, Number(e.target.value || 0)) * 100)}
               />
-              <span className="whitespace-nowrap text-sm text-slate-500">€/mese</span>
+              <span className="whitespace-nowrap text-sm text-slate-500">{t("€/mese")}</span>
             </div>
             <p className="mt-1 text-[11px] text-slate-500">
-              Quando le campagne sommano questo importo, vengono messe in pausa.
+              {t("Quando le campagne sommano questo importo, vengono messe in pausa.")}
             </p>
           </Field>
-          <Field label="Cap giornaliero (€)">
+          <Field label={t("Cap giornaliero (€)")}>
             <div className="flex items-center gap-2">
-              <Input aria-label="Cap giornaliero (€)"
+              <Input aria-label={t("Cap giornaliero (€)")}
                 type="number"
                 min={0}
                 step={10}
                 value={draft.daily_cap_cents / 100}
                 onChange={(e) => set("daily_cap_cents", Math.max(0, Number(e.target.value || 0)) * 100)}
               />
-              <span className="whitespace-nowrap text-sm text-slate-500">€/giorno</span>
+              <span className="whitespace-nowrap text-sm text-slate-500">{t("€/giorno")}</span>
             </div>
             <p className="mt-1 text-[11px] text-slate-500">
-              Limite di spesa totale per giornata (somma di tutte le campagne).
+              {t("Limite di spesa totale per giornata (somma di tutte le campagne).")}
             </p>
           </Field>
-          <Field label="Soglia approvazione per campagna (€/giorno)">
+          <Field label={t("Soglia approvazione per campagna (€/giorno)")}>
             <div className="flex items-center gap-2">
-              <Input aria-label="Soglia approvazione per campagna (€/giorno)"
+              <Input aria-label={t("Soglia approvazione per campagna (€/giorno)")}
                 type="number"
                 min={0}
                 step={5}
@@ -7576,58 +7567,57 @@ function SpendGuardCard({ companyId }: { companyId?: string }) {
               <span className="whitespace-nowrap text-sm text-slate-500">€/g</span>
             </div>
             <p className="mt-1 text-[11px] text-slate-500">
-              Sopra questa cifra la campagna va mandata in revisione e approvata dal titolare prima di andare online.
-              Metti 0 per togliere il passaggio. Di partenza sono 30 €/giorno.
+              {t("Sopra questa cifra la campagna va mandata in revisione e approvata dal titolare prima di andare online. Metti 0 per togliere il passaggio. Di partenza sono 30 €/giorno.")}
             </p>
           </Field>
-          <Field label="Soglia alert (%)">
+          <Field label={t("Soglia alert (%)")}>
             <div className="flex items-center gap-2">
-              <Input aria-label="Soglia alert (%)"
+              <Input aria-label={t("Soglia alert (%)")}
                 type="number"
                 min={0}
                 max={100}
                 value={draft.alert_threshold_pct}
                 onChange={(e) => set("alert_threshold_pct", Math.max(0, Math.min(100, Number(e.target.value || 0))))}
               />
-              <span className="whitespace-nowrap text-sm text-slate-500">% del cap</span>
+              <span className="whitespace-nowrap text-sm text-slate-500">{t("% del cap")}</span>
             </div>
             <p className="mt-1 text-[11px] text-slate-500">
-              Email automatica quando la spesa raggiunge questa % del cap mensile.
+              {t("Email automatica quando la spesa raggiunge questa % del cap mensile.")}
             </p>
           </Field>
         </div>
 
         <div className="grid gap-3 rounded-xl border bg-white p-3 md:grid-cols-2">
           <ToggleRow
-            label="Auto-pausa se supera cap giornaliero"
-            description="Mette in pausa tutte le campagne attive."
+            label={t("Auto-pausa se supera cap giornaliero")}
+            description={t("Mette in pausa tutte le campagne attive.")}
             checked={draft.autopause_on_daily_cap}
             onChange={(v) => set("autopause_on_daily_cap", v)}
           />
           <ToggleRow
-            label="Auto-pausa se supera cap mensile"
-            description="Le campagne ripartono al primo del mese se riattivate."
+            label={t("Auto-pausa se supera cap mensile")}
+            description={t("Le campagne ripartono al primo del mese se riattivate.")}
             checked={draft.autopause_on_monthly_cap}
             onChange={(v) => set("autopause_on_monthly_cap", v)}
           />
         </div>
 
-        <Field label="Email per alert (opzionale)">
-          <Input aria-label="Email per alert (opzionale)"
+        <Field label={t("Email per alert (opzionale)")}>
+          <Input aria-label={t("Email per alert (opzionale)")}
             type="email"
             value={draft.alert_email ?? ""}
             onChange={(e) => set("alert_email", e.target.value || null)}
-            placeholder="Default: email del titolare azienda"
+            placeholder={t("Default: email del titolare azienda")}
           />
         </Field>
 
         {config.last_autopause_at && (
           <Alert className="border-amber-200 bg-amber-50">
             <AlertTriangle className="h-4 w-4 text-amber-700" />
-            <AlertTitle className="text-sm">Ultima auto-pausa</AlertTitle>
+            <AlertTitle className="text-sm">{t("Ultima auto-pausa")}</AlertTitle>
             <AlertDescription className="text-xs">
-              {new Date(config.last_autopause_at).toLocaleString("it-IT")} —{" "}
-              {config.last_autopause_reason ?? "motivo non specificato"}
+              {new Date(config.last_autopause_at).toLocaleString(intlCampo())} —{" "}
+              {config.last_autopause_reason ?? t("motivo non specificato")}
             </AlertDescription>
           </Alert>
         )}
@@ -7635,11 +7625,11 @@ function SpendGuardCard({ companyId }: { companyId?: string }) {
         {dirty && (
           <div className="flex flex-wrap justify-end gap-2 border-t pt-3">
             <Button variant="outline" size="sm" onClick={reset} disabled={isUpdating}>
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button size="sm" onClick={save} disabled={isUpdating}>
               {isUpdating && <Loader2 className="h-3 w-3 animate-spin" />}
-              Salva modifiche
+              {t("Salva modifiche")}
             </Button>
           </div>
         )}
@@ -7699,6 +7689,7 @@ function ToggleRow({
  */
 /** Pixel Wizard — 4 step guidati per configurare Meta Pixel + CAPI. */
 function PixelConfigCard({ companyId, integrationId }: { companyId?: string; integrationId?: string }) {
+  const t = useT();
   const { config, isLoading, save, isSaving } = useMetaPixelConfig(companyId);
   // I Pixel già presenti sul conto pubblicitario. Copiare a mano sedici cifre
   // da Gestione Inserzioni era il passaggio dove la configurazione si fermava.
@@ -7727,7 +7718,7 @@ function PixelConfigCard({ companyId, integrationId }: { companyId?: string; int
 
   const cercaPixel = async () => {
     if (!companyId || !integrationId) {
-      toast.error("Collega prima l'account Meta");
+      toast.error(t("Collega prima l'account Meta"));
       return;
     }
     setCercandoPixel(true);
@@ -7742,18 +7733,18 @@ function PixelConfigCard({ companyId, integrationId }: { companyId?: string; int
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       if (data?.needs_account) {
-        toast.error("Scegli prima il conto pubblicitario");
+        toast.error(t("Scegli prima il conto pubblicitario"));
         return;
       }
       setPixelTrovati(data?.pixels ?? []);
       setRicercaFatta(true);
       if ((data?.pixels ?? []).length === 0) {
-        toast.info("Nessun Pixel sul conto pubblicitario", {
-          description: "Creane uno in Gestione Inserzioni, oppure inseriscilo a mano qui sotto.",
+        toast.info(t("Nessun Pixel sul conto pubblicitario"), {
+          description: t("Creane uno in Gestione Inserzioni, oppure inseriscilo a mano qui sotto."),
         });
       }
     } catch (e) {
-      toast.error("Non sono riuscito a leggere i Pixel", {
+      toast.error(t("Non sono riuscito a leggere i Pixel"), {
         description: e instanceof Error ? e.message : String(e),
       });
     } finally {
@@ -7780,8 +7771,8 @@ function PixelConfigCard({ companyId, integrationId }: { companyId?: string; int
       setWizardOpen(false);
       setWizardStep(0);
     } catch (e) {
-      toast.error("Errore salvataggio Pixel", {
-        description: (e instanceof Error ? e.message : null) ?? "Riprova o controlla la connessione.",
+      toast.error(t("Errore salvataggio Pixel"), {
+        description: (e instanceof Error ? e.message : null) ?? t("Riprova o controlla la connessione."),
       });
     }
   };
@@ -7794,7 +7785,7 @@ function PixelConfigCard({ companyId, integrationId }: { companyId?: string; int
     if (!companyId) return;
     const code = testEventCode.trim();
     if (!code) {
-      toast.error("Inserisci il test_event_code (Events Manager → Eventi di test)");
+      toast.error(t("Inserisci il test_event_code (Events Manager → Eventi di test)"));
       return;
     }
     setTestSending(true);
@@ -7826,7 +7817,7 @@ function PixelConfigCard({ companyId, integrationId }: { companyId?: string; int
         throw new Error(data?.detail ?? data?.error ?? "Invio non riuscito");
       }
     } catch (e) {
-      toast.error("Test CAPI fallito", {
+      toast.error(t("Test CAPI fallito"), {
         description: e instanceof Error ? e.message : String(e),
       });
     } finally {
@@ -7842,40 +7833,40 @@ function PixelConfigCard({ companyId, integrationId }: { companyId?: string; int
     action: "pixel_id" | "capi_token" | null;
   }> = [
     {
-      title: "Dove si trova il Pixel ID",
-      description: "Apri Meta Business Manager e segui questi passaggi:",
+      title: t("Dove si trova il Pixel ID"),
+      description: t("Apri Meta Business Manager e segui questi passaggi:"),
       guide: [
-        { step: "1", text: "Vai su business.facebook.com" },
-        { step: "2", text: "Menu → Origini dati → Pixel" },
-        { step: "3", text: "Seleziona il tuo Pixel e copia l'ID numerico" },
-        { step: "4", text: "L'ID è composto da 15-16 cifre (es. 1234567890123456)" },
+        { step: "1", text: t("Vai su business.facebook.com") },
+        { step: "2", text: t("Menu → Origini dati → Pixel") },
+        { step: "3", text: t("Seleziona il tuo Pixel e copia l'ID numerico") },
+        { step: "4", text: t("L'ID è composto da 15-16 cifre (es. 1234567890123456)") },
       ],
       visual: "📊 Meta Business Manager\n└── Origini dati\n    └── Pixel\n        └── 🔢 ID: 1234567890123456",
       action: null,
     },
     {
-      title: "Inserisci il Pixel ID",
-      description: "Incolla l'ID numerico del tuo Pixel Meta:",
+      title: t("Inserisci il Pixel ID"),
+      description: t("Incolla l'ID numerico del tuo Pixel Meta:"),
       guide: [],
       visual: null,
       action: "pixel_id",
     },
     {
-      title: "Genera il CAPI token",
-      description: "Il token CAPI permette l'attribuzione server-side dei lead:",
+      title: t("Genera il CAPI token"),
+      description: t("Il token CAPI permette l'attribuzione server-side dei lead:"),
       guide: [
-        { step: "1", text: "Vai su business.facebook.com/events_manager" },
-        { step: "2", text: "Seleziona il tuo Pixel" },
-        { step: "3", text: "Tab Impostazioni → sezione Conversions API" },
-        { step: "4", text: "Clicca 'Genera token di accesso'" },
-        { step: "5", text: "Copia il token generato (inizia con EAA...)" },
+        { step: "1", text: t("Vai su business.facebook.com/events_manager") },
+        { step: "2", text: t("Seleziona il tuo Pixel") },
+        { step: "3", text: t("Tab Impostazioni → sezione Conversions API") },
+        { step: "4", text: t("Clicca 'Genera token di accesso'") },
+        { step: "5", text: t("Copia il token generato (inizia con EAA...)") },
       ],
       visual: "📡 Events Manager\n└── Il tuo Pixel\n    └── Impostazioni\n        └── Conversions API\n            └── 🔑 Genera token",
       action: null,
     },
     {
-      title: "Inserisci il CAPI token",
-      description: "Incolla il token — verrà cifrato e mai esposto:",
+      title: t("Inserisci il CAPI token"),
+      description: t("Incolla il token — verrà cifrato e mai esposto:"),
       guide: [],
       visual: null,
       action: "capi_token",
@@ -7892,21 +7883,21 @@ function PixelConfigCard({ companyId, integrationId }: { companyId?: string; int
           <div>
             <CardTitle className="flex items-center gap-2 text-lg">
               <ShieldCheck className="h-5 w-5 text-orange-600" />
-              Pixel Meta + Conversions API
+              {t("Pixel Meta + Conversions API")}
             </CardTitle>
             <CardDescription>
-              Attribuzione server-side: i lead/commesse vengono inviati a Meta tramite CAPI per ottimizzazione campagne.
+              {t("Attribuzione server-side: i lead/commesse vengono inviati a Meta tramite CAPI per ottimizzazione campagne.")}
             </CardDescription>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {hasConfig && (
               <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
-                <Check className="mr-1 h-3 w-3" /> Configurato
+                <Check className="mr-1 h-3 w-3" /> {t("Configurato")}
               </Badge>
             )}
             <Button size="sm" variant="outline" className="gap-1.5 text-xs"
               onClick={() => { setWizardOpen((v) => !v); setWizardStep(0); }}>
-              {hasConfig ? "✏️ Modifica" : "🧙 Configura guidato"}
+              {hasConfig ? t("✏️ Modifica") : t("🧙 Configura guidato")}
             </Button>
           </div>
         </div>
@@ -7915,7 +7906,7 @@ function PixelConfigCard({ companyId, integrationId }: { companyId?: string; int
       <CardContent className="space-y-4">
         {isLoading && (
           <div className="flex items-center gap-2 text-xs text-slate-500">
-            <Loader2 className="h-3 w-3 animate-spin" /> Caricamento...
+            <Loader2 className="h-3 w-3 animate-spin" /> {t("Caricamento...")}
           </div>
         )}
 
@@ -7923,51 +7914,49 @@ function PixelConfigCard({ companyId, integrationId }: { companyId?: string; int
         {hasConfig && !wizardOpen && (
           <div className="rounded-xl border bg-white p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Salute eventi</p>
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{t("Salute eventi")}</p>
               <span className={cn("rounded-full px-2.5 py-0.5 text-[11px] font-bold",
                 eventQuality === null ? "bg-slate-100 text-slate-500"
                   : eventQuality >= 7 ? "bg-emerald-100 text-emerald-700"
                   : eventQuality >= 5 ? "bg-amber-100 text-amber-700"
                   : "bg-red-100 text-red-700")}>
-                {eventQuality !== null ? `⚡ ${eventQuality.toFixed(1)}/10 Match Quality` : "Nessun dato"}
+                {eventQuality !== null ? t("⚡ {eventQuality}/10 Match Quality", { eventQuality: eventQuality.toFixed(1) }) : t("Nessun dato")}
               </span>
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="rounded-lg bg-slate-50 p-2.5">
-                <p className="text-[10px] text-slate-400 max-md:text-[11px]">Pixel ID</p>
+                <p className="text-[10px] text-slate-400 max-md:text-[11px]">{t("Pixel ID")}</p>
                 <p className="font-mono text-sm font-semibold text-slate-800">{config?.pixel_id}</p>
               </div>
               <div className="rounded-lg bg-slate-50 p-2.5">
-                <p className="text-[10px] text-slate-400 max-md:text-[11px]">Ultimo evento</p>
+                <p className="text-[10px] text-slate-400 max-md:text-[11px]">{t("Ultimo evento")}</p>
                 <p className="text-sm font-semibold text-slate-800">
-                  {config?.last_event_at ? new Date(config.last_event_at).toLocaleString("it-IT", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}
+                  {config?.last_event_at ? new Date(config.last_event_at).toLocaleString(intlCampo(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}
                 </p>
               </div>
               <div className="rounded-lg bg-slate-50 p-2.5">
-                <p className="text-[10px] text-slate-400 max-md:text-[11px]">Eventi 7gg</p>
+                <p className="text-[10px] text-slate-400 max-md:text-[11px]">{t("Eventi 7gg")}</p>
                 <p className="text-sm font-semibold text-slate-800">{config?.events_last_7d ?? 0}</p>
               </div>
             </div>
             {eventQuality !== null && eventQuality < 6 && (
               <Alert className="border-amber-200 bg-amber-50">
                 <AlertTriangle className="h-4 w-4 text-amber-700" />
-                <AlertDescription className="text-xs">
-                  Match Quality basso ({eventQuality.toFixed(1)}/10). Assicurati di inviare email + telefono hashati negli eventi.
-                </AlertDescription>
+                <AlertDescription className="text-xs">{t("Match Quality basso ({eventQuality}/10). Assicurati di inviare email + telefono hashati negli eventi.", { eventQuality: eventQuality.toFixed(1) })}</AlertDescription>
               </Alert>
             )}
 
             {/* Invia evento di test → verifica in Events Manager senza inquinare i dati reali */}
             <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 space-y-2">
-              <p className="text-xs font-bold text-slate-700">🧪 Invia evento di test</p>
+              <p className="text-xs font-bold text-slate-700">{t("🧪 Invia evento di test")}</p>
               <p className="text-[11px] leading-relaxed text-slate-500">
-                Copia il <b>test_event_code</b> da Events Manager → scheda <b>Eventi di test</b>, poi invia un evento <b>Lead</b> di prova: comparirà lì in pochi secondi, senza toccare le metriche reali.
+                {t("Copia il")} <b>test_event_code</b> {t("da Events Manager → scheda")} <b>{t("Eventi di test")}</b>{t(", poi invia un evento")} <b>Lead</b> {t("di prova: comparirà lì in pochi secondi, senza toccare le metriche reali.")}
               </p>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Input
                   value={testEventCode}
                   onChange={(e) => setTestEventCode(e.target.value)}
-                  placeholder="es. TEST12345"
+                  placeholder={t("es. TEST12345")}
                   className="sm:max-w-[220px]"
                 />
                 <Button
@@ -7977,7 +7966,7 @@ function PixelConfigCard({ companyId, integrationId }: { companyId?: string; int
                   className="gap-1.5"
                 >
                   {testSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <span>🧪</span>}
-                  Invia evento Lead di test
+                  {t("Invia evento Lead di test")}
                 </Button>
               </div>
             </div>
@@ -8010,7 +7999,7 @@ function PixelConfigCard({ companyId, integrationId }: { companyId?: string; int
             {/* Step content */}
             <div className="p-4 space-y-4">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-orange-500 max-md:text-[11px]">Passo {wizardStep + 1} di {WIZARD_STEPS.length}</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-orange-500 max-md:text-[11px]">{t("Passo {wizardStep} di {n}", { wizardStep: wizardStep + 1, n: WIZARD_STEPS.length })}</p>
                 <h3 className="text-base font-bold text-slate-800">{currentWizardStep.title}</h3>
                 <p className="text-sm text-slate-500">{currentWizardStep.description}</p>
               </div>
@@ -8020,14 +8009,14 @@ function PixelConfigCard({ companyId, integrationId }: { companyId?: string; int
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-emerald-900">Lo cerco io</p>
+                      <p className="text-sm font-semibold text-emerald-900">{t("Lo cerco io")}</p>
                       <p className="text-xs text-emerald-800/80">
-                        Leggo i Pixel già presenti sul tuo conto pubblicitario: non devi copiare niente.
+                        {t("Leggo i Pixel già presenti sul tuo conto pubblicitario: non devi copiare niente.")}
                       </p>
                     </div>
                     <Button size="sm" variant="outline" disabled={cercandoPixel} onClick={cercaPixel} className="shrink-0 bg-white">
                       {cercandoPixel ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
-                      {ricercaFatta ? "Cerca di nuovo" : "Trova i miei Pixel"}
+                      {ricercaFatta ? t("Cerca di nuovo") : t("Trova i miei Pixel")}
                     </Button>
                   </div>
                   {pixelTrovati.length > 0 && (
@@ -8049,7 +8038,7 @@ function PixelConfigCard({ companyId, integrationId }: { companyId?: string; int
                               <span className="block font-mono text-[11px] text-slate-500">{px.id}</span>
                             </span>
                             <span className="shrink-0 text-[11px] text-slate-500">
-                              {px.last_fired_time ? "riceve eventi" : "mai usato"}
+                              {px.last_fired_time ? t("riceve eventi") : t("mai usato")}
                             </span>
                           </button>
                         </li>
@@ -8058,7 +8047,7 @@ function PixelConfigCard({ companyId, integrationId }: { companyId?: string; int
                   )}
                   {ricercaFatta && pixelTrovati.length === 0 && (
                     <p className="mt-2 text-xs text-emerald-900">
-                      Nessun Pixel trovato: segui i passaggi qui sotto per crearne uno.
+                      {t("Nessun Pixel trovato: segui i passaggi qui sotto per crearne uno.")}
                     </p>
                   )}
                 </div>
@@ -8087,19 +8076,19 @@ function PixelConfigCard({ companyId, integrationId }: { companyId?: string; int
               {currentWizardStep.action === "pixel_id" && (
                 <div className="space-y-3">
                   <div>
-                    <label className="mb-1 block text-xs font-semibold text-slate-700">Pixel ID *</label>
+                    <label className="mb-1 block text-xs font-semibold text-slate-700">{t("Pixel ID *")}</label>
                     <Input
                       value={pixelId}
                       onChange={(e) => { setPixelId(e.target.value.replace(/[^0-9]/g, "")); setPixelIdError(""); }}
-                      placeholder="Es. 1234567890123456"
+                      placeholder={t("Es. 1234567890123456")}
                       inputMode="numeric"
                       className={pixelIdError ? "border-red-400 focus:ring-red-300" : ""}
                     />
                     {pixelIdError && <p className="mt-1 text-[11px] text-red-500">{pixelIdError}</p>}
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs font-semibold text-slate-700">Nome Pixel (opzionale)</label>
-                    <Input value={pixelName} onChange={(e) => setPixelName(e.target.value)} placeholder="Es. Pixel sito principale" />
+                    <label className="mb-1 block text-xs font-semibold text-slate-700">{t("Nome Pixel (opzionale)")}</label>
+                    <Input value={pixelName} onChange={(e) => setPixelName(e.target.value)} placeholder={t("Es. Pixel sito principale")} />
                   </div>
                 </div>
               )}
@@ -8107,22 +8096,22 @@ function PixelConfigCard({ companyId, integrationId }: { companyId?: string; int
               {/* Action: CAPI token input */}
               {currentWizardStep.action === "capi_token" && (
                 <div className="space-y-2">
-                  <label className="mb-1 block text-xs font-semibold text-slate-700">CAPI Access Token</label>
+                  <label className="mb-1 block text-xs font-semibold text-slate-700">{t("CAPI Access Token")}</label>
                   <div className="relative">
                     <Input
                       type={showToken ? "text" : "password"}
                       value={capiToken}
                       onChange={(e) => setCapiToken(e.target.value)}
-                      placeholder={hasConfig ? "Token già salvato. Inserisci nuovo per aggiornare." : "EAAxxxxx..."}
+                      placeholder={hasConfig ? t("Token già salvato. Inserisci nuovo per aggiornare.") : t("EAAxxxxx...")}
                       className="pr-20"
                     />
                     <Button type="button" variant="ghost" size="sm"
                       className="absolute right-1 top-1/2 h-7 -translate-y-1/2 px-2 text-xs"
                       onClick={() => setShowToken((v) => !v)}>
-                      {showToken ? "Nascondi" : "Mostra"}
+                      {showToken ? t("Nascondi") : t("Mostra")}
                     </Button>
                   </div>
-                  <p className="text-[11px] text-slate-500">Il token verrà cifrato server-side e mai esposto al frontend. Puoi saltare questo passo e configurarlo in seguito.</p>
+                  <p className="text-[11px] text-slate-500">{t("Il token verrà cifrato server-side e mai esposto al frontend. Puoi saltare questo passo e configurarlo in seguito.")}</p>
                 </div>
               )}
 
@@ -8130,7 +8119,7 @@ function PixelConfigCard({ companyId, integrationId }: { companyId?: string; int
               <div className="flex items-center justify-between border-t pt-3">
                 <Button variant="ghost" size="sm" disabled={wizardStep === 0}
                   onClick={() => setWizardStep((s) => s - 1)}>
-                  ← Indietro
+                  {t("← Indietro")}
                 </Button>
 
                 {wizardStep < WIZARD_STEPS.length - 1 ? (
@@ -8143,14 +8132,14 @@ function PixelConfigCard({ companyId, integrationId }: { companyId?: string; int
                       }
                       setWizardStep((s) => s + 1);
                     }}>
-                    Avanti →
+                    {t("Avanti →")}
                   </Button>
                 ) : (
                   <Button size="sm" disabled={isSaving || !pixelId.trim()}
                     className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:from-emerald-600 hover:to-teal-600"
                     onClick={handleSave}>
                     {isSaving && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
-                    ✓ Salva configurazione
+                    {t("✓ Salva configurazione")}
                   </Button>
                 )}
               </div>

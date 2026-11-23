@@ -71,8 +71,9 @@ import {
   type TipologiaListino,
 } from "@/lib/listino/lineeListino";
 import type { VistaListino } from "./ListinoBarra";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
-const EURO = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
+const EURO = { format: (n: number) => new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR" }).format(n) };
 
 const ICONE_AREA: Record<string, LucideIcon> = {
   serramenti: AppWindow,
@@ -126,25 +127,26 @@ export interface ListinoNavigatoreProps {
 }
 
 export function ListinoNavigatore(props: ListinoNavigatoreProps) {
+  const tr = useT();
   const { aree, selezione, onSelezione, cercando, isAdmin } = props;
   const { area, tipologia, linea } = useMemo(() => risolviSelezione(aree, selezione), [aree, selezione]);
 
   if (aree.length === 0) {
     return cercando ? (
       <StatoVuoto
-        titolo="Nessun prodotto trovato"
-        testo="Nessun prodotto del listino corrisponde a ricerca e filtri."
-        azione={props.onAzzera ? { etichetta: "Azzera ricerca e filtri", onClick: props.onAzzera } : undefined}
+        titolo={tr("Nessun prodotto trovato")}
+        testo={tr("Nessun prodotto del listino corrisponde a ricerca e filtri.")}
+        azione={props.onAzzera ? { etichetta: tr("Azzera ricerca e filtri"), onClick: props.onAzzera } : undefined}
       />
     ) : (
       <StatoVuoto
-        titolo="Il listino è vuoto"
-        testo="Parti da un'area con le sue tipologie standard, oppure crea il primo prodotto: tipologia e area decidono in quale preventivatore comparirà."
+        titolo={tr("Il listino è vuoto")}
+        testo={tr("Parti da un'area con le sue tipologie standard, oppure crea il primo prodotto: tipologia e area decidono in quale preventivatore comparirà.")}
         azione={
           isAdmin && props.onNuovaArea
-            ? { etichetta: "Aggiungi un'area", onClick: props.onNuovaArea }
+            ? { etichetta: tr("Aggiungi un'area"), onClick: props.onNuovaArea }
             : isAdmin && props.onNuovoProdotto
-              ? { etichetta: "Nuovo prodotto", onClick: () => props.onNuovoProdotto?.(null, null, null) }
+              ? { etichetta: tr("Nuovo prodotto"), onClick: () => props.onNuovoProdotto?.(null, null, null) }
               : undefined
         }
       />
@@ -182,7 +184,7 @@ export function ListinoNavigatore(props: ListinoNavigatoreProps) {
             {tipologia ? (
               <ContenutoTipologia area={area} tipologia={tipologia} linea={linea} {...props} />
             ) : (
-              <StatoVuoto titolo="Nessuna tipologia" testo="Aggiungi una tipologia con «+ Tipologia», sotto l'elenco delle tipologie." />
+              <StatoVuoto titolo={tr("Nessuna tipologia")} testo={tr("Aggiungi una tipologia con «+ Tipologia», sotto l'elenco delle tipologie.")} />
             )}
           </div>
         </div>
@@ -204,6 +206,7 @@ export function CappelloAree({
   onScegli: (chiave: string) => void;
   onNuovaArea?: () => void;
 }) {
+  const tr = useT();
   const barra = useRef<HTMLDivElement>(null);
   const [scorrimento, setScorrimento] = useState({ prima: false, dopo: false });
   const chiaviAree = aree.map((a) => a.chiave).join("|");
@@ -248,28 +251,28 @@ export function CappelloAree({
     <div className="border-b bg-muted/30">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
         <label className="flex min-w-0 flex-1 flex-wrap items-center gap-2 text-xs font-medium text-muted-foreground">
-          Scegli area
+          {tr("Scegli area")}
           <UniformSelect
-            aria-label="Scegli area del listino"
+            aria-label={tr("Scegli area del listino")}
             value={attiva?.chiave ?? ""}
             onChange={(event) => onScegli(event.target.value)}
             className="h-10 min-w-0 max-w-full flex-1 rounded-md border bg-background px-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:max-w-xs"
           >
-            {!attiva && <option value="" disabled>Seleziona un'area</option>}
+            {!attiva && <option value="" disabled>{tr("Seleziona un'area")}</option>}
             {aree.map((a) => <option key={a.chiave} value={a.chiave}>{a.nome} ({a.articoli})</option>)}
           </UniformSelect>
         </label>
         {onNuovaArea && !cercando && (
           <Button variant="outline" size="sm" className="h-10 shrink-0 gap-1 border-dashed" onClick={onNuovaArea}>
-            <Plus className="h-3.5 w-3.5" aria-hidden="true" /> Area
+            <Plus className="h-3.5 w-3.5" aria-hidden="true" /> {tr("Area")}
           </Button>
         )}
       </div>
       <div className="hidden min-w-0 items-center gap-1 px-1 sm:flex">
-      <Button type="button" variant="ghost" size="icon" className="h-11 w-9 shrink-0" aria-label="Scorri aree a sinistra" disabled={!scorrimento.prima} onClick={() => scorri(-1)}>
+      <Button type="button" variant="ghost" size="icon" className="h-11 w-9 shrink-0" aria-label={tr("Scorri aree a sinistra")} disabled={!scorrimento.prima} onClick={() => scorri(-1)}>
         <ChevronLeft className="h-5 w-5" aria-hidden="true" />
       </Button>
-      <div ref={barra} role="tablist" aria-label="Aree del listino" className="flex min-w-0 flex-1 overflow-x-auto overscroll-x-contain px-2 pb-1">
+      <div ref={barra} role="tablist" aria-label={tr("Aree del listino")} className="flex min-w-0 flex-1 overflow-x-auto overscroll-x-contain px-2 pb-1">
         {aree.map((a) => {
           const Icona = ICONE_AREA[a.chiave] ?? Layers3;
           const selezionata = a.chiave === attiva?.chiave;
@@ -307,7 +310,7 @@ export function CappelloAree({
                 <Icona className="h-4 w-4" aria-hidden="true" />
               </span>
               <span className="leading-tight">
-                <span className="block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Area</span>
+                <span className="block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{tr("Area")}</span>
                 <span className="block text-sm font-semibold">{a.nome}</span>
               </span>
               <span className="rounded-full bg-background px-2 py-0.5 text-xs tabular-nums ring-1 ring-border">
@@ -317,28 +320,29 @@ export function CappelloAree({
           );
         })}
       </div>
-      <Button type="button" variant="ghost" size="icon" className="h-11 w-9 shrink-0" aria-label="Scorri aree a destra" disabled={!scorrimento.dopo} onClick={() => scorri(1)}>
+      <Button type="button" variant="ghost" size="icon" className="h-11 w-9 shrink-0" aria-label={tr("Scorri aree a destra")} disabled={!scorrimento.dopo} onClick={() => scorri(1)}>
         <ChevronRight className="h-5 w-5" aria-hidden="true" />
       </Button>
       </div>
       {attiva && (
         <p className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t bg-background/60 px-4 py-1.5 text-xs text-muted-foreground">
           <span>
-            {cercando ? "Risultati: " : ""}
-            {attiva.tipologie.length} {attiva.tipologie.length === 1 ? "tipologia" : "tipologie"} · {attiva.articoli}{" "}
-            {attiva.articoli === 1 ? "prodotto" : "prodotti"}
+            {cercando ? `${tr("Risultati:")} ` : ""}
+            {attiva.tipologie.length} {attiva.tipologie.length === 1 ? tr("tipologia") : tr("tipologie")} · {attiva.articoli}{" "}
+            {attiva.articoli === 1 ? tr("prodotto") : tr("prodotti")}
           </span>
           {preventivatore ? (
             nonCollegate > 0 ? (
               <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400">
                 <Link2Off className="h-3.5 w-3.5" aria-hidden="true" />
-                {nonCollegate === 1 ? "1 tipologia non arriva" : `${nonCollegate} tipologie non arrivano`} al{" "}
-                {preventivatore.toLowerCase()}
+                {nonCollegate === 1
+                  ? tr("1 tipologia non arriva al {preventivatore}", { preventivatore: preventivatore.toLowerCase() })
+                  : tr("{n} tipologie non arrivano al {preventivatore}", { n: nonCollegate, preventivatore: preventivatore.toLowerCase() })}
               </span>
             ) : (
               <span className="inline-flex items-center gap-1">
                 <Link2 className="h-3.5 w-3.5" aria-hidden="true" />
-                Collegata al {preventivatore.toLowerCase()}
+                {tr("Collegata al {preventivatore}", { preventivatore: preventivatore.toLowerCase() })}
               </span>
             )
           ) : null}
@@ -365,14 +369,15 @@ function ColonnaTipologie({
   onCreaTutteStandard?: (area: AreaListino) => void;
   onNuovaTipologia?: (area: AreaListino) => void;
 }) {
+  const tr = useT();
   const puoiCreare = isAdmin && !!onCreaTipologia && area.mancanti.length > 0;
   return (
     <nav
-      aria-label={`Tipologie dell'area ${area.nome}`}
+      aria-label={tr("Tipologie dell'area {nome}", { nome: area.nome })}
       className="border-b p-2 lg:w-60 lg:shrink-0 lg:border-b-0 lg:border-r"
     >
       <p className="hidden px-2 pb-1 pt-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground lg:block">
-        Tipologie
+        {tr("Tipologie")}
       </p>
       <ul className="flex gap-1 overflow-x-auto lg:flex-col lg:overflow-visible">
         {area.tipologie.map((t) => {
@@ -391,10 +396,10 @@ function ColonnaTipologie({
               >
                 <span className="truncate">{t.nome}</span>
                 {t.collegamento === "nessuno" && (
-                  <Link2Off className="h-3.5 w-3.5 shrink-0 text-amber-600" aria-label="Non compare nei preventivi" />
+                  <Link2Off className="h-3.5 w-3.5 shrink-0 text-amber-600" aria-label={tr("Non compare nei preventivi")} />
                 )}
                 {!t.attiva && (
-                  <PowerOff className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label="Tolta dai preventivi" />
+                  <PowerOff className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label={tr("Tolta dai preventivi")} />
                 )}
                 <span className="ml-auto pl-2 text-xs tabular-nums text-muted-foreground">{t.articoli}</span>
               </button>
@@ -410,13 +415,13 @@ function ColonnaTipologie({
           onClick={() => onNuovaTipologia(area)}
         >
           <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-          Tipologia
+          {tr("Tipologia")}
         </Button>
       )}
       {puoiCreare && (
         <div className="mt-2 hidden border-t pt-2 lg:block">
           <p className="px-2 pb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-            Standard da aggiungere
+            {tr("Standard da aggiungere")}
           </p>
           <ul>
             {area.mancanti.map((s) => (
@@ -439,7 +444,7 @@ function ColonnaTipologie({
               className="mt-1 h-8 w-full justify-start px-2.5 text-xs text-primary"
               onClick={() => onCreaTutteStandard(area)}
             >
-              Aggiungile tutte ({area.mancanti.length})
+              {tr("Aggiungile tutte ({n})", { n: area.mancanti.length })}
             </Button>
           )}
         </div>
@@ -469,6 +474,7 @@ function ContenutoTipologia({
   schedaDi,
   onSchedaLinea,
 }: ListinoNavigatoreProps & { area: AreaListino; tipologia: TipologiaListino; linea: LineaListino | null }) {
+  const tr = useT();
   // Una linea sola che non è una linea (i prodotti senza linea) non merita una linguetta.
   const linguette = tipologia.linee.length === 1 && tipologia.linee[0].fonte === "altri" ? [] : tipologia.linee;
   const puoiAggiungereLinea = isAdmin && !!onNuovaLinea && tipologia.fonte === "macrocategoria";
@@ -489,7 +495,7 @@ function ContenutoTipologia({
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <h3 className="text-lg font-semibold leading-tight">{tipologia.nome}</h3>
         <span className="text-sm tabular-nums text-muted-foreground">
-          {tipologia.articoli} {tipologia.articoli === 1 ? "prodotto" : "prodotti"}
+          {tipologia.articoli} {tipologia.articoli === 1 ? tr("prodotto") : tr("prodotti")}
         </span>
         <Collegamento
           area={area}
@@ -501,7 +507,7 @@ function ContenutoTipologia({
         {!tipologia.attiva && (
           <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
             <PowerOff className="h-3 w-3" aria-hidden="true" />
-            Tolta dai preventivi
+            {tr("Tolta dai preventivi")}
           </span>
         )}
         <div className="ml-auto flex items-center gap-1.5">
@@ -513,7 +519,7 @@ function ContenutoTipologia({
               onClick={() => onNuovoProdotto(area, tipologia, lineaContenitore)}
             >
               <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-              Prodotto in {lineaContenitore?.nome ?? tipologia.nome}
+              {tr("Prodotto in")} {lineaContenitore?.nome ?? tipologia.nome}
             </Button>
           )}
           {isAdmin && tipologia.fonte === "macrocategoria" && (
@@ -533,7 +539,7 @@ function ContenutoTipologia({
       </div>
 
       {(linguette.length > 0 || puoiAggiungereLinea) && (
-        <div role="tablist" aria-label={`Linee di ${tipologia.nome}`} className="flex flex-wrap items-center gap-1.5">
+        <div role="tablist" aria-label={tr("Linee di {nome}", { nome: tipologia.nome })} className="flex flex-wrap items-center gap-1.5">
           {linguette.map((l) => {
             const selezionata = l.chiave === linea?.chiave;
             const scostamento = l.fonte === "asse" && !l.base ? formattaMaggiorazione("percentuale", l.scostamentoPct) : "";
@@ -576,7 +582,7 @@ function ContenutoTipologia({
               className="inline-flex h-8 items-center gap-1 rounded-full border border-dashed px-3 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
             >
               <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-              Linea
+              {tr("Linea")}
             </button>
           )}
         </div>
@@ -585,16 +591,15 @@ function ContenutoTipologia({
       {linea?.fonte === "asse" && (
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
           <span>
-            Stessi modelli in ogni linea
             {riferimento && !linea.base && linea.scostamentoPct != null
-              ? `: prezzi di ${riferimento.nome} ${formattaMaggiorazione("percentuale", linea.scostamentoPct)}.`
+              ? tr("Stessi modelli in ogni linea: prezzi di {riferimento} {scostamento}.", { riferimento: riferimento.nome, scostamento: formattaMaggiorazione("percentuale", linea.scostamentoPct) })
               : linea.base && riferimento
-                ? ": questa è la linea di riferimento dei prezzi."
-                : "."}
+                ? tr("Stessi modelli in ogni linea: questa è la linea di riferimento dei prezzi.")
+                : `${tr("Stessi modelli in ogni linea")}.`}
           </span>
           {isAdmin && onPrezziLinee && (
             <button type="button" className="font-medium text-primary hover:underline" onClick={() => onPrezziLinee(tipologia)}>
-              Cambia i prezzi delle linee
+              {tr("Cambia i prezzi delle linee")}
             </button>
           )}
         </p>
@@ -603,8 +608,9 @@ function ContenutoTipologia({
       {senzaLinee > 0 && linea && (linea.fonte === "altri" || eLineaBaseDeiModelli(linea.nome)) && (
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
           <span>
-            {senzaLinee === 1 ? "Un prodotto non ha" : `${senzaLinee} prodotti non hanno`} le linee di {tipologia.nome}: nel
-            preventivo non si sceglie la linea e resta il prezzo base.
+            {senzaLinee === 1
+              ? tr("Un prodotto non ha le linee di {tipologia}: nel preventivo non si sceglie la linea e resta il prezzo base.", { tipologia: tipologia.nome })
+              : tr("{n} prodotti non hanno le linee di {tipologia}: nel preventivo non si sceglie la linea e resta il prezzo base.", { n: senzaLinee, tipologia: tipologia.nome })}
           </span>
           {isAdmin && onAllineaLinee && (
             <button
@@ -612,7 +618,7 @@ function ContenutoTipologia({
               className="font-medium underline-offset-2 hover:underline"
               onClick={() => onAllineaLinee(area, tipologia)}
             >
-              Dagli le linee
+              {tr("Dagli le linee")}
             </button>
           )}
         </p>
@@ -632,16 +638,16 @@ function ContenutoTipologia({
       ) : (
         <StatoVuoto
           compatto
-          titolo={tipologia.articoli === 0 ? `Nessun prodotto in ${tipologia.nome}` : "Nessun prodotto in questa linea"}
+          titolo={tipologia.articoli === 0 ? tr("Nessun prodotto in {nome}", { nome: tipologia.nome }) : tr("Nessun prodotto in questa linea")}
           testo={
             tipologia.articoli === 0
-              ? "Crea il primo prodotto di questa tipologia, oppure spostaci quelli che hai già."
-              : "Crea un prodotto in questa linea, oppure spostaci quelli che hai già."
+              ? tr("Crea il primo prodotto di questa tipologia, oppure spostaci quelli che hai già.")
+              : tr("Crea un prodotto in questa linea, oppure spostaci quelli che hai già.")
           }
           azione={
             isAdmin && onNuovoProdotto
               ? {
-                  etichetta: "Nuovo prodotto",
+                  etichetta: tr("Nuovo prodotto"),
                   onClick: () => onNuovoProdotto(area, tipologia, lineaContenitore),
                 }
               : undefined
@@ -664,6 +670,7 @@ function RigaSchedaLinea({
   isAdmin: boolean;
   onApri?: () => void;
 }) {
+  const tr = useT();
   const puoiModificare = isAdmin && !!onApri;
   if (!scheda || schedaVuota(scheda)) {
     if (!puoiModificare) return null;
@@ -671,11 +678,10 @@ function RigaSchedaLinea({
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-dashed px-3 py-2">
         <ImagePlus className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         <p className="min-w-0 flex-1 basis-64 text-sm text-muted-foreground">
-          <span className="font-medium text-foreground">Scheda di {linea.nome}</span>: foto, descrizione e dati
-          tecnici, scritti una volta per tutti i prodotti della linea. Compare nel preventivatore e nel PDF.
+          <span className="font-medium text-foreground">{tr("Scheda di {nome}", { nome: linea.nome })}</span>{tr(": foto, descrizione e dati tecnici, scritti una volta per tutti i prodotti della linea. Compare nel preventivatore e nel PDF.")}
         </p>
         <Button variant="outline" size="sm" className="h-8" onClick={onApri}>
-          Compila la scheda
+          {tr("Compila la scheda")}
         </Button>
       </div>
     );
@@ -687,7 +693,7 @@ function RigaSchedaLinea({
         {scheda.immagine_url ? (
           <img
             src={scheda.immagine_url}
-            alt={`Profilo ${linea.nome}`}
+            alt={tr("Profilo {nome}", { nome: linea.nome })}
             loading="lazy"
             className="absolute inset-0 h-full w-full object-contain p-1"
           />
@@ -700,14 +706,14 @@ function RigaSchedaLinea({
       </div>
       <div className="min-w-0 flex-1 basis-48">
         <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm">
-          <span className="font-medium">Scheda di {linea.nome}</span>
+          <span className="font-medium">{tr("Scheda di {nome}", { nome: linea.nome })}</span>
           {dati.length > 0 && (
             <span className="text-xs tabular-nums text-muted-foreground">{dati.map((d) => d.breve).join(" · ")}</span>
           )}
         </p>
         {scheda.descrizione && (
           <details className="mt-1 text-xs text-muted-foreground">
-            <summary className="cursor-pointer font-medium text-primary">Descrizione e verifiche della linea</summary>
+            <summary className="cursor-pointer font-medium text-primary">{tr("Descrizione e verifiche della linea")}</summary>
             <p className="mt-2 whitespace-pre-wrap leading-relaxed">{scheda.descrizione}</p>
           </details>
         )}
@@ -720,12 +726,12 @@ function RigaSchedaLinea({
           className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-primary hover:underline"
         >
           <FileText className="h-3.5 w-3.5" aria-hidden="true" />
-          Scheda del produttore
+          {tr("Scheda del produttore")}
         </a>
       )}
       {puoiModificare && (
         <Button variant="ghost" size="sm" className="h-8 shrink-0" onClick={onApri}>
-          Modifica
+          {tr("Modifica")}
         </Button>
       )}
     </div>
@@ -853,17 +859,18 @@ function TabellaProdotti({
   azioni: AzioniProdotto;
   inAttesa?: Set<string>;
 }) {
+  const tr = useT();
   return (
     <div className="overflow-x-auto rounded-lg border">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Prodotto</TableHead>
-            <TableHead className="text-right">Prezzo</TableHead>
-            <TableHead className="hidden text-right md:table-cell">Costo</TableHead>
-            <TableHead className="text-right">Margine</TableHead>
-            <TableHead className="hidden w-[72px] text-center sm:table-cell">Attivo</TableHead>
-            <TableHead className="hidden w-[96px] text-center sm:table-cell">Preventivi</TableHead>
+            <TableHead>{tr("Prodotto")}</TableHead>
+            <TableHead className="text-right">{tr("Prezzo")}</TableHead>
+            <TableHead className="hidden text-right md:table-cell">{tr("Costo")}</TableHead>
+            <TableHead className="text-right">{tr("Margine")}</TableHead>
+            <TableHead className="hidden w-[72px] text-center sm:table-cell">{tr("Attivo")}</TableHead>
+            <TableHead className="hidden w-[96px] text-center sm:table-cell">{tr("Preventivi")}</TableHead>
             {isAdmin && <TableHead className="w-[44px]" />}
           </TableRow>
         </TableHeader>
@@ -873,7 +880,7 @@ function TabellaProdotti({
             const economia = economiaRiga(r);
             const bloccato = inAttesa?.has(f.id) ?? false;
             // La stessa tipologia sta in ogni linea: accenderla o spegnerla vale per tutte.
-            const nota = r.linea ? "Vale per la tipologia in tutte le sue linee" : undefined;
+            const nota = r.linea ? tr("Vale per la tipologia in tutte le sue linee") : undefined;
             return (
               <TableRow
                 key={r.chiave}
@@ -907,18 +914,18 @@ function TabellaProdotti({
                             checked={f.attivo}
                             onCheckedChange={() => azioni.onAttivo?.(f)}
                             disabled={!isAdmin || !azioni.onAttivo || bloccato}
-                            aria-label={`Prodotto attivo: ${f.nome}`}
+                            aria-label={tr("Prodotto attivo: {nome}", { nome: f.nome })}
                           />
-                          Attivo
+                          {tr("Attivo")}
                         </label>
                         <label className="flex min-h-[44px] items-center gap-2 text-xs text-muted-foreground">
                           <Switch
                             checked={f.mostra_preventivo !== false}
                             onCheckedChange={() => azioni.onPreventivo?.(f)}
                             disabled={!isAdmin || !azioni.onPreventivo || bloccato}
-                            aria-label={`Proposto nei preventivi: ${f.nome}`}
+                            aria-label={tr("Proposto nei preventivi: {nome}", { nome: f.nome })}
                           />
-                          Nei preventivi
+                          {tr("Nei preventivi")}
                         </label>
                       </div>
                     </div>
@@ -938,7 +945,7 @@ function TabellaProdotti({
                     checked={f.attivo}
                     onCheckedChange={() => azioni.onAttivo?.(f)}
                     disabled={!isAdmin || !azioni.onAttivo || bloccato}
-                    aria-label={`Prodotto attivo: ${f.nome}`}
+                    aria-label={tr("Prodotto attivo: {nome}", { nome: f.nome })}
                   />
                 </TableCell>
                 <TableCell className="hidden text-center sm:table-cell" onClick={(e) => e.stopPropagation()} title={nota}>
@@ -946,7 +953,7 @@ function TabellaProdotti({
                     checked={f.mostra_preventivo !== false}
                     onCheckedChange={() => azioni.onPreventivo?.(f)}
                     disabled={!isAdmin || !azioni.onPreventivo || bloccato}
-                    aria-label={`Proposto nei preventivi: ${f.nome}`}
+                    aria-label={tr("Proposto nei preventivi: {nome}", { nome: f.nome })}
                   />
                 </TableCell>
                 {isAdmin && (
@@ -964,9 +971,10 @@ function TabellaProdotti({
 }
 
 function Prezzo({ economia }: { economia: EconomiaRiga }) {
-  if (economia.griglia) return <span className="text-xs text-muted-foreground">Prezzo a griglia L×H</span>;
+  const tr = useT();
+  if (economia.griglia) return <span className="text-xs text-muted-foreground">{tr("Prezzo a griglia L×H")}</span>;
   if (!economia.vendita) {
-    return <span className="text-xs font-medium text-amber-700 dark:text-amber-400">Prezzo da impostare</span>;
+    return <span className="text-xs font-medium text-amber-700 dark:text-amber-400">{tr("Prezzo da impostare")}</span>;
   }
   return (
     <span className="whitespace-nowrap text-sm font-semibold tabular-nums">
@@ -977,10 +985,11 @@ function Prezzo({ economia }: { economia: EconomiaRiga }) {
 }
 
 function Margine({ economia }: { economia: EconomiaRiga }) {
+  const tr = useT();
   if (economia.griglia || !economia.vendita) return null;
   const stato = statoMargine(economia.marginePct);
   if (stato === "missing") {
-    return <span className="whitespace-nowrap text-[11px] text-muted-foreground">Costo mancante</span>;
+    return <span className="whitespace-nowrap text-[11px] text-muted-foreground">{tr("Costo mancante")}</span>;
   }
   const pct = economia.marginePct ?? 0;
   return (
@@ -993,7 +1002,7 @@ function Margine({ economia }: { economia: EconomiaRiga }) {
             ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
             : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
       )}
-      title="Margine sul prezzo di vendita"
+      title={tr("Margine sul prezzo di vendita")}
     >
       {Math.round(pct)}%
     </span>
@@ -1001,11 +1010,12 @@ function Margine({ economia }: { economia: EconomiaRiga }) {
 }
 
 function Segnali({ famiglia }: { famiglia: FamilyWithAxes }) {
+  const tr = useT();
   const segnali: Array<{ testo: string; icona: LucideIcon; classe: string }> = [];
   const baseStandard = !!famiglia.custom_field_values?._catalog_standard;
-  if (!famiglia.attivo) segnali.push({ testo: baseStandard ? "Base standard · da completare" : "Disattivato", icona: PowerOff, classe: "text-amber-700 dark:text-amber-400" });
+  if (!famiglia.attivo) segnali.push({ testo: baseStandard ? tr("Base standard · da completare") : tr("Disattivato"), icona: PowerOff, classe: "text-amber-700 dark:text-amber-400" });
   if (famiglia.mostra_preventivo === false) {
-    segnali.push({ testo: "Fuori dai preventivi", icona: EyeOff, classe: "text-muted-foreground" });
+    segnali.push({ testo: tr("Fuori dai preventivi"), icona: EyeOff, classe: "text-muted-foreground" });
   }
   if (segnali.length === 0) return null;
   return (
@@ -1033,6 +1043,7 @@ function Collegamento({
   onCollega?: (area: AreaListino, tipologia: TipologiaListino) => void;
   onAccessorio?: (area: AreaListino, tipologia: TipologiaListino) => void;
 }) {
+  const tr = useT();
   const preventivatore = area.standard?.preventivatore?.toLowerCase();
   const puoiCollegare = isAdmin && !!onCollega && !!preventivatore && tipologia.fonte === "macrocategoria";
   if (tipologia.collegamento === "area") {
@@ -1044,14 +1055,14 @@ function Collegamento({
     return (
       <span className="inline-flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
         <Link2 className="h-3.5 w-3.5" aria-hidden="true" />
-        {accessorio ? `Tra gli accessori del ${preventivatore}` : `Nel ${preventivatore}`}
+        {accessorio ? tr("Tra gli accessori del {preventivatore}", { preventivatore }) : tr("Nel {preventivatore}", { preventivatore })}
         {daMettereFraGliAccessori && (
           <button
             type="button"
             className="font-medium text-primary hover:underline"
             onClick={() => onAccessorio?.(area, tipologia)}
           >
-            · aggiungila agli accessori della finestra
+            · {tr("aggiungila agli accessori della finestra")}
           </button>
         )}
       </span>
@@ -1061,10 +1072,10 @@ function Collegamento({
     return (
       <span className="inline-flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
         <Link2 className="h-3.5 w-3.5" aria-hidden="true" />
-        In tutti i preventivatori
+        {tr("In tutti i preventivatori")}
         {puoiCollegare && (
           <button type="button" className="font-medium text-primary hover:underline" onClick={() => onCollega?.(area, tipologia)}>
-            · solo nel {preventivatore}
+            {tr("· solo nel {preventivatore}", { preventivatore })}
           </button>
         )}
       </span>
@@ -1073,10 +1084,10 @@ function Collegamento({
   return (
     <span className="inline-flex flex-wrap items-center gap-1 text-xs text-amber-700 dark:text-amber-400">
       <Link2Off className="h-3.5 w-3.5" aria-hidden="true" />
-      Non compare nei preventivi: si trova solo cercando
+      {tr("Non compare nei preventivi: si trova solo cercando")}
       {puoiCollegare && (
         <button type="button" className="font-medium text-primary hover:underline" onClick={() => onCollega?.(area, tipologia)}>
-          · collega al {preventivatore}
+          {tr("· collega al {preventivatore}", { preventivatore })}
         </button>
       )}
     </span>
@@ -1092,6 +1103,7 @@ function MenuProdotto({
   azioni: AzioniProdotto;
   className?: string;
 }) {
+  const tr = useT();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -1099,7 +1111,7 @@ function MenuProdotto({
           variant="ghost"
           size="icon"
           className={cn("h-7 w-7 rounded-full", className)}
-          aria-label={`Azioni per ${famiglia.nome}`}
+          aria-label={tr("Azioni per {nome}", { nome: famiglia.nome })}
           onClick={(e) => e.stopPropagation()}
         >
           <MoreVertical className="h-4 w-4" aria-hidden="true" />
@@ -1108,18 +1120,18 @@ function MenuProdotto({
       <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
         <DropdownMenuItem onClick={() => azioni.onApri(famiglia)}>
           <Wrench className="mr-2 h-4 w-4" aria-hidden="true" />
-          Modifica
+          {tr("Modifica")}
         </DropdownMenuItem>
         {azioni.onDuplica && (
           <DropdownMenuItem onClick={() => azioni.onDuplica?.(famiglia)}>
             <CopyPlus className="mr-2 h-4 w-4" aria-hidden="true" />
-            Duplica
+            {tr("Duplica")}
           </DropdownMenuItem>
         )}
         {azioni.onSposta && (
           <DropdownMenuItem onClick={() => azioni.onSposta?.(famiglia)}>
             <FolderSymlink className="mr-2 h-4 w-4" aria-hidden="true" />
-            Sposta in un'altra tipologia
+            {tr("Sposta in un'altra tipologia")}
           </DropdownMenuItem>
         )}
         {(azioni.onPreventivo || azioni.onAttivo) && <DropdownMenuSeparator />}
@@ -1130,7 +1142,7 @@ function MenuProdotto({
             ) : (
               <Eye className="mr-2 h-4 w-4" aria-hidden="true" />
             )}
-            {famiglia.mostra_preventivo !== false ? "Nascondi dai preventivi" : "Proponi nei preventivi"}
+            {famiglia.mostra_preventivo !== false ? tr("Nascondi dai preventivi") : tr("Proponi nei preventivi")}
           </DropdownMenuItem>
         )}
         {azioni.onAttivo && (
@@ -1140,7 +1152,7 @@ function MenuProdotto({
             ) : (
               <Power className="mr-2 h-4 w-4" aria-hidden="true" />
             )}
-            {famiglia.attivo ? "Disattiva" : "Riattiva"}
+            {famiglia.attivo ? tr("Disattiva") : tr("Riattiva")}
           </DropdownMenuItem>
         )}
         {azioni.onElimina && (
@@ -1151,7 +1163,7 @@ function MenuProdotto({
               className="text-destructive focus:bg-destructive/10 focus:text-destructive"
             >
               <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
-              Elimina
+              {tr("Elimina")}
             </DropdownMenuItem>
           </>
         )}
@@ -1178,11 +1190,12 @@ function MenuTipologia({
   onCopia?: () => void;
   onAttiva?: () => void;
 }) {
+  const tr = useT();
   if (!onVarianti && !onPrezzi && !onAllinea && !onCopia && !onAttiva) return null;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="icon" className="h-8 w-8" aria-label={`Altre azioni su ${tipologia.nome}`}>
+        <Button variant="outline" size="icon" className="h-8 w-8" aria-label={tr("Altre azioni su {nome}", { nome: tipologia.nome })}>
           <MoreVertical className="h-4 w-4" aria-hidden="true" />
         </Button>
       </DropdownMenuTrigger>
@@ -1190,25 +1203,25 @@ function MenuTipologia({
         {onVarianti && (
           <DropdownMenuItem onClick={onVarianti}>
             <Palette className="mr-2 h-4 w-4" aria-hidden="true" />
-            Colori e varianti
+            {tr("Colori e varianti")}
           </DropdownMenuItem>
         )}
         {onPrezzi && (
           <DropdownMenuItem onClick={onPrezzi}>
             <Percent className="mr-2 h-4 w-4" aria-hidden="true" />
-            Prezzi delle linee
+            {tr("Prezzi delle linee")}
           </DropdownMenuItem>
         )}
         {onAllinea && (
           <DropdownMenuItem onClick={onAllinea}>
             <Layers3 className="mr-2 h-4 w-4" aria-hidden="true" />
-            Dai le linee a {senzaLinee} {senzaLinee === 1 ? "prodotto" : "prodotti"}
+            {tr(senzaLinee === 1 ? "Dai le linee a {n} prodotto" : "Dai le linee a {n} prodotti", { n: senzaLinee })}
           </DropdownMenuItem>
         )}
         {onCopia && (
           <DropdownMenuItem onClick={onCopia}>
             <Copy className="mr-2 h-4 w-4" aria-hidden="true" />
-            Copia tipologia
+            {tr("Copia tipologia")}
           </DropdownMenuItem>
         )}
         {onAttiva && (
@@ -1220,7 +1233,7 @@ function MenuTipologia({
               ) : (
                 <Power className="mr-2 h-4 w-4" aria-hidden="true" />
               )}
-              {tipologia.attiva ? "Togli dai preventivi" : "Rimetti nei preventivi"}
+              {tipologia.attiva ? tr("Togli dai preventivi") : tr("Rimetti nei preventivi")}
             </DropdownMenuItem>
           </>
         )}

@@ -55,6 +55,7 @@ import { getAddedTags, getRemovedTags, normalizeTagList } from "@/lib/marketingT
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { CercaConFiltri, PannelloFiltri, PilloleFiltro, RigaMobile } from "@/components/mobile/FiltriMobile";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 // Map filter field keys to actual DB columns
 const CSV_FIELDS: ImportField[] = [
   { key: "first_name", label: "Nome", required: true, oppure: ["fullname"] },
@@ -232,6 +233,7 @@ function ContactProfileDrawer({
   onEdit: (contact: MarketingContact) => void;
   canEdit: boolean;
 }) {
+  const t = useT();
   const navigate = useNavigate();
   const routePrefix = useMarketingRoutePrefix();
   const fullName = contact ? getContactName(contact) : "";
@@ -266,9 +268,9 @@ function ContactProfileDrawer({
     if (!value) return;
     try {
       await navigator.clipboard.writeText(value);
-      toast.success(`${label} copiato`);
+      toast.success(t("{label} copiato", { label: String(label ?? "") }));
     } catch {
-      toast.error("Non riesco a copiare negli appunti");
+      toast.error(t("Non riesco a copiare negli appunti"));
     }
   };
 
@@ -285,14 +287,14 @@ function ContactProfileDrawer({
                 <div className="min-w-0 flex-1">
                   <SheetTitle className="truncate text-xl">{fullName}</SheetTitle>
                   <SheetDescription className="mt-1 truncate">
-                    {contact.company_name || contact.source || "Contatto marketing"}
+                    {contact.company_name || contact.source || t("Contatto marketing")}
                   </SheetDescription>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {primaryScore !== null && (
-                      <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">Score {primaryScore}</Badge>
+                      <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">{t("Score {primaryScore}", { primaryScore: String(primaryScore ?? "") })}</Badge>
                     )}
-                    {contact.opp_status === "open" && <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">Opportunità aperta</Badge>}
-                    {hasMarketingBlock && <Badge className="bg-red-100 text-red-700 hover:bg-red-100">Marketing bloccato</Badge>}
+                    {contact.opp_status === "open" && <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">{t("Opportunità aperta")}</Badge>}
+                    {hasMarketingBlock && <Badge className="bg-red-100 text-red-700 hover:bg-red-100">{t("Marketing bloccato")}</Badge>}
                   </div>
                 </div>
               </div>
@@ -308,7 +310,7 @@ function ContactProfileDrawer({
                   <Mail className="h-4 w-4 text-slate-500" />
                   <div className="min-w-0">
                     <p className="text-xs font-semibold uppercase text-slate-500">Email</p>
-                    <p className="truncate text-sm font-medium">{contact.email || "Non presente"}</p>
+                    <p className="truncate text-sm font-medium">{contact.email || t("Non presente")}</p>
                   </div>
                   {contact.email && <Copy className="ml-auto h-3.5 w-3.5 text-slate-400" />}
                 </button>
@@ -319,22 +321,22 @@ function ContactProfileDrawer({
                 >
                   <Phone className="h-4 w-4 text-slate-500" />
                   <div className="min-w-0">
-                    <p className="text-xs font-semibold uppercase text-slate-500">Telefono</p>
-                    <p className="truncate text-sm font-medium">{contact.phone || "Non presente"}</p>
+                    <p className="text-xs font-semibold uppercase text-slate-500">{t("Telefono")}</p>
+                    <p className="truncate text-sm font-medium">{contact.phone || t("Non presente")}</p>
                   </div>
                   {contact.phone && <Copy className="ml-auto h-3.5 w-3.5 text-slate-400" />}
                 </button>
                 <div className="flex min-h-16 items-center gap-3 rounded-2xl border bg-white p-3">
                   <Building2 className="h-4 w-4 text-slate-500" />
                   <div className="min-w-0">
-                    <p className="text-xs font-semibold uppercase text-slate-500">Azienda</p>
-                    <p className="truncate text-sm font-medium">{contact.company_name || "Non indicata"}</p>
+                    <p className="text-xs font-semibold uppercase text-slate-500">{t("Azienda")}</p>
+                    <p className="truncate text-sm font-medium">{contact.company_name || t("Non indicata")}</p>
                   </div>
                 </div>
                 <div className="flex min-h-16 items-center gap-3 rounded-2xl border bg-white p-3">
                   <CalendarClock className="h-4 w-4 text-slate-500" />
                   <div className="min-w-0">
-                    <p className="text-xs font-semibold uppercase text-slate-500">Ultima attività</p>
+                    <p className="text-xs font-semibold uppercase text-slate-500">{t("Ultima attività")}</p>
                     <p className="truncate text-sm font-medium">{formatContactDate(contact.last_activity_at || contact.created_at)}</p>
                   </div>
                 </div>
@@ -343,22 +345,22 @@ function ContactProfileDrawer({
               <div className="rounded-2xl border border-slate-200 bg-white p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="font-semibold text-slate-950">Qualità dato</p>
-                    <p className="text-sm text-slate-500">Rischi operativi prima di campagne e automazioni.</p>
+                    <p className="font-semibold text-slate-950">{t("Qualità dato")}</p>
+                    <p className="text-sm text-slate-500">{t("Rischi operativi prima di campagne e automazioni.")}</p>
                   </div>
                   {issues.length === 0 ? (
                     <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
-                      <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Pulito
+                      <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> {t("Pulito")}
                     </Badge>
                   ) : (
                     <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">
-                      <AlertTriangle className="mr-1 h-3.5 w-3.5" /> {issues.length} warning
+                      <AlertTriangle className="mr-1 h-3.5 w-3.5" /> {issues.length} {t("warning")}
                     </Badge>
                   )}
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {issues.length === 0 ? (
-                    <span className="text-sm text-slate-500">Nessuna criticità evidente sul contatto.</span>
+                    <span className="text-sm text-slate-500">{t("Nessuna criticità evidente sul contatto.")}</span>
                   ) : (
                     issues.map((issue) => (
                       <span key={issue.key} className={`rounded-full border px-2.5 py-1 text-xs font-medium ${issueClasses(issue.tone)}`}>
@@ -372,25 +374,25 @@ function ContactProfileDrawer({
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="rounded-2xl border border-slate-200 bg-white p-4">
                   <div className="flex items-center gap-2 font-semibold">
-                    <ShieldCheck className="h-4 w-4 text-slate-500" /> Consensi
+                    <ShieldCheck className="h-4 w-4 text-slate-500" /> {t("Consensi")}
                   </div>
                   <div className="mt-3 space-y-2 text-sm">
                     <div className="flex items-center justify-between">
-                      <span>Email marketing</span>
+                      <span>{t("Email marketing")}</span>
                       <Badge variant={contact.optout_email || contact.unsubscribed ? "destructive" : "secondary"}>
-                        {contact.optout_email || contact.unsubscribed ? "Bloccata" : "OK"}
+                        {contact.optout_email || contact.unsubscribed ? t("Bloccata") : "OK"}
                       </Badge>
                     </div>
                     <div className="flex items-center justify-between">
                       <span>WhatsApp</span>
                       <Badge variant={contact.optout_whatsapp ? "destructive" : "secondary"}>
-                        {contact.optout_whatsapp ? "Bloccato" : "OK"}
+                        {contact.optout_whatsapp ? t("Bloccato") : "OK"}
                       </Badge>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span>Chiamate</span>
+                      <span>{t("Chiamate")}</span>
                       <Badge variant={contact.optout_call ? "destructive" : "secondary"}>
-                        {contact.optout_call ? "Bloccate" : "OK"}
+                        {contact.optout_call ? t("Bloccate") : "OK"}
                       </Badge>
                     </div>
                   </div>
@@ -398,23 +400,23 @@ function ContactProfileDrawer({
 
                 <div className="rounded-2xl border border-slate-200 bg-white p-4">
                   <div className="flex items-center gap-2 font-semibold">
-                    <Sparkles className="h-4 w-4 text-slate-500" /> Insight
+                    <Sparkles className="h-4 w-4 text-slate-500" /> {t("Insight")}
                   </div>
                   <div className="mt-3 space-y-2 text-sm text-slate-600">
-                    <p><span className="font-medium text-slate-900">Fonte:</span> {contact.source || "Non tracciata"}</p>
-                    <p><span className="font-medium text-slate-900">Canale:</span> {contact.preferred_channel || "Non definito"}</p>
-                    <p><span className="font-medium text-slate-900">Prossima azione:</span> {contact.ai_next_action || "Nessun suggerimento"}</p>
+                    <p><span className="font-medium text-slate-900">{t("Fonte:")}</span> {contact.source || t("Non tracciata")}</p>
+                    <p><span className="font-medium text-slate-900">{t("Canale:")}</span> {contact.preferred_channel || t("Non definito")}</p>
+                    <p><span className="font-medium text-slate-900">{t("Prossima azione:")}</span> {contact.ai_next_action || t("Nessun suggerimento")}</p>
                   </div>
                 </div>
               </div>
 
               <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                <p className="font-semibold text-slate-950">Liste e segmenti</p>
+                <p className="font-semibold text-slate-950">{t("Liste e segmenti")}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {listsLoading ? (
-                    <span className="text-sm text-slate-500">Carico liste...</span>
+                    <span className="text-sm text-slate-500">{t("Carico liste...")}</span>
                   ) : listNames.length === 0 ? (
-                    <span className="text-sm text-slate-500">Non appartiene ancora a nessuna lista.</span>
+                    <span className="text-sm text-slate-500">{t("Non appartiene ancora a nessuna lista.")}</span>
                   ) : (
                     listNames.map((name) => <Badge key={name} variant="secondary">{name}</Badge>)
                   )}
@@ -423,12 +425,12 @@ function ContactProfileDrawer({
 
               {contact.opp_name && (
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                  <p className="font-semibold text-emerald-950">Opportunità collegata</p>
+                  <p className="font-semibold text-emerald-950">{t("Opportunità collegata")}</p>
                   <p className="mt-1 text-sm text-emerald-800">{contact.opp_name}</p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {contact.opp_pipeline && <Badge className="bg-white text-emerald-700 hover:bg-white">{contact.opp_pipeline}</Badge>}
                     {contact.opp_stage && <Badge className="bg-white text-emerald-700 hover:bg-white">{contact.opp_stage}</Badge>}
-                    {contact.opp_value != null && <Badge className="bg-white text-emerald-700 hover:bg-white">€ {Number(contact.opp_value).toLocaleString("it-IT", { useGrouping: true })}</Badge>}
+                    {contact.opp_value != null && <Badge className="bg-white text-emerald-700 hover:bg-white">€ {Number(contact.opp_value).toLocaleString(intlCampo(), { useGrouping: true })}</Badge>}
                   </div>
                 </div>
               )}
@@ -438,7 +440,7 @@ function ContactProfileDrawer({
                   className="flex-1"
                   onClick={() => navigate(`${routePrefix}/contatti/${contact.id}`)}
                 >
-                  <ExternalLink className="mr-2 h-4 w-4" /> Apri scheda completa
+                  <ExternalLink className="mr-2 h-4 w-4" /> {t("Apri scheda completa")}
                 </Button>
                 <Button
                   variant="outline"
@@ -449,7 +451,7 @@ function ContactProfileDrawer({
                     onOpenChange(false);
                   }}
                 >
-                  Modifica contatto
+                  {t("Modifica contatto")}
                 </Button>
               </div>
             </div>
@@ -463,12 +465,13 @@ function ContactProfileDrawer({
 /** Arricchimento massivo dei contatti selezionati (solo piattaforma).
  *  Sito + VIES + auto-fill + segnale d'acquisto, a lotti di max 100. */
 function BulkEnrichButton({ selectedIds, onDone }: { selectedIds: Set<string>; onDone: () => void }) {
+  const t = useT();
   const [running, setRunning] = useState(false);
   const run = async () => {
     if (running) return;
     const ids = [...selectedIds];
     if (ids.length === 0) return;
-    if (ids.length > 100) { toast.error("Massimo 100 contatti per volta. Restringi la selezione."); return; }
+    if (ids.length > 100) { toast.error(t("Massimo 100 contatti per volta. Restringi la selezione.")); return; }
     setRunning(true);
     try {
       const { data, error } = await supabase.functions.invoke("lead-scraper", {
@@ -476,23 +479,24 @@ function BulkEnrichButton({ selectedIds, onDone }: { selectedIds: Set<string>; o
       });
       if (error) throw error;
       if (data?.error) throw new Error(String(data.error));
-      toast.success(`Arricchiti ${data.enriched}/${data.attempted} · ${data.filled} con nuovi dati${data.failed ? ` · ${data.failed} falliti` : ""}`);
+      toast.success(t("Arricchiti {arricchiti}/{tentati} · {completati} con nuovi dati", { arricchiti: data.enriched, tentati: data.attempted, completati: data.filled }) + (data.failed ? t(" · {falliti} falliti", { falliti: data.failed }) : ""));
       onDone();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Errore arricchimento massivo");
+      toast.error(e instanceof Error ? e.message : t("Errore arricchimento massivo"));
     } finally {
       setRunning(false);
     }
   };
   return (
     <Button variant="outline" size="sm" className="gap-1.5 border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100" disabled={running} onClick={run}
-      title="Sito + VIES + segnale d'acquisto sui contatti selezionati (max 100)">
-      {running ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Radar className="h-3.5 w-3.5" />} Arricchisci ({selectedIds.size})
+      title={t("Sito + VIES + segnale d'acquisto sui contatti selezionati (max 100)")}>
+      {running ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Radar className="h-3.5 w-3.5" />} {t("Arricchisci (")}{selectedIds.size})
     </Button>
   );
 }
 
 export default function MarketingContacts() {
+  const t = useT();
   const isMobile = useIsMobile();
   const routePrefix = useMarketingRoutePrefix();
   // Mobile: pannello dei filtri dal basso (vista, ordine, filtri da lista).
@@ -622,13 +626,13 @@ export default function MarketingContacts() {
     },
     onSuccess: (nome) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.contactLists.list(companyId) });
-      toast.success(`Lista dinamica "${nome}" salvata`, {
-        description: "La trovi nel tab Liste: aprirla riapplica questi filtri.",
+      toast.success(t("Lista dinamica \"{nome}\" salvata", { nome: String(nome ?? "") }), {
+        description: t("La trovi nel tab Liste: aprirla riapplica questi filtri."),
       });
       setSalvaListaOpen(false);
       setNomeListaDinamica("");
     },
-    onError: (e) => toast.error("Lista non salvata", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Lista non salvata"), { description: e instanceof Error ? e.message : String(e) }),
   });
   const qualityFilter = isQualityFilter(urlFilters.quality) ? urlFilters.quality : "all";
   const setQualityFilter = useCallback((value: ContactQualityFilter) => {
@@ -654,7 +658,7 @@ export default function MarketingContacts() {
     return {
       start: new Date(y, mo, 1).toISOString(),
       end: new Date(y, mo + 1, 1).toISOString(),
-      label: new Date(y, mo, 1).toLocaleDateString("it-IT", { month: "long", year: "numeric" }),
+      label: new Date(y, mo, 1).toLocaleDateString(intlCampo(), { month: "long", year: "numeric" }),
     };
   }, [meseFilter]);
   const clearMeseFilter = useCallback(() => setURLParam("meseFilter", ""), [setURLParam]);
@@ -783,17 +787,17 @@ export default function MarketingContacts() {
         if ((data?.length ?? 0) < PAGINA) break;
       }
       if (raccolti.size === 0) {
-        toast.info("Nessun contatto corrisponde ai filtri");
+        toast.info(t("Nessun contatto corrisponde ai filtri"));
         return;
       }
       setSelectedIds(raccolti);
       toast.success(
         raccolti.size >= LIMITE_SELEZIONE
-          ? `Selezionati i primi ${raccolti.size.toLocaleString("it-IT")} contatti: restringi i filtri per gli altri`
-          : `${raccolti.size.toLocaleString("it-IT")} contatti selezionati`,
+          ? t("Selezionati i primi {size} contatti: restringi i filtri per gli altri", { size: raccolti.size.toLocaleString(intlCampo()) })
+          : t("{size} contatti selezionati", { size: raccolti.size.toLocaleString(intlCampo()) }),
       );
     } catch (err) {
-      toast.error(`Selezione non riuscita: ${(err as Error).message}`);
+      toast.error(t("Selezione non riuscita: {message}", { message: String((err as Error).message ?? "") }));
     } finally {
       setSelezionandoTutti(false);
     }
@@ -945,7 +949,7 @@ export default function MarketingContacts() {
       } else {
         exportToCSV(rows, allColumns, `contatti${suffix}_${today}.csv`);
       }
-      toast.success(`${rows.length} contatti esportati in ${format.toUpperCase()}`);
+      toast.success(t("{n} contatti esportati in {format}", { n: rows.length, format: format.toUpperCase() }));
     } catch (err) {
       toast.error(messaggioEsportazioneNonRiuscita(err));
     } finally {
@@ -1277,7 +1281,7 @@ export default function MarketingContacts() {
       }
     },
     onSuccess: async (_, formData) => {
-      toast.success(editingContact ? "Contatto aggiornato" : "Contatto aggiunto");
+      toast.success(editingContact ? t("Contatto aggiornato") : t("Contatto aggiunto"));
       if (editingContact) {
         const savedTags = normalizeTagList(formData.tags);
         const originalTags = normalizeTagList(editingContact.tags || []);
@@ -1296,7 +1300,7 @@ export default function MarketingContacts() {
       invalidate();
       setEditingContact(null);
     },
-    onError: (error: any) => toast.error("Errore nel salvataggio", { description: error.message || "Operazione non riuscita. Riprova." }),
+    onError: (error: any) => toast.error(t("Errore nel salvataggio"), { description: error.message || t("Operazione non riuscita. Riprova.") }),
   });
 
   const deleteMutation = useMutation({
@@ -1357,7 +1361,7 @@ export default function MarketingContacts() {
       queryClient.invalidateQueries({ queryKey: ["quotes"] });
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
     },
-    onError: (error: any) => toast.error("Errore nell'eliminazione", { description: error.message || "Operazione non riuscita. Riprova." }),
+    onError: (error: any) => toast.error(t("Errore nell'eliminazione"), { description: error.message || t("Operazione non riuscita. Riprova.") }),
   });
 
   /**
@@ -1373,8 +1377,8 @@ export default function MarketingContacts() {
       setDeleteLinks(await contaCollegamenti(ids));
     } catch (e: any) {
       setDeleteIds(null);
-      toast.error("Non riesco a verificare i collegamenti", {
-        description: e?.message || "Riprova fra poco.",
+      toast.error(t("Non riesco a verificare i collegamenti"), {
+        description: e?.message || t("Riprova fra poco."),
       });
     }
     // contaCollegamenti dipende solo da companyId, che e' gia' nelle deps.
@@ -1452,10 +1456,10 @@ export default function MarketingContacts() {
           <div className="flex items-center gap-2">
             <span className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-200 text-amber-800 text-xs font-bold max-sm:hidden">!</span>
             <span>
-              <strong>Filtro attivo:</strong>{" "}
+              <strong>{t("Filtro attivo:")}</strong>{" "}
               {stalePreset === "stale_2h"
-                ? "lead nuovi (≤ 7 giorni) non contattati da oltre 2 ore"
-                : "lead non contattati da oltre 48 ore"}
+                ? t("lead nuovi (≤ 7 giorni) non contattati da oltre 2 ore")
+                : t("lead non contattati da oltre 48 ore")}
             </span>
           </div>
           <Button
@@ -1465,15 +1469,15 @@ export default function MarketingContacts() {
             onClick={clearStalePreset}
           >
             {/* Mobile: il filtro si toglie con una parola, il banner resta su una riga. */}
-            <span className="sm:hidden">Togli</span>
-            <span className="hidden sm:inline">Mostra tutti i contatti</span>
+            <span className="sm:hidden">{t("Togli")}</span>
+            <span className="hidden sm:inline">{t("Mostra tutti i contatti")}</span>
           </Button>
         </div>
       )}
 
       {meseRange && (
         <div className="flex flex-col gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 sm:flex-row sm:items-center sm:justify-between max-sm:flex-row max-sm:items-center max-sm:justify-between max-sm:rounded-lg max-sm:px-3 max-sm:py-1.5 max-sm:text-xs">
-          <span><strong>Filtro mese attivo:</strong> contatti creati a {meseRange.label}</span>
+          <span><strong>{t("Filtro mese attivo:")}</strong> {t("contatti creati a")} {meseRange.label}</span>
           <Button
             variant="outline"
             size="sm"
@@ -1481,15 +1485,15 @@ export default function MarketingContacts() {
             onClick={clearMeseFilter}
           >
             {/* Mobile: il filtro si toglie con una parola, il banner resta su una riga. */}
-            <span className="sm:hidden">Togli</span>
-            <span className="hidden sm:inline">Mostra tutti i contatti</span>
+            <span className="sm:hidden">{t("Togli")}</span>
+            <span className="hidden sm:inline">{t("Mostra tutti i contatti")}</span>
           </Button>
         </div>
       )}
 
       {sourceFilter && (
         <div className="flex flex-col gap-2 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900 sm:flex-row sm:items-center sm:justify-between max-sm:flex-row max-sm:items-center max-sm:justify-between max-sm:rounded-lg max-sm:px-3 max-sm:py-1.5 max-sm:text-xs">
-          <span><strong>Filtro fonte attivo:</strong> {sourceFilter}</span>
+          <span><strong>{t("Filtro fonte attivo:")}</strong> {sourceFilter}</span>
           <Button
             variant="outline"
             size="sm"
@@ -1497,8 +1501,8 @@ export default function MarketingContacts() {
             onClick={clearSourceFilter}
           >
             {/* Mobile: il filtro si toglie con una parola, il banner resta su una riga. */}
-            <span className="sm:hidden">Togli</span>
-            <span className="hidden sm:inline">Mostra tutti i contatti</span>
+            <span className="sm:hidden">{t("Togli")}</span>
+            <span className="hidden sm:inline">{t("Mostra tutti i contatti")}</span>
           </Button>
         </div>
       )}
@@ -1512,16 +1516,16 @@ export default function MarketingContacts() {
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber-strong text-white shadow-sm shadow-orange-200 max-lg:hidden">
             <ContactRound className="h-4 w-4" />
           </div>
-          <h1 className="text-lg font-bold text-slate-950 sm:text-xl">Contatti</h1>
+          <h1 className="text-lg font-bold text-slate-950 sm:text-xl">{t("Contatti")}</h1>
           {!isLoading && (activeTab === "all" || senzaListeMobile) && (
-            <Badge className="bg-orange-100 tabular-nums text-orange-700 hover:bg-orange-100">{totalCount.toLocaleString("it-IT")}</Badge>
+            <Badge className="bg-orange-100 tabular-nums text-orange-700 hover:bg-orange-100">{totalCount.toLocaleString(intlCampo())}</Badge>
           )}
           {/* Anche su telefono sulla riga del titolo: prima avevano una riga tutta loro. */}
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ContactsTab)} className={cn("ml-1 sm:ml-2", senzaListeMobile && "hidden")}>
             <TabsList className="h-8 gap-0.5 rounded-lg bg-slate-100 p-0.5">
-              <TabsTrigger value="all" className="tap-compact h-7 rounded-md px-3 text-xs max-sm:px-2 data-[state=active]:bg-white data-[state=active]:text-orange-700 data-[state=active]:shadow-sm">Tutti</TabsTrigger>
+              <TabsTrigger value="all" className="tap-compact h-7 rounded-md px-3 text-xs max-sm:px-2 data-[state=active]:bg-white data-[state=active]:text-orange-700 data-[state=active]:shadow-sm">{t("Tutti")}</TabsTrigger>
               <TabsTrigger value="lists" className="tap-compact h-7 gap-1.5 rounded-md px-3 text-xs max-sm:px-2 data-[state=active]:bg-white data-[state=active]:text-orange-700 data-[state=active]:shadow-sm">
-                Liste
+                {t("Liste")}
                 {listCount > 0 && <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">{listCount}</Badge>}
               </TabsTrigger>
             </TabsList>
@@ -1534,9 +1538,9 @@ export default function MarketingContacts() {
               <DropdownMenuTrigger asChild>
                 {/* Tablet e fino a 1280: a icona, così titolo, schede e azioni
                     stanno su una riga (a 1024 con le etichette andavano a capo). */}
-                <Button variant="outline" size="sm" className="hidden h-9 border-slate-200 bg-white hover:bg-slate-50 sm:flex" disabled={exporting || isLoading} aria-label="Esporta">
+                <Button variant="outline" size="sm" className="hidden h-9 border-slate-200 bg-white hover:bg-slate-50 sm:flex" disabled={exporting || isLoading} aria-label={t("Esporta")}>
                   <Download className="mr-2 h-4 w-4 max-xl:mr-0" />
-                  <span className="max-xl:hidden">{exporting ? "Esportando..." : selectedIds.size > 0 ? `Esporta (${selectedIds.size})` : "Esporta"}</span>
+                  <span className="max-xl:hidden">{exporting ? t("Esportando...") : selectedIds.size > 0 ? t("Esporta ({size})", { size: String(selectedIds.size ?? "") }) : t("Esporta")}</span>
                   <ChevronDown className="ml-1 h-3 w-3 max-xl:hidden" />
                 </Button>
               </DropdownMenuTrigger>
@@ -1544,25 +1548,25 @@ export default function MarketingContacts() {
                 {/* Niente export su telefono. */}
                 {!isMobile && (
                   <DropdownMenuItem onClick={() => doExport("csv")}>
-                    <Download className="mr-2 h-4 w-4" /> Esporta CSV
+                    <Download className="mr-2 h-4 w-4" /> {t("Esporta CSV")}
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem onClick={() => doExport("xlsx")}>
-                  <Download className="mr-2 h-4 w-4" /> Esporta XLSX
+                  <Download className="mr-2 h-4 w-4" /> {t("Esporta XLSX")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-          <Button variant="outline" size="sm" className="hidden h-9 border-slate-200 bg-white hover:bg-slate-50 sm:flex" onClick={() => setImportOpen(true)} disabled={!canEditContacts} aria-label="Importa">
-            <Upload className="mr-2 h-4 w-4 max-xl:mr-0" /> <span className="max-xl:hidden">Importa</span>
+          <Button variant="outline" size="sm" className="hidden h-9 border-slate-200 bg-white hover:bg-slate-50 sm:flex" onClick={() => setImportOpen(true)} disabled={!canEditContacts} aria-label={t("Importa")}>
+            <Upload className="mr-2 h-4 w-4 max-xl:mr-0" /> <span className="max-xl:hidden">{t("Importa")}</span>
           </Button>
           {/* Mobile no: il menu «…» aveva solo Importa e Gestisci campi (colonne
               della tabella, che su telefono non c'è): lavoro da scrivania. */}
           {/* Mobile: CTA compatta (richiesta utente: bottone più piccolo). */}
           <Button className="tap-compact h-8 shrink-0 bg-gradient-to-r from-orange-500 to-eic-amber-strong px-2.5 text-xs text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600 sm:h-9 sm:px-4 sm:text-sm" onClick={() => { setEditingContact(null); setDialogOpen(true); }} disabled={!canEditContacts}>
             <Plus className="h-4 w-4 sm:mr-1" />
-            <span className="hidden lg:inline">Aggiungi contatto</span>
-            <span className="ml-1 lg:hidden">Aggiungi</span>
+            <span className="hidden lg:inline">{t("Aggiungi contatto")}</span>
+            <span className="ml-1 lg:hidden">{t("Aggiungi")}</span>
           </Button>
         </div>
       </div>
@@ -1573,7 +1577,7 @@ export default function MarketingContacts() {
             setFilters(f);
             setPage(1);
             setActiveTab("all");
-            toast.info("Filtri della lista applicati ai contatti");
+            toast.info(t("Filtri della lista applicati ai contatti"));
           }}
         />
       ) : (
@@ -1586,7 +1590,7 @@ export default function MarketingContacts() {
             className="lg:hidden"
             valore={searchInput}
             onCambia={(v) => { setSearchInput(v); setPage(1); }}
-            segnaposto="Cerca contatti"
+            segnaposto={t("Cerca contatti")}
             filtriAttivi={filtriMobileAttivi}
             onApriFiltri={() => setFiltriMobileAperti(true)}
           />
@@ -1600,7 +1604,7 @@ export default function MarketingContacts() {
             risultati={totalCount}
           >
             <PilloleFiltro
-              titolo="Mostra"
+              titolo={t("Mostra")}
               valore={qualityFilter}
               onScegli={(v) => setQualityFilter(v)}
               scelte={[
@@ -1615,7 +1619,7 @@ export default function MarketingContacts() {
               ]}
             />
             <PilloleFiltro
-              titolo="Ordine"
+              titolo={t("Ordine")}
               valore={sortDirection}
               onScegli={(v) => setURLParams({ sortDirection: v, page: 1 })}
               scelte={[
@@ -1629,10 +1633,10 @@ export default function MarketingContacts() {
             {activeFilterCount > 0 && (
               <div className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2">
                 <span className="text-xs text-muted-foreground">
-                  {activeFilterCount === 1 ? "1 filtro da lista" : `${activeFilterCount} filtri da lista`}
+                  {activeFilterCount === 1 ? t("1 filtro da lista") : t("{activeFilterCount} filtri da lista", { activeFilterCount: String(activeFilterCount ?? "") })}
                 </span>
                 <Button variant="ghost" size="sm" className="tap-compact h-7 px-2 text-xs" onClick={() => handleApplyFilters(EMPTY_CONTACT_FILTERS)}>
-                  Togli
+                  {t("Togli")}
                 </Button>
               </div>
             )}
@@ -1659,15 +1663,15 @@ export default function MarketingContacts() {
                     aria-pressed={soloContattabili}
                     onClick={() => setQualityFilter(soloContattabili ? "all" : "contactable")}
                     title={soloContattabili
-                      ? "Rimuovi filtro"
-                      : `Mostra solo i contattabili: ${percento(reachStats.reachable)}% di tutto il database`}
+                      ? t("Rimuovi filtro")
+                      : t("Mostra solo i contattabili: {reachable}% di tutto il database", { reachable: String(percento(reachStats.reachable) ?? "") })}
                     className={`-ml-1.5 flex h-7 items-center gap-2 rounded-full px-1.5 transition-colors ${
                       soloContattabili ? "bg-emerald-50 ring-1 ring-emerald-300" : "hover:bg-slate-50"
                     }`}
                   >
                     <ShieldCheck className="h-4 w-4 text-emerald-600" />
                     <span className="text-xs text-slate-600">
-                      <span className="font-semibold tabular-nums text-slate-900">{reachStats.reachable.toLocaleString("it-IT")}</span> contattabili su {reachStats.total.toLocaleString("it-IT")}
+                      <span className="font-semibold tabular-nums text-slate-900">{reachStats.reachable.toLocaleString(intlCampo())}</span> {t("contattabili su")} {reachStats.total.toLocaleString(intlCampo())}
                     </span>
                     <span className="h-1.5 w-20 overflow-hidden rounded-full bg-red-100" aria-hidden>
                       <span
@@ -1686,7 +1690,7 @@ export default function MarketingContacts() {
                       <button
                         key={key}
                         type="button"
-                        title={active ? "Rimuovi filtro" : `Mostra solo: ${label.toLowerCase()} (${percento(value)}%)`}
+                        title={active ? t("Rimuovi filtro") : t("Mostra solo: {label} ({value}%)", { label: label.toLowerCase(), value: String(percento(value) ?? "") })}
                         aria-pressed={active}
                         onClick={() => setQualityFilter(active ? "all" : key)}
                         className={`inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors ${
@@ -1695,7 +1699,7 @@ export default function MarketingContacts() {
                       >
                         <Icon className={`h-3.5 w-3.5 ${dotCls}`} />
                         {label}
-                        <span className="font-bold tabular-nums">{value.toLocaleString("it-IT")}</span>
+                        <span className="font-bold tabular-nums">{value.toLocaleString(intlCampo())}</span>
                       </button>
                     );
                   })}
@@ -1708,7 +1712,7 @@ export default function MarketingContacts() {
               <div className="relative sm:hidden">
                 <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  placeholder="Cerca contatti..."
+                  placeholder={t("Cerca contatti...")}
                   className="h-9 w-full pl-8 text-base md:text-sm"
                   value={searchInput}
                   onChange={(e) => { setSearchInput(e.target.value); setPage(1); }}
@@ -1724,11 +1728,11 @@ export default function MarketingContacts() {
                     spingere l'ultima vista da sola su una riga nuova. */}
                 <div className="relative hidden max-w-[280px] grow basis-[180px] sm:block">
                   <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                  <Input placeholder="Nome, email, telefono…" inputMode="search" enterKeyHint="search" className="h-8 w-full pl-8 text-xs" value={searchInput} onChange={(e) => { setSearchInput(e.target.value); setPage(1); }} />
+                  <Input placeholder={t("Nome, email, telefono…")} inputMode="search" enterKeyHint="search" className="h-8 w-full pl-8 text-xs" value={searchInput} onChange={(e) => { setSearchInput(e.target.value); setPage(1); }} />
                 </div>
                 <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setFiltersSheetOpen(true)}>
                   <Filter className="h-3.5 w-3.5" />
-                  Filtri
+                  {t("Filtri")}
                   {activeFilterCount > 0 && (
                     <Badge className="flex h-4 w-4 items-center justify-center rounded-full p-0 text-[9px]">
                       {activeFilterCount}
@@ -1738,12 +1742,12 @@ export default function MarketingContacts() {
                 {activeFilterCount > 0 && (
                   <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setSalvaListaOpen(true)}>
                     <BookmarkPlus className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Salva lista</span>
+                    <span className="hidden sm:inline">{t("Salva lista")}</span>
                   </Button>
                 )}
                 <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => { setSortDirection(sortDirection === "asc" ? "desc" : "asc"); setPage(1); }}>
                   <ArrowUpDown className="h-3.5 w-3.5" />
-                  Ordina
+                  {t("Ordina")}
                 </Button>
                 {/* Icona sola accanto a «Ordina»: in fondo a destra finiva da
                     sola su una riga nuova appena le viste la riempivano. */}
@@ -1752,8 +1756,8 @@ export default function MarketingContacts() {
                   size="icon"
                   className="hidden h-8 w-8 sm:inline-flex"
                   onClick={() => setFieldsSheetOpen(true)}
-                  title="Gestisci campi"
-                  aria-label="Gestisci campi"
+                  title={t("Gestisci campi")}
+                  aria-label={t("Gestisci campi")}
                 >
                   <Settings2 className="h-3.5 w-3.5" />
                 </Button>
@@ -1769,15 +1773,15 @@ export default function MarketingContacts() {
                         ? "border-orange-300 bg-orange-50 text-orange-700"
                         : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                     }`}
-                    title={filter.description}
+                    title={t(filter.description)}
                     onClick={() => setQualityFilter(filter.value)}
                   >
-                    {filter.label}
+                    {t(filter.label)}
                   </button>
                 ))}
                 {qualityStats.duplicates > 0 && (
-                  <span className="hidden shrink-0 items-center gap-1 text-[11px] text-amber-700 sm:inline-flex" title="Stessa email o stesso telefono di un altro contatto di questa pagina">
-                    <Copy className="h-3 w-3" /> {qualityStats.duplicates} possibili doppioni in questa pagina
+                  <span className="hidden shrink-0 items-center gap-1 text-[11px] text-amber-700 sm:inline-flex" title={t("Stessa email o stesso telefono di un altro contatto di questa pagina")}>
+                    <Copy className="h-3 w-3" /> {qualityStats.duplicates} {t("possibili doppioni in questa pagina")}
                   </span>
                 )}
               </div>
@@ -1801,7 +1805,7 @@ export default function MarketingContacts() {
                 ))}
               </div>
             ) : contacts.length === 0 ? (
-              <div className="text-center text-muted-foreground py-12 text-sm">Nessun contatto trovato</div>
+              <div className="text-center text-muted-foreground py-12 text-sm">{t("Nessun contatto trovato")}</div>
             ) : (
               /* Righe dense stile tabella: con migliaia di lead le card
                  occupavano ~110px l'una; qui ~50px, una sola riga secondaria
@@ -1832,8 +1836,8 @@ export default function MarketingContacts() {
                       stato={
                         c.opp_status === "open" || c.opp_status === "won" || issues.length > 0 ? (
                           <span className="inline-flex items-center gap-1.5">
-                            {c.opp_status === "open" && <span className="h-2 w-2 rounded-full bg-emerald-500" aria-label="Opportunità aperta" />}
-                            {c.opp_status === "won" && <span className="h-2 w-2 rounded-full bg-blue-500" aria-label="Opportunità vinta" />}
+                            {c.opp_status === "open" && <span className="h-2 w-2 rounded-full bg-emerald-500" aria-label={t("Opportunità aperta")} />}
+                            {c.opp_status === "won" && <span className="h-2 w-2 rounded-full bg-blue-500" aria-label={t("Opportunità vinta")} />}
                             {issues.length > 0 && <span className="font-medium text-amber-600">⚠ {issues.length}</span>}
                           </span>
                         ) : undefined
@@ -1847,11 +1851,11 @@ export default function MarketingContacts() {
             {totalCount > pageSize && (
               <div className="flex items-center justify-between pt-2">
                 <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(page - 1)}>
-                  <ChevronLeft className="h-4 w-4 mr-1" /> Prec
+                  <ChevronLeft className="h-4 w-4 mr-1" /> {t("Prec")}
                 </Button>
                 <span className="text-xs text-muted-foreground">{page} / {Math.ceil(totalCount / pageSize)}</span>
                 <Button variant="outline" size="sm" disabled={page * pageSize >= totalCount} onClick={() => setPage(page + 1)}>
-                  Succ <ChevronRight className="h-4 w-4 ml-1" />
+                  {t("Succ")} <ChevronRight className="h-4 w-4 ml-1" />
                 </Button>
               </div>
             )}
@@ -1892,14 +1896,10 @@ export default function MarketingContacts() {
               bulkActions={
                 <div className="flex flex-wrap items-center gap-2">
                   {selectedQualitySummary.issues > 0 && (
-                    <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">
-                      {selectedQualitySummary.issues} warning selezione
-                    </Badge>
+                    <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">{t("{issues} warning selezione", { issues: String(selectedQualitySummary.issues ?? "") })}</Badge>
                   )}
                   {selectedQualitySummary.optout > 0 && (
-                    <Badge className="bg-red-100 text-red-700 hover:bg-red-100">
-                      {selectedQualitySummary.optout} no marketing
-                    </Badge>
+                    <Badge className="bg-red-100 text-red-700 hover:bg-red-100">{t("{optout} no marketing", { optout: String(selectedQualitySummary.optout ?? "") })}</Badge>
                   )}
                   {companyId === PLATFORM_ADMIN_COMPANY_ID && (
                     <BulkEnrichButton selectedIds={selectedIds} onDone={invalidate} />
@@ -1932,23 +1932,20 @@ export default function MarketingContacts() {
       <Dialog open={salvaListaOpen} onOpenChange={(o) => { setSalvaListaOpen(o); if (!o) setNomeListaDinamica(""); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Salva come lista dinamica</DialogTitle>
+            <DialogTitle>{t("Salva come lista dinamica")}</DialogTitle>
           </DialogHeader>
-          <p className="text-xs text-muted-foreground">
-            La lista ricorda i {activeFilterCount} filtri attivi, non i contatti:
-            chi matcha entra ed esce da solo.
-          </p>
+          <p className="text-xs text-muted-foreground">{t("La lista ricorda i {activeFilterCount} filtri attivi, non i contatti: chi matcha entra ed esce da solo.", { activeFilterCount: String(activeFilterCount ?? "") })}</p>
           <Input
             autoFocus
-            placeholder="Nome della lista…"
+            placeholder={t("Nome della lista…")}
             value={nomeListaDinamica}
             onChange={(e) => setNomeListaDinamica(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && nomeListaDinamica.trim()) salvaListaDinamica.mutate(nomeListaDinamica); }}
           />
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSalvaListaOpen(false)}>Annulla</Button>
+            <Button variant="outline" onClick={() => setSalvaListaOpen(false)}>{t("Annulla")}</Button>
             <Button disabled={!nomeListaDinamica.trim() || salvaListaDinamica.isPending} onClick={() => salvaListaDinamica.mutate(nomeListaDinamica)}>
-              {salvaListaDinamica.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salva lista"}
+              {salvaListaDinamica.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t("Salva lista")}
             </Button>
           </DialogFooter>
         </DialogContent>

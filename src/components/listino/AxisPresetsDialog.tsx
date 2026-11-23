@@ -49,6 +49,7 @@ import {
   type PresetAxis,
   type PresetCategoria,
 } from "@/lib/axisPresets";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   open: boolean;
@@ -67,6 +68,7 @@ export function AxisPresetsDialog({
   onApply,
   saving = false,
 }: Props) {
+  const t = useT();
   // Set di codici asse selezionati (per id asse, non codice DB)
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [categoria, setCategoria] = useState<PresetCategoria>("serramenti");
@@ -185,13 +187,10 @@ export function AxisPresetsDialog({
               className="h-5 w-5 text-primary"
               aria-hidden="true"
             />
-            Applica preset di variabili
+            {t("Applica preset di variabili")}
           </DialogTitle>
           <DialogDescription className="text-xs sm:text-sm">
-            Bootstrap rapido delle dimensioni di variazione della famiglia.
-            Scegli un pack preconfezionato (un click) o seleziona singole variabili.
-            Tutti i valori e le maggiorazioni sono modificabili dopo
-            l'applicazione.
+            {t("Bootstrap rapido delle dimensioni di variazione della famiglia. Scegli un pack preconfezionato (un click) o seleziona singole variabili. Tutti i valori e le maggiorazioni sono modificabili dopo l'applicazione.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -227,10 +226,9 @@ export function AxisPresetsDialog({
 
               {/* Pack rapidi della categoria */}
               <section className="space-y-2">
-                <h4 className="text-sm font-medium">Pack rapidi</h4>
+                <h4 className="text-sm font-medium">{t("Pack rapidi")}</h4>
                 <p className="text-xs text-muted-foreground">
-                  Un click aggiunge tutte le variabili del pack (le eventuali già
-                  presenti vengono saltati).
+                  {t("Un click aggiunge tutte le variabili del pack (le eventuali già presenti vengono saltati).")}
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {PRESET_PACKS.filter((p) => p.categoria === cat.id).map(
@@ -258,8 +256,7 @@ export function AxisPresetsDialog({
                             <span aria-hidden="true">{pack.icona}</span>
                             {pack.nome}
                             <span className="ml-auto text-[10px] font-normal text-muted-foreground">
-                              {pack.assiIds.length} variabili · {totValuesInPack}{" "}
-                              valori
+                              {t("{n} variabili · {totValuesInPack} valori", { n: pack.assiIds.length, totValuesInPack })}
                             </span>
                           </div>
                           <p className="text-xs text-muted-foreground mb-2">
@@ -290,7 +287,7 @@ export function AxisPresetsDialog({
                   )}
                   {packsCategoria.length === 0 ? (
                     <p className="text-xs text-muted-foreground col-span-full">
-                      Nessun pack disponibile per questa categoria.
+                      {t("Nessun pack disponibile per questa categoria.")}
                     </p>
                   ) : null}
                 </div>
@@ -300,7 +297,7 @@ export function AxisPresetsDialog({
               {axesCategoria.length > 0 ? (
                 <section className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-medium">Singole variabili</h4>
+                    <h4 className="text-sm font-medium">{t("Singole variabili")}</h4>
                     {selected.size > 0 ? (
                       <button
                         type="button"
@@ -308,7 +305,7 @@ export function AxisPresetsDialog({
                         disabled={saving}
                         className="text-xs text-muted-foreground hover:text-foreground underline"
                       >
-                        Deseleziona tutto
+                        {t("Deseleziona tutto")}
                       </button>
                     ) : null}
                   </div>
@@ -351,7 +348,7 @@ export function AxisPresetsDialog({
                                     variant="secondary"
                                     className="text-[10px]"
                                   >
-                                    obbligatorio
+                                    {t("obbligatorio")}
                                   </Badge>
                                 ) : null}
                                 {!isAvailable(ax) ? (
@@ -363,11 +360,11 @@ export function AxisPresetsDialog({
                                       className="h-3 w-3"
                                       aria-hidden="true"
                                     />
-                                    già presente
+                                    {t("già presente")}
                                   </Badge>
                                 ) : null}
                                 <span className="text-xs text-muted-foreground">
-                                  ({ax.values.length} valori)
+                                  {t("({n} valori)", { n: ax.values.length })}
                                 </span>
                               </div>
                               <p className="text-xs text-muted-foreground">
@@ -390,9 +387,7 @@ export function AxisPresetsDialog({
             className="rounded-md border border-destructive bg-destructive/10 p-2 text-xs text-destructive"
             role="alert"
           >
-            <strong>Conflitto codice:</strong> hai selezionato più preset con
-            lo stesso codice DB ({duplicatedCodici.join(", ")}). Deseleziona
-            quelli in sovrapposizione prima di applicare.
+            <strong>{t("Conflitto codice:")}</strong> {t("hai selezionato più preset con lo stesso codice DB (")}{duplicatedCodici.join(", ")}{t("). Deseleziona quelli in sovrapposizione prima di applicare.")}
           </div>
         ) : null}
 
@@ -403,7 +398,7 @@ export function AxisPresetsDialog({
             disabled={saving}
             className="h-10 w-full sm:w-auto"
           >
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button
             onClick={handleApply}
@@ -418,7 +413,7 @@ export function AxisPresetsDialog({
                   className="h-4 w-4 mr-2 animate-spin"
                   aria-hidden="true"
                 />
-                Creazione in corso…
+                {t("Creazione in corso…")}
               </>
             ) : (
               <>
@@ -426,9 +421,8 @@ export function AxisPresetsDialog({
                   className="h-4 w-4 mr-2"
                   aria-hidden="true"
                 />
-                Applica {selected.size > 0 ? selected.size : ""} ass
-                {selected.size === 1 ? "e" : "i"}
-                {totaleValori > 0 ? ` · ${totaleValori} valori` : ""}
+                {selected.size === 0 ? t("Applica assi") : selected.size === 1 ? t("Applica 1 asse") : t("Applica {n} assi", { n: selected.size })}
+                {totaleValori > 0 ? ` · ${t("{n} valori", { n: totaleValori })}` : ""}
               </>
             )}
           </Button>

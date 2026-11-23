@@ -9,10 +9,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { calcolaVoce, type VoceEditor } from "@/lib/computo/editorNativo";
 import { formatEuro } from "@/lib/computo/computoStrutturato";
 import ComputoMisure from "./ComputoMisure";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const capitoliFrequenti = ["Demolizioni e rimozioni", "Opere murarie", "Impianti elettrici", "Impianti idraulici", "Pavimenti e rivestimenti", "Serramenti", "Tinteggiature", "Sicurezza"];
 
-const quantitaTesto = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits: 2, useGrouping: "always" });
+const quantitaTesto = (n: number) => n.toLocaleString(intlCampo(), { maximumFractionDigits: 2, useGrouping: "always" });
 const ETICHETTA_CAMPO = "mb-1 block text-xs font-medium text-slate-600 md:hidden";
 const CAMPO_VOCE = "h-10 w-full min-w-0 bg-white px-2 text-base shadow-none focus:border-blue-400 md:h-7 md:border-transparent md:bg-transparent md:px-1.5 md:text-[13px] md:hover:border-slate-200 md:focus:bg-white";
 
@@ -41,6 +42,7 @@ export default function ComputoCapitoli({ voci, capitoliVuoti, aperta, onApri, o
   onSilvio?: (capitolo: string) => void;
   vociAggiornateDaSilvio?: ReadonlySet<string>;
 }) {
+  const t = useT();
   const [ricerca, setRicerca] = useState("");
   const [capitoloScelto, setCapitoloScelto] = useState<string | null>(null);
   const [stato, setStato] = useState<"tutte" | "da-prezzare" | "con-misure">("tutte");
@@ -131,58 +133,58 @@ export default function ComputoCapitoli({ voci, capitoliVuoti, aperta, onApri, o
     setVoceDaCompilare(id);
   };
   const cambiaMisure = (id: string) => setMisureAperte(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
-  return <section aria-label="Capitoli del computo" className="min-w-0">
+  return <section aria-label={t("Capitoli del computo")} className="min-w-0">
     <div className={`grid min-w-0 items-start gap-2 ${indiceLaterale ? "xl:grid-cols-[170px_minmax(0,1fr)]" : ""}`}>
-      {indiceLaterale && !!capitoli.length && <nav aria-label="Indice dei capitoli" className="hidden overflow-hidden rounded-lg border bg-white p-1 xl:sticky xl:top-24 xl:block">
-        <button type="button" aria-current={!selezionato ? "page" : undefined} onClick={() => scegliCapitolo(null)} className={`flex w-full items-center justify-between gap-1 rounded px-2 py-2 text-left text-xs ${!selezionato ? "bg-slate-100 font-semibold text-slate-950" : "text-slate-600 hover:bg-slate-50"}`}><span>Tutti i capitoli</span><span className="font-normal tabular-nums text-muted-foreground">{voci.length}</span></button>
+      {indiceLaterale && !!capitoli.length && <nav aria-label={t("Indice dei capitoli")} className="hidden overflow-hidden rounded-lg border bg-white p-1 xl:sticky xl:top-24 xl:block">
+        <button type="button" aria-current={!selezionato ? "page" : undefined} onClick={() => scegliCapitolo(null)} className={`flex w-full items-center justify-between gap-1 rounded px-2 py-2 text-left text-xs ${!selezionato ? "bg-slate-100 font-semibold text-slate-950" : "text-slate-600 hover:bg-slate-50"}`}><span>{t("Tutti i capitoli")}</span><span className="font-normal tabular-nums text-muted-foreground">{voci.length}</span></button>
         <div className="max-h-[calc(100dvh-22rem)] overflow-y-auto">{capitoli.map((c, n) => <button key={c.nome} type="button" aria-current={selezionato === c.nome ? "page" : undefined} onClick={() => scegliCapitolo(c.nome)} className={`flex w-full items-start gap-2 rounded px-2 py-2 text-left ${selezionato === c.nome ? "bg-blue-50 text-blue-950" : "hover:bg-slate-50"}`}>
           <span className="pt-0.5 text-[10px] tabular-nums text-slate-400">{String(n + 1).padStart(2, "0")}</span>
-          <span className="min-w-0 flex-1"><span className="line-clamp-2 text-[11px] font-medium leading-4" title={c.nome}>{c.nome}</span><span className="mt-0.5 block text-[10px] tabular-nums text-muted-foreground">{c.righe.length} {c.righe.length === 1 ? "voce" : "voci"} · {formatEuro(totaleCapitolo(c))} €</span></span>
+          <span className="min-w-0 flex-1"><span className="line-clamp-2 text-[11px] font-medium leading-4" title={c.nome}>{c.nome}</span><span className="mt-0.5 block text-[10px] tabular-nums text-muted-foreground">{c.righe.length} {c.righe.length === 1 ? t("voce") : t("voci")} · {formatEuro(totaleCapitolo(c))} €</span></span>
         </button>)}</div>
       </nav>}
       <div className={`min-w-0 space-y-2 ${!capitoli.length ? "xl:col-span-2" : ""}`}>
         {!!capitoli.length && <div className={indiceLaterale ? "xl:hidden" : undefined}>
           <Select value={selezionato ?? "__tutti__"} onValueChange={value => scegliCapitolo(value === "__tutti__" ? null : value)}>
-            <SelectTrigger aria-label="Capitolo da visualizzare" className="h-10 max-w-sm bg-white text-sm md:h-8 md:text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="__tutti__">Tutti i capitoli · {voci.length} {voci.length === 1 ? "voce" : "voci"}</SelectItem>{capitoli.map((c, n) => <SelectItem key={c.nome} value={c.nome}>{String(n + 1).padStart(2, "0")} · {c.nome}</SelectItem>)}</SelectContent>
+            <SelectTrigger aria-label={t("Capitolo da visualizzare")} className="h-10 max-w-sm bg-white text-sm md:h-8 md:text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="__tutti__">{t("Tutti i capitoli ·")} {voci.length} {voci.length === 1 ? t("voce") : t("voci")}</SelectItem>{capitoli.map((c, n) => <SelectItem key={c.nome} value={c.nome}>{String(n + 1).padStart(2, "0")} · {c.nome}</SelectItem>)}</SelectContent>
           </Select>
         </div>}
         <div className="flex flex-wrap items-center gap-2">
           {!!voci.length && <div className="relative min-w-0 flex-1 max-md:basis-full">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input type="search" aria-label="Cerca lavorazioni" placeholder="Cerca una lavorazione" className="h-10 bg-white pl-8 text-base md:h-9 md:text-sm" value={ricerca} onChange={e => { setRicerca(e.target.value); setChiusi(new Set()); }} />
+            <Input type="search" aria-label={t("Cerca lavorazioni")} placeholder={t("Cerca una lavorazione")} className="h-10 bg-white pl-8 text-base md:h-9 md:text-sm" value={ricerca} onChange={e => { setRicerca(e.target.value); setChiusi(new Set()); }} />
           </div>}
-          {onListino && <Button variant="outline" size="sm" aria-label="Cerca nei listini" onClick={() => onListino(selezionato ?? undefined)}>
-            <Search className="mr-1.5 h-3.5 w-3.5" /><span className="hidden sm:inline">Cerca nei listini</span><span className="sm:hidden">Listini</span>
+          {onListino && <Button variant="outline" size="sm" aria-label={t("Cerca nei listini")} onClick={() => onListino(selezionato ?? undefined)}>
+            <Search className="mr-1.5 h-3.5 w-3.5" /><span className="hidden sm:inline">{t("Cerca nei listini")}</span><span className="sm:hidden">{t("Listini")}</span>
           </Button>}
           {!!capitoli.length && <Button size="sm" disabled={voci.length >= 5000} onClick={() => nuoveVoci(selezionato ?? capitoloAperto)}>
-            <Plus className="mr-1.5 h-4 w-4" />Aggiungi lavorazione
+            <Plus className="mr-1.5 h-4 w-4" />{t("Aggiungi lavorazione")}
           </Button>}
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
-          {!!voci.length && <div role="group" aria-label="Filtra lavorazioni" className="flex flex-wrap items-center gap-0.5">
+          {!!voci.length && <div role="group" aria-label={t("Filtra lavorazioni")} className="flex flex-wrap items-center gap-0.5">
             {([["tutte", "Tutte", null], ["da-prezzare", "Da prezzare", voci.filter(daPrezzare).length], ["con-misure", "Con misure", voci.filter(v => v.misure.length).length]] as const).map(([id, label, count]) => <button key={id} type="button" aria-label={count == null ? label : `${label} ${count}`} aria-pressed={stato === id} onClick={() => { setStato(id); setChiusi(new Set()); }} className={`inline-flex h-8 items-center gap-1.5 rounded px-2 text-xs ${stato === id ? "bg-slate-800 font-medium text-white" : "text-slate-600 hover:bg-slate-100"}`}>{label}{count != null && <span className={stato === id ? "text-slate-200" : "text-slate-400"}>{count}</span>}</button>)}
           </div>}
-          {!!capitoli.length && <Button variant="ghost" size="icon" className="h-8 w-8" title={chiusi.size ? "Espandi tutti i capitoli" : "Comprimi tutti i capitoli"} aria-label={chiusi.size ? "Espandi tutti i capitoli" : "Comprimi tutti i capitoli"} onClick={() => setChiusi(chiusi.size ? new Set() : new Set(capitoli.map(c => c.nome)))}>{chiusi.size ? <ChevronsDown className="h-3.5 w-3.5" /> : <ChevronsUp className="h-3.5 w-3.5" />}</Button>}
-          {!!capitoli.length && <Button variant="outline" size="sm" className="h-8 gap-1 px-2 text-xs" disabled={capitoli.length >= 200} onClick={() => apri()}><Plus className="h-3.5 w-3.5" />Aggiungi capitolo</Button>}
+          {!!capitoli.length && <Button variant="ghost" size="icon" className="h-8 w-8" title={chiusi.size ? t("Espandi tutti i capitoli") : t("Comprimi tutti i capitoli")} aria-label={chiusi.size ? t("Espandi tutti i capitoli") : t("Comprimi tutti i capitoli")} onClick={() => setChiusi(chiusi.size ? new Set() : new Set(capitoli.map(c => c.nome)))}>{chiusi.size ? <ChevronsDown className="h-3.5 w-3.5" /> : <ChevronsUp className="h-3.5 w-3.5" />}</Button>}
+          {!!capitoli.length && <Button variant="outline" size="sm" className="h-8 gap-1 px-2 text-xs" disabled={capitoli.length >= 200} onClick={() => apri()}><Plus className="h-3.5 w-3.5" />{t("Aggiungi capitolo")}</Button>}
           <Select value="" disabled={capitoli.length >= 200} onValueChange={value => {
             if (!value || capitoli.some(c => c.nome.toLocaleLowerCase("it") === value.toLocaleLowerCase("it"))) return;
             onCapitoli([...capitoliVuoti, value]); setCapitoloScelto(null); setRicerca(""); setStato("tutte"); setChiusi(prev => { const next = new Set(prev); next.delete(value); return next; });
-          }}><SelectTrigger aria-label="Capitoli frequenti" className="h-8 w-32 bg-white text-xs"><SelectValue placeholder="Capitolo rapido" /></SelectTrigger><SelectContent>{capitoliFrequenti.map(n => <SelectItem key={n} value={n} disabled={capitoli.some(c => c.nome.toLocaleLowerCase("it") === n.toLocaleLowerCase("it"))}>{n}</SelectItem>)}</SelectContent></Select>
+          }}><SelectTrigger aria-label={t("Capitoli frequenti")} className="h-8 w-32 bg-white text-xs"><SelectValue placeholder={t("Capitolo rapido")} /></SelectTrigger><SelectContent>{capitoliFrequenti.map(n => <SelectItem key={n} value={n} disabled={capitoli.some(c => c.nome.toLocaleLowerCase("it") === n.toLocaleLowerCase("it"))}>{t(n)}</SelectItem>)}</SelectContent></Select>
         </div>
         {!capitoli.length && <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed bg-white p-5 text-center">
-          <Calculator className="h-6 w-6 text-slate-400" /><h3 className="text-sm font-semibold">Costruisci il computo</h3>
+          <Calculator className="h-6 w-6 text-slate-400" /><h3 className="text-sm font-semibold">{t("Costruisci il computo")}</h3>
           <div className="flex flex-wrap justify-center gap-2">
-            <Button size="sm" onClick={() => nuoveVoci("Opere edili")}><Plus className="mr-1 h-4 w-4" />Aggiungi lavorazione</Button>
-            <Button size="sm" variant="outline" onClick={() => apri()}>Crea il primo capitolo</Button>
+            <Button size="sm" onClick={() => nuoveVoci("Opere edili")}><Plus className="mr-1 h-4 w-4" />{t("Aggiungi lavorazione")}</Button>
+            <Button size="sm" variant="outline" onClick={() => apri()}>{t("Crea il primo capitolo")}</Button>
           </div>
-          <p className="text-xs text-muted-foreground">Puoi preparare le voci anche senza prezzo e completarlo dopo.</p>
+          <p className="text-xs text-muted-foreground">{t("Puoi preparare le voci anche senza prezzo e completarlo dopo.")}</p>
         </div>}
-        {!!capitoli.length && <div aria-label="Elenco dei capitoli" role="region" tabIndex={0} className="rounded-lg border bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 md:overflow-x-auto">
+        {!!capitoli.length && <div aria-label={t("Elenco dei capitoli")} role="region" tabIndex={0} className="rounded-lg border bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 md:overflow-x-auto">
           <table role="table" className="w-full table-fixed border-collapse text-xs max-md:block md:min-w-[650px]">
-            <caption className="sr-only">Lavorazioni del computo. Descrizione, unità, quantità e prezzo si modificano nella riga.</caption>
+            <caption className="sr-only">{t("Lavorazioni del computo. Descrizione, unità, quantità e prezzo si modificano nella riga.")}</caption>
             <colgroup className="max-md:hidden"><col /><col className="w-[76px]" /><col className="w-[76px]" /><col className="w-[96px]" /><col className="w-[110px]" /><col className={onStima ? "w-24" : "w-16"} /></colgroup>
-            <thead className="bg-slate-50 text-[11px] font-medium text-slate-500 max-md:hidden"><tr><th scope="col" className="px-3 py-2 text-left font-medium">Lavorazione</th><th scope="col" className="px-2 py-2 text-left font-medium">U.M.</th><th scope="col" className="px-2 py-2 text-right font-medium">Quantità</th><th scope="col" className="px-2 py-2 text-right font-medium">Prezzo unit. €</th><th scope="col" className="px-2 py-2 text-right font-medium">Importo €</th><th scope="col"><span className="sr-only">Azioni della voce</span></th></tr></thead>
+            <thead className="bg-slate-50 text-[11px] font-medium text-slate-500 max-md:hidden"><tr><th scope="col" className="px-3 py-2 text-left font-medium">{t("Lavorazione")}</th><th scope="col" className="px-2 py-2 text-left font-medium">U.M.</th><th scope="col" className="px-2 py-2 text-right font-medium">{t("Quantità")}</th><th scope="col" className="px-2 py-2 text-right font-medium">{t("Prezzo unit. €")}</th><th scope="col" className="px-2 py-2 text-right font-medium">{t("Importo €")}</th><th scope="col"><span className="sr-only">{t("Azioni della voce")}</span></th></tr></thead>
             {visibili.map(c => {
               const contieneAperta = c.righe.some(r => r.voce.id === aperta);
               const apertoCapitolo = contieneAperta || c.haAggiornamenti || !chiusi.has(c.nome);
@@ -194,11 +196,11 @@ export default function ComputoCapitoli({ voci, capitoliVuoti, aperta, onApri, o
                     <span className="text-[10px] tabular-nums text-slate-400 max-md:hidden">{String(c.numero).padStart(2, "0")}</span>
                     <h4 className="min-w-0 flex-1 break-words text-left text-sm font-semibold md:truncate md:text-[13px]" title={c.nome}>{c.nome}</h4>
                     <span className="shrink-0 text-left text-xs font-normal text-slate-500 max-md:col-start-2 max-md:row-start-2">
-                      {c.righe.length} {c.righe.length === 1 ? "voce" : "voci"}{parziale && <span className="ml-1 text-amber-700">· Parziale</span>}
+                      {c.righe.length} {c.righe.length === 1 ? t("voce") : t("voci")}{parziale && <span className="ml-1 text-amber-700">{t("· Parziale")}</span>}
                     </span>
                     <strong className="pr-1 text-right text-xs tabular-nums max-md:col-span-2 max-md:col-start-3 max-md:row-start-2 md:min-w-[85px]">{formatEuro(totaleCapitolo(c))} €</strong>
-                    <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 text-slate-500 max-md:col-start-3 max-md:row-start-1 max-md:h-9 max-md:w-9" title="Rinomina capitolo" aria-label={`Rinomina capitolo ${c.nome}`} onClick={() => apri(c.nome)}><Pencil className="h-3.5 w-3.5" /></Button>
-                    <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 text-slate-500 hover:text-red-700 max-md:col-start-4 max-md:row-start-1 max-md:h-9 max-md:w-9" title="Elimina capitolo" aria-label={`Elimina capitolo ${c.nome}`} onClick={() => elimina(c.nome, c.righe.length)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                    <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 text-slate-500 max-md:col-start-3 max-md:row-start-1 max-md:h-9 max-md:w-9" title={t("Rinomina capitolo")} aria-label={t("Rinomina capitolo {nome}", { nome: String(c.nome ?? "") })} onClick={() => apri(c.nome)}><Pencil className="h-3.5 w-3.5" /></Button>
+                    <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 text-slate-500 hover:text-red-700 max-md:col-start-4 max-md:row-start-1 max-md:h-9 max-md:w-9" title={t("Elimina capitolo")} aria-label={t("Elimina capitolo {nome}", { nome: String(c.nome ?? "") })} onClick={() => elimina(c.nome, c.righe.length)}><Trash2 className="h-3.5 w-3.5" /></Button>
                   </div>
                 </th></tr>
                 {apertoCapitolo && <>
@@ -219,54 +221,54 @@ export default function ComputoCapitoli({ voci, capitoliVuoti, aperta, onApri, o
                             <span className="w-5 shrink-0 pt-1 text-right text-[10px] tabular-nums text-slate-400">{indice + 1}</span>
                             <div className="min-w-0 flex-1">
                               <Textarea ref={voceDaCompilare === voce.id ? descrizioneNuova : undefined} rows={1} maxLength={30000}
-                                aria-label={`Descrizione voce ${indice + 1}`} placeholder="Scrivi la lavorazione" title={voce.descrizione || undefined}
+                                aria-label={t("Descrizione voce {indice}", { indice: indice + 1 })} placeholder={t("Scrivi la lavorazione")} title={voce.descrizione || undefined}
                                 className={`${CAMPO_VOCE} min-h-0 resize-none overflow-hidden py-2 leading-5 focus:h-16 focus:overflow-auto md:py-0.5`}
                                 value={voce.descrizione} onChange={e => onModifica(voce.id, { descrizione: e.target.value })} />
                               {(voce.tariffa || segni.length > 0 || calcolo.errori.length > 0 || daMisure || voce.daQuantificare) && <div className="flex items-center gap-x-2 text-[10px] leading-4 text-slate-500 max-md:flex-wrap md:overflow-hidden md:whitespace-nowrap">
-                                {voce.tariffa && <span className="font-mono">{voce.tariffa}</span>}{daMisure && <span>{voce.misure.length} {voce.misure.length === 1 ? "riga" : "righe"} di misura</span>}{segni.map(s => <span key={s} className={s.startsWith("Opzionale") ? "text-blue-700" : ""}>{s}</span>)}
-                                {!!calcolo.errori.length && <span className="text-amber-700">{daPrezzare(voce) ? "Da prezzare" : "Da completare"}</span>}
+                                {voce.tariffa && <span className="font-mono">{voce.tariffa}</span>}{daMisure && <span>{voce.misure.length} {voce.misure.length === 1 ? t("riga") : t("righe")} {t("di misura")}</span>}{segni.map(s => <span key={s} className={s.startsWith("Opzionale") ? "text-blue-700" : ""}>{s}</span>)}
+                                {!!calcolo.errori.length && <span className="text-amber-700">{daPrezzare(voce) ? t("Da prezzare") : t("Da completare")}</span>}
                                 {voce.daQuantificare && (calcolo.quantita !== null && !calcolo.errori.length
                                   ? <button type="button" className="font-medium text-blue-700 underline underline-offset-2"
-                                      aria-label={`Conferma quantità voce ${indice + 1}`}
-                                      onClick={() => onModifica(voce.id, { daQuantificare: false })}>Conferma quantità</button>
-                                  : <span className="text-amber-700">Da quantificare</span>)}
+                                      aria-label={t("Conferma quantità voce {indice}", { indice: indice + 1 })}
+                                      onClick={() => onModifica(voce.id, { daQuantificare: false })}>{t("Conferma quantità")}</button>
+                                  : <span className="text-amber-700">{t("Da quantificare")}</span>)}
                               </div>}
                             </div>
                           </div>
                         </td>
                         <td className="min-w-0 align-middle md:p-1">
                           <span aria-hidden="true" className={ETICHETTA_CAMPO}>U.M.</span>
-                          <Input aria-label={`Unità voce ${indice + 1}`} maxLength={40} className={CAMPO_VOCE} value={voce.unita} placeholder="U.M." onChange={e => onModifica(voce.id, { unita: e.target.value, corpo: ["corpo", "a corpo"].includes(e.target.value.trim().toLowerCase()) })} />
+                          <Input aria-label={t("Unità voce {indice}", { indice: indice + 1 })} maxLength={40} className={CAMPO_VOCE} value={voce.unita} placeholder="U.M." onChange={e => onModifica(voce.id, { unita: e.target.value, corpo: ["corpo", "a corpo"].includes(e.target.value.trim().toLowerCase()) })} />
                         </td>
                         <td className="min-w-0 align-middle md:p-1">
-                          <span aria-hidden="true" className={ETICHETTA_CAMPO}>Quantità</span>
+                          <span aria-hidden="true" className={ETICHETTA_CAMPO}>{t("Quantità")}</span>
                           {daMisure
-                            ? <output className="block px-2 text-right text-sm tabular-nums max-md:flex max-md:h-10 max-md:items-center max-md:justify-end max-md:rounded-md max-md:bg-slate-100 md:text-[13px]" aria-label={`Quantità voce ${indice + 1} dalle misure`} title="Dalle righe di misura">{calcolo.quantita == null ? "—" : quantitaTesto(calcolo.quantita)}</output>
-                            : <Input aria-label={`Quantità voce ${indice + 1}`} inputMode="decimal" maxLength={40} className={`${CAMPO_VOCE} text-right`} placeholder="—" value={voce.quantita} onChange={e => onModifica(voce.id, { quantita: e.target.value })} />}
+                            ? <output className="block px-2 text-right text-sm tabular-nums max-md:flex max-md:h-10 max-md:items-center max-md:justify-end max-md:rounded-md max-md:bg-slate-100 md:text-[13px]" aria-label={t("Quantità voce {indice} dalle misure", { indice: indice + 1 })} title={t("Dalle righe di misura")}>{calcolo.quantita == null ? "—" : quantitaTesto(calcolo.quantita)}</output>
+                            : <Input aria-label={t("Quantità voce {indice}", { indice: indice + 1 })} inputMode="decimal" maxLength={40} className={`${CAMPO_VOCE} text-right`} placeholder="—" value={voce.quantita} onChange={e => onModifica(voce.id, { quantita: e.target.value })} />}
                         </td>
                         <td className="min-w-0 align-middle md:p-1">
-                          <span aria-hidden="true" className={ETICHETTA_CAMPO}>Prezzo €</span>
-                          <Input data-prezzo-voce aria-label={`Prezzo voce ${indice + 1}`} inputMode="decimal" maxLength={40} className={`${CAMPO_VOCE} text-right tabular-nums`} placeholder="—" value={voce.prezzo} onKeyDown={prezzoSotto} onChange={e => onModifica(voce.id, { prezzo: e.target.value })} />
+                          <span aria-hidden="true" className={ETICHETTA_CAMPO}>{t("Prezzo €")}</span>
+                          <Input data-prezzo-voce aria-label={t("Prezzo voce {indice}", { indice: indice + 1 })} inputMode="decimal" maxLength={40} className={`${CAMPO_VOCE} text-right tabular-nums`} placeholder="—" value={voce.prezzo} onKeyDown={prezzoSotto} onChange={e => onModifica(voce.id, { prezzo: e.target.value })} />
                         </td>
                         <td className="text-right align-middle tabular-nums max-md:self-center max-md:text-left md:px-2 md:py-1">
-                          <span aria-hidden="true" className="mr-2 text-xs text-slate-500 md:hidden">Importo</span>
+                          <span aria-hidden="true" className="mr-2 text-xs text-slate-500 md:hidden">{t("Importo")}</span>
                           <strong className={`whitespace-nowrap text-sm md:text-[13px] ${calcolo.importo === null || calcolo.errori.length ? "font-normal text-slate-400" : voce.opzionale ? "font-medium text-slate-500" : "font-semibold text-slate-900"}`}>{calcolo.importo === null || calcolo.errori.length ? "—" : `${formatEuro(calcolo.importo ?? 0)} €`}</strong>
                         </td>
                         <td className="align-middle max-md:col-span-2 md:py-1 md:pr-1">
                           <div className="flex flex-wrap items-center justify-end gap-0.5 md:flex-nowrap">
                           <Button type="button" variant="ghost" size="sm" className="h-9 gap-1 px-1.5 text-slate-600 md:h-7 md:w-7 md:p-0"
-                            aria-label={`${eAperta ? "Chiudi" : "Apri"} voce ${indice + 1}`} aria-expanded={eAperta} title={eAperta ? "Chiudi dettagli" : "Apri dettagli"}
+                            aria-label={`${eAperta ? "Chiudi" : "Apri"} voce ${indice + 1}`} aria-expanded={eAperta} title={eAperta ? t("Chiudi dettagli") : t("Apri dettagli")}
                             onClick={() => {
                               setMisureAperte(prev => new Set([...prev].filter(id => id !== voce.id)));
                               onApri(eAperta ? null : voce.id);
                             }}>
-                            <ChevronDown className={`h-3.5 w-3.5 ${eAperta ? "rotate-180" : ""}`} /><span className="text-xs md:hidden">Dettagli</span>
+                            <ChevronDown className={`h-3.5 w-3.5 ${eAperta ? "rotate-180" : ""}`} /><span className="text-xs md:hidden">{t("Dettagli")}</span>
                           </Button>
                           {onStima && <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0 text-blue-800 md:h-7 md:w-7"
-                            aria-label={`Stima costi e tempi della voce ${indice + 1}`} title="Stima costi e tempi"
+                            aria-label={t("Stima costi e tempi della voce {indice}", { indice: indice + 1 })} title={t("Stima costi e tempi")}
                             onClick={() => onStima(voce.id)}><Sparkles className="h-3.5 w-3.5" aria-hidden="true" /></Button>}
-                          <Button variant="ghost" size="sm" className={`h-9 gap-1 px-1.5 md:h-7 md:w-7 md:p-0 ${daMisure || misureVisibili ? "text-blue-700" : "text-slate-600"}`} aria-expanded={misureVisibili} aria-label={`${misureVisibili ? "Nascondi" : "Mostra"} misure voce ${indice + 1}`} title={misureVisibili ? "Chiudi le misure" : "Misure e formule nella riga"} onClick={() => { if (eAperta) onApri(null); cambiaMisure(voce.id); }}>
-                            <Ruler className="h-3.5 w-3.5" /><span className="text-xs md:hidden">Misure</span>
+                          <Button variant="ghost" size="sm" className={`h-9 gap-1 px-1.5 md:h-7 md:w-7 md:p-0 ${daMisure || misureVisibili ? "text-blue-700" : "text-slate-600"}`} aria-expanded={misureVisibili} aria-label={`${misureVisibili ? "Nascondi" : "Mostra"} misure voce ${indice + 1}`} title={misureVisibili ? t("Chiudi le misure") : t("Misure e formule nella riga")} onClick={() => { if (eAperta) onApri(null); cambiaMisure(voce.id); }}>
+                            <Ruler className="h-3.5 w-3.5" /><span className="text-xs md:hidden">{t("Misure")}</span>
                           </Button>
                           </div>
                         </td>
@@ -277,32 +279,32 @@ export default function ComputoCapitoli({ voci, capitoliVuoti, aperta, onApri, o
                   })}
                   <tr className="border-t border-slate-100 max-md:block"><td colSpan={6} className="py-0.5 max-md:block max-md:px-3 md:pl-9">
                     <div className="flex flex-wrap items-center gap-1">
-                      <Button variant="ghost" size="sm" className="h-10 gap-1 px-1.5 text-xs font-normal text-slate-600 md:h-6 md:text-[11px]" disabled={voci.length >= 5000} onClick={() => nuoveVoci(c.nome)}><Plus className="h-3 w-3" />Voce libera</Button>
-                      {onListino && <Button variant="ghost" size="sm" className="h-10 gap-1 px-1.5 text-xs font-normal text-slate-600 md:h-6 md:text-[11px]" disabled={voci.length >= 5000} onClick={() => nuoveVoci(c.nome, true)}><Search className="h-3 w-3" />Dal listino</Button>}
-                      {onSilvio && <Button variant="ghost" size="sm" className="h-10 gap-1 px-1.5 text-xs font-medium text-blue-800 md:h-6 md:text-[11px]" aria-label={`Proponi voci con Silvio per ${c.nome}`} onClick={() => onSilvio(c.nome)}><Sparkles className="h-3 w-3" />Con Silvio</Button>}
+                      <Button variant="ghost" size="sm" className="h-10 gap-1 px-1.5 text-xs font-normal text-slate-600 md:h-6 md:text-[11px]" disabled={voci.length >= 5000} onClick={() => nuoveVoci(c.nome)}><Plus className="h-3 w-3" />{t("Voce libera")}</Button>
+                      {onListino && <Button variant="ghost" size="sm" className="h-10 gap-1 px-1.5 text-xs font-normal text-slate-600 md:h-6 md:text-[11px]" disabled={voci.length >= 5000} onClick={() => nuoveVoci(c.nome, true)}><Search className="h-3 w-3" />{t("Dal listino")}</Button>}
+                      {onSilvio && <Button variant="ghost" size="sm" className="h-10 gap-1 px-1.5 text-xs font-medium text-blue-800 md:h-6 md:text-[11px]" aria-label={t("Proponi voci con Silvio per {nome}", { nome: String(c.nome ?? "") })} onClick={() => onSilvio(c.nome)}><Sparkles className="h-3 w-3" />{t("Con Silvio")}</Button>}
                     </div>
                   </td></tr>
                 </>}
               </tbody>;
             })}
           </table>
-          {!visibili.length && <p className="p-4 text-xs text-slate-500">{stato === "da-prezzare" ? "Nessuna voce da prezzare nei capitoli selezionati." : "Nessuna lavorazione trovata."}</p>}
+          {!visibili.length && <p className="p-4 text-xs text-slate-500">{stato === "da-prezzare" ? t("Nessuna voce da prezzare nei capitoli selezionati.") : t("Nessuna lavorazione trovata.")}</p>}
         </div>}
         {!!capitoli.length && <div className="flex items-center justify-between gap-2 text-[10px] text-slate-500">
-          <span>{capitoli.length} {capitoli.length === 1 ? "capitolo" : "capitoli"} · {voci.length} {voci.length === 1 ? "voce" : "voci"}{selezionato || filtro || stato !== "tutte" ? ` · ${visibili.reduce((n, c) => n + c.righeVisibili.length, 0)} visibili` : ""}</span>
-          <span className="max-md:hidden">Invio nel prezzo passa alla riga successiva.</span>
+          <span>{capitoli.length} {capitoli.length === 1 ? t("capitolo") : t("capitoli")} · {voci.length} {voci.length === 1 ? t("voce") : t("voci")}{selezionato || filtro || stato !== "tutte" ? ` · ${visibili.reduce((n, c) => n + c.righeVisibili.length, 0)} visibili` : ""}</span>
+          <span className="max-md:hidden">{t("Invio nel prezzo passa alla riga successiva.")}</span>
         </div>}
       </div>
     </div>
-    <Dialog open={!!dialog} onOpenChange={open => { if (!open) setDialog(null); }}><DialogContent className="max-w-md" aria-describedby={undefined}><DialogHeader><DialogTitle>{dialog?.originale ? "Rinomina capitolo" : "Nuovo capitolo"}</DialogTitle></DialogHeader>
+    <Dialog open={!!dialog} onOpenChange={open => { if (!open) setDialog(null); }}><DialogContent className="max-w-md" aria-describedby={undefined}><DialogHeader><DialogTitle>{dialog?.originale ? t("Rinomina capitolo") : t("Nuovo capitolo")}</DialogTitle></DialogHeader>
       <form onSubmit={e => { e.preventDefault(); salvaNome(); }} className="space-y-4">
-        <div className="space-y-2"><Label htmlFor="computo-capitolo-nome">Nome del capitolo</Label><Input id="computo-capitolo-nome" autoFocus maxLength={300} value={nome} onChange={e => setNome(e.target.value)} placeholder="Es. Demolizioni e rimozioni" /></div>{errore && <p role="alert" className="text-sm text-red-700">{errore}</p>}<div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setDialog(null)}>Annulla</Button><Button type="submit">{dialog?.originale ? "Salva nome" : "Crea capitolo"}</Button></div></form>
+        <div className="space-y-2"><Label htmlFor="computo-capitolo-nome">{t("Nome del capitolo")}</Label><Input id="computo-capitolo-nome" autoFocus maxLength={300} value={nome} onChange={e => setNome(e.target.value)} placeholder={t("Es. Demolizioni e rimozioni")} /></div>{errore && <p role="alert" className="text-sm text-red-700">{errore}</p>}<div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setDialog(null)}>{t("Annulla")}</Button><Button type="submit">{dialog?.originale ? t("Salva nome") : t("Crea capitolo")}</Button></div></form>
     </DialogContent></Dialog>
     <Dialog open={!!daEliminare} onOpenChange={open => { if (!open) setDaEliminare(null); }}><DialogContent className="max-w-md">
-      <DialogHeader><DialogTitle>Elimina il capitolo «{daEliminare?.nome}»</DialogTitle>
-        <DialogDescription>Con il capitolo si tolgono {daEliminare?.voci === 1 ? "la sua voce" : `le sue ${daEliminare?.voci} voci`}. Se ci ripensi, «Annulla ultima modifica» lo rimette com'era.</DialogDescription></DialogHeader>
-      <DialogFooter className="gap-2"><Button variant="outline" onClick={() => setDaEliminare(null)}>Annulla</Button>
-        <Button variant="destructive" onClick={() => { if (daEliminare) onEliminaCapitolo(daEliminare.nome); setDaEliminare(null); }}>Elimina capitolo e voci</Button></DialogFooter>
+      <DialogHeader><DialogTitle>{t("Elimina il capitolo «{nome}»", { nome: String(daEliminare?.nome ?? "") })}</DialogTitle>
+        <DialogDescription>{t("Con il capitolo si tolgono")} {daEliminare?.voci === 1 ? t("la sua voce") : t("le sue {voci} voci", { voci: String(daEliminare?.voci ?? "") })}{t(". Se ci ripensi, «Annulla ultima modifica» lo rimette com'era.")}</DialogDescription></DialogHeader>
+      <DialogFooter className="gap-2"><Button variant="outline" onClick={() => setDaEliminare(null)}>{t("Annulla")}</Button>
+        <Button variant="destructive" onClick={() => { if (daEliminare) onEliminaCapitolo(daEliminare.nome); setDaEliminare(null); }}>{t("Elimina capitolo e voci")}</Button></DialogFooter>
     </DialogContent></Dialog>
   </section>;
 }

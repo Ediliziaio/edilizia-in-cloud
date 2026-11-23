@@ -14,7 +14,6 @@ import {
 } from "@/hooks/useSalesOS";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, format, startOfMonth } from "date-fns";
-import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -76,6 +75,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { RigaMobile } from "@/components/mobile/FiltriMobile";
+import { useT, intlCampo, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // ─── Utilities ───────────────────────────────────────────────────────────────
 
@@ -84,7 +84,7 @@ import { RigaMobile } from "@/components/mobile/FiltriMobile";
 const fmt = (v: number | null | undefined) =>
   v == null || !Number.isFinite(v)
     ? "—"
-    : new Intl.NumberFormat("it-IT", {
+    : new Intl.NumberFormat(intlCampo(), {
         style: "currency",
         currency: "EUR",
         maximumFractionDigits: 0, useGrouping: "always" }).format(v);
@@ -92,7 +92,7 @@ const fmt = (v: number | null | undefined) =>
 const pct = (v: number | null | undefined) =>
   v == null || !Number.isFinite(v)
     ? "—"
-    : `${v.toLocaleString("it-IT", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
+    : `${v.toLocaleString(intlCampo(), { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
 
 function severityLabel(daysStalled: number, threshold: number) {
   if (daysStalled >= threshold * 2) return { label: "Critica", variant: "destructive" as const };
@@ -240,6 +240,7 @@ function WidgetState({
   loading?: boolean; error?: Error | null | unknown; empty?: boolean;
   loadingText?: string; emptyText?: string; height?: number;
 }) {
+  const t = useT();
   const baseClass = `flex items-center justify-center`;
   const hStyle = { minHeight: `${height}px` };
   if (loading) {
@@ -255,7 +256,7 @@ function WidgetState({
     return (
       <div className={`${baseClass} flex-col gap-2 px-4 text-center`} style={hStyle}>
         <AlertTriangle className="h-5 w-5 text-red-500" />
-        <p className="text-sm text-red-600 font-medium">Impossibile caricare i dati</p>
+        <p className="text-sm text-red-600 font-medium">{t("Impossibile caricare i dati")}</p>
         <p className="text-xs text-muted-foreground max-w-xs break-words">{msg}</p>
       </div>
     );
@@ -289,6 +290,7 @@ function useSlowQueryFallback(isLoading: boolean, timeoutMs = 3500) {
 // ─── SalesVelocityCard ────────────────────────────────────────────────────────
 
 function SalesVelocityCard({ companyId, daysBack, periodLabel, pipelineId, onAllarga }: { companyId: string; daysBack: number; periodLabel: string; pipelineId?: string; onAllarga?: () => void }) {
+  const t = useT();
   const { data: velocity, isLoading, isError, error } = useSalesVelocity(companyId, daysBack, pipelineId);
   const showSlowFallback = useSlowQueryFallback(isLoading);
   const showLoading = isLoading && !showSlowFallback;
@@ -301,8 +303,8 @@ function SalesVelocityCard({ companyId, daysBack, periodLabel, pipelineId, onAll
             loading={showLoading}
             error={isError ? error : null}
             empty={showSlowFallback || (!isLoading && !isError && !velocity)}
-            loadingText="Calcolo velocità..."
-            emptyText={showSlowFallback ? "Dati non arrivati: Sales OS resta utilizzabile." : "Nessun dato disponibile"}
+            loadingText={t("Calcolo velocità...")}
+            emptyText={showSlowFallback ? t("Dati non arrivati: Sales OS resta utilizzabile.") : t("Nessun dato disponibile")}
             height={100}
           />
         </CardContent>
@@ -315,22 +317,22 @@ function SalesVelocityCard({ companyId, daysBack, periodLabel, pipelineId, onAll
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium flex items-center gap-2">
           <Zap className="h-4 w-4 text-primary" />
-          Velocity stimata da pipeline
+          {t("Velocity stimata da pipeline")}
           <span className="text-xs text-muted-foreground font-normal">({periodLabel.toLowerCase()})</span>
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold" title="Valore della pipeline aperta × tasso di chiusura ÷ ciclo medio di vendita">
+        <div className="text-2xl font-bold" title={t("Valore della pipeline aperta × tasso di chiusura ÷ ciclo medio di vendita")}>
           {fmt(velocity.sales_velocity)}
           <span className="text-sm font-normal text-muted-foreground ml-1">/giorno</span>
         </div>
         {velocity.sales_velocity == null && (
           <p className="text-xs text-muted-foreground mt-0.5">
-            Nessuna vendita chiusa nel periodo
+            {t("Nessuna vendita chiusa nel periodo")}
             {onAllarga && (
               <>
                 {" · "}
-                <button type="button" onClick={onAllarga} className="font-medium text-primary hover:underline">guarda gli ultimi 12 mesi</button>
+                <button type="button" onClick={onAllarga} className="font-medium text-primary hover:underline">{t("guarda gli ultimi 12 mesi")}</button>
               </>
             )}
           </p>
@@ -338,19 +340,19 @@ function SalesVelocityCard({ companyId, daysBack, periodLabel, pipelineId, onAll
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3 text-sm">
           <div>
             <p className="font-semibold">{velocity.open_opportunities}</p>
-            <span className="text-muted-foreground">Opp. aperte</span>
+            <span className="text-muted-foreground">{t("Opp. aperte")}</span>
           </div>
           <div>
             <p className="font-semibold">{pct(velocity.win_rate)}</p>
-            <span className="text-muted-foreground">Tasso di chiusura</span>
+            <span className="text-muted-foreground">{t("Tasso di chiusura")}</span>
           </div>
           <div>
             <p className="font-semibold">{fmt(velocity.avg_deal_size)}</p>
-            <span className="text-muted-foreground">Ticket medio</span>
+            <span className="text-muted-foreground">{t("Ticket medio")}</span>
           </div>
           <div>
-            <p className="font-semibold">{velocity.avg_cycle_days == null ? "—" : `${velocity.avg_cycle_days.toLocaleString("it-IT")} gg`}</p>
-            <span className="text-muted-foreground">Ciclo medio</span>
+            <p className="font-semibold">{velocity.avg_cycle_days == null ? "—" : t("{avg_cycle_days} gg", { avg_cycle_days: velocity.avg_cycle_days.toLocaleString(intlCampo()) })}</p>
+            <span className="text-muted-foreground">{t("Ciclo medio")}</span>
           </div>
         </div>
       </CardContent>
@@ -397,6 +399,7 @@ function QuoteRevenueCard({
   periodLabel: string;
   pipelineId?: string;
 }) {
+  const t = useT();
   const navigate = useNavigate();
   const { data, isLoading, isError, error } = useQuoteRevenue(companyId, dateFrom, dateTo, pipelineId);
   const showSlowFallback = useSlowQueryFallback(isLoading);
@@ -408,7 +411,7 @@ function QuoteRevenueCard({
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium flex items-center gap-2">
             <Receipt className="h-4 w-4 text-primary" />
-            Ricavo firmato (IVA esclusa)
+            {t("Ricavo firmato (IVA esclusa)")}
             <span className="text-xs text-muted-foreground font-normal">({periodLabel.toLowerCase()})</span>
           </CardTitle>
         </CardHeader>
@@ -417,8 +420,8 @@ function QuoteRevenueCard({
             loading={showLoading}
             error={isError ? error : null}
             empty={showSlowFallback || (!isLoading && !isError && !data)}
-            loadingText="Calcolo ricavo..."
-            emptyText={showSlowFallback ? "Dati non arrivati: Sales OS resta utilizzabile." : "Nessun dato preventivi"}
+            loadingText={t("Calcolo ricavo...")}
+            emptyText={showSlowFallback ? t("Dati non arrivati: Sales OS resta utilizzabile.") : t("Nessun dato preventivi")}
             height={100}
           />
         </CardContent>
@@ -431,15 +434,13 @@ function QuoteRevenueCard({
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium flex items-center gap-2">
           <Receipt className="h-4 w-4 text-primary" />
-          Ricavo firmato (IVA esclusa)
+          {t("Ricavo firmato (IVA esclusa)")}
           <span className="text-xs text-muted-foreground font-normal">({periodLabel.toLowerCase()})</span>
         </CardTitle>
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-bold">{fmt(data.actual_revenue)}</div>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          {data.signed_quotes_count} preventivi firmati · ticket medio {fmt(data.avg_signed_ticket)}
-        </p>
+        <p className="text-xs text-muted-foreground mt-0.5">{t("{signed_quotes_count} preventivi firmati · ticket medio {avg_signed_ticket}", { signed_quotes_count: String(data.signed_quotes_count ?? ""), avg_signed_ticket: fmt(data.avg_signed_ticket) })}</p>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-3 text-sm">
           <button
             onClick={() => navigate(`/azienda/marketing/preventivi?stato=in_corso`)}
@@ -449,9 +450,7 @@ function QuoteRevenueCard({
               <FileSignature className="h-3.5 w-3.5 text-amber-500" />
               {fmt(data.active_quotes_value)}
             </p>
-            <span className="text-muted-foreground text-xs">
-              {data.active_quotes_count} preventivi inviati
-            </span>
+            <span className="text-muted-foreground text-xs">{t("{active_quotes_count} preventivi inviati", { active_quotes_count: String(data.active_quotes_count ?? "") })}</span>
           </button>
           <button
             onClick={() => navigate(`/azienda/marketing/opportunita?status=open`)}
@@ -459,7 +458,7 @@ function QuoteRevenueCard({
           >
             <p className="font-semibold">{data.opportunities_with_quote}</p>
             <span className="text-muted-foreground text-xs">
-              Opp. con preventivo attivo
+              {t("Opp. con preventivo attivo")}
             </span>
           </button>
           <div>
@@ -468,7 +467,7 @@ function QuoteRevenueCard({
               {pct(data.acceptance_rate)}
             </p>
             <span className="text-muted-foreground text-xs">
-              Tasso di accettazione
+              {t("Tasso di accettazione")}
             </span>
           </div>
         </div>
@@ -498,6 +497,7 @@ function SalesFocusPanel({
   onOpenConfig: () => void;
   pipelineId?: string;
 }) {
+  const t = useT();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: velocity, isError: erroreVelocity } = useSalesVelocity(companyId, daysBack, pipelineId);
@@ -547,26 +547,26 @@ function SalesFocusPanel({
     // che il telefono non mostra: qui li vede solo il telefono.
     {
       soloTelefono: true,
-      label: "Velocity stimata",
+      label: t("Velocity stimata"),
       value: velocity ? (velocity.sales_velocity == null ? "—" : `${fmt(velocity.sales_velocity)}/giorno`) : erroreVelocity ? "—" : "...",
       detail: erroreVelocity ? NON_ARRIVATO : `${velocity?.open_opportunities ?? 0} opportunità aperte`,
     },
     {
       soloTelefono: true,
-      label: "Ricavo firmato",
+      label: t("Ricavo firmato"),
       value: quoteRevenue ? fmt(actualRevenue) : errorePreventivi ? "—" : "...",
       detail: errorePreventivi ? NON_ARRIVATO : `${quoteRevenue?.signed_quotes_count ?? 0} preventivi firmati`,
     },
     // 15/11/2026: il forecast pesato sta già nella scheda «Proteggi forecast» qui sotto.
     {
-      label: "Opportunità aperte",
+      label: t("Opportunità aperte"),
       value: velocity ? String(velocity.open_opportunities) : erroreVelocity ? "—" : "...",
-      detail: erroreVelocity ? NON_ARRIVATO : "in tutte le fasi",
+      detail: erroreVelocity ? NON_ARRIVATO : t("in tutte le fasi"),
     },
     {
-      label: "Preventivi aperti",
+      label: t("Preventivi aperti"),
       value: quoteRevenue ? fmt(activeQuotesValue) : errorePreventivi ? "—" : "...",
-      detail: errorePreventivi ? NON_ARRIVATO : `${activeQuotesCount} inviati da chiudere`,
+      detail: errorePreventivi ? NON_ARRIVATO : t("{activeQuotesCount} inviati da chiudere", { activeQuotesCount: String(activeQuotesCount ?? "") }),
     },
   ];
 
@@ -598,7 +598,7 @@ function SalesFocusPanel({
           <div>
             <CardTitle className="flex items-center gap-2 text-base max-sm:text-sm">
               <Gauge className="h-4 w-4 text-orange-600 max-sm:hidden" />
-              Comando commerciale di oggi
+              {t("Comando commerciale di oggi")}
             </CardTitle>
           </div>
           <Badge variant="secondary" className="max-sm:hidden">{periodLabel}</Badge>
@@ -621,14 +621,14 @@ function SalesFocusPanel({
             </div>
             {qualcosaNonArrivato && (
               <div className="mt-3 flex items-center justify-between gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                <span>Alcuni numeri non sono arrivati: quelli con «—» non sono zeri.</span>
+                <span>{t("Alcuni numeri non sono arrivati: quelli con «—» non sono zeri.")}</span>
                 <Button
                   size="sm"
                   variant="outline"
                   className="h-7 shrink-0"
                   onClick={() => queryClient.invalidateQueries({ queryKey: salesOSKeys.all })}
                 >
-                  Riprova
+                  {t("Riprova")}
                 </Button>
               </div>
             )}
@@ -637,13 +637,13 @@ function SalesFocusPanel({
           <div>
             <div className="mb-3 flex items-center justify-between gap-3 max-sm:mb-1.5">
               <div>
-                <p className="text-sm font-semibold max-sm:text-[13px]">Cosa fare adesso</p>
+                <p className="text-sm font-semibold max-sm:text-[13px]">{t("Cosa fare adesso")}</p>
               </div>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 max-sm:gap-2">
               {commandActions.map((voce) => {
                 const item = nonArrivati[voce.key]
-                  ? { ...voce, icon: AlertTriangle, value: "—", detail: "Dati non arrivati: riprova tra poco.", tone: "text-red-600", badge: "Errore" }
+                  ? { ...voce, icon: AlertTriangle, value: "—", detail: t("Dati non arrivati: riprova tra poco."), tone: "text-red-600", badge: "Errore" }
                   : voce;
                 const Icon = item.icon;
                 const displayValue =
@@ -690,6 +690,7 @@ function SalesFocusPanel({
 // ─── WeightedPipelineChart ────────────────────────────────────────────────────
 
 function WeightedPipelineChart({ companyId, pipelineId }: { companyId: string; pipelineId?: string }) {
+  const t = useT();
   const { data: stages, isLoading, isError, error } = useWeightedPipeline(companyId, pipelineId);
   const navigate = useNavigate();
   const fermo = usePreferisceMenoMovimento();
@@ -702,8 +703,8 @@ function WeightedPipelineChart({ companyId, pipelineId }: { companyId: string; p
             loading={isLoading}
             error={isError ? error : null}
             empty={!isLoading && !isError && (!stages || stages.length === 0)}
-            loadingText="Caricamento pipeline..."
-            emptyText="Nessuna opportunità aperta."
+            loadingText={t("Caricamento pipeline...")}
+            emptyText={t("Nessuna opportunità aperta.")}
             height={240}
           />
         </CardContent>
@@ -751,7 +752,7 @@ function WeightedPipelineChart({ companyId, pipelineId }: { companyId: string; p
                 active={p.active}
                 label={p.label}
                 payload={(p.payload ?? []).map((x) => ({ ...x, color: x.dataKey === "Valore pesato" ? COLORI_GRAFICO.blu : "hsl(var(--muted-foreground))" })) as never}
-                extra={(r) => <span>{String(r["N° opp"] ?? 0)} opportunità · probabilità media {Math.round(Number(r["Prob %"] ?? 0))}%</span>}
+                extra={(r) => <span>{t("{valore} opportunità · probabilità media {valore2}%", { valore: String(r["N° opp"] ?? 0), valore2: Math.round(Number(r["Prob %"] ?? 0)) })}</span>}
               />
             )}
           />
@@ -762,9 +763,9 @@ function WeightedPipelineChart({ companyId, pipelineId }: { companyId: string; p
         </BarChart>
       </ResponsiveContainer>
       <div className="grid grid-cols-3 gap-3 rounded-xl border bg-muted/30 px-3 py-2">
-        <StatGrafico etichetta="Valore pipeline" valore={fmt(stages.reduce((a, s) => a + s.total_value, 0))} nota="trattative aperte" />
-        <StatGrafico etichetta="Valore pesato" valore={fmt(stages.reduce((a, s) => a + s.weighted_value, 0))} nota="per la probabilità" />
-        <StatGrafico etichetta="Opportunità" valore={String(stages.reduce((a, s) => a + s.opportunity_count, 0))} nota={`in ${stages.length} fasi`} />
+        <StatGrafico etichetta={t("Valore pipeline")} valore={fmt(stages.reduce((a, s) => a + s.total_value, 0))} nota={t("trattative aperte")} />
+        <StatGrafico etichetta={t("Valore pesato")} valore={fmt(stages.reduce((a, s) => a + s.weighted_value, 0))} nota={t("per la probabilità")} />
+        <StatGrafico etichetta={t("Opportunità")} valore={String(stages.reduce((a, s) => a + s.opportunity_count, 0))} nota={t("in {n} fasi", { n: stages.length })} />
       </div>
     </div>
   );
@@ -773,6 +774,7 @@ function WeightedPipelineChart({ companyId, pipelineId }: { companyId: string; p
 // ─── SalesForecastChart ───────────────────────────────────────────────────────
 
 function SalesForecastChart({ companyId, pipelineId }: { companyId: string; pipelineId?: string }) {
+  const tr = useT();
   const { data: forecast, isLoading, isError, error } = useSalesForecast(companyId, 3, pipelineId);
   const fermo = usePreferisceMenoMovimento();
   const navigate = useNavigate();
@@ -802,8 +804,8 @@ function SalesForecastChart({ companyId, pipelineId }: { companyId: string; pipe
             loading={isLoading}
             error={isError ? error : null}
             empty={!isLoading && !isError && (!forecast || forecast.length === 0)}
-            loadingText="Calcolo forecast..."
-            emptyText="Nessuna opportunità con data chiusura impostata."
+            loadingText={tr("Calcolo forecast...")}
+            emptyText={tr("Nessuna opportunità con data chiusura impostata.")}
             height={180}
           />
         </CardContent>
@@ -812,7 +814,7 @@ function SalesForecastChart({ companyId, pipelineId }: { companyId: string; pipe
   }
 
   const chartData = forecast.map((f) => ({
-    mese: new Date(f.forecast_month).toLocaleDateString("it-IT", {
+    mese: new Date(f.forecast_month).toLocaleDateString(intlCampo(), {
       month: "short",
       year: "2-digit",
     }),
@@ -824,9 +826,9 @@ function SalesForecastChart({ companyId, pipelineId }: { companyId: string; pipe
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-3 gap-3 rounded-xl border bg-muted/30 px-3 py-2">
-        <StatGrafico etichetta="Pesato 3 mesi" valore={fmt(chartData.reduce((a, r) => a + r.Pesato, 0))} nota="atteso × probabilità" />
-        <StatGrafico etichetta="Atteso 3 mesi" valore={fmt(chartData.reduce((a, r) => a + r.Atteso, 0))} nota="se chiudessero tutte" />
-        <StatGrafico etichetta="Opportunità" valore={String(chartData.reduce((a, r) => a + r["N° opp"], 0))} nota="con data di chiusura" />
+        <StatGrafico etichetta={tr("Pesato 3 mesi")} valore={fmt(chartData.reduce((a, r) => a + r.Pesato, 0))} nota={tr("atteso × probabilità")} />
+        <StatGrafico etichetta={tr("Atteso 3 mesi")} valore={fmt(chartData.reduce((a, r) => a + r.Atteso, 0))} nota={tr("se chiudessero tutte")} />
+        <StatGrafico etichetta={tr("Opportunità")} valore={String(chartData.reduce((a, r) => a + r["N° opp"], 0))} nota={tr("con data di chiusura")} />
       </div>
       {!!scadute?.n && (
         <button
@@ -834,7 +836,7 @@ function SalesForecastChart({ companyId, pipelineId }: { companyId: string; pipe
           onClick={() => navigate("/azienda/marketing/opportunita?status=open")}
           className="w-full rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-left text-xs text-amber-900 hover:bg-amber-100 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
         >
-          {scadute.n} {scadute.n === 1 ? "trattativa ha" : "trattative hanno"} la chiusura già passata ({fmt(scadute.valore)}): contano in questo mese · aggiorna la data
+          {scadute.n} {scadute.n === 1 ? tr("trattativa ha") : tr("trattative hanno")} {tr("la chiusura già passata (")}{fmt(scadute.valore)}{tr("): contano in questo mese · aggiorna la data")}
         </button>
       )}
       <ResponsiveContainer width="100%" height={210}>
@@ -865,6 +867,7 @@ function SalesForecastChart({ companyId, pipelineId }: { companyId: string; pipe
 // ─── StalledOpportunitiesPanel ────────────────────────────────────────────────
 
 function StalledOpportunitiesPanel({ companyId, pipelineId }: { companyId: string; pipelineId?: string }) {
+  const t = useT();
   const { data: stalled, isLoading, isError, error } = useStalledOpportunities(companyId, pipelineId);
   const navigate = useNavigate();
   // Opportunità con il nome del contatto: CSV solo con «Esporta Clienti».
@@ -899,10 +902,10 @@ function StalledOpportunitiesPanel({ companyId, pipelineId }: { companyId: strin
       .in("id", [...scelte]);
     setSalvo(false);
     if (err) {
-      toast.error(`Aggiornamento non riuscito: ${err.message}`);
+      toast.error(t("Aggiornamento non riuscito: {message}", { message: String(err.message ?? "") }));
       return;
     }
-    toast.success(`${scelte.size} ${scelte.size === 1 ? "trattativa aggiornata" : "trattative aggiornate"}`);
+    toast.success(t(scelte.size === 1 ? "{n} trattativa aggiornata" : "{n} trattative aggiornate", { n: scelte.size }));
     setScelte(new Set());
     queryClient.invalidateQueries({ queryKey: salesOSKeys.all });
   };
@@ -947,7 +950,7 @@ function StalledOpportunitiesPanel({ companyId, pipelineId }: { companyId: strin
       <WidgetState
         loading={isLoading}
         error={isError ? error : null}
-        loadingText="Analisi opportunità ferme..."
+        loadingText={t("Analisi opportunità ferme...")}
         height={160}
       />
     );
@@ -957,7 +960,7 @@ function StalledOpportunitiesPanel({ companyId, pipelineId }: { companyId: strin
     return (
       <div className="text-center py-8 space-y-1">
         <span className="text-3xl">✅</span>
-        <p className="text-sm text-muted-foreground">Nessuna opportunità ferma — ottimo lavoro!</p>
+        <p className="text-sm text-muted-foreground">{t("Nessuna opportunità ferma — ottimo lavoro!")}</p>
       </div>
     );
 
@@ -979,7 +982,7 @@ function StalledOpportunitiesPanel({ companyId, pipelineId }: { companyId: strin
             titolo={s.opportunity_name}
             sottotitolo={[s.contact_name, s.stage_name].filter(Boolean).join(" · ")}
             valore={fmt(s.value)}
-            stato={<Badge variant={severity.variant} className="text-[10px]">ferma da {s.days_stalled}gg</Badge>}
+            stato={<Badge variant={severity.variant} className="text-[10px]">{t("ferma da {days_stalled}gg", { days_stalled: String(s.days_stalled ?? "") })}</Badge>}
           />
         );
       })}
@@ -987,19 +990,19 @@ function StalledOpportunitiesPanel({ companyId, pipelineId }: { companyId: strin
     {canEditMarketingOpportunities && (
       <div className="mb-2 flex flex-wrap items-end gap-2 rounded-lg border bg-muted/30 p-3 max-sm:hidden">
         <div className="min-w-[220px] flex-1">
-          <label htmlFor="ferme-azione" className="text-xs font-medium text-muted-foreground">Prossima azione</label>
+          <label htmlFor="ferme-azione" className="text-xs font-medium text-muted-foreground">{t("Prossima azione")}</label>
           <Input id="ferme-azione" value={azione} onChange={(e) => setAzione(e.target.value)} className="h-9" />
         </div>
         <div>
-          <label htmlFor="ferme-entro" className="text-xs font-medium text-muted-foreground">Entro</label>
+          <label htmlFor="ferme-entro" className="text-xs font-medium text-muted-foreground">{t("Entro")}</label>
           <Input id="ferme-entro" type="date" value={entro} onChange={(e) => setEntro(e.target.value)} className="h-9 w-[150px]" />
         </div>
         <div>
-          <label htmlFor="ferme-chiusura" className="text-xs font-medium text-muted-foreground">Chiusura prevista</label>
+          <label htmlFor="ferme-chiusura" className="text-xs font-medium text-muted-foreground">{t("Chiusura prevista")}</label>
           <Input id="ferme-chiusura" type="date" value={chiusura} onChange={(e) => setChiusura(e.target.value)} className="h-9 w-[150px]" />
         </div>
         <Button size="sm" className="h-9" disabled={!scelte.size || !azione.trim() || salvo} onClick={applica}>
-          {salvo ? "Salvo…" : scelte.size ? `Applica a ${scelte.size}` : "Scegli le trattative"}
+          {salvo ? t("Salvo…") : scelte.size ? t("Applica a {size}", { size: String(scelte.size ?? "") }) : t("Scegli le trattative")}
         </Button>
       </div>
     )}
@@ -1009,18 +1012,18 @@ function StalledOpportunitiesPanel({ companyId, pipelineId }: { companyId: strin
           {canEditMarketingOpportunities && (
             <TableHead className="w-8">
               <Checkbox
-                aria-label="Scegli tutte"
+                aria-label={t("Scegli tutte")}
                 checked={stalled.length > 0 && scelte.size === stalled.length}
                 onCheckedChange={(v) => setScelte(v ? new Set(stalled.map((x) => x.opportunity_id)) : new Set())}
               />
             </TableHead>
           )}
-          <TableHead>Opportunità</TableHead>
-          <TableHead>Fase</TableHead>
-          <TableHead>Ferma da</TableHead>
-          <TableHead>Soglia</TableHead>
-          <TableHead>Prossima azione</TableHead>
-          <TableHead className="text-right">Valore</TableHead>
+          <TableHead>{t("Opportunità")}</TableHead>
+          <TableHead>{t("Fase")}</TableHead>
+          <TableHead>{t("Ferma da")}</TableHead>
+          <TableHead>{t("Soglia")}</TableHead>
+          <TableHead>{t("Prossima azione")}</TableHead>
+          <TableHead className="text-right">{t("Valore")}</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -1036,7 +1039,7 @@ function StalledOpportunitiesPanel({ companyId, pipelineId }: { companyId: strin
               {canEditMarketingOpportunities && (
                 <TableCell onClick={(e) => e.stopPropagation()}>
                   <Checkbox
-                    aria-label={`Scegli ${s.opportunity_name}`}
+                    aria-label={t("Scegli {opportunity_name}", { opportunity_name: String(s.opportunity_name ?? "") })}
                     checked={scelte.has(s.opportunity_id)}
                     onCheckedChange={() => alterna(s.opportunity_id)}
                   />
@@ -1051,31 +1054,25 @@ function StalledOpportunitiesPanel({ companyId, pipelineId }: { companyId: strin
               <TableCell>{s.stage_name}</TableCell>
               <TableCell>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant={severity.variant} className="text-xs">
-                    {s.days_stalled}gg
-                  </Badge>
+                  <Badge variant={severity.variant} className="text-xs">{t("{days_stalled}gg", { days_stalled: String(s.days_stalled ?? "") })}</Badge>
                   <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                     <Clock3 className="h-3 w-3" />
                     {severity.label}
                   </span>
                 </div>
               </TableCell>
-              <TableCell>
-                {s.stalled_threshold}gg
-              </TableCell>
+              <TableCell>{t("{stalled_threshold}gg", { stalled_threshold: String(s.stalled_threshold ?? "") })}</TableCell>
               <TableCell>
                 {/* 15/11/2026: quella scritta sulla trattativa, se c'è; altrimenti il suggerimento. */}
                 {s.next_action ? (
                   <div className="max-w-[220px]">
                     <p className="truncate text-sm" title={s.next_action}>{s.next_action}</p>
                     {s.next_action_date && (
-                      <p className={cn("text-xs", s.next_action_date < format(new Date(), "yyyy-MM-dd") ? "font-medium text-red-600" : "text-muted-foreground")}>
-                        entro {format(new Date(`${s.next_action_date}T12:00:00`), "d MMM", { locale: it })}
-                      </p>
+                      <p className={cn("text-xs", s.next_action_date < format(new Date(), "yyyy-MM-dd") ? "font-medium text-red-600" : "text-muted-foreground")}>{t("entro {valore}", { valore: format(new Date(`${s.next_action_date}T12:00:00`), "d MMM", { locale: dateFnsCampo() }) })}</p>
                     )}
                   </div>
                 ) : (
-                  <Badge variant={severity.variant} className="text-xs" title="Suggerimento: nessuna prossima azione scritta">
+                  <Badge variant={severity.variant} className="text-xs" title={t("Suggerimento: nessuna prossima azione scritta")}>
                     {nextAction}
                   </Badge>
                 )}
@@ -1097,6 +1094,7 @@ function StalledOpportunitiesPanel({ companyId, pipelineId }: { companyId: strin
 // Marketing (scheda Team): gli score restavano a 0 (Demo 2: 297 contatti, nessuno con lo score).
 
 function RicalcolaScore({ companyId }: { companyId: string }) {
+  const t = useT();
   const { canEditMarketingContacts } = usePermissions();
   const ricalcola = useRecalculateAllLeadScores(companyId);
   if (!canEditMarketingContacts) return null;
@@ -1104,8 +1102,8 @@ function RicalcolaScore({ companyId }: { companyId: string }) {
     <Card>
       <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm font-medium">Score dei contatti</p>
-          <p className="text-xs text-muted-foreground">Ricalcola con le regole qui sotto (o quelle di partenza, se non le hai cambiate).</p>
+          <p className="text-sm font-medium">{t("Score dei contatti")}</p>
+          <p className="text-xs text-muted-foreground">{t("Ricalcola con le regole qui sotto (o quelle di partenza, se non le hai cambiate).")}</p>
         </div>
         <Button
           size="sm"
@@ -1113,13 +1111,13 @@ function RicalcolaScore({ companyId }: { companyId: string }) {
           disabled={ricalcola.isPending}
           onClick={() =>
             ricalcola.mutate(undefined, {
-              onSuccess: (r) => toast.success(`Score ricalcolato per ${r.updated} contatti`),
-              onError: (e) => toast.error(e instanceof Error ? e.message : "Ricalcolo non riuscito"),
+              onSuccess: (r) => toast.success(t("Score ricalcolato per {updated} contatti", { updated: String(r.updated ?? "") })),
+              onError: (e) => toast.error(e instanceof Error ? e.message : t("Ricalcolo non riuscito")),
             })
           }
         >
           <RefreshCw className={`h-3.5 w-3.5 ${ricalcola.isPending ? "animate-spin" : ""}`} />
-          {ricalcola.isPending ? "Ricalcolo…" : "Ricalcola gli score"}
+          {ricalcola.isPending ? t("Ricalcolo…") : t("Ricalcola gli score")}
         </Button>
       </CardContent>
     </Card>
@@ -1132,6 +1130,7 @@ function RicalcolaScore({ companyId }: { companyId: string }) {
 // Reportistica → Venditori, sulle funzioni del database.
 
 function RimandoClassificaVenditori() {
+  const t = useT();
   const navigate = useNavigate();
   const permissions = usePermissions();
   if (!permissions.canViewMarketingReports) return null;
@@ -1142,11 +1141,11 @@ function RimandoClassificaVenditori() {
         <div className="flex items-start gap-3">
           <Users className="h-5 w-5 text-primary mt-0.5 shrink-0" />
           <div>
-            <p className="text-sm font-medium">Classifica venditori</p>
+            <p className="text-sm font-medium">{t("Classifica venditori")}</p>
           </div>
         </div>
         <Button size="sm" variant="outline" className="gap-1 shrink-0" onClick={() => navigate("/azienda/marketing/reportistica?tab=venditori")}>
-          Apri la classifica <ArrowRight className="h-3.5 w-3.5" />
+          {t("Apri la classifica")} <ArrowRight className="h-3.5 w-3.5" />
         </Button>
       </CardContent>
     </Card>
@@ -1156,6 +1155,7 @@ function RimandoClassificaVenditori() {
 // ─── ConversionBySourceChart ──────────────────────────────────────────────────
 
 function ConversionBySourceChart({ companyId, dateFrom, dateTo, pipelineId }: { companyId: string; dateFrom: string | null; dateTo: string; pipelineId?: string }) {
+  const t = useT();
   const navigate = useNavigate();
   const { data: sources, isLoading, isError, error } = useConversionBySource(companyId, dateFrom, dateTo, pipelineId);
 
@@ -1164,7 +1164,7 @@ function ConversionBySourceChart({ companyId, dateFrom, dateTo, pipelineId }: { 
       <WidgetState
         loading={isLoading}
         error={isError ? error : null}
-        loadingText="Analisi fonti lead..."
+        loadingText={t("Analisi fonti lead...")}
         height={200}
       />
     );
@@ -1173,7 +1173,7 @@ function ConversionBySourceChart({ companyId, dateFrom, dateTo, pipelineId }: { 
   if (!sources || sources.length === 0)
     return (
       <div className="text-center py-8">
-        <p className="text-sm text-muted-foreground">Nessun dato fonte lead disponibile.</p>
+        <p className="text-sm text-muted-foreground">{t("Nessun dato fonte lead disponibile.")}</p>
       </div>
     );
 
@@ -1236,6 +1236,7 @@ function ConversionBySourceChart({ companyId, dateFrom, dateTo, pipelineId }: { 
 // ─── TopLeadsTable ────────────────────────────────────────────────────────────
 
 function TopLeadsTable({ companyId, limit = 10 }: { companyId: string; limit?: number }) {
+  const t = useT();
   const navigate = useNavigate();
   const { data: leads, isLoading, isError, error } = useTopLeads(companyId, limit);
   // Nomi dei lead: CSV solo con «Esporta Clienti».
@@ -1287,7 +1288,7 @@ function TopLeadsTable({ companyId, limit = 10 }: { companyId: string; limit?: n
       <WidgetState
         loading={isLoading}
         error={isError ? error : null}
-        loadingText="Calcolo lead score..."
+        loadingText={t("Calcolo lead score...")}
         height={160}
       />
     );
@@ -1296,7 +1297,7 @@ function TopLeadsTable({ companyId, limit = 10 }: { companyId: string; limit?: n
   if (!leads || leads.length === 0)
     return (
       <div className="text-center py-8">
-        <p className="text-sm text-muted-foreground">Nessun lead con score disponibile.</p>
+        <p className="text-sm text-muted-foreground">{t("Nessun lead con score disponibile.")}</p>
       </div>
     );
 
@@ -1334,10 +1335,10 @@ function TopLeadsTable({ companyId, limit = 10 }: { companyId: string; limit?: n
       <TableHeader>
         <TableRow>
           <TableHead>Lead</TableHead>
-          <TableHead>Livello ICP</TableHead>
-          <TableHead>Score</TableHead>
-          <TableHead>Fonte</TableHead>
-          <TableHead className="text-right">Opp. aperte</TableHead>
+          <TableHead>{t("Livello ICP")}</TableHead>
+          <TableHead>{t("Score")}</TableHead>
+          <TableHead>{t("Fonte")}</TableHead>
+          <TableHead className="text-right">{t("Opp. aperte")}</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -1375,7 +1376,7 @@ function TopLeadsTable({ companyId, limit = 10 }: { companyId: string; limit?: n
                     </span>
                   </div>
                   {!hasScore && (
-                    <p className="text-xs text-muted-foreground">Score da configurare</p>
+                    <p className="text-xs text-muted-foreground">{t("Score da configurare")}</p>
                   )}
                 </div>
               </TableCell>
@@ -1401,6 +1402,7 @@ function TopLeadsTable({ companyId, limit = 10 }: { companyId: string; limit?: n
 // ─── SalesOSDashboard (pagina principale) ────────────────────────────────────
 
 export default function SalesOSDashboard() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id ?? null;
   const [searchParams, setSearchParams] = useSearchParams();
@@ -1463,7 +1465,7 @@ export default function SalesOSDashboard() {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-2 text-muted-foreground">
         <Target className="h-8 w-8 opacity-40" />
-        <span>Seleziona un'azienda per visualizzare Sales OS.</span>
+        <span>{t("Seleziona un'azienda per visualizzare Sales OS.")}</span>
       </div>
     );
 
@@ -1483,11 +1485,11 @@ export default function SalesOSDashboard() {
             <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white/80 px-2 py-1 shadow-sm">
               <Target className="h-4 w-4 text-orange-500" />
               <Select value={pipelineId ?? "tutte"} onValueChange={setPipelineId}>
-                <SelectTrigger className="h-9 w-[190px] border-0 bg-transparent shadow-none" aria-label="Pipeline">
-                  <SelectValue placeholder="Pipeline" />
+                <SelectTrigger className="h-9 w-[190px] border-0 bg-transparent shadow-none" aria-label={t("Pipeline")}>
+                  <SelectValue placeholder={t("Pipeline")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="tutte">Tutte le pipeline</SelectItem>
+                  <SelectItem value="tutte">{t("Tutte le pipeline")}</SelectItem>
                   {pipelines.map((p: { id: string; name: string }) => (
                     <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                   ))}
@@ -1499,7 +1501,7 @@ export default function SalesOSDashboard() {
             <Calendar className="h-4 w-4 text-orange-500 max-sm:hidden" />
             <Select value={period} onValueChange={(v) => setPeriod(v as SalesOSPeriod)}>
               <SelectTrigger className="h-9 w-[180px] border-0 bg-transparent shadow-none max-sm:w-[130px]">
-                <SelectValue placeholder="Periodo" />
+                <SelectValue placeholder={t("Periodo")} />
               </SelectTrigger>
               <SelectContent>
                 {PERIOD_OPTIONS.map((opt) => (
@@ -1542,11 +1544,11 @@ export default function SalesOSDashboard() {
         <TabsList className="flex h-auto w-full max-w-full justify-start gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:grid sm:max-w-2xl sm:grid-cols-5 max-sm:rounded-xl max-sm:p-1 max-sm:shadow-none">
           <TabsTrigger value="pipeline" className="flex shrink-0 items-center gap-1.5 whitespace-nowrap data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 max-sm:flex-1 max-sm:justify-center">
             <TrendingUp className="h-3.5 w-3.5" />
-            Pipeline
+            {t("Pipeline")}
           </TabsTrigger>
           <TabsTrigger value="stalled" className="flex shrink-0 items-center gap-1.5 whitespace-nowrap data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 max-sm:flex-1 max-sm:justify-center">
             <AlertTriangle className="h-3.5 w-3.5" />
-            Ferme
+            {t("Ferme")}
           </TabsTrigger>
           <TabsTrigger value="team" className="flex shrink-0 items-center gap-1.5 whitespace-nowrap data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 max-sm:flex-1 max-sm:justify-center">
             <Flame className="h-3.5 w-3.5" />
@@ -1554,11 +1556,11 @@ export default function SalesOSDashboard() {
           </TabsTrigger>
           <TabsTrigger value="analisi" className="flex shrink-0 items-center gap-1.5 whitespace-nowrap data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 max-sm:hidden">
             <Zap className="h-3.5 w-3.5" />
-            Analisi
+            {t("Analisi")}
           </TabsTrigger>
           <TabsTrigger value="config" className="flex shrink-0 items-center gap-1.5 whitespace-nowrap data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 max-sm:hidden">
             <Settings2 className="h-3.5 w-3.5" />
-            Config
+            {t("Config")}
           </TabsTrigger>
         </TabsList>
 
@@ -1573,7 +1575,7 @@ export default function SalesOSDashboard() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
                   <Target className="h-4 w-4 text-primary" />
-                  Pipeline Pesata per Stage
+                  {t("Pipeline Pesata per Stage")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -1584,7 +1586,7 @@ export default function SalesOSDashboard() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
                   <TrendingUp className="h-4 w-4 text-green-500" />
-                  Forecast: questo mese e i due successivi
+                  {t("Forecast: questo mese e i due successivi")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -1601,7 +1603,7 @@ export default function SalesOSDashboard() {
             <CardHeader className="max-sm:px-0 max-sm:pb-1 max-sm:pt-0">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-destructive max-sm:hidden" />
-                Opportunità ferme
+                {t("Opportunità ferme")}
               </CardTitle>
             </CardHeader>
             <CardContent className="max-sm:p-0">
@@ -1617,17 +1619,17 @@ export default function SalesOSDashboard() {
             <CardHeader className="flex flex-row items-center justify-between space-y-0 max-sm:px-0 max-sm:pb-1 max-sm:pt-0">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <Target className="h-4 w-4 text-primary max-sm:hidden" />
-                Top Lead per Score
+                {t("Top Lead per Score")}
               </CardTitle>
               <Select value={String(topLeadsLimit)} onValueChange={(v) => setTopLeadsLimit(Number(v))}>
                 <SelectTrigger className="w-[110px] h-8 text-xs">
-                  <SelectValue placeholder="Top 10" />
+                  <SelectValue placeholder={t("Top 10")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="10">Top 10</SelectItem>
-                  <SelectItem value="25">Top 25</SelectItem>
-                  <SelectItem value="50">Top 50</SelectItem>
-                  <SelectItem value="100">Top 100</SelectItem>
+                  <SelectItem value="10">{t("Top 10")}</SelectItem>
+                  <SelectItem value="25">{t("Top 25")}</SelectItem>
+                  <SelectItem value="50">{t("Top 50")}</SelectItem>
+                  <SelectItem value="100">{t("Top 100")}</SelectItem>
                 </SelectContent>
               </Select>
             </CardHeader>
@@ -1648,7 +1650,7 @@ export default function SalesOSDashboard() {
           <Card>
             <CardHeader>
               <CardTitle className="text-sm font-medium">
-                Conversione per Fonte Lead
+                {t("Conversione per Fonte Lead")}
               </CardTitle>
             </CardHeader>
             <CardContent>

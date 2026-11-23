@@ -26,6 +26,7 @@ import {
   useStoricoLibretto, type ModificaLibrettoDb, type RegistrazioneLibrettoDb,
 } from "@/hooks/useContabilitaLavori";
 import { comeRegistrazioni, dataIt, intestazioneDa, oggi, quant, type PropsScheda } from "./comune";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type RigaBozza = { descrizione: string; parti_uguali: string; lunghezza: string; larghezza: string; altezza_peso: string; quantita: string };
 const rigaVuota = (): RigaBozza => ({ descrizione: "", parti_uguali: "", lunghezza: "", larghezza: "", altezza_peso: "", quantita: "" });
@@ -41,6 +42,7 @@ function FormRegistrazione({ contratto, progressivoVoce, orderId, companyId, dir
   contratto: VoceContratto[]; progressivoVoce: Map<string, number>; orderId: string; companyId: string; direttore: string | null; onFatto: () => void;
   iniziale?: RegistrazioneLibrettoDb;
 }) {
+  const t = useT();
   const registra = useRegistraMisura(orderId, companyId);
   const modifica = useModificaRegistrazione(orderId, companyId);
   const inCorso = registra.isPending || modifica.isPending;
@@ -63,25 +65,25 @@ function FormRegistrazione({ contratto, progressivoVoce, orderId, companyId, dir
   const dopo = voce ? gia + quantita : 0;
   const oltre = voce && Math.abs(dopo) > Math.abs(voce.quantita) + 1e-9;
   const salva = () => {
-    if (!voce) { toast.error("Scegli la voce del computo."); return; }
-    if (invalide) { toast.error("Ci sono misure non valide: usa la virgola per i decimali."); return; }
-    if (!quantita) { toast.error("La registrazione non ha quantità."); return; }
+    if (!voce) { toast.error(t("Scegli la voce del computo.")); return; }
+    if (invalide) { toast.error(t("Ci sono misure non valide: usa la virgola per i decimali.")); return; }
+    if (!quantita) { toast.error(t("La registrazione non ha quantità.")); return; }
     const dati = { voce_id: voce.voce_id, data, righe: misure.filter(m => quantitaRighe([m]) !== 0 || m.descrizione), annotazioni: annotazioni.trim() || null,
       firmatario: firmatario.trim() || null, firma: firma && !!firmatario.trim(), foto };
     if (iniziale) {
       modifica.mutate({ ...dati, id: iniziale.id, allegati: iniziale.allegati, giaFirmata: !!iniziale.firmato_at }, {
-        onSuccess: () => { toast.success(`Registrazione n. ${iniziale.numero} modificata`, { description: "La modifica resta nello storico." }); onFatto(); },
-        onError: e => toast.error(e instanceof Error ? e.message : "Modifica non riuscita."),
+        onSuccess: () => { toast.success(t("Registrazione n. {numero} modificata", { numero: iniziale.numero }), { description: t("La modifica resta nello storico.") }); onFatto(); },
+        onError: e => toast.error(e instanceof Error ? e.message : t("Modifica non riuscita.")),
       });
       return;
     }
     registra.mutate(dati, {
-      onSuccess: () => { toast.success("Misura registrata"); onFatto(); },
-      onError: e => toast.error(e instanceof Error ? e.message : "Registrazione non riuscita."),
+      onSuccess: () => { toast.success(t("Misura registrata")); onFatto(); },
+      onError: e => toast.error(e instanceof Error ? e.message : t("Registrazione non riuscita.")),
     });
   };
   const campo = (i: number, k: keyof RigaBozza, etichetta: string, largo = false) => (
-    <Input aria-label={`${etichetta}, riga ${i + 1}`} placeholder={etichetta} value={righe[i][k]} inputMode={largo ? undefined : "decimal"}
+    <Input aria-label={t("{etichetta}, riga {i}", { etichetta, i: i + 1 })} placeholder={etichetta} value={righe[i][k]} inputMode={largo ? undefined : "decimal"}
       className={largo ? "h-8 min-w-[10rem] flex-1" : "h-8 w-20 text-right"}
       onChange={e => setRighe(rr => rr.map((r, j) => (j === i ? { ...r, [k]: e.target.value } : r)))} />
   );
@@ -89,59 +91,60 @@ function FormRegistrazione({ contratto, progressivoVoce, orderId, companyId, dir
     <div className="space-y-3 rounded-lg border bg-slate-50/60 p-3">
       <div className="grid gap-2 sm:grid-cols-[1fr_10rem]">
         <div className="space-y-1">
-          <Label htmlFor="libretto-voce">Voce del computo contrattuale</Label>
-          <Input type="search" placeholder="Cerca per numero, tariffa o descrizione" value={cerca} onChange={e => setCerca(e.target.value)} aria-label="Cerca la voce" className="h-8" />
+          <Label htmlFor="libretto-voce">{t("Voce del computo contrattuale")}</Label>
+          <Input type="search" placeholder={t("Cerca per numero, tariffa o descrizione")} value={cerca} onChange={e => setCerca(e.target.value)} aria-label={t("Cerca la voce")} className="h-8" />
           <UniformSelect id="libretto-voce" value={voceId} onChange={e => setVoceId(e.target.value)} className="h-9 w-full rounded-md border bg-background px-2 text-sm" size={Math.min(6, Math.max(2, opzioni.length))}>
             {opzioni.slice(0, 300).map(v => <option key={v.voce_id} value={v.voce_id}>{v.numero} · {v.tariffa} · {v.descrizione.slice(0, 110)}</option>)}
           </UniformSelect>
         </div>
-        <div className="space-y-1"><Label htmlFor="libretto-data">Data</Label><Input id="libretto-data" type="date" value={data} onChange={e => setData(e.target.value)} className="h-8" /></div>
+        <div className="space-y-1"><Label htmlFor="libretto-data">{t("Data")}</Label><Input id="libretto-data" type="date" value={data} onChange={e => setData(e.target.value)} className="h-8" /></div>
       </div>
       {voce && (
-        <p className="text-xs text-slate-600">Contratto: <strong>{quant(voce.quantita)} {voce.unita_misura}</strong> · già registrati {quant(gia)} · dopo questa {quant(dopo)} {voce.unita_misura}
-          {voce.a_corpo && " · voce a corpo: registra la quota eseguita (es. 0,25 = 25%)"}</p>
+        <p className="text-xs text-slate-600">{t("Contratto:")} <strong>{quant(voce.quantita)} {voce.unita_misura}</strong> · {t("già registrati {gia} · dopo questa {dopo} {unita}", { gia: quant(gia), dopo: quant(dopo), unita: voce.unita_misura })}
+          {voce.a_corpo && ` · ${t("voce a corpo: registra la quota eseguita (es. 0,25 = 25%)")}`}</p>
       )}
       <div className="space-y-1">
-        <p className="text-sm font-medium">Righe di misura</p>
+        <p className="text-sm font-medium">{t("Righe di misura")}</p>
         {righe.map((_, i) => (
           <div key={i} className="flex flex-wrap items-center gap-1">
-            {campo(i, "descrizione", "Descrizione (es. piano terra, vano scala)", true)}
+            {campo(i, "descrizione", t("Descrizione (es. piano terra, vano scala)"), true)}
             {campo(i, "parti_uguali", "par.ug.")}{campo(i, "lunghezza", "lung.")}{campo(i, "larghezza", "larg.")}{campo(i, "altezza_peso", "H/peso")}
-            {campo(i, "quantita", "quantità")}
+            {campo(i, "quantita", t("quantità"))}
             <span className="w-20 text-right text-xs tabular-nums text-slate-600">{invalide ? "—" : quant(quantitaRighe([misure[i]]))}</span>
-            <Button type="button" size="icon" variant="ghost" className="h-8 w-8" aria-label={`Togli la riga ${i + 1}`} disabled={righe.length === 1}
+            <Button type="button" size="icon" variant="ghost" className="h-8 w-8" aria-label={t("Togli la riga {i}", { i: i + 1 })} disabled={righe.length === 1}
               onClick={() => setRighe(rr => rr.filter((__, j) => j !== i))}><Trash2 className="h-4 w-4" /></Button>
           </div>
         ))}
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <Button type="button" size="sm" variant="ghost" onClick={() => setRighe(rr => [...rr, rigaVuota()])}><Plus className="mr-1 h-4 w-4" />Riga</Button>
-          <span className="text-sm">Quantità della registrazione: <strong className="tabular-nums">{quant(quantita)} {voce?.unita_misura}</strong></span>
+          <Button type="button" size="sm" variant="ghost" onClick={() => setRighe(rr => [...rr, rigaVuota()])}><Plus className="mr-1 h-4 w-4" />{t("Riga")}</Button>
+          <span className="text-sm">{t("Quantità della registrazione:")} <strong className="tabular-nums">{quant(quantita)} {voce?.unita_misura}</strong></span>
         </div>
-        <p className="text-xs text-slate-500">Quantità = par.ug. × lung. × larg. × H/peso (i campi compilati); se scrivi la quantità vale quella. Una riga negativa detrae.</p>
+        <p className="text-xs text-slate-500">{t("Quantità = par.ug. × lung. × larg. × H/peso (i campi compilati); se scrivi la quantità vale quella. Una riga negativa detrae.")}</p>
       </div>
-      {oltre && <p role="alert" className="flex items-center gap-2 rounded border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900"><AlertTriangle className="h-4 w-4 shrink-0" />Si supera la quantità di contratto di {quant(Math.abs(dopo) - Math.abs(voce!.quantita))} {voce!.unita_misura}: serve una perizia di variante o l'ordine del DL.</p>}
+      {oltre && <p role="alert" className="flex items-center gap-2 rounded border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900"><AlertTriangle className="h-4 w-4 shrink-0" />{t("Si supera la quantità di contratto di {quantita} {unita}: serve una perizia di variante o l'ordine del DL.", { quantita: quant(Math.abs(dopo) - Math.abs(voce!.quantita)), unita: voce!.unita_misura })}</p>}
       <div className="grid gap-2 sm:grid-cols-2">
-        <div className="space-y-1"><Label htmlFor="libretto-note">Annotazioni</Label><Textarea id="libretto-note" rows={2} value={annotazioni} onChange={e => setAnnotazioni(e.target.value)} /></div>
+        <div className="space-y-1"><Label htmlFor="libretto-note">{t("Annotazioni")}</Label><Textarea id="libretto-note" rows={2} value={annotazioni} onChange={e => setAnnotazioni(e.target.value)} /></div>
         <div className="space-y-2">
-          <div className="space-y-1"><Label htmlFor="libretto-firmatario">Direttore dei lavori / firmatario</Label>
+          <div className="space-y-1"><Label htmlFor="libretto-firmatario">{t("Direttore dei lavori / firmatario")}</Label>
             <Input id="libretto-firmatario" value={firmatario} onChange={e => setFirmatario(e.target.value)} className="h-8" /></div>
           {iniziale?.firmato_at
-            ? <p className="text-sm text-emerald-800">Firmata il {dataIt(iniziale.firmato_at)}: la modifica resta nello storico.</p>
-            : <label className="flex items-center gap-2 text-sm"><Checkbox checked={firma} onCheckedChange={v => setFirma(v === true)} disabled={!firmatario.trim()} />Misura firmata dal direttore dei lavori</label>}
+            ? <p className="text-sm text-emerald-800">{t("Firmata il {firmato_at}: la modifica resta nello storico.", { firmato_at: dataIt(iniziale.firmato_at) })}</p>
+            : <label className="flex items-center gap-2 text-sm"><Checkbox checked={firma} onCheckedChange={v => setFirma(v === true)} disabled={!firmatario.trim()} />{t("Misura firmata dal direttore dei lavori")}</label>}
           <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700"><Camera className="h-4 w-4" />
-            <span className="underline">{foto.length ? `${foto.length} foto scelte` : iniziale?.allegati.length ? `Aggiungi foto (ne ha ${iniziale.allegati.length})` : "Aggiungi foto"}</span>
+            <span className="underline">{foto.length ? t("{n} foto scelte", { n: foto.length }) : iniziale?.allegati.length ? t("Aggiungi foto (ne ha {n})", { n: iniziale.allegati.length }) : t("Aggiungi foto")}</span>
             <input type="file" accept="image/*,application/pdf" multiple className="sr-only" onChange={e => setFoto(Array.from(e.target.files ?? []))} /></label>
         </div>
       </div>
       <div className="flex justify-end gap-2">
-        <Button type="button" variant="ghost" onClick={onFatto}>Annulla</Button>
-        <Button type="button" onClick={salva} disabled={inCorso}>{inCorso && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{iniziale ? "Salva le modifiche" : "Registra"}</Button>
+        <Button type="button" variant="ghost" onClick={onFatto}>{t("Annulla")}</Button>
+        <Button type="button" onClick={salva} disabled={inCorso}>{inCorso && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{iniziale ? t("Salva le modifiche") : t("Registra")}</Button>
       </div>
     </div>
   );
 }
 
 export default function SchedaLibretto({ computo, contratto, orderId, companyId, canEdit, impostazioni, orderLabel }: PropsScheda) {
+  const t = useT();
   const confirm = useConfirm();
   const { data: libretto = [], isLoading } = useLibretto(orderId);
   const { data: salDati } = useSal(orderId);
@@ -159,10 +162,10 @@ export default function SchedaLibretto({ computo, contratto, orderId, companyId,
     <ul className="space-y-0.5 rounded border bg-slate-50 p-2 text-xs text-slate-700">
       {voci.map(m => (
         <li key={m.id}>
-          <span className="tabular-nums text-slate-500">{new Date(m.modificato_at).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" })}</span>
-          {" · "}{m.autore ?? "utente non più presente"}
+          <span className="tabular-nums text-slate-500">{new Date(m.modificato_at).toLocaleString(intlCampo(), { dateStyle: "short", timeStyle: "short" })}</span>
+          {" · "}{m.autore ?? t("utente non più presente")}
           {conNumero && <> · n. {m.numero}</>}
-          {" · "}{riassuntoModificaLibretto(m.prima, m.dopo, numeroVoce).join(" · ") || "nessuna differenza nelle misure"}
+          {" · "}{riassuntoModificaLibretto(m.prima, m.dopo, numeroVoce).join(" · ") || t("nessuna differenza nelle misure")}
         </li>
       ))}
     </ul>
@@ -187,34 +190,34 @@ export default function SchedaLibretto({ computo, contratto, orderId, companyId,
           righe: r.righe, quantita: r.quantita, annotazioni: r.annotazioni, firmatario: r.firmatario, firmato: !!r.firmato_at,
           progressivo: progressivi.get(r.id), sal: r.sal_id ? numeroSal.get(r.sal_id) ?? null : null };
       }), intestazioneDa(computo, impostazioni, orderLabel, companyId));
-    } catch (e) { toast.error(e instanceof Error ? e.message : "Stampa non riuscita."); } finally { setStampa(false); }
+    } catch (e) { toast.error(e instanceof Error ? e.message : t("Stampa non riuscita.")); } finally { setStampa(false); }
   };
 
   return (
     <Card>
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0 pb-2">
-        <CardTitle className="text-base">Libretto delle misure <span className="text-sm font-normal text-slate-500">· {libretto.length} registrazioni</span></CardTitle>
+        <CardTitle className="text-base">{t("Libretto delle misure")} <span className="text-sm font-normal text-slate-500">{t("· {n} registrazioni", { n: libretto.length })}</span></CardTitle>
         <div className="flex flex-wrap gap-2">
           {libretto.length > 0 && <Button type="button" size="sm" variant="outline" onClick={stampaPdf} disabled={stampa}>
-            {stampa ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <FileDown className="mr-1 h-4 w-4" />}PDF</Button>}
+            {stampa ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <FileDown className="mr-1 h-4 w-4" />}{t("PDF")}</Button>}
           {storico.length > 0 && <Button type="button" size="sm" variant="outline" aria-expanded={storicoTutto} onClick={() => setStoricoTutto(v => !v)}>
-            <History className="mr-1 h-4 w-4" />Storico ({storico.length})</Button>}
-          {canEdit && !nuova && <Button type="button" size="sm" onClick={() => setNuova(true)}><Plus className="mr-1 h-4 w-4" />Nuova misura</Button>}
+            <History className="mr-1 h-4 w-4" />{t("Storico ({n})", { n: storico.length })}</Button>}
+          {canEdit && !nuova && <Button type="button" size="sm" onClick={() => setNuova(true)}><Plus className="mr-1 h-4 w-4" />{t("Nuova misura")}</Button>}
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
         {storicoTutto && (
-          <section aria-label="Storico delle modifiche del libretto" className="space-y-1">
-            <p className="text-sm font-medium">Storico delle modifiche e delle cancellazioni</p>
+          <section aria-label={t("Storico delle modifiche del libretto")} className="space-y-1">
+            <p className="text-sm font-medium">{t("Storico delle modifiche e delle cancellazioni")}</p>
             {elencoStorico(storico, true)}
           </section>
         )}
         {nuova && <FormRegistrazione contratto={contratto} progressivoVoce={totaliVoce} orderId={orderId} companyId={companyId}
           direttore={impostazioni.direttore_lavori} onFatto={() => setNuova(false)} />}
-        {isLoading ? <div className="flex items-center gap-2 text-sm text-slate-600"><Loader2 className="h-4 w-4 animate-spin" />Carico il libretto…</div>
-          : libretto.length === 0 ? <p className="text-sm text-slate-600">Nessuna misura registrata. Ogni registrazione indica la voce del computo, le misure prese in cantiere e chi le ha firmate.</p> : (
+        {isLoading ? <div className="flex items-center gap-2 text-sm text-slate-600"><Loader2 className="h-4 w-4 animate-spin" />{t("Carico il libretto…")}</div>
+          : libretto.length === 0 ? <p className="text-sm text-slate-600">{t("Nessuna misura registrata. Ogni registrazione indica la voce del computo, le misure prese in cantiere e chi le ha firmate.")}</p> : (
           <>
-            <Input type="search" value={filtro} onChange={e => setFiltro(e.target.value)} placeholder="Cerca per voce o annotazione" aria-label="Cerca nel libretto" className="sm:w-80" />
+            <Input type="search" value={filtro} onChange={e => setFiltro(e.target.value)} placeholder={t("Cerca per voce o annotazione")} aria-label={t("Cerca nel libretto")} className="sm:w-80" />
             <ul className="divide-y rounded-lg border text-sm">
               {visibili.map(r => {
                 const v = perRadice.get(r.voce_radice);
@@ -224,7 +227,7 @@ export default function SchedaLibretto({ computo, contratto, orderId, companyId,
                 if (inModifica === r.id) {
                   return (
                     <li key={r.id} className="space-y-1 px-3 py-2">
-                      <p className="text-sm font-medium">Modifica della registrazione n. {r.numero}</p>
+                      <p className="text-sm font-medium">{t("Modifica della registrazione n. {numero}", { numero: r.numero })}</p>
                       <FormRegistrazione contratto={contratto} progressivoVoce={totaliVoce} orderId={orderId} companyId={companyId}
                         direttore={impostazioni.direttore_lavori} iniziale={r} onFatto={() => setInModifica(null)} />
                     </li>
@@ -234,7 +237,7 @@ export default function SchedaLibretto({ computo, contratto, orderId, companyId,
                   <li key={r.id} className="space-y-1 px-3 py-2">
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="font-medium"><span className="tabular-nums text-slate-500">n. {r.numero} · {new Date(`${r.data}T12:00:00`).toLocaleDateString("it-IT")}</span> · voce {v?.numero ?? "?"} <span className="font-normal text-slate-700">{v?.descrizione.slice(0, 120)}</span></p>
+                        <p className="font-medium"><span className="tabular-nums text-slate-500">n. {r.numero} · {new Date(`${r.data}T12:00:00`).toLocaleDateString(intlCampo())}</span> · {t("voce {numero}", { numero: v?.numero ?? "?" })} <span className="font-normal text-slate-700">{v?.descrizione.slice(0, 120)}</span></p>
                         <p className="text-xs text-slate-600">
                           {r.righe.map(m => m.descrizione).filter(Boolean).join(" · ")}
                           {r.annotazioni && <> · <em>{r.annotazioni}</em></>}
@@ -242,35 +245,35 @@ export default function SchedaLibretto({ computo, contratto, orderId, companyId,
                       </div>
                       <div className="text-right">
                         <p className="font-semibold tabular-nums">{quant(r.quantita)} {v?.unita_misura}</p>
-                        {p && <p className="text-xs tabular-nums text-slate-500">progressivo {quant(p.progressivo)} / {quant(p.quantita_contratto)}</p>}
+                        {p && <p className="text-xs tabular-nums text-slate-500">{t("progressivo {progressivo} / {quantita_contratto}", { progressivo: quant(p.progressivo), quantita_contratto: quant(p.quantita_contratto) })}</p>}
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5">
-                      {p?.eccedenza ? <Badge variant="outline" className="border-amber-300 text-amber-800"><AlertTriangle className="mr-1 h-3 w-3" />oltre il contratto di {quant(p.eccedenza)}</Badge> : null}
-                      {r.firmato_at ? <Badge variant="outline" className="border-emerald-300 text-emerald-800">Firmata · {r.firmatario}</Badge>
-                        : <Badge variant="outline">Da firmare{r.firmatario ? ` · ${r.firmatario}` : ""}</Badge>}
-                      {sal && <Badge variant="outline" className="border-sky-300 text-sky-800">SAL n. {sal}</Badge>}
+                      {p?.eccedenza ? <Badge variant="outline" className="border-amber-300 text-amber-800"><AlertTriangle className="mr-1 h-3 w-3" />{t("oltre il contratto di")} {quant(p.eccedenza)}</Badge> : null}
+                      {r.firmato_at ? <Badge variant="outline" className="border-emerald-300 text-emerald-800">{t("Firmata · {firmatario}", { firmatario: r.firmatario })}</Badge>
+                        : <Badge variant="outline">{t("Da firmare")}{r.firmatario ? ` · ${r.firmatario}` : ""}</Badge>}
+                      {sal && <Badge variant="outline" className="border-sky-300 text-sky-800">{t("SAL n. {sal}", { sal })}</Badge>}
                       {r.allegati.map(a => <button key={a.path} type="button" className="text-xs underline" onClick={() => apriAllegato(a.path).catch(e => toast.error(e.message))}>{a.nome}</button>)}
                       {canEdit && !r.sal_id && !r.firmato_at && r.firmatario && (
-                        <Button type="button" size="sm" variant="ghost" className="h-7" onClick={() => firma.mutate({ id: r.id, firmatario: r.firmatario! }, { onError: e => toast.error(e.message) })}>Segna firmata</Button>
+                        <Button type="button" size="sm" variant="ghost" className="h-7" onClick={() => firma.mutate({ id: r.id, firmatario: r.firmatario! }, { onError: e => toast.error(e.message) })}>{t("Segna firmata")}</Button>
                       )}
                       {modifiche.length > 0 && (
                         <Button type="button" size="sm" variant="ghost" className="h-7" aria-expanded={storiaAperta === r.id}
                           onClick={() => setStoriaAperta(storiaAperta === r.id ? null : r.id)}>
-                          <History className="mr-1 h-3.5 w-3.5" />Modificata {modifiche.length === 1 ? "una volta" : `${modifiche.length} volte`}
+                          <History className="mr-1 h-3.5 w-3.5" />{modifiche.length === 1 ? t("Modificata una volta") : t("Modificata {n} volte", { n: modifiche.length })}
                         </Button>
                       )}
                       {canEdit && !r.sal_id && (
                         <Button type="button" size="sm" variant="ghost" className="h-7" onClick={() => { setNuova(false); setInModifica(r.id); }}>
-                          <Pencil className="mr-1 h-3.5 w-3.5" />Modifica
+                          <Pencil className="mr-1 h-3.5 w-3.5" />{t("Modifica")}
                         </Button>
                       )}
                       {canEdit && !r.sal_id && (
                         <Button type="button" size="sm" variant="ghost" className="h-7 text-rose-700" onClick={async () => {
-                          if (await confirm({ title: `Eliminare la registrazione n. ${r.numero}?`, description: "Si cancellano le misure e le foto allegate. Nello storico resta cosa c'era.", confirmLabel: "Elimina", variant: "destructive" })) {
+                          if (await confirm({ title: t("Eliminare la registrazione n. {numero}?", { numero: r.numero }), description: t("Si cancellano le misure e le foto allegate. Nello storico resta cosa c'era."), confirmLabel: t("Elimina"), variant: "destructive" })) {
                             elimina.mutate(r, { onError: e => toast.error(e.message) });
                           }
-                        }}>Elimina</Button>
+                        }}>{t("Elimina")}</Button>
                       )}
                     </div>
                     {storiaAperta === r.id && elencoStorico(modifiche, false)}

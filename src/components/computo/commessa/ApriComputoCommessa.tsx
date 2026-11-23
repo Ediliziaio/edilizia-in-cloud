@@ -6,10 +6,12 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { idComputoValido } from "@/lib/computo/percorsiComputo";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const OrderComputoTab = lazy(() => import("./OrderComputoTab"));
 
 export function ApriComputoCommessa({ orderId, orderLabel }: { orderId: string; orderLabel?: string | null }) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const permessi = usePermissions();
   const [params, setParams] = useSearchParams();
@@ -18,13 +20,13 @@ export function ApriComputoCommessa({ orderId, orderLabel }: { orderId: string; 
   const apri = () => setParams((p) => { const n = new URLSearchParams(p); n.set("computo", "1"); return n; });
   const chiudi = () => setParams((p) => { const n = new URLSearchParams(p); n.delete("computo"); return n; }, { replace: true });
   return <>
-    <Button size="sm" variant="outline" className="tap-compact h-8 gap-1.5 px-2.5 text-xs" onClick={apri}><FileSpreadsheet className="h-3.5 w-3.5" />Apri computo</Button>
+    <Button size="sm" variant="outline" className="tap-compact h-8 gap-1.5 px-2.5 text-xs" onClick={apri}><FileSpreadsheet className="h-3.5 w-3.5" />{t("Apri computo")}</Button>
     <Dialog open={richiesto !== null} onOpenChange={(open) => { if (!open) chiudi(); }}>
       <DialogContent className="max-h-[94dvh] max-w-6xl overflow-y-auto">
-        <DialogHeader><DialogTitle>Computo della commessa</DialogTitle><DialogDescription>{orderLabel ? `${orderLabel} · ` : ""}Voci, misure e collegamenti del computo esistente.</DialogDescription></DialogHeader>
-        {richiesto && (richiesto === "1" || idComputoValido(richiesto)) ? <Suspense fallback={<p role="status" className="flex items-center gap-2 p-4 text-sm"><Loader2 className="h-4 w-4 animate-spin" />Apro il computo…</p>}>
+        <DialogHeader><DialogTitle>{t("Computo della commessa")}</DialogTitle><DialogDescription>{orderLabel ? `${orderLabel} · ` : ""}{t("Voci, misure e collegamenti del computo esistente.")}</DialogDescription></DialogHeader>
+        {richiesto && (richiesto === "1" || idComputoValido(richiesto)) ? <Suspense fallback={<p role="status" className="flex items-center gap-2 p-4 text-sm"><Loader2 className="h-4 w-4 animate-spin" />{t("Apro il computo…")}</p>}>
           <OrderComputoTab key={`${orderId}:${richiesto}`} orderId={orderId} companyId={effectiveCompany.id} canEdit={permessi.canEditOrders && !permessi.solaLettura} canViewAmounts={permessi.canViewOrderAmounts} orderLabel={orderLabel} computoInizialeId={richiesto === "1" ? undefined : richiesto} soloEsistenti />
-        </Suspense> : <p role="alert" className="p-4 text-sm">Il riferimento al computo non è valido.</p>}
+        </Suspense> : <p role="alert" className="p-4 text-sm">{t("Il riferimento al computo non è valido.")}</p>}
       </DialogContent>
     </Dialog>
   </>;

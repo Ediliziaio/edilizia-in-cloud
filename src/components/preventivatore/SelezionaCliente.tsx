@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const QUANTI = 30;
 
@@ -50,24 +51,25 @@ interface Props {
 }
 
 export function SelezionaCliente({ collegatoId, onScegli, onScollega, className, etichetta = "Seleziona cliente", collegatoOrigine = "contatto", collegatoNome, clienteSiCollega = false }: Props) {
+  const t = useT();
   const [aperto, setAperto] = useState(false);
-  const titoloCollegato = collegatoOrigine === "cliente" ? "Cliente dell'anagrafica collegato" : "Contatto CRM collegato";
+  const titoloCollegato = collegatoOrigine === "cliente" ? t("Cliente dell'anagrafica collegato") : t("Contatto CRM collegato");
   return (
     <div className={cn("rounded-md border border-slate-200 bg-white px-3 py-2.5 max-sm:border-0 max-sm:bg-transparent max-sm:p-0", className)}>
       <div className="flex items-center justify-between gap-2">
         <div className={cn("min-w-0", collegatoId ? "max-sm:hidden" : "max-lg:hidden")}>
-          <p className="text-xs font-semibold text-slate-900">{collegatoId ? titoloCollegato : "Da chi prendo i dati"}</p>
+          <p className="text-xs font-semibold text-slate-900">{collegatoId ? titoloCollegato : t("Da chi prendo i dati")}</p>
           <p className="truncate text-[11px] text-slate-500">
-            {collegatoId ? (collegatoNome ? collegatoNome : "Anagrafica e recapiti presi dal contatto.") : "Un contatto del CRM o un cliente: anagrafica, recapiti e dati fiscali si compilano da soli."}
+            {collegatoId ? (collegatoNome ? collegatoNome : t("Anagrafica e recapiti presi dal contatto.")) : t("Un contatto del CRM o un cliente: anagrafica, recapiti e dati fiscali si compilano da soli.")}
           </p>
         </div>
         <div className="flex shrink-0 gap-2 max-sm:w-full">
           {collegatoId && onScollega && (
-            <Button variant="ghost" size="sm" onClick={onScollega} className="tap-compact h-8 px-2 text-xs text-slate-600">Scollega</Button>
+            <Button variant="ghost" size="sm" onClick={onScollega} className="tap-compact h-8 px-2 text-xs text-slate-600">{t("Scollega")}</Button>
           )}
           <Button size="sm" variant="outline" onClick={() => setAperto(true)}
             className="min-h-11 gap-1.5 px-3 text-xs hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700 max-sm:flex-1">
-            <Users className="h-3.5 w-3.5" />{collegatoId ? "Cambia" : etichetta}
+            <Users className="h-3.5 w-3.5" />{collegatoId ? t("Cambia") : t(etichetta)}
           </Button>
         </div>
       </div>
@@ -83,6 +85,7 @@ export function SelezionaCliente({ collegatoId, onScegli, onScollega, className,
 export function SelezionaClienteDialog({ aperto, onAperto, collegatoId, collegatoOrigine = "contatto", onScegli, clienteSiCollega = false }: {
   aperto: boolean; onAperto: (v: boolean) => void; collegatoId?: string | null; collegatoOrigine?: OrigineScelta; onScegli: (s: ClienteScelto) => void; clienteSiCollega?: boolean;
 }) {
+  const t = useT();
   const permessi = usePermissions();
   const fonti = fontiVisibili(permessi);
   const companyId = useEffectiveCompanyId();
@@ -136,24 +139,24 @@ export function SelezionaClienteDialog({ aperto, onAperto, collegatoId, collegat
     <Dialog open={aperto} onOpenChange={onAperto}>
       <DialogContent className="flex max-h-[85dvh] max-w-4xl flex-col gap-3 p-4">
         <DialogHeader>
-          <DialogTitle className="text-base">Seleziona cliente</DialogTitle>
-          <DialogDescription className="text-xs">Anagrafica, recapiti e dati fiscali si copiano nel preventivo: li puoi correggere dopo.</DialogDescription>
+          <DialogTitle className="text-base">{t("Seleziona cliente")}</DialogTitle>
+          <DialogDescription className="text-xs">{t("Anagrafica, recapiti e dati fiscali si copiano nel preventivo: li puoi correggere dopo.")}</DialogDescription>
         </DialogHeader>
 
         {nessunaFonte ? (
           <p role="status" className="rounded-md bg-muted/50 p-3 text-sm text-muted-foreground">
-            Non hai accesso né ai contatti del CRM né ai clienti: scrivi i dati a mano nel passo Cliente.
+            {t("Non hai accesso né ai contatti del CRM né ai clienti: scrivi i dati a mano nel passo Cliente.")}
           </p>
         ) : (
           <>
             <div className="flex flex-wrap items-center gap-2">
               {fonti.contatti && fonti.clienti && (
-                <div role="tablist" aria-label="Da dove prendo i dati" className="inline-flex rounded-lg border bg-slate-50 p-0.5">
+                <div role="tablist" aria-label={t("Da dove prendo i dati")} className="inline-flex rounded-lg border bg-slate-50 p-0.5">
                   {([["contatto", "Contatti CRM", UserRound], ["cliente", "Clienti", Building2]] as const).map(([v, nome, Icona]) => (
                     <button key={v} type="button" role="tab" aria-selected={fonte === v} onClick={() => setFonte(v)}
                       className={cn("inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium",
                         fonte === v ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800")}>
-                      <Icona className="h-3.5 w-3.5" />{nome}
+                      <Icona className="h-3.5 w-3.5" />{t(nome)}
                     </button>
                   ))}
                 </div>
@@ -161,25 +164,25 @@ export function SelezionaClienteDialog({ aperto, onAperto, collegatoId, collegat
               <div className="relative min-w-[12rem] flex-1">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
                 <Input autoFocus value={cerca} onChange={(e) => setCerca(e.target.value)} className="h-9 pl-8"
-                  placeholder="Nome, azienda, partita IVA, telefono, email…" aria-label="Cerca" />
+                  placeholder={t("Nome, azienda, partita IVA, telefono, email…")} aria-label={t("Cerca")} />
               </div>
             </div>
             {fonte === "cliente" && fonti.soloMieiClienti && (
-              <p className="text-[11px] text-muted-foreground">Vedi solo i clienti assegnati a te e quelli delle tue commesse.</p>
+              <p className="text-[11px] text-muted-foreground">{t("Vedi solo i clienti assegnati a te e quelli delle tue commesse.")}</p>
             )}
 
             <div className="min-h-[12rem] flex-1 overflow-y-auto rounded-md border" aria-busy={elenco.isFetching}>
               {elenco.isLoading ? (
-                <p className="flex items-center gap-2 p-4 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Cerco…</p>
+                <p className="flex items-center gap-2 p-4 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> {t("Cerco…")}</p>
               ) : elenco.isError ? (
-                <p role="alert" className="p-4 text-sm text-red-700">Non riesco a leggere {fonte === "contatto" ? "i contatti" : "i clienti"}: riprova.</p>
+                <p role="alert" className="p-4 text-sm text-red-700">{fonte === "contatto" ? t("Non riesco a leggere i contatti: riprova.") : t("Non riesco a leggere i clienti: riprova.")}</p>
               ) : righe.length === 0 ? (
-                <p className="p-4 text-sm text-muted-foreground">{ricerca ? `Nessun risultato per «${ricerca}».` : fonte === "cliente" && fonti.soloMieiClienti ? "Non hai clienti assegnati: usa i contatti del CRM o chiedi all'amministratore." : "Nessuno da mostrare."}</p>
+                <p className="p-4 text-sm text-muted-foreground">{ricerca ? t("Nessun risultato per «{ricerca}».", { ricerca }) : fonte === "cliente" && fonti.soloMieiClienti ? t("Non hai clienti assegnati: usa i contatti del CRM o chiedi all'amministratore.") : t("Nessuno da mostrare.")}</p>
               ) : (
-                <div role="table" aria-label={fonte === "contatto" ? "Contatti del CRM" : "Clienti"} className="text-sm">
+                <div role="table" aria-label={fonte === "contatto" ? t("Contatti del CRM") : t("Clienti")} className="text-sm">
                   {/* Una riga per persona, coi dati principali in colonna (07/11/2026): «—» dove il dato manca. */}
                   <div role="row" className="sticky top-0 z-10 hidden grid-cols-[minmax(0,1.4fr)_minmax(0,0.9fr)_minmax(0,1.3fr)_minmax(0,1fr)] gap-3 border-b bg-muted/60 px-3 py-1.5 text-[11px] font-medium text-muted-foreground md:grid">
-                    <span role="columnheader">Nome</span><span role="columnheader">Telefono</span><span role="columnheader">Email</span><span role="columnheader">Città</span>
+                    <span role="columnheader">{t("Nome")}</span><span role="columnheader">{t("Telefono")}</span><span role="columnheader">{t("Email")}</span><span role="columnheader">{t("Città")}</span>
                   </div>
                   <ul className="divide-y">
                     {righe.map((r) => {
@@ -197,13 +200,13 @@ export function SelezionaClienteDialog({ aperto, onAperto, collegatoId, collegat
                               <span className="min-w-0">
                                 <span className="flex items-center gap-1.5">
                                   <span className="truncate font-medium text-slate-900">{nomeDaMostrare(r)}</span>
-                                  {collegato && <span className="inline-flex shrink-0 items-center gap-0.5 text-[11px] font-medium text-emerald-700"><Check className="h-3 w-3" />collegato</span>}
+                                  {collegato && <span className="inline-flex shrink-0 items-center gap-0.5 text-[11px] font-medium text-emerald-700"><Check className="h-3 w-3" />{t("collegato")}</span>}
                                 </span>
                                 {sottotitolo && <span className="block truncate text-[11px] text-muted-foreground">{sottotitolo}</span>}
                               </span>
                             </span>
                             <span role="cell" className={cn("truncate tabular-nums text-xs md:text-sm", !r.telefono && "text-muted-foreground/60")}>
-                              <span className="md:hidden">Tel. </span>{r.telefono ?? "—"}
+                              <span className="md:hidden">{t("Tel.")} </span>{r.telefono ?? "—"}
                             </span>
                             <span role="cell" className={cn("truncate text-xs md:text-sm", !r.email && "text-muted-foreground/60")} title={r.email ?? undefined}>
                               {r.email ?? "—"}
@@ -218,8 +221,8 @@ export function SelezionaClienteDialog({ aperto, onAperto, collegatoId, collegat
               )}
             </div>
             <p className="text-[11px] text-muted-foreground">
-              {righe.length >= QUANTI ? `I primi ${QUANTI}: scrivi per restringere. ` : ""}
-              {fonte === "contatto" ? "Il contatto resta collegato al preventivo." : clienteSiCollega ? "Il cliente resta collegato al preventivo." : "Un cliente compila i dati senza collegarsi: il preventivo si collega ai contatti del CRM."}
+              {righe.length >= QUANTI ? <>{t("I primi {n}: scrivi per restringere.", { n: QUANTI })} </> : ""}
+              {fonte === "contatto" ? t("Il contatto resta collegato al preventivo.") : clienteSiCollega ? t("Il cliente resta collegato al preventivo.") : t("Un cliente compila i dati senza collegarsi: il preventivo si collega ai contatti del CRM.")}
             </p>
           </>
         )}

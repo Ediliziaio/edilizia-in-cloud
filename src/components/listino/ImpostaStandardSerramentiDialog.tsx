@@ -24,6 +24,7 @@ import {
   type LineaStandard, type StandardSerramenti,
 } from "@/lib/listino/standardSerramenti";
 import { useStandardSerramenti } from "@/hooks/useStandardSerramenti";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Accessori: hanno prezzi loro, non seguono il €/mq del serramento. */
 const ACCESSORIO = /^(Tapparella|Zanzariera|Cassonetto|Persiana|Scuro)/i;
@@ -63,11 +64,12 @@ interface Props {
   opzioniIniziali?: OpzioniIniziali | null;
 }
 
-const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n);
+const eur = (n: number) => new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR" }).format(n);
 
 export function ImpostaStandardSerramentiDialog({
   open, onOpenChange, companyId, famiglie, lineeIniziali, prezzoIniziale, opzioniIniziali,
 }: Props) {
+  const t = useT();
   const serramenti = useMemo(
     () => famiglie.filter((f) => (f.vertical ?? "").startsWith("serrament")),
     [famiglie],
@@ -135,11 +137,10 @@ export function ImpostaStandardSerramentiDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Wand2 className="h-4 w-4" aria-hidden="true" />
-            Imposta il listino infissi
+            {t("Imposta il listino infissi")}
           </DialogTitle>
           <DialogDescription>
-            Il prezzo si dichiara una volta per la configurazione base — bianco, vetro standard — e vale per
-            tutte le tipologie scelte. Le altre linee e le opzioni si scostano in percentuale.
+            {t("Il prezzo si dichiara una volta per la configurazione base — bianco, vetro standard — e vale per tutte le tipologie scelte. Le altre linee e le opzioni si scostano in percentuale.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -149,31 +150,30 @@ export function ImpostaStandardSerramentiDialog({
             <section className="space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-semibold">Le tue linee</h3>
+                  <h3 className="text-sm font-semibold">{t("Le tue linee")}</h3>
                   <p className="text-xs text-muted-foreground">
-                    Il modello di profilo. La prima è la base: le altre si scostano in percentuale (una linea più
-                    economica va con il meno, es. −8).
+                    {t("Il modello di profilo. La prima è la base: le altre si scostano in percentuale (una linea più economica va con il meno, es. −8).")}
                   </p>
                 </div>
                 <Button
                   type="button" variant="outline" size="sm"
                   onClick={() => setLinee((p) => [...p, { nome: "", materiale: p[0]?.materiale ?? "", differenzaPct: 0 }])}
                 >
-                  <Plus className="h-3.5 w-3.5 mr-1" aria-hidden="true" /> Aggiungi linea
+                  <Plus className="h-3.5 w-3.5 mr-1" aria-hidden="true" /> {t("Aggiungi linea")}
                 </Button>
               </div>
               {linee.map((l, i) => (
                 <div key={i} className="grid grid-cols-[1fr_140px_110px_40px] gap-2 items-end">
                   <div>
-                    {i === 0 && <Label className="text-xs">Nome</Label>}
+                    {i === 0 && <Label className="text-xs">{t("Nome")}</Label>}
                     <Input
                       value={l.nome}
-                      placeholder={i === 0 ? "es. Salamander 76" : "es. Aluplast Ideal 5000"}
+                      placeholder={i === 0 ? t("es. Salamander 76") : t("es. Aluplast Ideal 5000")}
                       onChange={(e) => cambiaLinea(i, { nome: e.target.value })}
                     />
                   </div>
                   <div>
-                    {i === 0 && <Label className="text-xs">Materiale</Label>}
+                    {i === 0 && <Label className="text-xs">{t("Materiale")}</Label>}
                     <Input
                       value={l.materiale ?? ""}
                       placeholder="PVC"
@@ -181,19 +181,19 @@ export function ImpostaStandardSerramentiDialog({
                     />
                   </div>
                   <div>
-                    {i === 0 && <Label className="text-xs">Differenza %</Label>}
+                    {i === 0 && <Label className="text-xs">{t("Differenza %")}</Label>}
                     <Input
                       type="number" step="0.5"
                       value={i === 0 ? 0 : l.differenzaPct}
                       disabled={i === 0}
-                      title={i === 0 ? "La prima linea è il riferimento" : undefined}
+                      title={i === 0 ? t("La prima linea è il riferimento") : undefined}
                       onChange={(e) => cambiaLinea(i, { differenzaPct: Number(e.target.value) })}
                     />
                   </div>
                   <Button
                     type="button" variant="ghost" size="icon"
                     disabled={linee.length === 1}
-                    aria-label={`Togli la linea ${l.nome || i + 1}`}
+                    aria-label={t("Togli la linea {nome}", { nome: l.nome || i + 1 })}
                     onClick={() => setLinee((p) => p.filter((_, idx) => idx !== i))}
                   >
                     <Trash2 className="h-4 w-4" aria-hidden="true" />
@@ -207,26 +207,26 @@ export function ImpostaStandardSerramentiDialog({
             {/* Prezzo base */}
             <section className="space-y-3">
               <div>
-                <h3 className="text-sm font-semibold">Prezzo al metro quadro della linea base</h3>
+                <h3 className="text-sm font-semibold">{t("Prezzo al metro quadro della linea base")}</h3>
                 {/* «Posa inclusa» e basta contava la posa due volte nei prodotti che
                     hanno anche la manodopera collegata (05/10/2026). */}
                 <p className="text-xs text-muted-foreground">
-                  Configurazione bianco, vetro standard. Se la posa la aggiungi come manodopera, qui scrivi il prezzo senza posa.
+                  {t("Configurazione bianco, vetro standard. Se la posa la aggiungi come manodopera, qui scrivi il prezzo senza posa.")}
                 </p>
               </div>
               <div className="grid grid-cols-3 gap-3 items-end">
                 <div>
-                  <Label className="text-xs">Acquisto €/mq</Label>
+                  <Label className="text-xs">{t("Acquisto €/mq")}</Label>
                   <Input type="number" step="0.01" value={prezzoAcquistoMq || ""} placeholder="180"
                     onChange={(e) => setAcquisto(Number(e.target.value))} />
                 </div>
                 <div>
-                  <Label className="text-xs">Vendita €/mq</Label>
+                  <Label className="text-xs">{t("Vendita €/mq")}</Label>
                   <Input type="number" step="0.01" value={prezzoVenditaMq || ""} placeholder="600"
                     onChange={(e) => setVendita(Number(e.target.value))} />
                 </div>
                 <div className="text-sm pb-2">
-                  Margine <span className="font-semibold">{prezzoVenditaMq > 0 ? `${(m * 100).toFixed(0)}%` : "—"}</span>
+                  {t("Margine")} <span className="font-semibold">{prezzoVenditaMq > 0 ? `${(m * 100).toFixed(0)}%` : "—"}</span>
                 </div>
               </div>
             </section>
@@ -236,31 +236,29 @@ export function ImpostaStandardSerramentiDialog({
             {/* Opzioni */}
             <section className="space-y-3">
               <div>
-                <h3 className="text-sm font-semibold">Quanto costano in più le opzioni</h3>
+                <h3 className="text-sm font-semibold">{t("Quanto costano in più le opzioni")}</h3>
                 <p className="text-xs text-muted-foreground">
-                  In percentuale sul prezzo, vendita e acquisto. Partono da quelle di oggi e si riscrivono solo quelle
-                  che cambi; a zero, in preventivo risultano gratis. Per gli altri valori: «Colori e varianti» nel
-                  menu della tipologia.
+                  {t("In percentuale sul prezzo, vendita e acquisto. Partono da quelle di oggi e si riscrivono solo quelle che cambi; a zero, in preventivo risultano gratis. Per gli altri valori: «Colori e varianti» nel menu della tipologia.")}
                 </p>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div>
-                  <Label className="text-xs">Colore standard %</Label>
+                  <Label className="text-xs">{t("Colore standard %")}</Label>
                   <Input type="number" step="0.5" value={coloreStandard || ""} placeholder="0"
                     onChange={(e) => setColoreStandard(Number(e.target.value))} />
                 </div>
                 <div>
-                  <Label className="text-xs">Colore fuori standard %</Label>
+                  <Label className="text-xs">{t("Colore fuori standard %")}</Label>
                   <Input type="number" step="0.5" value={coloreFuori || ""} placeholder="15"
                     onChange={(e) => setColoreFuori(Number(e.target.value))} />
                 </div>
                 <div>
-                  <Label className="text-xs">Vetro antisonoro %</Label>
+                  <Label className="text-xs">{t("Vetro antisonoro %")}</Label>
                   <Input type="number" step="0.5" value={antisonoro || ""} placeholder="0"
                     onChange={(e) => setAntisonoro(Number(e.target.value))} />
                 </div>
                 <div>
-                  <Label className="text-xs">Vetro antisfondamento %</Label>
+                  <Label className="text-xs">{t("Vetro antisfondamento %")}</Label>
                   <Input type="number" step="0.5" value={antisfondamento || ""} placeholder="0"
                     onChange={(e) => setAntisfondamento(Number(e.target.value))} />
                 </div>
@@ -272,11 +270,10 @@ export function ImpostaStandardSerramentiDialog({
             {/* Tipologie */}
             <section className="space-y-2">
               <h3 className="text-sm font-semibold">
-                Tipologie a cui applicarlo <span className="font-normal text-muted-foreground">({scelte.size} su {serramenti.length})</span>
+                {t("Tipologie a cui applicarlo")} <span className="font-normal text-muted-foreground">{t("({size} su {n})", { size: scelte.size, n: serramenti.length })}</span>
               </h3>
               <p className="text-xs text-muted-foreground">
-                Tapparelle, zanzariere e cassonetti restano fuori: hanno prezzi loro. Anche quelle con una griglia di
-                prezzi o a costo + ricarico partono non spuntate.
+                {t("Tapparelle, zanzariere e cassonetti restano fuori: hanno prezzi loro. Anche quelle con una griglia di prezzi o a costo + ricarico partono non spuntate.")}
               </p>
               <div className="grid sm:grid-cols-2 gap-1.5 max-h-56 overflow-y-auto border rounded-md p-2">
                 {serramenti.map((f) => (
@@ -294,7 +291,7 @@ export function ImpostaStandardSerramentiDialog({
                     <span className="truncate" title={f.nome}>{f.nome}</span>
                     {haPrezzoProprio(f) && (
                       <span className="shrink-0 text-[11px] text-muted-foreground">
-                        {f.modalita_prezzo_base === "griglia" ? "griglia" : "a ricarico"}
+                        {f.modalita_prezzo_base === "griglia" ? t("griglia") : t("a ricarico")}
                       </span>
                     )}
                   </label>
@@ -303,8 +300,8 @@ export function ImpostaStandardSerramentiDialog({
               {sceltiConPrezzoProprio.length > 0 && (
                 <p className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400">
                   <TriangleAlert className="h-3.5 w-3.5 mt-0.5 shrink-0" aria-hidden="true" />
-                  {sceltiConPrezzoProprio.length === 1 ? "1 tipologia scelta ha" : `${sceltiConPrezzoProprio.length} tipologie scelte hanno`}{" "}
-                  oggi una griglia di prezzi o il prezzo da costo + ricarico: diventano al metro quadro con il prezzo qui sopra.
+                  {sceltiConPrezzoProprio.length === 1 ? t("1 tipologia scelta ha") : t("{n} tipologie scelte hanno", { n: sceltiConPrezzoProprio.length })}{" "}
+                  {t("oggi una griglia di prezzi o il prezzo da costo + ricarico: diventano al metro quadro con il prezzo qui sopra.")}
                 </p>
               )}
             </section>
@@ -312,13 +309,13 @@ export function ImpostaStandardSerramentiDialog({
             {/* Anteprima */}
             {righe.length > 0 && (
               <section className="rounded-lg border bg-muted/30 p-3">
-                <h3 className="text-sm font-semibold mb-2">Come viene una finestra 1200 × 1400 (1,68 mq)</h3>
+                <h3 className="text-sm font-semibold mb-2">{t("Come viene una finestra 1200 × 1400 (1,68 mq)")}</h3>
                 <div className="space-y-1 text-sm">
                   {righe.map((r) => (
                     <div key={r.linea} className="flex justify-between gap-3">
                       <span className="truncate">{r.linea}</span>
                       <span className="tabular-nums">
-                        {eur(r.vendita)} <span className="text-muted-foreground">· costo {eur(r.acquisto)} · margine {r.marginePct.toFixed(0)}%</span>
+                        {eur(r.vendita)} <span className="text-muted-foreground">{t("· costo {acquisto} · margine {valore}%", { acquisto: eur(r.acquisto), valore: r.marginePct.toFixed(0) })}</span>
                       </span>
                     </div>
                   ))}
@@ -344,12 +341,12 @@ export function ImpostaStandardSerramentiDialog({
         </ScrollArea>
 
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t("Annulla")}</Button>
           <Button
             onClick={salva}
             disabled={errori.length > 0 || scelte.size === 0 || applica.isPending}
           >
-            {applica.isPending ? "Applico…" : `Applica a ${scelte.size} tipologie`}
+            {applica.isPending ? t("Applico…") : t("Applica a {size} tipologie", { size: scelte.size })}
           </Button>
         </DialogFooter>
       </DialogContent>

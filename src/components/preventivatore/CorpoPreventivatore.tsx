@@ -11,6 +11,7 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { STICKY_ANTEPRIMA } from "./posizione";
 import { QuoteCustomFieldsPanel } from "@/components/shared/QuoteCustomFieldsPanel";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   children: ReactNode;
@@ -23,6 +24,7 @@ interface Props {
 }
 
 export function CorpoPreventivatore({ children, anteprima, anteprimaNascosta, anteprimaCompatta, className }: Props) {
+  const t = useT();
   const conColonna = Boolean(anteprima) && !anteprimaNascosta;
   return (
     <div
@@ -34,7 +36,7 @@ export function CorpoPreventivatore({ children, anteprima, anteprimaNascosta, an
     >
       <div className="min-w-0 space-y-4">{children}<QuoteCustomFieldsPanel /></div>
       {conColonna && (
-        <aside aria-label="Anteprima del preventivo" className={cn("hidden min-w-0", anteprimaCompatta ? "lg:block" : "xl:block")}>
+        <aside aria-label={t("Anteprima del preventivo")} className={cn("hidden min-w-0", anteprimaCompatta ? "lg:block" : "xl:block")}>
           <div className={cn("sticky max-h-[calc(100dvh-18rem)] overflow-y-auto overscroll-contain", anteprimaCompatta ? "lg:top-[4.25rem]" : STICKY_ANTEPRIMA)}>
             {anteprima}
           </div>

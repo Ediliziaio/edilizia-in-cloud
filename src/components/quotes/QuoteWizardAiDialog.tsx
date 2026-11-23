@@ -5,9 +5,10 @@ import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescript
 import { Button } from '@/components/ui/button';
 import { SilvioAvatar } from '@/components/silvio/SilvioAvatar';
 import { formatCurrency } from '@/lib/formatters';
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /** «668,8 m²», non «668.8 m²»: le quantità nella revisione all'italiana. */
-const quantitaIt = (n: number) => n.toLocaleString('it-IT', { maximumFractionDigits: 3 });
+const quantitaIt = (n: number) => n.toLocaleString(intlCampo(), { maximumFractionDigits: 3 });
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { createWizardQuoteChatTransport } from '@/lib/preventivi/wizardQuoteTransport';
@@ -55,11 +56,13 @@ export type QuoteWizardAiDialogProps = {
 };
 
 export function QuoteWizardAiIssue({ open, onOpenChange, message }: { open: boolean; onOpenChange: (open: boolean) => void; message: string }) {
-  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent><DialogTitle>Bozza AI non disponibile</DialogTitle><DialogDescription>Il preventivo originale non è stato modificato.</DialogDescription><p role="alert" className="text-sm text-orange-800">{message}</p><Button onClick={() => onOpenChange(false)}>Torna al wizard</Button></DialogContent></Dialog>;
+  const t = useT();
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent><DialogTitle>{t("Bozza AI non disponibile")}</DialogTitle><DialogDescription>{t("Il preventivo originale non è stato modificato.")}</DialogDescription><p role="alert" className="text-sm text-orange-800">{message}</p><Button onClick={() => onOpenChange(false)}>{t("Torna al wizard")}</Button></DialogContent></Dialog>;
 }
 
 /** Restore only this account/company/quote revision, never a simulation's draft. */
 export default function QuoteWizardAiDialog(props: QuoteWizardAiDialogProps) {
+  const t = useT();
   const { user } = useAuth();
   const [initialSeed] = useState(() => cloneWizardDraft({ document: props.document, project: props.project, fingerprint: props.fingerprint, companyId: props.companyId }));
   const [memory] = useState(() => createWizardAiMemory());
@@ -76,12 +79,13 @@ export default function QuoteWizardAiDialog(props: QuoteWizardAiDialogProps) {
     });
     return () => { active = false; };
   }, [memory, scope, initialSeed]);
-  if (!loaded) return <Dialog open={props.open} onOpenChange={props.onOpenChange}><DialogContent className={props.computo ? 'quote-wizard-ai-dialog quote-wizard-ai-computo' : undefined}><DialogTitle>Silvio AI · {props.title}</DialogTitle><DialogDescription>Apro il preventivo…</DialogDescription></DialogContent></Dialog>;
+  if (!loaded) return <Dialog open={props.open} onOpenChange={props.onOpenChange}><DialogContent className={props.computo ? 'quote-wizard-ai-dialog quote-wizard-ai-computo' : undefined}><DialogTitle>Silvio AI · {props.title}</DialogTitle><DialogDescription>{t("Apro il preventivo…")}</DialogDescription></DialogContent></Dialog>;
   return <WizardAiSession {...props} initialSeed={initialSeed} memory={memory} scope={scope} saved={loaded.saved} storageIssue={loaded.issue} />;
 }
 
 /** Native autosave remains outside: saving the conversation never applies quote rows. */
 function WizardAiSession(props: QuoteWizardAiDialogProps & { initialSeed: { document: ChatDocument; project: QuoteProject; fingerprint: string; companyId: string }; memory: ReturnType<typeof createWizardAiMemory>; scope: WizardAiMemoryScope; saved: WizardAiSavedDraft | null; storageIssue?: string }) {
+  const t = useT();
   const { effectiveCompany, user } = useAuth();
   const { costPreview } = props;
   const ownerId = props.scope.ownerId || null;
@@ -143,7 +147,7 @@ function WizardAiSession(props: QuoteWizardAiDialogProps & { initialSeed: { docu
     // A temporarily empty chapter must NOT unmount its own correction field.
     let fallback: WizardAiReview = { changes: [], pending: 0 };
     try { fallback = props.review(document, {}); } catch { /* Other validation errors stay visible below. */ }
-    review = { ...fallback, error: e instanceof Error ? e.message : 'Bozza non applicabile.' };
+    review = { ...fallback, error: e instanceof Error ? e.message : t("Bozza non applicabile.") };
   }
   const [progettoAperto, setProgettoAperto] = useState(() => Boolean(
     props.apriProgetto && props.progettoOperativo && !review.changes.length && !review.pending && !ripresa?.snapshot.pendingEdits,
@@ -177,11 +181,11 @@ function WizardAiSession(props: QuoteWizardAiDialogProps & { initialSeed: { docu
   const cambiaVista = (progetto: boolean) => {
     if (progetto === progettoAperto || savingRef.current || applyingRef.current) return;
     if (props.progettoInModifica) {
-      setErroreProgetto('Conferma o scarta la proposta della pianta prima di cambiare vista.');
+      setErroreProgetto(t("Conferma o scarta la proposta della pianta prima di cambiare vista."));
       return;
     }
     if (progetto && (busy || reviewing || (!conflict && (review.changes.length || review.pending || snapshotRef.current?.snapshot.pendingEdits)))) {
-      setErroreProgetto('Concludi le proposte del preventivo prima di passare al progetto.');
+      setErroreProgetto(t("Concludi le proposte del preventivo prima di passare al progetto."));
       return;
     }
     setErroreProgetto('');
@@ -192,7 +196,7 @@ function WizardAiSession(props: QuoteWizardAiDialogProps & { initialSeed: { docu
   const close = () => {
     if (applyingRef.current || savingRef.current) return;
     if (progettoAperto && props.progettoInModifica) {
-      setErroreProgetto('Conferma o scarta la proposta della pianta prima di chiudere.');
+      setErroreProgetto(t("Conferma o scarta la proposta della pianta prima di chiudere."));
       return;
     }
     if (progettoAperto && !haConversazione()) { props.onOpenChange(false); return; }
@@ -206,15 +210,15 @@ function WizardAiSession(props: QuoteWizardAiDialogProps & { initialSeed: { docu
     try {
       if (save) {
         if (props.storageIssue && await props.memory.load(props.scope))
-          throw new Error('La memoria è di nuovo disponibile e contiene una bozza. Non la sovrascrivo: chiudi e riapri Silvio AI per riprenderla.');
+          throw new Error(t("La memoria è di nuovo disponibile e contiene una bozza. Non la sovrascrivo: chiudi e riapri Silvio AI per riprenderla."));
         const snapshot = snapshotCorrente();
-        if (!snapshot) throw new Error('La chat si sta preparando. Attendi un momento e riprova.');
+        if (!snapshot) throw new Error(t("La chat si sta preparando. Attendi un momento e riprova."));
         const saved = await props.memory.save(props.scope, revisionRef.current, seed.fingerprint, snapshot, chapters);
         revisionRef.current = saved.revision;
-        if (conflictRef.current) throw new Error('Account o preventivo cambiato durante il salvataggio. La copia precedente resta separata.');
+        if (conflictRef.current) throw new Error(t("Account o preventivo cambiato durante il salvataggio. La copia precedente resta separata."));
       }
       props.onOpenChange(false);
-    } catch (e) { setCloseError(e instanceof Error ? e.message : 'Salvataggio non riuscito. La chat resta aperta: riprova.'); }
+    } catch (e) { setCloseError(e instanceof Error ? e.message : t("Salvataggio non riuscito. La chat resta aperta: riprova.")); }
     finally { savingRef.current = false; setSaving(false); }
   };
   const apply = async () => {
@@ -233,7 +237,7 @@ function WizardAiSession(props: QuoteWizardAiDialogProps & { initialSeed: { docu
       if (revisionRef.current) await props.memory.remove(props.scope, revisionRef.current).catch(() => {});
       props.onOpenChange(false);
     }
-    catch (e) { setError(e instanceof Error ? e.message : 'Nessuna modifica applicata.'); }
+    catch (e) { setError(e instanceof Error ? e.message : t("Nessuna modifica applicata.")); }
     finally { applyingRef.current = false; setApplying(false); }
   };
   return <ConversazioneProgettoSilvio.Provider value={conversazione}><Dialog open={props.open} onOpenChange={open => { if (!open) close(); }}><DialogContent className={`quote-wizard-ai-dialog top-[50%] p-0${props.computo ? ' quote-wizard-ai-computo' : ''}`} onInteractOutside={e => e.preventDefault()}>
@@ -242,62 +246,62 @@ function WizardAiSession(props: QuoteWizardAiDialogProps & { initialSeed: { docu
       <div className="min-w-0 flex-1">
         <DialogTitle>Silvio AI <span>· {props.title}</span></DialogTitle>
         <DialogDescription className={props.computo ? 'sr-only' : undefined}>
-          {props.computo ? 'Rivedi le voci della bozza e conferma per applicarle al computo.' : 'Stesso preventivo, stesso modello. Le modifiche restano separate fino alla conferma.'}
+          {props.computo ? t("Rivedi le voci della bozza e conferma per applicarle al computo.") : t("Stesso preventivo, stesso modello. Le modifiche restano separate fino alla conferma.")}
         </DialogDescription>
       </div>
-      {!progettoAperto && <span className="quote-wizard-ai-badge">{props.computo ? props.saved ? 'Bozza ripresa' : 'Bozza chat' : 'Bozza di lavoro'}</span>}
+      {!progettoAperto && <span className="quote-wizard-ai-badge">{props.computo ? props.saved ? t("Bozza ripresa") : t("Bozza chat") : t("Bozza di lavoro")}</span>}
     </header>
-    {props.progettoOperativo && !identityChanged && <div role="group" aria-label="Area di lavoro di Silvio" className="flex shrink-0 gap-1 border-b bg-white px-4 py-2">
+    {props.progettoOperativo && !identityChanged && <div role="group" aria-label={t("Area di lavoro di Silvio")} className="flex shrink-0 gap-1 border-b bg-white px-4 py-2">
       <Button type="button" size="sm" variant={progettoAperto ? 'ghost' : 'secondary'} aria-pressed={!progettoAperto}
-        disabled={applying || saving} onClick={() => cambiaVista(false)}><MessageSquare aria-hidden="true" className="size-4" /> Chat preventivo</Button>
+        disabled={applying || saving} onClick={() => cambiaVista(false)}><MessageSquare aria-hidden="true" className="size-4" /> {t("Chat preventivo")}</Button>
       <Button type="button" size="sm" variant={progettoAperto ? 'secondary' : 'ghost'} aria-pressed={progettoAperto}
-        disabled={applying || saving} onClick={() => cambiaVista(true)}><Map aria-hidden="true" className="size-4" /> Progetto</Button>
+        disabled={applying || saving} onClick={() => cambiaVista(true)}><Map aria-hidden="true" className="size-4" /> {t("Progetto")}</Button>
     </div>}
     {erroreProgetto && <p role="alert" className="quote-wizard-ai-alert">{erroreProgetto}</p>}
-    {progettoAperto && !identityChanged && <section aria-label="Progetto nel popup di Silvio" className="quote-wizard-ai-body quote-wizard-ai-project min-w-0 space-y-3 p-2 sm:p-4">
+    {progettoAperto && !identityChanged && <section aria-label={t("Progetto nel popup di Silvio")} className="quote-wizard-ai-body quote-wizard-ai-project min-w-0 space-y-3 p-2 sm:p-4">
       {props.progettoOperativo}
     </section>}
-    {conflict ? (!progettoAperto || identityChanged) && <div role="alert" className="quote-wizard-ai-alert">{identityChanged ? 'L’account o l’azienda attiva è cambiata.' : 'Il preventivo è cambiato mentre lavoravi qui.'} Chiudi e riapri Silvio AI per ripartire dai dati aggiornati. Nessuna modifica verrà applicata.</div> :
-    chatVisitata && <fieldset hidden={progettoAperto} disabled={applying || saving || progettoAperto} className="quote-wizard-ai-body min-w-0"><Suspense fallback={<p role="status" className="p-8">Preparo chat e modello del preventivo…</p>}><Workspace companyId={props.companyId} companyName={effectiveCompany?.name} simulated={false}
+    {conflict ? (!progettoAperto || identityChanged) && <div role="alert" className="quote-wizard-ai-alert">{identityChanged ? t("L’account o l’azienda attiva è cambiata.") : t("Il preventivo è cambiato mentre lavoravi qui.")} {t("Chiudi e riapri Silvio AI per ripartire dai dati aggiornati. Nessuna modifica verrà applicata.")}</div> :
+    chatVisitata && <fieldset hidden={progettoAperto} disabled={applying || saving || progettoAperto} className="quote-wizard-ai-body min-w-0"><Suspense fallback={<p role="status" className="p-8">{t("Preparo chat e modello del preventivo…")}</p>}><Workspace companyId={props.companyId} companyName={effectiveCompany?.name} simulated={false}
       transport={transport} transcribeAudio={transcribe} cadReader={cadReader} onBack={close}
       embedded={{ title: props.title, document: seed.document, project: seed.project, initial: ripresa ?? undefined, onSnapshot: receiveSnapshot, savedLocally: !!props.saved, commercial: props.commercial, fixedSourceId: props.listinoSourceId, initialFile: props.initialFile, initialInput: props.initialInput, onChange: receive, proposedWork: props.computo ? review.changes : undefined, lineMetadata: props.computo,
         progettoCollegato: props.progettoCollegato, sessionId: conversazione ? sessionId : undefined,
         preview: (document, visible) => props.preview(document, chapters, visible),
         costPreview: costPreview ? (document, controlli) => costPreview(document, chapters, controlli) : undefined,
         costEditable: props.costEditable }} /></Suspense></fieldset>}
-    {reviewing && !conflict && !progettoAperto && <section className="quote-wizard-ai-review" aria-label="Riepilogo modifiche prima di applicare">
-      <h3 ref={reviewHeading} tabIndex={-1}><ListChecks size={18} aria-hidden="true" />Controlla cosa cambia nel preventivo</h3>
+    {reviewing && !conflict && !progettoAperto && <section className="quote-wizard-ai-review" aria-label={t("Riepilogo modifiche prima di applicare")}>
+      <h3 ref={reviewHeading} tabIndex={-1}><ListChecks size={18} aria-hidden="true" />{t("Controlla cosa cambia nel preventivo")}</h3>
       {review.error && <p role="alert">{review.error}</p>}
-      <ul>{review.changes.map(change => <li key={change.id}><span className="quote-wizard-ai-change" data-kind={change.kind}>{change.kind}</span><div className="min-w-0 flex-1"><strong>{change.title}</strong><p className="mt-1 text-xs text-slate-500">{change.before && <>Prima: {quantitaIt(change.before.quantity)} {change.before.unit} × {formatCurrency(change.before.price)}</>}{change.before && change.after && ' → '}{change.after && <>Dopo: {quantitaIt(change.after.quantity)} {change.after.unit} × {formatCurrency(change.after.price)}</>}</p>{change.nota && <p className="mt-1 text-xs text-slate-600">{change.nota}</p>}</div>
-        {props.chapters && change.kind !== 'esclusione' ? <label>Capitolo<input aria-label={`Capitolo di ${change.title}`} maxLength={props.chapterMaxLength ?? 200} value={chapters[change.id] ?? change.chapter} onChange={e => setChapters(value => ({ ...value, [change.id]: e.target.value }))} /></label> : <small>{change.chapter}</small>}</li>)}</ul>
-      {!!review.pending && <p>{review.pending} nuove proposte incomplete o non confermate restano fuori dal computo.</p>}
+      <ul>{review.changes.map(change => <li key={change.id}><span className="quote-wizard-ai-change" data-kind={change.kind}>{change.kind}</span><div className="min-w-0 flex-1"><strong>{change.title}</strong><p className="mt-1 text-xs text-slate-500">{change.before && <>{t("Prima: {quantita} {unita} × {prezzo}", { quantita: quantitaIt(change.before.quantity), unita: change.before.unit, prezzo: formatCurrency(change.before.price) })}</>}{change.before && change.after && ' → '}{change.after && <>{t("Dopo: {quantita} {unita} × {prezzo}", { quantita: quantitaIt(change.after.quantity), unita: change.after.unit, prezzo: formatCurrency(change.after.price) })}</>}</p>{change.nota && <p className="mt-1 text-xs text-slate-600">{change.nota}</p>}</div>
+        {props.chapters && change.kind !== 'esclusione' ? <label>{t("Capitolo")}<input aria-label={t("Capitolo di {voce}", { voce: change.title })} maxLength={props.chapterMaxLength ?? 200} value={chapters[change.id] ?? change.chapter} onChange={e => setChapters(value => ({ ...value, [change.id]: e.target.value }))} /></label> : <small>{change.chapter}</small>}</li>)}</ul>
+      {!!review.pending && <p>{t("{n} nuove proposte incomplete o non confermate restano fuori dal computo.", { n: review.pending })}</p>}
     </section>}
     {!progettoAperto && error && <p role="alert" className="quote-wizard-ai-alert">{error}</p>}
     {!progettoAperto && !reviewing && review.error && <p role="alert" className="quote-wizard-ai-alert">{review.error}</p>}
     {progettoAperto ? <footer className="quote-wizard-ai-footer">
-      <Button type="button" variant="outline" onClick={close}>Chiudi</Button>
+      <Button type="button" variant="outline" onClick={close}>{t("Chiudi")}</Button>
     </footer> : <footer className="quote-wizard-ai-footer">
-      <p>{busy ? 'Silvio sta lavorando…' : <>
-        {(!props.computo || !!review.changes.length) && <>{review.changes.length} {review.changes.length === 1 ? 'modifica da rivedere' : 'modifiche da rivedere'}</>}
-        {!!review.pending && <>{review.changes.length || !props.computo ? ' · ' : ''}{review.pending} {review.pending === 1 ? 'voce da completare o confermare' : 'voci da completare o confermare'}. {props.computo ? 'Apri una riga nella scheda «Voci».' : 'Apri «Voci del preventivo», completa i dati e spunta «Inclusa».'}</>}
+      <p>{busy ? t("Silvio sta lavorando…") : <>
+        {(!props.computo || !!review.changes.length) && <>{t(review.changes.length === 1 ? "{n} modifica da rivedere" : "{n} modifiche da rivedere", { n: review.changes.length })}</>}
+        {!!review.pending && <>{review.changes.length || !props.computo ? ' · ' : ''}{t(review.pending === 1 ? "{n} voce da completare o confermare." : "{n} voci da completare o confermare.", { n: review.pending })} {props.computo ? t("Apri una riga nella scheda «Voci».") : t("Apri «Voci del preventivo», completa i dati e spunta «Inclusa».")}</>}
       </>}</p>
-      <Button variant="outline" disabled={applying || saving} onClick={close}>Chiudi</Button>
-      {reviewing && <Button variant="ghost" disabled={applying || saving} onClick={() => setReviewing(false)}>Torna alla chat</Button>}
+      <Button variant="outline" disabled={applying || saving} onClick={close}>{t("Chiudi")}</Button>
+      {reviewing && <Button variant="ghost" disabled={applying || saving} onClick={() => setReviewing(false)}>{t("Torna alla chat")}</Button>}
       <Button disabled={conflict || busy || applying || saving || !!review.error || !review.changes.length} onClick={() => reviewing ? void apply() : setReviewing(true)}>
-        {applying ? 'Applico…' : reviewing ? 'Conferma e applica al preventivo' : 'Rivedi e applica'}
+        {applying ? t("Applico…") : reviewing ? t("Conferma e applica al preventivo") : t("Rivedi e applica")}
       </Button>
     </footer>}
     <AlertDialog open={closing} onOpenChange={open => { if (!savingRef.current) setClosing(open); }}>
       <AlertDialogContent className="z-[60] max-w-xl rounded-2xl">
-        <AlertDialogTitle>Vuoi salvare il lavoro con Silvio AI?</AlertDialogTitle>
-        <AlertDialogDescription>Salva chat, voci di lavoro, planimetria e dossier in questo browser per riprenderli sullo stesso preventivo. Chiudendo senza salvare perdi solo le modifiche successive all’ultimo salvataggio. Il preventivo nel gestionale resta invariato: per aggiornarlo usa «Rivedi e applica».</AlertDialogDescription>
-        {busy && <p role="status" className="text-sm text-slate-600">Silvio sta ancora lavorando. Attendi per salvare, oppure chiudi senza salvare per interrompere la richiesta.</p>}
-        {conflict && <p role="status" className="text-sm text-orange-800">Account, azienda o preventivo cambiato: salvataggio disabilitato per non mescolare i dati.</p>}
+        <AlertDialogTitle>{t("Vuoi salvare il lavoro con Silvio AI?")}</AlertDialogTitle>
+        <AlertDialogDescription>{t("Salva chat, voci di lavoro, planimetria e dossier in questo browser per riprenderli sullo stesso preventivo. Chiudendo senza salvare perdi solo le modifiche successive all’ultimo salvataggio. Il preventivo nel gestionale resta invariato: per aggiornarlo usa «Rivedi e applica».")}</AlertDialogDescription>
+        {busy && <p role="status" className="text-sm text-slate-600">{t("Silvio sta ancora lavorando. Attendi per salvare, oppure chiudi senza salvare per interrompere la richiesta.")}</p>}
+        {conflict && <p role="status" className="text-sm text-orange-800">{t("Account, azienda o preventivo cambiato: salvataggio disabilitato per non mescolare i dati.")}</p>}
         {closeError && <p role="alert" className="text-sm text-red-700">{closeError}</p>}
         <div className="flex flex-wrap justify-end gap-2 [&>button]:rounded-xl">
-          <AlertDialogCancel disabled={saving}>Continua a lavorare</AlertDialogCancel>
-          <Button variant="ghost" className="text-red-700" disabled={saving} onClick={() => void finishClose(false)}>Chiudi senza salvare</Button>
-          <Button disabled={saving || conflict || busy} onClick={() => void finishClose(true)}>{saving ? 'Chiusura…' : 'Salva e chiudi'}</Button>
+          <AlertDialogCancel disabled={saving}>{t("Continua a lavorare")}</AlertDialogCancel>
+          <Button variant="ghost" className="text-red-700" disabled={saving} onClick={() => void finishClose(false)}>{t("Chiudi senza salvare")}</Button>
+          <Button disabled={saving || conflict || busy} onClick={() => void finishClose(true)}>{saving ? t("Chiusura…") : t("Salva e chiudi")}</Button>
         </div>
       </AlertDialogContent>
     </AlertDialog>

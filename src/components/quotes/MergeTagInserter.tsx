@@ -13,6 +13,7 @@ import { Tag, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { MERGE_TAGS } from "@/types/quoteTemplate";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const GROUP_LABELS: Record<string, string> = {
   cliente: "👤 Cliente",
@@ -35,6 +36,7 @@ interface Props {
 }
 
 export function MergeTagInserter({ targetRef, onInsert, currentValue, trigger }: Props) {
+  const tr = useT();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
 
@@ -76,7 +78,7 @@ export function MergeTagInserter({ targetRef, onInsert, currentValue, trigger }:
         {trigger ?? (
           <Button type="button" variant="outline" size="sm" className="gap-1.5 h-7 text-[11px]">
             <Tag className="h-3 w-3" />
-            Inserisci campo
+            {tr("Inserisci campo")}
           </Button>
         )}
       </PopoverTrigger>
@@ -90,29 +92,29 @@ export function MergeTagInserter({ targetRef, onInsert, currentValue, trigger }:
         <div className="px-3 py-2.5 border-b bg-gradient-to-br from-orange-50 to-amber-50 shrink-0">
           <div className="flex items-center gap-1.5 mb-1.5">
             <Tag className="h-3.5 w-3.5 text-orange-600" />
-            <p className="text-xs font-semibold text-slate-800">Inserisci campo dinamico</p>
+            <p className="text-xs font-semibold text-slate-800">{tr("Inserisci campo dinamico")}</p>
           </div>
           <p className="text-[10px] text-slate-500 leading-tight">
-            Click su un campo → inserisce <code className="bg-white border border-slate-200 px-1 rounded text-[9px]">{`{{nome}}`}</code> sostituito a generazione PDF.
+            {tr("Click su un campo → inserisce")} <code className="bg-white border border-slate-200 px-1 rounded text-[9px]">{`{{nome}}`}</code> {tr("sostituito a generazione PDF.")}
           </p>
           <div className="relative mt-1.5">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Cerca campo..."
+              placeholder={tr("Cerca campo...")}
               className="h-7 pl-7 text-[11px] border-slate-200 bg-white"
             />
           </div>
         </div>
         <div className="overflow-y-auto p-2 flex-1 min-h-0 space-y-3">
           {Object.entries(grouped).length === 0 ? (
-            <p className="text-xs text-muted-foreground text-center py-4">Nessun campo trovato.</p>
+            <p className="text-xs text-muted-foreground text-center py-4">{tr("Nessun campo trovato.")}</p>
           ) : (
             Object.entries(grouped).map(([group, tags]) => (
               <div key={group}>
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 px-1 mb-1">
-                  {GROUP_LABELS[group] ?? group}
+                  {GROUP_LABELS[group] ? tr(GROUP_LABELS[group]) : group}
                 </p>
                 <div className="space-y-0.5">
                   {tags.map((t) => (

@@ -1,6 +1,7 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import type { BozzaComputo } from "@/lib/computo/editorNativo";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const formati = [
   ["cliente", "Preventivo cliente", "Impaginato per il cliente: capitoli, voci e totale."],
@@ -14,13 +15,14 @@ const formati = [
 export function ComputoFormatoSchede({ value, onChange, disabled }: {
   value: BozzaComputo["formatoPdf"]; onChange: (value: BozzaComputo["formatoPdf"]) => void; disabled?: boolean;
 }) {
-  return <div role="radiogroup" aria-label="Documento PDF" className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 170px), 1fr))" }}>
+  const t = useT();
+  return <div role="radiogroup" aria-label={t("Documento PDF")} className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 170px), 1fr))" }}>
     {formati.map(([v, titolo, testo]) => {
       const scelto = (value ?? "cliente") === v;
       return <button key={v} type="button" role="radio" aria-checked={scelto} disabled={disabled} onClick={() => onChange(v)}
         className={`rounded-lg border p-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 disabled:cursor-not-allowed disabled:opacity-60 ${scelto ? "border-orange-400 bg-orange-50 ring-1 ring-orange-300" : "border-slate-200 bg-white hover:border-orange-200"}`}>
-        <span className="block text-sm font-medium text-slate-900">{titolo}</span>
-        <span className="mt-0.5 block text-[11px] leading-4 text-muted-foreground">{testo}</span>
+        <span className="block text-sm font-medium text-slate-900">{t(titolo)}</span>
+        <span className="mt-0.5 block text-[11px] leading-4 text-muted-foreground">{t(testo)}</span>
       </button>;
     })}
   </div>;
@@ -30,10 +32,11 @@ export function ComputoFormatoSelect({ value, onChange, disabled, id, label }: {
   value: BozzaComputo["formatoPdf"]; onChange: (value: BozzaComputo["formatoPdf"]) => void;
   disabled?: boolean; id?: string; label: string;
 }) {
+  const t = useT();
   return <Select value={value ?? "cliente"} onValueChange={value => onChange(value as BozzaComputo["formatoPdf"])} disabled={disabled}>
     <SelectTrigger id={id} aria-label={label} className="min-w-0 bg-white text-left"><SelectValue /></SelectTrigger>
     <SelectContent className="max-w-[calc(100vw-2rem)]">
-      {formati.map(([value, title]) => <SelectItem key={value} value={value} className="py-2.5 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-950"><span className="whitespace-normal">{title}</span></SelectItem>)}
+      {formati.map(([value, title]) => <SelectItem key={value} value={value} className="py-2.5 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-950"><span className="whitespace-normal">{t(title)}</span></SelectItem>)}
     </SelectContent>
   </Select>;
 }

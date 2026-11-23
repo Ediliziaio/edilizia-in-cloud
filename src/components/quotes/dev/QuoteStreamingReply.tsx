@@ -2,6 +2,7 @@ import { forwardRef, useImperativeHandle, useLayoutEffect, useState, type RefObj
 import { SilvioAvatar } from '@/components/silvio/SilvioAvatar';
 import { PixelDotsLoader } from '@/components/ui/ai-agent-response';
 import { chiudiMarkdownParziale, QuoteChatResponse } from './QuoteChatResponse';
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type QuoteStreamingReplyHandle = { update: (text: string) => void; clear: () => void };
 type Props = {
@@ -17,9 +18,10 @@ type Props = {
 export const QuoteStreamingReply = forwardRef<QuoteStreamingReplyHandle, Props>(function QuoteStreamingReply(
   { status, elapsedSeconds, showProgress, log, follow, inline }, ref,
 ) {
+  const t = useT();
   const [text, setText] = useState('');
   const hasText = !!text.trim();
-  const label = hasText && !showProgress ? 'Silvio sta scrivendo…' : status;
+  const label = hasText && !showProgress ? t("Silvio sta scrivendo…") : status;
 
   useImperativeHandle(ref, () => ({
     update: setText,
@@ -32,7 +34,7 @@ export const QuoteStreamingReply = forwardRef<QuoteStreamingReplyHandle, Props>(
 
   if (!label && !hasText) return null;
   const Wrapper = inline ? 'div' : 'article';
-  return <Wrapper role={inline ? 'group' : undefined} className={inline ? 'quote-live-reply quote-live-reply-inline' : 'quote-lab-message assistant quote-live-reply'} aria-label="Risposta in elaborazione" aria-live="off">
+  return <Wrapper role={inline ? 'group' : undefined} className={inline ? 'quote-live-reply quote-live-reply-inline' : 'quote-lab-message assistant quote-live-reply'} aria-label={t("Risposta in elaborazione")} aria-live="off">
     <div className="quote-message-author"><SilvioAvatar size={24} bg="navy" title="" />Silvio</div>
     {hasText && <div className="quote-live-reply-text"><QuoteChatResponse content={chiudiMarkdownParziale(text)} /></div>}
     <div className="quote-live-reply-status">

@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { FileText, Upload, Trash2, ExternalLink, Loader2 } from "lucide-react";
 import { logger } from "@/utils/logger";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const BUCKET = "article-pdfs";
 const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15 MB — le schede tecniche possono essere ricche
@@ -43,6 +44,7 @@ interface Props {
 }
 
 export function ArticlePdfDocumentsSection({ companyId, familyId, ensureFamilyId, axisValueId, title, hint }: Props) {
+  const t = useT();
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -73,7 +75,7 @@ export function ArticlePdfDocumentsSection({ companyId, familyId, ensureFamilyId
     if (fileRef.current) fileRef.current.value = "";
     if (files.length === 0) return;
     if (!companyId) {
-      toast.error("Azienda non identificata");
+      toast.error(t("Azienda non identificata"));
       return;
     }
 
@@ -88,11 +90,11 @@ export function ArticlePdfDocumentsSection({ companyId, familyId, ensureFamilyId
     try {
       for (const file of files) {
         if (file.type !== "application/pdf") {
-          toast.error(`"${file.name}" ignorato`, { description: "Solo file PDF." });
+          toast.error(t("\"{name}\" ignorato", { name: file.name }), { description: t("Solo file PDF.") });
           continue;
         }
         if (file.size > MAX_FILE_SIZE) {
-          toast.error(`"${file.name}" troppo grande`, { description: "Max 15 MB." });
+          toast.error(t("\"{name}\" troppo grande", { name: file.name }), { description: t("Max 15 MB.") });
           continue;
         }
         const safeId =
@@ -105,7 +107,7 @@ export function ArticlePdfDocumentsSection({ companyId, familyId, ensureFamilyId
           .upload(path, file, { upsert: false, contentType: "application/pdf", cacheControl: "3600" });
         if (upErr) {
           logger.error("article pdf upload failed", upErr);
-          toast.error(`Errore caricando "${file.name}"`, { description: upErr.message });
+          toast.error(t("Errore caricando \"{name}\"", { name: file.name }), { description: upErr.message });
           continue;
         }
         const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(path);
@@ -123,13 +125,13 @@ export function ArticlePdfDocumentsSection({ companyId, familyId, ensureFamilyId
         });
         if (insErr) {
           await supabase.storage.from(BUCKET).remove([path]); // rollback file orfano
-          toast.error(`Errore salvando "${file.name}"`, { description: insErr.message });
+          toast.error(t("Errore salvando \"{name}\"", { name: file.name }), { description: insErr.message });
           continue;
         }
         okCount++;
       }
       if (okCount > 0) {
-        toast.success(okCount === 1 ? "Documento caricato" : `${okCount} documenti caricati`);
+        toast.success(okCount === 1 ? t("Documento caricato") : t("{okCount} documenti caricati", { okCount }));
         refresh(fid);
       }
     } finally {
@@ -151,20 +153,20 @@ export function ArticlePdfDocumentsSection({ companyId, familyId, ensureFamilyId
         const path = decodeURIComponent(doc.url.slice(idx + marker.length).split("?")[0]);
         await supabase.storage.from(BUCKET).remove([path]);
       }
-      toast.success("Documento rimosso");
+      toast.success(t("Documento rimosso"));
       refresh(familyId);
     } catch (err) {
-      toast.error("Errore rimozione", {
-        description: err instanceof Error ? err.message : "Errore sconosciuto",
+      toast.error(t("Errore rimozione"), {
+        description: err instanceof Error ? err.message : t("Errore sconosciuto"),
       });
     }
   };
 
   return (
     <div>
-      <Label>{title ?? "Schede tecniche / Documenti (PDF)"}</Label>
+      <Label>{title ?? t("Schede tecniche / Documenti (PDF)")}</Label>
       <p className="text-xs text-muted-foreground mt-1 mb-2">
-        {hint ?? "Carica scheda tecnica, certificazioni, garanzia. Appaiono nella scheda articolo e nel preventivo. Più file, max 15 MB ciascuno."}
+        {hint ?? t("Carica scheda tecnica, certificazioni, garanzia. Appaiono nella scheda articolo e nel preventivo. Più file, max 15 MB ciascuno.")}
       </p>
 
       {familyId && docs.length > 0 && (
@@ -181,8 +183,8 @@ export function ArticlePdfDocumentsSection({ companyId, familyId, ensureFamilyId
                 target="_blank"
                 rel="noopener noreferrer"
                 className="tap-compact p-1.5 text-muted-foreground hover:text-primary"
-                title="Apri PDF"
-                aria-label={`Apri ${doc.nome}`}
+                title={t("Apri PDF")}
+                aria-label={t("Apri {nome}", { nome: doc.nome })}
               >
                 <ExternalLink className="h-4 w-4" />
               </a>
@@ -190,8 +192,8 @@ export function ArticlePdfDocumentsSection({ companyId, familyId, ensureFamilyId
                 type="button"
                 onClick={() => void handleRemove(doc)}
                 className="tap-compact p-1.5 text-muted-foreground hover:text-rose-500"
-                title="Rimuovi"
-                aria-label={`Rimuovi ${doc.nome}`}
+                title={t("Rimuovi")}
+                aria-label={t("Rimuovi {nome}", { nome: doc.nome })}
               >
                 <Trash2 className="h-4 w-4" />
               </button>
@@ -201,7 +203,7 @@ export function ArticlePdfDocumentsSection({ companyId, familyId, ensureFamilyId
       )}
 
       {familyId && docs.length === 0 && !isLoading && (
-        <p className="text-xs text-muted-foreground mb-2">Nessun documento ancora.</p>
+        <p className="text-xs text-muted-foreground mb-2">{t("Nessun documento ancora.")}</p>
       )}
 
       <Button
@@ -213,7 +215,7 @@ export function ArticlePdfDocumentsSection({ companyId, familyId, ensureFamilyId
         className="gap-2"
       >
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-        Carica PDF
+        {t("Carica PDF")}
       </Button>
       <input
         ref={fileRef}

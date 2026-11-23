@@ -3,6 +3,7 @@ import { useId, useState, type ReactNode } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const definition = {
   eyebrowSize: ["Testi", "Dimensione occhiello"],
@@ -40,6 +41,7 @@ export type CoverDesignField = FieldBase & (
 
 function DesignNumberInput({ field, id, disabled }: { field: Extract<CoverDesignField, { kind: "range" }>; id: string; disabled?: boolean }) {
   // Keep intermediate typing (e.g. "3" while entering "36") without clamping it to 20.
+  const t = useT();
   const [draft, setDraft] = useState<string | null>(null);
   const commit = () => {
     if (draft != null && draft.trim() !== "" && Number.isFinite(Number(draft))) {
@@ -48,7 +50,7 @@ function DesignNumberInput({ field, id, disabled }: { field: Extract<CoverDesign
     }
     setDraft(null);
   };
-  return <Input id={id} aria-label={`${definition[field.id][1]} (${field.unit})`} type="number" min={field.min} max={field.max} step={field.id === "overlayOpacity" ? 1 : field.step ?? 1} value={draft ?? field.value} disabled={disabled} className="w-20 shrink-0" onChange={e => setDraft(e.target.value)} onBlur={commit} onKeyDown={e => {
+  return <Input id={id} aria-label={`${t(definition[field.id][1])} (${field.unit})`} type="number" min={field.min} max={field.max} step={field.id === "overlayOpacity" ? 1 : field.step ?? 1} value={draft ?? field.value} disabled={disabled} className="w-20 shrink-0" onChange={e => setDraft(e.target.value)} onBlur={commit} onKeyDown={e => {
     if (e.key === "Enter") { e.preventDefault(); commit(); }
     if (e.key === "Escape") { e.preventDefault(); setDraft(null); }
   }} />;
@@ -58,14 +60,15 @@ function DesignNumberInput({ field, id, disabled }: { field: Extract<CoverDesign
 export function TemplateCoverDesignControls({ fields, hasImage, children, photoHint }: {
   fields: CoverDesignField[]; hasImage: boolean; children?: ReactNode; photoHint?: string;
 }) {
+  const t = useT();
   const uid = useId();
-  return <section data-cover-design-controls aria-label="Aspetto della copertina" className="min-w-0 space-y-5 rounded-xl border bg-card p-4">
-    <div><h3 className="text-sm font-semibold">Aspetto della copertina</h3><p className="mt-1 text-xs text-muted-foreground">Gli stessi comandi in ogni modulo. Le modifiche si vedono nell’anteprima del documento.</p></div>
+  return <section data-cover-design-controls aria-label={t("Aspetto della copertina")} className="min-w-0 space-y-5 rounded-xl border bg-card p-4">
+    <div><h3 className="text-sm font-semibold">{t("Aspetto della copertina")}</h3><p className="mt-1 text-xs text-muted-foreground">{t("Gli stessi comandi in ogni modulo. Le modifiche si vedono nell’anteprima del documento.")}</p></div>
     {["Testi", "Colori e sfondo", "Logo e dettagli"].map(group => <fieldset key={group} className="min-w-0 space-y-3 border-t pt-3">
-      <legend className="pr-2 text-xs font-semibold text-muted-foreground">{group}</legend>
+      <legend className="pr-2 text-xs font-semibold text-muted-foreground">{t(group)}</legend>
       <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
         {Object.keys(definition).map(key => fields.find(field => field.id === key)).filter((field): field is CoverDesignField => !!field && definition[field.id][0] === group).map(field => {
-          const label = definition[field.id][1], id = `${uid}-${field.id}`;
+          const label = t(definition[field.id][1]), id = `${uid}-${field.id}`;
           const photoOnly = field.id === "overlayStyle" || field.id === "overlayOpacity";
           const logoHidden = fields.find(f => f.id === "logoPosition")?.value === "hidden";
           const decorationHidden = fields.find(f => f.id === "showDecoration")?.value === false;
@@ -74,30 +77,30 @@ export function TemplateCoverDesignControls({ fields, hasImage, children, photoH
             {field.kind !== "toggle" && <label htmlFor={id} className="block text-xs font-medium">{label}{field.kind === "range" && <span className="text-muted-foreground"> ({field.unit})</span>}</label>}
             {field.kind === "range" && <>
               <div className="flex min-w-0 items-center gap-3">
-                <input aria-label={`${label}: cursore`} aria-valuetext={`${field.value} ${field.unit}`} aria-describedby={field.hint ? `${id}-hint` : undefined} type="range" min={field.min} max={field.max} step={field.id === "overlayOpacity" ? 1 : field.step ?? 1} value={field.value} disabled={disabled} className="min-w-0 flex-1 accent-orange-500 disabled:opacity-40" onChange={e => field.onChange(Number(e.target.value))} />
+                <input aria-label={t("{campo}: cursore", { campo: label })} aria-valuetext={`${field.value} ${field.unit}`} aria-describedby={field.hint ? `${id}-hint` : undefined} type="range" min={field.min} max={field.max} step={field.id === "overlayOpacity" ? 1 : field.step ?? 1} value={field.value} disabled={disabled} className="min-w-0 flex-1 accent-orange-500 disabled:opacity-40" onChange={e => field.onChange(Number(e.target.value))} />
                 <DesignNumberInput field={field} id={id} disabled={disabled} />
               </div>
               {field.id === "logoSize" && (
                 <Button type="button" size="sm" variant="ghost" disabled={disabled || field.value === 100}
                   onClick={() => field.onChange(100)}>
-                  Ripristina logo al 100%
+                  {t("Ripristina logo al 100%")}
                 </Button>
               )}
             </>}
             {field.kind === "choice" && <UniformSelect id={id} value={field.value} disabled={disabled} onChange={e => field.onChange(e.target.value)} className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-2 text-sm disabled:opacity-50">
-              {!field.choices.some(([value]) => value === field.value) && <option value={field.value}>Valore personalizzato: {field.value}</option>}
-              {field.choices.map(([value, title]) => <option key={value} value={value}>{title}</option>)}
+              {!field.choices.some(([value]) => value === field.value) && <option value={field.value}>{t("Valore personalizzato: {valore}", { valore: field.value })}</option>}
+              {field.choices.map(([value, title]) => <option key={value} value={value}>{t(title)}</option>)}
             </UniformSelect>}
             {field.kind === "color" && <><div className="flex min-w-0 gap-2">
-              <input type="color" aria-label={`Selettore ${label.toLowerCase()}`} disabled={disabled} value={/^#[\da-f]{6}$/i.test(field.value ?? "") ? field.value! : field.fallback} onChange={e => field.onChange(e.target.value)} className="h-10 w-12 shrink-0 rounded border bg-background p-1" />
+              <input type="color" aria-label={t("Selettore {campo}", { campo: label.toLowerCase() })} disabled={disabled} value={/^#[\da-f]{6}$/i.test(field.value ?? "") ? field.value! : field.fallback} onChange={e => field.onChange(e.target.value)} className="h-10 w-12 shrink-0 rounded border bg-background p-1" />
               <Input id={id} value={field.value ?? ""} placeholder={field.fallback} disabled={disabled} onChange={e => field.onChange(e.target.value)} className="min-w-0 font-mono" />
-            </div>{field.onReset && <Button type="button" size="sm" variant="ghost" disabled={disabled || field.value == null} onClick={field.onReset}>Ripristina {label.toLowerCase()}</Button>}</>}
+            </div>{field.onReset && <Button type="button" size="sm" variant="ghost" disabled={disabled || field.value == null} onClick={field.onReset}>{t("Ripristina {campo}", { campo: label.toLowerCase() })}</Button>}</>}
             {field.kind === "toggle" && <label htmlFor={id} className="flex min-h-10 items-center justify-between gap-3 text-sm"><span>{label}</span><Switch id={id} aria-label={label} checked={field.value} disabled={disabled} onCheckedChange={field.onChange} /></label>}
             {field.hint && <p id={`${id}-hint`} className="text-xs text-muted-foreground">{field.hint}</p>}
           </div>;
         })}
       </div>
-      {group === "Colori e sfondo" && <p className="text-xs text-muted-foreground">{photoHint ?? (hasImage ? "Il velo scuro aiuta a leggere il testo sulla foto. Il contrasto reale va verificato nell’anteprima: dipende anche dall’immagine." : "Il colore di sfondo è visibile senza foto. Aggiungi un’immagine per regolare il velo scuro.")}</p>}
+      {group === "Colori e sfondo" && <p className="text-xs text-muted-foreground">{photoHint ?? (hasImage ? t("Il velo scuro aiuta a leggere il testo sulla foto. Il contrasto reale va verificato nell’anteprima: dipende anche dall’immagine.") : t("Il colore di sfondo è visibile senza foto. Aggiungi un’immagine per regolare il velo scuro."))}</p>}
     </fieldset>)}
     {children && <div className="space-y-3 border-t pt-3">{children}</div>}
   </section>;

@@ -19,6 +19,7 @@ import {
 } from "@/lib/serramenti/disegnoDaFamiglia";
 import type { AntaDisegno, DefinizioneDisegno, TipoAnta } from "@/lib/serramenti/disegnoSerramento";
 import type { FamilyWithAxes } from "@/types/articleFamily";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface ValoreTipoDisegno {
   tipologia: string | null;
@@ -52,6 +53,7 @@ const numero = (t: string): number | undefined => {
 };
 
 export function CampoTipoDisegno({ valore, onChange }: Props) {
+  const tr = useT();
   const { tipologia, definizione } = valore;
   const persiana = tipologia?.startsWith("persiana:") ?? false;
   const codicePersiana = persiana ? tipologia!.split(":")[1] : "";
@@ -90,10 +92,9 @@ export function CampoTipoDisegno({ valore, onChange }: Props) {
   return (
     <div className="space-y-3">
       <div>
-        <Label htmlFor="f-tipo-disegno">Tipo di disegno</Label>
+        <Label htmlFor="f-tipo-disegno">{tr("Tipo di disegno")}</Label>
         <p className="mb-1.5 mt-1 text-xs text-muted-foreground">
-          Il sistema disegna da solo questo articolo (da dentro e da fuori, con le quote) nel listino, nel preventivo e nel PDF: non serve caricare
-          una foto. Se il tipo non c'è, scegli «Personalizzata» e componi tu le ante.
+          {tr("Il sistema disegna da solo questo articolo (da dentro e da fuori, con le quote) nel listino, nel preventivo e nel PDF: non serve caricare una foto. Se il tipo non c'è, scegli «Personalizzata» e componi tu le ante.")}
         </p>
         <UniformSelect
           id="f-tipo-disegno"
@@ -101,33 +102,33 @@ export function CampoTipoDisegno({ valore, onChange }: Props) {
           value={selezione}
           onChange={(e) => scegli(e.target.value)}
         >
-          <option value="">Nessun disegno: uso una foto</option>
+          <option value="">{tr("Nessun disegno: uso una foto")}</option>
           {GRUPPI.map((g) => (
             <optgroup key={g.titolo} label={g.titolo}>
               {g.voci.map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
             </optgroup>
           ))}
           {[...new Set(CONFIGURAZIONI_PERSIANA.map((c) => c.gruppo))].map((gruppo) => (
-            <optgroup key={gruppo} label={`Persiane · ${gruppo}`}>
+            <optgroup key={gruppo} label={tr("Persiane · {gruppo}", { gruppo })}>
               {CONFIGURAZIONI_PERSIANA.filter((c) => c.gruppo === gruppo).map((c) => <option key={c.codice} value={`persiana:${c.codice}`}>{c.nome}</option>)}
             </optgroup>
           ))}
-          <option value={TIPOLOGIA_PERSONALIZZATA}>Personalizzata: la compongo io…</option>
+          <option value={TIPOLOGIA_PERSONALIZZATA}>{tr("Personalizzata: la compongo io…")}</option>
         </UniformSelect>
         {persiana && (
           <div className="mt-2 max-w-xs">
-            <Label htmlFor="f-tipo-persiana" className="flex h-5 items-center text-xs">Tipo di persiana</Label>
+            <Label htmlFor="f-tipo-persiana" className="flex h-5 items-center text-xs">{tr("Tipo di persiana")}</Label>
             <UniformSelect
               id="f-tipo-persiana"
               className="h-9 w-full rounded-md border bg-background px-2 text-xs"
               value={variantePersiana}
               onChange={(e) => onChange({ tipologia: `persiana:${codicePersiana}${e.target.value ? `:${e.target.value}` : ""}`, definizione: null })}
             >
-              <option value="">Lamelle fisse</option>
-              <option value="orientabili">Lamelle orientabili</option>
-              <option value="gelosia">Gelosia</option>
-              <option value="scuro">Scuro pieno (doghe)</option>
-              <option value="scuro_cornice">Scuro a cornice</option>
+              <option value="">{tr("Lamelle fisse")}</option>
+              <option value="orientabili">{tr("Lamelle orientabili")}</option>
+              <option value="gelosia">{tr("Gelosia")}</option>
+              <option value="scuro">{tr("Scuro pieno (doghe)")}</option>
+              <option value="scuro_cornice">{tr("Scuro a cornice")}</option>
             </UniformSelect>
           </div>
         )}
@@ -135,51 +136,51 @@ export function CampoTipoDisegno({ valore, onChange }: Props) {
 
       {personalizzata && (
         <div className="space-y-3 rounded-md border bg-slate-50/60 p-3">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Componi il disegno</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{tr("Componi il disegno")}</p>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <div>
-              <Label className="flex h-5 items-center text-xs">Larghezza tipica (mm)</Label>
+              <Label className="flex h-5 items-center text-xs">{tr("Larghezza tipica (mm)")}</Label>
               <Input type="number" min={300} className="h-9 text-xs" key={`w${def.larghezzaMm ?? ""}`} defaultValue={def.larghezzaMm ?? ""} onBlur={(e) => aggiorna({ larghezzaMm: numero(e.target.value) })} />
             </div>
             <div>
-              <Label className="flex h-5 items-center text-xs">Altezza tipica (mm)</Label>
+              <Label className="flex h-5 items-center text-xs">{tr("Altezza tipica (mm)")}</Label>
               <Input type="number" min={300} className="h-9 text-xs" key={`h${def.altezzaMm ?? ""}`} defaultValue={def.altezzaMm ?? ""} onBlur={(e) => aggiorna({ altezzaMm: numero(e.target.value) })} />
             </div>
             <label className="mt-6 inline-flex cursor-pointer items-center gap-2 text-xs text-slate-700">
               <input type="checkbox" className="h-3.5 w-3.5 accent-orange-500" checked={!!def.soglia} onChange={(e) => aggiorna({ soglia: e.target.checked || undefined })} />
-              Con soglia (porta)
+              {tr("Con soglia (porta)")}
             </label>
             {ciSonoScorrevoli && (
               <label className="mt-6 inline-flex cursor-pointer items-center gap-2 text-xs text-slate-700">
                 <input type="checkbox" className="h-3.5 w-3.5 accent-orange-500" checked={!!def.inLinea} onChange={(e) => aggiorna({ inLinea: e.target.checked || undefined })} />
-                Ante in linea
+                {tr("Ante in linea")}
               </label>
             )}
           </div>
 
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <div>
-              <Label className="flex h-5 items-center text-xs">Sopraluce (mm, 0 = no)</Label>
+              <Label className="flex h-5 items-center text-xs">{tr("Sopraluce (mm, 0 = no)")}</Label>
               <Input type="number" min={0} className="h-9 text-xs" key={`so${def.sopraluce?.altezzaMm ?? ""}`} defaultValue={def.sopraluce ? def.sopraluce.altezzaMm ?? "" : 0}
                 onBlur={(e) => { const n = Number(e.target.value); aggiorna({ sopraluce: e.target.value !== "" && n === 0 ? undefined : { ...def.sopraluce, altezzaMm: numero(e.target.value) } }); }} />
             </div>
             {def.sopraluce && (
               <div>
-                <Label className="flex h-5 items-center text-xs">Sezioni del sopraluce</Label>
+                <Label className="flex h-5 items-center text-xs">{tr("Sezioni del sopraluce")}</Label>
                 <UniformSelect className="h-9 w-full rounded-md border bg-background px-2 text-xs" value={def.sopraluce.sezioni ?? 1} onChange={(e) => aggiorna({ sopraluce: { ...def.sopraluce, sezioni: Number(e.target.value) } })}>
                   {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}</option>)}
                 </UniformSelect>
               </div>
             )}
             <div>
-              <Label className="flex h-5 items-center text-xs">Sottoluce (mm, 0 = no)</Label>
+              <Label className="flex h-5 items-center text-xs">{tr("Sottoluce (mm, 0 = no)")}</Label>
               <Input type="number" min={0} className="h-9 text-xs" key={`sl${def.sottoluce?.altezzaMm ?? ""}`} defaultValue={def.sottoluce ? def.sottoluce.altezzaMm ?? "" : 0}
                 onBlur={(e) => { const n = Number(e.target.value); aggiorna({ sottoluce: e.target.value !== "" && n === 0 ? undefined : { altezzaMm: numero(e.target.value) } }); }} />
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs">Ante, da sinistra a destra (viste da dentro)</Label>
+            <Label className="text-xs">{tr("Ante, da sinistra a destra (viste da dentro)")}</Label>
             {def.ante.map((a, i) => (
               <div key={i} className="flex flex-wrap items-center gap-2">
                 <span className="w-5 text-xs text-muted-foreground">{i + 1}</span>
@@ -191,15 +192,15 @@ export function CampoTipoDisegno({ valore, onChange }: Props) {
                     const tipo: TipoAnta = v === "fisso_telaio" ? "fisso" : v;
                     aggiornaAnta(i, { tipo, larghezzaMm: a.larghezzaMm, ...(conLato(tipo) ? { lato: a.lato ?? "dx" } : {}), ...(tipo === "fisso" ? { nelTelaio: v === "fisso_telaio" } : {}), ...(conLato(tipo) ? { maniglia: a.maniglia } : {}) });
                   }}
-                  aria-label={`Tipo dell'anta ${i + 1}`}
+                  aria-label={tr("Tipo dell'anta {i}", { i: i + 1 })}
                 >
-                  {TIPI_ANTA.map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
+                  {TIPI_ANTA.map(([id, nome]) => <option key={id} value={id}>{tr(nome)}</option>)}
                 </UniformSelect>
-                <Input type="number" min={1} className="h-9 w-28 text-xs" placeholder="Automatica" aria-label={`Larghezza dell'anta ${i + 1} (mm)`} key={`anta-${i}-${a.larghezzaMm ?? ""}`} defaultValue={a.larghezzaMm ?? ""} onBlur={(e) => aggiornaAnta(i, { ...a, larghezzaMm: numero(e.target.value) })} />
+                <Input type="number" min={1} className="h-9 w-28 text-xs" placeholder={tr("Automatica")} aria-label={tr("Larghezza dell'anta {i} (mm)", { i: i + 1 })} key={`anta-${i}-${a.larghezzaMm ?? ""}`} defaultValue={a.larghezzaMm ?? ""} onBlur={(e) => aggiornaAnta(i, { ...a, larghezzaMm: numero(e.target.value) })} />
                 {eScorrevole(a) && (
                   <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-slate-700">
                     <input type="checkbox" className="h-3.5 w-3.5 accent-orange-500" checked={!!a.conRibalta} onChange={(e) => aggiornaAnta(i, { ...a, conRibalta: e.target.checked || undefined })} />
-                    Con ribalta
+                    {tr("Con ribalta")}
                   </label>
                 )}
                 {conLato(a.tipo) && (
@@ -207,46 +208,46 @@ export function CampoTipoDisegno({ valore, onChange }: Props) {
                     className="h-9 w-32 rounded-md border bg-background px-2 text-xs"
                     value={a.lato ?? "dx"}
                     onChange={(e) => aggiornaAnta(i, { ...a, lato: e.target.value === "sx" ? "sx" : "dx" })}
-                    aria-label={`Lato dell'anta ${i + 1}`}
+                    aria-label={tr("Lato dell'anta {i}", { i: i + 1 })}
                   >
-                    <option value="dx">{eScorrevole(a) ? "Scorre a destra" : "Cerniere a destra"}</option>
-                    <option value="sx">{eScorrevole(a) ? "Scorre a sinistra" : "Cerniere a sinistra"}</option>
+                    <option value="dx">{eScorrevole(a) ? tr("Scorre a destra") : tr("Cerniere a destra")}</option>
+                    <option value="sx">{eScorrevole(a) ? tr("Scorre a sinistra") : tr("Cerniere a sinistra")}</option>
                   </UniformSelect>
                 )}
-                <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive" disabled={def.ante.length <= 1} onClick={() => aggiorna({ ante: def.ante.filter((_, k) => k !== i) })} aria-label={`Togli l'anta ${i + 1}`}>
+                <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive" disabled={def.ante.length <= 1} onClick={() => aggiorna({ ante: def.ante.filter((_, k) => k !== i) })} aria-label={tr("Togli l'anta {i}", { i: i + 1 })}>
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               </div>
             ))}
             <Button type="button" variant="outline" size="sm" className="h-8" disabled={def.ante.length >= 6} onClick={() => aggiorna({ ante: [...def.ante, { tipo: "fisso" }] })}>
-              <Plus className="mr-1 h-3.5 w-3.5" /> Aggiungi anta
+              <Plus className="mr-1 h-3.5 w-3.5" /> {tr("Aggiungi anta")}
             </Button>
           </div>
 
           {ciSonoScorrevoli && (
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <Label className="flex h-5 items-center text-xs">Dove va l'anta aperta</Label>
+                <Label className="flex h-5 items-center text-xs">{tr("Dove va l'anta aperta")}</Label>
                 <UniformSelect
                   className="h-9 w-full rounded-md border bg-background px-2 text-xs"
                   value={def.scorrimento?.tipo ?? ""}
                   onChange={(e) => aggiorna({ scorrimento: e.target.value ? { tipo: e.target.value as "scomparsa" | "su_parete", lato: def.scorrimento?.lato ?? "dx" } : undefined })}
                 >
-                  <option value="">Resta nel vano</option>
-                  <option value="scomparsa">Scompare nel muro</option>
-                  <option value="su_parete">Scorre davanti alla parete</option>
+                  <option value="">{tr("Resta nel vano")}</option>
+                  <option value="scomparsa">{tr("Scompare nel muro")}</option>
+                  <option value="su_parete">{tr("Scorre davanti alla parete")}</option>
                 </UniformSelect>
               </div>
               {def.scorrimento && (
                 <div>
-                  <Label className="flex h-5 items-center text-xs">Da che parte</Label>
+                  <Label className="flex h-5 items-center text-xs">{tr("Da che parte")}</Label>
                   <UniformSelect
                     className="h-9 w-full rounded-md border bg-background px-2 text-xs"
                     value={def.scorrimento.lato}
                     onChange={(e) => aggiorna({ scorrimento: { ...def.scorrimento!, lato: e.target.value === "sx" ? "sx" : "dx" } })}
                   >
-                    <option value="dx">A destra</option>
-                    <option value="sx">A sinistra</option>
+                    <option value="dx">{tr("A destra")}</option>
+                    <option value="sx">{tr("A sinistra")}</option>
                   </UniformSelect>
                 </div>
               )}
@@ -255,17 +256,17 @@ export function CampoTipoDisegno({ valore, onChange }: Props) {
           {def.sopraluce && (
             <label className="inline-flex items-center gap-2 text-xs">
               <input type="checkbox" checked={!!def.sopraluce.apribile} onChange={(e) => aggiorna({ sopraluce: { ...def.sopraluce, apribile: e.target.checked } })} />
-              Sopraluce apribile a vasistas
+              {tr("Sopraluce apribile a vasistas")}
             </label>
           )}
           <div className="grid gap-2 sm:grid-cols-3">
             <div>
-              <Label className="text-xs">Traversi dal basso (mm)</Label>
-              <Input className="h-9 text-xs" placeholder="Es. 600, 1100" key={`traversi-${def.traversi?.map((t) => t.daBassoMm).join(",") ?? ""}`} defaultValue={def.traversi?.map((t) => t.daBassoMm).join(", ") ?? ""} onBlur={(e) => aggiorna({ traversi: e.target.value.split(/[,;]+/).map((s) => numero(s)).filter((n): n is number => n !== undefined).map((daBassoMm) => ({ daBassoMm })) })} />
+              <Label className="text-xs">{tr("Traversi dal basso (mm)")}</Label>
+              <Input className="h-9 text-xs" placeholder={tr("Es. 600, 1100")} key={`traversi-${def.traversi?.map((t) => t.daBassoMm).join(",") ?? ""}`} defaultValue={def.traversi?.map((t) => t.daBassoMm).join(", ") ?? ""} onBlur={(e) => aggiorna({ traversi: e.target.value.split(/[,;]+/).map((s) => numero(s)).filter((n): n is number => n !== undefined).map((daBassoMm) => ({ daBassoMm })) })} />
             </div>
             {(["colonne", "righe"] as const).map((campo) => (
               <div key={campo}>
-                <Label className="text-xs">Inglesine: {campo}</Label>
+                <Label className="text-xs">{tr("Inglesine: {campo}", { campo })}</Label>
                 <Input type="number" min={1} max={8} className="h-9 text-xs" key={`${campo}-${def.inglesine?.[campo] ?? ""}`} defaultValue={def.inglesine?.[campo] ?? ""} onBlur={(e) => aggiorna({ inglesine: e.target.value.trim() ? { colonne: def.inglesine?.colonne ?? 1, righe: def.inglesine?.righe ?? 1, [campo]: Math.min(8, numero(e.target.value) ?? 1) } : undefined })} />
               </div>
             ))}
@@ -276,7 +277,7 @@ export function CampoTipoDisegno({ valore, onChange }: Props) {
       {disegno && (
         <div className="max-w-md">
           <AnteprimaDisegnoFamiglia disegno={disegno} altezza="h-40" />
-          <p className="mt-1 text-[11px] text-muted-foreground">Così si disegna con le misure tipiche; nel preventivo prende le misure e le scelte vere.</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">{tr("Così si disegna con le misure tipiche; nel preventivo prende le misure e le scelte vere.")}</p>
         </div>
       )}
     </div>

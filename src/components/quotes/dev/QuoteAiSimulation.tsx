@@ -15,8 +15,10 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { SALES_AREAS } from '@/lib/moduli-vendita/areas';
 import { useLiveQuoteModuleTemplate } from './useLiveQuoteModuleTemplate';
 import { QuoteModuleTemplateContext } from './QuoteModuleTemplateContext';
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 const demoCompanyId = "d2000000-0000-4000-a000-000000000002";
 export default function QuoteAiSimulation(props: { companyId?: string; companyName?: string; ownerId?: string }) {
+  const t = useT();
   const library = useQuoteTemplates({ live: true }); const { effectiveCompany } = useAuth();
   const templateLibrary = effectiveCompany?.id === props.companyId ? { templates: library.templates, defaultId: library.defaultTemplate?.id, brandColor: effectiveCompany.brand_primary_color, logo: effectiveCompany.logo_url, logoLight: effectiveCompany.brand_logo_dark_url, loading: library.isLoading, error: !!library.fetchError, retry: () => { void library.refetch(); } } : undefined;
   const [mode, setMode] = useState<"guided" | "plan" | "real">("plan");
@@ -38,7 +40,7 @@ export default function QuoteAiSimulation(props: { companyId?: string; companyNa
     getToken: async () => (await supabase.auth.getSession()).data.session?.access_token ?? null,
     publishableKey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
   }) : undefined;
-  if (params.has('flow') && !flow || rawTrialId !== null && !localTrialId) return <main className="p-6"><p role="alert">Percorso o modello AI non disponibile. Nessuna bozza viene convertita.</p><button onClick={() => navigate('/azienda/marketing/preventivi')}>Torna ai preventivi</button></main>;
+  if (params.has('flow') && !flow || rawTrialId !== null && !localTrialId) return <main className="p-6"><p role="alert">{t("Percorso o modello AI non disponibile. Nessuna bozza viene convertita.")}</p><button onClick={() => navigate('/azienda/marketing/preventivi')}>{t("Torna ai preventivi")}</button></main>;
   const workspace = mode === "guided" ? <GuidedWorkspace {...props} onOpenPlan={() => setMode("plan")} onOpenReal={endpoint ? () => setMode("real") : undefined} />
     : <AssistedWorkspace key={`${props.companyId}:${mode}:${flow ?? scenario?.id ?? "main"}:${localTrialId ?? ''}`} {...props} localTrialId={localTrialId} flow={flow} templateLibrary={templateLibrary} companyId={props.companyId ?? demoCompanyId} memoryMode={mode === "plan" ? "plan" : "real"} scenarioId={scenario?.id}
       onScenario={id => { const next = new URLSearchParams(params); if (id) next.set("scenario", id); else next.delete("scenario"); setParams(next); }}
@@ -55,12 +57,13 @@ function BagniTemplateWorkspace({ companyId, modelId, children }: { companyId: s
   return <QuoteModuleTemplateContext.Provider value={{ companyId, source: query.data, company, loading: query.isLoading, error: query.isError, refresh: () => { void query.refetch(); } }}>{children}</QuoteModuleTemplateContext.Provider>;
 }
 function BagniLocalGate({ children, onBack }: { children: ReactNode; onBack: () => void }) {
+  const t = useT();
   const permissions = usePermissions(); const modules = useModuliVendita(); const visibility = useModuliVisibilita();
-  if (modules.isLoading || visibility.isLoading) return <p role="status" className="p-6">Verifico l’accesso al modulo Bagni…</p>;
+  if (modules.isLoading || visibility.isLoading) return <p role="status" className="p-6">{t("Verifico l’accesso al modulo Bagni…")}</p>;
   const view = modules.moduli.find(item => item.modulo.slug === 'bagni');
   const area = SALES_AREAS.find(item => item.id === 'bagni')!;
   if (modules.isError || !permissions.canEditMarketingOpportunities || !view || view.isError || view.isLoading || view.stato !== 'attivo' || !visibility.isAreaVisibile(area)) {
-    return <main className="p-6"><p role="alert">Modulo Bagni non disponibile per questa azienda o per il tuo ruolo. Nessuna bozza è stata aperta.</p><button onClick={onBack}>Torna ai preventivi</button></main>;
+    return <main className="p-6"><p role="alert">{t("Modulo Bagni non disponibile per questa azienda o per il tuo ruolo. Nessuna bozza è stata aperta.")}</p><button onClick={onBack}>{t("Torna ai preventivi")}</button></main>;
   }
   return <>{children}</>;
 }

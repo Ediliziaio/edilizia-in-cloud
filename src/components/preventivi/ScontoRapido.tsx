@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import { SCONTI_VELOCI, scontoDaPercentuale, scontoPerArrivareA, totaleDaTesto } from "@/lib/preventivi/scontoRapido";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   /** Lo sconto in vigore, in percentuale. */
@@ -32,13 +33,14 @@ interface Props {
   daDito?: boolean;
 }
 
-const percentuale = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits: 2 });
+const percentuale = (n: number) => n.toLocaleString(intlCampo(), { maximumFractionDigits: 2 });
 
 /** Due decimali bastano, tranne quando la percentuale e il massimo si assomigliano al punto da sembrare uguali. */
 const percentualeAConfronto = (n: number, altro: number) =>
-  percentuale(n) === percentuale(altro) ? n.toLocaleString("it-IT", { maximumFractionDigits: 6 }) : percentuale(n);
+  percentuale(n) === percentuale(altro) ? n.toLocaleString(intlCampo(), { maximumFractionDigits: 6 }) : percentuale(n);
 
 export function ScontoRapido({ valorePct, massimoPct, imponibileLordo, ivaPct, onApplica, disabled = false, className, daDito = false }: Props) {
+  const t = useT();
   const id = useId();
   const [testo, setTesto] = useState("");
 
@@ -51,15 +53,15 @@ export function ScontoRapido({ valorePct, massimoPct, imponibileLordo, ivaPct, o
 
   const messaggio = (() => {
     if (testo.trim() === "") return null;
-    if (voluto == null) return "Scrivi una cifra, per esempio 24.500.";
-    if (!proposta || proposta.esito === "non-valido") return "Senza un totale non c'è nessuno sconto da calcolare.";
+    if (voluto == null) return t("Scrivi una cifra, per esempio 24.500.");
+    if (!proposta || proposta.esito === "non-valido") return t("Senza un totale non c'è nessuno sconto da calcolare.");
     if (proposta.esito === "gia-sotto") {
-      return `Il totale senza sconto è già ${formatCurrency(proposta.totaleSenzaSconto)} (IVA inclusa): non serve nessuno sconto.`;
+      return t("Il totale senza sconto è già {importo} (IVA inclusa): non serve nessuno sconto.", { importo: formatCurrency(proposta.totaleSenzaSconto) });
     }
     if (oltreIlMassimo) {
-      return `Servirebbe il ${percentualeAConfronto(proposta.pct, massimoPct ?? 0)}%: oltre il massimo consentito (${percentuale(massimoPct ?? 0)}%).`;
+      return t("Servirebbe il {pct}%: oltre il massimo consentito ({massimo}%).", { pct: percentualeAConfronto(proposta.pct, massimoPct ?? 0), massimo: percentuale(massimoPct ?? 0) });
     }
-    return `Serve uno sconto del ${percentuale(proposta.pct)}% (−${formatCurrency(proposta.importo)}, IVA esclusa).`;
+    return t("Serve uno sconto del {pct}% (−{importo}, IVA esclusa).", { pct: percentuale(proposta.pct), importo: formatCurrency(proposta.importo) });
   })();
 
   const applica = () => {
@@ -70,8 +72,8 @@ export function ScontoRapido({ valorePct, massimoPct, imponibileLordo, ivaPct, o
 
   return (
     <div className={cn("space-y-2", className)}>
-      <div role="group" aria-label="Sconto veloce" className="flex flex-wrap items-center gap-1.5">
-        <span className="text-[11px] text-muted-foreground">Sconto veloce</span>
+      <div role="group" aria-label={t("Sconto veloce")} className="flex flex-wrap items-center gap-1.5">
+        <span className="text-[11px] text-muted-foreground">{t("Sconto veloce")}</span>
         {SCONTI_VELOCI.map((pct) => {
           const sopra = massimoPct != null && pct > massimoPct;
           const attivo = Math.abs(valorePct - pct) < 0.005;
@@ -81,7 +83,7 @@ export function ScontoRapido({ valorePct, massimoPct, imponibileLordo, ivaPct, o
               type="button"
               disabled={disabled || sopra}
               aria-pressed={attivo}
-              title={sopra ? `Oltre il massimo consentito (${percentuale(massimoPct ?? 0)}%)` : undefined}
+              title={sopra ? t("Oltre il massimo consentito ({massimo}%)", { massimo: percentuale(massimoPct ?? 0) }) : undefined}
               onClick={() => onApplica(scontoDaPercentuale(imponibileLordo, pct))}
               className={cn(
                 "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
@@ -92,7 +94,7 @@ export function ScontoRapido({ valorePct, massimoPct, imponibileLordo, ivaPct, o
                 (disabled || sopra) && "cursor-not-allowed opacity-40 hover:border-slate-200 hover:bg-white",
               )}
             >
-              {pct === 0 ? "Nessuno" : `${pct}%`}
+              {pct === 0 ? t("Nessuno") : `${pct}%`}
             </button>
           );
         })}
@@ -101,7 +103,7 @@ export function ScontoRapido({ valorePct, massimoPct, imponibileLordo, ivaPct, o
       {conTotale && (
         <div className="space-y-1">
           <label htmlFor={`${id}-totale`} className="text-[11px] text-muted-foreground">
-            Arriva a € (totale IVA inclusa)
+            {t("Arriva a € (totale IVA inclusa)")}
           </label>
           <div className="flex items-center gap-1.5">
             <Input
@@ -109,14 +111,14 @@ export function ScontoRapido({ valorePct, massimoPct, imponibileLordo, ivaPct, o
               inputMode="decimal"
               autoComplete="off"
               value={testo}
-              placeholder="es. 24.500"
+              placeholder={t("es. 24.500")}
               disabled={disabled}
               onChange={(e) => setTesto(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); applica(); } }}
               className={cn("h-8 max-w-[10rem] text-sm tabular-nums", daDito ? "max-md:h-11" : "max-sm:h-11")}
             />
             <Button type="button" size="sm" variant="outline" className="h-8 text-xs max-sm:h-11" disabled={!applicabile} onClick={applica}>
-              Applica
+              {t("Applica")}
             </Button>
           </div>
           <p aria-live="polite" className={cn("text-[10px] leading-4", oltreIlMassimo ? "text-destructive" : "text-muted-foreground")}>

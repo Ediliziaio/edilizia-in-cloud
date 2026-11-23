@@ -27,6 +27,7 @@ import { condizioniStandard, type SettoreCondizioni } from "@/lib/condizioniStan
 import type { QuoteTemplate } from "@/types/quoteTemplate";
 import { htmlPerEditorContratto } from "@/lib/preventivi/contrattoEditor";
 import { PAGINA_CONDIZIONI, paginaDelModello } from "@/lib/condizioni/indirizzi";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Conserva la formattazione del blocco copiato. */
 export function testoDaBloccoLibreria(template: QuoteTemplate): string {
@@ -67,6 +68,7 @@ interface Props {
 export function CondizioniContratto({
   settore, nomeModulo, attivo = true, testo, onAttivo, modelloAssociatoId, onAssocia, recesso = false, onRecesso,
 }: Props) {
+  const t = useT();
   const archivio = useCondizioniArchivio();
   const perIPreventivi = useMemo(
     () => archivio.modelli.filter((m) => m.attivo && m.ambito === "preventivo"),
@@ -93,7 +95,7 @@ export function CondizioniContratto({
   }, [dallArchivio, nomeModulo, testoDelModulo, settore]);
   const bottoneAnteprima = (
     <Button variant="outline" size="sm" className="h-7" onClick={() => setAnteprimaAperta(true)}>
-      <Eye className="mr-1.5 h-3.5 w-3.5" />Anteprima condizioni
+      <Eye className="mr-1.5 h-3.5 w-3.5" />{t("Anteprima condizioni")}
     </Button>
   );
 
@@ -114,8 +116,8 @@ export function CondizioniContratto({
   return (
     <div className="space-y-3 rounded-lg border border-blue-200 bg-blue-50/30 p-3">
       <div className="flex items-center justify-between gap-3">
-        <p className="flex items-center gap-1.5 text-sm font-medium"><Scale className="h-3.5 w-3.5" /> Clausole contrattuali</p>
-        {onAttivo && <Switch checked={attivo} onCheckedChange={onAttivo} aria-label="Condizioni generali nel documento" />}
+        <p className="flex items-center gap-1.5 text-sm font-medium"><Scale className="h-3.5 w-3.5" /> {t("Clausole contrattuali")}</p>
+        {onAttivo && <Switch checked={attivo} onCheckedChange={onAttivo} aria-label={t("Condizioni generali nel documento")} />}
       </div>
 
       {attivo && (
@@ -124,23 +126,23 @@ export function CondizioniContratto({
             <div className="space-y-2 rounded-md border bg-background px-3 py-2">
               <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
                 <p>
-                  Nel PDF esce <strong>«{dallArchivio.nome}»</strong>
-                  <span className="text-muted-foreground"> · versione {dallArchivio.versione} · da Contratti e condizioni</span>
+                  {t("Nel PDF esce")} <strong>«{dallArchivio.nome}»</strong>
+                  <span className="text-muted-foreground"> · {t("versione {n} · da Contratti e condizioni", { n: dallArchivio.versione })}</span>
                 </p>
                 <span className="flex gap-1.5">
                   {bottoneAnteprima}
                   <Button asChild variant="outline" size="sm" className="h-7">
-                    <Link to={paginaDelModello(dallArchivio.id)}><ExternalLink className="mr-1.5 h-3.5 w-3.5" />Apri e modifica</Link>
+                    <Link to={paginaDelModello(dallArchivio.id)}><ExternalLink className="mr-1.5 h-3.5 w-3.5" />{t("Apri e modifica")}</Link>
                   </Button>
                 </span>
               </div>
               {onAssocia && perIPreventivi.length > 1 && (
                 <label className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  Per questo preventivatore usa
-                  <UniformSelect aria-label="Modello delle condizioni per questo preventivatore"
+                  {t("Per questo preventivatore usa")}
+                  <UniformSelect aria-label={t("Modello delle condizioni per questo preventivatore")}
                     className="h-8 rounded-md border bg-background px-2 text-sm text-foreground"
                     value={associato?.id ?? ""} onChange={(e) => onAssocia(e.target.value || null)}>
-                    <option value="">il predefinito{predefinito ? ` («${predefinito.nome}»)` : ""}</option>
+                    <option value="">{predefinito ? t("il predefinito («{nome}»)", { nome: predefinito.nome }) : t("il predefinito")}</option>
                     {perIPreventivi.filter((m) => !m.predefinito).map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
                   </UniformSelect>
                 </label>
@@ -150,16 +152,14 @@ export function CondizioniContratto({
           ) : testoDelModulo ? (
             <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-950">
               <p>
-                Nel PDF esce il testo scritto in questo preventivatore
-                ({testoPiano(testoDelModulo).length.toLocaleString("it-IT")} caratteri). Le condizioni ora si scrivono
-                una volta sola, in <strong>Contratti e condizioni</strong>: portalo lì e lo modifichi per tutti.
+                {t("Nel PDF esce il testo scritto in questo preventivatore ({n} caratteri). Le condizioni ora si scrivono una volta sola, in Contratti e condizioni: portalo lì e lo modifichi per tutti.", { n: testoPiano(testoDelModulo).length.toLocaleString(intlCampo()) })}
               </p>
               <p className="line-clamp-2 text-amber-900/80">{riassunto(testoPiano(testoDelModulo))}</p>
               <span className="flex flex-wrap gap-1.5">
               {bottoneAnteprima}
               {onAssocia && (
                 <Button size="sm" className="h-7" disabled={archivio.salvaModello.isPending} onClick={() => void portaNellArchivio()}>
-                  {giaNellArchivio ? `Usa «${giaNellArchivio.nome}», che è lo stesso testo` : "Porta questo testo nell'archivio"}
+                  {giaNellArchivio ? t("Usa «{nome}», che è lo stesso testo", { nome: giaNellArchivio.nome }) : t("Porta questo testo nell'archivio")}
                 </Button>
               )}
               </span>
@@ -167,17 +167,16 @@ export function CondizioniContratto({
           ) : (
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-background px-3 py-2 text-xs">
               <p className="text-muted-foreground">
-                Nel PDF escono le <strong className="text-foreground">condizioni di base del settore</strong>: un punto
-                di partenza da rileggere con il tuo consulente.
+                {t("Nel PDF escono le condizioni di base del settore: un punto di partenza da rileggere con il tuo consulente.")}
               </p>
               <span className="flex gap-1.5">
                 {bottoneAnteprima}
                 <Button asChild variant="outline" size="sm" className="h-7">
-                  <Link to={PAGINA_CONDIZIONI}><ExternalLink className="mr-1.5 h-3.5 w-3.5" />Scrivi le tue</Link>
+                  <Link to={PAGINA_CONDIZIONI}><ExternalLink className="mr-1.5 h-3.5 w-3.5" />{t("Scrivi le tue")}</Link>
                 </Button>
               </span>
               <details className="w-full">
-                <summary className="cursor-pointer text-muted-foreground">Leggi il testo di base</summary>
+                <summary className="cursor-pointer text-muted-foreground">{t("Leggi il testo di base")}</summary>
                 <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{testoPiano(condizioniStandard(settore))}</p>
               </details>
             </div>
@@ -187,14 +186,12 @@ export function CondizioniContratto({
               serve solo a chi firma con un privato fuori dalla sede o a distanza. */}
           {onRecesso && <div className="flex items-start justify-between gap-3 rounded-md border bg-background px-3 py-2">
             <div className="min-w-0">
-              <p className="text-sm font-medium">Allega il modulo di recesso</p>
+              <p className="text-sm font-medium">{t("Allega il modulo di recesso")}</p>
               <p className="text-xs text-muted-foreground">
-                Serve quando firmi con un privato a casa sua o a distanza (online, al telefono): senza, il cliente può
-                arrivare a recedere fino a 12 mesi dopo, anche a lavori finiti. A chi vende ad aziende o fa firmare in
-                sede non serve.
+                {t("Serve quando firmi con un privato a casa sua o a distanza (online, al telefono): senza, il cliente può arrivare a recedere fino a 12 mesi dopo, anche a lavori finiti. A chi vende ad aziende o fa firmare in sede non serve.")}
               </p>
             </div>
-            <Switch checked={recesso} onCheckedChange={onRecesso} aria-label="Allega il modulo di recesso" />
+            <Switch checked={recesso} onCheckedChange={onRecesso} aria-label={t("Allega il modulo di recesso")} />
           </div>}
         </>
       )}
@@ -208,10 +205,11 @@ export function CondizioniContratto({
 export function AnteprimaCondizioniDialog({ open, onOpenChange, modello, titolo }: {
   open: boolean; onOpenChange: (v: boolean) => void; modello: ModelloArchivio; titolo?: string;
 }) {
+  const t = useT();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex h-[90dvh] max-w-3xl flex-col gap-2 p-4">
-        <DialogHeader><DialogTitle className="text-base">{titolo ?? `Le condizioni come escono nel PDF · «${modello.nome}»`}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle className="text-base">{titolo ?? t("Le condizioni come escono nel PDF · «{nome}»", { nome: modello.nome })}</DialogTitle></DialogHeader>
         {open && <PdfDelleCondizioni modello={modello} />}
       </DialogContent>
     </Dialog>
@@ -220,6 +218,7 @@ export function AnteprimaCondizioniDialog({ open, onOpenChange, modello, titolo 
 
 /** Il PDF vero, montato solo a finestra aperta: azienda e motore del PDF si caricano solo allora. */
 function PdfDelleCondizioni({ modello }: { modello: ModelloArchivio }) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const disegna = useCallback(async () => {
     const { anteprimaCondizioniUrl, aziendaPerAnteprima } = await import("@/lib/condizioni/anteprimaPdf");
@@ -230,7 +229,7 @@ function PdfDelleCondizioni({ modello }: { modello: ModelloArchivio }) {
   return (
     <div className="min-h-0 flex-1">
       <PdfBlobLivePreviewPanel renderBlobUrl={disegna} depsKey={chiave}
-        enabled downloadFileName="condizioni.pdf" headerLabel="Anteprima con dati d'esempio" />
+        enabled downloadFileName="condizioni.pdf" headerLabel={t("Anteprima con dati d'esempio")} />
     </div>
   );
 }

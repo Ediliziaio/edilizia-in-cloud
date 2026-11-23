@@ -78,6 +78,7 @@ import { formattaMaggiorazione } from "@/lib/listino/maggiorazione";
 import { dividiVoci, problemaVoci, pulisciVoci, vociDi } from "@/lib/listino/scelteVariante";
 import { parseImporto } from "@/lib/listino/listinoFornitore";
 import { CatalogoColoriEditor } from "./CatalogoColoriEditor";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Label compatto per il tipo maggiorazione (usato nei badge valore).
@@ -191,6 +192,7 @@ interface Props {
 }
 
 export function FamilyAxesEditor({ family }: Props) {
+  const t = useT();
   const {
     createAxis,
     updateAxis,
@@ -233,12 +235,12 @@ export function FamilyAxesEditor({ family }: Props) {
   // fosse il dato reale. Toast una-tantum per rendere visibile il fallimento.
   useEffect(() => {
     if (docCountsError) {
-      toast.warning("Conteggio schede PDF non disponibile", {
+      toast.warning(t("Conteggio schede PDF non disponibile"), {
         description:
-          "I badge documenti delle varianti potrebbero essere incompleti. Ricarica la pagina per riprovare.",
+          t("I badge documenti delle varianti potrebbero essere incompleti. Ricarica la pagina per riprovare."),
       });
     }
-  }, [docCountsError]);
+  }, [docCountsError, t]);
 
   // Immagine propria della variante: input file riusabile (pattern come foto lotto).
   const imgInputRef = useRef<HTMLInputElement | null>(null);
@@ -255,16 +257,16 @@ export function FamilyAxesEditor({ family }: Props) {
     imgTargetIdRef.current = null;
     if (!file || !valueId || !companyId) return;
     if (!file.type.startsWith("image/")) {
-      toast.error("Seleziona un'immagine");
+      toast.error(t("Seleziona un'immagine"));
       return;
     }
     setUploadingImgId(valueId);
     try {
       const url = await uploadVariantImage(companyId, valueId, file);
       await updateAxisValue.mutateAsync({ id: valueId, familyId: family.id, patch: { immagine_url: url } });
-      toast.success("Immagine variante aggiornata");
+      toast.success(t("Immagine variante aggiornata"));
     } catch (err) {
-      toast.error("Immagine non caricata", { description: messaggioErroreListino(err) });
+      toast.error(t("Immagine non caricata"), { description: messaggioErroreListino(err) });
     } finally {
       setUploadingImgId(null);
     }
@@ -353,7 +355,7 @@ export function FamilyAxesEditor({ family }: Props) {
           ),
       );
     } catch (err) {
-      toast.error("Opzioni non riordinate", {
+      toast.error(t("Opzioni non riordinate"), {
         description: messaggioErroreListino(err),
       });
     }
@@ -385,7 +387,7 @@ export function FamilyAxesEditor({ family }: Props) {
           ),
       );
     } catch (err) {
-      toast.error("Scelte non riordinate", {
+      toast.error(t("Scelte non riordinate"), {
         description: messaggioErroreListino(err),
       });
     }
@@ -407,10 +409,10 @@ export function FamilyAxesEditor({ family }: Props) {
   const bulkActivity = async (attivo: boolean) => {
     try {
       await saveOptions.mutateAsync({ familyId: family.id, valueIds: [...selectedValueIds], patch: { attivo } });
-      toast.success(`${selectedValueIds.size} scelte ${attivo ? "attivate" : "disattivate"}`);
+      toast.success(attivo ? t("{n} scelte attivate", { n: selectedValueIds.size }) : t("{n} scelte disattivate", { n: selectedValueIds.size }));
       clearSelection();
     } catch (err) {
-      toast.error("Modifica non salvata", { description: messaggioErroreListino(err) });
+      toast.error(t("Modifica non salvata"), { description: messaggioErroreListino(err) });
     }
   };
   const bulkDeactivate = () => bulkActivity(false);
@@ -422,10 +424,10 @@ export function FamilyAxesEditor({ family }: Props) {
         patch: { maggiorazione_tipo: tipo, maggiorazione_valore: vendita,
           ...(acquisto === undefined ? {} : { maggiorazione_acquisto: acquisto }) },
       });
-      toast.success("Supplementi aggiornati");
+      toast.success(t("Supplementi aggiornati"));
       setBulkType(null); clearSelection();
     } catch (err) {
-      toast.error("Modifica non salvata", { description: messaggioErroreListino(err) });
+      toast.error(t("Modifica non salvata"), { description: messaggioErroreListino(err) });
     }
   };
 
@@ -461,11 +463,11 @@ export function FamilyAxesEditor({ family }: Props) {
         axes: payloadAxes,
       });
       toast.success(
-        `Preset applicato: ${res.axesCreated} variabili, ${res.valuesCreated} valori`,
+        t("Preset applicato: {axesCreated} variabili, {valuesCreated} valori", { axesCreated: res.axesCreated, valuesCreated: res.valuesCreated }),
       );
       setPresetsOpen(false);
     } catch (err) {
-      toast.error("Modello non applicato", {
+      toast.error(t("Modello non applicato"), {
         description: messaggioErroreListino(err),
       });
     }
@@ -515,9 +517,9 @@ export function FamilyAxesEditor({ family }: Props) {
         sort_order: maxSort + 10,
         attivo: v.attivo,
       });
-      toast.success(`Valore "${v.label}" duplicato`);
+      toast.success(t("Valore \"{label}\" duplicato", { label: v.label }));
     } catch (err) {
-      toast.error("Scelta non duplicata", {
+      toast.error(t("Scelta non duplicata"), {
         description: messaggioErroreListino(err),
       });
     }
@@ -530,10 +532,10 @@ export function FamilyAxesEditor({ family }: Props) {
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
         <div className="min-w-0">
           <h3 className="font-medium flex items-center gap-2">
-            Opzioni prodotto
+            {t("Opzioni prodotto")}
             {family.axes.length > 0 ? (
               <span className="text-xs font-normal text-muted-foreground">
-                ({family.axes.length} gruppi · {stats.totValori} scelte)
+                {t("({n} gruppi · {totValori} scelte)", { n: family.axes.length, totValori: stats.totValori })}
               </span>
             ) : null}
           </h3>
@@ -541,12 +543,12 @@ export function FamilyAxesEditor({ family }: Props) {
             <div className="flex flex-wrap gap-1.5 mt-1.5">
               {stats.obbligatori > 0 ? (
                 <Badge variant="secondary" className="text-[10px]">
-                  {stats.obbligatori} obbligator{stats.obbligatori === 1 ? "io" : "i"}
+                  {t(stats.obbligatori === 1 ? "{n} obbligatorio" : "{n} obbligatori", { n: stats.obbligatori })}
                 </Badge>
               ) : null}
               {stats.conMaggiorazione > 0 ? (
                 <Badge variant="outline" className="text-[10px]">
-                  {stats.conMaggiorazione} con maggiorazione
+                  {t("{conMaggiorazione} con maggiorazione", { conMaggiorazione: stats.conMaggiorazione })}
                 </Badge>
               ) : null}
               {stats.senzaDefault > 0 ? (
@@ -555,7 +557,7 @@ export function FamilyAxesEditor({ family }: Props) {
                   className="text-[10px] border-destructive text-destructive"
                   role="alert"
                 >
-                  ⚠ {stats.senzaDefault} obbligatori senza default
+                  {t("⚠ {senzaDefault} obbligatori senza default", { senzaDefault: stats.senzaDefault })}
                 </Badge>
               ) : null}
             </div>
@@ -568,10 +570,10 @@ export function FamilyAxesEditor({ family }: Props) {
               variant="ghost"
               onClick={toggleExpandAll}
               className="h-9"
-              aria-label={allExpanded ? "Chiudi tutte le variabili" : "Espandi tutte le variabili"}
+              aria-label={allExpanded ? t("Chiudi tutte le variabili") : t("Espandi tutte le variabili")}
             >
               <ChevronsUpDown className="h-4 w-4 mr-1" aria-hidden="true" />
-              {allExpanded ? "Chiudi tutto" : "Espandi tutto"}
+              {allExpanded ? t("Chiudi tutto") : t("Espandi tutto")}
             </Button>
           ) : null}
           <Button
@@ -581,7 +583,7 @@ export function FamilyAxesEditor({ family }: Props) {
             className="h-9"
           >
             <Sparkles className="h-4 w-4 mr-1" aria-hidden="true" />
-            Applica preset
+            {t("Applica preset")}
           </Button>
           <Button
             size="sm"
@@ -589,7 +591,7 @@ export function FamilyAxesEditor({ family }: Props) {
             className="h-9"
           >
             <Plus className="h-4 w-4 mr-1" aria-hidden="true" />
-            Aggiungi opzione
+            {t("Aggiungi opzione")}
           </Button>
         </div>
       </div>
@@ -597,13 +599,13 @@ export function FamilyAxesEditor({ family }: Props) {
       {/* #10 — Barra bulk actions (visibile solo se ≥1 valore selezionato) */}
       {selectedValueIds.size > 0 ? (
         <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 bg-primary/10 border border-primary/30 rounded-md px-3 py-2 text-sm">
-          <span className="font-medium">{selectedValueIds.size} selezionati</span>
+          <span className="font-medium">{t("{size} selezionati", { size: selectedValueIds.size })}</span>
           <span className="flex-1" />
           <Button size="sm" variant="outline" className="h-8 text-xs" onClick={bulkActivate} disabled={saveOptions.isPending}>
-            Attiva
+            {t("Attiva")}
           </Button>
           <Button size="sm" variant="outline" className="h-8 text-xs" onClick={bulkDeactivate} disabled={saveOptions.isPending}>
-            Disattiva
+            {t("Disattiva")}
           </Button>
           <Button
             size="sm"
@@ -612,7 +614,7 @@ export function FamilyAxesEditor({ family }: Props) {
             onClick={() => setBulkType("percentuale")}
             disabled={saveOptions.isPending}
           >
-            Applica %
+            {t("Applica %")}
           </Button>
           <Button
             size="sm"
@@ -621,10 +623,10 @@ export function FamilyAxesEditor({ family }: Props) {
             onClick={() => setBulkType("fisso_pz")}
             disabled={saveOptions.isPending}
           >
-            Applica €
+            {t("Applica €")}
           </Button>
           <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={clearSelection} disabled={saveOptions.isPending}>
-            Annulla
+            {t("Annulla")}
           </Button>
         </div>
       ) : null}
@@ -633,9 +635,8 @@ export function FamilyAxesEditor({ family }: Props) {
         <Card className="border-dashed">
           <CardContent className="py-8 text-center space-y-3">
             <p className="text-sm text-muted-foreground">
-              Nessuna variabile configurata. Puoi partire da zero o applicare un{" "}
-              <strong className="text-foreground">preset rapido</strong> per serramenti
-              (colore, vetro, apertura, ferramenta).
+              {t("Nessuna variabile configurata. Puoi partire da zero o applicare un")}{" "}
+              <strong className="text-foreground">{t("preset rapido")}</strong> {t("per serramenti (colore, vetro, apertura, ferramenta).")}
             </p>
             <div className="flex flex-col sm:flex-row gap-2 justify-center">
               <Button
@@ -644,7 +645,7 @@ export function FamilyAxesEditor({ family }: Props) {
                 className="w-full sm:w-auto"
               >
                 <Sparkles className="h-4 w-4 mr-1" aria-hidden="true" />
-                Applica preset serramenti
+                {t("Applica preset serramenti")}
               </Button>
               <Button
                 size="sm"
@@ -653,7 +654,7 @@ export function FamilyAxesEditor({ family }: Props) {
                 className="w-full sm:w-auto"
               >
                 <Plus className="h-4 w-4 mr-1" aria-hidden="true" />
-                Crea manualmente
+                {t("Crea manualmente")}
               </Button>
             </div>
           </CardContent>
@@ -665,7 +666,7 @@ export function FamilyAxesEditor({ family }: Props) {
               questa nota e' facile confondersi pensando che ogni valore
               debba avere una maggiorazione esplicita. */}
           <div className="rounded-md border border-emerald-200 bg-emerald-50/40 px-3 py-2 text-[11px] text-emerald-900 leading-relaxed">
-            <span className="font-semibold">Come funziona:</span> la scelta <strong>predefinita</strong> è proposta nel preventivo. Il suo prezzo può essere incluso, avere un supplemento oppure sostituire il prezzo base: sono impostazioni separate.
+            <span className="font-semibold">{t("Come funziona:")}</span> {t("la scelta")} <strong>{t("predefinita")}</strong> {t("è proposta nel preventivo. Il suo prezzo può essere incluso, avere un supplemento oppure sostituire il prezzo base: sono impostazioni separate.")}
           </div>
           {family.axes.map((axis, idx) => {
             const isExpanded = expandedAxisIds.has(axis.id);
@@ -680,7 +681,7 @@ export function FamilyAxesEditor({ family }: Props) {
                       onClick={() => toggleExpandOne(axis.id)}
                       className="flex-1 text-left flex items-start gap-2 min-w-0 py-1 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                       aria-expanded={isExpanded}
-                      aria-label={`${isExpanded ? "Chiudi" : "Apri"} variabile ${axis.nome}`}
+                      aria-label={isExpanded ? t("Chiudi variabile {nome}", { nome: axis.nome }) : t("Apri variabile {nome}", { nome: axis.nome })}
                     >
                       <ChevronRight
                         className={`h-4 w-4 mt-0.5 shrink-0 transition-transform ${isExpanded ? "rotate-90" : ""}`}
@@ -693,32 +694,32 @@ export function FamilyAxesEditor({ family }: Props) {
                         </CardTitle>
                         <div className="flex flex-wrap gap-1.5 items-center mt-1">
                           <Badge variant="outline" className="text-[10px] sm:text-xs">
-                            {axis.tipo === "boolean" ? "Sì / No" : "Scelta"}
+                            {axis.tipo === "boolean" ? t("Sì / No") : t("Scelta")}
                           </Badge>
                           {axis.obbligatorio ? (
                             <Badge variant="secondary" className="text-[10px] sm:text-xs">
-                              obbligatorio
+                              {t("obbligatorio")}
                             </Badge>
                           ) : null}
                           <span className="text-xs text-muted-foreground">
-                            {axis.values.filter(v => v.attivo).length} scelte attive
+                            {t("{n} scelte attive", { n: axis.values.filter(v => v.attivo).length })}
                           </span>
-                          {axis.visibile_se ? <span className="text-xs text-muted-foreground">Solo con {family.axes.find(a => a.codice === axis.visibile_se?.asse)?.nome ?? axis.visibile_se.asse}</span> : null}
-                          {defaults > 1 ? <span className="text-xs text-destructive" role="alert">Più scelte predefinite: da correggere</span> : null}
+                          {axis.visibile_se ? <span className="text-xs text-muted-foreground">{t("Solo con {nome}", { nome: family.axes.find(a => a.codice === axis.visibile_se?.asse)?.nome ?? axis.visibile_se.asse })}</span> : null}
+                          {defaults > 1 ? <span className="text-xs text-destructive" role="alert">{t("Più scelte predefinite: da correggere")}</span> : null}
                           {axis.obbligatorio && defaults === 0 ? (
-                            <span className="text-xs text-destructive" role="alert">⚠ nessuno standard acceso</span>
+                            <span className="text-xs text-destructive" role="alert">{t("⚠ nessuno standard acceso")}</span>
                           ) : null}
                         </div>
                       </div>
                     </button>
                     <div className="flex items-center gap-1 shrink-0">
-                      <Button size="icon" variant="ghost" className="h-9 w-9" onClick={() => setEditingAxis(axis)} aria-label="Modifica variabile"><Pencil className="h-4 w-4" /></Button>
+                      <Button size="icon" variant="ghost" className="h-9 w-9" onClick={() => setEditingAxis(axis)} aria-label={t("Modifica variabile")}><Pencil className="h-4 w-4" /></Button>
                       <DropdownMenu><DropdownMenuTrigger asChild>
-                        <Button size="icon" variant="ghost" className="h-9 w-9" aria-label={`Altre azioni ${axis.nome}`}><MoreHorizontal className="h-4 w-4" /></Button>
+                        <Button size="icon" variant="ghost" className="h-9 w-9" aria-label={t("Altre azioni {nome}", { nome: axis.nome })}><MoreHorizontal className="h-4 w-4" /></Button>
                       </DropdownMenuTrigger><DropdownMenuContent align="end">
-                        <DropdownMenuItem disabled={idx === 0 || updateAxis.isPending} onSelect={() => moveAxis(axis, "up")}>Sposta su</DropdownMenuItem>
-                        <DropdownMenuItem disabled={idx === family.axes.length - 1 || updateAxis.isPending} onSelect={() => moveAxis(axis, "down")}>Sposta giù</DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive" onSelect={() => setAxisToDelete(axis)}>Elimina opzione</DropdownMenuItem>
+                        <DropdownMenuItem disabled={idx === 0 || updateAxis.isPending} onSelect={() => moveAxis(axis, "up")}>{t("Sposta su")}</DropdownMenuItem>
+                        <DropdownMenuItem disabled={idx === family.axes.length - 1 || updateAxis.isPending} onSelect={() => moveAxis(axis, "down")}>{t("Sposta giù")}</DropdownMenuItem>
+                        <DropdownMenuItem className="text-destructive" onSelect={() => setAxisToDelete(axis)}>{t("Elimina opzione")}</DropdownMenuItem>
                       </DropdownMenuContent></DropdownMenu>
                     </div>
                   </div>
@@ -727,7 +728,7 @@ export function FamilyAxesEditor({ family }: Props) {
                   <CardContent className="pt-0 p-3 sm:p-4 space-y-2">
                     {axis.values.length === 0 ? (
                       <p className="text-sm text-muted-foreground">
-                        Nessun valore. Aggiungi almeno un valore.
+                        {t("Nessun valore. Aggiungi almeno un valore.")}
                       </p>
                     ) : (
                       <ul className="space-y-1.5">
@@ -751,15 +752,15 @@ export function FamilyAxesEditor({ family }: Props) {
                                 checked={selectedValueIds.has(v.id)}
                                 onCheckedChange={() => toggleValueSelection(v.id)}
                                 className="mt-1 shrink-0"
-                                aria-label={`Seleziona ${v.label}`}
+                                aria-label={t("Seleziona {label}", { label: v.label })}
                               />
                               {/* Immagine propria della variante — click per caricare/cambiare */}
                               <button
                                 type="button"
                                 onClick={() => handlePickImageFor(v.id)}
                                 className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded border bg-muted"
-                                title={v.immagine_url ? "Cambia immagine variante" : "Aggiungi immagine variante"}
-                                aria-label={`Immagine variante ${v.label}`}
+                                title={v.immagine_url ? t("Cambia immagine variante") : t("Aggiungi immagine variante")}
+                                aria-label={t("Immagine variante {label}", { label: v.label })}
                               >
                                 {uploadingImgId === v.id ? (
                                   <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -781,7 +782,7 @@ export function FamilyAxesEditor({ family }: Props) {
                                       className="text-[10px] sm:text-xs"
                                       title={vociDi(v).join(", ")}
                                     >
-                                      comprende {vociDi(v).length} {vociDi(v).length === 1 ? "voce" : "voci"}
+                                      {t(vociDi(v).length === 1 ? "comprende {n} voce" : "comprende {n} voci", { n: vociDi(v).length })}
                                     </Badge>
                                   ) : null}
                                   {v.prezzo_vendita != null && v.prezzo_vendita > 0 ? (
@@ -790,11 +791,11 @@ export function FamilyAxesEditor({ family }: Props) {
                                       className="text-[10px] sm:text-xs border-emerald-300 text-emerald-700"
                                       title={
                                         family.modalita_prezzo_base === "griglia"
-                                          ? prezzoProprioVariante("griglia").aiuto
+                                          ? t(prezzoProprioVariante("griglia").aiuto)
                                           : undefined
                                       }
                                     >
-                                      Vendita €{Number(v.prezzo_vendita).toLocaleString("it-IT")}
+                                      {t("Vendita €{prezzo}", { prezzo: Number(v.prezzo_vendita).toLocaleString(intlCampo()) })}
                                       {family.modalita_prezzo_base === "mq" ? "/m²" : ""}
                                     </Badge>
                                   ) : null}
@@ -803,7 +804,7 @@ export function FamilyAxesEditor({ family }: Props) {
                                     <Badge
                                       className="text-[10px] sm:text-xs bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
                                     >
-                                      Predefinita
+                                      {t("Predefinita")}
                                     </Badge>
                                   ) : null}
                                   {!v.attivo ? (
@@ -811,7 +812,7 @@ export function FamilyAxesEditor({ family }: Props) {
                                       variant="outline"
                                       className="text-[10px] sm:text-xs"
                                     >
-                                      non attivo
+                                      {t("non attivo")}
                                     </Badge>
                                   ) : null}
                                   {magLabel ? (
@@ -819,24 +820,24 @@ export function FamilyAxesEditor({ family }: Props) {
                                       className={`text-[10px] sm:text-xs ${magBadgeClass}`}
                                       title={
                                         v.maggiorazione_tipo === "percentuale"
-                                          ? "Maggiorazione percentuale sul prezzo base"
-                                          : "Maggiorazione fissa additiva"
+                                          ? t("Maggiorazione percentuale sul prezzo base")
+                                          : t("Maggiorazione fissa additiva")
                                       }
                                     >
-                                      Vendita {magLabel}
+                                      {t("Vendita {magLabel}", { magLabel })}
                                     </Badge>
                                   ) : null}
                                   {v.maggiorazione_tipo !== "none" &&
                                   !(Number(v.prezzo_vendita) > 0) ? (
                                     <span className="text-[10px] sm:text-xs text-muted-foreground">
-                                      Costo {formattaMaggiorazione(v.maggiorazione_tipo, v.maggiorazione_acquisto) || "nessun supplemento"}
+                                      {t("Costo")} {formattaMaggiorazione(v.maggiorazione_tipo, v.maggiorazione_acquisto) || t("nessun supplemento")}
                                     </span>
                                   ) : null}
                                   {Number(v.prezzo_vendita) > 0 ? (
                                     <span className="text-[10px] sm:text-xs text-muted-foreground">
                                       {Number(v.prezzo_acquisto) > 0
-                                        ? `Costo €${Number(v.prezzo_acquisto).toLocaleString("it-IT")}${family.modalita_prezzo_base === "mq" ? "/m²" : ""}`
-                                        : "Costo da impostare"}
+                                        ? `${t("Costo €{prezzo}", { prezzo: Number(v.prezzo_acquisto).toLocaleString(intlCampo()) })}${family.modalita_prezzo_base === "mq" ? "/m²" : ""}`
+                                        : t("Costo da impostare")}
                                     </span>
                                   ) : null}
                                 </div>
@@ -847,15 +848,15 @@ export function FamilyAxesEditor({ family }: Props) {
                                 ) : null}
                               </div>
                               <div className="flex items-center gap-0.5 shrink-0">
-                                <Button size="icon" variant="ghost" className="h-9 w-9" onClick={() => setEditingValue(v)} aria-label="Modifica valore"><Pencil className="h-4 w-4" /></Button>
+                                <Button size="icon" variant="ghost" className="h-9 w-9" onClick={() => setEditingValue(v)} aria-label={t("Modifica valore")}><Pencil className="h-4 w-4" /></Button>
                                 <DropdownMenu><DropdownMenuTrigger asChild>
-                                  <Button size="icon" variant="ghost" className="h-9 w-9" aria-label={`Altre azioni ${v.label}`}><MoreHorizontal className="h-4 w-4" /></Button>
+                                  <Button size="icon" variant="ghost" className="h-9 w-9" aria-label={t("Altre azioni {label}", { label: v.label })}><MoreHorizontal className="h-4 w-4" /></Button>
                                 </DropdownMenuTrigger><DropdownMenuContent align="end">
-                                  <DropdownMenuItem disabled={axis.values[0]?.id === v.id || updateAxisValue.isPending} onSelect={() => moveValue(axis, v.id, "up")}>Sposta su</DropdownMenuItem>
-                                  <DropdownMenuItem disabled={axis.values.at(-1)?.id === v.id || updateAxisValue.isPending} onSelect={() => moveValue(axis, v.id, "down")}>Sposta giù</DropdownMenuItem>
-                                  <DropdownMenuItem disabled={createAxisValue.isPending} onSelect={() => duplicateValue(axis, v)}>Duplica scelta</DropdownMenuItem>
-                                  <DropdownMenuItem onSelect={() => setDocsForValue(v)}>Schede / PDF ({variantDocCounts[v.id] ?? "—"})</DropdownMenuItem>
-                                  <DropdownMenuItem className="text-destructive" onSelect={() => setValueToDelete(v)}>Elimina scelta</DropdownMenuItem>
+                                  <DropdownMenuItem disabled={axis.values[0]?.id === v.id || updateAxisValue.isPending} onSelect={() => moveValue(axis, v.id, "up")}>{t("Sposta su")}</DropdownMenuItem>
+                                  <DropdownMenuItem disabled={axis.values.at(-1)?.id === v.id || updateAxisValue.isPending} onSelect={() => moveValue(axis, v.id, "down")}>{t("Sposta giù")}</DropdownMenuItem>
+                                  <DropdownMenuItem disabled={createAxisValue.isPending} onSelect={() => duplicateValue(axis, v)}>{t("Duplica scelta")}</DropdownMenuItem>
+                                  <DropdownMenuItem onSelect={() => setDocsForValue(v)}>{t("Schede / PDF ({variantDocCounts})", { variantDocCounts: variantDocCounts[v.id] ?? "—" })}</DropdownMenuItem>
+                                  <DropdownMenuItem className="text-destructive" onSelect={() => setValueToDelete(v)}>{t("Elimina scelta")}</DropdownMenuItem>
                                 </DropdownMenuContent></DropdownMenu>
                               </div>
                             </li>
@@ -870,7 +871,7 @@ export function FamilyAxesEditor({ family }: Props) {
                       className="h-9 w-full sm:w-auto"
                     >
                       <Plus className="h-4 w-4 mr-1" aria-hidden="true" />
-                      Aggiungi valore
+                      {t("Aggiungi valore")}
                     </Button>
                   </CardContent>
                 ) : null}
@@ -904,7 +905,7 @@ export function FamilyAxesEditor({ family }: Props) {
                 familyId: family.id,
                 patch: values,
               });
-              toast.success("Variabile aggiornata");
+              toast.success(t("Variabile aggiornata"));
             } else {
               await createAxis.mutateAsync({
                 family_id: family.id,
@@ -916,12 +917,12 @@ export function FamilyAxesEditor({ family }: Props) {
                 obbligatorio: values.obbligatorio,
                 sort_order: values.sort_order,
               });
-              toast.success("Variabile creata");
+              toast.success(t("Variabile creata"));
             }
             setNewAxisOpen(false);
             setEditingAxis(null);
           } catch (err) {
-            toast.error("Opzione non salvata", {
+            toast.error(t("Opzione non salvata"), {
               description: messaggioErroreListino(err),
             });
           }
@@ -975,10 +976,10 @@ export function FamilyAxesEditor({ family }: Props) {
               familyId: family.id, axisId: editingValue?.axis_id ?? newValueAxisId ?? "",
               valueId: editingValue?.id, patch: values,
             });
-            toast.success(editingValue ? "Scelta aggiornata" : "Scelta creata");
+            toast.success(editingValue ? t("Scelta aggiornata") : t("Scelta creata"));
             setNewValueAxisId(null); setEditingValue(null);
           } catch (err) {
-            toast.error("Scelta non salvata", { description: messaggioErroreListino(err) });
+            toast.error(t("Scelta non salvata"), { description: messaggioErroreListino(err) });
           }
         }}
         saving={saveOptions.isPending}
@@ -994,13 +995,13 @@ export function FamilyAxesEditor({ family }: Props) {
       >
         <AlertDialogContent className="w-[96vw] sm:w-full sm:max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-base sm:text-lg">Eliminare variabile "{axisToDelete?.nome}"?</AlertDialogTitle>
+            <AlertDialogTitle className="text-base sm:text-lg">{t("Eliminare variabile \"{nome}\"?", { nome: axisToDelete?.nome })}</AlertDialogTitle>
             <AlertDialogDescription className="text-xs sm:text-sm">
-              Verranno cancellati anche tutti i valori associati. Questa operazione è irreversibile.
+              {t("Verranno cancellati anche tutti i valori associati. Questa operazione è irreversibile.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:gap-2">
-            <AlertDialogCancel disabled={deleteAxis.isPending} className="h-10 w-full sm:w-auto mt-0">Annulla</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleteAxis.isPending} className="h-10 w-full sm:w-auto mt-0">{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={async () => {
                 if (!axisToDelete) return;
@@ -1009,10 +1010,10 @@ export function FamilyAxesEditor({ family }: Props) {
                     id: axisToDelete.id,
                     familyId: family.id,
                   });
-                  toast.success("Variabile eliminata");
+                  toast.success(t("Variabile eliminata"));
                   setAxisToDelete(null);
                 } catch (err) {
-                  toast.error("Non eliminato", {
+                  toast.error(t("Non eliminato"), {
                     description: messaggioErroreListino(err),
                   });
                 }
@@ -1020,7 +1021,7 @@ export function FamilyAxesEditor({ family }: Props) {
               disabled={deleteAxis.isPending}
               className="h-10 w-full sm:w-auto bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Elimina
+              {t("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1036,14 +1037,14 @@ export function FamilyAxesEditor({ family }: Props) {
       >
         <AlertDialogContent className="w-[96vw] sm:w-full sm:max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-base sm:text-lg">Eliminare valore "{valueToDelete?.label}"?</AlertDialogTitle>
+            <AlertDialogTitle className="text-base sm:text-lg">{t("Eliminare valore \"{label}\"?", { label: valueToDelete?.label })}</AlertDialogTitle>
             <AlertDialogDescription className="text-xs sm:text-sm">
               Sparisce anche dai preventivi che l&apos;hanno già scelto: il prezzo resta, ma la scelta non si legge più
               né nella riga né nel PDF. Se non lo vendi più, spegnilo invece di eliminarlo.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:gap-2">
-            <AlertDialogCancel disabled={deleteAxisValue.isPending} className="h-10 w-full sm:w-auto mt-0">Annulla</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleteAxisValue.isPending} className="h-10 w-full sm:w-auto mt-0">{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={async () => {
                 if (!valueToDelete) return;
@@ -1052,10 +1053,10 @@ export function FamilyAxesEditor({ family }: Props) {
                     id: valueToDelete.id,
                     familyId: family.id,
                   });
-                  toast.success("Valore eliminato");
+                  toast.success(t("Valore eliminato"));
                   setValueToDelete(null);
                 } catch (err) {
-                  toast.error("Non eliminato", {
+                  toast.error(t("Non eliminato"), {
                     description: messaggioErroreListino(err),
                   });
                 }
@@ -1063,7 +1064,7 @@ export function FamilyAxesEditor({ family }: Props) {
               disabled={deleteAxisValue.isPending}
               className="h-10 w-full sm:w-auto bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Elimina
+              {t("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1099,9 +1100,9 @@ export function FamilyAxesEditor({ family }: Props) {
       >
         <DialogContent className="w-[96vw] sm:w-full sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-base sm:text-lg">Schede della variante</DialogTitle>
+            <DialogTitle className="text-base sm:text-lg">{t("Schede della variante")}</DialogTitle>
             <DialogDescription className="text-xs sm:text-sm">
-              {docsForValue?.label} — carica la scheda tecnica/PDF specifica di questa variante.
+              {t("{label} — carica la scheda tecnica/PDF specifica di questa variante.", { label: docsForValue?.label })}
             </DialogDescription>
           </DialogHeader>
           {docsForValue ? (
@@ -1110,8 +1111,8 @@ export function FamilyAxesEditor({ family }: Props) {
               familyId={family.id}
               axisValueId={docsForValue.id}
               ensureFamilyId={async () => family.id}
-              title="Schede della variante (PDF)"
-              hint="Documenti specifici di questa variante (scheda tecnica, certificazioni). Più file, max 15 MB ciascuno."
+              title={t("Schede della variante (PDF)")}
+              hint={t("Documenti specifici di questa variante (scheda tecnica, certificazioni). Più file, max 15 MB ciascuno.")}
             />
           ) : null}
         </DialogContent>
@@ -1151,6 +1152,7 @@ function AxisFormDialog({
   onSave: (values: AxisFormValues) => void | Promise<void>;
   saving: boolean;
 }) {
+  const t = useT();
   // FIX: inizializzatori lazy leggono da `axis` fin dal primo render. Sync via
   // useEffect copre il caso in cui il dialog si riusa per record diversi senza
   // unmount (Radix non sempre invoca onOpenAutoFocus al cambio key).
@@ -1165,7 +1167,7 @@ function AxisFormDialog({
   const editing = axis !== null;
   const conflict =
     !editing && codice && existingCodici.includes(codice)
-      ? `Codice già usato nella famiglia`
+      ? t("Codice già usato nella famiglia")
       : null;
   const problemaVisibilita = problemaCondizione(codice, condizione, availableAxes);
   const canSave = nome.trim() && codice.trim() && !conflict && !problemaVisibilita && !saving;
@@ -1183,9 +1185,9 @@ function AxisFormDialog({
         key={axis?.id ?? "new"}
       >
         <DialogHeader>
-          <DialogTitle className="text-base sm:text-lg">{editing ? "Modifica variazione" : "Nuova variazione"}</DialogTitle>
+          <DialogTitle className="text-base sm:text-lg">{editing ? t("Modifica variazione") : t("Nuova variazione")}</DialogTitle>
           <DialogDescription className="text-xs sm:text-sm">
-            Le variazioni rappresentano le dimensioni di personalizzazione del prodotto (es. "Apertura", "Vetro", "Materiale").
+            {t("Le variazioni rappresentano le dimensioni di personalizzazione del prodotto (es. \"Apertura\", \"Vetro\", \"Materiale\").")}
           </DialogDescription>
         </DialogHeader>
 
@@ -1195,7 +1197,7 @@ function AxisFormDialog({
           {!editing ? (
             <div className="space-y-1.5">
               <div className="text-xs text-muted-foreground">
-                Suggerimenti rapidi
+                {t("Suggerimenti rapidi")}
               </div>
               <div className="flex flex-wrap gap-1">
                 {AXIS_NAME_SUGGESTIONS.map((sug) => (
@@ -1208,7 +1210,7 @@ function AxisFormDialog({
                       setCodiceManuallyEdited(false);
                     }}
                     className="text-[11px] px-2 py-0.5 rounded-full border bg-muted/40 hover:bg-primary/10 hover:border-primary transition"
-                    title={sug.hint}
+                    title={t(sug.hint)}
                   >
                     {sug.icona} {sug.nome}
                   </button>
@@ -1218,7 +1220,7 @@ function AxisFormDialog({
           ) : null}
 
           <div className="space-y-1.5">
-            <label htmlFor="axis-nome" className="text-sm font-medium">Nome</label>
+            <label htmlFor="axis-nome" className="text-sm font-medium">{t("Nome")}</label>
             <Input
               id="axis-nome"
               value={nome}
@@ -1228,17 +1230,17 @@ function AxisFormDialog({
                   setCodice(slugifyCodice(e.target.value));
                 }
               }}
-              placeholder="es. Apertura"
+              placeholder={t("es. Apertura")}
               autoFocus
               className="h-10"
             />
           </div>
           <div className="space-y-1.5">
             <label htmlFor="axis-codice" className="text-sm font-medium">
-              Codice
+              {t("Codice")}
               {codice && !codiceManuallyEdited ? (
                 <span className="ml-1.5 text-[10px] font-normal text-muted-foreground">
-                  (auto-generato dal nome)
+                  {t("(auto-generato dal nome)")}
                 </span>
               ) : null}
             </label>
@@ -1249,41 +1251,41 @@ function AxisFormDialog({
                 setCodice(slugifyCodice(e.target.value));
                 setCodiceManuallyEdited(true);
               }}
-              placeholder="apertura"
+              placeholder={t("apertura")}
               disabled={editing}
               aria-invalid={!!conflict}
               aria-describedby={conflict ? "axis-codice-error" : "axis-codice-hint"}
               className="h-10 font-mono"
             />
             <p id="axis-codice-hint" className="text-xs text-muted-foreground">
-              Identificatore snake_case usato nelle selezioni del preventivo.
+              {t("Identificatore snake_case usato nelle selezioni del preventivo.")}
             </p>
             {conflict ? (
               <p id="axis-codice-error" className="text-xs text-destructive" role="alert">{conflict}</p>
             ) : null}
           </div>
           <div className="space-y-1.5">
-            <label htmlFor="axis-descrizione" className="text-sm font-medium">Descrizione (opzionale)</label>
+            <label htmlFor="axis-descrizione" className="text-sm font-medium">{t("Descrizione (opzionale)")}</label>
             <Textarea
               id="axis-descrizione"
               value={descrizione}
               onChange={(e) => setDescrizione(e.target.value)}
               rows={2}
               className="resize-none"
-              placeholder="Dettaglio visibile ai configuratori (tooltip, aiuto contestuale)…"
+              placeholder={t("Dettaglio visibile ai configuratori (tooltip, aiuto contestuale)…")}
             />
           </div>
           <div className="rounded-lg border p-3 space-y-2">
-            <label className="text-sm font-medium">Quando mostrare questa opzione</label>
+            <label className="text-sm font-medium">{t("Quando mostrare questa opzione")}</label>
             <Select value={condizione?.asse ?? "__sempre"} onValueChange={v => setCondizione(v === "__sempre" ? null : { asse: v, valori: [] })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="__sempre">Sempre</SelectItem>
-                {availableAxes.filter(a => a.id !== axis?.id && a.values.some(v => v.attivo)).map(a => <SelectItem key={a.id} value={a.codice}>Solo in base a {a.nome}</SelectItem>)}
+                <SelectItem value="__sempre">{t("Sempre")}</SelectItem>
+                {availableAxes.filter(a => a.id !== axis?.id && a.values.some(v => v.attivo)).map(a => <SelectItem key={a.id} value={a.codice}>{t("Solo in base a {nome}", { nome: a.nome })}</SelectItem>)}
               </SelectContent>
             </Select>
             {condizione ? <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">Mostra quando è selezionata almeno una di queste scelte:</p>
+              <p className="text-xs text-muted-foreground">{t("Mostra quando è selezionata almeno una di queste scelte:")}</p>
               {availableAxes.find(a => a.codice === condizione.asse)?.values.filter(v => v.attivo).map(v => <label key={v.id} className="flex gap-2 items-center text-sm">
                 <Checkbox checked={condizione.valori.includes(v.valore)} onCheckedChange={checked => setCondizione({ ...condizione, valori: checked ? [...condizione.valori, v.valore] : condizione.valori.filter(x => x !== v.valore) })} />{v.label}
               </label>)}
@@ -1293,7 +1295,7 @@ function AxisFormDialog({
           {/* Tipo asse come cards cliccabili: aumenta la leggibilità rispetto
               a un select opaco, specialmente per utenti non-tecnici. */}
           <div className="space-y-1.5">
-            <div className="text-sm font-medium">Tipo di variabile</div>
+            <div className="text-sm font-medium">{t("Tipo di variabile")}</div>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
@@ -1306,10 +1308,10 @@ function AxisFormDialog({
                 }`}
               >
                 <div className="text-xs sm:text-sm font-medium">
-                  📋 Lista di valori
+                  {t("📋 Lista di valori")}
                 </div>
                 <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
-                  Più opzioni (es. bianco/antracite/noce)
+                  {t("Più opzioni (es. bianco/antracite/noce)")}
                 </div>
               </button>
               <button
@@ -1323,10 +1325,10 @@ function AxisFormDialog({
                 }`}
               >
                 <div className="text-xs sm:text-sm font-medium">
-                  ⏼ Sì / No
+                  {t("⏼ Sì / No")}
                 </div>
                 <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
-                  Solo attivo/disattivo (es. "con fori ventilazione")
+                  {t("Solo attivo/disattivo (es. \"con fori ventilazione\")")}
                 </div>
               </button>
             </div>
@@ -1339,10 +1341,9 @@ function AxisFormDialog({
               className="h-5 w-5 mt-0.5"
             />
             <label htmlFor="obbl" className="text-sm cursor-pointer select-none flex-1">
-              <span className="font-medium">Obbligatorio</span>
+              <span className="font-medium">{t("Obbligatorio")}</span>
               <span className="block text-xs text-muted-foreground mt-0.5">
-                Se attivo, richiede una selezione esplicita nel preventivo e
-                deve avere almeno un valore "default".
+                {t("Se attivo, richiede una selezione esplicita nel preventivo e deve avere almeno un valore \"default\".")}
               </span>
             </label>
           </div>
@@ -1355,7 +1356,7 @@ function AxisFormDialog({
             disabled={saving}
             className="h-10 w-full sm:w-auto"
           >
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button
             onClick={() =>
@@ -1375,12 +1376,12 @@ function AxisFormDialog({
             {saving ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />
-                Salvataggio…
+                {t("Salvataggio…")}
               </>
             ) : editing ? (
-              "Aggiorna"
+              t("Aggiorna")
             ) : (
-              "Crea variabile"
+              t("Crea variabile")
             )}
           </Button>
         </DialogFooter>
@@ -1502,6 +1503,7 @@ function ValueFormDialog({
   onSave: (values: ValueFormValues, otherDefaultIds: string[]) => void | Promise<void>;
   saving: boolean;
 }) {
+  const t = useT();
   // FIX edit dialog precarica vuoto: gli useState dovevano leggere da `value`
   // fin dal primo render. Inizializzatori lazy + sync via useEffect risolvono
   // il caso in cui il dialog si riusa per record diversi senza unmount
@@ -1528,7 +1530,7 @@ function ValueFormDialog({
   const editing = value !== null;
   const conflict =
     !editing && valore && existingValori.includes(valore)
-      ? "Valore già presente su questa variabile"
+      ? t("Valore già presente su questa variabile")
       : null;
   const vociPulite = pulisciVoci(dividiVoci(voci));
   const problemaElenco = problemaVoci(label.trim() || "Questo valore", vociPulite);
@@ -1557,16 +1559,16 @@ function ValueFormDialog({
         key={value?.id ?? `new-${axisId}`}
       >
         <DialogHeader>
-          <DialogTitle className="text-base sm:text-lg">{editing ? "Modifica scelta" : "Nuova scelta"}</DialogTitle>
+          <DialogTitle className="text-base sm:text-lg">{editing ? t("Modifica scelta") : t("Nuova scelta")}</DialogTitle>
           <DialogDescription className="text-xs sm:text-sm">
-            Nome e disponibilità a sinistra. Prezzo di vendita e costo fornitore a destra.
+            {t("Nome e disponibilità a sinistra. Prezzo di vendita e costo fornitore a destra.")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid min-h-0 gap-5 overflow-y-auto sm:grid-cols-2">
           <div className="space-y-3">
           <div className="space-y-1.5">
-            <label htmlFor="val-label" className="text-sm font-medium">Nome della scelta</label>
+            <label htmlFor="val-label" className="text-sm font-medium">{t("Nome della scelta")}</label>
             <Input
               id="val-label"
               value={label}
@@ -1576,15 +1578,15 @@ function ValueFormDialog({
                   setValore(slugifyCodice(e.target.value));
                 }
               }}
-              placeholder="es. PVC bianco"
+              placeholder={t("es. PVC bianco")}
               autoFocus
               className="h-10"
             />
           </div>
           <details className="rounded-lg border p-3" open={!!conflict}>
-            <summary className="cursor-pointer text-sm text-muted-foreground">Codice e descrizione</summary>
+            <summary className="cursor-pointer text-sm text-muted-foreground">{t("Codice e descrizione")}</summary>
           <div className="space-y-1.5 pt-2">
-            <label htmlFor="val-codice" className="text-sm font-medium">Codice valore</label>
+            <label htmlFor="val-codice" className="text-sm font-medium">{t("Codice valore")}</label>
             <Input
               id="val-codice"
               value={valore}
@@ -1593,7 +1595,7 @@ function ValueFormDialog({
                 setValoreManuallyEdited(true);
               }}
               disabled={editing}
-              placeholder="pvc_bianco"
+              placeholder={t("pvc_bianco")}
               aria-invalid={!!conflict}
               aria-describedby={conflict ? "val-codice-error" : undefined}
               className="h-10 font-mono"
@@ -1603,7 +1605,7 @@ function ValueFormDialog({
             ) : null}
           </div>
           <div className="space-y-1.5">
-            <label htmlFor="val-descrizione" className="text-sm font-medium">Descrizione (opzionale)</label>
+            <label htmlFor="val-descrizione" className="text-sm font-medium">{t("Descrizione (opzionale)")}</label>
             <Textarea
               id="val-descrizione"
               value={descrizione}
@@ -1617,21 +1619,20 @@ function ValueFormDialog({
           {/* Cosa comprende: per una fascia come «Colore Standard» i colori veri.
               Nel preventivo si sceglie uno di questi, al prezzo del valore. */}
           <details className="rounded-lg border p-3" open={!!problemaElenco}>
-            <summary className="cursor-pointer text-sm text-muted-foreground">Colori e scelte comprese ({vociPulite.length})</summary>
+            <summary className="cursor-pointer text-sm text-muted-foreground">{t("Colori e scelte comprese ({n})", { n: vociPulite.length })}</summary>
             <div className="space-y-1.5 pt-2">
-            <label htmlFor="val-voci" className="text-sm font-medium">Cosa comprende (opzionale)</label>
+            <label htmlFor="val-voci" className="text-sm font-medium">{t("Cosa comprende (opzionale)")}</label>
             <Textarea
               id="val-voci"
               value={voci}
               onChange={(e) => setVoci(e.target.value)}
               rows={3}
-              placeholder={"Uno per riga, per esempio:\nGrigio antracite RAL 7016\nEffetto legno noce"}
+              placeholder={t("Uno per riga, per esempio:\nGrigio antracite RAL 7016\nEffetto legno noce")}
               aria-describedby="val-voci-aiuto"
               className="resize-y"
             />
             <p id="val-voci-aiuto" className="text-[11px] text-muted-foreground">
-              Per una fascia di prezzo come «Colore Standard»: i colori che ci stanno dentro. Nel preventivo si sceglie
-              uno di questi, al prezzo di questo valore.
+              {t("Per una fascia di prezzo come «Colore Standard»: i colori che ci stanno dentro. Nel preventivo si sceglie uno di questi, al prezzo di questo valore.")}
             </p>
             {problemaElenco ? (
               <p className="text-xs text-destructive" role="alert">{problemaElenco}</p>
@@ -1639,8 +1640,8 @@ function ValueFormDialog({
             </div>
           </details>
 
-          {!prezziValidi ? <p role="alert" className="text-xs text-destructive">I prezzi devono essere numeri validi, non negativi.</p> : null}
-          {isDefault && !attivo ? <p role="alert" className="text-xs text-destructive">Una scelta predefinita deve essere attiva.</p> : null}
+          {!prezziValidi ? <p role="alert" className="text-xs text-destructive">{t("I prezzi devono essere numeri validi, non negativi.")}</p> : null}
+          {isDefault && !attivo ? <p role="alert" className="text-xs text-destructive">{t("Una scelta predefinita deve essere attiva.")}</p> : null}
           <div className="flex flex-wrap gap-x-4 gap-y-2">
             <div className="flex items-center gap-2 py-1">
               <Checkbox
@@ -1650,7 +1651,7 @@ function ValueFormDialog({
                 className="h-5 w-5"
               />
               <label htmlFor="val-default" className="text-sm cursor-pointer select-none">
-                Predefinita nel preventivo
+                {t("Predefinita nel preventivo")}
               </label>
             </div>
             <div className="flex items-center gap-2 py-1">
@@ -1661,7 +1662,7 @@ function ValueFormDialog({
                 className="h-5 w-5"
               />
               <label htmlFor="val-attivo" className="text-sm cursor-pointer select-none">
-                Attivo
+                {t("Attivo")}
               </label>
             </div>
           </div>
@@ -1669,7 +1670,7 @@ function ValueFormDialog({
           </div>
           <div className="space-y-3 rounded-xl border bg-muted/20 p-4">
           <div className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
-            <label htmlFor="val-modo-prezzo" className="text-sm font-medium">Prezzo della scelta</label>
+            <label htmlFor="val-modo-prezzo" className="text-sm font-medium">{t("Prezzo della scelta")}</label>
             <Select value={modoPrezzo} onValueChange={v => {
               const mode = v as typeof modoPrezzo; setModoPrezzo(mode);
               if (mode !== "sostitutivo") { setPrezzoV(""); setPrezzoA(""); }
@@ -1678,56 +1679,56 @@ function ValueFormDialog({
             }}>
               <SelectTrigger id="val-modo-prezzo"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="incluso">Inclusa nel prezzo base</SelectItem>
-                <SelectItem value="supplemento">Supplemento / riduzione</SelectItem>
-                {modalitaPrezzoBase !== "griglia" ? <SelectItem value="sostitutivo">Sostituisce il prezzo base</SelectItem> : null}
+                <SelectItem value="incluso">{t("Inclusa nel prezzo base")}</SelectItem>
+                <SelectItem value="supplemento">{t("Supplemento / riduzione")}</SelectItem>
+                {modalitaPrezzoBase !== "griglia" ? <SelectItem value="sostitutivo">{t("Sostituisce il prezzo base")}</SelectItem> : null}
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">{modoPrezzo === "incluso" ? "Nessuna variazione di vendita sul prezzo base." : modoPrezzo === "sostitutivo" ? "La vendita parte da questo prezzo, non dalla base del prodotto." : "Si applica al prezzo base solo quando viene selezionata."}</p>
-            {Number(prezzoV) > 0 && magTipo !== "none" && modalitaPrezzoBase !== "griglia" ? <p role="note" className="text-xs text-amber-800">Configurazione esistente: il prezzo sostitutivo prevale sul supplemento. I dati restano invariati finché non cambi modalità.</p> : null}
+            <p className="text-xs text-muted-foreground">{modoPrezzo === "incluso" ? t("Nessuna variazione di vendita sul prezzo base.") : modoPrezzo === "sostitutivo" ? t("La vendita parte da questo prezzo, non dalla base del prodotto.") : t("Si applica al prezzo base solo quando viene selezionata.")}</p>
+            {Number(prezzoV) > 0 && magTipo !== "none" && modalitaPrezzoBase !== "griglia" ? <p role="note" className="text-xs text-amber-800">{t("Configurazione esistente: il prezzo sostitutivo prevale sul supplemento. I dati restano invariati finché non cambi modalità.")}</p> : null}
           </div>
           {/* Prezzi sostitutivi e dati tecnici legacy delle griglie. */}
           {(modoPrezzo === "sostitutivo" || prezzoV.trim() || prezzoA.trim()) ? <div className="rounded-md border p-3 space-y-2.5">
-            <div className="text-sm font-medium">Codice e prezzo variante</div>
+            <div className="text-sm font-medium">{t("Codice e prezzo variante")}</div>
             <div className="space-y-1">
               <label htmlFor="val-codice-art" className="text-xs text-muted-foreground">
-                Codice articolo / SKU <span className="text-[10px]">(collega alla giacenza di magazzino)</span>
+                {t("Codice articolo / SKU")} <span className="text-[10px]">{t("(collega alla giacenza di magazzino)")}</span>
               </label>
               <Input
                 id="val-codice-art"
                 value={codiceArt}
                 onChange={(e) => setCodiceArt(e.target.value)}
-                placeholder="es. 0541"
+                placeholder={t("es. 0541")}
                 className="h-10 font-mono"
               />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
                 <label htmlFor="val-prezzo-v" className="text-xs text-muted-foreground">
-                  Prezzo vendita {prezzoProprio.unita}
+                  {t("Prezzo vendita {unita}", { unita: prezzoProprio.unita })}
                 </label>
                 <Input id="val-prezzo-v" type="number" inputMode="decimal" step="0.01" min={0} value={prezzoV}
                   onChange={(e) => setPrezzoV(e.target.value)} placeholder="0,00" className="h-10 font-mono" />
               </div>
               <div className="space-y-1">
                 <label htmlFor="val-prezzo-a" className="text-xs text-muted-foreground">
-                  Prezzo acquisto {prezzoProprio.unita}
+                  {t("Prezzo acquisto {unita}", { unita: prezzoProprio.unita })}
                 </label>
                 <Input id="val-prezzo-a" type="number" inputMode="decimal" step="0.01" min={0} value={prezzoA}
                   onChange={(e) => setPrezzoA(e.target.value)} placeholder="0,00" className="h-10 font-mono" />
               </div>
             </div>
-            <p className="text-[11px] text-muted-foreground">{prezzoProprio.aiuto}</p>
+            <p className="text-[11px] text-muted-foreground">{t(prezzoProprio.aiuto)}</p>
           </div>
 
           : <details className="rounded-lg border p-3">
-              <summary className="cursor-pointer text-sm text-muted-foreground">Codice articolo / SKU</summary>
-              <Input aria-label="Codice articolo / SKU" className="mt-2" value={codiceArt} onChange={e => setCodiceArt(e.target.value)} />
+              <summary className="cursor-pointer text-sm text-muted-foreground">{t("Codice articolo / SKU")}</summary>
+              <Input aria-label={t("Codice articolo / SKU")} className="mt-2" value={codiceArt} onChange={e => setCodiceArt(e.target.value)} />
             </details>}
           {(modoPrezzo === "supplemento" || magTipo !== "none") ? <div className="border rounded-md p-3 space-y-2.5 bg-muted/30">
-            <div className="text-sm font-medium">Supplemento / riduzione</div>
+            <div className="text-sm font-medium">{t("Supplemento / riduzione")}</div>
             <div className="space-y-1">
-              <label htmlFor="val-mag-tipo" className="text-xs text-muted-foreground">Tipo</label>
+              <label htmlFor="val-mag-tipo" className="text-xs text-muted-foreground">{t("Tipo")}</label>
               <Select
                 value={magTipo}
                 onValueChange={(v) => setMagTipo(v as MaggiorazioneTipo)}
@@ -1738,7 +1739,7 @@ function ValueFormDialog({
                 <SelectContent>
                   {MAGGIORAZIONE_OPTIONS.map((opt) => (
                     <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
+                      {t(opt.label)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1746,7 +1747,7 @@ function ValueFormDialog({
               {/* Hint contestuale sul tipo selezionato: aiuta a capire quando
                   scegliere ogni opzione senza dover indovinare. */}
               <p className="text-[11px] text-muted-foreground pt-0.5">
-                {MAGGIORAZIONE_OPTIONS.find((o) => o.value === magTipo)?.hint}
+                {(() => { const h = MAGGIORAZIONE_OPTIONS.find((o) => o.value === magTipo)?.hint; return h ? t(h) : null; })()}
               </p>
             </div>
             {magTipo !== "none" ? (
@@ -1757,8 +1758,8 @@ function ValueFormDialog({
                       htmlFor="val-mag-vendita"
                       className="text-xs text-muted-foreground flex items-center gap-1"
                     >
-                      Valore vendita
-                      <span className="text-[10px] text-primary">(listino)</span>
+                      {t("Valore vendita")}
+                      <span className="text-[10px] text-primary">{t("(listino)")}</span>
                     </label>
                     {/* Niente minimo a 0: una linea che costa meno è −8 (05/10/2026). */}
                     <div className="flex gap-1.5">
@@ -1777,7 +1778,7 @@ function ValueFormDialog({
                         type="button"
                         variant="outline"
                         onClick={() => setMagValore((s) => cambiaSegno(s))}
-                        aria-label="Cambia segno al valore vendita"
+                        aria-label={t("Cambia segno al valore vendita")}
                         className="h-10 w-10 shrink-0 p-0 font-mono sm:hidden"
                       >
                         ±
@@ -1789,9 +1790,9 @@ function ValueFormDialog({
                       htmlFor="val-mag-acquisto"
                       className="text-xs text-muted-foreground flex items-center gap-1"
                     >
-                      Valore acquisto
+                      {t("Valore acquisto")}
                       <span className="text-[10px] text-muted-foreground">
-                        (costo fornitore)
+                        {t("(costo fornitore)")}
                       </span>
                     </label>
                     <div className="flex gap-1.5">
@@ -1810,7 +1811,7 @@ function ValueFormDialog({
                         type="button"
                         variant="outline"
                         onClick={() => setMagAcquisto((s) => cambiaSegno(s))}
-                        aria-label="Cambia segno al valore acquisto"
+                        aria-label={t("Cambia segno al valore acquisto")}
                         className="h-10 w-10 shrink-0 p-0 font-mono sm:hidden"
                       >
                         ±
@@ -1819,34 +1820,33 @@ function ValueFormDialog({
                   </div>
                 </div>
                 {problemaMagg ? (
-                  <p className="text-xs text-destructive" role="alert">{problemaMagg}</p>
+                  <p className="text-xs text-destructive" role="alert">{t(problemaMagg)}</p>
                 ) : null}
                 <p className="text-[11px] text-muted-foreground">
-                  La differenza fra <strong>vendita</strong> e{" "}
-                  <strong>acquisto</strong> è il margine per il serramentista
-                  su questo valore.
+                  {t("La differenza fra")} <strong>{t("vendita")}</strong> e{" "}
+                  <strong>{t("acquisto")}</strong> {t("è il margine per il serramentista su questo valore.")}
                 </p>
 
                 <details className="rounded-lg border bg-background p-2">
-                  <summary className="cursor-pointer text-xs text-muted-foreground">Confronto ed esempio di calcolo</summary>
+                  <summary className="cursor-pointer text-xs text-muted-foreground">{t("Confronto ed esempio di calcolo")}</summary>
                   <div className="space-y-2 pt-2">
                 {/* #11 — Diff prezzi quando si modifica un valore esistente */}
                 {editing && value ? (
                   <div className="text-[11px] text-muted-foreground bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-900 rounded px-2 py-1.5 space-y-0.5">
                     <div className="font-medium text-amber-900 dark:text-amber-200">
-                      Confronto con valore originale:
+                      {t("Confronto con valore originale:")}
                     </div>
                     <div className="flex justify-between">
-                      <span>Prima:</span>
+                      <span>{t("Prima:")}</span>
                       <span className="font-mono">
-                        {formattaMaggiorazione(value.maggiorazione_tipo, value.maggiorazione_valore) || "Nessuna"}
+                        {formattaMaggiorazione(value.maggiorazione_tipo, value.maggiorazione_valore) || t("Nessuna")}
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Dopo:</span>
+                      <span>{t("Dopo:")}</span>
                       <span className="font-mono">
                         {/* Il segno dal numero: prima «+-8%». */}
-                        {formattaMaggiorazione(magTipo, leggiMaggiorazione(magValore)) || "Nessuna"}
+                        {formattaMaggiorazione(magTipo, leggiMaggiorazione(magValore)) || t("Nessuna")}
                       </span>
                     </div>
                     {(() => {
@@ -1858,8 +1858,8 @@ function ValueFormDialog({
                       if (!sameType) {
                         return (
                           <div className="flex justify-between text-rose-700 font-medium">
-                            <span>⚠ Tipo diverso</span>
-                            <span>impatto da valutare</span>
+                            <span>{t("⚠ Tipo diverso")}</span>
+                            <span>{t("impatto da valutare")}</span>
                           </div>
                         );
                       }
@@ -1870,7 +1870,7 @@ function ValueFormDialog({
                             diff > 0 ? "text-rose-700" : "text-emerald-700"
                           }`}
                         >
-                          <span>Variazione:</span>
+                          <span>{t("Variazione:")}</span>
                           <span className="font-mono">
                             {diff > 0 ? "+" : ""}
                             {magTipo === "percentuale" ? `${diff.toFixed(2)}%` : `${diff.toFixed(2)} €`}
@@ -1904,7 +1904,7 @@ function ValueFormDialog({
             disabled={saving}
             className="h-10 w-full sm:w-auto"
           >
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button
             onClick={() =>
@@ -1933,12 +1933,12 @@ function ValueFormDialog({
             {saving ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />
-                Salvataggio…
+                {t("Salvataggio…")}
               </>
             ) : editing ? (
-              "Aggiorna"
+              t("Aggiorna")
             ) : (
-              "Crea valore"
+              t("Crea valore")
             )}
           </Button>
         </DialogFooter>
@@ -1962,9 +1962,10 @@ function PricePreviewRow({
   vendita: number;
   acquisto: number;
 }) {
+  const t = useT();
   // Formatter EUR coerente con il resto dell'app
   const eur = (n: number) =>
-    new Intl.NumberFormat("it-IT", {
+    new Intl.NumberFormat(intlCampo(), {
       style: "currency",
       currency: "EUR",
       maximumFractionDigits: 2, useGrouping: true }).format(n);
@@ -1983,22 +1984,22 @@ function PricePreviewRow({
     return (
       <div className="rounded-md border bg-background p-2 text-[11px] space-y-1">
         <div className="font-medium text-foreground">
-          Esempio su prezzo base {eur(base)}
+          {t("Esempio su prezzo base {base}", { base: eur(base) })}
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-muted-foreground">Vendita → </span>
+          <span className="text-muted-foreground">{t("Vendita →")} </span>
           <span className="font-mono">
             {eur(base)} {conSegnoPct(vendita)} = <strong>{eur(finV)}</strong>
           </span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-muted-foreground">Acquisto → </span>
+          <span className="text-muted-foreground">{t("Acquisto →")} </span>
           <span className="font-mono">
             {eur(base)} {conSegnoPct(acquisto)} = <strong>{eur(finA)}</strong>
           </span>
         </div>
         <div className="flex items-center justify-between pt-0.5 border-t">
-          <span className="text-muted-foreground">Margine per pz</span>
+          <span className="text-muted-foreground">{t("Margine per pz")}</span>
           <span className="font-mono font-semibold text-primary">
             {eur(mrg)}
           </span>
@@ -2025,22 +2026,22 @@ function PricePreviewRow({
     return (
       <div className="rounded-md border bg-background p-2 text-[11px] space-y-1">
         <div className="font-medium text-foreground">
-          Esempio con 1 {unita}
+          {t("Esempio con 1 {unita}", { unita })}
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-muted-foreground">{vendita < 0 ? "Riduzione" : "Ricarico"} vendita</span>
+          <span className="text-muted-foreground">{vendita < 0 ? t("Riduzione vendita") : t("Ricarico vendita")}</span>
           <span className="font-mono font-semibold">
             {conSegnoEur(vendita)} / {unita}
           </span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-muted-foreground">{acquisto < 0 ? "Riduzione" : "Ricarico"} acquisto</span>
+          <span className="text-muted-foreground">{acquisto < 0 ? t("Riduzione acquisto") : t("Ricarico acquisto")}</span>
           <span className="font-mono">
             {conSegnoEur(acquisto)} / {unita}
           </span>
         </div>
         <div className="flex items-center justify-between pt-0.5 border-t">
-          <span className="text-muted-foreground">Margine per {unita}</span>
+          <span className="text-muted-foreground">{t("Margine per {unita}", { unita })}</span>
           <span className="font-mono font-semibold text-primary">
             {eur(margine)}
           </span>

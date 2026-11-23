@@ -26,6 +26,7 @@ import { EditorFotoPagina } from "@/components/preventivi/EditorFotoPagina";
 import { sezioneDellaPagina } from "@/components/preventivi/pagineEditor";
 import { BLOCCHI, RIEMPIMENTI_EDILI, type ChiaveFotoPagina, type SettoreBlocchi } from "../../../supabase/functions/_shared/blocchiPreventivo";
 import { edileChapterAllowed, type EdileVisibilitySettings } from "./edilePageVisibility";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   /** Il valore salvato nel modello (`pdf_ordine_capitoli`): null = ordine di serie. */
@@ -55,6 +56,7 @@ const DESCRITTI = new Map(CAPITOLI_EDILI.map((c) => [c.chiave as string, c]));
 const senzaAsterischi = (t: string) => t.replace(/\*/g, "");
 
 export function OrdineCapitoli({ ordine, pagine, onOrdine, onPagine, campoFoto, settore, blocchi, onBlocchi, apriSezione, ordineDiSerie, visibilitySettings, onVisibilityChange }: Props) {
+  const t = useT();
   const libere = useMemo(() => leggiPagineLibere(pagine, { ancheVuote: true }), [pagine]);
   const elenco = useMemo(() => ordineEffettivo(leggiOrdine(ordine), libere).map(item => ({ ...item, visibile: item.visibile && edileChapterAllowed(visibilitySettings ?? {}, item.chiave) })), [ordine, libere, visibilitySettings]);
   const [aperta, setAperta] = useState<string | null>(null);
@@ -81,7 +83,7 @@ export function OrdineCapitoli({ ordine, pagine, onOrdine, onPagine, campoFoto, 
     onPagine(libere.map((p) => (p.id === id ? { ...p, [campo]: valore } : p)));
 
   const eliminaPagina = (id: string) => {
-    if (!window.confirm("Eliminare questa pagina dal modello?")) return;
+    if (!window.confirm(t("Eliminare questa pagina dal modello?"))) return;
     const pagineNuove = libere.filter((p) => p.id !== id);
     onPagine(pagineNuove);
     onOrdine(elenco.filter((v) => v.chiave !== chiaveLibera(id)));
@@ -92,11 +94,10 @@ export function OrdineCapitoli({ ordine, pagine, onOrdine, onPagine, campoFoto, 
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs text-muted-foreground">
-          Il documento esce in quest'ordine: copertina, poi l'elenco qui sotto, poi «I prossimi passi», le condizioni e
-          la firma. I numeri dei capitoli e l'indice seguono l'ordine scelto.
+          {t("Il documento esce in quest'ordine: copertina, poi l'elenco qui sotto, poi «I prossimi passi», le condizioni e la firma. I numeri dei capitoli e l'indice seguono l'ordine scelto.")}
         </p>
-        <Button size="sm" variant="ghost" className="shrink-0" onClick={() => onOrdine(ordineDiSerie ?? null)} title="Torna all'ordine di serie">
-          <RotateCcw className="mr-1 h-3.5 w-3.5" /> Di serie
+        <Button size="sm" variant="ghost" className="shrink-0" onClick={() => onOrdine(ordineDiSerie ?? null)} title={t("Torna all'ordine di serie")}>
+          <RotateCcw className="mr-1 h-3.5 w-3.5" /> {t("Di serie")}
         </Button>
       </div>
 
@@ -107,7 +108,7 @@ export function OrdineCapitoli({ ordine, pagine, onOrdine, onPagine, campoFoto, 
           const descritto = DESCRITTI.get(v.chiave);
           const spostabile = descritto ? descritto.spostabile : true;
           const nascondibile = descritto ? descritto.nascondibile : true;
-          const titolo = pagina ? senzaAsterischi(pagina.titolo) || "Pagina senza titolo" : descritto?.etichetta ?? v.chiave;
+          const titolo = pagina ? senzaAsterischi(pagina.titolo) || t("Pagina senza titolo") : descritto ? t(descritto.etichetta) : v.chiave;
           const blocco = BLOCCO.get(v.chiave);
           // La pagina ha una sezione sua nell'editor: la matita porta lì.
           const sezione = apriSezione ? sezioneDellaPagina("edili", v.chiave) : null;
@@ -121,58 +122,58 @@ export function OrdineCapitoli({ ordine, pagine, onOrdine, onPagine, campoFoto, 
                 <div className="min-w-0 flex-1">
                   <p className={cn("truncate text-sm font-medium", !v.visibile && "text-muted-foreground line-through")}>
                     {titolo}
-                    {pagina ? <span className="ml-2 rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-800">pagina vostra</span> : null}
+                    {pagina ? <span className="ml-2 rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-800">{t("pagina vostra")}</span> : null}
                   </p>
                   <p className="truncate text-[11px] text-muted-foreground">
-                    {pagina ? (pagina.testoHtml || pagina.fotoUrl ? "Testo e foto scritti da voi" : "Ancora da scrivere: non esce finché è vuota") : descritto?.descrizione}
+                    {pagina ? (pagina.testoHtml || pagina.fotoUrl ? t("Testo e foto scritti da voi") : t("Ancora da scrivere: non esce finché è vuota")) : descritto?.descrizione ? t(descritto.descrizione) : null}
                   </p>
                   {blocco?.promessa && v.visibile ? (
-                    <p className="text-[11px] text-amber-700">Promette qualcosa al cliente: rileggila, e spegnila se non lo fate.</p>
+                    <p className="text-[11px] text-amber-700">{t("Promette qualcosa al cliente: rileggila, e spegnila se non lo fate.")}</p>
                   ) : null}
                 </div>
                 {spostabile ? (
                   <>
-                    <Button size="icon" variant="ghost" className="h-7 w-7" disabled={i <= 1} onClick={() => muovi(v.chiave, -1)} aria-label={`Sposta su ${titolo}`}>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" disabled={i <= 1} onClick={() => muovi(v.chiave, -1)} aria-label={t("Sposta su {voce}", { voce: titolo })}>
                       <ArrowUp className="h-3.5 w-3.5" />
                     </Button>
-                    <Button size="icon" variant="ghost" className="h-7 w-7" disabled={i === elenco.length - 1} onClick={() => muovi(v.chiave, 1)} aria-label={`Sposta giù ${titolo}`}>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" disabled={i === elenco.length - 1} onClick={() => muovi(v.chiave, 1)} aria-label={t("Sposta giù {voce}", { voce: titolo })}>
                       <ArrowDown className="h-3.5 w-3.5" />
                     </Button>
                   </>
                 ) : null}
                 {sezione && apriSezione ? (
-                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => apriSezione(sezione.id)} aria-label={`Modifica ${titolo}`} title="Testi, contenuto e foto di questa pagina">
+                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => apriSezione(sezione.id)} aria-label={t("Modifica {voce}", { voce: titolo })} title={t("Testi, contenuto e foto di questa pagina")}>
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>
                 ) : null}
                 {chiaveFoto ? (
-                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setAperta(aperta === `foto:${v.chiave}` ? null : `foto:${v.chiave}`)} aria-label={`Foto di ${titolo}`} title="La foto che riempie la pagina quando il capitolo finisce a metà">
+                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setAperta(aperta === `foto:${v.chiave}` ? null : `foto:${v.chiave}`)} aria-label={t("Foto di {voce}", { voce: titolo })} title={t("La foto che riempie la pagina quando il capitolo finisce a metà")}>
                     <Camera className="h-3.5 w-3.5" />
                   </Button>
                 ) : null}
                 {pagina ? (
                   <>
-                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setAperta(aperta === pagina.id ? null : pagina.id)} aria-label={`Modifica ${titolo}`}>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setAperta(aperta === pagina.id ? null : pagina.id)} aria-label={t("Modifica {voce}", { voce: titolo })}>
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
-                    <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => eliminaPagina(pagina.id)} aria-label={`Elimina ${titolo}`}>
+                    <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => eliminaPagina(pagina.id)} aria-label={t("Elimina {voce}", { voce: titolo })}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </>
                 ) : null}
                 {nascondibile ? (
-                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => alterna(v.chiave)} aria-label={v.visibile ? `Nascondi ${titolo}` : `Mostra ${titolo}`} title={v.visibile ? "Nascondi dal documento" : "Mostra nel documento"}>
+                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => alterna(v.chiave)} aria-label={v.visibile ? t("Nascondi {voce}", { voce: titolo }) : t("Mostra {voce}", { voce: titolo })} title={v.visibile ? t("Nascondi dal documento") : t("Mostra nel documento")}>
                     {v.visibile ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
                   </Button>
                 ) : (
-                  <span className="w-7 text-center text-[10px] text-muted-foreground" title="Il prezzo non si nasconde">—</span>
+                  <span className="w-7 text-center text-[10px] text-muted-foreground" title={t("Il prezzo non si nasconde")}>—</span>
                 )}
               </div>
 
               {chiaveFoto && settore && onBlocchi && aperta === `foto:${v.chiave}` ? (
                 <div>
                   <p className="mt-2 text-[11px] text-muted-foreground">
-                    Esce solo quando il capitolo finisce a metà pagina, e riempie lo spazio che resterebbe bianco. Una foto già usata altrove nel documento non si ripete.
+                    {t("Esce solo quando il capitolo finisce a metà pagina, e riempie lo spazio che resterebbe bianco. Una foto già usata altrove nel documento non si ripete.")}
                   </p>
                   <EditorFotoPagina chiave={chiaveFoto} settore={settore} salvati={blocchi} onSalvati={(nuovi) => onBlocchi(nuovi)} campoFoto={campoFoto} />
                 </div>
@@ -182,29 +183,29 @@ export function OrdineCapitoli({ ordine, pagine, onOrdine, onPagine, campoFoto, 
                 <div className="mt-3 space-y-3 rounded-md border bg-background p-3">
                   <div className="grid gap-3 md:grid-cols-[1fr_2fr]">
                     <div className="space-y-1.5">
-                      <Label className="text-xs">Occhiello</Label>
-                      <Input value={pagina.occhiello ?? ""} onChange={(e) => cambiaPagina(pagina.id, "occhiello", e.target.value || null)} placeholder="Qualità" />
+                      <Label className="text-xs">{t("Occhiello")}</Label>
+                      <Input value={pagina.occhiello ?? ""} onChange={(e) => cambiaPagina(pagina.id, "occhiello", e.target.value || null)} placeholder={t("Qualità")} />
                     </div>
                     <div className="space-y-1.5">
-                      <Label className="text-xs">Titolo</Label>
-                      <Input value={pagina.titolo} onChange={(e) => cambiaPagina(pagina.id, "titolo", e.target.value)} placeholder="Le nostre *certificazioni*." />
-                      <p className="text-[10px] text-muted-foreground">Una parola fra asterischi esce in corsivo, nel colore dell'azienda.</p>
+                      <Label className="text-xs">{t("Titolo")}</Label>
+                      <Input value={pagina.titolo} onChange={(e) => cambiaPagina(pagina.id, "titolo", e.target.value)} placeholder={t("Le nostre *certificazioni*.")} />
+                      <p className="text-[10px] text-muted-foreground">{t("Una parola fra asterischi esce in corsivo, nel colore dell'azienda.")}</p>
                     </div>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Testo</Label>
+                    <Label className="text-xs">{t("Testo")}</Label>
                     <RichTextEditorSafe
                       value={pagina.testoHtml ?? ""}
                       onChange={(html) => cambiaPagina(pagina.id, "testoHtml", html || null)}
-                      placeholder="Racconta quello che conta: certificazioni, lo showroom, un lavoro di cui andate fieri…"
+                      placeholder={t("Racconta quello che conta: certificazioni, lo showroom, un lavoro di cui andate fieri…")}
                       minHeight={120}
                     />
                   </div>
                   <div className="grid gap-3 md:grid-cols-[2fr_1fr]">
                     {campoFoto(pagina.fotoUrl, (url) => cambiaPagina(pagina.id, "fotoUrl", url))}
                     <div className="space-y-1.5">
-                      <Label className="text-xs">Didascalia della foto</Label>
-                      <Input value={pagina.didascalia ?? ""} onChange={(e) => cambiaPagina(pagina.id, "didascalia", e.target.value || null)} placeholder="Il nostro showroom di Muggiò" />
+                      <Label className="text-xs">{t("Didascalia della foto")}</Label>
+                      <Input value={pagina.didascalia ?? ""} onChange={(e) => cambiaPagina(pagina.id, "didascalia", e.target.value || null)} placeholder={t("Il nostro showroom di Muggiò")} />
                     </div>
                   </div>
                 </div>
@@ -218,15 +219,15 @@ export function OrdineCapitoli({ ordine, pagine, onOrdine, onPagine, campoFoto, 
             <div className="flex items-center gap-2">
               <span className="w-5 shrink-0" />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">I prossimi passi</p>
-                <p className="truncate text-[11px] text-muted-foreground">Sempre in fondo: la foto del lavoro finito, i passi, i contatti</p>
+                <p className="truncate text-sm font-medium">{t("I prossimi passi")}</p>
+                <p className="truncate text-[11px] text-muted-foreground">{t("Sempre in fondo: la foto del lavoro finito, i passi, i contatti")}</p>
               </div>
               {apriSezione ? (
-                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => apriSezione("page_chiusura")} aria-label="Modifica I prossimi passi" title="La foto di questa pagina">
+                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => apriSezione("page_chiusura")} aria-label={t("Modifica I prossimi passi")} title={t("La foto di questa pagina")}>
                   <Pencil className="h-3.5 w-3.5" />
                 </Button>
               ) : (
-                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setAperta(aperta === "foto:chiusura" ? null : "foto:chiusura")} aria-label="Foto di I prossimi passi" title="La foto di questa pagina">
+                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setAperta(aperta === "foto:chiusura" ? null : "foto:chiusura")} aria-label={t("Foto di I prossimi passi")} title={t("La foto di questa pagina")}>
                   <Camera className="h-3.5 w-3.5" />
                 </Button>
               )}
@@ -239,7 +240,7 @@ export function OrdineCapitoli({ ordine, pagine, onOrdine, onPagine, campoFoto, 
       </ol>
 
       <Button size="sm" variant="outline" onClick={aggiungiPagina}>
-        <FilePlus2 className="mr-1.5 h-3.5 w-3.5" /> Aggiungi una pagina vostra
+        <FilePlus2 className="mr-1.5 h-3.5 w-3.5" /> {t("Aggiungi una pagina vostra")}
       </Button>
     </div>
   );

@@ -234,8 +234,9 @@ describe("Listino: i testi delle finestre di conferma", () => {
   const sorgente = readFileSync(resolve(process.cwd(), "src/components/listino/FamilyCatalog.tsx"), "utf8");
 
   it("«Elimina»: cestino per 15 giorni, poi cancellato per sempre, senza «database»", () => {
-    expect(sorgente).toContain("Il prodotto va nel <strong>cestino per 15 giorni</strong>, poi viene");
-    expect(sorgente).toContain("cancellato per sempre. Fino ad allora lo puoi ripristinare. I");
+    // Le frasi passano da tr() per la lingua dell'ufficio: si accettano sia il testo diretto sia la forma tradotta.
+    expect(sorgente).toMatch(/Il prodotto va nel(?:"\)\}|) <strong>(?:\{tr\(")?cestino per 15 giorni(?:"\)\})?<\/strong>/);
+    expect(sorgente).toMatch(/cancellato per sempre\. Fino ad allora lo puoi ripristinare\. I/);
     expect(sorgente).not.toMatch(/dal database|snapshottati|L&apos;articolo/);
   });
 

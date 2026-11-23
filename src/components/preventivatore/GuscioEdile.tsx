@@ -29,6 +29,7 @@ import { PiedePreventivatore, StatoDelSalvataggio, type StatoSalvataggio } from 
 import { BORDI_GUSCIO, RISERVA_BARRA_INVIO_TELEFONO, STICKY_ALTO } from "./posizione";
 import { useAnteprimaNascosta } from "./useAnteprimaNascosta";
 import { useColonnaAnteprimaVisibile, useModalitaAnteprima } from "./useModalitaAnteprima";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface TestataGuscioEdile {
   icona: ComponentType<{ className?: string }>;
@@ -86,6 +87,7 @@ export function GuscioEdile({
   testata, passi, corrente, completati, conAvviso, bloccati, onSelect, anteprima,
   statoSalvataggio, testoSalvataggio, piede, sopra, ariaLabelFasi, pdfVero, children,
 }: Props) {
+  const t = useT();
   const permessi = usePermissions();
   const puoVedereImpresa = permessi.canViewMargins || permessi.canViewCosts;
   const [vista, setVista] = useState<VistaAnteprima>("cliente");
@@ -99,10 +101,10 @@ export function GuscioEdile({
   const vistaEffettiva: VistaAnteprima = vistaImpresa ? "impresa" : "cliente";
   const totaleTesto = anteprima.totaleDocumento != null ? formattaEuro(anteprima.totaleDocumento, 2) : null;
   const nota = conPdf
-    ? "Il documento vero, come lo riceve il cliente: si rifà da solo poco dopo ogni modifica."
+    ? t("Il documento vero, come lo riceve il cliente: si rifà da solo poco dopo ogni modifica.")
     : pdfVero
-      ? "Bozza visiva: voci, totali e cliente sono quelli del preventivo. Il documento vero è in «PDF vero»."
-      : "Bozza visiva: voci, totali e cliente sono quelli del preventivo. Il PDF vero compare qui appena il preventivo è salvato.";
+      ? t("Bozza visiva: voci, totali e cliente sono quelli del preventivo. Il documento vero è in «PDF vero».")
+      : t("Bozza visiva: voci, totali e cliente sono quelli del preventivo. Il PDF vero compare qui appena il preventivo è salvato.");
   const Icona = testata.icona;
 
   // Cambiando fase si riparte dall'alto: il contenitore che scorre è <main>, non la finestra.
@@ -127,7 +129,7 @@ export function GuscioEdile({
             onClick={testata.onEsci}
             disabled={statoSalvataggio === "salvando"}
             className="size-11 shrink-0"
-            aria-label="Esci dal preventivo"
+            aria-label={t("Esci dal preventivo")}
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
@@ -140,7 +142,7 @@ export function GuscioEdile({
                 </h1>
                 {testata.stato && (
                   <Badge variant="outline" className={cn("shrink-0 whitespace-nowrap text-[10px] max-md:px-1.5 max-md:text-[11px]", testata.stato.className)}>
-                    {testata.stato.label}
+                    {t(testata.stato.label)}
                   </Badge>
                 )}
               </div>
@@ -159,10 +161,10 @@ export function GuscioEdile({
               {statoSalvataggio !== "nuovo" && (
                 <span role="status" className={cn("text-xs max-md:order-5 lg:hidden",
                   statoSalvataggio === "errore" ? "font-medium text-red-700" : statoSalvataggio === "salvato" ? "text-emerald-700" : "text-muted-foreground")}>
-                  {statoSalvataggio === "salvando" ? "Salvataggio…" :
-                    statoSalvataggio === "errore" ? "Salvataggio non riuscito" :
-                    statoSalvataggio === "modifiche" ? "Modifiche da salvare" :
-                    statoSalvataggio === "locale" ? "Su questo dispositivo" : "Salvato"}
+                  {statoSalvataggio === "salvando" ? t("Salvataggio…") :
+                    statoSalvataggio === "errore" ? t("Salvataggio non riuscito") :
+                    statoSalvataggio === "modifiche" ? t("Modifiche da salvare") :
+                    statoSalvataggio === "locale" ? t("Su questo dispositivo") : t("Salvato")}
                 </span>
               )}
             </div>
@@ -185,13 +187,13 @@ export function GuscioEdile({
         destra={
           <>
             {/* Sotto i 1280 px non c'è la colonna: l'anteprima si apre da qui. */}
-            <Button variant="outline" size="sm" className={cn("min-h-11 gap-1.5 xl:hidden", piede.nascostoSuTelefono ? "md:max-lg:hidden" : "max-lg:hidden")} onClick={() => setMobileAperta(true)} aria-label="Apri l'anteprima" title="Apri l'anteprima">
-              <Eye className="h-4 w-4" /> <span className="hidden md:max-lg:inline">Anteprima</span>
+            <Button variant="outline" size="sm" className={cn("min-h-11 gap-1.5 xl:hidden", piede.nascostoSuTelefono ? "md:max-lg:hidden" : "max-lg:hidden")} onClick={() => setMobileAperta(true)} aria-label={t("Apri l'anteprima")} title={t("Apri l'anteprima")}>
+              <Eye className="h-4 w-4" /> <span className="hidden md:max-lg:inline">{t("Anteprima")}</span>
             </Button>
             {/* Computer: se l'hai nascosta, da qui torna. */}
             {nascosta && (
               <Button variant="outline" size="sm" className="hidden h-8 gap-1.5 xl:inline-flex" onClick={() => impostaNascosta(false)}>
-                <Eye className="h-4 w-4" /> Mostra anteprima
+                <Eye className="h-4 w-4" /> {t("Mostra anteprima")}
               </Button>
             )}
           </>
@@ -231,23 +233,23 @@ export function GuscioEdile({
           className="min-h-11 max-lg:w-11 max-lg:shrink-0 max-lg:px-0"
         >
           {/* Telefono: solo la freccia, il pulsante principale prende la riga. */}
-          <ArrowLeft className="mr-1 h-4 w-4 max-lg:mr-0" /> <span className="max-lg:sr-only">Indietro</span>
+          <ArrowLeft className="mr-1 h-4 w-4 max-lg:mr-0" /> <span className="max-lg:sr-only">{t("Indietro")}</span>
         </Button>
         {piede.onSalva && !piede.ultimoPasso && (
           <Button variant="outline" className="min-h-11 max-sm:px-2.5" onClick={piede.onSalva}
             disabled={piede.avantiDisabilitato || statoSalvataggio === "salvando"}>
-            Salva
+            {t("Salva")}
           </Button>
         )}
         <Button
           onClick={piede.onAvanti}
           disabled={piede.avantiDisabilitato}
-          aria-label={piede.etichettaAvanti}
+          aria-label={t(piede.etichettaAvanti)}
           className="min-h-11 gap-1 bg-orange-500 hover:bg-orange-600 max-sm:px-2.5"
         >
           {piede.inCorso ? <Loader2 className="h-4 w-4 animate-spin" /> : piede.ultimoPasso ? <Save className="h-4 w-4" /> : <ArrowRight className="h-4 w-4 max-[380px]:hidden" />}
-          <span className="max-lg:hidden">{piede.etichettaAvanti}</span>
-          <span className="lg:hidden">{piede.ultimoPasso ? "Salva" : "Avanti"}</span>
+          <span className="max-lg:hidden">{t(piede.etichettaAvanti)}</span>
+          <span className="lg:hidden">{piede.ultimoPasso ? t("Salva") : t("Avanti")}</span>
         </Button>
       </PiedePreventivatore>
 

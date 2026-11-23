@@ -6,12 +6,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import type { AllegatoComputo } from "@/lib/computo/editorNativo";
 import { caricaAllegatoLocale, leggiAllegatoLocale } from "@/lib/computo/allegatiLocali";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export default function ComputoProgetto({ scope, allegati, onChange, onBusy, fotoCopertina = "", onFotoCopertina }: {
   scope: string; allegati: AllegatoComputo[]; onChange: (a: AllegatoComputo[]) => void; onBusy: (busy: boolean) => void;
   /** La foto che apre la copertina del PDF (id dell'allegato) e chi la cambia. */
   fotoCopertina?: string; onFotoCopertina?: (id: string) => void;
 }) {
+  const t = useT();
   const [tipo, setTipo] = useState<AllegatoComputo["tipo"]>("foto");
   const [busy, setBusy] = useState(false), [errore, setErrore] = useState("");
   const [urls, setUrls] = useState<Record<string, string>>({});
@@ -48,14 +50,14 @@ export default function ComputoProgetto({ scope, allegati, onChange, onBusy, fot
     } catch (e) { if (attivo.current) setErrore(e instanceof Error ? e.message : "File non salvato: riprova."); }
     finally { if (attivo.current) { setBusy(false); onBusy(false); } }
   };
-  return <section className="space-y-3 rounded-xl border bg-white p-4" aria-label="Progetto e allegati">
+  return <section className="space-y-3 rounded-xl border bg-white p-4" aria-label={t("Progetto e allegati")}>
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <div className="min-w-0"><h2 className="text-base font-semibold">Foto e tavole del progetto</h2>
-        <p className="text-xs text-muted-foreground">{allegati.length}/20 allegati · {allegati.filter(a => a.includi).length} nel PDF · {(allegati.reduce((n, a) => n + a.dimensione, 0) / 1024 / 1024).toLocaleString("it-IT", { maximumFractionDigits: 1 })}/50 MB</p></div>
-      <div className="flex w-full items-center gap-2 sm:w-auto"><Label htmlFor="allegato-tipo" className="shrink-0 text-xs text-muted-foreground">I prossimi file sono</Label>
+      <div className="min-w-0"><h2 className="text-base font-semibold">{t("Foto e tavole del progetto")}</h2>
+        <p className="text-xs text-muted-foreground">{allegati.length}{t("/20 allegati ·")} {allegati.filter(a => a.includi).length} {t("nel PDF ·")} {(allegati.reduce((n, a) => n + a.dimensione, 0) / 1024 / 1024).toLocaleString(intlCampo(), { maximumFractionDigits: 1 })}/50 MB</p></div>
+      <div className="flex w-full items-center gap-2 sm:w-auto"><Label htmlFor="allegato-tipo" className="shrink-0 text-xs text-muted-foreground">{t("I prossimi file sono")}</Label>
         <Select value={tipo} disabled={busy} onValueChange={value => setTipo(value as typeof tipo)}>
           <SelectTrigger id="allegato-tipo" className="h-9 w-36"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectItem value="foto">Foto</SelectItem><SelectItem value="planimetria">Planimetrie</SelectItem><SelectItem value="render">Render</SelectItem></SelectContent>
+          <SelectContent><SelectItem value="foto">{t("Foto")}</SelectItem><SelectItem value="planimetria">{t("Planimetrie")}</SelectItem><SelectItem value="render">{t("Render")}</SelectItem></SelectContent>
         </Select>
       </div>
     </div>
@@ -64,29 +66,29 @@ export default function ComputoProgetto({ scope, allegati, onChange, onBusy, fot
       onDrop={e => { e.preventDefault(); setSopra(false); void carica(Array.from(e.dataTransfer.files)); }}
       className={`flex w-full items-center gap-3 rounded-xl border-2 border-dashed px-4 py-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${sopra ? "border-orange-400 bg-orange-50" : "border-slate-200 bg-white hover:border-orange-300 hover:bg-orange-50/40"}`}>
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-orange-50">{busy ? <Loader2 className="h-5 w-5 animate-spin text-orange-500" /> : <ImagePlus className="h-5 w-5 text-orange-500" />}</span>
-      <span className="min-w-0"><span className="block text-sm font-medium text-slate-900">{busy ? "Salvo i file…" : "Trascina qui foto, planimetrie o render, o fai clic per sceglierli"}</span>
-        <span className="block text-xs text-muted-foreground">JPG, PNG o PDF · fino a 20 file e 50 MB in tutto · quelli con «Includi nel PDF» vanno in fondo al documento</span></span>
+      <span className="min-w-0"><span className="block text-sm font-medium text-slate-900">{busy ? t("Salvo i file…") : t("Trascina qui foto, planimetrie o render, o fai clic per sceglierli")}</span>
+        <span className="block text-xs text-muted-foreground">{t("JPG, PNG o PDF · fino a 20 file e 50 MB in tutto · quelli con «Includi nel PDF» vanno in fondo al documento")}</span></span>
     </button>
-    <input ref={input} type="file" multiple accept="image/jpeg,image/png,application/pdf" hidden aria-label="Carica file" onChange={e => {
+    <input ref={input} type="file" multiple accept="image/jpeg,image/png,application/pdf" hidden aria-label={t("Carica file")} onChange={e => {
       const files = Array.from(e.target.files ?? []); e.target.value = ""; void carica(files);
     }} />
     {errore && <p role="alert" className="text-sm text-rose-700">{errore}</p>}
-    {!allegati.length && <p className="py-3 text-sm text-muted-foreground">Puoi proseguire senza allegati. Aggiungi foto del sopralluogo o tavole e scegli quali inserire nel documento.</p>}
+    {!allegati.length && <p className="py-3 text-sm text-muted-foreground">{t("Puoi proseguire senza allegati. Aggiungi foto del sopralluogo o tavole e scegli quali inserire nel documento.")}</p>}
     <div className="divide-y rounded-lg border empty:hidden">{allegati.map((a, index) => <article key={a.id} className="flex min-w-0 flex-wrap items-center gap-3 p-3">
       <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md bg-slate-50">
         {urls[a.id] && a.mime.startsWith("image/") ? <img src={urls[a.id]} alt={a.nome} className="h-full w-full object-contain" /> : <FileText className="h-10 w-10 text-slate-400" />}
       </div>
       <div className="min-w-0 flex-1 space-y-1"><h3 className="break-words text-sm font-medium">{a.nome}</h3><p className="text-xs capitalize text-muted-foreground">{a.tipo} · {(a.dimensione / 1024 / 1024).toFixed(2)} MB</p>
-        {urls[a.id] && <a href={urls[a.id]} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary" title="Apri allegato"><ExternalLink className="h-3 w-3" />Apri allegato</a>}
+        {urls[a.id] && <a href={urls[a.id]} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary" title={t("Apri allegato")}><ExternalLink className="h-3 w-3" />{t("Apri allegato")}</a>}
       </div>
       <div className="flex flex-wrap items-center gap-3 max-sm:w-full">
         {onFotoCopertina && a.mime.startsWith("image/") && <Button type="button" size="sm" variant={fotoCopertina === a.id ? "default" : "outline"} className="h-8 text-xs" aria-pressed={fotoCopertina === a.id}
-          onClick={() => onFotoCopertina(fotoCopertina === a.id ? "" : a.id)}>{fotoCopertina === a.id ? "In copertina · togli" : "Usa in copertina"}</Button>}
-        <label className="flex items-center gap-2 text-xs"><Switch aria-label={`Includi ${a.nome} nel PDF`} checked={a.includi} disabled={busy} onCheckedChange={includi => onChange(allegati.map(r => r.id === a.id ? { ...r, includi } : r))} />Includi nel PDF</label>
-        <div className="flex gap-0.5">{([-1, 1] as const).map(delta => <Button key={delta} size="icon" variant="ghost" className="h-8 w-8" title={delta < 0 ? "Sposta prima" : "Sposta dopo"} aria-label={`${delta < 0 ? "Anticipa" : "Posticipa"} ${a.nome}`} disabled={busy || index + delta < 0 || index + delta >= allegati.length} onClick={() => {
+          onClick={() => onFotoCopertina(fotoCopertina === a.id ? "" : a.id)}>{fotoCopertina === a.id ? t("In copertina · togli") : t("Usa in copertina")}</Button>}
+        <label className="flex items-center gap-2 text-xs"><Switch aria-label={t("Includi {nome} nel PDF", { nome: String(a.nome ?? "") })} checked={a.includi} disabled={busy} onCheckedChange={includi => onChange(allegati.map(r => r.id === a.id ? { ...r, includi } : r))} />{t("Includi nel PDF")}</label>
+        <div className="flex gap-0.5">{([-1, 1] as const).map(delta => <Button key={delta} size="icon" variant="ghost" className="h-8 w-8" title={delta < 0 ? t("Sposta prima") : t("Sposta dopo")} aria-label={`${delta < 0 ? "Anticipa" : "Posticipa"} ${a.nome}`} disabled={busy || index + delta < 0 || index + delta >= allegati.length} onClick={() => {
           const next = [...allegati]; [next[index], next[index + delta]] = [next[index + delta], next[index]]; onChange(next);
         }}>{delta < 0 ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}</Button>)}
-        <Button variant="ghost" size="icon" title="Rimuovi allegato" aria-label={`Rimuovi ${a.nome}`} disabled={busy} onClick={() => onChange(allegati.filter(r => r.id !== a.id))}><Trash2 className="h-4 w-4" /></Button></div>
+        <Button variant="ghost" size="icon" title={t("Rimuovi allegato")} aria-label={t("Rimuovi {nome}", { nome: String(a.nome ?? "") })} disabled={busy} onClick={() => onChange(allegati.filter(r => r.id !== a.id))}><Trash2 className="h-4 w-4" /></Button></div>
       </div>
     </article>)}</div>
   </section>;

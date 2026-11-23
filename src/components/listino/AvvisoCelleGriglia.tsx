@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { Button } from "@/components/ui/button";
 import { celleDaRicalcolare, type CellaPrezzo, type ParametriPrezzo } from "@/lib/listino/celleGriglia";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type FamigliaGriglia = ParametriPrezzo & {
   id: string;
@@ -31,6 +32,7 @@ export function AvvisoCelleGriglia({
   /** Parametri cambiati e non ancora salvati: prima si salvano, poi si aggiornano le celle. */
   parametriDaSalvare: boolean;
 }) {
+  const t = useT();
   const qc = useQueryClient();
   const attivo = family.modalita_prezzo_base === "griglia" && family.prezzo_base_mode === "acquisto_markup";
   const [inCorso, setInCorso] = useState(false);
@@ -72,9 +74,9 @@ export function AvvisoCelleGriglia({
         if (errore) throw errore;
       }
       await qc.invalidateQueries({ queryKey: queryKeys.articleFamilies.grid(family.id) });
-      toast.success(n === 1 ? "Prezzo della cella aggiornato" : `Prezzi di ${n} celle aggiornati`);
+      toast.success(n === 1 ? t("Prezzo della cella aggiornato") : t("Prezzi di {n} celle aggiornati", { n }));
     } catch (e) {
-      toast.error("Aggiornamento non riuscito", { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Aggiornamento non riuscito"), { description: e instanceof Error ? e.message : String(e) });
     } finally {
       setInCorso(false);
     }
@@ -85,18 +87,16 @@ export function AvvisoCelleGriglia({
       <AlertTriangle className="h-4 w-4 shrink-0 max-sm:hidden" aria-hidden="true" />
       <div className="min-w-0 flex-1">
         <p className="font-medium">
-          {n === 1 ? "1 cella ha" : `${n} celle hanno`} un prezzo di vendita diverso da costo, sconti e ricarico salvati
+          {n === 1 ? t("1 cella ha un prezzo di vendita diverso da costo, sconti e ricarico salvati") : t("{n} celle hanno un prezzo di vendita diverso da costo, sconti e ricarico salvati", { n })}
         </p>
         <p className="text-xs max-sm:hidden">
-          Il preventivo usa il prezzo scritto nella cella: oggi fino al{" "}
-          {Math.abs(scarto).toLocaleString("it-IT", { maximumFractionDigits: 1 })}%{" "}
-          {scarto > 0 ? "in più" : "in meno"} di quello dei parametri.
-          {parametriDaSalvare ? " Salva prima i parametri." : ""}
+          {t(scarto > 0 ? "Il preventivo usa il prezzo scritto nella cella: oggi fino al {pct}% in più di quello dei parametri." : "Il preventivo usa il prezzo scritto nella cella: oggi fino al {pct}% in meno di quello dei parametri.", { pct: Math.abs(scarto).toLocaleString(intlCampo(), { maximumFractionDigits: 1 }) })}
+          {parametriDaSalvare ? ` ${t("Salva prima i parametri.")}` : ""}
         </p>
       </div>
       <Button size="sm" variant="outline" className="shrink-0 bg-background" onClick={aggiorna} disabled={inCorso || parametriDaSalvare}>
         {inCorso && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden="true" />}
-        Aggiorna i prezzi
+        {t("Aggiorna i prezzi")}
       </Button>
     </div>
   );

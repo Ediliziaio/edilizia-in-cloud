@@ -30,6 +30,7 @@ import { useColoriFamiglia } from "@/hooks/useColoriFamiglia";
 import { SceltaColoriDentroFuori } from "@/components/serramenti/SceltaColoriDentroFuori";
 import { applicaPrezzoOpzioni } from "@/lib/listino/prezzoOpzioni";
 import { guidaPrezzoColori } from "@/lib/serramenti/catalogoColori";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // Limiti plausibili per validazione client (#4)
 const MIN_DIM_MM = 100;
@@ -57,7 +58,7 @@ interface Props {
 }
 
 function formatEur(n: number): string {
-  return new Intl.NumberFormat("it-IT", {
+  return new Intl.NumberFormat(intlCampo(), {
     style: "currency",
     currency: "EUR",
     maximumFractionDigits: 2, useGrouping: "always" }).format(n);
@@ -109,6 +110,7 @@ function findGridCell(
 }
 
 export function FamilyPricePreview({ family }: Props) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const inputId = useId();
 
@@ -276,10 +278,10 @@ export function FamilyPricePreview({ family }: Props) {
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <Calculator className="h-4 w-4" aria-hidden="true" />
-          Simulatore prezzo
+          {t("Simulatore prezzo")}
         </CardTitle>
         <p className="text-xs text-muted-foreground">
-          Prova il prezzo con misure e varianti: prezzi IVA esclusa, posa esclusa.
+          {t("Prova il prezzo con misure e varianti: prezzi IVA esclusa, posa esclusa.")}
         </p>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -288,7 +290,7 @@ export function FamilyPricePreview({ family }: Props) {
             {/* #5 — Switch unità mm/cm/m + #1 dropdown dimensioni standard */}
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1 text-xs">
-                <span className="text-muted-foreground">Unità:</span>
+                <span className="text-muted-foreground">{t("Unità:")}</span>
                 {(["mm", "cm", "m"] as const).map((u) => (
                   <button
                     key={u}
@@ -317,14 +319,14 @@ export function FamilyPricePreview({ family }: Props) {
               </div>
               {availableWidths.length > 0 && availableHeights.length > 0 ? (
                 <span className="text-[10px] text-muted-foreground">
-                  Griglia: {availableWidths.length}W × {availableHeights.length}H
+                  {t("Griglia: {n}W × {n2}H", { n: availableWidths.length, n2: availableHeights.length })}
                 </span>
               ) : null}
             </div>
 
             <div className="grid grid-cols-3 gap-2">
               <div>
-                <label htmlFor={`${inputId}-larghezza`} className="text-xs text-muted-foreground">Larghezza ({unit})</label>
+                <label htmlFor={`${inputId}-larghezza`} className="text-xs text-muted-foreground">{t("Larghezza ({unit})", { unit })}</label>
                 {availableWidths.length > 0 ? (
                   <Select
                     value={availableWidths.includes(wMm) ? String(wMm) : "_custom"}
@@ -333,10 +335,10 @@ export function FamilyPricePreview({ family }: Props) {
                     }}
                   >
                     <SelectTrigger className="h-8 mb-1">
-                      <SelectValue placeholder="Standard…" />
+                      <SelectValue placeholder={t("Standard…")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="_custom">— personalizzata —</SelectItem>
+                      <SelectItem value="_custom">— {t("personalizzata")} —</SelectItem>
                       {availableWidths.map((w) => (
                         <SelectItem key={w} value={String(w)}>
                           {fromMm(w, unit)} {unit}
@@ -355,12 +357,12 @@ export function FamilyPricePreview({ family }: Props) {
                 />
                 {wInvalid ? (
                   <p className="text-[10px] text-destructive mt-0.5">
-                    Min {fromMm(MIN_DIM_MM, unit)} · Max {fromMm(MAX_DIM_MM, unit)} {unit}
+                    {t("Min {min_dim_mm} · Max {max_dim_mm} {unit}", { min_dim_mm: fromMm(MIN_DIM_MM, unit), max_dim_mm: fromMm(MAX_DIM_MM, unit), unit })}
                   </p>
                 ) : null}
               </div>
               <div>
-                <label htmlFor={`${inputId}-altezza`} className="text-xs text-muted-foreground">Altezza ({unit})</label>
+                <label htmlFor={`${inputId}-altezza`} className="text-xs text-muted-foreground">{t("Altezza ({unit})", { unit })}</label>
                 {availableHeights.length > 0 ? (
                   <Select
                     value={availableHeights.includes(hMm) ? String(hMm) : "_custom"}
@@ -369,10 +371,10 @@ export function FamilyPricePreview({ family }: Props) {
                     }}
                   >
                     <SelectTrigger className="h-8 mb-1">
-                      <SelectValue placeholder="Standard…" />
+                      <SelectValue placeholder={t("Standard…")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="_custom">— personalizzata —</SelectItem>
+                      <SelectItem value="_custom">— {t("personalizzata")} —</SelectItem>
                       {availableHeights.map((h) => (
                         <SelectItem key={h} value={String(h)}>
                           {fromMm(h, unit)} {unit}
@@ -391,12 +393,12 @@ export function FamilyPricePreview({ family }: Props) {
                 />
                 {hInvalid ? (
                   <p className="text-[10px] text-destructive mt-0.5">
-                    Min {fromMm(MIN_DIM_MM, unit)} · Max {fromMm(MAX_DIM_MM, unit)} {unit}
+                    {t("Min {min_dim_mm} · Max {max_dim_mm} {unit}", { min_dim_mm: fromMm(MIN_DIM_MM, unit), max_dim_mm: fromMm(MAX_DIM_MM, unit), unit })}
                   </p>
                 ) : null}
               </div>
               <div>
-                <label htmlFor={`${inputId}-quantita`} className="text-xs text-muted-foreground">Quantità</label>
+                <label htmlFor={`${inputId}-quantita`} className="text-xs text-muted-foreground">{t("Quantità")}</label>
                 <Input
                   id={`${inputId}-quantita`}
                   type="number"
@@ -409,7 +411,7 @@ export function FamilyPricePreview({ family }: Props) {
           </div>
         ) : (
           <div>
-            <label htmlFor={`${inputId}-quantita`} className="text-xs text-muted-foreground">Quantità</label>
+            <label htmlFor={`${inputId}-quantita`} className="text-xs text-muted-foreground">{t("Quantità")}</label>
             <Input
               id={`${inputId}-quantita`}
               type="number"
@@ -421,10 +423,10 @@ export function FamilyPricePreview({ family }: Props) {
         )}
 
         {showLength ? <div>
-          <label htmlFor={`${inputId}-lunghezza`} className="text-xs text-muted-foreground">Lunghezza (m)</label>
+          <label htmlFor={`${inputId}-lunghezza`} className="text-xs text-muted-foreground">{t("Lunghezza (m)")}</label>
           <Input id={`${inputId}-lunghezza`} type="number" min="0" step="any" value={lunghezza}
             onChange={e => setLunghezza(e.target.value)} aria-invalid={!lengthValid} className="h-8 w-28" />
-          <p className="text-xs text-muted-foreground">Sviluppo usato per i supplementi al metro lineare.</p>
+          <p className="text-xs text-muted-foreground">{t("Sviluppo usato per i supplementi al metro lineare.")}</p>
         </div> : null}
 
         {family.axes.length > 0 ? (
@@ -441,7 +443,7 @@ export function FamilyPricePreview({ family }: Props) {
                   }
                 >
                   <SelectTrigger className="h-8">
-                    <SelectValue placeholder="Seleziona…" />
+                    <SelectValue placeholder={t("Seleziona…")} />
                   </SelectTrigger>
                   <SelectContent>
                     {ax.values
@@ -464,7 +466,7 @@ export function FamilyPricePreview({ family }: Props) {
         {/* Stato griglia: banner colorato per esatto/round-up/out-of-range/empty */}
         {family.modalita_prezzo_base === "griglia" && (gridLoading || gridError) ? (
           <p role="status" className="text-xs text-muted-foreground">
-            {gridError ? "Impossibile caricare la griglia prezzi. Riprova prima di simulare." : "Caricamento griglia prezzi…"}
+            {gridError ? t("Impossibile caricare la griglia prezzi. Riprova prima di simulare.") : t("Caricamento griglia prezzi…")}
           </p>
         ) : result.gridLookupInfo ? (
           <GridStatusBanner
@@ -499,7 +501,7 @@ export function FamilyPricePreview({ family }: Props) {
               onClick={() => setShowHeatmap((s) => !s)}
               className="w-full px-3 py-1.5 text-xs font-medium flex items-center justify-between hover:bg-muted/40"
             >
-              <span>📐 Griglia disponibile ({availableWidths.length}×{availableHeights.length} celle)</span>
+              <span>{t("📐 Griglia disponibile ({n}×{n2} celle)", { n: availableWidths.length, n2: availableHeights.length })}</span>
               <span className="text-muted-foreground">{showHeatmap ? "▼" : "▶"}</span>
             </button>
             {showHeatmap ? (
@@ -507,7 +509,7 @@ export function FamilyPricePreview({ family }: Props) {
                 <table className="text-[10px] border-collapse">
                   <thead>
                     <tr>
-                      <th className="border-b border-r p-1 bg-muted/40 sticky left-0">H \ W</th>
+                      <th className="border-b border-r p-1 bg-muted/40 sticky left-0">{t("H \\ W")}</th>
                       {availableWidths.map((w) => (
                         <th key={w} className="border-b p-1 bg-muted/40 font-mono">
                           {fromMm(w, unit)}
@@ -549,8 +551,8 @@ export function FamilyPricePreview({ family }: Props) {
                               }}
                               title={
                                 cell
-                                  ? `${w}×${h} mm: ${!showLength || lengthValid ? formatEur(prezzoCella!.unit_price_vendita) : "lunghezza da impostare"}`
-                                  : `${w}×${h} mm: non disponibile`
+                                  ? (!showLength || lengthValid ? `${w}×${h} mm: ${formatEur(prezzoCella!.unit_price_vendita)}` : t("{w}×{h} mm: lunghezza da impostare", { w, h }))
+                                  : t("{w}×{h} mm: non disponibile", { w, h })
                               }
                             >
                               {cell ? "✓" : "·"}
@@ -562,7 +564,7 @@ export function FamilyPricePreview({ family }: Props) {
                   </tbody>
                 </table>
                 <p className="text-[10px] text-muted-foreground mt-1">
-                  Click su una cella verde per caricarla nel simulatore.
+                  {t("Click su una cella verde per caricarla nel simulatore.")}
                 </p>
               </div>
             ) : null}
@@ -573,16 +575,16 @@ export function FamilyPricePreview({ family }: Props) {
         {result.breakdown && !result.outOfRange ? (
           <div className="border rounded-md overflow-hidden bg-background">
             <div className="bg-muted/40 px-3 py-1.5 text-xs font-medium">
-              Breakdown prezzo (acquisto → vendita)
+              {t("Breakdown prezzo (acquisto → vendita)")}
             </div>
             <div className="divide-y text-sm">
               <div className="flex justify-between px-3 py-1.5">
-                <span className="text-muted-foreground">Listino fornitore (lordo)</span>
+                <span className="text-muted-foreground">{t("Listino fornitore (lordo)")}</span>
                 <span className="font-mono">{formatEur(result.breakdown.lordo)}</span>
               </div>
               {result.breakdown.s1 > 0 ? (
                 <div className="flex justify-between px-3 py-1.5 text-emerald-700 dark:text-emerald-400">
-                  <span>− Sconto 1 ({result.breakdown.s1}%)</span>
+                  <span>{t("− Sconto 1 ({s1}%)", { s1: result.breakdown.s1 })}</span>
                   <span className="font-mono">
                     −{formatEur(result.breakdown.lordo - result.breakdown.dopoS1)}
                   </span>
@@ -590,23 +592,23 @@ export function FamilyPricePreview({ family }: Props) {
               ) : null}
               {result.breakdown.s2 > 0 ? (
                 <div className="flex justify-between px-3 py-1.5 text-emerald-700 dark:text-emerald-400">
-                  <span>− Sconto 2 cascata ({result.breakdown.s2}%)</span>
+                  <span>{t("− Sconto 2 cascata ({s2}%)", { s2: result.breakdown.s2 })}</span>
                   <span className="font-mono">
                     −{formatEur(result.breakdown.dopoS1 - result.breakdown.netto)}
                   </span>
                 </div>
               ) : null}
               <div className="flex justify-between px-3 py-1.5 bg-muted/20 font-medium">
-                <span>= Acquisto netto</span>
+                <span>{t("= Acquisto netto")}</span>
                 <span className="font-mono">{formatEur(result.breakdown.netto)}</span>
               </div>
               {result.breakdown.markupTipo !== "none" ? (
                 <div className="flex justify-between px-3 py-1.5 text-amber-700 dark:text-amber-400">
                   <span>
-                    + Markup{" "}
+                    {t("+ Markup")}{" "}
                     {result.breakdown.markupTipo === "percentuale"
                       ? `${result.breakdown.markupValore}%`
-                      : `${formatEur(result.breakdown.markupValore)}/pz`}
+                      : t("{markupValore}/pz", { markupValore: formatEur(result.breakdown.markupValore) })}
                   </span>
                   <span className="font-mono">
                     +{formatEur(result.breakdown.venditaBase - result.breakdown.netto)}
@@ -615,7 +617,7 @@ export function FamilyPricePreview({ family }: Props) {
               ) : null}
               {Math.abs(result.breakdown.maggiorazioneEuro) > 0.001 ? (
                 <div className="flex justify-between px-3 py-1.5 text-indigo-700 dark:text-indigo-400">
-                  <span>+ Maggiorazioni variabili</span>
+                  <span>{t("+ Maggiorazioni variabili")}</span>
                   <span className="font-mono">
                     {result.breakdown.maggiorazioneEuro >= 0 ? "+" : ""}
                     {formatEur(result.breakdown.maggiorazioneEuro)}
@@ -623,7 +625,7 @@ export function FamilyPricePreview({ family }: Props) {
                 </div>
               ) : null}
               <div className="flex justify-between px-3 py-1.5 bg-primary/10 font-semibold">
-                <span>= Vendita unitaria</span>
+                <span>{t("= Vendita unitaria")}</span>
                 <span className="font-mono text-primary">
                   {formatEur(result.prezzoVendita)}
                 </span>
@@ -634,37 +636,37 @@ export function FamilyPricePreview({ family }: Props) {
 
         {!result.disponibile ? (
           <div className="border-t pt-3 text-sm text-muted-foreground">
-            Calcolo non disponibile: verifica quantità, misure, colori e griglia prezzi.
+            {t("Calcolo non disponibile: verifica quantità, misure, colori e griglia prezzi.")}
           </div>
         ) : (
           <div className="border-t pt-3 space-y-1 text-sm">
             {!result.breakdown ? (
               <>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Prezzo base</span>
+                  <span className="text-muted-foreground">{t("Prezzo base")}</span>
                   <span className="font-mono">{formatEur(result.base)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Vendita unitario</span>
+                  <span className="text-muted-foreground">{t("Vendita unitario")}</span>
                   <span className="font-mono">{formatEur(result.prezzoVendita)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Acquisto unitario</span>
+                  <span className="text-muted-foreground">{t("Acquisto unitario")}</span>
                   <span className="font-mono text-muted-foreground">
-                    {result.costoCompleto ? formatEur(result.prezzoAcquisto) : "Da impostare"}
+                    {result.costoCompleto ? formatEur(result.prezzoAcquisto) : t("Da impostare")}
                   </span>
                 </div>
               </>
             ) : null}
             <div className="flex justify-between font-semibold border-t pt-1">
-              <span>Totale vendita ({quantita} pz)</span>
+              <span>{t("Totale vendita ({quantita} pz)", { quantita })}</span>
               <span className="font-mono text-primary">{formatEur(result.totVendita)}</span>
             </div>
             <div className="flex justify-between text-xs">
               <span className="text-muted-foreground">
                 {result.costoCompleto
-                  ? `Margine: ${formatEur(result.margine)} (${result.marginePerc.toFixed(1)}%)`
-                  : "Margine non calcolabile: manca il costo fornitore."}
+                  ? t("Margine: {margine} ({valore}%)", { margine: formatEur(result.margine), valore: result.marginePerc.toFixed(1) })
+                  : t("Margine non calcolabile: manca il costo fornitore.")}
               </span>
               {showDims ? (
                 <span className="text-muted-foreground">
@@ -675,7 +677,7 @@ export function FamilyPricePreview({ family }: Props) {
             {/* #3 — Prezzo per m² come info aggiuntiva */}
             {showDims && result.mq > 0 && result.prezzoVendita > 0 ? (
               <div className="flex justify-between text-xs pt-0.5">
-                <span className="text-muted-foreground">Prezzo vendita / m²</span>
+                <span className="text-muted-foreground">{t("Prezzo vendita / m²")}</span>
                 <span className="font-mono text-muted-foreground">
                   {formatEur(result.prezzoVendita / result.mq)}/m²
                 </span>
@@ -688,7 +690,7 @@ export function FamilyPricePreview({ family }: Props) {
         {showDims && family.modalita_prezzo_base === "griglia" && gridCells.length > 0 ? (
           <div className="border-t pt-3 space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium">Confronto dimensioni</span>
+              <span className="text-xs font-medium">{t("Confronto dimensioni")}</span>
               {comparisons.length < 3 ? (
                 <Button
                   size="sm"
@@ -701,7 +703,7 @@ export function FamilyPricePreview({ family }: Props) {
                     ])
                   }
                 >
-                  + Aggiungi confronto
+                  {t("+ Aggiungi confronto")}
                 </Button>
               ) : null}
             </div>
@@ -774,7 +776,7 @@ export function FamilyPricePreview({ family }: Props) {
                           setComparisons((prev) => prev.filter((p) => p.id !== c.id))
                         }
                         className="text-muted-foreground hover:text-destructive px-1"
-                        aria-label="Rimuovi confronto"
+                        aria-label={t("Rimuovi confronto")}
                       >
                         ×
                       </button>
@@ -784,7 +786,7 @@ export function FamilyPricePreview({ family }: Props) {
               </div>
             ) : (
               <p className="text-[11px] text-muted-foreground">
-                Aggiungi una riga per confrontare il prezzo con un'altra dimensione.
+                {t("Aggiungi una riga per confrontare il prezzo con un'altra dimensione.")}
               </p>
             )}
           </div>
@@ -809,12 +811,13 @@ function GridStatusBanner({
   requestedH: number;
   onUseMax?: () => void;
 }) {
+  const t = useT();
   if (info.kind === "exact") {
     return (
       <div className="text-xs text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 rounded-md p-2 flex items-center gap-2">
         <span aria-hidden>✓</span>
         <span>
-          Dimensione esatta in griglia ({info.cell.valore_x}×{info.cell.valore_y} mm).
+          {t("Dimensione esatta in griglia ({valore_x}×{valore_y} mm).", { valore_x: info.cell.valore_x, valore_y: info.cell.valore_y })}
         </span>
       </div>
     );
@@ -826,11 +829,11 @@ function GridStatusBanner({
       <div className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-md p-2 space-y-1">
         <div className="flex items-center gap-2 font-medium">
           <span aria-hidden>⚠</span>
-          <span>Dimensione non in griglia — applicato prezzo cella superiore.</span>
+          <span>{t("Dimensione non in griglia — applicato prezzo cella superiore.")}</span>
         </div>
         {sizeUp ? (
           <div className="text-[11px] opacity-90 pl-5">
-            Richiesta: <strong>{requestedW}×{requestedH}</strong> mm — Cella usata: <strong>{info.cell.valore_x}×{info.cell.valore_y}</strong> mm. Il pezzo sarà tagliato dalla misura standard.
+            {t("Richiesta:")} <strong>{requestedW}×{requestedH}</strong> {t("mm — Cella usata:")} <strong>{info.cell.valore_x}×{info.cell.valore_y}</strong> {t("mm. Il pezzo sarà tagliato dalla misura standard.")}
           </div>
         ) : null}
       </div>
@@ -841,15 +844,15 @@ function GridStatusBanner({
       <div className="text-xs text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/20 rounded-md p-2 space-y-2 border border-rose-200 dark:border-rose-900">
         <div className="flex items-center gap-2 font-medium">
           <span aria-hidden>✕</span>
-          <span>Dimensione fuori griglia: prezzo non calcolabile.</span>
+          <span>{t("Dimensione fuori griglia: prezzo non calcolabile.")}</span>
         </div>
         <div className="text-[11px] opacity-90 pl-5">
-          Richiesta: <strong>{requestedW}×{requestedH}</strong> mm — Massimo disponibile in griglia: <strong>{info.maxX}×{info.maxY}</strong> mm. Riduci le misure o richiedi un'offerta speciale al fornitore.
+          {t("Richiesta:")} <strong>{requestedW}×{requestedH}</strong> {t("mm — Massimo disponibile in griglia:")} <strong>{info.maxX}×{info.maxY}</strong> {t("mm. Riduci le misure o richiedi un'offerta speciale al fornitore.")}
         </div>
         {onUseMax ? (
           <div className="pl-5">
             <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onUseMax}>
-              Usa una misura presente in griglia
+              {t("Usa una misura presente in griglia")}
             </Button>
           </div>
         ) : null}
@@ -861,7 +864,7 @@ function GridStatusBanner({
     <div className="text-xs text-sky-700 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/20 rounded-md p-2 flex items-center gap-2">
       <span aria-hidden>ℹ</span>
       <span>
-        Griglia non configurata — prezzo non calcolabile. Configura la griglia prima di usare il prodotto.
+        {t("Griglia non configurata — prezzo non calcolabile. Configura la griglia prima di usare il prodotto.")}
       </span>
     </div>
   );

@@ -9,6 +9,7 @@ import {
   advanceApartment, apartmentCodes, apartmentQuestions, apartmentQuoteItems, apartmentSimulations,
   APARTMENT_GAPS, buildApartmentLines, type ApartmentConversation, type ApartmentKey, type ApartmentOverride, type ApartmentStep,
 } from "@/lib/preventivi/devLombardiaApartment";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Message = { role: "user" | "assistant"; text: string };
 const fresh = (): ApartmentConversation => ({ step: "request", measurements: {} });
@@ -29,6 +30,7 @@ const numberInput = (value: string) => {
 /** DEV route only, behind the existing Demo2 + loopback guard. Regional data
  * is read-only, shared published catalogue; all quote edits stay in memory. */
 export default function LombardiaApartmentLab({ companyName }: { companyName: string }) {
+  const t = useT();
   const fonti = usePrezzarioFonti();
   const [selectedSource, setSelectedSource] = useState("");
   const sources = fonti.data?.filter(f => f.regione === "Lombardia") ?? [];
@@ -67,43 +69,43 @@ export default function LombardiaApartmentLab({ companyName }: { companyName: st
   const reading = fonti.isLoading || (!!source && catalog.isFetching);
   const error = fonti.error ?? catalog.error;
   return <>
-    <section className="simulation-controls" aria-label="Prezzario regionale esistente">
-      <label>Fonte <UniformSelect aria-label="Fonte Lombardia" value={source?.id ?? ""} onChange={e => { setSelectedSource(e.target.value); setAccepted(false); setOverrides({}); }}>
-        <option value="" disabled>Scegli un prezzario pubblicato</option>
-        {sources.map(f => <option key={f.id} value={f.id}>{f.nome} · metadati {f.versione ?? "edizione non indicata"}</option>)}
+    <section className="simulation-controls" aria-label={t("Prezzario regionale esistente")}>
+      <label>{t("Fonte")} <UniformSelect aria-label={t("Fonte Lombardia")} value={source?.id ?? ""} onChange={e => { setSelectedSource(e.target.value); setAccepted(false); setOverrides({}); }}>
+        <option value="" disabled>{t("Scegli un prezzario pubblicato")}</option>
+        {sources.map(f => <option key={f.id} value={f.id}>{f.nome} · {t("metadati {versione}", { versione: f.versione ?? t("edizione non indicata") })}</option>)}
       </UniformSelect></label>
-      <label className="simulation-check"><input type="checkbox" checked={accepted} onChange={e => setAccepted(e.target.checked)} disabled={!source || source.anno !== 2025} />Confermo l’uso dell’edizione {source?.anno ?? "da scegliere"}, non dell’anno corrente</label>
+      <label className="simulation-check"><input type="checkbox" checked={accepted} onChange={e => setAccepted(e.target.checked)} disabled={!source || source.anno !== 2025} />{t("Confermo l’uso dell’edizione {anno}, non dell’anno corrente", { anno: source?.anno ?? t("da scegliere") })}</label>
     </section>
-    <p className="simulation-disclaimer">Solo lettura dal listino regionale già presente; nessuna importazione o adozione. I nomi/edizioni sono mostrati come registrati: eventuali incongruenze non vengono corrette automaticamente. I prezzi non sono i costi interni dell’azienda.</p>
-    {reading && <ThinkingProgress status="thinking" steps={[{ id: "catalog", text: "Leggo la fonte pubblicata e al massimo 12 codici esatti dalla libreria esistente", status: "active" }]} />}
-    {error && <div role="alert" className="regional-alert">Lettura del prezzario non riuscita: {error.message}. Nessun prezzo sintetico sostitutivo. <button onClick={() => { void fonti.refetch(); void catalog.refetch(); }}>Riprova lettura</button></div>}
-    {!fonti.isLoading && !source && !error && <p role="alert">Non trovo l’edizione Lombardia 2025 pubblicata. Scegli una fonte disponibile; questo caso non traduce automaticamente codici di altri anni.</p>}
+    <p className="simulation-disclaimer">{t("Solo lettura dal listino regionale già presente; nessuna importazione o adozione. I nomi/edizioni sono mostrati come registrati: eventuali incongruenze non vengono corrette automaticamente. I prezzi non sono i costi interni dell’azienda.")}</p>
+    {reading && <ThinkingProgress status="thinking" steps={[{ id: "catalog", text: t("Leggo la fonte pubblicata e al massimo 12 codici esatti dalla libreria esistente"), status: "active" }]} />}
+    {error && <div role="alert" className="regional-alert">{t("Lettura del prezzario non riuscita: {errore}. Nessun prezzo sintetico sostitutivo.", { errore: error.message })} <button onClick={() => { void fonti.refetch(); void catalog.refetch(); }}>{t("Riprova lettura")}</button></div>}
+    {!fonti.isLoading && !source && !error && <p role="alert">{t("Non trovo l’edizione Lombardia 2025 pubblicata. Scegli una fonte disponibile; questo caso non traduce automaticamente codici di altri anni.")}</p>}
     <div className="simulation-controls regional-cases">
-      <label>Simulazione <UniformSelect aria-label="Caso appartamento" value={fixture} onChange={e => setFixture(Number(e.target.value))}>{apartmentSimulations.map((s, i) => <option value={i} key={s.name}>{s.name}</option>)}</UniformSelect></label>
-      <button onClick={replay}>Carica risposte di esempio</button><button onClick={reset}>Riparti dalla chat</button>
+      <label>{t("Simulazione")} <UniformSelect aria-label={t("Caso appartamento")} value={fixture} onChange={e => setFixture(Number(e.target.value))}>{apartmentSimulations.map((s, i) => <option value={i} key={s.name}>{s.name}</option>)}</UniformSelect></label>
+      <button onClick={replay}>{t("Carica risposte di esempio")}</button><button onClick={reset}>{t("Riparti dalla chat")}</button>
     </div>
-    {replayed && <p className="simulation-disclaimer">Risposte di esempio caricate: 240/260 m² di pittura, 22/24 m² di rivestimento e le altre misure sono ipotesi DEMO, non rilievi né deduzioni dagli 80 m². Puoi sostituirle sotto.</p>}
+    {replayed && <p className="simulation-disclaimer">{t("Risposte di esempio caricate: 240/260 m² di pittura, 22/24 m² di rivestimento e le altre misure sono ipotesi DEMO, non rilievi né deduzioni dagli 80 m². Puoi sostituirle sotto.")}</p>}
     <div className="simulation-columns regional-layout">
       <section className="simulation-work">
-        <section className="quote-lab-chat" aria-label="Chat appartamento Lombardia">
-          <header><span>Appartamento · 80 m² · un bagno</span><small>Dialogo guidato di prova · prezzi regionali reali, misure da confermare · nessuna chiamata LLM</small></header>
-          <div className="quote-lab-messages" role="log" aria-live="polite" ref={transcript}>{messages.map((m, i) => <article className={`quote-lab-message ${m.role}`} key={i}><small>{m.role === "user" ? "Tu / esempio" : "Assistente · prova guidata"}</small><p>{m.text}</p></article>)}</div>
+        <section className="quote-lab-chat" aria-label={t("Chat appartamento Lombardia")}>
+          <header><span>{t("Appartamento · 80 m² · un bagno")}</span><small>{t("Dialogo guidato di prova · prezzi regionali reali, misure da confermare · nessuna chiamata LLM")}</small></header>
+          <div className="quote-lab-messages" role="log" aria-live="polite" ref={transcript}>{messages.map((m, i) => <article className={`quote-lab-message ${m.role}`} key={i}><small>{m.role === "user" ? t("Tu / esempio") : t("Assistente · prova guidata")}</small><p>{m.text}</p></article>)}</div>
           <div className="quote-lab-suggestions">{suggestions[conversation.step].map(text => <button key={text} onClick={() => send(text)}>{text}</button>)}</div>
           <ThinkingPromptInput value={input} onValueChange={setInput} onSubmit={() => send()} onStop={() => {}} busy={false} />
-          <p className="quote-lab-caption">Le risposte numeriche suggerite sono esempi. «Non so» lascia la voce da misurare, mai a zero.</p>
+          <p className="quote-lab-caption">{t("Le risposte numeriche suggerite sono esempi. «Non so» lascia la voce da misurare, mai a zero.")}</p>
         </section>
-        <h2 className="regional-heading">Voci candidate dalla libreria</h2>
-        <p className="quote-lab-caption">Apri le specifiche prima di includere una voce. Cambiare un numero revoca la conferma di quella voce. Nessuna riga viene duplicata o aggiunta al listino.</p>
+        <h2 className="regional-heading">{t("Voci candidate dalla libreria")}</h2>
+        <p className="quote-lab-caption">{t("Apri le specifiche prima di includere una voce. Cambiare un numero revoca la conferma di quella voce. Nessuna riga viene duplicata o aggiunta al listino.")}</p>
         <div className="regional-lines">{lines.map(line => <article key={line.key}>
-          <div className="regional-line-heading"><strong>{line.title}</strong><label><input type="checkbox" aria-label={`Conferma ${line.title}`} checked={line.included} disabled={!!line.issue} onChange={e => edit(line.key, { approved: e.target.checked })} />Includi</label></div>
+          <div className="regional-line-heading"><strong>{line.title}</strong><label><input type="checkbox" aria-label={t("Conferma {voce}", { voce: line.title })} checked={line.included} disabled={!!line.issue} onChange={e => edit(line.key, { approved: e.target.checked })} />{t("Includi")}</label></div>
           <small className="regional-code">{line.code}</small>
           <div className="regional-inputs">
-            <label>Quantità ({line.unit})<input aria-label={`Quantità ${line.title}`} type="number" min="0.01" max="1000000" step="0.01" value={line.quantity ?? ""} onChange={e => edit(line.key, { quantity: numberInput(e.target.value), approved: false })} placeholder="Da misurare" /></label>
-            <label>Prezzo netto / {line.unit}<input aria-label={`Prezzo ${line.title}`} type="number" min="0.01" max="1000000" step="0.01" value={line.price ?? ""} onChange={e => edit(line.key, { price: numberInput(e.target.value), approved: false })} placeholder="Non disponibile" /></label>
+            <label>{t("Quantità ({unita})", { unita: line.unit })}<input aria-label={t("Quantità {voce}", { voce: line.title })} type="number" min="0.01" max="1000000" step="0.01" value={line.quantity ?? ""} onChange={e => edit(line.key, { quantity: numberInput(e.target.value), approved: false })} placeholder={t("Da misurare")} /></label>
+            <label>{t("Prezzo netto / {unita}", { unita: line.unit })}<input aria-label={t("Prezzo {voce}", { voce: line.title })} type="number" min="0.01" max="1000000" step="0.01" value={line.price ?? ""} onChange={e => edit(line.key, { price: numberInput(e.target.value), approved: false })} placeholder={t("Non disponibile")} /></label>
           </div>
-          {line.manualPrice && <p className="regional-warning">Prezzo manuale · riferimento {line.referencePrice == null ? "assente" : formatCurrency(line.referencePrice)}. <button onClick={() => setOverrides(prev => { const next = { ...prev }; const { price: _price, ...rest } = next[line.key] ?? {}; next[line.key] = { ...rest, approved: false }; return next; })}>Ripristina prezzo regionale</button></p>}
-          {line.issue ? <p className="regional-warning">{line.issue}</p> : <p className="regional-valid">{line.included ? "Inclusa nel parziale" : "Da confermare: leggi inclusioni, esclusioni e caratteristiche"}</p>}
-          {line.description && <details><summary>Specifiche, inclusioni ed esclusioni originali</summary><p>{line.description}</p></details>}
+          {line.manualPrice && <p className="regional-warning">{t("Prezzo manuale · riferimento {prezzo}.", { prezzo: line.referencePrice == null ? t("assente") : formatCurrency(line.referencePrice) })} <button onClick={() => setOverrides(prev => { const next = { ...prev }; const { price: _price, ...rest } = next[line.key] ?? {}; next[line.key] = { ...rest, approved: false }; return next; })}>{t("Ripristina prezzo regionale")}</button></p>}
+          {line.issue ? <p className="regional-warning">{line.issue}</p> : <p className="regional-valid">{line.included ? t("Inclusa nel parziale") : t("Da confermare: leggi inclusioni, esclusioni e caratteristiche")}</p>}
+          {line.description && <details><summary>{t("Specifiche, inclusioni ed esclusioni originali")}</summary><p>{line.description}</p></details>}
         </article>)}</div>
       </section>
       <aside>
@@ -112,8 +114,8 @@ export default function LombardiaApartmentLab({ companyName }: { companyName: st
           items={items} subtotal={totals.subtotale} net={totals.subtotale_netto} total={totals.subtotale_netto} vatBreakdown={{}}
           discountPercent={0} manualPrice={false} showPrices onlyTotal={false} showDiscounts={false} showNotes showConditions={false} showSignature={false}
           notes={`Solo ${items.length} voci confermate su ${lines.length} candidate, non l’intera ristrutturazione. ${APARTMENT_GAPS.join(". ")}`}
-          paymentMethod="" paymentPhases={[]} taxPending previewNotice="SIMULAZIONE PARZIALE, non un’offerta. Nessun salvataggio, invio o PDF contrattuale. IVA, tempi e costi aziendali ancora da definire." />
-        <section className="simulation-journal"><h2>Copertura e dati da completare</h2><p>{items.length} voci confermate · {lines.filter(r => r.issue).length} candidate bloccate · 0 scritture · 0 chiamate AI</p><p>Nessun ricarico automatico, nessun margine presunto. Prezzo di riferimento e prezzo modificato rimangono distinti.</p><details><summary>Completamenti ancora da valutare ({APARTMENT_GAPS.length})</summary><ul>{APARTMENT_GAPS.map(gap => <li key={gap}>{gap}</li>)}</ul></details></section>
+          paymentMethod="" paymentPhases={[]} taxPending previewNotice={t("SIMULAZIONE PARZIALE, non un’offerta. Nessun salvataggio, invio o PDF contrattuale. IVA, tempi e costi aziendali ancora da definire.")} />
+        <section className="simulation-journal"><h2>{t("Copertura e dati da completare")}</h2><p>{t("{confermate} voci confermate · {bloccate} candidate bloccate · 0 scritture · 0 chiamate AI", { confermate: items.length, bloccate: lines.filter(r => r.issue).length })}</p><p>{t("Nessun ricarico automatico, nessun margine presunto. Prezzo di riferimento e prezzo modificato rimangono distinti.")}</p><details><summary>{t("Completamenti ancora da valutare ({n})", { n: APARTMENT_GAPS.length })}</summary><ul>{APARTMENT_GAPS.map(gap => <li key={gap}>{gap}</li>)}</ul></details></section>
       </aside>
     </div>
   </>;

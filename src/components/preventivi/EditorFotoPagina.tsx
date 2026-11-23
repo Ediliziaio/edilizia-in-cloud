@@ -13,6 +13,7 @@ import {
 } from "../../../supabase/functions/_shared/blocchiPreventivo";
 import { eTavola } from "../../../supabase/functions/_shared/proporzioniImmagine";
 import { ModulePhotoUpdateButton } from "./modules/ModulePhotoUpdateButton";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   chiave: ChiaveFotoPagina;
@@ -29,6 +30,7 @@ interface Props {
 }
 
 export function EditorFotoPagina({ chiave, settore, salvati, onSalvati, campoFoto, incorniciato = true, nota }: Props) {
+  const t = useT();
   const tutti = useMemo(() => (salvati && typeof salvati === "object" ? (salvati as Record<string, unknown>) : {}), [salvati]);
   const chiaveSalvata = chiaveSalvataFotoPagina(chiave);
   const attuale = leggiFotoPagina(chiave, settore, tutti);
@@ -49,42 +51,42 @@ export function EditorFotoPagina({ chiave, settore, salvati, onSalvati, campoFot
     <div className={incorniciato ? "mt-3 space-y-3 rounded-md border bg-background p-3" : "space-y-3"}>
       <ModulePhotoUpdateButton value={salvati} sector={settore} onChange={onSalvati} />
       <div className="space-y-0.5">
-        <p className="text-xs font-medium">{FOTO_PAGINE_ETICHETTE[chiave]}</p>
-        {nota ? <p className="text-[11px] text-muted-foreground">{nota}</p> : null}
+        <p className="text-xs font-medium">{t(FOTO_PAGINE_ETICHETTE[chiave])}</p>
+        {nota ? <p className="text-[11px] text-muted-foreground">{t(nota)}</p> : null}
       </div>
       <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
         {attuale && eFotoDiSerie(attuale) ? (
           <div className="relative overflow-hidden rounded-md border">
             <img src={attuale} alt="" className="aspect-[16/9] w-full object-cover" />
-            <span className="absolute left-1.5 top-1.5 rounded bg-background/90 px-1.5 py-0.5 text-[10px]">di serie</span>
+            <span className="absolute left-1.5 top-1.5 rounded bg-background/90 px-1.5 py-0.5 text-[10px]">{t("di serie")}</span>
           </div>
         ) : attuale ? (
           campoFoto(attuale, (url) => scegli(url))
         ) : (
           <div className="space-y-1">
-            <p className="rounded-md bg-slate-50 p-3 text-xs text-muted-foreground">Pagina senza foto. Il PDF mostra il contenuto, senza riquadri vuoti. Puoi aggiungere un’immagine dalla libreria o una vostra foto.</p>
+            <p className="rounded-md bg-slate-50 p-3 text-xs text-muted-foreground">{t("Pagina senza foto. Il PDF mostra il contenuto, senza riquadri vuoti. Puoi aggiungere un’immagine dalla libreria o una vostra foto.")}</p>
           </div>
         )}
         <div className="flex flex-wrap gap-1.5 md:flex-col">
           <Button size="sm" variant="outline" onClick={() => setLibreriaAperta((a) => !a)}>
-            <ImagePlus className="mr-1.5 h-3.5 w-3.5" /> {libreriaAperta ? "Chiudi la libreria" : "Scegli dalla libreria"}
+            <ImagePlus className="mr-1.5 h-3.5 w-3.5" /> {libreriaAperta ? t("Chiudi la libreria") : t("Scegli dalla libreria")}
           </Button>
           {attuale && eFotoDiSerie(attuale) ? (
             <Button size="sm" variant="ghost" onClick={() => scegli(null)}>
-              <ImageOff className="mr-1.5 h-3.5 w-3.5" /> Togli la foto
+              <ImageOff className="mr-1.5 h-3.5 w-3.5" /> {t("Togli la foto")}
             </Button>
           ) : null}
-          {(!attuale || eFotoDiSerie(attuale)) && <Button size="sm" variant="ghost" onClick={() => setCaricaFoto(v => !v)}><ImagePlus className="mr-1.5 h-3.5 w-3.5" />{caricaFoto ? "Annulla caricamento" : attuale ? "Sostituisci con una vostra foto" : "Carica una vostra foto"}</Button>}
+          {(!attuale || eFotoDiSerie(attuale)) && <Button size="sm" variant="ghost" onClick={() => setCaricaFoto(v => !v)}><ImagePlus className="mr-1.5 h-3.5 w-3.5" />{caricaFoto ? t("Annulla caricamento") : attuale ? t("Sostituisci con una vostra foto") : t("Carica una vostra foto")}</Button>}
           {diSerie && attuale !== diSerie ? (
             <Button size="sm" variant="ghost" onClick={() => salva(null)}>
-              <RotateCcw className="mr-1.5 h-3.5 w-3.5" /> Ripristina immagine standard
+              <RotateCcw className="mr-1.5 h-3.5 w-3.5" /> {t("Ripristina immagine standard")}
             </Button>
           ) : null}
         </div>
       </div>
       {caricaFoto && (!attuale || eFotoDiSerie(attuale)) ? (
         <div className="space-y-1">
-          <p className="text-[11px] text-muted-foreground">Oppure caricate una vostra foto:</p>
+          <p className="text-[11px] text-muted-foreground">{t("Oppure caricate una vostra foto:")}</p>
           {campoFoto(null, (url) => scegli(url))}
         </div>
       ) : null}

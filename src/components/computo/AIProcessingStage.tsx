@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ComputoExtractionStatus } from "@/types/computo";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // ───────────────────────────────────────────────────────────────────────────
 // Pipeline phases ordinate. Pesi % derivati da telemetry reale (~18s totale,
@@ -138,6 +139,7 @@ function friendlyError(raw: string | null): { title: string; hint: string } {
 }
 
 export function AIProcessingStage({ status, progress, error, onRetry, onRetryRead, onCancel, cancelButton }: Props) {
+  const t = useT();
   const isFailed = status === "failed";
   const startedAtRef = useRef<number>(Date.now());
   const [elapsedMs, setElapsedMs] = useState(0);
@@ -211,20 +213,20 @@ export function AIProcessingStage({ status, progress, error, onRetry, onRetryRea
           <p className="text-xs text-muted-foreground mt-2 max-w-md mx-auto">{errInfo.hint}</p>
           {errInfo.hint !== error && error && (
             <details className="mt-2 text-[10px] text-muted-foreground">
-              <summary className="cursor-pointer">Dettaglio tecnico</summary>
+              <summary className="cursor-pointer">{t("Dettaglio tecnico")}</summary>
               <p className="mt-1 font-mono break-all">{error}</p>
             </details>
           )}
         </div>
         <div className="flex justify-center gap-2">
-          {cancelButton ?? (onCancel ? <Button variant="outline" onClick={onCancel}>Chiudi</Button> : null)}
+          {cancelButton ?? (onCancel ? <Button variant="outline" onClick={onCancel}>{t("Chiudi")}</Button> : null)}
           {onRetryRead && (
             <Button onClick={onRetryRead}>
-              <RotateCw className="h-4 w-4 mr-1" /> Riprova la lettura
+              <RotateCw className="h-4 w-4 mr-1" /> {t("Riprova la lettura")}
             </Button>
           )}
           <Button variant={onRetryRead ? "outline" : "default"} onClick={onRetry}>
-            <RotateCw className="h-4 w-4 mr-1" /> {onRetryRead ? "Carica un altro file" : "Riprova"}
+            <RotateCw className="h-4 w-4 mr-1" /> {onRetryRead ? t("Carica un altro file") : t("Riprova")}
           </Button>
         </div>
       </div>
@@ -333,7 +335,7 @@ export function AIProcessingStage({ status, progress, error, onRetry, onRetryRea
                     state === "pending" ? "text-slate-400" : "text-slate-700 font-medium"
                   }`}
                 >
-                  {phase.label}
+                  {t(phase.label)}
                 </p>
               </div>
             );
@@ -368,18 +370,16 @@ export function AIProcessingStage({ status, progress, error, onRetry, onRetryRea
           <span>{Math.round(progressPct)}%</span>
           {/* Fix 11: ETA come range invece di valore puntuale */}
           <span>
-            {elapsedSec}s trascorsi
+            {elapsedSec}{t("s trascorsi")}
             {!isOvertime && etaRemainingSec > 10 && (
-              <span className="text-orange-500 font-medium">
-                {" "}· ~{Math.ceil(etaRemainingSec / 10) * 10}–{Math.ceil(etaRemainingSec / 10) * 10 + 10}s rimanenti
-              </span>
+              <span className="text-orange-500 font-medium">{" "}{t("· ~{valore}–{valore2}s rimanenti", { valore: Math.ceil(etaRemainingSec / 10) * 10, valore2: Math.ceil(etaRemainingSec / 10) * 10 + 10 })}</span>
             )}
             {!isOvertime && etaRemainingSec <= 10 && etaRemainingSec > 0 && (
-              <span className="text-orange-500 font-medium">{" "}· quasi pronto…</span>
+              <span className="text-orange-500 font-medium">{" "}{t("· quasi pronto…")}</span>
             )}
             {isOvertime && (
               <span className="text-amber-600 font-medium">
-                {" "}· ancora qualche secondo…
+                {" "}{t("· ancora qualche secondo…")}
               </span>
             )}
           </span>
@@ -388,7 +388,7 @@ export function AIProcessingStage({ status, progress, error, onRetry, onRetryRea
 
       {/* ── Status text + tip rotante ────────────────────────────────────── */}
       <div className="text-center min-h-[3rem]">
-        <p className="text-sm font-medium text-slate-800">{progress || "Avvio…"}</p>
+        <p className="text-sm font-medium text-slate-800">{progress || t("Avvio…")}</p>
         <AnimatePresence mode="wait">
           <motion.p
             key={`${status}-${tipIdx}`}
@@ -408,7 +408,7 @@ export function AIProcessingStage({ status, progress, error, onRetry, onRetryRea
         <div className="flex justify-center pt-1">
           {cancelButton ?? (
             <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={onCancel}>
-              Annulla
+              {t("Annulla")}
             </Button>
           )}
         </div>

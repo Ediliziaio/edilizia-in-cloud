@@ -13,7 +13,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { usePermissions } from "@/hooks/usePermissions";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import {
   ArrowLeft, Trash2, Phone, Mail, Star, ChevronDown, ChevronLeft, ChevronRight, Plus, Send, Search,
@@ -84,6 +83,7 @@ import { ContactQuotesPanel } from "@/components/marketing/contacts/ContactQuote
 import { getDateLabel, RIGHT_TABS, type RightTab } from "@/components/marketing/contacts/activityHelpers";
 import { getAvatarColor } from "@/lib/contactUtils";
 import { sottoLarghezza, useSottoLarghezza } from "@/hooks/useSottoLarghezza";
+import { useT, intlCampo, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // 2026-05-27 (richiesta utente CC/CCN): parser email CSV/space-separated,
 // lowercase, dedup, validazione basica. Restituisce undefined se input vuoto
@@ -138,6 +138,7 @@ function etichettaFonte(fonte: string): string {
 }
 
 const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingContactDetail(_props, _ref) {
+  const tr = useT();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -449,9 +450,9 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       setEmailCcVisible(false);
       setEmailBccVisible(false);
       const channelLabel = vars.channel === "whatsapp" ? "WhatsApp" : vars.channel === "email" ? "Email" : "SMS";
-      toast.success(vars.channel === "whatsapp" ? "Messaggio accettato da WhatsApp" : `Messaggio ${channelLabel} inviato`);
+      toast.success(vars.channel === "whatsapp" ? tr("Messaggio accettato da WhatsApp") : tr("Messaggio {channelLabel} inviato", { channelLabel: String(channelLabel ?? "") }));
     },
-    onError: (e: any) => toast.error(e.message || "Errore invio messaggio"),
+    onError: (e: any) => toast.error(e.message || tr("Errore invio messaggio")),
   });
 
   // Invio WhatsApp Locale (OpenWA, solo contesto piattaforma): passa dal
@@ -468,14 +469,14 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       if (error) throw error;
       if (data?.error) throw new Error(String(data.error));
       setMessageText("");
-      toast.success("Messaggio WhatsApp Locale inviato");
+      toast.success(tr("Messaggio WhatsApp Locale inviato"));
       queryClient.invalidateQueries({ queryKey: ["contact_messages", id] });
       queryClient.invalidateQueries({ queryKey: ["marketing_contact_activities", id] });
       // Il messaggio vive in openwa_messages: senza questa invalidazione la
       // bolla appena inviata non comparirebbe in timeline fino al refetch.
       queryClient.invalidateQueries({ queryKey: ["unified_wa_locale", id] });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Errore invio WhatsApp Locale");
+      toast.error(e instanceof Error ? e.message : tr("Errore invio WhatsApp Locale"));
     } finally {
       setWaLocaleSending(false);
     }
@@ -509,7 +510,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       if (error) throw error;
       setSiteCandidates(Array.isArray(data?.candidates) ? data.candidates : []);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Ricerca sito fallita");
+      toast.error(e instanceof Error ? e.message : tr("Ricerca sito fallita"));
       setSiteCandidates([]);
     } finally {
       setFindingSite(false);
@@ -524,7 +525,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
     const piva = enrichPiva.replace(/\s/g, "") || null;
     const businessName = enrichName.trim() || null;
     if (!website && !piva && !businessName) {
-      toast.error("Servono almeno sito web, P.IVA o ragione sociale");
+      toast.error(tr("Servono almeno sito web, P.IVA o ragione sociale"));
       return;
     }
     setEnriching(true);
@@ -551,9 +552,9 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       });
       void refreshCrmContacts(queryClient, companyId, id);
       queryClient.invalidateQueries({ queryKey: ["marketing_contact_activities", id] });
-      toast.success(updated.length ? `Contatto arricchito: ${updated.length} campi compilati` : "Arricchimento completato");
+      toast.success(updated.length ? tr("Contatto arricchito: {n} campi compilati", { n: updated.length }) : tr("Arricchimento completato"));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Errore arricchimento");
+      toast.error(e instanceof Error ? e.message : tr("Errore arricchimento"));
     } finally {
       setEnriching(false);
     }
@@ -565,7 +566,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
     if (visuraLoading) return;
     const piva = (enrichPiva.replace(/\D/g, "") || (contact as { vat_number?: string | null })?.vat_number?.replace(/\D/g, "")) || "";
     if (piva.length !== 11) {
-      toast.error("Serve una P.IVA valida (11 cifre) per la visura");
+      toast.error(tr("Serve una P.IVA valida (11 cifre) per la visura"));
       return;
     }
     setVisuraLoading(true);
@@ -589,12 +590,12 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
         });
         void refreshCrmContacts(queryClient, companyId, id);
         queryClient.invalidateQueries({ queryKey: ["marketing_contact_activities", id] });
-        toast.success(updated.length ? `Visura ok: ${updated.length} campi compilati` : "Visura scaricata");
+        toast.success(updated.length ? tr("Visura ok: {n} campi compilati", { n: updated.length }) : tr("Visura scaricata"));
       } else {
-        toast.error(data?.error || "Visura non disponibile");
+        toast.error(data?.error || tr("Visura non disponibile"));
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Errore visura");
+      toast.error(e instanceof Error ? e.message : tr("Errore visura"));
     } finally {
       setVisuraLoading(false);
     }
@@ -610,13 +611,13 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       });
       if (error) throw error;
       if (data?.email) {
-        toast.success(data.status === "guessed" ? `Email probabile trovata: ${data.email} (ipotesi su dominio valido)` : `Email trovata: ${data.email}`);
+        toast.success(data.status === "guessed" ? tr("Email probabile trovata: {email} (ipotesi su dominio valido)", { email: String(data.email ?? "") }) : tr("Email trovata: {email}", { email: String(data.email ?? "") }));
         void refreshCrmContacts(queryClient, companyId, id);
       } else {
-        toast.error("Nessuna email trovata: aggiungi il sito web e riprova.");
+        toast.error(tr("Nessuna email trovata: aggiungi il sito web e riprova."));
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Errore ricerca email");
+      toast.error(e instanceof Error ? e.message : tr("Errore ricerca email"));
     } finally {
       setFindingEmail(false);
     }
@@ -644,7 +645,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       if (s === "invalid" || s === "no_mx" || s === "invalid_syntax") toast.error(msg[s] || s);
       else toast.success(msg[s] || s);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Errore verifica email");
+      toast.error(e instanceof Error ? e.message : tr("Errore verifica email"));
     } finally {
       setVerifyingEmail(false);
     }
@@ -710,7 +711,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       queryClient.invalidateQueries({ queryKey: ["marketing_contact_notes", id] });
       queryClient.invalidateQueries({ queryKey: ["marketing_contact_activities", id] });
       setNewNote("");
-      toast.success("Nota aggiunta");
+      toast.success(tr("Nota aggiunta"));
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -724,7 +725,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Contatto eliminato");
+      toast.success(tr("Contatto eliminato"));
       void refreshCrmContacts(queryClient, companyId, id);
       navigate(`${routePrefix}/contatti`);
     },
@@ -753,11 +754,11 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       <div className="flex flex-col items-center justify-center h-64 gap-4 px-4">
         <Alert variant="destructive" className="max-w-md">
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Errore di caricamento</AlertTitle>
-          <AlertDescription>Impossibile caricare il contatto. Verifica la connessione e riprova.</AlertDescription>
+          <AlertTitle>{tr("Errore di caricamento")}</AlertTitle>
+          <AlertDescription>{tr("Impossibile caricare il contatto. Verifica la connessione e riprova.")}</AlertDescription>
         </Alert>
         <Button variant="outline" onClick={() => refetch()}>
-          <RefreshCw className="h-4 w-4 mr-2" /> Riprova
+          <RefreshCw className="h-4 w-4 mr-2" /> {tr("Riprova")}
         </Button>
       </div>
     );
@@ -766,9 +767,9 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
   if (!contact) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-4">
-        <p className="text-muted-foreground">Contatto non trovato</p>
+        <p className="text-muted-foreground">{tr("Contatto non trovato")}</p>
         <Button variant="outline" className="hidden md:inline-flex" onClick={() => navigate(`${routePrefix}/contatti`)}>
-          <ArrowLeft className="h-4 w-4 mr-2" /> Torna ai contatti
+          <ArrowLeft className="h-4 w-4 mr-2" /> {tr("Torna ai contatti")}
         </Button>
       </div>
     );
@@ -802,10 +803,10 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
   // Ultima attività (per Hero stat)
   const lastActivity = activities[0]?.created_at ?? contact.updated_at ?? contact.created_at;
   const lastActivityLabel = lastActivity
-    ? format(new Date(lastActivity), "d MMM yyyy", { locale: it })
+    ? format(new Date(lastActivity), "d MMM yyyy", { locale: dateFnsCampo() })
     : "—";
   const fmtMoney = (n: number) =>
-    n.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" });
+    n.toLocaleString(intlCampo(), { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" });
 
   const aiScore = contact.ai_score as number | null | undefined;
   const aiTier = contact.ai_score_tier as string | null | undefined;
@@ -847,11 +848,11 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
         {/* Breadcrumb + nav — solo desktop */}
         <div className="hidden lg:flex items-center justify-between px-3 sm:px-5 pt-1.5 pb-1">
           <div className="flex items-center gap-2 min-w-0">
-            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => navigate(`${routePrefix}/contatti`)} title="Torna ai contatti">
+            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => navigate(`${routePrefix}/contatti`)} title={tr("Torna ai contatti")}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <span className="text-xs text-muted-foreground truncate">
-              Contatti / <span className="text-foreground">{fullName || "—"}</span>
+              {tr("Contatti /")} <span className="text-foreground">{fullName || "—"}</span>
             </span>
           </div>
           <div className="flex items-center gap-0.5 shrink-0">
@@ -879,7 +880,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               <AvatarFallback className={cn("text-sm font-bold text-white", getAvatarColor(fullName))}>{initials || "?"}</AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
-              <h1 className="truncate text-lg font-bold leading-tight">{fullName || "Senza nome"}</h1>
+              <h1 className="truncate text-lg font-bold leading-tight">{fullName || tr("Senza nome")}</h1>
               <p className="truncate text-[11px] text-muted-foreground">
                 {[contact.company_name !== fullName ? contact.company_name : null, contact.city, lastActivityLabel].filter(Boolean).join(" · ")}
               </p>
@@ -888,13 +889,13 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
             {canEditContacts && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="tap-compact h-8 w-8 shrink-0" aria-label="Altre azioni">
+                  <Button variant="ghost" size="icon" className="tap-compact h-8 w-8 shrink-0" aria-label={tr("Altre azioni")}>
                     <MoreHorizontal className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => setMergeOpen(true)}><Merge className="h-3.5 w-3.5 mr-2" /> Unisci contatti</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setDeleteOpen(true)} className="text-destructive"><Trash2 className="h-3.5 w-3.5 mr-2" /> Elimina contatto</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setMergeOpen(true)}><Merge className="h-3.5 w-3.5 mr-2" /> {tr("Unisci contatti")}</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setDeleteOpen(true)} className="text-destructive"><Trash2 className="h-3.5 w-3.5 mr-2" /> {tr("Elimina contatto")}</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
@@ -907,7 +908,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
             {contact.phone && (
               <a
                 href={`tel:${contact.phone}`}
-                aria-label="Chiama"
+                aria-label={tr("Chiama")}
                 className={cn("tap-compact flex h-9 w-11 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white active:bg-emerald-700", isPlatformContext && "flex-1")}
               >
                 <Phone className="h-4 w-4" />
@@ -935,7 +936,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
             )}
             {!isPlatformContext && (
               <div className="min-w-0 flex-1 [&>button]:w-full [&>a]:w-full">
-                <NewPreventivoMenu contactId={id ?? null} size="sm" label="Nuovo preventivo" className="tap-compact h-9 px-3 text-[13px] shadow-none hover:translate-y-0" />
+                <NewPreventivoMenu contactId={id ?? null} size="sm" label={tr("Nuovo preventivo")} className="tap-compact h-9 px-3 text-[13px] shadow-none hover:translate-y-0" />
               </div>
             )}
           </div>
@@ -973,13 +974,13 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                     {initials || "?"}
                   </AvatarFallback>
                 </Avatar>
-                <span className={cn("absolute -bottom-1 -right-1 inline-flex items-center justify-center h-6 w-6 rounded-full text-[10px] font-bold ring-2 ring-background", tierColor)} title={`ICP Tier ${icpTier}`}>
+                <span className={cn("absolute -bottom-1 -right-1 inline-flex items-center justify-center h-6 w-6 rounded-full text-[10px] font-bold ring-2 ring-background", tierColor)} title={tr("ICP Tier {icpTier}", { icpTier: String(icpTier ?? "") })}>
                   {icpTier}
                 </span>
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h1 className="text-lg sm:text-xl font-bold tracking-tight text-foreground truncate">{fullName || "Senza nome"}</h1>
+                  <h1 className="text-lg sm:text-xl font-bold tracking-tight text-foreground truncate">{fullName || tr("Senza nome")}</h1>
                   {contact.contact_type && (
                     <Badge variant="outline" className="text-[10px] h-5 px-1.5 capitalize max-md:text-[11px]">{contact.contact_type}</Badge>
                   )}
@@ -1009,7 +1010,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
             <div className="flex items-center gap-1.5 shrink-0">
               {contact.phone && (
                 <Button asChild variant="outline" size="sm" className="gap-1.5 h-9 border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100">
-                  <a href={`tel:${contact.phone}`}><Phone className="h-3.5 w-3.5" /> Chiama</a>
+                  <a href={`tel:${contact.phone}`}><Phone className="h-3.5 w-3.5" /> {tr("Chiama")}</a>
                 </Button>
               )}
               {contact.email && (
@@ -1025,10 +1026,10 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               {/* Registra chiamata: spostato qui tra le azioni di testata (prima
                   occupava una riga intera sopra la timeline). */}
               <LogCallButton companyId={companyId} contactId={id} userId={user?.id} className="gap-1.5 h-9" />
-              <Button variant="outline" size="sm" className="gap-1.5 h-9" onClick={() => setRightTab("appointments")}><CalendarDays className="h-3.5 w-3.5" /> Appuntam.</Button>
+              <Button variant="outline" size="sm" className="gap-1.5 h-9" onClick={() => setRightTab("appointments")}><CalendarDays className="h-3.5 w-3.5" /> {tr("Appuntam.")}</Button>
               {/* Crea preventivo dal contatto — SOLO area azienda: nel CRM di
                   piattaforma (superadmin) i preventivi non esistono. */}
-              {!isPlatformContext && <NewPreventivoMenu contactId={id ?? null} size="sm" label="Preventivo" />}
+              {!isPlatformContext && <NewPreventivoMenu contactId={id ?? null} size="sm" label={tr("Preventivo")} />}
               {/* Arricchimento scraper — SOLO piattaforma: sito+VIES+firmografici */}
               {isPlatformContext && (
                 <Button
@@ -1037,19 +1038,19 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   className="gap-1.5 h-9 border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100"
                   disabled={enriching}
                   onClick={openEnrichSetup}
-                  title="Scraping sito + VIES (visura light) + firmografici e PEC. Prima verifichi il sito, poi il motore compila i campi vuoti del contatto."
+                  title={tr("Scraping sito + VIES (visura light) + firmografici e PEC. Prima verifichi il sito, poi il motore compila i campi vuoti del contatto.")}
                 >
-                  {enriching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Radar className="h-3.5 w-3.5" />} Arricchisci
+                  {enriching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Radar className="h-3.5 w-3.5" />} {tr("Arricchisci")}
                 </Button>
               )}
               {isPlatformContext && !contact.email && (
-                <Button variant="outline" size="sm" className="gap-1.5 h-9" disabled={findingEmail} onClick={runFindEmail} title="Cerca l'email dal sito o la deduce dal dominio (verifica MX)">
-                  {findingEmail ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <AtSign className="h-3.5 w-3.5" />} Trova email
+                <Button variant="outline" size="sm" className="gap-1.5 h-9" disabled={findingEmail} onClick={runFindEmail} title={tr("Cerca l'email dal sito o la deduce dal dominio (verifica MX)")}>
+                  {findingEmail ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <AtSign className="h-3.5 w-3.5" />} {tr("Trova email")}
                 </Button>
               )}
               {isPlatformContext && contact.email && (
-                <Button variant="outline" size="sm" className="gap-1.5 h-9" disabled={verifyingEmail} onClick={runVerifyEmail} title="Verifica che l'email sia valida e consegnabile (sintassi + MX)">
-                  {verifyingEmail ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <AtSign className="h-3.5 w-3.5" />} Verifica email
+                <Button variant="outline" size="sm" className="gap-1.5 h-9" disabled={verifyingEmail} onClick={runVerifyEmail} title={tr("Verifica che l'email sia valida e consegnabile (sintassi + MX)")}>
+                  {verifyingEmail ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <AtSign className="h-3.5 w-3.5" />} {tr("Verifica email")}
                   {emailStatus === "valid" && <span className="text-emerald-600">✓</span>}
                   {emailStatus === "mx_ok" && <span className="text-emerald-600">✓</span>}
                   {(emailStatus === "invalid" || emailStatus === "no_mx") && <span className="text-red-600">✗</span>}
@@ -1058,8 +1059,8 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               <DropdownMenu>
                 <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-9 w-9"><ChevronDown className="h-4 w-4" /></Button></DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  {canEditContacts && (<DropdownMenuItem onClick={() => setMergeOpen(true)}><Merge className="h-3.5 w-3.5 mr-2" /> Unisci contatti</DropdownMenuItem>)}
-                  {canEditContacts && (<DropdownMenuItem onClick={() => setDeleteOpen(true)} className="text-destructive"><Trash2 className="h-3.5 w-3.5 mr-2" /> Elimina contatto</DropdownMenuItem>)}
+                  {canEditContacts && (<DropdownMenuItem onClick={() => setMergeOpen(true)}><Merge className="h-3.5 w-3.5 mr-2" /> {tr("Unisci contatti")}</DropdownMenuItem>)}
+                  {canEditContacts && (<DropdownMenuItem onClick={() => setDeleteOpen(true)} className="text-destructive"><Trash2 className="h-3.5 w-3.5 mr-2" /> {tr("Elimina contatto")}</DropdownMenuItem>)}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -1070,21 +1071,21 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               Stesso stile del KpiCard della scheda cliente. */}
           <div className="mt-1.5 grid grid-cols-4 gap-2">
             <div className="rounded-lg border bg-card px-3 py-1">
-              <div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold max-md:text-[11px]">Lead Score</span><Star className="h-3 w-3 text-amber-500" /></div>
+              <div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold max-md:text-[11px]">{tr("Lead Score")}</span><Star className="h-3 w-3 text-amber-500" /></div>
               <div className="flex items-baseline gap-1.5"><span className="text-base font-bold tabular-nums">{leadScore}</span><span className="text-[10px] text-muted-foreground max-md:text-[11px]">/ 100</span></div>
               <Progress value={leadScore} className="h-1 mt-0.5" />
             </div>
             <div className="rounded-lg border bg-card px-3 py-1">
-              <div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold max-md:text-[11px]">Opp. aperte</span><span className="text-[10px] text-emerald-600 font-bold max-md:text-[11px]">●</span></div>
-              <div className="flex items-baseline gap-1.5"><span className="text-base font-bold tabular-nums">{kpis?.openOppsCount ?? 0}</span>{kpis && kpis.totalOpps > 0 && <span className="text-[10px] text-muted-foreground max-md:text-[11px]">/ {kpis.totalOpps} tot</span>}<span className="text-[10px] text-muted-foreground ml-auto truncate max-md:text-[11px]">{fmtMoney(kpis?.openValue ?? 0)}</span></div>
+              <div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold max-md:text-[11px]">{tr("Opp. aperte")}</span><span className="text-[10px] text-emerald-600 font-bold max-md:text-[11px]">●</span></div>
+              <div className="flex items-baseline gap-1.5"><span className="text-base font-bold tabular-nums">{kpis?.openOppsCount ?? 0}</span>{kpis && kpis.totalOpps > 0 && <span className="text-[10px] text-muted-foreground max-md:text-[11px]">{tr("/ {totalOpps} tot", { totalOpps: String(kpis.totalOpps ?? "") })}</span>}<span className="text-[10px] text-muted-foreground ml-auto truncate max-md:text-[11px]">{fmtMoney(kpis?.openValue ?? 0)}</span></div>
             </div>
             <div className="rounded-lg border bg-card px-3 py-1">
-              <div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold max-md:text-[11px]">Appuntam.</span><CalendarDays className="h-3 w-3 text-blue-500" /></div>
-              <div className="flex items-baseline gap-1.5"><span className="text-base font-bold tabular-nums">{kpis?.apptsCount ?? 0}</span><span className="text-[10px] text-muted-foreground max-md:text-[11px]">totali</span></div>
+              <div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold max-md:text-[11px]">{tr("Appuntam.")}</span><CalendarDays className="h-3 w-3 text-blue-500" /></div>
+              <div className="flex items-baseline gap-1.5"><span className="text-base font-bold tabular-nums">{kpis?.apptsCount ?? 0}</span><span className="text-[10px] text-muted-foreground max-md:text-[11px]">{tr("totali")}</span></div>
             </div>
             <div className="rounded-lg border bg-card px-3 py-1">
-              <div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold max-md:text-[11px]">Ultima att.</span><Bell className="h-3 w-3 text-rose-500" /></div>
-              <div className="flex items-baseline gap-1.5"><span className="text-sm font-bold leading-tight">{lastActivityLabel}</span><span className="text-[10px] text-muted-foreground ml-auto truncate max-md:text-[11px]">{activities.length} att.</span></div>
+              <div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold max-md:text-[11px]">{tr("Ultima att.")}</span><Bell className="h-3 w-3 text-rose-500" /></div>
+              <div className="flex items-baseline gap-1.5"><span className="text-sm font-bold leading-tight">{lastActivityLabel}</span><span className="text-[10px] text-muted-foreground ml-auto truncate max-md:text-[11px]">{tr("{n} att.", { n: activities.length })}</span></div>
             </div>
           </div>
 
@@ -1092,9 +1093,9 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
           {contact.customer_profile_id && (
             <div className="mt-2 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs">
               <UserCheck className="h-4 w-4 text-emerald-600 shrink-0" />
-              <span className="text-emerald-700 font-medium flex-1">Questo contatto è già stato convertito in cliente</span>
+              <span className="text-emerald-700 font-medium flex-1">{tr("Questo contatto è già stato convertito in cliente")}</span>
               <Button variant="link" size="sm" className="h-auto p-0 text-xs text-emerald-700 underline" onClick={() => navigate(`/azienda/clienti/${contact.customer_profile_id}`)}>
-                Apri scheda cliente →
+                {tr("Apri scheda cliente →")}
               </Button>
             </div>
           )}
@@ -1109,7 +1110,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
           {contact.customer_profile_id && (
             <RigaMobile
               sinistra={<UserCheck className="h-4 w-4 shrink-0 text-emerald-600" />}
-              titolo="Scheda cliente"
+              titolo={tr("Scheda cliente")}
               className="py-3.5"
               onClick={() => navigate(`/azienda/clienti/${contact.customer_profile_id}`)}
             />
@@ -1131,7 +1132,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               <RigaMobile
                 key={key}
                 sinistra={<Icona className="h-4 w-4 shrink-0 text-muted-foreground" />}
-                titolo={key === "appointments" ? "Appuntamenti" : tab.label}
+                titolo={key === "appointments" ? tr("Appuntamenti") : tab.label}
                 valore={n ? n : undefined}
                 className="py-3.5"
                 onClick={() => setRightTab(key)}
@@ -1153,7 +1154,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
         <div className={cn("lg:hidden px-4 py-2 border-b bg-muted/30 sticky top-0 z-10", compatta && "hidden")}>
           <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
             <User className="h-4 w-4 text-muted-foreground" />
-            Anagrafica completa
+            {tr("Anagrafica completa")}
           </h3>
         </div>
         <ScrollArea className="flex-1">
@@ -1163,14 +1164,14 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               <div>
                 <div className="flex items-center gap-1 mb-0.5">
                   <User className="h-3 w-3 text-muted-foreground" />
-                  <Label className="text-xs text-muted-foreground">Titolare</Label>
+                  <Label className="text-xs text-muted-foreground">{tr("Titolare")}</Label>
                 </div>
                 <Select
                   value={contact.assigned_to || ""}
                   onValueChange={(v) => updateField.mutate({ field: "assigned_to", value: v || null })}
                   disabled={!canEditContacts}
                 >
-                  <SelectTrigger className="tap-compact h-7 text-xs border-dashed"><SelectValue placeholder="Non assegnato" /></SelectTrigger>
+                  <SelectTrigger className="tap-compact h-7 text-xs border-dashed"><SelectValue placeholder={tr("Non assegnato")} /></SelectTrigger>
                   <SelectContent>
                     {salespeople.map((s: any) => (
                       <SelectItem key={s.id} value={s.id} className="text-xs">{s.first_name} {s.last_name}</SelectItem>
@@ -1181,14 +1182,14 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               <div>
                 <div className="flex items-center gap-1 mb-0.5">
                   <User className="h-3 w-3 text-muted-foreground" />
-                  <Label className="text-xs text-muted-foreground">Follower</Label>
+                  <Label className="text-xs text-muted-foreground">{tr("Follower")}</Label>
                 </div>
                 <Select
                   value={contact.follower_id || ""}
                   onValueChange={(v) => updateField.mutate({ field: "follower_id", value: v || null })}
                   disabled={!canEditContacts}
                 >
-                  <SelectTrigger className="tap-compact h-7 text-xs border-dashed"><SelectValue placeholder="Nessuno" /></SelectTrigger>
+                  <SelectTrigger className="tap-compact h-7 text-xs border-dashed"><SelectValue placeholder={tr("Nessuno")} /></SelectTrigger>
                   <SelectContent>
                     {staff.map((s: any) => (
                       <SelectItem key={s.id} value={s.id} className="text-xs">{s.first_name} {s.last_name}</SelectItem>
@@ -1199,14 +1200,14 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               <div>
                 <div className="flex items-center gap-1 mb-0.5">
                   <Phone className="h-3 w-3 text-muted-foreground" />
-                  <Label className="text-xs text-muted-foreground">Call Center</Label>
+                  <Label className="text-xs text-muted-foreground">{tr("Call Center")}</Label>
                 </div>
                 <Select
                   value={(contact as any).call_center_id || ""}
                   onValueChange={(v) => updateField.mutate({ field: "call_center_id", value: v || null })}
                   disabled={!canEditContacts}
                 >
-                  <SelectTrigger className="tap-compact h-7 text-xs border-dashed"><SelectValue placeholder="Nessuno" /></SelectTrigger>
+                  <SelectTrigger className="tap-compact h-7 text-xs border-dashed"><SelectValue placeholder={tr("Nessuno")} /></SelectTrigger>
                   <SelectContent>
                     {callCenterUsers.map((s: any) => (
                       <SelectItem key={s.id} value={s.id} className="text-xs">{s.first_name} {s.last_name}</SelectItem>
@@ -1219,9 +1220,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
             {/* Tags / Etichette */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <Label className="text-xs text-muted-foreground">
-                  Etichette ({(contact.tags || []).length})
-                </Label>
+                <Label className="text-xs text-muted-foreground">{tr("Etichette ({n})", { n: (contact.tags || []).length })}</Label>
                 {canEditContacts && (
                 <Popover open={tagPopoverOpen} onOpenChange={setTagPopoverOpen}>
                   <PopoverTrigger asChild>
@@ -1274,12 +1273,12 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
             {/* Left column tabs */}
             <Tabs defaultValue="all_fields" className="w-full">
               <TabsList className="w-full h-8 p-0.5">
-                <TabsTrigger value="all_fields" className="tap-compact flex-1 text-xs h-7">Tutti i campi</TabsTrigger>
+                <TabsTrigger value="all_fields" className="tap-compact flex-1 text-xs h-7">{tr("Tutti i campi")}</TabsTrigger>
                 <TabsTrigger value="dnd" className="tap-compact flex-1 text-xs h-7">DND</TabsTrigger>
                 {/* Mobile: due schede. Azioni (automazioni sul contatto) e Listino
                     sono lavoro da scrivania. */}
-                <TabsTrigger value="actions" className="flex-1 text-xs h-7 max-lg:hidden">Azioni</TabsTrigger>
-                <TabsTrigger value="listino" className="flex-1 text-xs h-7 max-lg:hidden">Listino</TabsTrigger>
+                <TabsTrigger value="actions" className="flex-1 text-xs h-7 max-lg:hidden">{tr("Azioni")}</TabsTrigger>
+                <TabsTrigger value="listino" className="flex-1 text-xs h-7 max-lg:hidden">{tr("Listino")}</TabsTrigger>
               </TabsList>
 
               <TabsContent value="listino" className="mt-2">
@@ -1291,7 +1290,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 <div className="relative max-lg:hidden">
                   <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
                   <Input
-                    placeholder="Cerca campi e cartelle"
+                    placeholder={tr("Cerca campi e cartelle")}
                     value={fieldSearch}
                     onChange={(e) => setFieldSearch(e.target.value)}
                     className="h-7 text-[11px] pl-7 pr-7"
@@ -1303,17 +1302,17 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 <Collapsible defaultOpen>
                   <CollapsibleTrigger className="flex items-center gap-1 text-xs font-semibold w-full group py-1 hover:bg-muted/50 rounded px-1">
                     <ChevronDown className="h-3 w-3 transition-transform group-data-[state=closed]:-rotate-90" />
-                    Contatto
+                    {tr("Contatto")}
                   </CollapsibleTrigger>
                   <CollapsibleContent className="px-1 space-y-0">
-                    <InlineField label="Nome" value={contact.first_name} onSave={(v) => updateField.mutate({ field: "first_name", value: v })} disabled={!canEditContacts} />
-                    <InlineField label="Cognome" value={contact.last_name || ""} onSave={(v) => updateField.mutate({ field: "last_name", value: v })} disabled={!canEditContacts} />
+                    <InlineField label={tr("Nome")} value={contact.first_name} onSave={(v) => updateField.mutate({ field: "first_name", value: v })} disabled={!canEditContacts} />
+                    <InlineField label={tr("Cognome")} value={contact.last_name || ""} onSave={(v) => updateField.mutate({ field: "last_name", value: v })} disabled={!canEditContacts} />
                     <InlineField label="Email" value={contact.email || ""} onSave={(v) => updateField.mutate({ field: "email", value: v })} type="email" disabled={!canEditContacts} />
-                    <InlineField label="Telefono" value={contact.phone || ""} onSave={(v) => updateField.mutate({ field: "phone", value: v })} type="tel" disabled={!canEditContacts} />
-                    <InlineField label="Data di nascita" value={contact.date_of_birth || ""} onSave={(v) => updateField.mutate({ field: "date_of_birth", value: v || null })} type="date" disabled={!canEditContacts} />
-                    <InlineField label="Fonte" value={contact.source || ""} onSave={(v) => updateField.mutate({ field: "source", value: v })} disabled={!canEditContacts} />
+                    <InlineField label={tr("Telefono")} value={contact.phone || ""} onSave={(v) => updateField.mutate({ field: "phone", value: v })} type="tel" disabled={!canEditContacts} />
+                    <InlineField label={tr("Data di nascita")} value={contact.date_of_birth || ""} onSave={(v) => updateField.mutate({ field: "date_of_birth", value: v || null })} type="date" disabled={!canEditContacts} />
+                    <InlineField label={tr("Fonte")} value={contact.source || ""} onSave={(v) => updateField.mutate({ field: "source", value: v })} disabled={!canEditContacts} />
                     <InlineField
-                      label="Tipo contatto"
+                      label={tr("Tipo contatto")}
                       value={contact.contact_type || "lead"}
                       onSave={(v) => updateField.mutate({ field: "contact_type", value: v })}
                       type="select"
@@ -1327,14 +1326,14 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 <Collapsible defaultOpen>
                   <CollapsibleTrigger className="flex items-center gap-1 text-xs font-semibold w-full group py-1 hover:bg-muted/50 rounded px-1">
                     <ChevronDown className="h-3 w-3 transition-transform group-data-[state=closed]:-rotate-90" />
-                    Informazioni generali
+                    {tr("Informazioni generali")}
                   </CollapsibleTrigger>
                   <CollapsibleContent className="px-1 space-y-0">
-                    <InlineField label="Azienda" value={contact.company_name || ""} onSave={(v) => updateField.mutate({ field: "company_name", value: v })} disabled={!canEditContacts} />
+                    <InlineField label={tr("Azienda")} value={contact.company_name || ""} onSave={(v) => updateField.mutate({ field: "company_name", value: v })} disabled={!canEditContacts} />
                     {/* Codice fiscale e partita IVA (30/10/2026): c'erano nel database ma non nella scheda; i preventivi li prendono da qui. */}
-                    <InlineField label="Partita IVA" value={contact.vat_number || ""} onSave={(v) => updateField.mutate({ field: "vat_number", value: v.replace(/\s+/g, "").toUpperCase().replace(/^IT/, "") || null })} disabled={!canEditContacts} />
-                    <InlineField label="Codice fiscale" value={contact.fiscal_code || ""} onSave={(v) => updateField.mutate({ field: "fiscal_code", value: v.replace(/\s+/g, "").toUpperCase() || null })} disabled={!canEditContacts} />
-                    <InlineField label="Indirizzo" value={contact.address || ""} onSave={(v) => updateField.mutate({ field: "address", value: v })} disabled={!canEditContacts}
+                    <InlineField label={tr("Partita IVA")} value={contact.vat_number || ""} onSave={(v) => updateField.mutate({ field: "vat_number", value: v.replace(/\s+/g, "").toUpperCase().replace(/^IT/, "") || null })} disabled={!canEditContacts} />
+                    <InlineField label={tr("Codice fiscale")} value={contact.fiscal_code || ""} onSave={(v) => updateField.mutate({ field: "fiscal_code", value: v.replace(/\s+/g, "").toUpperCase() || null })} disabled={!canEditContacts} />
+                    <InlineField label={tr("Indirizzo")} value={contact.address || ""} onSave={(v) => updateField.mutate({ field: "address", value: v })} disabled={!canEditContacts}
                       indirizzo
                       onSelectIndirizzo={(a) => {
                         const extra: Record<string, string | null> = {};
@@ -1348,7 +1347,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                         updateField.mutate({ field: "address", value: a.via || null, extra });
                       }}
                     />
-                    <InlineField label="Città" value={contact.city || ""} onSave={(v) => updateField.mutate({ field: "city", value: v })} disabled={!canEditContacts}
+                    <InlineField label={tr("Città")} value={contact.city || ""} onSave={(v) => updateField.mutate({ field: "city", value: v })} disabled={!canEditContacts}
                       comuneMode="comune"
                       onSelectComune={(c) => {
                         updateField.mutate({ field: "city", value: c.comune });
@@ -1357,8 +1356,8 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                         if (!contact.postal_code) updateField.mutate({ field: "postal_code", value: c.cap });
                       }}
                     />
-                    <InlineField label="Provincia" value={contact.province || ""} onSave={(v) => updateField.mutate({ field: "province", value: v })} disabled={!canEditContacts} />
-                    <InlineField label="Regione" value={(contact as any).region || ""} onSave={(v) => updateField.mutate({ field: "region", value: v })} disabled={!canEditContacts} />
+                    <InlineField label={tr("Provincia")} value={contact.province || ""} onSave={(v) => updateField.mutate({ field: "province", value: v })} disabled={!canEditContacts} />
+                    <InlineField label={tr("Regione")} value={(contact as any).region || ""} onSave={(v) => updateField.mutate({ field: "region", value: v })} disabled={!canEditContacts} />
                     <InlineField label="CAP" value={contact.postal_code || ""} onSave={(v) => updateField.mutate({ field: "postal_code", value: v })} disabled={!canEditContacts}
                       comuneMode="cap"
                       onSelectComune={(c) => {
@@ -1368,8 +1367,8 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                         updateField.mutate({ field: "region", value: c.regione });
                       }}
                     />
-                    <InlineField label="Paese" value={contact.country || ""} onSave={(v) => updateField.mutate({ field: "country", value: v })} disabled={!canEditContacts} />
-                    <InlineField label="Sito web" value={contact.website || ""} onSave={(v) => updateField.mutate({ field: "website", value: v })} disabled={!canEditContacts} />
+                    <InlineField label={tr("Paese")} value={contact.country || ""} onSave={(v) => updateField.mutate({ field: "country", value: v })} disabled={!canEditContacts} />
+                    <InlineField label={tr("Sito web")} value={contact.website || ""} onSave={(v) => updateField.mutate({ field: "website", value: v })} disabled={!canEditContacts} />
                   </CollapsibleContent>
                 </Collapsible>
 
@@ -1378,7 +1377,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   <Collapsible defaultOpen>
                     <CollapsibleTrigger className="flex items-center gap-1 text-xs font-semibold w-full group py-1 hover:bg-muted/50 rounded px-1">
                       <ChevronDown className="h-3 w-3 transition-transform group-data-[state=closed]:-rotate-90" />
-                      Campi personalizzati
+                      {tr("Campi personalizzati")}
                     </CollapsibleTrigger>
                     <CollapsibleContent className="px-1 space-y-0">
                       {customFields
@@ -1403,20 +1402,20 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 <Collapsible defaultOpen>
                   <CollapsibleTrigger className="flex items-center gap-1 text-xs font-semibold w-full group py-1 hover:bg-muted/50 rounded px-1">
                     <ChevronDown className="h-3 w-3 transition-transform group-data-[state=closed]:-rotate-90" />
-                    Lead Score
+                    {tr("Lead Score")}
                   </CollapsibleTrigger>
                   <CollapsibleContent className="px-1 space-y-2 pt-1">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground">Punteggio totale</span>
+                      <span className="text-xs text-muted-foreground">{tr("Punteggio totale")}</span>
                       <span className="text-sm font-bold">{contact.lead_score ?? 0}/100</span>
                     </div>
                     <Progress value={contact.lead_score ?? 0} className="h-2" />
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground">ICP Score</span>
+                      <span className="text-xs text-muted-foreground">{tr("ICP Score")}</span>
                       <span className="text-xs font-medium">{contact.icp_score ?? 0}/50</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground">ICP Tier</span>
+                      <span className="text-xs text-muted-foreground">{tr("ICP Tier")}</span>
                       <Badge variant={
                         contact.icp_tier === "A" ? "default" :
                         contact.icp_tier === "B" ? "secondary" : "outline"
@@ -1463,13 +1462,13 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                             last_score_update: new Date().toISOString(),
                           }).eq("id", id).eq("company_id", companyId);
                           void refreshCrmContacts(queryClient, companyId, id);
-                          toast.success(`Lead Score aggiornato: ${result.leadScore}/100 (Tier ${tier})`);
+                          toast.success(tr("Lead Score aggiornato: {leadScore}/100 (Tier {tier})", { leadScore: String(result.leadScore ?? ""), tier: String(tier ?? "") }));
                         } catch (err: any) {
-                          toast.error(err.message || "Errore ricalcolo");
+                          toast.error(err.message || tr("Errore ricalcolo"));
                         }
                       }}
                     >
-                      <RefreshCw className="h-3 w-3" /> Ricalcola
+                      <RefreshCw className="h-3 w-3" /> {tr("Ricalcola")}
                     </Button>
 
                     {/* AI Score Silvio (FASE D) */}
@@ -1480,7 +1479,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                       onClick={async () => {
                         if (!id || !companyId) return;
                         try {
-                          toast.info("AI sta analizzando il contatto...");
+                          toast.info(tr("AI sta analizzando il contatto..."));
                           const { data, error } = await supabase.functions.invoke("ai-lead-score", {
                             body: { contact_id: id, company_id: companyId },
                           });
@@ -1497,7 +1496,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                         }
                       }}
                     >
-                      <Sparkles className="h-3 w-3 text-violet-600" /> AI Score Silvio
+                      <Sparkles className="h-3 w-3 text-violet-600" /> {tr("AI Score Silvio")}
                     </Button>
 
                     {/* AI Score result display */}
@@ -1505,7 +1504,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                       <div className="mt-2 rounded border border-violet-200 bg-violet-50/50 p-2 space-y-1">
                         <div className="flex items-center justify-between text-xs">
                           <span className="text-violet-700 font-medium flex items-center gap-1">
-                            <Sparkles className="h-3 w-3" /> AI Score
+                            <Sparkles className="h-3 w-3" /> {tr("AI Score")}
                           </span>
                           <Badge variant="outline" className="text-[10px] h-4 px-1.5 bg-white">
                             {contact.ai_score}/100 · {contact.ai_score_tier ?? "—"}
@@ -1518,7 +1517,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                         )}
                         {contact.ai_next_action && (
                           <p className="text-[11px] text-violet-900">
-                            <strong>Azione:</strong> {contact.ai_next_action}
+                            <strong>{tr("Azione:")}</strong> {contact.ai_next_action}
                           </p>
                         )}
                       </div>
@@ -1530,7 +1529,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 <Collapsible>
                   <CollapsibleTrigger className="flex items-center gap-1 text-xs font-semibold w-full group py-1 hover:bg-muted/50 rounded px-1">
                     <ChevronDown className="h-3 w-3 transition-transform group-data-[state=closed]:-rotate-90" />
-                    Attribuzione
+                    {tr("Attribuzione")}
                   </CollapsibleTrigger>
                   <CollapsibleContent>
                     {companyId && id && (
@@ -1541,8 +1540,8 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
 
                 {/* Created info */}
                 <div className="pt-2 text-[10px] text-muted-foreground px-1 max-md:text-[11px]">
-                  <p>Creato il: {format(new Date(contact.created_at), "dd MMM yyyy, HH:mm", { locale: it })}</p>
-                  {contact.source && <p>Fonte: {etichettaFonte(contact.source)}</p>}
+                  <p>{tr("Creato il: {valore}", { valore: format(new Date(contact.created_at), "dd MMM yyyy, HH:mm", { locale: dateFnsCampo() }) })}</p>
+                  {contact.source && <p>{tr("Fonte: {source}", { source: String(etichettaFonte(contact.source) ?? "") })}</p>}
                 </div>
               </TabsContent>
 
@@ -1611,15 +1610,13 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
           {/* Riga contestuale: spiega il canale attivo (e per SMS/WA il limite). */}
           {messageChannel === "whatsapp_locale" && (
             <p className="px-3.5 pt-1.5 text-[11px] text-teal-700 flex items-center gap-1">
-              <MessageSquare className="h-3 w-3 shrink-0" /> Canale non ufficiale · pool numeri piattaforma · nessuna finestra 24h
+              <MessageSquare className="h-3 w-3 shrink-0" /> {tr("Canale non ufficiale · pool numeri piattaforma · nessuna finestra 24h")}
             </p>
           )}
           {messageChannel === "sms" && (
             <p className="px-3.5 pt-1.5 text-[11px] text-muted-foreground flex items-center justify-between">
-              <span className="flex items-center gap-1"><Smartphone className="h-3 w-3" /> Messaggio breve</span>
-              <span className={cn("tabular-nums", messageText.length > 160 && "text-amber-600 font-medium")}>
-                {messageText.length} caratteri · {Math.max(1, Math.ceil(messageText.length / 160))} SMS
-              </span>
+              <span className="flex items-center gap-1"><Smartphone className="h-3 w-3" /> {tr("Messaggio breve")}</span>
+              <span className={cn("tabular-nums", messageText.length > 160 && "text-amber-600 font-medium")}>{tr("{n} caratteri · {valore} SMS", { n: messageText.length, valore: Math.max(1, Math.ceil(messageText.length / 160)) })}</span>
             </p>
           )}
           {messageChannel === "email" && (
@@ -1627,7 +1624,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               {/* Riga oggetto + toggle Cc/Ccn (stile Gmail) */}
               <div className="flex items-center gap-2">
                 <Input
-                  placeholder="Oggetto email..."
+                  placeholder={tr("Oggetto email...")}
                   value={emailSubject}
                   onChange={(e) => setEmailSubject(e.target.value.slice(0, 200))}
                   className="border-0 bg-muted/50 shadow-none h-7 text-xs flex-1"
@@ -1640,7 +1637,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                       className="text-blue-600 hover:underline font-medium"
                       onClick={() => setEmailCcVisible(true)}
                     >
-                      + Cc
+                      {tr("+ Cc")}
                     </button>
                   )}
                   {!emailBccVisible && (
@@ -1649,7 +1646,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                       className="text-blue-600 hover:underline font-medium"
                       onClick={() => setEmailBccVisible(true)}
                     >
-                      + Ccn
+                      {tr("+ Ccn")}
                     </button>
                   )}
                 </div>
@@ -1657,7 +1654,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               {/* Cc input (visible only on toggle) */}
               {emailCcVisible && (
                 <div className="flex items-center gap-1">
-                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground w-8 shrink-0 max-md:text-[11px]">Cc</Label>
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground w-8 shrink-0 max-md:text-[11px]">{tr("Cc")}</Label>
                   <Input
                     placeholder="email1@esempio.it, email2@esempio.it"
                     value={emailCc}
@@ -1669,14 +1666,14 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                     className="text-[10px] text-muted-foreground hover:text-foreground shrink-0 max-md:text-[11px]"
                     onClick={() => { setEmailCcVisible(false); setEmailCc(""); }}
                   >
-                    Rimuovi
+                    {tr("Rimuovi")}
                   </button>
                 </div>
               )}
               {/* Ccn (Bcc) input (visible only on toggle) */}
               {emailBccVisible && (
                 <div className="flex items-center gap-1">
-                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground w-8 shrink-0 max-md:text-[11px]">Ccn</Label>
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground w-8 shrink-0 max-md:text-[11px]">{tr("Ccn")}</Label>
                   <Input
                     placeholder="nascosti@esempio.it (gli altri non vedono questi)"
                     value={emailBcc}
@@ -1688,7 +1685,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                     className="text-[10px] text-muted-foreground hover:text-foreground shrink-0 max-md:text-[11px]"
                     onClick={() => { setEmailBccVisible(false); setEmailBcc(""); }}
                   >
-                    Rimuovi
+                    {tr("Rimuovi")}
                   </button>
                 </div>
               )}
@@ -1740,7 +1737,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               <>
                 <Textarea
                   ref={composerRef}
-                  placeholder="Scrivi il messaggio WhatsApp…"
+                  placeholder={tr("Scrivi il messaggio WhatsApp…")}
                   value={messageText}
                   onChange={(e) => setMessageText(e.target.value.slice(0, 4096))}
                   onInput={(e) => autoGrow(e.currentTarget)}
@@ -1761,7 +1758,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               <>
                 <Textarea
                   ref={composerRef}
-                  placeholder={messageChannel === "email" ? "Scrivi l'email…" : "Scrivi l'SMS…"}
+                  placeholder={messageChannel === "email" ? tr("Scrivi l'email…") : tr("Scrivi l'SMS…")}
                   value={messageText}
                   onChange={(e) => setMessageText(e.target.value.slice(0, 5000))}
                   onInput={(e) => autoGrow(e.currentTarget)}
@@ -1822,11 +1819,11 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium">
                 {/* Compatta: stesso nome della riga toccata in «Collegati». */}
-                {compatta && rightTab === "appointments" ? "Appuntamenti" : RIGHT_TABS.find(t => t.key === rightTab)?.label}
+                {compatta && rightTab === "appointments" ? tr("Appuntamenti") : RIGHT_TABS.find(t => t.key === rightTab)?.label}
               </span>
               {rightTab === "documents" && (
                 <Button variant="ghost" size="sm" className="h-6 text-[10px] text-primary max-md:text-[11px]">
-                  <Plus className="h-3 w-3 mr-0.5" /> Aggiungi
+                  <Plus className="h-3 w-3 mr-0.5" /> {tr("Aggiungi")}
                 </Button>
               )}
             </div>
@@ -1888,7 +1885,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               {rightTab === "notes" && (
                 <div className="space-y-2.5">
                   <Textarea
-                    placeholder="Scrivi una nota..."
+                    placeholder={tr("Scrivi una nota...")}
                     value={newNote}
                     onChange={(e) => setNewNote(e.target.value)}
                     rows={3}
@@ -1899,10 +1896,10 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                     className="w-full h-7 text-[11px]"
                     // La nota va su marketing_contact_notes: la RLS chiede can_edit_marketing_contacts.
                     disabled={!newNote.trim() || addNote.isPending || !canEditContacts}
-                    title={!canEditContacts ? (permissions.solaLettura ? "Sei in sola lettura" : "Non hai il permesso di modifica") : undefined}
+                    title={!canEditContacts ? (permissions.solaLettura ? tr("Sei in sola lettura") : tr("Non hai il permesso di modifica")) : undefined}
                     onClick={() => addNote.mutate(newNote.trim())}
                   >
-                    <Plus className="h-3 w-3 mr-1" /> Aggiungi nota
+                    <Plus className="h-3 w-3 mr-1" /> {tr("Aggiungi nota")}
                   </Button>
                   <div className="space-y-2 pt-1">
                     {notes.map((note: any) => (
@@ -1919,13 +1916,13 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                         })}
                         intestazione={
                           note.opportunity_id ? (
-                            <Badge variant="outline" className="text-[9px] h-4 px-1.5 mb-0.5">Opportunità</Badge>
+                            <Badge variant="outline" className="text-[9px] h-4 px-1.5 mb-0.5">{tr("Opportunità")}</Badge>
                           ) : null
                         }
                       />
                     ))}
                     {notes.length === 0 && (
-                      <p className="text-[11px] text-muted-foreground text-center py-4">Nessuna nota</p>
+                      <p className="text-[11px] text-muted-foreground text-center py-4">{tr("Nessuna nota")}</p>
                     )}
                   </div>
                 </div>
@@ -1960,7 +1957,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               {rightTab === "settings" && (
                 <div className="space-y-4">
                   <div>
-                    <Label className="text-[11px] font-medium">Lingua preferita</Label>
+                    <Label className="text-[11px] font-medium">{tr("Lingua preferita")}</Label>
                     <Select
                       value={(contact as any).preferred_language || "italiano"}
                       onValueChange={(val) => updateField.mutate({ field: "preferred_language", value: val })}
@@ -1969,17 +1966,17 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="italiano">Italiano</SelectItem>
-                        <SelectItem value="inglese">Inglese</SelectItem>
-                        <SelectItem value="tedesco">Tedesco</SelectItem>
-                        <SelectItem value="francese">Francese</SelectItem>
-                        <SelectItem value="spagnolo">Spagnolo</SelectItem>
+                        <SelectItem value="italiano">{tr("Italiano")}</SelectItem>
+                        <SelectItem value="inglese">{tr("Inglese")}</SelectItem>
+                        <SelectItem value="tedesco">{tr("Tedesco")}</SelectItem>
+                        <SelectItem value="francese">{tr("Francese")}</SelectItem>
+                        <SelectItem value="spagnolo">{tr("Spagnolo")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div>
-                    <Label className="text-[11px] font-medium">Canale preferito</Label>
+                    <Label className="text-[11px] font-medium">{tr("Canale preferito")}</Label>
                     <Select
                       value={(contact as any).preferred_channel || "whatsapp"}
                       onValueChange={(val) => updateField.mutate({ field: "preferred_channel", value: val })}
@@ -1996,7 +1993,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   </div>
 
                   <div className="space-y-3 pt-2 border-t">
-                    <Label className="text-[11px] font-medium">Opt-out comunicazioni</Label>
+                    <Label className="text-[11px] font-medium">{tr("Opt-out comunicazioni")}</Label>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <MessageSquare className="h-3.5 w-3.5 text-emerald-600" />
@@ -2030,7 +2027,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Phone className="h-3.5 w-3.5 text-orange-600" />
-                        <span className="text-[11px]">Chiamate</span>
+                        <span className="text-[11px]">{tr("Chiamate")}</span>
                       </div>
                       <Switch
                         checked={(contact as any).optout_call || false}
@@ -2040,7 +2037,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                     {(contact as any).unsubscribed && (
                       <div className="text-[10px] text-destructive flex items-center gap-1 mt-1 max-md:text-[11px]">
                         <AlertCircle className="h-3 w-3" />
-                        Disiscritto il {(contact as any).unsubscribed_at ? format(new Date((contact as any).unsubscribed_at), "dd/MM/yyyy", { locale: it }) : "data sconosciuta"}
+                        {tr("Disiscritto il")} {(contact as any).unsubscribed_at ? format(new Date((contact as any).unsubscribed_at), "dd/MM/yyyy", { locale: dateFnsCampo() }) : tr("data sconosciuta")}
                       </div>
                     )}
                   </div>
@@ -2091,18 +2088,18 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare questo contatto?</AlertDialogTitle>
+            <AlertDialogTitle>{tr("Eliminare questo contatto?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Questa azione è irreversibile. Tutti i dati associati verranno eliminati.
+              {tr("Questa azione è irreversibile. Tutti i dati associati verranno eliminati.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => deleteContact.mutate()}
             >
-              Elimina
+              {tr("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -2112,28 +2109,27 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       <Dialog open={enrichSetupOpen} onOpenChange={setEnrichSetupOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Radar className="h-4 w-4 text-orange-600" /> Arricchisci contatto</DialogTitle>
+            <DialogTitle className="flex items-center gap-2"><Radar className="h-4 w-4 text-orange-600" /> {tr("Arricchisci contatto")}</DialogTitle>
             <DialogDescription className="text-xs">
-              Controlla che il sito sia quello giusto (o cercalo dal nome): lo scraping legge email, telefoni e P.IVA da lì.
-              VIES e registri usano la P.IVA. I campi vuoti del contatto verranno compilati.
+              {tr("Controlla che il sito sia quello giusto (o cercalo dal nome): lo scraping legge email, telefoni e P.IVA da lì. VIES e registri usano la P.IVA. I campi vuoti del contatto verranno compilati.")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1">
-              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground max-md:text-[11px]">Ragione sociale</Label>
-              <Input value={enrichName} onChange={(e) => setEnrichName(e.target.value)} placeholder="Es. Rossi Costruzioni SRL" className="h-8 text-xs" />
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground max-md:text-[11px]">{tr("Ragione sociale")}</Label>
+              <Input value={enrichName} onChange={(e) => setEnrichName(e.target.value)} placeholder={tr("Es. Rossi Costruzioni SRL")} className="h-8 text-xs" />
             </div>
             <div className="space-y-1">
-              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground max-md:text-[11px]">Sito web</Label>
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground max-md:text-[11px]">{tr("Sito web")}</Label>
               <div className="flex gap-1.5">
                 <Input value={enrichWebsite} onChange={(e) => setEnrichWebsite(e.target.value)} placeholder="https://…" className="h-8 text-xs flex-1" />
                 {enrichWebsite.trim() && (
-                  <Button asChild variant="outline" size="sm" className="h-8 px-2 text-xs shrink-0" title="Apri il sito per controllarlo">
+                  <Button asChild variant="outline" size="sm" className="h-8 px-2 text-xs shrink-0" title={tr("Apri il sito per controllarlo")}>
                     <a href={enrichWebsite.startsWith("http") ? enrichWebsite : `https://${enrichWebsite}`} target="_blank" rel="noreferrer"><Globe className="h-3.5 w-3.5" /></a>
                   </Button>
                 )}
                 <Button variant="outline" size="sm" className="h-8 text-xs shrink-0 gap-1" disabled={findingSite || !enrichName.trim()} onClick={findWebsite}>
-                  {findingSite ? <Loader2 className="h-3 w-3 animate-spin" /> : <Search className="h-3 w-3" />} Cerca sito
+                  {findingSite ? <Loader2 className="h-3 w-3 animate-spin" /> : <Search className="h-3 w-3" />} {tr("Cerca sito")}
                 </Button>
               </div>
               {siteCandidates !== null && (
@@ -2157,24 +2153,24 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                           className="text-[10px] text-primary underline shrink-0 max-md:text-[11px]"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          apri
+                          {tr("apri")}
                         </a>
                       </button>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-[11px] text-muted-foreground mt-1">Nessun candidato trovato: inserisci il sito a mano o vai di P.IVA.</p>
+                  <p className="text-[11px] text-muted-foreground mt-1">{tr("Nessun candidato trovato: inserisci il sito a mano o vai di P.IVA.")}</p>
                 )
               )}
             </div>
             <div className="space-y-1">
               <Label className="text-[10px] uppercase tracking-wider text-muted-foreground max-md:text-[11px]">P.IVA</Label>
-              <Input value={enrichPiva} onChange={(e) => setEnrichPiva(e.target.value)} placeholder="11 cifre (per VIES e registro imprese)" className="h-8 text-xs" />
+              <Input value={enrichPiva} onChange={(e) => setEnrichPiva(e.target.value)} placeholder={tr("11 cifre (per VIES e registro imprese)")} className="h-8 text-xs" />
             </div>
-            <p className="text-[10px] text-muted-foreground pt-1 max-md:text-[11px]">Basta uno dei tre campi; più ne dai, meglio incrocia.</p>
+            <p className="text-[10px] text-muted-foreground pt-1 max-md:text-[11px]">{tr("Basta uno dei tre campi; più ne dai, meglio incrocia.")}</p>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
               <Button size="sm" className="flex-1 gap-1.5 bg-orange-600 hover:bg-orange-700" disabled={enriching || (!enrichWebsite.trim() && !enrichPiva.trim() && !enrichName.trim())} onClick={runEnrich}>
-                {enriching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Radar className="h-3.5 w-3.5" />} Avvia arricchimento
+                {enriching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Radar className="h-3.5 w-3.5" />} {tr("Avvia arricchimento")}
               </Button>
               {/* Visura/bilancio openapi (a parte perché consuma crediti openapi
                   e richiede la P.IVA): anagrafica camerale completa + bilancio + soci */}
@@ -2184,9 +2180,9 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 className="flex-1 gap-1.5 border-slate-300"
                 disabled={visuraLoading || (enrichPiva.replace(/\D/g, "").length !== 11 && ((contact as { vat_number?: string | null })?.vat_number?.replace(/\D/g, "").length !== 11))}
                 onClick={runVisura}
-                title="Scarica la visura camerale da openapi.it (bilancio, soci, PEC, ATECO…). Richiede P.IVA e consuma crediti openapi."
+                title={tr("Scarica la visura camerale da openapi.it (bilancio, soci, PEC, ATECO…). Richiede P.IVA e consuma crediti openapi.")}
               >
-                {visuraLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Building2 className="h-3.5 w-3.5" />} Visura / bilancio
+                {visuraLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Building2 className="h-3.5 w-3.5" />} {tr("Visura / bilancio")}
               </Button>
             </div>
           </div>
@@ -2197,9 +2193,9 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       <Dialog open={enrichOpen} onOpenChange={setEnrichOpen}>
         <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Radar className="h-4 w-4 text-orange-600" /> Dati trovati dallo scraper</DialogTitle>
+            <DialogTitle className="flex items-center gap-2"><Radar className="h-4 w-4 text-orange-600" /> {tr("Dati trovati dallo scraper")}</DialogTitle>
             <DialogDescription className="text-xs">
-              Sito, VIES e registri pubblici. I campi vuoti del contatto sono stati compilati automaticamente.
+              {tr("Sito, VIES e registri pubblici. I campi vuoti del contatto sono stati compilati automaticamente.")}
             </DialogDescription>
           </DialogHeader>
           {enrichResult && (() => {
@@ -2246,7 +2242,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                     <Radar className="h-4 w-4 text-orange-600 shrink-0" />
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-semibold">Segnale d'acquisto</span>
+                        <span className="text-xs font-semibold">{tr("Segnale d'acquisto")}</span>
                         <Badge className={cn("h-4 px-1.5 text-[10px]", scoreColor)}>{scoreLabel} · {score}/100</Badge>
                       </div>
                       {activeSignals.length > 0 && <p className="text-[10px] text-muted-foreground mt-0.5 max-md:text-[11px]">{activeSignals.join(" · ")}</p>}
@@ -2255,29 +2251,28 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 )}
                 {sitePivaMatch === "match" && (
                   <div className="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[11px] text-emerald-800">
-                    ✓ <b>Sito confermato</b>: la P.IVA pubblicata sul sito coincide con quella dell'azienda.
+                    ✓ <b>{tr("Sito confermato")}</b>{tr(": la P.IVA pubblicata sul sito coincide con quella dell'azienda.")}
                   </div>
                 )}
                 {sitePivaMatch === "mismatch" && (
                   <div className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800">
-                    ⚠️ <b>Verifica il sito</b>: sul sito c'è la P.IVA {r.site_partita_iva}, diversa da quella indicata ({knownPiva}).
-                    Potrebbe non essere il sito di questa azienda — controlla prima di fidarti dei recapiti trovati.
+                    ⚠️ <b>{tr("Verifica il sito")}</b>{tr(": sul sito c'è la P.IVA")} {r.site_partita_iva}{tr(", diversa da quella indicata (")}{knownPiva}{tr("). Potrebbe non essere il sito di questa azienda — controlla prima di fidarti dei recapiti trovati.")}
                   </div>
                 )}
                 {r.site_partita_iva && !knownPiva && (
                   <div className="rounded-md border border-sky-200 bg-sky-50 px-2.5 py-1.5 text-[11px] text-sky-800">
-                    ℹ️ P.IVA <b>{r.site_partita_iva}</b> rilevata dal sito e usata per VIES/registri.
+                    {tr("ℹ️ P.IVA")} <b>{r.site_partita_iva}</b> {tr("rilevata dal sito e usata per VIES/registri.")}
                   </div>
                 )}
                 {r.contact_updated && r.contact_updated.length > 0 && (
                   <div className="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[11px] text-emerald-800">
-                    ✓ Compilati sul contatto: <b>{r.contact_updated.join(", ")}</b>
+                    {tr("✓ Compilati sul contatto:")} <b>{r.contact_updated.join(", ")}</b>
                   </div>
                 )}
                 {(r.vies || r.partita_iva) && (
                   <div>
-                    <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1 max-md:text-[11px]"><Building2 className="h-3 w-3" /> Anagrafica ufficiale (VIES)</p>
-                    {r.partita_iva && row("P.IVA", <>{r.partita_iva} {r.vies?.valid === true ? <Badge className="ml-1 h-4 px-1 text-[9px] bg-emerald-100 text-emerald-700 hover:bg-emerald-100">valida</Badge> : r.vies?.valid === false ? <Badge variant="destructive" className="ml-1 h-4 px-1 text-[9px]">non valida</Badge> : null}</>)}
+                    <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1 max-md:text-[11px]"><Building2 className="h-3 w-3" /> {tr("Anagrafica ufficiale (VIES)")}</p>
+                    {r.partita_iva && row("P.IVA", <>{r.partita_iva} {r.vies?.valid === true ? <Badge className="ml-1 h-4 px-1 text-[9px] bg-emerald-100 text-emerald-700 hover:bg-emerald-100">{tr("valida")}</Badge> : r.vies?.valid === false ? <Badge variant="destructive" className="ml-1 h-4 px-1 text-[9px]">{tr("non valida")}</Badge> : null}</>)}
                     {r.vies?.name && row("Ragione sociale", r.vies.name)}
                     {r.vies?.address && row("Sede legale", r.vies.address)}
                   </div>
@@ -2293,7 +2288,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                     indirizzo: "Indirizzo", comune: "Comune", provincia: "Provincia", cap: "CAP",
                     dipendenti: "Dipendenti", fatturato: "Fatturato", utile: "Utile", anno_bilancio: "Anno bilancio",
                   };
-                  const fmtMoneyIt = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(n);
+                  const fmtMoneyIt = (n: number) => new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(n);
                   const rows = Object.entries(LABELS)
                     .filter(([k]) => vis[k] != null && String(vis[k]).trim() !== "")
                     .map(([k]) => {
@@ -2307,7 +2302,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   if (rows.length === 0 && soci.length === 0 && amm.length === 0) return null;
                   return (
                     <div>
-                      <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1 max-md:text-[11px]"><Building2 className="h-3 w-3" /> Visura camerale (registro imprese)</p>
+                      <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1 max-md:text-[11px]"><Building2 className="h-3 w-3" /> {tr("Visura camerale (registro imprese)")}</p>
                       {rows}
                       {amm.length > 0 && row("Amministratori", <span className="flex flex-col gap-0.5">{amm.map((p, i) => <span key={i}>{p.nome}{p.ruolo ? ` — ${p.ruolo}` : ""}</span>)}</span>)}
                       {soci.length > 0 && row("Soci", <span className="flex flex-col gap-0.5">{soci.map((p, i) => <span key={i}>{p.nome}{p.ruolo ? ` — ${p.ruolo}` : ""}</span>)}</span>)}
@@ -2316,9 +2311,9 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 })()}
                 {r.openapi_error && (
                   <div className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800">
-                    ⚠️ Dati camerali non disponibili — {r.openapi_error}
+                    {tr("⚠️ Dati camerali non disponibili —")} {r.openapi_error}
                     {/Wrong Token|non configurato|401/i.test(r.openapi_error) && (
-                      <> Il servizio che fornisce visura, PEC e dati dell'azienda non è attivo: avvisa l'assistenza.</>
+                      <> {tr("Il servizio che fornisce visura, PEC e dati dell'azienda non è attivo: avvisa l'assistenza.")}</>
                     )}
                   </div>
                 )}
@@ -2328,33 +2323,33 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   const landlines = classified.filter((p) => p.type === "landline");
                   return (
                     <div>
-                      <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1 max-md:text-[11px]"><AtSign className="h-3 w-3" /> Recapiti trovati sul sito</p>
-                      <p className="text-[10px] text-muted-foreground mb-1.5 italic max-md:text-[11px]">Numeri normalizzati e filtrati (esclusi P.IVA e sequenze non valide). Verifica sempre prima di contattare.</p>
+                      <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1 max-md:text-[11px]"><AtSign className="h-3 w-3" /> {tr("Recapiti trovati sul sito")}</p>
+                      <p className="text-[10px] text-muted-foreground mb-1.5 italic max-md:text-[11px]">{tr("Numeri normalizzati e filtrati (esclusi P.IVA e sequenze non valide). Verifica sempre prima di contattare.")}</p>
                       {r.emails?.map((e) => <div key={e}>{row("Email", <a href={`mailto:${e}`} className="text-primary underline">{e}</a>)}</div>)}
                       {mobiles.map((p) => (
                         <div key={p.e164}>{row(
-                          <span className="inline-flex items-center gap-1"><Smartphone className="h-3 w-3" /> Cellulare</span>,
+                          <span className="inline-flex items-center gap-1"><Smartphone className="h-3 w-3" /> {tr("Cellulare")}</span>,
                           <span className="inline-flex items-center gap-1.5 flex-wrap">
                             {p.e164}
-                            <Badge className="h-4 px-1 text-[9px] bg-emerald-100 text-emerald-700 hover:bg-emerald-100 gap-0.5"><MessageSquare className="h-2.5 w-2.5" /> WhatsApp possibile</Badge>
+                            <Badge className="h-4 px-1 text-[9px] bg-emerald-100 text-emerald-700 hover:bg-emerald-100 gap-0.5"><MessageSquare className="h-2.5 w-2.5" /> {tr("WhatsApp possibile")}</Badge>
                           </span>,
                         )}</div>
                       ))}
                       {landlines.map((p) => (
                         <div key={p.e164}>{row(
-                          <span className="inline-flex items-center gap-1"><Phone className="h-3 w-3" /> Fisso</span>,
+                          <span className="inline-flex items-center gap-1"><Phone className="h-3 w-3" /> {tr("Fisso")}</span>,
                           p.e164,
                         )}</div>
                       ))}
                       {mobiles.length === 0 && (
-                        <p className="text-[11px] text-amber-700 mt-1">Nessun cellulare trovato: sul sito solo numeri fissi. Il cellulare (per WhatsApp) va cercato altrove.</p>
+                        <p className="text-[11px] text-amber-700 mt-1">{tr("Nessun cellulare trovato: sul sito solo numeri fissi. Il cellulare (per WhatsApp) va cercato altrove.")}</p>
                       )}
                     </div>
                   );
                 })()}
                 {(r.facebook_url || r.instagram_url || r.linkedin_url) && (
                   <div>
-                    <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1 max-md:text-[11px]"><Globe className="h-3 w-3" /> Social</p>
+                    <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1 max-md:text-[11px]"><Globe className="h-3 w-3" /> {tr("Social")}</p>
                     {r.linkedin_url && row("LinkedIn", <a href={r.linkedin_url} target="_blank" rel="noreferrer" className="text-primary underline">{r.linkedin_url}</a>)}
                     {r.facebook_url && row("Facebook", <a href={r.facebook_url} target="_blank" rel="noreferrer" className="text-primary underline">{r.facebook_url}</a>)}
                     {r.instagram_url && row("Instagram", <a href={r.instagram_url} target="_blank" rel="noreferrer" className="text-primary underline">{r.instagram_url}</a>)}
@@ -2362,12 +2357,12 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 )}
                 {activeSignals.length > 0 && (
                   <div>
-                    <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 max-md:text-[11px]">Segnali dal sito</p>
+                    <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 max-md:text-[11px]">{tr("Segnali dal sito")}</p>
                     <div className="flex flex-wrap gap-1">{activeSignals.map((s) => <Badge key={s} variant="secondary" className="text-[10px] max-md:text-[11px]">{s}</Badge>)}</div>
                   </div>
                 )}
                 {!r.vies && !r.firmografici && (r.emails?.length ?? 0) === 0 && (r.phones?.length ?? 0) === 0 && !r.facebook_url && !r.instagram_url && !r.linkedin_url && (
-                  <p className="text-xs text-muted-foreground py-2">Nessun dato aggiuntivo trovato. Prova ad aggiungere sito web o P.IVA al contatto e rilancia.</p>
+                  <p className="text-xs text-muted-foreground py-2">{tr("Nessun dato aggiuntivo trovato. Prova ad aggiungere sito web o P.IVA al contatto e rilancia.")}</p>
                 )}
               </div>
             );
@@ -2379,8 +2374,8 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       <Dialog open={visuraOpen} onOpenChange={setVisuraOpen}>
         <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Building2 className="h-4 w-4 text-slate-600" /> Visura camerale</DialogTitle>
-            <DialogDescription className="text-xs">Dati ufficiali dal registro imprese (openapi.it). I campi vuoti del contatto sono stati compilati.</DialogDescription>
+            <DialogTitle className="flex items-center gap-2"><Building2 className="h-4 w-4 text-slate-600" /> {tr("Visura camerale")}</DialogTitle>
+            <DialogDescription className="text-xs">{tr("Dati ufficiali dal registro imprese (openapi.it). I campi vuoti del contatto sono stati compilati.")}</DialogDescription>
           </DialogHeader>
           {visuraResult && (visuraResult.ok && visuraResult.fields ? (() => {
             const f = visuraResult.fields as Record<string, unknown>;
@@ -2391,7 +2386,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               comune: "Comune", provincia: "Provincia", cap: "CAP", dipendenti: "Dipendenti", fatturato: "Fatturato",
               utile: "Utile", anno_bilancio: "Anno bilancio",
             };
-            const money = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(n);
+            const money = (n: number) => new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(n);
             const rowV = (label: string, value: React.ReactNode) => (
               <div className="flex items-start gap-2 text-xs py-1 border-b border-border/40 last:border-0">
                 <span className="w-32 shrink-0 text-muted-foreground">{label}</span>
@@ -2410,22 +2405,22 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               <div className="space-y-1">
                 {visuraResult.contact_updated && visuraResult.contact_updated.length > 0 && (
                   <div className="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[11px] text-emerald-800 mb-2">
-                    ✓ Compilati sul contatto: <b>{visuraResult.contact_updated.join(", ")}</b>
+                    {tr("✓ Compilati sul contatto:")} <b>{visuraResult.contact_updated.join(", ")}</b>
                   </div>
                 )}
                 {rows}
                 {amm.length > 0 && rowV("Amministratori", <span className="flex flex-col gap-0.5">{amm.map((p, i) => <span key={i}>{p.nome}{p.ruolo ? ` — ${p.ruolo}` : ""}</span>)}</span>)}
                 {soci.length > 0 && rowV("Soci", <span className="flex flex-col gap-0.5">{soci.map((p, i) => <span key={i}>{p.nome}{p.ruolo ? ` — ${p.ruolo}` : ""}</span>)}</span>)}
                 {rows.length === 0 && amm.length === 0 && soci.length === 0 && (
-                  <p className="text-xs text-muted-foreground py-2">Nessun campo restituito da openapi per questa P.IVA.</p>
+                  <p className="text-xs text-muted-foreground py-2">{tr("Nessun campo restituito da openapi per questa P.IVA.")}</p>
                 )}
               </div>
             );
           })() : (
             <div className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-2 text-xs text-amber-800">
-              ⚠️ Visura non disponibile — {visuraResult.error}
+              {tr("⚠️ Visura non disponibile —")} {visuraResult.error}
               {/Wrong Token|non configurato|401/i.test(visuraResult.error || "") && (
-                <> Il servizio che fornisce visura, bilancio e PEC non è attivo: avvisa l'assistenza.</>
+                <> {tr("Il servizio che fornisce visura, bilancio e PEC non è attivo: avvisa l'assistenza.")}</>
               )}
             </div>
           ))}

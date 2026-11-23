@@ -12,6 +12,7 @@ import { euroAnalisi, numeroCosto, soldi, type PianoTempi, type PianoTrasferta, 
 import {
   confrontaStorico, modalitaEsecuzione, stimaLavorazione, stimaTrasferta, unitaVerificata, verificaStimeDaiConsuntivi, type ModalitaEsecuzione,
 } from "@/lib/preventivi/stimaCostiStorici";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 import { calendarioCantiere } from "@/lib/orders/sottofasi";
 import { riferimentiTempi, stessaPrevisione, stimaTempistiche, tempisticheDaSalvare } from "@/lib/preventivi/stimaTempistiche";
 
@@ -38,9 +39,9 @@ type Props = {
 
 const campo = "grid min-w-0 content-start gap-1 text-xs font-medium text-slate-700";
 const select = "h-8 w-full rounded-md border bg-background px-2 text-xs text-foreground";
-const formato = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits: 2 });
+const formato = (n: number) => n.toLocaleString(intlCampo(), { maximumFractionDigits: 2 });
 const euro = (cents: number) => euroAnalisi.format(soldi(cents));
-const dataBreve = new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "short", year: "numeric" });
+const dataBreve = { format: (data: Date) => new Intl.DateTimeFormat(intlCampo(), { day: "numeric", month: "short", year: "numeric" }).format(data) };
 const metodiTrasporto = { km: "Calcola dai chilometri", forfait: "Importo a corpo", comuni: "Già nei costi comuni", compresi: "Compresi nella fornitura / assenti" } as const;
 
 function NumeroStima({ label, value, onChange, placeholder, riferimento }: {
@@ -53,6 +54,7 @@ function NumeroStima({ label, value, onChange, placeholder, riferimento }: {
 export default function StimaCostiPanel({
   voce, contesto, aggregati, risorse, tempistiche, scheda, onScheda, onSalvaTempi, costiInBozza, busy, onProponi, onRisorse, valuta,
 }: Props) {
+  const t = useT();
   const storico = useRiferimentiCostiPreventivo(contesto.companyId, voce, contesto.preventivoId);
   const sedeOperativa = useCompanyBase();
   const { data: sedi } = useSediList();
@@ -123,9 +125,9 @@ export default function StimaCostiPanel({
   const operaiDaPiano = numeroCosto(pianoTempi.operai);
   const tariffaDaPiano = stima?.tariffaOraUsata;
   const problemiCosto = stima ? [
-    ...(!trasferta ? [{ campo: "trasferta", testo: "Configura trasferta" }] : []),
-    ...(!offertaValida ? [{ campo: "costoDitta", testo: "Correggi l’offerta della ditta" }] : []),
-    ...(!tariffaValida || (oreManuali && stima.tariffaOraUsata == null) ? [{ campo: "costoOra", testo: "Verifica il costo orario" }] : []),
+    ...(!trasferta ? [{ campo: "trasferta", testo: t("Configura trasferta") }] : []),
+    ...(!offertaValida ? [{ campo: "costoDitta", testo: t("Correggi l’offerta della ditta") }] : []),
+    ...(!tariffaValida || (oreManuali && stima.tariffaOraUsata == null) ? [{ campo: "costoOra", testo: t("Verifica il costo orario") }] : []),
   ] : [];
 
   function apriCampo(prossima: "costi" | "tempi", campo?: string) {
@@ -165,48 +167,48 @@ export default function StimaCostiPanel({
       const cantiere = partenza && await forwardGeocode(contesto.indirizzo);
       const tragitto = partenza && cantiere && await getRoute([partenza, cantiere]);
       if (!tragitto) {
-        setPercorso({ attesa: false, messaggio: "Percorso non trovato. Inserisci i chilometri dal tuo itinerario." });
+        setPercorso({ attesa: false, messaggio: t("Percorso non trovato. Inserisci i chilometri dal tuo itinerario.") });
         return;
       }
       const minuti = Math.round(tragitto.durationSec / 60);
       cambia("distanza")(String(Math.round(tragitto.distanceMeters / 100) / 10));
-      setPercorso({ attesa: false, minuti, messaggio: `Percorso da ${sedeScelta?.nome ?? "sede operativa"} · ${minuti} min di andata` });
+      setPercorso({ attesa: false, minuti, messaggio: t("Percorso da {sede} · {minuti} min di andata", { sede: sedeScelta?.nome ?? t("sede operativa"), minuti }) });
     } catch {
-      setPercorso({ attesa: false, messaggio: "Servizio percorsi non disponibile. Puoi inserire la distanza a mano." });
+      setPercorso({ attesa: false, messaggio: t("Servizio percorsi non disponibile. Puoi inserire la distanza a mano.") });
     }
   }
 
   const usaTrasferta = piano.metodo === "km" || piano.metodo === "forfait";
   const modificaSoloTrasferta = usaTrasferta || (piano.metodo === "compresi" && !!aggregati.piano);
-  const nomeCosto = stima && campione.length === 1 ? "Da 1 commessa" : "Costo lavorazione";
+  const nomeCosto = stima && campione.length === 1 ? t("Da 1 commessa") : t("Costo lavorazione");
 
-  const controlloEsecuzione = <label className={campo}>Chi eseguirà il lavoro
+  const controlloEsecuzione = <label className={campo}>{t("Chi eseguirà il lavoro")}
     <select className={scheda !== "costi" ? "h-9 w-full min-w-0 rounded-md border bg-background px-2 text-sm text-foreground" : select} value={esecuzione} disabled={busy}
       onChange={e => setEsecuzione(e.target.value as ModalitaEsecuzione | "")}>
-      <option value="">{scheda === "rapida" ? "Automatico" : campione[0] && !esecuzione
-        ? `Dallo storico · ${modalitaEsecuzione[campione[0].esecuzione]}` : "Automatico dallo storico"}</option>
-      {Object.entries(modalitaEsecuzione).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+      <option value="">{scheda === "rapida" ? t("Automatico") : campione[0] && !esecuzione
+        ? t("Dallo storico · {modalita}", { modalita: t(modalitaEsecuzione[campione[0].esecuzione]) }) : t("Automatico dallo storico")}</option>
+      {Object.entries(modalitaEsecuzione).map(([key, label]) => <option key={key} value={key}>{t(label)}</option>)}
     </select>
   </label>;
-  const statoStorico = storico.isPending ? <p role="status" className="text-xs text-slate-600">Cerco i consuntivi della tua azienda…</p>
+  const statoStorico = storico.isPending ? <p role="status" className="text-xs text-slate-600">{t("Cerco i consuntivi della tua azienda…")}</p>
     : storico.isError ? <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-2.5 text-xs">
-      <span>Storico delle commesse non disponibile.</span>
-      <Button type="button" size="sm" variant="outline" onClick={() => void storico.refetch()}>Riprova</Button>
+      <span>{t("Storico delle commesse non disponibile.")}</span>
+      <Button type="button" size="sm" variant="outline" onClick={() => void storico.refetch()}>{t("Riprova")}</Button>
     </div> : null;
   const criteriStorico = <label className="flex items-start gap-2 text-xs text-slate-700">
     <input type="checkbox" className="mt-px" checked={simili} disabled={busy} onChange={e => setSimili(e.target.checked)} />
-    Includi descrizioni simili da verificare
+    {t("Includi descrizioni simili da verificare")}
   </label>;
 
-  return <section ref={regioneStima} className="flex h-full min-h-0 flex-col text-sm" aria-label="Stima da commesse simili">
+  return <section ref={regioneStima} className="flex h-full min-h-0 flex-col text-sm" aria-label={t("Stima da commesse simili")}>
     <div className="shrink-0 border-b bg-white px-3 py-2 sm:px-4">
-      <div className="grid grid-cols-[1fr_1.35fr_1fr] gap-1 rounded-lg bg-slate-100 p-1" role="group" aria-label="Tipo di previsione">
+      <div className="grid grid-cols-[1fr_1.35fr_1fr] gap-1 rounded-lg bg-slate-100 p-1" role="group" aria-label={t("Tipo di previsione")}>
         <Button type="button" size="sm" className="h-8 gap-1 px-1.5 text-xs sm:text-sm" variant={scheda === "rapida" ? "secondary" : "ghost"}
-          aria-pressed={scheda === "rapida"} onClick={() => onScheda("rapida")}><Sparkles aria-hidden="true" />Riepilogo</Button>
+          aria-pressed={scheda === "rapida"} onClick={() => onScheda("rapida")}><Sparkles aria-hidden="true" />{t("Riepilogo")}</Button>
         <Button type="button" size="sm" className="h-8 gap-1 px-1.5 text-xs sm:text-sm" variant={scheda === "costi" ? "secondary" : "ghost"}
-          aria-pressed={scheda === "costi"} onClick={() => onScheda("costi")}><Calculator aria-hidden="true" />Costi e trasporti</Button>
+          aria-pressed={scheda === "costi"} onClick={() => onScheda("costi")}><Calculator aria-hidden="true" />{t("Costi e trasporti")}</Button>
         <Button type="button" size="sm" className="h-8 gap-1 px-1.5 text-xs sm:text-sm" variant={scheda === "tempi" ? "secondary" : "ghost"}
-          aria-pressed={scheda === "tempi"} onClick={() => onScheda("tempi")}><CalendarDays aria-hidden="true" />Tempistiche</Button>
+          aria-pressed={scheda === "tempi"} onClick={() => onScheda("tempi")}><CalendarDays aria-hidden="true" />{t("Tempistiche")}</Button>
       </div>
     </div>
     {scheda === "rapida" ? <StimaRapidaPanel piano={pianoEffettivo} impostaPartenza={partenza => setPianoTempi(p => ({ ...p, partenza }))}
@@ -228,113 +230,113 @@ export default function StimaCostiPanel({
       {controlloEsecuzione}
       {statoStorico}
       {storico.isSuccess && !stima && <p className="rounded-md border bg-slate-50 p-2.5 text-xs text-slate-700">
-        Nessuna commessa confrontabile per questa voce e modalità. Puoi usare il listino o compilare le risorse e calcolare qui la trasferta.
+        {t("Nessuna commessa confrontabile per questa voce e modalità. Puoi usare il listino o compilare le risorse e calcolare qui la trasferta.")}
       </p>}
       {criteriStorico}
       {stima && <>
         <div className="grid grid-cols-2 gap-x-3 gap-y-2 rounded-lg bg-[#193653] p-3 text-white">
           <div><div className="text-xs text-blue-100">{nomeCosto}</div><strong className="text-lg tabular-nums">{euro(stima.costo)}</strong></div>
-          <div><div className="text-xs text-blue-100">Ore operai previste</div><strong className="text-lg tabular-nums">{stima.ore === null ? "Da verificare" : `${formato(stima.ore)} h`}</strong></div>
-          <div className="text-xs text-blue-100">Venduto storico <strong className="block text-sm text-white">
+          <div><div className="text-xs text-blue-100">{t("Ore operai previste")}</div><strong className="text-lg tabular-nums">{stima.ore === null ? t("Da verificare") : `${formato(stima.ore)} h`}</strong></div>
+          <div className="text-xs text-blue-100">{t("Venduto storico")} <strong className="block text-sm text-white">
             {stima.vendutoStorico === null ? "—" : euroAnalisi.format(stima.vendutoStorico)}</strong></div>
-          {campione.length > 1 && <div className="text-xs text-blue-100">Fascia dai riferimenti <strong className="block text-sm text-white">{euro(stima.minimo)} – {euro(stima.massimo)}</strong></div>}
+          {campione.length > 1 && <div className="text-xs text-blue-100">{t("Fascia dai riferimenti")} <strong className="block text-sm text-white">{euro(stima.minimo)} – {euro(stima.massimo)}</strong></div>}
         </div>
-        <ul className="divide-y rounded-md border" tabIndex={-1} data-campo-stima="dettaglioCosti" aria-label="Composizione della stima">
+        <ul className="divide-y rounded-md border" tabIndex={-1} data-campo-stima="dettaglioCosti" aria-label={t("Composizione della stima")}>
           {stima.risorse.map(r => <li key={r.id} className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-xs">
             <span>{r.nome}</span><span className="shrink-0 font-medium">{euroAnalisi.format(Number(r.prezzo) * Number(r.quantita) * (r.base === "unitaria" ? voce.quantita ?? 0 : 1))}</span>
           </li>)}
         </ul>
         {(usaOperai || usaDitte) && <div className="grid grid-cols-2 gap-2">
-          {usaOperai && <NumeroStima label="Costo orario interno (€)" riferimento="costoOra" value={costoOra} onChange={setCostoOra}
-            placeholder={stima.prezzoOraStorico === null ? undefined : `${formato(stima.prezzoOraStorico)} dallo storico`} />}
-          {usaDitte && <NumeroStima label="Offerta ditta a corpo (€)" riferimento="costoDitta" value={costoDitta} onChange={setCostoDitta} placeholder="Costo da storico" />}
+          {usaOperai && <NumeroStima label={t("Costo orario interno (€)")} riferimento="costoOra" value={costoOra} onChange={setCostoOra}
+            placeholder={stima.prezzoOraStorico === null ? undefined : t("{importo} dallo storico", { importo: formato(stima.prezzoOraStorico) })} />}
+          {usaDitte && <NumeroStima label={t("Offerta ditta a corpo (€)")} riferimento="costoDitta" value={costoDitta} onChange={setCostoDitta} placeholder={t("Costo da storico")} />}
         </div>}
-        {oreManuali !== null && oreManuali > 0 && stima.tariffaOraUsata !== null && <p className="text-xs text-slate-600">Manodopera calcolata sulle {formato(oreManuali)} h del piano.</p>}
-        {(!tariffaValida || !offertaValida) && <p role="status" className="text-xs text-amber-800">Inserisci importi validi per usare le tariffe attuali.</p>}
-        {!oreStimaValide && <p role="status" className="text-xs text-amber-800">Per calcolare il costo della squadra servono ore valide nel piano e un costo orario.</p>}
+        {oreManuali !== null && oreManuali > 0 && stima.tariffaOraUsata !== null && <p className="text-xs text-slate-600">{t("Manodopera calcolata sulle {ore} h del piano.", { ore: formato(oreManuali) })}</p>}
+        {(!tariffaValida || !offertaValida) && <p role="status" className="text-xs text-amber-800">{t("Inserisci importi validi per usare le tariffe attuali.")}</p>}
+        {!oreStimaValide && <p role="status" className="text-xs text-amber-800">{t("Per calcolare il costo della squadra servono ore valide nel piano e un costo orario.")}</p>}
         <details className="rounded-md border px-2.5 py-2 text-xs">
-          <summary data-campo-stima="fonti" className="cursor-pointer font-semibold">Fonti · {campione.length} {campione.length === 1 ? "commessa" : "commesse"} · {modalitaEsecuzione[modalita]}</summary>
-          <p className="mt-2 text-slate-600">Costi registrati e quantità eseguite. La fascia riguarda la lavorazione. I trasporti del nuovo cantiere si calcolano qui sotto.</p>
+          <summary data-campo-stima="fonti" className="cursor-pointer font-semibold">{t(campione.length === 1 ? "Fonti · {n} commessa · {modalita}" : "Fonti · {n} commesse · {modalita}", { n: campione.length, modalita: t(modalitaEsecuzione[modalita]) })}</summary>
+          <p className="mt-2 text-slate-600">{t("Costi registrati e quantità eseguite. La fascia riguarda la lavorazione. I trasporti del nuovo cantiere si calcolano qui sotto.")}</p>
           {verificaStorico && <div className="mt-2 rounded-md bg-slate-50 p-2 text-slate-700">
-            <p className="font-semibold">Quanto erano vicine le stime ai consuntivi</p>
+            <p className="font-semibold">{t("Quanto erano vicine le stime ai consuntivi")}</p>
             {verificaStorico.costo !== null || verificaStorico.ore !== null ? <>
-              {verificaStorico.costo !== null && <p>Costi · scostamento tipico {formato(verificaStorico.costo * 100)}% su {verificaStorico.casiCosto} casi</p>}
-              {verificaStorico.ore !== null && <p>Ore · scostamento tipico {formato(verificaStorico.ore * 100)}% su {verificaStorico.casiOre} casi</p>}
-              <p className="mt-1 text-muted-foreground">Ogni caso è stato ricalcolato usando solo lavori conclusi in precedenza.</p>
-            </> : <p>Servono altri lavori simili già conclusi per misurare lo scostamento.</p>}
+              {verificaStorico.costo !== null && <p>{t("Costi · scostamento tipico {percentuale}% su {n} casi", { percentuale: formato(verificaStorico.costo * 100), n: verificaStorico.casiCosto })}</p>}
+              {verificaStorico.ore !== null && <p>{t("Ore · scostamento tipico {percentuale}% su {n} casi", { percentuale: formato(verificaStorico.ore * 100), n: verificaStorico.casiOre })}</p>}
+              <p className="mt-1 text-muted-foreground">{t("Ogni caso è stato ricalcolato usando solo lavori conclusi in precedenza.")}</p>
+            </> : <p>{t("Servono altri lavori simili già conclusi per misurare lo scostamento.")}</p>}
           </div>}
           <ul className="mt-2 divide-y border-t">
             {campione.map(r => <li key={r.id} className="space-y-0.5 py-2">
               <Link to={`/azienda/ordini/${r.commessaId}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-blue-700 hover:underline">
-                {r.numero || "Apri commessa"} <ArrowUpRight className="h-3 w-3" />
+                {r.numero || t("Apri commessa")} <ArrowUpRight className="h-3 w-3" />
               </Link>
               <p>{r.descrizione}</p>
               <p className="text-slate-600">{r.motivo} · {dataBreve.format(new Date(r.completataIl))} · {formato(r.quantita)} {r.unita}
-                {r.kmAndata !== null && ` · ${formato(r.kmAndata)} km dalla sede`}
-                {r.costi.trasporti > 0 && ` · ${euroAnalisi.format(r.costi.trasporti)} di trasporti`}</p>
+                {r.kmAndata !== null && ` · ${t("{km} km dalla sede", { km: formato(r.kmAndata) })}`}
+                {r.costi.trasporti > 0 && ` · ${t("{importo} di trasporti", { importo: euroAnalisi.format(r.costi.trasporti) })}`}</p>
             </li>)}
           </ul>
         </details>
       </>}
       <div className="space-y-3 rounded-lg border bg-slate-50 p-3">
-        <h4 className="flex items-center gap-2 font-semibold"><Truck className="h-4 w-4 text-blue-700" />Trasferta e trasporti</h4>
-        <label className={campo}>Come li vuoi conteggiare?
+        <h4 className="flex items-center gap-2 font-semibold"><Truck className="h-4 w-4 text-blue-700" />{t("Trasferta e trasporti")}</h4>
+        <label className={campo}>{t("Come li vuoi conteggiare?")}
           <select className={select} data-campo-stima="trasferta" value={piano.metodo} onChange={e => cambia("metodo")(e.target.value)}>
-            {Object.entries(metodiTrasporto).map(([key, value]) => <option key={key} value={key} disabled={key === "comuni" && !aggregati.comuni}>{value}</option>)}
+            {Object.entries(metodiTrasporto).map(([key, value]) => <option key={key} value={key} disabled={key === "comuni" && !aggregati.comuni}>{t(value)}</option>)}
           </select>
         </label>
         {piano.metodo === "km" && <>
           <div className="grid grid-cols-2 gap-2">
-            <NumeroStima label="Km di andata" value={piano.distanza} onChange={cambia("distanza")} />
-            <NumeroStima label="Viaggi A/R" value={piano.viaggi} onChange={cambia("viaggi")} />
-            <NumeroStima label="Mezzi per viaggio" value={piano.veicoli} onChange={cambia("veicoli")} />
-            <NumeroStima label="Costo per km (€)" value={piano.tariffaKm} onChange={cambia("tariffaKm")} />
+            <NumeroStima label={t("Km di andata")} value={piano.distanza} onChange={cambia("distanza")} />
+            <NumeroStima label={t("Viaggi A/R")} value={piano.viaggi} onChange={cambia("viaggi")} />
+            <NumeroStima label={t("Mezzi per viaggio")} value={piano.veicoli} onChange={cambia("veicoli")} />
+            <NumeroStima label={t("Costo per km (€)")} value={piano.tariffaKm} onChange={cambia("tariffaKm")} />
           </div>
           {tempi.giorniInterni != null && tempi.giorniInterni > 0 && !piano.viaggi && <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs"
-            onClick={() => cambia("viaggi")(String(tempi.giorniInterni))}>Un viaggio A/R per giorno di squadra ({tempi.giorniInterni})</Button>}
+            onClick={() => cambia("viaggi")(String(tempi.giorniInterni))}>{t("Un viaggio A/R per giorno di squadra ({n})", { n: tempi.giorniInterni })}</Button>}
           {(mostraPercorso || stima?.tariffaKmStorica != null) && <div className="flex flex-wrap gap-1.5">
             {mostraPercorso && <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-xs" disabled={percorso.attesa}
-              onClick={() => void calcolaPercorso()}><MapPin className="mr-1 h-3 w-3" />{percorso.attesa ? "Calcolo…" : "Calcola da indirizzo"}</Button>}
+              onClick={() => void calcolaPercorso()}><MapPin className="mr-1 h-3 w-3" />{percorso.attesa ? t("Calcolo…") : t("Calcola da indirizzo")}</Button>}
             {stima?.tariffaKmStorica != null && <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-xs"
               onClick={() => cambia("tariffaKm")(String(Number(stima.tariffaKmStorica!.toFixed(4))))}>
-              Usa {euroAnalisi.format(stima.tariffaKmStorica)}/km dai rimborsi
+              {t("Usa {importo}/km dai rimborsi", { importo: euroAnalisi.format(stima.tariffaKmStorica) })}
             </Button>}
           </div>}
           {percorso.messaggio && <p role="status" className="text-xs text-slate-600">{percorso.messaggio}</p>}
           <details className="text-xs">
-            <summary className="cursor-pointer font-medium">Aggiungi il tempo di viaggio degli operai</summary>
+            <summary className="cursor-pointer font-medium">{t("Aggiungi il tempo di viaggio degli operai")}</summary>
             <div className="mt-2 grid grid-cols-2 gap-2">
-              <NumeroStima label="Minuti di andata" value={piano.minuti} onChange={cambia("minuti")} />
-              <NumeroStima label="Operai per viaggio" value={piano.persone} onChange={cambia("persone")} />
-              <NumeroStima label="Costo orario viaggio (€)" value={piano.tariffaOra} onChange={cambia("tariffaOra")} />
-              {percorso.minuti !== undefined && <Button type="button" size="sm" variant="ghost" className="self-end text-xs" onClick={() => cambia("minuti")(String(percorso.minuti))}>Usa {percorso.minuti} min</Button>}
+              <NumeroStima label={t("Minuti di andata")} value={piano.minuti} onChange={cambia("minuti")} />
+              <NumeroStima label={t("Operai per viaggio")} value={piano.persone} onChange={cambia("persone")} />
+              <NumeroStima label={t("Costo orario viaggio (€)")} value={piano.tariffaOra} onChange={cambia("tariffaOra")} />
+              {percorso.minuti !== undefined && <Button type="button" size="sm" variant="ghost" className="self-end text-xs" onClick={() => cambia("minuti")(String(percorso.minuti))}>{t("Usa {minuti} min", { minuti: percorso.minuti })}</Button>}
               {tariffaDaPiano != null && operaiDaPiano && Number.isInteger(operaiDaPiano) && minutiDaPiano && minutiDaPiano > 0 &&
                 <Button type="button" size="sm" variant="ghost" className="self-end text-xs" onClick={() => setPiano(p => ({
                   ...p, persone: String(operaiDaPiano), minuti: String(minutiDaPiano), tariffaOra: String(Number(tariffaDaPiano.toFixed(4))),
-                }))}>Usa squadra e viaggio del piano</Button>}
+                }))}>{t("Usa squadra e viaggio del piano")}</Button>}
             </div>
           </details>
         </>}
-        {usaTrasferta && <NumeroStima label={piano.metodo === "km" ? "Consegne e altri trasporti (€) · facoltativo" : "Trasporti a corpo (€)"}
+        {usaTrasferta && <NumeroStima label={piano.metodo === "km" ? t("Consegne e altri trasporti (€) · facoltativo") : t("Trasporti a corpo (€)")}
           value={piano.consegne} onChange={cambia("consegne")} />}
-        {piano.metodo === "comuni" && <p className="text-xs text-slate-600">Mantieni i trasporti già inseriti. La relativa quota confluisce nel costo completo e nella simulazione del prezzo.</p>}
-        {usaTrasferta && <div className="flex items-center justify-between gap-2 border-t pt-2 text-xs"><span>Trasferta e consegne proposte</span><strong>{trasferta ? euro(trasferta.costo) : "Da completare"}</strong></div>}
-        {usaTrasferta && aggregati.comuni && aggregati.importo > 0 && <p className="text-xs text-amber-800">Restano {euro(aggregati.importo)} di trasporti già inseriti a mano. Usa i costi comuni esistenti se coprono questi stessi viaggi.</p>}
+        {piano.metodo === "comuni" && <p className="text-xs text-slate-600">{t("Mantieni i trasporti già inseriti. La relativa quota confluisce nel costo completo e nella simulazione del prezzo.")}</p>}
+        {usaTrasferta && <div className="flex items-center justify-between gap-2 border-t pt-2 text-xs"><span>{t("Trasferta e consegne proposte")}</span><strong>{trasferta ? euro(trasferta.costo) : t("Da completare")}</strong></div>}
+        {usaTrasferta && aggregati.comuni && aggregati.importo > 0 && <p className="text-xs text-amber-800">{t("Restano {importo} di trasporti già inseriti a mano. Usa i costi comuni esistenti se coprono questi stessi viaggi.", { importo: euro(aggregati.importo) })}</p>}
       </div>
       {proiezione && <dl className="grid grid-cols-2 gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2.5 text-xs text-slate-700">
-        <div><dt>Costo simulato con le quote comuni</dt><dd className="mt-0.5 text-sm font-semibold tabular-nums">{euro(proiezione.costo)}</dd></div>
-        <div><dt>Margine al prezzo attuale</dt><dd className={`mt-0.5 text-sm font-semibold tabular-nums ${(proiezione.margine ?? 0) < 0 ? "text-red-700" : ""}`}>{proiezione.margine === null ? "—" : euro(proiezione.margine)}</dd></div>
+        <div><dt>{t("Costo simulato con le quote comuni")}</dt><dd className="mt-0.5 text-sm font-semibold tabular-nums">{euro(proiezione.costo)}</dd></div>
+        <div><dt>{t("Margine al prezzo attuale")}</dt><dd className={`mt-0.5 text-sm font-semibold tabular-nums ${(proiezione.margine ?? 0) < 0 ? "text-red-700" : ""}`}>{proiezione.margine === null ? "—" : euro(proiezione.margine)}</dd></div>
         {proiezione.venditaSuggerita !== null && <div className="col-span-2">
-          <dt>Vendita netta per {proiezione.obiettivo}</dt><dd className="mt-0.5 text-sm font-semibold tabular-nums">{euroAnalisi.format(proiezione.venditaSuggerita)}</dd>
+          <dt>{t("Vendita netta per {obiettivo}", { obiettivo: proiezione.obiettivo })}</dt><dd className="mt-0.5 text-sm font-semibold tabular-nums">{euroAnalisi.format(proiezione.venditaSuggerita)}</dd>
         </div>}
       </dl>}
       {onProponi && <>
-        {stima && risorse.length > 0 && <p className="text-xs text-slate-600">Usando la proposta sostituisci le {risorse.length} risorse di questa voce. Le altre voci e i costi comuni manuali restano in analisi.</p>}
+        {stima && risorse.length > 0 && <p className="text-xs text-slate-600">{t("Usando la proposta sostituisci le {n} risorse di questa voce. Le altre voci e i costi comuni manuali restano in analisi.", { n: risorse.length })}</p>}
         <div className="flex flex-wrap justify-end gap-2">
           {modificaSoloTrasferta && <Button type="button" variant={stima ? "outline" : "default"} size="sm"
-            disabled={busy || !trasferta || percorso.attesa} onClick={() => onProponi(null, piano)}>Usa solo trasporti</Button>}
+            disabled={busy || !trasferta || percorso.attesa} onClick={() => onProponi(null, piano)}>{t("Usa solo trasporti")}</Button>}
           {stima && <Button type="button" size="sm" disabled={busy || !precisaCosto}
-            onClick={applicaCosti}>{risorse.length ? "Sostituisci risorse con la stima" : "Usa stima nelle risorse"}</Button>}
+            onClick={applicaCosti}>{risorse.length ? t("Sostituisci risorse con la stima") : t("Usa stima nelle risorse")}</Button>}
         </div>
       </>}
     </div>}

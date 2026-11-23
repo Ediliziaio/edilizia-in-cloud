@@ -113,6 +113,7 @@ import {
   resolvePrezzoVendita,
 } from "@/lib/priceMarkup";
 import { formatCurrency } from "@/lib/formatters";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Tariffa {
   id: string;
@@ -212,6 +213,7 @@ const PREZZO_MODE_CARDS: Array<{
 ];
 
 export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } = {}) {
+  const tr = useT();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -352,10 +354,10 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
     setInterruttoreInCorso(true);
     try {
       await updateFamily.mutateAsync({ id: family.id, patch });
-      if ("attivo" in patch) toast.success(patch.attivo ? "Prodotto riattivato" : "Prodotto disattivato");
-      else toast.success(patch.mostra_preventivo ? "Proposto nei preventivi" : "Nascosto dai preventivi");
+      if ("attivo" in patch) toast.success(patch.attivo ? tr("Prodotto riattivato") : tr("Prodotto disattivato"));
+      else toast.success(patch.mostra_preventivo ? tr("Proposto nei preventivi") : tr("Nascosto dai preventivi"));
     } catch (err) {
-      toast.error("Modifica non riuscita", { description: messaggioErroreListino(err) });
+      toast.error(tr("Modifica non riuscita"), { description: messaggioErroreListino(err) });
     } finally {
       setInterruttoreInCorso(false);
     }
@@ -584,8 +586,8 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
     let familyId = family?.id ?? null;
     if (!familyId) {
       if (!nome.trim()) {
-        toast.error("Serve un nome", {
-          description: "Scrivi il nome del prodotto prima di caricare la foto.",
+        toast.error(tr("Serve un nome"), {
+          description: tr("Scrivi il nome del prodotto prima di caricare la foto."),
         });
         if (fileInputRef.current) fileInputRef.current.value = "";
         return;
@@ -601,7 +603,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
 
     const result = await uploadImage(familyId, file);
     if (result.ok === false) {
-      toast.error("Foto non caricata", { description: result.error });
+      toast.error(tr("Foto non caricata"), { description: result.error });
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
@@ -615,9 +617,9 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
         id: familyId,
         patch: { immagine_url: result.url },
       });
-      toast.success("Foto caricata");
+      toast.success(tr("Foto caricata"));
     } catch (err) {
-      toast.error("Foto caricata ma non salvata", {
+      toast.error(tr("Foto caricata ma non salvata"), {
         description: messaggioErroreListino(err),
       });
     } finally {
@@ -633,7 +635,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
     }
     const result = await removeImage(family.id);
     if (result.ok === false) {
-      toast.error("Foto non rimossa", { description: result.error });
+      toast.error(tr("Foto non rimossa"), { description: result.error });
       return;
     }
     setImmagineUrl(null);
@@ -642,9 +644,9 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
         id: family.id,
         patch: { immagine_url: null },
       });
-      toast.success("Foto rimossa");
+      toast.success(tr("Foto rimossa"));
     } catch (err) {
-      toast.error("Modifica non riuscita", {
+      toast.error(tr("Modifica non riuscita"), {
         description: messaggioErroreListino(err),
       });
     }
@@ -668,7 +670,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
       // Articolo nuovo: salviamo per ottenere un id, poi persistiamo l'URL.
       const savedId = await saveBase();
       if (!savedId) {
-        toast.error("Salva prima i dati base del prodotto per assegnare la foto");
+        toast.error(tr("Salva prima i dati base del prodotto per assegnare la foto"));
         return;
       }
       try {
@@ -677,9 +679,9 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
           patch: { immagine_url: photo.image_url },
         });
         setImmagineUrl(photo.image_url);
-        toast.success(`Foto "${photo.nome}" applicata`);
+        toast.success(tr("Foto \"{nome}\" applicata", { nome: photo.nome }));
       } catch (err) {
-        toast.error("Foto non salvata", {
+        toast.error(tr("Foto non salvata"), {
           description: messaggioErroreListino(err),
         });
       }
@@ -691,9 +693,9 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
         patch: { immagine_url: photo.image_url },
       });
       setImmagineUrl(photo.image_url);
-      toast.success(`Foto "${photo.nome}" applicata`);
+      toast.success(tr("Foto \"{nome}\" applicata", { nome: photo.nome }));
     } catch (err) {
-      toast.error("Foto non salvata", {
+      toast.error(tr("Foto non salvata"), {
         description: messaggioErroreListino(err),
       });
     }
@@ -702,8 +704,8 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
   // ── Salvataggio Step 1 (crea/aggiorna dati base) ───────────────────────
   const saveBase = async (): Promise<string | null> => {
     if (!nome.trim()) {
-      toast.error("Serve un nome", {
-        description: "Scrivi il nome del prodotto prima di salvare.",
+      toast.error(tr("Serve un nome"), {
+        description: tr("Scrivi il nome del prodotto prima di salvare."),
       });
       return null;
     }
@@ -796,11 +798,11 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
         min: 0,
       });
     } catch (err) {
-      toast.error("Dati economici non validi", {
+      toast.error(tr("Dati economici non validi"), {
         description:
           err instanceof Error
             ? err.message
-            : "Controlla prezzi, IVA, sconti e manodopera.",
+            : tr("Controlla prezzi, IVA, sconti e manodopera."),
       });
       return null;
     }
@@ -884,7 +886,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
           attivo: true,
           sort_order: 0,
         });
-        toast.success("Prodotto creato");
+        toast.success(tr("Prodotto creato"));
         // Snapshot post-save: niente beforeunload finché l'utente non modifica di nuovo.
         initialSnapshotRef.current = currentSnapshot;
         // Redirect a /:id per continuare editing (l'indirizzo del listino di partenza resta)
@@ -895,12 +897,12 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
         return created.id;
       } else if (family) {
         await updateFamily.mutateAsync({ id: family.id, patch: payload });
-        toast.success("Prodotto aggiornato");
+        toast.success(tr("Prodotto aggiornato"));
         initialSnapshotRef.current = currentSnapshot;
         return family.id;
       }
     } catch (err) {
-      toast.error("Prodotto non salvato", {
+      toast.error(tr("Prodotto non salvato"), {
         description: messaggioErroreListino(err),
       });
     }
@@ -917,7 +919,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
   const handleBackToCatalog = () => {
     if (
       isDirty &&
-      !window.confirm("Hai modifiche non salvate. Uscire senza salvare?")
+      !window.confirm(tr("Hai modifiche non salvate. Uscire senza salvare?"))
     ) {
       return;
     }
@@ -933,7 +935,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
       // prima, così la copia parte dai dati che l'utente vede.
       if (isDirty) {
         if (!canSaveBase) {
-          toast.error("Scrivi il nome del prodotto prima di duplicare");
+          toast.error(tr("Scrivi il nome del prodotto prima di duplicare"));
           return;
         }
         const savedId = await saveBase();
@@ -943,10 +945,10 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
         sourceId: family.id,
         newName: `${family.nome} (copia)`,
       });
-      toast.success("Prodotto duplicato");
+      toast.success(tr("Prodotto duplicato"));
       navigate(`/azienda/impostazioni/listino/famiglie/${newId}`, { state: location.state });
     } catch (err) {
-      toast.error("Prodotto non duplicato", {
+      toast.error(tr("Prodotto non duplicato"), {
         description: messaggioErroreListino(err),
       });
     }
@@ -956,7 +958,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
     return (
       <div className="flex items-center justify-center py-12 text-muted-foreground">
         <Loader2 className="h-5 w-5 animate-spin mr-2" aria-hidden="true" />
-        Caricamento del prodotto…
+        {tr("Caricamento del prodotto…")}
       </div>
     );
   }
@@ -965,13 +967,13 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
     return (
       <Card>
         <CardContent className="py-12 text-center">
-          <p className="font-medium">Prodotto non trovato</p>
+          <p className="font-medium">{tr("Prodotto non trovato")}</p>
           <Button
             className="mt-4"
             variant="outline"
             onClick={() => navigate(indirizzoListino)}
           >
-            Torna al listino
+            {tr("Torna al listino")}
           </Button>
         </CardContent>
       </Card>
@@ -989,26 +991,26 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
         <div className="flex items-center gap-3 min-w-0">
           <Button variant="ghost" size="sm" onClick={handleBackToCatalog}>
             <ArrowLeft className="h-4 w-4 mr-1" aria-hidden="true" />
-            Listino
+            {tr("Listino")}
           </Button>
           <div className="min-w-0">
             {/* Il titolo della pagina («Listino») lo mette il layout: il nome del prodotto è un titolo di sezione. */}
             <h2 className="text-xl font-semibold truncate flex items-center gap-2">
-              {isNew ? "Nuovo prodotto" : family?.nome}
+              {isNew ? tr("Nuovo prodotto") : family?.nome}
               {isDirty && (
                 <span
                   className="inline-flex items-center gap-1 text-[11px] font-normal text-amber-700 dark:text-amber-400"
-                  title="Hai modifiche non salvate"
+                  title={tr("Hai modifiche non salvate")}
                 >
                   <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
-                  Non salvato
+                  {tr("Non salvato")}
                 </span>
               )}
             </h2>
             {!isNew && family ? (
               <p className="text-xs text-muted-foreground">
-                Aggiornata{" "}
-                {new Date(family.updated_at).toLocaleString("it-IT", {
+                {tr("Aggiornata")}{" "}
+                {new Date(family.updated_at).toLocaleString(intlCampo(), {
                   dateStyle: "medium",
                   timeStyle: "short",
                 })}
@@ -1027,7 +1029,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                 disabled={!puoModificare || interruttoreInCorso}
               />
               <Label htmlFor="f-attivo" className="cursor-pointer text-sm font-normal">
-                Prodotto attivo
+                {tr("Prodotto attivo")}
               </Label>
             </div>
             <div className="flex min-h-[44px] items-center gap-2">
@@ -1038,7 +1040,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                 disabled={!puoModificare || interruttoreInCorso}
               />
               <Label htmlFor="f-nei-preventivi" className="cursor-pointer text-sm font-normal">
-                Proposto nei preventivi
+                {tr("Proposto nei preventivi")}
               </Label>
             </div>
             {puoModificare && (
@@ -1053,7 +1055,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                 ) : (
                   <CopyPlus className="h-4 w-4 mr-2" aria-hidden="true" />
                 )}
-                Duplica
+                {tr("Duplica")}
               </Button>
             )}
           </div>
@@ -1066,11 +1068,11 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
           <Tabs value={activeStep} onValueChange={setActiveStep}>
             {/* Da telefono i cinque passi scorrono di lato: senza `shrink-0` si stringevano fino a sovrapporsi. */}
             <TabsList className="flex justify-start gap-1 w-full max-w-full overflow-x-auto sm:grid sm:grid-cols-5 sm:gap-0">
-              <TabsTrigger value="1" className="shrink-0">1. Dati base</TabsTrigger>
-              <TabsTrigger value="2" className="shrink-0" disabled={isNew}>2. Prezzo</TabsTrigger>
-              <TabsTrigger value="3" className="shrink-0" disabled={isNew}>3. Opzioni</TabsTrigger>
-              <TabsTrigger value="4" className="shrink-0" disabled={isNew}>4. Manodopera</TabsTrigger>
-              <TabsTrigger value="5" className="shrink-0" disabled={isNew}>5. Riepilogo</TabsTrigger>
+              <TabsTrigger value="1" className="shrink-0">{tr("1. Dati base")}</TabsTrigger>
+              <TabsTrigger value="2" className="shrink-0" disabled={isNew}>{tr("2. Prezzo")}</TabsTrigger>
+              <TabsTrigger value="3" className="shrink-0" disabled={isNew}>{tr("3. Opzioni")}</TabsTrigger>
+              <TabsTrigger value="4" className="shrink-0" disabled={isNew}>{tr("4. Manodopera")}</TabsTrigger>
+              <TabsTrigger value="5" className="shrink-0" disabled={isNew}>{tr("5. Riepilogo")}</TabsTrigger>
             </TabsList>
 
             {/* STEP 1 — Dati base */}
@@ -1078,10 +1080,10 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
               <fieldset disabled={soloLettura} className="m-0 min-w-0 space-y-4 border-0 p-0">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Come si vende questo prodotto?</CardTitle>
+                  <CardTitle className="text-base">{tr("Come si vende questo prodotto?")}</CardTitle>
                   {!modalitaDecisa ? (
                     <p className="text-sm text-muted-foreground">
-                      Scegli prima questo: il resto dell'editor si adatta alla modalità.
+                      {tr("Scegli prima questo: il resto dell'editor si adatta alla modalità.")}
                     </p>
                   ) : null}
                 </CardHeader>
@@ -1092,7 +1094,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                       setModalita(v as ModalitaPrezzoBase);
                       setModalitaScelta(true);
                     }}
-                    aria-label="Modalità prezzo base"
+                    aria-label={tr("Modalità prezzo base")}
                     className="grid grid-cols-1 sm:grid-cols-2 gap-2"
                   >
                     {MODALITA_CARDS.map((m) => (
@@ -1107,9 +1109,9 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                           className="mt-0.5"
                         />
                         <div className="flex-1 min-w-0">
-                          <div className="font-medium text-sm">{m.label}</div>
+                          <div className="font-medium text-sm">{tr(m.label)}</div>
                           <div className="text-xs text-muted-foreground">
-                            {m.descrizione}
+                            {tr(m.descrizione)}
                           </div>
                         </div>
                       </label>
@@ -1120,28 +1122,26 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                     <div className="space-y-1">
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <Label htmlFor="f-griglia-x">Nome della misura in orizzontale</Label>
+                          <Label htmlFor="f-griglia-x">{tr("Nome della misura in orizzontale")}</Label>
                           <Input
                             id="f-griglia-x"
                             value={grigliaXLabel}
                             onChange={(e) => setGrigliaXLabel(e.target.value)}
-                            placeholder="Larghezza (mm)"
+                            placeholder={tr("Larghezza (mm)")}
                           />
                         </div>
                         <div>
-                          <Label htmlFor="f-griglia-y">Nome della misura in verticale</Label>
+                          <Label htmlFor="f-griglia-y">{tr("Nome della misura in verticale")}</Label>
                           <Input
                             id="f-griglia-y"
                             value={grigliaYLabel}
                             onChange={(e) => setGrigliaYLabel(e.target.value)}
-                            placeholder="Altezza (mm)"
+                            placeholder={tr("Altezza (mm)")}
                           />
                         </div>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Qui va solo il nome. Le misure (es. 900, 2100) e i loro prezzi
-                        si scrivono nella tabella, al passo Prezzo. Per un prezzo unico
-                        scegli «A pezzo».
+                        {tr("Qui va solo il nome. Le misure (es. 900, 2100) e i loro prezzi si scrivono nella tabella, al passo Prezzo. Per un prezzo unico scegli «A pezzo».")}
                       </p>
                     </div>
                   ) : null}
@@ -1152,55 +1152,53 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                 <>
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Dati base</CardTitle>
+                  <CardTitle className="text-base">{tr("Dati base")}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div>
-                    <Label htmlFor="f-nome">Nome del prodotto *</Label>
+                    <Label htmlFor="f-nome">{tr("Nome del prodotto *")}</Label>
                     <Input
                       id="f-nome"
                       value={nome}
                       onChange={(e) => setNome(e.target.value)}
-                      placeholder="es. Finestra PVC 2 ante"
+                      placeholder={tr("es. Finestra PVC 2 ante")}
                     />
                   </div>
 
                   <div>
-                    <Label htmlFor="f-codice">Codice del prodotto (SKU)</Label>
+                    <Label htmlFor="f-codice">{tr("Codice del prodotto (SKU)")}</Label>
                     <Input
                       id="f-codice"
                       value={codice}
                       onChange={(e) => setCodice(e.target.value)}
-                      placeholder="es. TIGO-TS4-700 (opzionale)"
+                      placeholder={tr("es. TIGO-TS4-700 (opzionale)")}
                     />
                     <p className="text-xs text-muted-foreground mt-1">
-                      Codice interno o fornitore. Ricercabile in listino, commesse e
-                      magazzino oltre al nome.
+                      {tr("Codice interno o fornitore. Ricercabile in listino, commesse e magazzino oltre al nome.")}
                     </p>
                   </div>
 
                   <div>
-                    <Label htmlFor="f-fornitore">Fornitore</Label>
+                    <Label htmlFor="f-fornitore">{tr("Fornitore")}</Label>
                     <Select value={supplierId} onValueChange={(v) => setSupplierId(v as string | "none")}>
                       <SelectTrigger id="f-fornitore">
-                        <SelectValue placeholder="Nessun fornitore" />
+                        <SelectValue placeholder={tr("Nessun fornitore")} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">Nessun fornitore</SelectItem>
+                        <SelectItem value="none">{tr("Nessun fornitore")}</SelectItem>
                         {fornitori.map((f) => (
                           <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Da chi acquisti questo prodotto. Lo ritrovi nel fornitore, tra i
-                      prodotti collegati.
+                      {tr("Da chi acquisti questo prodotto. Lo ritrovi nel fornitore, tra i prodotti collegati.")}
                     </p>
                   </div>
 
                   <div>
                     <div className="flex items-center justify-between gap-2">
-                      <Label htmlFor="f-macrocategoria">Tipologia</Label>
+                      <Label htmlFor="f-macrocategoria">{tr("Tipologia")}</Label>
                       {gestoreTipologie && (
                         <Button
                           type="button"
@@ -1210,7 +1208,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                           onClick={() => setShowCategorieManager(true)}
                         >
                           <FolderTree className="h-3.5 w-3.5 mr-1" aria-hidden="true" />
-                          Gestisci
+                          {tr("Gestisci")}
                         </Button>
                       )}
                     </div>
@@ -1223,10 +1221,10 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                       }}
                     >
                       <SelectTrigger id="f-macrocategoria">
-                        <SelectValue placeholder="Nessuna" />
+                        <SelectValue placeholder={tr("Nessuna")} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">— Nessuna —</SelectItem>
+                        <SelectItem value="none">— {tr("Nessuna")} —</SelectItem>
                         {macrocategorie.map((m) => (
                           <SelectItem key={m.id} value={m.id}>
                             {m.nome}
@@ -1243,19 +1241,18 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                     {macrocategoriaId === "none" && (
                       <p className="mt-1.5 flex items-start gap-1.5 text-xs font-medium text-amber-600">
                         <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-px" aria-hidden="true" />
-                        Senza tipologia questo prodotto non comparirà nella
-                        scelta prodotti del preventivo: si troverà solo con la ricerca.
+                        {tr("Senza tipologia questo prodotto non comparirà nella scelta prodotti del preventivo: si troverà solo con la ricerca.")}
                       </p>
                     )}
                     {macrocategoriaId !== "none" && (
                       <div className="mt-3">
-                        <Label htmlFor="f-linea">Linea</Label>
+                        <Label htmlFor="f-linea">{tr("Linea")}</Label>
                         <Select value={categoriaId} onValueChange={(v) => setCategoriaId(v)}>
                           <SelectTrigger id="f-linea">
-                            <SelectValue placeholder="Nessuna linea" />
+                            <SelectValue placeholder={tr("Nessuna linea")} />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="none">— Nessuna linea —</SelectItem>
+                            <SelectItem value="none">— {tr("Nessuna linea")} —</SelectItem>
                             {lineeDisponibili.map((c) => (
                               <SelectItem key={c.id} value={c.id}>
                                 {c.nome}
@@ -1264,16 +1261,14 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                           </SelectContent>
                         </Select>
                         <p className="text-xs text-muted-foreground mt-1">
-                          Per prodotti diversi della stessa tipologia, come le tapparelle in PVC o
-                          in alluminio. Le serie di profilo con gli stessi modelli e un altro prezzo
-                          (Salamander, Aluplast) si impostano nelle variabili.
+                          {tr("Per prodotti diversi della stessa tipologia, come le tapparelle in PVC o in alluminio. Le serie di profilo con gli stessi modelli e un altro prezzo (Salamander, Aluplast) si impostano nelle variabili.")}
                         </p>
                       </div>
                     )}
                   </div>
 
                   <div>
-                    <Label htmlFor="f-descrizione">Descrizione</Label>
+                    <Label htmlFor="f-descrizione">{tr("Descrizione")}</Label>
                     <Textarea
                       id="f-descrizione"
                       value={descrizione}
@@ -1291,11 +1286,9 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                       riconoscimento visivo nell'elenco e in preventivo. */}
                   {!disegno.tipologia && (
                   <div>
-                    <Label id="f-foto-etichetta">Foto del prodotto (facoltativa)</Label>
+                    <Label id="f-foto-etichetta">{tr("Foto del prodotto (facoltativa)")}</Label>
                     <p className="text-xs text-muted-foreground mt-1 mb-2">
-                      Carica una foto rappresentativa: un cassonetto, una finestra
-                      a 2 ante, un controtelaio… Si vede nel listino e nel preventivo.
-                      Massimo 3 MB, formati PNG, JPG o WEBP.
+                      {tr("Carica una foto rappresentativa: un cassonetto, una finestra a 2 ante, un controtelaio… Si vede nel listino e nel preventivo. Massimo 3 MB, formati PNG, JPG o WEBP.")}
                     </p>
                     <div className="flex items-start gap-4" role="group" aria-labelledby="f-foto-etichetta">
                       {/* Preview */}
@@ -1305,12 +1298,12 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                             type="button"
                             onClick={() => setImageZoomOpen(true)}
                             className="group relative h-full w-full cursor-zoom-in"
-                            title="Ingrandisci la foto"
-                            aria-label="Ingrandisci la foto del prodotto"
+                            title={tr("Ingrandisci la foto")}
+                            aria-label={tr("Ingrandisci la foto del prodotto")}
                           >
                             <img loading="lazy"
                               src={immagineUrl}
-                              alt={`Anteprima di ${nome || "prodotto"}`}
+                              alt={tr("Anteprima di {nome}", { nome: nome || tr("prodotto") })}
                               className="h-full w-full object-cover"
                             />
                             <span className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition group-hover:bg-black/40 group-hover:opacity-100">
@@ -1320,7 +1313,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                         ) : (
                           <div className="flex flex-col items-center gap-1 text-muted-foreground">
                             <ImageIcon className="h-7 w-7" aria-hidden="true" />
-                            <span className="text-[10px]">Nessuna foto</span>
+                            <span className="text-[10px]">{tr("Nessuna foto")}</span>
                           </div>
                         )}
                       </div>
@@ -1335,8 +1328,8 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                           onClick={() => fileInputRef.current?.click()}
                           aria-label={
                             immagineUrl
-                              ? "Cambia la foto del prodotto"
-                              : "Carica la foto del prodotto"
+                              ? tr("Cambia la foto del prodotto")
+                              : tr("Carica la foto del prodotto")
                           }
                         >
                           {isUploading ? (
@@ -1345,7 +1338,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                                 className="h-4 w-4 mr-2 animate-spin"
                                 aria-hidden="true"
                               />
-                              Caricamento…
+                              {tr("Caricamento…")}
                             </>
                           ) : (
                             <>
@@ -1353,7 +1346,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                                 className="h-4 w-4 mr-2"
                                 aria-hidden="true"
                               />
-                              {immagineUrl ? "Cambia foto" : "Carica foto"}
+                              {immagineUrl ? tr("Cambia foto") : tr("Carica foto")}
                             </>
                           )}
                         </Button>
@@ -1365,7 +1358,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                             className="h-9 text-destructive hover:text-destructive"
                             disabled={isUploading || isRemoving}
                             onClick={() => void handleImageRemove()}
-                            aria-label="Rimuovi la foto del prodotto"
+                            aria-label={tr("Rimuovi la foto del prodotto")}
                           >
                             {isRemoving ? (
                               <>
@@ -1373,7 +1366,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                                   className="h-4 w-4 mr-2 animate-spin"
                                   aria-hidden="true"
                                 />
-                                Rimozione…
+                                {tr("Rimozione…")}
                               </>
                             ) : (
                               <>
@@ -1381,7 +1374,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                                   className="h-4 w-4 mr-2"
                                   aria-hidden="true"
                                 />
-                                Rimuovi
+                                {tr("Rimuovi")}
                               </>
                             )}
                           </Button>
@@ -1396,10 +1389,10 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                           className="h-9 border-orange-300 text-orange-700 hover:bg-orange-50"
                           disabled={isUploading || isRemoving}
                           onClick={() => setPhotoTemplatePickerOpen(true)}
-                          aria-label="Scegli una foto dalla galleria"
+                          aria-label={tr("Scegli una foto dalla galleria")}
                         >
                           <ImageIcon className="h-4 w-4 mr-2" aria-hidden="true" />
-                          Scegli da galleria
+                          {tr("Scegli da galleria")}
                         </Button>
                       </div>
                     </div>
@@ -1424,7 +1417,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <Label htmlFor="f-um">Unità di misura</Label>
+                      <Label htmlFor="f-um">{tr("Unità di misura")}</Label>
                       <Select value={unitOfMeasure} onValueChange={setUnitOfMeasure}>
                         <SelectTrigger id="f-um">
                           <SelectValue />
@@ -1439,7 +1432,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                       </Select>
                     </div>
                     <div>
-                      <Label htmlFor="f-iva">IVA vendita %</Label>
+                      <Label htmlFor="f-iva">{tr("IVA vendita %")}</Label>
                       <Select value={vatRate} onValueChange={setVatRate}>
                         <SelectTrigger id="f-iva">
                           <SelectValue />
@@ -1451,7 +1444,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                               value={String(iva.value)}
                             >
                               {iva.hint
-                                ? `${iva.label} — ${iva.hint}`
+                                ? `${iva.label} — ${tr(iva.hint)}`
                                 : iva.label}
                             </SelectItem>
                           ))}
@@ -1459,8 +1452,8 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                       </Select>
                       <p className="text-xs text-muted-foreground mt-1">
                         {parseDecimalField(vatRate, 22) === 0
-                          ? "IVA 0% tipica di vendite estero / reverse charge."
-                          : "Aliquota fatturata al cliente. I prezzi sono sempre al netto IVA."}
+                          ? tr("IVA 0% tipica di vendite estero / reverse charge.")
+                          : tr("Aliquota fatturata al cliente. I prezzi sono sempre al netto IVA.")}
                       </p>
                     </div>
                   </div>
@@ -1475,11 +1468,9 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
               {macrocategoriaId !== "none" && (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-base">Scheda tecnica</CardTitle>
+                    <CardTitle className="text-base">{tr("Scheda tecnica")}</CardTitle>
                     <p className="text-xs text-muted-foreground">
-                      Caratteristiche specifiche del prodotto (vetro, Uw, potenza, materiale…).
-                      I campi sono definiti dalla macrocategoria; vengono mostrati al
-                      commerciale nel picker e stampati nel PDF preventivo.
+                      {tr("Caratteristiche specifiche del prodotto (vetro, Uw, potenza, materiale…). I campi sono definiti dalla macrocategoria; vengono mostrati al commerciale nel picker e stampati nel PDF preventivo.")}
                     </p>
                   </CardHeader>
                   <CardContent>
@@ -1510,12 +1501,12 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                   {saving ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />
-                      Salvataggio…
+                      {tr("Salvataggio…")}
                     </>
                   ) : (
                     <>
                       <Save className="h-4 w-4 mr-2" aria-hidden="true" />
-                      {isNew ? "Crea il prodotto" : "Salva"}
+                      {isNew ? tr("Crea il prodotto") : tr("Salva")}
                     </>
                   )}
                 </Button>
@@ -1539,13 +1530,11 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                   <Card className="border-primary/30 bg-primary/5">
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">
-                        Costo, sconti e ricarico di tutta la griglia
+                        {tr("Costo, sconti e ricarico di tutta la griglia")}
                       </CardTitle>
                       <p className="text-sm text-muted-foreground">
-                        Gli sconti del fornitore e il ricarico valgono per{" "}
-                        <strong>tutte</strong> le celle della tabella. Il prezzo di
-                        vendita di ogni cella si ricalcola quando salvi la griglia
-                        qui sotto.
+                        {tr("Gli sconti del fornitore e il ricarico valgono per")}{" "}
+                        <strong>{tr("tutte")}</strong> {tr("le celle della tabella. Il prezzo di vendita di ogni cella si ricalcola quando salvi la griglia qui sotto.")}
                       </p>
                     </CardHeader>
                     <CardContent className="space-y-4">
@@ -1554,7 +1543,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                       <AvvisoCelleGriglia family={family} parametriDaSalvare={isDirty} />
                       {/* Modalità prezzo */}
                       <div>
-                        <Label id="grid-prezzo-mode-etichetta">Come ottieni il prezzo di vendita</Label>
+                        <Label id="grid-prezzo-mode-etichetta">{tr("Come ottieni il prezzo di vendita")}</Label>
                         <RadioGroup
                           aria-labelledby="grid-prezzo-mode-etichetta"
                           value={prezzoBaseMode}
@@ -1576,10 +1565,10 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                               />
                               <div className="flex-1 min-w-0">
                                 <div className="font-medium text-sm">
-                                  {m.label}
+                                  {tr(m.label)}
                                 </div>
                                 <div className="text-xs text-muted-foreground">
-                                  {m.descrizione}
+                                  {tr(m.descrizione)}
                                 </div>
                               </div>
                             </label>
@@ -1592,13 +1581,11 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                         <>
                           <div className="rounded-md border bg-background p-3 space-y-2" role="group" aria-labelledby="grid-sconti-etichetta">
                             <Label id="grid-sconti-etichetta" className="text-sm font-medium">
-                              Sconti del fornitore, uno dopo l'altro
+                              {tr("Sconti del fornitore, uno dopo l'altro")}
                             </Label>
                             <p className="text-xs text-muted-foreground">
-                              Se i prezzi nelle celle della griglia sono quelli di{" "}
-                              <strong>listino del fornitore, prima degli sconti</strong>,
-                              scrivi qui gli sconti. Per esempio «55% + 3%». Lascia
-                              0 e 0 se hai già scritto il costo netto.
+                              {tr("Se i prezzi nelle celle della griglia sono quelli di")}{" "}
+                              <strong>{tr("listino del fornitore, prima degli sconti")}</strong>{tr(", scrivi qui gli sconti. Per esempio «55% + 3%». Lascia 0 e 0 se hai già scritto il costo netto.")}
                             </p>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                               <div>
@@ -1606,7 +1593,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                                   htmlFor="grid-sconto-fornitore-1"
                                   className="text-xs"
                                 >
-                                  Sconto 1 (%)
+                                  {tr("Sconto 1 (%)")}
                                 </Label>
                                 <Input
                                   id="grid-sconto-fornitore-1"
@@ -1618,7 +1605,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                                   onChange={(e) =>
                                     setScontoFornitore1(e.target.value)
                                   }
-                                  placeholder="es. 55"
+                                  placeholder={tr("es. 55")}
                                 />
                               </div>
                               <div>
@@ -1626,7 +1613,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                                   htmlFor="grid-sconto-fornitore-2"
                                   className="text-xs"
                                 >
-                                  Secondo sconto (%), dopo il primo
+                                  {tr("Secondo sconto (%), dopo il primo")}
                                 </Label>
                                 <Input
                                   id="grid-sconto-fornitore-2"
@@ -1638,7 +1625,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                                   onChange={(e) =>
                                     setScontoFornitore2(e.target.value)
                                   }
-                                  placeholder="es. 3"
+                                  placeholder={tr("es. 3")}
                                 />
                               </div>
                             </div>
@@ -1646,7 +1633,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
 
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
-                              <Label htmlFor="grid-markup-tipo">Come applichi il ricarico</Label>
+                              <Label htmlFor="grid-markup-tipo">{tr("Come applichi il ricarico")}</Label>
                               <Select
                                 value={markupTipo}
                                 onValueChange={(v) =>
@@ -1658,13 +1645,13 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                                 </SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="none">
-                                    Nessun ricarico
+                                    {tr("Nessun ricarico")}
                                   </SelectItem>
                                   <SelectItem value="percentuale">
-                                    Percentuale (%)
+                                    {tr("Percentuale (%)")}
                                   </SelectItem>
                                   <SelectItem value="fisso_pz">
-                                    Euro al pezzo (€)
+                                    {tr("Euro al pezzo (€)")}
                                   </SelectItem>
                                 </SelectContent>
                               </Select>
@@ -1673,8 +1660,8 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                               <div>
                                 <Label htmlFor="grid-markup-valore">
                                   {markupTipo === "percentuale"
-                                    ? "Ricarico (%)"
-                                    : "Ricarico (€ a pezzo)"}
+                                    ? tr("Ricarico (%)")
+                                    : tr("Ricarico (€ a pezzo)")}
                                 </Label>
                                 <Input
                                   id="grid-markup-valore"
@@ -1689,8 +1676,8 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                                   }
                                   placeholder={
                                     markupTipo === "percentuale"
-                                      ? "es. 100"
-                                      : "es. 120"
+                                      ? tr("es. 100")
+                                      : tr("es. 120")
                                   }
                                 />
                               </div>
@@ -1700,9 +1687,9 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                           {/* Formula live */}
                           <div className="rounded-md border bg-background px-3 py-2 text-xs text-muted-foreground">
                             <span className="font-medium text-foreground">
-                              Formula:
+                              {tr("Formula:")}
                             </span>{" "}
-                            prezzo di listino ×{" "}
+                            {tr("prezzo di listino ×")}{" "}
                             {(parseDecimalField(scontoFornitore1) || 0) > 0
                               ? `(1 − ${parseDecimalField(scontoFornitore1)}%)`
                               : "1"}{" "}
@@ -1714,16 +1701,14 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                             {markupTipo === "percentuale"
                               ? `(1 + ${parseDecimalField(markupValore) || 0}%)`
                               : markupTipo === "fisso_pz"
-                                ? `(+ ${formatCurrency(parseDecimalField(markupValore) || 0)} fissi/pz)`
-                                : "1 (nessun ricarico)"}{" "}
-                            = vendita
+                                ? tr("(+ {markupValore} fissi/pz)", { markupValore: formatCurrency(parseDecimalField(markupValore) || 0) })
+                                : tr("1 (nessun ricarico)")}{" "}
+                            {tr("= vendita")}
                           </div>
                         </>
                       ) : (
                         <div className="rounded-md border bg-background px-3 py-2 text-xs text-muted-foreground">
-                          Con il <strong>prezzo di vendita</strong> scritto a mano il
-                          prezzo di ogni cella è quello finale al cliente: il
-                          sistema non applica nessuno sconto né ricarico.
+                          {tr("Con il")} <strong>{tr("prezzo di vendita")}</strong> {tr("scritto a mano il prezzo di ogni cella è quello finale al cliente: il sistema non applica nessuno sconto né ricarico.")}
                         </div>
                       )}
 
@@ -1740,12 +1725,12 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                                 className="h-4 w-4 mr-2 animate-spin"
                                 aria-hidden="true"
                               />
-                              Salvataggio…
+                              {tr("Salvataggio…")}
                             </>
                           ) : (
                             <>
                               <Save className="h-4 w-4 mr-2" aria-hidden="true" />
-                              Salva
+                              {tr("Salva")}
                             </>
                           )}
                         </Button>
@@ -1770,7 +1755,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                       if (!isDirty) return true;
                       if (!canSaveBase) {
                         toast.error(
-                          "Scrivi il nome del prodotto prima di salvare la griglia",
+                          tr("Scrivi il nome del prodotto prima di salvare la griglia"),
                         );
                         return false;
                       }
@@ -1781,16 +1766,15 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
               ) : (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-base">Prezzo base</CardTitle>
+                    <CardTitle className="text-base">{tr("Prezzo base")}</CardTitle>
                     <p className="text-sm text-muted-foreground">
-                      Scegli come ottenere il prezzo: scrivi quello di vendita,
-                      oppure il costo del fornitore con un ricarico.
+                      {tr("Scegli come ottenere il prezzo: scrivi quello di vendita, oppure il costo del fornitore con un ricarico.")}
                     </p>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {/* Selettore modalità prezzo */}
                     <div>
-                      <Label id="f-prezzo-mode-etichetta">Come ottieni il prezzo di vendita</Label>
+                      <Label id="f-prezzo-mode-etichetta">{tr("Come ottieni il prezzo di vendita")}</Label>
                       <RadioGroup
                         aria-labelledby="f-prezzo-mode-etichetta"
                         value={prezzoBaseMode}
@@ -1812,10 +1796,10 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                             />
                             <div className="flex-1 min-w-0">
                               <div className="font-medium text-sm">
-                                {m.label}
+                                {tr(m.label)}
                               </div>
                               <div className="text-xs text-muted-foreground">
-                                {m.descrizione}
+                                {tr(m.descrizione)}
                               </div>
                             </div>
                           </label>
@@ -1834,7 +1818,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
                             <Label htmlFor="f-prezzo-vendita">
-                              Prezzo di vendita ({modalita === "mq" ? "€/m²" : "€"}, IVA esclusa)
+                              {tr("Prezzo di vendita ({unita}, IVA esclusa)", { unita: modalita === "mq" ? "€/m²" : "€" })}
                             </Label>
                             <Input
                               id="f-prezzo-vendita"
@@ -1845,12 +1829,12 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                               onChange={(e) => setPrezzoVendita(e.target.value)}
                             />
                             <p className="text-xs text-muted-foreground mt-1">
-                              Prezzo finale al cliente, prima dell'IVA.
+                              {tr("Prezzo finale al cliente, prima dell'IVA.")}
                             </p>
                           </div>
                           <div>
                             <Label htmlFor="f-costo-vendita">
-                              Costo di acquisto ({modalita === "mq" ? "€/m²" : "€"}, facoltativo)
+                              {tr("Costo di acquisto ({unita}, facoltativo)", { unita: modalita === "mq" ? "€/m²" : "€" })}
                             </Label>
                             <Input
                               id="f-costo-vendita"
@@ -1861,7 +1845,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                               onChange={(e) => setPrezzoAcquisto(e.target.value)}
                             />
                             <p className="text-xs text-muted-foreground mt-1">
-                              Quanto lo paghi, IVA esclusa: serve al margine del preventivo, il cliente non lo vede.
+                              {tr("Quanto lo paghi, IVA esclusa: serve al margine del preventivo, il cliente non lo vede.")}
                             </p>
                           </div>
                         </div>
@@ -1875,8 +1859,8 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                               className={`text-xs ${margine < 0 ? "text-rose-700 dark:text-rose-400" : "text-muted-foreground"}`}
                             >
                               {margine < 0
-                                ? `Il costo supera il prezzo di ${formatCurrency(-margine)}: venduto così, ci perdi.`
-                                : `Margine: ${formatCurrency(margine)} (${((margine / vendita) * 100).toLocaleString("it-IT", { maximumFractionDigits: 1 })}% del prezzo).`}
+                                ? tr("Il costo supera il prezzo di {valore}: venduto così, ci perdi.", { valore: formatCurrency(-margine) })
+                                : tr("Margine: {importo} ({pct}% del prezzo).", { importo: formatCurrency(margine), pct: ((margine / vendita) * 100).toLocaleString(intlCampo(), { maximumFractionDigits: 1 }) })}
                             </p>
                           );
                         })()}
@@ -1888,8 +1872,8 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                           <div>
                             <Label htmlFor="f-prezzo-acquisto">
                               {scontiAttivi
-                                ? "Prezzo di listino del fornitore, prima degli sconti (€)"
-                                : "Costo di acquisto (€, netto)"}
+                                ? tr("Prezzo di listino del fornitore, prima degli sconti (€)")
+                                : tr("Costo di acquisto (€, netto)")}
                             </Label>
                             <Input
                               id="f-prezzo-acquisto"
@@ -1903,13 +1887,13 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                             />
                             <p className="text-xs text-muted-foreground mt-1">
                               {scontiAttivi
-                                ? `Prezzo di listino senza sconti. Costo netto calcolato: ${formatCurrency(acquistoNetto)}.`
-                                : "Costo dal fornitore al netto di IVA."}
+                                ? tr("Prezzo di listino senza sconti. Costo netto calcolato: {acquistoNetto}.", { acquistoNetto: formatCurrency(acquistoNetto) })
+                                : tr("Costo dal fornitore al netto di IVA.")}
                             </p>
                           </div>
                           <div>
                             <Label htmlFor="f-iva-acquisto">
-                              IVA acquisto %
+                              {tr("IVA acquisto %")}
                             </Label>
                             <Select
                               value={vatRateAcquisto}
@@ -1925,7 +1909,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                                     value={String(iva.value)}
                                   >
                                     {iva.hint
-                                      ? `${iva.label} — ${iva.hint}`
+                                      ? `${iva.label} — ${tr(iva.hint)}`
                                       : iva.label}
                                   </SelectItem>
                                 ))}
@@ -1933,8 +1917,8 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                             </Select>
                             <p className="text-xs text-muted-foreground mt-1">
                               {parseDecimalField(vatRateAcquisto, 22) === 0
-                                ? "Acquisto intra-UE / estero: reverse charge."
-                                : "Aliquota pagata al fornitore (fattura acquisto)."}
+                                ? tr("Acquisto intra-UE / estero: reverse charge.")
+                                : tr("Aliquota pagata al fornitore (fattura acquisto).")}
                             </p>
                           </div>
                         </div>
@@ -1944,21 +1928,19 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                           <div className="flex items-baseline justify-between gap-2">
                             <div>
                               <Label id="f-sconti-etichetta" className="text-sm font-medium">
-                                Sconti del fornitore, uno dopo l'altro
+                                {tr("Sconti del fornitore, uno dopo l'altro")}
                               </Label>
                               <p className="text-xs text-muted-foreground mt-0.5">
-                                Se il prezzo sopra è quello di{" "}
-                                <strong>listino, prima degli sconti</strong> (per
-                                esempio una finestra a wasistas), scrivi qui gli
-                                sconti del fornitore. Per esempio &quot;55% + 3%&quot;.
-                                Lascia 0 e 0 se hai già scritto il costo netto.
+                                {tr("Se il prezzo sopra è quello di")}{" "}
+                                <strong>{tr("listino, prima degli sconti")}</strong>{" "}
+                                {tr("(per esempio una finestra a wasistas), scrivi qui gli sconti del fornitore. Per esempio \"55% + 3%\". Lascia 0 e 0 se hai già scritto il costo netto.")}
                               </p>
                             </div>
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                               <Label htmlFor="f-sconto-fornitore-1" className="text-xs">
-                                Sconto 1 (%)
+                                {tr("Sconto 1 (%)")}
                               </Label>
                               <Input
                                 id="f-sconto-fornitore-1"
@@ -1970,12 +1952,12 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                                 onChange={(e) =>
                                   setScontoFornitore1(e.target.value)
                                 }
-                                placeholder="es. 55"
+                                placeholder={tr("es. 55")}
                               />
                             </div>
                             <div>
                               <Label htmlFor="f-sconto-fornitore-2" className="text-xs">
-                                Secondo sconto (%), dopo il primo
+                                {tr("Secondo sconto (%), dopo il primo")}
                               </Label>
                               <Input
                                 id="f-sconto-fornitore-2"
@@ -1987,13 +1969,13 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                                 onChange={(e) =>
                                   setScontoFornitore2(e.target.value)
                                 }
-                                placeholder="es. 3"
+                                placeholder={tr("es. 3")}
                               />
                             </div>
                           </div>
                           {scontiAttivi ? (
                             <div className="text-xs text-muted-foreground pt-1 border-t">
-                              <span className="font-medium">Costo netto calcolato:</span>{" "}
+                              <span className="font-medium">{tr("Costo netto calcolato:")}</span>{" "}
                               <span className="font-semibold text-foreground">
                                 {formatCurrency(acquistoNetto)}
                               </span>{" "}
@@ -2012,7 +1994,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                         </div>
 
                         <div>
-                          <Label htmlFor="f-markup-tipo">Come applichi il ricarico</Label>
+                          <Label htmlFor="f-markup-tipo">{tr("Come applichi il ricarico")}</Label>
                           <Select
                             value={markupTipo}
                             onValueChange={(v) =>
@@ -2027,13 +2009,13 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="none">
-                                Nessun ricarico
+                                {tr("Nessun ricarico")}
                               </SelectItem>
                               <SelectItem value="percentuale">
-                                Percentuale (%)
+                                {tr("Percentuale (%)")}
                               </SelectItem>
                               <SelectItem value="fisso_pz">
-                                Euro al pezzo (€)
+                                {tr("Euro al pezzo (€)")}
                               </SelectItem>
                             </SelectContent>
                           </Select>
@@ -2043,8 +2025,8 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                           <div className="max-w-xs">
                             <Label htmlFor="f-markup-valore">
                               {markupTipo === "percentuale"
-                                ? "Ricarico (%)"
-                                : "Ricarico (€ a pezzo)"}
+                                ? tr("Ricarico (%)")
+                                : tr("Ricarico (€ a pezzo)")}
                             </Label>
                             <Input
                               id="f-markup-valore"
@@ -2059,14 +2041,14 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                               }
                               placeholder={
                                 markupTipo === "percentuale"
-                                  ? "es. 45"
-                                  : "es. 120"
+                                  ? tr("es. 45")
+                                  : tr("es. 120")
                               }
                             />
                             <p className="text-xs text-muted-foreground mt-1">
                               {markupTipo === "percentuale"
-                                ? "Ricarico in percentuale sul costo di acquisto."
-                                : "Ricarico fisso in euro per ogni pezzo."}
+                                ? tr("Ricarico in percentuale sul costo di acquisto.")
+                                : tr("Ricarico fisso in euro per ogni pezzo.")}
                             </p>
                           </div>
                         ) : null}
@@ -2074,7 +2056,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                         {/* Preview calcolo vendita */}
                         <div className="rounded-md border bg-muted/30 p-3">
                           <div className="text-xs text-muted-foreground mb-1">
-                            Prezzo di vendita calcolato
+                            {tr("Prezzo di vendita calcolato")}
                           </div>
                           <div className="flex items-baseline gap-3 flex-wrap">
                             <div className="text-2xl font-semibold">
@@ -2083,7 +2065,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                             {markupPreview && markupPreview.prezzoVendita > 0 ? (
                               <div className="text-xs text-muted-foreground flex gap-3 flex-wrap">
                                 <span>
-                                  Margine:{" "}
+                                  {tr("Margine:")}{" "}
                                   <span className="font-medium text-foreground">
                                     {formatCurrency(markupPreview.margineEuro)}
                                   </span>
@@ -2091,7 +2073,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                                 {markupPreview.marginePercentualeSuVendita !==
                                 null ? (
                                   <span>
-                                    Su vendita:{" "}
+                                    {tr("Su vendita:")}{" "}
                                     <span className="font-medium text-foreground">
                                       {markupPreview.marginePercentualeSuVendita.toFixed(
                                         1,
@@ -2119,12 +2101,12 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
                               className="h-4 w-4 mr-2 animate-spin"
                               aria-hidden="true"
                             />
-                            Salvataggio…
+                            {tr("Salvataggio…")}
                           </>
                         ) : (
                           <>
                             <Save className="h-4 w-4 mr-2" aria-hidden="true" />
-                            Salva
+                            {tr("Salva")}
                           </>
                         )}
                       </Button>
@@ -2218,7 +2200,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
           ) : (
             <Card>
               <CardContent className="py-8 text-center text-sm text-muted-foreground">
-                Salva i dati base: poi potrai impostare le opzioni, la griglia dei prezzi e vedere il prezzo di prova.
+                {tr("Salva i dati base: poi potrai impostare le opzioni, la griglia dei prezzi e vedere il prezzo di prova.")}
               </CardContent>
             </Card>
           )}
@@ -2229,13 +2211,13 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
       <Dialog open={imageZoomOpen} onOpenChange={setImageZoomOpen}>
         <DialogContent className="max-w-3xl p-2 sm:p-4">
           <DialogHeader className="sr-only">
-            <DialogTitle>Foto del prodotto</DialogTitle>
-            <DialogDescription>{nome || "Anteprima della foto del prodotto"}</DialogDescription>
+            <DialogTitle>{tr("Foto del prodotto")}</DialogTitle>
+            <DialogDescription>{nome || tr("Anteprima della foto del prodotto")}</DialogDescription>
           </DialogHeader>
           {immagineUrl && (
             <img
               src={immagineUrl}
-              alt={`Foto di ${nome || "prodotto"}`}
+              alt={tr("Foto di {nome}", { nome: nome || tr("prodotto") })}
               className="w-full max-h-[80vh] rounded-md object-contain"
             />
           )}
@@ -2246,10 +2228,9 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
       <Dialog open={showCategorieManager} onOpenChange={setShowCategorieManager}>
         <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Tipologie e linee</DialogTitle>
+            <DialogTitle>{tr("Tipologie e linee")}</DialogTitle>
             <DialogDescription>
-              Crea e cambia le tipologie e le linee del listino. Compaiono subito
-              nel menu a tendina.
+              {tr("Crea e cambia le tipologie e le linee del listino. Compaiono subito nel menu a tendina.")}
             </DialogDescription>
           </DialogHeader>
           <MacroCategorieManager />
@@ -2305,6 +2286,7 @@ interface ManodoperaSectionProps {
 }
 
 function ManodoperaSection(props: ManodoperaSectionProps) {
+  const tr = useT();
   const {
     modalita,
     onModalitaChange,
@@ -2346,7 +2328,7 @@ function ManodoperaSection(props: ManodoperaSectionProps) {
   const MargineIcon =
     margineEuro < 0 ? TrendingDown : margineEuro > 0 ? TrendingUp : Info;
   const unitaLabel =
-    MANODOPERA_UNITA_OPTIONS.find((u) => u.value === unita)?.label ?? unita;
+    (() => { const u = MANODOPERA_UNITA_OPTIONS.find((o) => o.value === unita); return u ? tr(u.label) : unita; })();
 
   // Preview tariffa selezionata: mostra margine atteso come se fosse manuale
   const tariffaSelezionata = tariffe.find((t) => t.id === tariffaId);
@@ -2359,11 +2341,9 @@ function ManodoperaSection(props: ManodoperaSectionProps) {
             <Wrench className="h-4 w-4" aria-hidden="true" />
           </div>
           <div className="flex-1 min-w-0">
-            <CardTitle className="text-base">Manodopera</CardTitle>
+            <CardTitle className="text-base">{tr("Manodopera")}</CardTitle>
             <p className="text-sm text-muted-foreground mt-0.5">
-              Montaggio e posa automatici quando aggiungi questo prodotto a un
-              preventivo. Puoi scegliere una voce di Manodopera e servizi, fissare
-              costi a corpo specifici per il prodotto, oppure nessuna manodopera.
+              {tr("Montaggio e posa automatici quando aggiungi questo prodotto a un preventivo. Puoi scegliere una voce di Manodopera e servizi, fissare costi a corpo specifici per il prodotto, oppure nessuna manodopera.")}
             </p>
           </div>
         </div>
@@ -2371,7 +2351,7 @@ function ManodoperaSection(props: ManodoperaSectionProps) {
       <CardContent className="space-y-5">
         {/* 1. Modalità: 3 card cliccabili ─────────────────────────────── */}
         <div>
-          <Label id="f-mo-modalita-etichetta" className="mb-2 block">Modalità</Label>
+          <Label id="f-mo-modalita-etichetta" className="mb-2 block">{tr("Modalità")}</Label>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2" role="group" aria-labelledby="f-mo-modalita-etichetta">
             {MANODOPERA_MODALITA_CARDS.map((m) => {
               const Icon = m.icon;
@@ -2395,10 +2375,10 @@ function ManodoperaSection(props: ManodoperaSectionProps) {
                       }`}
                       aria-hidden="true"
                     />
-                    <span className="font-medium text-sm">{m.label}</span>
+                    <span className="font-medium text-sm">{tr(m.label)}</span>
                   </div>
                   <p className="text-xs text-muted-foreground leading-snug">
-                    {m.descrizione}
+                    {tr(m.descrizione)}
                   </p>
                 </button>
               );
@@ -2411,7 +2391,7 @@ function ManodoperaSection(props: ManodoperaSectionProps) {
           <div className="space-y-3">
             <div>
               <div className="flex items-center justify-between mb-1">
-                <Label htmlFor="f-posa-tariffa">Voce di manodopera</Label>
+                <Label htmlFor="f-posa-tariffa">{tr("Voce di manodopera")}</Label>
                 {/* Bottone inline per creare al volo una nuova tariffa
                     aziendale senza uscire dal flusso editor. Apre Dialog,
                     salva su tariffe_aziendali, auto-selezione del nuovo id.
@@ -2424,16 +2404,16 @@ function ManodoperaSection(props: ManodoperaSectionProps) {
                     className="h-7 text-[11px] gap-1 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
                     onClick={() => setInlineCreateOpen(true)}
                   >
-                    <Plus className="h-3 w-3" aria-hidden="true" /> Nuova voce
+                    <Plus className="h-3 w-3" aria-hidden="true" /> {tr("Nuova voce")}
                   </Button>
                 )}
               </div>
               <Select value={tariffaId} onValueChange={onTariffaChange}>
                 <SelectTrigger id="f-posa-tariffa">
-                  <SelectValue placeholder="Scegli una voce" />
+                  <SelectValue placeholder={tr("Scegli una voce")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">— Scegli una voce —</SelectItem>
+                  <SelectItem value="none">— {tr("Scegli una voce")} —</SelectItem>
                   {tariffe.map((t) => (
                     <SelectItem key={t.id} value={t.id}>
                       {t.nome}
@@ -2447,17 +2427,15 @@ function ManodoperaSection(props: ManodoperaSectionProps) {
               {tariffe.length === 0 ? (
                 <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
                   <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-                  Nessuna voce di manodopera. Clicca su <strong>«Nuova voce»</strong> per crearne una, oppure usa «Importo manuale».
+                  {tr("Nessuna voce di manodopera. Clicca su")} <strong>{tr("«Nuova voce»")}</strong> {tr("per crearne una, oppure usa «Importo manuale».")}
                 </p>
               ) : tariffaId === "none" ? (
                 <p className="text-xs text-muted-foreground mt-1">
-                  Nessuna voce scelta: il prodotto non avrà manodopera
-                  automatica.
+                  {tr("Nessuna voce scelta: il prodotto non avrà manodopera automatica.")}
                 </p>
               ) : tariffaSelezionata ? (
                 <p className="text-xs text-muted-foreground mt-1">
-                  Voce «{tariffaSelezionata.nome}» scelta. I costi sono quelli
-                  della voce stessa.
+                  {tr("Voce «{nome}» scelta. I costi sono quelli della voce stessa.", { nome: tariffaSelezionata.nome })}
                 </p>
               ) : null}
               {/* Dialog inline-create — salva direttamente in tariffe_aziendali
@@ -2476,7 +2454,7 @@ function ManodoperaSection(props: ManodoperaSectionProps) {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <Label htmlFor="f-posa-quantita">Quantità default</Label>
+                <Label htmlFor="f-posa-quantita">{tr("Quantità default")}</Label>
                 <Input
                   id="f-posa-quantita"
                   type="number"
@@ -2486,7 +2464,7 @@ function ManodoperaSection(props: ManodoperaSectionProps) {
                   onChange={(e) => onQuantitaChange(e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Moltiplicatore per la quantità prodotto al preventivo.
+                  {tr("Moltiplicatore per la quantità prodotto al preventivo.")}
                 </p>
               </div>
             </div>
@@ -2504,9 +2482,9 @@ function ManodoperaSection(props: ManodoperaSectionProps) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label htmlFor="f-mo-costo">
-                  Costo di montaggio (€){" "}
+                  {tr("Costo di montaggio (€)")}{" "}
                   <span className="text-xs text-muted-foreground font-normal">
-                    pagato al subappaltatore
+                    {tr("pagato al subappaltatore")}
                   </span>
                 </Label>
                 <Input
@@ -2518,15 +2496,14 @@ function ManodoperaSection(props: ManodoperaSectionProps) {
                   onChange={(e) => onCostoAcquistoChange(e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Quanto paghi al montatore o al subappaltatore. Lo vede chi ha il
-                  permesso sui costi, mai il cliente.
+                  {tr("Quanto paghi al montatore o al subappaltatore. Lo vede chi ha il permesso sui costi, mai il cliente.")}
                 </p>
               </div>
               <div>
                 <Label htmlFor="f-mo-vendita">
-                  Prezzo di vendita (€){" "}
+                  {tr("Prezzo di vendita (€)")}{" "}
                   <span className="text-xs text-muted-foreground font-normal">
-                    listino cliente
+                    {tr("listino cliente")}
                   </span>
                 </Label>
                 <Input
@@ -2538,7 +2515,7 @@ function ManodoperaSection(props: ManodoperaSectionProps) {
                   onChange={(e) => onPrezzoVenditaChange(e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Quanto addebiti in preventivo al cliente.
+                  {tr("Quanto addebiti in preventivo al cliente.")}
                 </p>
               </div>
             </div>
@@ -2560,24 +2537,24 @@ function ManodoperaSection(props: ManodoperaSectionProps) {
                     aria-hidden="true"
                   />
                   <span className="text-sm font-medium">
-                    Margine previsto
+                    {tr("Margine previsto")}
                   </span>
                 </div>
                 <div className="grid grid-cols-3 gap-3 text-sm">
                   <div>
-                    <div className="text-xs text-muted-foreground">Costo</div>
+                    <div className="text-xs text-muted-foreground">{tr("Costo")}</div>
                     <div className="font-medium">
                       {formatCurrency(costoNum)}/{unitaLabel}
                     </div>
                   </div>
                   <div>
-                    <div className="text-xs text-muted-foreground">Vendita</div>
+                    <div className="text-xs text-muted-foreground">{tr("Vendita")}</div>
                     <div className="font-medium">
                       {formatCurrency(venditaNum)}/{unitaLabel}
                     </div>
                   </div>
                   <div>
-                    <div className="text-xs text-muted-foreground">Margine</div>
+                    <div className="text-xs text-muted-foreground">{tr("Margine")}</div>
                     <div className={`font-bold ${margineColor}`}>
                       {formatCurrency(margineEuro)}
                       {venditaNum > 0 ? ` (${marginePct.toFixed(1)}%)` : ""}
@@ -2587,23 +2564,21 @@ function ManodoperaSection(props: ManodoperaSectionProps) {
                 {margineEuro < 0 ? (
                   <p className="text-xs text-red-600 mt-2 flex items-center gap-1">
                     <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-                    Stai vendendo sotto costo. Controlla i numeri prima di
-                    salvare.
+                    {tr("Stai vendendo sotto costo. Controlla i numeri prima di salvare.")}
                   </p>
                 ) : marginePct < SOGLIA_MARGINE_AVVISO && venditaNum > 0 ? (
                   <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
                     <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-                    Margine molto basso (&lt; {SOGLIA_MARGINE_AVVISO}%). Verifica che copra davvero i
-                    costi accessori (trasferte, attrezzi, imprevisti).
+                    {tr("Margine molto basso (< {soglia}%). Verifica che copra davvero i costi accessori (trasferte, attrezzi, imprevisti).", { soglia: SOGLIA_MARGINE_AVVISO })}
                   </p>
                 ) : null}
-                <p className="mt-2 text-[11px] text-muted-foreground">{NOTA_SOGLIE_MARGINE}</p>
+                <p className="mt-2 text-[11px] text-muted-foreground">{tr("Verde da {verde}% in su, giallo sotto, avviso sotto il {avviso}%. Sono soglie fisse di questa pagina, non il «Margine minimo» di Prezzo e margini.", { verde: SOGLIA_MARGINE_VERDE, avviso: SOGLIA_MARGINE_AVVISO })}</p>
               </div>
             )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <Label htmlFor="f-mo-unita">Unità di misura</Label>
+                <Label htmlFor="f-mo-unita">{tr("Unità di misura")}</Label>
                 <Select
                   value={unita}
                   onValueChange={(v) => onUnitaChange(v as ManodoperaUnita)}
@@ -2614,9 +2589,9 @@ function ManodoperaSection(props: ManodoperaSectionProps) {
                   <SelectContent>
                     {MANODOPERA_UNITA_OPTIONS.map((u) => (
                       <SelectItem key={u.value} value={u.value}>
-                        {u.label}{" "}
+                        {tr(u.label)}{" "}
                         <span className="text-muted-foreground ml-1">
-                          — {u.hint}
+                          — {tr(u.hint)}
                         </span>
                       </SelectItem>
                     ))}
@@ -2624,7 +2599,7 @@ function ManodoperaSection(props: ManodoperaSectionProps) {
                 </Select>
               </div>
               <div>
-                <Label htmlFor="f-mo-quantita">Quantità default</Label>
+                <Label htmlFor="f-mo-quantita">{tr("Quantità default")}</Label>
                 <Input
                   id="f-mo-quantita"
                   type="number"
@@ -2634,7 +2609,7 @@ function ManodoperaSection(props: ManodoperaSectionProps) {
                   onChange={(e) => onQuantitaChange(e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Es. 1 = un intervento, oppure n° h, ml, mq per unità prodotto.
+                  {tr("Es. 1 = un intervento, oppure n° h, ml, mq per unità prodotto.")}
                 </p>
               </div>
             </div>
@@ -2651,14 +2626,13 @@ function ManodoperaSection(props: ManodoperaSectionProps) {
               aria-hidden="true"
             />
             <div className="text-sm">
-              <p className="font-medium">Nessuna manodopera automatica</p>
+              <p className="font-medium">{tr("Nessuna manodopera automatica")}</p>
               <p className="text-muted-foreground mt-1">
-                Quando aggiungi questo prodotto a un preventivo,{" "}
+                {tr("Quando aggiungi questo prodotto a un preventivo,")}{" "}
                 <span className="font-medium">
-                  non si crea nessuna riga di montaggio
+                  {tr("non si crea nessuna riga di montaggio")}
                 </span>
-                . Puoi sempre aggiungere una voce di manodopera a mano dal
-                preventivo se serve.
+                {tr(". Puoi sempre aggiungere una voce di manodopera a mano dal preventivo se serve.")}
               </p>
             </div>
           </div>
@@ -2674,12 +2648,12 @@ function ManodoperaSection(props: ManodoperaSectionProps) {
                   className="h-4 w-4 mr-2 animate-spin"
                   aria-hidden="true"
                 />
-                Salvataggio…
+                {tr("Salvataggio…")}
               </>
             ) : (
               <>
                 <Save className="h-4 w-4 mr-2" aria-hidden="true" />
-                Salva
+                {tr("Salva")}
               </>
             )}
           </Button>
@@ -2728,6 +2702,7 @@ interface RiepilogoSectionProps {
 }
 
 function RiepilogoSection(props: RiepilogoSectionProps) {
+  const tr = useT();
   const {
     family,
     categorie,
@@ -2765,11 +2740,10 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
       : null);
   const macroNome = macroId
     ? macrocategorie.find((m) => m.id === macroId)?.nome ?? "—"
-    : "Nessuna";
+    : tr("Nessuna");
 
-  const modalitaPrezzoLabel =
-    MODALITA_CARDS.find((m) => m.value === family.modalita_prezzo_base)?.label ??
-    family.modalita_prezzo_base;
+  const modalitaPrezzoCard = MODALITA_CARDS.find((m) => m.value === family.modalita_prezzo_base);
+  const modalitaPrezzoLabel = modalitaPrezzoCard ? tr(modalitaPrezzoCard.label) : family.modalita_prezzo_base;
 
   // Margine prodotto (solo se acquisto_markup)
   const prodottoCosto = acquistoNetto;
@@ -2805,7 +2779,7 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
   const completezza: Array<{ testo: string; step: string; grave: boolean }> = [];
   if (!macroId) {
     completezza.push({
-      testo: "Senza tipologia: non compare nella scelta prodotti del preventivo.",
+      testo: tr("Senza tipologia: non compare nella scelta prodotti del preventivo."),
       step: "1",
       grave: true,
     });
@@ -2815,21 +2789,21 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
     prodottoVendita <= 0
   ) {
     completezza.push({
-      testo: "Prezzo di vendita a zero: nel preventivo il prodotto esce gratis.",
+      testo: tr("Prezzo di vendita a zero: nel preventivo il prodotto esce gratis."),
       step: "2",
       grave: true,
     });
   }
   if (!immagineUrl) {
     completezza.push({
-      testo: "Senza foto: nel preventivo e nel listino compare un riquadro grigio.",
+      testo: tr("Senza foto: nel preventivo e nel listino compare un riquadro grigio."),
       step: "1",
       grave: false,
     });
   }
   if (manodoperaModalita === "nessuna") {
     completezza.push({
-      testo: "Nessuna manodopera collegata: la posa va aggiunta a mano in ogni preventivo.",
+      testo: tr("Nessuna manodopera collegata: la posa va aggiunta a mano in ogni preventivo."),
       step: "4",
       grave: false,
     });
@@ -2841,7 +2815,7 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
         <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 p-3 space-y-1.5">
           <p className="text-sm font-semibold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
             <AlertTriangle className="h-4 w-4" aria-hidden="true" />
-            Prima di chiudere, controlla:
+            {tr("Prima di chiudere, controlla:")}
           </p>
           <ul className="space-y-1">
             {completezza.map((c) => (
@@ -2855,7 +2829,7 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
                   className="h-auto p-0 text-xs shrink-0"
                   onClick={() => onGotoStep(c.step)}
                 >
-                  {soloLettura ? "Vedi" : "Sistema"}
+                  {soloLettura ? tr("Vedi") : tr("Sistema")}
                 </Button>
               </li>
             ))}
@@ -2866,7 +2840,7 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
       {/* Card Anagrafica */}
       <RiepilogoCard
         icon={Package}
-        title="Anagrafica"
+        title={tr("Anagrafica")}
         onEdit={() => onGotoStep("1")}
         soloLettura={soloLettura}
       >
@@ -2892,7 +2866,7 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
               <Badge variant="secondary">{family.unit_of_measure}</Badge>
               {/* L'IVA del modulo, anche se non ancora salvata: prima il riepilogo
                   mostrava quella vecchia subito dopo averla cambiata (05/10/2026). */}
-              <Badge variant="secondary">IVA {parseDecimalField(vatRate, 22)}%</Badge>
+              <Badge variant="secondary">{tr("IVA {vatRate}%", { vatRate: parseDecimalField(vatRate, 22) })}</Badge>
             </div>
             {family.descrizione ? (
               <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
@@ -2906,18 +2880,18 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
       {/* Card Prezzo */}
       <RiepilogoCard
         icon={Banknote}
-        title="Prezzo"
+        title={tr("Prezzo")}
         onEdit={() => onGotoStep("2")}
         soloLettura={soloLettura}
       >
         <div className="space-y-2">
           <div className="text-xs text-muted-foreground uppercase tracking-wide">
-            Come si vende: <span className="font-medium">{modalitaPrezzoLabel}</span>
+            {tr("Come si vende:")} <span className="font-medium">{modalitaPrezzoLabel}</span>
             {" · "}
             <span className="font-medium">
               {prezzoBaseMode === "vendita"
-                ? "Prezzo di vendita"
-                : "Costo + ricarico"}
+                ? tr("Prezzo di vendita")
+                : tr("Costo + ricarico")}
             </span>
           </div>
           {prezzoBaseMode === "acquisto_markup" ? (
@@ -2925,8 +2899,8 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
               <div className="flex justify-between">
                 <span className="text-muted-foreground">
                   {(parseDecimalField(scontoFornitore1) || 0) > 0 || (parseDecimalField(scontoFornitore2) || 0) > 0
-                    ? "Listino fornitore (lordo)"
-                    : "Costo di acquisto"}
+                    ? tr("Listino fornitore (lordo)")
+                    : tr("Costo di acquisto")}
                 </span>
                 <span className="font-medium">
                   {formatCurrency(parseDecimalField(prezzoAcquisto) || 0)}
@@ -2936,7 +2910,7 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
               (parseDecimalField(scontoFornitore2) || 0) > 0 ? (
                 <div className="flex justify-between text-emerald-700">
                   <span>
-                    Sconti fornitore −{scontoFornitore1}%
+                    {tr("Sconti fornitore −")}{scontoFornitore1}%
                     {(parseDecimalField(scontoFornitore2) || 0) > 0
                       ? ` / −${scontoFornitore2}%`
                       : ""}
@@ -2948,25 +2922,25 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
               ) : null}
               <div className="flex justify-between">
                 <span className="text-muted-foreground">
-                  Ricarico{" "}
+                  {tr("Ricarico")}{" "}
                   {markupTipo === "percentuale"
                     ? `+${parseDecimalField(markupValore) || 0}%`
                     : markupTipo === "fisso_pz"
-                      ? `+${formatCurrency(parseDecimalField(markupValore) || 0)}/pz`
-                      : "Nessuno"}
+                      ? tr("+{markupValore}/pz", { markupValore: formatCurrency(parseDecimalField(markupValore) || 0) })
+                      : tr("Nessuno")}
                 </span>
                 <span className="font-medium text-amber-700">
                   +{formatCurrency(prodottoMargine)}
                 </span>
               </div>
               <div className="flex justify-between pt-1 border-t text-base font-semibold text-primary">
-                <span>Prezzo vendita</span>
+                <span>{tr("Prezzo vendita")}</span>
                 <span>{formatCurrency(prodottoVendita)}</span>
               </div>
               {prodottoVendita > 0 ? (
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">
-                    Margine: {formatCurrency(prodottoMargine)}
+                    {tr("Margine: {prodottoMargine}", { prodottoMargine: formatCurrency(prodottoMargine) })}
                   </span>
                   <span
                     className={
@@ -2975,19 +2949,18 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
                         : "text-emerald-600 font-medium"
                     }
                   >
-                    {prodottoMarginePct.toFixed(1)}% sulla vendita
+                    {tr("{valore}% sulla vendita", { valore: prodottoMarginePct.toFixed(1) })}
                   </span>
                 </div>
               ) : null}
               <div className="text-xs text-muted-foreground pt-1">
-                IVA acquisto {parseDecimalField(vatRateAcquisto) || 0}% · IVA vendita{" "}
-                {parseDecimalField(vatRate, 22)}%
+                {tr("IVA acquisto {vatRateAcquisto}% · IVA vendita {vatRate}%", { vatRateAcquisto: parseDecimalField(vatRateAcquisto) || 0, vatRate: parseDecimalField(vatRate, 22) })}
               </div>
             </div>
           ) : (
             <div className="space-y-1.5 bg-muted/30 rounded-md p-3 text-sm">
               <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Prezzo di vendita</span>
+                <span className="text-muted-foreground">{tr("Prezzo di vendita")}</span>
                 <span className="text-lg font-bold text-primary">
                   {formatCurrency(parseDecimalField(prezzoVendita) || 0)}
                 </span>
@@ -2996,16 +2969,16 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
               {(parseDecimalField(prezzoAcquisto) || 0) > 0 && (parseDecimalField(prezzoVendita) || 0) > 0 ? (
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">
-                    Costo {formatCurrency(parseDecimalField(prezzoAcquisto) || 0)}
+                    {tr("Costo {prezzoAcquisto}", { prezzoAcquisto: formatCurrency(parseDecimalField(prezzoAcquisto) || 0) })}
                   </span>
                   <span className="font-medium">
-                    Margine{" "}
+                    {tr("Margine")}{" "}
                     {(
                       (((parseDecimalField(prezzoVendita) || 0) - (parseDecimalField(prezzoAcquisto) || 0)) /
                         (parseDecimalField(prezzoVendita) || 1)) *
                       100
-                    ).toLocaleString("it-IT", { maximumFractionDigits: 1 })}
-                    % sulla vendita
+                    ).toLocaleString(intlCampo(), { maximumFractionDigits: 1 })}
+                    {tr("% sulla vendita")}
                   </span>
                 </div>
               ) : null}
@@ -3017,34 +2990,34 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
       {/* Card Manodopera */}
       <RiepilogoCard
         icon={Wrench}
-        title="Manodopera"
+        title={tr("Manodopera")}
         onEdit={() => onGotoStep("4")}
         soloLettura={soloLettura}
       >
         {manodoperaModalita === "nessuna" ? (
           <div className="flex gap-2 items-center text-sm text-muted-foreground">
             <Ban className="h-4 w-4" aria-hidden="true" />
-            <span>Nessuna manodopera automatica</span>
+            <span>{tr("Nessuna manodopera automatica")}</span>
           </div>
         ) : manodoperaModalita === "tariffa" ? (
           <div className="space-y-1.5 text-sm">
             <div className="flex items-center gap-2">
               <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
-                Voce di Manodopera e servizi
+                {tr("Voce di Manodopera e servizi")}
               </Badge>
               <span className="font-medium">{tariffaNome ?? "—"}</span>
             </div>
             <div className="text-xs text-muted-foreground">
-              Quantità default: {family.posa_quantita_default} ·{" "}
+              {tr("Quantità default:")} {family.posa_quantita_default} ·{" "}
               {posaLinked ? (
                 <span className="inline-flex gap-1 items-center">
                   <Link2 className="h-3 w-3" aria-hidden="true" />
-                  legata al prodotto
+                  {tr("legata al prodotto")}
                 </span>
               ) : (
                 <span className="inline-flex gap-1 items-center">
                   <Link2Off className="h-3 w-3" aria-hidden="true" />
-                  indipendente
+                  {tr("indipendente")}
                 </span>
               )}
             </div>
@@ -3053,27 +3026,27 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
           <div className="space-y-2 text-sm">
             <div className="flex items-center gap-2">
               <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
-                Importo manuale
+                {tr("Importo manuale")}
               </Badge>
               <span className="text-xs text-muted-foreground">
-                unità: {manodoperaUnita}
+                {tr("unità: {manodoperaUnita}", { manodoperaUnita })}
               </span>
             </div>
             <div className="grid grid-cols-3 gap-3 bg-muted/30 rounded-md p-3">
               <div>
                 <div className="text-xs text-muted-foreground">
-                  Costo subappalto
+                  {tr("Costo subappalto")}
                 </div>
                 <div className="font-medium">{formatCurrency(moCosto)}</div>
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">
-                  Prezzo cliente
+                  {tr("Prezzo cliente")}
                 </div>
                 <div className="font-medium">{formatCurrency(moVendita)}</div>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground">Margine</div>
+                <div className="text-xs text-muted-foreground">{tr("Margine")}</div>
                 <div
                   className={`font-bold ${
                     moMargine < 0
@@ -3089,16 +3062,16 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
               </div>
             </div>
             <div className="text-xs text-muted-foreground">
-              Quantità default: {family.posa_quantita_default} ·{" "}
+              {tr("Quantità default:")} {family.posa_quantita_default} ·{" "}
               {posaLinked ? (
                 <span className="inline-flex gap-1 items-center">
                   <Link2 className="h-3 w-3" aria-hidden="true" />
-                  legata al prodotto
+                  {tr("legata al prodotto")}
                 </span>
               ) : (
                 <span className="inline-flex gap-1 items-center">
                   <Link2Off className="h-3 w-3" aria-hidden="true" />
-                  indipendente
+                  {tr("indipendente")}
                 </span>
               )}
             </div>
@@ -3109,18 +3082,18 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
       {/* Card Assi */}
       <RiepilogoCard
         icon={ListChecks}
-        title={`Opzioni prodotto (${family.axes.length})`}
+        title={tr("Opzioni prodotto ({n})", { n: family.axes.length })}
         onEdit={() => onGotoStep("3")}
         soloLettura={soloLettura}
       >
         {family.axes.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Nessuna opzione configurata. Il prodotto ha un prezzo fisso.
+            {tr("Nessuna opzione configurata. Il prodotto ha un prezzo fisso.")}
           </p>
         ) : (
           <div className="space-y-2">
             <div className="text-xs text-muted-foreground">
-              {assiObbligatori} obbligatori · {valoriTotali} valori totali
+              {tr("{assiObbligatori} obbligatori · {valoriTotali} valori totali", { assiObbligatori, valoriTotali })}
             </div>
             <ul className="space-y-1.5">
               {family.axes.map((ax) => (
@@ -3135,14 +3108,14 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
                   <span className="font-medium">{ax.nome}</span>
                   {ax.obbligatorio ? (
                     <Badge variant="outline" className="text-xs">
-                      obbligatorio
+                      {tr("obbligatorio")}
                     </Badge>
                   ) : null}
                   <Badge variant="secondary" className="text-xs ml-auto">
                     {ax.values.filter((v) => v.attivo).length}{" "}
                     {ax.values.filter((v) => v.attivo).length === 1
-                      ? "valore"
-                      : "valori"}
+                      ? tr("valore")
+                      : tr("valori")}
                   </Badge>
                 </li>
               ))}
@@ -3151,13 +3124,13 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
         )}
       </RiepilogoCard>
 
-      <p className="text-[11px] text-muted-foreground">{NOTA_SOGLIE_MARGINE}</p>
+      <p className="text-[11px] text-muted-foreground">{tr("Verde da {verde}% in su, giallo sotto, avviso sotto il {avviso}%. Sono soglie fisse di questa pagina, non il «Margine minimo» di Prezzo e margini.", { verde: SOGLIA_MARGINE_VERDE, avviso: SOGLIA_MARGINE_AVVISO })}</p>
 
       {/* Azioni finali */}
       <div className="flex flex-wrap gap-2 pt-3 border-t">
         <Button onClick={onBackToCatalog} variant="outline">
           <ArrowLeft className="h-4 w-4 mr-2" aria-hidden="true" />
-          Torna al listino
+          {tr("Torna al listino")}
         </Button>
         {!soloLettura && (
         <Button onClick={onDuplicate} disabled={duplicating}>
@@ -3167,12 +3140,12 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
                 className="h-4 w-4 mr-2 animate-spin"
                 aria-hidden="true"
               />
-              Duplicazione…
+              {tr("Duplicazione…")}
             </>
           ) : (
             <>
               <CopyPlus className="h-4 w-4 mr-2" aria-hidden="true" />
-              Salva e duplica
+              {tr("Salva e duplica")}
             </>
           )}
         </Button>
@@ -3195,6 +3168,7 @@ function RiepilogoCard({
   soloLettura: boolean;
   children: React.ReactNode;
 }) {
+  const tr = useT();
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -3206,7 +3180,7 @@ function RiepilogoCard({
             <CardTitle className="text-sm">{title}</CardTitle>
           </div>
           <Button size="sm" variant="ghost" onClick={onEdit}>
-            {soloLettura ? "Vedi" : "Modifica"}
+            {soloLettura ? tr("Vedi") : tr("Modifica")}
           </Button>
         </div>
       </CardHeader>
@@ -3224,6 +3198,7 @@ function LinkedToggle({
   onChange: (v: boolean) => void;
   disabled?: boolean;
 }) {
+  const tr = useT();
   return (
     <div className="flex items-start justify-between gap-3 rounded-md border bg-muted/30 p-3">
       <div className="space-y-0.5 flex gap-2 items-start">
@@ -3240,12 +3215,10 @@ function LinkedToggle({
         )}
         <div>
           <Label htmlFor="f-mo-linked" className="cursor-pointer">
-            Manodopera legata al prodotto
+            {tr("Manodopera legata al prodotto")}
           </Label>
           <p className="text-xs text-muted-foreground">
-            Se attivo, cancellare o modificare la riga prodotto aggiorna anche
-            la riga manodopera (sincronizzazione quantità + delete cascade). Se
-            disattivo, le due righe vivono in modo indipendente.
+            {tr("Se attivo, cancellare o modificare la riga prodotto aggiorna anche la riga manodopera (sincronizzazione quantità + delete cascade). Se disattivo, le due righe vivono in modo indipendente.")}
           </p>
         </div>
       </div>
@@ -3280,6 +3253,7 @@ interface InlineCreateTariffaDialogProps {
 function InlineCreateTariffaDialog({
   open, onOpenChange, companyId, onCreated,
 }: InlineCreateTariffaDialogProps) {
+  const tr = useT();
   const [nome, setNome] = useState("");
   const [tipo, setTipo] = useState<"posa" | "manodopera">("posa");
   const [unita, setUnita] = useState<"pz" | "mq" | "ml" | "h" | "gg" | "a_corpo">("pz");
@@ -3300,21 +3274,21 @@ function InlineCreateTariffaDialog({
 
   const handleSubmit = async () => {
     if (!nome.trim()) {
-      toast.error("Scrivi un nome per la voce");
+      toast.error(tr("Scrivi un nome per la voce"));
       return;
     }
     // parseDecimalField, non parseFloat: "10,50" deve salvare 10.5, non 10
     // (venditaNum/costoNum finiscono nell'INSERT su tariffe_aziendali).
     const venditaNum = parseDecimalField(prezzoVendita);
     if (!Number.isFinite(venditaNum) || venditaNum <= 0) {
-      toast.error("Scrivi un prezzo di vendita valido (maggiore di 0)");
+      toast.error(tr("Scrivi un prezzo di vendita valido (maggiore di 0)"));
       return;
     }
     const costoNum = parseDecimalField(costoInterno);
     // M-28 (audit): anche il costo interno va validato — un negativo passava
     // dritto nell'INSERT su tariffe_aziendali falsando i margini.
     if (costoInterno.trim() !== "" && (!Number.isFinite(costoNum) || costoNum < 0)) {
-      toast.error("Scrivi un costo interno valido (zero o più)");
+      toast.error(tr("Scrivi un costo interno valido (zero o più)"));
       return;
     }
     setSaving(true);
@@ -3346,11 +3320,11 @@ function InlineCreateTariffaDialog({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const newId = (data as any)?.id as string | undefined;
       if (!newId) throw new Error("Voce creata ma non trovata: riprova.");
-      toast.success(`Voce «${nome.trim()}» creata`);
+      toast.success(tr("Voce «{trim}» creata", { trim: nome.trim() }));
       onCreated(newId);
       onOpenChange(false);
     } catch (e) {
-      toast.error("Voce non creata", { description: messaggioErroreListino(e) });
+      toast.error(tr("Voce non creata"), { description: messaggioErroreListino(e) });
     } finally {
       setSaving(false);
     }
@@ -3360,59 +3334,57 @@ function InlineCreateTariffaDialog({
     <Dialog open={open} onOpenChange={(o) => { if (!saving) onOpenChange(o); }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Nuova voce di manodopera</DialogTitle>
+          <DialogTitle>{tr("Nuova voce di manodopera")}</DialogTitle>
           <DialogDescription>
-            Crea al volo una voce per la manodopera di questo prodotto. La
-            ritrovi in{" "}
-            <strong>Impostazioni → Listino → Manodopera e servizi</strong> per
-            completarla.
+            {tr("Crea al volo una voce per la manodopera di questo prodotto. La ritrovi in")}{" "}
+            <strong>{tr("Impostazioni → Listino → Manodopera e servizi")}</strong> {tr("per completarla.")}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3 py-2">
           <div>
-            <Label htmlFor="ict-nome" className="text-xs">Nome della voce *</Label>
+            <Label htmlFor="ict-nome" className="text-xs">{tr("Nome della voce *")}</Label>
             <Input
               id="ict-nome"
               value={nome}
               onChange={(e) => setNome(e.target.value)}
-              placeholder='Es. "Posa porta blindata"'
+              placeholder={tr("Es. \"Posa porta blindata\"")}
               className="mt-1"
               autoFocus
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label htmlFor="ict-tipo" className="text-xs">Tipo</Label>
+              <Label htmlFor="ict-tipo" className="text-xs">{tr("Tipo")}</Label>
               <Select value={tipo} onValueChange={(v) => setTipo(v as typeof tipo)}>
                 <SelectTrigger id="ict-tipo" className="mt-1">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="posa">Posa</SelectItem>
-                  <SelectItem value="manodopera">Manodopera</SelectItem>
+                  <SelectItem value="posa">{tr("Posa")}</SelectItem>
+                  <SelectItem value="manodopera">{tr("Manodopera")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label htmlFor="ict-unita" className="text-xs">Unità</Label>
+              <Label htmlFor="ict-unita" className="text-xs">{tr("Unità")}</Label>
               <Select value={unita} onValueChange={(v) => setUnita(v as typeof unita)}>
                 <SelectTrigger id="ict-unita" className="mt-1">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="pz">Pezzo</SelectItem>
-                  <SelectItem value="mq">Metro quadro</SelectItem>
-                  <SelectItem value="ml">Metro lineare</SelectItem>
-                  <SelectItem value="h">Ora</SelectItem>
-                  <SelectItem value="gg">Giornata</SelectItem>
-                  <SelectItem value="a_corpo">A corpo</SelectItem>
+                  <SelectItem value="pz">{tr("Pezzo")}</SelectItem>
+                  <SelectItem value="mq">{tr("Metro quadro")}</SelectItem>
+                  <SelectItem value="ml">{tr("Metro lineare")}</SelectItem>
+                  <SelectItem value="h">{tr("Ora")}</SelectItem>
+                  <SelectItem value="gg">{tr("Giornata")}</SelectItem>
+                  <SelectItem value="a_corpo">{tr("A corpo")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label htmlFor="ict-costo" className="text-xs">Costo interno (€)</Label>
+              <Label htmlFor="ict-costo" className="text-xs">{tr("Costo interno (€)")}</Label>
               <Input
                 id="ict-costo"
                 type="number"
@@ -3425,7 +3397,7 @@ function InlineCreateTariffaDialog({
               />
             </div>
             <div>
-              <Label htmlFor="ict-vendita" className="text-xs">Prezzo vendita (€) *</Label>
+              <Label htmlFor="ict-vendita" className="text-xs">{tr("Prezzo vendita (€) *")}</Label>
               <Input
                 id="ict-vendita"
                 type="number"
@@ -3446,7 +3418,7 @@ function InlineCreateTariffaDialog({
             onClick={() => onOpenChange(false)}
             disabled={saving}
           >
-            Annulla
+            {tr("Annulla")}
           </Button>
           <Button
             type="button"
@@ -3454,7 +3426,7 @@ function InlineCreateTariffaDialog({
             disabled={saving}
             className="bg-orange-500 hover:bg-orange-600"
           >
-            {saving ? "Creazione…" : "Crea la voce"}
+            {saving ? tr("Creazione…") : tr("Crea la voce")}
           </Button>
         </DialogFooter>
       </DialogContent>

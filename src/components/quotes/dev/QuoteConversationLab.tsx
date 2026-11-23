@@ -3,10 +3,12 @@ import { Sparkles } from "lucide-react";
 import { ThinkingPromptInput, ThinkingProgress, type ThinkingStep, type ThinkingStatus } from "@/components/ui/thinking-prompt-input";
 import { advanceLabConversation, type LabConversation, type LabRow, type LabScenario } from "@/lib/preventivi/devQuoteConversation";
 import { recordConversationRequest, log } from "@/lib/preventivi/devSimulation";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Props = { scenario: LabScenario; slow: boolean; onScenario: (scenario: LabScenario) => void; onRow: (index: number, row: LabRow) => void; onDiscount: (discount: number) => void };
 type Message = { role: "user" | "assistant"; text: string; steps?: ThinkingStep[]; progressStatus?: ThinkingStatus; elapsed?: number };
 export default function QuoteConversationLab({ scenario, slow, onScenario, onRow, onDiscount }: Props) {
+  const t = useT();
   const [conversation, setConversation] = useState<LabConversation>({ scenario, step: "request" });
   const [messages, setMessages] = useState<Message[]>([{ role: "assistant", text: "Che lavoro vuoi preventivare? Proviamo un bagno, un cappotto o un campo da tennis. Ti farò una domanda alla volta e comporrò la bozza a fianco mentre rispondi." }]);
   const [input, setInput] = useState("");
@@ -62,14 +64,14 @@ export default function QuoteConversationLab({ scenario, slow, onScenario, onRow
     append({ role: "assistant", text: "Risposta interrotta. La bozza non è stata modificata; puoi rispondere di nuovo.", steps: steps.map(step => ({ ...step, status: step.status === "active" ? "stopped" : step.status })), progressStatus: "stopped", elapsed: (Date.now() - startedAt.current) / 1000 });
     log("Chat simulata interrotta, nessuna riga applicata.");
   };
-  return <section className="quote-lab-chat" aria-label="Chat preventivo">
-    <header><span><Sparkles size={17} /> Assistente preventivi</span><small>Chat simulata · nessun credito consumato</small></header>
-    <div className="quote-lab-messages" role="log" aria-label="Conversazione preventivo" aria-live="polite" ref={transcript}>
-      {messages.map((message, i) => <article key={i} className={`quote-lab-message ${message.role}`}><small>{message.role === "user" ? "Tu" : "Assistente · prova locale"}</small>{message.steps && <ThinkingProgress status={message.progressStatus ?? "done"} steps={message.steps} elapsedSeconds={message.elapsed} simulated onReveal={revealProgress} />}<p>{message.text}</p></article>)}
+  return <section className="quote-lab-chat" aria-label={t("Chat preventivo")}>
+    <header><span><Sparkles size={17} /> {t("Assistente preventivi")}</span><small>{t("Chat simulata · nessun credito consumato")}</small></header>
+    <div className="quote-lab-messages" role="log" aria-label={t("Conversazione preventivo")} aria-live="polite" ref={transcript}>
+      {messages.map((message, i) => <article key={i} className={`quote-lab-message ${message.role}`}><small>{message.role === "user" ? t("Tu") : t("Assistente · prova locale")}</small>{message.steps && <ThinkingProgress status={message.progressStatus ?? "done"} steps={message.steps} elapsedSeconds={message.elapsed} simulated onReveal={revealProgress} />}<p>{message.text}</p></article>)}
       {busy && <ThinkingProgress status="thinking" steps={steps} elapsedSeconds={elapsed} simulated onReveal={revealProgress} />}
     </div>
     {conversation.step === "request" && <div className="quote-lab-suggestions">{["Ristrutturiamo un bagno", "Prepariamo un cappotto", "Costruiamo un campo da tennis"].map(text => <button key={text} disabled={busy} onClick={() => send(text)}>{text}</button>)}</div>}
     <ThinkingPromptInput value={input} onValueChange={setInput} onSubmit={() => send()} onStop={stop} busy={busy} />
-    <p className="quote-lab-caption">Invio per rispondere · Maiusc+Invio per andare a capo. Il totale include solo le voci completate; una bozza parziale non è un’offerta.</p>
+    <p className="quote-lab-caption">{t("Invio per rispondere · Maiusc+Invio per andare a capo. Il totale include solo le voci completate; una bozza parziale non è un’offerta.")}</p>
   </section>;
 }

@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { supabase } from "@/integrations/supabase/client";
 import { proponiDisegniDaNomi } from "@/lib/serramenti/assegnaDisegniDaNomi";
 import type { FamilyWithAxes } from "@/types/articleFamily";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   open: boolean;
@@ -24,6 +25,7 @@ interface Props {
 const LOTTO = 20;
 
 export function AssegnaDisegniDialog({ open, onOpenChange, companyId, articoli, onFatto }: Props) {
+  const t = useT();
   const proposte = useMemo(() => proponiDisegniDaNomi(articoli), [articoli]);
   const daAssegnare = proposte.filter((p) => p.esito === "proposto");
   const nonRiconosciuti = proposte.filter((p) => p.esito === "non_riconosciuto");
@@ -45,7 +47,7 @@ export function AssegnaDisegniDialog({ open, onOpenChange, companyId, articoli, 
 
   /** Scrive a lotti piccoli; solo dove il tipo è ancora vuoto (mai sopra a una scelta fatta a mano). */
   const scrivi = async (righe: Array<{ id: string; tipo: string | null }>, vuoto: boolean) => {
-    if (!companyId) throw new Error("Azienda non identificata");
+    if (!companyId) throw new Error(t("Azienda non identificata"));
     let fatte = 0;
     for (let i = 0; i < righe.length; i += LOTTO) {
       for (const r of righe.slice(i, i + LOTTO)) {
@@ -65,10 +67,10 @@ export function AssegnaDisegniDialog({ open, onOpenChange, companyId, articoli, 
       const righe = scelte.map((p) => ({ id: p.id, tipo: p.tipo as string }));
       const fatte = await scrivi(righe, true);
       setApplicati(righe);
-      toast.success(`Disegno assegnato a ${fatte} articoli`, { description: "Puoi annullare da questa finestra." });
+      toast.success(t("Disegno assegnato a {fatte} articoli", { fatte }), { description: t("Puoi annullare da questa finestra.") });
       onFatto();
     } catch (e) {
-      toast.error("Assegnazione non riuscita", { description: e instanceof Error ? e.message : undefined });
+      toast.error(t("Assegnazione non riuscita"), { description: e instanceof Error ? e.message : undefined });
     } finally {
       setInCorso(false);
     }
@@ -79,10 +81,10 @@ export function AssegnaDisegniDialog({ open, onOpenChange, companyId, articoli, 
     try {
       const fatte = await scrivi(applicati.map((a): { id: string; tipo: string | null } => ({ id: a.id, tipo: null })), false);
       setApplicati([]);
-      toast.success(`Annullato: ${fatte} articoli tornati senza disegno`);
+      toast.success(t("Annullato: {fatte} articoli tornati senza disegno", { fatte }));
       onFatto();
     } catch (e) {
-      toast.error("Annullamento non riuscito", { description: e instanceof Error ? e.message : undefined });
+      toast.error(t("Annullamento non riuscito"), { description: e instanceof Error ? e.message : undefined });
     } finally {
       setInCorso(false);
     }
@@ -95,7 +97,7 @@ export function AssegnaDisegniDialog({ open, onOpenChange, companyId, articoli, 
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Wand2 className="h-5 w-5" aria-hidden="true" /> Assegna i disegni dai nomi
+            <Wand2 className="h-5 w-5" aria-hidden="true" /> {t("Assegna i disegni dai nomi")}
           </DialogTitle>
           <DialogDescription>
             Il sistema legge il nome di ogni articolo e propone il tipo di disegno. Togli la spunta dove non sei d&apos;accordo: non cambia nulla finché non confermi.
@@ -103,11 +105,11 @@ export function AssegnaDisegniDialog({ open, onOpenChange, companyId, articoli, 
         </DialogHeader>
 
         <p className="text-sm text-muted-foreground">
-          {daAssegnare.length} da assegnare · {giaAssegnati} già con un tipo · {nonRiconosciuti.length} non riconosciuti (restano con la foto)
+          {t("{n} da assegnare · {giaAssegnati} già con un tipo · {n2} non riconosciuti (restano con la foto)", { n: daAssegnare.length, giaAssegnati, n2: nonRiconosciuti.length })}
         </p>
 
         <div className="max-h-[50vh] space-y-1 overflow-y-auto rounded-md border p-2">
-          {daAssegnare.length === 0 && <p className="p-3 text-sm text-muted-foreground">Nessun articolo da assegnare.</p>}
+          {daAssegnare.length === 0 && <p className="p-3 text-sm text-muted-foreground">{t("Nessun articolo da assegnare.")}</p>}
           {daAssegnare.map((p) => (
             <label key={p.id} className="flex cursor-pointer items-center gap-3 rounded px-2 py-1.5 text-sm hover:bg-muted/50">
               <Checkbox checked={!escluse.has(p.id)} onCheckedChange={() => alterna(p.id)} disabled={fatto || inCorso} />
@@ -117,7 +119,7 @@ export function AssegnaDisegniDialog({ open, onOpenChange, companyId, articoli, 
           ))}
           {nonRiconosciuti.length > 0 && (
             <details className="px-2 pt-2 text-xs text-muted-foreground">
-              <summary className="cursor-pointer">Non riconosciuti ({nonRiconosciuti.length})</summary>
+              <summary className="cursor-pointer">{t("Non riconosciuti ({n})", { n: nonRiconosciuti.length })}</summary>
               <ul className="mt-1 space-y-0.5">
                 {nonRiconosciuti.map((p) => (
                   <li key={p.id} className="truncate">{p.nome}</li>
@@ -135,11 +137,11 @@ export function AssegnaDisegniDialog({ open, onOpenChange, companyId, articoli, 
             </Button>
           )}
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={inCorso}>
-            {fatto ? "Chiudi" : "Non ora"}
+            {fatto ? t("Chiudi") : t("Non ora")}
           </Button>
           {!fatto && (
             <Button onClick={applica} disabled={inCorso || scelte.length === 0}>
-              {inCorso ? "Assegno…" : `Assegna a ${scelte.length} articoli`}
+              {inCorso ? t("Assegno…") : t("Assegna a {n} articoli", { n: scelte.length })}
             </Button>
           )}
         </DialogFooter>

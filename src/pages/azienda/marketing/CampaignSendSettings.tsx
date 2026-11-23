@@ -42,6 +42,7 @@ import { CampaignAbResults } from "@/components/email-marketing/CampaignAbResult
 import { EmailCreditsBanner } from "@/components/email-marketing/EmailCreditsBanner";
 import { useEmailMarketingBase } from "@/components/email-marketing/useEmailMarketingBase";
 import { edgeErrorMessage } from "@/lib/edgeFunctionError";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const isValidEmail = (value: string) => EMAIL_RE.test(value.trim());
@@ -65,6 +66,7 @@ const hasUnsubscribeToken = (html?: string | null) => /\{\{\s*unsubscribe_url\s*
 const sanitizeFileName = (name: string) => name.replace(/[^a-zA-Z0-9._-]/g, "_");
 
 export default function CampaignSendSettings() {
+  const tr = useT();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const emailBase = useEmailMarketingBase();
@@ -243,7 +245,7 @@ export default function CampaignSendSettings() {
       await uploadFiles();
     },
     onSuccess: () => {
-      toast.success("Impostazioni salvate");
+      toast.success(tr("Impostazioni salvate"));
       setAttachedFiles([]);
       qc.invalidateQueries({ queryKey: queryKeys.emailCampaigns.all });
       qc.invalidateQueries({ queryKey: ["campaign-editor", id] });
@@ -312,9 +314,9 @@ export default function CampaignSendSettings() {
     },
     onSuccess: (data: any) => {
       if (data?.scheduled) {
-        toast.success("Campagna programmata correttamente");
+        toast.success(tr("Campagna programmata correttamente"));
       } else {
-        toast.success(`Campagna inviata! ${data?.sent || 0} email inviate, ${data?.failed || 0} fallite.`);
+        toast.success(tr("Campagna inviata! {inviate} email inviate, {fallite} fallite.", { inviate: data?.sent || 0, fallite: data?.failed || 0 }));
       }
       qc.invalidateQueries({ queryKey: queryKeys.emailCampaigns.all });
       qc.invalidateQueries({ queryKey: ["email-credits-balance"] });
@@ -335,7 +337,7 @@ export default function CampaignSendSettings() {
       return data;
     },
     onSuccess: () => {
-      toast.success("Email di test inviata!");
+      toast.success(tr("Email di test inviata!"));
       setTestEmailOpen(false);
       setTestEmailAddress("");
     },
@@ -353,14 +355,14 @@ export default function CampaignSendSettings() {
   };
 
   const requiredFields = [
-    { label: "Email mittente valida", ok: isValidEmail(senderEmail) },
-    ...(customReplyTo ? [{ label: "Email di risposta valida", ok: !replyToEmail || isValidEmail(replyToEmail) }] : []),
-    { label: "Oggetto", ok: !!subject.trim() },
-    { label: "Contenuto email", ok: !!(campaign?.html_content) },
-    { label: "Link disiscrizione", ok: hasUnsubscribeToken(campaign?.html_content) },
-    { label: "Destinatari validi", ok: recipientCount > 0 },
-    ...(sendMode === "scheduled" ? [{ label: "Data programmazione futura", ok: isFutureDatetime(scheduledAt) }] : []),
-    ...(abTestEnabled ? [{ label: "Oggetto variante B", ok: !!abSubjectB?.trim() }] : []),
+    { label: tr("Email mittente valida"), ok: isValidEmail(senderEmail) },
+    ...(customReplyTo ? [{ label: tr("Email di risposta valida"), ok: !replyToEmail || isValidEmail(replyToEmail) }] : []),
+    { label: tr("Oggetto"), ok: !!subject.trim() },
+    { label: tr("Contenuto email"), ok: !!(campaign?.html_content) },
+    { label: tr("Link disiscrizione"), ok: hasUnsubscribeToken(campaign?.html_content) },
+    { label: tr("Destinatari validi"), ok: recipientCount > 0 },
+    ...(sendMode === "scheduled" ? [{ label: tr("Data programmazione futura"), ok: isFutureDatetime(scheduledAt) }] : []),
+    ...(abTestEnabled ? [{ label: tr("Oggetto variante B"), ok: !!abSubjectB?.trim() }] : []),
   ];
   const missingCount = requiredFields.filter((f) => !f.ok).length;
 
@@ -380,19 +382,19 @@ export default function CampaignSendSettings() {
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 py-2 bg-background border-b shrink-0">
         <Button variant="ghost" size="sm" className="hidden md:inline-flex" onClick={() => navigate(`${emailBase}/campagna/${id}/editor`)}>
-          <ArrowLeft className="h-4 w-4 mr-1" /> Torna al builder
+          <ArrowLeft className="h-4 w-4 mr-1" /> {tr("Torna al builder")}
         </Button>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => saveMut.mutate()} disabled={saveMut.isPending}>
-            {saveMut.isPending ? "Salvataggio..." : "Salva"}
+            {saveMut.isPending ? tr("Salvataggio...") : tr("Salva")}
           </Button>
           {/* disabilitato anche su campagne già inviate/in invio: il server
               rifiuta comunque (409), ma la UI non deve invitare al doppio invio */}
           <Button size="sm" onClick={() => setConfirmSendOpen(true)}
             disabled={sendMut.isPending || missingCount > 0 || ["sending", "sent", "completed"].includes(campaign?.status ?? "")}
-            title={["sending", "sent", "completed"].includes(campaign?.status ?? "") ? "Campagna già inviata o in invio — duplicala per rispedirla" : undefined}>
+            title={["sending", "sent", "completed"].includes(campaign?.status ?? "") ? tr("Campagna già inviata o in invio — duplicala per rispedirla") : undefined}>
             <Send className="h-4 w-4 mr-1" />
-            {sendMut.isPending ? "Invio..." : campaign?.status === "sent" || campaign?.status === "completed" ? "Già inviata" : campaign?.status === "sending" ? "In invio…" : "Rivedi e invia"}
+            {sendMut.isPending ? tr("Invio...") : campaign?.status === "sent" || campaign?.status === "completed" ? tr("Già inviata") : campaign?.status === "sending" ? tr("In invio…") : tr("Rivedi e invia")}
           </Button>
         </div>
       </div>
@@ -408,7 +410,7 @@ export default function CampaignSendSettings() {
             {/* Header */}
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-xl font-semibold text-foreground">Invia o programma</h1>
+                <h1 className="text-xl font-semibold text-foreground">{tr("Invia o programma")}</h1>
                 <p className="text-sm text-muted-foreground">{campaign?.name}</p>
               </div>
               <div>
@@ -421,7 +423,7 @@ export default function CampaignSendSettings() {
                   onChange={handleFilesSelected}
                 />
                 <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
-                  <Paperclip className="h-4 w-4 mr-1" /> Allega file
+                  <Paperclip className="h-4 w-4 mr-1" /> {tr("Allega file")}
                 </Button>
               </div>
             </div>
@@ -451,16 +453,16 @@ export default function CampaignSendSettings() {
             {/* Send mode tabs */}
             <Tabs value={sendMode} onValueChange={setSendMode}>
               <TabsList className="w-full justify-start">
-                <TabsTrigger value="immediate">Invia adesso</TabsTrigger>
-                <TabsTrigger value="scheduled">Programma</TabsTrigger>
-                <TabsTrigger value="batch">Batch</TabsTrigger>
-                <TabsTrigger value="smart">Invio intelligente</TabsTrigger>
+                <TabsTrigger value="immediate">{tr("Invia adesso")}</TabsTrigger>
+                <TabsTrigger value="scheduled">{tr("Programma")}</TabsTrigger>
+                <TabsTrigger value="batch">{tr("Batch")}</TabsTrigger>
+                <TabsTrigger value="smart">{tr("Invio intelligente")}</TabsTrigger>
               </TabsList>
             </Tabs>
 
             {sendMode === "scheduled" && (
               <div className="space-y-2">
-                <Label>Data e ora di invio</Label>
+                <Label>{tr("Data e ora di invio")}</Label>
                 <Input
                   type="datetime-local"
                   value={scheduledAt}
@@ -474,16 +476,16 @@ export default function CampaignSendSettings() {
             {/* Sender info */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Nome del mittente</Label>
+                <Label>{tr("Nome del mittente")}</Label>
                 <Input
-                  placeholder="es. La tua azienda"
+                  placeholder={tr("es. La tua azienda")}
                   value={senderName}
                   onChange={(e) => setSenderName(e.target.value)}
                   maxLength={50}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Email del mittente *</Label>
+                <Label>{tr("Email del mittente *")}</Label>
                 <Input
                   type="email"
                   placeholder="noreply@tuodominio.com"
@@ -491,7 +493,7 @@ export default function CampaignSendSettings() {
                   onChange={(e) => setSenderEmail(e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Usa un'email con dominio verificato per migliorare la deliverability
+                  {tr("Usa un'email con dominio verificato per migliorare la deliverability")}
                 </p>
               </div>
             </div>
@@ -503,13 +505,13 @@ export default function CampaignSendSettings() {
                 onCheckedChange={(v) => setCustomReplyTo(!!v)}
               />
               <Label htmlFor="custom-reply" className="text-sm cursor-pointer">
-                Imposta indirizzo di risposta personalizzato
+                {tr("Imposta indirizzo di risposta personalizzato")}
               </Label>
             </div>
 
             {customReplyTo && (
               <div className="space-y-2">
-                <Label>Email di risposta</Label>
+                <Label>{tr("Email di risposta")}</Label>
                 <Input
                   type="email"
                   placeholder="risposte@tuodominio.com"
@@ -523,9 +525,9 @@ export default function CampaignSendSettings() {
 
             {/* Subject */}
             <div className="space-y-2">
-              <Label>Oggetto *</Label>
+              <Label>{tr("Oggetto *")}</Label>
               <Input
-                placeholder="L'oggetto della tua email..."
+                placeholder={tr("L'oggetto della tua email...")}
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
                 maxLength={200}
@@ -533,9 +535,9 @@ export default function CampaignSendSettings() {
             </div>
 
             <div className="space-y-2">
-              <Label>Testo di anteprima</Label>
+              <Label>{tr("Testo di anteprima")}</Label>
               <Textarea
-                placeholder="Testo che appare dopo l'oggetto nell'inbox..."
+                placeholder={tr("Testo che appare dopo l'oggetto nell'inbox...")}
                 value={previewText}
                 onChange={(e) => setPreviewText(e.target.value)}
                 rows={2}
@@ -549,8 +551,8 @@ export default function CampaignSendSettings() {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium">A/B Test</p>
-                  <p className="text-xs text-muted-foreground">Testa due varianti di oggetto</p>
+                  <p className="text-sm font-medium">{tr("A/B Test")}</p>
+                  <p className="text-xs text-muted-foreground">{tr("Testa due varianti di oggetto")}</p>
                 </div>
                 <Switch checked={abTestEnabled} onCheckedChange={setAbTestEnabled} />
               </div>
@@ -558,13 +560,13 @@ export default function CampaignSendSettings() {
               {abTestEnabled && (
                 <div className="space-y-4 p-3 rounded-md border bg-muted/30">
                   <div className="space-y-2">
-                    <Label className="text-xs">Oggetto variante A</Label>
+                    <Label className="text-xs">{tr("Oggetto variante A")}</Label>
                     <Input value={subject} disabled className="h-8 text-xs bg-muted/50" />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs">Oggetto variante B *</Label>
+                    <Label className="text-xs">{tr("Oggetto variante B *")}</Label>
                     <Input
-                      placeholder="L'oggetto alternativo..."
+                      placeholder={tr("L'oggetto alternativo...")}
                       value={abSubjectB}
                       onChange={(e) => setAbSubjectB(e.target.value)}
                       maxLength={200}
@@ -572,7 +574,7 @@ export default function CampaignSendSettings() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs">Distribuzione A/B: {abSplitPercent}% / {100 - abSplitPercent}%</Label>
+                    <Label className="text-xs">{tr("Distribuzione A/B: {abSplitPercent}% / {valore}%", { abSplitPercent: String(abSplitPercent ?? ""), valore: 100 - abSplitPercent })}</Label>
                     <Slider
                       value={[abSplitPercent]}
                       onValueChange={(v) => setAbSplitPercent(v[0])}
@@ -581,38 +583,37 @@ export default function CampaignSendSettings() {
                       step={5}
                     />
                     <div className="flex justify-between text-[10px] text-muted-foreground">
-                      <span>Variante A: {abSplitPercent}%</span>
-                      <span>Variante B: {100 - abSplitPercent}%</span>
+                      <span>{tr("Variante A: {abSplitPercent}%", { abSplitPercent: String(abSplitPercent ?? "") })}</span>
+                      <span>{tr("Variante B: {valore}%", { valore: 100 - abSplitPercent })}</span>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <Label className="text-xs">Criterio vincitore</Label>
+                      <Label className="text-xs">{tr("Criterio vincitore")}</Label>
                       <Select value={abWinnerCriteria} onValueChange={setAbWinnerCriteria}>
                         <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="open_rate">Tasso apertura</SelectItem>
-                          <SelectItem value="click_rate">Tasso click</SelectItem>
+                          <SelectItem value="open_rate">{tr("Tasso apertura")}</SelectItem>
+                          <SelectItem value="click_rate">{tr("Tasso click")}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">Durata test (ore)</Label>
+                      <Label className="text-xs">{tr("Durata test (ore)")}</Label>
                       <Select value={String(abTestDurationHours)} onValueChange={(v) => setAbTestDurationHours(Number(v))}>
                         <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="2">2 ore</SelectItem>
-                          <SelectItem value="4">4 ore</SelectItem>
-                          <SelectItem value="8">8 ore</SelectItem>
-                          <SelectItem value="12">12 ore</SelectItem>
-                          <SelectItem value="24">24 ore</SelectItem>
+                          <SelectItem value="2">{tr("2 ore")}</SelectItem>
+                          <SelectItem value="4">{tr("4 ore")}</SelectItem>
+                          <SelectItem value="8">{tr("8 ore")}</SelectItem>
+                          <SelectItem value="12">{tr("12 ore")}</SelectItem>
+                          <SelectItem value="24">{tr("24 ore")}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                   </div>
                   <p className="text-[10px] text-muted-foreground">
-                    I destinatari verranno divisi casualmente tra variante A e B. 
-                    Il confronto dei risultati sarà visibile nei log della campagna.
+                    {tr("I destinatari verranno divisi casualmente tra variante A e B. Il confronto dei risultati sarà visibile nei log della campagna.")}
                   </p>
                 </div>
               )}
@@ -622,11 +623,11 @@ export default function CampaignSendSettings() {
 
             {/* Recipients */}
             <div className="space-y-3">
-              <Label className="text-base font-medium">Destinatari</Label>
+              <Label className="text-base font-medium">{tr("Destinatari")}</Label>
               <div className="space-y-2">
                 {[
-                  { value: "list", label: "Invia a tutti i contatti iscritti" },
-                  { value: "segment", label: "Filtra per segmento" },
+                  { value: "list", label: tr("Invia a tutti i contatti iscritti") },
+                  { value: "segment", label: tr("Filtra per segmento") },
                 ].map((opt) => (
                   <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -645,39 +646,39 @@ export default function CampaignSendSettings() {
               {recipientMode === "segment" && (
                 <div className="space-y-3 p-3 rounded-md border bg-muted/30">
                   <div className="space-y-1">
-                    <Label className="text-xs">Filtra per tag</Label>
+                    <Label className="text-xs">{tr("Filtra per tag")}</Label>
                     <Input
-                      placeholder="Inserisci tag separati da virgola..."
+                      placeholder={tr("Inserisci tag separati da virgola...")}
                       value={segmentTags.join(", ")}
                       onChange={(e) => setSegmentTags(e.target.value.split(",").map(t => t.trim()).filter(Boolean))}
                     />
-                    <p className="text-[10px] text-muted-foreground">Solo contatti che hanno almeno uno di questi tag</p>
+                    <p className="text-[10px] text-muted-foreground">{tr("Solo contatti che hanno almeno uno di questi tag")}</p>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Filtra per sorgente</Label>
+                    <Label className="text-xs">{tr("Filtra per sorgente")}</Label>
                     <Select value={segmentSource || "all"} onValueChange={(v) => setSegmentSource(v === "all" ? "" : v)}>
-                      <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Qualsiasi sorgente" /></SelectTrigger>
+                      <SelectTrigger className="h-9 text-xs"><SelectValue placeholder={tr("Qualsiasi sorgente")} /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">Qualsiasi</SelectItem>
+                        <SelectItem value="all">{tr("Qualsiasi")}</SelectItem>
                         <SelectItem value="meta">Meta</SelectItem>
                         <SelectItem value="google">Google</SelectItem>
-                        <SelectItem value="website">Sito web</SelectItem>
-                        <SelectItem value="manual">Manuale</SelectItem>
-                        <SelectItem value="import">Importato</SelectItem>
-                        <SelectItem value="referral">Referral</SelectItem>
+                        <SelectItem value="website">{tr("Sito web")}</SelectItem>
+                        <SelectItem value="manual">{tr("Manuale")}</SelectItem>
+                        <SelectItem value="import">{tr("Importato")}</SelectItem>
+                        <SelectItem value="referral">{tr("Referral")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Filtra per tipo contatto</Label>
+                    <Label className="text-xs">{tr("Filtra per tipo contatto")}</Label>
                     <Select value={segmentContactType || "all"} onValueChange={(v) => setSegmentContactType(v === "all" ? "" : v)}>
-                      <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Qualsiasi tipo" /></SelectTrigger>
+                      <SelectTrigger className="h-9 text-xs"><SelectValue placeholder={tr("Qualsiasi tipo")} /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">Qualsiasi</SelectItem>
+                        <SelectItem value="all">{tr("Qualsiasi")}</SelectItem>
                         <SelectItem value="lead">Lead</SelectItem>
-                        <SelectItem value="prospect">Prospect</SelectItem>
-                        <SelectItem value="customer">Cliente</SelectItem>
-                        <SelectItem value="lost">Perso</SelectItem>
+                        <SelectItem value="prospect">{tr("Prospect")}</SelectItem>
+                        <SelectItem value="customer">{tr("Cliente")}</SelectItem>
+                        <SelectItem value="lost">{tr("Perso")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -691,36 +692,36 @@ export default function CampaignSendSettings() {
             <Collapsible open={additionalOpen} onOpenChange={setAdditionalOpen}>
               <CollapsibleTrigger asChild>
                 <Button variant="ghost" className="w-full justify-between px-0">
-                  <span className="font-medium">Impostazioni aggiuntive</span>
+                  <span className="font-medium">{tr("Impostazioni aggiuntive")}</span>
                   {additionalOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                 </Button>
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-4 pt-2">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium">Traccia clic sui link</p>
-                    <p className="text-xs text-muted-foreground">Monitora quali link vengono cliccati</p>
+                    <p className="text-sm font-medium">{tr("Traccia clic sui link")}</p>
+                    <p className="text-xs text-muted-foreground">{tr("Monitora quali link vengono cliccati")}</p>
                   </div>
                   <Switch checked={trackClicks} onCheckedChange={setTrackClicks} />
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium">Tracciamento UTM</p>
-                    <p className="text-xs text-muted-foreground">Aggiungi parametri UTM ai link</p>
+                    <p className="text-sm font-medium">{tr("Tracciamento UTM")}</p>
+                    <p className="text-xs text-muted-foreground">{tr("Aggiungi parametri UTM ai link")}</p>
                   </div>
                   <Switch checked={utmTracking} onCheckedChange={setUtmTracking} />
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium">Aggiungi etichette automatiche</p>
-                    <p className="text-xs text-muted-foreground">Tagga i contatti che interagiscono</p>
+                    <p className="text-sm font-medium">{tr("Aggiungi etichette automatiche")}</p>
+                    <p className="text-xs text-muted-foreground">{tr("Tagga i contatti che interagiscono")}</p>
                   </div>
                   <Switch checked={autoTag} onCheckedChange={setAutoTag} />
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium">Rinvia a chi non ha aperto</p>
-                    <p className="text-xs text-muted-foreground">Invia nuovamente dopo 48h a chi non ha aperto</p>
+                    <p className="text-sm font-medium">{tr("Rinvia a chi non ha aperto")}</p>
+                    <p className="text-xs text-muted-foreground">{tr("Invia nuovamente dopo 48h a chi non ha aperto")}</p>
                   </div>
                   <Switch checked={resendToUnopened} onCheckedChange={setResendToUnopened} />
                 </div>
@@ -734,7 +735,7 @@ export default function CampaignSendSettings() {
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm flex items-center gap-2">
-                  💳 Saldo Crediti Email
+                  {tr("💳 Saldo Crediti Email")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -742,12 +743,10 @@ export default function CampaignSendSettings() {
                 {/* BUGFIX: prima si confrontava n° email con il saldo in EURO
                     (1 email = 1 €!) → falsi "crediti insufficienti". Il gate
                     reale è lato server al momento dell'invio. */}
-                <p className="text-xs text-muted-foreground">
-                  Invio previsto a ~{recipientCount} destinatari · il costo viene scalato dal saldo al momento dell'invio
-                </p>
+                <p className="text-xs text-muted-foreground">{tr("Invio previsto a ~{recipientCount} destinatari · il costo viene scalato dal saldo al momento dell'invio", { recipientCount: String(recipientCount ?? "") })}</p>
                 {(creditsData?.balance_eur ?? 0) <= 0 && recipientCount > 0 && (
                   <p className="text-xs text-destructive mt-1 font-medium">
-                    ⚠️ Saldo crediti esaurito: ricarica prima di inviare
+                    {tr("⚠️ Saldo crediti esaurito: ricarica prima di inviare")}
                   </p>
                 )}
               </CardContent>
@@ -757,27 +756,27 @@ export default function CampaignSendSettings() {
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm flex items-center gap-2">
-                  <Users className="h-4 w-4" /> Destinatari stimati
+                  <Users className="h-4 w-4" /> {tr("Destinatari stimati")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold">{recipientCount.toLocaleString("it-IT")}</p>
-                <p className="text-xs text-muted-foreground">contatti iscritti con email</p>
+                <p className="text-2xl font-bold">{recipientCount.toLocaleString(intlCampo())}</p>
+                <p className="text-xs text-muted-foreground">{tr("contatti iscritti con email")}</p>
               </CardContent>
             </Card>
 
             {/* Spam score */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Punteggio spam</CardTitle>
+                <CardTitle className="text-sm">{tr("Punteggio spam")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center gap-3">
                   <div className={`text-3xl font-bold ${spamColor}`}>{spamScore}</div>
                   <div className="text-xs text-muted-foreground">
-                    {spamScore < 30 ? "Ottimo! Bassa probabilità di finire in spam" :
-                     spamScore < 60 ? "Discreto, ma ci sono margini di miglioramento" :
-                     "Alto rischio spam, rivedi il contenuto"}
+                    {spamScore < 30 ? tr("Ottimo! Bassa probabilità di finire in spam") :
+                     spamScore < 60 ? tr("Discreto, ma ci sono margini di miglioramento") :
+                     tr("Alto rischio spam, rivedi il contenuto")}
                   </div>
                 </div>
                 <div className="w-full bg-muted rounded-full h-2 mt-3">
@@ -798,7 +797,7 @@ export default function CampaignSendSettings() {
                   className="w-full justify-start"
                   onClick={() => setPreviewOpen(true)}
                 >
-                  <Eye className="h-4 w-4 mr-2" /> Anteprima nel browser
+                  <Eye className="h-4 w-4 mr-2" /> {tr("Anteprima nel browser")}
                 </Button>
                 <Button
                   variant="outline"
@@ -809,7 +808,7 @@ export default function CampaignSendSettings() {
                     setTestEmailOpen(true);
                   }}
                 >
-                  <Mail className="h-4 w-4 mr-2" /> Invia email di test
+                  <Mail className="h-4 w-4 mr-2" /> {tr("Invia email di test")}
                 </Button>
               </CardContent>
             </Card>
@@ -820,7 +819,7 @@ export default function CampaignSendSettings() {
             {/* Email preview */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Anteprima email</CardTitle>
+                <CardTitle className="text-sm">{tr("Anteprima email")}</CardTitle>
               </CardHeader>
               <CardContent>
                 {campaign?.html_content ? (
@@ -829,7 +828,7 @@ export default function CampaignSendSettings() {
                     dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(campaign.html_content) }}
                   />
                 ) : (
-                  <p className="text-xs text-muted-foreground text-center py-6">Nessun contenuto</p>
+                  <p className="text-xs text-muted-foreground text-center py-6">{tr("Nessun contenuto")}</p>
                 )}
               </CardContent>
             </Card>
@@ -841,12 +840,12 @@ export default function CampaignSendSettings() {
                   {missingCount > 0 ? (
                     <>
                       <AlertCircle className="h-4 w-4 text-destructive" />
-                      {missingCount} {missingCount === 1 ? "campo obbligatorio mancante" : "campi obbligatori mancanti"}
+                      {missingCount} {missingCount === 1 ? tr("campo obbligatorio mancante") : tr("campi obbligatori mancanti")}
                     </>
                   ) : (
                     <>
                       <CheckCircle2 className="h-4 w-4 text-green-500" />
-                      Tutti i campi compilati
+                      {tr("Tutti i campi compilati")}
                     </>
                   )}
                 </CardTitle>
@@ -873,34 +872,34 @@ export default function CampaignSendSettings() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {sendMode === "scheduled" ? "Conferma programmazione" : "Conferma invio"}
+              {sendMode === "scheduled" ? tr("Conferma programmazione") : tr("Conferma invio")}
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-3">
-                <p>Stai per {sendMode === "scheduled" ? "programmare" : "inviare"} la campagna con i seguenti parametri:</p>
+                <p>{tr("Stai per")} {sendMode === "scheduled" ? tr("programmare") : tr("inviare")} {tr("la campagna con i seguenti parametri:")}</p>
                 <div className="bg-muted rounded-md p-3 space-y-1.5 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Oggetto:</span>
+                    <span className="text-muted-foreground">{tr("Oggetto:")}</span>
                     <span className="font-medium text-foreground">{subject || "—"}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Mittente:</span>
+                    <span className="text-muted-foreground">{tr("Mittente:")}</span>
                     <span className="font-medium text-foreground">{senderName ? `${senderName} <${senderEmail}>` : senderEmail || "—"}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Destinatari:</span>
-                    <span className="font-medium text-foreground">~{recipientCount.toLocaleString("it-IT")} contatti</span>
+                    <span className="text-muted-foreground">{tr("Destinatari:")}</span>
+                    <span className="font-medium text-foreground">{tr("~{recipientCount} contatti", { recipientCount: recipientCount.toLocaleString(intlCampo()) })}</span>
                   </div>
                   {sendMode === "scheduled" && scheduledAt && (
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Data invio:</span>
-                      <span className="font-medium text-foreground">{new Date(scheduledAt).toLocaleString("it-IT")}</span>
+                      <span className="text-muted-foreground">{tr("Data invio:")}</span>
+                      <span className="font-medium text-foreground">{new Date(scheduledAt).toLocaleString(intlCampo())}</span>
                     </div>
                   )}
                   {attachedFiles.length > 0 && (
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Allegati:</span>
-                      <span className="font-medium text-foreground">{attachedFiles.length} file</span>
+                      <span className="text-muted-foreground">{tr("Allegati:")}</span>
+                      <span className="font-medium text-foreground">{tr("{n} file", { n: attachedFiles.length })}</span>
                     </div>
                   )}
                 </div>
@@ -908,9 +907,9 @@ export default function CampaignSendSettings() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
             <AlertDialogAction onClick={() => sendMut.mutate()} disabled={sendMut.isPending}>
-              {sendMut.isPending ? "Invio..." : sendMode === "scheduled" ? "Programma" : "Invia adesso"}
+              {sendMut.isPending ? tr("Invio...") : sendMode === "scheduled" ? tr("Programma") : tr("Invia adesso")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -921,7 +920,7 @@ export default function CampaignSendSettings() {
         <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between">
-              <span>Anteprima email</span>
+              <span>{tr("Anteprima email")}</span>
               <div className="flex gap-1">
                 <Button
                   variant={previewDevice === "desktop" ? "default" : "outline"}
@@ -958,7 +957,7 @@ export default function CampaignSendSettings() {
                 />
               ) : (
                 <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">
-                  Nessun contenuto HTML disponibile
+                  {tr("Nessun contenuto HTML disponibile")}
                 </div>
               )}
             </div>
@@ -970,10 +969,10 @@ export default function CampaignSendSettings() {
       <Dialog open={testEmailOpen} onOpenChange={setTestEmailOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Invia email di test</DialogTitle>
+            <DialogTitle>{tr("Invia email di test")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <Label>Indirizzo email destinatario</Label>
+            <Label>{tr("Indirizzo email destinatario")}</Label>
             <Input
               type="email"
               placeholder="test@esempio.com"
@@ -982,13 +981,12 @@ export default function CampaignSendSettings() {
               maxLength={100}
             />
             <p className="text-xs text-muted-foreground">
-              L'email verrà inviata con oggetto prefissato [TEST], al tuo indirizzo o a quello
-              di un collega dell'azienda.
+              {tr("L'email verrà inviata con oggetto prefissato [TEST], al tuo indirizzo o a quello di un collega dell'azienda.")}
             </p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setTestEmailOpen(false)}>
-              Annulla
+              {tr("Annulla")}
             </Button>
             <Button
               onClick={() => testEmailMut.mutate()}
@@ -996,11 +994,11 @@ export default function CampaignSendSettings() {
             >
               {testEmailMut.isPending ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-1 animate-spin" /> Invio...
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" /> {tr("Invio...")}
                 </>
               ) : (
                 <>
-                  <Send className="h-4 w-4 mr-1" /> Invia test
+                  <Send className="h-4 w-4 mr-1" /> {tr("Invia test")}
                 </>
               )}
             </Button>

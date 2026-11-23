@@ -11,6 +11,7 @@ import { useId } from "react";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { haMaggiorazioniDaCopiare, testoMaggiorazioni, type AnteprimaInstallazione } from "@/lib/listino/modelliArea";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   anteprima: AnteprimaInstallazione | undefined;
@@ -22,15 +23,16 @@ interface Props {
 }
 
 const ora = (iso: string) =>
-  new Date(iso).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Rome" });
+  new Date(iso).toLocaleTimeString(intlCampo(), { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Rome" });
 
 export function AvvisoInstallazioneModello({ anteprima, caricamento, copia, onCopia, disabilitato }: Props) {
+  const t = useT();
   const id = useId();
 
   if (caricamento) {
     return (
       <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> Controllo cosa hai già nel listino…
+        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> {t("Controllo cosa hai già nel listino…")}
       </p>
     );
   }
@@ -45,8 +47,7 @@ export function AvvisoInstallazioneModello({ anteprima, caricamento, copia, onCo
           role="status"
           className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
         >
-          Questo modello è stato aggiunto alle {ora(anteprima.installazione_recente)}. Aspetta un minuto prima di
-          aggiungerlo di nuovo.
+          {t("Questo modello è stato aggiunto alle {installazione_recente}. Aspetta un minuto prima di aggiungerlo di nuovo.", { installazione_recente: ora(anteprima.installazione_recente) })}
         </p>
       )}
 
@@ -67,7 +68,7 @@ export function AvvisoInstallazioneModello({ anteprima, caricamento, copia, onCo
               onCheckedChange={(v) => onCopia(v === true)}
             />
             <label htmlFor={id} className="text-sm leading-snug text-foreground">
-              Copia le mie maggiorazioni sui prodotti nuovi
+              {t("Copia le mie maggiorazioni sui prodotti nuovi")}
               <span className="mt-0.5 block text-xs font-normal text-muted-foreground">{racconto.sePiuttosto}</span>
             </label>
           </div>

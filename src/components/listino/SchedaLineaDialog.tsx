@@ -24,6 +24,7 @@ import {
   type BozzaScheda,
   type SchedaLinea,
 } from "@/lib/listino/schedeLinea";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   tipologia: TipologiaListino;
@@ -33,6 +34,7 @@ interface Props {
 }
 
 export function SchedaLineaDialog({ tipologia, linea, scheda, onChiudi }: Props) {
+  const t = useT();
   const salva = useSalvaSchedaLinea();
   const [bozza, setBozza] = useState<BozzaScheda>(() => bozzaDaScheda(scheda));
   const [errori, setErrori] = useState<Partial<Record<keyof BozzaScheda, string>>>({});
@@ -42,7 +44,7 @@ export function SchedaLineaDialog({ tipologia, linea, scheda, onChiudi }: Props)
   const inputPdf = useRef<HTMLInputElement>(null);
 
   const pdfSalvato = togliPdf ? null : (scheda?.scheda_tecnica_url ?? null);
-  const pdfNome = pdf?.name ?? (pdfSalvato ? scheda?.scheda_tecnica_nome || "Scheda del produttore" : null);
+  const pdfNome = pdf?.name ?? (pdfSalvato ? scheda?.scheda_tecnica_nome || t("Scheda del produttore") : null);
 
   const campo = (chiave: keyof BozzaScheda) => (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const valore = e.target.value;
@@ -80,12 +82,12 @@ export function SchedaLineaDialog({ tipologia, linea, scheda, onChiudi }: Props)
         pdf,
         togliPdf,
       });
-      toast.success(`Scheda di ${linea.nome} salvata`, {
-        description: "Compare nel preventivatore quando si sceglie la linea e nel PDF del preventivo.",
+      toast.success(t("Scheda di {nome} salvata", { nome: linea.nome }), {
+        description: t("Compare nel preventivatore quando si sceglie la linea e nel PDF del preventivo."),
       });
       onChiudi();
     } catch (err) {
-      toast.error("Scheda non salvata", { description: err instanceof Error ? err.message : "Errore sconosciuto" });
+      toast.error(t("Scheda non salvata"), { description: err instanceof Error ? err.message : t("Errore sconosciuto") });
     }
   };
 
@@ -100,11 +102,11 @@ export function SchedaLineaDialog({ tipologia, linea, scheda, onChiudi }: Props)
     >
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Scheda di {linea.nome}</DialogTitle>
+          <DialogTitle>{t("Scheda di {nome}", { nome: linea.nome })}</DialogTitle>
           <DialogDescription>
-            Vale per {prodotti === 1 ? "il prodotto" : `i ${prodotti} prodotti`} della linea in {tipologia.nome}. Il
-            commerciale la vede quando sceglie la linea nel preventivatore; il cliente la trova nel PDF del preventivo,
-            in una pagina tutta sua.
+            {prodotti === 1
+              ? t("Vale per il prodotto della linea in {tipologia}. Il commerciale la vede quando sceglie la linea nel preventivatore; il cliente la trova nel PDF del preventivo, in una pagina tutta sua.", { tipologia: tipologia.nome })
+              : t("Vale per i {n} prodotti della linea in {tipologia}. Il commerciale la vede quando sceglie la linea nel preventivatore; il cliente la trova nel PDF del preventivo, in una pagina tutta sua.", { n: prodotti, tipologia: tipologia.nome })}
           </DialogDescription>
         </DialogHeader>
 
@@ -113,7 +115,7 @@ export function SchedaLineaDialog({ tipologia, linea, scheda, onChiudi }: Props)
 
           <div className="min-w-0 space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="scheda-descrizione">Descrizione</Label>
+              <Label htmlFor="scheda-descrizione">{t("Descrizione")}</Label>
               <Textarea
                 id="scheda-descrizione"
                 rows={6}
@@ -122,21 +124,20 @@ export function SchedaLineaDialog({ tipologia, linea, scheda, onChiudi }: Props)
                 maxLength={DESCRIZIONE_SCHEDA_MAX}
                 aria-invalid={!!errori.descrizione}
                 aria-describedby="scheda-descrizione-aiuto"
-                placeholder="Es. Sistema in PVC a 6 camere con 3 guarnizioni e 76 mm di profondità: tiene fuori freddo e rumore, con rinforzi in acciaio e ferramenta di sicurezza di serie."
+                placeholder={t("Es. Sistema in PVC a 6 camere con 3 guarnizioni e 76 mm di profondità: tiene fuori freddo e rumore, con rinforzi in acciaio e ferramenta di sicurezza di serie.")}
               />
               <p id="scheda-descrizione-aiuto" className="text-xs text-muted-foreground">
-                Poche frasi per il cliente. Una riga vuota fa un nuovo paragrafo; le righe che iniziano con «- »
-                diventano un elenco.
+                {t("Poche frasi per il cliente. Una riga vuota fa un nuovo paragrafo; le righe che iniziano con «- » diventano un elenco.")}
               </p>
               {errori.descrizione && <p className="text-xs text-destructive">{errori.descrizione}</p>}
             </div>
 
             <fieldset className="space-y-2">
-              <legend className="text-sm font-medium">Dati tecnici del profilo</legend>
+              <legend className="text-sm font-medium">{t("Dati tecnici del profilo")}</legend>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <CampoNumero
                   id="scheda-profondita"
-                  etichetta="Profondità"
+                  etichetta={t("Profondità")}
                   unita="mm"
                   valore={bozza.profondita}
                   onChange={campo("profondita")}
@@ -146,7 +147,7 @@ export function SchedaLineaDialog({ tipologia, linea, scheda, onChiudi }: Props)
                 />
                 <CampoNumero
                   id="scheda-camere"
-                  etichetta="Camere"
+                  etichetta={t("Camere")}
                   valore={bozza.camere}
                   onChange={campo("camere")}
                   errore={errori.camere}
@@ -155,7 +156,7 @@ export function SchedaLineaDialog({ tipologia, linea, scheda, onChiudi }: Props)
                 />
                 <CampoNumero
                   id="scheda-guarnizioni"
-                  etichetta="Guarnizioni"
+                  etichetta={t("Guarnizioni")}
                   valore={bozza.guarnizioni}
                   onChange={campo("guarnizioni")}
                   errore={errori.guarnizioni}
@@ -164,7 +165,7 @@ export function SchedaLineaDialog({ tipologia, linea, scheda, onChiudi }: Props)
                 />
                 <CampoNumero
                   id="scheda-uw"
-                  etichetta="Uw fino a"
+                  etichetta={t("Uw fino a")}
                   unita="W/m²K"
                   valore={bozza.uw}
                   onChange={campo("uw")}
@@ -173,11 +174,11 @@ export function SchedaLineaDialog({ tipologia, linea, scheda, onChiudi }: Props)
                   inputMode="decimal"
                 />
               </div>
-              <p className="text-xs text-muted-foreground">Quelli lasciati vuoti non compaiono.</p>
+              <p className="text-xs text-muted-foreground">{t("Quelli lasciati vuoti non compaiono.")}</p>
             </fieldset>
 
             <div className="space-y-1.5">
-              <Label>Scheda del produttore (PDF)</Label>
+              <Label>{t("Scheda del produttore (PDF)")}</Label>
               {pdfNome && (
                 <div className="flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm">
                   <FileText className="h-4 w-4 shrink-0 text-red-500" aria-hidden="true" />
@@ -189,7 +190,7 @@ export function SchedaLineaDialog({ tipologia, linea, scheda, onChiudi }: Props)
                       rel="noopener noreferrer"
                       className="text-xs font-medium text-primary hover:underline"
                     >
-                      Apri
+                      {t("Apri")}
                     </a>
                   )}
                   <button
@@ -199,7 +200,7 @@ export function SchedaLineaDialog({ tipologia, linea, scheda, onChiudi }: Props)
                       setTogliPdf(true);
                     }}
                     className="tap-compact p-1 text-muted-foreground hover:text-destructive"
-                    aria-label="Togli la scheda del produttore"
+                    aria-label={t("Togli la scheda del produttore")}
                   >
                     <Trash2 className="h-4 w-4" aria-hidden="true" />
                   </button>
@@ -213,9 +214,9 @@ export function SchedaLineaDialog({ tipologia, linea, scheda, onChiudi }: Props)
                 onClick={() => inputPdf.current?.click()}
               >
                 <Upload className="h-3.5 w-3.5" aria-hidden="true" />
-                {pdfNome ? "Sostituisci il PDF" : "Carica il PDF"}
+                {pdfNome ? t("Sostituisci il PDF") : t("Carica il PDF")}
               </Button>
-              <p className="text-xs text-muted-foreground">Fino a 15 MB. Nel PDF del preventivo diventa un link.</p>
+              <p className="text-xs text-muted-foreground">{t("Fino a 15 MB. Nel PDF del preventivo diventa un link.")}</p>
               <input
                 ref={inputPdf}
                 type="file"
@@ -232,16 +233,16 @@ export function SchedaLineaDialog({ tipologia, linea, scheda, onChiudi }: Props)
 
         <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2">
           <Button variant="ghost" onClick={onChiudi} disabled={salva.isPending} className="h-10 w-full sm:w-auto">
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button onClick={() => void conferma()} disabled={salva.isPending} className="h-10 w-full sm:w-auto">
             {salva.isPending ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                Salvataggio…
+                {t("Salvataggio…")}
               </>
             ) : (
-              "Salva la scheda"
+              t("Salva la scheda")
             )}
           </Button>
         </DialogFooter>

@@ -14,6 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const RECENT_KEY = "edilizia.template.recent_colors";
 const RECENT_MAX = 10;
@@ -65,6 +66,7 @@ interface Props {
 }
 
 export function CanvaColorPicker({ label, hint, value, onChange, compact }: Props) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [recent, setRecent] = useState<string[]>(loadRecent);
   const [hexInput, setHexInput] = useState(value);
@@ -92,7 +94,7 @@ export function CanvaColorPicker({ label, hint, value, onChange, compact }: Prop
               "group flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1.5 hover:border-slate-300 hover:shadow-sm transition-all w-full",
               open && "border-orange-400 ring-2 ring-orange-100",
             )}
-            title={`${label ?? "Colore"}: ${value}`}
+            title={`${label ?? t("Colore")}: ${value}`}
           >
             <span
               className="h-6 w-6 rounded-md border border-slate-200 shadow-inner shrink-0"
@@ -108,7 +110,7 @@ export function CanvaColorPicker({ label, hint, value, onChange, compact }: Prop
           className="w-[300px] p-0 border-slate-200 shadow-2xl rounded-xl overflow-hidden"
         >
           <div className="px-3 py-2.5 border-b bg-gradient-to-br from-orange-50 to-amber-50">
-            <p className="text-xs font-semibold text-slate-800">{label ?? "Scegli colore"}</p>
+            <p className="text-xs font-semibold text-slate-800">{label ?? t("Scegli colore")}</p>
             {hint && <p className="text-[10px] text-slate-500">{hint}</p>}
           </div>
           <div className="p-3 space-y-3 max-h-[440px] overflow-y-auto">
@@ -119,7 +121,7 @@ export function CanvaColorPicker({ label, hint, value, onChange, compact }: Prop
                 value={value}
                 onChange={(e) => commit(e.target.value)}
                 className="h-9 w-9 rounded-md border border-slate-200 cursor-pointer shrink-0"
-                aria-label="Selettore colore avanzato"
+                aria-label={t("Selettore colore avanzato")}
               />
               <div className="flex-1">
                 <Input
@@ -136,7 +138,7 @@ export function CanvaColorPicker({ label, hint, value, onChange, compact }: Prop
             {/* Recent */}
             {recent.length > 0 && (
               <div>
-                <p className="text-[10px] uppercase tracking-wide text-slate-500 mb-1.5 font-semibold">Recenti</p>
+                <p className="text-[10px] uppercase tracking-wide text-slate-500 mb-1.5 font-semibold">{t("Recenti")}</p>
                 <div className="grid grid-cols-10 gap-1">
                   {recent.map((c) => (
                     <button
@@ -153,7 +155,7 @@ export function CanvaColorPicker({ label, hint, value, onChange, compact }: Prop
             )}
             {/* Preset */}
             <div>
-              <p className="text-[10px] uppercase tracking-wide text-slate-500 mb-1.5 font-semibold">Palette</p>
+              <p className="text-[10px] uppercase tracking-wide text-slate-500 mb-1.5 font-semibold">{t("Palette")}</p>
               <div className="grid grid-cols-10 gap-1">
                 {QUICK_COLORS.map((c) => {
                   const isActive = c.toLowerCase() === value.toLowerCase();

@@ -43,6 +43,7 @@ import {
   type VarianteForm,
 } from "@/lib/listino/organizzaListino";
 import { dividiVoci, paroleVoci, pulisciVoci, suggerimentiVoci, type ParoleVoci } from "@/lib/listino/scelteVariante";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   tipologia: TipologiaListino;
@@ -53,7 +54,6 @@ interface Props {
   onSalva: (assi: AsseVariantiDati[], familyIds?: string[]) => void;
 }
 
-const prodotti = (n: number) => `${n} ${n === 1 ? "prodotto" : "prodotti"}`;
 
 export function VariantiTipologiaDialog(props: Props) {
   const linee = props.tipologia.linee.filter(l => l.fonte === "categoria");
@@ -72,6 +72,8 @@ export function VariantiTipologiaDialog(props: Props) {
 function VariantiScopeEditor({ tipologia, area, inCorso, onChiudi, onSalva, scope, linee, onScope }: Props & {
   scope: string; linee: TipologiaListino["linee"]; onScope: (scope: string) => void;
 }) {
+  const tr = useT();
+  const prodotti = (n: number) => tr(n === 1 ? "{n} prodotto" : "{n} prodotti", { n });
   const riepilogo = useMemo(() => riepilogoVarianti(tipologia), [tipologia]);
   const iniziali = useMemo(
     () => new Map(riepilogo.assi.map((a) => [a.chiave, formVarianti(a)] as const)),
@@ -196,11 +198,11 @@ function VariantiScopeEditor({ tipologia, area, inCorso, onChiudi, onSalva, scop
   const mancanti: string[] = [];
   if (asse && !eNuova(asse.chiave)) {
     if (asse.prodotti < riepilogo.prodotti) {
-      mancanti.push(`${asse.nome} manca in ${prodotti(riepilogo.prodotti - asse.prodotti)}`);
+      mancanti.push(tr("{nome} manca in {prodotti}", { nome: asse.nome, prodotti: prodotti(riepilogo.prodotti - asse.prodotti) }));
     }
     for (const v of righe) {
-      if (v.prodotti === 0) mancanti.push(`«${v.nome.trim() || "valore nuovo"}» è nuovo`);
-      else if (v.prodotti < asse.prodotti) mancanti.push(`«${v.nome}» manca in ${prodotti(asse.prodotti - v.prodotti)}`);
+      if (v.prodotti === 0) mancanti.push(tr("«{nome}» è nuovo", { nome: v.nome.trim() || tr("valore nuovo") }));
+      else if (v.prodotti < asse.prodotti) mancanti.push(tr("«{nome}» manca in {prodotti}", { nome: v.nome, prodotti: prodotti(asse.prodotti - v.prodotti) }));
     }
   }
 
@@ -225,14 +227,14 @@ function VariantiScopeEditor({ tipologia, area, inCorso, onChiudi, onSalva, scop
                 aggiungiVariante(nomeNuova, null);
               }
             }}
-            placeholder="Nome della variante, per esempio Maniglia"
-            aria-label="Nome della variante nuova"
+            placeholder={tr("Nome della variante, per esempio Maniglia")}
+            aria-label={tr("Nome della variante nuova")}
             className="h-9"
             autoFocus
           />
           <div className="flex gap-2">
             <Button type="button" size="sm" className="h-9" onClick={() => aggiungiVariante(nomeNuova, null)}>
-              Aggiungi
+              {tr("Aggiungi")}
             </Button>
             <Button
               type="button"
@@ -244,13 +246,13 @@ function VariantiScopeEditor({ tipologia, area, inCorso, onChiudi, onSalva, scop
                 setErroreNuova(null);
               }}
             >
-              Annulla
+              {tr("Annulla")}
             </Button>
           </div>
         </div>
         {pronte.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5 text-xs">
-            <span className="text-muted-foreground">Pronte:</span>
+            <span className="text-muted-foreground">{tr("Pronte:")}</span>
             {pronte.map((p) => (
               <button
                 key={p.chiave}
@@ -275,7 +277,7 @@ function VariantiScopeEditor({ tipologia, area, inCorso, onChiudi, onSalva, scop
       className="inline-flex h-8 items-center gap-1 rounded-full border border-dashed px-3 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
     >
       <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-      Variante
+      {tr("Variante")}
     </button>
   );
 
@@ -288,30 +290,29 @@ function VariantiScopeEditor({ tipologia, area, inCorso, onChiudi, onSalva, scop
     >
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Colori e varianti di {tipologia.nome}</DialogTitle>
+          <DialogTitle>{tr("Colori e varianti di {nome}", { nome: tipologia.nome })}</DialogTitle>
           <DialogDescription>
-            Valgono per tutti i {prodotti(riepilogo.prodotti)} di {tipologia.nome}. Un valore spento non si propone più;
-            le righe dei preventivi già fatti cambiano prezzo solo se si cambia una scelta.
+            {tr("Valgono per tutti i {prodotti} di {nome}. Un valore spento non si propone più; le righe dei preventivi già fatti cambiano prezzo solo se si cambia una scelta.", { prodotti: prodotti(riepilogo.prodotti), nome: tipologia.nome })}
           </DialogDescription>
         </DialogHeader>
 
         <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
-          <label className="text-sm font-medium">Applica le modifiche a</label>
+          <label className="text-sm font-medium">{tr("Applica le modifiche a")}</label>
           <Select value={scope} onValueChange={onScope} disabled={inCorso || daSalvare.length > 0}>
-            <SelectTrigger aria-label="Ambito delle opzioni"><SelectValue /></SelectTrigger>
+            <SelectTrigger aria-label={tr("Ambito delle opzioni")}><SelectValue /></SelectTrigger>
             <SelectContent>
-              {linee.map(l => <SelectItem key={l.chiave} value={l.chiave}>Solo linea {l.nome}</SelectItem>)}
-              <SelectItem value="__tutte">Tutti i prodotti attivi della tipologia</SelectItem>
+              {linee.map(l => <SelectItem key={l.chiave} value={l.chiave}>{tr("Solo linea {nome}", { nome: l.nome })}</SelectItem>)}
+              <SelectItem value="__tutte">{tr("Tutti i prodotti attivi della tipologia")}</SelectItem>
             </SelectContent>
           </Select>
-          <p className="text-xs text-muted-foreground">{riepilogo.prodotti} prodotti attivi coinvolti. {linee.length ? "Le altre linee non cambiano quando scegli una singola linea." : "Le linee da opzione condividono gli stessi prodotti e quindi le stesse opzioni."} {daSalvare.length > 0 ? "Salva o chiudi prima di cambiare ambito." : ""}</p>
+          <p className="text-xs text-muted-foreground">{tr("{n} prodotti attivi coinvolti.", { n: riepilogo.prodotti })} {linee.length ? tr("Le altre linee non cambiano quando scegli una singola linea.") : tr("Le linee da opzione condividono gli stessi prodotti e quindi le stesse opzioni.")} {daSalvare.length > 0 ? tr("Salva o chiudi prima di cambiare ambito.") : ""}</p>
         </div>
         {!asse || !parole ? (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
               {puoiAggiungere
-                ? `I prodotti di ${tipologia.nome} non hanno ancora varianti oltre alle linee. Aggiungine una: va in tutti i ${prodotti(riepilogo.prodotti)}.`
-                : `I prodotti di ${tipologia.nome} non hanno varianti oltre alle linee. Nel fotovoltaico si aggiungono aprendo un prodotto, nelle sue varianti.`}
+                ? tr("I prodotti di {nome} non hanno ancora varianti oltre alle linee. Aggiungine una: va in tutti i {prodotti}.", { nome: tipologia.nome, prodotti: prodotti(riepilogo.prodotti) })
+                : tr("I prodotti di {nome} non hanno varianti oltre alle linee. Nel fotovoltaico si aggiungono aprendo un prodotto, nelle sue varianti.", { nome: tipologia.nome })}
             </p>
             {bottoneNuova}
             {formNuova}
@@ -319,7 +320,7 @@ function VariantiScopeEditor({ tipologia, area, inCorso, onChiudi, onSalva, scop
         ) : (
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-1.5">
-              <div role="tablist" aria-label={`Varianti di ${tipologia.nome}`} className="contents">
+              <div role="tablist" aria-label={tr("Varianti di {nome}", { nome: tipologia.nome })} className="contents">
                 {stato.map(({ asse: a, dati }) => {
                   const selezionata = a.chiave === asse.chiave;
                   return (
@@ -340,7 +341,7 @@ function VariantiScopeEditor({ tipologia, area, inCorso, onChiudi, onSalva, scop
                       {dati && (
                         <span
                           className={cn("h-1.5 w-1.5 rounded-full", selezionata ? "bg-primary-foreground" : "bg-primary")}
-                          aria-label="da salvare"
+                          aria-label={tr("da salvare")}
                         />
                       )}
                     </button>
@@ -353,21 +354,20 @@ function VariantiScopeEditor({ tipologia, area, inCorso, onChiudi, onSalva, scop
 
             {eNuova(asse.chiave) && (
               <p className="text-xs text-muted-foreground">
-                Nuova: va in tutti i {prodotti(riepilogo.prodotti)} di {tipologia.nome}, col valore di serie scelto qui.{" "}
+                {tr("Nuova: va in tutti i {prodotti} di {nome}, col valore di serie scelto qui.", { prodotti: prodotti(riepilogo.prodotti), nome: tipologia.nome })}{" "}
                 <button
                   type="button"
                   className="font-medium text-primary hover:underline"
                   onClick={() => togliVariante(asse.chiave)}
                 >
-                  Togli
+                  {tr("Togli")}
                 </button>
               </p>
             )}
 
             {asse.baseDiversaIn > 0 && (
               <p className="text-xs text-amber-700 dark:text-amber-400">
-                In {prodotti(asse.baseDiversaIn)} il valore di serie di {asse.nome} è un altro o manca: scegli quello
-                giusto qui sotto per averlo uguale in tutti.
+                {tr("In {baseDiversaIn} il valore di serie di {nome} è un altro o manca: scegli quello giusto qui sotto per averlo uguale in tutti.", { baseDiversaIn: prodotti(asse.baseDiversaIn), nome: asse.nome })}
               </p>
             )}
 
@@ -376,11 +376,11 @@ function VariantiScopeEditor({ tipologia, area, inCorso, onChiudi, onSalva, scop
                 <thead className="bg-muted/40 text-xs text-muted-foreground">
                   <tr>
                     <th className="px-3 py-2 text-left font-medium">{asse.nome}</th>
-                    <th className="w-40 px-2 py-2 text-left font-medium">Maggiorazione</th>
-                    <th className="w-24 px-2 py-2 text-right font-medium">Vendita</th>
-                    <th className="w-24 px-2 py-2 text-right font-medium">Acquisto</th>
-                    <th className="w-16 px-2 py-2 text-center font-medium">Di serie</th>
-                    <th className="w-16 px-2 py-2 text-center font-medium">Acceso</th>
+                    <th className="w-40 px-2 py-2 text-left font-medium">{tr("Maggiorazione")}</th>
+                    <th className="w-24 px-2 py-2 text-right font-medium">{tr("Vendita")}</th>
+                    <th className="w-24 px-2 py-2 text-right font-medium">{tr("Acquisto")}</th>
+                    <th className="w-16 px-2 py-2 text-center font-medium">{tr("Di serie")}</th>
+                    <th className="w-16 px-2 py-2 text-center font-medium">{tr("Acceso")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -389,7 +389,7 @@ function VariantiScopeEditor({ tipologia, area, inCorso, onChiudi, onSalva, scop
                     const vendita = leggiPercentuale(v.vendita || "0");
                     const acquisto = leggiPercentuale(v.acquisto || "0");
                     const acquistoFermo = v.tipo === "percentuale" && !!vendita && acquisto === 0;
-                    const etichetta = v.nome.trim() || "valore nuovo";
+                    const etichetta = v.nome.trim() || tr("valore nuovo");
                     const chiaveRiga = `${asse.chiave}|${v.chiave ?? `nuovo-${i}`}`;
                     const aperto = aperti.has(chiaveRiga);
                     return (
@@ -403,8 +403,8 @@ function VariantiScopeEditor({ tipologia, area, inCorso, onChiudi, onSalva, scop
                                 <Input
                                   value={v.nome}
                                   onChange={(e) => cambia(i, { nome: e.target.value })}
-                                  placeholder={parole.tante === "colori" ? "es. Colore Standard" : "es. Con chiave"}
-                                  aria-label="Nome del valore nuovo"
+                                  placeholder={parole.tante === "colori" ? tr("es. Colore Standard") : tr("es. Con chiave")}
+                                  aria-label={tr("Nome del valore nuovo")}
                                   className="h-8"
                                 />
                                 <Button
@@ -413,7 +413,7 @@ function VariantiScopeEditor({ tipologia, area, inCorso, onChiudi, onSalva, scop
                                   size="icon"
                                   className="h-8 w-8 shrink-0"
                                   onClick={() => togli(i)}
-                                  aria-label={`Togli ${etichetta}`}
+                                  aria-label={tr("Togli {etichetta}", { etichetta })}
                                 >
                                   <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                                 </Button>
@@ -421,10 +421,10 @@ function VariantiScopeEditor({ tipologia, area, inCorso, onChiudi, onSalva, scop
                             )}
                             <span className="block text-[11px] text-muted-foreground">
                               {v.prodotti === 0
-                                ? "nuovo"
+                                ? tr("nuovo")
                                 : v.prodotti === asse.prodotti
-                                  ? `in tutti i ${prodotti(asse.prodotti)}`
-                                  : `in ${v.prodotti} su ${prodotti(asse.prodotti)}`}
+                                  ? tr("in tutti i {prodotti}", { prodotti: prodotti(asse.prodotti) })
+                                  : tr("in {prodotti} su {prodotti2}", { prodotti: v.prodotti, prodotti2: prodotti(asse.prodotti) })}
                             </span>
                             <button
                               type="button"
@@ -434,21 +434,21 @@ function VariantiScopeEditor({ tipologia, area, inCorso, onChiudi, onSalva, scop
                             >
                               {v.opzioni.length > 0
                                 ? `${v.opzioni.length} ${v.opzioni.length === 1 ? parole.singolare : parole.tante}${aperto ? "" : ": " + v.opzioni.slice(0, 2).join(", ") + (v.opzioni.length > 2 ? "…" : "")}`
-                                : `+ quali ${parole.tante}`}
+                                : tr("+ quali {tante}", { tante: parole.tante })}
                             </button>
                             {oggi && oggi.opzioniDiverse > 0 && (
                               <span className="block text-[11px] text-amber-700 dark:text-amber-400">
-                                In {prodotti(oggi.opzioniDiverse)} l&apos;elenco dei {parole.tante} è diverso
+                                {tr("In {prodotti} l'elenco dei {voci} è diverso", { prodotti: prodotti(oggi.opzioniDiverse), voci: parole.tante })}
                               </span>
                             )}
                             {oggi && oggi.diverse.length > 0 && (
                               <span className="block text-[11px] text-amber-700 dark:text-amber-400">
-                                Oggi non è uguale: {oggi.diverse.map((d) => `${d.testo} in ${d.prodotti}`).join(", ")}
+                                {tr("Oggi non è uguale: {elenco}", { elenco: oggi.diverse.map((d) => tr("{valore} in {prodotti}", { valore: d.testo, prodotti: d.prodotti })).join(", ") })}
                               </span>
                             )}
                             {oggi?.attivoInParte && (
                               <span className="block text-[11px] text-amber-700 dark:text-amber-400">
-                                Oggi è spento in alcuni prodotti
+                                {tr("Oggi è spento in alcuni prodotti")}
                               </span>
                             )}
                             {acquistoFermo && (
@@ -457,13 +457,13 @@ function VariantiScopeEditor({ tipologia, area, inCorso, onChiudi, onSalva, scop
                                 className="block text-left text-[11px] font-medium text-primary hover:underline"
                                 onClick={() => cambia(i, { acquisto: v.vendita })}
                               >
-                                L&apos;acquisto resta fermo e il margine sale: metti {v.vendita}% anche lì
+                                {tr("L'acquisto resta fermo e il margine sale: metti {pct}% anche lì", { pct: v.vendita })}
                               </button>
                             )}
                           </td>
                           <td className="px-2 py-1.5">
                             <Select value={v.tipo} onValueChange={(t) => cambia(i, { tipo: t as MaggiorazioneTipo })}>
-                              <SelectTrigger className="h-8 text-xs" aria-label={`Come si applica la maggiorazione di ${etichetta}`}>
+                              <SelectTrigger className="h-8 text-xs" aria-label={tr("Come si applica la maggiorazione di {etichetta}", { etichetta })}>
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -474,7 +474,7 @@ function VariantiScopeEditor({ tipologia, area, inCorso, onChiudi, onSalva, scop
                                 ))}
                                 {!MODI_MAGGIORAZIONE.some((m) => m.tipo === v.tipo) && (
                                   <SelectItem value={v.tipo} className="text-xs">
-                                    € al m³
+                                    {tr("€ al m³")}
                                   </SelectItem>
                                 )}
                               </SelectContent>
@@ -485,7 +485,7 @@ function VariantiScopeEditor({ tipologia, area, inCorso, onChiudi, onSalva, scop
                               value={v.vendita}
                               onChange={(e) => cambia(i, { vendita: e.target.value })}
                               inputMode="decimal"
-                              aria-label={`Maggiorazione di vendita di ${etichetta}`}
+                              aria-label={tr("Maggiorazione di vendita di {etichetta}", { etichetta })}
                               className="h-8 text-right tabular-nums"
                             />
                           </td>
@@ -494,7 +494,7 @@ function VariantiScopeEditor({ tipologia, area, inCorso, onChiudi, onSalva, scop
                               value={v.acquisto}
                               onChange={(e) => cambia(i, { acquisto: e.target.value })}
                               inputMode="decimal"
-                              aria-label={`Maggiorazione sull'acquisto di ${etichetta}`}
+                              aria-label={tr("Maggiorazione sull'acquisto di {etichetta}", { etichetta })}
                               className="h-8 text-right tabular-nums"
                             />
                           </td>
@@ -505,7 +505,7 @@ function VariantiScopeEditor({ tipologia, area, inCorso, onChiudi, onSalva, scop
                               checked={v.base}
                               onChange={() => scegliBase(i)}
                               onClick={() => v.base && scegliBase(i)}
-                              aria-label={`${etichetta} di serie`}
+                              aria-label={tr("{etichetta} di serie", { etichetta })}
                               className="h-4 w-4 accent-primary"
                             />
                           </td>
@@ -513,7 +513,7 @@ function VariantiScopeEditor({ tipologia, area, inCorso, onChiudi, onSalva, scop
                             <Switch
                               checked={v.attivo}
                               onCheckedChange={(acceso) => cambia(i, { attivo: acceso })}
-                              aria-label={`${etichetta} acceso`}
+                              aria-label={tr("{etichetta} acceso", { etichetta })}
                             />
                           </td>
                         </tr>
@@ -540,7 +540,7 @@ function VariantiScopeEditor({ tipologia, area, inCorso, onChiudi, onSalva, scop
 
             <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5" onClick={aggiungi}>
               <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-              Valore
+              {tr("Valore")}
             </Button>
 
             {mancanti.length > 0 && (
@@ -551,10 +551,10 @@ function VariantiScopeEditor({ tipologia, area, inCorso, onChiudi, onSalva, scop
                   className="mt-0.5"
                 />
                 <span>
-                  <span className="block">Metti i valori mancanti in tutti i {prodotti(riepilogo.prodotti)}</span>
+                  <span className="block">{tr("Metti i valori mancanti in tutti i {prodotti}", { prodotti: prodotti(riepilogo.prodotti) })}</span>
                   <span className="block text-xs text-muted-foreground">
                     {mancanti.slice(0, 3).join(" · ")}
-                    {mancanti.length > 3 ? ` · e altri ${mancanti.length - 3}` : ""}
+                    {mancanti.length > 3 ? ` ${tr("· e altri {n}", { n: mancanti.length - 3 })}` : ""}
                   </span>
                 </span>
               </label>
@@ -566,7 +566,7 @@ function VariantiScopeEditor({ tipologia, area, inCorso, onChiudi, onSalva, scop
 
         <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2">
           <Button variant="ghost" onClick={onChiudi} disabled={inCorso} className="h-10 w-full sm:w-auto">
-            Annulla
+            {tr("Annulla")}
           </Button>
           <Button
             onClick={salva}
@@ -576,12 +576,12 @@ function VariantiScopeEditor({ tipologia, area, inCorso, onChiudi, onSalva, scop
             {inCorso ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                Salvataggio…
+                {tr("Salvataggio…")}
               </>
             ) : daSalvare.length > 1 ? (
-              `Salva ${daSalvare.length} varianti`
+              tr("Salva {n} varianti", { n: daSalvare.length })
             ) : (
-              "Salva"
+              tr("Salva")
             )}
           </Button>
         </DialogFooter>
@@ -610,6 +610,7 @@ function EditorVoci({
   nomeValore: string;
   idLista: string;
 }) {
+  const tr = useT();
   const [testo, setTesto] = useState("");
   const aggiungi = (nuove: string[]) => {
     if (nuove.length === 0) return;
@@ -629,10 +630,10 @@ function EditorVoci({
   return (
     <div className="space-y-2">
       <p className="text-[11px] text-muted-foreground">
-        Nel preventivo si sceglie fra questi {parole.tante}, al prezzo di «{nomeValore}»; si può anche lasciare da decidere.
+        {tr("Nel preventivo si sceglie fra questi {tante}, al prezzo di «{nomeValore}»; si può anche lasciare da decidere.", { tante: parole.tante, nomeValore })}
       </p>
       {voci.length > 0 && (
-        <ul className="flex flex-wrap gap-1.5" aria-label={`${parole.tante} di ${nomeValore}`}>
+        <ul className="flex flex-wrap gap-1.5" aria-label={tr("{tante} di {nomeValore}", { tante: parole.tante, nomeValore })}>
           {voci.map((voce) => (
             <li
               key={voce}
@@ -643,7 +644,7 @@ function EditorVoci({
                 type="button"
                 onClick={() => onChange(voci.filter((x) => x !== voce))}
                 className="rounded-full p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                aria-label={`Togli ${voce}`}
+                aria-label={tr("Togli {voce}", { voce })}
               >
                 <X className="h-3 w-3" aria-hidden="true" />
               </button>
@@ -663,8 +664,8 @@ function EditorVoci({
             }
           }}
           list={libere.length > 0 ? idLista : undefined}
-          placeholder={`Aggiungi ${parole.una}, o incolla un elenco`}
-          aria-label={`Aggiungi ${parole.una} a ${nomeValore}`}
+          placeholder={tr("Aggiungi {una}, o incolla un elenco", { una: parole.una })}
+          aria-label={tr("Aggiungi {una} a {nomeValore}", { una: parole.una, nomeValore })}
           className="h-8 bg-background text-sm"
         />
         <Button
@@ -675,7 +676,7 @@ function EditorVoci({
           onClick={() => aggiungi(dividiVoci(testo))}
           disabled={!testo.trim()}
         >
-          Aggiungi
+          {tr("Aggiungi")}
         </Button>
       </div>
       {libere.length > 0 && (

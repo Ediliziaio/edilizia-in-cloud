@@ -37,6 +37,7 @@ import { areeDaAggiungere, nomeTipologiaLibero } from "@/lib/listino/organizzaLi
 import { AvvisoInstallazioneModello } from "./AvvisoInstallazioneModello";
 import { iconaArea } from "./iconaArea";
 import { preparaAreaPersonalizzata } from "@/lib/listino/nuovaArea";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   aree: AreaListino[];
@@ -53,9 +54,10 @@ interface Props {
 
 type Modo = "modello" | "vuota" | "personalizzata";
 
-const giorno = (iso: string) => new Date(iso).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" });
+const giorno = (iso: string) => new Date(iso).toLocaleDateString(intlCampo(), { day: "2-digit", month: "2-digit", year: "numeric" });
 
 export function NuovaAreaDialog({ aree, macrocategorie, inCorso, erroreCaricamento = false, onRiprova, onChiudi, onCrea, onAreaDaModello }: Props) {
+  const tr = useT();
   const disponibili = useMemo(() => areeDaAggiungere(aree), [aree]);
   const [scelta, setScelta] = useState<AreaStandard | null>(disponibili[0] ?? null);
   const [escluse, setEscluse] = useState<Set<string>>(() => new Set());
@@ -119,10 +121,10 @@ export function NuovaAreaDialog({ aree, macrocategorie, inCorso, erroreCaricamen
           } else if (tipo === "in_corso") {
             toast.info(messaggioErroreInstallazione(e));
           } else if (tipo === "scelta_maggiorazioni") {
-            toast.warning("Prima scegli cosa fare delle maggiorazioni", { description: messaggioErroreInstallazione(e) });
+            toast.warning(tr("Prima scegli cosa fare delle maggiorazioni"), { description: messaggioErroreInstallazione(e) });
             void anteprima.refetch();
           } else {
-            toast.error("Area non aggiunta", { description: messaggioErroreInstallazione(e) });
+            toast.error(tr("Area non aggiunta"), { description: messaggioErroreInstallazione(e) });
           }
         },
         onSettled: () => {
@@ -144,17 +146,17 @@ export function NuovaAreaDialog({ aree, macrocategorie, inCorso, erroreCaricamen
           <DialogTitle>Aggiungi un&apos;area</DialogTitle>
           <DialogDescription>
             {modo === "modello"
-              ? "Parti da un'area già pronta, con i prodotti, le foto e le schede tecniche: diventa tua e la cambi come vuoi."
-              : "Prepara le tipologie del tuo listino. Poi aggiungi le linee, importa i prodotti e imposta i tuoi prezzi."}
+              ? tr("Parti da un'area già pronta, con i prodotti, le foto e le schede tecniche: diventa tua e la cambi come vuoi.")
+              : tr("Prepara le tipologie del tuo listino. Poi aggiungi le linee, importa i prodotti e imposta i tuoi prezzi.")}
           </DialogDescription>
         </DialogHeader>
 
-          <div role="tablist" aria-label="Come aggiungere l'area" className={cn("grid grid-cols-2 gap-1 rounded-lg bg-muted p-1", modelli.length > 0 && "sm:grid-cols-3")}>
+          <div role="tablist" aria-label={tr("Come aggiungere l'area")} className={cn("grid grid-cols-2 gap-1 rounded-lg bg-muted p-1", modelli.length > 0 && "sm:grid-cols-3")}>
             {(
               [
-                ...(modelli.length > 0 ? [["modello", "Con i prodotti di un modello"] as const] : []),
-                ["vuota", "Solo le tipologie"],
-                ["personalizzata", "Area personalizzata"],
+                ...(modelli.length > 0 ? [["modello", tr("Con i prodotti di un modello")] as const] : []),
+                ["vuota", tr("Solo le tipologie")],
+                ["personalizzata", tr("Area personalizzata")],
               ] as const
             ).map(([valore, testo]) => (
               <button
@@ -176,27 +178,27 @@ export function NuovaAreaDialog({ aree, macrocategorie, inCorso, erroreCaricamen
 
         {erroreCaricamento && (
           <div role="alert" className="rounded-md border border-destructive/40 p-3 text-sm">
-            Le tipologie del listino non si sono caricate. Riprova prima di aggiungere un'area.
-            {onRiprova && <Button variant="outline" size="sm" className="ml-2" onClick={onRiprova}>Riprova</Button>}
+            {tr("Le tipologie del listino non si sono caricate. Riprova prima di aggiungere un'area.")}
+            {onRiprova && <Button variant="outline" size="sm" className="ml-2" onClick={onRiprova}>{tr("Riprova")}</Button>}
           </div>
         )}
 
         {modo === "personalizzata" ? (
           <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
             <div className="space-y-2">
-              <Label htmlFor="nome-area-libera">Nome dell'area</Label>
-              <Input id="nome-area-libera" value={nomeLibero} onChange={(e) => setNomeLibero(e.target.value)} maxLength={80} disabled={occupato} placeholder="Per esempio Tende da sole" />
+              <Label htmlFor="nome-area-libera">{tr("Nome dell'area")}</Label>
+              <Input id="nome-area-libera" value={nomeLibero} onChange={(e) => setNomeLibero(e.target.value)} maxLength={80} disabled={occupato} placeholder={tr("Per esempio Tende da sole")} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="tipologie-area-libera">Tipologie iniziali, una per riga</Label>
-              <Textarea id="tipologie-area-libera" value={tipologieLibere} onChange={(e) => setTipologieLibere(e.target.value)} rows={5} disabled={occupato} placeholder={"Tende a bracci\nPergole\nAccessori"} aria-describedby="area-libera-aiuto area-libera-problema" />
+              <Label htmlFor="tipologie-area-libera">{tr("Tipologie iniziali, una per riga")}</Label>
+              <Textarea id="tipologie-area-libera" value={tipologieLibere} onChange={(e) => setTipologieLibere(e.target.value)} rows={5} disabled={occupato} placeholder={tr("Tende a bracci\nPergole\nAccessori")} aria-describedby="area-libera-aiuto area-libera-problema" />
             </div>
-            <p id="area-libera-aiuto" className="text-sm text-muted-foreground">Crei la struttura del listino. Poi puoi aggiungere linee e prodotti. L'area personalizzata non attiva un preventivatore specializzato.</p>
-            <p id="area-libera-problema" aria-live="polite" className="text-sm text-muted-foreground">{personalizzata.problema ?? `${personalizzata.area?.tipologie.length} tipologie pronte da creare.`}</p>
+            <p id="area-libera-aiuto" className="text-sm text-muted-foreground">{tr("Crei la struttura del listino. Poi puoi aggiungere linee e prodotti. L'area personalizzata non attiva un preventivatore specializzato.")}</p>
+            <p id="area-libera-problema" aria-live="polite" className="text-sm text-muted-foreground">{personalizzata.problema ?? tr("{n} tipologie pronte da creare.", { n: personalizzata.area?.tipologie.length })}</p>
           </div>
         ) : modo === "modello" && modello ? (
           <div className="min-h-0 space-y-3 overflow-y-auto pr-1">
-            <div role="radiogroup" aria-label="Modello da aggiungere" className="grid gap-2">
+            <div role="radiogroup" aria-label={tr("Modello da aggiungere")} className="grid gap-2">
               {modelli.map((m) => {
                 const attivo = m.id === modello.id;
                 const Icona = iconaArea(m.area);
@@ -225,14 +227,14 @@ export function NuovaAreaDialog({ aree, macrocategorie, inCorso, erroreCaricamen
                       <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                         <span className="text-sm font-medium">{m.nome}</span>
                         <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                          <Icona className="h-3 w-3" aria-hidden="true" /> Area {nomeArea(m.area)}
+                          <Icona className="h-3 w-3" aria-hidden="true" /> {tr("Area")} {nomeArea(m.area)}
                         </span>
                       </span>
                       <span className="mt-0.5 block text-xs text-muted-foreground">{testoContenuto(m.riepilogo)}</span>
                       {m.descrizione && <span className="mt-1 block text-xs">{m.descrizione}</span>}
                       {m.installato_il && (
                         <span className="mt-1 block text-xs text-amber-700 dark:text-amber-400">
-                          Già aggiunto il {giorno(m.installato_il)}: arriva solo quello che manca.
+                          {tr("Già aggiunto il {installato_il}: arriva solo quello che manca.", { installato_il: giorno(m.installato_il) })}
                         </span>
                       )}
                     </span>
@@ -242,8 +244,7 @@ export function NuovaAreaDialog({ aree, macrocategorie, inCorso, erroreCaricamen
               })}
             </div>
             <p className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
-              {testoPrezzi(modello.con_prezzi_vendita)} Se hai già tipologie o linee con lo stesso nome si usano quelle; i
-              prodotti che hai già con lo stesso nome restano come sono.
+              {tr("{con_prezzi_vendita} Se hai già tipologie o linee con lo stesso nome si usano quelle; i prodotti che hai già con lo stesso nome restano come sono.", { con_prezzi_vendita: testoPrezzi(modello.con_prezzi_vendita) })}
             </p>
             <AvvisoInstallazioneModello
               anteprima={anteprima.data}
@@ -255,15 +256,15 @@ export function NuovaAreaDialog({ aree, macrocategorie, inCorso, erroreCaricamen
           </div>
         ) : modo === "modello" && caricoModelli ? (
           <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Carico i modelli…
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> {tr("Carico i modelli…")}
           </p>
         ) : disponibili.length === 0 ? (
           <p className="rounded-md border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-            Hai già tutte le aree standard. Per un settore diverso scegli «Area personalizzata».
+            {tr("Hai già tutte le aree standard. Per un settore diverso scegli «Area personalizzata».")}
           </p>
         ) : (
           <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
-            <div role="radiogroup" aria-label="Area da aggiungere" className="grid gap-2 sm:grid-cols-2">
+            <div role="radiogroup" aria-label={tr("Area da aggiungere")} className="grid gap-2 sm:grid-cols-2">
               {disponibili.map((a) => {
                 const Icona = iconaArea(a.chiave);
                 const attiva = a.chiave === scelta?.chiave;
@@ -289,11 +290,11 @@ export function NuovaAreaDialog({ aree, macrocategorie, inCorso, erroreCaricamen
                       <Icona className="h-4 w-4" aria-hidden="true" />
                     </span>
                     <span className="min-w-0">
-                      <span className="block text-sm font-medium">Area {a.nome}</span>
+                      <span className="block text-sm font-medium">{tr("Area {nome}", { nome: a.nome })}</span>
                       <span className="block text-xs text-muted-foreground">
                         {a.preventivatore
-                          ? `Collegata al ${a.preventivatore.toLowerCase()}`
-                          : `${a.tipologie.length} tipologie standard`}
+                          ? tr("Collegata al {toLowerCase}", { toLowerCase: a.preventivatore.toLowerCase() })
+                          : tr("{n} tipologie standard", { n: a.tipologie.length })}
                       </span>
                     </span>
                     {attiva && <Check className="ml-auto h-4 w-4 shrink-0 text-primary" aria-hidden="true" />}
@@ -304,14 +305,13 @@ export function NuovaAreaDialog({ aree, macrocategorie, inCorso, erroreCaricamen
 
             {scelta && (
               <fieldset className="space-y-2">
-                <legend className="text-sm font-medium">Tipologie da creare subito</legend>
+                <legend className="text-sm font-medium">{tr("Tipologie da creare subito")}</legend>
                 <p className="text-xs text-muted-foreground">
-                  Quelle che togli restano fra le standard da aggiungere, nella colonna delle tipologie.
+                  {tr("Quelle che togli restano fra le standard da aggiungere, nella colonna delle tipologie.")}
                 </p>
                 <p className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
-                  Questa operazione crea la struttura, non articoli pronti né prezzi. Gli esempi qui sotto indicano
-                  cosa inserire. Le lavorazioni vanno in Manodopera e Servizi, non tra i prodotti.
-                  {scelta.chiave === "ristrutturazione" && " Per una ristrutturazione completa usa anche i prodotti delle aree Bagni, Serramenti, Pavimenti e Impianti: non occorre ricopiarli qui."}
+                  {tr("Questa operazione crea la struttura, non articoli pronti né prezzi. Gli esempi qui sotto indicano cosa inserire. Le lavorazioni vanno in Manodopera e Servizi, non tra i prodotti.")}
+                  {scelta.chiave === "ristrutturazione" && ` ${tr("Per una ristrutturazione completa usa anche i prodotti delle aree Bagni, Serramenti, Pavimenti e Impianti: non occorre ricopiarli qui.")}`}
                 </p>
                 <ul className="grid gap-1.5 sm:grid-cols-2">
                   {scelta.tipologie.map((t) => {
@@ -328,7 +328,7 @@ export function NuovaAreaDialog({ aree, macrocategorie, inCorso, erroreCaricamen
                         />
                         <label htmlFor={id} className="text-sm leading-snug">
                           {nomeFinale}
-                          {t.accessorio && <span className="ml-1.5 text-xs text-muted-foreground">accessorio</span>}
+                          {t.accessorio && <span className="ml-1.5 text-xs text-muted-foreground">{tr("accessorio")}</span>}
                           {t.esempi && <span className="mt-1 block text-xs text-muted-foreground">{t.esempi.join(" · ")}</span>}
                         </label>
                       </li>
@@ -342,12 +342,12 @@ export function NuovaAreaDialog({ aree, macrocategorie, inCorso, erroreCaricamen
 
         <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2">
           <Button variant="ghost" onClick={onChiudi} disabled={occupato} className="h-10 w-full sm:w-auto">
-            {modo === "vuota" && disponibili.length === 0 ? "Chiudi" : "Annulla"}
+            {modo === "vuota" && disponibili.length === 0 ? tr("Chiudi") : tr("Annulla")}
           </Button>
           {modo === "personalizzata" ? (
             <Button disabled={creazioneBloccata || !personalizzata.area} className="h-10 w-full sm:w-auto" onClick={() => {
               if (personalizzata.area) onCrea(personalizzata.area, personalizzata.area.tipologie);
-            }}>{inCorso ? "Creazione…" : "Crea area personalizzata"}</Button>
+            }}>{inCorso ? tr("Creazione…") : tr("Crea area personalizzata")}</Button>
           ) : modo === "modello" && modello ? (
             <Button
               onClick={installaModello}
@@ -357,10 +357,10 @@ export function NuovaAreaDialog({ aree, macrocategorie, inCorso, erroreCaricamen
               {installa.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                  Aggiungo i prodotti…
+                  {tr("Aggiungo i prodotti…")}
                 </>
               ) : (
-                `Aggiungi «${modello.nome}»`
+                tr("Aggiungi «{nome}»", { nome: modello.nome })
               )}
             </Button>
           ) : (
@@ -374,10 +374,10 @@ export function NuovaAreaDialog({ aree, macrocategorie, inCorso, erroreCaricamen
                 {inCorso ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                    Creazione…
+                    {tr("Creazione…")}
                   </>
                 ) : (
-                  `Aggiungi l'area ${scelta.nome}`
+                  tr("Aggiungi l'area {nome}", { nome: scelta.nome })
                 )}
               </Button>
             )

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { htmlPerEditorContratto } from '@/lib/preventivi/contrattoEditor';
 import { fontiCondizioni, type FonteCondizioni } from '@/lib/preventivi/fontiCondizioni';
 import type { AmbitoCondizioni } from '@/lib/condizioni/archivio';
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Read-only sources. Copying changes only the caller's draft, never the source. */
 export function CopiaCondizioni({ companyId, value, onChange, disabled = false, ambito = 'preventivo' }: {
@@ -13,6 +14,7 @@ export function CopiaCondizioni({ companyId, value, onChange, disabled = false, 
   /** Per quale documento sono queste condizioni: decide chi è «predefinito» e chi compare per primo. */
   ambito?: AmbitoCondizioni;
 }) {
+  const t = useT();
   const id = useId();
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState('');
@@ -35,7 +37,7 @@ export function CopiaCondizioni({ companyId, value, onChange, disabled = false, 
   const source = data.find(item => item.id === selected && item.companyId === companyId);
   const copy = () => {
     if (!source || disabled) return;
-    if (value.trim() && !window.confirm('Sostituire le condizioni attuali con una copia? Le modifiche non salvate a questo testo andranno perse. Il modello di origine non cambia.')) return;
+    if (value.trim() && !window.confirm(t("Sostituire le condizioni attuali con una copia? Le modifiche non salvate a questo testo andranno perse. Il modello di origine non cambia."))) return;
     onChange(htmlPerEditorContratto(source.testo));
     setCopied(true);
     setOpen(false);
@@ -43,20 +45,20 @@ export function CopiaCondizioni({ companyId, value, onChange, disabled = false, 
   };
   return <div className="space-y-2">
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <p className="text-xs text-muted-foreground">Modifica il testo qui, oppure parti da una copia.</p>
-      <Button type="button" variant="outline" size="sm" disabled={disabled || !companyId} aria-expanded={open} aria-controls={id} onClick={() => { setOpen(!open); setCopied(false); }}>Copia da…</Button>
+      <p className="text-xs text-muted-foreground">{t("Modifica il testo qui, oppure parti da una copia.")}</p>
+      <Button type="button" variant="outline" size="sm" disabled={disabled || !companyId} aria-expanded={open} aria-controls={id} onClick={() => { setOpen(!open); setCopied(false); }}>{t("Copia da…")}</Button>
     </div>
-    {copied && <p role="status" className="text-xs text-emerald-700">Testo copiato. Puoi adattarlo: l’originale non cambia. Salva il modello per confermare.</p>}
+    {copied && <p role="status" className="text-xs text-emerald-700">{t("Testo copiato. Puoi adattarlo: l’originale non cambia. Salva il modello per confermare.")}</p>}
     {open && <div id={id} className="rounded-lg border bg-muted/20 p-3 space-y-3">
-      <p className="text-xs text-muted-foreground">Scegli condizioni generali o un modello salvato della tua azienda. Copiamo solo le clausole, non prezzi, immagini o altre impostazioni. Le copie restano indipendenti.</p>
-      {isPending ? <p role="status" className="text-xs">Caricamento delle condizioni…</p> : isError ? <div role="alert" className="text-xs">Non riesco a leggere i modelli. Il tuo testo non cambia. <Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>Riprova</Button></div> : <>
-        <UniformSelect aria-label="Copia condizioni da" className="h-10 w-full rounded-md border bg-background px-2 text-sm" value={source ? selected : ''} onChange={e => setSelected(e.target.value)}>
-          <option value="">Scegli da dove copiare…</option>
+      <p className="text-xs text-muted-foreground">{t("Scegli condizioni generali o un modello salvato della tua azienda. Copiamo solo le clausole, non prezzi, immagini o altre impostazioni. Le copie restano indipendenti.")}</p>
+      {isPending ? <p role="status" className="text-xs">{t("Caricamento delle condizioni…")}</p> : isError ? <div role="alert" className="text-xs">{t("Non riesco a leggere i modelli. Il tuo testo non cambia.")} <Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>{t("Riprova")}</Button></div> : <>
+        <UniformSelect aria-label={t("Copia condizioni da")} className="h-10 w-full rounded-md border bg-background px-2 text-sm" value={source ? selected : ''} onChange={e => setSelected(e.target.value)}>
+          <option value="">{t("Scegli da dove copiare…")}</option>
           {data.filter(item => item.companyId === companyId).map(item => <option key={item.id} value={item.id}>{item.nome}</option>)}
         </UniformSelect>
-        {!data.length && <p className="text-xs">Non ci sono ancora condizioni salvate da copiare. Puoi scriverle direttamente qui.</p>}
-        {source && <div className="max-h-36 overflow-auto whitespace-pre-wrap rounded border bg-background p-3 text-xs" aria-label="Anteprima del testo da copiare">{source.testo.replace(/<[^>]*>/g, ' ').slice(0, 1800)}</div>}
-        <Button type="button" size="sm" disabled={!source || disabled} onClick={copy}>Copia e modifica qui</Button>
+        {!data.length && <p className="text-xs">{t("Non ci sono ancora condizioni salvate da copiare. Puoi scriverle direttamente qui.")}</p>}
+        {source && <div className="max-h-36 overflow-auto whitespace-pre-wrap rounded border bg-background p-3 text-xs" aria-label={t("Anteprima del testo da copiare")}>{source.testo.replace(/<[^>]*>/g, ' ').slice(0, 1800)}</div>}
+        <Button type="button" size="sm" disabled={!source || disabled} onClick={copy}>{t("Copia e modifica qui")}</Button>
       </>}
     </div>}
   </div>;

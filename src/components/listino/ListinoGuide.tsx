@@ -14,6 +14,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const LIVELLI: Array<{ nome: string; testo: string }> = [
   {
@@ -39,19 +40,20 @@ const LIVELLI: Array<{ nome: string; testo: string }> = [
 ];
 
 export function ListinoGuide() {
+  const t = useT();
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" title="Come funziona">
+        <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" title={t("Come funziona")}>
           <HelpCircle className="h-4 w-4" aria-hidden="true" />
           {/* Da telefono resta l'icona: la barra del listino ha già tre file di comandi. */}
-          <span className="max-sm:sr-only">Come funziona</span>
+          <span className="max-sm:sr-only">{t("Come funziona")}</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>Come funziona il listino</DialogTitle>
-          <DialogDescription>Quattro livelli, dal più generale al prezzo.</DialogDescription>
+          <DialogTitle>{t("Come funziona il listino")}</DialogTitle>
+          <DialogDescription>{t("Quattro livelli, dal più generale al prezzo.")}</DialogDescription>
         </DialogHeader>
         <ol className="space-y-3">
           {LIVELLI.map((livello, i) => (
@@ -60,16 +62,15 @@ export function ListinoGuide() {
                 {i + 1}
               </span>
               <p className="text-sm leading-relaxed">
-                <strong>{livello.nome}.</strong> <span className="text-muted-foreground">{livello.testo}</span>
+                <strong>{t(livello.nome)}.</strong> <span className="text-muted-foreground">{t(livello.testo)}</span>
               </p>
             </li>
           ))}
         </ol>
         <div className="space-y-1 rounded-md bg-muted/50 p-3 text-sm">
-          <p className="font-medium">Scheda tecnica e variabili</p>
+          <p className="font-medium">{t("Scheda tecnica e variabili")}</p>
           <p className="text-muted-foreground">
-            La scheda tecnica descrive il modello e non cambia (vetro, trasmittanza, materiale): i suoi campi si
-            impostano una volta per tipologia da «Tipologie». Le variabili invece cambiano da un preventivo all'altro.
+            {t("La scheda tecnica descrive il modello e non cambia (vetro, trasmittanza, materiale): i suoi campi si impostano una volta per tipologia da «Tipologie». Le variabili invece cambiano da un preventivo all'altro.")}
           </p>
         </div>
       </DialogContent>

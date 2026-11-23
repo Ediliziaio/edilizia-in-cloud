@@ -50,6 +50,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatCurrencyCompact } from "@/lib/formatters";
 import { safeNumber } from "@/lib/numberUtils";
 import { cn } from "@/lib/utils";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type ExecutiveTone = "green" | "orange" | "red" | "blue";
 
@@ -68,11 +69,12 @@ function eur(value: number) {
 }
 
 function pct(value: number) {
-  return `${safeNumber(value).toLocaleString("it-IT", { maximumFractionDigits: 1 })}%`;
+  return `${safeNumber(value).toLocaleString(intlCampo(), { maximumFractionDigits: 1 })}%`;
 }
 
 // Sub-component: Sede analytics (mostrato solo se ci sono sedi).
 function SedeFilterBarMarketing() {
+  const t = useT();
   const isMobile = useIsMobile();
   const { data: sedi = [] } = useSediList();
   // Grafico "Analytics per Sede" (recharts): vetrina desktop → non su mobile.
@@ -80,7 +82,7 @@ function SedeFilterBarMarketing() {
   return (
     <div className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <span className="text-sm font-semibold text-eic-navy">Analytics per Sede</span>
+        <span className="text-sm font-semibold text-eic-navy">{t("Analytics per Sede")}</span>
         <SedeFilterBar />
       </div>
       <LeadPerSedeChart />
@@ -89,6 +91,7 @@ function SedeFilterBarMarketing() {
 }
 
 export default function MarketingDashboard() {
+  const tr = useT();
   const { data, isLoading, error, refetch, filters, updateFilters, permissions, effectiveAssignedIds } = useMarketingDashboard();
   const { activeTab, switchTab, tabs, visibleTabs, toggleTabVisibility } = useDashboardLayout();
   const { effectiveCompany } = useAuth();
@@ -123,7 +126,7 @@ export default function MarketingDashboard() {
         const oggi = new Date();
         const date = new Date(oggi.getFullYear(), oggi.getMonth() - (11 - index), 1);
         const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-        const monthLabel = date.toLocaleDateString("it-IT", { month: "short" }).replace(".", "");
+        const monthLabel = date.toLocaleDateString(intlCampo(), { month: "short" }).replace(".", "");
         const row = byKey.get(key);
         return {
           key,
@@ -190,11 +193,11 @@ export default function MarketingDashboard() {
   );
 
   const trendTooltipSeries = useMemo<TrendTooltipSeries[]>(() => {
-    const num = (v: number) => v.toLocaleString("it-IT");
+    const num = (v: number) => v.toLocaleString(intlCampo());
     return [
       { key: "lead", label: "Lead", color: "hsl(var(--chart-1))", formatter: num },
-      { key: "appuntamenti", label: "Appuntamenti", color: "hsl(var(--chart-3))", formatter: num },
-      { key: "contratti", label: "Contratti", color: "hsl(var(--chart-2))", formatter: num },
+      { key: "appuntamenti", label: tr("Appuntamenti"), color: "hsl(var(--chart-3))", formatter: num },
+      { key: "contratti", label: tr("Contratti"), color: "hsl(var(--chart-2))", formatter: num },
     ];
   }, []);
 
@@ -213,8 +216,8 @@ export default function MarketingDashboard() {
     if (staleLeads2h > 0) {
       return {
         tone: "red" as ExecutiveTone,
-        title: "Lead caldi senza risposta",
-        detail: `${staleLeads2h} lead nuovi da oltre 2 ore senza primo contatto. Più aspetti, meno chiudono.`,
+        title: tr("Lead caldi senza risposta"),
+        detail: tr("{staleLeads2h} lead nuovi da oltre 2 ore senza primo contatto. Più aspetti, meno chiudono.", { staleLeads2h: String(staleLeads2h ?? "") }),
         route: "/azienda/marketing/contatti?filter=stale_2h",
         cta: "Apri lead caldi",
       };
@@ -222,8 +225,8 @@ export default function MarketingDashboard() {
     if (staleLeads > 0) {
       return {
         tone: "orange" as ExecutiveTone,
-        title: "Lead in attesa di lavorazione",
-        detail: `${staleLeads} lead da contattare. Prima azione: riassegna o richiama oggi stesso.`,
+        title: tr("Lead in attesa di lavorazione"),
+        detail: tr("{staleLeads} lead da contattare. Prima azione: riassegna o richiama oggi stesso.", { staleLeads: String(staleLeads ?? "") }),
         route: "/azienda/marketing/contatti?filter=stale",
         cta: "Vedi lead in attesa",
       };
@@ -231,8 +234,8 @@ export default function MarketingDashboard() {
     if (pipelineDeclining) {
       return {
         tone: "orange" as ExecutiveTone,
-        title: "Pipeline in calo",
-        detail: "Il valore della pipeline attiva sta scendendo. Verifica opportunità ferme e nuovi ingressi.",
+        title: tr("Pipeline in calo"),
+        detail: tr("Il valore della pipeline attiva sta scendendo. Verifica opportunità ferme e nuovi ingressi."),
         route: "/azienda/marketing/opportunita",
         cta: "Apri pipeline",
       };
@@ -240,8 +243,8 @@ export default function MarketingDashboard() {
     if (showRateBelow) {
       return {
         tone: "orange" as ExecutiveTone,
-        title: "Show rate sotto target",
-        detail: `Solo il ${pct(showRate)} dei prospect si presenta in appuntamento. Rivedi reminder e qualifica.`,
+        title: tr("Show rate sotto target"),
+        detail: tr("Solo il {showRate} dei prospect si presenta in appuntamento. Rivedi reminder e qualifica.", { showRate: String(pct(showRate) ?? "") }),
         route: "/azienda/marketing/calendario",
         cta: "Vedi appuntamenti",
       };
@@ -249,8 +252,8 @@ export default function MarketingDashboard() {
     if (pendingAppointments > 0) {
       return {
         tone: "blue" as ExecutiveTone,
-        title: "Appuntamenti da chiudere",
-        detail: `${pendingAppointments} appuntamenti da esitare. Aggiorna l'esito appena fatti.`,
+        title: tr("Appuntamenti da chiudere"),
+        detail: tr("{pendingAppointments} appuntamenti da esitare. Aggiorna l'esito appena fatti.", { pendingAppointments: String(pendingAppointments ?? "") }),
         route: "/azienda/marketing/calendario",
         cta: "Aggiorna esiti",
       };
@@ -258,16 +261,16 @@ export default function MarketingDashboard() {
     if (closeRate > 0 && closeRate < 15) {
       return {
         tone: "orange" as ExecutiveTone,
-        title: "Conversione bassa",
-        detail: `Tasso di chiusura ${pct(closeRate)}. Rivedi script vendita e qualifica del lead in ingresso.`,
+        title: tr("Conversione bassa"),
+        detail: tr("Tasso di chiusura {closeRate}. Rivedi script vendita e qualifica del lead in ingresso.", { closeRate: String(pct(closeRate) ?? "") }),
         route: "/azienda/marketing/opportunita",
         cta: "Vedi pipeline",
       };
     }
     return {
       tone: "green" as ExecutiveTone,
-      title: "Vendite sotto controllo",
-      detail: "Nessuna urgenza commerciale: monitora la velocità di risposta e il volume in ingresso.",
+      title: tr("Vendite sotto controllo"),
+      detail: tr("Nessuna urgenza commerciale: monitora la velocità di risposta e il volume in ingresso."),
       route: "/azienda/marketing/opportunita",
       cta: "Vedi pipeline",
     };
@@ -293,17 +296,17 @@ export default function MarketingDashboard() {
 
     return [
       {
-        label: "Lead periodo",
-        value: leadsNew.toLocaleString("it-IT"),
-        hint: `periodo precedente ${leadsPrev.toLocaleString("it-IT")}`,
+        label: tr("Lead periodo"),
+        value: leadsNew.toLocaleString(intlCampo()),
+        hint: tr("periodo precedente {leadsPrev}", { leadsPrev: leadsPrev.toLocaleString(intlCampo()) }),
         icon: UserPlus,
         variazione: leadsPrev > 0 ? ((leadsNew - leadsPrev) / leadsPrev) * 100 : null,
         tone: leadsNew >= leadsPrev ? "green" as ExecutiveTone : "orange" as ExecutiveTone,
       },
       {
-        label: "Pipeline attiva",
+        label: tr("Pipeline attiva"),
         value: eur(pipelineValue),
-        hint: pipelineValue > 0 ? `${openOpps.toLocaleString("it-IT")} opportunità aperte oggi` : "nessuna opportunità attiva",
+        hint: pipelineValue > 0 ? tr("{openOpps} opportunità aperte oggi", { openOpps: openOpps.toLocaleString(intlCampo()) }) : tr("nessuna opportunità attiva"),
         icon: TrendingUp,
         variazione: null as number | null,
         tone: pipelineValue > 0 ? "blue" as ExecutiveTone : "orange" as ExecutiveTone,
@@ -311,20 +314,20 @@ export default function MarketingDashboard() {
       {
         // lo show rate conta solo gli appuntamenti con l'esito: con 27 da esitare
         // su 31 un «100%» non vuol dire niente, quindi lo si dice
-        label: "Show rate",
+        label: tr("Show rate"),
         value: pct(showRate),
         hint: appointmentsPending > 0
-          ? `${appointmentsPending.toLocaleString("it-IT")} appuntamenti da esitare`
-          : `periodo precedente ${pct(showRatePrev)}`,
+          ? tr("{appointmentsPending} appuntamenti da esitare", { appointmentsPending: appointmentsPending.toLocaleString(intlCampo()) })
+          : tr("periodo precedente {showRatePrev}", { showRatePrev: String(pct(showRatePrev) ?? "") }),
         icon: CalendarCheck,
         // con appuntamenti da esitare il confronto non dice niente
         variazione: appointmentsPending === 0 && showRatePrev > 0 ? ((showRate - showRatePrev) / showRatePrev) * 100 : null,
         tone: appointmentsPending > 0 ? "orange" as ExecutiveTone : showRate >= 60 ? "green" as ExecutiveTone : showRate >= 40 ? "orange" as ExecutiveTone : "red" as ExecutiveTone,
       },
       {
-        label: "Contratti / fatturato",
+        label: tr("Contratti / fatturato"),
         value: `${contractsWon} · ${eur(revenue)}`,
-        hint: `chiusura ${pct(closeRate)} · prec. ${eur(revenuePrev)}`,
+        hint: tr("chiusura {closeRate} · prec. {revenuePrev}", { closeRate: String(pct(closeRate) ?? ""), revenuePrev: String(eur(revenuePrev) ?? "") }),
         icon: Trophy,
         variazione: revenuePrev > 0 ? ((revenue - revenuePrev) / revenuePrev) * 100 : null,
         tone: revenue >= revenuePrev && contractsWon > 0 ? "green" as ExecutiveTone : "orange" as ExecutiveTone,
@@ -338,8 +341,8 @@ export default function MarketingDashboard() {
     return (
       <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card px-6 py-16 text-center">
         <LayoutDashboard className="h-12 w-12 text-muted-foreground/40 mb-4" />
-        <h2 className="text-lg font-semibold text-muted-foreground">Nessuna azienda selezionata</h2>
-        <p className="text-sm text-muted-foreground/70 mt-1">Seleziona un'azienda per visualizzare la dashboard</p>
+        <h2 className="text-lg font-semibold text-muted-foreground">{tr("Nessuna azienda selezionata")}</h2>
+        <p className="text-sm text-muted-foreground/70 mt-1">{tr("Seleziona un'azienda per visualizzare la dashboard")}</p>
       </div>
     );
   }
@@ -370,16 +373,16 @@ export default function MarketingDashboard() {
   const schede = isMobile ? visibleTabs.filter((t) => ["panoramica", "pipeline", "attivita"].includes(t.id)) : visibleTabs;
   const effectiveTab = schede.some((t) => t.id === activeTab) ? activeTab : schede[0]?.id || "panoramica";
 
-  const todayStr = new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const todayStr = new Date().toLocaleDateString(intlCampo(), { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const todayCap = todayStr.charAt(0).toUpperCase() + todayStr.slice(1);
 
   return (
     <div className="space-y-3 sm:space-y-4">
-      <DashboardSelectorBar title="Dashboard Marketing" />
+      <DashboardSelectorBar title={tr("Dashboard Marketing")} />
 
       <DashboardPageHeader
-        title="Dashboard Marketing"
-        subtitle={`Regia commerciale, pipeline e conversioni — ${todayCap}`}
+        title={tr("Dashboard Marketing")}
+        subtitle={tr("Regia commerciale, pipeline e conversioni — {todayCap}", { todayCap: String(todayCap ?? "") })}
         icon={LayoutDashboard}
         compactTitle
         toolbar={<DashboardFilters filters={filters} onUpdate={updateFilters} hideUserFilter={permissions.onlyAssigned} compact />}
@@ -387,27 +390,27 @@ export default function MarketingDashboard() {
           <>
             {/* Aggiorna come icona; obiettivi, sezioni ed esportazione in «Altro»:
                 prima erano quattro bottoni uguali accanto ai filtri */}
-            <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg border-border shadow-none" onClick={aggiornaTutto} disabled={isLoading} aria-label="Aggiorna" title="Aggiorna">
+            <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg border-border shadow-none" onClick={aggiornaTutto} disabled={isLoading} aria-label={tr("Aggiorna")} title={tr("Aggiorna")}>
               <RefreshCw className={cn("h-3.5 w-3.5", isLoading && "animate-spin")} />
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg border-border shadow-none" aria-label="Altro" title="Altro">
+                <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg border-border shadow-none" aria-label={tr("Altro")} title={tr("Altro")}>
                   <MoreHorizontal className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-52">
                 {permissions.isAdmin && (
                   <DropdownMenuItem onSelect={() => setObiettiviAperti(true)}>
-                    <Target className="mr-2 h-4 w-4" /> Obiettivi dei venditori
+                    <Target className="mr-2 h-4 w-4" /> {tr("Obiettivi dei venditori")}
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem onSelect={() => setPersonalizzaAperto(true)}>
-                  <Settings2 className="mr-2 h-4 w-4" /> Sezioni da mostrare
+                  <Settings2 className="mr-2 h-4 w-4" /> {tr("Sezioni da mostrare")}
                 </DropdownMenuItem>
                 {!isMobile && (
                   <DropdownMenuItem onSelect={handleExportKPI} disabled={!data?.kpi}>
-                    <Download className="mr-2 h-4 w-4" /> Esporta KPI (CSV)
+                    <Download className="mr-2 h-4 w-4" /> {tr("Esporta KPI (CSV)")}
                   </DropdownMenuItem>
                 )}
               </DropdownMenuContent>
@@ -433,7 +436,7 @@ export default function MarketingDashboard() {
             <div className="bg-eic-navy-deep p-5 text-white sm:p-6">
               <div className="flex items-center gap-3">
                 <Loader2 className="h-5 w-5 animate-spin text-orange-200" />
-                <p className="text-sm text-blue-50/85">Caricamento KPI commerciali…</p>
+                <p className="text-sm text-blue-50/85">{tr("Caricamento KPI commerciali…")}</p>
               </div>
               <div className="mt-6 grid gap-3 sm:grid-cols-2">
                 {[0, 1, 2, 3].map((i) => (
@@ -452,16 +455,16 @@ export default function MarketingDashboard() {
       {!isLoading && !error && !data?.kpi && (
         <section className="rounded-2xl border border-dashed border-border bg-card p-8 text-center shadow-sm">
           <LayoutDashboard className="mx-auto h-10 w-10 text-muted-foreground/50" />
-          <h3 className="mt-3 text-base font-semibold text-muted-foreground">Nessun dato commerciale ancora</h3>
+          <h3 className="mt-3 text-base font-semibold text-muted-foreground">{tr("Nessun dato commerciale ancora")}</h3>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-            Inizia caricando contatti o creando opportunità: i KPI compariranno automaticamente.
+            {tr("Inizia caricando contatti o creando opportunità: i KPI compariranno automaticamente.")}
           </p>
           <div className="mt-4 flex flex-wrap justify-center gap-2">
             <Button asChild size="sm" variant="outline">
-              <Link to="/azienda/marketing/contatti">Vai ai contatti</Link>
+              <Link to="/azienda/marketing/contatti">{tr("Vai ai contatti")}</Link>
             </Button>
             <Button asChild size="sm">
-              <Link to="/azienda/marketing/opportunita">Crea opportunità</Link>
+              <Link to="/azienda/marketing/opportunita">{tr("Crea opportunità")}</Link>
             </Button>
           </div>
         </section>
@@ -482,7 +485,7 @@ export default function MarketingDashboard() {
                     {executiveState.tone === "green" ? <ShieldCheck className="h-5 w-5" /> : <AlertTriangle className="h-5 w-5" />}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-100 max-sm:hidden">Quadro commerciale</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-100 max-sm:hidden">{tr("Quadro commerciale")}</p>
                     <h2 className="mt-1 text-xl font-semibold text-white max-sm:mt-0 max-sm:text-base">{executiveState.title}</h2>
                     <p className="mt-1 max-w-2xl text-sm leading-6 text-blue-50/85 max-sm:hidden">{executiveState.detail}</p>
                   </div>
@@ -520,7 +523,7 @@ export default function MarketingDashboard() {
                           <span className="block truncate text-[11px] font-semibold uppercase tracking-wide text-blue-100 max-sm:font-medium max-sm:normal-case max-sm:tracking-normal">{item.label}</span>
                           <span className="block truncate text-xl font-bold text-white max-sm:text-base">{item.value}</span>
                           <span className="mt-0.5 flex min-w-0 items-center gap-1.5">
-                            <PillolaVariazione pct={item.variazione} suScuro titolo="Rispetto al periodo precedente" className="shrink-0" />
+                            <PillolaVariazione pct={item.variazione} suScuro titolo={tr("Rispetto al periodo precedente")} className="shrink-0" />
                             <span className="block truncate text-xs text-blue-50/70 max-sm:hidden">{item.hint}</span>
                           </span>
                         </span>
@@ -538,9 +541,9 @@ export default function MarketingDashboard() {
             <aside className="border-t bg-gradient-to-br from-card to-orange-50/50 p-5 dark:to-orange-500/5 xl:border-l xl:border-t-0">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <p className="text-xs font-semibold uppercase text-muted-foreground">Andamento 12 mesi</p>
-                  <h3 className="mt-1 text-base font-semibold text-foreground">Lead, appuntamenti e contratti</h3>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground/80">Storico fisso · indipendente dai filtri periodo</p>
+                  <p className="text-xs font-semibold uppercase text-muted-foreground">{tr("Andamento 12 mesi")}</p>
+                  <h3 className="mt-1 text-base font-semibold text-foreground">{tr("Lead, appuntamenti e contratti")}</h3>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground/80">{tr("Storico fisso · indipendente dai filtri periodo")}</p>
                 </div>
                 {/* Legenda interattiva: click per nascondere/mostrare la serie */}
                 <div className="flex flex-wrap items-center gap-3 text-xs">
@@ -558,7 +561,7 @@ export default function MarketingDashboard() {
                     aria-pressed={!hiddenSeries.has("appuntamenti")}
                     className={cn("inline-flex items-center gap-1 text-muted-foreground transition-opacity hover:opacity-80", hiddenSeries.has("appuntamenti") && "opacity-40 line-through")}
                   >
-                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: "hsl(var(--chart-3))" }} /> Appuntamenti
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: "hsl(var(--chart-3))" }} /> {tr("Appuntamenti")}
                   </button>
                   <button
                     type="button"
@@ -566,23 +569,23 @@ export default function MarketingDashboard() {
                     aria-pressed={!hiddenSeries.has("contratti")}
                     className={cn("inline-flex items-center gap-1 text-muted-foreground transition-opacity hover:opacity-80", hiddenSeries.has("contratti") && "opacity-40 line-through")}
                   >
-                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: "hsl(var(--chart-2))" }} /> Contratti
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: "hsl(var(--chart-2))" }} /> {tr("Contratti")}
                   </button>
                 </div>
               </div>
 
               {!trendIsEmpty && (
                 <div className="mt-3 grid grid-cols-3 gap-3 rounded-xl border bg-card/70 px-3 py-2">
-                  <StatGrafico etichetta="Lead 12 mesi" valore={totaliMkt.lead.toLocaleString("it-IT")} nota={`media ${Math.round(avgLead).toLocaleString("it-IT")} al mese`} />
-                  <StatGrafico etichetta="Appuntamenti" valore={totaliMkt.appuntamenti.toLocaleString("it-IT")} nota="12 mesi" />
-                  <StatGrafico etichetta="Contratti" valore={totaliMkt.contratti.toLocaleString("it-IT")} nota="12 mesi" tono={totaliMkt.contratti > 0 ? "buono" : "neutro"} />
+                  <StatGrafico etichetta={tr("Lead 12 mesi")} valore={totaliMkt.lead.toLocaleString(intlCampo())} nota={tr("media {valore} al mese", { valore: Math.round(avgLead).toLocaleString(intlCampo()) })} />
+                  <StatGrafico etichetta={tr("Appuntamenti")} valore={totaliMkt.appuntamenti.toLocaleString(intlCampo())} nota={tr("12 mesi")} />
+                  <StatGrafico etichetta={tr("Contratti")} valore={totaliMkt.contratti.toLocaleString(intlCampo())} nota={tr("12 mesi")} tono={totaliMkt.contratti > 0 ? "buono" : "neutro"} />
                 </div>
               )}
               <div className="mt-3 h-[260px] rounded-xl border bg-card p-3 shadow-sm">
                 {trendIsEmpty ? (
                   <div className="flex h-full flex-col items-center justify-center gap-1 text-center">
-                    <p className="text-sm font-medium text-muted-foreground">Ancora nessun dato negli ultimi 12 mesi</p>
-                    <p className="text-xs text-muted-foreground/80">Aggiungi il primo lead o collega una fonte per vedere l'andamento.</p>
+                    <p className="text-sm font-medium text-muted-foreground">{tr("Ancora nessun dato negli ultimi 12 mesi")}</p>
+                    <p className="text-xs text-muted-foreground/80">{tr("Aggiungi il primo lead o collega una fonte per vedere l'andamento.")}</p>
                   </div>
                 ) : (
                 <ResponsiveContainer width="100%" height="100%">
@@ -663,7 +666,7 @@ export default function MarketingDashboard() {
                 )}
               </div>
               {!trendIsEmpty && (
-                <p className="mt-2 text-right text-[10px] text-muted-foreground/80">Clicca su un mese per vedere i lead del periodo</p>
+                <p className="mt-2 text-right text-[10px] text-muted-foreground/80">{tr("Clicca su un mese per vedere i lead del periodo")}</p>
               )}
             </aside>
             )}
@@ -677,10 +680,10 @@ export default function MarketingDashboard() {
           {/* Telefono: niente intestazione di sezione, parlano i tre tasselli. */}
           <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between max-sm:hidden">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Aree di controllo</p>
-              <h2 className="text-lg font-semibold text-foreground">Approfondisci solo quello che ti serve ora</h2>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{tr("Aree di controllo")}</p>
+              <h2 className="text-lg font-semibold text-foreground">{tr("Approfondisci solo quello che ti serve ora")}</h2>
             </div>
-            <p className="text-sm text-muted-foreground">Lo stato commerciale resta sopra. Qui sotto trovi i dettagli per area.</p>
+            <p className="text-sm text-muted-foreground">{tr("Lo stato commerciale resta sopra. Qui sotto trovi i dettagli per area.")}</p>
           </div>
 
           {/* Telefono: lead, pipeline e conversioni sono già nei quattro numeri in cima. */}
@@ -781,11 +784,11 @@ export default function MarketingDashboard() {
           <CardContent className="flex items-center gap-4 py-4">
             <AlertCircle className="h-5 w-5 text-destructive shrink-0" />
             <div className="flex-1">
-              <p className="text-sm font-medium">Errore nel caricamento dei dati</p>
+              <p className="text-sm font-medium">{tr("Errore nel caricamento dei dati")}</p>
             </div>
             <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => refetch()}>
               <RefreshCw className="h-3.5 w-3.5 mr-1" />
-              Riprova
+              {tr("Riprova")}
             </Button>
           </CardContent>
         </Card>

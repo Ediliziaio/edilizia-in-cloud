@@ -54,8 +54,10 @@ import {
   QuoteCard,
   QuoteChip,
 } from "@/components/marketing/preventivi/ui/builderUI";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export default function QuoteDetail() {
+  const t = useT();
   const { id } = useParams();
   const navigate = useNavigate();
   const { state } = useLocation();
@@ -92,7 +94,7 @@ export default function QuoteDetail() {
       const blob = await fetchQuotePdf(data?.signed_url);
       downloadQuotePdf(blob, data?.pdf_path);
       // Preventivo già firmato: l'edge restituisce il PDF firmato senza rigenerarlo.
-      toast.success(data?.gia_firmato ? "PDF firmato scaricato (non rigenerato: è il documento firmato dal cliente)" : "PDF scaricato nei Download");
+      toast.success(data?.gia_firmato ? t("PDF firmato scaricato (non rigenerato: è il documento firmato dal cliente)") : t("PDF scaricato nei Download"));
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.detail(id) });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "errore";
@@ -111,9 +113,9 @@ export default function QuoteDetail() {
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.linkedOrder(id) });
       // La commessa c'è ma le righe no: dirlo, non «convertito con successo» davanti a una commessa vuota.
       if (esito.avviso) {
-        toast.warning("Commessa creata, ma non completa", { description: esito.avviso, duration: 12000 });
+        toast.warning(t("Commessa creata, ma non completa"), { description: esito.avviso, duration: 12000 });
       } else {
-        toast.success("Preventivo convertito in cantiere con successo!");
+        toast.success(t("Preventivo convertito in cantiere con successo!"));
       }
       navigate(`/azienda/ordini/${esito.orderId}`);
     } catch (e: unknown) {
@@ -136,10 +138,10 @@ export default function QuoteDetail() {
       });
       if (error) throw new Error(await messaggioDaErroreFirma(error, "Riprova tra qualche istante."));
       if (!data?.success) throw new Error(data?.error ?? "Invio non riuscito");
-      toast.success("Preventivo inviato in PDF", { description: `Email con allegato mandata a ${email}.` });
+      toast.success(t("Preventivo inviato in PDF"), { description: t("Email con allegato mandata a {email}.", { email: String(email ?? "") }) });
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.detail(id) });
     } catch (e) {
-      toast.error("Invio non riuscito", { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Invio non riuscito"), { description: e instanceof Error ? e.message : String(e) });
     } finally {
       setInviandoPdf(false);
     }
@@ -163,10 +165,10 @@ export default function QuoteDetail() {
       if (error) throw error;
       if (!data?.length) throw new Error("Preventivo già nel cestino o permessi insufficienti.");
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.all });
-      toast.success("Preventivo spostato nel cestino", { description: "Recuperabile dal Cestino per 30 giorni." });
+      toast.success(t("Preventivo spostato nel cestino"), { description: t("Recuperabile dal Cestino per 30 giorni.") });
       navigate("/azienda/marketing/preventivi");
     } catch (e) {
-      toast.error("Non sono riuscito a spostarlo nel cestino", {
+      toast.error(t("Non sono riuscito a spostarlo nel cestino"), {
         description: e instanceof Error ? e.message : String(e),
       });
     } finally {
@@ -191,14 +193,14 @@ export default function QuoteDetail() {
       } else {
         toast.success(titolo, {
           description: comeRevisione
-            ? "La revisione parte in bozza, agganciata a questo preventivo."
-            : "La copia parte in bozza: aprila e adattala.",
+            ? t("La revisione parte in bozza, agganciata a questo preventivo.")
+            : t("La copia parte in bozza: aprila e adattala."),
         });
       }
-      if (analisiNonCopiata) toast.warning("La revisione è stata creata. L’analisi costi è disponibile sull’originale.");
+      if (analisiNonCopiata) toast.warning(t("La revisione è stata creata. L’analisi costi è disponibile sull’originale."));
       navigate(`/azienda/marketing/preventivi/${nuovoId}/modifica`);
     } catch (e) {
-      toast.error("Operazione non riuscita", {
+      toast.error(t("Operazione non riuscita"), {
         description: e instanceof Error ? e.message : String(e),
       });
     } finally {
@@ -306,20 +308,20 @@ export default function QuoteDetail() {
   if (!quote) {
     return (
       <div className="text-center py-16">
-        <p className="text-muted-foreground">Preventivo non trovato</p>
+        <p className="text-muted-foreground">{t("Preventivo non trovato")}</p>
         <Button variant="link" onClick={() => navigate("/azienda/marketing/preventivi")}>
-          Torna alla lista
+          {t("Torna alla lista")}
         </Button>
       </div>
     );
   }
 
   if (quote.deleted_at) {
-    return <section className="rounded-xl border border-amber-300 bg-amber-50 p-6" aria-label="Preventivo nel cestino">
-      <h1 className="text-xl font-semibold">{quote.quote_number} · Preventivo nel cestino</h1>
+    return <section className="rounded-xl border border-amber-300 bg-amber-50 p-6" aria-label={t("Preventivo nel cestino")}>
+      <h1 className="text-xl font-semibold">{t("{quote_number} · Preventivo nel cestino", { quote_number: String(quote.quote_number ?? "") })}</h1>
       <p className="mt-2 text-sm">{quote.title}</p>
-      <p className="mt-3 text-sm">Apri il Cestino dalla lista Preventivi per ripristinarlo.</p>
-      <Button className="mt-4" variant="outline" onClick={() => navigate("/azienda/marketing/preventivi")}>Torna ai preventivi</Button>
+      <p className="mt-3 text-sm">{t("Apri il Cestino dalla lista Preventivi per ripristinarlo.")}</p>
+      <Button className="mt-4" variant="outline" onClick={() => navigate("/azienda/marketing/preventivi")}>{t("Torna ai preventivi")}</Button>
     </section>;
   }
 
@@ -339,7 +341,7 @@ export default function QuoteDetail() {
         className="testata-pagina"
         azioniInRiga={quote.status !== "accettata"}
         numero={quote.quote_number}
-        title={quote.title || "Preventivo"}
+        title={quote.title || t("Preventivo")}
         subtitle={quote.client_name || undefined}
         icon={<FileCheck className="h-5 w-5" />}
         stato={
@@ -350,9 +352,7 @@ export default function QuoteDetail() {
               <span className="truncate font-medium text-slate-700 sm:hidden">{quote.client_name}</span>
             )}
             {Number((quote as Record<string, unknown>).revision_number ?? 0) > 0 && (
-              <Badge variant="secondary" className="whitespace-nowrap">
-                Rev. {Number((quote as Record<string, unknown>).revision_number)}
-              </Badge>
+              <Badge variant="secondary" className="whitespace-nowrap">{t("Rev. {valore}", { valore: Number((quote as Record<string, unknown>).revision_number) })}</Badge>
             )}
           </span>
         }
@@ -364,56 +364,56 @@ export default function QuoteDetail() {
               className="hidden h-9 lg:inline-flex"
               onClick={() => navigate("/azienda/marketing/preventivi")}
             >
-              <ArrowLeft className="h-4 w-4 mr-2" /> Lista
+              <ArrowLeft className="h-4 w-4 mr-2" /> {t("Lista")}
             </Button>
-            <Button variant="outline" onClick={handleGeneratePdf} disabled={generating} className="h-9 px-3 max-lg:hidden" aria-label="Genera PDF">
+            <Button variant="outline" onClick={handleGeneratePdf} disabled={generating} className="h-9 px-3 max-lg:hidden" aria-label={t("Genera PDF")}>
               {generating ? <Loader2 className="h-4 w-4 sm:mr-2 animate-spin" /> : <FileDown className="h-4 w-4 sm:mr-2" />}
               <span className="hidden sm:inline">{generating ? "Generando..." : "Genera PDF"}</span>
             </Button>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="h-9 px-2.5 max-lg:size-11 max-lg:p-0" aria-label="Altre azioni" disabled={duplicando}>
+                <Button variant="outline" className="h-9 px-2.5 max-lg:size-11 max-lg:p-0" aria-label={t("Altre azioni")} disabled={duplicando}>
                   {duplicando ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="max-lg:[&_[role=menuitem]]:min-h-11">
                 <DropdownMenuItem className="lg:hidden" disabled={generating} onSelect={() => void handleGeneratePdf()}>
-                  <FileDown className="mr-2 h-4 w-4" />Genera PDF
+                  <FileDown className="mr-2 h-4 w-4" />{t("Genera PDF")}
                 </DropdownMenuItem>
                 {puoModificareBozza && puoInviare && (
                   <DropdownMenuItem className="lg:hidden" onSelect={() => navigate(`/azienda/marketing/preventivi/${id}/modifica`)}>
-                    <Pencil className="mr-2 size-4" />Modifica
+                    <Pencil className="mr-2 size-4" />{t("Modifica")}
                   </DropdownMenuItem>
                 )}
                 {puoFirmareSuCarta(quote.status, quote.source) && puoInviare && (
                   <DropdownMenuItem className="lg:hidden" onSelect={() => setFirmaCartaOpen(true)}>
-                    <FileSignature className="mr-2 size-4" />Firmato su carta
+                    <FileSignature className="mr-2 size-4" />{t("Firmato su carta")}
                   </DropdownMenuItem>
                 )}
                 {quote.status === "inviata" && quote.signature_token && puoInviare && (
                   <>
                     <DropdownMenuItem className="lg:hidden" onSelect={() => openWhatsApp(quote)}>
-                      <MessageCircle className="mr-2 size-4" />Link firma via WhatsApp
+                      <MessageCircle className="mr-2 size-4" />{t("Link firma via WhatsApp")}
                     </DropdownMenuItem>
                     <DropdownMenuItem className="lg:hidden" onSelect={() => copySignatureLink(quote)}>
-                      <Copy className="mr-2 size-4" />Copia link firma
+                      <Copy className="mr-2 size-4" />{t("Copia link firma")}
                     </DropdownMenuItem>
                   </>
                 )}
                 {quote.status === "accettata" && !rigaDiModulo && puoCreareCommessa && !linkedOrder && (
                   <DropdownMenuItem className="lg:hidden" disabled={controlloCommessa}
                     onSelect={() => navigate(`/azienda/ordini/nuovo?quote_id=${id}`)}>
-                    <Package className="mr-2 size-4" />Crea commessa e rivedi le voci
+                    <Package className="mr-2 size-4" />{t("Crea commessa e rivedi le voci")}
                   </DropdownMenuItem>
                 )}
                 {!rigaDiModulo && (
                   <>
                     <DropdownMenuItem onClick={() => eseguiCopia(false)}>
-                      <Copy className="h-4 w-4 mr-2" /> Duplica preventivo
+                      <Copy className="h-4 w-4 mr-2" /> {t("Duplica preventivo")}
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => eseguiCopia(true)}>
-                      <GitBranch className="h-4 w-4 mr-2" /> Nuova revisione
+                      <GitBranch className="h-4 w-4 mr-2" /> {t("Nuova revisione")}
                     </DropdownMenuItem>
                   </>
                 )}
@@ -433,21 +433,21 @@ export default function QuoteDetail() {
                   disabled={cestinando || rigaDiModulo}
                   onClick={() => setConfermaCestino(true)}
                 >
-                  <Trash2 className="h-4 w-4 mr-2" /> Sposta nel cestino
+                  <Trash2 className="h-4 w-4 mr-2" /> {t("Sposta nel cestino")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <AlertDialog open={confermaCestino} onOpenChange={setConfermaCestino}>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Sposta nel cestino {quote.quote_number}?</AlertDialogTitle>
+                  <AlertDialogTitle>{t("Sposta nel cestino {quote_number}?", { quote_number: String(quote.quote_number ?? "") })}</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Il preventivo sparisce dalla lista e resta recuperabile dal Cestino per 30 giorni.
+                    {t("Il preventivo sparisce dalla lista e resta recuperabile dal Cestino per 30 giorni.")}
                     {quote.status !== "bozza" ? " Il cliente non viene avvisato." : ""}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Annulla</AlertDialogCancel>
+                  <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
                   <AlertDialogAction onClick={spostaNelCestino} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
                     {cestinando ? "Sposto…" : "Sposta nel cestino"}
                   </AlertDialogAction>
@@ -460,10 +460,10 @@ export default function QuoteDetail() {
                 variant="outline"
                 onClick={() => navigate(`/azienda/marketing/preventivi/${id}/modifica`)}
                 className={cn("h-9 px-3 max-lg:min-h-11", puoInviare && "max-lg:hidden")}
-                aria-label="Modifica"
+                aria-label={t("Modifica")}
               >
                 <Pencil className="h-4 w-4 sm:mr-2" />
-                <span>Modifica</span>
+                <span>{t("Modifica")}</span>
               </Button>
             )}
 
@@ -481,7 +481,7 @@ export default function QuoteDetail() {
             {/* Firmato su carta: con la scansione il preventivo diventa il contratto, come con la firma digitale. */}
             {puoFirmareSuCarta(quote.status, quote.source) && puoInviare && (
               <Button variant="outline" className="h-9 max-lg:hidden" onClick={() => setFirmaCartaOpen(true)}>
-                <FileSignature className="mr-2 h-4 w-4" aria-hidden />Firmato su carta
+                <FileSignature className="mr-2 h-4 w-4" aria-hidden />{t("Firmato su carta")}
               </Button>
             )}
             {firmaCartaOpen && (
@@ -491,9 +491,9 @@ export default function QuoteDetail() {
 
             <Dialog open={conversionOpen} onOpenChange={open => { if (!converting) setConversionOpen(open); }}>
               <DialogContent struttura="scorrevole" className="sm:max-w-2xl">
-                <DialogHeader><DialogTitle>Crea la commessa</DialogTitle><DialogDescription>Verifica lavorazioni e materiali.</DialogDescription></DialogHeader>
-                {itemsError ? <p role="alert">Non riesco a verificare le voci. Riapri il preventivo prima di continuare.</p> : loadingItems ? <p>Verifica delle voci…</p> : <QuoteConversionSummary items={items} total={Number(quote.total ?? 0)} />}
-                <DialogFooter><Button className="min-h-11" variant="outline" disabled={converting} onClick={() => setConversionOpen(false)}>Annulla</Button><Button className="min-h-11 whitespace-normal" disabled={converting || loadingItems || itemsError || separaVoci(items).daVerificare.length > 0} onClick={handleConvertToCantiere}>{converting ? "Creazione…" : "Conferma e crea commessa"}</Button></DialogFooter>
+                <DialogHeader><DialogTitle>{t("Crea la commessa")}</DialogTitle><DialogDescription>{t("Verifica lavorazioni e materiali.")}</DialogDescription></DialogHeader>
+                {itemsError ? <p role="alert">{t("Non riesco a verificare le voci. Riapri il preventivo prima di continuare.")}</p> : loadingItems ? <p>{t("Verifica delle voci…")}</p> : <QuoteConversionSummary items={items} total={Number(quote.total ?? 0)} />}
+                <DialogFooter><Button className="min-h-11" variant="outline" disabled={converting} onClick={() => setConversionOpen(false)}>{t("Annulla")}</Button><Button className="min-h-11 whitespace-normal" disabled={converting || loadingItems || itemsError || separaVoci(items).daVerificare.length > 0} onClick={handleConvertToCantiere}>{converting ? "Creazione…" : "Conferma e crea commessa"}</Button></DialogFooter>
               </DialogContent>
             </Dialog>
             {/* Una commessa sola per preventivo: «Crea commessa (rivedi)» non cambia lo stato e non controlla, quindi
@@ -514,7 +514,7 @@ export default function QuoteDetail() {
 
             {quote.status === "accettata" && !rigaDiModulo && puoCreareCommessa && !linkedOrder && !controlloCommessa && (
               // Lotto 1.5: lo stesso preventivo, letto da Silvio, apre il popup già al lavoro.
-              <PulsanteCreaConSilvio etichetta="Trasforma in commessa con Silvio" variant="outline"
+              <PulsanteCreaConSilvio etichetta={t("Trasforma in commessa con Silvio")} variant="outline"
                 className="h-9 border-orange-300 text-orange-800 hover:bg-orange-50 max-lg:hidden"
                 iniziale={{ tipo: "preventivo", id: quote.id, etichetta: `preventivo ${quote.quote_number}` }} />
             )}
@@ -526,10 +526,10 @@ export default function QuoteDetail() {
                 onClick={() => navigate(`/azienda/ordini/nuovo?quote_id=${id}`)}
                 disabled={controlloCommessa}
                 className="h-9 max-lg:hidden"
-                title="Apre una nuova commessa con righe e misure già compilate dal preventivo: puoi rivederle e aggiustarle prima di salvare"
+                title={t("Apre una nuova commessa con righe e misure già compilate dal preventivo: puoi rivederle e aggiustarle prima di salvare")}
               >
                 <Package className="h-4 w-4 mr-2" />
-                Crea commessa (rivedi)
+                {t("Crea commessa (rivedi)")}
               </Button>
             )}
 
@@ -539,11 +539,11 @@ export default function QuoteDetail() {
                 variant="outline"
                 onClick={() => navigate(`/azienda/ordini/${linkedOrder.id}`)}
                 className="h-9 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-900/40 dark:text-emerald-400"
-                title="Apri la commessa generata da questo preventivo"
-                aria-label="Vai alla commessa"
+                title={t("Apri la commessa generata da questo preventivo")}
+                aria-label={t("Vai alla commessa")}
               >
                 <HardHat className="h-4 w-4 mr-2 max-sm:mr-0" />
-                <span className="max-sm:hidden">Vai alla commessa{linkedOrder.order_code ? ` ${linkedOrder.order_code}` : ""}</span>
+                <span className="max-sm:hidden">{t("Vai alla commessa")}{linkedOrder.order_code ? ` ${linkedOrder.order_code}` : ""}</span>
               </Button>
             )}
 
@@ -553,7 +553,7 @@ export default function QuoteDetail() {
                 <Button
                   variant="outline"
                   className="h-9 gap-2 border-[#25D366] text-[#25D366] hover:bg-[#25D366]/10 max-lg:hidden"
-                  aria-label="Invia link firma via WhatsApp"
+                  aria-label={t("Invia link firma via WhatsApp")}
                   onClick={() => openWhatsApp(quote)}
                 >
                   <MessageCircle className="h-4 w-4" />
@@ -563,7 +563,7 @@ export default function QuoteDetail() {
                   variant="outline"
                   size="icon"
                   className="h-9 w-9 max-lg:hidden"
-                  aria-label="Copia link firma negli appunti"
+                  aria-label={t("Copia link firma negli appunti")}
                   onClick={() => copySignatureLink(quote)}
                 >
                   <Copy className="h-4 w-4" />
@@ -575,7 +575,7 @@ export default function QuoteDetail() {
       />
 
       <PlanimetrieAssociate companyId={companyId} tipo="preventivo" schedaId={id} nascondiSeVuoto />
-      {permessi.canEditPreventivi && idComputoNativo(quote.source) && <Button variant="outline" onClick={() => navigate(percorsoComputoNativo(idComputoNativo(quote.source)!))}><FileText className="mr-2 h-4 w-4" />Apri computo del preventivo</Button>}
+      {permessi.canEditPreventivi && idComputoNativo(quote.source) && <Button variant="outline" onClick={() => navigate(percorsoComputoNativo(idComputoNativo(quote.source)!))}><FileText className="mr-2 h-4 w-4" />{t("Apri computo del preventivo")}</Button>}
 
       {/* Pianta o computo cambiati dopo il preventivo: quantità da aggiornare (o revisione). */}
       {id && companyId && !rigaDiModulo && (
@@ -587,15 +587,14 @@ export default function QuoteDetail() {
         <div role="status" className="flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between max-sm:flex-row max-sm:items-center max-sm:gap-2 max-sm:p-2 max-sm:text-xs">
           <p className="max-sm:min-w-0 max-sm:flex-1">
             <span className="max-sm:hidden">
-              Questa è la copia di firma di un preventivo {moduloDellaRiga ? <strong>{moduloDellaRiga.nome}</strong> : "di un modulo"}:
-              voci, prezzi e commessa si gestiscono dal preventivo del modulo.
+              {t("Questa è la copia di firma di un preventivo")} {moduloDellaRiga ? <strong>{moduloDellaRiga.nome}</strong> : t("di un modulo")}{t(": voci, prezzi e commessa si gestiscono dal preventivo del modulo.")}
             </span>
-            <span className="sm:hidden">Copia di firma: si modifica dal preventivo {moduloDellaRiga?.nome ?? "del modulo"}.</span>
+            <span className="sm:hidden">{t("Copia di firma: si modifica dal preventivo")} {moduloDellaRiga?.nome ?? t("del modulo")}.</span>
           </p>
           {moduloDellaRiga && (
             <Button variant="outline" className="tap-compact h-9 shrink-0 bg-white max-sm:h-8 max-sm:px-3 max-sm:text-xs" onClick={() => navigate(moduloDellaRiga.href)}>
-              <span className="max-sm:hidden">Apri il preventivo {moduloDellaRiga.nome}</span>
-              <span className="sm:hidden">Apri</span>
+              <span className="max-sm:hidden">{t("Apri il preventivo {nome}", { nome: String(moduloDellaRiga.nome ?? "") })}</span>
+              <span className="sm:hidden">{t("Apri")}</span>
             </Button>
           )}
         </div>
@@ -607,17 +606,17 @@ export default function QuoteDetail() {
       <Tabs defaultValue="offerta">
         <TabsList className="max-w-full justify-start bg-slate-100 max-sm:grid max-sm:h-auto max-sm:w-full max-sm:grid-cols-3 max-sm:gap-1 max-sm:[&>button]:min-h-10 max-sm:[&>button]:px-1 max-sm:[&>button]:text-xs">
           <TabsTrigger value="offerta" className="tap-compact data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm gap-1.5">
-            <Package className="h-3.5 w-3.5 max-sm:hidden" /> Offerta
+            <Package className="h-3.5 w-3.5 max-sm:hidden" /> {t("Offerta")}
           </TabsTrigger>
           <TabsTrigger value="cliente" className="tap-compact data-[state=active]:bg-white gap-1.5">
-            <User className="h-3.5 w-3.5 max-sm:hidden" /> Cliente
+            <User className="h-3.5 w-3.5 max-sm:hidden" /> {t("Cliente")}
           </TabsTrigger>
           <TabsTrigger value="documenti" className="tap-compact data-[state=active]:bg-white gap-1.5">
-            <FileText className="h-3.5 w-3.5 max-sm:hidden" /> Documenti ({attachments.length})
+            <FileText className="h-3.5 w-3.5 max-sm:hidden" /> {t("Documenti (")}{attachments.length})
           </TabsTrigger>
-          <TabsTrigger value="attivita" className="tap-compact data-[state=active]:bg-white">Attività</TabsTrigger>
+          <TabsTrigger value="attivita" className="tap-compact data-[state=active]:bg-white">{t("Attività")}</TabsTrigger>
           <TabsTrigger value="versioni" className="tap-compact gap-1.5 data-[state=active]:bg-white">
-            Versioni
+            {t("Versioni")}
             {versionCount > 0 && (
               <QuoteChip variant="orange" className="ml-0.5">{versionCount}</QuoteChip>
             )}
@@ -625,9 +624,9 @@ export default function QuoteDetail() {
         </TabsList>
 
         <TabsContent value="offerta" className="space-y-4 mt-4 sm:space-y-6">
-          <QuoteCard title="Prodotti e lavorazioni" icon={<Package className="h-4 w-4" />} className="max-sm:p-3">
+          <QuoteCard title={t("Prodotti e lavorazioni")} icon={<Package className="h-4 w-4" />} className="max-sm:p-3">
               {items.length === 0 ? (
-                <p className="text-slate-500 text-sm">Nessuna voce</p>
+                <p className="text-slate-500 text-sm">{t("Nessuna voce")}</p>
               ) : (
                 <QuoteDetailItems items={items} />
               )}
@@ -635,12 +634,12 @@ export default function QuoteDetail() {
               <div className="mt-4 flex flex-col items-end gap-3">
                 <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 space-y-1.5 text-sm shadow-sm max-sm:p-3 max-sm:text-[13px]">
                   <div className="flex justify-between">
-                    <span className="text-slate-500">Subtotale</span>
+                    <span className="text-slate-500">{t("Subtotale")}</span>
                     <span className="font-medium tabular-nums">{formatCurrency(quote.subtotal || 0)}</span>
                   </div>
                   {(quote.discount_percent || 0) > 0 && (
                     <div className="flex justify-between text-orange-600">
-                      <span>Sconto {quote.discount_percent}%</span>
+                      <span>{t("Sconto {discount_percent}%", { discount_percent: String(quote.discount_percent ?? "") })}</span>
                       <span className="tabular-nums">-{formatCurrency(quote.discount_amount || 0)}</span>
                     </div>
                   )}
@@ -650,7 +649,7 @@ export default function QuoteDetail() {
                   </div>
                   <div className="border-t border-slate-200 my-2" />
                   <div className="flex justify-between items-center font-bold">
-                    <span className="text-base">Totale</span>
+                    <span className="text-base">{t("Totale")}</span>
                     <span className="text-2xl tabular-nums text-orange-600 max-sm:text-lg">{formatCurrency(quote.total || 0)}</span>
                   </div>
                 </div>
@@ -660,7 +659,7 @@ export default function QuoteDetail() {
                 {(quote as any).financing_monthly_rate != null && (quote as any).financing_num_installments && (
                   <div className="w-full max-w-sm rounded-xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-white p-4 shadow-sm">
                     <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-blue-700">
-                      Oppure paga in comode rate mensili
+                      {t("Oppure paga in comode rate mensili")}
                     </p>
                     <div className="flex items-baseline gap-2">
                       <span className="text-3xl font-extrabold tabular-nums text-blue-700">
@@ -669,19 +668,19 @@ export default function QuoteDetail() {
                       </span>
                       <span className="text-sm text-slate-600">
                         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                        × {(quote as any).financing_num_installments} rate
+                        × {(quote as any).financing_num_installments} {t("rate")}
                       </span>
                     </div>
                     {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                     {(quote as any).financing_total_due != null && (
                       <p className="mt-2 text-[11px] text-slate-500">
-                        Importo totale dovuto:{" "}
+                        {t("Importo totale dovuto:")}{" "}
                         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                         <strong className="tabular-nums">{formatCurrency((quote as any).financing_total_due)}</strong>
                         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                         {(quote as any).financing_calculation_json?.tan && (
                           <>
-                            {" · TAN "}
+                            {` ${t("· TAN")} `}
                             {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                             {((quote as any).financing_calculation_json.tan).toFixed(2)}%
                           </>
@@ -689,7 +688,7 @@ export default function QuoteDetail() {
                       </p>
                     )}
                     <p className="mt-2 text-[10px] italic text-slate-400">
-                      Proposta indicativa salvo approvazione della finanziaria.
+                      {t("Proposta indicativa salvo approvazione della finanziaria.")}
                     </p>
                   </div>
                 )}
@@ -697,17 +696,17 @@ export default function QuoteDetail() {
           </QuoteCard>
 
           {(quote.notes || quote.description) && (
-            <QuoteCard title="Note" icon={<StickyNote className="h-4 w-4" />}>
+            <QuoteCard title={t("Note")} icon={<StickyNote className="h-4 w-4" />}>
               <div className="space-y-3 text-sm">
                 {quote.description && (
                   <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Descrizione</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1">{t("Descrizione")}</p>
                     <p className="text-slate-700">{quote.description}</p>
                   </div>
                 )}
                 {quote.notes && (
                   <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Note per il cliente</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1">{t("Note per il cliente")}</p>
                     <p className="text-slate-700">{quote.notes}</p>
                   </div>
                 )}
@@ -718,7 +717,7 @@ export default function QuoteDetail() {
 
         <TabsContent value="cliente" className="mt-4">
           <QuoteCard
-            title="Dati Cliente"
+            title={t("Dati Cliente")}
             icon={<User className="h-4 w-4" />}
             action={
               quote.contact_id ? (
@@ -728,14 +727,14 @@ export default function QuoteDetail() {
                   onClick={() => navigate(`/azienda/marketing/contatti/${quote.contact_id}`)}
                 >
                   <User className="h-4 w-4 mr-2" />
-                  Vedi nel CRM
+                  {t("Vedi nel CRM")}
                 </Button>
               ) : null
             }
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Nome</p>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{t("Nome")}</p>
                 <p className="font-medium text-slate-900">{quote.client_name || "—"}</p>
               </div>
               <div>
@@ -743,15 +742,15 @@ export default function QuoteDetail() {
                 <p className="font-medium text-slate-900">{quote.client_email || "—"}</p>
               </div>
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Telefono</p>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{t("Telefono")}</p>
                 <p className="font-medium text-slate-900">{quote.client_phone || "—"}</p>
               </div>
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Azienda</p>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{t("Azienda")}</p>
                 <p className="font-medium text-slate-900">{quote.client_company || "—"}</p>
               </div>
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Codice Fiscale</p>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{t("Codice Fiscale")}</p>
                 <p className="font-medium text-slate-900">{quote.client_fiscal_code || "—"}</p>
               </div>
               <div>
@@ -759,7 +758,7 @@ export default function QuoteDetail() {
                 <p className="font-medium text-slate-900">{quote.client_vat_number || "—"}</p>
               </div>
               <div className="md:col-span-2">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Indirizzo</p>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{t("Indirizzo")}</p>
                 <p className="font-medium text-slate-900">{quote.client_address || "—"}</p>
               </div>
             </div>
@@ -767,9 +766,9 @@ export default function QuoteDetail() {
         </TabsContent>
 
         <TabsContent value="documenti" className="mt-4">
-          <QuoteCard title="Documenti Allegati" icon={<FileText className="h-4 w-4" />}>
+          <QuoteCard title={t("Documenti Allegati")} icon={<FileText className="h-4 w-4" />}>
             {attachments.length === 0 ? (
-              <p className="text-slate-500 text-sm">Nessun documento allegato</p>
+              <p className="text-slate-500 text-sm">{t("Nessun documento allegato")}</p>
             ) : (
               <div className="space-y-2">
                 {attachments.map((a) => (

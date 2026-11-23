@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { ImageOff, Search, ArrowRight } from "lucide-react";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Etichette leggibili dei verticali render. */
 const NOME_VERTICALE: Record<string, string> = {
@@ -65,6 +66,7 @@ interface Props {
 }
 
 export function SceltaRenderDialog({ open, onOpenChange, onScegli, contactId }: Props) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const [filtro, setFiltro] = useState("");
 
@@ -111,10 +113,9 @@ export function SceltaRenderDialog({ open, onOpenChange, onScegli, contactId }: 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85dvh] overflow-hidden sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Allega un render al preventivo</DialogTitle>
+          <DialogTitle>{t("Allega un render al preventivo")}</DialogTitle>
           <DialogDescription>
-            I render già fatti, di tutti i verticali. Quello che scegli finisce
-            nel PDF del preventivo.
+            {t("I render già fatti, di tutti i verticali. Quello che scegli finisce nel PDF del preventivo.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -123,7 +124,7 @@ export function SceltaRenderDialog({ open, onOpenChange, onScegli, contactId }: 
           <Input
             value={filtro}
             onChange={(e) => setFiltro(e.target.value)}
-            placeholder="Filtra per verticale (bagno, infissi, tetto…)"
+            placeholder={t("Filtra per verticale (bagno, infissi, tetto…)")}
             className="pl-8"
           />
         </div>
@@ -137,8 +138,8 @@ export function SceltaRenderDialog({ open, onOpenChange, onScegli, contactId }: 
             <div className="flex flex-col items-center gap-2 py-10 text-center text-sm text-muted-foreground">
               <ImageOff className="h-8 w-8 opacity-40" />
               {render.length === 0
-                ? "Non ci sono ancora render completati per questa azienda."
-                : "Nessun render corrisponde al filtro."}
+                ? t("Non ci sono ancora render completati per questa azienda.")
+                : t("Nessun render corrisponde al filtro.")}
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -165,7 +166,7 @@ export function SceltaRenderDialog({ open, onOpenChange, onScegli, contactId }: 
                       <>
                         <img
                           src={r.original_photo_url}
-                          alt="Foto di partenza"
+                          alt={t("Foto di partenza")}
                           loading="lazy"
                           className="h-16 w-20 shrink-0 rounded object-cover opacity-70"
                         />
@@ -174,15 +175,15 @@ export function SceltaRenderDialog({ open, onOpenChange, onScegli, contactId }: 
                     )}
                     <img
                       src={url}
-                      alt={`Render ${tipo}`}
+                      alt={t("Render {tipo}", { tipo: t(tipo) })}
                       loading="lazy"
                       className="h-16 w-20 shrink-0 rounded border object-cover"
                     />
                     <div className="min-w-0 flex-1">
-                      <Badge variant="secondary" className="text-[10px]">{tipo}</Badge>
+                      <Badge variant="secondary" className="text-[10px]">{t(tipo)}</Badge>
                       <p className="mt-1 text-[11px] text-muted-foreground">
-                        {r.created_at ? new Date(r.created_at).toLocaleDateString("it-IT") : ""}
-                        {!r.original_photo_url && " · senza foto di partenza"}
+                        {r.created_at ? new Date(r.created_at).toLocaleDateString(intlCampo()) : ""}
+                        {!r.original_photo_url && <> · {t("senza foto di partenza")}</>}
                       </p>
                     </div>
                   </button>
@@ -193,7 +194,7 @@ export function SceltaRenderDialog({ open, onOpenChange, onScegli, contactId }: 
         </div>
 
         <div className="flex justify-end">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Chiudi</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t("Chiudi")}</Button>
         </div>
       </DialogContent>
     </Dialog>

@@ -64,6 +64,7 @@ import { useLossReasons } from "@/hooks/useLossReasons";
 import { EsportaOpportunitaDialog, type SceltaDialog } from "@/components/opportunities/EsportaOpportunitaDialog";
 import { accessoDettagli, celleAppuntamenti, celleNote, leggiAppuntamentiEsportazione, leggiNomiPersone, leggiNoteEsportazione, leggiPerBlocchi, perOpportunita, righeFoglioAppuntamenti, righeFoglioNote } from "@/lib/opportunita/dettagliEsportazione";
 import { COLONNE_APPUNTAMENTI, COLONNE_NOTE, colonneConCampi, excelOpportunita, giornoItaliano, NOMI_DATA_PERIODO, NOMI_STATO, rigaOpportunita, scegliOpportunita, soloColonne } from "@/lib/opportunita/esportaOpportunita";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export default function MarketingOpportunities() {
   return (
@@ -99,6 +100,7 @@ const OPP_IMPORT_FIELDS: ImportField[] = [
 ];
 
 function MarketingOpportunitiesContent() {
+  const t = useT();
   const navigate = useNavigate();
   const isAdminContext = useIsAdminMarketing();
   const { effectiveCompany, user, role, viewAsUserId } = useAuth();
@@ -237,10 +239,10 @@ function MarketingOpportunitiesContent() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Elenco creato");
+      toast.success(t("Elenco creato"));
       queryClient.invalidateQueries({ queryKey: ["marketing-opportunity-lists"] });
     },
-    onError: () => toast.error("Errore nella creazione dell'elenco"),
+    onError: () => toast.error(t("Errore nella creazione dell'elenco")),
   });
 
   const deleteListMutation = useMutation({
@@ -250,12 +252,12 @@ function MarketingOpportunitiesContent() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Elenco eliminato");
+      toast.success(t("Elenco eliminato"));
       setActiveListId(null);
       setFilters(EMPTY_FILTERS);
       queryClient.invalidateQueries({ queryKey: ["marketing-opportunity-lists"] });
     },
-    onError: () => toast.error("Errore nell'eliminazione"),
+    onError: () => toast.error(t("Errore nell'eliminazione")),
   });
   const { data: oppCustomFields = [] } = useOpportunityCustomFields();
   const { data: contactCustomFields = [] } = useContactCustomFields();
@@ -331,7 +333,7 @@ function MarketingOpportunitiesContent() {
       const requestedPipelineId = (urlFilters.selectedPipelineId || "").trim();
       if (requestedPipelineId && invalidPipelineNoticeRef.current !== requestedPipelineId) {
         invalidPipelineNoticeRef.current = requestedPipelineId;
-        toast.warning("Pipeline non trovata: ho aperto la prima pipeline disponibile.");
+        toast.warning(t("Pipeline non trovata: ho aperto la prima pipeline disponibile."));
       }
       setURLParam("selectedPipelineId", selectedPipelineId);
     }
@@ -452,7 +454,7 @@ function MarketingOpportunitiesContent() {
       const ids = await idsOpportunita(selectedPipelineId, filtriServer, faseLista);
       setSelectedIds(new Set(ids));
     } catch {
-      toast.error("Non sono riuscito a selezionarle tutte: riprova tra qualche secondo.");
+      toast.error(t("Non sono riuscito a selezionarle tutte: riprova tra qualche secondo."));
     } finally {
       setSelezionoTutti(false);
     }
@@ -473,7 +475,7 @@ function MarketingOpportunitiesContent() {
       }));
       handleSelectMany(ids, sel);
     } catch {
-      toast.error("Non sono riuscito a selezionare la colonna: riprova tra qualche secondo.");
+      toast.error(t("Non sono riuscito a selezionare la colonna: riprova tra qualche secondo."));
     }
   }, [selectedPipelineId, filtriServer, idsPerFase, chiaveIdsColonne, handleSelectMany]);
 
@@ -512,7 +514,7 @@ function MarketingOpportunitiesContent() {
   const handleExportOpportunities = useCallback(async (scelta: SceltaDialog) => {
     if (!canExportClients || !companyId) return;
     if (!selectedPipelineId) {
-      toast.error("Seleziona una pipeline prima di esportare");
+      toast.error(t("Seleziona una pipeline prima di esportare"));
       return;
     }
     setIsExporting(true);
@@ -520,7 +522,7 @@ function MarketingOpportunitiesContent() {
       // le opportunità della pagina (ricerca e filtri compresi), poi le fasi e gli stati scelti
       const exportRows = scegliOpportunita(await fetchAllOpportunitiesForExport(scelta.tuttePipeline), { fasi: scelta.fasi, stati: scelta.stati, periodo: scelta.periodo });
       if (!exportRows.length) {
-        toast.info("Nessuna opportunità con le scelte fatte.");
+        toast.info(t("Nessuna opportunità con le scelte fatte."));
         return;
       }
       // con tutte le pipeline: le fasi di tutte, con il nome della pipeline davanti nei fogli
@@ -625,7 +627,7 @@ function MarketingOpportunitiesContent() {
       } else {
         exportToCSV(righe.map((r) => r.riga), colonne, `opportunita${parteNome}_${today}.csv`);
       }
-      toast.success(`${righe.length} opportunità esportate${permissions.onlyAssigned ? " tra quelle assegnate a te" : ""}`);
+      toast.success(permissions.onlyAssigned ? t("{n} opportunità esportate tra quelle assegnate a te", { n: righe.length }) : t("{n} opportunità esportate", { n: righe.length }));
       setEsportaAperto(false);
     } catch (err) {
       toast.error(messaggioEsportazioneNonRiuscita(err));
@@ -684,9 +686,9 @@ function MarketingOpportunitiesContent() {
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
               <Loader2 className="h-4 w-4 animate-spin text-orange-500" />
-              Caricamento opportunità...
+              {t("Caricamento opportunità...")}
             </div>
-            <p className="mt-1 text-xs text-slate-500">Sto preparando pipeline, fasi e dati commerciali.</p>
+            <p className="mt-1 text-xs text-slate-500">{t("Sto preparando pipeline, fasi e dati commerciali.")}</p>
           </div>
           <Skeleton className="h-9 w-36 rounded-xl" />
         </div>
@@ -718,14 +720,14 @@ function MarketingOpportunitiesContent() {
             <AlertTriangle className="h-6 w-6" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-slate-950">Opportunità non caricate</h2>
+            <h2 className="text-lg font-semibold text-slate-950">{t("Opportunità non caricate")}</h2>
             <p className="mt-1 text-sm text-slate-600">
-              Non sono riuscito a caricare le pipeline commerciali. Riprova: se la rete è lenta evitiamo un caricamento infinito.
+              {t("Non sono riuscito a caricare le pipeline commerciali. Riprova: se la rete è lenta evitiamo un caricamento infinito.")}
             </p>
           </div>
           <Button type="button" variant="outline" onClick={() => refetchPipelines()}>
             <RefreshCw className="mr-2 h-4 w-4" />
-            Riprova
+            {t("Riprova")}
           </Button>
         </div>
       </div>
@@ -736,15 +738,15 @@ function MarketingOpportunitiesContent() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4">
         <Target className="h-16 w-16 text-muted-foreground/40" />
-        <h1 className="text-2xl font-bold">Opportunità</h1>
+        <h1 className="text-2xl font-bold">{t("Opportunità")}</h1>
         <p className="text-muted-foreground max-w-md">
           {canViewPipelineSettings
-            ? "Per iniziare, crea una pipeline e le sue fasi nelle impostazioni."
-            : "Non ci sono pipeline disponibili. Chiedi a un amministratore di configurarle o verificare il tuo accesso."}
+            ? t("Per iniziare, crea una pipeline e le sue fasi nelle impostazioni.")
+            : t("Non ci sono pipeline disponibili. Chiedi a un amministratore di configurarle o verificare il tuo accesso.")}
         </p>
         {canViewPipelineSettings && (
           <Button variant="outline" onClick={() => navigate(pipelineSettingsPath)}>
-            Vai alle Impostazioni
+            {t("Vai alle Impostazioni")}
           </Button>
         )}
       </div>
@@ -758,7 +760,7 @@ function MarketingOpportunitiesContent() {
     // Prima avevano un'altezza fissa calcolata a occhio e, con striscia e
     // barre sopra, finivano sotto il bordo: si scorreva la pagina E la colonna.
     <div className="flex flex-col h-full min-h-0 gap-3 md:h-[calc(100vh-137px)] md:pb-0">
-      <h1 className="sr-only">Opportunità</h1>
+      <h1 className="sr-only">{t("Opportunità")}</h1>
       <div className="shrink-0 empty:hidden">
         <ImportazioniProgrammate companyId={companyId} oggetto="opportunita" onAnnullata={() => queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all })} />
       </div>
@@ -766,7 +768,7 @@ function MarketingOpportunitiesContent() {
         <div className="flex min-w-0 items-center gap-2 max-md:flex-1">
           <PipelineSelector pipelines={pipelines} value={selectedPipelineId} onChange={setSelectedPipelineId} />
           {canViewPipelineSettings && (
-            <Button variant="ghost" size="icon" className="hidden size-8 shrink-0 md:inline-flex" aria-label="Impostazioni pipeline" title="Gestisci pipeline e fasi" onClick={() => navigate(pipelineSettingsPath)}>
+            <Button variant="ghost" size="icon" className="hidden size-8 shrink-0 md:inline-flex" aria-label={t("Impostazioni pipeline")} title={t("Gestisci pipeline e fasi")} onClick={() => navigate(pipelineSettingsPath)}>
               <Settings2 className="h-4 w-4" />
             </Button>
           )}
@@ -776,31 +778,31 @@ function MarketingOpportunitiesContent() {
             {riepilogo ? formatCount(totaleFiltrate) : <Loader2 className="h-3 w-3 animate-spin" />}
             {/* Tablet e fino a 1280: solo il numero, così la testata sta su una
                 riga (a 1024 con le etichette andava a capo). */}
-            <span className="hidden xl:inline">opportunità</span>
-            {aggiornoRiepilogo && riepilogo && <Loader2 className="h-3 w-3 animate-spin opacity-60" aria-label="Aggiorno i conteggi" />}
+            <span className="hidden xl:inline">{t("opportunità")}</span>
+            {aggiornoRiepilogo && riepilogo && <Loader2 className="h-3 w-3 animate-spin opacity-60" aria-label={t("Aggiorno i conteggi")} />}
           </Badge>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button aria-label="Vista griglia" aria-pressed={viewMode === "kanban"} variant={viewMode === "kanban" ? "secondary" : "ghost"} size="icon" className="hidden md:inline-flex h-8 w-8" onClick={() => setViewMode("kanban")}>
+              <Button aria-label={t("Vista griglia")} aria-pressed={viewMode === "kanban"} variant={viewMode === "kanban" ? "secondary" : "ghost"} size="icon" className="hidden md:inline-flex h-8 w-8" onClick={() => setViewMode("kanban")}>
                 <LayoutGrid className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Vista griglia</TooltipContent>
+            <TooltipContent>{t("Vista griglia")}</TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button aria-label="Vista lista" aria-pressed={viewMode === "list"} variant={viewMode === "list" ? "secondary" : "ghost"} size="icon" className="hidden md:inline-flex h-8 w-8" onClick={() => setViewMode("list")}>
+              <Button aria-label={t("Vista lista")} aria-pressed={viewMode === "list"} variant={viewMode === "list" ? "secondary" : "ghost"} size="icon" className="hidden md:inline-flex h-8 w-8" onClick={() => setViewMode("list")}>
                 <List className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Vista lista</TooltipContent>
+            <TooltipContent>{t("Vista lista")}</TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
-                aria-label={layout === "mini" ? "Vista estesa" : "Vista compatta"}
+                aria-label={layout === "mini" ? t("Vista estesa") : t("Vista compatta")}
                 aria-pressed={layout === "mini"}
                 variant={layout === "mini" ? "secondary" : "ghost"}
                 size="icon"
@@ -810,47 +812,47 @@ function MarketingOpportunitiesContent() {
                 {layout === "mini" ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
               </Button>
             </TooltipTrigger>
-            <TooltipContent>{layout === "mini" ? "Vista estesa" : "Vista compatta"}</TooltipContent>
+            <TooltipContent>{layout === "mini" ? t("Vista estesa") : t("Vista compatta")}</TooltipContent>
           </Tooltip>
-          <Button variant="outline" size="sm" className="hidden md:inline-flex h-8 text-xs max-xl:w-8 max-xl:px-0" onClick={() => setImportOpen(true)} disabled={stages.length === 0 || !canEditOpportunities} aria-label="Importa">
-            <Upload className="mr-1.5 h-3.5 w-3.5 max-xl:mr-0" /> <span className="max-xl:hidden">Importa</span>
+          <Button variant="outline" size="sm" className="hidden md:inline-flex h-8 text-xs max-xl:w-8 max-xl:px-0" onClick={() => setImportOpen(true)} disabled={stages.length === 0 || !canEditOpportunities} aria-label={t("Importa")}>
+            <Upload className="mr-1.5 h-3.5 w-3.5 max-xl:mr-0" /> <span className="max-xl:hidden">{t("Importa")}</span>
           </Button>
-          <Button size="sm" className="h-11 shrink-0 gap-1.5 px-3 text-sm font-semibold md:h-8 md:text-xs" onClick={() => setDialogOpen(true)} disabled={stages.length === 0 || !canEditOpportunities} aria-label={isMobile ? "Nuova opportunità" : "Aggiungi opportunità"}>
+          <Button size="sm" className="h-11 shrink-0 gap-1.5 px-3 text-sm font-semibold md:h-8 md:text-xs" onClick={() => setDialogOpen(true)} disabled={stages.length === 0 || !canEditOpportunities} aria-label={isMobile ? t("Nuova opportunità") : t("Aggiungi opportunità")}>
             <Plus className="size-4" aria-hidden="true" />
-            <span className="md:hidden">Nuova</span>
-            <span className="hidden md:inline xl:hidden">Aggiungi</span>
-            <span className="hidden xl:inline">Aggiungi opportunità</span>
+            <span className="md:hidden">{t("Nuova")}</span>
+            <span className="hidden md:inline xl:hidden">{t("Aggiungi")}</span>
+            <span className="hidden xl:inline">{t("Aggiungi opportunità")}</span>
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               {/* Mobile no: importa, vista, campi, cestino e impostazioni sono da scrivania. */}
-              <Button variant="ghost" size="icon" className="hidden size-8 md:inline-flex" aria-label="Altre azioni">
+              <Button variant="ghost" size="icon" className="hidden size-8 md:inline-flex" aria-label={t("Altre azioni")}>
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem className="md:hidden" onClick={() => setImportOpen(true)} disabled={stages.length === 0 || !canEditOpportunities}>
-                <Upload className="mr-2 h-4 w-4" /> Importa CSV
+                <Upload className="mr-2 h-4 w-4" /> {t("Importa CSV")}
               </DropdownMenuItem>
               <DropdownMenuItem className="md:hidden" onClick={() => setViewMode(viewMode === "kanban" ? "list" : "kanban")}>
                 {viewMode === "kanban" ? <List className="mr-2 h-4 w-4" /> : <LayoutGrid className="mr-2 h-4 w-4" />}
-                {viewMode === "kanban" ? "Vista lista" : "Vista Kanban"}
+                {viewMode === "kanban" ? t("Vista lista") : t("Vista Kanban")}
               </DropdownMenuItem>
               <DropdownMenuItem className="md:hidden" onClick={() => setCardCustomizeOpen(true)}>
-                <Settings2 className="mr-2 h-4 w-4" /> Gestisci campi
+                <Settings2 className="mr-2 h-4 w-4" /> {t("Gestisci campi")}
               </DropdownMenuItem>
               {/* Niente export su telefono, né senza «Esporta Clienti». */}
               {!isMobile && canExportClients && (
                 <DropdownMenuItem onClick={() => setEsportaAperto(true)} disabled={isExporting}>
-                  {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />} Esporta (Excel o CSV)
+                  {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />} {t("Esporta (Excel o CSV)")}
                 </DropdownMenuItem>
               )}
               {canEditOpportunities && (
                 <DropdownMenuItem onClick={() => setCestinoOpen(true)}>
-                  <Trash2 className="mr-2 h-4 w-4" /> Cestino
+                  <Trash2 className="mr-2 h-4 w-4" /> {t("Cestino")}
                 </DropdownMenuItem>
               )}
-              {canViewPipelineSettings && <DropdownMenuItem onClick={() => navigate(pipelineSettingsPath)}>Impostazioni pipeline</DropdownMenuItem>}
+              {canViewPipelineSettings && <DropdownMenuItem onClick={() => navigate(pipelineSettingsPath)}>{t("Impostazioni pipeline")}</DropdownMenuItem>}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -870,11 +872,11 @@ function MarketingOpportunitiesContent() {
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <div className="flex items-center gap-2">
             <AlertTriangle className="h-4 w-4" />
-            <span>Caricamento opportunità interrotto: puoi riprovare senza ricaricare tutta la pagina.</span>
+            <span>{t("Caricamento opportunità interrotto: puoi riprovare senza ricaricare tutta la pagina.")}</span>
           </div>
           <Button type="button" size="sm" variant="outline" className="h-8 border-amber-200 bg-white text-amber-900 hover:bg-amber-100" onClick={riprovaCaricamento}>
             <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-            Riprova
+            {t("Riprova")}
           </Button>
         </div>
       )}
@@ -887,7 +889,7 @@ function MarketingOpportunitiesContent() {
         className="shrink-0 md:hidden"
         valore={searchInput}
         onCambia={setSearchInput}
-        segnaposto="Cerca nome, telefono, email"
+        segnaposto={t("Cerca nome, telefono, email")}
         filtriAttivi={filtriMobileAttivi}
         onApriFiltri={() => setFiltriMobileAperti(true)}
       />
@@ -899,7 +901,7 @@ function MarketingOpportunitiesContent() {
         risultati={riepilogo ? totaleFiltrate : undefined}
       >
         <PilloleFiltro
-          titolo="Mostra"
+          titolo={t("Mostra")}
           valore={onlyMine ? "miei" : "tutti"}
           onScegli={(v) => setOnlyMine(v === "miei")}
           scelte={[
@@ -908,7 +910,7 @@ function MarketingOpportunitiesContent() {
           ]}
         />
         <PilloleFiltro
-          titolo="Da lavorare"
+          titolo={t("Da lavorare")}
           valore={filtroStrip ?? "nessuno"}
           onScegli={(v) => setFiltroStrip(v === "nessuno" ? null : v)}
           scelte={[
@@ -919,7 +921,7 @@ function MarketingOpportunitiesContent() {
         />
         <GruppoFiltri>
           <SceltaFiltro
-            titolo="Ordine"
+            titolo={t("Ordine")}
             valore={ordineAttuale}
             onScegli={(v) => {
               const [campo, verso] = v.split(":");
@@ -929,7 +931,7 @@ function MarketingOpportunitiesContent() {
           />
           {savedLists.length > 0 && (
             <SceltaFiltro
-              titolo="Elenco"
+              titolo={t("Elenco")}
               valore={activeListId ?? "tutto"}
               onScegli={(v) => {
                 const list = savedLists.find((l) => l.id === v);
@@ -944,18 +946,18 @@ function MarketingOpportunitiesContent() {
           setFiltriMobileAperti(false);
           setFiltersOpen(true);
         }}>
-          Filtri avanzati
+          {t("Filtri avanzati")}
           {activeFilterCount > 0 && <span className="tabular-nums text-muted-foreground">{activeFilterCount}</span>}
         </Button>
         {canViewPipelineSettings && (
           <Button type="button" variant="ghost" className="min-h-11 w-full" onClick={() => navigate(pipelineSettingsPath)}>
-            Impostazioni pipeline
+            {t("Impostazioni pipeline")}
           </Button>
         )}
       </PannelloFiltri>
 
       <div className="flex shrink-0 flex-col gap-1.5 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm md:flex-row md:items-center md:gap-2 max-md:hidden">
-        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto scrollbar-none" aria-label="Elenchi salvati">
+        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto scrollbar-none" aria-label={t("Elenchi salvati")}>
           <Button
             variant="ghost"
             size="sm"
@@ -963,7 +965,7 @@ function MarketingOpportunitiesContent() {
             className={cn("h-8 shrink-0 rounded-xl px-3 text-xs", !activeListId ? "bg-orange-50 font-semibold text-orange-700 hover:bg-orange-50" : "text-muted-foreground hover:bg-slate-50")}
             onClick={() => { setActiveListId(null); setFilters(EMPTY_FILTERS); }}
           >
-            Tutto
+            {t("Tutto")}
           </Button>
           {savedLists.map((list: any) => (
             <div key={list.id} className="group flex shrink-0 items-center">
@@ -989,11 +991,11 @@ function MarketingOpportunitiesContent() {
                   e.stopPropagation();
                   // Conferma: un misclick sulla X cancellava definitivamente il
                   // segmento salvato (le opportunità hanno conferma, le liste no).
-                  if (confirm(`Eliminare l'elenco salvato "${list.name}"?`)) {
+                  if (confirm(t("Eliminare l'elenco salvato \"{name}\"?", { name: String(list.name ?? "") }))) {
                     deleteListMutation.mutate(list.id);
                   }
                 }}
-                aria-label={`Elimina elenco ${list.name}`}
+                aria-label={t("Elimina elenco {name}", { name: String(list.name ?? "") })}
               >
                 <X className="h-3 w-3" />
               </Button>
@@ -1005,7 +1007,7 @@ function MarketingOpportunitiesContent() {
             className="h-8 shrink-0 rounded-xl px-2.5 text-xs text-muted-foreground hover:bg-slate-50 hover:text-foreground"
             onClick={() => setCreateListOpen(true)}
           >
-            <Plus className="mr-1 h-3.5 w-3.5" /> Elenco
+            <Plus className="mr-1 h-3.5 w-3.5" /> {t("Elenco")}
           </Button>
         </div>
 
@@ -1013,17 +1015,17 @@ function MarketingOpportunitiesContent() {
           <div className="relative min-w-0 flex-1 md:w-56 md:flex-none lg:w-72">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Cerca nome, telefono, email…"
+              placeholder={t("Cerca nome, telefono, email…")}
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               className="h-9 w-full rounded-xl border-slate-200 bg-slate-50/70 pl-8 pr-8 text-base transition-colors focus-visible:bg-white md:h-8 md:text-xs"
-              aria-label="Cerca opportunità, contatto, azienda, email o telefono"
+              aria-label={t("Cerca opportunità, contatto, azienda, email o telefono")}
             />
             {searchInput && (
               <button
                 type="button"
                 onClick={() => setSearchInput("")}
-                aria-label="Cancella la ricerca"
+                aria-label={t("Cancella la ricerca")}
                 className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-slate-200/70 hover:text-foreground"
               >
                 <X className="h-3.5 w-3.5" />
@@ -1034,10 +1036,10 @@ function MarketingOpportunitiesContent() {
           {/* Tutti / Miei: due etichette corte invece di un bottone che cambia
               nome — si vede subito quale dei due è acceso. «Miei» = venditore,
               call center o follower. */}
-          <div className="flex h-9 shrink-0 items-center rounded-xl border border-slate-200 bg-slate-50/70 p-0.5 md:h-8" role="group" aria-label="Quali opportunità mostrare">
+          <div className="flex h-9 shrink-0 items-center rounded-xl border border-slate-200 bg-slate-50/70 p-0.5 md:h-8" role="group" aria-label={t("Quali opportunità mostrare")}>
             {([
-              { mie: false, etichetta: "Tutti", titolo: "Mostra tutte le opportunità" },
-              { mie: true, etichetta: "Miei", titolo: "Solo quelle che segui tu: venditore, call center o follower" },
+              { mie: false, etichetta: t("Tutti"), titolo: t("Mostra tutte le opportunità") },
+              { mie: true, etichetta: t("Miei"), titolo: t("Solo quelle che segui tu: venditore, call center o follower") },
             ] as const).map(({ mie, etichetta, titolo }) => (
               <button
                 key={etichetta}
@@ -1062,10 +1064,10 @@ function MarketingOpportunitiesContent() {
                 size="sm"
                 className={cn("relative h-9 shrink-0 rounded-xl px-2.5 text-xs md:h-8", activeFilterCount > 0 && "border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100")}
                 onClick={() => setFiltersOpen(true)}
-                aria-label={activeFilterCount > 0 ? `Filtri (${activeFilterCount} attivi)` : "Apri filtri"}
+                aria-label={activeFilterCount > 0 ? t("Filtri ({activeFilterCount} attivi)", { activeFilterCount: String(activeFilterCount ?? "") }) : t("Apri filtri")}
               >
                 <Filter className="h-3.5 w-3.5 lg:mr-1.5" />
-                <span className="hidden lg:inline">Filtri</span>
+                <span className="hidden lg:inline">{t("Filtri")}</span>
                 {activeFilterCount > 0 && (
                   <span className="ml-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-orange-500 px-1 text-[10px] font-semibold text-white">
                     {activeFilterCount}
@@ -1073,7 +1075,7 @@ function MarketingOpportunitiesContent() {
                 )}
               </Button>
             </TooltipTrigger>
-            <TooltipContent className="lg:hidden">Filtri</TooltipContent>
+            <TooltipContent className="lg:hidden">{t("Filtri")}</TooltipContent>
           </Tooltip>
 
           <DropdownMenu>
@@ -1082,12 +1084,12 @@ function MarketingOpportunitiesContent() {
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="h-9 shrink-0 rounded-xl px-2.5 text-xs md:h-8" aria-label={`Ordina: ${ORDINAMENTI.find((o) => o.field === sortField && o.dir === sortDir)?.label ?? "Più recenti"}`}>
                     <ArrowUpDown className="h-3.5 w-3.5 xl:mr-1.5" />
-                    <span className="hidden xl:inline">{ORDINAMENTI.find((o) => o.field === sortField && o.dir === sortDir)?.label ?? "Ordina"}</span>
+                    <span className="hidden xl:inline">{ORDINAMENTI.find((o) => o.field === sortField && o.dir === sortDir)?.label ?? t("Ordina")}</span>
                   </Button>
                 </DropdownMenuTrigger>
               </TooltipTrigger>
               <TooltipContent className="xl:hidden">
-                Ordina: {ORDINAMENTI.find((o) => o.field === sortField && o.dir === sortDir)?.label ?? "Più recenti"}
+                {t("Ordina:")} {ORDINAMENTI.find((o) => o.field === sortField && o.dir === sortDir)?.label ?? t("Più recenti")}
               </TooltipContent>
             </Tooltip>
             <DropdownMenuContent align="end" className="w-52">
@@ -1097,7 +1099,7 @@ function MarketingOpportunitiesContent() {
                   onClick={() => { setSortField(opt.field); setSortDir(opt.dir); }}
                   className="flex items-center justify-between text-xs"
                 >
-                  {opt.label}
+                  {t(opt.label)}
                   {sortField === opt.field && sortDir === opt.dir && <Check className="ml-2 h-3.5 w-3.5 text-orange-600" />}
                 </DropdownMenuItem>
               ))}
@@ -1111,49 +1113,49 @@ function MarketingOpportunitiesContent() {
                 size="icon"
                 className="hidden h-8 w-8 shrink-0 rounded-xl text-muted-foreground hover:text-foreground md:inline-flex"
                 onClick={() => setCardCustomizeOpen(true)}
-                aria-label="Gestisci campi delle schede"
+                aria-label={t("Gestisci campi delle schede")}
               >
                 <Settings2 className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Gestisci campi</TooltipContent>
+            <TooltipContent>{t("Gestisci campi")}</TooltipContent>
           </Tooltip>
         </div>
       </div>
 
       {stages.length === 0 ? (
         <div className="flex flex-col items-center justify-center flex-1 text-muted-foreground gap-2">
-          <p className="text-sm">Questa pipeline non ha fasi configurate.</p>
-          {canViewPipelineSettings && <Button variant="outline" size="sm" onClick={() => navigate(pipelineSettingsPath)}>Configura fasi</Button>}
+          <p className="text-sm">{t("Questa pipeline non ha fasi configurate.")}</p>
+          {canViewPipelineSettings && <Button variant="outline" size="sm" onClick={() => navigate(pipelineSettingsPath)}>{t("Configura fasi")}</Button>}
         </div>
       ) : (
         <>
            {selectedIds.size > 0 && canEditOpportunities && (
             <div className="flex items-center gap-2 sm:gap-3 flex-wrap px-3 sm:px-4 py-2 bg-primary/5 border rounded-lg shrink-0">
               <Badge variant="secondary" className="text-xs font-semibold tabular-nums">
-                {formatCount(selectedIds.size)} selezionat{selectedIds.size === 1 ? "a" : "e"}
+                {formatCount(selectedIds.size)} {t("selezionat")}{selectedIds.size === 1 ? "a" : "e"}
               </Badge>
               {selectedIds.size < totaleSelezionabile && (
                 <Button variant="link" size="sm" className="h-auto gap-1 p-0 text-xs" disabled={selezionoTutti} onClick={selezionaTutti}>
                   {selezionoTutti && <Loader2 className="h-3 w-3 animate-spin" />}
-                  Seleziona tutte le {formatCount(totaleSelezionabile)}
+                  {t("Seleziona tutte le")} {formatCount(totaleSelezionabile)}
                 </Button>
               )}
-              <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={clearSelection}>Deseleziona</Button>
+              <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={clearSelection}>{t("Deseleziona")}</Button>
               <div className="ml-auto flex items-center gap-2">
-                <Button variant="outline" size="sm" className="h-9 sm:h-7 text-xs gap-1" onClick={() => setBulkEditOpen(true)} aria-label="Modifica selezionati">
-                  <Pencil className="h-3 w-3" /> <span className="hidden sm:inline">Modifica</span>
+                <Button variant="outline" size="sm" className="h-9 sm:h-7 text-xs gap-1" onClick={() => setBulkEditOpen(true)} aria-label={t("Modifica selezionati")}>
+                  <Pencil className="h-3 w-3" /> <span className="hidden sm:inline">{t("Modifica")}</span>
                 </Button>
                 <Button
                   variant="destructive"
                   size="sm"
                   className="h-9 sm:h-7 text-xs gap-1"
                   disabled={selectedIds.size > MASSIMO_ELIMINAZIONE}
-                  title={selectedIds.size > MASSIMO_ELIMINAZIONE ? `Si possono eliminare al massimo ${formatCount(MASSIMO_ELIMINAZIONE)} opportunità alla volta` : undefined}
+                  title={selectedIds.size > MASSIMO_ELIMINAZIONE ? t("Si possono eliminare al massimo {MASSIMO_ELIMINAZIONE} opportunità alla volta", { MASSIMO_ELIMINAZIONE: formatCount(MASSIMO_ELIMINAZIONE) }) : undefined}
                   onClick={() => setConfirmBulkDelete(true)}
-                  aria-label="Elimina selezionati"
+                  aria-label={t("Elimina selezionati")}
                 >
-                  <Trash2 className="h-3 w-3" /> <span className="hidden sm:inline">Elimina</span>
+                  <Trash2 className="h-3 w-3" /> <span className="hidden sm:inline">{t("Elimina")}</span>
                 </Button>
               </div>
             </div>
@@ -1222,20 +1224,20 @@ function MarketingOpportunitiesContent() {
         onOpenChange={setCardCustomizeOpen}
         activeFields={activeFields}
         layout={layout}
-        onApply={(fields, l) => { setActiveFields(fields); setLayout(l); toast.success("Personalizzazione applicata"); }}
+        onApply={(fields, l) => { setActiveFields(fields); setLayout(l); toast.success(t("Personalizzazione applicata")); }}
         customFields={customFieldDefs}
       />
 
       <AlertDialog open={confirmBulkDelete} onOpenChange={setConfirmBulkDelete}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare {selectedIds.size} opportunità?</AlertDialogTitle>
-            <AlertDialogDescription>Finiscono nel cestino: le puoi ripristinare da Altre azioni → Cestino.</AlertDialogDescription>
+            <AlertDialogTitle>{t("Eliminare {size} opportunità?", { size: String(selectedIds.size ?? "") })}</AlertDialogTitle>
+            <AlertDialogDescription>{t("Finiscono nel cestino: le puoi ripristinare da Altre azioni → Cestino.")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => { bulkDelete.mutate([...selectedIds], { onSuccess: () => { clearSelection(); setConfirmBulkDelete(false); } }); }}>
-              Elimina
+              {t("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

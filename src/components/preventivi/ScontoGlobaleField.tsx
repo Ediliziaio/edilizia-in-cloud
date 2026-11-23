@@ -26,6 +26,7 @@ import { useDiscountRules } from "@/hooks/useDiscountRules";
 import { ScontoRapido } from "@/components/preventivi/ScontoRapido";
 import { evaluateDiscountRules, classifyDiscount } from "@/lib/serramenti/discountRules";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   /** id dell'input, per l'etichetta (resta quello già usato dal verticale). */
@@ -57,6 +58,7 @@ function toPct(raw: string): number {
 }
 
 export function ScontoGlobaleField({ id, value, onCommit, imponibileLordo, tipoLavoro, conScontoRapido = false, ivaPct }: Props) {
+  const t = useT();
   const { data: regole = [] } = useDiscountRules();
   const { canApproveDiscounts } = usePermissions();
 
@@ -92,12 +94,12 @@ export function ScontoGlobaleField({ id, value, onCommit, imponibileLordo, tipoL
     <div className="space-y-1">
       <div className="flex items-center justify-between gap-2">
         <Label htmlFor={id} className="flex items-center gap-1 text-xs">
-          Sconto globale
+          {t("Sconto globale")}
         </Label>
         <span className="flex items-center gap-1 text-[10px] tabular-nums text-muted-foreground">
           <Tag className="h-3 w-3" />
-          {canApproveDiscounts ? "Soglia ordinaria" : "max"} {esito.scontoMaxPct.toFixed(1)}%
-          {esito.approvaOltrePct != null && ` · ok fino a ${esito.approvaOltrePct.toFixed(1)}%`}
+          {canApproveDiscounts ? t("Soglia ordinaria") : t("max")} {esito.scontoMaxPct.toFixed(1)}%
+          {esito.approvaOltrePct != null && <> · {t("ok fino a {pct}%", { pct: esito.approvaOltrePct.toFixed(1) })}</>}
         </span>
       </div>
 
@@ -119,7 +121,7 @@ export function ScontoGlobaleField({ id, value, onCommit, imponibileLordo, tipoL
         </span>
       </div>
 
-      {canApproveDiscounts && <p className="text-xs text-muted-foreground">Puoi superare questa soglia perché hai il permesso di approvare gli sconti.</p>}
+      {canApproveDiscounts && <p className="text-xs text-muted-foreground">{t("Puoi superare questa soglia perché hai il permesso di approvare gli sconti.")}</p>}
 
       {conScontoRapido && (
         <ScontoRapido
@@ -140,7 +142,7 @@ export function ScontoGlobaleField({ id, value, onCommit, imponibileLordo, tipoL
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] leading-4 text-destructive">
           <span className="flex items-center gap-1">
             <AlertTriangle className="h-3 w-3 shrink-0" />
-            Oltre il massimo consentito: non applicato al preventivo.
+            {t("Oltre il massimo consentito: non applicato al preventivo.")}
           </span>
           <Button
             type="button"
@@ -149,7 +151,7 @@ export function ScontoGlobaleField({ id, value, onCommit, imponibileLordo, tipoL
             className="h-auto p-0 text-[10px] underline"
             onClick={portaAlMassimo}
           >
-            Porta a {esito.scontoMaxPct.toFixed(1)}%
+            {t("Porta a {pct}%", { pct: esito.scontoMaxPct.toFixed(1) })}
           </Button>
         </div>
       )}
@@ -157,14 +159,14 @@ export function ScontoGlobaleField({ id, value, onCommit, imponibileLordo, tipoL
       {!bloccato && daApprovare && (
         <p className="flex items-start gap-1 text-[10px] leading-4 text-amber-700">
           <Info className="mt-px h-3 w-3 shrink-0" />
-          Sopra {esito.approvaOltrePct?.toFixed(1)}%: richiede l'approvazione del titolare.
+          {t("Sopra {pct}%: richiede l'approvazione del titolare.", { pct: esito.approvaOltrePct?.toFixed(1) ?? "" })}
         </p>
       )}
 
       {/* Telefono no: è una nota per chi configura, non per chi fa il preventivo. */}
       {!bloccato && !daApprovare && esito.isFallback && (
         <p className="text-[10px] leading-4 text-muted-foreground max-sm:hidden">
-          Nessuna regola di scontistica configurata: vale il massimo predefinito.
+          {t("Nessuna regola di scontistica configurata: vale il massimo predefinito.")}
         </p>
       )}
     </div>

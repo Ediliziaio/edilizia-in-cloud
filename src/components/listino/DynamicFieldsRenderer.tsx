@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/select";
 import { useMacroFields } from "@/lib/serramenti/queries";
 import type { ListinoMacroField } from "@/lib/serramenti/api";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type DynamicFieldValues = Record<string, unknown>;
 
@@ -47,6 +48,7 @@ export function DynamicFieldsRenderer({
   onChange,
   mode = "edit",
 }: Props) {
+  const t = useT();
   const { data: schema = [], isLoading } = useMacroFields(macroId);
 
   // In lettura solo i campi da mostrare nel picker; in modifica tutti.
@@ -68,7 +70,7 @@ export function DynamicFieldsRenderer({
   if (!macroId) {
     return (
       <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground text-center">
-        Seleziona prima una tipologia per vedere la scheda tecnica.
+        {t("Seleziona prima una tipologia per vedere la scheda tecnica.")}
       </div>
     );
   }
@@ -76,7 +78,7 @@ export function DynamicFieldsRenderer({
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-6 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin mr-2" /> Carico scheda tecnica…
+        <Loader2 className="h-4 w-4 animate-spin mr-2" /> {t("Carico scheda tecnica…")}
       </div>
     );
   }
@@ -86,11 +88,10 @@ export function DynamicFieldsRenderer({
     return (
       <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground text-center space-y-1">
         <Settings2 className="h-5 w-5 mx-auto opacity-60" />
-        <p>Nessuna scheda tecnica configurata per questa tipologia.</p>
+        <p>{t("Nessuna scheda tecnica configurata per questa tipologia.")}</p>
         <p className="text-xs">
-          Vai in <em>Impostazioni → Listino → Tipologie</em>, clicca sull'icona{" "}
-          <Settings2 className="h-3 w-3 inline" /> accanto alla tipologia
-          per definire i campi (es. vetro, Uw, potenza…).
+          {t("Vai in")} <em>{t("Impostazioni → Listino → Tipologie")}</em>{t(", clicca sull'icona")}{" "}
+          <Settings2 className="h-3 w-3 inline" /> {t("accanto alla tipologia per definire i campi (es. vetro, Uw, potenza…).")}
         </p>
       </div>
     );
@@ -146,6 +147,7 @@ function FieldRow({
   value: unknown;
   onChange: (v: unknown) => void;
 }) {
+  const t = useT();
   const { field_type, field_label, field_unit, field_placeholder, field_help, required, field_options } = field;
 
   // Per textarea + multiselect → occupa l'intera larghezza
@@ -195,7 +197,7 @@ function FieldRow({
       {field_type === "select" && (
         <Select value={asString(value)} onValueChange={onChange}>
           <SelectTrigger>
-            <SelectValue placeholder={field_placeholder ?? "Seleziona…"} />
+            <SelectValue placeholder={field_placeholder ?? t("Seleziona…")} />
           </SelectTrigger>
           <SelectContent>
             {(field_options ?? []).map((o) => (
@@ -230,7 +232,7 @@ function FieldRow({
         <div className="flex items-center gap-2 h-9">
           <Switch checked={!!value} onCheckedChange={(v) => onChange(v)} />
           <span className="text-sm text-muted-foreground">
-            {value ? "Sì" : "No"}
+            {value ? t("Sì") : t("No")}
           </span>
         </div>
       )}
@@ -246,7 +248,7 @@ function FieldRow({
           <Input
             value={asString(value)}
             onChange={(e) => onChange(e.target.value)}
-            placeholder="#RRGGBB o nome RAL"
+            placeholder={t("#RRGGBB o nome RAL")}
             className="flex-1"
           />
         </div>

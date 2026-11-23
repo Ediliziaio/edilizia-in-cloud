@@ -36,6 +36,7 @@ import type { QuoteVision } from "../../../supabase/functions/_shared/quoteAdvan
 import type { QuoteChatTransport } from "@/lib/preventivi/quoteChatDocument";
 import "./QuoteWizardAiDialog.css";
 import "./dev/QuoteChatComposer.css";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Message = QuoteChatMessage & {
   choices?: Array<{ id: string; label: string; reply: string }>;
@@ -103,6 +104,7 @@ export type VerticalWizardAiProps<T> = {
 export default function VerticalWizardAiDialog<T>(
   props: VerticalWizardAiProps<T>,
 ) {
+  const t = useT();
   const { effectiveCompany, user } = useAuth();
   const [ownerId] = useState(user?.id ?? null);
   const [seed] = useState(() => ({
@@ -263,7 +265,7 @@ export default function VerticalWizardAiDialog<T>(
         const json = JSON.stringify(pending);
         if (json.length > 20000)
           throw new Error(
-            "Rivedi la proposta tecnica prima di avviare un altro gruppo di lavorazioni.",
+            t("Rivedi la proposta tecnica prima di avviare un altro gruppo di lavorazioni."),
           );
         for (let i = 0; i < json.length; i += 2700)
           evidence.push(
@@ -321,11 +323,11 @@ export default function VerticalWizardAiDialog<T>(
         result.turn.searches.length
       )
         throw new Error(
-          "Risposta non coerente con il configuratore. Bozza invariata.",
+          t("Risposta non coerente con il configuratore. Bozza invariata."),
         );
       if (result.turn.nativeTurn === undefined)
         throw new Error(
-          "Endpoint locale non aggiornato per questo configuratore. Nessuna proposta importata.",
+          t("Endpoint locale non aggiornato per questo configuratore. Nessuna proposta importata."),
         );
       const readOnly =
         quoteTurnIsReadOnly(text) || quoteTurnIsHypothetical(text);
@@ -472,16 +474,16 @@ export default function VerticalWizardAiDialog<T>(
       const isCad = /\.dwg$/i.test(file.name);
       if (ctrl.signal.aborted || generation !== run.current) return;
       if (isCad) {
-        if (vision) throw new Error('Rimuovi prima l’immagine allegata, per non confondere fonti e misure.');
+        if (vision) throw new Error(t("Rimuovi prima l’immagine allegata, per non confondere fonti e misure."));
         setReadingCad(true);
         const reading = await cadReader(file, ctrl.signal);
         if (ctrl.signal.aborted || generation !== run.current || !alive.current) return;
-        if (cad && cad.reading.id !== reading.id) throw new Error('La chat contiene già un altro DWG. Chiudi e riapri la bozza di lavoro prima di sostituirlo.');
+        if (cad && cad.reading.id !== reading.id) throw new Error(t("La chat contiene già un altro DWG. Chiudi e riapri la bozza di lavoro prima di sostituirlo."));
         setCad({ reading, selectedState: cad?.selectedState ?? 'unknown' });
         setMessages(m => [...m, { role: 'user', text: `Leggi il DWG «${reading.name}».` }, { role: 'assistant', text: `**DWG letto ${reading.processedBy === 'service' ? 'dal convertitore dedicato' : 'in locale'}.** ${reading.totalTexts} testi, ${reading.layers.length} layer riportati. Misure, componenti e prezzi non sono confermati.${quoteCadMeasureSummary(reading) ? `\n\n${quoteCadMeasureSummary(reading)}` : ''}\n\n${quoteCadQuestions(reading).join('\n\n')}` }]);
         return;
       }
-      if (cad) throw new Error('Questa chat contiene un DWG. Chiudi e riapri la bozza di lavoro prima di sostituirlo con un’immagine.');
+      if (cad) throw new Error(t("Questa chat contiene un DWG. Chiudi e riapri la bozza di lavoro prima di sostituirlo con un’immagine."));
       const prepared = await prepareQuoteVision(
         file,
         crypto.randomUUID(),
@@ -518,16 +520,14 @@ export default function VerticalWizardAiDialog<T>(
           <div>
             <DialogTitle>Silvio AI · {props.title}</DialogTitle>
             <DialogDescription>
-              Configuratore originale, dati tecnici completi e stesso modello
-              del preventivo.
+              {t("Configuratore originale, dati tecnici completi e stesso modello del preventivo.")}
             </DialogDescription>
           </div>
-          <span className="quote-wizard-ai-badge">Bozza di lavoro</span>
+          <span className="quote-wizard-ai-badge">{t("Bozza di lavoro")}</span>
         </header>
         {conflict ? (
           <p role="alert" className="quote-wizard-ai-alert">
-            Account, azienda o preventivo cambiati: chiudi e riapri la chat. Nessuna
-            modifica applicabile.
+            {t("Account, azienda o preventivo cambiati: chiudi e riapri la chat. Nessuna modifica applicabile.")}
           </p>
         ) : (
           <fieldset
@@ -537,12 +537,12 @@ export default function VerticalWizardAiDialog<T>(
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(360px,1fr)]">
               <section
                 className="chat-only-workspace flex min-w-0 flex-col rounded-2xl border bg-white"
-                aria-label="Chat tecnica del preventivo"
+                aria-label={t("Chat tecnica del preventivo")}
               >
                 <div
                   ref={log}
                   role="log"
-                  aria-label="Conversazione tecnica"
+                  aria-label={t("Conversazione tecnica")}
                   className="min-h-[280px] flex-1 space-y-5 overflow-auto p-5"
                   style={{
                     height: "calc(100dvh - 350px)",
@@ -559,7 +559,7 @@ export default function VerticalWizardAiDialog<T>(
                       }
                     >
                       <small className="mb-2 block text-xs text-slate-500">
-                        {m.role === "user" ? "Tu" : "Silvio AI"}
+                        {m.role === "user" ? t("Tu") : "Silvio AI"}
                       </small>
                       <QuoteChatResponse content={m.text} />
                       {i === messages.length - 1 &&
@@ -579,14 +579,14 @@ export default function VerticalWizardAiDialog<T>(
                   {cad && <QuoteCadCard cad={cad} disabled={busy || applying || conflict} onAction={text => void send(text)} />}
                   {pending && (
                     <section
-                      aria-label="Proposta tecnica da confermare"
+                      aria-label={t("Proposta tecnica da confermare")}
                       className="space-y-3 rounded-xl border border-blue-200 bg-blue-50/40 p-4"
                     >
                       <fieldset
                         disabled={busy || applying}
                         className="min-w-0 space-y-3"
                       >
-                        <strong>Rivedi i dati tecnici proposti</strong>
+                        <strong>{t("Rivedi i dati tecnici proposti")}</strong>
                         {pending.operations.map((op, index) => (
                           <details
                             key={op.id}
@@ -594,7 +594,7 @@ export default function VerticalWizardAiDialog<T>(
                             className="rounded-lg border bg-white p-3"
                           >
                             <summary className="cursor-pointer font-medium">
-                              {op.action === "remove" ? "Rimuovi" : "Aggiorna"}{" "}
+                              {op.action === "remove" ? t("Rimuovi") : t("Aggiorna")}{" "}
                               · {op.kind} ·{" "}
                               {String(
                                 op.fields.find((f) => f.key === "title")
@@ -615,7 +615,7 @@ export default function VerticalWizardAiDialog<T>(
                                             label: String(
                                               r.fields.find(
                                                 (v) => v.key === "title",
-                                              )?.value ?? "Serramento",
+                                              )?.value ?? t("Serramento"),
                                             ),
                                           }))
                                       : /Id$/.test(f.key)
@@ -670,7 +670,7 @@ export default function VerticalWizardAiDialog<T>(
                                     key={f.key}
                                     className="text-xs text-slate-500"
                                   >
-                                    {labels[f.key] ?? f.key}
+                                    {labels[f.key] ? t(labels[f.key]) : f.key}
                                     {choices || typeof f.value === "boolean" ? (
                                       <UniformSelect
                                         aria-label={`${op.id} ${f.key}`}
@@ -683,7 +683,7 @@ export default function VerticalWizardAiDialog<T>(
                                         {choices ? (
                                           <>
                                             <option value="">
-                                              Da definire / nessuno
+                                              {t("Da definire / nessuno")}
                                             </option>
                                             {[
                                               ...new Map(
@@ -697,8 +697,8 @@ export default function VerticalWizardAiDialog<T>(
                                           </>
                                         ) : (
                                           <>
-                                            <option value="true">Sì</option>
-                                            <option value="false">No</option>
+                                            <option value="true">{t("Sì")}</option>
+                                            <option value="false">{t("No")}</option>
                                           </>
                                         )}
                                       </UniformSelect>
@@ -752,7 +752,7 @@ export default function VerticalWizardAiDialog<T>(
                                         {axis.label}
                                         {axis.required ? " *" : ""}
                                         <UniformSelect
-                                          aria-label={`${op.id} variante ${axis.label}`}
+                                          aria-label={t("{id} variante {asse}", { id: op.id, asse: axis.label })}
                                           className="mt-1 w-full rounded border p-2 text-sm text-slate-900"
                                           value={axis.value ?? ""}
                                           onChange={(e) =>
@@ -760,7 +760,7 @@ export default function VerticalWizardAiDialog<T>(
                                           }
                                         >
                                           <option value="" disabled>
-                                            Da scegliere
+                                            {t("Da scegliere")}
                                           </option>
                                           {axis.values.map((v) => (
                                             <option key={v.id} value={v.id}>
@@ -771,9 +771,9 @@ export default function VerticalWizardAiDialog<T>(
                                       </label>
                                       {choices.length > 0 && (
                                         <label className="mt-2 block text-xs text-slate-500">
-                                          Dettaglio {axis.label}
+                                          {t("Dettaglio {asse}", { asse: axis.label })}
                                           <UniformSelect
-                                            aria-label={`${op.id} scelta ${axis.label}`}
+                                            aria-label={t("{id} scelta {asse}", { id: op.id, asse: axis.label })}
                                             className="mt-1 w-full rounded border p-2 text-sm text-slate-900"
                                             value={axis.choice ?? ""}
                                             onChange={(e) =>
@@ -784,7 +784,7 @@ export default function VerticalWizardAiDialog<T>(
                                             }
                                           >
                                             <option value="" disabled>
-                                              Da confermare
+                                              {t("Da confermare")}
                                             </option>
                                             {choices.map((c) => (
                                               <option key={c} value={c}>
@@ -801,22 +801,21 @@ export default function VerticalWizardAiDialog<T>(
                             )}
                             {!props.variants && op.axes.length > 0 && (
                               <p className="mt-2 text-xs text-slate-600">
-                                Varianti:{" "}
+                                {t("Varianti:")}{" "}
                                 {op.axes
                                   .map(
                                     (a) => `${a.axis}: ${a.choice ?? a.value}`,
                                   )
                                   .join(" · ")}
-                                . Puoi correggerle rispondendo in chat.
+                                . {t("Puoi correggerle rispondendo in chat.")}
                               </p>
                             )}
                             {op.action !== "remove" &&
                               op.kind !== "configurazione" && (
                                 <label className="mt-3 block text-xs text-slate-500">
-                                  Prezzo unitario manuale · facoltativo, IVA
-                                  esclusa
+                                  {t("Prezzo unitario manuale · facoltativo, IVA esclusa")}
                                   <input
-                                    aria-label={`Prezzo manuale ${op.id}`}
+                                    aria-label={t("Prezzo manuale {id}", { id: op.id })}
                                     type="number"
                                     min="0"
                                     step="0.01"
@@ -843,9 +842,7 @@ export default function VerticalWizardAiDialog<T>(
                               )}
                             {op.action === "remove" && (
                               <p className="mt-2 text-xs text-orange-700">
-                                La rimozione viene riepilogata prima della
-                                conferma finale; controlla anche gli accessori
-                                collegati.
+                                {t("La rimozione viene riepilogata prima della conferma finale; controlla anche gli accessori collegati.")}
                               </p>
                             )}
                           </details>
@@ -854,7 +851,7 @@ export default function VerticalWizardAiDialog<T>(
                           disabled={busy || applying}
                           onClick={() => void accept()}
                         >
-                          Conferma proposta nella bozza
+                          {t("Conferma proposta nella bozza")}
                         </Button>
                         <Button
                           variant="ghost"
@@ -881,7 +878,7 @@ export default function VerticalWizardAiDialog<T>(
                             ]);
                           }}
                         >
-                          Scarta proposta
+                          {t("Scarta proposta")}
                         </Button>
                       </fieldset>
                     </section>
@@ -891,7 +888,7 @@ export default function VerticalWizardAiDialog<T>(
                       role="status"
                       className="animate-pulse text-sm text-blue-800"
                     >
-                      {readingCad ? 'Leggo il DWG sul computer. Nessuna chiamata AI.' : 'Silvio sta analizzando i dati tecnici…'}
+                      {readingCad ? t("Leggo il DWG sul computer. Nessuna chiamata AI.") : t("Silvio sta analizzando i dati tecnici…")}
                     </p>
                   )}
                 </div>
@@ -899,12 +896,12 @@ export default function VerticalWizardAiDialog<T>(
                   {vision && (
                     <div className="mb-2 flex items-center gap-3 text-xs">
                       <span>
-                        {imageName} · pagina 1 ·{" "}
+                        {imageName} · {t("pagina 1")} ·{" "}
                         {visionStatus === "ready"
-                          ? "non ancora inviata"
+                          ? t("non ancora inviata")
                           : visionStatus === "requested"
-                            ? "analisi richiesta"
-                            : "inviata per l’analisi"}
+                            ? t("analisi richiesta")
+                            : t("inviata per l’analisi")}
                       </span>
                       <button
                         onClick={() => {
@@ -913,7 +910,7 @@ export default function VerticalWizardAiDialog<T>(
                         }}
                         disabled={busy}
                       >
-                        Rimuovi
+                        {t("Rimuovi")}
                       </button>
                     </div>
                   )}
@@ -922,7 +919,7 @@ export default function VerticalWizardAiDialog<T>(
                     type="file"
                     accept="image/png,image/jpeg,application/pdf,.dwg"
                     className="hidden"
-                    aria-label="Allega rilievo tecnico"
+                    aria-label={t("Allega rilievo tecnico")}
                     data-rilascio="senza-filtro"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
@@ -973,9 +970,9 @@ export default function VerticalWizardAiDialog<T>(
         {reviewing && (
           <section
             className="quote-wizard-ai-review"
-            aria-label="Confronto tecnico prima di applicare"
+            aria-label={t("Confronto tecnico prima di applicare")}
           >
-            <h3>Modifiche al configuratore originale</h3>
+            <h3>{t("Modifiche al configuratore originale")}</h3>
             {props.summary(draft)}
           </section>
         )}
@@ -988,11 +985,10 @@ export default function VerticalWizardAiDialog<T>(
           {closing ? (
             <>
               <p>
-                Scartare la bozza di lavoro? Il wizard originale resta
-                invariato.
+                {t("Scartare la bozza di lavoro? Il wizard originale resta invariato.")}
               </p>
               <Button variant="outline" onClick={() => setClosing(false)}>
-                Continua
+                {t("Continua")}
               </Button>
               <Button
                 variant="destructive"
@@ -1001,26 +997,26 @@ export default function VerticalWizardAiDialog<T>(
                   props.onClose();
                 }}
               >
-                Scarta e chiudi
+                {t("Scarta e chiudi")}
               </Button>
             </>
           ) : (
             <>
               <p>
                 {changed
-                  ? "Modifiche solo nella bozza di lavoro"
-                  : "Nessuna modifica al preventivo originale"}
+                  ? t("Modifiche solo nella bozza di lavoro")
+                  : t("Nessuna modifica al preventivo originale")}
               </p>
               <Button
                 disabled={applying}
                 variant="outline"
                 onClick={() => setClosing(true)}
               >
-                Chiudi
+                {t("Chiudi")}
               </Button>
               {reviewing && (
                 <Button variant="ghost" onClick={() => setReviewing(false)}>
-                  Torna alla chat
+                  {t("Torna alla chat")}
                 </Button>
               )}
               {undo && (
@@ -1029,7 +1025,7 @@ export default function VerticalWizardAiDialog<T>(
                   disabled={!!pending || busy || applying || conflict}
                   onClick={undoLastChange}
                 >
-                  Annulla ultima modifica
+                  {t("Annulla ultima modifica")}
                 </Button>
               )}
               <Button
@@ -1037,10 +1033,10 @@ export default function VerticalWizardAiDialog<T>(
                 onClick={() => (reviewing ? void commit() : setReviewing(true))}
               >
                 {applying
-                  ? "Applico…"
+                  ? t("Applico…")
                   : reviewing
-                    ? "Conferma e applica al wizard"
-                    : "Rivedi e applica"}
+                    ? t("Conferma e applica al wizard")
+                    : t("Rivedi e applica")}
               </Button>
             </>
           )}

@@ -65,6 +65,7 @@ import {
   type SimulazioneRow,
 } from "@/hooks/useSimulazioni";
 import { NuovaSimulazioneDialog } from "@/components/marketing/simulatore/NuovaSimulazioneDialog";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // ─── Helpers presentazione ──────────────────────────────────────────────────
 
@@ -95,12 +96,13 @@ function margineStyle(pct: number): CSSProperties {
 }
 
 function fmtPct(pct: number): string {
-  return `${(Math.round(pct * 10) / 10).toLocaleString("it-IT")}%`;
+  return `${(Math.round(pct * 10) / 10).toLocaleString(intlCampo())}%`;
 }
 
 // ─── Pagina ─────────────────────────────────────────────────────────────────
 
 export default function SimulatoreIndex() {
+  const t = useT();
   const navigate = useNavigate();
   const { data: simulazioni = [], isLoading } = useSimulazioni();
   const { duplicate, remove } = useSimulazioniMutations();
@@ -126,10 +128,10 @@ export default function SimulatoreIndex() {
   const handleDuplica = async (row: SimulazioneRow, asTemplate: boolean) => {
     try {
       const id = await duplicate.mutateAsync({ ...row, as_template: asTemplate });
-      toast.success(asTemplate ? "Template creato" : "Simulazione duplicata");
+      toast.success(asTemplate ? t("Template creato") : t("Simulazione duplicata"));
       apri(id);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Errore nella duplicazione");
+      toast.error(err instanceof Error ? err.message : t("Errore nella duplicazione"));
     }
   };
 
@@ -137,10 +139,10 @@ export default function SimulatoreIndex() {
   const handleNuovaDaTemplate = async (row: SimulazioneRow) => {
     try {
       const id = await duplicate.mutateAsync({ ...row, as_template: false });
-      toast.success("Simulazione creata dal template");
+      toast.success(t("Simulazione creata dal template"));
       apri(id);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Errore nella creazione dal template");
+      toast.error(err instanceof Error ? err.message : t("Errore nella creazione dal template"));
     }
   };
 
@@ -148,9 +150,9 @@ export default function SimulatoreIndex() {
     if (!daEliminare) return;
     try {
       await remove.mutateAsync(daEliminare.id);
-      toast.success("Simulazione eliminata");
+      toast.success(t("Simulazione eliminata"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Errore nell'eliminazione");
+      toast.error(err instanceof Error ? err.message : t("Errore nell'eliminazione"));
     } finally {
       setDaEliminare(null);
     }
@@ -167,13 +169,13 @@ export default function SimulatoreIndex() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between max-sm:flex-row max-sm:items-center max-sm:justify-between max-sm:gap-2">
         <div className="space-y-1">
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2 max-sm:text-lg">
-            Simulatore
+            {t("Simulatore")}
           </h1>
         </div>
         <Button onClick={() => setNuovaOpen(true)} className="gap-2 shrink-0 max-sm:h-9 max-sm:px-3">
           <Plus className="h-4 w-4" />
-          <span className="max-sm:hidden">Nuova simulazione</span>
-          <span className="sm:hidden">Nuova</span>
+          <span className="max-sm:hidden">{t("Nuova simulazione")}</span>
+          <span className="sm:hidden">{t("Nuova")}</span>
         </Button>
       </div>
 
@@ -182,13 +184,13 @@ export default function SimulatoreIndex() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between max-sm:flex-row max-sm:items-center">
           <Select value={statoFilter} onValueChange={setStatoFilter}>
             <SelectTrigger className="w-full sm:w-[200px] max-sm:h-9 max-sm:flex-1">
-              <SelectValue placeholder="Filtra per stato" />
+              <SelectValue placeholder={t("Filtra per stato")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="tutti">Tutti gli stati</SelectItem>
-              <SelectItem value="bozza">Bozza</SelectItem>
-              <SelectItem value="finalizzata">Finalizzata</SelectItem>
-              <SelectItem value="archiviata">Archiviata</SelectItem>
+              <SelectItem value="tutti">{t("Tutti gli stati")}</SelectItem>
+              <SelectItem value="bozza">{t("Bozza")}</SelectItem>
+              <SelectItem value="finalizzata">{t("Finalizzata")}</SelectItem>
+              <SelectItem value="archiviata">{t("Archiviata")}</SelectItem>
             </SelectContent>
           </Select>
 
@@ -196,7 +198,7 @@ export default function SimulatoreIndex() {
             <Switch id="solo-template" checked={soloTemplate} onCheckedChange={setSoloTemplate} />
             <Label htmlFor="solo-template" className="text-sm font-normal cursor-pointer flex items-center gap-1.5 max-sm:text-[13px]">
               <FileStack className="h-4 w-4 text-muted-foreground max-sm:hidden" />
-              <span className="max-sm:hidden">Solo template</span><span className="sm:hidden">Template</span>
+              <span className="max-sm:hidden">{t("Solo template")}</span><span className="sm:hidden">{t("Template")}</span>
             </Label>
           </div>
         </div>
@@ -226,8 +228,8 @@ export default function SimulatoreIndex() {
           <EmptyState
             icon={Calculator}
             size="lg"
-            title="Nessuna simulazione"
-            description="Crea la tua prima simulazione per stimare margine, prezzo al cliente, IVA e finanziamenti di un contratto — tutto in un foglio interattivo."
+            title={t("Nessuna simulazione")}
+            description={t("Crea la tua prima simulazione per stimare margine, prezzo al cliente, IVA e finanziamenti di un contratto — tutto in un foglio interattivo.")}
             action={{
               label: "Nuova simulazione",
               icon: Plus,
@@ -243,8 +245,8 @@ export default function SimulatoreIndex() {
         <Card>
           <EmptyState
             icon={FileStack}
-            title="Nessun risultato"
-            description="Nessuna simulazione corrisponde ai filtri selezionati."
+            title={t("Nessun risultato")}
+            description={t("Nessuna simulazione corrisponde ai filtri selezionati.")}
             action={{
               label: "Azzera filtri",
               onClick: () => {
@@ -309,7 +311,7 @@ export default function SimulatoreIndex() {
                       {sim.is_template && (
                         <Badge variant="outline" className="text-xs gap-1">
                           <FileStack className="h-3 w-3" />
-                          Template
+                          {t("Template")}
                         </Badge>
                       )}
                     </div>
@@ -321,7 +323,7 @@ export default function SimulatoreIndex() {
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 shrink-0 text-muted-foreground"
-                        aria-label="Azioni simulazione"
+                        aria-label={t("Azioni simulazione")}
                       >
                         <MoreVertical className="h-4 w-4" />
                       </Button>
@@ -329,21 +331,21 @@ export default function SimulatoreIndex() {
                     <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
                       <DropdownMenuItem onClick={() => apri(sim.id)}>
                         <ExternalLink className="mr-2 h-4 w-4" />
-                        Apri
+                        {t("Apri")}
                       </DropdownMenuItem>
                       {sim.is_template && (
                         <DropdownMenuItem onClick={() => void handleNuovaDaTemplate(sim)}>
                           <FilePlus2 className="mr-2 h-4 w-4" />
-                          Nuova da template
+                          {t("Nuova da template")}
                         </DropdownMenuItem>
                       )}
                       <DropdownMenuItem onClick={() => void handleDuplica(sim, false)}>
                         <Copy className="mr-2 h-4 w-4" />
-                        Duplica
+                        {t("Duplica")}
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => void handleDuplica(sim, true)}>
                         <CopyPlus className="mr-2 h-4 w-4" />
-                        Duplica come template
+                        {t("Duplica come template")}
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
@@ -351,7 +353,7 @@ export default function SimulatoreIndex() {
                         onClick={() => setDaEliminare(sim)}
                       >
                         <Trash2 className="mr-2 h-4 w-4" />
-                        Elimina
+                        {t("Elimina")}
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -360,24 +362,20 @@ export default function SimulatoreIndex() {
 
               <CardContent className="flex-1 space-y-3 pb-3">
                 <div>
-                  <p className="text-xs text-muted-foreground">Prezzo cliente</p>
+                  <p className="text-xs text-muted-foreground">{t("Prezzo cliente")}</p>
                   <p className="text-2xl font-bold tabular-nums">
                     {formatCurrency(sim.prezzo_cliente)}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="text-xs font-medium" style={margineStyle(sim.margine_pct)}>
-                    Margine {fmtPct(sim.margine_pct)}
-                  </Badge>
+                  <Badge variant="outline" className="text-xs font-medium" style={margineStyle(sim.margine_pct)}>{t("Margine {margine_pct}", { margine_pct: fmtPct(sim.margine_pct) })}</Badge>
                   <span className="text-xs text-muted-foreground tabular-nums">
                     {formatCurrency(sim.margine_valore)}
                   </span>
                 </div>
               </CardContent>
 
-              <CardFooter className="pt-0 text-xs text-muted-foreground">
-                Aggiornata {formatRelativeTime(sim.updated_at)}
-              </CardFooter>
+              <CardFooter className="pt-0 text-xs text-muted-foreground">{t("Aggiornata {updated_at}", { updated_at: formatRelativeTime(sim.updated_at) })}</CardFooter>
             </Card>
           ))}
         </div>
@@ -390,18 +388,17 @@ export default function SimulatoreIndex() {
       <AlertDialog open={!!daEliminare} onOpenChange={(open) => !open && setDaEliminare(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare la simulazione?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Eliminare la simulazione?")}</AlertDialogTitle>
             <AlertDialogDescription>
               {daEliminare ? (
                 <>
-                  La simulazione <strong>{daEliminare.nome}</strong> verrà eliminata
-                  definitivamente. L'azione non è reversibile.
+                  {t("La simulazione")} <strong>{daEliminare.nome}</strong> {t("verrà eliminata definitivamente. L'azione non è reversibile.")}
                 </>
               ) : null}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={remove.isPending}>Annulla</AlertDialogCancel>
+            <AlertDialogCancel disabled={remove.isPending}>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault();
@@ -413,10 +410,10 @@ export default function SimulatoreIndex() {
               {remove.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Eliminazione…
+                  {t("Eliminazione…")}
                 </>
               ) : (
-                "Elimina"
+                t("Elimina")
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

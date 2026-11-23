@@ -46,6 +46,7 @@ import {
   isComputoTariffaMatch,
 } from "@/lib/computo/quoteItemMapping";
 import type { ComputoVoceLocal } from "@/types/computo";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   voci: ComputoVoceLocal[];
@@ -96,6 +97,7 @@ function rowBg(v: ComputoVoceLocal): string {
 }
 
 export function ComputoPreviewEditor({ voci, onChange, onMatchClick, onTariffaMatchClick }: Props) {
+  const t = useT();
   const [collapsedCaps, setCollapsedCaps] = useState<Set<string>>(new Set());
   const [expandedDesc, setExpandedDesc] = useState<Set<string>>(new Set());
   const [bulkRicarico, setBulkRicarico] = useState(15);
@@ -248,33 +250,33 @@ export function ComputoPreviewEditor({ voci, onChange, onMatchClick, onTariffaMa
             </div>
             <div>
               <div className="text-sm font-semibold">
-                Controllo qualità computo
+                {t("Controllo qualità computo")}
               </div>
               <p className="text-xs text-muted-foreground">
                 {reviewSummary.hasBlockingIssues
-                  ? `${reviewSummary.blockingCount} correzioni bloccanti prima della generazione.`
-                  : "Nessun blocco: puoi generare il preventivo dopo la revisione commerciale."}
+                  ? t("{blockingCount} correzioni bloccanti prima della generazione.", { blockingCount: String(reviewSummary.blockingCount ?? "") })
+                  : t("Nessun blocco: puoi generare il preventivo dopo la revisione commerciale.")}
               </p>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:min-w-[520px]">
             <div className="rounded-md border bg-background px-2 py-1.5">
-              <div className="text-[10px] uppercase text-muted-foreground">Totale impresa</div>
+              <div className="text-[10px] uppercase text-muted-foreground">{t("Totale impresa")}</div>
               <div className="text-sm font-semibold text-orange-600">{formatCurrency(reviewSummary.totalImpresa)}</div>
             </div>
             <div className="rounded-md border bg-background px-2 py-1.5">
-              <div className="text-[10px] uppercase text-muted-foreground">Delta computo</div>
+              <div className="text-[10px] uppercase text-muted-foreground">{t("Delta computo")}</div>
               <div className={reviewSummary.deltaImpresaVsComputo >= 0 ? "text-sm font-semibold text-emerald-700" : "text-sm font-semibold text-rose-700"}>
                 {reviewSummary.deltaImpresaVsComputo >= 0 ? "+" : ""}{formatCurrency(reviewSummary.deltaImpresaVsComputo)}
               </div>
             </div>
             <div className="rounded-md border bg-background px-2 py-1.5">
-              <div className="text-[10px] uppercase text-muted-foreground">Match listino</div>
+              <div className="text-[10px] uppercase text-muted-foreground">{t("Match listino")}</div>
               <div className="text-sm font-semibold">{reviewSummary.matchRatePct}%</div>
             </div>
             <div className="rounded-md border bg-background px-2 py-1.5">
-              <div className="text-[10px] uppercase text-muted-foreground">Confidenza AI</div>
+              <div className="text-[10px] uppercase text-muted-foreground">{t("Confidenza AI")}</div>
               <div className="text-sm font-semibold">{Math.round(reviewSummary.averageConfidence * 100)}%</div>
             </div>
           </div>
@@ -283,15 +285,15 @@ export function ComputoPreviewEditor({ voci, onChange, onMatchClick, onTariffaMa
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="mr-1 flex items-center gap-1 text-[10px] font-medium uppercase text-muted-foreground">
             <Filter className="h-3 w-3" />
-            Filtri
+            {t("Filtri")}
           </span>
           {[
-            { value: "all", label: `Tutte ${reviewSummary.totalRows}` },
-            { value: "blocking", label: `Blocchi ${reviewSummary.blockingCount}` },
-            { value: "warnings", label: `Avvisi ${reviewSummary.warningCount}` },
-            { value: "low_confidence", label: `Bassa AI ${reviewSummary.lowConfidenceCount}` },
-            { value: "unmatched", label: `Da listino ${reviewSummary.unmatchedCount}` },
-            { value: "duplicates", label: `Duplicate ${reviewSummary.duplicateCount}` },
+            { value: "all", label: t("Tutte {totalRows}", { totalRows: String(reviewSummary.totalRows ?? "") }) },
+            { value: "blocking", label: t("Blocchi {blockingCount}", { blockingCount: String(reviewSummary.blockingCount ?? "") }) },
+            { value: "warnings", label: t("Avvisi {warningCount}", { warningCount: String(reviewSummary.warningCount ?? "") }) },
+            { value: "low_confidence", label: t("Bassa AI {lowConfidenceCount}", { lowConfidenceCount: String(reviewSummary.lowConfidenceCount ?? "") }) },
+            { value: "unmatched", label: t("Da listino {unmatchedCount}", { unmatchedCount: String(reviewSummary.unmatchedCount ?? "") }) },
+            { value: "duplicates", label: t("Duplicate {duplicateCount}", { duplicateCount: String(reviewSummary.duplicateCount ?? "") }) },
           ].map((item) => (
             <Button
               key={item.value}
@@ -305,14 +307,10 @@ export function ComputoPreviewEditor({ voci, onChange, onMatchClick, onTariffaMa
             </Button>
           ))}
           {reviewSummary.zeroPriceCount > 0 && (
-            <Badge variant="outline" className="ml-auto border-amber-300 bg-amber-50 text-amber-700">
-              {reviewSummary.zeroPriceCount} prezzi a zero
-            </Badge>
+            <Badge variant="outline" className="ml-auto border-amber-300 bg-amber-50 text-amber-700">{t("{zeroPriceCount} prezzi a zero", { zeroPriceCount: String(reviewSummary.zeroPriceCount ?? "") })}</Badge>
           )}
           {reviewSummary.zeroQuantityCount > 0 && (
-            <Badge variant="outline" className="border-rose-300 bg-rose-50 text-rose-700">
-              {reviewSummary.zeroQuantityCount} quantità da correggere
-            </Badge>
+            <Badge variant="outline" className="border-rose-300 bg-rose-50 text-rose-700">{t("{zeroQuantityCount} quantità da correggere", { zeroQuantityCount: String(reviewSummary.zeroQuantityCount ?? "") })}</Badge>
           )}
         </div>
       </div>
@@ -320,10 +318,10 @@ export function ComputoPreviewEditor({ voci, onChange, onMatchClick, onTariffaMa
       {/* Bulk actions */}
       <div className="flex items-center gap-2 mb-2 flex-wrap">
         <Button variant="outline" size="sm" onClick={() => toggleAll(true)}>
-          Seleziona tutto
+          {t("Seleziona tutto")}
         </Button>
         <Button variant="outline" size="sm" onClick={() => toggleAll(false)}>
-          Deseleziona
+          {t("Deseleziona")}
         </Button>
         {/* Stats abbinamento listino */}
         {(matchStats.manual > 0 || matchStats.auto > 0 || matchStats.unmatched > 0) && hasCatalogPicker ? (
@@ -331,25 +329,23 @@ export function ComputoPreviewEditor({ voci, onChange, onMatchClick, onTariffaMa
             {matchStats.manual > 0 ? (
               <Badge variant="outline" className="border-emerald-300 text-emerald-700 bg-emerald-50">
                 <Link2 className="h-2.5 w-2.5 mr-0.5" />
-                {matchStats.manual} abbinate
+                {matchStats.manual} {t("abbinate")}
               </Badge>
             ) : null}
             {matchStats.auto > 0 ? (
               <Badge variant="outline" className="border-blue-300 text-blue-700 bg-blue-50">
                 <Sparkles className="h-2.5 w-2.5 mr-0.5" />
-                {matchStats.auto} suggerite AI
+                {matchStats.auto} {t("suggerite AI")}
               </Badge>
             ) : null}
             {matchStats.tariffs > 0 ? (
               <Badge variant="outline" className="border-orange-300 text-orange-700 bg-orange-50">
                 <Wrench className="h-2.5 w-2.5 mr-0.5" />
-                {matchStats.tariffs} tariffe
+                {matchStats.tariffs} {t("tariffe")}
               </Badge>
             ) : null}
             {matchStats.unmatched > 0 ? (
-              <Badge variant="outline" className="border-amber-300 text-amber-700 bg-amber-50">
-                {matchStats.unmatched} da abbinare
-              </Badge>
+              <Badge variant="outline" className="border-amber-300 text-amber-700 bg-amber-50">{t("{unmatched} da abbinare", { unmatched: String(matchStats.unmatched ?? "") })}</Badge>
             ) : null}
           </div>
         ) : null}
@@ -364,7 +360,7 @@ export function ComputoPreviewEditor({ voci, onChange, onMatchClick, onTariffaMa
           />
           <span className="text-xs">%</span>
           <Button variant="outline" size="sm" onClick={applyBulkRicaricoToAll}>
-            <Percent className="h-3 w-3 mr-1" /> Applica a tutto
+            <Percent className="h-3 w-3 mr-1" /> {t("Applica a tutto")}
           </Button>
         </div>
       </div>
@@ -372,15 +368,15 @@ export function ComputoPreviewEditor({ voci, onChange, onMatchClick, onTariffaMa
       {/* Fix 17: Legenda match — visibile solo se picker attivo */}
       {hasCatalogPicker && (matchStats.manual > 0 || matchStats.auto > 0) && (
         <div className="flex items-center gap-3 text-[10px] text-muted-foreground pb-1">
-          <span className="font-medium">Legenda:</span>
+          <span className="font-medium">{t("Legenda:")}</span>
           <span className="flex items-center gap-0.5">
             <Link2 className="h-2.5 w-2.5 text-emerald-600" />
-            <span className="text-emerald-700">Abbinamento manuale</span>
+            <span className="text-emerald-700">{t("Abbinamento manuale")}</span>
           </span>
           <MoveRight className="h-2.5 w-2.5" />
           <span className="flex items-center gap-0.5">
             <Sparkles className="h-2.5 w-2.5 text-blue-500" />
-            <span className="text-blue-700">Suggerito AI</span>
+            <span className="text-blue-700">{t("Suggerito AI")}</span>
           </span>
         </div>
       )}
@@ -393,22 +389,22 @@ export function ComputoPreviewEditor({ voci, onChange, onMatchClick, onTariffaMa
             className={`grid ${gridCols} gap-1 text-[10px] font-medium text-muted-foreground px-1 border-b pb-1`}
           >
             <span></span>
-            <span>Codice</span>
-          <span>Descrizione</span>
-            {hasCatalogPicker ? <span>Listino</span> : null}
+            <span>{t("Codice")}</span>
+          <span>{t("Descrizione")}</span>
+            {hasCatalogPicker ? <span>{t("Listino")}</span> : null}
             <span>U.M.</span>
-            <span className="text-right">Q.tà</span>
-            <span className="text-right text-slate-400">Pr. Computo</span>
-            <span className="text-right text-orange-500">Pr. Impresa</span>
-            <span className="text-right">Ric. %</span>
-            <span className="text-right text-orange-500">Importo</span>
+            <span className="text-right">{t("Q.tà")}</span>
+            <span className="text-right text-slate-400">{t("Pr. Computo")}</span>
+            <span className="text-right text-orange-500">{t("Pr. Impresa")}</span>
+            <span className="text-right">{t("Ric. %")}</span>
+            <span className="text-right text-orange-500">{t("Importo")}</span>
             <TooltipProvider delayDuration={200}>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span className="text-center cursor-help">AI</span>
                 </TooltipTrigger>
                 <TooltipContent className="text-xs">
-                  Confidenza estrazione AI
+                  {t("Confidenza estrazione AI")}
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -417,7 +413,7 @@ export function ComputoPreviewEditor({ voci, onChange, onMatchClick, onTariffaMa
           {/* Capitoli + voci */}
           {capitoli.length === 0 ? (
             <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-              Nessuna voce corrisponde al filtro selezionato.
+              {t("Nessuna voce corrisponde al filtro selezionato.")}
             </div>
           ) : capitoli.map(([capNome, capVoci]) => {
             const collapsed = collapsedCaps.has(capNome);
@@ -438,7 +434,7 @@ export function ComputoPreviewEditor({ voci, onChange, onMatchClick, onTariffaMa
                     <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
                   )}
                   <span className="text-xs font-semibold flex-1">{capNome}</span>
-                  <span className="text-xs text-muted-foreground">{capVoci.length} voci</span>
+                  <span className="text-xs text-muted-foreground">{t("{n} voci", { n: capVoci.length })}</span>
                   <span className="text-xs font-semibold text-orange-600">
                     {formatCurrency(totaleCapitolo)}
                   </span>
@@ -477,7 +473,7 @@ export function ComputoPreviewEditor({ voci, onChange, onMatchClick, onTariffaMa
                         checked={v._isIncluded}
                         onCheckedChange={(c) => updateVoce(v.id, { _isIncluded: !!c })}
                         className="h-3.5 w-3.5"
-                        aria-label={`Includi voce: ${v.descrizione_breve}`}
+                        aria-label={t("Includi voce: {descrizione_breve}", { descrizione_breve: String(v.descrizione_breve ?? "") })}
                       />
 
                       {/* Codice */}
@@ -542,7 +538,7 @@ export function ComputoPreviewEditor({ voci, onChange, onMatchClick, onTariffaMa
                                   if (isTariffa && onTariffaMatchClick) onTariffaMatchClick(v.id, v.descrizione_breve);
                                   else onMatchClick?.(v.id, v.descrizione_breve);
                                 }}
-                                aria-label={`Cambia abbinamento: ${v._matched_name}`}
+                                aria-label={t("Cambia abbinamento: {_matched_name}", { _matched_name: String(v._matched_name ?? "") })}
                               >
                                 {isTariffa ? (
                                   <Wrench className="inline h-2.5 w-2.5 mr-0.5 text-orange-500" />
@@ -551,13 +547,13 @@ export function ComputoPreviewEditor({ voci, onChange, onMatchClick, onTariffaMa
                                 ) : (
                                   <Link2 className="inline h-2.5 w-2.5 mr-0.5" />
                                 )}
-                                {v._matched_name ?? (isTariffa ? "tariffa" : "abbinato")}
+                                {v._matched_name ?? (isTariffa ? t("tariffa") : t("abbinato"))}
                               </button>
                               <button
                                 type="button"
                                 className="text-muted-foreground hover:text-rose-600 p-0.5"
-                                title="Rimuovi abbinamento"
-                                aria-label={`Rimuovi abbinamento per: ${v.descrizione_breve}`}
+                                title={t("Rimuovi abbinamento")}
+                                aria-label={t("Rimuovi abbinamento per: {descrizione_breve}", { descrizione_breve: String(v.descrizione_breve ?? "") })}
                                 onClick={() => clearMatch(v.id)}
                               >
                                 <Link2Off className="h-3 w-3" />
@@ -569,11 +565,11 @@ export function ComputoPreviewEditor({ voci, onChange, onMatchClick, onTariffaMa
                                 type="button"
                                 className="min-w-0 truncate rounded border border-amber-300 bg-amber-50 px-1 py-0.5 text-[10px] text-amber-700 hover:bg-amber-100"
                                 onClick={() => onMatchClick?.(v.id, v.descrizione_breve)}
-                                aria-label={`Abbina prodotto dal listino: ${v.descrizione_breve}`}
+                                aria-label={t("Abbina prodotto dal listino: {descrizione_breve}", { descrizione_breve: String(v.descrizione_breve ?? "") })}
                                 disabled={!onMatchClick}
                               >
                                 <Search className="inline h-2.5 w-2.5 mr-0.5" />
-                                Prod.
+                                {t("Prod.")}
                               </button>
                               <button
                                 type="button"
@@ -583,11 +579,11 @@ export function ComputoPreviewEditor({ voci, onChange, onMatchClick, onTariffaMa
                                     : "border-slate-200 bg-background text-muted-foreground"
                                 }`}
                                 onClick={() => onTariffaMatchClick?.(v.id, v.descrizione_breve)}
-                                aria-label={`Abbina tariffa o manodopera: ${v.descrizione_breve}`}
+                                aria-label={t("Abbina tariffa o manodopera: {descrizione_breve}", { descrizione_breve: String(v.descrizione_breve ?? "") })}
                                 disabled={!onTariffaMatchClick}
                               >
                                 <Wrench className="inline h-2.5 w-2.5 mr-0.5" />
-                                Tar.
+                                {t("Tar.")}
                               </button>
                             </div>
                           )}
@@ -607,7 +603,7 @@ export function ComputoPreviewEditor({ voci, onChange, onMatchClick, onTariffaMa
                         className="h-6 text-[11px] text-right px-1"
                         step="0.01"
                         min="0"
-                        aria-label="Quantità"
+                        aria-label={t("Quantità")}
                       />
 
                       {/* Prezzo computo (read-only) */}
@@ -625,7 +621,7 @@ export function ComputoPreviewEditor({ voci, onChange, onMatchClick, onTariffaMa
                         className="h-6 text-[11px] text-right px-1 border-orange-200 focus:border-orange-400"
                         step="0.01"
                         min="0"
-                        aria-label="Prezzo impresa"
+                        aria-label={t("Prezzo impresa")}
                       />
 
                       {/* Fix 2: Ricarico — min="0" max="200" */}
@@ -639,7 +635,7 @@ export function ComputoPreviewEditor({ voci, onChange, onMatchClick, onTariffaMa
                         step="0.5"
                         min="0"
                         max="200"
-                        aria-label="Ricarico %"
+                        aria-label={t("Ricarico %")}
                       />
 
                       {/* Importo impresa (calculated) */}

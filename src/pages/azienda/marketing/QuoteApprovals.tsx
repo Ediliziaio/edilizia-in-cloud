@@ -61,7 +61,7 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { usePermissions } from "@/hooks/usePermissions";
 import { formatCurrency } from "@/lib/formatters";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface QuoteApproval {
   id: string;
@@ -91,6 +91,7 @@ interface QuoteInfo {
 }
 
 export default function QuoteApprovals() {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const permissions = usePermissions();
   const qc = useQueryClient();
@@ -247,12 +248,12 @@ export default function QuoteApprovals() {
         queryKey: ["quote-approvals-quotes", quoteIds],
       });
       qc.invalidateQueries({ queryKey: ["quote-approvals-pending-count", companyId] });
-      toast.success("Decisione registrata");
+      toast.success(t("Decisione registrata"));
       setDialog({ open: false, approval: null, mode: null });
       setNote("");
       setCounterPct(0);
     },
-    onError: (e: Error) => toast.error(`Errore: ${e.message}`),
+    onError: (e: Error) => toast.error(t("Errore: {message}", { message: String(e.message ?? "") })),
   });
 
   /** Approval id correntemente in attesa di server response (per disabilitare i suoi pulsanti). */
@@ -300,7 +301,7 @@ export default function QuoteApprovals() {
         <Card>
           <CardContent className="p-8 text-center text-muted-foreground">
             <AlertCircle className="h-10 w-10 mx-auto mb-3 opacity-50" />
-            <p>Accesso riservato agli admin.</p>
+            <p>{t("Accesso riservato agli admin.")}</p>
           </CardContent>
         </Card>
       </div>
@@ -385,19 +386,19 @@ export default function QuoteApprovals() {
           {a.decision === "approved" && (
             <Badge className="bg-emerald-600 hover:bg-emerald-600 gap-1">
               <Check className="h-3 w-3" />
-              Approvato
+              {t("Approvato")}
             </Badge>
           )}
           {a.decision === "rejected" && (
             <Badge variant="destructive" className="gap-1">
               <XCircle className="h-3 w-3" />
-              Rifiutato
+              {t("Rifiutato")}
             </Badge>
           )}
           {a.decision === "counter_proposed" && (
             <Badge className="bg-blue-600 hover:bg-blue-600 gap-1">
               <Send className="h-3 w-3" />
-              Contro-proposta
+              {t("Contro-proposta")}
             </Badge>
           )}
           {isPending && (
@@ -406,12 +407,12 @@ export default function QuoteApprovals() {
               className="border-orange-500 text-orange-600 gap-1 bg-orange-50 dark:bg-orange-950/30"
             >
               <Clock className="h-3 w-3" />
-              Pending
+              {t("Pending")}
             </Badge>
           )}
           {a.decided_at && (
             <div className="text-[10px] text-muted-foreground mt-0.5">
-              {format(new Date(a.decided_at), "dd MMM yy", { locale: it })}
+              {format(new Date(a.decided_at), "dd MMM yy", { locale: dateFnsCampo() })}
             </div>
           )}
         </TableCell>
@@ -426,7 +427,7 @@ export default function QuoteApprovals() {
                   disabled={isThisRowPending}
                 >
                   {isThisRowPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}
-                  Approva
+                  {t("Approva")}
                 </Button>
                 <Button
                   size="sm"
@@ -434,10 +435,10 @@ export default function QuoteApprovals() {
                   className="h-7 text-xs"
                   onClick={() => openDecide(a, "counter")}
                   disabled={isThisRowPending}
-                  title="Contro-proposta"
+                  title={t("Contro-proposta")}
                 >
                   <Send className="h-3 w-3 mr-1" />
-                  Contro
+                  {t("Contro")}
                 </Button>
                 <Button
                   size="sm"
@@ -447,7 +448,7 @@ export default function QuoteApprovals() {
                   disabled={isThisRowPending}
                 >
                   <XCircle className="h-3 w-3 mr-1" />
-                  Rifiuta
+                  {t("Rifiuta")}
                 </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -459,24 +460,21 @@ export default function QuoteApprovals() {
                     {q && (
                       <DropdownMenuItem onClick={() => setQuickViewId(q.id)}>
                         <Eye className="h-4 w-4 mr-2" />
-                        Anteprima margini
+                        {t("Anteprima margini")}
                       </DropdownMenuItem>
                     )}
                     {q && (
                       <DropdownMenuItem asChild>
                         <Link to={`/azienda/marketing/preventivi/${q.id}`}>
                           <ExternalLink className="h-4 w-4 mr-2" />
-                          Apri preventivo
+                          {t("Apri preventivo")}
                         </Link>
                       </DropdownMenuItem>
                     )}
                     {q?.commission_amount_snapshot != null && (
                       <>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem disabled className="text-xs">
-                          Provv. teorica:{" "}
-                          {formatCurrency(q.commission_amount_snapshot)}
-                        </DropdownMenuItem>
+                        <DropdownMenuItem disabled className="text-xs">{t("Provv. teorica: {commission_amount_snapshot}", { commission_amount_snapshot: formatCurrency(q.commission_amount_snapshot) })}</DropdownMenuItem>
                       </>
                     )}
                   </DropdownMenuContent>
@@ -491,13 +489,13 @@ export default function QuoteApprovals() {
                         variant="ghost"
                         size="icon"
                         className="h-9 w-9 md:h-7 md:w-7"
-                        aria-label="Anteprima margini"
+                        aria-label={t("Anteprima margini")}
                         onClick={() => setQuickViewId(q.id)}
                       >
                         <Eye className="h-4 w-4" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>Anteprima margini</TooltipContent>
+                    <TooltipContent>{t("Anteprima margini")}</TooltipContent>
                   </Tooltip>
                 )}
                 {q && (
@@ -508,14 +506,14 @@ export default function QuoteApprovals() {
                         size="icon"
                         asChild
                         className="h-9 w-9 md:h-7 md:w-7"
-                        aria-label="Apri preventivo"
+                        aria-label={t("Apri preventivo")}
                       >
                         <Link to={`/azienda/marketing/preventivi/${q.id}`}>
                           <ExternalLink className="h-4 w-4" />
                         </Link>
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>Apri preventivo</TooltipContent>
+                    <TooltipContent>{t("Apri preventivo")}</TooltipContent>
                   </Tooltip>
                 )}
               </>
@@ -533,14 +531,14 @@ export default function QuoteApprovals() {
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <TableHead>Preventivo</TableHead>
-              <TableHead>Commerciale</TableHead>
-              <TableHead className="text-right">Importo</TableHead>
-              <TableHead className="text-right">Sconto</TableHead>
-              <TableHead className="text-right">Margine</TableHead>
-              <TableHead>Nota richiesta</TableHead>
-              <TableHead>Stato</TableHead>
-              <TableHead className="text-right">Azioni</TableHead>
+              <TableHead>{t("Preventivo")}</TableHead>
+              <TableHead>{t("Commerciale")}</TableHead>
+              <TableHead className="text-right">{t("Importo")}</TableHead>
+              <TableHead className="text-right">{t("Sconto")}</TableHead>
+              <TableHead className="text-right">{t("Margine")}</TableHead>
+              <TableHead>{t("Nota richiesta")}</TableHead>
+              <TableHead>{t("Stato")}</TableHead>
+              <TableHead className="text-right">{t("Azioni")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>{rows.map((r, idx) => renderRow(r, idx))}</TableBody>
@@ -572,17 +570,17 @@ export default function QuoteApprovals() {
           </div>
           {a.decision === "approved" && <Badge className="bg-emerald-600 hover:bg-emerald-600 gap-1 text-[10px]"><Check className="h-3 w-3" />OK</Badge>}
           {a.decision === "rejected" && <Badge variant="destructive" className="gap-1 text-[10px]"><XCircle className="h-3 w-3" />KO</Badge>}
-          {a.decision === "counter_proposed" && <Badge className="bg-blue-600 hover:bg-blue-600 gap-1 text-[10px]"><Send className="h-3 w-3" />Contro</Badge>}
-          {isPending && <Badge variant="outline" className="border-orange-500 text-orange-600 gap-1 text-[10px] bg-orange-50"><Clock className="h-3 w-3" />Pending</Badge>}
+          {a.decision === "counter_proposed" && <Badge className="bg-blue-600 hover:bg-blue-600 gap-1 text-[10px]"><Send className="h-3 w-3" />{t("Contro")}</Badge>}
+          {isPending && <Badge variant="outline" className="border-orange-500 text-orange-600 gap-1 text-[10px] bg-orange-50"><Clock className="h-3 w-3" />{t("Pending")}</Badge>}
         </div>
 
         <div className="grid grid-cols-3 gap-2 text-xs">
           <div>
-            <p className="text-[9px] uppercase text-muted-foreground">Importo</p>
+            <p className="text-[9px] uppercase text-muted-foreground">{t("Importo")}</p>
             <p className="font-semibold tabular-nums">{formatCurrency(a.importo_preventivo)}</p>
           </div>
           <div>
-            <p className="text-[9px] uppercase text-muted-foreground">Sconto</p>
+            <p className="text-[9px] uppercase text-muted-foreground">{t("Sconto")}</p>
             <p className="font-semibold text-orange-700 tabular-nums">
               {a.sconto_richiesto_pct.toFixed(1)}%
               {a.decision === "counter_proposed" && a.sconto_autorizzato_pct != null && (
@@ -591,7 +589,7 @@ export default function QuoteApprovals() {
             </p>
           </div>
           <div>
-            <p className="text-[9px] uppercase text-muted-foreground">Margine</p>
+            <p className="text-[9px] uppercase text-muted-foreground">{t("Margine")}</p>
             <p className={`font-semibold tabular-nums ${
               a.margine_stimato_pct == null ? "text-muted-foreground" :
               a.margine_stimato_pct < 15 ? "text-red-600" :
@@ -611,26 +609,26 @@ export default function QuoteApprovals() {
             <Button size="sm" className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700"
               onClick={() => openDecide(a, "approve")} disabled={isThisRowPending}>
               {isThisRowPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}
-              Approva
+              {t("Approva")}
             </Button>
             <Button size="sm" variant="outline" className="h-8 text-xs"
               onClick={() => openDecide(a, "counter")} disabled={isThisRowPending}>
-              <Send className="h-3 w-3 mr-1" />Contro
+              <Send className="h-3 w-3 mr-1" />{t("Contro")}
             </Button>
             <Button size="sm" variant="outline" className="h-8 text-xs text-destructive border-destructive/30"
               onClick={() => openDecide(a, "reject")} disabled={isThisRowPending}>
-              <XCircle className="h-3 w-3 mr-1" />Rifiuta
+              <XCircle className="h-3 w-3 mr-1" />{t("Rifiuta")}
             </Button>
           </div>
         )}
         {!isPending && q && (
           <div className="flex gap-2 pt-1">
             <Button size="sm" variant="outline" className="flex-1 h-8 text-xs" onClick={() => setQuickViewId(q.id)}>
-              <Eye className="h-3.5 w-3.5 mr-1.5" />Anteprima
+              <Eye className="h-3.5 w-3.5 mr-1.5" />{t("Anteprima")}
             </Button>
             <Button size="sm" variant="outline" className="flex-1 h-8 text-xs" asChild>
               <Link to={`/azienda/marketing/preventivi/${q.id}`}>
-                <ExternalLink className="h-3.5 w-3.5 mr-1.5" />Apri
+                <ExternalLink className="h-3.5 w-3.5 mr-1.5" />{t("Apri")}
               </Link>
             </Button>
           </div>
@@ -650,21 +648,21 @@ export default function QuoteApprovals() {
           </div>
           <div>
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
-              Approvazioni sconto
+              {t("Approvazioni sconto")}
             </h1>
             <p className="text-sm text-muted-foreground">
-              Valuta le richieste dei commerciali · margine e provvigione in chiaro
+              {t("Valuta le richieste dei commerciali · margine e provvigione in chiaro")}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2 max-sm:w-full">
           <Select value={spFilter} onValueChange={setSpFilter}>
             <SelectTrigger className="w-[200px] h-9 max-sm:w-full">
-              <SelectValue placeholder="Tutti i commerciali" />
+              <SelectValue placeholder={t("Tutti i commerciali")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="tutti">Tutti i commerciali</SelectItem>
-              <SelectItem value="none">Senza commerciale</SelectItem>
+              <SelectItem value="tutti">{t("Tutti i commerciali")}</SelectItem>
+              <SelectItem value="none">{t("Senza commerciale")}</SelectItem>
               {salespeopleList.map((s) => (
                 <SelectItem key={s.id} value={s.id}>
                   {s.first_name} {s.last_name}
@@ -681,13 +679,13 @@ export default function QuoteApprovals() {
           <CardContent className="p-4 max-sm:px-2 max-sm:py-1.5">
             <div className="flex items-center justify-between">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide max-sm:truncate max-sm:text-[11px]">
-                In attesa
+                {t("In attesa")}
               </p>
               <Clock className="h-4 w-4 text-orange-500 max-sm:hidden" />
             </div>
             <p className="text-2xl font-bold mt-1.5 max-sm:mt-0 max-sm:text-lg">{pending.length}</p>
             <p className="text-xs text-muted-foreground mt-0.5 truncate max-sm:hidden">
-              {pendingValue > 0 ? formatCurrency(pendingValue) + " da decidere" : "nessuna richiesta"}
+              {pendingValue > 0 ? formatCurrency(pendingValue) + " da decidere" : t("nessuna richiesta")}
             </p>
           </CardContent>
         </Card>
@@ -695,7 +693,7 @@ export default function QuoteApprovals() {
           <CardContent className="p-4 max-sm:px-2 max-sm:py-1.5">
             <div className="flex items-center justify-between">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide max-sm:truncate max-sm:text-[11px]">
-                Approvate
+                {t("Approvate")}
               </p>
               <Check className="h-4 w-4 text-emerald-500 max-sm:hidden" />
             </div>
@@ -704,8 +702,8 @@ export default function QuoteApprovals() {
             </p>
             <p className="text-xs text-muted-foreground mt-0.5 max-sm:hidden">
               {counterCount > 0
-                ? `${approvedCount} + ${counterCount} contro-proposte`
-                : "nel totale storico"}
+                ? t("{approvedCount} + {counterCount} contro-proposte", { approvedCount: String(approvedCount ?? ""), counterCount: String(counterCount ?? "") })
+                : t("nel totale storico")}
             </p>
           </CardContent>
         </Card>
@@ -713,14 +711,14 @@ export default function QuoteApprovals() {
           <CardContent className="p-4 max-sm:px-2 max-sm:py-1.5">
             <div className="flex items-center justify-between">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide max-sm:truncate max-sm:text-[11px]">
-                Rifiutate
+                {t("Rifiutate")}
               </p>
               <XCircle className="h-4 w-4 text-red-500 max-sm:hidden" />
             </div>
             <p className="text-2xl font-bold mt-1.5 max-sm:mt-0 max-sm:text-lg">{rejectedCount}</p>
             <p className="text-xs text-muted-foreground mt-0.5 max-sm:hidden">
               {approvalRate !== null
-                ? `${approvalRate}% approval rate`
+                ? t("{approvalRate}% approval rate", { approvalRate: String(approvalRate ?? "") })
                 : "—"}
             </p>
           </CardContent>
@@ -729,7 +727,7 @@ export default function QuoteApprovals() {
           <CardContent className="p-4 max-sm:px-2 max-sm:py-1.5">
             <div className="flex items-center justify-between">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide max-sm:truncate max-sm:text-[11px]">
-                Sconto<span className="max-sm:hidden"> medio autorizzato</span>
+                {t("Sconto")}<span className="max-sm:hidden"> {t("medio autorizzato")}</span>
               </p>
               <TrendingDown className="h-4 w-4 text-primary max-sm:hidden" />
             </div>
@@ -739,7 +737,7 @@ export default function QuoteApprovals() {
                 : "—"}
             </p>
             <p className="text-xs text-muted-foreground mt-0.5 max-sm:hidden">
-              su {approvedCount + counterCount} autorizzat
+              {t("su")} {approvedCount + counterCount} {t("autorizzat")}
               {approvedCount + counterCount === 1 ? "a" : "e"}
             </p>
           </CardContent>
@@ -750,7 +748,7 @@ export default function QuoteApprovals() {
       <Tabs value={subTab} onValueChange={setSubTab}>
         <TabsList className="h-9">
           <TabsTrigger value="pending" className="gap-1.5 text-xs">
-            Da decidere
+            {t("Da decidere")}
             <span
               className={`text-[10px] rounded px-1.5 py-0.5 tabular-nums ${
                 pending.length > 0
@@ -762,7 +760,7 @@ export default function QuoteApprovals() {
             </span>
           </TabsTrigger>
           <TabsTrigger value="history" className="gap-1.5 text-xs">
-            Storico
+            {t("Storico")}
             <span className="text-[10px] bg-muted rounded px-1.5 py-0.5 tabular-nums">
               {decided.length}
             </span>
@@ -772,14 +770,14 @@ export default function QuoteApprovals() {
         <TabsContent value="pending" className="mt-4">
           {isLoading ? (
             <div className="p-12 text-center text-muted-foreground border rounded-lg">
-              Caricamento…
+              {t("Caricamento…")}
             </div>
           ) : pending.length === 0 ? (
             <div className="border rounded-lg p-12 text-center">
               <Inbox className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" />
-              <p className="font-medium">Nessuna richiesta in attesa</p>
+              <p className="font-medium">{t("Nessuna richiesta in attesa")}</p>
               <p className="text-sm text-muted-foreground mt-1">
-                Ottimo! Tutte le richieste sono state evase.
+                {t("Ottimo! Tutte le richieste sono state evase.")}
               </p>
             </div>
           ) : (
@@ -791,9 +789,9 @@ export default function QuoteApprovals() {
           {decided.length === 0 ? (
             <div className="border rounded-lg p-12 text-center">
               <Inbox className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" />
-              <p className="font-medium">Nessuna decisione ancora</p>
+              <p className="font-medium">{t("Nessuna decisione ancora")}</p>
               <p className="text-sm text-muted-foreground mt-1">
-                Lo storico comparirà qui dopo la prima decisione.
+                {t("Lo storico comparirà qui dopo la prima decisione.")}
               </p>
             </div>
           ) : (
@@ -819,7 +817,7 @@ export default function QuoteApprovals() {
                   <div className="h-8 w-8 rounded-lg bg-emerald-100 dark:bg-emerald-950/40 flex items-center justify-center">
                     <Check className="h-4 w-4 text-emerald-600" />
                   </div>
-                  Approva lo sconto
+                  {t("Approva lo sconto")}
                 </>
               )}
               {dialog.mode === "reject" && (
@@ -827,7 +825,7 @@ export default function QuoteApprovals() {
                   <div className="h-8 w-8 rounded-lg bg-red-100 dark:bg-red-950/40 flex items-center justify-center">
                     <XCircle className="h-4 w-4 text-red-600" />
                   </div>
-                  Rifiuta la richiesta
+                  {t("Rifiuta la richiesta")}
                 </>
               )}
               {dialog.mode === "counter" && (
@@ -835,23 +833,23 @@ export default function QuoteApprovals() {
                   <div className="h-8 w-8 rounded-lg bg-blue-100 dark:bg-blue-950/40 flex items-center justify-center">
                     <Send className="h-4 w-4 text-blue-600" />
                   </div>
-                  Contro-proposta
+                  {t("Contro-proposta")}
                 </>
               )}
             </DialogTitle>
             <DialogDescription>
               {dialog.approval && (
                 <>
-                  Preventivo{" "}
+                  {t("Preventivo")}{" "}
                   <span className="font-mono">
                     {quotesById.get(dialog.approval.quote_id)?.quote_number ??
                       dialog.approval.quote_id.slice(0, 8)}
                   </span>{" "}
-                  · richiesto{" "}
+                  {t("· richiesto")}{" "}
                   <strong className="text-orange-600">
                     {dialog.approval.sconto_richiesto_pct.toFixed(1)}%
                   </strong>{" "}
-                  su {formatCurrency(dialog.approval.importo_preventivo)}
+                  {t("su")} {formatCurrency(dialog.approval.importo_preventivo)}
                 </>
               )}
             </DialogDescription>
@@ -860,10 +858,8 @@ export default function QuoteApprovals() {
             {dialog.mode === "counter" && (
               <div>
                 <Label>
-                  Sconto autorizzato (%) ·{" "}
-                  <span className="text-xs text-muted-foreground font-normal">
-                    range 0 – {counterMax.toFixed(1)}%
-                  </span>
+                  {t("Sconto autorizzato (%) ·")}{" "}
+                  <span className="text-xs text-muted-foreground font-normal">{t("range 0 – {counterMax}%", { counterMax: counterMax.toFixed(1) })}</span>
                 </Label>
                 <Input
                   type="number"
@@ -881,17 +877,15 @@ export default function QuoteApprovals() {
                   className={counterInvalid ? "border-red-400 focus-visible:ring-red-400" : ""}
                 />
                 {counterInvalid && (
-                  <p className="text-[11px] text-red-600 mt-1">
-                    Inserisci un valore tra 0 e {counterMax.toFixed(1)}%
-                  </p>
+                  <p className="text-[11px] text-red-600 mt-1">{t("Inserisci un valore tra 0 e {counterMax}%", { counterMax: counterMax.toFixed(1) })}</p>
                 )}
               </div>
             )}
             <div>
               <Label>
                 {dialog.mode === "reject"
-                  ? "Motivazione rifiuto *"
-                  : "Nota per il commerciale (opzionale)"}
+                  ? t("Motivazione rifiuto *")
+                  : t("Nota per il commerciale (opzionale)")}
               </Label>
               <Textarea
                 rows={3}
@@ -899,14 +893,14 @@ export default function QuoteApprovals() {
                 onChange={(e) => setNote(e.target.value)}
                 placeholder={
                   dialog.mode === "reject"
-                    ? "Spiega perché non puoi autorizzare (visibile al commerciale)…"
-                    : "Nota (facoltativa)"
+                    ? t("Spiega perché non puoi autorizzare (visibile al commerciale)…")
+                    : t("Nota (facoltativa)")
                 }
                 className={noteRequiredMissing ? "border-red-400 focus-visible:ring-red-400" : ""}
               />
               {noteRequiredMissing && (
                 <p className="text-[11px] text-red-600 mt-1">
-                  Motivazione obbligatoria per un rifiuto.
+                  {t("Motivazione obbligatoria per un rifiuto.")}
                 </p>
               )}
             </div>
@@ -917,7 +911,7 @@ export default function QuoteApprovals() {
               onClick={() => setDialog({ open: false, approval: null, mode: null })}
               disabled={decideMutation.isPending}
             >
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button
               onClick={confirmDecide}
@@ -931,7 +925,7 @@ export default function QuoteApprovals() {
               }
             >
               {decideMutation.isPending && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
-              {decideMutation.isPending ? "Invio…" : "Conferma"}
+              {decideMutation.isPending ? t("Invio…") : t("Conferma")}
             </Button>
           </DialogFooter>
         </DialogContent>

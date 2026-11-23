@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/select";
 import { CaptureReviewPanel } from "./CaptureReviewPanel";
 import { AIExtractionProgress } from "./AIExtractionProgress";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const MAX_AUDIO_SECONDS = 180; // 3 min
 const MAX_IMAGES = 10;
@@ -106,6 +107,7 @@ interface Props {
 }
 
 export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: Props) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const [activeTab, setActiveTab] = useState<"foto" | "audio" | "testo">("foto");
 
@@ -240,7 +242,7 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
 
   const startRecording = async () => {
     if (typeof MediaRecorder === "undefined" || !navigator.mediaDevices?.getUserMedia) {
-      toast.error("Registrazione audio non disponibile su questo browser. Usa la modalità testo.");
+      toast.error(t("Registrazione audio non disponibile su questo browser. Usa la modalità testo."));
       setActiveTab("testo");
       return;
     }
@@ -274,10 +276,10 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
       mr.onstop = () => {
-        stream.getTracks().forEach((t) => t.stop());
+        stream.getTracks().forEach((traccia) => traccia.stop());
         const blob = new Blob(chunksRef.current, { type: mimeType || "audio/webm" });
         if (blob.size === 0) {
-          toast.warning("Nessun audio registrato");
+          toast.warning(t("Nessun audio registrato"));
           return;
         }
         setAudioBlob(blob);
@@ -296,7 +298,7 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
         });
       }, 1000);
     } catch (e) {
-      toast.error("Permesso microfono negato", {
+      toast.error(t("Permesso microfono negato"), {
         description: e instanceof Error ? e.message : String(e),
       });
     }
@@ -316,11 +318,11 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
   // Warning toast a 15 secondi dal limite registrazione audio
   useEffect(() => {
     if (isRecording && recordingSeconds === MAX_AUDIO_SECONDS - 15) {
-      toast.warning("Registrazione quasi al limite", {
-        description: "15 secondi rimanenti. La registrazione si fermerà automaticamente.",
+      toast.warning(t("Registrazione quasi al limite"), {
+        description: t("15 secondi rimanenti. La registrazione si fermerà automaticamente."),
       });
     }
-  }, [recordingSeconds, isRecording]);
+  }, [recordingSeconds, isRecording, t]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
@@ -339,12 +341,12 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
 
     // Fix 9: batch tutti gli errori in un unico toast invece di 3 separati
     const warnings: string[] = [];
-    if (oversizedImages.length > 0) warnings.push(`${oversizedImages.length} immagini troppo grandi (>${MAX_IMAGE_MB}MB)`);
-    if (oversizedPdfs.length > 0) warnings.push(`${oversizedPdfs.length} PDF troppo grandi (>${MAX_PDF_MB}MB)`);
-    if (invalidTypes.length > 0) warnings.push(`${invalidTypes.length} tipo/i non supportato/i`);
+    if (oversizedImages.length > 0) warnings.push(t("{n} immagini troppo grandi (>{mb}MB)", { n: oversizedImages.length, mb: MAX_IMAGE_MB }));
+    if (oversizedPdfs.length > 0) warnings.push(t("{n} PDF troppo grandi (>{mb}MB)", { n: oversizedPdfs.length, mb: MAX_PDF_MB }));
+    if (invalidTypes.length > 0) warnings.push(t("{n} tipo/i non supportato/i", { n: invalidTypes.length }));
     if (warnings.length > 0) {
-      toast.warning("Alcuni file non importati", {
-        description: warnings.join(" · ") + " — Accettati: JPG, PNG, WEBP, HEIC, PDF",
+      toast.warning(t("Alcuni file non importati"), {
+        description: warnings.join(" · ") + " — " + t("Accettati: JPG, PNG, WEBP, HEIC, PDF"),
       });
     }
 
@@ -360,7 +362,7 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
         for (const pdf of validPdfs) {
           const remainingSlots = Math.max(0, MAX_IMAGES - images.length - validImages.length - renderedFromPdf.length);
           if (remainingSlots === 0) {
-            toast.warning(`Limite di ${MAX_IMAGES} pagine raggiunto, ${pdf.name} ignorato`);
+            toast.warning(t("Limite di {max} pagine raggiunto, {file} ignorato", { max: MAX_IMAGES, file: pdf.name }));
             break;
           }
           // Fix 3: progress callback aggiorna stato per skeleton
@@ -376,7 +378,7 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
           }
         }
       } catch (err) {
-        toast.error("Errore lettura PDF", {
+        toast.error(t("Errore lettura PDF"), {
           description: err instanceof Error ? err.message : String(err),
         });
       } finally {
@@ -388,10 +390,10 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
     const availableSlots = Math.max(0, MAX_IMAGES - images.length);
     const allNew = [...validImages, ...renderedFromPdf].slice(0, availableSlots);
     if (allNew.length < validImages.length + renderedFromPdf.length) {
-      toast.warning(`Alcune pagine scartate (max ${MAX_IMAGES} totali)`);
+      toast.warning(t("Alcune pagine scartate (max {max} totali)", { max: MAX_IMAGES }));
     }
     if (allNew.length === 0 && validPdfs.length === 0 && validImages.length === 0) {
-      toast.error("Nessun file valido trovato");
+      toast.error(t("Nessun file valido trovato"));
       return;
     }
     if (allNew.length > 0) {
@@ -401,19 +403,19 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
 
   const submitCapture = async () => {
     if (!companyId) {
-      toast.error("Company non risolta");
+      toast.error(t("Company non risolta"));
       return;
     }
 
     const hasInput = images.length > 0 || !!audioBlob || textInput.trim().length > 10;
 
     if (!hasInput) {
-      toast.error("Aggiungi almeno una foto, un audio o una descrizione di almeno 10 caratteri");
+      toast.error(t("Aggiungi almeno una foto, un audio o una descrizione di almeno 10 caratteri"));
       return;
     }
 
     setPhase("processing");
-    setProgressMsg("Caricamento file…");
+    setProgressMsg(t("Caricamento file…"));
 
     try {
       const imagePaths: string[] = [];
@@ -425,14 +427,14 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
       // Upload foto
       if (images.length > 0) {
         for (const [idx, img] of images.entries()) {
-          setProgressMsg(`Caricamento foto ${idx + 1}/${images.length}…`);
+          setProgressMsg(t("Caricamento foto {n}/{totale}…", { n: idx + 1, totale: images.length }));
           const path = `captures/${companyId}/${Date.now()}-${idx}-${safeStorageName(img.name)}`;
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const { error } = await (supabase as any).storage
             .from("documenti-smart")
             .upload(path, img, { upsert: false, contentType: img.type });
           if (error) {
-            toast.error(`Upload foto fallito: ${error.message}`);
+            toast.error(t("Upload foto fallito: {errore}", { errore: error.message }));
             setPhase("input");
             return;
           }
@@ -443,14 +445,14 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
 
       // Upload audio
       if (audioBlob) {
-        setProgressMsg("Caricamento audio…");
+        setProgressMsg(t("Caricamento audio…"));
         const path = `captures/${companyId}/${Date.now()}-audio.${audioMimeExt}`;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error } = await (supabase as any).storage
           .from("documenti-smart")
           .upload(path, audioBlob, { upsert: false, contentType: audioBlob.type });
         if (error) {
-          toast.error(`Upload audio fallito: ${error.message}`);
+          toast.error(t("Upload audio fallito: {errore}", { errore: error.message }));
           setPhase("input");
           return;
         }
@@ -468,7 +470,7 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
               ? "foto"
               : "testo";
 
-      setProgressMsg("AI sta estraendo i dati…");
+      setProgressMsg(t("AI sta estraendo i dati…"));
 
       // Invoke edge ai-quote-from-capture
       const { data, error } = await supabase.functions.invoke("ai-quote-from-capture", {
@@ -483,8 +485,8 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
       });
 
       if (error || !data?.run_id) {
-        toast.error("Estrazione AI fallita", {
-          description: error?.message ?? data?.error ?? "Risposta non valida",
+        toast.error(t("Estrazione AI fallita"), {
+          description: error?.message ?? data?.error ?? t("Risposta non valida"),
         });
         setPhase("input");
         return;
@@ -493,7 +495,7 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
       setRunId(data.run_id);
       setPhase("review");
     } catch (e) {
-      toast.error("Errore", {
+      toast.error(t("Errore"), {
         description: e instanceof Error ? e.message : String(e),
       });
       setPhase("input");
@@ -504,7 +506,7 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
   const retryExtraction = async () => {
     if (!companyId) return;
     setPhase("processing");
-    setProgressMsg("Nuova estrazione AI in corso…");
+    setProgressMsg(t("Nuova estrazione AI in corso…"));
     try {
       const storedPaths = uploadedPathsRef.current;
       const imagePaths = storedPaths.filter((p) => !p.includes("-audio."));
@@ -531,8 +533,8 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
       });
 
       if (error || !data?.run_id) {
-        toast.error("Riprova fallita", {
-          description: error?.message ?? data?.error ?? "Risposta non valida",
+        toast.error(t("Riprova fallita"), {
+          description: error?.message ?? data?.error ?? t("Risposta non valida"),
         });
         // Mostra di nuovo la review con il run precedente (runId invariato)
         setPhase("review");
@@ -542,7 +544,7 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
       setRunId(data.run_id);
       setPhase("review");
     } catch (e) {
-      toast.error("Errore nella ripetizione", {
+      toast.error(t("Errore nella ripetizione"), {
         description: e instanceof Error ? e.message : String(e),
       });
       setPhase("review");
@@ -568,11 +570,10 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
-            Genera preventivo con AI
+            {t("Genera preventivo con AI")}
           </DialogTitle>
           <DialogDescription className="max-sm:sr-only">
-            Carica una foto del foglio, registra un audio o digita il testo. L'AI estrae cliente e
-            prodotti, tu confermi e crei il preventivo.
+            {t("Carica una foto del foglio, registra un audio o digita il testo. L'AI estrae cliente e prodotti, tu confermi e crei il preventivo.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -580,21 +581,20 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "foto" | "audio" | "testo")}>
             <TabsList className="grid grid-cols-3">
               <TabsTrigger value="foto" className="tap-compact gap-2">
-                <Camera className="h-4 w-4" /> Foto
+                <Camera className="h-4 w-4" /> {t("Foto")}
               </TabsTrigger>
               <TabsTrigger value="audio" className="tap-compact gap-2">
-                <Mic className="h-4 w-4" /> Audio
+                <Mic className="h-4 w-4" /> {t("Audio")}
               </TabsTrigger>
               <TabsTrigger value="testo" className="tap-compact gap-2">
-                <FileText className="h-4 w-4" /> Testo
+                <FileText className="h-4 w-4" /> {t("Testo")}
               </TabsTrigger>
             </TabsList>
 
             <TabsContent value="foto" className="space-y-3 pt-3">
               {/* Telefono: la spiegazione diventa l'area grande da toccare qui sotto. */}
               <p className="text-sm text-muted-foreground max-sm:hidden">
-                Foto di un foglio scritto a mano, scontrino, schizzo, oppure PDF (multi-pagina).
-                Massimo {MAX_IMAGES} pagine totali.
+                {t("Foto di un foglio scritto a mano, scontrino, schizzo, oppure PDF (multi-pagina). Massimo {max} pagine totali.", { max: MAX_IMAGES })}
               </p>
               <label className="block">
                 <input
@@ -612,17 +612,17 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
                   <span>
                     {pdfProcessing ? (
                       <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Elaborazione PDF…
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" /> {t("Elaborazione PDF…")}
                       </>
                     ) : (
                       <>
                         <Upload className={cn("h-4 w-4 mr-2", images.length === 0 && "max-sm:hidden")} />
                         {images.length === 0 && <Camera className="!h-7 !w-7 text-primary sm:hidden" />}
-                        <span className={images.length === 0 ? "max-sm:hidden" : undefined}>Aggiungi foto o PDF ({images.length}/{MAX_IMAGES})</span>
+                        <span className={images.length === 0 ? "max-sm:hidden" : undefined}>{t("Aggiungi foto o PDF ({n}/{max})", { n: images.length, max: MAX_IMAGES })}</span>
                         {images.length === 0 && (
                           <span className="flex flex-col items-center sm:hidden">
-                            <span className="text-sm font-semibold">Scatta o scegli una foto</span>
-                            <span className="text-[11px] font-normal text-muted-foreground">Foglio, schizzo o PDF · fino a {MAX_IMAGES} pagine</span>
+                            <span className="text-sm font-semibold">{t("Scatta o scegli una foto")}</span>
+                            <span className="text-[11px] font-normal text-muted-foreground">{t("Foglio, schizzo o PDF · fino a {max} pagine", { max: MAX_IMAGES })}</span>
                           </span>
                         )}
                       </>
@@ -633,7 +633,7 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
               {/* Fix 3: progress PDF + skeleton cards */}
               {pdfProcessing && pdfProgress && (
                 <p className="text-xs text-muted-foreground animate-pulse">
-                  Elaborazione pagina {pdfProgress.current}/{pdfProgress.total} di {pdfProgress.fileName}…
+                  {t("Elaborazione pagina {n}/{totale} di {file}…", { n: pdfProgress.current, totale: pdfProgress.total, file: pdfProgress.fileName })}
                 </p>
               )}
               {(images.length > 0 || pdfProcessing) ? (
@@ -642,14 +642,14 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
                     <div key={i} className="relative border rounded-md overflow-hidden">
                       <img loading="lazy"
                         src={imagePreviewUrls[i]}
-                        alt={`Foto ${i + 1} di ${images.length}`}
+                        alt={t("Foto {n} di {totale}", { n: i + 1, totale: images.length })}
                         className="w-full h-24 object-cover"
                       />
                       <button
                         type="button"
                         onClick={() => setImages((prev) => prev.filter((_, idx) => idx !== i))}
                         className="absolute top-1 right-1 bg-background/80 rounded-full p-0.5 hover:bg-destructive hover:text-destructive-foreground"
-                        aria-label={`Rimuovi foto ${i + 1}`}
+                        aria-label={t("Rimuovi foto {n}", { n: i + 1 })}
                       >
                         <X className="h-3 w-3" />
                       </button>
@@ -668,14 +668,14 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
                 <div className="rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/20 p-2 text-xs flex items-start gap-2">
                   <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
                   <span className="flex-1 text-amber-800 dark:text-amber-300">
-                    <strong>{pdfDroppedInfo.fileName}</strong>: importate {pdfDroppedInfo.imported}/{pdfDroppedInfo.total} pagine.{" "}
-                    {pdfDroppedInfo.dropped} pagina/e non importata/e (limite {MAX_IMAGES} totali).
+                    <strong>{pdfDroppedInfo.fileName}</strong>: {t("importate {n}/{totale} pagine.", { n: pdfDroppedInfo.imported, totale: pdfDroppedInfo.total })}{" "}
+                    {t("{n} pagina/e non importata/e (limite {max} totali).", { n: pdfDroppedInfo.dropped, max: MAX_IMAGES })}
                   </span>
                   <button
                     type="button"
                     onClick={() => setPdfDroppedInfo(null)}
                     className="text-amber-600 hover:text-amber-900"
-                    aria-label="Chiudi avviso"
+                    aria-label={t("Chiudi avviso")}
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -683,12 +683,12 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
               )}
               <div>
                 <label className="text-xs text-muted-foreground">
-                  Note aggiuntive (opzionali)
+                  {t("Note aggiuntive (opzionali)")}
                 </label>
                 <Textarea
                   value={textInput}
                   onChange={(e) => setTextInput(e.target.value)}
-                  placeholder="Es. Cliente urgente, posa entro fine mese..."
+                  placeholder={t("Es. Cliente urgente, posa entro fine mese...")}
                   rows={2}
                 />
               </div>
@@ -696,8 +696,7 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
 
             <TabsContent value="audio" className="space-y-3 pt-3">
               <p className="text-sm text-muted-foreground max-sm:hidden">
-                Registra fino a {MAX_AUDIO_SECONDS / 60} minuti. Esempio: "Cliente Mario Rossi al 339...
-                vuole 2 finestre PVC bianche 1200×1400 e una portafinestra..."
+                {t("Registra fino a {minuti} minuti. Esempio: \"Cliente Mario Rossi al 339... vuole 2 finestre PVC bianche 1200×1400 e una portafinestra...\"", { minuti: MAX_AUDIO_SECONDS / 60 })}
               </p>
               <div className="border rounded-md p-6 text-center space-y-3 max-sm:p-4">
                 {audioBlob && !isRecording ? (
@@ -713,7 +712,7 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
                         setRecordingSeconds(0);
                       }}
                     >
-                      Riregistra
+                      {t("Riregistra")}
                     </Button>
                   </>
                 ) : isRecording ? (
@@ -730,13 +729,13 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
                       </span>
                       {recordingSeconds >= MAX_AUDIO_SECONDS - 15 && (
                         <span className="text-[10px] text-amber-600 font-medium">
-                          {MAX_AUDIO_SECONDS - recordingSeconds}s rimanenti
+                          {t("{n}s rimanenti", { n: MAX_AUDIO_SECONDS - recordingSeconds })}
                         </span>
                       )}
                     </div>
                     <div>
                       <Button variant="destructive" size="lg" onClick={stopRecording}>
-                        Stop registrazione
+                        {t("Stop registrazione")}
                       </Button>
                     </div>
                   </>
@@ -744,23 +743,23 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
                   <>
                     {/* Telefono: un microfono rotondo grande come nei vocali, con sotto
                         cosa dire (cliente, lavori, misure). */}
-                    <Button size="lg" onClick={startRecording} className="max-sm:h-16 max-sm:w-16 max-sm:rounded-full max-sm:p-0" aria-label="Inizia registrazione">
-                      <Mic className="h-5 w-5 mr-2 max-sm:mr-0 max-sm:!h-7 max-sm:!w-7" /> <span className="max-sm:hidden">Inizia registrazione</span>
+                    <Button size="lg" onClick={startRecording} className="max-sm:h-16 max-sm:w-16 max-sm:rounded-full max-sm:p-0" aria-label={t("Inizia registrazione")}>
+                      <Mic className="h-5 w-5 mr-2 max-sm:mr-0 max-sm:!h-7 max-sm:!w-7" /> <span className="max-sm:hidden">{t("Inizia registrazione")}</span>
                     </Button>
                     <p className="text-xs text-muted-foreground sm:hidden">
-                      Tocca e di' cliente, lavori e misure · fino a {MAX_AUDIO_SECONDS / 60} minuti
+                      {t("Tocca e di' cliente, lavori e misure · fino a {minuti} minuti", { minuti: MAX_AUDIO_SECONDS / 60 })}
                     </p>
                   </>
 	                )}
 	              </div>
               <div>
                 <label className="text-xs text-muted-foreground">
-                  Note aggiuntive o contesto visita (opzionale)
+                  {t("Note aggiuntive o contesto visita (opzionale)")}
                 </label>
                 <Textarea
                   value={textInput}
                   onChange={(e) => setTextInput(e.target.value)}
-                  placeholder="Es. Cliente vuole consegna rapida, colore bianco opaco, posa al secondo piano..."
+                  placeholder={t("Es. Cliente vuole consegna rapida, colore bianco opaco, posa al secondo piano...")}
                   rows={2}
                 />
               </div>
@@ -768,22 +767,12 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
 
             <TabsContent value="testo" className="space-y-3 pt-3">
               <p className="text-sm text-muted-foreground max-sm:hidden">
-                Scrivi tutto: dati cliente, prodotti, misure. L'AI estrae tutto in automatico.
+                {t("Scrivi tutto: dati cliente, prodotti, misure. L'AI estrae tutto in automatico.")}
               </p>
               <Textarea
                 value={textInput}
                 onChange={(e) => setTextInput(e.target.value)}
-                placeholder={`Esempio:
-Cliente: Mario Rossi
-Telefono: 339 1234567
-Indirizzo: Via Roma 12, Milano
-P.IVA: 12345678901
-
-Ordine:
-- 2 finestre PVC bianche 1200x1400 a battente
-- 1 portafinestra 1500x2200 con maniglia oro
-- Posa inclusa
-`}
+                placeholder={t("Esempio:\nCliente: Mario Rossi\nTelefono: 339 1234567\nIndirizzo: Via Roma 12, Milano\nP.IVA: 12345678901\n\nOrdine:\n- 2 finestre PVC bianche 1200x1400 a battente\n- 1 portafinestra 1500x2200 con maniglia oro\n- Posa inclusa\n")}
                 rows={12}
                 className="text-sm max-sm:h-52"
               />
@@ -792,19 +781,19 @@ Ordine:
             {/* Telefono no: il settore lo rileva l'AI (resta «Auto»), si cambia dal computer. */}
             <div className="max-sm:hidden">
               <label className="text-xs text-muted-foreground">
-                Settore di lavoro (migliora il matching prodotti dal listino)
+                {t("Settore di lavoro (migliora il matching prodotti dal listino)")}
                 {companyVertical?.vertical?.short_label && verticalKey === companyVertical.vertical_key ? (
                   <Badge variant="outline" className="ml-2 text-[10px] py-0">
-                    Auto: {companyVertical.vertical.short_label}
+                    {t("Auto: {settore}", { settore: companyVertical.vertical.short_label })}
                   </Badge>
                 ) : null}
               </label>
               <Select value={verticalKey || "__auto__"} onValueChange={(v) => setVerticalKey(v === "__auto__" ? "" : v)}>
                 <SelectTrigger className="h-9">
-                  <SelectValue placeholder="Auto-rileva" />
+                  <SelectValue placeholder={t("Auto-rileva")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__auto__">Auto-rileva</SelectItem>
+                  <SelectItem value="__auto__">{t("Auto-rileva")}</SelectItem>
                   {verticalOptions.map((v) => (
                     <SelectItem key={v.vertical_key} value={v.vertical_key}>
                       {v.display_name ?? v.short_label ?? v.vertical_key}
@@ -817,7 +806,7 @@ Ordine:
             <div className="flex justify-end gap-2 pt-4 border-t max-sm:pt-3">
               {/* Telefono no: c'è la X. */}
               <Button variant="ghost" onClick={() => onOpenChange(false)} className="max-sm:hidden">
-                Annulla
+                {t("Annulla")}
               </Button>
               <Button
                 onClick={submitCapture}
@@ -825,7 +814,7 @@ Ordine:
                 className="max-sm:w-full"
               >
                 <Sparkles className="h-4 w-4 mr-2" />
-                Estrai con AI
+                {t("Estrai con AI")}
               </Button>
             </div>
           </Tabs>
@@ -833,7 +822,7 @@ Ordine:
           <div className="py-8 space-y-4">
             <AIExtractionProgress mode={activeTab} />
             <p className="text-xs text-center text-muted-foreground">
-              {progressMsg} · Può richiedere 5-20 secondi a seconda della complessità.
+              {progressMsg} · {t("Può richiedere 5-20 secondi a seconda della complessità.")}
             </p>
           </div>
         ) : phase === "review" && runId ? (
@@ -841,17 +830,17 @@ Ordine:
             {/* Barra azioni review: info + pulsante riprova estrazione */}
             <div className="flex items-center justify-between pb-2 mb-1 border-b">
               <span className="text-xs text-muted-foreground">
-                Verifica i dati estratti e correggi se necessario
+                {t("Verifica i dati estratti e correggi se necessario")}
               </span>
               <Button
                 variant="ghost"
                 size="sm"
                 className="h-7 text-[11px] gap-1.5 text-muted-foreground hover:text-foreground"
                 onClick={retryExtraction}
-                title="Rielabora le stesse foto/audio con una nuova analisi AI"
+                title={t("Rielabora le stesse foto/audio con una nuova analisi AI")}
               >
                 <RefreshCw className="h-3 w-3" />
-                Riprova estrazione
+                {t("Riprova estrazione")}
               </Button>
             </div>
             <CaptureReviewPanel

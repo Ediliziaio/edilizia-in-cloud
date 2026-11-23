@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 import { calcolaAnalisi, incidenzaFrazione, type TipoComponente } from "@/lib/listino/analisiPrezzo";
 import { unitaTariffa } from "@/lib/listino/costoTariffa";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const TIPI: Array<{ value: TipoComponente; label: string }> = [
   { value: "manodopera", label: "Manodopera" },
@@ -70,6 +71,7 @@ interface Props {
 }
 
 export function AnalisiPrezzoDialog({ tariffa, onClose }: Props) {
+  const tr = useT();
   // `as any`: tabelle nuove (migration 20280131000000), non ancora nei tipi
   // generati — stessa convenzione degli altri hook su tabelle appena nate.
   const { data, isLoading, isError } = useQuery({
@@ -98,10 +100,9 @@ export function AnalisiPrezzoDialog({ tariffa, onClose }: Props) {
     <Dialog open={!!tariffa} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Analisi prezzo — {tariffa?.nome}</DialogTitle>
+          <DialogTitle>{tr("Analisi prezzo — {nome}", { nome: tariffa?.nome })}</DialogTitle>
           <DialogDescription>
-            Componi il prezzo: manodopera, materiali e noli fanno il costo
-            diretto; sopra ci vanno spese generali e utile.
+            {tr("Componi il prezzo: manodopera, materiali e noli fanno il costo diretto; sopra ci vanno spese generali e utile.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -145,6 +146,7 @@ function AnalisiEditor({
   esistente: AnalisiEsistente;
   onClose: () => void;
 }) {
+  const tr = useT();
   const companyId = useEffectiveCompanyId();
   const queryClient = useQueryClient();
 
@@ -284,15 +286,15 @@ function AnalisiEditor({
       if (applica) {
         // Prefix-match: copre la lista piena e ogni sua variante.
         queryClient.invalidateQueries({ queryKey: ["tariffe-aziendali-full"] });
-        toast.success("Analisi salvata e prezzo applicato", {
-          description: `La voce ora vale ${formatCurrency(risultato.prezzoTotale)} (incidenza manodopera ${risultato.incidenzaManodoperaPct.toFixed(1)}%).`,
+        toast.success(tr("Analisi salvata e prezzo applicato"), {
+          description: tr("La voce ora vale {prezzoTotale} (incidenza manodopera {valore}%).", { prezzoTotale: formatCurrency(risultato.prezzoTotale), valore: risultato.incidenzaManodoperaPct.toFixed(1) }),
         });
         onClose();
       } else {
-        toast.success("Analisi salvata");
+        toast.success(tr("Analisi salvata"));
       }
     },
-    onError: (e: Error) => toast.error("Salvataggio non riuscito", { description: e.message }),
+    onError: (e: Error) => toast.error(tr("Salvataggio non riuscito"), { description: e.message }),
   });
 
   // Elimina l'analisi salvata SENZA toccare i prezzi della voce: un prezzo
@@ -322,12 +324,12 @@ function AnalisiEditor({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["analisi-prezzo", tariffa.id] });
       queryClient.invalidateQueries({ queryKey: ["tariffe-aziendali-full"] });
-      toast.success("Analisi eliminata", {
-        description: "Il prezzo della voce resta com'è: è sparita solo la composizione.",
+      toast.success(tr("Analisi eliminata"), {
+        description: tr("Il prezzo della voce resta com'è: è sparita solo la composizione."),
       });
       onClose();
     },
-    onError: (e: Error) => toast.error("Eliminazione non riuscita", { description: e.message }),
+    onError: (e: Error) => toast.error(tr("Eliminazione non riuscita"), { description: e.message }),
   });
 
   const um = unitaTariffa(tariffa, "") || null;
@@ -348,18 +350,18 @@ function AnalisiEditor({
               <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {TIPI.map((t) => (
-                  <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                  <SelectItem key={t.value} value={t.value}>{tr(t.label)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <Input
-              placeholder="Descrizione (es. Operaio specializzato)"
+              placeholder={tr("Descrizione (es. Operaio specializzato)")}
               value={r.descrizione}
               onChange={(e) => aggiorna(r.id, { descrizione: e.target.value })}
               className="h-9"
             />
             <Input
-              placeholder="u.m."
+              placeholder={tr("u.m.")}
               value={r.unita}
               onChange={(e) => aggiorna(r.id, { unita: e.target.value })}
               className="h-9"
@@ -369,16 +371,16 @@ function AnalisiEditor({
               value={Number.isFinite(r.quantita) ? r.quantita : 0}
               onChange={(e) => aggiorna(r.id, { quantita: parseFloat(e.target.value) || 0 })}
               className="h-9 text-right"
-              aria-label="Quantità"
+              aria-label={tr("Quantità")}
             />
             <Input
               type="number" min={0} step="0.01"
               value={Number.isFinite(r.prezzo_unitario) ? r.prezzo_unitario : 0}
               onChange={(e) => aggiorna(r.id, { prezzo_unitario: parseFloat(e.target.value) || 0 })}
               className="h-9 text-right"
-              aria-label="Prezzo unitario"
+              aria-label={tr("Prezzo unitario")}
             />
-            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => rimuovi(r.id)} aria-label="Rimuovi componente">
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => rimuovi(r.id)} aria-label={tr("Rimuovi componente")}>
               <Trash2 className="h-4 w-4 text-muted-foreground" />
             </Button>
           </div>
@@ -386,7 +388,7 @@ function AnalisiEditor({
         <div className="flex flex-wrap gap-2 pt-1">
           {TIPI.map((t) => (
             <Button key={t.value} variant="outline" size="sm" onClick={() => aggiungiRiga(t.value)}>
-              <Plus className="h-3.5 w-3.5 mr-1" />{t.label}
+              <Plus className="h-3.5 w-3.5 mr-1" />{tr(t.label)}
             </Button>
           ))}
         </div>
@@ -396,12 +398,12 @@ function AnalisiEditor({
       <div className="rounded-lg border bg-muted/40 p-4 space-y-2 text-sm">
         <div className="flex justify-between">
           <span className="text-muted-foreground">
-            Costo diretto
+            {tr("Costo diretto")}
             {risultato.costoManodopera > 0 && (
               <span className="ml-2 text-xs">
-                (manodopera {formatCurrency(risultato.costoManodopera)}
-                {risultato.costoMateriali > 0 && ` · materiali ${formatCurrency(risultato.costoMateriali)}`}
-                {risultato.costoNoli > 0 && ` · noli ${formatCurrency(risultato.costoNoli)}`})
+                {tr("(manodopera")} {formatCurrency(risultato.costoManodopera)}
+                {risultato.costoMateriali > 0 && ` ${tr("· materiali {costoMateriali}", { costoMateriali: formatCurrency(risultato.costoMateriali) })}`}
+                {risultato.costoNoli > 0 && ` ${tr("· noli {costoNoli}", { costoNoli: formatCurrency(risultato.costoNoli) })}`})
               </span>
             )}
           </span>
@@ -409,13 +411,13 @@ function AnalisiEditor({
         </div>
         <div className="flex justify-between items-center">
           <span className="text-muted-foreground flex items-center gap-2">
-            Spese generali
+            {tr("Spese generali")}
             <Input
               type="number" min={0} max={100} step="0.5"
               value={sgPct}
               onChange={(e) => setSgPct(parseFloat(e.target.value) || 0)}
               className="h-7 w-16 text-right inline-block"
-              aria-label="Spese generali %"
+              aria-label={tr("Spese generali %")}
             />
             %
           </span>
@@ -429,23 +431,23 @@ function AnalisiEditor({
               value={utilePct}
               onChange={(e) => setUtilePct(parseFloat(e.target.value) || 0)}
               className="h-7 w-16 text-right inline-block"
-              aria-label="Utile %"
+              aria-label={tr("Utile %")}
             />
             %
           </span>
           <span className="tabular-nums">{formatCurrency(risultato.utile)}</span>
         </div>
         <div className="flex justify-between border-t pt-2 text-base">
-          <span className="font-semibold">Prezzo di applicazione{um ? ` / ${um}` : ""}</span>
+          <span className="font-semibold">{tr("Prezzo di applicazione")}{um ? ` / ${um}` : ""}</span>
           <span className="font-bold tabular-nums">{formatCurrency(risultato.prezzoTotale)}</span>
         </div>
         <div className="flex justify-between text-xs text-muted-foreground">
-          <span>Incidenza manodopera (quella della congruità)</span>
+          <span>{tr("Incidenza manodopera (quella della congruità)")}</span>
           <span className="tabular-nums">{risultato.incidenzaManodoperaPct.toFixed(1)}%</span>
         </div>
         {tariffa.prezzo_vendita != null && Number(tariffa.prezzo_vendita) !== risultato.prezzoTotale && (
           <div className="flex justify-between text-xs text-muted-foreground">
-            <span>Prezzo attuale della voce</span>
+            <span>{tr("Prezzo attuale della voce")}</span>
             <span className="tabular-nums">{formatCurrency(Number(tariffa.prezzo_vendita))}</span>
           </div>
         )}
@@ -456,9 +458,7 @@ function AnalisiEditor({
           checked={aggiornaCosto}
           onCheckedChange={(v) => setAggiornaCosto(v === true)}
         />
-        Aggiorna anche il costo della voce (costo diretto:{" "}
-        {formatCurrency(risultato.costoDiretto)}; le spese generali le aggiunge
-        il listino) — così il semaforo margine mostra l&apos;utile reale
+        {tr("Aggiorna anche il costo della voce (costo diretto: {costo}; le spese generali le aggiunge il listino) — così il semaforo margine mostra l'utile reale", { costo: formatCurrency(risultato.costoDiretto) })}
       </label>
 
       <div className="flex items-center gap-2 pt-1">
@@ -473,25 +473,25 @@ function AnalisiEditor({
             }}
           >
             {eliminaMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {confermaElimina ? "Confermi? Il prezzo della voce non cambia" : "Elimina analisi"}
+            {confermaElimina ? tr("Confermi? Il prezzo della voce non cambia") : tr("Elimina analisi")}
           </Button>
         )}
         <div className="flex-1" />
-        <Button variant="outline" onClick={onClose}>Chiudi</Button>
+        <Button variant="outline" onClick={onClose}>{tr("Chiudi")}</Button>
         <Button
           variant="secondary"
           disabled={salvaMutation.isPending}
           onClick={() => salvaMutation.mutate(false)}
         >
           {salvaMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-          Salva analisi
+          {tr("Salva analisi")}
         </Button>
         <Button
           disabled={salvaMutation.isPending || risultato.prezzoTotale <= 0}
           onClick={() => salvaMutation.mutate(true)}
         >
           {salvaMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-          Salva e applica {risultato.prezzoTotale > 0 ? formatCurrency(risultato.prezzoTotale) : ""}
+          {tr("Salva e applica")} {risultato.prezzoTotale > 0 ? formatCurrency(risultato.prezzoTotale) : ""}
         </Button>
       </div>
     </div>

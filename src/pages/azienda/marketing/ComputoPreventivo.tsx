@@ -17,8 +17,10 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { leggiContestoNuovoComputo } from "@/lib/computo/contestoNuovoComputo";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import type { OrigineComputoPianta } from "@/lib/computo/computoDallaPianta";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export default function ComputoPreventivo() {
+  const t = useT();
   const { effectiveCompany, user } = useAuth();
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
@@ -88,12 +90,12 @@ export default function ComputoPreventivo() {
     if (richiesto === id) return;
     const next = new URLSearchParams(params); next.set("bozza", id); setParams(next, { replace: true });
   }, [id, richiesto, params, setParams, soloEsistente, attesaPianta]);
-  if (!effectiveCompany || !user) return <p role="alert">Seleziona un’azienda per aprire il preventivo.</p>;
-  if (soloEsistente && (!idValido || !cloudAttivo)) return <p role="alert" className="p-6">Il computo richiesto non è disponibile in questa azienda. Torna al preventivo per verificare il collegamento.</p>;
-  if (!import.meta.env.DEV && !cloudAttivo) return <div className="space-y-3 p-6"><p role="alert">Azienda non riconosciuta: ricarica la pagina.</p><button className="underline" onClick={() => { void navigate("/azienda/marketing/preventivi"); }}>Torna ai Preventivi</button></div>;
-  if (attesaPianta && !idValido) return <p role="status" className="p-6 text-sm text-muted-foreground">Leggo le misure della planimetria…</p>;
+  if (!effectiveCompany || !user) return <p role="alert">{t("Seleziona un’azienda per aprire il preventivo.")}</p>;
+  if (soloEsistente && (!idValido || !cloudAttivo)) return <p role="alert" className="p-6">{t("Il computo richiesto non è disponibile in questa azienda. Torna al preventivo per verificare il collegamento.")}</p>;
+  if (!import.meta.env.DEV && !cloudAttivo) return <div className="space-y-3 p-6"><p role="alert">{t("Azienda non riconosciuta: ricarica la pagina.")}</p><button className="underline" onClick={() => { void navigate("/azienda/marketing/preventivi"); }}>{t("Torna ai Preventivi")}</button></div>;
+  if (attesaPianta && !idValido) return <p role="status" className="p-6 text-sm text-muted-foreground">{t("Leggo le misure della planimetria…")}</p>;
   const configurazioneInCaricamento = modello.isLoading || archivio.inCaricamento || attesaPianta || (conContesto && (!!permessi.isLoading || prefill.isPending));
-  if (!cloudAttivo && configurazioneInCaricamento) return <p role="status" className="p-6 text-sm text-muted-foreground">Apro il preventivo…</p>;
+  if (!cloudAttivo && configurazioneInCaricamento) return <p role="status" className="p-6 text-sm text-muted-foreground">{t("Apro il preventivo…")}</p>;
   const key = chiaveBozzaComputo(effectiveCompany.id, user.id, `preventivo:${id}`);
   const puoUsarePlanimetria = !permessi.isLoading && !permessi.solaLettura && permessi.canViewRenderAi &&
     permessi.canEditPreventivi && computoCloudAttivo(effectiveCompany.id);
@@ -120,9 +122,9 @@ export default function ComputoPreventivo() {
     onBack: () => { void navigate("/azienda/marketing/preventivi"); } };
   const collegamenti = <CollegamentiComputoNativo companyId={effectiveCompany.id} draftId={id} />;
   return <div className={`mx-auto w-full min-w-0 ${fase === 2 ? "max-w-none" : "max-w-[1440px]"} space-y-4 md:p-6`}>
-    {prefill.error && <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">{prefill.error.message} Puoi selezionare il destinatario nel passo Dati.</p>}
+    {prefill.error && <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">{t("{message} Puoi selezionare il destinatario nel passo Dati.", { message: String(prefill.error.message ?? "") })}</p>}
     {daPianta && !attesaPianta && (!puoCollegarePianta || prefillPianta.error || prefillPianta.data?.errorePianta) &&
-      <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">{prefillPianta.error?.message ?? prefillPianta.data?.errorePianta ?? "Il collegamento richiede l’accesso alle planimetrie e la modifica dei preventivi."}</p>}
+      <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">{prefillPianta.error?.message ?? prefillPianta.data?.errorePianta ?? t("Il collegamento richiede l’accesso alle planimetrie e la modifica dei preventivi.")}</p>}
     {cloudAttivo ? (
       <ComputoCloudEditor key={key} {...editorProps} companyId={effectiveCompany.id} draftId={id}
         soloEsistente={soloEsistente} configurazioneInCaricamento={configurazioneInCaricamento}>

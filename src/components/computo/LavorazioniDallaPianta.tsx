@@ -6,9 +6,10 @@ import { formatCurrency } from "@/lib/formatters";
 import { arrotondaDecimale, calcolaVoce, type VoceEditor } from "@/lib/computo/editorNativo";
 import { gruppiMisureDallaPianta, importoProposto, type confrontaComputoConPianta, type MisuraPropostaDallaPianta } from "@/lib/computo/computoDallaPianta";
 import type { OggettoLavoro } from "@/lib/planimetrie/primaEDopo";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
-const quantita = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 2 });
-const deltaEuro = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", signDisplay: "exceptZero" });
+const quantita = new Intl.NumberFormat(intlCampo(), { maximumFractionDigits: 2 });
+const deltaEuro = new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", signDisplay: "exceptZero" });
 const simboliUnita: Record<string, string> = { mq: "m²", mc: "m³", ml: "m" };
 const unitaVisibile = (unita: string) => simboliUnita[unita] ?? unita;
 
@@ -46,6 +47,7 @@ export default function LavorazioniDallaPianta({ confronto, voci, selezione, boz
   onPunta: (oggetto: OggettoLavoro) => void;
   onRivedi: () => void;
 }) {
+  const t = useT();
   const [cerca, setCerca] = useState("");
   const [soloVariazioni, setSoloVariazioni] = useState(false);
   const [soloSelezione, setSoloSelezione] = useState(false);
@@ -89,55 +91,55 @@ export default function LavorazioniDallaPianta({ confronto, voci, selezione, boz
   const rivedibili = puoConfermareDisegno || confronto.haMisureDaAggiornare || confronto.disponibili.length > 0 || confronto.daVerificare.length > 0;
   const contaVoci = (n: number) => n === 1 ? "1 voce collegata" : `${n} voci collegate`;
 
-  return <section className="quote-wizard-ai-project-impact min-w-0 self-start overflow-hidden rounded-xl border bg-background" aria-label="Lavorazioni dalla planimetria">
+  return <section className="quote-wizard-ai-project-impact min-w-0 self-start overflow-hidden rounded-xl border bg-background" aria-label={t("Lavorazioni dalla planimetria")}>
     <header className={`space-y-3 border-b p-3.5 ${inAnteprima ? "bg-blue-50/80" : "bg-slate-50"}`}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <h3 className="text-base font-semibold">{inSilvio ? "Impatto sul computo" : "Lavorazioni dalla pianta"}</h3>
+          <h3 className="text-base font-semibold">{inSilvio ? t("Impatto sul computo") : t("Lavorazioni dalla pianta")}</h3>
           {inSilvio ? <div className="mt-1 text-xs text-muted-foreground" role="status">
             {inAnteprima ? <>
-              <p>{variazioni.length === 1 ? "1 voce cambia" : variazioni.length ? `${variazioni.length} voci cambiano` : "Quantità delle voci collegate invariate"}</p>
-              {!!modificheConPrezzo.length && <p className="mt-2 text-sm font-semibold text-blue-950">Imponibile delle voci <span className="tabular-nums">{deltaEuro.format(differenza)}</span></p>}
-              {importiDaDefinire > 0 && <p className="mt-1">{importiDaDefinire === 1 ? "1 voce da valorizzare" : `${importiDaDefinire} voci da valorizzare`}</p>}
-            </> : <p>{collegate ? contaVoci(collegate) : "Aggiungi le misure per creare le prime voci dalla pianta."}{variazioni.length > 0 && ` · ${variazioni.length} da aggiornare`}</p>}
+              <p>{variazioni.length === 1 ? t("1 voce cambia") : variazioni.length ? t("{n} voci cambiano", { n: variazioni.length }) : t("Quantità delle voci collegate invariate")}</p>
+              {!!modificheConPrezzo.length && <p className="mt-2 text-sm font-semibold text-blue-950">{t("Imponibile delle voci")} <span className="tabular-nums">{deltaEuro.format(differenza)}</span></p>}
+              {importiDaDefinire > 0 && <p className="mt-1">{importiDaDefinire === 1 ? t("1 voce da valorizzare") : t("{importiDaDefinire} voci da valorizzare", { importiDaDefinire: String(importiDaDefinire ?? "") })}</p>}
+            </> : <p>{collegate ? contaVoci(collegate) : t("Aggiungi le misure per creare le prime voci dalla pianta.")}{variazioni.length > 0 && t(" · {n} da aggiornare", { n: variazioni.length })}</p>}
           </div> : <><p className="mt-0.5 text-xs text-muted-foreground">
             {bozzaPianta ? `Anteprima del disegno${variazioni.length ? ` · ${deltaEuro.format(differenza)} sulle voci con prezzo` : ""}. ${novitaDisegno ? "Rivedi le variazioni prima di confermare." : "Salva la pianta per applicare le misure."}`
-              : variazioni.length ? `${variazioni.length} da aggiornare · ${deltaEuro.format(differenza)} sulle voci con prezzo`
-                : confronto.disponibili.length ? "Scegli quali lavorazioni portare nel computo." : "Seleziona una voce per vedere il punto sulla pianta."}
+              : variazioni.length ? t("{n} da aggiornare · {differenza} sulle voci con prezzo", { n: variazioni.length, differenza: String(deltaEuro.format(differenza) ?? "") })
+                : confronto.disponibili.length ? t("Scegli quali lavorazioni portare nel computo.") : t("Seleziona una voce per vedere il punto sulla pianta.")}
           </p>
-          {(variazioni.length > 0 || bozzaPianta) && importiDaDefinire > 0 && <p className="text-xs text-muted-foreground">{importiDaDefinire} da valorizzare</p>}</>}
+          {(variazioni.length > 0 || bozzaPianta) && importiDaDefinire > 0 && <p className="text-xs text-muted-foreground">{t("{importiDaDefinire} da valorizzare", { importiDaDefinire: String(importiDaDefinire ?? "") })}</p>}</>}
         </div>
         {rivedibili && (!inSilvio || bozzaPianta || confronto.haMisureDaAggiornare || confronto.daVerificare.length > 0) &&
           <Button type="button" size="sm" className={inSilvio && propostaDaChat ? "hidden xl:inline-flex" : undefined}
             variant={inSilvio && !bozzaPianta ? "outline" : "default"} disabled={attesa || (bozzaPianta && !puoConfermareDisegno)} onClick={onRivedi}>
-            <ListChecks aria-hidden="true" className="size-4" /> {modifica ? bozzaPianta ? "Rivedi modifiche" : "Rivedi misure" : "Vedi misure"}
+            <ListChecks aria-hidden="true" className="size-4" /> {modifica ? bozzaPianta ? t("Rivedi modifiche") : t("Rivedi misure") : t("Vedi misure")}
           </Button>}
       </div>
       {inSilvio && !bozzaPianta && confronto.disponibili.length > 0 && <div className="flex flex-wrap gap-2">
         <Button type="button" variant="outline" size="sm" aria-expanded={altreMisure} onClick={() => {
           setAltreMisure(v => !v); setCerca(""); setSoloVariazioni(false); setSoloSelezione(false); setLimite(40);
-        }}><ChevronDown aria-hidden="true" className={`size-4 ${altreMisure ? "rotate-180" : ""}`} /> Altre misure dalla pianta</Button>
-        {altreMisure && modifica && <Button type="button" size="sm" disabled={attesa} onClick={onRivedi}>Scegli misure</Button>}
+        }}><ChevronDown aria-hidden="true" className={`size-4 ${altreMisure ? "rotate-180" : ""}`} /> {t("Altre misure dalla pianta")}</Button>
+        {altreMisure && modifica && <Button type="button" size="sm" disabled={attesa} onClick={onRivedi}>{t("Scegli misure")}</Button>}
       </div>}
       {!inAnteprima && esplora && righe.length > 0 && <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-[11rem] flex-1">
           <Search aria-hidden="true" className="pointer-events-none absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
-          <Input aria-label="Cerca stanza, fase o voce" placeholder="Cerca stanza, fase o voce" className="h-9 bg-white pl-8" value={cerca} onChange={e => {
+          <Input aria-label={t("Cerca stanza, fase o voce")} placeholder={t("Cerca stanza, fase o voce")} className="h-9 bg-white pl-8" value={cerca} onChange={e => {
             setCerca(e.target.value); setLimite(40);
           }} />
         </div>
         <Button type="button" size="sm" variant={soloVariazioni ? "secondary" : "outline"} aria-pressed={soloVariazioni} onClick={() => {
           setSoloVariazioni(v => !v); setLimite(40);
-        }}>Solo variazioni</Button>
-        {selezione && <Button type="button" size="sm" variant={soloSelezione ? "secondary" : "ghost"} aria-pressed={soloSelezione} onClick={() => setSoloSelezione(v => !v)}>Oggetto selezionato</Button>}
+        }}>{t("Solo variazioni")}</Button>
+        {selezione && <Button type="button" size="sm" variant={soloSelezione ? "secondary" : "ghost"} aria-pressed={soloSelezione} onClick={() => setSoloSelezione(v => !v)}>{t("Oggetto selezionato")}</Button>}
       </div>}
     </header>
     {filtrate.length === 0 ? (inSilvio && !esplora) || inAnteprima ? null
-      : <p className="p-4 text-sm text-muted-foreground">{righe.length ? "Nessuna lavorazione per i filtri selezionati." : "Indica i muri da demolire, disegna i nuovi divisori o aggiungi punti impianto per vedere le proposte."}</p>
+      : <p className="p-4 text-sm text-muted-foreground">{righe.length ? t("Nessuna lavorazione per i filtri selezionati.") : t("Indica i muri da demolire, disegna i nuovi divisori o aggiungi punti impianto per vedere le proposte.")}</p>
       : <div className="max-h-[min(62dvh,610px)] overflow-auto">
         <table className="w-full border-collapse text-left text-sm">
           <thead className="sticky top-0 bg-white text-xs text-muted-foreground">
-            <tr className="border-b"><th scope="col" className="px-3 py-2 font-medium">Lavorazione</th><th scope="col" className="w-[30%] px-3 py-2 text-right font-medium">Misure e importi</th></tr>
+            <tr className="border-b"><th scope="col" className="px-3 py-2 font-medium">{t("Lavorazione")}</th><th scope="col" className="w-[30%] px-3 py-2 text-right font-medium">{t("Misure e importi")}</th></tr>
           </thead>
           <tbody className="divide-y">
             {filtrate.slice(0, limite).map(r => {
@@ -149,13 +151,13 @@ export default function LavorazioniDallaPianta({ confronto, voci, selezione, boz
                   <div className="flex gap-2">
                     <div className="min-w-0 flex-1">
                       {daPuntare ? <button type="button" className="inline-flex items-start gap-1.5 text-left font-medium text-blue-800 hover:underline"
-                        title="Mostra sulla planimetria" onClick={() => onPunta(daPuntare)}><Crosshair aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />{r.nome}</button>
+                        title={t("Mostra sulla planimetria")} onClick={() => onPunta(daPuntare)}><Crosshair aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />{r.nome}</button>
                         : <span className="font-medium">{r.nome}</span>}
                       <p className="break-words text-xs text-muted-foreground">{[luoghi, r.fase].filter(Boolean).join(" · ")}</p>
                       {r.misure.length === 1 && r.misure[0].calcolo && <p className="text-xs text-muted-foreground">{r.misure[0].calcolo}</p>}
                       {r.motivo ? <p className="text-xs text-amber-900">{r.motivo}</p>
-                        : nuova(r) ? <p className="text-xs text-blue-800">{r.misure.some(m => m.origine === "stimata") ? "Da aggiungere · misura stimata" : "Da aggiungere"}{r.fonte && ` · ${r.fonte}`}</p>
-                          : cambiata(r) && !inSilvio && <p className="text-xs text-blue-800">Quantità variata</p>}
+                        : nuova(r) ? <p className="text-xs text-blue-800">{r.misure.some(m => m.origine === "stimata") ? t("Da aggiungere · misura stimata") : t("Da aggiungere")}{r.fonte && ` · ${r.fonte}`}</p>
+                          : cambiata(r) && !inSilvio && <p className="text-xs text-blue-800">{t("Quantità variata")}</p>}
                     </div>
                   </div>
                 </td>
@@ -163,13 +165,13 @@ export default function LavorazioniDallaPianta({ confronto, voci, selezione, boz
                   {cambiata(r) && <span className="block text-xs text-muted-foreground">{scriviQuantita(r.prima, r.unita)} →</span>}
                   <strong className="whitespace-nowrap">{scriviQuantita(r.dopo, r.unita)}</strong>
                   {cambiata(r) && r.importoPrima != null && <span className="block whitespace-nowrap text-xs text-muted-foreground">{formatCurrency(r.importoPrima)} →</span>}
-                  <span className="block whitespace-nowrap text-xs text-muted-foreground">{r.importoDopo != null ? formatCurrency(r.importoDopo) : "Prezzo da definire"}</span>
+                  <span className="block whitespace-nowrap text-xs text-muted-foreground">{r.importoDopo != null ? formatCurrency(r.importoDopo) : t("Prezzo da definire")}</span>
                 </td>
               </tr>;
             })}
           </tbody>
         </table>
-        {filtrate.length > limite && <div className="border-t p-2 text-center"><Button type="button" size="sm" variant="outline" onClick={() => setLimite(v => v + 40)}>Mostra altre lavorazioni</Button></div>}
+        {filtrate.length > limite && <div className="border-t p-2 text-center"><Button type="button" size="sm" variant="outline" onClick={() => setLimite(v => v + 40)}>{t("Mostra altre lavorazioni")}</Button></div>}
       </div>}
   </section>;
 }

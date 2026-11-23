@@ -12,6 +12,7 @@ import { unitaCompatibili } from "@/lib/prezzario/confronto";
 import type { WizardAiSnapshot } from "@/lib/preventivi/wizardAiMemory";
 import { AnteprimaComputoSilvio, type RendiPdfComputo } from "./AnteprimaComputoSilvio";
 import type { ControlliCostiSilvio } from "@/lib/preventivi/modificaCostoSilvio";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /** La chat lavora sulle stesse righe del listino generale dell'edilizia, come Ristrutturazione. */
 const MODULO = "ristrutturazione" as const;
@@ -20,7 +21,7 @@ export const MAX_VOCI_SILVIO = 100;
 const MAX_NOME_CAPITOLO = 300;
 const AnalisiCostiSilvio = lazy(() => import("./AnalisiCostiSilvio"));
 
-const cifra = (n: number) => (Number.isFinite(n) ? n.toLocaleString("it-IT", { useGrouping: false, maximumFractionDigits: 6 }) : "");
+const cifra = (n: number) => (Number.isFinite(n) ? n.toLocaleString(intlCampo(), { useGrouping: false, maximumFractionDigits: 6 }) : "");
 
 function rigaDaVoce(v: VoceEditor, ordine: number, companyId: string, draftId: string): NativeComputoRow {
   const c = calcolaVoce(v);
@@ -92,6 +93,7 @@ export default function ComputoSilvioAi({ bozza, companyId, draftId, renderPdf, 
   /** `titolo`: quello che la chat ha dato al lavoro («Campo da tennis in resina»), se diverso da quello di partenza. */
   onApply: (voci: VoceEditor[], titolo?: string) => void;
 }) {
+  const t = useT();
   const titolo = bozza.titolo.trim() || "Preventivo con computo";
   const righeCorrenti = useMemo(() => bozza.voci.map((v, i) => rigaDaVoce(v, i, companyId, draftId)), [bozza.voci, companyId, draftId]);
   const [seme] = useState(() => {
@@ -178,7 +180,7 @@ export default function ComputoSilvioAi({ bozza, companyId, draftId, renderPdf, 
     });
     const cambi: WizardAiChange[] = nuove.map((l, k) => {
       const manca = [daCompletare.quantita.has(l.id) && "quantità", daCompletare.prezzo.has(l.id) && "prezzo"].filter(Boolean).join(" e ");
-      return { id: l.id, title: manca ? `${l.title} · ${manca} da inserire nel computo` : l.title, chapter: righe[k].capitolo_nome, kind: "aggiunta",
+      return { id: l.id, title: manca ? t("{title} · {manca} da inserire nel computo", { title: String(l.title ?? ""), manca: String(manca ?? "") }) : l.title, chapter: righe[k].capitolo_nome, kind: "aggiunta",
         ...(manca ? {} : { after: { quantity: righe[k].quantita, unit: righe[k].unita_misura, price: righe[k].prezzo_unitario } }) };
     });
     return { rows: [...base.rows, ...righe], changes: [...modifiche, ...cambi], pending: 0, daCompletare,
@@ -202,7 +204,7 @@ export default function ComputoSilvioAi({ bozza, companyId, draftId, renderPdf, 
   };
   const anteprimaCosti = (bozzaChat: ChatDocument, capitoli: Record<string, string>, controlli: ControlliCostiSilvio) => {
     const proposta = preparaAnteprima(bozzaChat, capitoli);
-    return <Suspense fallback={<p role="status" className="p-4 text-sm">Carico l’analisi costi…</p>}>
+    return <Suspense fallback={<p role="status" className="p-4 text-sm">{t("Carico l’analisi costi…")}</p>}>
       <AnalisiCostiSilvio companyId={companyId} draftId={draftId} bozza={bozza} proposta={proposta.modifiche ? proposta.voci : undefined}
         puoModificare={modificaAnalisiCosti} {...controlli} />
     </Suspense>;

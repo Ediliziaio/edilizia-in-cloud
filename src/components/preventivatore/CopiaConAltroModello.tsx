@@ -17,6 +17,7 @@ import { SALES_AREAS } from "@/lib/moduli-vendita/areas";
 import { MODULI_VENDITA } from "@/lib/moduli-vendita/config";
 import { copiaConAltroModello } from "@/lib/moduli/copiaConAltroModello";
 import type { ModuloConModelli } from "@/lib/moduli/modelloPreventivo";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   modulo: ModuloConModelli;
@@ -27,6 +28,7 @@ interface Props {
 }
 
 export function CopiaConAltroModello({ modulo, progetto, snapshot, costruisci }: Props) {
+  const t = useT();
   const navigate = useNavigate();
   const [aperto, setAperto] = useState(false);
   const [scelto, setScelto] = useState("");
@@ -46,11 +48,11 @@ export function CopiaConAltroModello({ modulo, progetto, snapshot, costruisci }:
     try {
       const creata = await copiaConAltroModello({ modulo, sourceId: progetto.id, companyId: progetto.company_id, nuovoModelId: scelto, costruisci });
       const href = MODULI_VENDITA.find((m) => m.slug === modulo)?.href ?? `/azienda/${modulo}`;
-      toast.success(`Creato il preventivo ${creata.code}`, { description: "Stessi dati e stesso computo, con il nuovo modello. Il preventivo di partenza non è cambiato." });
+      toast.success(t("Creato il preventivo {codice}", { codice: creata.code }), { description: t("Stessi dati e stesso computo, con il nuovo modello. Il preventivo di partenza non è cambiato.") });
       setAperto(false);
       navigate(`${href}/${creata.id}/modifica`);
     } catch (e) {
-      toast.error("Copia non riuscita", { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Copia non riuscita"), { description: e instanceof Error ? e.message : String(e) });
     } finally {
       setInCorso(false);
     }
@@ -63,31 +65,29 @@ export function CopiaConAltroModello({ modulo, progetto, snapshot, costruisci }:
           type="button"
           size="sm"
           variant="outline"
-          aria-label="Copia con un altro modello"
-          title="Copia con un altro modello"
+          aria-label={t("Copia con un altro modello")}
+          title={t("Copia con un altro modello")}
           className="shrink-0 gap-1.5 max-xl:w-10 max-xl:px-0"
         >
           <CopyPlus className="h-4 w-4" aria-hidden="true" />
-          <span className="hidden xl:inline">Copia con modello</span>
+          <span className="hidden xl:inline">{t("Copia con modello")}</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Copia con un altro modello</DialogTitle>
+          <DialogTitle>{t("Copia con un altro modello")}</DialogTitle>
           <DialogDescription>
-            Un preventivo non cambia modello: il PDF già visto dal cliente deve restare quello. Qui ne crei uno nuovo con lo stesso
-            cliente, cantiere, immobile, computo e condizioni, e il modello che scegli. Si copia quello che è salvato (le foto del
-            progetto no); il preventivo di partenza resta com'è.
+            {t("Un preventivo non cambia modello: il PDF già visto dal cliente deve restare quello. Qui ne crei uno nuovo con lo stesso cliente, cantiere, immobile, computo e condizioni, e il modello che scegli. Si copia quello che è salvato (le foto del progetto no); il preventivo di partenza resta com'è.")}
           </DialogDescription>
         </DialogHeader>
-        <label className="block text-sm font-medium" htmlFor="altro-modello">Nuovo modello</label>
+        <label className="block text-sm font-medium" htmlFor="altro-modello">{t("Nuovo modello")}</label>
         <UniformSelect
           id="altro-modello"
           className="w-full rounded-md border bg-background px-3 py-2 text-sm"
           value={scelto}
           onChange={(e) => setScelto(e.target.value)}
         >
-          <option value="">Scegli il modello…</option>
+          <option value="">{t("Scegli il modello…")}</option>
           {gruppi.map((g) => (
             <optgroup key={g.area} label={g.area}>
               {g.interventi.map((i) => <option key={i.id} value={i.id}>{i.title}</option>)}
@@ -95,9 +95,9 @@ export function CopiaConAltroModello({ modulo, progetto, snapshot, costruisci }:
           ))}
         </UniformSelect>
         <DialogFooter>
-          <Button variant="ghost" onClick={() => setAperto(false)} disabled={inCorso}>Annulla</Button>
+          <Button variant="ghost" onClick={() => setAperto(false)} disabled={inCorso}>{t("Annulla")}</Button>
           <Button onClick={() => void copia()} disabled={!scelto || inCorso}>
-            {inCorso ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Copio…</> : "Crea la copia"}
+            {inCorso ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />{t("Copio…")}</> : t("Crea la copia")}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -5,6 +5,7 @@
 import { MapPin } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/formatters";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Riga { ambiente?: string | null; quantita?: number | null; prezzo_unitario?: number | null; sconto_pct?: number | null; opzionale?: boolean }
 
@@ -27,20 +28,21 @@ export function riepilogoPerAmbiente(righe: Riga[]): Array<{ ambiente: string; v
 }
 
 export function RiepilogoAmbienti({ righe }: { righe: Riga[] }) {
+  const t = useT();
   const elenco = riepilogoPerAmbiente(righe);
   if (!elenco.length) return null;
   return (
     <Card className="max-sm:hidden">
       <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-1.5 text-sm"><MapPin className="h-4 w-4 text-orange-600" aria-hidden /> Riepilogo per ambiente</CardTitle>
+        <CardTitle className="flex items-center gap-1.5 text-sm"><MapPin className="h-4 w-4 text-orange-600" aria-hidden /> {t("Riepilogo per ambiente")}</CardTitle>
       </CardHeader>
       <CardContent className="p-0">
         <table className="w-full text-sm">
           <tbody>
             {elenco.map((a) => (
               <tr key={a.ambiente} className="border-b last:border-0">
-                <td className="px-4 py-2 font-medium text-slate-800">{a.ambiente}</td>
-                <td className="px-2 py-2 text-right tabular-nums text-muted-foreground">{a.voci} {a.voci === 1 ? "voce" : "voci"}</td>
+                <td className="px-4 py-2 font-medium text-slate-800">{a.ambiente === "Senza ambiente" ? t("Senza ambiente") : a.ambiente}</td>
+                <td className="px-2 py-2 text-right tabular-nums text-muted-foreground">{t(a.voci === 1 ? "{n} voce" : "{n} voci", { n: a.voci })}</td>
                 <td className="px-4 py-2 text-right font-semibold tabular-nums text-slate-900">{formatCurrency(a.importo)}</td>
               </tr>
             ))}

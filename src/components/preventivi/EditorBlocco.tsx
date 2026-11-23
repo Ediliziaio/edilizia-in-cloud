@@ -22,6 +22,7 @@ import { ICONE, type NodoIcona, type NomeIcona } from "../../../supabase/functio
 import { eTavola } from "../../../supabase/functions/_shared/proporzioniImmagine";
 import { ModulePhotoUpdateButton } from "./modules/ModulePhotoUpdateButton";
 import { resetBlockContent } from "./resetBlockContent";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   chiave: ChiaveBlocco;
@@ -53,6 +54,7 @@ function AnteprimaIcona({ nome }: { nome: NomeIcona | null }) {
 function EditorVoci({ titolo, voci, onVoci, conTesto }: {
   titolo: string; voci: VoceBlocco[]; onVoci: (v: VoceBlocco[]) => void; conTesto: boolean;
 }) {
+  const t = useT();
   const cambia = (i: number, campo: keyof VoceBlocco, valore: string | null) =>
     onVoci(voci.map((x, j) => (j === i ? { ...x, [campo]: valore } : x)));
   return (
@@ -64,35 +66,36 @@ function EditorVoci({ titolo, voci, onVoci, conTesto }: {
             <div className="flex h-9 w-fit max-w-full items-center gap-1 rounded-md border bg-background px-1.5">
               <AnteprimaIcona nome={x.icona} />
               <UniformSelect
-                aria-label={`Icona di ${x.titolo || "voce"}`}
+                aria-label={x.titolo ? t("Icona di {voce}", { voce: x.titolo }) : t("Icona di voce")}
                 value={x.icona ?? ""}
                 onChange={(e) => cambia(i, "icona", e.target.value || null)}
                 className="h-7 max-w-[7.5rem] bg-transparent text-xs"
               >
-                <option value="">nessuna</option>
+                <option value="">{t("nessuna")}</option>
                 {NOMI_ICONE.map((n) => <option key={n} value={n}>{n}</option>)}
               </UniformSelect>
             </div>
             <div className="col-span-2 row-start-2 grid min-w-0 gap-2">
-              <Textarea rows={2} className="min-h-[60px] font-medium" value={x.titolo} onChange={(e) => cambia(i, "titolo", e.target.value)} placeholder="Titolo" aria-label="Titolo della voce" />
+              <Textarea rows={2} className="min-h-[60px] font-medium" value={x.titolo} onChange={(e) => cambia(i, "titolo", e.target.value)} placeholder={t("Titolo")} aria-label={t("Titolo della voce")} />
               {conTesto ? (
-                <Textarea rows={3} className="min-h-[76px] text-sm leading-relaxed" value={x.testo ?? ""} onChange={(e) => cambia(i, "testo", e.target.value || null)} placeholder="Spiegazione della voce (facoltativa)" aria-label="Spiegazione della voce" />
+                <Textarea rows={3} className="min-h-[76px] text-sm leading-relaxed" value={x.testo ?? ""} onChange={(e) => cambia(i, "testo", e.target.value || null)} placeholder={t("Spiegazione della voce (facoltativa)")} aria-label={t("Spiegazione della voce")} />
               ) : null}
             </div>
-            <Button type="button" size="icon" variant="ghost" className="col-start-2 row-start-1 h-9 w-9 shrink-0" onClick={() => onVoci(voci.filter((_, j) => j !== i))} aria-label={`Togli ${x.titolo || "voce"}`}>
+            <Button type="button" size="icon" variant="ghost" className="col-start-2 row-start-1 h-9 w-9 shrink-0" onClick={() => onVoci(voci.filter((_, j) => j !== i))} aria-label={x.titolo ? t("Togli {voce}", { voce: x.titolo }) : t("Togli voce")}>
               <X className="h-3.5 w-3.5" />
             </Button>
           </div>
         ))}
       </div>
       <Button size="sm" variant="ghost" onClick={() => onVoci([...voci, { titolo: "", testo: null, icona: null }])}>
-        <Plus className="mr-1 h-3.5 w-3.5" /> Aggiungi una voce
+        <Plus className="mr-1 h-3.5 w-3.5" /> {t("Aggiungi una voce")}
       </Button>
     </div>
   );
 }
 
 export function EditorBlocco({ chiave, settore, salvati, onSalvati, campoFoto, incorniciato = true }: Props) {
+  const t = useT();
   const tutti = useMemo(() => (salvati && typeof salvati === "object" ? (salvati as Record<string, unknown>) : {}), [salvati]);
   const proprio = (tutti[chiave] && typeof tutti[chiave] === "object" ? tutti[chiave] : {}) as Record<string, unknown>;
   const effettivo = useMemo(() => leggiBlocco(chiave, settore, tutti), [chiave, settore, tutti]);
@@ -110,7 +113,7 @@ export function EditorBlocco({ chiave, settore, salvati, onSalvati, campoFoto, i
   const vociCampo = (k: "voci" | "escluse"): VoceBlocco[] =>
     Array.isArray(proprio[k]) && (proprio[k] as unknown[]).length > 0 ? (proprio[k] as VoceBlocco[]) : effettivo[k];
   const tornaDiSerie = () => {
-    if (!window.confirm("Ripristinare i testi standard di questa pagina? Le foto e le didascalie personalizzate non cambiano.")) return;
+    if (!window.confirm(t("Ripristinare i testi standard di questa pagina? Le foto e le didascalie personalizzate non cambiano."))) return;
     onSalvati(resetBlockContent(tutti, chiave, "texts"));
   };
   const fotoStandard = leggiBlocco(chiave, settore, { modulo_defaults: tutti.modulo_defaults }).foto;
@@ -146,48 +149,48 @@ export function EditorBlocco({ chiave, settore, salvati, onSalvati, campoFoto, i
       <ModulePhotoUpdateButton value={salvati} sector={settore} onChange={onSalvati} />
       {descrizione.promessa ? (
         <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-          Questa pagina promette qualcosa al cliente ed è accesa di serie: adatta le voci a come lavorate, e spegnila se non lo fate.
+          {t("Questa pagina promette qualcosa al cliente ed è accesa di serie: adatta le voci a come lavorate, e spegnila se non lo fate.")}
         </p>
       ) : null}
 
       <div className="grid gap-3 md:grid-cols-[1fr_2fr]">
         <div className="space-y-1.5">
-          <Label className="text-xs">Occhiello</Label>
+          <Label className="text-xs">{t("Occhiello")}</Label>
           <Input value={testoCampo("occhiello")} onChange={(e) => salva({ occhiello: e.target.value })} />
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs">Titolo</Label>
+          <Label className="text-xs">{t("Titolo")}</Label>
           <Input value={testoCampo("titolo")} onChange={(e) => salva({ titolo: e.target.value })} />
-          <p className="text-[10px] text-muted-foreground">Una parola fra asterischi esce in corsivo, nel colore dell'azienda.</p>
+          <p className="text-[10px] text-muted-foreground">{t("Una parola fra asterischi esce in corsivo, nel colore dell'azienda.")}</p>
         </div>
       </div>
       <div className="space-y-1.5">
-        <Label className="text-xs">Introduzione</Label>
+        <Label className="text-xs">{t("Introduzione")}</Label>
         <Textarea value={testoCampo("intro")} onChange={(e) => salva({ intro: e.target.value })} rows={2} />
       </div>
 
       <EditorVoci
-        titolo={chiave === "compreso" ? "Compreso nel prezzo" : "Le voci"}
+        titolo={chiave === "compreso" ? t("Compreso nel prezzo") : t("Le voci")}
         voci={vociCampo("voci")}
         onVoci={(voci) => salva({ voci })}
         conTesto={chiave !== "compreso"}
       />
       {chiave === "compreso" ? (
-        <EditorVoci titolo="Non compreso" voci={vociCampo("escluse")} onVoci={(escluse) => salva({ escluse })} conTesto={false} />
+        <EditorVoci titolo={t("Non compreso")} voci={vociCampo("escluse")} onVoci={(escluse) => salva({ escluse })} conTesto={false} />
       ) : null}
 
       {chiave !== "compreso" ? (
         <div className="space-y-2">
-          <Label className="text-xs">{tavola ? "La tavola" : `Foto della pagina · ${piene.length} di 2`}</Label>
-          {!piene.length && <p className="rounded-md bg-slate-50 p-3 text-xs text-muted-foreground">Questa pagina è senza foto. Scegli un’immagine illustrativa dalla libreria oppure aggiungi una vostra foto. Non vengono stampati riquadri vuoti.</p>}
+          <Label className="text-xs">{tavola ? t("La tavola") : t("Foto della pagina · {n} di 2", { n: piene.length })}</Label>
+          {!piene.length && <p className="rounded-md bg-slate-50 p-3 text-xs text-muted-foreground">{t("Questa pagina è senza foto. Scegli un’immagine illustrativa dalla libreria oppure aggiungi una vostra foto. Non vengono stampati riquadri vuoti.")}</p>}
           <div className={tavola ? "grid gap-3 md:grid-cols-[220px_1fr] md:items-start" : "grid gap-3 md:grid-cols-2"}>
             {posti.map((url, i) => (
               <div key={i} className="space-y-1">
                 {url && eFotoDiSerie(url) ? (
                   <div className="relative overflow-hidden rounded-md border bg-muted">
                     <img src={url} alt="" className={tavola ? "aspect-[4/5] w-full object-contain" : "aspect-[16/9] w-full object-cover"} />
-                    <span className="absolute left-1.5 top-1.5 rounded bg-background/90 px-1.5 py-0.5 text-[10px]">di serie</span>
-                    <Button size="icon" variant="secondary" className="absolute right-1.5 top-1.5 h-7 w-7" onClick={() => salvaFoto(tavola ? [] : slot.map((u, j) => (j === i ? null : u)))} aria-label="Togli la foto">
+                    <span className="absolute left-1.5 top-1.5 rounded bg-background/90 px-1.5 py-0.5 text-[10px]">{t("di serie")}</span>
+                    <Button size="icon" variant="secondary" className="absolute right-1.5 top-1.5 h-7 w-7" onClick={() => salvaFoto(tavola ? [] : slot.map((u, j) => (j === i ? null : u)))} aria-label={t("Togli la foto")}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
@@ -198,16 +201,15 @@ export function EditorBlocco({ chiave, settore, salvati, onSalvati, campoFoto, i
             ))}
             {tavola ? (
               <p className="text-[11px] text-muted-foreground">
-                Una tavola esce da sola e intera, grande quanto la pagina permette, con le voci accanto: le sue
-                scritte non si tagliano. Per mettere le vostre foto, toglietela o sceglietene una dalla libreria.
+                {t("Una tavola esce da sola e intera, grande quanto la pagina permette, con le voci accanto: le sue scritte non si tagliano. Per mettere le vostre foto, toglietela o sceglietene una dalla libreria.")}
               </p>
             ) : null}
           </div>
           <Button size="sm" variant="outline" onClick={() => setLibreriaAperta((a) => !a)}>
-            <ImagePlus className="mr-1.5 h-3.5 w-3.5" /> {libreriaAperta ? "Chiudi la libreria" : "Scegli dalla libreria"}
+            <ImagePlus className="mr-1.5 h-3.5 w-3.5" /> {libreriaAperta ? t("Chiudi la libreria") : t("Scegli dalla libreria")}
           </Button>
-          {!tavola && piene.length < 2 && <Button size="sm" variant="ghost" onClick={() => setAggiungiFoto(v => !v)}><Plus className="mr-1.5 h-3.5 w-3.5" />{aggiungiFoto ? "Annulla caricamento" : piene.length ? "Aggiungi seconda foto (facoltativa)" : "Carica una vostra foto"}</Button>}
-          {fotoModificate && <Button type="button" size="sm" variant="ghost" onClick={() => { onSalvati(resetBlockContent(tutti, chiave, "images")); setAggiungiFoto(false); }}><RotateCcw className="mr-1.5 h-3.5 w-3.5" />Ripristina immagini standard</Button>}
+          {!tavola && piene.length < 2 && <Button size="sm" variant="ghost" onClick={() => setAggiungiFoto(v => !v)}><Plus className="mr-1.5 h-3.5 w-3.5" />{aggiungiFoto ? t("Annulla caricamento") : piene.length ? t("Aggiungi seconda foto (facoltativa)") : t("Carica una vostra foto")}</Button>}
+          {fotoModificate && <Button type="button" size="sm" variant="ghost" onClick={() => { onSalvati(resetBlockContent(tutti, chiave, "images")); setAggiungiFoto(false); }}><RotateCcw className="mr-1.5 h-3.5 w-3.5" />{t("Ripristina immagini standard")}</Button>}
           {libreriaAperta ? (
             <div className="grid max-h-72 grid-cols-2 gap-2 overflow-y-auto rounded-md border p-2 md:grid-cols-4">
               {libreria.map((f) => (
@@ -219,14 +221,14 @@ export function EditorBlocco({ chiave, settore, salvati, onSalvati, campoFoto, i
             </div>
           ) : null}
           <p className="text-[10px] text-muted-foreground">
-            Sotto le foto di serie il PDF scrive «Immagini indicative»: con le vostre foto la scritta sparisce.
+            {t("Sotto le foto di serie il PDF scrive «Immagini indicative»: con le vostre foto la scritta sparisce.")}
           </p>
         </div>
       ) : null}
 
       <div className="flex justify-end">
         <Button type="button" size="sm" variant="ghost" onClick={tornaDiSerie}>
-          <RotateCcw className="mr-1 h-3.5 w-3.5" /> Ripristina testi standard
+          <RotateCcw className="mr-1 h-3.5 w-3.5" /> {t("Ripristina testi standard")}
         </Button>
       </div>
     </div>

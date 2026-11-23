@@ -126,6 +126,7 @@ import type {
   SocialPublishResultEntry,
   SocialScheduledPost,
 } from "@/lib/social/types";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // ─── Platform config ───────────────────────────────────────────────────────────
 
@@ -553,8 +554,9 @@ function PlatformStatusRibbon({
   verificaNonRiuscita: boolean;
   onGoToSettings: () => void;
 }) {
+  const t = useT();
   if (isLoading) {
-    return <div className="h-11 animate-pulse rounded-2xl border border-slate-100 bg-white" aria-label="Carico lo stato delle pagine" />;
+    return <div className="h-11 animate-pulse rounded-2xl border border-slate-100 bg-white" aria-label={t("Carico lo stato delle pagine")} />;
   }
 
   if (error || !stato) {
@@ -562,11 +564,11 @@ function PlatformStatusRibbon({
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-2.5">
         <span className="flex items-start gap-2 text-xs font-medium text-red-800">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          Non riesco a sapere se le pagine possono pubblicare.{error?.message ? ` ${error.message}` : ""}
+          {t("Non riesco a sapere se le pagine possono pubblicare.")}{error?.message ? ` ${error.message}` : ""}
         </span>
         <Button size="sm" variant="outline" onClick={onRiprova}
           className="h-7 shrink-0 gap-1.5 border-red-200 bg-white text-red-700 hover:bg-red-100">
-          <RefreshCw className="h-3 w-3" /> Riprova
+          <RefreshCw className="h-3 w-3" /> {t("Riprova")}
         </Button>
       </div>
     );
@@ -577,12 +579,12 @@ function PlatformStatusRibbon({
     return (
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50/40 px-4 py-3 shadow-sm max-sm:rounded-lg max-sm:px-3 max-sm:py-2 max-sm:shadow-none">
         <span className="text-xs font-medium text-amber-800 max-sm:text-[13px]">
-          Nessuna pagina collegata<span className="max-sm:hidden">: collega Facebook e Instagram per pubblicare da qui.</span>
-          <span className="block text-[11px] font-normal text-amber-800/80 sm:hidden">si collega da computer o tablet</span>
+          {t("Nessuna pagina collegata")}<span className="max-sm:hidden">{t(": collega Facebook e Instagram per pubblicare da qui.")}</span>
+          <span className="block text-[11px] font-normal text-amber-800/80 sm:hidden">{t("si collega da computer o tablet")}</span>
         </span>
         <Button size="sm" variant="outline" onClick={onGoToSettings}
           className="shrink-0 gap-1.5 border-amber-300 bg-white text-amber-800 hover:bg-amber-50 max-sm:hidden">
-          <Settings className="h-3.5 w-3.5" /> Collega Meta
+          <Settings className="h-3.5 w-3.5" /> {t("Collega Meta")}
           <ArrowRight className="h-3 w-3" />
         </Button>
       </div>
@@ -618,7 +620,7 @@ function PlatformStatusRibbon({
           {titolo}
         </span>
         {!tutteOk && (
-          <span className="block w-full pl-5 text-[11px] text-amber-800/80 sm:hidden">si ricollega da computer o tablet</span>
+          <span className="block w-full pl-5 text-[11px] text-amber-800/80 sm:hidden">{t("si ricollega da computer o tablet")}</span>
         )}
         {pagine.map((pagina) => {
           const piattaforma = PLATFORMS.find((p) => p.id === pagina.piattaforma);
@@ -649,7 +651,7 @@ function PlatformStatusRibbon({
           );
         })}
         <button type="button" onClick={onGoToSettings} className="ml-auto flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-700 max-sm:hidden">
-          <Settings className="h-3 w-3" /> Gestisci
+          <Settings className="h-3 w-3" /> {t("Gestisci")}
         </button>
       </div>
       {!tutteOk && spiegazioni.length > 0 && (
@@ -664,7 +666,7 @@ function PlatformStatusRibbon({
           {serveRicollegare && (
             <Button size="sm" variant="outline" onClick={onGoToSettings}
               className="h-7 shrink-0 gap-1.5 border-amber-300 bg-white text-[11px] text-amber-800 hover:bg-amber-100">
-              <Settings className="h-3 w-3" /> Ricollega Meta
+              <Settings className="h-3 w-3" /> {t("Ricollega Meta")}
             </Button>
           )}
         </div>
@@ -718,7 +720,7 @@ interface DatiAzione {
 /** Un post salvato nel database (id uuid), non rimasto nel browser. */
 const isUuidPost = (id: unknown): id is string => typeof id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(id);
 
-const oraBreve = (d: Date) => d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+const oraBreve = (d: Date) => d.toLocaleTimeString(intlCampo(), { hour: "2-digit", minute: "2-digit" });
 
 const suInstagram = (voce: VoceCalendario) => voce.tipo === "esterno" && voce.esterno.piattaforma === "instagram";
 
@@ -784,6 +786,7 @@ function VoceCompatta({ voce, onApri }: { voce: VoceCalendario; onApri: (voce: V
 
 /** La voce leggibile: elenchi a destra, giorno scelto, elenco per giorni del telefono. */
 function VoceEstesa({ voce, onApri, conData = false }: { voce: VoceCalendario; onApri: (voce: VoceCalendario) => void; conData?: boolean }) {
+  const t = useT();
   const piattaforme = voce.tipo === "post" ? voce.post.platforms : [voce.esterno.piattaforma ?? "facebook"];
   const badge = voce.tipo === "post" ? STILE_STATO[voce.info.stato].badge : STILE_ESTERNO;
   return (
@@ -793,13 +796,13 @@ function VoceEstesa({ voce, onApri, conData = false }: { voce: VoceCalendario; o
         <IconePiattaforme ids={piattaforme} />
         <span className="shrink-0 text-[11px] font-semibold tabular-nums text-slate-500">
           {voce.tipo === "post" && !haData(voce.post)
-            ? "Senza data"
+            ? t("Senza data")
             : conData
-              ? voce.quando.toLocaleString("it-IT", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+              ? voce.quando.toLocaleString(intlCampo(), { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
               : oraBreve(voce.quando)}
         </span>
         <span className={cn("ml-auto shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold", badge)}>
-          {voce.tipo === "post" ? voce.info.etichetta : suInstagram(voce) ? "Su Instagram" : "Su Facebook"}
+          {voce.tipo === "post" ? voce.info.etichetta : suInstagram(voce) ? t("Su Instagram") : t("Su Facebook")}
         </span>
       </span>
       <span className="line-clamp-2 text-[12px] text-slate-700">{testoVoce(voce)}</span>
@@ -826,6 +829,7 @@ function CalendarioTab({
   onNuovoPost: (quando: { data: string; ora: string } | null) => void;
   onAzione: (post: ScheduledPost, azione: AzionePost, dati?: DatiAzione) => Promise<boolean>;
 }) {
+  const t = useT();
   // L'ora che passa: «in ritardo» si aggiorna da solo, senza ricaricare.
   const [adesso, setAdesso] = useState(() => Date.now());
   useEffect(() => {
@@ -956,7 +960,7 @@ function CalendarioTab({
 
   const titoloPeriodo = vista === "month"
     ? `${MONTH_NAMES[mese]} ${anno}`
-    : `${giorniSettimana[0].toLocaleDateString("it-IT", { day: "numeric", month: "short" })} – ${giorniSettimana[6].toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "numeric" })}`;
+    : `${giorniSettimana[0].toLocaleDateString(intlCampo(), { day: "numeric", month: "short" })} – ${giorniSettimana[6].toLocaleDateString(intlCampo(), { day: "numeric", month: "short", year: "numeric" })}`;
   const nessunPost = posts.length === 0 && vociEsterne.length === 0;
 
   return (
@@ -966,7 +970,7 @@ function CalendarioTab({
       {daApprovare.length > 0 && (puoApprovare ? (
         <div className="overflow-hidden rounded-2xl border border-amber-300 bg-amber-50">
           <p className="border-b border-amber-200 px-4 py-2.5 text-sm font-bold text-amber-900">
-            {daApprovare.length === 1 ? "1 post da approvare" : `${daApprovare.length} post da approvare`}
+            {daApprovare.length === 1 ? t("1 post da approvare") : t("{n} post da approvare", { n: daApprovare.length })}
           </p>
           <div className="divide-y divide-amber-200">
             {daApprovare.map((post) => {
@@ -981,36 +985,36 @@ function CalendarioTab({
                       <IconePiattaforme ids={post.platforms} />
                       <span className="font-semibold">
                         {haData(post)
-                          ? new Date(post.scheduled_at).toLocaleString("it-IT", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
-                          : "Senza data"}
+                          ? new Date(post.scheduled_at).toLocaleString(intlCampo(), { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+                          : t("Senza data")}
                       </span>
-                      {autore && <span>· di {autore}</span>}
-                      {passato && <span className="font-semibold text-orange-700">· l'orario è passato</span>}
+                      {autore && <span>{t("· di {autore}", { autore: String(autore ?? "") })}</span>}
+                      {passato && <span className="font-semibold text-orange-700">{t("· l'orario è passato")}</span>}
                     </span>
-                    <span className="line-clamp-2 block text-sm text-slate-800">{post.text || "Post senza testo"}</span>
+                    <span className="line-clamp-2 block text-sm text-slate-800">{post.text || t("Post senza testo")}</span>
                   </button>
                   {inRimanda ? (
                     <div className="flex w-full flex-col gap-2 sm:w-72">
                       <Textarea rows={2} value={notaRimanda} onChange={(e) => setNotaRimanda(e.target.value)}
-                        placeholder="Cosa va cambiato? Es.: metti la foto del cantiere"
+                        placeholder={t("Cosa va cambiato? Es.: metti la foto del cantiere")}
                         className="resize-none border-amber-200 bg-white text-xs" />
                       <div className="flex gap-2">
                         <Button size="sm" className="flex-1 bg-amber-600 text-white hover:bg-amber-700"
                           onClick={() => void onAzione(post, "rimanda", { nota: notaRimanda }).then((ok) => { if (ok) { setRimandaId(null); setNotaRimanda(""); } })}>
-                          Rimanda in bozza
+                          {t("Rimanda in bozza")}
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => { setRimandaId(null); setNotaRimanda(""); }}>Annulla</Button>
+                        <Button size="sm" variant="outline" onClick={() => { setRimandaId(null); setNotaRimanda(""); }}>{t("Annulla")}</Button>
                       </div>
                     </div>
                   ) : (
                     <div className="flex shrink-0 flex-wrap gap-2">
                       <Button size="sm" className="gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700"
                         onClick={() => void onAzione(post, "approva")}>
-                        <Check className="h-3.5 w-3.5" /> {passato ? "Approva e pubblica adesso" : "Approva"}
+                        <Check className="h-3.5 w-3.5" /> {passato ? t("Approva e pubblica adesso") : t("Approva")}
                       </Button>
                       <Button size="sm" variant="outline" className="gap-1.5 border-amber-300 bg-white text-amber-800 hover:bg-amber-100"
                         onClick={() => { setRimandaId(post.id); setNotaRimanda(""); }}>
-                        <X className="h-3.5 w-3.5" /> Rimanda
+                        <X className="h-3.5 w-3.5" /> {t("Rimanda")}
                       </Button>
                     </div>
                   )}
@@ -1022,26 +1026,26 @@ function CalendarioTab({
       ) : (
         <p className="flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800">
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          {daApprovare.length === 1 ? "1 post aspetta" : `${daApprovare.length} post aspettano`} l'approvazione del titolare o di un amministratore.
+          {daApprovare.length === 1 ? t("1 post aspetta") : t("{n} post aspettano", { n: daApprovare.length })} {t("l'approvazione del titolare o di un amministratore.")}
         </p>
       ))}
 
       {/* ── NAVIGAZIONE E FILTRI ─────────────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1">
-          <button type="button" aria-label="Periodo precedente" onClick={() => vaiA(-1)} className="rounded-xl p-2 hover:bg-slate-100"><ChevronLeft className="h-4 w-4" /></button>
+          <button type="button" aria-label={t("Periodo precedente")} onClick={() => vaiA(-1)} className="rounded-xl p-2 hover:bg-slate-100"><ChevronLeft className="h-4 w-4" /></button>
           <span className="min-w-[9.5rem] text-center text-sm font-bold text-slate-800">{titoloPeriodo}</span>
-          <button type="button" aria-label="Periodo successivo" onClick={() => vaiA(1)} className="rounded-xl p-2 hover:bg-slate-100"><ChevronRight className="h-4 w-4" /></button>
+          <button type="button" aria-label={t("Periodo successivo")} onClick={() => vaiA(1)} className="rounded-xl p-2 hover:bg-slate-100"><ChevronRight className="h-4 w-4" /></button>
           <button type="button" onClick={vaiAOggi}
             className="ml-1 rounded-xl border border-slate-200 px-3 py-1.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50">
-            Oggi
+            {t("Oggi")}
           </button>
         </div>
         <div className="flex overflow-hidden rounded-xl border border-slate-200 bg-white text-sm">
           {(["month", "week"] as const).map((v) => (
             <button key={v} type="button" onClick={() => { setVista(v); setGiornoScelto(null); }} aria-pressed={vista === v}
               className={cn("px-3.5 py-1.5 font-semibold transition", vista === v ? "bg-orange-500 text-white" : "text-slate-500 hover:bg-slate-50")}>
-              {v === "month" ? "Mese" : "Settimana"}
+              {v === "month" ? t("Mese") : t("Settimana")}
             </button>
           ))}
         </div>
@@ -1052,14 +1056,14 @@ function CalendarioTab({
           <button type="button" onClick={() => setFiltroGruppo("tutti")} aria-pressed={filtroGruppo === "tutti"}
             className={cn("rounded-full border px-2.5 py-1 text-[11px] font-semibold transition",
               filtroGruppo === "tutti" ? "border-orange-400 bg-orange-50 text-orange-700" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300")}>
-            Tutti
+            {t("Tutti")}
           </button>
           {GRUPPI.map((g) => (
             <button key={g.id} type="button" onClick={() => setFiltroGruppo(filtroGruppo === g.id ? "tutti" : g.id)} aria-pressed={filtroGruppo === g.id}
               className={cn("flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition",
                 filtroGruppo === g.id ? "border-orange-400 bg-orange-50 text-orange-700" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300")}>
               <span className={cn("h-2 w-2 rounded-full", g.pallino)} />
-              {g.etichetta}
+              {t(g.etichetta)}
               <span className="tabular-nums text-slate-400">{conti[g.id]}</span>
             </button>
           ))}
@@ -1068,7 +1072,7 @@ function CalendarioTab({
               className={cn("flex items-center gap-1.5 rounded-full border border-dashed px-2.5 py-1 text-[11px] font-semibold transition",
                 mostraEsterni ? "border-slate-400 bg-white text-slate-700" : "border-slate-200 bg-white text-slate-400")}>
               <ExternalLink className="h-3 w-3" />
-              Fatti su Facebook
+              {t("Fatti su Facebook")}
               <span className="tabular-nums text-slate-400">{esterniNelPeriodo}</span>
             </button>
           )}
@@ -1088,9 +1092,7 @@ function CalendarioTab({
       )}
 
       {esterniQuery.data?.errori && esterniQuery.data.errori.length > 0 && (
-        <p className="text-[11px] text-slate-500">
-          Non riesco a leggere i post di {elencoNomi(esterniQuery.data.errori)} da Facebook: nel calendario ci sono solo quelli fatti da qui.
-        </p>
+        <p className="text-[11px] text-slate-500">{t("Non riesco a leggere i post di {errori} da Facebook: nel calendario ci sono solo quelli fatti da qui.", { errori: String(elencoNomi(esterniQuery.data.errori) ?? "") })}</p>
       )}
 
       <div className="grid gap-4 lg:grid-cols-[1fr_300px]">
@@ -1137,7 +1139,7 @@ function CalendarioTab({
                               </span>
                             )}
                             {nuovo && (
-                              <button type="button" aria-label={`Nuovo post il ${numero} ${MONTH_NAMES[mese]}`}
+                              <button type="button" aria-label={t("Nuovo post il {numero} {valore}", { numero: String(numero ?? ""), valore: String(MONTH_NAMES[mese] ?? "") })}
                                 onClick={(e) => { e.stopPropagation(); onNuovoPost(nuovo); }}
                                 className="flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-white opacity-0 shadow-sm transition-opacity focus:opacity-100 group-hover:opacity-100">
                                 <Plus className="h-3 w-3" />
@@ -1147,9 +1149,7 @@ function CalendarioTab({
                         </div>
                         {voci.slice(0, 3).map((voce) => <VoceCompatta key={voce.id} voce={voce} onApri={onApriVoce} />)}
                         {voci.length > 3 && (
-                          <span className="rounded bg-slate-100 px-1 py-0.5 text-center text-[10px] font-semibold text-slate-500">
-                            altri {voci.length - 3}
-                          </span>
+                          <span className="rounded bg-slate-100 px-1 py-0.5 text-center text-[10px] font-semibold text-slate-500">{t("altri {n}", { n: voci.length - 3 })}</span>
                         )}
                       </div>
                     );
@@ -1206,7 +1206,7 @@ function CalendarioTab({
                               {voci.map((voce) => <VoceCompatta key={voce.id} voce={voce} onApri={onApriVoce} />)}
                               {nuovo && (
                                 <span className="hidden h-full items-center justify-center text-[10px] font-semibold text-orange-600 group-hover:flex">
-                                  <Plus className="mr-0.5 h-3 w-3" /> Post
+                                  <Plus className="mr-0.5 h-3 w-3" /> {t("Post")}
                                 </span>
                               )}
                             </div>
@@ -1225,10 +1225,10 @@ function CalendarioTab({
             {agenda.length === 0 ? (
               <div className="rounded-2xl border-2 border-dashed border-slate-200 p-5 text-center">
                 <p className="text-sm font-medium text-slate-600">
-                  {vista === "month" ? "Nessun post in questo mese" : "Nessun post in questa settimana"}
+                  {vista === "month" ? t("Nessun post in questo mese") : t("Nessun post in questa settimana")}
                 </p>
                 <Button size="sm" className="mt-3 gap-1.5 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white" onClick={() => onNuovoPost(null)}>
-                  <Plus className="h-3.5 w-3.5" /> Crea post
+                  <Plus className="h-3.5 w-3.5" /> {t("Crea post")}
                 </Button>
               </div>
             ) : agenda.map(({ giorno, voci }) => {
@@ -1237,11 +1237,11 @@ function CalendarioTab({
                 <div key={chiaveGiorno(giorno)} className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <p className={cn("text-xs font-bold capitalize", chiaveGiorno(giorno) === chiaveGiorno(oggi) ? "text-orange-600" : "text-slate-700")}>
-                      {giorno.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}
+                      {giorno.toLocaleDateString(intlCampo(), { weekday: "long", day: "numeric", month: "long" })}
                     </p>
                     {nuovo && (
                       <button type="button" onClick={() => onNuovoPost(nuovo)} className="flex items-center gap-0.5 text-[11px] font-semibold text-orange-600">
-                        <Plus className="h-3 w-3" /> Post
+                        <Plus className="h-3 w-3" /> {t("Post")}
                       </button>
                     )}
                   </div>
@@ -1258,19 +1258,19 @@ function CalendarioTab({
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-bold capitalize text-slate-800">
-                  {dataGiornoScelto.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}
+                  {dataGiornoScelto.toLocaleDateString(intlCampo(), { weekday: "long", day: "numeric", month: "long" })}
                 </p>
-                <button type="button" aria-label="Chiudi il giorno" onClick={() => setGiornoScelto(null)} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100">
+                <button type="button" aria-label={t("Chiudi il giorno")} onClick={() => setGiornoScelto(null)} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100">
                   <X className="h-3.5 w-3.5" />
                 </button>
               </div>
               {vociGiornoScelto.length === 0 && (
-                <p className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-500">Nessun post in questo giorno.</p>
+                <p className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-500">{t("Nessun post in questo giorno.")}</p>
               )}
               {vociGiornoScelto.map((voce) => <VoceEstesa key={voce.id} voce={voce} onApri={onApriVoce} />)}
               {nuovoNelGiornoScelto && (
                 <Button size="sm" variant="outline" className="w-full gap-1.5" onClick={() => onNuovoPost(nuovoNelGiornoScelto)}>
-                  <Plus className="h-3.5 w-3.5" /> Nuovo post in questo giorno
+                  <Plus className="h-3.5 w-3.5" /> {t("Nuovo post in questo giorno")}
                 </Button>
               )}
             </div>
@@ -1278,25 +1278,25 @@ function CalendarioTab({
             // Telefono: lo dice già l'elenco dei giorni, con lo stesso «Crea post».
             <div className="rounded-2xl border-2 border-dashed border-slate-200 p-6 text-center max-sm:hidden">
               <Calendar className="mx-auto mb-2 h-6 w-6 text-slate-300" />
-              <p className="text-sm font-medium text-slate-600">Nessun post ancora</p>
-              <p className="mt-1 text-xs text-slate-400">Clicca un giorno del calendario o crea il primo post.</p>
+              <p className="text-sm font-medium text-slate-600">{t("Nessun post ancora")}</p>
+              <p className="mt-1 text-xs text-slate-400">{t("Clicca un giorno del calendario o crea il primo post.")}</p>
               <Button size="sm" className="mt-3 gap-1.5 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white" onClick={() => onNuovoPost(null)}>
-                <Plus className="h-3.5 w-3.5" /> Crea post
+                <Plus className="h-3.5 w-3.5" /> {t("Crea post")}
               </Button>
             </div>
           ) : (
             <>
               {vociDaSistemare.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-sm font-bold text-red-700">Da sistemare</p>
+                  <p className="text-sm font-bold text-red-700">{t("Da sistemare")}</p>
                   {vociDaSistemare.slice(0, 5).map((voce) => <VoceEstesa key={voce.id} voce={voce} onApri={onApriVoce} conData />)}
-                  {vociDaSistemare.length > 5 && <p className="text-[11px] text-slate-500">e altri {vociDaSistemare.length - 5}: filtra «Da sistemare».</p>}
+                  {vociDaSistemare.length > 5 && <p className="text-[11px] text-slate-500">{t("e altri {n}: filtra «Da sistemare».", { n: vociDaSistemare.length - 5 })}</p>}
                 </div>
               )}
               <div className="hidden space-y-2 sm:block">
-                <p className="text-sm font-bold text-slate-800">Prossimi 14 giorni</p>
+                <p className="text-sm font-bold text-slate-800">{t("Prossimi 14 giorni")}</p>
                 {vociProssime.length === 0
-                  ? <p className="text-xs text-slate-500">Niente in programma.</p>
+                  ? <p className="text-xs text-slate-500">{t("Niente in programma.")}</p>
                   : vociProssime.map((voce) => <VoceEstesa key={voce.id} voce={voce} onApri={onApriVoce} conData />)}
               </div>
             </>
@@ -1305,19 +1305,19 @@ function CalendarioTab({
           {bozze.length > 0 && (
             <div className="space-y-2">
               <p className="text-sm font-bold text-slate-800">
-                Bozze <span className="font-normal text-slate-400">{bozze.length}</span>
+                {t("Bozze")} <span className="font-normal text-slate-400">{bozze.length}</span>
               </p>
               {(tutteLeBozze ? vociBozze : vociBozze.slice(0, 5)).map((voce) => (
                 <div key={voce.id} className="space-y-1">
                   <VoceEstesa voce={voce} onApri={onApriVoce} conData={voce.tipo === "post" && haData(voce.post)} />
                   {voce.tipo === "post" && voce.post.reviewNote && (
-                    <p className="rounded-lg bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800">Rimandato: {voce.post.reviewNote}</p>
+                    <p className="rounded-lg bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800">{t("Rimandato: {reviewNote}", { reviewNote: String(voce.post.reviewNote ?? "") })}</p>
                   )}
                 </div>
               ))}
               {bozze.length > 5 && (
                 <button type="button" onClick={() => setTutteLeBozze((v) => !v)} className="text-[11px] font-semibold text-orange-600">
-                  {tutteLeBozze ? "Mostra meno" : `Mostra tutte (${bozze.length})`}
+                  {tutteLeBozze ? t("Mostra meno") : t("Mostra tutte ({n})", { n: bozze.length })}
                 </button>
               )}
             </div>
@@ -1356,6 +1356,7 @@ function PostSocialDialog({
   nomeUtente: (id?: string) => string | null;
   onAzione: (post: ScheduledPost, azione: AzionePost, dati?: DatiAzione) => Promise<boolean>;
 }) {
+  const t = useT();
   const [aperta, setAperta] = useState<"sposta" | "programma" | "rimanda" | "elimina" | null>(null);
   const [data, setData] = useState("");
   const [ora, setOra] = useState("09:00");
@@ -1400,11 +1401,11 @@ function PostSocialDialog({
   const confermaData = (azione: "sposta" | "programma") => {
     const quando = new Date(`${data}T${ora}`);
     if (!data || Number.isNaN(quando.getTime())) {
-      toast.error("Scegli giorno e ora");
+      toast.error(t("Scegli giorno e ora"));
       return;
     }
     if (quando.getTime() < Date.now() + 60_000) {
-      toast.error("Scegli un momento almeno un minuto nel futuro");
+      toast.error(t("Scegli un momento almeno un minuto nel futuro"));
       return;
     }
     void esegui(azione, { quando: quando.toISOString() });
@@ -1426,9 +1427,9 @@ function PostSocialDialog({
         {esterno && (
           <>
             <DialogHeader>
-              <DialogTitle>{esterno.piattaforma === "instagram" ? "Post su Instagram" : "Post su Facebook"}</DialogTitle>
+              <DialogTitle>{esterno.piattaforma === "instagram" ? t("Post su Instagram") : t("Post su Facebook")}</DialogTitle>
               <DialogDescription>
-                {[esterno.pagina, new Date(esterno.quando).toLocaleString("it-IT", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })]
+                {[esterno.pagina, new Date(esterno.quando).toLocaleString(intlCampo(), { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })]
                   .filter(Boolean).join(" · ")}
               </DialogDescription>
             </DialogHeader>
@@ -1436,14 +1437,14 @@ function PostSocialDialog({
               <img loading="lazy" src={esterno.immagine} alt="" className="max-h-64 w-full rounded-xl object-cover"
                 onError={(e) => { e.currentTarget.style.display = "none"; }} />
             )}
-            <p className="max-h-48 overflow-y-auto whitespace-pre-line text-sm text-slate-700">{esterno.testo || "Post senza testo"}</p>
+            <p className="max-h-48 overflow-y-auto whitespace-pre-line text-sm text-slate-700">{esterno.testo || t("Post senza testo")}</p>
             {esterno.numeri && (
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {[
-                  { etichetta: "mi piace", valore: esterno.numeri.reazioni },
-                  { etichetta: "commenti", valore: esterno.numeri.commenti },
-                  { etichetta: "persone raggiunte", valore: esterno.numeri.copertura },
-                  { etichetta: "salvataggi", valore: esterno.numeri.salvataggi },
+                  { etichetta: t("mi piace"), valore: esterno.numeri.reazioni },
+                  { etichetta: t("commenti"), valore: esterno.numeri.commenti },
+                  { etichetta: t("persone raggiunte"), valore: esterno.numeri.copertura },
+                  { etichetta: t("salvataggi"), valore: esterno.numeri.salvataggi },
                 ].map((n) => (
                   <div key={n.etichetta} className="rounded-xl bg-slate-50 px-2.5 py-2 text-center">
                     <p className="text-base font-bold tabular-nums text-slate-800">{numeroIntero(n.valore)}</p>
@@ -1454,13 +1455,13 @@ function PostSocialDialog({
             )}
             <p className="text-xs text-slate-500">
               {esterno.piattaforma === "instagram"
-                ? "È già su Instagram: si modifica solo da Instagram. I numeri si aggiornano ogni 4 ore."
-                : "Pubblicato direttamente su Facebook, non da qui: si modifica solo da Facebook."}
+                ? t("È già su Instagram: si modifica solo da Instagram. I numeri si aggiornano ogni 4 ore.")
+                : t("Pubblicato direttamente su Facebook, non da qui: si modifica solo da Facebook.")}
             </p>
             {esterno.link && (
               <Button asChild variant="outline" className="w-full gap-1.5">
                 <a href={esterno.link} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="h-4 w-4" /> {esterno.piattaforma === "instagram" ? "Apri su Instagram" : "Apri su Facebook"}
+                  <ExternalLink className="h-4 w-4" /> {esterno.piattaforma === "instagram" ? t("Apri su Instagram") : t("Apri su Facebook")}
                 </a>
               </Button>
             )}
@@ -1476,8 +1477,8 @@ function PostSocialDialog({
               </DialogTitle>
               <DialogDescription>
                 {haData(post)
-                  ? new Date(post.scheduled_at).toLocaleString("it-IT", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })
-                  : "Senza data"}
+                  ? new Date(post.scheduled_at).toLocaleString(intlCampo(), { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })
+                  : t("Senza data")}
                 {" · "}{elencoNomi(post.platforms.map(nomePiattaforma))}
               </DialogDescription>
             </DialogHeader>
@@ -1485,7 +1486,7 @@ function PostSocialDialog({
             {(post.media?.[0]?.url ?? post.image_url) && (post.media?.[0]?.type ?? "image") === "image" && (
               <img loading="lazy" src={post.media?.[0]?.url ?? post.image_url} alt="" className="max-h-56 w-full rounded-xl object-cover" />
             )}
-            <p className="max-h-48 overflow-y-auto whitespace-pre-line text-sm text-slate-700">{post.text || "Post senza testo"}</p>
+            <p className="max-h-48 overflow-y-auto whitespace-pre-line text-sm text-slate-700">{post.text || t("Post senza testo")}</p>
             {post.hashtags.length > 0 && <p className="text-xs text-orange-600">{post.hashtags.join(" ")}</p>}
 
             {describePublishResult(post.publishResult).map((riga) => (
@@ -1496,67 +1497,67 @@ function PostSocialDialog({
             ))}
             {info.stato === "in_ritardo" && (
               <p className="rounded-lg bg-orange-50 px-2.5 py-1.5 text-xs text-orange-800">
-                Doveva uscire e non è uscito. Pubblicalo adesso, spostalo o toglilo dalla programmazione.
+                {t("Doveva uscire e non è uscito. Pubblicalo adesso, spostalo o toglilo dalla programmazione.")}
               </p>
             )}
             {post.reviewNote && post.status === "draft" && (
-              <p className="rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">Rimandato: {post.reviewNote}</p>
+              <p className="rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">{t("Rimandato: {reviewNote}", { reviewNote: String(post.reviewNote ?? "") })}</p>
             )}
             <p className="text-[11px] text-slate-400">
               {[
                 nomeUtente(post.createdBy) ? `Scritto da ${nomeUtente(post.createdBy)}` : null,
-                post.approvatoDa ? `approvato da ${nomeUtente(post.approvatoDa) ?? "un amministratore"}${post.approvatoIl ? ` il ${new Date(post.approvatoIl).toLocaleDateString("it-IT")}` : ""}` : null,
+                post.approvatoDa ? `approvato da ${nomeUtente(post.approvatoDa) ?? "un amministratore"}${post.approvatoIl ? ` il ${new Date(post.approvatoIl).toLocaleDateString(intlCampo())}` : ""}` : null,
               ].filter(Boolean).join(" · ")}
             </p>
             {idFacebook && (
               <a href={`https://www.facebook.com/${idFacebook}`} target="_blank" rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:underline">
-                <ExternalLink className="h-3 w-3" /> Vedi su Facebook
+                <ExternalLink className="h-3 w-3" /> {t("Vedi su Facebook")}
               </a>
             )}
             {post.status === "review" && !puoApprovare && (
-              <p className="text-xs text-slate-500">Lo approva il titolare o un amministratore: intanto puoi modificarlo o spostarlo.</p>
+              <p className="text-xs text-slate-500">{t("Lo approva il titolare o un amministratore: intanto puoi modificarlo o spostarlo.")}</p>
             )}
 
             {/* Moduli dell'azione scelta */}
             {(aperta === "sposta" || aperta === "programma") && (
               <div className="space-y-2 rounded-xl border border-slate-200 p-3">
                 <div className="grid grid-cols-2 gap-2">
-                  <Field label="Giorno"><Input type="date" value={data} onChange={(e) => setData(e.target.value)} /></Field>
-                  <Field label="Ora"><Input type="time" value={ora} onChange={(e) => setOra(e.target.value)} /></Field>
+                  <Field label={t("Giorno")}><Input type="date" value={data} onChange={(e) => setData(e.target.value)} /></Field>
+                  <Field label={t("Ora")}><Input type="time" value={ora} onChange={(e) => setOra(e.target.value)} /></Field>
                 </div>
                 <div className="flex gap-2">
                   <Button size="sm" className="flex-1 bg-orange-500 text-white hover:bg-orange-600" disabled={inCorso} onClick={() => confermaData(aperta)}>
-                    {aperta === "sposta" ? "Sposta qui" : "Programma"}
+                    {aperta === "sposta" ? t("Sposta qui") : t("Programma")}
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => setAperta(null)}>Annulla</Button>
+                  <Button size="sm" variant="outline" onClick={() => setAperta(null)}>{t("Annulla")}</Button>
                 </div>
               </div>
             )}
             {aperta === "rimanda" && (
               <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50/50 p-3">
                 <Textarea rows={2} value={nota} onChange={(e) => setNota(e.target.value)} className="resize-none bg-white text-sm"
-                  placeholder="Cosa va cambiato? Es.: metti la foto del cantiere" />
+                  placeholder={t("Cosa va cambiato? Es.: metti la foto del cantiere")} />
                 <div className="flex gap-2">
                   <Button size="sm" className="flex-1 bg-amber-600 text-white hover:bg-amber-700" disabled={inCorso}
                     onClick={() => void esegui("rimanda", { nota })}>
-                    Rimanda in bozza
+                    {t("Rimanda in bozza")}
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => setAperta(null)}>Annulla</Button>
+                  <Button size="sm" variant="outline" onClick={() => setAperta(null)}>{t("Annulla")}</Button>
                 </div>
               </div>
             )}
             {aperta === "elimina" && (
               <div className="space-y-2 rounded-xl border border-red-200 bg-red-50/60 p-3">
                 <p className="text-sm text-red-800">
-                  Eliminare il post?
-                  {(post.status === "published") && " Resta su Facebook e Instagram: da qui si toglie solo dal calendario."}
+                  {t("Eliminare il post?")}
+                  {(post.status === "published") && ` ${t("Resta su Facebook e Instagram: da qui si toglie solo dal calendario.")}`}
                 </p>
                 <div className="flex gap-2">
                   <Button size="sm" className="flex-1 bg-red-600 text-white hover:bg-red-700" disabled={inCorso} onClick={() => void esegui("elimina")}>
-                    Sì, elimina
+                    {t("Sì, elimina")}
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => setAperta(null)}>Annulla</Button>
+                  <Button size="sm" variant="outline" onClick={() => setAperta(null)}>{t("Annulla")}</Button>
                 </div>
               </div>
             )}
@@ -1739,6 +1740,7 @@ function ContentStudioTab({
   onMediaStored?: (media: MediaItem) => MediaItem | void | Promise<MediaItem | void | unknown>;
   onGoToSettings: () => void;
 }) {
+  const tr = useT();
   const [avvio] = useState(() => valoriIniziali(iniziale));
   const [inModifica, setInModifica] = useState<ScheduledPost | null>(avvio.inModifica);
 
@@ -1921,17 +1923,17 @@ function ContentStudioTab({
   };
 
   const onGeneratePost = async () => {
-    if (!brief.trim()) { toast.error("Scrivi prima di cosa parla il post"); return; }
+    if (!brief.trim()) { toast.error(tr("Scrivi prima di cosa parla il post")); return; }
     const result = await generateCopy({ brief, segment, zone: "", variants: 3 });
     if (result?.copy_variants && result.copy_variants.length > 0) {
       setCopyVariants(result.copy_variants);
       if (!postText) setPostText(result.copy_variants[0]);
-      toast.success(`${result.copy_variants.length} versioni pronte: scegli quella che preferisci`);
+      toast.success(tr("{n} versioni pronte: scegli quella che preferisci", { n: result.copy_variants.length }));
     }
   };
 
   const onGenerateImage = async () => {
-    if (!brief.trim()) { toast.error("Scrivi prima di cosa parla il post"); return; }
+    if (!brief.trim()) { toast.error(tr("Scrivi prima di cosa parla il post")); return; }
     const result = await generateImage({
       prompt: brief,
       aspect_ratio: contentType.aspectRatio as "9:16" | "1:1" | "4:5" | "16:9",
@@ -1952,7 +1954,7 @@ function ContentStudioTab({
       });
       storeMediaInComposer(storedMedia, result.public_url);
       qc.invalidateQueries({ queryKey: ["ad-media-library", companyId] });
-      toast.success("Foto pronta");
+      toast.success(tr("Foto pronta"));
     }
   };
 
@@ -1981,7 +1983,7 @@ function ContentStudioTab({
     const spazio = Math.max(0, Math.min(maxHashtag, 8) - hashtags.length);
     const nuovi = Array.from(new Set(consigliati)).filter((h) => !hashtags.includes(h)).slice(0, spazio);
     if (nuovi.length === 0) {
-      toast.info("Hai già abbastanza hashtag");
+      toast.info(tr("Hai già abbastanza hashtag"));
       return;
     }
     setHashtags((prev) => [...prev, ...nuovi]);
@@ -2108,7 +2110,7 @@ function ContentStudioTab({
   const salvaBozza = async (status: "draft" | "review") => {
     if (isSubmitting) return; // anti doppio-submit
     if (!draftValidation.canSaveDraft) {
-      toast.error(selectedPlatforms.length === 0 ? "Scegli almeno una piattaforma." : "Scrivi il testo del post.");
+      toast.error(selectedPlatforms.length === 0 ? tr("Scegli almeno una piattaforma.") : tr("Scrivi il testo del post."));
       return;
     }
     const schedule = parseSocialSchedule(scheduledDate, scheduledTime, { required: status === "review" });
@@ -2136,10 +2138,10 @@ function ContentStudioTab({
 
     try {
       if (!(await onPostScheduled(bozza, inModifica?.id))) return;
-      toast.success(status === "review" ? (inModifica ? "Modifiche salvate" : "Post mandato in approvazione") : "Bozza salvata", {
+      toast.success(status === "review" ? (inModifica ? tr("Modifiche salvate") : tr("Post mandato in approvazione")) : tr("Bozza salvata"), {
         description: status === "review"
-          ? "Aspetta l'approvazione del titolare o di un amministratore, che ricevono un avviso."
-          : "La trovi tra le bozze del calendario. Non viene pubblicata.",
+          ? tr("Aspetta l'approvazione del titolare o di un amministratore, che ricevono un avviso.")
+          : tr("La trovi tra le bozze del calendario. Non viene pubblicata."),
       });
       chiudiLavoro(true);
     } finally {
@@ -2156,7 +2158,7 @@ function ContentStudioTab({
     if (schedule.error) { setPublishNow(false); setScheduleError(schedule.error); toast.error(schedule.error); return; }
     setScheduleError(null);
     if (!draftValidation.canPublishLive) {
-      toast.error(draftValidation.errors[0] ?? "Il post non si può ancora pubblicare.");
+      toast.error(draftValidation.errors[0] ?? tr("Il post non si può ancora pubblicare."));
       return;
     }
 
@@ -2167,7 +2169,7 @@ function ContentStudioTab({
     try {
       mediaForPost = companyId ? await ensureRemoteSocialMedia(companyId, postMedia) : postMedia;
     } catch (err) {
-      toast.error("Caricamento del file non riuscito", {
+      toast.error(tr("Caricamento del file non riuscito"), {
         description: err instanceof Error ? err.message : String(err),
       });
       setIsSubmitting(false);
@@ -2214,8 +2216,8 @@ function ContentStudioTab({
       if (!(await onPostScheduled(newPost, inModifica?.id))) return;
       if (!publishNow) {
         const dove = elencoNomi(newPost.platforms.map((id) => PLATFORMS.find((p) => p.id === id)?.name ?? id));
-        toast.success(inModifica ? "Post aggiornato" : "Post programmato", {
-          description: `Esce ${new Date(scheduledAt).toLocaleString("it-IT", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })} su ${dove}.`,
+        toast.success(inModifica ? tr("Post aggiornato") : tr("Post programmato"), {
+          description: tr("Esce {valore} su {dove}.", { valore: new Date(scheduledAt).toLocaleString(intlCampo(), { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }), dove: String(dove ?? "") }),
         });
       }
       chiudiLavoro(true);
@@ -2285,21 +2287,21 @@ function ContentStudioTab({
         {inModifica && (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-xs text-blue-900">
             <span>
-              <strong className="font-semibold">Stai modificando un post</strong>
+              <strong className="font-semibold">{tr("Stai modificando un post")}</strong>
               {haData(inModifica)
-                ? ` del ${new Date(inModifica.scheduled_at).toLocaleString("it-IT", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}`
+                ? tr(" del {valore}", { valore: new Date(inModifica.scheduled_at).toLocaleString(intlCampo(), { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }) })
                 : ""}
-              : salvando si aggiorna quello, non se ne crea uno nuovo.
+              {tr(": salvando si aggiorna quello, non se ne crea uno nuovo.")}
             </span>
             <Button size="sm" variant="outline" className="h-7 border-blue-200 bg-white text-xs text-blue-800 hover:bg-blue-100"
               onClick={() => chiudiLavoro(false)}>
-              Annulla modifica
+              {tr("Annulla modifica")}
             </Button>
           </div>
         )}
 
         {/* ── 1 · DOVE ─────────────────────────────────────────────────── */}
-        <PassoComposer numero={1} titolo="Dove" descrizione="Scegli dove pubblicare">
+        <PassoComposer numero={1} titolo={tr("Dove")} descrizione={tr("Scegli dove pubblicare")}>
           <div className="flex flex-wrap gap-2">
             {availablePlatforms.map((p) => {
               const isSelected = selectedPlatforms.includes(p.id);
@@ -2336,14 +2338,14 @@ function ContentStudioTab({
             return (
               <div key={platformId} className="flex flex-wrap items-center gap-2">
                 <Label className="text-xs font-semibold text-slate-600">
-                  {isIg ? "Account Instagram" : "Pagina Facebook"}
+                  {isIg ? tr("Account Instagram") : tr("Pagina Facebook")}
                 </Label>
                 <Select
                   value={targetPageIds[platformId] ?? ""}
                   onValueChange={(value) => setTargetPageIds((prev) => ({ ...prev, [platformId]: value }))}
                 >
                   <SelectTrigger className="h-8 w-full text-xs sm:w-64">
-                    <SelectValue placeholder={isIg ? "Scegli l'account" : "Scegli la pagina"} />
+                    <SelectValue placeholder={isIg ? tr("Scegli l'account") : tr("Scegli la pagina")} />
                   </SelectTrigger>
                   <SelectContent>
                     {options.map((account) => (
@@ -2361,8 +2363,8 @@ function ContentStudioTab({
             // Telefono: il «nessuna pagina può pubblicare» lo dice già la riga in alto.
             <p className={cn("text-[11px] text-slate-500", piattaformeOk.length === 0 && "max-sm:hidden")}>
               {piattaformeOk.length > 0
-                ? "Scegli almeno una piattaforma."
-                : "Nessuna pagina può pubblicare adesso: scegli dove andrà il post e salvalo come bozza."}
+                ? tr("Scegli almeno una piattaforma.")
+                : tr("Nessuna pagina può pubblicare adesso: scegli dove andrà il post e salvalo come bozza.")}
             </p>
           )}
 
@@ -2377,7 +2379,7 @@ function ContentStudioTab({
               {motiviScelte.some((riga) => riga.ricollega) && (
                 <Button size="sm" variant="outline" onClick={onGoToSettings}
                   className="h-7 gap-1.5 border-amber-300 bg-white text-[11px] text-amber-800 hover:bg-amber-100 max-sm:hidden">
-                  <Settings className="h-3 w-3" /> Ricollega Meta
+                  <Settings className="h-3 w-3" /> {tr("Ricollega Meta")}
                 </Button>
               )}
             </div>
@@ -2387,24 +2389,24 @@ function ContentStudioTab({
         {/* ── 2 · COSA ─────────────────────────────────────────────────── */}
         <PassoComposer
           numero={2}
-          titolo="Cosa"
-          descrizione={isVideoType ? "Titolo, descrizione e video" : isStory ? "Foto o video della storia" : "Testo e foto"}
+          titolo={tr("Cosa")}
+          descrizione={isVideoType ? tr("Titolo, descrizione e video") : isStory ? tr("Foto o video della storia") : tr("Testo e foto")}
           azione={
             <Button size="sm" variant="outline" onClick={() => setAiAperta((v) => !v)} aria-expanded={aiAperta}
               className={cn("h-8 gap-1.5 border-orange-200 text-xs text-orange-700 hover:bg-orange-50", aiAperta && "bg-orange-50")}>
-              <Sparkles className="h-3.5 w-3.5" /> Scrivi con l'AI
+              <Sparkles className="h-3.5 w-3.5" /> {tr("Scrivi con l'AI")}
             </Button>
           }
         >
           {aiAperta && (
             <div className="space-y-3 rounded-xl border border-orange-200 bg-orange-50/50 p-3">
-              <Field label="Di cosa parla il post?">
+              <Field label={tr("Di cosa parla il post?")}>
                 <Textarea value={brief} onChange={(e) => setBrief(e.target.value)} className="min-h-16 resize-none bg-white"
-                  placeholder="Es.: finestre in PVC posate in 30 giorni, sopralluogo gratuito, garanzia 10 anni" />
+                  placeholder={tr("Es.: finestre in PVC posate in 30 giorni, sopralluogo gratuito, garanzia 10 anni")} />
               </Field>
               <div className="flex flex-wrap items-end gap-2">
                 <div className="w-full sm:w-44">
-                  <Field label="Settore">
+                  <Field label={tr("Settore")}>
                     <Select value={segment} onValueChange={setSegment}>
                       <SelectTrigger className="h-9 bg-white"><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -2416,20 +2418,20 @@ function ContentStudioTab({
                 <Button size="sm" onClick={() => void onGeneratePost()} disabled={!brief.trim() || isGeneratingCopy}
                   className="h-9 gap-1.5 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white hover:from-orange-600 hover:to-amber-600">
                   {isGeneratingCopy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                  Scrivi il testo
+                  {tr("Scrivi il testo")}
                 </Button>
                 {!isVideoType && (
                   <Button size="sm" variant="outline" onClick={() => void onGenerateImage()} disabled={!brief.trim() || isGeneratingImage}
                     className="h-9 gap-1.5 bg-white">
                     {isGeneratingImage ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
-                    Crea la foto
+                    {tr("Crea la foto")}
                   </Button>
                 )}
               </div>
               <p className="text-[10px] text-slate-500 max-md:text-[11px]">
-                Il testo arriva in 3 versioni: scegli quella che preferisci e ritoccala.{" "}
+                {tr("Il testo arriva in 3 versioni: scegli quella che preferisci e ritoccala.")}{" "}
                 <button type="button" onClick={chiediASilvio} className="font-semibold text-orange-700 underline-offset-2 hover:underline">
-                  Oppure chiedilo a Silvio
+                  {tr("Oppure chiedilo a Silvio")}
                 </button>
               </p>
             </div>
@@ -2437,14 +2439,14 @@ function ContentStudioTab({
 
           {copyVariants.length > 1 && (
             <div className="space-y-2">
-              <p className="text-[11px] font-semibold text-slate-600">Scegli la versione che preferisci</p>
+              <p className="text-[11px] font-semibold text-slate-600">{tr("Scegli la versione che preferisci")}</p>
               {copyVariants.map((v, i) => (
                 <button key={i} type="button" onClick={() => { setPostText(v); setCopyVariants([]); }}
                   className={cn(
                     "w-full rounded-xl border-2 p-3 text-left text-sm text-slate-700 transition hover:border-orange-300 hover:bg-orange-50",
                     postText === v ? "border-orange-400 bg-orange-50" : "border-slate-200 bg-white",
                   )}>
-                  <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-orange-400">Versione {i + 1}</span>
+                  <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-orange-400">{tr("Versione {i}", { i: i + 1 })}</span>
                   {v.slice(0, 160)}{v.length > 160 ? "…" : ""}
                 </button>
               ))}
@@ -2470,14 +2472,14 @@ function ContentStudioTab({
                         {pl.name}
                       </span>
                       <span className={cn("text-[10px] tabular-nums", over ? "font-bold text-red-500" : "text-slate-400")}>
-                        {txt.length}/{pl.maxChars.toLocaleString("it-IT")}
+                        {txt.length}/{pl.maxChars.toLocaleString(intlCampo())}
                       </span>
                     </div>
                     <Textarea
                       value={txt}
                       onChange={(e) => setPlatformText(pid, e.target.value)}
                       className={cn("min-h-[80px] resize-none text-sm", over ? "border-red-300" : "")}
-                      placeholder={`Il testo per ${pl.name}…`}
+                      placeholder={tr("Il testo per {name}…", { name: String(pl.name ?? "") })}
                     />
                   </div>
                 );
@@ -2486,13 +2488,13 @@ function ContentStudioTab({
           ) : (
             <div className="space-y-1">
               <Textarea value={postText} onChange={(e) => setPostText(e.target.value)}
-                aria-label="Testo del post"
+                aria-label={tr("Testo del post")}
                 className={cn("min-h-28 resize-none font-[inherit] text-sm", charCount > maxChars ? "border-red-300 focus-visible:ring-red-400" : "")}
                 placeholder={isStory
-                  ? "Testo breve da mettere sulla storia (facoltativo)…"
+                  ? tr("Testo breve da mettere sulla storia (facoltativo)…")
                   : isVideoType
-                    ? "Titolo del video: metti all'inizio le parole che la gente cerca…"
-                    : "Racconta un lavoro finito, mostra il cantiere, dai un consiglio…"} />
+                    ? tr("Titolo del video: metti all'inizio le parole che la gente cerca…")
+                    : tr("Racconta un lavoro finito, mostra il cantiere, dai un consiglio…")} />
               {charCount > 0 && selectedPlatforms.length > 0 && (
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] max-md:text-[11px]">
                   {selectedPlatforms.map((id) => {
@@ -2502,7 +2504,7 @@ function ContentStudioTab({
                     const close = charCount > platform.maxChars * 0.9 && !over;
                     return (
                       <span key={id} className={cn("tabular-nums", over ? "font-semibold text-red-600" : close ? "font-semibold text-amber-600" : "text-slate-400")}>
-                        {platform.name} {charCount}/{platform.maxChars.toLocaleString("it-IT")}
+                        {platform.name} {charCount}/{platform.maxChars.toLocaleString(intlCampo())}
                       </span>
                     );
                   })}
@@ -2516,19 +2518,19 @@ function ContentStudioTab({
             <div className="space-y-1.5">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-[11px] font-semibold text-slate-600">
-                  Hashtag
-                  {selectedPlatforms.length > 0 && <span className="ml-1 font-normal text-slate-400">(massimo {maxHashtag})</span>}
+                  {tr("Hashtag")}
+                  {selectedPlatforms.length > 0 && <span className="ml-1 font-normal text-slate-400">{tr("(massimo {maxHashtag})", { maxHashtag: String(maxHashtag ?? "") })}</span>}
                 </p>
                 <button type="button" onClick={suggerisciHashtag}
                   className="flex shrink-0 items-center gap-1 whitespace-nowrap text-[11px] font-semibold text-orange-600 hover:text-orange-800">
-                  <Hash className="h-3 w-3" /> Aggiungi consigliati
+                  <Hash className="h-3 w-3" /> {tr("Aggiungi consigliati")}
                 </button>
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {hashtags.map((tag) => (
                   <span key={tag} className="flex items-center gap-1 rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 text-[11px] font-medium text-orange-700">
                     {tag}
-                    <button type="button" aria-label={`Togli ${tag}`} onClick={() => setHashtags((h) => h.filter((t) => t !== tag))}>
+                    <button type="button" aria-label={tr("Togli {tag}", { tag: String(tag ?? "") })} onClick={() => setHashtags((h) => h.filter((t) => t !== tag))}>
                       <X className="h-2.5 w-2.5 text-orange-400 hover:text-orange-700" />
                     </button>
                   </span>
@@ -2536,7 +2538,7 @@ function ContentStudioTab({
                 <Input value={hashtagInput} onChange={(e) => setHashtagInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); addHashtag(); } }}
                   onBlur={addHashtag}
-                  placeholder="+ hashtag" className="h-7 w-28 rounded-full border-dashed text-xs" />
+                  placeholder={tr("+ hashtag")} className="h-7 w-28 rounded-full border-dashed text-xs" />
               </div>
             </div>
           )}
@@ -2544,23 +2546,23 @@ function ContentStudioTab({
           {/* Foto o video */}
           <div className="space-y-2">
             <p className="text-[11px] font-semibold text-slate-600">
-              {isVideoType ? "Video" : isCarouselType ? "Foto del carosello" : "Foto"}
+              {isVideoType ? tr("Video") : isCarouselType ? tr("Foto del carosello") : tr("Foto")}
               <span className="ml-1 font-normal text-slate-400">
-                {serveFile ? (selectedPlatforms.includes("instagram") && !isVideoType && !isCarouselType ? "(Instagram la richiede)" : "(obbligatorio)") : "(facoltativa)"}
+                {serveFile ? (selectedPlatforms.includes("instagram") && !isVideoType && !isCarouselType ? tr("(Instagram la richiede)") : tr("(obbligatorio)")) : tr("(facoltativa)")}
               </span>
             </p>
             {activeMediaUrl || selectedLibraryMedia ? (
               <div className="relative overflow-hidden rounded-xl border">
                 {activeMediaUrl ? (
-                  <img loading="lazy" src={activeMediaUrl} alt="Foto del post" className="max-h-64 w-full object-cover" />
+                  <img loading="lazy" src={activeMediaUrl} alt={tr("Foto del post")} className="max-h-64 w-full object-cover" />
                 ) : selectedLibraryMedia ? (
                   <div className={cn("flex h-48 flex-col items-center justify-center bg-gradient-to-br px-4 text-center text-white", selectedLibraryMedia.gradient)}>
                     {selectedLibraryMedia.type === "video" ? <Play className="mb-2 h-9 w-9 text-white/80" /> : <ImageIcon className="mb-2 h-9 w-9 text-white/80" />}
                     <p className="text-sm font-bold drop-shadow">{selectedLibraryMedia.title}</p>
-                    <p className="mt-1 text-[11px] font-medium text-white/80">{selectedLibraryMedia.format} · dalla galleria</p>
+                    <p className="mt-1 text-[11px] font-medium text-white/80">{tr("{format} · dalla galleria", { format: String(selectedLibraryMedia.format ?? "") })}</p>
                   </div>
                 ) : null}
-                <button type="button" aria-label="Togli la foto" onClick={() => { setMediaUrl(null); setSelectedLibraryMedia(null); }}
+                <button type="button" aria-label={tr("Togli la foto")} onClick={() => { setMediaUrl(null); setSelectedLibraryMedia(null); }}
                   className="absolute right-2 top-2 rounded-full bg-black/60 p-1.5 text-white hover:bg-black/80">
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -2572,27 +2574,27 @@ function ContentStudioTab({
               </div>
             ) : isGeneratingImage ? (
               <div className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-amber-200 bg-amber-50 p-8 text-sm text-amber-700">
-                <Loader2 className="h-5 w-5 animate-spin" /> Sto creando la foto…
+                <Loader2 className="h-5 w-5 animate-spin" /> {tr("Sto creando la foto…")}
               </div>
             ) : isVideoType ? (
               extraMedia.length === 0 ? (
                 <SocialMediaUploader
                   companyId={companyId}
                   accept="video"
-                  label="Carica il video"
-                  hint="MP4 o MOV, fino a 200 MB · Instagram lo pubblica come Reel"
+                  label={tr("Carica il video")}
+                  hint={tr("MP4 o MOV, fino a 200 MB · Instagram lo pubblica come Reel")}
                   onUploaded={(items) => setExtraMedia(items.slice(0, 1))}
                 />
               ) : null
             ) : (
               <AdMediaUploader
                 companyId={companyId}
-                hint={`${elencoNomi(formatiFoto)}, fino a 10 MB`}
+                hint={tr("{formatiFoto}, fino a 10 MB", { formatiFoto: String(elencoNomi(formatiFoto) ?? "") })}
                 onUploaded={(media) => {
                   if (media.public_url) {
                     const storedMedia = createStoredMediaItem({
                       id: media.id,
-                      title: `Foto social ${new Date().toLocaleDateString("it-IT")}`,
+                      title: `Foto social ${new Date().toLocaleDateString(intlCampo())}`,
                       publicUrl: media.public_url,
                       format: contentType.aspectRatio,
                       type: mediaTypeFromContent(contentTypeId),
@@ -2603,7 +2605,7 @@ function ContentStudioTab({
                     });
                     storeMediaInComposer(storedMedia, media.public_url);
                   }
-                  toast.success("Foto caricata");
+                  toast.success(tr("Foto caricata"));
                 }}
               />
             )}
@@ -2617,7 +2619,7 @@ function ContentStudioTab({
                       : <img loading="lazy" src={item.url} alt="" className="h-24 w-full object-cover" />}
                     <button
                       type="button"
-                      aria-label="Togli il file"
+                      aria-label={tr("Togli il file")}
                       onClick={() => setExtraMedia((prev) => prev.filter((_, i) => i !== index))}
                       className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white hover:bg-black/80"
                     >
@@ -2633,8 +2635,8 @@ function ContentStudioTab({
                 accept={selectedPlatforms.includes("facebook") ? "image" : "any"}
                 multiple
                 maxFiles={Math.max(0, 10 - postMedia.length)}
-                label="Aggiungi foto al carosello"
-                hint={`${postMedia.length} di 10 · ne servono almeno 2${selectedPlatforms.includes("facebook") ? " · su Facebook solo foto" : ""}`}
+                label={tr("Aggiungi foto al carosello")}
+                hint={tr("{n} di 10 · ne servono almeno 2", { n: postMedia.length }) + (selectedPlatforms.includes("facebook") ? tr(" · su Facebook solo foto") : "")}
                 onUploaded={(items) => setExtraMedia((prev) => [...prev, ...items])}
               />
             )}
@@ -2646,10 +2648,10 @@ function ContentStudioTab({
             <button type="button" onClick={() => setOpzioniAperte((v) => !v)} aria-expanded={opzioniAperte}
               className="flex w-full flex-wrap items-center gap-2 px-3 py-2.5 text-left">
               <ChevronDown className={cn("h-4 w-4 text-slate-400 transition-transform", opzioniAperte ? "rotate-180" : "")} />
-              <span className="text-xs font-semibold text-slate-700">Opzioni avanzate</span>
+              <span className="text-xs font-semibold text-slate-700">{tr("Opzioni avanzate")}</span>
               {!opzioniAperte && (
                 <span className={cn("text-[11px] text-slate-400", riepilogoAvanzate.length === 0 && "max-sm:hidden")}>
-                  {riepilogoAvanzate.length > 0 ? riepilogoAvanzate.join(" · ") : "Formato, argomento, testo per piattaforma, primo commento"}
+                  {riepilogoAvanzate.length > 0 ? riepilogoAvanzate.join(" · ") : tr("Formato, argomento, testo per piattaforma, primo commento")}
                 </span>
               )}
             </button>
@@ -2657,7 +2659,7 @@ function ContentStudioTab({
               <div className="space-y-4 border-t border-slate-100 px-3 py-3">
                 {/* Formato */}
                 <div className="space-y-2">
-                  <p className="text-[11px] font-semibold text-slate-600">Formato</p>
+                  <p className="text-[11px] font-semibold text-slate-600">{tr("Formato")}</p>
                   <div className="flex flex-wrap gap-1.5">
                     {CONTENT_TYPE_CONFIG.map((ct) => {
                       const Icon = ct.icon;
@@ -2669,8 +2671,8 @@ function ContentStudioTab({
                             isSelected ? "border-orange-400 bg-orange-50 text-orange-700" : "border-slate-200 bg-white text-slate-600 hover:border-orange-200",
                           )}>
                           <Icon className="h-3.5 w-3.5" />
-                          {ct.label}
-                          <span className="hidden font-normal text-slate-400 sm:inline">{ct.desc}</span>
+                          {tr(ct.label)}
+                          <span className="hidden font-normal text-slate-400 sm:inline">{tr(ct.desc)}</span>
                         </button>
                       );
                     })}
@@ -2683,7 +2685,7 @@ function ContentStudioTab({
 
                 {/* Argomento */}
                 <div className="space-y-2">
-                  <p className="text-[11px] font-semibold text-slate-600">Argomento</p>
+                  <p className="text-[11px] font-semibold text-slate-600">{tr("Argomento")}</p>
                   <div className="flex flex-wrap gap-1.5">
                     {CONTENT_PILLARS.map((pillar) => {
                       const isActive = activePillarId === pillar.id;
@@ -2694,19 +2696,17 @@ function ContentStudioTab({
                             isActive ? `${pillar.colorBg} ${pillar.colorBorder} ${pillar.colorText}` : "border-slate-200 bg-white text-slate-600 hover:border-slate-300",
                           )}>
                           <span className="leading-none">{pillar.emoji}</span>
-                          {pillar.label}
+                          {tr(pillar.label)}
                         </button>
                       );
                     })}
                   </div>
                   {pillarAttivo && (
                     <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
-                      <span>{pillarAttivo.description} · {pillarAttivo.weeklyFreq} a settimana.</span>
+                      <span>{tr("{description} · {weeklyFreq} a settimana.", { description: String(pillarAttivo.description ?? ""), weeklyFreq: String(pillarAttivo.weeklyFreq ?? "") })}</span>
                       {pillarAttivo.suggestedContentType !== contentTypeId && CONTENT_TYPE_CONFIG.some((c) => c.id === pillarAttivo.suggestedContentType) && (
                         <button type="button" onClick={() => setContentTypeId(pillarAttivo.suggestedContentType)}
-                          className="rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 font-semibold text-orange-700 hover:bg-orange-100">
-                          Formato consigliato: {CONTENT_TYPE_CONFIG.find((c) => c.id === pillarAttivo.suggestedContentType)?.label}
-                        </button>
+                          className="rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 font-semibold text-orange-700 hover:bg-orange-100">{tr("Formato consigliato: {label}", { label: String(CONTENT_TYPE_CONFIG.find((c) => c.id === pillarAttivo.suggestedContentType)?.label ?? "") })}</button>
                       )}
                     </div>
                   )}
@@ -2718,17 +2718,17 @@ function ContentStudioTab({
                     <input type="checkbox" className="mt-0.5 h-3.5 w-3.5 accent-orange-500" checked={crossPlatformMode}
                       onChange={(e) => toggleCrossPlatform(e.target.checked)} />
                     <span>
-                      <strong className="font-semibold text-slate-700">Testo diverso per ogni piattaforma</strong>
-                      <span className="block text-slate-400">Per esempio più breve su Instagram e più discorsivo su Facebook.</span>
+                      <strong className="font-semibold text-slate-700">{tr("Testo diverso per ogni piattaforma")}</strong>
+                      <span className="block text-slate-400">{tr("Per esempio più breve su Instagram e più discorsivo su Facebook.")}</span>
                     </span>
                   </label>
                 )}
 
                 {/* Primo commento Instagram */}
                 {selectedPlatforms.includes("instagram") && contentType.hashtagsAllowed && (
-                  <Field label="Primo commento su Instagram" note="Esce subito dopo il post: utile per altri hashtag o un invito a scrivere.">
+                  <Field label={tr("Primo commento su Instagram")} note={tr("Esce subito dopo il post: utile per altri hashtag o un invito a scrivere.")}>
                     <Textarea value={firstComment} onChange={(e) => setFirstComment(e.target.value)}
-                      className="min-h-[60px] resize-none text-sm" placeholder="Es.: Scrivici per un sopralluogo gratuito #serramenti #finestre" />
+                      className="min-h-[60px] resize-none text-sm" placeholder={tr("Es.: Scrivici per un sopralluogo gratuito #serramenti #finestre")} />
                   </Field>
                 )}
               </div>
@@ -2737,31 +2737,31 @@ function ContentStudioTab({
         </PassoComposer>
 
         {/* ── 3 · QUANDO ───────────────────────────────────────────────── */}
-        <PassoComposer numero={3} titolo="Quando">
+        <PassoComposer numero={3} titolo={tr("Quando")}>
           <div className="grid grid-cols-2 gap-2">
             <button type="button" onClick={() => { setPublishNow(true); setScheduleError(null); }} aria-pressed={publishNow}
               className={cn("flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border-2 px-2 py-2.5 text-[13px] font-semibold transition sm:gap-2 sm:px-3 sm:text-sm",
                 publishNow ? "border-emerald-400 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300")}>
-              <Send className="h-4 w-4" /> Pubblica ora
+              <Send className="h-4 w-4" /> {tr("Pubblica ora")}
             </button>
             <button type="button" onClick={() => { setPublishNow(false); setScheduleError(null); }} aria-pressed={!publishNow}
               className={cn("flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border-2 px-2 py-2.5 text-[13px] font-semibold transition sm:gap-2 sm:px-3 sm:text-sm",
                 !publishNow ? "border-emerald-400 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300")}>
-              <Clock className="h-4 w-4" /> Programma
+              <Clock className="h-4 w-4" /> {tr("Programma")}
             </button>
           </div>
 
           {!publishNow && (
             <div className="space-y-2">
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Giorno">
-                  <Input type="date" aria-label="Giorno di pubblicazione" aria-invalid={Boolean(scheduleError)} aria-describedby={scheduleError ? scheduleErrorId : undefined} value={scheduledDate} onChange={(e) => { setScheduledDate(e.target.value); setScheduleError(null); }} min={new Date().toLocaleDateString("en-CA")} />
+                <Field label={tr("Giorno")}>
+                  <Input type="date" aria-label={tr("Giorno di pubblicazione")} aria-invalid={Boolean(scheduleError)} aria-describedby={scheduleError ? scheduleErrorId : undefined} value={scheduledDate} onChange={(e) => { setScheduledDate(e.target.value); setScheduleError(null); }} min={new Date().toLocaleDateString("en-CA")} />
                 </Field>
-                <Field label="Ora">
+                <Field label={tr("Ora")}>
                   <div className="flex gap-1.5">
                     <Input
                       type="time"
-                      aria-label="Ora di pubblicazione"
+                      aria-label={tr("Ora di pubblicazione")}
                       aria-invalid={Boolean(scheduleError)}
                       aria-describedby={scheduleError ? scheduleErrorId : undefined}
                       value={scheduledTime}
@@ -2773,7 +2773,7 @@ function ContentStudioTab({
                     />
                     {suggestedTime && scheduledTime !== suggestedTime && (
                       <button type="button" onClick={() => { setScheduledTime(suggestedTime); setScheduleError(null); }}
-                        title={`Orario consigliato per ${PLATFORMS.find((p) => p.id === selectedPlatforms[0])?.name}`}
+                        title={tr("Orario consigliato per {name}", { name: String(PLATFORMS.find((p) => p.id === selectedPlatforms[0])?.name ?? "") })}
                         className="flex shrink-0 items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 text-[10px] font-bold text-emerald-700 hover:bg-emerald-100">
                         <Zap className="h-3 w-3" />{suggestedTime}
                       </button>
@@ -2783,7 +2783,7 @@ function ContentStudioTab({
               </div>
               {selectedPlatforms.length > 0 && (
                 <p className="text-[11px] text-slate-500 max-sm:hidden">
-                  Di solito funzionano bene:{" "}
+                  {tr("Di solito funzionano bene:")}{" "}
                   {selectedPlatforms.map((id) => {
                     const p = PLATFORMS.find((pl) => pl.id === id);
                     return p ? `${p.name} ${p.bestTimes.join(", ")}` : null;
@@ -2814,12 +2814,12 @@ function ContentStudioTab({
           {soloRevisione ? (
             <div className="space-y-2">
               <p className="text-[11px] text-amber-800">
-                Il post è da approvare: salvando le modifiche resta in attesa del titolare o di un amministratore.
+                {tr("Il post è da approvare: salvando le modifiche resta in attesa del titolare o di un amministratore.")}
               </p>
               <Button onClick={() => void salvaBozza("review")} disabled={isSubmitting}
                 className="w-full bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white hover:from-orange-600 hover:to-amber-600">
                 {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Pencil className="mr-2 h-4 w-4" />}
-                Salva le modifiche
+                {tr("Salva le modifiche")}
               </Button>
             </div>
           ) : (<>
@@ -2830,28 +2830,28 @@ function ContentStudioTab({
                 publishNow ? "bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600"
                   : "bg-gradient-to-r from-orange-500 to-eic-amber-strong hover:from-orange-600 hover:to-amber-600")}>
               {!SOCIAL_LIVE_PUBLISHING_ENABLED
-                ? <><Send className="mr-2 h-4 w-4" />Publisher live non attivo</>
+                ? <><Send className="mr-2 h-4 w-4" />{tr("Publisher live non attivo")}</>
                 : isSubmitting
-                  ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{publishNow ? "Pubblicazione in corso…" : "Salvataggio…"}</>
+                  ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{publishNow ? tr("Pubblicazione in corso…") : tr("Salvataggio…")}</>
                   : publishNow
-                    ? <><Send className="mr-2 h-4 w-4" />{doveEsce ? `Pubblica su ${doveEsce}` : "Pubblica ora"}</>
-                    : <><Calendar className="mr-2 h-4 w-4" />{doveEsce ? `Programma su ${doveEsce}` : "Programma"}</>}
+                    ? <><Send className="mr-2 h-4 w-4" />{doveEsce ? tr("Pubblica su {doveEsce}", { doveEsce: String(doveEsce ?? "") }) : tr("Pubblica ora")}</>
+                    : <><Calendar className="mr-2 h-4 w-4" />{doveEsce ? tr("Programma su {doveEsce}", { doveEsce: String(doveEsce ?? "") }) : tr("Programma")}</>}
             </Button>
             <Button type="button" variant="outline" onClick={() => void salvaBozza("draft")} disabled={isSubmitting}
               className="border-slate-200 text-slate-700 sm:w-auto max-sm:shrink-0 max-sm:px-3 max-sm:text-[13px]">
               <Pencil className="mr-2 h-4 w-4" />
-              Salva bozza
+              {tr("Salva bozza")}
             </Button>
           </div>
           {nessunaPronta && (
             <p className="text-[11px] text-amber-700">
-              Per ora puoi solo salvare la bozza.
+              {tr("Per ora puoi solo salvare la bozza.")}
             </p>
           )}
           {!publishNow && (
             <button type="button" onClick={() => void salvaBozza("review")} disabled={isSubmitting}
               className="w-full rounded-xl border border-dashed border-amber-300 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-50 disabled:opacity-40">
-              Manda in approvazione prima di pubblicare
+              {tr("Manda in approvazione prima di pubblicare")}
             </button>
           )}
           </>)}
@@ -2865,7 +2865,7 @@ function ContentStudioTab({
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between gap-2">
               <CardTitle className="flex items-center gap-2 text-base">
-                <Eye className="h-4 w-4 text-slate-500" /> Anteprima
+                <Eye className="h-4 w-4 text-slate-500" /> {tr("Anteprima")}
               </CardTitle>
               <div className="flex flex-wrap items-center gap-1">
                 {selectedPlatforms.map((id) => {
@@ -2889,7 +2889,7 @@ function ContentStudioTab({
                 {(isStory || contentTypeId === "reel") ? (
                   <>
                     {activeMediaUrl ? (
-                      <img loading="lazy" src={activeMediaUrl} alt="Anteprima" className="h-full w-full object-cover" />
+                      <img loading="lazy" src={activeMediaUrl} alt={tr("Anteprima")} className="h-full w-full object-cover" />
                     ) : selectedLibraryMedia ? (
                       <div className={cn("flex h-full w-full items-center justify-center bg-gradient-to-br", selectedLibraryMedia.gradient)}>
                         <Smartphone className="h-10 w-10 text-white/70" />
@@ -2924,12 +2924,12 @@ function ContentStudioTab({
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-[10px] font-semibold text-slate-900">{nomeAnteprima}</p>
                         <p className="text-[8px] text-slate-400">
-                          {publishNow ? "Adesso" : scheduledDate ? new Date(`${scheduledDate}T${scheduledTime}`).toLocaleString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}
+                          {publishNow ? tr("Adesso") : scheduledDate ? new Date(`${scheduledDate}T${scheduledTime}`).toLocaleString(intlCampo(), { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}
                         </p>
                       </div>
                     </div>
                     {activeMediaUrl ? (
-                      <img loading="lazy" src={activeMediaUrl} alt="Foto del post" className="w-full object-cover" style={{ height: contentType.previewH }} />
+                      <img loading="lazy" src={activeMediaUrl} alt={tr("Foto del post")} className="w-full object-cover" style={{ height: contentType.previewH }} />
                     ) : selectedLibraryMedia ? (
                       <div className={cn("flex items-center justify-center bg-gradient-to-br", selectedLibraryMedia.gradient)} style={{ height: contentType.previewH }}>
                         <ImageIcon className="h-6 w-6 text-white/70" />
@@ -2941,7 +2941,7 @@ function ContentStudioTab({
                     )}
                     <div className="p-2">
                       <p className="text-[10px] leading-relaxed text-slate-800">
-                        {postText ? postText.slice(0, 100) + (postText.length > 100 ? "…" : "") : <span className="italic text-slate-400">Il testo del post…</span>}
+                        {postText ? postText.slice(0, 100) + (postText.length > 100 ? "…" : "") : <span className="italic text-slate-400">{tr("Il testo del post…")}</span>}
                       </p>
                       {hashtags.length > 0 && <p className={cn("mt-1 text-[9px] font-medium", currentPlatform.textColor)}>{hashtags.slice(0, 4).join(" ")}</p>}
                     </div>
@@ -2978,6 +2978,7 @@ function GalleriaTab({
   onUploadRequested: () => void;
   demoMode?: boolean;
 }) {
+  const tr = useT();
   const [typeFilter, setTypeFilter]   = useState<"all" | "image" | "video" | "story">("all");
   const [catFilter,  setCatFilter]    = useState<MediaItem["category"] | "all">("all");
   const [search, setSearch]           = useState("");
@@ -2998,7 +2999,7 @@ function GalleriaTab({
         <Alert className="border-amber-200 bg-amber-50 py-2">
           <Info className="h-4 w-4 text-amber-600" />
           <AlertDescription className="text-xs text-amber-800">
-            Galleria demo: sono contenuti di esempio della Demo Azienda. Usali in un post o carica i tuoi da «Crea post».
+            {tr("Galleria demo: sono contenuti di esempio della Demo Azienda. Usali in un post o carica i tuoi da «Crea post».")}
           </AlertDescription>
         </Alert>
       )}
@@ -3006,14 +3007,12 @@ function GalleriaTab({
       {/* ── HEADER ── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-base font-bold text-slate-800">Galleria contenuti</h2>
-          <p className="text-xs text-slate-500">
-            {mediaItems.length} file · {aiGenCount} AI-generati · {totalUsed} utilizzi totali
-          </p>
+          <h2 className="text-base font-bold text-slate-800">{tr("Galleria contenuti")}</h2>
+          <p className="text-xs text-slate-500">{tr("{n} file · {aiGenCount} AI-generati · {totalUsed} utilizzi totali", { n: mediaItems.length, aiGenCount: String(aiGenCount ?? ""), totalUsed: String(totalUsed ?? "") })}</p>
         </div>
         <Button size="sm" className="gap-1.5 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm"
           onClick={onUploadRequested}>
-          <Upload className="h-3.5 w-3.5" /> Carica media
+          <Upload className="h-3.5 w-3.5" /> {tr("Carica media")}
         </Button>
       </div>
 
@@ -3022,10 +3021,10 @@ function GalleriaTab({
         {/* Type filter */}
         <div className="flex items-center gap-1 rounded-xl border bg-white p-1">
           {([
-            { id: "all",   label: "Tutti"    },
-            { id: "image", label: "Immagini" },
-            { id: "video", label: "Video"    },
-            { id: "story", label: "Story"    },
+            { id: "all",   label: tr("Tutti")    },
+            { id: "image", label: tr("Immagini") },
+            { id: "video", label: tr("Video")    },
+            { id: "story", label: tr("Story")    },
           ] as const).map(({ id, label }) => (
             <button key={id} type="button" onClick={() => setTypeFilter(id)}
               className={cn("rounded-lg px-3 py-1 text-xs font-semibold transition",
@@ -3041,7 +3040,7 @@ function GalleriaTab({
             <button key={cat} type="button" onClick={() => setCatFilter(cat)}
               className={cn("rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition",
                 catFilter === cat ? "border-orange-400 bg-orange-100 text-orange-700" : "border-slate-200 bg-white text-slate-500 hover:border-slate-300")}>
-              {cat === "all" ? "Tutte le categorie" : CATEGORY_LABELS[cat]}
+              {cat === "all" ? tr("Tutte le categorie") : CATEGORY_LABELS[cat]}
             </button>
           ))}
         </div>
@@ -3050,7 +3049,7 @@ function GalleriaTab({
         <div className="relative ml-auto">
           <input
             type="text" value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Cerca…"
+            placeholder={tr("Cerca…")}
             className="h-8 rounded-xl border border-slate-200 bg-white pl-8 pr-3 text-xs focus:outline-none focus:ring-2 focus:ring-orange-300"
           />
           <Sparkles className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-300" />
@@ -3061,8 +3060,8 @@ function GalleriaTab({
       {filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 py-16 text-center">
           <ImagePlus className="mb-3 h-10 w-10 text-slate-200" />
-          <p className="text-sm font-medium text-slate-500">Nessun contenuto trovato</p>
-          <p className="text-xs text-slate-400">Prova a cambiare i filtri o carica un nuovo file</p>
+          <p className="text-sm font-medium text-slate-500">{tr("Nessun contenuto trovato")}</p>
+          <p className="text-xs text-slate-400">{tr("Prova a cambiare i filtri o carica un nuovo file")}</p>
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -3077,7 +3076,7 @@ function GalleriaTab({
                 {item.type !== "video" && getSocialMediaPreviewUrl(item) && (
                   <img
                     src={getSocialMediaPreviewUrl(item)}
-                    alt="Anteprima media"
+                    alt={tr("Anteprima media")}
                     loading="lazy"
                     className="absolute inset-0 h-full w-full object-cover"
                   />
@@ -3113,15 +3112,15 @@ function GalleriaTab({
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 opacity-0 transition-opacity group-hover:opacity-100">
                   <button type="button" onClick={() => onUseInPost(item)}
                     className="flex items-center gap-1.5 rounded-xl bg-white px-3 py-1.5 text-xs font-bold text-slate-800 shadow-lg hover:bg-orange-50">
-                    <Edit3 className="h-3.5 w-3.5 text-orange-600" /> Usa in Post
+                    <Edit3 className="h-3.5 w-3.5 text-orange-600" /> {tr("Usa in Post")}
                   </button>
                   <button type="button" onClick={() => onUseInAds(item)}
                     className="flex items-center gap-1.5 rounded-xl bg-white px-3 py-1.5 text-xs font-bold text-slate-800 shadow-lg hover:bg-blue-50">
-                    <TrendingUp className="h-3.5 w-3.5 text-blue-600" /> Usa in Ads
+                    <TrendingUp className="h-3.5 w-3.5 text-blue-600" /> {tr("Usa in Ads")}
                   </button>
-                  <button type="button" onClick={() => toast.info("Download — funzione disponibile con account collegato")}
+                  <button type="button" onClick={() => toast.info(tr("Download — funzione disponibile con account collegato"))}
                     className="flex items-center gap-1 text-[11px] font-semibold text-white/80 hover:text-white">
-                    <Download className="h-3 w-3" /> Scarica
+                    <Download className="h-3 w-3" /> {tr("Scarica")}
                   </button>
                 </div>
               </div>
@@ -3135,7 +3134,7 @@ function GalleriaTab({
                   ))}
                 </div>
                 <div className="mt-2 flex items-center justify-between text-[10px] text-slate-400">
-                  <span className="rounded-full border border-slate-100 px-2 py-0.5 font-medium">{CATEGORY_LABELS[item.category]}</span>
+                  <span className="rounded-full border border-slate-100 px-2 py-0.5 font-medium">{tr(CATEGORY_LABELS[item.category])}</span>
                   <div className="flex items-center gap-2">
                     {item.usedInPosts > 0 && <span className="flex items-center gap-0.5"><Edit3 className="h-2.5 w-2.5" />{item.usedInPosts}</span>}
                     {item.usedInAds  > 0 && <span className="flex items-center gap-0.5 text-blue-500"><TrendingUp className="h-2.5 w-2.5" />{item.usedInAds}</span>}
@@ -3153,8 +3152,8 @@ function GalleriaTab({
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-100 to-pink-100">
               <ImagePlus className="h-6 w-6 text-orange-500" />
             </div>
-            <p className="text-xs font-semibold text-slate-500">Aggiungi contenuto</p>
-            <p className="text-[10px] text-slate-400">Upload o genera con AI</p>
+            <p className="text-xs font-semibold text-slate-500">{tr("Aggiungi contenuto")}</p>
+            <p className="text-[10px] text-slate-400">{tr("Upload o genera con AI")}</p>
           </button>
         </div>
       )}
@@ -3203,7 +3202,7 @@ function voceDaCella(cella: CellaGriglia, pagina = ""): VoceCalendario {
   };
 }
 
-const dataBreve = (d: Date) => `${d.toLocaleDateString("it-IT", { weekday: "short", day: "numeric" })} · ${oraBreve(d)}`;
+const dataBreve = (d: Date) => `${d.toLocaleDateString(intlCampo(), { weekday: "short", day: "numeric" })} · ${oraBreve(d)}`;
 
 function CellaInstagram({
   cella,
@@ -3230,6 +3229,7 @@ function CellaInstagram({
   onRilascia: () => void;
   onTrascinaFine: () => void;
 }) {
+  const t = useT();
   // Le foto di Instagram scadono dopo qualche giorno: se non si caricano, al loro posto un riquadro pulito.
   const [rotta, setRotta] = useState(false);
   const app = cella.tipo === "app" ? cella : null;
@@ -3238,7 +3238,7 @@ function CellaInstagram({
   const testo = app ? app.post.text : cella.tipo === "instagram" ? cella.reale.testo : "";
   const etichetta = app
     ? `${app.info.etichetta}${app.quando ? ` · ${dataBreve(app.quando)}` : ""} · ${testo || "Post senza testo"}`
-    : `Pubblicato il ${cella.quando?.toLocaleDateString("it-IT")} · ${testo || "Post senza testo"}`;
+    : `Pubblicato il ${cella.quando?.toLocaleDateString(intlCampo())} · ${testo || "Post senza testo"}`;
 
   return (
     <div
@@ -3289,7 +3289,7 @@ function CellaInstagram({
         <>
           <div className="pointer-events-none absolute inset-1 rounded border-2 border-dashed border-white/90" />
           <span className="absolute left-1.5 top-1.5 max-w-[calc(100%-2.5rem)] truncate rounded-full bg-white/95 px-1.5 py-0.5 text-[9px] font-bold text-slate-800 shadow-sm">
-            {app.quando ? dataBreve(app.quando) : "Senza data"}
+            {app.quando ? dataBreve(app.quando) : t("Senza data")}
           </span>
           {app.info.stato !== "programmato" && (
             <span className={cn("absolute bottom-1.5 left-1.5 rounded-full border px-1.5 py-0.5 text-[9px] font-bold shadow-sm", STILE_STATO[app.info.stato].badge)}>
@@ -3339,6 +3339,7 @@ function GridPlannerTab({
   onScambia: (primo: ScheduledPost, secondo: ScheduledPost) => Promise<boolean>;
   onGoToSettings: () => void;
 }) {
+  const t = useT();
   const [adesso, setAdesso] = useState(() => Date.now());
   useEffect(() => {
     const timer = window.setInterval(() => setAdesso(Date.now()), 60_000);
@@ -3417,7 +3418,7 @@ function GridPlannerTab({
     if (!primo || !secondo || primo.tipo !== "app" || secondo.tipo !== "app" || primoId === secondoId) return;
     // Il database ricontrolla con l'ora vera: qui basta quella del minuto.
     if (!scambiabile(primo, adesso) || !scambiabile(secondo, adesso)) {
-      toast.info("Si scambiano solo post non ancora usciti, con giorno e ora nel futuro.");
+      toast.info(t("Si scambiano solo post non ancora usciti, con giorno e ora nel futuro."));
       return;
     }
     if (await onScambia(primo.post, secondo.post)) setModoScambio(false);
@@ -3429,7 +3430,7 @@ function GridPlannerTab({
       return;
     }
     if (!scambiabile(cella, adesso)) {
-      toast.info("Si scambiano solo post non ancora usciti, con giorno e ora nel futuro.");
+      toast.info(t("Si scambiano solo post non ancora usciti, con giorno e ora nel futuro."));
       return;
     }
     if (!primoScambio) setPrimoScambio(cella.id);
@@ -3440,12 +3441,12 @@ function GridPlannerTab({
   if (!account) {
     return (
       <div className="mx-auto max-w-lg rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center">
-        <p className="text-sm font-semibold text-slate-800">Instagram non è collegato</p>
+        <p className="text-sm font-semibold text-slate-800">{t("Instagram non è collegato")}</p>
         <p className="mt-1 text-xs text-slate-500">
-          Per vedere e preparare qui il profilo Instagram, collega un account Instagram professionale alla pagina Facebook e ricollega Meta.
+          {t("Per vedere e preparare qui il profilo Instagram, collega un account Instagram professionale alla pagina Facebook e ricollega Meta.")}
         </p>
         <Button size="sm" variant="outline" className="mt-3 gap-1.5" onClick={onGoToSettings}>
-          <Settings className="h-3.5 w-3.5" /> Collega Instagram
+          <Settings className="h-3.5 w-3.5" /> {t("Collega Instagram")}
         </Button>
       </div>
     );
@@ -3457,14 +3458,14 @@ function GridPlannerTab({
         <Alert className="border-amber-200 bg-amber-50 py-2">
           <Info className="h-4 w-4 text-amber-600" />
           <AlertDescription className="text-xs text-amber-800">
-            Griglia dimostrativa: il profilo e i post pubblicati sono di esempio (Demo Azienda); quelli programmati sono i tuoi.
+            {t("Griglia dimostrativa: il profilo e i post pubblicati sono di esempio (Demo Azienda); quelli programmati sono i tuoi.")}
           </AlertDescription>
         </Alert>
       )}
 
       {accounts.length > 1 && (
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[11px] font-semibold text-slate-500">Account:</span>
+          <span className="text-[11px] font-semibold text-slate-500">{t("Account:")}</span>
           {accounts.map((a) => (
             <button key={a.pageId} type="button" onClick={() => { setPageScelta(a.pageId); setPrimoScambio(null); }} aria-pressed={a.pageId === account.pageId}
               className={cn("rounded-full border px-2.5 py-1 text-[11px] font-semibold transition",
@@ -3489,13 +3490,13 @@ function GridPlannerTab({
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-bold text-slate-900">{account.nome}</p>
               <p className="text-[11px] text-slate-500">
-                {account.followers != null ? `${numeroIntero(account.followers)} follower` : demo ? "Profilo di esempio" : "Follower non ancora letti"}
+                {account.followers != null ? t("{followers} follower", { followers: String(numeroIntero(account.followers) ?? "") }) : demo ? t("Profilo di esempio") : t("Follower non ancora letti")}
               </p>
             </div>
             {!demo && (
               <a href={`https://www.instagram.com/${encodeURIComponent(account.nome)}/`} target="_blank" rel="noopener noreferrer"
                 className="flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-50">
-                <ExternalLink className="h-3 w-3" /> Apri
+                <ExternalLink className="h-3 w-3" /> {t("Apri")}
               </a>
             )}
           </div>
@@ -3529,7 +3530,7 @@ function GridPlannerTab({
             </div>
           ) : (
             <p className="px-4 py-8 text-center text-xs text-slate-500">
-              {realiQuery.isLoading ? "Carico i post di Instagram…" : "Ancora nessun post: né programmato qui, né letto da Instagram."}
+              {realiQuery.isLoading ? t("Carico i post di Instagram…") : t("Ancora nessun post: né programmato qui, né letto da Instagram.")}
             </p>
           )}
         </div>
@@ -3539,35 +3540,35 @@ function GridPlannerTab({
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" className="gap-1.5 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white hover:from-orange-600 hover:to-amber-600"
               onClick={() => onNuovoPost({ modo: "nuovo", piattaforme: ["instagram"], ...(demo ? {} : { destinazioni: { instagram: account.pageId } }) })}>
-              <Plus className="h-3.5 w-3.5" /> Nuovo post Instagram
+              <Plus className="h-3.5 w-3.5" /> {t("Nuovo post Instagram")}
             </Button>
             <label className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600">
               <input type="checkbox" className="h-3.5 w-3.5 accent-orange-500" checked={mostraBozze} onChange={(e) => setMostraBozze(e.target.checked)} />
-              Mostra le bozze
+              {t("Mostra le bozze")}
             </label>
             {qualcunoScambiabile && (
               <Button size="sm" variant="outline" aria-pressed={modoScambio}
                 className={cn("gap-1.5", modoScambio && "border-orange-400 bg-orange-50 text-orange-700")}
                 onClick={() => { setModoScambio((v) => !v); setPrimoScambio(null); }}>
-                {modoScambio ? "Fine scambio" : "Scambia l'ordine"}
+                {modoScambio ? t("Fine scambio") : t("Scambia l'ordine")}
               </Button>
             )}
           </div>
           {modoScambio ? (
             <p className="rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-800">
-              {primoScambio ? "Ora tocca il post con cui scambiarlo." : "Tocca un post non ancora uscito, poi quello con cui scambiare giorno e ora."}
+              {primoScambio ? t("Ora tocca il post con cui scambiarlo.") : t("Tocca un post non ancora uscito, poi quello con cui scambiare giorno e ora.")}
             </p>
           ) : qualcunoScambiabile ? (
-            <p className="text-[11px] text-slate-500">Per scambiare giorno e ora di due post non ancora usciti, trascinane uno sull'altro.</p>
+            <p className="text-[11px] text-slate-500">{t("Per scambiare giorno e ora di due post non ancora usciti, trascinane uno sull'altro.")}</p>
           ) : null}
           {senzaAccount > 0 && (
             <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              {senzaAccount === 1 ? "1 post Instagram non ha" : `${senzaAccount} post Instagram non hanno`} l'account scelto: aprili dal calendario con «Modifica» e scegli su quale account escono.
+              {senzaAccount === 1 ? t("1 post Instagram non ha") : t("{senzaAccount} post Instagram non hanno", { senzaAccount: String(senzaAccount ?? "") })} {t("l'account scelto: aprili dal calendario con «Modifica» e scegli su quale account escono.")}
             </p>
           )}
           {argomentiPresenti.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] font-semibold text-slate-500">Evidenzia argomento:</span>
+              <span className="text-[11px] font-semibold text-slate-500">{t("Evidenzia argomento:")}</span>
               {argomentiPresenti.map((p) => (
                 <button key={p.id} type="button" onClick={() => setEvidenzia(evidenzia === p.id ? null : p.id)} aria-pressed={evidenzia === p.id}
                   className={cn("flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition",
@@ -3579,9 +3580,9 @@ function GridPlannerTab({
           )}
 
           <div className="space-y-2">
-            <p className="text-sm font-bold text-slate-800">In programma su Instagram</p>
+            <p className="text-sm font-bold text-slate-800">{t("In programma su Instagram")}</p>
             {futuri.length === 0
-              ? <p className="text-xs text-slate-500">Niente in programma per @{account.nome}.</p>
+              ? <p className="text-xs text-slate-500">{t("Niente in programma per @{nome}.", { nome: String(account.nome ?? "") })}</p>
               : futuri.map((cella) => (
                 <VoceEstesa key={cella.id} voce={voceDaCella(cella, `@${account.nome}`)} onApri={() => clicCella(cella)} conData />
               ))}
@@ -3589,10 +3590,10 @@ function GridPlannerTab({
 
           {!demo && (
             <div className="space-y-2">
-              <p className="text-sm font-bold text-slate-800">Gli ultimi pubblicati</p>
+              <p className="text-sm font-bold text-slate-800">{t("Gli ultimi pubblicati")}</p>
               {ultimiReali.length === 0 ? (
                 <p className="text-xs text-slate-500">
-                  {realiQuery.isError ? "Non riesco a leggere i post di Instagram." : "Nessun post letto da Instagram per questo account."}
+                  {realiQuery.isError ? t("Non riesco a leggere i post di Instagram.") : t("Nessun post letto da Instagram per questo account.")}
                 </p>
               ) : ultimiReali.map((cella) => cella.tipo === "instagram" && (
                 <button key={cella.id} type="button" onClick={() => onApriVoce(voceDaCella(cella, `@${account.nome}`))}
@@ -3602,18 +3603,16 @@ function GridPlannerTab({
                     : <span className="h-12 w-9 shrink-0 rounded bg-slate-200" />}
                   <span className="min-w-0 flex-1">
                     <span className="block text-[11px] font-semibold text-slate-500">
-                      {cella.quando.toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "short" })}
+                      {cella.quando.toLocaleDateString(intlCampo(), { weekday: "short", day: "numeric", month: "short" })}
                     </span>
-                    <span className="block truncate text-xs text-slate-700">{cella.reale.testo || "Post senza testo"}</span>
-                    <span className="block text-[11px] text-slate-500">
-                      {numeroIntero(cella.reale.numeri.reazioni)} mi piace · {numeroIntero(cella.reale.numeri.commenti)} commenti · {numeroIntero(cella.reale.numeri.copertura)} persone raggiunte
-                    </span>
+                    <span className="block truncate text-xs text-slate-700">{cella.reale.testo || t("Post senza testo")}</span>
+                    <span className="block text-[11px] text-slate-500">{t("{reazioni} mi piace · {commenti} commenti · {copertura} persone raggiunte", { reazioni: String(numeroIntero(cella.reale.numeri.reazioni) ?? ""), commenti: String(numeroIntero(cella.reale.numeri.commenti) ?? ""), copertura: String(numeroIntero(cella.reale.numeri.copertura) ?? "") })}</span>
                   </span>
                 </button>
               ))}
               <p className="text-[11px] text-slate-400">
-                I post pubblicati arrivano da Instagram ogni 4 ore
-                {ultimaLettura ? `; ultima lettura ${new Date(ultimaLettura).toLocaleString("it-IT", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : ""}.
+                {t("I post pubblicati arrivano da Instagram ogni 4 ore")}
+                {ultimaLettura ? t("; ultima lettura {valore}", { valore: new Date(ultimaLettura).toLocaleString(intlCampo(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) }) : ""}.
               </p>
             </div>
           )}
@@ -3670,6 +3669,7 @@ const SENTIMENT_CONFIG: Record<InboxItem["sentiment"], { icon: string; color: st
 };
 
 function InboxTab({ onUnreadChange, demoMode = false }: { onUnreadChange?: (n: number) => void; demoMode?: boolean }) {
+  const t = useT();
   // I 4 messaggi demo si vedono SOLO nella Demo Azienda: un'azienda reale
   // partirebbe convinta di avere conversazioni clienti mai esistite.
   const [items, setItems] = useState<InboxItem[]>(demoMode ? DEMO_INBOX : []);
@@ -3697,7 +3697,7 @@ function InboxTab({ onUnreadChange, demoMode = false }: { onUnreadChange?: (n: n
   const sendReply = (id: string) => {
     if (!replyText.trim()) return;
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, status: "replied" } : i)));
-    toast.success("Risposta salvata", { description: "Solo qui: è la casella di prova, la risposta non arriva a nessuno." });
+    toast.success(t("Risposta salvata"), { description: t("Solo qui: è la casella di prova, la risposta non arriva a nessuno.") });
     setReplyText("");
     setSelectedId(null);
   };
@@ -3725,10 +3725,9 @@ function InboxTab({ onUnreadChange, demoMode = false }: { onUnreadChange?: (n: n
     return (
       <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white py-16 text-center">
         <MessageSquare className="mb-3 h-10 w-10 text-slate-300" />
-        <p className="text-sm font-medium text-slate-700">Nessun messaggio</p>
+        <p className="text-sm font-medium text-slate-700">{t("Nessun messaggio")}</p>
         <p className="mt-1 max-w-sm text-xs text-slate-400">
-          Commenti, messaggi e recensioni delle tue pagine compariranno qui
-          quando la lettura delle conversazioni sarà attiva.
+          {t("Commenti, messaggi e recensioni delle tue pagine compariranno qui quando la lettura delle conversazioni sarà attiva.")}
         </p>
       </div>
     );
@@ -3740,7 +3739,7 @@ function InboxTab({ onUnreadChange, demoMode = false }: { onUnreadChange?: (n: n
         <Alert className="border-amber-200 bg-amber-50 py-2">
           <Info className="h-4 w-4 text-amber-600" />
           <AlertDescription className="text-xs text-amber-800">
-            Messaggi di prova della Demo Azienda: le risposte restano qui e non arrivano a nessuno.
+            {t("Messaggi di prova della Demo Azienda: le risposte restano qui e non arrivano a nessuno.")}
           </AlertDescription>
         </Alert>
       )}
@@ -3749,10 +3748,10 @@ function InboxTab({ onUnreadChange, demoMode = false }: { onUnreadChange?: (n: n
       {/* Telefono: niente riquadri di conteggio, i «da leggere» sono già sulla scheda. */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 max-sm:hidden">
         {[
-          { label: "Da leggere",  value: items.filter((i) => i.status === "unread").length,   color: "text-orange-600", bg: "bg-orange-50"  },
-          { label: "Commenti",    value: items.filter((i) => i.type === "comment").length,     color: "text-blue-600",   bg: "bg-blue-50"    },
-          { label: "Messaggi",    value: items.filter((i) => i.type === "dm").length,          color: "text-violet-600", bg: "bg-violet-50"  },
-          { label: "Recensioni",  value: items.filter((i) => i.type === "review").length,      color: "text-amber-600",  bg: "bg-amber-50"   },
+          { label: t("Da leggere"),  value: items.filter((i) => i.status === "unread").length,   color: "text-orange-600", bg: "bg-orange-50"  },
+          { label: t("Commenti"),    value: items.filter((i) => i.type === "comment").length,     color: "text-blue-600",   bg: "bg-blue-50"    },
+          { label: t("Messaggi"),    value: items.filter((i) => i.type === "dm").length,          color: "text-violet-600", bg: "bg-violet-50"  },
+          { label: t("Recensioni"),  value: items.filter((i) => i.type === "review").length,      color: "text-amber-600",  bg: "bg-amber-50"   },
         ].map(({ label, value, color, bg }) => (
           <div key={label} className={cn("flex items-center gap-3 rounded-2xl border border-slate-100 p-3", bg)}>
             <p className={cn("text-2xl font-bold tabular-nums", color)}>{value}</p>
@@ -3767,11 +3766,11 @@ function InboxTab({ onUnreadChange, demoMode = false }: { onUnreadChange?: (n: n
         {/* Type */}
         <div className="flex items-center gap-1 rounded-xl border bg-white p-1 max-sm:hidden">
           {([
-            { id: "all",      label: "Tutti"     },
-            { id: "comment",  label: "💬 Comm."  },
-            { id: "dm",       label: "✉️ DM"     },
-            { id: "mention",  label: "📣 Menz."  },
-            { id: "review",   label: "⭐ Recens." },
+            { id: "all",      label: t("Tutti")     },
+            { id: "comment",  label: t("💬 Comm.")  },
+            { id: "dm",       label: t("✉️ DM")     },
+            { id: "mention",  label: t("📣 Menz.")  },
+            { id: "review",   label: t("⭐ Recens.") },
           ] as const).map(({ id, label }) => (
             <button key={id} type="button" onClick={() => setFilterType(id)}
               className={cn("rounded-lg px-2.5 py-1 text-xs font-semibold transition",
@@ -3784,10 +3783,10 @@ function InboxTab({ onUnreadChange, demoMode = false }: { onUnreadChange?: (n: n
         {/* Status */}
         <div className="flex items-center gap-1 rounded-xl border bg-white p-1 max-sm:w-full">
           {([
-            { id: "all",      label: "Tutti"      },
-            { id: "unread",   label: "Da leggere" },
-            { id: "replied",  label: "Risposti"   },
-            { id: "archived", label: "Archivio"   },
+            { id: "all",      label: t("Tutti")      },
+            { id: "unread",   label: t("Da leggere") },
+            { id: "replied",  label: t("Risposti")   },
+            { id: "archived", label: t("Archivio")   },
           ] as const).map(({ id, label }) => (
             <button key={id} type="button" onClick={() => setFilterStatus(id)}
               className={cn("rounded-lg px-2.5 py-1 text-xs font-semibold transition max-sm:flex-1 max-sm:px-1 max-sm:text-[13px]",
@@ -3804,12 +3803,12 @@ function InboxTab({ onUnreadChange, demoMode = false }: { onUnreadChange?: (n: n
               filterPlatform === p.id
                 ? `border-transparent text-white bg-gradient-to-r ${p.gradient}`
                 : "border-slate-200 bg-white text-slate-500 hover:border-slate-300")}>
-            <span className="text-[10px]">{p.icon}</span>{p.shortName}
+            <span className="text-[10px]">{t(p.icon)}</span>{p.shortName}
           </button>
         ))}
 
         <div className="ml-auto text-[11px] text-slate-400 max-sm:hidden">
-          {filteredItems.length} messaggi{unreadCount > 0 && <span className="ml-1 rounded-full bg-orange-500 px-1.5 py-0.5 text-[10px] font-bold text-white">{unreadCount} nuovi</span>}
+          {filteredItems.length} {t("messaggi")}{unreadCount > 0 && <span className="ml-1 rounded-full bg-orange-500 px-1.5 py-0.5 text-[10px] font-bold text-white">{t("{unreadCount} nuovi", { unreadCount: String(unreadCount ?? "") })}</span>}
         </div>
       </div>
 
@@ -3821,7 +3820,7 @@ function InboxTab({ onUnreadChange, demoMode = false }: { onUnreadChange?: (n: n
           {filteredItems.length === 0 ? (
             <div className="flex flex-col items-center gap-3 py-12 text-slate-400">
               <MessageSquare className="h-10 w-10 opacity-30" />
-              <p className="text-sm font-medium">Nessun messaggio trovato</p>
+              <p className="text-sm font-medium">{t("Nessun messaggio trovato")}</p>
             </div>
           ) : (
             filteredItems.map((item) => {
@@ -3878,7 +3877,7 @@ function InboxTab({ onUnreadChange, demoMode = false }: { onUnreadChange?: (n: n
 
                       <div className="mt-1.5 flex items-center gap-2">
                         <span className={cn("text-sm", sc.color)}>{sc.icon}</span>
-                        {item.status === "replied" && <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">✓ Risposto</span>}
+                        {item.status === "replied" && <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">{t("✓ Risposto")}</span>}
                         {item.status === "unread" && <span className="h-2 w-2 rounded-full bg-orange-500" />}
                         {item.starred && <span className="text-amber-400 text-xs">★</span>}
                       </div>
@@ -3900,7 +3899,7 @@ function InboxTab({ onUnreadChange, demoMode = false }: { onUnreadChange?: (n: n
             <div className="w-80 shrink-0 space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm max-sm:w-full max-sm:rounded-xl max-sm:p-3 max-sm:shadow-none">
               {/* Close */}
               <div className="flex items-center justify-between">
-                <p className="text-sm font-bold text-slate-800">Dettaglio</p>
+                <p className="text-sm font-bold text-slate-800">{t("Dettaglio")}</p>
                 <button type="button" onClick={() => setSelectedId(null)} className="rounded-full p-1 text-slate-400 hover:bg-slate-100">
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -3923,14 +3922,14 @@ function InboxTab({ onUnreadChange, demoMode = false }: { onUnreadChange?: (n: n
               {/* Message */}
               <div className={cn("rounded-xl border p-3 text-sm text-slate-700", tc.bg, tc.border)}>
                 {selectedItem.postPreview && (
-                  <p className="mb-1.5 text-[10px] italic text-slate-400">In risposta a: {selectedItem.postPreview}</p>
+                  <p className="mb-1.5 text-[10px] italic text-slate-400">{t("In risposta a: {postPreview}", { postPreview: String(selectedItem.postPreview ?? "") })}</p>
                 )}
                 <p>{selectedItem.message}</p>
                 <div className="mt-2 flex items-center gap-1.5 text-[10px] text-slate-400">
                   <span className={sc.color}>{sc.icon}</span>
-                  <span>Sentiment: {selectedItem.sentiment === "positive" ? "positivo" : selectedItem.sentiment === "negative" ? "negativo" : "neutro"}</span>
+                  <span>{t("Sentiment:")} {selectedItem.sentiment === "positive" ? t("positivo") : selectedItem.sentiment === "negative" ? t("negativo") : t("neutro")}</span>
                   <span>·</span>
-                  <span>{new Date(selectedItem.timestamp).toLocaleString("it-IT", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                  <span>{new Date(selectedItem.timestamp).toLocaleString(intlCampo(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
                 </div>
               </div>
 
@@ -3939,11 +3938,11 @@ function InboxTab({ onUnreadChange, demoMode = false }: { onUnreadChange?: (n: n
                 <button type="button" onClick={() => toggleStar(selectedItem.id)}
                   className={cn("flex-1 rounded-xl border py-1.5 text-xs font-semibold transition",
                     selectedItem.starred ? "border-amber-300 bg-amber-50 text-amber-700" : "border-slate-200 text-slate-500 hover:bg-slate-50")}>
-                  {selectedItem.starred ? "★ Salvato" : "☆ Salva"}
+                  {selectedItem.starred ? t("★ Salvato") : t("☆ Salva")}
                 </button>
                 <button type="button" onClick={() => { archive(selectedItem.id); setSelectedId(null); }}
                   className="flex-1 rounded-xl border border-slate-200 py-1.5 text-xs font-semibold text-slate-500 transition hover:bg-slate-50">
-                  📁 Archivia
+                  {t("📁 Archivia")}
                 </button>
               </div>
 
@@ -3952,7 +3951,7 @@ function InboxTab({ onUnreadChange, demoMode = false }: { onUnreadChange?: (n: n
                 <div className="space-y-2">
                   <Textarea
                     rows={3}
-                    placeholder={selectedItem.type === "dm" ? "Scrivi la tua risposta..." : selectedItem.type === "review" ? "Ringrazia o rispondi alla recensione..." : "Rispondi al commento..."}
+                    placeholder={selectedItem.type === "dm" ? t("Scrivi la tua risposta...") : selectedItem.type === "review" ? t("Ringrazia o rispondi alla recensione...") : t("Rispondi al commento...")}
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
                     // Telefono: 16px, sotto iOS ingrandisce la pagina mentre scrivi.
@@ -3960,7 +3959,7 @@ function InboxTab({ onUnreadChange, demoMode = false }: { onUnreadChange?: (n: n
                   />
                   <button type="button" onClick={() => sendReply(selectedItem.id)} disabled={!replyText.trim()}
                     className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-orange-500 to-eic-amber-strong py-2 text-xs font-bold text-white shadow-sm transition hover:from-orange-600 hover:to-amber-600 disabled:opacity-40">
-                    <Send className="h-3.5 w-3.5" /> Invia risposta
+                    <Send className="h-3.5 w-3.5" /> {t("Invia risposta")}
                   </button>
                 </div>
               )}
@@ -3990,6 +3989,7 @@ function BulkScheduleModal({
   onImport: (post: ScheduledPost) => void | Promise<unknown>;
   onClose: () => void;
 }) {
+  const t = useT();
   const MAX_BULK = 30;
   const [csvText, setCsvText] = useState("");
   const [parsed, setParsed] = useState<BulkPost[]>([]);
@@ -4026,7 +4026,7 @@ function BulkScheduleModal({
     try {
       await Promise.all(validPosts.map((post) => Promise.resolve(onImport(post))));
       if (droppedForCap > 0) {
-        toast.warning(`Importati i primi ${MAX_BULK} post. ${droppedForCap} riga/e in eccesso non importate.`);
+        toast.warning(t("Importati i primi {MAX_BULK} post. {droppedForCap} riga/e in eccesso non importate.", { MAX_BULK: String(MAX_BULK ?? ""), droppedForCap: String(droppedForCap ?? "") }));
       }
       setStep("done");
     } finally {
@@ -4049,8 +4049,8 @@ function BulkScheduleModal({
         {/* Header */}
         <div className="flex items-center justify-between border-b px-6 py-4">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">Importa post da CSV</h2>
-            <p className="text-xs text-slate-500">Carica fino a 30 post programmati in una volta sola</p>
+            <h2 className="text-lg font-bold text-slate-900">{t("Importa post da CSV")}</h2>
+            <p className="text-xs text-slate-500">{t("Carica fino a 30 post programmati in una volta sola")}</p>
           </div>
           <button type="button" onClick={onClose} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100">
             <X className="h-5 w-5" />
@@ -4063,8 +4063,8 @@ function BulkScheduleModal({
             <>
               {/* Format guide */}
               <div className="rounded-xl border border-orange-200 bg-orange-50 p-3 space-y-2">
-                <p className="text-xs font-bold text-orange-700">📋 Formato CSV richiesto</p>
-                <p className="text-[11px] text-slate-600">Colonne (separatore virgola, valori con spazi tra virgolette):</p>
+                <p className="text-xs font-bold text-orange-700">{t("📋 Formato CSV richiesto")}</p>
+                <p className="text-[11px] text-slate-600">{t("Colonne (separatore virgola, valori con spazi tra virgolette):")}</p>
                 <div className="overflow-x-auto rounded-lg bg-slate-900 px-3 py-2">
                   <code className="whitespace-pre font-mono text-[10px] text-emerald-400">{`piattaforme,testo,hashtag,data_ora,immagine_url
 
@@ -4079,17 +4079,17 @@ function BulkScheduleModal({
               {/* Paste / upload area */}
               <div>
                 <div className="mb-2 flex items-center justify-between">
-                  <label className="text-xs font-semibold text-slate-700">Incolla il contenuto CSV o carica file:</label>
+                  <label className="text-xs font-semibold text-slate-700">{t("Incolla il contenuto CSV o carica file:")}</label>
                   <div className="flex gap-2">
                     <button type="button"
                       onClick={() => setCsvText(CSV_EXAMPLE)}
                       className="rounded-lg border border-slate-200 px-2.5 py-1 text-[10px] font-semibold text-slate-500 hover:bg-slate-50">
-                      Carica esempio
+                      {t("Carica esempio")}
                     </button>
                     <button type="button"
                       onClick={() => fileInputRef.current?.click()}
                       className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-[10px] font-semibold text-slate-500 hover:bg-slate-50">
-                      <Upload className="h-3 w-3" /> .csv
+                      <Upload className="h-3 w-3" /> {t(".csv")}
                     </button>
                     <input ref={fileInputRef} type="file" accept=".csv,text/csv" className="hidden"
                       onChange={(e) => { const f = e.target.files?.[0]; if (f) loadFile(f); }} />
@@ -4099,11 +4099,11 @@ function BulkScheduleModal({
                   rows={8}
                   value={csvText}
                   onChange={(e) => setCsvText(e.target.value)}
-                  placeholder="Incolla qui il tuo CSV…"
+                  placeholder={t("Incolla qui il tuo CSV…")}
                   className="resize-none font-mono text-xs"
                 />
                 <p className="mt-1 text-[10px] text-slate-400">
-                  {csvText.trim() ? Math.max(0, csvText.trim().split(/\r?\n/).filter((l) => l.trim()).length - 1) : 0} righe rilevate (esclusa intestazione)
+                  {csvText.trim() ? Math.max(0, csvText.trim().split(/\r?\n/).filter((l) => l.trim()).length - 1) : 0} {t("righe rilevate (esclusa intestazione)")}
                 </p>
               </div>
             </>
@@ -4114,16 +4114,16 @@ function BulkScheduleModal({
               {parsed.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 rounded-xl border border-red-200 bg-red-50 py-6 text-center">
                   <span className="text-2xl">⚠️</span>
-                  <p className="text-sm font-semibold text-red-700">Nessuna riga trovata nel CSV</p>
-                  <p className="text-xs text-slate-500">Controlla che il file abbia l'intestazione corretta e almeno una riga di dati.</p>
+                  <p className="text-sm font-semibold text-red-700">{t("Nessuna riga trovata nel CSV")}</p>
+                  <p className="text-xs text-slate-500">{t("Controlla che il file abbia l'intestazione corretta e almeno una riga di dati.")}</p>
                 </div>
               ) : (
               <div className={cn("flex items-center gap-3 rounded-xl border px-3 py-2",
                 errCount === 0 ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50")}>
                 <span className="text-lg">{errCount === 0 ? "✅" : "⚠️"}</span>
                 <div className="text-sm">
-                  <span className="font-bold text-emerald-700">{okCount} post validi</span>
-                  {errCount > 0 && <span className="ml-2 font-bold text-red-600">{errCount} con errori (verranno saltati)</span>}
+                  <span className="font-bold text-emerald-700">{t("{okCount} post validi", { okCount: String(okCount ?? "") })}</span>
+                  {errCount > 0 && <span className="ml-2 font-bold text-red-600">{t("{errCount} con errori (verranno saltati)", { errCount: String(errCount ?? "") })}</span>}
                 </div>
               </div>
               )}
@@ -4146,7 +4146,7 @@ function BulkScheduleModal({
                           ) : null;
                         })}
                         <span className="text-slate-400">
-                          {new Date(p.scheduled_at).toLocaleString("it-IT", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                          {new Date(p.scheduled_at).toLocaleString(intlCampo(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                         </span>
                       </div>
                       {p.status === "error"
@@ -4164,8 +4164,8 @@ function BulkScheduleModal({
             <div className="flex flex-col items-center gap-4 py-8 text-center">
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-3xl">✅</div>
               <div>
-                <p className="text-lg font-bold text-slate-800">{okCount} post importati!</p>
-                <p className="text-sm text-slate-500">Puoi vederli nel Calendario e modificarli singolarmente.</p>
+                <p className="text-lg font-bold text-slate-800">{t("{okCount} post importati!", { okCount: String(okCount ?? "") })}</p>
+                <p className="text-sm text-slate-500">{t("Puoi vederli nel Calendario e modificarli singolarmente.")}</p>
               </div>
             </div>
           )}
@@ -4176,24 +4176,24 @@ function BulkScheduleModal({
         <div className="flex items-center justify-between border-t px-6 py-4">
           <button type="button" onClick={onClose}
             className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-500 transition hover:bg-slate-50">
-            {step === "done" ? "Chiudi" : "Annulla"}
+            {step === "done" ? t("Chiudi") : t("Annulla")}
           </button>
 
           {step === "input" && (
             <button type="button" onClick={handlePreview} disabled={!csvText.trim()}
               className="rounded-xl bg-gradient-to-r from-orange-500 to-eic-amber-strong px-5 py-2 text-sm font-bold text-white shadow-sm transition hover:from-orange-600 hover:to-amber-600 disabled:opacity-40">
-              Anteprima →
+              {t("Anteprima →")}
             </button>
           )}
           {step === "preview" && (
             <div className="flex gap-2">
               <button type="button" onClick={() => setStep("input")}
                 className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-50">
-                ← Modifica
+                {t("← Modifica")}
               </button>
               <button type="button" onClick={handleImport} disabled={okCount === 0 || importing}
                 className="rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-5 py-2 text-sm font-bold text-white shadow-sm transition hover:from-emerald-600 hover:to-teal-600 disabled:opacity-40">
-                {importing ? "Importazione…" : `✓ Importa ${Math.min(okCount, 30)} post`}
+                {importing ? t("Importazione…") : t("✓ Importa {valore} post", { valore: Math.min(okCount, 30) })}
               </button>
             </div>
           )}
@@ -4210,6 +4210,7 @@ function BulkScheduleModal({
 const SCHEDE_TELEFONO = ["crea-post", "calendario", "inbox"];
 
 export default function SocialManagerBeta() {
+  const t = useT();
   const { effectiveCompany } = useAuthCompany();
   const { isLoading: authInCaricamento } = useAuthUser();
   const companyId = effectiveCompany?.id;
@@ -4220,8 +4221,8 @@ export default function SocialManagerBeta() {
     return (
       <div className="flex min-h-[50vh] items-center justify-center gap-2 p-6 text-sm text-slate-500">
         {authInCaricamento
-          ? <><Loader2 className="h-4 w-4 animate-spin" /> Carico i dati dell'azienda…</>
-          : "Nessuna azienda selezionata."}
+          ? <><Loader2 className="h-4 w-4 animate-spin" /> {t("Carico i dati dell'azienda…")}</>
+          : t("Nessuna azienda selezionata.")}
       </div>
     );
   }
@@ -4248,6 +4249,7 @@ function GestioneSocial({
   settoreAzienda?: string;
   logoAzienda?: string | null;
 }) {
+  const t = useT();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   // Telefono: tre schede (Crea post, Calendario, Messaggi). Griglia, statistiche
@@ -4314,7 +4316,7 @@ function GestioneSocial({
       body: { post_id: id, company_id: companyId, ...(riprova ? { riprova: true } : {}) },
     });
     if (error) {
-      toast.error("Pubblicazione non riuscita", { description: await readInvokeError(error) });
+      toast.error(t("Pubblicazione non riuscita"), { description: await readInvokeError(error) });
     } else {
       const payload = data as { pending?: boolean; result?: Record<string, SocialPublishResultEntry> } | null;
       const res = payload?.result ?? {};
@@ -4322,16 +4324,16 @@ function GestioneSocial({
       const pendingCh = Object.entries(res).filter(([, v]) => v?.pending).map(([k]) => nomePiattaforma(k));
       const errCh = Object.entries(res).filter(([k, v]) => k !== "_error" && v && v.ok === false && !v.pending);
       const warnings = Object.values(res).flatMap((v) => v?.warnings ?? []);
-      if (okCh.length) toast.success(`Pubblicato su ${elencoNomi(okCh)}`);
+      if (okCh.length) toast.success(t("Pubblicato su {okCh}", { okCh: String(elencoNomi(okCh) ?? "") }));
       if (pendingCh.length) {
-        toast.info(`${elencoNomi(pendingCh)}: Meta sta ancora elaborando il file`, {
-          description: "Il post esce da solo appena è pronto: l'esito compare nel calendario.",
+        toast.info(t("{pendingCh}: Meta sta ancora elaborando il file", { pendingCh: String(elencoNomi(pendingCh) ?? "") }), {
+          description: t("Il post esce da solo appena è pronto: l'esito compare nel calendario."),
         });
       } else if (payload?.pending && !okCh.length && !errCh.length) {
-        toast.info("Pubblicazione già in corso", { description: "L'esito compare nel calendario tra poco." });
+        toast.info(t("Pubblicazione già in corso"), { description: t("L'esito compare nel calendario tra poco.") });
       }
-      if (errCh.length) toast.error(`Non pubblicato su ${elencoNomi(errCh.map(([k]) => nomePiattaforma(k)))}`, { description: errCh[0]?.[1]?.error });
-      if (warnings.length) toast.warning("Pubblicato con un avviso", { description: warnings[0] });
+      if (errCh.length) toast.error(t("Non pubblicato su {piattaforme}", { piattaforme: elencoNomi(errCh.map(([k]) => nomePiattaforma(k))) }), { description: errCh[0]?.[1]?.error });
+      if (warnings.length) toast.warning(t("Pubblicato con un avviso"), { description: warnings[0] });
     }
     queryClient.invalidateQueries({ queryKey: ["social-manager", "posts", companyId] });
   }, [companyId, queryClient]);
@@ -4385,19 +4387,19 @@ function GestioneSocial({
     );
     const { error } = await esegui();
     if (error) {
-      toast.error("Scambio non riuscito", { description: error.message });
+      toast.error(t("Scambio non riuscito"), { description: error.message });
       return false;
     }
     queryClient.invalidateQueries({ queryKey: ["social-manager", "posts", companyId] });
     const breve = (p: ScheduledPost) => `«${(p.text || "Post senza testo").slice(0, 28)}${p.text.length > 28 ? "…" : ""}»`;
-    const quando = (iso: string) => new Date(iso).toLocaleString("it-IT", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-    toast.success("Scambiati", {
-      description: `${breve(primo)} esce ${quando(secondo.scheduled_at)}, ${breve(secondo)} ${quando(primo.scheduled_at)}.`,
+    const quando = (iso: string) => new Date(iso).toLocaleString(intlCampo(), { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+    toast.success(t("Scambiati"), {
+      description: t("{primo} esce {scheduled_at}, {secondo} {scheduled_at2}.", { primo: String(breve(primo) ?? ""), scheduled_at: String(quando(secondo.scheduled_at) ?? ""), secondo: String(breve(secondo) ?? ""), scheduled_at2: String(quando(primo.scheduled_at) ?? "") }),
       action: {
-        label: "Annulla",
+        label: t("Annulla"),
         onClick: () => {
           void esegui().then(({ error: erroreAnnulla }) => {
-            if (erroreAnnulla) toast.error("Non riesco ad annullare lo scambio", { description: erroreAnnulla.message });
+            if (erroreAnnulla) toast.error(t("Non riesco ad annullare lo scambio"), { description: erroreAnnulla.message });
             queryClient.invalidateQueries({ queryKey: ["social-manager", "posts", companyId] });
           });
         },
@@ -4409,10 +4411,10 @@ function GestioneSocial({
   /** Le azioni sul post dal calendario, con i controlli che il post esca davvero. */
   const eseguiAzione = useCallback(async (post: ScheduledPost, azione: AzionePost, dati?: DatiAzione): Promise<boolean> => {
     const stato = statoPubblicazione.stato;
-    const quandoDi = (iso: string) => new Date(iso).toLocaleString("it-IT", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
+    const quandoDi = (iso: string) => new Date(iso).toLocaleString(intlCampo(), { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
     const soloPronte = (soloPiattaforme?: string[]) => {
       const dest = destinazioniPronte(post, stato, soloPiattaforme);
-      if ("errore" in dest) toast.error("Non può uscire adesso", { description: dest.errore });
+      if ("errore" in dest) toast.error(t("Non può uscire adesso"), { description: dest.errore });
       return "errore" in dest ? null : dest;
     };
     const tolteDette = (tolte: string[]) =>
@@ -4433,8 +4435,8 @@ function GestioneSocial({
           if (passato) {
             await pubblicaSubito(post.id);
           } else {
-            toast.success("Approvato", {
-              description: `Esce ${quandoDi(post.scheduled_at)} su ${elencoNomi(dest.platforms.map(nomePiattaforma))}.${tolteDette(dest.tolte)}`,
+            toast.success(t("Approvato"), {
+              description: t("Esce {scheduled_at} su {valore}.{tolte}", { scheduled_at: String(quandoDi(post.scheduled_at) ?? ""), valore: String(elencoNomi(dest.platforms.map(nomePiattaforma)) ?? ""), tolte: String(tolteDette(dest.tolte) ?? "") }),
             });
           }
           return true;
@@ -4442,7 +4444,7 @@ function GestioneSocial({
         case "rimanda": {
           await updatePost(post.id, { status: "draft", reviewNote: dati?.nota?.trim() || "Rimandato in bozza." });
           const autore = nomeUtente(post.createdBy);
-          toast.info("Rimandato in bozza", { description: autore ? `${autore} riceve la nota.` : undefined });
+          toast.info(t("Rimandato in bozza"), { description: autore ? t("{autore} riceve la nota.", { autore: String(autore ?? "") }) : undefined });
           return true;
         }
         case "pubblica_ora": {
@@ -4476,19 +4478,19 @@ function GestioneSocial({
           const dest = soloPronte();
           if (!dest) return false;
           await updatePost(post.id, { status: "scheduled", scheduled_at: dati.quando, platforms: dest.platforms, targetPageIds: dest.targetPageIds });
-          toast.success("Programmato", { description: `Esce ${quandoDi(dati.quando)} su ${elencoNomi(dest.platforms.map(nomePiattaforma))}.${tolteDette(dest.tolte)}` });
+          toast.success(t("Programmato"), { description: t("Esce {quando} su {valore}.{tolte}", { quando: String(quandoDi(dati.quando) ?? ""), valore: String(elencoNomi(dest.platforms.map(nomePiattaforma)) ?? ""), tolte: String(tolteDette(dest.tolte) ?? "") }) });
           return true;
         }
         case "sposta": {
           if (!dati?.quando) return false;
           const daRiprogrammare = post.status === "failed" || statoCalendario(post).stato === "in_ritardo";
           await updatePost(post.id, { scheduled_at: dati.quando, ...(daRiprogrammare ? { status: "scheduled" as const } : {}) });
-          toast.success("Spostato", { description: `Ora esce ${quandoDi(dati.quando)}.` });
+          toast.success(t("Spostato"), { description: t("Ora esce {quando}.", { quando: String(quandoDi(dati.quando) ?? "") }) });
           return true;
         }
         case "annulla_programmazione": {
           await updatePost(post.id, { status: "draft" });
-          toast.success("Tolto dalla programmazione", { description: "Lo trovi tra le bozze: non esce finché non lo riprogrammi." });
+          toast.success(t("Tolto dalla programmazione"), { description: t("Lo trovi tra le bozze: non esce finché non lo riprogrammi.") });
           return true;
         }
         case "modifica":
@@ -4496,12 +4498,12 @@ function GestioneSocial({
           return true;
         case "duplica":
           apriComposer({ modo: "duplica", post });
-          toast.info("Copia pronta", { description: "Cambia quello che serve e scegli quando pubblicarla." });
+          toast.info(t("Copia pronta"), { description: t("Cambia quello che serve e scegli quando pubblicarla.") });
           return true;
         case "elimina":
           await deletePost(post.id);
-          toast.success("Post eliminato", {
-            description: post.status === "published" ? "Resta su Facebook e Instagram: da qui si toglie solo dal calendario." : undefined,
+          toast.success(t("Post eliminato"), {
+            description: post.status === "published" ? t("Resta su Facebook e Instagram: da qui si toglie solo dal calendario.") : undefined,
           });
           return true;
         default:
@@ -4516,17 +4518,17 @@ function GestioneSocial({
   const handleUseInPost = useCallback((item: MediaItem) => {
     setSelectedMediaForComposer(item);
     setTab("crea-post");
-    toast.success(`«${item.title}» è nel post`, { description: "Lo trovi nel passo 2, «Cosa»." });
+    toast.success(t("«{title}» è nel post", { title: String(item.title ?? "") }), { description: t("Lo trovi nel passo 2, «Cosa».") });
   }, [setTab]);
 
   const handleUseInAds = useCallback((item: MediaItem) => {
     navigate("/azienda/marketing/pubblicita?tab=creativita");
-    toast.success(`«${item.title}» è pronto per la pubblicità`, { description: "Sceglilo come immagine nella campagna." });
+    toast.success(t("«{title}» è pronto per la pubblicità", { title: String(item.title ?? "") }), { description: t("Sceglilo come immagine nella campagna.") });
   }, [navigate]);
 
   const handleUploadRequested = useCallback(() => {
     setTab("crea-post");
-    toast.info("Carica la foto dal passo 2 di «Crea post».");
+    toast.info(t("Carica la foto dal passo 2 di «Crea post»."));
   }, [setTab]);
 
   const scheduledCount = posts.filter((p) => p.status === "scheduled").length;
@@ -4541,13 +4543,13 @@ function GestioneSocial({
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
 
   const tabs = [
-    { id: "crea-post",  label: "Crea post",  icon: Edit3          },
+    { id: "crea-post",  label: t("Crea post"),  icon: Edit3          },
     // Sul telefono il badge è solo il numero: «2 da approvare» non sta in un terzo di schermo.
-    { id: "calendario", label: "Calendario", icon: Calendar,       badge: reviewCount > 0 ? `${reviewCount} da approvare` : (scheduledCount > 0 ? scheduledCount : undefined), badgeBreve: reviewCount > 0 ? reviewCount : undefined },
-    { id: "grid",       label: "Griglia",    icon: Smartphone      },
-    { id: "inbox",      label: "Messaggi",   icon: MessageSquare,  badge: inboxUnread > 0 ? inboxUnread : undefined },
-    { id: "analitiche", label: "Statistiche", icon: TrendingUp     },
-    { id: "galleria",   label: "Galleria",   icon: Library,        badge: mediaCount },
+    { id: "calendario", label: t("Calendario"), icon: Calendar,       badge: reviewCount > 0 ? `${reviewCount} da approvare` : (scheduledCount > 0 ? scheduledCount : undefined), badgeBreve: reviewCount > 0 ? reviewCount : undefined },
+    { id: "grid",       label: t("Griglia"),    icon: Smartphone      },
+    { id: "inbox",      label: t("Messaggi"),   icon: MessageSquare,  badge: inboxUnread > 0 ? inboxUnread : undefined },
+    { id: "analitiche", label: t("Statistiche"), icon: TrendingUp     },
+    { id: "galleria",   label: t("Galleria"),   icon: Library,        badge: mediaCount },
   ];
 
   return (
@@ -4562,7 +4564,7 @@ function GestioneSocial({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-2xl font-bold text-slate-900 max-sm:text-lg">Gestione social</h1>
+              <h1 className="text-2xl font-bold text-slate-900 max-sm:text-lg">{t("Gestione social")}</h1>
               <Badge className="border-0 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white max-sm:px-1.5 max-sm:py-0 max-sm:text-[11px]">Beta</Badge>
             </div>
           </div>
@@ -4571,22 +4573,22 @@ function GestioneSocial({
           <div className="flex flex-wrap gap-2 max-sm:hidden">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" className="h-9 w-9" aria-label="Altre azioni" title="Altre azioni">
+                <Button variant="outline" size="icon" className="h-9 w-9" aria-label={t("Altre azioni")} title={t("Altre azioni")}>
                   <MoreHorizontal className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem className="gap-2" onSelect={goToIntegrations}>
-                  <Settings className="h-4 w-4" /> Collegamenti
+                  <Settings className="h-4 w-4" /> {t("Collegamenti")}
                 </DropdownMenuItem>
                 <DropdownMenuItem className="gap-2" onSelect={() => setBulkModalOpen(true)}>
-                  <Upload className="h-4 w-4" /> Importa da CSV
+                  <Upload className="h-4 w-4" /> {t("Importa da CSV")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <Button size="sm" className="gap-1.5 bg-gradient-to-r from-orange-500 to-eic-amber-strong hover:from-orange-600 hover:to-amber-600 text-white shadow-sm"
               onClick={() => setTab("crea-post")}>
-              <Plus className="h-3.5 w-3.5" /> Crea post
+              <Plus className="h-3.5 w-3.5" /> {t("Crea post")}
             </Button>
           </div>
         </div>
@@ -4627,11 +4629,11 @@ function GestioneSocial({
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-2.5">
             <span className="flex items-start gap-2 text-xs font-medium text-red-800">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              Non riesco a caricare post e file social. {erroreDati.message}
+              {t("Non riesco a caricare post e file social.")} {erroreDati.message}
             </span>
             <Button size="sm" variant="outline" onClick={riprovaDati}
               className="h-7 shrink-0 gap-1.5 border-red-200 bg-white text-red-700 hover:bg-red-100">
-              <RefreshCw className="h-3 w-3" /> Riprova
+              <RefreshCw className="h-3 w-3" /> {t("Riprova")}
             </Button>
           </div>
         )}

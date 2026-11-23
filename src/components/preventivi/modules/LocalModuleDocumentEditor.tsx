@@ -34,6 +34,7 @@ import {
 } from "@/lib/moduli-vendita/localModuleDocuments";
 import { readLocalTemplateImage } from "@/lib/moduli-vendita/localTemplateImage";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   companyId: string;
@@ -43,6 +44,7 @@ interface Props {
   onBack: () => void;
 }
 export function LocalModuleDocumentEditor(props: Props) {
+  const t = useT();
   const [initial] = useState<{
     saved: ReturnType<typeof loadModuleDocument>;
     document: ModuleDocument | null;
@@ -77,9 +79,9 @@ export function LocalModuleDocumentEditor(props: Props) {
   if (!initial.document)
     return (
       <div role="alert" className="rounded-xl border p-5">
-        <p>{initial.error}</p>
+        <p>{initial.error ? t(initial.error) : null}</p>
         <Button onClick={props.onBack} variant="outline" className="mt-3">
-          Torna ai moduli
+          {t("Torna ai moduli")}
         </Button>
       </div>
     );
@@ -96,6 +98,7 @@ function Editor({
   savedAt,
   onBack,
 }: Props & { initial: ModuleDocument; savedAt: string | null }) {
+  const t = useT();
   const isMobile = useIsMobile();
   const [form, setForm] = useState(initial);
   const [dirty, setDirty] = useState(false);
@@ -126,7 +129,7 @@ function Editor({
       )
         return;
       if (
-        !window.confirm("Vuoi uscire senza salvare le modifiche al modello?")
+        !window.confirm(t("Vuoi uscire senza salvare le modifiche al modello?"))
       ) {
         event.preventDefault();
         event.stopPropagation();
@@ -140,7 +143,7 @@ function Editor({
       document.removeEventListener("pointerdown", guard, true);
       document.removeEventListener("keydown", guard, true);
     };
-  }, [dirty]);
+  }, [dirty, t]);
   const patch = (value: Partial<ModuleDocument>) => {
     setForm((f) => ({ ...f, ...value }));
     setDirty(true);
@@ -164,10 +167,10 @@ function Editor({
       setHasSaved(true);
       setDirty(false);
       setError("");
-      toast.success("Modello salvato");
+      toast.success(t("Modello salvato"));
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Salvataggio non riuscito.",
+        err instanceof Error ? err.message : t("Salvataggio non riuscito."),
       );
     }
   };
@@ -184,7 +187,7 @@ function Editor({
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Esportazione non riuscita.",
+        err instanceof Error ? err.message : t("Esportazione non riuscita."),
       );
     }
   };
@@ -235,38 +238,38 @@ function Editor({
             onClick={() => {
               if (
                 !dirty ||
-                window.confirm("Uscire senza salvare le modifiche?")
+                window.confirm(t("Uscire senza salvare le modifiche?"))
               )
                 onBack();
             }}
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Moduli dell'area
+            {t("Moduli dell'area")}
           </Button>
           <h2 className="mt-2 break-words text-2xl font-semibold max-sm:text-lg">{form.title}</h2>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <AnteprimaPdfModelloMobile renderBlobUrl={renderBlobUrl} depsKey={depsKey} downloadFileName="modello-preventivo.pdf" />
-          <Button variant="outline" onClick={exportCopy} aria-label="Esporta copia" className="max-sm:w-11 max-sm:p-0">
+          <Button variant="outline" onClick={exportCopy} aria-label={t("Esporta copia")} className="max-sm:w-11 max-sm:p-0">
             <Download className="h-4 w-4 sm:mr-2" />
-            <span className="max-sm:hidden">Esporta copia</span>
+            <span className="max-sm:hidden">{t("Esporta copia")}</span>
           </Button>
           <Button onClick={save} disabled={(!dirty && hasSaved) || uploading}>
             <Save className="mr-2 h-4 w-4" />
-            Salva modello
+            {t("Salva modello")}
           </Button>
         </div>
       </div>
       <div className="flex flex-wrap justify-between gap-2 rounded-lg bg-sky-50 px-4 py-3 text-xs text-sky-950">
         <span>
-          Modello dell'azienda · non ancora collegato al preventivatore
+          {t("Modello dell'azienda · non ancora collegato al preventivatore")}
         </span>
         <span role="status">
           {dirty
-            ? "Modifiche da salvare"
+            ? t("Modifiche da salvare")
             : hasSaved
-              ? "Salvato"
-              : "Modello pronto · non ancora salvato"}
+              ? t("Salvato")
+              : t("Modello pronto · non ancora salvato")}
         </span>
       </div>
       {error && (
@@ -279,22 +282,22 @@ function Editor({
       )}
       <div className="grid items-start gap-5 2xl:grid-cols-[190px_minmax(320px,1fr)_minmax(360px,0.95fr)] xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.9fr)]">
         <nav
-          aria-label="Pagine del modello"
+          aria-label={t("Pagine del modello")}
           className="flex flex-wrap gap-2 rounded-xl border bg-white p-3 xl:col-span-2 2xl:col-span-1 2xl:block 2xl:sticky 2xl:top-4"
         >
           <label className="flex w-full items-center gap-3 text-sm max-sm:flex-col max-sm:items-stretch max-sm:gap-1.5 2xl:hidden">
-            <span className="shrink-0 font-medium">Pagina da modificare</span>
+            <span className="shrink-0 font-medium">{t("Pagina da modificare")}</span>
             <UniformSelect
-              aria-label="Pagina da modificare"
+              aria-label={t("Pagina da modificare")}
               className="h-10 min-w-0 flex-1 rounded-md border bg-white px-3"
               value={section}
               onChange={(e) => select(e.target.value)}
             >
-              <option value="copertina">Copertina e azienda</option>
+              <option value="copertina">{t("Copertina e azienda")}</option>
               {form.pages.map((p, i) => (
                 <option key={p.id} value={p.id}>
                   {i + 1}. {p.title}
-                  {p.visible ? "" : " · nascosta"}
+                  {p.visible ? "" : ` · ${t("nascosta")}`}
                 </option>
               ))}
             </UniformSelect>
@@ -305,7 +308,7 @@ function Editor({
               className="justify-start 2xl:w-full"
               onClick={() => select("copertina")}
             >
-              Copertina e azienda
+              {t("Copertina e azienda")}
             </Button>
             {form.pages.map((p, i) => (
               <Button
@@ -329,18 +332,18 @@ function Editor({
         <div className="min-w-0 space-y-5 rounded-xl border bg-white p-5">
           {!active ? (
             <>
-              {field("Titolo del modulo", form.title, (title) =>
+              {field(t("Titolo del modulo"), form.title, (title) =>
                 patch({ title }),
               )}
               {field(
-                "Descrizione in copertina",
+                t("Descrizione in copertina"),
                 form.subtitle,
                 (subtitle) => patch({ subtitle }),
                 true,
                 400,
               )}
               <label className="block text-sm font-medium">
-                Colore del documento
+                {t("Colore del documento")}
                 <Input
                   type="color"
                   value={form.color}
@@ -350,14 +353,14 @@ function Editor({
               {form.image && (
                 <img
                   src={form.image}
-                  alt={`Immagine illustrativa per ${form.title}`}
+                  alt={t("Immagine illustrativa per {titolo}", { titolo: form.title })}
                   className="h-44 w-full rounded-lg object-cover"
                 />
               )}
               <label className="block space-y-2 text-sm">
                 <span className="flex items-center gap-2">
                   <ImagePlus className="h-4 w-4" />
-                  Sostituisci con una tua foto · le foto pesanti si riducono da sole
+                  {t("Sostituisci con una tua foto · le foto pesanti si riducono da sole")}
                 </span>
                 <Input
                   type="file"
@@ -379,7 +382,7 @@ function Editor({
                       setError(
                         err instanceof Error
                           ? err.message
-                          : "Immagine non valida",
+                          : t("Immagine non valida"),
                       );
                     } finally {
                       setUploading(false);
@@ -393,7 +396,7 @@ function Editor({
                   size="sm"
                   onClick={() => patch({ image: null })}
                 >
-                  Senza foto
+                  {t("Senza foto")}
                 </Button>
                 <Button
                   variant="outline"
@@ -406,11 +409,11 @@ function Editor({
                     })
                   }
                 >
-                  Immagine suggerita
+                  {t("Immagine suggerita")}
                 </Button>
               </div>
               {field(
-                "Didascalia dell'immagine",
+                t("Didascalia dell'immagine"),
                 form.imageCaption,
                 (imageCaption) => patch({ imageCaption }),
                 true,
@@ -418,7 +421,7 @@ function Editor({
               )}
               <details>
                 <summary className="cursor-pointer text-sm font-medium">
-                  Identità e contatti aziendali
+                  {t("Identità e contatti aziendali")}
                 </summary>
                 <div className="mt-4 space-y-4">
                   {(
@@ -431,7 +434,7 @@ function Editor({
                   ).map(([key, label]) => (
                     <div key={key}>
                       {field(
-                        label,
+                        t(label),
                         form.company[key],
                         (value) =>
                           patch({ company: { ...form.company, [key]: value } }),
@@ -452,11 +455,11 @@ function Editor({
                     checked={active.visible}
                     onChange={(e) => patchPage({ visible: e.target.checked })}
                   />
-                  Includi questa pagina nel PDF
+                  {t("Includi questa pagina nel PDF")}
                 </label>
                 <div className="flex gap-1">
                   <Button
-                    aria-label="Sposta pagina prima"
+                    aria-label={t("Sposta pagina prima")}
                     variant="outline"
                     size="sm"
                     disabled={form.pages[0].id === active.id}
@@ -465,7 +468,7 @@ function Editor({
                     <ArrowUp className="h-4 w-4" />
                   </Button>
                   <Button
-                    aria-label="Sposta pagina dopo"
+                    aria-label={t("Sposta pagina dopo")}
                     variant="outline"
                     size="sm"
                     disabled={form.pages.at(-1)?.id === active.id}
@@ -477,15 +480,14 @@ function Editor({
               </div>
               {!active.visible && (
                 <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-950">
-                  Questa pagina è nascosta nel PDF. Puoi modificarla e attivarla
-                  quando è pronta.
+                  {t("Questa pagina è nascosta nel PDF. Puoi modificarla e attivarla quando è pronta.")}
                 </p>
               )}
-              {field("Titolo della pagina", active.title, (title) =>
+              {field(t("Titolo della pagina"), active.title, (title) =>
                 patchPage({ title }),
               )}
               {field(
-                "Introduzione",
+                t("Introduzione"),
                 active.intro,
                 (intro) => patchPage({ intro }),
                 true,
@@ -493,7 +495,7 @@ function Editor({
               )}
               <details className="rounded-lg border p-3">
                 <summary className="cursor-pointer text-sm font-medium">
-                  Tre testi di partenza per questa pagina
+                  {t("Tre testi di partenza per questa pagina")}
                 </summary>
                 <div className="mt-3 space-y-2">
                   {documentTextVariants(form, active).map((v) => (
@@ -504,7 +506,7 @@ function Editor({
                       onClick={() => patchPage({ intro: v.text })}
                     >
                       <span className="text-xs font-semibold text-orange-700">
-                        {v.name} · Applica
+                        {v.name} · {t("Applica")}
                       </span>
                       <p className="mt-1 text-sm">{v.text}</p>
                     </button>
@@ -517,7 +519,7 @@ function Editor({
                   className="space-y-3 rounded-xl border bg-slate-50/60 p-4"
                 >
                   {field(
-                    `Blocco ${i + 1}: titolo`,
+                    t("Blocco {n}: titolo", { n: i + 1 }),
                     item.title,
                     (title) =>
                       patchPage({
@@ -529,7 +531,7 @@ function Editor({
                     140,
                   )}
                   {field(
-                    `Blocco ${i + 1}: testo`,
+                    t("Blocco {n}: testo", { n: i + 1 }),
                     item.text,
                     (text) =>
                       patchPage({
@@ -549,7 +551,7 @@ function Editor({
                       })
                     }
                   >
-                    Rimuovi blocco {i + 1}
+                    {t("Rimuovi blocco {n}", { n: i + 1 })}
                   </Button>
                 </div>
               ))}
@@ -566,12 +568,11 @@ function Editor({
                 }
               >
                 <Plus className="mr-2 h-4 w-4" />
-                Aggiungi blocco
+                {t("Aggiungi blocco")}
               </Button>
               {active.id === "condizioni" && (
                 <p className="text-xs text-muted-foreground">
-                  Usa solo condizioni aziendali verificate per questa fornitura.
-                  Non vengono inventate clausole, certificazioni o garanzie.
+                  {t("Usa solo condizioni aziendali verificate per questa fornitura. Non vengono inventate clausole, certificazioni o garanzie.")}
                 </p>
               )}
             </>
@@ -580,8 +581,7 @@ function Editor({
         {!isMobile && <aside className="min-w-0 space-y-2 max-md:hidden xl:sticky xl:top-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Check className="h-4 w-4" />
-            Anteprima reale del modello ·{" "}
-            {1 + form.pages.filter((p) => p.visible).length} sezioni attive
+            {t("Anteprima reale del modello · {n} sezioni attive", { n: 1 + form.pages.filter((p) => p.visible).length })}
           </div>
           <PdfBlobLivePreviewPanel
             renderBlobUrl={renderBlobUrl}
