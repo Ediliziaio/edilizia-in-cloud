@@ -410,12 +410,43 @@ export function numeroDocumento(v: string | null | undefined): NumeroDocumento |
       s = m[1];
     }
   }
+  // Serie di stabilimento in testa, con cifre: «2026-DT05-0004727» è il 4727 della serie 05
+  // (un fornitore di calcestruzzo, 23/11/2026). La serie resta in cifre, così vale anche «4727/05» scritto sulla carta.
+  if (!serie) {
+    m = s.match(/^[A-Z]{1,4}0*(\d{1,3})\s*[/-]\s*(\d[\d\s]*)$/);
+    if (m) {
+      serie = m[1];
+      s = m[2];
+    }
+  }
   const chiave = soloAlfanumerico(s).replace(/^0+(?=.)/, "");
   if (!chiave || !/\d/.test(chiave) || chiave === "0") return null;
   return { chiave, anno, serie, originale };
 }
 
+/**
+ * I modi in cui si può leggere lo stesso numero. Quasi sempre uno. «4727/05» due:
+ * il 4727 del 2005, oppure il 4727 della serie 05 (il «DT05» della fattura). Decide
+ * la data, chi confronta: un anno diverso da quello della data scarta la prima lettura.
+ * Gemella di `acquisti_numero_letture` in SQL.
+ */
+export function lettureNumero(n: NumeroDocumento | null): NumeroDocumento[] {
+  if (!n) return [];
+  const coda = senzaAccenti(n.originale).toUpperCase().trim().match(/[/-]\s*(\d{2})\s*$/);
+  if (coda && n.serie == null && n.anno === 2000 + Number(coda[1]))
+    return [n, { ...n, anno: null, serie: coda[1].replace(/^0+(?=.)/, "") }];
+  return [n];
+}
+
 export type ConfrontoNumero = "uguale" | "diverso" | "compatibile";
+
+function confrontaLettura(a: NumeroDocumento, b: NumeroDocumento): ConfrontoNumero {
+  if (a.chiave !== b.chiave) return "diverso";
+  if (a.anno != null && b.anno != null && a.anno !== b.anno) return "diverso";
+  if (a.serie != null && b.serie != null && a.serie !== b.serie) return "diverso";
+  if ((a.anno == null) !== (b.anno == null) || (a.serie == null) !== (b.serie == null)) return "compatibile";
+  return "uguale";
+}
 
 /**
  * Due numeri di documento DELLO STESSO FORNITORE sono lo stesso documento?
@@ -427,11 +458,14 @@ export type ConfrontoNumero = "uguale" | "diverso" | "compatibile";
  */
 export function confrontaNumeri(a: NumeroDocumento | null, b: NumeroDocumento | null): ConfrontoNumero {
   if (!a || !b) return "diverso";
-  if (a.chiave !== b.chiave) return "diverso";
-  if (a.anno != null && b.anno != null && a.anno !== b.anno) return "diverso";
-  if (a.serie != null && b.serie != null && a.serie !== b.serie) return "diverso";
-  if ((a.anno == null) !== (b.anno == null) || (a.serie == null) !== (b.serie == null)) return "compatibile";
-  return "uguale";
+  let esito: ConfrontoNumero = "diverso";
+  for (const x of lettureNumero(a))
+    for (const y of lettureNumero(b)) {
+      const e = confrontaLettura(x, y);
+      if (e === "uguale") return e;
+      if (e === "compatibile") esito = e;
+    }
+  return esito;
 }
 
 // ─── Indirizzi ───────────────────────────────────────────────────────────────

@@ -4,13 +4,14 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const stato = vi.hoisted(() => ({ righe: null as unknown, costo: null as unknown, rpc: vi.fn(), chiudi: vi.fn(), scelte: 0, condiviso: false }));
+const stato = vi.hoisted(() => ({ righe: null as unknown, costo: null as unknown, rpc: vi.fn(), chiudi: vi.fn(), scelte: 0, condiviso: false, xml: null as string | null, legami: [] as unknown[] }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {
   rpc: (f: string, a: unknown) => { stato.rpc(f, a); return Promise.resolve({ data: {}, error: null }); },
   from: (t: string) => {
     const q: Record<string, unknown> = {};
-    Object.assign(q, { select: () => q, eq: () => q, neq: () => q, limit: () => Promise.resolve({data: stato.condiviso ? [{id:"altra"}] : [], error:null}), maybeSingle: () => Promise.resolve({ data: t === "fatture_ricevute" ? { righe: stato.righe } : stato.costo, error: null }) });
+    Object.assign(q, { select: () => q, eq: () => q, neq: () => q, limit: () => Promise.resolve({data: stato.condiviso ? [{id:"altra"}] : [], error:null}), maybeSingle: () => Promise.resolve({ data: t === "fatture_ricevute" ? { righe: stato.righe, xml_raw: stato.xml } : stato.costo, error: null }),
+      then: (ok: (v: unknown) => unknown) => ok({ data: t === "fattura_ddt" ? stato.legami : [], error: null }) });
     return q;
   },
 } }));
@@ -24,7 +25,7 @@ import { CollegaFatturaCommesseDialog } from "@/components/fatturazione/CollegaF
 
 const fattura = { id: "f1", numero: "F1", fornitore: "Aluplast", imponibile: 1000, totale: 1220, companyCostId: "k1" };
 const mostra = (extra = {}, suImponibile = false) => render(<QueryClientProvider client={new QueryClient()}><CollegaFatturaCommesseDialog suImponibile={suImponibile} companyId="co" onChiudi={stato.chiudi} fattura={{ ...fattura, ...extra }} /></QueryClientProvider>);
-beforeEach(() => { vi.clearAllMocks(); stato.righe = null; stato.costo = { order_id: null, allocations: [], quota_magazzino: null, quota_magazzino_righe: null }; stato.scelte = 0; stato.condiviso = false; });
+beforeEach(() => { vi.clearAllMocks(); stato.righe = null; stato.costo = { order_id: null, allocations: [], quota_magazzino: null, quota_magazzino_righe: null }; stato.scelte = 0; stato.condiviso = false; stato.xml = null; stato.legami = []; });
 afterEach(cleanup);
 
 describe("Collegare una fattura alle commesse", () => {
@@ -88,6 +89,28 @@ describe("Collegare una fattura alle commesse", () => {
     expect(screen.queryByLabelText("Importo della commessa 1")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Salva" }));
     await waitFor(() => expect(stato.rpc).toHaveBeenCalledWith("fattura_collega_commesse", { p_fattura_id: "f1", p_quote: [{ order_id: "c1", importo: 1000 }], p_magazzino: 0, p_magazzino_righe: null }));
+  });
+  it("bolla per bolla: la fattura dice quali voci sono di quale bolla, e la bolla caricata propone la sua commessa", async () => {
+    stato.righe = [
+      { numero_linea: 1, descrizione: "CLS RCK35", imponibile: 468 },
+      { numero_linea: 2, descrizione: "CLS RCK37", imponibile: 432 },
+      { numero_linea: 3, descrizione: "Pompa", imponibile: 100 },
+    ];
+    stato.xml = `<p:FatturaElettronica xmlns:p="x"><FatturaElettronicaBody><DatiGenerali>
+      <DatiDDT><NumeroDDT>2026-DT05-0004727</NumeroDDT><DataDDT>2026-09-15</DataDDT><RiferimentoNumeroLinea>1</RiferimentoNumeroLinea></DatiDDT>
+      <DatiDDT><NumeroDDT>2026-DT03-0001841</NumeroDDT><DataDDT>2026-09-16</DataDDT><RiferimentoNumeroLinea>2</RiferimentoNumeroLinea><RiferimentoNumeroLinea>3</RiferimentoNumeroLinea></DatiDDT>
+      </DatiGenerali></FatturaElettronicaBody></p:FatturaElettronica>`;
+    stato.legami = [{ numero_ddt: "2026-DT05-0004727", data_ddt: "2026-09-15", ddt_ricezione_id: "b1", ddt_ricezione: { order_id: "cantiere" } }];
+    mostra();
+    fireEvent.click(await screen.findByRole("button", { name: "Bolla per bolla (2)" }));
+    expect(screen.getByText("DDT 2026-DT05-0004727")).toBeInTheDocument();
+    expect(screen.getByText("dalla bolla caricata")).toBeInTheDocument();
+    // La seconda bolla: una scelta per due voci.
+    fireEvent.click(screen.getAllByRole("button", { name: "Commessa…" })[1]);
+    fireEvent.click(screen.getByRole("button", { name: "Salva" }));
+    await waitFor(() => expect(stato.rpc).toHaveBeenCalledWith("fattura_collega_commesse", expect.objectContaining({
+      p_quote: [expect.objectContaining({ order_id: "cantiere", importo: 468, righe: [1] }), expect.objectContaining({ order_id: "c1", importo: 532, righe: [2, 3] })],
+    })));
   });
   it("voce per voce: ogni voce va sulla sua commessa", async () => {
     stato.righe = [{ numero_linea: 1, descrizione: "Moduli", imponibile: 700 }, { numero_linea: 2, descrizione: "Trasporto", imponibile: 300 }];

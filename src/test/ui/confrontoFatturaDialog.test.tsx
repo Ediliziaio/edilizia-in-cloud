@@ -83,6 +83,7 @@ vi.mock("@/components/fatturazione/CollegaDdtFattura", () => ({
 }));
 vi.mock("@/lib/fatturazione/collegaDdt", () => ({
   salvaCollegamentoDdt: (...p: unknown[]) => fake.salva(...p),
+  messaggioPrezzoBolla: (): null => null,
 }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {

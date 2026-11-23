@@ -3,11 +3,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const stato = vi.hoisted(() => ({ fatture: [] as unknown[], costi: [] as unknown[], dettagli: {} as Record<string, unknown>, rpc: vi.fn(), update: vi.fn(), ordini: [] as unknown[] }));
+const stato = vi.hoisted(() => ({ fatture: [] as unknown[], costi: [] as unknown[], dettagli: {} as Record<string, unknown>, rpc: vi.fn(), update: vi.fn(), ordini: [] as unknown[], bolle: [] as unknown[] }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     rpc: (f: string, a: { p_costo?: string; p_fattura_id?: string }) => {
       stato.rpc(f, a);
+      if (f === "commessa_fatture_bolle") return Promise.resolve({ data: stato.bolle, error: null });
       return Promise.resolve(f === "dettaglio_pagamento_costo" ? { data: stato.dettagli[a.p_costo!] ?? null, error: null } : { data: null, error: null });
     },
     from: (tabella: string) => {
@@ -41,16 +42,16 @@ vi.mock("@/components/orders/CaricaFatturaCommessa", () => ({ CaricaFatturaComme
 vi.mock("@/components/fatturazione/CollegaFatturaCommesseDialog", () => ({ CollegaFatturaCommesseDialog: (): null => null }));
 vi.mock("@/components/orders/ExpensePaymentDialog", () => ({ ExpensePaymentDialog: ({ costId }: { costId: string }) => <p>pagamenti del costo {costId}</p> }));
 vi.mock("@/components/fatturazione/RiepilogoFatturaRicevuta", () => ({ RiepilogoFatturaRicevuta: ({ fatturaId }: { fatturaId: string }) => <p>riepilogo di {fatturaId}</p> }));
-import { OrderFattureFornitoriCard } from "@/components/orders/OrderDocumentiFornitore";
+import { OrderFattureFornitoriCard, ripartizioneDalleBolle } from "@/components/orders/OrderDocumentiFornitore";
 
-const base = { numero_fattura: "F1", data_fattura: "2026-10-01", cedente_ragione_sociale: "Aluplast", totale_documento: 100, tipo_documento: "TD01", stato: "letta", purchase_order_id: null as string | null, company_cost_id: null as string | null, pagata_il: null as string | null, order_match_confidenza: null as number | null, anomalie_rilevate: null as unknown, ai_riassunto: "Serramenti", righe: null as unknown };
+const base = { imponibile_totale: null as number | null, numero_fattura: "F1", data_fattura: "2026-10-01", cedente_ragione_sociale: "Aluplast", totale_documento: 100, tipo_documento: "TD01", stato: "letta", purchase_order_id: null as string | null, company_cost_id: null as string | null, pagata_il: null as string | null, order_match_confidenza: null as number | null, anomalie_rilevate: null as unknown, ai_riassunto: "Serramenti", righe: null as unknown };
 const mostra = () => render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter><OrderFattureFornitoriCard orderId="o1" mostraImporti puoModificare /></MemoryRouter></QueryClientProvider>);
 const scegli = (r: ReturnType<typeof within>, voce: string) => {
   fireEvent.keyDown(r.getByRole("button", { name: /Cambia la verifica/ }), { key: "Enter" });
   fireEvent.click(screen.getByRole("menuitem", { name: voce }));
 };
 const riga = async (testo: RegExp) => (await screen.findByText(testo)).closest("tr")!;
-beforeEach(() => { vi.clearAllMocks(); stato.fatture = []; stato.costi = []; stato.dettagli = {}; stato.ordini = []; vi.spyOn(window, "confirm").mockReturnValue(true); });
+beforeEach(() => { vi.clearAllMocks(); stato.fatture = []; stato.costi = []; stato.dettagli = {}; stato.ordini = []; stato.bolle = []; vi.spyOn(window, "confirm").mockReturnValue(true); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("Fatture della commessa in tabella", () => {
@@ -93,15 +94,40 @@ describe("Fatture della commessa in tabella", () => {
     expect(stato.rpc).not.toHaveBeenCalledWith("contabilizza_fattura_ricevuta", expect.anything());
   });
   it("una fattura divisa mostra la quota, le altre commesse e le voci di questa", async () => {
-    stato.fatture = [{ ...base, id: "f1", company_cost_id: "c1", stato: "contabilizzata", totale_documento: 1000, righe: [{ numero_linea: 1, descrizione: "Moduli", imponibile: 400 }, { numero_linea: 2, descrizione: "Trasporto", imponibile: 600 }] }];
+    stato.fatture = [{ ...base, id: "f1", company_cost_id: "c1", stato: "contabilizzata", totale_documento: 1000, imponibile_totale: 820, righe: [{ numero_linea: 1, descrizione: "Moduli", imponibile: 400 }, { numero_linea: 2, descrizione: "Trasporto", imponibile: 600 }] }];
     stato.costi = [{ id: "c1", order_id: null, is_paid: false, paid_date: null, allocations: [{ order_id: "o1", pct: 40, importo: 400, righe: [1] }, { order_id: "o2", pct: 60, importo: 600 }] }];
     stato.ordini = [{ id: "o1", order_code: "C-1" }, { id: "o2", order_code: "C-2" }];
     mostra();
     const r = within(await riga(/N\. F1/));
-    expect(r.getByText(/Quota 40% di/)).toBeInTheDocument();
+    // La fattura intera, il costo che porta qui (IVA esclusa) e quanto pesa.
+    expect(r.getByText(/1\.000,00/)).toBeInTheDocument();
+    expect(r.getByText(/imp\. 820,00/)).toBeInTheDocument();
+    expect(r.getByText(/^328,00/)).toBeInTheDocument();
+    expect(r.getByText("40% della fattura")).toBeInTheDocument();
     expect(r.getByText("Divisa su 2 commesse")).toBeInTheDocument();
     expect(r.getByText(/C-2 · 60%/)).toBeInTheDocument();
     expect(r.getByText("Voci di questa commessa: Moduli")).toBeInTheDocument();
+  });
+  it("bolle: quanto vale la merce consegnata qui e quante bolle della fattura mancano (23/11/2026)", async () => {
+    stato.fatture = [{ ...base, id: "f1", company_cost_id: "c1", stato: "contabilizzata", totale_documento: 50551.31, imponibile_totale: 41435.5 }];
+    stato.costi = [{ id: "c1", order_id: null, is_paid: false, paid_date: null, allocations: [{ order_id: "o1", pct: 56.6881, importo: 23489 }] }];
+    stato.bolle = [{ fattura_id: "f1", bolle_citate: 41, bolle_caricate: 1, bolle_qui: 1, valore_qui: 468, righe_senza_prezzo: 0 }];
+    mostra();
+    const r = within(await riga(/N\. F1/));
+    expect(r.getByText(/50\.551,31/)).toBeInTheDocument();
+    expect(r.getByText(/^23\.489,00/)).toBeInTheDocument();
+    expect(r.getByText("56,7% della fattura")).toBeInTheDocument();
+    expect(r.getByText(/Bolle qui: 468,00.*\(1 bolla\)/)).toBeInTheDocument();
+    expect(r.getByText("40 bolle su 41 da caricare")).toBeInTheDocument();
+  });
+  it("tutte le bolle caricate e il costo qui è diverso: avviso sulla riga", async () => {
+    stato.fatture = [{ ...base, id: "f1", company_cost_id: "c1", stato: "contabilizzata", totale_documento: 1220, imponibile_totale: 1000 }];
+    stato.costi = [{ id: "c1", order_id: "o1", is_paid: false, paid_date: null, allocations: [] }];
+    stato.bolle = [{ fattura_id: "f1", bolle_citate: 2, bolle_caricate: 2, bolle_qui: 1, valore_qui: 300, righe_senza_prezzo: 0 }];
+    mostra();
+    const r = within(await riga(/N\. F1/));
+    expect(r.getByText("tutta la fattura")).toBeInTheDocument();
+    expect(r.getByText(/non torna con le bolle consegnate: .*300,00/)).toBeInTheDocument();
   });
   it("fatturato oltre l'ordine: resta un avviso sulla riga, che dice quanto", async () => {
     stato.fatture = [{ ...base, id: "f1", purchase_order_id: "po1", stato: "contabilizzata", totale_documento: 150 }];
@@ -141,5 +167,22 @@ describe("Fatture della commessa in tabella", () => {
     fireEvent.click(within(screen.getByRole("group", { name: "Fatture per stato" })).getByText("Verificate").closest("button")!);
     expect(screen.queryByText(/N\. A/)).toBeNull();
     expect(screen.getByText(/N\. B/)).toBeInTheDocument();
+  });
+});
+
+describe("il costo sulla commessa torna con le bolle?", () => {
+  const b = (citate: number, caricate: number, valoreQui: number, senzaPrezzo = 0) => ({ citate, caricate, qui: 1, valoreQui, senzaPrezzo });
+  it("tutte caricate: torna se vale la merce consegnata qui, con tolleranza", () => {
+    expect(ripartizioneDalleBolle(468, b(1, 1, 468))).toBe("torna");
+    expect(ripartizioneDalleBolle(470, b(1, 1, 468))).toBe("torna");
+    expect(ripartizioneDalleBolle(23489, b(1, 1, 468))).toBe("non_torna");
+  });
+  it("bolle mancanti: si può dire solo che non vale meno di quanto già consegnato", () => {
+    expect(ripartizioneDalleBolle(23489, b(41, 1, 468))).toBe("incompleta");
+    expect(ripartizioneDalleBolle(100, b(41, 1, 468))).toBe("non_torna");
+  });
+  it("righe senza prezzo o nessuna bolla: non si giudica", () => {
+    expect(ripartizioneDalleBolle(100, b(2, 2, 0, 1))).toBe("incompleta");
+    expect(ripartizioneDalleBolle(100, { citate: 0, caricate: 0, qui: 0, valoreQui: 0, senzaPrezzo: 0 })).toBeNull();
   });
 });

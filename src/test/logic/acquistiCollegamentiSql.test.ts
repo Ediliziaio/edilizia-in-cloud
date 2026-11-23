@@ -123,6 +123,7 @@ beforeAll(async () => {
       end $$;`);
     await db.exec(readFileSync("supabase/migrations/20290404306000_acquisti_commessa_costo_alla_conferma.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20290404309000_acquisti_ordini_revisione.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20290510110000_numeri_ddt_serie_e_prezzo_dal_collegamento.sql", "utf8"));
 }, 60_000);
 afterAll(async () => db?.close());
 beforeEach(async () => {
@@ -136,6 +137,7 @@ describe("numero di documento: SQL uguale al TypeScript", () => {
   const casi = [
     "1068", "001068/26", "DDT n. 001068/2026", "9.363", "1068/2025", "2026/000123", "ODA-2026-0039", "A/123", "123/B",
     "123 del 07/09/2026", "N°45", "Nr. 0012", ".", "NO.ORD.", "MARIO ROSSI", "0000", "123-45", "FV 12", "bolla 77",
+    "2026-DT05-0004727", "4727/05", "4727 /05", "DDT-2709-739", "BL/TRE/0005713", "ODA-2026-0039",
   ];
   it.each(casi)("%s", async (v) => {
     const ts = numeroDocumento(v);
@@ -160,6 +162,20 @@ describe("fattura ↔ bolla senza AI", () => {
       { regola: "xml_ddt_numero_data_fornitore", stato: "collegato", autore_tipo: "processo", n: 1 },
       { regola: "xml_ddt_numero_data_fornitore", stato: "collegato", autore_tipo: "processo", n: 1 },
     ]);
+  });
+
+  it("serie di stabilimento: «4727/05» sulla carta è il «2026-DT05-0004727» della fattura, non il 4727 del 2005", async () => {
+    await bolla(10, "4727/05", "2026-09-15");
+    await bolla(11, "4727/03", "2026-09-15");
+    await fattura(20, [["2026-DT05-0004727", "2026-09-15"], ["2026-DT01-0004727", "2026-09-15"]]);
+    expect(await aggancio(20)).toEqual([["2026-DT01-0004727", null], ["2026-DT05-0004727", id(10)]]);
+  });
+
+  it("«1068/26» resta il 1068 del 2026 anche con le letture", async () => {
+    await bolla(10, "1068/26", "2026-09-08");
+    await bolla(11, "1068/25", "2025-09-08");
+    await fattura(20, [["1068", "2026-09-07"]]);
+    expect(await aggancio(20)).toEqual([["1068", id(10)]]);
   });
 
   it("stesso numero da un altro fornitore o di un altro anno: non si aggancia", async () => {

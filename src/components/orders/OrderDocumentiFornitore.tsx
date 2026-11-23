@@ -379,6 +379,14 @@ export interface RigaFattura {
   totaleDocumento: number | null;
   /** Il pagamento vero sta sul costo collegato: sulla fattura c'è solo se qualcuno l'ha segnato lì. */
   imponibileDocumento: number | null;
+  /**
+   * Il costo che questa fattura porta alla commessa, IVA esclusa: l'imponibile per la quota
+   * (23/11/2026: una fattura da 50.551 € ne portava 23.489 a una commessa, e la
+   * tabella mostrava solo 28.656 IVA inclusa, senza dire di quanto era la fattura).
+   */
+  costoQui: number | null;
+  /** Le bolle della fattura viste da questa commessa (commessa_fatture_bolle): null se non leggibili. */
+  bolle: BolleDellaFattura | null;
   pagamento: StatoPagamento;
   pagato: number | null;
   residuo: number | null;
@@ -413,6 +421,43 @@ export function pagamentoFattura(
   if (costo?.is_paid || (dettaglio && dettaglio.residuo <= 0.005 && dettaglio.pagato > 0)) return { pagamento: "pagata", pagato: totale, residuo: 0, pagataIl: costo?.paid_date ?? null };
   if (dettaglio && dettaglio.pagato > 0) return { pagamento: "parziale", pagato: parte(dettaglio.pagato), residuo: parte(dettaglio.residuo), pagataIl: null };
   return { pagamento: "da_pagare", pagato: totale == null ? null : 0, residuo: dettaglio ? parte(dettaglio.residuo) : totale, pagataIl: null };
+}
+
+export interface BolleDellaFattura {
+  /** Bolle che la fattura cita (XML o a mano) e quante sono caricate in Edilizia in Cloud. */
+  citate: number;
+  caricate: number;
+  /** Bolle collegate che hanno consegnato merce su questa commessa, e quanto vale (IVA esclusa). */
+  qui: number;
+  valoreQui: number;
+  senzaPrezzo: number;
+}
+
+/**
+ * Il costo messo sulla commessa torna con le bolle? Solo quando lo si può dire:
+ * - tutte le bolle caricate e prezzate: deve valere quanto la merce consegnata qui;
+ * - bolle mancanti: si sa solo che non può valere MENO della merce già consegnata qui.
+ * Un euro o il 2% di tolleranza per arrotondamenti e trasporti.
+ */
+export function ripartizioneDalleBolle(costoQui: number | null, b: BolleDellaFattura | null): "torna" | "non_torna" | "incompleta" | null {
+  if (!b || b.citate === 0 || costoQui == null) return null;
+  const tolleranza = Math.max(1, Math.abs(b.valoreQui) * 0.02);
+  const complete = b.caricate === b.citate && b.senzaPrezzo === 0;
+  if (complete) return Math.abs(Math.abs(costoQui) - b.valoreQui) <= tolleranza ? "torna" : "non_torna";
+  if (b.senzaPrezzo === 0 && b.valoreQui - Math.abs(costoQui) > tolleranza) return "non_torna";
+  return "incompleta";
+}
+
+/** Il costo sulla commessa, IVA esclusa: imponibile (o totale, se manca) per la quota; intera senza quota. */
+export function costoSullaCommessa(imponibile: number | null, totale: number | null, segno: number, quota: number | null): number | null {
+  const base = imponibile != null ? segno * Math.abs(Number(imponibile)) : totale;
+  if (base == null || !Number.isFinite(base)) return null;
+  return quota == null ? base : Math.round(base * quota) / 100;
+}
+
+/** «56,7% della fattura» o «tutta la fattura». */
+export function incidenzaSullaFattura(quota: number | null): string {
+  return quota == null ? "tutta la fattura" : `${quota.toLocaleString("it-IT", { maximumFractionDigits: 1 })}% della fattura`;
 }
 
 /** La riga che dice cos'è la fattura: il riassunto dell'AI, altrimenti la prima voce del documento. */
@@ -501,6 +546,8 @@ export function useFattureFornitoriCommessa(orderId: string, abilitato = true) {
           purchaseOrderId: f.purchase_order_id, costId:f.company_cost_id,
           notaCredito: segno < 0, quota,
           imponibileDocumento: f.imponibile_totale,
+          costoQui: costoSullaCommessa(f.imponibile_totale, intero, segno, quota),
+          bolle: null,
           pagamento: f.pagata_il ? "pagata" : "da_pagare",
           pagato: null,
           residuo: null,
@@ -536,6 +583,19 @@ export function useFattureFornitoriCommessa(orderId: string, abilitato = true) {
         const mie = quote.find((q) => q.order_id === orderId)?.righe ?? [];
         f.vociQui = vociFattura(righeFattura.get(f.id)).filter((v) => mie.includes(v.numero)).map((v) => v.descrizione);
       }
+      // Le bolle di ogni fattura viste da qui. Chi non vede i costi riceve un rifiuto: la tabella resta com'era.
+      for (const ids of aLotti([...viste.keys()])) {
+        const { data: b, error: errB } = await db.rpc("commessa_fatture_bolle", { p_order: orderId, p_fatture: ids });
+        if (errB) break;
+        for (const x of (b ?? []) as Array<{ fattura_id: string; bolle_citate: number; bolle_caricate: number; bolle_qui: number; valore_qui: number | string; righe_senza_prezzo: number }>) {
+          const f = viste.get(x.fattura_id);
+          if (f) f.bolle = { citate: x.bolle_citate, caricate: x.bolle_caricate, qui: x.bolle_qui, valoreQui: Number(x.valore_qui) || 0, senzaPrezzo: x.righe_senza_prezzo };
+        }
+      }
+      for (const f of viste.values()) {
+        if (f.legame !== "suggerita" && !f.daControllare && ripartizioneDalleBolle(f.costoQui, f.bolle) === "non_torna")
+          f.daControllare = `Il costo qui non torna con le bolle consegnate: ${formatCurrency(f.bolle!.valoreQui)}`;
+      }
       const costiCollegati = [...new Set([...viste.values()].flatMap((f) => (f.costId ? [f.costId] : [])))];
       const pagamenti = (await Promise.all(aLotti(costiCollegati).map((ids) => allPaymentRows((da, a) => db.from("company_costs")
         .select("id, is_paid, paid_date").eq("company_id", companyId).in("id", ids).order("id").range(da, a))))).flat() as Array<{ id: string; is_paid: boolean | null; paid_date: string | null }>;
@@ -560,6 +620,25 @@ export function useFattureFornitoriCommessa(orderId: string, abilitato = true) {
       return [...viste.values()].sort((a, b) => String(b.data ?? "").localeCompare(String(a.data ?? "")));
     },
   });
+}
+
+/** Sotto il costo: quanto dicono le bolle consegnate qui, e quante bolle della fattura mancano. */
+function BolleQui({ f }: { f: RigaFattura }) {
+  const b = f.bolle;
+  if (!b || b.citate === 0 || f.legame === "suggerita") return null;
+  const esito = ripartizioneDalleBolle(f.costoQui, b);
+  const mancanti = b.citate - b.caricate;
+  return (
+    <div className="mt-0.5 space-y-0.5 text-xs">
+      {b.qui > 0 && (
+        <p className={esito === "non_torna" ? "font-medium text-amber-700 dark:text-amber-400" : esito === "torna" ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"}>
+          Bolle qui: {formatCurrency(b.valoreQui)} ({b.qui} {b.qui === 1 ? "bolla" : "bolle"}){esito === "torna" ? " ✓" : ""}
+        </p>
+      )}
+      {b.senzaPrezzo > 0 && <p className="text-muted-foreground">{b.senzaPrezzo} {b.senzaPrezzo === 1 ? "riga senza prezzo" : "righe senza prezzo"}</p>}
+      {mancanti > 0 && <p className="text-muted-foreground">{mancanti} {mancanti === 1 ? "bolla" : "bolle"} su {b.citate} da caricare</p>}
+    </div>
+  );
 }
 
 const LEGAME: Record<RigaFattura["legame"], string> = {
@@ -617,6 +696,7 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
   const collegate = data.filter((f) => f.legame !== "suggerita");
   const suggerite = data.filter((f) => f.legame === "suggerita");
   const totale = collegate.reduce((n, f) => n + (f.totale ?? 0), 0);
+  const costoCommessa = collegate.reduce((n, f) => n + (f.costoQui ?? 0), 0);
   const costiSenzaFattura = (costi?.costi ?? []).filter((c) => c.senza_fattura).length;
   const filtri: Record<string, (f: RigaFattura) => boolean> = {
     collegare: (f) => f.legame === "suggerita",
@@ -646,7 +726,6 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
     { titolo: "Collegata a", cella: (f) => (
       <div className="text-xs text-muted-foreground">
         {f.oda ?? LEGAME[f.legame]}
-        {f.quota != null && f.totaleDocumento != null && mostraImporti && <p>Quota {f.quota.toLocaleString("it-IT")}% di {formatCurrency(f.totaleDocumento)}</p>}
         {f.ripartizione.length > 0 && (
           <details>
             <summary className="cursor-pointer">Divisa su {f.ripartizione.length} {f.ripartizione.length === 1 ? "commessa" : "commesse"}</summary>
@@ -687,7 +766,20 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
       </div>
     ) },
     ...(mostraImporti ? [
-      { titolo: "Totale", destra: true, cella: (f: RigaFattura) => <span className="font-medium">{importo(f.totale)}</span> },
+      { titolo: "Fattura", destra: true, cella: (f: RigaFattura) => (
+        <div className="whitespace-nowrap">
+          <p>{importo(f.totaleDocumento ?? f.totale)}</p>
+          {f.imponibileDocumento != null && <p className="text-xs text-muted-foreground">imp. {formatCurrency((f.notaCredito ? -1 : 1) * Math.abs(f.imponibileDocumento))}</p>}
+        </div>
+      ) },
+      { titolo: "Su questa commessa", destra: true, cella: (f: RigaFattura) => f.legame === "suggerita" ? <span className="text-muted-foreground">—</span> : (
+        <div className="whitespace-nowrap">
+          <p className="font-medium">{importo(f.costoQui)}</p>
+          {f.imponibileDocumento == null && f.costoQui != null && <p className="text-xs text-muted-foreground">IVA inclusa: imponibile non letto</p>}
+          <p className={f.quota != null ? "text-xs font-medium text-primary" : "text-xs text-muted-foreground"}>{incidenzaSullaFattura(f.quota)}</p>
+          <BolleQui f={f} />
+        </div>
+      ) },
       { titolo: "Pagato", destra: true, cella: (f: RigaFattura) => (f.legame === "suggerita" ? "—" : importo(f.pagato)) },
       { titolo: "Da pagare", destra: true, cella: (f: RigaFattura) => (f.legame === "suggerita" ? "—" : <span className={f.residuo ? "font-medium text-amber-700 dark:text-amber-400" : undefined}>{importo(f.residuo)}</span>) },
     ] : []),
@@ -723,7 +815,7 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
       icona={<Receipt className="h-5 w-5 text-primary" aria-hidden="true" />}
       descrizione="Fatture, quote della commessa, controlli e pagamenti della stessa spesa."
       titolo="Fatture dei fornitori" conteggio={collegate.length}
-      riassunto={mostraImporti && collegate.length > 0 ? `${formatCurrency(totale)} IVA inclusa` : undefined}
+      riassunto={mostraImporti && collegate.length > 0 ? `${formatCurrency(costoCommessa)} di costo sulla commessa · ${formatCurrency(totale)} IVA inclusa` : undefined}
       azioni={puoModificare ? <CaricaFatturaCommessaButton orderId={orderId} /> : undefined}
       numeri={!isLoading && !isError && (data.length > 0 || costiSenzaFattura > 0) ? (
         <ContatoriFiltro etichetta="Fatture per stato" attivo={filtro} onScegli={(c) => {

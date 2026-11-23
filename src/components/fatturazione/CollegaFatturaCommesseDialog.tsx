@@ -25,7 +25,9 @@ import { OrderSelectCombobox } from "@/components/warehouse/OrderSelectCombobox"
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
 import { leggiImporto } from "@/lib/fatturazione/quoteOrdini";
-import { DESTINAZIONE_MAGAZZINO, magazzinoDaVoci, magazzinoInNetto, problemaRipartizione, quotaMagazzinoDelCosto, righeMagazzinoDelCosto, quoteDaVoci, quoteDelCosto, quoteLordeInNette, residuoDaAssegnare, vociFattura, type QuotaCommessa } from "@/lib/fatturazione/ripartizioneFattura";
+import { leggiXmlRicevuta } from "@/lib/fatturazione/originaleRicevuta";
+import { leggiRiferimentiFattura } from "../../../shared/acquisti/riferimentiFattura";
+import { bolleDellaFattura, DESTINAZIONE_MAGAZZINO, magazzinoDaVoci, magazzinoInNetto, problemaRipartizione, quotaMagazzinoDelCosto, righeMagazzinoDelCosto, quoteDaVoci, quoteDelCosto, quoteLordeInNette, residuoDaAssegnare, vociFattura, type QuotaCommessa, type RigaFatturaXml } from "@/lib/fatturazione/ripartizioneFattura";
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -53,7 +55,7 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
     staleTime: 0,
     queryFn: async () => {
       const [{ data: f, error: e1 }, costo, altreFatture] = await Promise.all([
-        db.from("fatture_ricevute").select("righe").eq("id", fattura.id).eq("company_id", companyId).maybeSingle(),
+        db.from("fatture_ricevute").select("righe, xml_raw, xml_url, indice_corpo").eq("id", fattura.id).eq("company_id", companyId).maybeSingle(),
         fattura.companyCostId
           ? db.from("company_costs").select("order_id, allocations, quota_magazzino, quota_magazzino_righe").eq("id", fattura.companyCostId).eq("company_id", companyId).maybeSingle()
           : Promise.resolve({ data: null, error: null }),
@@ -64,7 +66,22 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
       if (altreFatture.error) throw altreFatture.error;
       if (e1) throw e1;
       if (costo.error) throw costo.error;
-      return { righe: f?.righe ?? null, costo: costo.data, condiviso: !!altreFatture.data?.length };
+      // Le bolle che la fattura cita, con le voci di ciascuna: per dividerla bolla per bolla.
+      // Se l'XML non si legge si divide come prima, per importi o voce per voce.
+      let bolle: ReturnType<typeof bolleDellaFattura> = { bolle: [], vociSenzaBolla: [] };
+      try {
+        const xml = f ? await leggiXmlRicevuta(f) : null;
+        const ddt = xml ? leggiRiferimentiFattura(xml, f?.indice_corpo ?? 0).ddt : [];
+        if (ddt.some((d) => d.righe.length > 0)) {
+          const { data: legami } = await db.from("fattura_ddt").select("numero_ddt, data_ddt, ddt_ricezione_id, ddt_ricezione(order_id)")
+            .eq("company_id", companyId).eq("fattura_ricevuta_id", fattura.id);
+          bolle = bolleDellaFattura(vociFattura(f?.righe), ddt, ((legami ?? []) as Array<{ numero_ddt: string; data_ddt: string | null; ddt_ricezione_id: string | null; ddt_ricezione: { order_id: string | null } | null }>)
+            .map((l) => ({ numero_ddt: l.numero_ddt, data_ddt: l.data_ddt, ddt_ricezione_id: l.ddt_ricezione_id, order_id: l.ddt_ricezione?.order_id ?? null })));
+        }
+      } catch {
+        /* resta la divisione per importi o voce per voce */
+      }
+      return { righe: f?.righe ?? null, costo: costo.data, condiviso: !!altreFatture.data?.length, bolle };
     },
   });
   // Le operazioni dell'azienda (commesse generali): la scelta rapida in cima e il nome nell'avviso.
@@ -82,6 +99,17 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
   const voci = useMemo(() => vociFattura(data?.righe), [data?.righe]);
   const salvate = useMemo(() => quoteDelCosto(data?.costo), [data?.costo]);
   const [perVoci, setPerVoci] = useState(false);
+  const [vistaBolle, setVistaBolle] = useState(true);
+  const gruppi = data?.bolle ?? { bolle: [], vociSenzaBolla: [] };
+  const perBolla = perVoci && vistaBolle && gruppi.bolle.length > 0;
+  // Bolla per bolla: le bolle caricate propongono la loro commessa, solo dove non c'è già una scelta.
+  const apriPerBolla = () => {
+    const proposte: Record<number, string> = {};
+    for (const b of gruppi.bolle) if (b.commessaProposta) for (const n of b.voci) proposte[n] = b.commessaProposta;
+    setScelte((prima) => ({ ...proposte, ...Object.fromEntries(Object.entries(prima).filter(([, v]) => v)) }));
+    setVistaBolle(true);
+    setPerVoci(true);
+  };
   const [righe, setRighe] = useState<Riga[]>([{ chiave: 0, order_id: commessaIniziale ?? "", importo: testoImporto(totale) }]);
   const [soloUnaParte, setSoloUnaParte] = useState(false);
   const [magazzino, setMagazzino] = useState("");
@@ -204,32 +232,7 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
     }
   };
 
-  const linkDiscreto = "text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground disabled:opacity-50";
-  return (
-    <Dialog open onOpenChange={(o) => { if (!o) onChiudi(); }}>
-      {/* «conferma» (640 px): questa finestra chiede una cosa sola, la commessa. Di serie il contenitore
-          operativo è «spazio», cioè 1.280 px, e la regola del foglio di stile batte `max-w-lg`: su un
-          portatile la finestra riempiva lo schermo e «Salva» finiva a destra, fuori vista (19/11/2026).
-          «Voce per voce» mostra una riga per voce e resta comodo anche così. */}
-      <DialogContent ampiezza="conferma" struttura="scorrevole" className="max-h-[90dvh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>A quale commessa va?</DialogTitle>
-          <DialogDescription>{fattura.fornitore ?? "Fornitore"} · n. {fattura.numero ?? "—"} · <span className="font-medium text-foreground">{formatCurrency(totale)}</span> {suImponibile ? "imponibile" : "IVA inclusa"}</DialogDescription>
-        </DialogHeader>
-        {suOrdine ? (
-          <p role="status" className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-            È su un ordine d’acquisto: la commessa viene da lì. Per sceglierla qui, scollegala prima dall’ordine.
-          </p>
-        ) : data?.condiviso ? (
-          <p role="status">Il costo contabilizzato raggruppa più fatture. Una ripartizione su questo costo coinvolgerebbe anche gli altri documenti.</p>
-        ) : isError ? (
-          <p role="alert">Impossibile caricare le quote salvate. Riapri il dettaglio per riprovare.</p>
-        ) : isLoading ? (
-          <p role="status" className="text-sm text-muted-foreground">Caricamento…</p>
-        ) : perVoci ? (
-          <div className="space-y-2">
-            <ul className="divide-y rounded-md border" aria-label="Voci della fattura">
-              {voci.map((v) => (
+  const rigaVoce = (v: RigaFatturaXml) => (
                 <li key={v.numero} className="space-y-1.5 p-2 text-sm">
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="min-w-0">{v.descrizione}</span>
@@ -254,8 +257,89 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
                     </div>
                   )}
                 </li>
-              ))}
+  );
+  const linkDiscreto = "text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground disabled:opacity-50";
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onChiudi(); }}>
+      {/* «conferma» (640 px): questa finestra chiede una cosa sola, la commessa. Di serie il contenitore
+          operativo è «spazio», cioè 1.280 px, e la regola del foglio di stile batte `max-w-lg`: su un
+          portatile la finestra riempiva lo schermo e «Salva» finiva a destra, fuori vista (19/11/2026).
+          «Voce per voce» mostra una riga per voce e resta comodo anche così. */}
+      <DialogContent ampiezza="conferma" struttura="scorrevole" className="max-h-[90dvh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>A quale commessa va?</DialogTitle>
+          <DialogDescription>{fattura.fornitore ?? "Fornitore"} · n. {fattura.numero ?? "—"} · <span className="font-medium text-foreground">{formatCurrency(totale)}</span> {suImponibile ? "imponibile" : "IVA inclusa"}</DialogDescription>
+        </DialogHeader>
+        {suOrdine ? (
+          <p role="status" className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            È su un ordine d’acquisto: la commessa viene da lì. Per sceglierla qui, scollegala prima dall’ordine.
+          </p>
+        ) : data?.condiviso ? (
+          <p role="status">Il costo contabilizzato raggruppa più fatture. Una ripartizione su questo costo coinvolgerebbe anche gli altri documenti.</p>
+        ) : isError ? (
+          <p role="alert">Impossibile caricare le quote salvate. Riapri il dettaglio per riprovare.</p>
+        ) : isLoading ? (
+          <p role="status" className="text-sm text-muted-foreground">Caricamento…</p>
+        ) : perVoci ? (
+          <div className="space-y-2">
+            {perBolla ? (
+              <>
+                <ul className="divide-y rounded-md border" aria-label="Bolle della fattura">
+                  {gruppi.bolle.map((b) => {
+                    const scelteBolla = [...new Set(b.voci.map((n) => scelte[n] ?? ""))];
+                    const unica = scelteBolla.length === 1 ? scelteBolla[0] || undefined : undefined;
+                    const assegna = (id: string | undefined) => setScelte({ ...scelte, ...Object.fromEntries(b.voci.map((n) => [n, id])) });
+                    return (
+                      <li key={b.chiave} className="space-y-1.5 p-2 text-sm">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="min-w-0">
+                            <span className="font-medium">DDT {b.numero}</span>
+                            <span className="text-muted-foreground">{b.data ? ` · ${b.data.split("-").reverse().join("/")}` : ""} · {b.voci.length} {b.voci.length === 1 ? "voce" : "voci"}</span>
+                            {b.ddtId && b.commessaProposta && unica === b.commessaProposta && <span className="ml-1 text-xs text-emerald-700 dark:text-emerald-400">dalla bolla caricata</span>}
+                          </span>
+                          <span className="shrink-0 tabular-nums text-muted-foreground">{formatCurrency(b.imponibile * (imponibile ? totale / imponibile : 1))}</span>
+                        </div>
+                        {scelteBolla.length > 1 ? (
+                          <p className="text-xs text-muted-foreground">Voci divise su più destinazioni. <button type="button" className="underline" onClick={() => assegna(undefined)}>Ricomincia</button></p>
+                        ) : unica === DESTINAZIONE_MAGAZZINO ? (
+                          <div className="flex items-center gap-2">
+                            <div className="flex min-w-0 flex-1 items-center gap-2 rounded-md border border-dashed px-3 py-1.5 text-sm">
+                              <Package className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                              <span className="min-w-0 truncate">Resta a magazzino</span>
+                            </div>
+                            <Button type="button" variant="ghost" size="sm" className="shrink-0" onClick={() => assegna(undefined)}>Scegli una commessa</Button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <div className="min-w-0 flex-1">
+                              <OrderSelectCombobox filtroIniziale="all" generaliSempre companyId={companyId} value={unica} placeholder="Commessa…" onChange={(id: string) => assegna(id)} />
+                            </div>
+                            <Button type="button" variant="ghost" size="sm" className="shrink-0" aria-label={`Manda a magazzino: DDT ${b.numero}`}
+                              onClick={() => assegna(DESTINAZIONE_MAGAZZINO)}>A magazzino</Button>
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+                {gruppi.vociSenzaBolla.length > 0 && (
+                  <>
+                    <p className="pt-1 text-xs text-muted-foreground">Voci senza bolla, o citate da più bolle:</p>
+                    <ul className="divide-y rounded-md border" aria-label="Voci senza bolla">
+                      {voci.filter((v) => gruppi.vociSenzaBolla.includes(v.numero)).map(rigaVoce)}
+                    </ul>
+                  </>
+                )}
+                <button type="button" className={linkDiscreto} onClick={() => setVistaBolle(false)}>Voce per voce</button>
+              </>
+            ) : (
+              <>
+            <ul className="divide-y rounded-md border" aria-label="Voci della fattura">
+              {voci.map(rigaVoce)}
             </ul>
+            {gruppi.bolle.length > 0 && <button type="button" className={linkDiscreto} onClick={apriPerBolla}>Bolla per bolla</button>}
+              </>
+            )}
             <button type="button" className={linkDiscreto} onClick={() => setPerVoci(false)}>Torna a dividere per importi</button>
           </div>
         ) : (
@@ -355,7 +439,8 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
                   Una parte resta in magazzino
                 </button>
               )}
-              {voci.length > 1 && <button type="button" className={linkDiscreto} onClick={() => setPerVoci(true)}>Voce per voce</button>}
+              {gruppi.bolle.length > 0 && <button type="button" className={linkDiscreto} onClick={apriPerBolla}>Bolla per bolla ({gruppi.bolle.length})</button>}
+              {voci.length > 1 && <button type="button" className={linkDiscreto} onClick={() => { setVistaBolle(false); setPerVoci(true); }}>Voce per voce</button>}
               {righe.length === 1 && !soloUnaParte && <button type="button" className={linkDiscreto} onClick={() => setSoloUnaParte(true)}>Solo una parte</button>}
             </div>
           </div>

@@ -126,3 +126,49 @@ export function righeMagazzinoDelCosto(costo: { quota_magazzino_righe?: unknown 
   if (!Array.isArray(righe)) return [];
   return righe.map(Number).filter((n) => Number.isFinite(n));
 }
+
+/** Una bolla citata dalla fattura, con le voci che la fattura le attribuisce (RiferimentoNumeroLinea). */
+export interface BollaDellaFattura {
+  chiave: string;
+  numero: string;
+  data: string | null;
+  voci: number[];
+  imponibile: number;
+  /** La bolla caricata in Edilizia in Cloud, se c'è, e la sua commessa: la proposta. */
+  ddtId: string | null;
+  commessaProposta: string | null;
+}
+
+/**
+ * Le voci della fattura raggruppate per bolla, per dividerla bolla per bolla invece che a occhio
+ * (23/11/2026: una fattura di calcestruzzo, 71 voci in 41 bolle, divisa al 56,69% su una commessa che ne aveva una sola da 468 €).
+ * Una voce citata da due bolle non si sa di chi sia: resta fra le voci da scegliere una per una.
+ * Senza righe per bolla nell'XML (DDT citati per tutta la fattura) non c'è niente da raggruppare.
+ */
+export function bolleDellaFattura(
+  voci: RigaFatturaXml[],
+  ddt: Array<{ testo: string; data: string | null; righe: number[] }>,
+  legami: Array<{ numero_ddt: string; data_ddt: string | null; ddt_ricezione_id: string | null; order_id: string | null }> = [],
+): { bolle: BollaDellaFattura[]; vociSenzaBolla: number[] } {
+  const importi = new Map(voci.map((v) => [v.numero, v.imponibile]));
+  const quante = new Map<number, number>();
+  for (const d of ddt) for (const n of new Set(d.righe)) quante.set(n, (quante.get(n) ?? 0) + 1);
+  const bolle: BollaDellaFattura[] = [];
+  ddt.forEach((d, i) => {
+    const sue = [...new Set(d.righe)].filter((n) => importi.has(n) && quante.get(n) === 1).sort((a, b) => a - b);
+    if (sue.length === 0) return;
+    const legame = legami.find((l) => l.numero_ddt === d.testo && (l.data_ddt ?? null) === (d.data ?? null))
+      ?? legami.find((l) => l.numero_ddt === d.testo);
+    bolle.push({
+      chiave: `${i}|${d.testo}`,
+      numero: d.testo,
+      data: d.data,
+      voci: sue,
+      imponibile: centesimi(sue.reduce((s, n) => s + (importi.get(n) ?? 0), 0)),
+      ddtId: legame?.ddt_ricezione_id ?? null,
+      commessaProposta: legame?.ddt_ricezione_id ? legame.order_id : null,
+    });
+  });
+  const inBolla = new Set(bolle.flatMap((b) => b.voci));
+  return { bolle, vociSenzaBolla: voci.map((v) => v.numero).filter((n) => !inBolla.has(n)) };
+}

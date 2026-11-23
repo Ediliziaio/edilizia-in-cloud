@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fatturaVerificata, problemaRipartizione, quoteDaVoci, quoteDelCosto, quoteLordeInNette, residuoDaAssegnare, vociFattura } from "@/lib/fatturazione/ripartizioneFattura";
+import { bolleDellaFattura, fatturaVerificata, problemaRipartizione, quoteDaVoci, quoteDelCosto, quoteLordeInNette, residuoDaAssegnare, vociFattura } from "@/lib/fatturazione/ripartizioneFattura";
 
 describe("verifica di una fattura", () => {
   it("chi sceglie vince, in tutti e due i sensi", () => {
@@ -61,5 +61,42 @@ describe("dal totale con IVA all'imponibile", () => {
   it("le altre informazioni restano, e senza importi non inventa", () => {
     expect(quoteLordeInNette([{ order_id: "a", importo: 122, righe: [1] }], 244, 200)[0]).toEqual({ order_id: "a", importo: 100, righe: [1] });
     expect(quoteLordeInNette([{ order_id: "a", importo: 5 }], 0, 0)).toEqual([{ order_id: "a", importo: 5 }]);
+  });
+});
+
+describe("fattura divisa bolla per bolla", () => {
+  const voci = [
+    { numero: 44, descrizione: "CLS RCK 30", imponibile: 952 },
+    { numero: 45, descrizione: "126 CLS RCK35 S4 XC1XC2", imponibile: 468 },
+    { numero: 46, descrizione: "Pompa", imponibile: 300 },
+    { numero: 47, descrizione: "Cubiere", imponibile: 10 },
+    { numero: 48, descrizione: "Trasporto", imponibile: 50 },
+  ];
+  const ddt = [
+    { testo: "2026-DT05-0004727", data: "2026-09-15", righe: [45] },
+    { testo: "2026-DT03-0001841", data: "2026-09-16", righe: [46, 47, 46] },
+    { testo: "2026-DT01-0004164", data: "2026-09-09", righe: [44, 48] },
+    { testo: "2026-DT01-0004165", data: "2026-09-09", righe: [48] },
+  ];
+  it("raggruppa le voci per bolla e propone la commessa della bolla caricata ", () => {
+    const { bolle, vociSenzaBolla } = bolleDellaFattura(voci, ddt, [
+      { numero_ddt: "2026-DT05-0004727", data_ddt: "2026-09-15", ddt_ricezione_id: "b1", order_id: "cantiere" },
+      { numero_ddt: "2026-DT03-0001841", data_ddt: "2026-09-16", ddt_ricezione_id: null, order_id: null },
+    ]);
+    expect(bolle.map((b) => [b.numero, b.voci, b.imponibile, b.commessaProposta])).toEqual([
+      ["2026-DT05-0004727", [45], 468, "cantiere"],
+      ["2026-DT03-0001841", [46, 47], 310, null],
+      // La 48 è citata da due bolle: non si sa di chi sia.
+      ["2026-DT01-0004164", [44], 952, null],
+    ]);
+    expect(vociSenzaBolla).toEqual([48]);
+  });
+  it("scegliere la commessa di una bolla assegna tutte le sue voci", () => {
+    const { bolle } = bolleDellaFattura(voci, ddt);
+    const scelte = Object.fromEntries(bolle[1].voci.map((n) => [n, "c1"]));
+    expect(quoteDaVoci(voci, scelte)).toEqual([expect.objectContaining({ order_id: "c1", importo: 310, righe: [46, 47] })]);
+  });
+  it("DDT senza righe indicate: niente da raggruppare", () => {
+    expect(bolleDellaFattura(voci, [{ testo: "1", data: null, righe: [] }]).bolle).toEqual([]);
   });
 });

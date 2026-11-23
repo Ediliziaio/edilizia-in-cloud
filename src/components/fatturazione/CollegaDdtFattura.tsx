@@ -1,4 +1,5 @@
 import {
+  messaggioPrezzoBolla,
   salvaCollegamentoDdt,
   type DdtCollegabile,
 } from "@/lib/fatturazione/collegaDdt";
@@ -66,8 +67,8 @@ export function CollegaDdtFattura({
         numero: d?.numero_ddt ?? numero,
         data: d?.data_ricezione?.slice(0, 10) ?? (data || null),
       }),
-    onSuccess: async () => {
-      toast.success("DDT collegato alla fattura");
+    onSuccess: async (esito) => {
+      toast.success("DDT collegato alla fattura", { description: messaggioPrezzoBolla(esito?.prezzo) ?? undefined });
       refreshFinancialQueries(qc);
       await Promise.all(
         [

@@ -41,7 +41,7 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { usePermissions } from "@/hooks/usePermissions";
 import { documentiDb as db } from "@/lib/ddt/documentiPersistenti";
 import { bloccoCollegamento, commesseDellaBolla, nomePersona, statoCaricoMagazzino, type StatoBolla } from "@/lib/ddt/collegamentiBolla";
-import { salvaCollegamentoDdt } from "@/lib/fatturazione/collegaDdt";
+import { messaggioPrezzoBolla, salvaCollegamentoDdt } from "@/lib/fatturazione/collegaDdt";
 import { cn } from "@/lib/utils";
 
 const NESSUNO = "__nessuno__";
@@ -528,9 +528,11 @@ function ScegliFattura({ ddt, onChiudi }: { ddt: DDTRicezioneWithJoins; onChiudi
   const collega = useMutation({
     mutationFn: (fatturaId: string) =>
       salvaCollegamentoDdt({ companyId: ddt.company_id, fatturaId, ddtId: ddt.id, numero: ddt.numero_ddt, data: ddt.data_ricezione }),
-    onSuccess: () => {
-      toast.success("Fattura collegata alla bolla");
+    onSuccess: (esito) => {
+      toast.success("Fattura collegata alla bolla", { description: messaggioPrezzoBolla(esito?.prezzo) ?? undefined });
       refreshMaterialQueries(qc);
+      void qc.invalidateQueries({ queryKey: ["ddt-valorizzazioni", ddt.company_id, ddt.id] });
+      void qc.invalidateQueries({ queryKey: ["ddt-fatture-collegate", ddt.company_id, ddt.id] });
       onChiudi();
     },
     onError: (e: Error) => toast.error("Fattura non collegata", { description: e.message }),

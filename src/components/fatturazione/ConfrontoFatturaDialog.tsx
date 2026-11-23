@@ -63,7 +63,7 @@ import {
 } from "../../../supabase/functions/_shared/riconciliazioneFattureAI.ts";
 import { propostaDaRegole } from "../../../supabase/functions/_shared/riconciliazioneRegole.ts";
 import { CollegaDdtFattura } from "./CollegaDdtFattura";
-import { salvaCollegamentoDdt } from "@/lib/fatturazione/collegaDdt";
+import { messaggioPrezzoBolla, salvaCollegamentoDdt } from "@/lib/fatturazione/collegaDdt";
 import {
   Popover,
   PopoverContent,
@@ -261,7 +261,7 @@ export function ConfrontoFatturaDialog({
         numero: "",
         data: null,
       }),
-    onSuccess: async (_r, ddtId) => {
+    onSuccess: async (esito, ddtId) => {
       setControllo(false);
       setSelezione((s) => (s ? new Set([...s, ddtId]) : s));
       await Promise.all(
@@ -272,7 +272,7 @@ export function ConfrontoFatturaDialog({
           "fattura-ricevuta-riepilogo",
         ].map((k) => qc.invalidateQueries({ queryKey: [k] })),
       );
-      toast.success("Bolla collegata alla fattura");
+      toast.success("Bolla collegata alla fattura", { description: messaggioPrezzoBolla(esito?.prezzo) ?? undefined });
     },
     onError: (e) =>
       toast.error("Bolla non collegata", {
