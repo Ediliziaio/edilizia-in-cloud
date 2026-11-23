@@ -51,8 +51,11 @@ export default function LavoriLogin() {
 
   const autorizzato = !!role && CAMPO_APP_ROLES.includes(role);
   const da = location.state?.from as { pathname?: string; search?: string } | undefined;
+  // Solo una pagina campo chiesta davvero (link di notifica, pagina prima del
+  // login) è una meta: senza, decide destinazioneAppLavori — l'operaio entra
+  // nell'area campo, lo staff d'ufficio e il titolare vanno al gestionale.
   const destinazione = da?.pathname && /^\/campo(?:\/|$)/.test(da.pathname)
-    ? `${da.pathname}${da.search || ""}` : "/campo";
+    ? `${da.pathname}${da.search || ""}` : undefined;
   if (!isLoading && !isSubmitting && view !== "2fa" && user && autorizzato) {
     return <RoleBasedRedirect campoDestinazione={destinazione} />;
   }

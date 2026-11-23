@@ -79,6 +79,22 @@ export function percorsoCantiereTecnico(ordine?: string) {
   return `/campo/cantieri${ordine ? `/${encodeURIComponent(ordine)}` : ""}`;
 }
 
+/**
+ * Il gestionale sta sul dominio `app`: dall'app Lavori (`lavori.…`) ci si torna
+ * solo con un link assoluto. Altrove (app, www, locale) basta il percorso.
+ *
+ * Serve a chi entra nell'area campo come tecnico senza avere cantieri assegnati
+ * (23/11/2026): la barra del tecnico ha solo «Cantieri» e il tasto Esci, quindi
+ * senza questo link la pagina vuota e' un vicolo cieco.
+ */
+export function linkGestionale(percorso = "/azienda/dashboard") {
+  if (typeof window === "undefined") return percorso;
+  const host = window.location.hostname;
+  return /^lavori\./i.test(host)
+    ? `${window.location.protocol}//${host.replace(/^lavori\./i, "app.")}${percorso}`
+    : percorso;
+}
+
 export function titoloCantiereTecnico(cantiere: CantiereTecnico) {
   return cantiere.titolo?.trim() || cantiere.codice || "Cantiere";
 }

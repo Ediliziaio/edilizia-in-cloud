@@ -6,9 +6,8 @@ import { logger } from "@/utils/logger";
 import { Loader2 } from "lucide-react";
 import { getCurrentSubdomain } from "@/hooks/useSubdomainRoute";
 import { isSuperAdminEmailAllowed } from "@/config/superAdmin";
-import { COMPANY_APP_HOME, getRoleHomePath } from "@/lib/auth/appHome";
+import { COMPANY_APP_HOME, destinazioneAppLavori, getRoleHomePath } from "@/lib/auth/appHome";
 import { LoadingTimeoutFallback } from "@/components/auth/LoadingTimeoutFallback";
-import { CAMPO_APP_ROLES } from "@/types/auth";
 import { resolveRouteAccessRole } from "@/lib/auth/multiCompany";
 
 function LoadingSpinner({ text }: { text: string }) {
@@ -159,8 +158,13 @@ export function RoleBasedRedirect({ campoDestinazione }: { campoDestinazione?: s
     return <Navigate to={COMPANY_APP_HOME} replace />;
   }
 
-  if ((campoDestinazione || getCurrentSubdomain() === "lavori") && ruoloArea && CAMPO_APP_ROLES.includes(ruoloArea)) {
-    return <Navigate to={campoDestinazione || "/campo"} replace />;
+  // L'area campo è degli operai: staff e titolari proseguono al gestionale
+  // (destinazioneAppLavori), tranne quando una meta /campo/… l'hanno chiesta loro.
+  const destinazioneCampo = destinazioneAppLavori({
+    ruolo: ruoloArea, meta: campoDestinazione, sottodominio: getCurrentSubdomain(),
+  });
+  if (destinazioneCampo) {
+    return <Navigate to={destinazioneCampo} replace />;
   }
 
   // Selettore d'ingresso multi-azienda (stile GHL): se l'utente atterrerebbe

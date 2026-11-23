@@ -9,7 +9,8 @@ import { CronoprogrammaSchedaCantiere, FasiSchedaCantiere } from "@/components/c
 import { ModificaAvanzamentoCampo } from "@/components/campo/ModificaAvanzamentoCampo";
 import { RilieviSchedaCantiere } from "@/components/campo/RilieviSchedaCantiere";
 import { useCantieriTecnici, useSchedaCantiere } from "@/hooks/campo/useSchedaCantiere";
-import { percorsoCantiereTecnico, titoloCantiereTecnico, type SchedaCantiere } from "@/lib/campo/schedaCantiere";
+import { useIsCampo } from "@/hooks/useIsCampo";
+import { linkGestionale, percorsoCantiereTecnico, titoloCantiereTecnico, type SchedaCantiere } from "@/lib/campo/schedaCantiere";
 import { destinazioneAvanzamento } from "@/lib/campo/bozzaTecnica";
 import { cn } from "@/lib/utils";
 
@@ -29,13 +30,21 @@ function StatoScheda({ messaggio, riprova }: { messaggio: string; riprova?: () =
 
 export function ElencoCantieriTecnici() {
   const query = useCantieriTecnici();
+  const { isTecnico } = useIsCampo();
   const cantieri = query.data ?? [];
   return <div className={classePagina}>
     <h1 className="text-xl font-bold">Cantieri da seguire</h1>
     {query.isError ? <StatoScheda messaggio="Non riesco a leggere i cantieri. Controlla la connessione."
       riprova={() => void query.refetch()} />
       : query.isPending ? <Skeleton className="h-24 rounded-xl" role="status" aria-label="Carico i cantieri" />
-      : !cantieri.length ? <p className="rounded-xl border bg-card p-3 text-sm text-muted-foreground">Non hai cantieri da seguire.</p>
+      : !cantieri.length ? <div className="space-y-2 rounded-xl border bg-card p-3 text-sm">
+        <p className="text-muted-foreground">Non hai cantieri da seguire: compaiono qui quando ti mettono capocantiere di una
+          commessa, o quando ti abilitano alla scheda del cantiere.</p>
+        {/* Il tecnico non ha la barra in basso: senza questo resterebbe su una pagina senza uscita. */}
+        {isTecnico && <a href={linkGestionale()} className="inline-flex min-h-11 items-center font-semibold text-primary underline">
+          Vai al gestionale
+        </a>}
+      </div>
       : <ul className="divide-y rounded-xl border bg-card">
         {cantieri.map(cantiere => <li key={cantiere.id}>
           <Link to={percorsoCantiereTecnico(cantiere.id)} className="flex min-h-14 items-center gap-2 p-3">

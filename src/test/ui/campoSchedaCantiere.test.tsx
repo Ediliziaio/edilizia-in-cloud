@@ -4,7 +4,7 @@ import "fake-indexeddb/auto";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, expect, it, vi } from "vitest";
-import CampoSchedaCantiere from "@/pages/campo/CampoSchedaCantiere";
+import CampoSchedaCantiere, { ElencoCantieriTecnici } from "@/pages/campo/CampoSchedaCantiere";
 import { CantieriTecniciLink } from "@/components/campo/CantieriTecniciLink";
 import { AccessiTecniciCantiere } from "@/components/orders/AccessiTecniciCantiere";
 import { changeFormControl } from "@/test/helpers/changeFormControl";
@@ -13,7 +13,7 @@ import { syncQueue } from "@/lib/campo/sync-queue";
 
 const stato = vi.hoisted(() => ({
   rpc: vi.fn(), scarica: vi.fn(), accesso: true, salvaRilievi: false, salvaFasi: false, faseRiaperta: false,
-  salvati: [] as string[],
+  salvati: [] as string[], tecnico: false,
 }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "impresa" }, user: { id: "utente" } }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: stato.rpc } }));
@@ -21,6 +21,9 @@ vi.mock("@/components/orders/filePreviewUtils", () => ({ ATTACHMENTS_BUCKET: "or
 vi.mock("@/hooks/campo/useCampoWorkDay", () => ({ useCampoWorkDay: () => "2026-11-22" }));
 vi.mock("@/hooks/useCalendarioCantiere", () => ({ useCalendarioCantiere: () => ({ lavorativo: () => true }) }));
 vi.mock("@/hooks/useCommessaCampoSync", () => ({ useCommessaCampoSync: (): void => undefined }));
+vi.mock("@/hooks/useIsCampo", () => ({ useIsCampo: () => ({
+  isCampo: !stato.tecnico, isOperaio: !stato.tecnico, isSubappaltatore: false, isTecnico: stato.tecnico,
+}) }));
 
 const cantiere: SchedaCantiere["cantiere"] = { id: "scuola", titolo: "Scuola via Milano", codice: "C-065", indirizzo: "Via Milano 12",
   inizio: "2026-11-01", fine: "2026-12-01", progresso: 40 };
@@ -44,6 +47,7 @@ beforeEach(async () => {
   stato.salvaRilievi = false;
   stato.salvaFasi = false;
   stato.faseRiaperta = false;
+  stato.tecnico = false;
   stato.salvati = [];
   stato.rpc.mockImplementation((nome: string, args: Record<string, unknown>) => {
     if (nome === "commessa_accesso_tecnico") {
@@ -179,4 +183,23 @@ it("il capocantiere può chiudere di nuovo una fase riaperta al 100%", async () 
   await waitFor(async () => expect(await syncQueue.getAll("avanzamento")).toMatchObject([{ status: "pending", payload: {
     target: { faseId: "posa", percentuale: 100 }, valore: "100", chiusuraRichiesta: true,
   } }]));
+});
+
+// 23/11/2026 — l'app Lavori si e' aperta allo staff d'ufficio e ai titolari: chi non
+// e' capocantiere di nessuna commessa ci entrava e trovava una pagina vuota, con la
+// sola barra «Cantieri» e il tasto Esci. Il modo per tornare al gestionale e' parte
+// della pagina, non un dettaglio.
+it("il tecnico senza cantieri assegnati puo' tornare al gestionale", async () => {
+  stato.accesso = false;
+  stato.tecnico = true;
+  monta(<Routes><Route path="/campo" element={<ElencoCantieriTecnici />} /></Routes>);
+  expect(await screen.findByText(/Non hai cantieri da seguire/)).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Vai al gestionale" })).toHaveAttribute("href", "/azienda/dashboard");
+});
+
+it("l'operaio senza cantieri non vede il link al gestionale: ha la barra in basso", async () => {
+  stato.accesso = false;
+  monta(<Routes><Route path="/campo" element={<ElencoCantieriTecnici />} /></Routes>);
+  expect(await screen.findByText(/Non hai cantieri da seguire/)).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "Vai al gestionale" })).toBeNull();
 });
