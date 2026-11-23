@@ -34,12 +34,12 @@ begin
    where d.id = p_bozza_id and d.company_id = p_company_id and d.revision = p_revisione_attesa
    for update;
   if not found then
-    raise exception using errcode = '40001', message = 'La bozza è cambiata o non è modificabile.';
+    raise exception using errcode = 'PT409', message = 'La bozza è cambiata o non è modificabile.';
   end if;
   if v_origine ->> 'id' is distinct from p_planimetria_id::text or
      v_origine ->> 'livelloId' is distinct from v_nuova_origine ->> 'livelloId' or
      v_origine ->> 'propostaId' is distinct from v_nuova_origine ->> 'propostaId' then
-    raise exception using errcode = '40001', message = 'Il collegamento della bozza è cambiato.';
+    raise exception using errcode = 'PT409', message = 'Il collegamento della bozza è cambiato.';
   end if;
   if not exists (select 1 from public.planimetrie p where p.id = p_planimetria_id and p.company_id = p_company_id and p.deleted_at is null) then
     raise exception using errcode = 'P0002', message = 'Planimetria non disponibile per questa azienda.';
@@ -68,7 +68,7 @@ begin
      where d.id = p_bozza_id and d.company_id = p_company_id and d.revision = p_revisione_attesa
     returning v_versione, d.revision, d.updated_at;
   if not found then
-    raise exception using errcode = '40001', message = 'La bozza è cambiata o non è modificabile.';
+    raise exception using errcode = 'PT409', message = 'La bozza è cambiata o non è modificabile.';
   end if;
 end;
 $$;

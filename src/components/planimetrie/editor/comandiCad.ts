@@ -1,7 +1,7 @@
 import { intersezioneAssi, sulTratto } from "../../../../shared/planimetrie/geometria.ts";
 import type { Muro, Pianta, Punto, StatoElemento } from "./adattatore";
 import { modificabile, nuovoId, statoNuovo, visibile, type Vista } from "./comandi";
-import { direzione, dist, lunghezzaMuro, proiettaSuMuro } from "./geometria";
+import { direzione, lunghezzaMuro, proiettaSuMuro } from "./geometria";
 
 export type ComandoCad = "taglia" | "estendi" | "offset";
 export const NOMI_COMANDI_CAD: Record<ComandoCad, string> = { taglia: "Taglia", estendi: "Estendi", offset: "Offset" };

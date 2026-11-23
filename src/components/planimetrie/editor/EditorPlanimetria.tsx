@@ -271,16 +271,18 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
   const applicataDallaChat = applicazioneChat?.pianta === storia.presente;
   const pianta = anteprima ?? propostaChat?.pianta ?? storia.presente;
   // L'ultimo documento prodotto: tiene titolo, arredi, altre proposte e gli id dei locali del progetto.
-  const documentoBase = useRef<Planimetria | undefined>(piantaIniziale);
-  const piantaDalDocumento = useRef(piantaIniziale ? storia.presente : undefined);
-  const [revisioneDocumento, aggiornaDocumento] = useState(0);
+  const [baseDisegno, setBaseDisegno] = useState(() => ({
+    documento: piantaIniziale ?? aPlanimetria(storia.presente, undefined, livelloId, propostaId),
+    pianta: storia.presente,
+  }));
+  const documentoBase = useRef(baseDisegno.documento);
   // Immagine da ricalcare (mappa catastale, foto aerea, rilievo del lotto), per piano: si salva
   // nel documento (`Livello.ricalco`) se c'è un archivio, altrimenti resta finché la pagina è aperta.
   const [ricalco, setRicalco] = useState<Ricalco | null>(() => pianoDiApertura?.ricalco ?? null);
   const pianoDwg = /^cad-\d+$/.test(livelloId ?? "") || ricalco?.bloccata !== undefined;
   const ricalcoBloccato = ricalco?.bloccata ?? (pianoDwg && !!ricalco);
   const ricalcoCorrente = useRef({ ricalco, bloccata: ricalcoBloccato, livelloId });
-  ricalcoCorrente.current = { ricalco, bloccata: ricalcoBloccato, livelloId };
+  useLayoutEffect(() => { ricalcoCorrente.current = { ricalco, bloccata: ricalcoBloccato, livelloId }; }, [ricalco, ricalcoBloccato, livelloId]);
   const [vistaLayerDwg, setVistaLayerDwg] = useState(vistaLayerDwgIniziale);
   const [riscontroScala, setRiscontroScala] = useState<RiscontroScalaModello | undefined>(pianoDiApertura?.riscontroScala);
   const [verificaScala, setVerificaScala] = useState<{ muroId: string; misura: string; errore?: string } | null>(null);
@@ -320,15 +322,15 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
   };
   const documentoConfermato = useMemo(() => {
     // Quando si registra un riscontro senza ridisegnare, conserva i contorni importati.
-    const d = documentoBase.current && piantaDalDocumento.current === storia.presente
-      ? documentoBase.current
-      : aPlanimetria(storia.presente, documentoBase.current, livelloId, propostaId);
+    const d = baseDisegno.pianta === storia.presente
+      ? baseDisegno.documento
+      : aPlanimetria(storia.presente, baseDisegno.documento, livelloId, propostaId);
     // l'immagine locale (senza archivio) non entra nel documento
     const lid = livelloId ?? d.livelli[0]?.id;
     if (!lid) return d;
     const conSfondo = impostaRicalco(d, lid, ricalco && !ricalco.percorso.startsWith("blob:") ? ricalco : null);
     return { ...conSfondo, livelli: conSfondo.livelli.map(l => l.id === lid ? { ...l, riscontroScala } : l) };
-  }, [storia.presente, livelloId, propostaId, ricalco, riscontroScala, revisioneDocumento]);
+  }, [storia.presente, livelloId, propostaId, ricalco, riscontroScala, baseDisegno]);
   const documento = useMemo(() => pianta !== storia.presente
     ? aPlanimetria(pianta, documentoConfermato, livelloId, propostaId)
     : documentoConfermato, [pianta, storia.presente, documentoConfermato, livelloId, propostaId]);
@@ -336,7 +338,7 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
   const documento3D = mostraProposta3D ? documento : documentoConfermato;
   // l'ultimo stato del documento, per le azioni del pannello che lavorano su tutti i piani
   const pianiRef = useRef({ documento, livelloId, propostaId });
-  pianiRef.current = { documento, livelloId, propostaId };
+  useLayoutEffect(() => { pianiRef.current = { documento, livelloId, propostaId }; }, [documento, livelloId, propostaId]);
   const vaiAlPianoRef = useRef<(id: string, doc: Planimetria, proposta?: string) => void>(() => {});
   const [strumento, setStrumentoStato] = useState<Strumento>("seleziona");
   const [precisione, setPrecisione] = useState(true);
@@ -357,11 +359,11 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
     setTrattoId(chiave);
     setVerticiTracciato(null);
     setPuntoDaSpostare(null);
-  }, []);
+  }, [setTrattoId, setVerticiTracciato, setPuntoDaSpostare]);
   const chiudiTracciati = useCallback(() => {
     setPannelloTracciati(false);
     scegliTratto("");
-  }, [scegliTratto]);
+  }, [scegliTratto, setPannelloTracciati]);
   // La stanza appena disegnata: il suo nome è pronto da scrivere (solo per lei).
   const [stanzaNuova, setStanzaNuova] = useState<string | null>(null);
   const [camera, setCamera] = useState<Camera>({ s: 0.8, tx: 80, ty: 80 });
@@ -394,13 +396,10 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
   const fileFonteChat = fonteChat?.file;
   const [urlFonteChat, setUrlFonteChat] = useState<{ file: Blob; url: string } | null>(null);
   useEffect(() => {
-    if (!fileFonteChat) {
-      setUrlFonteChat(null);
-      return;
-    }
+    if (!fileFonteChat) return;
     const url = URL.createObjectURL(fileFonteChat);
-    setUrlFonteChat({ file: fileFonteChat, url });
-    return () => URL.revokeObjectURL(url);
+    const frame = requestAnimationFrame(() => setUrlFonteChat({ file: fileFonteChat, url }));
+    return () => { cancelAnimationFrame(frame); URL.revokeObjectURL(url); };
   }, [fileFonteChat]);
   const sfondoChat = fonteChat && urlFonteChat && urlFonteChat.file === fileFonteChat && (chatInCorso || mostraFonteChat)
     ? { ...fonteChat, url: urlFonteChat.url }
@@ -485,13 +484,12 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
 
   // Riferimenti sempre aggiornati per i gestori registrati una volta sola.
   const stato = useRef({ pianta, camera, strumento, vista, selezione, inizioParete, storia, dati, arredoScelto, inizioQuota, puntiPoligono, gruppo, precisione });
-  stato.current = { pianta, camera, strumento, vista, selezione, inizioParete, storia, dati, arredoScelto, inizioQuota, puntiPoligono, gruppo, precisione };
+  useLayoutEffect(() => { stato.current = { pianta, camera, strumento, vista, selezione, inizioParete, storia, dati, arredoScelto, inizioQuota, puntiPoligono, gruppo, precisione }; }, [pianta, camera, strumento, vista, selezione, inizioParete, storia, dati, arredoScelto, inizioQuota, puntiPoligono, gruppo, precisione]);
 
   useEffect(() => {
-    documentoBase.current = documentoConfermato;
-    if (piantaDalDocumento.current !== storia.presente) piantaDalDocumento.current = undefined;
     onChange?.(documentoConfermato);
-  }, [documentoConfermato, onChange, storia.presente]);
+  }, [documentoConfermato, onChange]);
+  useLayoutEffect(() => { documentoBase.current = documentoConfermato; }, [documentoConfermato]);
 
   useEffect(() => { onAnteprimaChat?.(bloccoChat); }, [bloccoChat, onAnteprimaChat]);
   useEffect(() => { onSelezione?.(selezione); }, [onSelezione, selezione]);
@@ -507,13 +505,6 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
       applicabile: !chatInCorso && !sola && propostaChatApplicabile(propostaChat),
     });
   }, [chatAperta, chatInCorso, documentoConfermato, livelloId, onPropostaComputo, propostaChat, propostaId, sola, vista]);
-  useImperativeHandle(controlli, () => ({
-    evidenzia(oggetto, prossimaVista) {
-      setStrumento("seleziona");
-      if (!bloccoChat) setVista(prossimaVista);
-      setSelezione(oggetto);
-    },
-  }), [bloccoChat]);
   useEffect(() => {
     if (!animazioneChat) return;
     const timer = setTimeout(() => setAnimazioneChat(null), 570);
@@ -545,7 +536,7 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
     const dopo = C.prossimaStimata(nuova);
     setSelezione(dopo);
     setAvviso(dopo ? `Ancora ${C.contaStimate(nuova)} da controllare: eccone un'altra.` : "Tutte le misure stimate sono controllate.");
-  }, []);
+  }, [setSelezione, setAvviso]);
 
   const setStrumento = useCallback((s: Strumento) => {
     if (gesto.current?.tipo === "demolizioni") gesto.current = null;
@@ -562,7 +553,14 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
       setSelezione(null);
       setGruppo(C.gruppoVuoto());
     }
-  }, [chiudiTracciati]);
+  }, [chiudiTracciati, setStrumentoStato, setInizioParete, setInizioQuota, setRiferimentoCad, setPuntiPoligono, setSovrapposizioni, setMisura, setPiantaRipiegata, setSelezione, setGruppo]);
+  useImperativeHandle(controlli, () => ({
+    evidenzia(oggetto, prossimaVista) {
+      setStrumento("seleziona");
+      if (!bloccoChat) setVista(prossimaVista);
+      setSelezione(oggetto);
+    },
+  }), [bloccoChat, setStrumento]);
 
   // ─── dimensioni e inquadratura ─────────────────────────────────────────────
   useEffect(() => {
@@ -576,8 +574,13 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
     return () => ro.disconnect();
   }, [piantaNascosta]);
 
+  const cameraAdattata = useRef<Camera | null>(null);
+  const cameraRef = useRef(camera);
+  useLayoutEffect(() => { cameraRef.current = camera; }, [camera]);
+  const dimensioniRef = useRef(dimensioni);
+  useLayoutEffect(() => { dimensioniRef.current = dimensioni; }, [dimensioni]);
   const ricalcoRef = useRef(ricalco);
-  ricalcoRef.current = ricalco;
+  useLayoutEffect(() => { ricalcoRef.current = ricalco; }, [ricalco]);
   const inquadra = useCallback((piantaDaInquadrare: Pianta) => {
     const ps = angoliEsistenti(piantaDaInquadrare);
     const sfondo = ricalcoRef.current;
@@ -606,7 +609,7 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
     const inquadrata = { s, tx: (w - (maxX - minX) * s) / 2 - minX * s, ty: (h - (maxY - minY) * s) / 2 - minY * s };
     cameraAdattata.current = inquadrata;
     setCamera(inquadrata);
-  }, []);
+  }, [setCamera]);
   const adatta = useCallback(() => inquadra(stato.current.pianta), [inquadra]);
   useEffect(() => {
     if (!chatAperta || !passoChat || !animazioneChat?.quadro) return;
@@ -614,8 +617,9 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
     const punti = angoliEsistenti(animazioneChat.quadro);
     if (!punti.length) return;
     if (!prima.length) {
-      inquadra(animazioneChat.quadro);
-      return;
+      const quadro = animazioneChat.quadro;
+      const frame = requestAnimationFrame(() => inquadra(quadro));
+      return () => cancelAnimationFrame(frame);
     }
     const minX = Math.min(...prima.map(p => p.x)), maxX = Math.max(...prima.map(p => p.x));
     const minY = Math.min(...prima.map(p => p.y)), maxY = Math.max(...prima.map(p => p.y));
@@ -699,8 +703,8 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
     signal?.throwIfAborted();
     if (ricalcoCorrente.current.livelloId !== idAttivo) throw new Error("Il piano attivo è cambiato durante il caricamento.");
     const { fatto, tavolaDwg, controlloDwg } = fonte.dwg.livello;
-    documentoBase.current = { ...documentoConfermato, livelli: documentoConfermato.livelli.map(l => l.id === piano.id
-      ? { ...l, fatto, tavolaDwg, controlloDwg } : l) };
+    setBaseDisegno({ documento: { ...documentoConfermato, livelli: documentoConfermato.livelli.map(l => l.id === piano.id
+      ? { ...l, fatto, tavolaDwg, controlloDwg } : l) }, pianta: storia.presente });
     setRicalco({ percorso, x: fonte.x, y: -fonte.y, larghezzaCm: fonte.larghezzaCm,
       proporzione: fonte.proporzione, opacita: fonte.opacita, calibrata: true, bloccata: true });
     setRiscontroScala({ stato: "da_verificare" });
@@ -709,11 +713,6 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
     applica(passo.pianta, { annullabile: false });
     requestAnimationFrame(adatta);
   };
-  const cameraAdattata = useRef<Camera | null>(null);
-  const cameraRef = useRef(camera);
-  cameraRef.current = camera;
-  const dimensioniRef = useRef(dimensioni);
-  dimensioniRef.current = dimensioni;
   const giaAdattata = useRef(false);
   useEffect(() => {
     if (giaAdattata.current || (dimensioni.w === 800 && dimensioni.h === 560)) return;
@@ -741,7 +740,7 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
       const k = s / c.s;
       return { s, tx: schermo.x - (schermo.x - c.tx) * k, ty: schermo.y - (schermo.y - c.ty) * k };
     });
-  }, []);
+  }, [setCamera]);
 
   useEffect(() => {
     const svg = svgRef.current;
@@ -865,7 +864,7 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
         });
       }
     },
-    [applica],
+    [applica, setSelezione, setAvviso, setMisura],
   );
 
   // ─── gesti ────────────────────────────────────────────────────────────────
@@ -1385,11 +1384,11 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
   };
 
   const chiudiPoligonoRef = useRef(chiudiPoligono);
-  chiudiPoligonoRef.current = chiudiPoligono;
+  useLayoutEffect(() => { chiudiPoligonoRef.current = chiudiPoligono; }, [chiudiPoligono]);
   const sovrapposizioniRef = useRef(sovrapposizioni);
-  sovrapposizioniRef.current = sovrapposizioni;
+  useLayoutEffect(() => { sovrapposizioniRef.current = sovrapposizioni; }, [sovrapposizioni]);
   const anteprimaRef = useRef(anteprima);
-  anteprimaRef.current = anteprima;
+  useLayoutEffect(() => { anteprimaRef.current = anteprima; }, [anteprima]);
 
   // ─── porta e finestra trascinate dalla barra ──────────────────────────────
   const trascinaDallaBarra = (quale: "porta" | "finestra") => (e: ReactPointerEvent<HTMLButtonElement>) => {
@@ -1458,7 +1457,7 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
       const ancora = [...nuova.muri, ...nuova.aperture, ...nuova.locali, ...(nuova.elementi ?? []), ...(nuova.quote ?? []), ...(nuova.testi ?? []), ...(nuova.aree ?? [])].some((x) => x.id === sel.id);
       if (!ancora) setSelezione(null);
     },
-    [applica],
+    [applica, setSelezione, setAvviso],
   );
 
   const pareteScritta = useCallback(
@@ -1474,7 +1473,7 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
       setInizioParete(fine);
       setSovrapposizioni({ pareteInCorso: { a: fine, b: fine } });
     },
-    [aggancioDisegno, applica, chiudiDopoParete],
+    [aggancioDisegno, applica, chiudiDopoParete, setInizioParete, setSovrapposizioni],
   );
 
   useEffect(() => {
@@ -1582,9 +1581,9 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
       applica(C.eliminaGruppo(st.presente, gr, v));
       setGruppo(C.gruppoVuoto());
     }
-  }, [applica]);
+  }, [applica, setGruppo, setAvviso]);
   const azioneGruppoRef = useRef(azioneGruppo);
-  azioneGruppoRef.current = azioneGruppo;
+  useLayoutEffect(() => { azioneGruppoRef.current = azioneGruppo; }, [azioneGruppo]);
 
   // il gruppo perde ciò che non c'è più (annulla, cambio di vista o di piano)
   useEffect(() => {
@@ -1763,13 +1762,12 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
 
   // ─── piani ────────────────────────────────────────────────────────────────
   const vaiAlPiano = (id: string, doc: Planimetria = documento, proposta?: string) => {
-    documentoBase.current = doc;
     setAnteprima(null);
     setLivelloId(id);
     const pid = proposta ?? doc.livelli.find((l) => l.id === id)?.proposte[0]?.id ?? ID_PROPOSTA;
     setPropostaId(pid);
     const piantaPiano = daPlanimetria(doc, id, pid);
-    piantaDalDocumento.current = piantaPiano;
+    setBaseDisegno({ documento: doc, pianta: piantaPiano });
     setStoria(nuovaStoria(piantaPiano));
     const destinazione = doc.livelli.find((l) => l.id === id);
     setRicalco(destinazione?.ricalco ?? null);
@@ -1782,7 +1780,7 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
     setTimeout(adatta, 0);
     return piantaPiano;
   };
-  vaiAlPianoRef.current = vaiAlPiano;
+  useLayoutEffect(() => { vaiAlPianoRef.current = vaiAlPiano; }, [vaiAlPiano]);
   const [telaioAperto, setTelaioAperto] = useState(false);
   const creaTelaio = (par: Omit<ParametriTelaio, "origine" | "stato">, suTuttiIPiani: boolean) => {
     const muri = stato.current.storia.presente.muri;
@@ -1797,7 +1795,7 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
       return;
     }
     const lid = livelloId ?? documento.livelli[0].id;
-    const d = aPlanimetria(r.pianta, documentoBase.current, livelloId, propostaId);
+    const d = aPlanimetria(r.pianta, documentoConfermato, livelloId, propostaId);
     const copiato = copiaGruppoSuTuttiIPiani(d, lid, r.elementi, () => C.nuovoId("arredo"));
     vaiAlPiano(lid, copiato.documento, propostaId);
     setAvviso(`Telaio creato su ${copiato.documento.livelli.length} piani, nello stesso punto.`);
@@ -1864,7 +1862,6 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
   const rinominaPropostaCorrente = (nome: string) => {
     if (!livelloCorrente) return;
     const doc = rinominaProposta(documento, livelloCorrente.id, propostaId, nome);
-    documentoBase.current = doc;
     vaiAllaProposta(propostaId, doc);
   };
   const togliPropostaCorrente = () => {
@@ -2206,9 +2203,7 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
                 setPannelloTracciati(true);
               }}>Tracciati impianti</Button>}
             {!sola && strumentiVisibili && <NordPianta nord={documentoConfermato.nord} onCambia={nord => {
-              documentoBase.current = { ...documentoConfermato, nord };
-              piantaDalDocumento.current = storia.presente;
-              aggiornaDocumento(n => n + 1);
+              setBaseDisegno({ documento: { ...documentoConfermato, nord }, pianta: storia.presente });
             }} />}
             {strumentiVisibili && <div className="flex items-center gap-1.5 pl-0.5 text-xs">
               <label htmlFor="ambito-documento-pianta" className="font-medium text-muted-foreground">Ambito</label>
@@ -2363,15 +2358,10 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
           sorgente={sorgenteDocumento ?? (documento.letturaDocumento.sorgente ? undefined : schizzoSessione)} archivio={archivio} solaLettura={soloVista}
           onAggiorna={(d) => {
             if (soloVista) return;
-            documentoBase.current = d;
-            if (d.livelli === documento.livelli) {
-              piantaDalDocumento.current = storia.presente;
-              aggiornaDocumento(v => v + 1);
-            } else {
-              const piantaVerificata = daPlanimetria(d, livelloId, propostaId);
-              piantaDalDocumento.current = piantaVerificata;
-              applica(piantaVerificata);
-            }
+            const stessiLivelli = d.livelli === documento.livelli;
+            const piantaVerificata = stessiLivelli ? storia.presente : daPlanimetria(d, livelloId, propostaId);
+            setBaseDisegno({ documento: d, pianta: piantaVerificata });
+            if (!stessiLivelli) applica(piantaVerificata);
           }}
           onSeleziona={(v) => { setEvidenzaId(v.id); const r = v.riferimento; if (!r) return; if (r.livelloId !== (livelloId ?? documento.livelli[0]?.id)) vaiAlPiano(r.livelloId); setVista("fatto"); setSelezione({ tipo: r.tipo, id: r.oggettoId }); setPannelloAperto(true); }} />}
         <div className={cn("flex min-h-0 min-w-0 flex-1", anteprimaAffiancata && "pl-editor-viste")}>

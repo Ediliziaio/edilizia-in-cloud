@@ -116,6 +116,30 @@ export function posizioniArrediInquadrati(pianta: PiantaPer3D, localeId: string,
     : []);
 }
 
+const NOMI_RENDER_ARREDI: Record<string, string> = {
+  wc: "WC/toilet", bidet: "bidet", lavabo: "washbasin", doccia: "shower enclosure", vasca: "bathtub",
+  lavatrice: "washing machine", scrivania: "desk", libreria: "bookcase", armadio: "wardrobe", letto: "bed",
+  comodino: "nightstand", divano: "sofa", divano_angolare: "corner sofa", poltrona: "armchair", mobile_tv: "TV stand",
+  tavolo: "table", tavolo_rotondo: "round table", sedia: "chair", cucina: "kitchen", cucina_angolare: "corner kitchen",
+  isola_cucina: "kitchen island", frigorifero: "refrigerator",
+};
+
+/** Descrive soltanto gli arredi visibili nella sorgente del render. */
+export function descrizioneArrediInquadrati(pianta: PiantaPer3D, localeId: string, camera: Telecamera3D, aspetto = 1.5): string {
+  const locale = pianta.locali.find(l => l.id === localeId);
+  if (!locale) return "";
+  const oggetti = new Map(ingombri(pianta, locale).map(e => [e.elemento.id, e]));
+  const righe = posizioniArrediInquadrati(pianta, localeId, camera, aspetto).flatMap(p => {
+    const oggetto = oggetti.get(p.id);
+    const nome = oggetto && NOMI_RENDER_ARREDI[oggetto.tipo];
+    if (!oggetto || !nome) return [];
+    return [`${nome}: image centre x=${Math.round(p.x * 100)}%, y=${Math.round(p.y * 100)}%, footprint ${Math.round(oggetto.l * 100)}×${Math.round(oggetto.p * 100)} cm`];
+  });
+  return righe.length
+    ? `AUTHORITATIVE SOURCE FIXTURE POSITIONS: ${righe.join("; ")}. Never swap or move source objects. Preserve partial crops. Do not infer furniture from the room name.`
+    : "";
+}
+
 /** Cerca un punto libero e guarda sanitari/scrivania, senza spostare alcun oggetto. */
 export function vistaInternaArredata(pianta: PiantaPer3D, localeId: string, opzioni: { vista?: Vista3D; aspetto?: number; fov?: number; verticale?: boolean; arredoId?: string } = {}): Telecamera3D {
   const locale = pianta.locali.find((l) => l.id === localeId);

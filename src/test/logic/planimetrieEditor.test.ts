@@ -315,10 +315,10 @@ describe("aggancio del cursore", () => {
   const p = aggiungiStanza(piantaVuota(), rettangolo({ x: 0, y: 0 }, { x: 400, y: 300 })).pianta;
 
   it("si aggancia a un angolo vicino", () => {
-    expect(aggancia(p, { x: 404, y: 296 }, { tolleranza: 10 })).toEqual({ punto: { x: 400, y: 300 }, guida: "angolo" });
+    expect(aggancia(p, { x: 404, y: 296 }, { tolleranza: 10 })).toMatchObject({ punto: { x: 400, y: 300 }, guida: "angolo", ancora: { tipo: "estremo" } });
   });
   it("si aggancia a una parete", () => {
-    const a = aggancia(p, { x: 203, y: 6 }, { tolleranza: 10 });
+    const a = aggancia(p, { x: 203, y: 6 }, { tolleranza: 10, precisione: false });
     expect(a.guida).toBe("parete");
     expect(a.punto).toEqual({ x: 205, y: 0 });
   });

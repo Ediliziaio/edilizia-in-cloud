@@ -196,7 +196,7 @@ export function ChatDisegnoPlanimetria({
   const fileInput = useRef<HTMLInputElement>(null);
   const textarea = useRef<HTMLTextAreaElement | null>(null);
   const testoCorrente = useRef(testo);
-  testoCorrente.current = testo;
+  useEffect(() => { testoCorrente.current = testo; }, [testo]);
   const fondo = useRef<HTMLDivElement>(null);
   const titoloEsito = useRef<HTMLHeadingElement>(null);
   const spostaFocusEsito = useRef(false);
@@ -262,14 +262,15 @@ export function ChatDisegnoPlanimetria({
         saltaAnimazione.current = null;
         spostaFocusEsito.current = false;
         interrompiDettatura();
+        setDetta(false);
+        setFase(null);
+        setRitagliando(false);
+        setRaddrizzando(false);
+        setVerificheAperte(false);
+        setNomeAlternativa(null);
       };
     }
-    setDetta(false);
-    setFase(null);
-    setRitagliando(false);
-    setRaddrizzando(false);
-    setVerificheAperte(false);
-    setNomeAlternativa(null);
+
   }, [aperta, inSilvio]);
 
   useEffect(() => {

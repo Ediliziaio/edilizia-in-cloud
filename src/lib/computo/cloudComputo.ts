@@ -166,7 +166,7 @@ export async function confermaProgettoComputo(
     p_documento: valida, p_quantita: calcolaQuantita(valida), p_bozza_id: id,
     p_revisione_attesa: revision, p_payload: payload, p_totale: totaleElencoComputo(bozza),
   } as never);
-  if (error?.code === "40001") throw new Error("La pianta o il computo è cambiato in un’altra scheda. Riapri la bozza e rivedi la proposta.");
+  if (error?.code === "PT409" || error?.code === "40001") throw new Error("La pianta o il computo è cambiato in un’altra scheda. Riapri la bozza e rivedi la proposta.");
   const riga = (data as unknown as { versione: number; revisione: number; aggiornato_il: string }[] | null)?.[0];
   if (error || !riga) throw new Error("Salvataggio di progetto e computo non riuscito. Controlla la connessione e riprova.");
   return { id, revision: riga.revisione, updatedAt: riga.aggiornato_il, bozza };

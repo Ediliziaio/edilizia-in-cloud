@@ -70,7 +70,7 @@ describe("preparazione del documento", () => {
     api.prepara.mockResolvedValue({ file: new Blob(["png"], { type: "image/png" }), mime: "image/png", larghezza: 1200, altezza: 1200 });
     fireEvent.click(await monta(new File(["heic"], "bagno.HEIC", { type: "image/heic" })));
     await waitFor(() => expect(api.invoke).toHaveBeenCalledWith("planimetria-genera", { body: expect.objectContaining({ mime: "image/png", larghezza: 1200 }) }));
-    expect(api.anteprima).toHaveBeenCalledWith(jpeg, 1, 0, null);
+    expect(api.anteprima).toHaveBeenCalledWith(jpeg, 1, 0, null, { squadra: false });
     expect(api.prepara).toHaveBeenCalledWith(jpeg, 0, undefined, null);
   });
   it("un HEIC non decodificabile non avvia l'AI e non consuma un credito", async () => {
