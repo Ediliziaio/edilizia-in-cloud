@@ -51,7 +51,7 @@ import { cn } from "@/lib/utils";
 import { formatCount } from "@/lib/formatters";
 import { CercaConFiltri, GruppoFiltri, PannelloFiltri, PilloleFiltro, SceltaFiltro } from "@/components/mobile/FiltriMobile";
 import { CreateListDialog } from "@/components/marketing/CreateListDialog";
-import { cleanPhone } from "@/lib/contactUtils";
+import { formeTelefono, telefonoInternazionale } from "@/lib/contactUtils";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -667,7 +667,7 @@ function MarketingOpportunitiesContent() {
               const firstName = r.contact_first_name?.trim() || "Senza nome";
               const lastName = r.contact_last_name?.trim() || null;
               const email = r.contact_email?.trim().toLowerCase() || null;
-              const phone = r.contact_phone?.trim() ? cleanPhone(r.contact_phone) : null;
+              const phone = r.contact_phone?.trim() ? telefonoInternazionale(r.contact_phone) : null;
               const value = r.value?.trim() ? Number(r.value) : 0;
               if (!Number.isFinite(value) || value < 0) {
                 throw new Error("Valore economico non valido");
@@ -679,7 +679,7 @@ function MarketingOpportunitiesContent() {
                 if (found) contactId = found.id;
               }
               if (!contactId && phone) {
-                const { data: found } = await supabase.from("marketing_contacts").select("id").eq("company_id", companyId).eq("phone", phone).limit(1).maybeSingle();
+                const { data: found } = await supabase.from("marketing_contacts").select("id").eq("company_id", companyId).in("phone", formeTelefono(phone)).limit(1).maybeSingle();
                 if (found) contactId = found.id;
               }
               if (!contactId) {

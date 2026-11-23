@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import type { ImportField } from "@/components/shared/CSVImportDialog";
+import { campiObbligatoriMancanti, nomeCampoObbligatorio, type ImportField } from "@/components/shared/CSVImportDialog";
 import type { ObjectType } from "./StepStart";
 
 interface StepMapProps {
@@ -25,8 +25,7 @@ export function StepMap({
   const previewRows = fileRows.slice(0, 3);
 
   const missingRequired = useMemo(() => {
-    const mappedKeys = new Set(Object.values(mapping));
-    return fields.filter((f) => f.required && !mappedKeys.has(f.key));
+    return campiObbligatoriMancanti(fields, mapping);
   }, [mapping, fields]);
 
   const unmappedCount = fileHeaders.filter((h) => !mapping[h]).length;
@@ -52,7 +51,7 @@ export function StepMap({
         <div className="flex items-start gap-2 text-sm text-destructive bg-destructive/10 rounded-lg p-3">
           <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
           <span>
-            Campi obbligatori non mappati: {missingRequired.map((f) => f.label).join(", ")}
+            Campi obbligatori non mappati: {missingRequired.map((f) => nomeCampoObbligatorio(f, fields)).join(", ")}
           </span>
         </div>
       )}

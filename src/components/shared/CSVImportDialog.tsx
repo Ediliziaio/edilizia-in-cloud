@@ -17,6 +17,20 @@ export interface ImportField {
   label: string;
   required: boolean;
   type?: "text" | "number" | "date" | "email";
+  /** Campi che, se mappati, valgono come questo (es. «Nome completo» al posto di «Nome»). */
+  oppure?: string[];
+}
+
+/** I campi obbligatori ancora da mappare: uno con alternative è a posto se ne è mappata una. */
+export function campiObbligatoriMancanti(fields: ImportField[], mapping: Record<string, string>): ImportField[] {
+  const mappati = new Set(Object.values(mapping));
+  return fields.filter((f) => f.required && !mappati.has(f.key) && !(f.oppure ?? []).some((k) => mappati.has(k)));
+}
+
+/** Come si chiama un campo obbligatorio nell'avviso: con le sue alternative. */
+export function nomeCampoObbligatorio(f: ImportField, fields: ImportField[]): string {
+  const alternative = (f.oppure ?? []).map((k) => fields.find((x) => x.key === k)?.label).filter(Boolean);
+  return alternative.length ? `${f.label} (oppure ${alternative.join(", ")})` : f.label;
 }
 
 export interface CSVImportDialogProps {
@@ -170,8 +184,7 @@ export function CSVImportDialog({ open, onOpenChange, title, fields, onImport, n
 
   // Validation: check required fields are mapped
   const missingRequired = useMemo(() => {
-    const mappedKeys = new Set(Object.values(mapping));
-    return fields.filter((f) => f.required && !mappedKeys.has(f.key));
+    return campiObbligatoriMancanti(fields, mapping);
   }, [mapping, fields]);
 
   const canImport = missingRequired.length === 0 && fileRows.length > 0;
@@ -291,7 +304,7 @@ export function CSVImportDialog({ open, onOpenChange, title, fields, onImport, n
                   <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
                   <span>
                     Campi obbligatori non mappati:{" "}
-                    {missingRequired.map((f) => f.label).join(", ")}
+                    {missingRequired.map((f) => nomeCampoObbligatorio(f, fields)).join(", ")}
                   </span>
                 </div>
               )}

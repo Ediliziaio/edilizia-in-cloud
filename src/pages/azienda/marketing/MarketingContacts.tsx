@@ -22,7 +22,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { ContactsTable, type MarketingContact, type SortField, type SortDirection, loadVisibleColumns, saveVisibleColumns, getStorageKey } from "@/components/marketing/ContactsTable";
 import { getInitials, getAvatarColor, formatContactDate } from "@/lib/contactUtils";
 import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
-import { cleanPhone } from "@/lib/contactUtils";
+import { cleanPhone, formeTelefono, telefonoInternazionale } from "@/lib/contactUtils";
 import { ContactDialog, type ContactFormData } from "@/components/marketing/ContactDialog";
 import { DeleteContactsDialog, type ContactLinks } from "@/components/marketing/DeleteContactsDialog";
 import { ContactListsView } from "@/components/marketing/ContactListsView";
@@ -56,7 +56,7 @@ import { cn } from "@/lib/utils";
 import { CercaConFiltri, PannelloFiltri, PilloleFiltro, RigaMobile } from "@/components/mobile/FiltriMobile";
 // Map filter field keys to actual DB columns
 const CSV_FIELDS: ImportField[] = [
-  { key: "first_name", label: "Nome", required: true },
+  { key: "first_name", label: "Nome", required: true, oppure: ["fullname"] },
   { key: "last_name", label: "Cognome", required: false },
   { key: "fullname", label: "Nome Completo", required: false },
   { key: "phone", label: "Telefono", required: false },
@@ -1441,7 +1441,7 @@ export default function MarketingContacts() {
           company_id: companyId,
           first_name: firstName || "Senza nome",
           last_name: lastName || null,
-          phone: phone ? cleanPhone(phone) : null,
+          phone: phone ? telefonoInternazionale(phone) : null,
           email: email,
           company_name: r.company_name?.trim() || null,
           city: r.city?.trim() || null,
@@ -1540,8 +1540,9 @@ export default function MarketingContacts() {
       }
 
       if (phones.length > 0) {
-        for (let i = 0; i < phones.length; i += 100) {
-          const batch = phones.slice(i, i + 100);
+        // Lo stesso numero può essere salvato con o senza +39: si cercano tutte le forme.
+        for (let i = 0; i < phones.length; i += 20) {
+          const batch = phones.slice(i, i + 20).flatMap(formeTelefono);
           const { data: existing, error } = await supabase
             .from("marketing_contacts")
             .select("id, phone")
@@ -1550,7 +1551,7 @@ export default function MarketingContacts() {
           if (error) return { success: 0, errors: [...errors, "Impossibile verificare i contatti esistenti. Riprova l’importazione."] };
           for (const e of existing || []) {
             if (e.phone) {
-              existingMap.set(`phone:${e.phone}`, e.id);
+              existingMap.set(`phone:${telefonoInternazionale(e.phone)}`, e.id);
             }
           }
         }

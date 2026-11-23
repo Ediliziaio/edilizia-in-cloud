@@ -9,7 +9,7 @@ import { StepUpload, type ImportMode } from "./import-wizard/StepUpload";
 import { StepMap } from "./import-wizard/StepMap";
 import { StepReview } from "./import-wizard/StepReview";
 import { PAGINA_IMPORTAZIONE } from "./import-wizard/useImportaDaUrl";
-import type { ImportField } from "./CSVImportDialog";
+import { campiObbligatoriMancanti, type ImportField } from "./CSVImportDialog";
 
 export interface ImportWizardProps {
   open: boolean;
@@ -137,8 +137,7 @@ export function ImportWizard({
   }, [fields]);
 
   const missingRequired = useMemo(() => {
-    const mappedKeys = new Set(Object.values(mapping));
-    return fields.filter((f) => f.required && !mappedKeys.has(f.key));
+    return campiObbligatoriMancanti(fields, mapping);
   }, [mapping, fields]);
 
   const canNext = (s: number) => {

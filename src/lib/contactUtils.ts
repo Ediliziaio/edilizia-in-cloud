@@ -38,6 +38,34 @@ export function cleanPhone(phone: string): string {
   return phone.replace(/[\s\-.]/g, "");
 }
 
+/**
+ * Il numero col prefisso internazionale (+39…), come lo vogliono WhatsApp e SMS:
+ * «333 123 4567», «0039 333…» e «39333…» diventano «+39333…». Un numero che non si
+ * riconosce resta com'è, solo ripulito: meglio un numero da controllare che uno perso.
+ */
+export function telefonoInternazionale(phone: string): string {
+  const pulito = cleanPhone(phone).replace(/[()]/g, "");
+  const cifre = pulito.replace(/\D/g, "");
+  if (!cifre) return pulito;
+  if (pulito.startsWith("+")) return `+${cifre}`;
+  if (cifre.startsWith("00")) return `+${cifre.slice(2)}`;
+  if (/^(3\d{8,9}|0\d{5,10})$/.test(cifre)) return `+39${cifre}`;
+  if (/^39(3\d{8,9}|0\d{5,10})$/.test(cifre)) return `+${cifre}`;
+  return pulito;
+}
+
+/** Le forme in cui lo stesso numero può essere già salvato, per ritrovare il contatto. */
+export function formeTelefono(phone: string): string[] {
+  const internazionale = telefonoInternazionale(phone);
+  const forme = new Set([internazionale, cleanPhone(phone)]);
+  if (internazionale.startsWith("+")) {
+    forme.add(internazionale.slice(1));
+    forme.add(`00${internazionale.slice(1)}`);
+    if (internazionale.startsWith("+39")) forme.add(internazionale.slice(3));
+  }
+  return [...forme];
+}
+
 // ── Shared types ──
 
 export interface CustomFieldDef {
