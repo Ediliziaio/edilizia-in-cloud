@@ -20,6 +20,7 @@ import { areaDaPercorso, ruoloEffettivoPerArea, areeDisponibili as calcolaAree, 
 import type { AppArea } from "@/lib/auth/aree";
 import { userErrorMessage } from "@/lib/userErrorMessage";
 import { quandoSiRiapre } from "@/lib/sicurezza/accessiBloccati";
+import { credenzialiNonValide } from "@/lib/auth/erroriLogin";
 import { erroreImpersonazione } from "@/lib/auth/erroreImpersonazione";
 import { avvisaAltreSchede } from "@/lib/auth/aziendaServer";
 import { avviaIntervalloVisibile } from "@/lib/intervalloVisibile";
@@ -1377,27 +1378,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const security = await checkLoginSecurity(email);
       if (security && security.allowed === false) {
         if (security.reason === "account_locked") {
-          // Il blocco è sulla coppia (email, rete di provenienza), non
-          // sull'account: va detto, altrimenti la gente passa ore a cercare la
-          // password giusta mentre basterebbe il telefono. Il 09/11/2026 è
-          // costato mezza giornata a un'azienda.
           const fino = quandoSiRiapre(security.locked_until);
+          const attesa = fino ? ` Il blocco scade il ${fino}.` : "";
           return {
-            error: new Error(
-              [
-                "Troppe password sbagliate da questo computer.",
-                fino
-                  ? `Non è la password: è l'accesso da questa rete a essere bloccato, fino al ${fino}.`
-                  : "Non è la password: è l'accesso da questa rete a essere bloccato.",
-                "Dal telefono con la rete dati entri subito, oppure chiedi a un amministratore di sbloccarlo da Impostazioni → Accessi e sessioni.",
-              ].join(" "),
+            error: Object.assign(
+              new Error(`Accesso temporaneamente bloccato da questa rete.${attesa} Se ti serve assistenza, contatta un amministratore della tua azienda.`),
+              { code: "account_locked" },
             ),
           };
         }
         if (security.reason === "ip_not_allowed") {
           return {
-            error: new Error(
-              "Accesso non consentito da questa rete. La tua azienda ha limitato l'accesso a indirizzi IP specifici.",
+            error: Object.assign(
+              new Error("Accesso non consentito da questa rete. La tua azienda ha limitato l’accesso a indirizzi IP specifici."),
+              { code: "ip_not_allowed" },
             ),
           };
         }
@@ -1420,9 +1414,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }, 25_000);
         }),
       ]);
-      // L'esito alimenta il contatore dei tentativi falliti: senza questo il
-      // blocco anti-forza-bruta non potrebbe mai scattare.
-      recordLoginOutcome(email, !error);
+      // Il blocco per tentativi falliti conta i rifiuti delle credenziali, non i guasti del servizio.
+      if (!error || credenzialiNonValide(error)) recordLoginOutcome(email, !error);
       return { error: error as Error | null };
     } catch (err) {
       if (signInTimerId) clearTimeout(signInTimerId);
