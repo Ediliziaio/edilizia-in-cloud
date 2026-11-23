@@ -181,6 +181,7 @@ async function proponiLavorazioni(db: Db, companyId: string, userId: string, pos
   if (!descrizione.trim() && !fasi.length && !fonti.computo) {
     throw errorResponse("Descrivi prima le lavorazioni, aggiungi le fasi alla commessa oppure collega il computo.", 422, cors);
   }
+  // fonti.avvisi nomina anche le voci del computo lasciate fuori dal perimetro (preparaContestoAiPos).
   const avvisi = [computo.avviso, psc.avviso, ...fonti.avvisi,
     !perimetroEsplicito && tutteFasi.length > fasi.length ? "La proposta considera le prime 80 fasi. Seleziona un gruppo di fasi per esaminare le altre." : "",
   ].filter((x): x is string => !!x);

@@ -31,6 +31,33 @@ const genera = () => applicaFontiProposteAiPos([
 ], "test", fonti(), usa);
 
 describe("fonti delle schede POS", () => {
+  it("dice quali voci del computo restano fuori dal perimetro, con il loro nome", () => {
+    expect(fonti().avvisi).toContain("Una voce del computo non è abbinata alle fasi scelte e la proposta non l’ha considerata: «DM-10.01 Quadro elettrico generale». Se la esegue la tua impresa, aggiungi la sua fase al perimetro o scegli i capitoli del computo.");
+    const serramenti: ComputoPerPos = { id: "cm-2", titolo: "Computo condominio", stato: "contrattuale", voci: [
+      { id: "s1", codice: "SR.01", capitolo: "Serramenti", titolo: "Rimozione di serramento esistente in legno" },
+      { id: "s2", codice: "SR.03", capitolo: "Movimentazioni", titolo: "Movimentazione dei materiali al piano con mezzi idonei o a mano" },
+      { id: "s3", codice: "SR.02", capitolo: "Serramenti", titolo: "Fornitura e posa di serramento in PVC" },
+    ] };
+    const contesto = preparaContestoAiPos({ fasi: [{ id: "f2", name: "Rimozione serramenti esistenti" }, { id: "f3", name: "Movimentazione materiali al piano" }],
+      ambito: "", descrizione: "", limitaAlPerimetro: true, computo: serramenti, psc: null });
+    expect(contesto.computo?.voci.map(v => v.id)).toEqual(["s1", "s3"]);
+    expect(contesto.avvisi.join(" ")).toContain("«SR.03 Movimentazione dei materiali al piano con mezzi idonei o a mano»");
+    const molte: ComputoPerPos = { ...serramenti, voci: [serramenti.voci[0], ...Array.from({ length: 7 }, (_, i) => ({ id: `q${i}`, codice: `EL.${i}`, capitolo: "Elettrico", titolo: `Quadro ${i}` }))] };
+    const avviso = preparaContestoAiPos({ fasi: [{ id: "f2", name: "Rimozione serramenti esistenti" }], ambito: "", descrizione: "",
+      limitaAlPerimetro: true, computo: molte, psc: null }).avvisi.find(a => a.includes("non sono abbinate"));
+    expect(avviso).toMatch(/^7 voci del computo .*«EL\.4 Quadro 4» e altre 2\. Se le esegue/);
+  });
+
+  it("non segnala voci escluse quando non c’è un perimetro o i capitoli li ha scelti l’utente", () => {
+    const senzaPerimetro = preparaContestoAiPos({ fasi: [{ id: "P04", name: "Serramenti e vetrazioni" }], ambito: "", descrizione: "",
+      limitaAlPerimetro: false, computo, psc: null });
+    expect(senzaPerimetro.computo?.voci.map(v => v.id)).toEqual(["v1", "v2"]);
+    expect(senzaPerimetro.avvisi.some(a => a.includes("non è abbinata"))).toBe(false);
+    const capitoli = preparaContestoAiPos({ fasi: [], ambito: "", descrizione: "", limitaAlPerimetro: true, computo, psc: null, capitoli: ["Serramenti"] });
+    expect(capitoli.computo?.voci.map(v => v.id)).toEqual(["v1"]);
+    expect(capitoli.avvisi.some(a => a.includes("non è abbinata"))).toBe(false);
+  });
+
   it("propone il solo perimetro e associa soltanto voci ed estratti presenti nelle fonti", () => {
     expect(fonti().computo?.voci.map(v => v.id)).toEqual(["v1"]);
     const [lavorazione] = genera();

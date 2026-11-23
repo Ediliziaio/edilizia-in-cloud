@@ -48,6 +48,17 @@ export function preparaContestoAiPos(dati: {
   const avvisi: string[] = [];
   if (voci.length > MAX_VOCI_PROMPT) avvisi.push(`Il computo ha ${voci.length} voci pertinenti. La proposta usa le prime ${MAX_VOCI_PROMPT}; scegli un gruppo di fasi per approfondire.`);
   if (dati.limitaAlPerimetro && dati.computo && !voci.length) avvisi.push("Nessuna voce del computo abbinata al perimetro indicato.");
+  // Una voce che il perimetro non aggancia per parole chiave resta fuori dalla proposta: va detto, e con il nome.
+  // Senza questo avviso «Movimentazione dei materiali al piano» spariva accanto alle fasi dei serramenti (23/11/2026).
+  const vociNonAbbinate = dati.limitaAlPerimetro && !dati.capitoli?.length && voci.length
+    ? (dati.computo?.voci ?? []).filter(v => !voci.includes(v)) : [];
+  if (vociNonAbbinate.length) {
+    const nomi = vociNonAbbinate.slice(0, 5).map(v => `«${[v.codice, v.titolo.slice(0, 80)].filter(Boolean).join(" ")}»`).join(", ");
+    const altre = vociNonAbbinate.length > 5 ? ` e altre ${vociNonAbbinate.length - 5}` : "";
+    avvisi.push(vociNonAbbinate.length === 1
+      ? `Una voce del computo non è abbinata alle fasi scelte e la proposta non l’ha considerata: ${nomi}. Se la esegue la tua impresa, aggiungi la sua fase al perimetro o scegli i capitoli del computo.`
+      : `${vociNonAbbinate.length} voci del computo non sono abbinate alle fasi scelte e la proposta non le ha considerate: ${nomi}${altre}. Se le esegue la tua impresa, aggiungi le loro fasi al perimetro o scegli i capitoli del computo.`);
+  }
   if (dati.computo?.stato === "bozza" && voci.length) avvisi.push("Il computo collegato è ancora in bozza: verifica voci e quantità.");
   const vociRidotte = voci.slice(0, MAX_VOCI_PROMPT);
   const schede = suggerisciSchedePos([
