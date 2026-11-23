@@ -55,7 +55,7 @@ describe("lotto e aree esterne", () => {
     const doc = aPlanimetria(villetta(), nuovaPlanimetria("V"));
     const s = costruisciScena(pianteDaPlanimetria(doc).fatto, { vista: "fatto" });
     const mat = new Set(s.mesh.filter((m) => m.id.startsWith("area:")).map((m) => m.materiale));
-    expect([...mat].sort()).toEqual(["pietra", "prato", "recinzione"]);
+    expect([...mat].sort()).toEqual(["grafite", "pietra", "prato", "recinzione"]);
     expect(s.limiti.max[0] - s.limiti.min[0]).toBeGreaterThan(29);
   });
   it("nei disegni: layer ESTERNI con il confine tratteggiato e il nome con i mq", () => {

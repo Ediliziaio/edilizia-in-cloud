@@ -85,13 +85,20 @@ Sulla tela vera sono una ogni 7,5 cm, misurate sui pixel.
   rilievo; sole più deciso nella vista da fuori, così le ombre staccano.
   ![piscina](piano-3d-planimetrie-immagini/dopo-esterno-piscina.jpg)
 
+- **Lotto 4, verde e recinzione.** In chat: «arreda il giardino» mette la siepe sui lati liberi del prato e fino
+  a tre alberi negli angoli lontani dalla casa; «siepe intorno al giardino», «alberi in giardino» e
+  «recinzione intorno al giardino» fanno una cosa sola. Niente finisce sopra piscina, auto o altri oggetti, né
+  contro i muri di casa; i metri di siepe scritti in chat sono la somma dei pezzi posati. Con anteprima e
+  annulla, come gli altri comandi. Nel 3D gli alberi hanno tronco e chioma a più masse, la siepe ha i ciuffi,
+  la recinzione ha muretto, pali e rete e salta i tratti lungo la casa.
+  ![verde](piano-3d-planimetrie-immagini/dopo-esterno-verde.jpg)
+
 ### Solo impostato o non fatto
 
 - **Inquadratura della camera**: parte ancora con mezzo fotogramma coperto. Ho provato una correzione al
   punteggio della telecamera, non ha cambiato il risultato e l'ho tolta. Va capito cosa copre la vista.
-- **Esterni (lotto 4), il resto**: siepe e recinzione sul confine, alberi, prato con fili d'erba veri e cielo
-  nella vista «Gira intorno» dello Studio (oggi lo sfondo è grigio per scelta) non sono fatti. «Arreda» non
-  lavora sulle aree esterne disegnate (prato, patio), solo sulle stanze.
+- **Esterni, il resto**: cielo nella vista «Gira intorno» dello Studio (oggi lo sfondo è grigio per scelta),
+  prato con fili d'erba veri, percorsi e luci da giardino posati da soli.
 - **Finiture chieste in chat (lotto 5)**: «arreda …» in chat c'era già e ora fa di più; i comandi per le
   finiture («parquet a spina in soggiorno», «gres in diagonale in bagno») non sono stati scritti: si fanno
   dallo Studio. Il file dei comandi (`editor/comandiChat.ts`) ha modifiche non pubblicate di un'altra sessione.

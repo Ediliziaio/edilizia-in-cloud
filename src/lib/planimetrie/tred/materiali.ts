@@ -117,6 +117,8 @@ export const MATERIALI: Record<string, Materiale3D> = {
   bordo_travertino: { nome: "Travertino", colore: "#c8b393", opacita: 1, ruvidita: .73, tessitura: { trama: "travertino", metri: [1.4, 1.4], tinta: "#ffffff" } },
   bordo_ardesia: { nome: "Ardesia", colore: "#45484d", opacita: 1, ruvidita: .83 },
   fogliame: { nome: "Fogliame", colore: "#4f7f3a", opacita: 1, ruvidita: 1 },
+  fogliame_chiaro: { nome: "Fogliame, getti nuovi", colore: "#6f9c48", opacita: 1, ruvidita: 1 },
+  corteccia: { nome: "Corteccia", colore: "#6a5340", opacita: 1, ruvidita: .9 },
   corteccia_olivo: { nome: "Corteccia dell’olivo", colore: "#78674f", opacita: 1, ruvidita: .84 },
   foglie_olivo: { nome: "Foglie d’olivo", colore: "#626f36", opacita: 1, ruvidita: .78, doppioLato: true },
   foglie_olivo_chiare: { nome: "Foglie d’olivo argentate", colore: "#899166", opacita: 1, ruvidita: .71, doppioLato: true },

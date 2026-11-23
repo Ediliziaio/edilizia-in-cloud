@@ -15,6 +15,7 @@ import type { V3 } from "./tipi";
 import type { AttaccoDoccia3D } from "./doccia";
 import { costruisciDivanoLino } from "./divanoLino";
 import { costruisciOlivo } from "./olivo";
+import { costruisciAlbero, costruisciSiepe } from "./verde";
 import { costruisciQuadro, costruisciScaldasalviette, costruisciTenda } from "./decorazioni";
 
 export interface Blocco {
@@ -1334,6 +1335,8 @@ export function costruisciElemento(
     return;
   }
   if (modello === MODELLI.albero && variante === "olivo") return costruisciOlivo(l, p, h || 3.5, centro, rotazione, costruttore);
+  if (modello === MODELLI.albero) return costruisciAlbero(l, p, h, centro, rotazione, costruttore);
+  if (modello === MODELLI.siepe) return costruisciSiepe(l, p, h, centro, rotazione, costruttore);
   if (modello === MODELLI.divano && variante === "lino_base_rovere") return costruisciDivanoLino(l, p, h, centro, rotazione, costruttore);
   if (modello === MODELLI.letto && (variante === "lino_trapuntato" || variante === "cassettoni") && l > .4 && p > .8) {
     return lettoInLino(l, p, h, centro, rotazione, costruttore, variante === "cassettoni");

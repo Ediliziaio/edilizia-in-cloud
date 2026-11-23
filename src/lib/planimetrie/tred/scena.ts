@@ -541,22 +541,49 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
   for (const a of pianta.aree ?? []) {
     const contorno = pulisciPoligono(a.contorno.map((p) => v2(p.x * CM, p.y * CM)));
     if (contorno.length < 3) continue;
-    if (a.tipo === "lotto") {
-      if (a.recinzione === false) continue;
+    // Recinzione: sempre sul lotto (salvo che sia tolta), sulle altre aree solo se chiesta. Muretto, pali ogni
+    // due metri circa e rete; i lati appoggiati alla casa restano liberi.
+    if (a.tipo === "lotto" ? a.recinzione !== false : a.recinzione === true) {
       const muretto = new CostruttoreMesh();
       const rete = new CostruttoreMesh();
+      const pali = new CostruttoreMesh();
       contorno.forEach((p, i) => {
         const q = contorno[(i + 1) % contorno.length];
         const l = Math.hypot(q.x - p.x, q.y - p.y);
         if (l < 0.05) return;
         const rot = Math.atan2(q.y - p.y, q.x - p.x);
-        muretto.scatola((p.x + q.x) / 2, (p.y + q.y) / 2, 0, l, 0.2, 0.3, rot);
-        rete.scatola((p.x + q.x) / 2, (p.y + q.y) / 2, 0.3, l, 0.03, 1.2, rot);
+        // il lato si guarda a pezzi di un metro circa: dove corre lungo un muro della casa la recinzione non c'è
+        const pezzi = Math.max(1, Math.ceil(l));
+        const controCasa = (k: number) => {
+          const x = p.x + (q.x - p.x) * (k + .5) / pezzi, y = p.y + (q.y - p.y) * (k + .5) / pezzi;
+          return a.tipo !== "lotto" && muri.some((m) => {
+            const t = Math.max(0, Math.min(m.lunghezza, (x - m.a.x) * m.d.x + (y - m.a.y) * m.d.y));
+            return Math.hypot(x - (m.a.x + m.d.x * t), y - (m.a.y + m.d.y * t)) < m.spessore / 2 + .6;
+          });
+        };
+        for (let k = 0; k < pezzi;) {
+          if (controCasa(k)) { k++; continue; }
+          let fine = k;
+          while (fine + 1 < pezzi && !controCasa(fine + 1)) fine++;
+          const t0 = k / pezzi, t1 = (fine + 1) / pezzi, lungo = l * (t1 - t0);
+          const mx = p.x + (q.x - p.x) * (t0 + t1) / 2, my = p.y + (q.y - p.y) * (t0 + t1) / 2;
+          muretto.scatola(mx, my, 0, lungo, 0.2, 0.3, rot);
+          rete.scatola(mx, my, 0.3, lungo, 0.03, 1.2, rot);
+          const campate = Math.max(1, Math.round(lungo / 2));
+          for (let j = 0; j <= campate; j++) {
+            const t = t0 + (t1 - t0) * j / campate;
+            pali.scatola(p.x + (q.x - p.x) * t, p.y + (q.y - p.y) * t, 0.3, .05, .05, 1.26, rot);
+          }
+          k = fine + 1;
+        }
       });
-      mesh.push(muretto.mesh({ id: `area:${a.id}:muretto`, nome: "Recinzione (muretto)", genere: "elemento", materiale: "pietra", riferimento: a.id }));
-      mesh.push(rete.mesh({ id: `area:${a.id}:rete`, nome: "Recinzione (rete)", genere: "elemento", materiale: "recinzione", riferimento: a.id }));
-      continue;
+      if (!muretto.vuoto()) {
+        mesh.push(muretto.mesh({ id: `area:${a.id}:muretto`, nome: "Recinzione (muretto)", genere: "elemento", materiale: "pietra", riferimento: a.id }));
+        mesh.push(rete.mesh({ id: `area:${a.id}:rete`, nome: "Recinzione (rete)", genere: "elemento", materiale: "recinzione", riferimento: a.id }));
+        mesh.push(pali.mesh({ id: `area:${a.id}:pali`, nome: "Recinzione (pali)", genere: "elemento", materiale: "grafite", riferimento: a.id }));
+      }
     }
+    if (a.tipo === "lotto") continue;
     const c = new CostruttoreMesh();
     const q = (a.quota ?? 0) * CM;
     superficieConScavi(c, contorno, q + (a.tipo === "aiuola" ? 0.08 : 0.004), scaviPiscine);

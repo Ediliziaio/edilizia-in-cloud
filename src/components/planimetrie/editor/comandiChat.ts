@@ -12,6 +12,7 @@ import { aggiornaQuote, aperturaNellaVista, aPlanimetria, capovolgi, contornoInt
 import { arredaStanza, impiantoElettrico, type EsitoArreda } from "./arreda";
 import { CATALOGO } from "./catalogo";
 import * as C from "./comandi";
+import { arredaGiardino, pratiDelGiardino } from "./arredaGiardino";
 import { direzione, dist, proiettaSuMuro, puntoSulMuro, sulSegmento } from "./geometria";
 import { leggiMisura } from "./misure";
 import type { Selezione, SfondoRicalco } from "./TelaPlanimetria";
@@ -582,6 +583,28 @@ function arredamentoEImpianti(pianta: Pianta, vista: C.Vista, istruzione: string
 const areeChat: Record<string, TipoArea | undefined> = { prato: "prato", giardino: "prato", patio: "pavimentato", terrazzo: "pavimentato",
   pavimentazione: "pavimentato", vialetto: "vialetto", aiuola: "aiuola", parcheggio: "parcheggio", cortile: "pavimentato" };
 
+/** «Arreda il giardino», «siepe intorno al giardino», «alberi in giardino», «recinzione intorno al prato». */
+function verdeDelGiardino(pianta: Pianta, vista: C.Vista, istruzione: string): PassoChatDisegno | null {
+  const t = chiave(istruzione);
+  const luogo = String.raw`(?:(?:intorno|attorno|lungo|in|nel|sul|al|del)\s+)?(?:al\s+|il\s+|del\s+)?(?:giardino|prato|confine)`;
+  const tutto = new RegExp(String.raw`^arreda\s+(?:il\s+)?(?:giardino|prato|esterno|verde)$`, "u").test(t);
+  const cosa = new RegExp(String.raw`^(?:metti\s+|aggiungi\s+)?(?:una\s+|la\s+|gli\s+|degli\s+)?(siepe|siepi|alberi|albero|recinzione|recinto)\s+${luogo}$`, "u").exec(t)?.[1];
+  if (!tutto && !cosa) return null;
+  // senza un prato disegnato «arreda giardino» resta il comando delle stanze (un locale chiamato Giardino)
+  if (tutto && !pratiDelGiardino(pianta, vista).length) return null;
+  if (!pratiDelGiardino(pianta, vista).length) throw new Error("Disegna prima il prato, ad esempio «Giardino 12 × 10 m a destra della casa».");
+  const esito = arredaGiardino(pianta, vista, tutto ? { siepe: true, alberi: true }
+    : { siepe: cosa!.startsWith("siep"), alberi: cosa!.startsWith("alber"), recinzione: cosa!.startsWith("recin") });
+  const parti = [
+    ...(esito.siepeM ? ["siepe " + esito.siepeM.toLocaleString("it-IT", { maximumFractionDigits: 1 }) + " m"] : []),
+    ...(esito.alberi ? [esito.alberi === 1 ? "1 albero" : esito.alberi + " alberi"] : []),
+    ...(esito.recintate ? ["recinzione sul confine del prato"] : []),
+  ];
+  if (!parti.length) throw new Error(cosa?.startsWith("recin") ? "Il prato è già recintato." : "Nel giardino c’è già, oppure non c’è posto libero lungo il confine.");
+  return { pianta: esito.pianta, evidenza: { tipo: "area", id: esito.aree[0] }, testo: "Giardino · " + parti.join(" · "),
+    daVerificare: "Controlla le distanze dal confine: siepi e alberi hanno distanze minime dal vicino (art. 892 del Codice civile, salvo regolamenti locali)." };
+}
+
 function areaEsterna(pianta: Pianta, vista: C.Vista, istruzione: string): PassoChatDisegno | null {
   const richiesta = new RegExp(String.raw`^(${Object.keys(areeChat).join("|")})\s+(?:di\s+)?${COPPIA.source}\s+(.+)$`, "iu").exec(istruzione);
   if (!richiesta) return null;
@@ -792,7 +815,7 @@ export function eseguiComandoChat(pianta: Pianta, vista: C.Vista, frase: string,
       : fabbricato ? "Render 3D dell’edificio" : "Render 3D · Tutta la casa",
       vistaRichiesta: treD ? "3d" : richiestaRender(fabbricato ? "render-edificio" : "render") };
   }
-  const progetto = aggiungiZanzariera(pianta, vista, istruzione) ?? arredamentoEImpianti(pianta, vista, istruzione, contesto) ?? areaEsterna(pianta, vista, istruzione);
+  const progetto = aggiungiZanzariera(pianta, vista, istruzione) ?? verdeDelGiardino(pianta, vista, istruzione) ?? arredamentoEImpianti(pianta, vista, istruzione, contesto) ?? areaEsterna(pianta, vista, istruzione);
   if (progetto) return progetto;
   const apertura = spostaPorta(pianta, vista, istruzione) ?? aggiungiApertura(pianta, vista, istruzione, contesto);
   if (apertura) return apertura;
