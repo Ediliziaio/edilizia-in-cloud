@@ -783,18 +783,19 @@ export function AppointmentDialog({
     };
   }, [assignedTo, orderOperationalUserIds, selectedAssignee, selectedOrder, selectedOrderTeam]);
 
+  const mioId = user?.id;
   const assigneeOptions = useMemo<SearchableOption[]>(() => [
     { value: "none", label: "Nessun assegnatario" },
     // Chi crea l'appuntamento c'è sempre, anche se non è tra operai e tecnici: dal proprio
     // calendario l'appuntamento nasce suo, e il campo diceva «Nessun assegnatario».
-    ...(user?.id && !assignableUsers.some((u) => u.id === user.id) ? [{ value: user.id, label: "Io" }] : []),
+    ...(mioId && !assignableUsers.some((u) => u.id === mioId) ? [{ value: mioId, label: "Io" }] : []),
     ...assignableUsers.map((persona) => ({
       value: persona.id,
       label: getUserName(persona),
       description: persona.roles?.map((ruolo) => RUOLI_LEGGIBILI[ruolo] ?? etichettaCodice(ruolo)).join(", ") || undefined,
       badge: persona.roles?.includes("subcontractor") ? "Subapp." : persona.roles?.includes("employee") ? "Operaio" : undefined,
     })),
-  ], [assignableUsers, user?.id]);
+  ], [assignableUsers, mioId]);
 
   const orderOptions = useMemo<SearchableOption[]>(() => [
     { value: "none", label: "Nessuna commessa" },
