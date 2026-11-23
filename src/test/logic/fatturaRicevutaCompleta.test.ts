@@ -56,6 +56,30 @@ function catalogoSchema() {
 }
 
 describe('Copia leggibile completa dell’XML del fornitore', () => {
+  it('mantiene i dati fiscali nel PDF sintetico ed esclude trasmissione e appendice XML', async () => {
+    const pdf = await getDocument({
+      data: new Uint8Array(await generaPdfFatturaXml(completa(), { indiceCorpo: 0, direzione: 'ricevuta', versione: 'sintetico' })),
+      useSystemFonts: true,
+    }).promise;
+    try {
+      const pagine: string[] = [];
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const pagina = await pdf.getPage(i);
+        const { items } = await pagina.getTextContent();
+        pagine.push(items.map(x => 'str' in x ? x.str : '').join(' '));
+      }
+      const testo = pagine.join(' ').replace(/\s+/g, ' ');
+      for (const valore of [
+        'TEST-COMPLETA', 'Fornitura di prova', '175,49', '38,61', '214,10', 'CAUSALE COMPLETA',
+        'Importo del bollo', 'Importo della ritenuta', 'Contributo cassa', 'IBAN-UNO', 'IBAN-DUE',
+        '19-01-2027', 'COD-PAGAMENTO', 'CIG-TEST', 'CUP-TEST', 'DDT-TEST',
+      ]) expect(testo).toContain(valore);
+      for (const valore of [
+        'Dati di trasmissione', 'Altri dati presenti nel file XML', 'TRASM-TEST', 'INVIO-TEST', 'ABC1234', 'GEST-TEST', 'IMPRONTA-TEST',
+      ]) expect(testo).not.toContain(valore);
+    } finally { await pdf.cleanup(); }
+  }, 30_000);
+
   it('non perde una voce con descrizione più alta di una pagina e i suoi riferimenti finali', async () => {
     const descrizione='INIZIO-RIGA-GRANDE '+('Specifiche della fornitura su misura e accessori da verificare. '.repeat(150))+' FINE-RIGA-GRANDE';
     const bytes=await generaPdfFatturaXml(completa().replace('Fornitura di prova',descrizione));

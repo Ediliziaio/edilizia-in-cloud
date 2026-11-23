@@ -19,6 +19,8 @@ export interface FatturaXmlStampabile {
   riferimenti: TabellaXml[]; datiAggiuntivi: CampoXml[];
 }
 export interface OpzioniFatturaXml { indiceCorpo?: number; parser?: DOMParser; direzione?: 'ricevuta' | 'emessa'; dentroIframe?: boolean }
+export type VersionePdfFatturaXml = 'sintetico' | 'completo';
+interface OpzioniPdfFatturaXml extends OpzioniFatturaXml { versione?: VersionePdfFatturaXml }
 const children = (e: Element | null, nome: string): Element[] => e ? Array.from(e.children).filter(x => x.localName === nome) : [];
 const child = (e: Element | null, nome: string) => children(e, nome)[0] ?? null;
 const testo = (e: Element | null) => e?.textContent?.trim() ?? '';
@@ -184,12 +186,12 @@ export function riferimentiRigaXml(fattura: FatturaXmlStampabile | null, chiave:
 
 const NOTA_XML = 'Rappresentazione leggibile del file XML. I dati riportati provengono esclusivamente dall’XML.';
 const titoloSezione = 'Altri dati presenti nel file XML';
-const TIPI_DETTAGLIO: Array<{ titolo: string; tag: string[] }> = [
+const TIPI_DETTAGLIO: Array<{ titolo: string; tag: string[]; nellaSintesi?: boolean }> = [
   { titolo: 'Dati di trasmissione', tag: ['DatiTrasmissione'] },
-  { titolo: 'Ritenute, bollo, cassa e altre condizioni fiscali', tag: ['DatiRitenuta', 'DatiBollo', 'DatiCassaPrevidenziale', 'ScontoMaggiorazione'] },
-  { titolo: 'Trasporto e dati di consegna', tag: ['DatiTrasporto', 'DatiVeicoli'] },
+  { titolo: 'Ritenute, bollo, cassa e altre condizioni fiscali', tag: ['DatiRitenuta', 'DatiBollo', 'DatiCassaPrevidenziale', 'ScontoMaggiorazione'], nellaSintesi: true },
+  { titolo: 'Trasporto e dati di consegna', tag: ['DatiTrasporto', 'DatiVeicoli'], nellaSintesi: true },
   { titolo: 'Allegati', tag: ['Allegati'] },
-  { titolo: 'Altri riferimenti di pagamento', tag: ['DatiPagamento'] },
+  { titolo: 'Altri riferimenti di pagamento', tag: ['DatiPagamento'], nellaSintesi: true },
 ];
 
 function etichettaCampo(percorso: string) {
@@ -200,17 +202,17 @@ function etichettaCampo(percorso: string) {
   }).join(' / ');
 }
 
-function tabelleDocumento(fattura: FatturaXmlStampabile): TabellaXml[] {
+function tabelleDocumento(fattura: FatturaXmlStampabile, sintetico = false): TabellaXml[] {
   const [, ...tabelle] = fattura.tabelle;
-  const sezioni = TIPI_DETTAGLIO.map(({ titolo, tag }) => ({ titolo, tag: new Set(tag), righe: [] as string[][] }));
+  const sezioni = TIPI_DETTAGLIO.map(({ titolo, tag, nellaSintesi }) => ({ titolo, tag: new Set(tag), nellaSintesi, righe: [] as string[][] }));
   const residui: string[][] = [];
   for (const { campo, valore } of fattura.datiAggiuntivi) {
     const nodi = campo.split(' / ').map(nodo => nodo.replace(/^.*:/, '').replace(/ \[\d+\]$/, ''));
     const sezione = sezioni.find(s => nodi.some(nodo => s.tag.has(nodo)));
     (sezione?.righe ?? residui).push([campo, valore]);
   }
-  const dati = [...sezioni, { titolo: titoloSezione, righe: residui }]
-    .filter(sezione => sezione.righe.length)
+  const dati = [...sezioni, { titolo: titoloSezione, righe: residui, nellaSintesi: false }]
+    .filter(sezione => sezione.righe.length && (!sintetico || sezione.nellaSintesi))
     .map(({ titolo, righe }): TabellaXml => ({
       titolo, righe, intestazioni: ['Campo', 'Valore'], tipo: 'altri', larghezze: ['*', '*'],
     }));
@@ -223,11 +225,11 @@ function tabelleDocumento(fattura: FatturaXmlStampabile): TabellaXml[] {
   ];
 }
 
-function datiTestata(f: FatturaXmlStampabile) {
+function datiTestata(f: FatturaXmlStampabile, sintetico = false) {
   const metadati = f.tabelle[0];
   return metadati.intestazioni.flatMap((campo, i) => {
     const valore = metadati.righe[0][i];
-    return i !== 2 && i !== 3 && valore && valore !== '—' ? [{ campo, valore }] : [];
+    return i !== 2 && i !== 3 && (!sintetico || campo !== 'Codice destinatario') && valore && valore !== '—' ? [{ campo, valore }] : [];
   });
 }
 
@@ -345,7 +347,9 @@ export function fatturaXmlTabellareHtml(xml: string, opzioni: OpzioniFatturaXml 
   };
 }
 
-export function definizionePdfFatturaXml(fatture: FatturaXmlStampabile[], opzioni: OpzioniFatturaXml = {}): Record<string, unknown> {
+export function definizionePdfFatturaXml(fatture: FatturaXmlStampabile[], opzioni: OpzioniPdfFatturaXml = {}): Record<string, unknown> {
+  const sintetico = opzioni.versione === 'sintetico';
+  const descrizione = sottotitolo(opzioni) + (sintetico ? ' · Sintesi' : '');
   const blu = '#183558', testo = '#182941', tenue = '#52637a', fondo = '#edf3fa', divisore = '#d9e3ee';
   const layout = {
     hLineWidth: (i: number) => i > 0 ? 0.5 : 0,
@@ -353,8 +357,8 @@ export function definizionePdfFatturaXml(fatture: FatturaXmlStampabile[], opzion
     hLineColor: () => divisore,
     paddingLeft: () => 4,
     paddingRight: () => 4,
-    paddingTop: () => 5,
-    paddingBottom: () => 5,
+    paddingTop: () => sintetico ? 3 : 5,
+    paddingBottom: () => sintetico ? 3 : 5,
   };
   // Le colonne flessibili hanno una larghezza fisica. Anche un CUP senza
   // spazi può andare a capo restando dentro il foglio.
@@ -375,7 +379,7 @@ export function definizionePdfFatturaXml(fatture: FatturaXmlStampabile[], opzion
       pageBreak: indice ? 'before' : undefined,
       columnGap: 16,
       columns: [
-        { width: '*', stack: [{ text: f.tipoDocumento, bold: true, color: blu, fontSize: 22 }, { text: sottotitolo(opzioni), color: tenue, margin: [0, 4, 0, 0] }] },
+        { width: '*', stack: [{ text: f.tipoDocumento, bold: true, color: blu, fontSize: 22 }, { text: descrizione, color: tenue, margin: [0, 4, 0, 0] }] },
         { width: 185, alignment: 'right', stack: [{ text: f.numero ? 'N. ' + f.numero : 'Numero assente', bold: true, color: blu, fontSize: 12 }, { text: f.data, color: tenue, margin: [0, 4, 0, 0] }] },
       ],
       margin: [0, 0, 0, 9],
@@ -386,11 +390,11 @@ export function definizionePdfFatturaXml(fatture: FatturaXmlStampabile[], opzion
       columnGap: 18, columns: [partePdf('Fornitore', f.cedente), partePdf('Intestata a', f.cliente)],
       margin: [0, 0, 0, 10],
     }, {
-      text: datiTestata(f).map(c => c.campo + ' · ' + c.valore).join('     '),
+      text: datiTestata(f, sintetico).map(c => c.campo + ' · ' + c.valore).join('     '),
       color: tenue, fontSize: 8, margin: [0, 0, 0, 6],
     });
 
-    for (const t of tabelleDocumento(f)) {
+    for (const t of tabelleDocumento(f, sintetico)) {
       if (!t.righe.length) continue;
       if (t.tipo === 'totale') {
         const [[valuta, arrotondamento, totale]] = t.righe;
@@ -403,7 +407,7 @@ export function definizionePdfFatturaXml(fatture: FatturaXmlStampabile[], opzion
         });
         continue;
       }
-      content.push({ text: t.titolo, bold: true, color: blu, fontSize: 10, margin: [0, 7, 0, 4], headlineLevel: 1 });
+      content.push({ text: t.titolo, bold: true, color: blu, fontSize: 10, margin: sintetico ? [0, 5, 0, 3] : [0, 7, 0, 4], headlineLevel: 1 });
       if (t.titolo === 'Causale / annotazioni del documento') {
         for (const [nota] of t.righe) content.push({ text: nota, margin: [0, 0, 0, 4] });
         continue;
@@ -428,7 +432,7 @@ export function definizionePdfFatturaXml(fatture: FatturaXmlStampabile[], opzion
         table: { headerRows: 1, keepWithHeaderRows: brevi ? 1 : 0, dontBreakRows: brevi, widths: colonne,
           body: [t.intestazioni.map((text, i) => ({ text, fillColor: fondo, color: blu, bold: true, fontSize: 7.5,
             alignment: t.numeriche?.includes(i) ? 'right' : 'left' })), ...corpo] },
-        layout, margin: [0, 0, 0, 6],
+        layout, margin: [0, 0, 0, sintetico ? 4 : 6],
       });
     }
   }
@@ -441,7 +445,7 @@ export function definizionePdfFatturaXml(fatture: FatturaXmlStampabile[], opzion
   };
 }
 
-export async function generaPdfFatturaXml(xml: string, opzioni: OpzioniFatturaXml = {}): Promise<Uint8Array> {
+export async function generaPdfFatturaXml(xml: string, opzioni: OpzioniPdfFatturaXml = {}): Promise<Uint8Array> {
   const fatture = leggiFattureXmlStampabili(xml, opzioni);
   const [m, f] = await Promise.all([import('pdfmake/build/pdfmake.min.js'), import('pdfmake/build/vfs_fonts.js')]);
   m.default.addVirtualFileSystem(f.default);

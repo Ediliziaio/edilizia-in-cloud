@@ -44,7 +44,10 @@ it('offre anche allegati diversi dai PDF senza aprirli o scaricarli automaticame
   expect(m.originale).not.toHaveBeenCalled();
 });
 
-it('scarica un vero PDF dal corpo scelto senza richiamare la stampa o modificare l’originale', async () => {
+it.each([
+  { etichetta: 'PDF sintetico', versione: 'sintetico', suffisso: ' - sintetico.pdf' },
+  { etichetta: 'PDF completo', versione: 'completo', suffisso: '.pdf' },
+] as const)('scarica $etichetta dal corpo scelto senza richiamare la stampa', async ({ etichetta, versione, suffisso }) => {
   const bytes = new TextEncoder().encode('%PDF-1.3 PROVA');
   m.pdf.mockResolvedValue(bytes);
   const crea = vi.fn().mockReturnValue('blob:prova');
@@ -53,14 +56,15 @@ it('scarica un vero PDF dal corpo scelto senza richiamare la stampa o modificare
   try {
     render(<FatturaRicevutaCompletaDialog vista={vista} onClose={() => {}} onScaricaOriginale={m.originale} />);
     expect(m.pdf).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', {name:'Scarica PDF'}));
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Scarica PDF' }), { key: 'Enter' });
+    fireEvent.click(await screen.findByRole('menuitem', { name: etichetta }));
     await waitFor(() => expect(click).toHaveBeenCalledOnce());
-    expect(m.pdf).toHaveBeenCalledWith(vista.xmlOriginale, {indiceCorpo:1,direzione:'ricevuta'});
+    expect(m.pdf).toHaveBeenCalledWith(vista.xmlOriginale, { indiceCorpo: 1, direzione: 'ricevuta', versione });
     const blob = crea.mock.calls[0][0] as Blob;
     expect(blob.type).toBe('application/pdf');
     expect(blob.size).toBe(bytes.length);
     expect(m.stampa).not.toHaveBeenCalled();
     expect(m.originale).not.toHaveBeenCalled();
-    expect((click.mock.instances[0] as HTMLAnchorElement).download).toBe(vista.titolo + '.pdf');
+    expect((click.mock.instances[0] as HTMLAnchorElement).download).toBe(vista.titolo + suffisso);
   } finally {click.mockRestore();vi.unstubAllGlobals();}
 });

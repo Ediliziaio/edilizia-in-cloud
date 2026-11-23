@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Download, FileText, Loader2, Paperclip, Printer } from 'lucide-react';
+import { ChevronDown, Download, FileText, Loader2, Paperclip, Printer } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -7,7 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import type { FatturaRicevutaVista } from '@/lib/fatturazione/fatturaRicevutaHtml';
 import { scaricaAllegatoXml } from '@/lib/fatturazione/downloadAllegatoXml';
 import { stampaPreventivoNativo } from '@/lib/fotovoltaico/htmlToPdf';
-import { generaPdfFatturaXml } from '@/lib/fatturazione/fatturaXmlTabellare';
+import { generaPdfFatturaXml, type VersionePdfFatturaXml } from '@/lib/fatturazione/fatturaXmlTabellare';
 
 export function FatturaRicevutaCompletaDialog({ vista, onClose, onScaricaOriginale }: {
   vista: FatturaRicevutaVista | null;
@@ -15,15 +15,16 @@ export function FatturaRicevutaCompletaDialog({ vista, onClose, onScaricaOrigina
   onScaricaOriginale: () => void | Promise<void>;
 }) {
   const [pdfInCorso, setPdfInCorso] = useState(false);
-  const scaricaPdf = async () => {
+  const scaricaPdf = async (versione: VersionePdfFatturaXml) => {
     if (!vista?.xmlOriginale || pdfInCorso) return;
     setPdfInCorso(true);
     try {
-      const bytes = await generaPdfFatturaXml(vista.xmlOriginale, { indiceCorpo: vista.indiceCorpo ?? 0, direzione: 'ricevuta' });
+      const bytes = await generaPdfFatturaXml(vista.xmlOriginale, { indiceCorpo: vista.indiceCorpo ?? 0, direzione: 'ricevuta', versione });
       const url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'application/pdf' }));
       const a = document.createElement('a');
       a.href = url;
-      a.download = vista.titolo.replace(/[^\p{L}\p{N} ._-]/gu, '_').slice(0, 140) + '.pdf';
+      const nome = vista.titolo.replace(/[^\p{L}\p{N} ._-]/gu, '_').slice(0, 140);
+      a.download = nome + (versione === 'sintetico' ? ' - sintetico' : '') + '.pdf';
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -43,9 +44,19 @@ export function FatturaRicevutaCompletaDialog({ vista, onClose, onScaricaOrigina
         </DialogTitle>
         <DialogDescription className="sr-only">Fattura con i dati dell’XML originale, pronta da stampare. Il file originale e tutti gli allegati si scaricano da questa finestra.</DialogDescription>
         <div className="flex flex-wrap items-center gap-2">
-          {vista?.xmlOriginale && <Button variant="outline" size="sm" className="h-8 text-xs" disabled={pdfInCorso} onClick={() => void scaricaPdf()}>
-            {pdfInCorso ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Download className="h-3.5 w-3.5 mr-1.5" />} {pdfInCorso ? 'Generazione PDF…' : 'Scarica PDF'}
-          </Button>}
+          {vista?.xmlOriginale && <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 text-xs" disabled={pdfInCorso}>
+                {pdfInCorso ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Download className="h-3.5 w-3.5 mr-1.5" />}
+                {pdfInCorso ? 'Generazione PDF…' : 'Scarica PDF'}
+                <ChevronDown aria-hidden className="ml-1 h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onSelect={() => void scaricaPdf('sintetico')}>PDF sintetico</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void scaricaPdf('completo')}>PDF completo</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>}
           <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => void onScaricaOriginale()}>
             <Download className="h-3.5 w-3.5 mr-1.5" /> Scarica originale
           </Button>
