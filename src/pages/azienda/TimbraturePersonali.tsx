@@ -5,7 +5,6 @@
  */
 import { useState } from "react";
 import { format, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
 import {
   LogIn, LogOut, Coffee, PauseCircle, Clock, CalendarDays,
   Building2, AlertTriangle, CheckCircle2, Loader2, UserX, ShieldAlert,
@@ -28,6 +27,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { RichiesteHrPersonali } from "@/components/hr/RichiesteHrPersonali";
 import type { HrTimbratura, TimbraturaTipo } from "@/types/hr";
 import { cn } from "@/lib/utils";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // ── Stato corrente basato sull'ultima timbratura ───────────────────────────
 type StatoTimbratura = "non_timbrato" | "dentro" | "in_pausa" | "uscito";
@@ -73,7 +73,7 @@ function getMesiRecenti(): { value: string; label: string }[] {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     result.push({
       value: format(d, "yyyy-MM"),
-      label: format(d, "MMMM yyyy", { locale: it }),
+      label: format(d, "MMMM yyyy", { locale: dateFnsCampo() }),
     });
   }
   return result;
@@ -81,6 +81,7 @@ function getMesiRecenti(): { value: string; label: string }[] {
 
 // ─────────────────────────────────────────────────────────────────────────────
 export default function TimbraturePersonali() {
+  const tr = useT();
   const companyId = useEffectiveCompanyId();
   const { role } = useAuth();
   const { data: profilo, isLoading: loadingProfilo } = useMyHrProfilo();
@@ -98,9 +99,9 @@ export default function TimbraturePersonali() {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center px-4">
         <ShieldAlert className="h-12 w-12 text-muted-foreground mb-4" />
-        <h3 className="text-lg font-semibold">Accesso non autorizzato</h3>
+        <h3 className="text-lg font-semibold">{tr("Accesso non autorizzato")}</h3>
         <p className="text-muted-foreground mt-2">
-          Questa sezione non è disponibile per il tuo ruolo.
+          {tr("Questa sezione non è disponibile per il tuo ruolo.")}
         </p>
       </div>
     );
@@ -124,10 +125,10 @@ export default function TimbraturePersonali() {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center px-4">
         <UserX className="h-12 w-12 text-muted-foreground mb-4" />
-        <h3 className="text-lg font-semibold">Profilo HR non configurato</h3>
+        <h3 className="text-lg font-semibold">{tr("Profilo HR non configurato")}</h3>
         <p className="text-muted-foreground mt-2 max-w-sm">
-          Il tuo profilo HR non è ancora stato configurato.
-          Contatta l'amministratore per completare la configurazione.
+          {tr("Il tuo profilo HR non è ancora stato configurato.")}{" "}
+          {tr("Contatta l'amministratore per completare la configurazione.")}
         </p>
       </div>
     );
@@ -156,9 +157,9 @@ export default function TimbraturePersonali() {
           <Clock className="h-[18px] w-[18px] text-primary" />
         </div>
         <div className="min-w-0">
-          <h1 className="text-base font-bold leading-tight">Le mie Timbrature</h1>
+          <h1 className="text-base font-bold leading-tight">{tr("Le mie Timbrature")}</h1>
           <p className="text-xs text-muted-foreground">
-            {format(new Date(), "EEEE d MMMM yyyy", { locale: it })}
+            {format(new Date(), "EEEE d MMMM yyyy", { locale: dateFnsCampo() })}
           </p>
         </div>
       </div>
@@ -166,16 +167,16 @@ export default function TimbraturePersonali() {
       {/* Banner sede ufficio */}
       <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-700">
         <Building2 className="h-4 w-4 shrink-0" />
-        <span>Sede ufficio — nessun GPS richiesto</span>
+        <span>{tr("Sede ufficio — nessun GPS richiesto")}</span>
       </div>
 
       {/* BLOCCO A — Timbratura oggi */}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Oggi</CardTitle>
+            <CardTitle className="text-base">{tr("Oggi")}</CardTitle>
             <Badge variant="outline" className={cn("text-xs font-medium", statoClass)}>
-              {statoLabel}
+              {tr(statoLabel)}
             </Badge>
           </div>
         </CardHeader>
@@ -185,7 +186,7 @@ export default function TimbraturePersonali() {
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Clock className="h-4 w-4" />
               <span>
-                Ore lavorate oggi:{" "}
+                {tr("Ore lavorate oggi:")}{" "}
                 <span className="font-semibold text-foreground">
                   {Math.floor(oreOggi)}h {Math.round((oreOggi % 1) * 60)}m
                 </span>
@@ -222,7 +223,7 @@ export default function TimbraturePersonali() {
                   <div key={t.id} className="flex items-center gap-3 py-1.5">
                     <div className="h-1.5 w-1.5 rounded-full bg-primary shrink-0 mt-0.5" />
                     <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                    <span className="text-sm text-muted-foreground w-20">{tipoLabel[t.tipo] ?? t.tipo}</span>
+                    <span className="text-sm text-muted-foreground w-20">{tipoLabel[t.tipo] ? tr(tipoLabel[t.tipo]) : t.tipo}</span>
                     <span className="text-sm font-medium tabular-nums">
                       {format(parseISO(t.timestamp), "HH:mm")}
                     </span>
@@ -231,7 +232,7 @@ export default function TimbraturePersonali() {
               })}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">Nessuna timbratura oggi</p>
+            <p className="text-sm text-muted-foreground">{tr("Nessuna timbratura oggi")}</p>
           )}
 
           {/* Bottoni azione */}
@@ -254,7 +255,7 @@ export default function TimbraturePersonali() {
                 ) : (
                   <nextAction.icon className="h-4 w-4 mr-2" />
                 )}
-                {nextAction.label}
+                {tr(nextAction.label)}
               </Button>
             )}
             {canExit && (
@@ -272,13 +273,13 @@ export default function TimbraturePersonali() {
                 }
               >
                 <LogOut className="h-4 w-4 mr-2" />
-                TIMBRA USCITA
+                {tr("TIMBRA USCITA")}
               </Button>
             )}
             {stato === "uscito" && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <CheckCircle2 className="h-4 w-4 text-green-600" />
-                Giornata completata
+                {tr("Giornata completata")}
               </div>
             )}
           </div>
@@ -292,27 +293,27 @@ export default function TimbraturePersonali() {
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <CalendarDays className="h-4 w-4" />
-              Riepilogo mese
+              {tr("Riepilogo mese")}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Ore lavorate</span>
+              <span className="text-sm text-muted-foreground">{tr("Ore lavorate")}</span>
               <span className="font-semibold">
                 {Math.floor(oreTotatliMese)}h {Math.round((oreTotatliMese % 1) * 60)}m
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Giorni presenti</span>
+              <span className="text-sm text-muted-foreground">{tr("Giorni presenti")}</span>
               <span className="font-semibold">{giorniPresenti}</span>
             </div>
             {oreAttese > 0 && (
               <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Ore mancanti</span>
+                <span className="text-sm text-muted-foreground">{tr("Ore mancanti")}</span>
                 <span className={cn("font-semibold", oreTotatliMese < oreAttese ? "text-red-600" : "text-green-600")}>
                   {oreTotatliMese < oreAttese
                     ? `${Math.floor(oreAttese - oreTotatliMese)}h ${Math.round(((oreAttese - oreTotatliMese) % 1) * 60)}m`
-                    : "Completato"}
+                    : tr("Completato")}
                 </span>
               </div>
             )}
@@ -323,7 +324,7 @@ export default function TimbraturePersonali() {
         <Card className="lg:col-span-2">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Storico</CardTitle>
+              <CardTitle className="text-base">{tr("Storico")}</CardTitle>
               <Select value={meseSelezionato} onValueChange={setMeseSelezionato}>
                 <SelectTrigger className="w-44 h-8 text-sm">
                   <SelectValue />
@@ -345,7 +346,7 @@ export default function TimbraturePersonali() {
               </div>
             ) : giorni.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-6">
-                Nessuna timbratura per questo mese
+                {tr("Nessuna timbratura per questo mese")}
               </p>
             ) : (
               <div className="space-y-2">
@@ -369,7 +370,7 @@ export default function TimbraturePersonali() {
                       <div className="flex items-center gap-2">
                         {isAnomalia && <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" />}
                         <span className="font-medium capitalize">
-                          {format(parseISO(giorno), "EEE d MMM", { locale: it })}
+                          {format(parseISO(giorno), "EEE d MMM", { locale: dateFnsCampo() })}
                         </span>
                       </div>
                       <div className="flex items-center gap-3 text-muted-foreground">
@@ -384,7 +385,7 @@ export default function TimbraturePersonali() {
                         </span>
                         {isAnomalia && (
                           <Badge variant="outline" className="text-xs border-amber-300 text-amber-700">
-                            Anomalia
+                            {tr("Anomalia")}
                           </Badge>
                         )}
                       </div>

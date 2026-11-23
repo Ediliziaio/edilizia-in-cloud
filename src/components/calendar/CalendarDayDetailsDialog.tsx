@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { format, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -54,6 +53,7 @@ import {
   type WeatherDay,
   type LocationWeatherDay,
 } from "@/hooks/useWeatherForecast";
+import { dateFnsCampo, intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   contextLabel?: string;
@@ -121,7 +121,7 @@ function DetailField({
 }
 
 const dateLabel = (value: string) =>
-  format(parseISO(value), "d MMM yyyy", { locale: it });
+  format(parseISO(value), "d MMM yyyy", { locale: dateFnsCampo() });
 const dateRange = (from: string, to?: string | null) =>
   !to || from === to
     ? dateLabel(from)
@@ -169,6 +169,7 @@ function DayDetails({
   forecast,
   orderWeatherMap,
 }: Props) {
+  const t = useT();
   const permissions = usePermissions();
   const canOpenIntervention =
     !permissions.isLoading && permissions.canViewTickets;
@@ -226,9 +227,9 @@ function DayDetails({
   const detailTab =
     requestedTab === "payments" && !canViewPayments ? "details" : requestedTab;
   const detailTabs = [
-    { id: "details", label: "Dettagli" },
-    { id: "presence", label: "Presenze" },
-    ...(canViewPayments ? [{ id: "payments", label: "Incassi e SAL" }] : []),
+    { id: "details", label: t("Dettagli") },
+    { id: "presence", label: t("Presenze") },
+    ...(canViewPayments ? [{ id: "payments", label: t("Incassi e SAL") }] : []),
   ];
   const detailOrderId =
     selected?.order?.id ||
@@ -284,32 +285,32 @@ function DayDetails({
     : leave
       ? dateRange(leave.start_date, leave.end_date)
       : busy
-        ? `${format(parseISO(busy.start_at), "d MMM", { locale: it })} — ${format(parseISO(busy.end_at).getTime() - (busy.is_all_day ? 1 : 0), "d MMM yyyy", { locale: it })}`
+        ? `${format(parseISO(busy.start_at), "d MMM", { locale: dateFnsCampo() })} — ${format(parseISO(busy.end_at).getTime() - (busy.is_all_day ? 1 : 0), "d MMM yyyy", { locale: dateFnsCampo() })}`
         : dateLabel(dateKey);
 
   return (
     <DialogContent
       aria-labelledby={undefined}
-      aria-label={`Eventi del ${format(date, "d MMMM yyyy", { locale: it })}`}
+      aria-label={t("Eventi del {data}", { data: format(date, "d MMMM yyyy", { locale: dateFnsCampo() }) })}
       className="flex h-[min(780px,90dvh)] max-h-[90dvh] w-[calc(100%_-_2rem)] max-w-[1100px] flex-col gap-0 overflow-hidden rounded-2xl p-0 max-sm:top-[50%] max-sm:h-[94dvh] max-sm:max-h-[94dvh] max-sm:w-[calc(100%_-_1rem)] max-sm:rounded-xl [&>button:last-child]:flex [&>button:last-child]:h-9 [&>button:last-child]:w-9 [&>button:last-child]:items-center [&>button:last-child]:justify-center"
     >
       <section
         className="flex min-h-0 flex-1 flex-col"
-        aria-label="Dettaglio del giorno"
+        aria-label={t("Dettaglio del giorno")}
       >
         <header className="shrink-0 border-b bg-muted/20 px-5 pb-4 pt-5 sm:px-6">
           <p className="mb-1.5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
             <CalendarDays className="h-4 w-4" />
-            Agenda del giorno
+            {t("Agenda del giorno")}
           </p>
           <DialogTitle className="pr-7 text-xl font-semibold capitalize sm:text-2xl">
-            {format(date, "EEEE d MMMM", { locale: it })}
+            {format(date, "EEEE d MMMM", { locale: dateFnsCampo() })}
           </DialogTitle>
           <DialogDescription className="mt-2 text-xs">
             {contextLabel && <span>{contextLabel} · </span>}
             {isLoading
-              ? "Caricamento degli eventi…"
-              : `${events.length} eventi dalle fonti attive`}{" "}
+              ? t("Caricamento degli eventi…")
+              : t("{n} eventi dalle fonti attive", { n: events.length })}{" "}
             · {format(date, "yyyy")}
           </DialogDescription>
           <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -317,11 +318,11 @@ function DayDetails({
               <Button
                 size="sm"
                 className="h-9"
-                aria-label="Nuovo appuntamento nel giorno selezionato"
+                aria-label={t("Nuovo appuntamento nel giorno selezionato")}
                 onClick={onCreateAppointment}
               >
                 <Plus className="mr-1.5 h-4 w-4" />
-                Appuntamento
+                {t("Appuntamento")}
               </Button>
             )}
             {onOpenDay && !isMobile && (
@@ -331,13 +332,13 @@ function DayDetails({
                 className="h-9"
                 onClick={onOpenDay}
               >
-                Agenda oraria
+                {t("Agenda oraria")}
                 <ArrowUpRight className="ml-1.5 h-4 w-4" />
               </Button>
             )}
             {forecast && (
               <p className="text-xs text-muted-foreground sm:ml-auto">
-                {weatherCodeToLabel(forecast.code)} · {forecast.minTemp}°–
+                {t(weatherCodeToLabel(forecast.code))} · {forecast.minTemp}°–
                 {forecast.maxTemp}°
               </p>
             )}
@@ -348,7 +349,7 @@ function DayDetails({
             className="flex flex-1 items-center justify-center text-sm text-muted-foreground"
             role="status"
           >
-            Caricamento del giorno…
+            {t("Caricamento del giorno…")}
           </div>
         ) : (
           <div className="grid min-h-0 flex-1 grid-cols-1 sm:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.2fr)]">
@@ -364,8 +365,8 @@ function DayDetails({
                   <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
                     autoFocus={false}
-                    aria-label="Cerca negli eventi del giorno"
-                    placeholder="Cerca evento, commessa o persona…"
+                    aria-label={t("Cerca negli eventi del giorno")}
+                    placeholder={t("Cerca evento, commessa o persona…")}
                     value={query}
                     onChange={(e) => {
                       setQuery(e.target.value);
@@ -376,7 +377,7 @@ function DayDetails({
                 </div>
                 <div
                   className="flex flex-wrap gap-1.5"
-                  aria-label="Filtra eventi del giorno"
+                  aria-label={t("Filtra eventi del giorno")}
                 >
                   {[{ id: "all", label: "Tutti" }, ...groups].map((group) => {
                     const count =
@@ -401,7 +402,7 @@ function DayDetails({
                           setSelectedKey(null);
                         }}
                       >
-                        {group.label}{" "}
+                        {t(group.label)}{" "}
                         <span className="ml-1 opacity-80">{count}</span>
                       </button>
                     );
@@ -409,12 +410,12 @@ function DayDetails({
                 </div>
                 <p className="text-[11px] text-muted-foreground" role="status">
                   {filtered.length === events.length
-                    ? "Seleziona una voce per vedere tutti i dettagli."
-                    : `${filtered.length} di ${events.length} eventi`}
+                    ? t("Seleziona una voce per vedere tutti i dettagli.")
+                    : t("{n} di {totale} eventi", { n: filtered.length, totale: events.length })}
                 </p>
               </div>
               <nav
-                aria-label="Eventi del giorno"
+                aria-label={t("Eventi del giorno")}
                 className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2"
               >
                 {groups.map((group) => {
@@ -425,7 +426,7 @@ function DayDetails({
                     entries.length > 0 && (
                       <div key={group.id} className="mb-3">
                         <h4 className="px-3 pb-2 pt-3 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                          {group.title}{" "}
+                          {t(group.title)}{" "}
                           <span className="ml-1">{entries.length}</span>
                         </h4>
                         <div className="space-y-1">
@@ -441,7 +442,7 @@ function DayDetails({
                               <button
                                 key={key}
                                 type="button"
-                                aria-label={`Mostra dettagli: ${title}${code ? ` · ${code}` : ""}`}
+                                aria-label={t("Mostra dettagli: {titolo}", { titolo: title + (code ? ` · ${code}` : "") })}
                                 aria-pressed={Boolean(active)}
                                 onClick={() => {
                                   setSelectedKey(key);
@@ -459,7 +460,7 @@ function DayDetails({
                                   style={{ backgroundColor: event.color }}
                                 />
                                 <div className="min-w-0 flex-1">
-                                  <span className="block break-words text-sm font-medium leading-snug">
+                                  <span dir="auto" className="block break-words text-sm font-medium leading-snug">
                                     {title}
                                   </span>
                                   <span className="mt-1 block text-[11px] text-muted-foreground">
@@ -478,7 +479,7 @@ function DayDetails({
                                   <span>
                                     {calendarEventTime(event) ||
                                       (event.busySlot?.is_all_day || event.leave
-                                        ? "Giornata"
+                                        ? t("Giornata")
                                         : "—")}
                                   </span>
                                   <CalendarSiteWeather
@@ -500,8 +501,8 @@ function DayDetails({
                     <Search className="mx-auto mb-3 h-6 w-6 text-muted-foreground" />
                     <p className="text-sm font-medium">
                       {events.length
-                        ? "Nessun evento corrisponde alla ricerca."
-                        : "Nessun evento per questo giorno."}
+                        ? t("Nessun evento corrisponde alla ricerca.")
+                        : t("Nessun evento per questo giorno.")}
                     </p>
                     {events.length > 0 && (
                       <Button
@@ -513,7 +514,7 @@ function DayDetails({
                           setFilter("all");
                         }}
                       >
-                        Mostra tutti gli eventi
+                        {t("Mostra tutti gli eventi")}
                       </Button>
                     )}
                   </div>
@@ -521,7 +522,7 @@ function DayDetails({
               </nav>
             </div>
             <article
-              aria-label="Dettagli dell’evento selezionato"
+              aria-label={t("Dettagli dell’evento selezionato")}
               aria-hidden={isMobile && (!showMobileDetail || !selected)}
               className={cn(
                 "flex min-h-0 min-w-0 flex-col overflow-hidden bg-background",
@@ -539,7 +540,7 @@ function DayDetails({
                         onClick={() => setShowMobileDetail(false)}
                       >
                         <ArrowLeft className="mr-2 h-4 w-4" />
-                        Torna agli eventi
+                        {t("Torna agli eventi")}
                       </Button>
                     </div>
                   )}
@@ -563,7 +564,7 @@ function DayDetails({
                           </span>
                         )}
                       </div>
-                      <h3 className="break-words text-xl font-semibold leading-snug">
+                      <h3 dir="auto" className="break-words text-xl font-semibold leading-snug">
                         {calendarEventTitle(selected)}
                       </h3>
                       {order && (
@@ -572,7 +573,7 @@ function DayDetails({
                           to={`/azienda/ordini/${order.id}`}
                           onClick={() => onOpenChange(false)}
                         >
-                          {order.order_code || "Commessa"} ·{" "}
+                          {order.order_code || t("Commessa")} ·{" "}
                           {etichettaCommessa(order)}
                         </Link>
                       )}
@@ -581,7 +582,7 @@ function DayDetails({
                     {detailOrderId && (
                       <div
                         role="tablist"
-                        aria-label="Informazioni della commessa"
+                        aria-label={t("Informazioni della commessa")}
                         className="mt-4 flex gap-3"
                       >
                         {detailTabs.map((tab, index) => (
@@ -639,10 +640,10 @@ function DayDetails({
                     role="tabpanel"
                     aria-label={
                       detailTab === "details"
-                        ? "Dettagli"
+                        ? t("Dettagli")
                         : detailTab === "payments"
-                          ? "Incassi e SAL"
-                          : "Presenze"
+                          ? t("Incassi e SAL")
+                          : t("Presenze")
                     }
                     className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain p-5 sm:p-6"
                   >
@@ -652,15 +653,15 @@ function DayDetails({
                         <dl className="space-y-5">
                           <DetailField
                             icon={<Clock3 className="h-4 w-4" />}
-                            label="Quando"
+                            label={t("Quando")}
                           >
                             <p>{period}</p>
                             <p className="font-medium">
                               {startTime
                                 ? `${startTime}${endTime ? `–${endTime}` : ""}`
                                 : busy?.is_all_day || leave
-                                  ? "Tutta la giornata"
-                                  : "Orario da definire"}
+                                  ? t("Tutta la giornata")
+                                  : t("Orario da definire")}
                             </p>
                           </DetailField>
                           {(order ||
@@ -669,9 +670,9 @@ function DayDetails({
                             selected.manutenzione) && (
                             <DetailField
                               icon={<MapPin className="h-4 w-4" />}
-                              label={order ? "Cantiere" : "Luogo"}
+                              label={order ? t("Cantiere") : t("Luogo")}
                             >
-                              <p>{address || "Indirizzo non impostato"}</p>
+                              <p dir="auto">{address || t("Indirizzo non impostato")}</p>
                               {appointment?.address_notes && (
                                 <p className="text-xs text-muted-foreground">
                                   {appointment.address_notes}
@@ -695,12 +696,12 @@ function DayDetails({
                           {work?.progress != null && (
                             <DetailField
                               icon={<HardHat className="h-4 w-4" />}
-                              label="Avanzamento dichiarato della fase"
+                              label={t("Avanzamento dichiarato della fase")}
                             >
                               {work.progress}%
                               {work.completed_date && (
                                 <p className="text-xs text-muted-foreground">
-                                  Completata il {dateLabel(work.completed_date)}
+                                  {t("Completata il {data}", { data: dateLabel(work.completed_date) })}
                                 </p>
                               )}
                             </DetailField>
@@ -708,7 +709,7 @@ function DayDetails({
                           {order && (
                             <DetailField
                               icon={<Users className="h-4 w-4" />}
-                              label="Risorse pianificate per il giorno"
+                              label={t("Risorse pianificate per il giorno")}
                             >
                               {resources.length ? (
                                 <ul className="space-y-1">
@@ -739,7 +740,7 @@ function DayDetails({
                                           key={time}
                                           className="ml-2 text-xs text-muted-foreground"
                                         >
-                                          {time} previsti
+                                          {t("{orario} previsti", { orario: time })}
                                         </span>
                                       ))}
                                     </li>
@@ -747,7 +748,7 @@ function DayDetails({
                                 </ul>
                               ) : (
                                 <span className="text-muted-foreground">
-                                  Nessuna risorsa pianificata per questa data
+                                  {t("Nessuna risorsa pianificata per questa data")}
                                 </span>
                               )}
                             </DetailField>
@@ -757,38 +758,35 @@ function DayDetails({
                             selected.manutenzione) && (
                             <DetailField
                               icon={<Users className="h-4 w-4" />}
-                              label="Responsabile"
+                              label={t("Responsabile")}
                             >
                               {person ||
                                 (appointment?.assigned_to ||
                                 selected.intervento?.assigned_to
-                                  ? "Responsabile assegnato, nome non disponibile"
-                                  : "Nessun responsabile assegnato")}
+                                  ? t("Responsabile assegnato, nome non disponibile")
+                                  : t("Nessun responsabile assegnato"))}
                             </DetailField>
                           )}
                           {selected.intervento?.durata_ore != null && (
                             <DetailField
                               icon={<Clock3 className="h-4 w-4" />}
-                              label="Durata prevista dell’intervento"
+                              label={t("Durata prevista dell’intervento")}
                             >
-                              {selected.intervento.durata_ore.toLocaleString(
-                                "it-IT",
-                              )}{" "}
-                              h
+                              {t("{n} h", { n: selected.intervento.durata_ore.toLocaleString(intlCampo()) })}
                             </DetailField>
                           )}
                           {selected.manutenzione && (
                             <DetailField
                               icon={<HardHat className="h-4 w-4" />}
-                              label="Impianto e manutenzione"
+                              label={t("Impianto e manutenzione")}
                             >
                               <p>
                                 {selected.manutenzione.impianto ||
-                                  "Impianto non collegato"}
+                                  t("Impianto non collegato")}
                               </p>
                               {selected.manutenzione.frequenza_tipo && (
                                 <p className="text-xs text-muted-foreground">
-                                  Periodicità:{" "}
+                                  {t("Periodicità:")}{" "}
                                   {selected.manutenzione.frequenza_tipo.replaceAll(
                                     "_",
                                     " ",
@@ -797,10 +795,9 @@ function DayDetails({
                               )}
                               {selected.manutenzione.ultima_esecuzione && (
                                 <p className="text-xs text-muted-foreground">
-                                  Ultima esecuzione{" "}
-                                  {dateLabel(
-                                    selected.manutenzione.ultima_esecuzione,
-                                  )}
+                                  {t("Ultima esecuzione {data}", {
+                                    data: dateLabel(selected.manutenzione.ultima_esecuzione),
+                                  })}
                                 </p>
                               )}
                             </DetailField>
@@ -808,7 +805,7 @@ function DayDetails({
                           {contact && (
                             <DetailField
                               icon={<Users className="h-4 w-4" />}
-                              label="Contatto"
+                              label={t("Contatto")}
                             >
                               {contact}
                             </DetailField>
@@ -816,7 +813,7 @@ function DayDetails({
                           {appointment?.order_id && (
                             <DetailField
                               icon={<HardHat className="h-4 w-4" />}
-                              label="Commessa collegata"
+                              label={t("Commessa collegata")}
                             >
                               <Link
                                 to={calendarWorkLocation(appointment.order_id)}
@@ -824,7 +821,7 @@ function DayDetails({
                                 className="font-medium text-primary hover:underline"
                               >
                                 {appointment.order?.order_code ||
-                                  "Apri commessa"}
+                                  t("Apri commessa")}
                               </Link>
                               {appointment.order?.description && (
                                 <p className="mt-1 text-xs text-muted-foreground">
@@ -836,7 +833,7 @@ function DayDetails({
                           {busy?.team_name && (
                             <DetailField
                               icon={<Users className="h-4 w-4" />}
-                              label="Squadra"
+                              label={t("Squadra")}
                             >
                               {busy.team_name}
                             </DetailField>
@@ -844,7 +841,7 @@ function DayDetails({
                           {leave?.employee && (
                             <DetailField
                               icon={<Users className="h-4 w-4" />}
-                              label="Persona"
+                              label={t("Persona")}
                             >
                               {leave.employee.first_name}{" "}
                               {leave.employee.last_name}
@@ -853,7 +850,7 @@ function DayDetails({
                           {meetingUrl && (
                             <DetailField
                               icon={<Video className="h-4 w-4" />}
-                              label="Videoriunione"
+                              label={t("Videoriunione")}
                             >
                               <a
                                 href={meetingUrl}
@@ -861,7 +858,7 @@ function DayDetails({
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
                               >
-                                Apri collegamento
+                                {t("Apri collegamento")}
                                 <ArrowUpRight className="h-3.5 w-3.5" />
                               </a>
                             </DetailField>
@@ -870,9 +867,9 @@ function DayDetails({
                         {work?.phase_notes && (
                           <section className="space-y-2 rounded-xl border bg-muted/20 p-4">
                             <h4 className="text-xs font-semibold">
-                              Note della lavorazione
+                              {t("Note della lavorazione")}
                             </h4>
-                            <p className="whitespace-pre-wrap break-words text-sm">
+                            <p dir="auto" className="whitespace-pre-wrap break-words text-sm">
                               {work.phase_notes}
                             </p>
                           </section>
@@ -883,12 +880,12 @@ function DayDetails({
                           <section className="space-y-2 border-t pt-5">
                             <h4 className="text-xs font-semibold text-muted-foreground">
                               {appointment
-                                ? "Note e descrizione"
+                                ? t("Note e descrizione")
                                 : selected.intervento
-                                  ? "Note dell’intervento"
-                                  : "Descrizione della commessa"}
+                                  ? t("Note dell’intervento")
+                                  : t("Descrizione della commessa")}
                             </h4>
-                            <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+                            <p dir="auto" className="whitespace-pre-wrap break-words text-sm leading-relaxed">
                               {appointment?.description ||
                                 order?.description ||
                                 selected.intervento?.note_tecnico}
@@ -901,32 +898,33 @@ function DayDetails({
                           weather?.distanceKm != null ||
                           weather?.durationLabel) && (
                           <section className="space-y-3 rounded-xl border bg-muted/20 p-4">
-                            <h4 className="text-xs font-semibold">Da sapere</h4>
+                            <h4 className="text-xs font-semibold">{t("Da sapere")}</h4>
                             {order && hasLogisticRisk(order) && (
                               <p className="flex gap-2 text-xs leading-relaxed text-amber-700">
                                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                                 {order.warehouse_arrival_date
-                                  ? "Arrivo merce dopo la posa"
-                                  : "Arrivo merce da confermare"}
+                                  ? t("Arrivo merce dopo la posa")
+                                  : t("Arrivo merce da confermare")}
                               </p>
                             )}
                             {payment && (
                               <p className="text-xs leading-relaxed text-amber-700">
-                                Consulta rate, incassi e SAL nella scheda
-                                Incassi e SAL.
+                                {t("Consulta rate, incassi e SAL nella scheda Incassi e SAL.")}
                               </p>
                             )}
                             {warehouse && (
                               <p className="text-xs">
-                                Materiali: {warehouse.readyCount} pronti ·{" "}
-                                {warehouse.pendingCount} in attesa
+                                {t("Materiali: {pronti} pronti · {attesa} in attesa", {
+                                  pronti: warehouse.readyCount,
+                                  attesa: warehouse.pendingCount,
+                                })}
                               </p>
                             )}
                             {(weather?.distanceKm != null ||
                               weather?.durationLabel) && (
                               <p className="text-xs text-muted-foreground">
                                 {weather.distanceKm != null &&
-                                  `${weather.distanceKm} km dalla sede`}
+                                  t("{km} km dalla sede", { km: weather.distanceKm })}
                                 {weather.durationLabel &&
                                   ` · ${weather.durationLabel}`}
                               </p>
@@ -937,7 +935,7 @@ function DayDetails({
                           syncedAppointmentIds?.has(appointment.id) && (
                             <p className="flex items-center gap-2 text-xs text-emerald-700">
                               <CheckCircle2 className="h-4 w-4" />
-                              Sincronizzato con Google
+                              {t("Sincronizzato con Google")}
                             </p>
                           )}
                       </>
@@ -966,7 +964,7 @@ function DayDetails({
                             to={calendarWorkLocation(order.id)}
                             onClick={() => onOpenChange(false)}
                           >
-                            Apri lavorazioni
+                            {t("Apri lavorazioni")}
                             <ArrowUpRight className="ml-1.5 h-4 w-4" />
                           </Link>
                         </Button>
@@ -977,7 +975,7 @@ function DayDetails({
                             to={`/azienda/assistenza/${selected.intervento.id}`}
                             onClick={() => onOpenChange(false)}
                           >
-                            Apri intervento
+                            {t("Apri intervento")}
                           </Link>
                         </Button>
                       )}
@@ -992,8 +990,8 @@ function DayDetails({
                             onClick={() => onOpenChange(false)}
                           >
                             {selected.manutenzione.impianto_id
-                              ? "Apri impianto"
-                              : "Apri manutenzioni"}
+                              ? t("Apri impianto")
+                              : t("Apri manutenzioni")}
                           </Link>
                         </Button>
                       )}
@@ -1003,7 +1001,7 @@ function DayDetails({
                           variant="outline"
                           onClick={() => onEditEvent(selected)}
                         >
-                          Modifica appuntamento
+                          {t("Modifica appuntamento")}
                         </Button>
                       )}
                       {order &&
@@ -1016,8 +1014,8 @@ function DayDetails({
                             onClick={() => onEditEvent(selected)}
                           >
                             {selected.type === "merce" && warehouse
-                              ? "Verifica materiali"
-                              : "Gestisci date"}
+                              ? t("Verifica materiali")
+                              : t("Gestisci date")}
                           </Button>
                         )}
                     </div>
@@ -1028,8 +1026,8 @@ function DayDetails({
                   <CalendarDays className="h-8 w-8" />
                   <p className="text-sm">
                     {events.length
-                      ? "Cambia i filtri per consultare un evento."
-                      : "La giornata è libera dalle fonti selezionate."}
+                      ? t("Cambia i filtri per consultare un evento.")
+                      : t("La giornata è libera dalle fonti selezionate.")}
                   </p>
                 </div>
               )}

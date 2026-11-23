@@ -11,13 +11,13 @@ import {
   isSameMonth,
   isToday,
 } from "date-fns";
-import { it } from "date-fns/locale";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 import { isTaskDoneStatus } from "@/lib/taskStatuses";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // ─── Priority colors ──────────────────────────────────────────────────────────
 const PRIORITY_DOT: Record<string, string> = {
@@ -36,6 +36,7 @@ interface TaskCalendarViewProps {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export function TaskCalendarView({ tasks, onTaskSelect, onNewTaskForDate }: TaskCalendarViewProps) {
+  const tr = useT();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const { effectiveCompany } = useAuth();
   const observedStatuses = useMemo(() => Array.from(new Set(tasks.map((task) => task.status).filter(Boolean))), [tasks]);
@@ -77,7 +78,7 @@ export function TaskCalendarView({ tasks, onTaskSelect, onNewTaskForDate }: Task
       {/* Header navigazione */}
       <div className="flex items-center justify-between">
         <h2 className="text-base font-semibold capitalize">
-          {format(currentMonth, "MMMM yyyy", { locale: it })}
+          {format(currentMonth, "MMMM yyyy", { locale: dateFnsCampo() })}
         </h2>
         <div className="flex items-center gap-1">
           <Button
@@ -86,13 +87,14 @@ export function TaskCalendarView({ tasks, onTaskSelect, onNewTaskForDate }: Task
             onClick={() => setCurrentMonth(new Date())}
             className="text-xs h-8 px-2"
           >
-            Oggi
+            {tr("Oggi")}
           </Button>
           <Button
             variant="ghost"
             size="icon"
             className="h-8 w-8"
             onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
+            aria-label={tr("Mese precedente")}
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -101,6 +103,7 @@ export function TaskCalendarView({ tasks, onTaskSelect, onNewTaskForDate }: Task
             size="icon"
             className="h-8 w-8"
             onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
+            aria-label={tr("Mese successivo")}
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
@@ -113,7 +116,7 @@ export function TaskCalendarView({ tasks, onTaskSelect, onNewTaskForDate }: Task
         <div className="grid grid-cols-7 bg-muted/50">
           {WEEK_DAYS.map((d) => (
             <div key={d} className="text-center text-xs font-medium text-muted-foreground py-2">
-              {d}
+              {tr(d)}
             </div>
           ))}
         </div>
@@ -176,12 +179,12 @@ export function TaskCalendarView({ tasks, onTaskSelect, onNewTaskForDate }: Task
                             : (PRIORITY_DOT[task.priority] ?? "bg-primary"),
                         )}
                       />
-                      <span className="truncate">{task.title}</span>
+                      <span dir="auto" className="truncate">{task.title}</span>
                     </button>
                   ))}
                   {dayTasks.length > MAX_VISIBLE && (
                     <div className="text-[10px] text-muted-foreground px-1">
-                      +{dayTasks.length - MAX_VISIBLE} altri
+                      {tr("+{n} altri", { n: dayTasks.length - MAX_VISIBLE })}
                     </div>
                   )}
                 </div>
@@ -196,7 +199,7 @@ export function TaskCalendarView({ tasks, onTaskSelect, onNewTaskForDate }: Task
         {Object.entries(PRIORITY_DOT).map(([p, cls]) => (
           <span key={p} className="flex items-center gap-1">
             <span className={cn("w-2 h-2 rounded-full", cls)} />
-            {p.charAt(0).toUpperCase() + p.slice(1)}
+            {tr(p.charAt(0).toUpperCase() + p.slice(1))}
           </span>
         ))}
       </div>

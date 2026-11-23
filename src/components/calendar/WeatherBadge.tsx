@@ -1,5 +1,6 @@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import { weatherCodeToEmoji, weatherCodeToLabel, type WeatherDay, type LocationWeatherDay } from "@/hooks/useWeatherForecast";
 
 interface WeatherBadgeProps {
@@ -9,8 +10,9 @@ interface WeatherBadgeProps {
 }
 
 export function WeatherBadge({ weather, size = "sm", showTemp = false }: WeatherBadgeProps) {
+  const t = useT();
   const emoji = weatherCodeToEmoji(weather.code);
-  const label = weatherCodeToLabel(weather.code);
+  const label = t(weatherCodeToLabel(weather.code));
   const isRainy = weather.precip > 5;
   const isHeavyRain = weather.precip > 20;
 
@@ -38,10 +40,10 @@ export function WeatherBadge({ weather, size = "sm", showTemp = false }: Weather
         <TooltipContent>
           <p className="font-medium">{label}</p>
           <p className="text-xs">{weather.minTemp}° – {weather.maxTemp}°C</p>
-          {weather.precip > 0 && <p className="text-xs text-blue-600">{weather.precip}mm precipitazioni</p>}
-          {isHeavyRain && <p className="text-xs text-red-500 font-medium">⚠️ Lavori esterni sconsigliati</p>}
-          {isRainy && !isHeavyRain && <p className="text-xs text-orange-500">⚠️ Rischio pioggia</p>}
-          {!isRainy && <p className="text-xs text-green-500">✓ Ideale per lavori esterni</p>}
+          {weather.precip > 0 && <p className="text-xs text-blue-600">{t("{mm}mm precipitazioni", { mm: weather.precip })}</p>}
+          {isHeavyRain && <p className="text-xs text-red-500 font-medium">⚠️ {t("Lavori esterni sconsigliati")}</p>}
+          {isRainy && !isHeavyRain && <p className="text-xs text-orange-500">⚠️ {t("Rischio pioggia")}</p>}
+          {!isRainy && <p className="text-xs text-green-500">✓ {t("Ideale per lavori esterni")}</p>}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
@@ -62,6 +64,7 @@ interface WeatherBadgeMultiProps {
  * Se ce ne sono più di una, mostra il "peggiore" + tooltip con dettaglio per città.
  */
 export function WeatherBadgeMulti({ locations, size = "sm", showTemp = false }: WeatherBadgeMultiProps) {
+  const t = useT();
   if (!locations || locations.length === 0) return null;
 
   // 2026-05-27 (UX request): emoji ingrandita su entrambi i rami del badge
@@ -71,7 +74,7 @@ export function WeatherBadgeMulti({ locations, size = "sm", showTemp = false }: 
   if (locations.length === 1) {
     const loc = locations[0];
     const emoji = weatherCodeToEmoji(loc.code);
-    const label = weatherCodeToLabel(loc.code);
+    const label = t(weatherCodeToLabel(loc.code));
     const isRainy = loc.precip > 5;
     const isHeavyRain = loc.precip > 20;
 
@@ -103,10 +106,10 @@ export function WeatherBadgeMulti({ locations, size = "sm", showTemp = false }: 
             {!loc.address && loc.city && <p className="font-semibold text-xs mb-0.5">{loc.city}</p>}
             <p className="font-medium">{label}</p>
             <p className="text-xs">{loc.minTemp}° – {loc.maxTemp}°C</p>
-            {loc.precip > 0 && <p className="text-xs text-blue-600">{loc.precip}mm precipitazioni</p>}
-            {isHeavyRain && <p className="text-xs text-red-500 font-medium">⚠️ Lavori esterni sconsigliati</p>}
-            {isRainy && !isHeavyRain && <p className="text-xs text-orange-500">⚠️ Rischio pioggia</p>}
-            {!isRainy && <p className="text-xs text-green-500">✓ Ideale per lavori esterni</p>}
+            {loc.precip > 0 && <p className="text-xs text-blue-600">{t("{mm}mm precipitazioni", { mm: loc.precip })}</p>}
+            {isHeavyRain && <p className="text-xs text-red-500 font-medium">⚠️ {t("Lavori esterni sconsigliati")}</p>}
+            {isRainy && !isHeavyRain && <p className="text-xs text-orange-500">⚠️ {t("Rischio pioggia")}</p>}
+            {!isRainy && <p className="text-xs text-green-500">✓ {t("Ideale per lavori esterni")}</p>}
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
@@ -137,17 +140,17 @@ export function WeatherBadgeMulti({ locations, size = "sm", showTemp = false }: 
               "text-muted-foreground"
             )}
           >
-            <span className={emojiClass} aria-label="Meteo cantieri">{worstEmoji}</span>
+            <span className={emojiClass} aria-label={t("Meteo cantieri")}>{worstEmoji}</span>
             {showTemp && <span className={tempClass}>{worst.maxTemp}°</span>}
             {locations.length > 1 && <span className={cn(tempClass, "opacity-60")}>×{locations.length}</span>}
           </span>
         </TooltipTrigger>
         <TooltipContent className="max-w-sm">
-          <p className="font-semibold text-xs mb-1.5">Meteo cantieri ({locations.length} luoghi)</p>
+          <p className="font-semibold text-xs mb-1.5">{t("Meteo cantieri ({n} luoghi)", { n: locations.length })}</p>
           <div className="space-y-2">
             {locations.map((loc, i) => {
               const emoji = weatherCodeToEmoji(loc.code);
-              const label = weatherCodeToLabel(loc.code);
+              const label = t(weatherCodeToLabel(loc.code));
               const isLocRainy = loc.precip > 5;
               const isLocHeavy = loc.precip > 20;
               // Titolo: ordine + cliente oppure indirizzo/città
@@ -180,7 +183,7 @@ export function WeatherBadgeMulti({ locations, size = "sm", showTemp = false }: 
                     <span className="text-xs font-medium">{label}</span>
                     <span className="text-xs text-muted-foreground">{loc.minTemp}°–{loc.maxTemp}°</span>
                     {loc.precip > 0 && <span className="text-[10px] text-blue-600">{loc.precip}mm</span>}
-                    {isLocHeavy && <span className="text-[10px] text-red-500 font-medium">⚠️ Stop</span>}
+                    {isLocHeavy && <span className="text-[10px] text-red-500 font-medium">⚠️ {t("Stop")}</span>}
                     {isLocRainy && !isLocHeavy && <span className="text-[10px] text-orange-500">⚠️</span>}
                   </div>
                 </div>

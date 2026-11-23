@@ -1,6 +1,5 @@
 import { Cloud, Loader2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
 import { useCalendarSiteWeather } from "@/hooks/useCalendarSiteWeather";
 import {
   weatherCodeToEmoji,
@@ -9,6 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { CalendarEvent } from "@/lib/calendar/events";
+import { dateFnsCampo, intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function CalendarSiteWeather({
   event,
@@ -19,26 +19,24 @@ export function CalendarSiteWeather({
   day: string;
   compact?: boolean;
 }) {
+  const t = useT();
   const q = useCalendarSiteWeather(event, day);
   if (!q.supported) return null;
-  const date = format(parseISO(day), "d MMM", { locale: it });
+  const date = format(parseISO(day), "d MMM", { locale: dateFnsCampo() });
   const message =
     q.status === "outside-range"
-      ? "Previsioni disponibili da oggi per i prossimi 16 giorni."
+      ? t("Previsioni disponibili da oggi per i prossimi 16 giorni.")
       : q.status === "missing-address"
-        ? "Indirizzo del cantiere non impostato."
+        ? t("Indirizzo del cantiere non impostato.")
         : q.status === "missing-position"
-          ? "Indirizzo non localizzato: meteo non disponibile."
+          ? t("Indirizzo non localizzato: meteo non disponibile.")
           : q.status === "loading"
-            ? "Caricamento meteo…"
-            : "Meteo temporaneamente non disponibile.";
-  const title =
-    "Meteo · " +
-    (q.address || "Posizione del cantiere") +
-    " · " +
-    date +
-    ": " +
-    (q.data
+            ? t("Caricamento meteo…")
+            : t("Meteo temporaneamente non disponibile.");
+  const title = t("Meteo · {luogo} · {data}: {dettaglio}", {
+    luogo: q.address || t("Posizione del cantiere"),
+    data: date,
+    dettaglio: q.data
       ? weatherCodeToLabel(q.data.code) +
         " · " +
         q.data.minTemp +
@@ -47,7 +45,8 @@ export function CalendarSiteWeather({
         " °C · " +
         q.data.precip +
         " mm"
-      : message);
+      : message,
+  });
   const badge = (
     <span
       role="img"
@@ -77,11 +76,11 @@ export function CalendarSiteWeather({
   if (compact) return badge;
   return (
     <section
-      aria-label="Meteo presso questo indirizzo"
+      aria-label={t("Meteo presso questo indirizzo")}
       className="space-y-2 rounded-xl border bg-muted/20 p-4"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h4 className="text-xs font-semibold">Meteo · {date}</h4>
+        <h4 className="text-xs font-semibold">{t("Meteo · {data}", { data: date })}</h4>
         {badge}
       </div>
       {q.data ? (
@@ -91,7 +90,7 @@ export function CalendarSiteWeather({
             {q.data.maxTemp}°C
           </p>
           <p className="mt-1 text-muted-foreground">
-            Precipitazioni previste: {q.data.precip.toLocaleString("it-IT")} mm.
+            {t("Precipitazioni previste: {mm} mm.", { mm: q.data.precip.toLocaleString(intlCampo()) })}
           </p>
         </div>
       ) : (
@@ -101,11 +100,11 @@ export function CalendarSiteWeather({
       )}
       {q.status === "error" && (
         <Button size="sm" variant="outline" onClick={q.retry}>
-          Riprova meteo
+          {t("Riprova meteo")}
         </Button>
       )}
       <p className="text-[10px] text-muted-foreground">
-        Previsione per la zona dell’indirizzo ·{" "}
+        {t("Previsione per la zona dell’indirizzo")} ·{" "}
         <a
           className="hover:underline"
           href="https://open-meteo.com/"

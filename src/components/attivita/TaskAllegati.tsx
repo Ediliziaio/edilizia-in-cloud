@@ -12,6 +12,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { SezioneCard } from "@/components/attivita/SezioneCard";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const MAX_BYTES = 20 * 1024 * 1024;
 const TIPI_AMMESSI = /^(image\/(png|jpe?g|webp|heic|gif)|application\/pdf|application\/(msword|vnd\.openxmlformats-officedocument\.(wordprocessingml\.document|spreadsheetml\.sheet))|application\/vnd\.ms-excel|text\/plain)$/i;
@@ -42,6 +43,7 @@ function nomeSicuro(nome: string): string {
 }
 
 export function TaskAllegati({ taskId, companyId }: Props) {
+  const t = useT();
   const { user } = useAuth();
   const { solaLettura } = usePermissions();
   const queryClient = useQueryClient();
@@ -69,11 +71,11 @@ export function TaskAllegati({ taskId, companyId }: Props) {
     let caricati = 0;
     try {
       for (const file of Array.from(files)) {
-        if (file.size > MAX_BYTES) { toast.error(`${file.name}: oltre 20 MB`); continue; }
-        if (file.type && !TIPI_AMMESSI.test(file.type)) { toast.error(`${file.name}: tipo non ammesso (immagini, PDF, Word, Excel, testo)`); continue; }
+        if (file.size > MAX_BYTES) { toast.error(t("{nome}: oltre 20 MB", { nome: file.name })); continue; }
+        if (file.type && !TIPI_AMMESSI.test(file.type)) { toast.error(t("{nome}: tipo non ammesso (immagini, PDF, Word, Excel, testo)", { nome: file.name })); continue; }
         const path = `${companyId}/${taskId}/${Date.now()}-${nomeSicuro(file.name)}`;
         const { error: upErr } = await supabase.storage.from("task-attachments").upload(path, file, { contentType: file.type || undefined, upsert: false });
-        if (upErr) { toast.error(`${file.name}: caricamento non riuscito`, { description: upErr.message }); continue; }
+        if (upErr) { toast.error(t("{nome}: caricamento non riuscito", { nome: file.name }), { description: upErr.message }); continue; }
         const { error: insErr } = await supabase.from("task_attachments").insert({
           task_id: taskId,
           company_id: companyId,
@@ -85,13 +87,13 @@ export function TaskAllegati({ taskId, companyId }: Props) {
         });
         if (insErr) {
           await supabase.storage.from("task-attachments").remove([path]);
-          toast.error(`${file.name}: non registrato`, { description: insErr.message });
+          toast.error(t("{nome}: non registrato", { nome: file.name }), { description: insErr.message });
           continue;
         }
         caricati += 1;
       }
       if (caricati > 0) {
-        toast.success(caricati === 1 ? "Allegato caricato" : `${caricati} allegati caricati`);
+        toast.success(caricati === 1 ? t("Allegato caricato") : t("{n} allegati caricati", { n: caricati }));
         queryClient.invalidateQueries({ queryKey: chiave });
       }
     } finally {
@@ -103,7 +105,7 @@ export function TaskAllegati({ taskId, companyId }: Props) {
   const apri = async (a: Allegato) => {
     // Authorize every download using the current session, without a reusable signed link.
     const { data, error } = await supabase.storage.from("task-attachments").download(a.storage_path);
-    if (error || !data) { toast.error("File non disponibile", { description: error?.message }); return; }
+    if (error || !data) { toast.error(t("File non disponibile"), { description: error?.message }); return; }
     const url = URL.createObjectURL(data);
     const link = document.createElement("a");
     link.href = url; link.download = a.file_name; link.click();
@@ -116,19 +118,19 @@ export function TaskAllegati({ taskId, companyId }: Props) {
       if (error) throw error;
       await supabase.storage.from("task-attachments").remove([a.storage_path]);
     },
-    onSuccess: () => { toast.success("Allegato eliminato"); queryClient.invalidateQueries({ queryKey: chiave }); },
-    onError: (e: Error) => toast.error("Eliminazione non riuscita", { description: e.message }),
+    onSuccess: () => { toast.success(t("Allegato eliminato")); queryClient.invalidateQueries({ queryKey: chiave }); },
+    onError: (e: Error) => toast.error(t("Eliminazione non riuscita"), { description: e.message }),
   });
 
   return (
     <SezioneCard
-      titolo={`Allegati${allegati.length ? ` (${allegati.length})` : ""}`}
+      titolo={allegati.length ? t("Allegati ({n})", { n: allegati.length }) : t("Allegati")}
       icon={Paperclip}
       tono="arancio"
       azione={
         <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" disabled={caricamento || solaLettura} onClick={() => inputRef.current?.click()}>
           {caricamento ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-          Carica
+          {t("Carica")}
         </Button>
       }
     >
@@ -139,13 +141,13 @@ export function TaskAllegati({ taskId, companyId }: Props) {
         className="hidden"
         accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
         onChange={(e) => { void carica(e.target.files); }}
-        aria-label="Carica allegati"
+        aria-label={t("Carica allegati")}
       />
       {isLoading ? (
-        <p className="text-xs text-muted-foreground">Caricamento…</p>
+        <p className="text-xs text-muted-foreground">{t("Caricamento…")}</p>
       ) : allegati.length === 0 ? (
         <p className="text-xs text-muted-foreground">
-          Nessun file<span className="hidden sm:inline">. Foto di cantiere, bolle e verbali si allegano qui (fino a 20 MB l'uno)</span>.
+          {t("Nessun file")}<span className="hidden sm:inline">{t(". Foto di cantiere, bolle e verbali si allegano qui (fino a 20 MB l'uno)")}</span>.
         </p>
       ) : (
         <ul className="divide-y">
@@ -158,7 +160,7 @@ export function TaskAllegati({ taskId, companyId }: Props) {
                   {a.file_name}
                 </button>
                 <span className="shrink-0 text-[11px] text-muted-foreground">{formatoDimensione(a.size_bytes)}</span>
-                <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive" aria-label={`Elimina ${a.file_name}`} onClick={() => elimina.mutate(a)} disabled={elimina.isPending || solaLettura}>
+                <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive" aria-label={t("Elimina {nome}", { nome: a.file_name })} onClick={() => elimina.mutate(a)} disabled={elimina.isPending || solaLettura}>
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               </li>

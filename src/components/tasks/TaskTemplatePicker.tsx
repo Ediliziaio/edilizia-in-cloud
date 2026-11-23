@@ -11,6 +11,7 @@ import { LayoutTemplate, Plus, Trash2, Check } from "lucide-react";
 import { toast } from "sonner";
 import { TaskStatusBadge } from "./TaskStatusBadge";
 import { type TaskStatusDefinition, getTaskStatusLabel } from "@/lib/taskStatuses";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Template {
   id: string;
@@ -70,6 +71,7 @@ export function TaskTemplatePicker({
   currentTitle, currentNotes, currentStatus, currentPriority, currentCategory,
   currentEstimatedHours, currentChecklistItems = [], statusOptions, onApply,
 }: TaskTemplatePickerProps) {
+  const t = useT();
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -116,12 +118,12 @@ export function TaskTemplatePicker({
         status: currentStatus,
         checklist_items: currentChecklistItems.map((item) => item.trim()).filter(Boolean),
       });
-      toast.success("Template salvato");
+      toast.success(t("Template salvato"));
       queryClient.invalidateQueries({ queryKey: ["task-templates", companyId] });
       setSaveName("");
       setMode("list");
     },
-    onError: (e: any) => toast.error("Errore salvataggio template", { description: e.message }),
+    onError: (e: any) => toast.error(t("Errore salvataggio template"), { description: e.message }),
   });
 
   const deleteMutation = useMutation({
@@ -130,7 +132,7 @@ export function TaskTemplatePicker({
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["task-templates", companyId] }),
-    onError: () => toast.error("Errore eliminazione template"),
+    onError: () => toast.error(t("Errore eliminazione template")),
   });
 
   return (
@@ -138,7 +140,7 @@ export function TaskTemplatePicker({
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
           <LayoutTemplate className="h-3.5 w-3.5" />
-          Template
+          {t("Template")}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-72 p-0" align="start">
@@ -146,21 +148,21 @@ export function TaskTemplatePicker({
           <>
             <div className="p-2 border-b flex items-center justify-between">
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                Template attività
+                {t("Template attività")}
               </span>
               <button
                 className="text-xs text-primary hover:underline flex items-center gap-1"
                 onClick={() => { setSaveName(""); setMode("save"); }}
               >
                 <Plus className="h-3 w-3" />
-                Salva corrente
+                {t("Salva corrente")}
               </button>
             </div>
             <div className="max-h-56 overflow-y-auto">
               {templates.length === 0 ? (
                 <p className="text-xs text-muted-foreground text-center py-6">
-                  Nessun template.<br />
-                  <span className="opacity-60">Crea un'attività e salvala come template.</span>
+                  {t("Nessun template.")}<br />
+                  <span className="opacity-60">{t("Crea un'attività e salvala come template.")}</span>
                 </p>
               ) : (
                 templates.map((tpl) => (
@@ -184,7 +186,7 @@ export function TaskTemplatePicker({
                           checklist_items: extras.checklist_items,
                         });
                         setOpen(false);
-                        toast.success(`Template "${tpl.name}" applicato`);
+                        toast.success(t("Template \"{nome}\" applicato", { nome: tpl.name }));
                       }}
                     >
                       <p className="text-sm font-medium truncate">{tpl.name}</p>
@@ -192,9 +194,9 @@ export function TaskTemplatePicker({
                         {extras.status && (
                           <TaskStatusBadge status={extras.status} statuses={statusOptions} compact className="h-5 px-1.5 text-[10px]" />
                         )}
-                        <span>{PRIORITY_LABELS[tpl.priority] ?? tpl.priority} · {tpl.category}</span>
+                        <span>{PRIORITY_LABELS[tpl.priority] ? t(PRIORITY_LABELS[tpl.priority]) : tpl.priority} · {tpl.category}</span>
                         {tpl.estimated_hours != null && ` · ${tpl.estimated_hours}h`}
-                        {extras.checklist_items?.length ? ` · ${extras.checklist_items.length} check` : ""}
+                        {extras.checklist_items?.length ? ` · ${t("{n} check", { n: extras.checklist_items.length })}` : ""}
                       </p>
                     </button>
                     <button
@@ -202,17 +204,17 @@ export function TaskTemplatePicker({
                       onClick={async () => {
                         if (
                           await confirm({
-                            title: "Eliminare il template attività?",
-                            description: `Il template "${tpl.name}" verrà rimosso definitivamente.`,
-                            confirmLabel: "Elimina",
+                            title: t("Eliminare il template attività?"),
+                            description: t("Il template \"{nome}\" verrà rimosso definitivamente.", { nome: tpl.name }),
+                            confirmLabel: t("Elimina"),
                             variant: "destructive",
                           })
                         ) {
                           deleteMutation.mutate(tpl.id);
                         }
                       }}
-                      title="Elimina template"
-                      aria-label={`Elimina template ${tpl.name}`}
+                      title={t("Elimina template")}
+                      aria-label={t("Elimina template {nome}", { nome: tpl.name })}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -226,12 +228,12 @@ export function TaskTemplatePicker({
         ) : (
           <div className="p-3 space-y-3">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              Salva come template
+              {t("Salva come template")}
             </p>
             <div className="space-y-1.5">
-              <Label className="text-xs">Nome template</Label>
+              <Label className="text-xs">{t("Nome template")}</Label>
               <Input
-                placeholder="Es. Sopralluogo standard"
+                placeholder={t("Es. Sopralluogo standard")}
                 value={saveName}
                 onChange={(e) => setSaveName(e.target.value)}
                 className="h-8 text-sm"
@@ -240,12 +242,12 @@ export function TaskTemplatePicker({
               />
             </div>
             <div className="text-[10px] text-muted-foreground space-y-0.5">
-              <p>Titolo: <span className="text-foreground">{currentTitle || "(vuoto)"}</span></p>
-              <p>Stato: <span className="text-foreground">{getTaskStatusLabel(currentStatus, statusOptions)}</span></p>
-              <p>Priorità: <span className="text-foreground">{PRIORITY_LABELS[currentPriority]}</span></p>
-              <p>Categoria: <span className="text-foreground">{currentCategory}</span></p>
+              <p>{t("Titolo:")} <span className="text-foreground">{currentTitle || t("(vuoto)")}</span></p>
+              <p>{t("Stato:")} <span className="text-foreground">{t(getTaskStatusLabel(currentStatus, statusOptions))}</span></p>
+              <p>{t("Priorità:")} <span className="text-foreground">{PRIORITY_LABELS[currentPriority] ? t(PRIORITY_LABELS[currentPriority]) : currentPriority}</span></p>
+              <p>{t("Categoria:")} <span className="text-foreground">{currentCategory}</span></p>
               {currentChecklistItems.length > 0 && (
-                <p>Checklist: <span className="text-foreground">{currentChecklistItems.length} elementi</span></p>
+                <p>{t("Checklist:")} <span className="text-foreground">{t("{n} elementi", { n: currentChecklistItems.length })}</span></p>
               )}
             </div>
             <div className="flex gap-2">
@@ -256,7 +258,7 @@ export function TaskTemplatePicker({
                 disabled={!saveName.trim() || saveMutation.isPending}
               >
                 <Check className="h-3.5 w-3.5 mr-1" />
-                Salva
+                {t("Salva")}
               </Button>
               <Button
                 size="sm"
@@ -264,7 +266,7 @@ export function TaskTemplatePicker({
                 className="h-8 text-xs"
                 onClick={() => setMode("list")}
               >
-                Annulla
+                {t("Annulla")}
               </Button>
             </div>
           </div>

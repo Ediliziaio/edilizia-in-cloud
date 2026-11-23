@@ -10,6 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 import { TASK_STATUS_TONE_CLASSES, isTaskDoneStatus } from "@/lib/taskStatuses";
 import { TASK_CATEGORY_LABELS as CATEGORY_LABELS } from "@/lib/taskCategories";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 const PRIORITY_COLORS: Record<string, string> = {
   bassa:   "#94a3b8",
   normale: "#3b82f6",
@@ -76,6 +77,7 @@ function HorizontalBar({ label, count, total, color }: {
 }
 
 export function TaskStatsView({ tasks }: TaskStatsViewProps) {
+  const tr = useT();
   const { effectiveCompany } = useAuth();
   const observedStatuses = useMemo(() => Array.from(new Set(tasks.map((task) => task.status).filter(Boolean))), [tasks]);
   const { statuses: statusOptions } = useTaskStatuses(effectiveCompany?.id, observedStatuses);
@@ -104,7 +106,7 @@ export function TaskStatsView({ tasks }: TaskStatsViewProps) {
 
     // By status
     const byStatus = statusOptions.map((status) => ({
-      name: status.label,
+      name: tr(status.label),
       value: tasks.filter((t) => t.status === status.value).length,
       color: TASK_STATUS_TONE_CLASSES[status.tone]?.chart || "#64748b",
     })).filter((e) => e.value > 0);
@@ -112,7 +114,7 @@ export function TaskStatsView({ tasks }: TaskStatsViewProps) {
     // By priority
     const byPriority = Object.entries(PRIORITY_COLORS).map(([p, color]) => ({
       key: p,
-      label: p.charAt(0).toUpperCase() + p.slice(1),
+      label: tr(p.charAt(0).toUpperCase() + p.slice(1)),
       count: tasks.filter((t) => t.priority === p).length,
       color,
     }));
@@ -126,27 +128,27 @@ export function TaskStatsView({ tasks }: TaskStatsViewProps) {
     const byCategory = Array.from(catMap.entries())
       .sort(([, a], [, b]) => b - a)
       .slice(0, 6)
-      .map(([cat, count]) => ({ label: CATEGORY_LABELS[cat] ?? cat, count }));
+      .map(([cat, count]) => ({ label: CATEGORY_LABELS[cat] ? tr(CATEGORY_LABELS[cat]) : cat, count }));
 
     return { total, completed, completionRate, avgHours, last14, byStatus, byPriority, byCategory };
-  }, [tasks, statusOptions]);
+  }, [tasks, statusOptions, tr]);
 
   return (
     <div className="space-y-6">
       {/* Overview cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard icon={ListTodo}      label="Totale attività"       value={stats.total} />
-        <StatCard icon={CheckCircle2}  label="Completate"            value={stats.completed} sub={`${stats.completionRate}% del totale`} />
-        <StatCard icon={TrendingUp}    label="Tasso completamento"   value={`${stats.completionRate}%`} />
+        <StatCard icon={ListTodo}      label={tr("Totale attività")}       value={stats.total} />
+        <StatCard icon={CheckCircle2}  label={tr("Completate")}            value={stats.completed} sub={tr("{n}% del totale", { n: stats.completionRate })} />
+        <StatCard icon={TrendingUp}    label={tr("Tasso completamento")}   value={`${stats.completionRate}%`} />
         <StatCard
           icon={Clock}
-          label="Tempo medio chiusura"
+          label={tr("Tempo medio chiusura")}
           value={stats.avgHours != null
             ? stats.avgHours < 24
               ? `${stats.avgHours}h`
-              : `${Math.round(stats.avgHours / 24)}g`
+              : tr("{n}g", { n: Math.round(stats.avgHours / 24) })
             : "—"}
-          sub={stats.avgHours != null ? "dalla creazione" : "nessun dato"}
+          sub={stats.avgHours != null ? tr("dalla creazione") : tr("nessun dato")}
         />
       </div>
 
@@ -154,7 +156,7 @@ export function TaskStatsView({ tasks }: TaskStatsViewProps) {
         {/* Completions trend */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">Completamenti — ultimi 14 giorni</CardTitle>
+            <CardTitle className="text-sm font-semibold">{tr("Completamenti — ultimi 14 giorni")}</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={180}>
@@ -164,7 +166,7 @@ export function TaskStatsView({ tasks }: TaskStatsViewProps) {
                 <YAxis allowDecimals={false} tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
                 <Tooltip
                   contentStyle={{ fontSize: 12, borderRadius: 6, border: "1px solid hsl(var(--border))" }}
-                  formatter={(v: number) => [v, "Completate"]}
+                  formatter={(v: number) => [v, tr("Completate")]}
                 />
                 <Bar dataKey="count" fill="hsl(var(--primary))" radius={[3, 3, 0, 0]} />
               </BarChart>
@@ -175,11 +177,11 @@ export function TaskStatsView({ tasks }: TaskStatsViewProps) {
         {/* Status pie */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">Distribuzione per stato</CardTitle>
+            <CardTitle className="text-sm font-semibold">{tr("Distribuzione per stato")}</CardTitle>
           </CardHeader>
           <CardContent>
             {stats.total === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">Nessuna attività</p>
+              <p className="text-sm text-muted-foreground text-center py-8">{tr("Nessuna attività")}</p>
             ) : (
               <div className="flex items-center gap-4">
                 <ResponsiveContainer width={140} height={140}>
@@ -219,7 +221,7 @@ export function TaskStatsView({ tasks }: TaskStatsViewProps) {
         {/* By priority */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">Distribuzione per priorità</CardTitle>
+            <CardTitle className="text-sm font-semibold">{tr("Distribuzione per priorità")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {stats.byPriority.map((p) => (
@@ -231,11 +233,11 @@ export function TaskStatsView({ tasks }: TaskStatsViewProps) {
         {/* By category */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">Distribuzione per categoria</CardTitle>
+            <CardTitle className="text-sm font-semibold">{tr("Distribuzione per categoria")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {stats.byCategory.length === 0
-              ? <p className="text-sm text-muted-foreground">Nessun dato</p>
+              ? <p className="text-sm text-muted-foreground">{tr("Nessun dato")}</p>
               : stats.byCategory.map((c) => (
                   <HorizontalBar
                     key={c.label}

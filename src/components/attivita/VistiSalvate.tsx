@@ -22,6 +22,7 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** I filtri che compongono una vista. Deliberatamente piatto: finisce in jsonb. */
 export interface FiltriVista {
@@ -53,6 +54,7 @@ interface Props {
 }
 
 export function VistiSalvate({ companyId, userId, filtriCorrenti, onApplica }: Props) {
+  const t = useT();
   const queryClient = useQueryClient();
   const [dialogAperto, setDialogAperto] = useState(false);
   const [nome, setNome] = useState("");
@@ -85,13 +87,13 @@ export function VistiSalvate({ companyId, userId, filtriCorrenti, onApplica }: P
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success(condivisa ? `Vista "${nome.trim()}" salvata e condivisa` : `Vista "${nome.trim()}" salvata`);
+      toast.success(condivisa ? t("Vista \"{nome}\" salvata e condivisa", { nome: nome.trim() }) : t("Vista \"{nome}\" salvata", { nome: nome.trim() }));
       queryClient.invalidateQueries({ queryKey: chiave });
       setDialogAperto(false);
       setNome("");
       setCondivisa(false);
     },
-    onError: (e: Error) => toast.error("Vista non salvata", { description: e.message }),
+    onError: (e: Error) => toast.error(t("Vista non salvata"), { description: e.message }),
   });
 
   const elimina = useMutation({
@@ -100,10 +102,10 @@ export function VistiSalvate({ companyId, userId, filtriCorrenti, onApplica }: P
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Vista eliminata");
+      toast.success(t("Vista eliminata"));
       queryClient.invalidateQueries({ queryKey: chiave });
     },
-    onError: (e: Error) => toast.error("Eliminazione non riuscita", { description: e.message }),
+    onError: (e: Error) => toast.error(t("Eliminazione non riuscita"), { description: e.message }),
   });
 
   if (!companyId || !userId) return null;
@@ -112,32 +114,32 @@ export function VistiSalvate({ companyId, userId, filtriCorrenti, onApplica }: P
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className="h-9 gap-2" aria-label="Viste salvate">
+          <Button variant="outline" size="sm" className="h-9 gap-2" aria-label={t("Viste salvate")}>
             <Bookmark className="h-4 w-4" />
-            Viste{viste.length > 0 ? ` (${viste.length})` : ""}
+            {viste.length > 0 ? t("Viste ({n})", { n: viste.length }) : t("Viste")}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-64">
-          <DropdownMenuLabel>Viste salvate</DropdownMenuLabel>
+          <DropdownMenuLabel>{t("Viste salvate")}</DropdownMenuLabel>
           {viste.length === 0 && (
             <div className="px-2 py-3 text-xs text-muted-foreground">
-              Nessuna vista. Imposta i filtri che usi tutti i giorni e salvali qui.
+              {t("Nessuna vista. Imposta i filtri che usi tutti i giorni e salvali qui.")}
             </div>
           )}
           {viste.map((v) => (
             <DropdownMenuItem
               key={v.id}
               className="flex items-center gap-2"
-              onSelect={(e) => { e.preventDefault(); onApplica(v.filters ?? {}); toast.success(`Vista "${v.name}"`); }}
+              onSelect={(e) => { e.preventDefault(); onApplica(v.filters ?? {}); toast.success(t("Vista \"{nome}\"", { nome: v.name })); }}
             >
               <Check className="h-3.5 w-3.5 opacity-0" />
               <span className="flex-1 truncate">{v.name}</span>
-              {v.is_shared && <Users className="h-3 w-3 text-muted-foreground" aria-label="condivisa" />}
+              {v.is_shared && <Users className="h-3 w-3 text-muted-foreground" aria-label={t("condivisa")} />}
               {v.user_id === userId && (
                 <button
                   type="button"
                   className="text-muted-foreground hover:text-destructive"
-                  aria-label={`Elimina la vista ${v.name}`}
+                  aria-label={t("Elimina la vista {nome}", { nome: v.name })}
                   onClick={(e) => { e.stopPropagation(); elimina.mutate(v.id); }}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -148,7 +150,7 @@ export function VistiSalvate({ companyId, userId, filtriCorrenti, onApplica }: P
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => setDialogAperto(true)}>
             <BookmarkPlus className="mr-2 h-4 w-4" />
-            Salva i filtri di adesso
+            {t("Salva i filtri di adesso")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -156,35 +158,35 @@ export function VistiSalvate({ companyId, userId, filtriCorrenti, onApplica }: P
       <Dialog open={dialogAperto} onOpenChange={setDialogAperto}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Salva la vista</DialogTitle>
+            <DialogTitle>{t("Salva la vista")}</DialogTitle>
             <DialogDescription>
-              I filtri impostati adesso si riaprono con un click, anche domani.
+              {t("I filtri impostati adesso si riaprono con un click, anche domani.")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="nome-vista">Nome</Label>
+              <Label htmlFor="nome-vista">{t("Nome")}</Label>
               <Input
                 id="nome-vista"
                 value={nome}
                 onChange={(e) => setNome(e.target.value)}
-                placeholder="Es. Le mie scadute"
+                placeholder={t("Es. Le mie scadute")}
                 maxLength={60}
                 onKeyDown={(e) => { if (e.key === "Enter" && nome.trim()) salva.mutate(); }}
               />
             </div>
             <div className="flex items-center justify-between rounded-md border p-3">
               <div>
-                <Label htmlFor="vista-condivisa" className="text-sm">Condividi con il team</Label>
-                <p className="text-xs text-muted-foreground">La vedono tutti, la modifichi solo tu.</p>
+                <Label htmlFor="vista-condivisa" className="text-sm">{t("Condividi con il team")}</Label>
+                <p className="text-xs text-muted-foreground">{t("La vedono tutti, la modifichi solo tu.")}</p>
               </div>
               <Switch id="vista-condivisa" checked={condivisa} onCheckedChange={setCondivisa} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogAperto(false)}>Annulla</Button>
+            <Button variant="outline" onClick={() => setDialogAperto(false)}>{t("Annulla")}</Button>
             <Button onClick={() => salva.mutate()} disabled={!nome.trim() || salva.isPending}>
-              Salva
+              {t("Salva")}
             </Button>
           </DialogFooter>
         </DialogContent>

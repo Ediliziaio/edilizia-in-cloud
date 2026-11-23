@@ -25,6 +25,7 @@ import {
   getNextTaskStatusForQuickAction,
   isTaskDoneStatus,
 } from "@/lib/taskStatuses";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 import { PRIORITY_CONFIG, PRIORITY_ORDER } from "@/lib/taskPriorities";
 import { TASK_CATEGORY_LABELS as ALL_CATEGORY_LABELS } from "@/lib/taskCategories";
@@ -57,6 +58,7 @@ interface SortableTaskRowProps {
 }
 
 function ScadenzaPopover({ value, onChange, children }: { value: string | null; onChange: (d: string | null) => void; children: React.ReactNode }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [data, setData] = useState(value ?? "");
   const oggi = new Date();
@@ -65,16 +67,16 @@ function ScadenzaPopover({ value, onChange, children }: { value: string | null; 
     <Popover open={open} onOpenChange={(o) => { setOpen(o); if (o) setData(value ?? ""); }}>
       <PopoverTrigger asChild>{children}</PopoverTrigger>
       <PopoverContent align="start" className="w-64 space-y-2 p-3" onClick={(e) => e.stopPropagation()}>
-        <p className="text-xs font-medium text-muted-foreground">Scadenza</p>
+        <p className="text-xs font-medium text-muted-foreground">{t("Scadenza")}</p>
         <div className="flex gap-2">
           <Input type="date" value={data} onChange={(e) => setData(e.target.value)} className="h-8 text-sm" />
-          <Button size="sm" className="h-8" onClick={() => scegli(data || null)}>Ok</Button>
+          <Button size="sm" className="h-8" onClick={() => scegli(data || null)}>{t("Ok")}</Button>
         </div>
         <div className="flex flex-wrap gap-1.5">
-          <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => scegli(format(oggi, "yyyy-MM-dd"))}>Oggi</Button>
-          <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => scegli(format(addDays(oggi, 1), "yyyy-MM-dd"))}>Domani</Button>
-          <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => scegli(format(addDays(oggi, 7), "yyyy-MM-dd"))}>+1 settimana</Button>
-          {value && <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => scegli(null)}>Nessuna</Button>}
+          <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => scegli(format(oggi, "yyyy-MM-dd"))}>{t("Oggi")}</Button>
+          <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => scegli(format(addDays(oggi, 1), "yyyy-MM-dd"))}>{t("Domani")}</Button>
+          <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => scegli(format(addDays(oggi, 7), "yyyy-MM-dd"))}>{t("+1 settimana")}</Button>
+          {value && <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => scegli(null)}>{t("Nessuna")}</Button>}
         </div>
       </PopoverContent>
     </Popover>
@@ -84,6 +86,7 @@ function ScadenzaPopover({ value, onChange, children }: { value: string | null; 
 export function SortableTaskRow({
   task, isSelected, onToggleSelect, onSelect, onToggleComplete, dragDisabled = false, statusOptions, azioni,
 }: SortableTaskRowProps) {
+  const t = useT();
   const {
     attributes, listeners, setNodeRef, transform, transition, isDragging,
   } = useSortable({ id: task.id, disabled: dragDisabled });
@@ -141,7 +144,7 @@ export function SortableTaskRow({
 
   const badgePriorita = (
     <Badge className={cn(PRIORITY_CONFIG[task.priority]?.className || "", azioni && "cursor-pointer hover:ring-2 hover:ring-primary/30")}>
-      {PRIORITY_CONFIG[task.priority]?.label || task.priority}
+      {PRIORITY_CONFIG[task.priority]?.label ? t(PRIORITY_CONFIG[task.priority].label) : task.priority}
       {azioni && <ChevronDown className="ml-1 h-3 w-3 opacity-60" />}
     </Badge>
   );
@@ -181,7 +184,7 @@ export function SortableTaskRow({
               ? "cursor-not-allowed text-muted-foreground/20"
               : "cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground",
           )}
-          title={dragDisabled ? "Rimuovi filtri e ordinamento per riordinare" : "Trascina per riordinare"}
+          title={dragDisabled ? t("Rimuovi filtri e ordinamento per riordinare") : t("Trascina per riordinare")}
         >
           <GripVertical className="h-4 w-4" />
         </button>
@@ -189,20 +192,20 @@ export function SortableTaskRow({
 
       {/* Checkbox */}
       <TableCell className="w-10" onClick={ferma}>
-        <Checkbox checked={isSelected} onCheckedChange={onToggleSelect} aria-label="Seleziona attività" />
+        <Checkbox checked={isSelected} onCheckedChange={onToggleSelect} aria-label={t("Seleziona attività")} />
       </TableCell>
 
       {/* Title */}
       <TableCell className="font-medium">
         <div className="min-w-[160px] xl:min-w-[220px]">
           <div className="flex items-center gap-1.5">
-            <span className={cn("line-clamp-1", isCompleted && "line-through")}>{task.title}</span>
+            <span dir="auto" className={cn("line-clamp-1", isCompleted && "line-through")}>{task.title}</span>
             {task.is_recurring && (
-              <span className="text-[10px] text-muted-foreground" title="Attività ricorrente">↻</span>
+              <span className="text-[10px] text-muted-foreground" title={t("Attività ricorrente")}>↻</span>
             )}
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-normal text-muted-foreground">
-            {creatorName && <span>Creata da {creatorName}</span>}
+            {creatorName && <span>{t("Creata da {nome}", { nome: creatorName })}</span>}
             {task.notes && <span className="hidden max-w-[200px] truncate md:inline xl:max-w-[260px]">{task.notes}</span>}
           </div>
         </div>
@@ -221,7 +224,7 @@ export function SortableTaskRow({
       {/* Category */}
       <TableCell className="hidden xl:table-cell">
         <span className="text-xs text-muted-foreground">
-          {ALL_CATEGORY_LABELS[task.category] || task.category}
+          {ALL_CATEGORY_LABELS[task.category] ? t(ALL_CATEGORY_LABELS[task.category]) : task.category}
         </span>
       </TableCell>
 
@@ -230,14 +233,14 @@ export function SortableTaskRow({
         {azioni ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button type="button" aria-label="Cambia priorità">{badgePriorita}</button>
+              <button type="button" aria-label={t("Cambia priorità")}>{badgePriorita}</button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-40">
-              <DropdownMenuLabel className="text-xs">Priorità</DropdownMenuLabel>
+              <DropdownMenuLabel className="text-xs">{t("Priorità")}</DropdownMenuLabel>
               {PRIORITY_ORDER.map((p) => (
                 <DropdownMenuItem key={p} onSelect={() => azioni.onChangePriority(p)} className="text-sm">
                   <span className={cn("mr-2 inline-block h-2 w-2 rounded-full", p === "urgente" ? "bg-destructive" : p === "alta" ? "bg-warning" : p === "normale" ? "bg-primary" : "bg-muted-foreground/50")} />
-                  {PRIORITY_CONFIG[p].label}
+                  {t(PRIORITY_CONFIG[p].label)}
                   {task.priority === p && <Check className="ml-auto h-3.5 w-3.5" />}
                 </DropdownMenuItem>
               ))}
@@ -250,7 +253,7 @@ export function SortableTaskRow({
       <TableCell onClick={ferma}>
         {azioni ? (
           <ScadenzaPopover value={task.due_date ? String(task.due_date).slice(0, 10) : null} onChange={azioni.onChangeDueDate}>
-            <button type="button" className="rounded px-1 py-0.5 hover:bg-muted" aria-label="Cambia scadenza">{testoScadenza}</button>
+            <button type="button" className="rounded px-1 py-0.5 hover:bg-muted" aria-label={t("Cambia scadenza")}>{testoScadenza}</button>
           </ScadenzaPopover>
         ) : testoScadenza}
       </TableCell>
@@ -262,8 +265,8 @@ export function SortableTaskRow({
             type="button"
             className="rounded-md p-1 transition-colors hover:bg-muted"
             onClick={onToggleComplete}
-            title={isCompleted ? `Riapri (torna a ${nextStatus.label})` : `Segna come ${nextStatus.label}`}
-            aria-label={isCompleted ? "Riapri attività" : `Segna come ${nextStatus.label}`}
+            title={isCompleted ? t("Riapri (torna a {stato})", { stato: t(nextStatus.label) }) : t("Segna come {stato}", { stato: t(nextStatus.label) })}
+            aria-label={isCompleted ? t("Riapri attività") : t("Segna come {stato}", { stato: t(nextStatus.label) })}
           >
             {isCompleted
               ? <CheckCircle2 className="h-4 w-4 text-emerald-600" />
@@ -272,20 +275,20 @@ export function SortableTaskRow({
           {azioni ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button type="button" className="inline-flex items-center gap-1 rounded-md px-1 py-0.5 hover:bg-muted" aria-label="Scegli lo stato" title="Scegli lo stato">
+                <button type="button" className="inline-flex items-center gap-1 rounded-md px-1 py-0.5 hover:bg-muted" aria-label={t("Scegli lo stato")} title={t("Scegli lo stato")}>
                   <TaskStatusBadge status={task.status} statuses={statusOptions} compact />
                   <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/70" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-52">
-                <DropdownMenuLabel className="text-xs">Sposta in</DropdownMenuLabel>
+                <DropdownMenuLabel className="text-xs">{t("Sposta in")}</DropdownMenuLabel>
                 {stati.map((s) => {
                   const tone = TASK_STATUS_TONE_CLASSES[s.tone] || TASK_STATUS_TONE_CLASSES.slate;
                   const corrente = s.value === task.status;
                   return (
                     <DropdownMenuItem key={s.value} disabled={corrente} onSelect={() => azioni.onChangeStatus(s.value)} className="text-sm">
                       <span className={cn("mr-2 h-2 w-2 rounded-full", tone.dot)} />
-                      {s.label}
+                      {t(s.label)}
                       {corrente && <Check className="ml-auto h-3.5 w-3.5" />}
                     </DropdownMenuItem>
                   );
@@ -303,22 +306,22 @@ export function SortableTaskRow({
         {azioni && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button type="button" className="rounded-md p-1.5 text-muted-foreground opacity-60 transition-opacity hover:bg-muted hover:opacity-100 group-hover:opacity-100" aria-label="Altre azioni" title="Altre azioni">
+              <button type="button" className="rounded-md p-1.5 text-muted-foreground opacity-60 transition-opacity hover:bg-muted hover:opacity-100 group-hover:opacity-100" aria-label={t("Altre azioni")} title={t("Altre azioni")}>
                 <MoreHorizontal className="h-4 w-4" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuItem onSelect={onSelect} className="text-sm"><Eye className="mr-2 h-4 w-4" /> Apri dettaglio</DropdownMenuItem>
+              <DropdownMenuItem onSelect={onSelect} className="text-sm"><Eye className="mr-2 h-4 w-4" /> {t("Apri dettaglio")}</DropdownMenuItem>
               {azioni.onAssignToMe && (
-                <DropdownMenuItem onSelect={azioni.onAssignToMe} className="text-sm"><UserPlus className="mr-2 h-4 w-4" /> Assegna a me</DropdownMenuItem>
+                <DropdownMenuItem onSelect={azioni.onAssignToMe} className="text-sm"><UserPlus className="mr-2 h-4 w-4" /> {t("Assegna a me")}</DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-xs">Rimanda</DropdownMenuLabel>
-              <DropdownMenuItem onSelect={() => azioni.onPostpone(1)} className="text-sm"><CalendarClock className="mr-2 h-4 w-4" /> A domani</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => azioni.onPostpone(7)} className="text-sm"><CalendarClock className="mr-2 h-4 w-4" /> Di una settimana</DropdownMenuItem>
+              <DropdownMenuLabel className="text-xs">{t("Rimanda")}</DropdownMenuLabel>
+              <DropdownMenuItem onSelect={() => azioni.onPostpone(1)} className="text-sm"><CalendarClock className="mr-2 h-4 w-4" /> {t("A domani")}</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => azioni.onPostpone(7)} className="text-sm"><CalendarClock className="mr-2 h-4 w-4" /> {t("Di una settimana")}</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={azioni.onDuplicate} className="text-sm"><Copy className="mr-2 h-4 w-4" /> Duplica</DropdownMenuItem>
-              <DropdownMenuItem onSelect={azioni.onDelete} className="text-sm text-destructive focus:text-destructive"><Trash2 className="mr-2 h-4 w-4" /> Elimina</DropdownMenuItem>
+              <DropdownMenuItem onSelect={azioni.onDuplicate} className="text-sm"><Copy className="mr-2 h-4 w-4" /> {t("Duplica")}</DropdownMenuItem>
+              <DropdownMenuItem onSelect={azioni.onDelete} className="text-sm text-destructive focus:text-destructive"><Trash2 className="mr-2 h-4 w-4" /> {t("Elimina")}</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         )}

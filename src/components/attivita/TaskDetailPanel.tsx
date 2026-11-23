@@ -43,7 +43,7 @@ import {
   History,
 } from "lucide-react";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { TaskChecklist } from "./TaskChecklist";
@@ -94,6 +94,15 @@ const TASK_EVENT_LABELS: Record<string, string> = {
   task_deleted: "ha eliminato l'attività",
 };
 
+/** «12 mar 2026 alle 09:30» nella lingua di chi guarda (prima «alle» stava dentro il formato). */
+function dataOra(iso: string, tr: ReturnType<typeof useT>) {
+  const d = new Date(iso);
+  return tr("{data} alle {ora}", {
+    data: format(d, "d MMM yyyy", { locale: dateFnsCampo() }),
+    ora: format(d, "HH:mm"),
+  });
+}
+
 interface TaskDetailPanelProps {
   task: any | null;
   onClose: () => void;
@@ -113,6 +122,7 @@ function EditableField({
   type?: "text" | "date" | "number" | "textarea";
   onSave: (val: string | null) => void;
 }) {
+  const tr = useT();
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState(value ?? "");
 
@@ -123,7 +133,7 @@ function EditableField({
 
   const displayValue = value
     ? type === "date"
-      ? format(new Date(value), "d MMMM yyyy", { locale: it })
+      ? format(new Date(value), "d MMMM yyyy", { locale: dateFnsCampo() })
       : value
     : null;
 
@@ -175,7 +185,7 @@ function EditableField({
           >
             {displayValue ?? (
               <span className="text-muted-foreground/50 italic">
-                Aggiungi...
+                {tr("Aggiungi...")}
               </span>
             )}
           </div>
@@ -202,6 +212,7 @@ function TaskActivityLog({
   creatorName: string;
   statusOptions: TaskStatusDefinition[];
 }) {
+  const tr = useT();
   const { data: logs = [], isLoading } = useQuery({
     queryKey: ["task-activity-log", companyId, task?.id],
     queryFn: async () => {
@@ -238,7 +249,7 @@ function TaskActivityLog({
           />
         )}
         {beforeStatus && (
-          <span className="text-[10px] text-muted-foreground">verso</span>
+          <span className="text-[10px] text-muted-foreground">{tr("verso")}</span>
         )}
         <TaskStatusBadge
           status={afterStatus}
@@ -264,7 +275,7 @@ function TaskActivityLog({
             variant="outline"
             className="h-5 px-1.5 text-[10px]"
           >
-            {TASK_FIELD_LABELS[field] ?? field}
+            {TASK_FIELD_LABELS[field] ? tr(TASK_FIELD_LABELS[field]) : field}
           </Badge>
         ))}
         {fields.length > 4 && (
@@ -281,7 +292,7 @@ function TaskActivityLog({
       <div className="flex items-center gap-2">
         <ChipIcona icon={History} tono="neutro" />
         <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-          Cronologia
+          {tr("Cronologia")}
         </span>
         {logs.length > 0 && (
           <span className="ml-auto text-[10px] text-muted-foreground">
@@ -302,11 +313,10 @@ function TaskActivityLog({
               const eventType = log.event_type || log.action;
               const actor =
                 log.actor_name ||
-                (log.user_id === task.created_by ? creatorName : "Utente");
+                (log.user_id === task.created_by ? creatorName : tr("Utente"));
               const description =
                 log.description ||
-                TASK_EVENT_LABELS[eventType] ||
-                "ha aggiornato l'attività";
+                (TASK_EVENT_LABELS[eventType] ? tr(TASK_EVENT_LABELS[eventType]) : tr("ha aggiornato l'attività"));
               const afterStatus =
                 log.after_snapshot?.status || log.changes?.status;
               const statusTone = afterStatus
@@ -325,11 +335,7 @@ function TaskActivityLog({
                       </span>
                     </p>
                     <p className="mt-0.5 text-[11px] text-muted-foreground">
-                      {format(
-                        new Date(log.created_at),
-                        "d MMM yyyy 'alle' HH:mm",
-                        { locale: it },
-                      )}
+                      {dataOra(log.created_at, tr)}
                     </p>
                     {renderStatusTransition(log)}
                     {renderChangeBadges(log.changes)}
@@ -346,16 +352,12 @@ function TaskActivityLog({
                 <p className="text-sm">
                   <span className="font-medium">{creatorName}</span>{" "}
                   <span className="text-muted-foreground">
-                    ha creato l'attività
+                    {tr("ha creato l'attività")}
                   </span>
                 </p>
                 {task.created_at && (
                   <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    {format(
-                      new Date(task.created_at),
-                      "d MMM yyyy 'alle' HH:mm",
-                      { locale: it },
-                    )}
+                    {dataOra(task.created_at, tr)}
                   </p>
                 )}
               </div>
@@ -365,21 +367,16 @@ function TaskActivityLog({
                 <div className="mt-1 h-2 w-2 shrink-0 rounded-full bg-muted-foreground/40" />
                 <div>
                   <p className="text-sm text-muted-foreground">
-                    Ultima modifica registrata
+                    {tr("Ultima modifica registrata")}
                   </p>
                   <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    {format(
-                      new Date(task.updated_at),
-                      "d MMM yyyy 'alle' HH:mm",
-                      { locale: it },
-                    )}
+                    {dataOra(task.updated_at, tr)}
                   </p>
                 </div>
               </div>
             )}
             <p className="pl-5 text-[11px] text-muted-foreground">
-              Le nuove modifiche compariranno qui con nome, data e campi
-              cambiati.
+              {tr("Le nuove modifiche compariranno qui con nome, data e campi cambiati.")}
             </p>
           </div>
         )}
@@ -392,6 +389,7 @@ export function TaskDetailPanel(props: TaskDetailPanelProps) {
   return <TaskDetailContent key={props.task?.id ?? "none"} {...props} />;
 }
 function TaskDetailContent({ task, onClose }: TaskDetailPanelProps) {
+  const tr = useT();
   const queryClient = useQueryClient();
   // Mobile: restano i campi e le sezioni che servono sul posto (chi, quando,
   // collegamenti, allegati, checklist, commenti); dipendenze, cronologia,
@@ -456,7 +454,7 @@ function TaskDetailContent({ task, onClose }: TaskDetailPanelProps) {
       if (error) throw error;
     },
     onSuccess: () => refetchTags(),
-    onError: () => toast.error("Errore rimozione tag"),
+    onError: () => toast.error(tr("Errore rimozione tag")),
   });
 
   const updateMutation = useMutation({
@@ -516,7 +514,7 @@ function TaskDetailContent({ task, onClose }: TaskDetailPanelProps) {
         queryKey: ["task-activity-log", companyId, task.id],
       });
     },
-    onError: () => toast.error("Errore nel salvataggio"),
+    onError: () => toast.error(tr("Errore nel salvataggio")),
   });
 
   // Assegnatario modificabile da qui come stato, priorità e scadenza: prima
@@ -525,7 +523,7 @@ function TaskDetailContent({ task, onClose }: TaskDetailPanelProps) {
   const opzioniAssegnatario = useMemo(() => {
     const lista = staff.map((u) => ({
       id: u.id,
-      nome: `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() || "Utente",
+      nome: `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() || tr("Utente"),
     }));
     const attuale = task?.assigned_to as string | null | undefined;
     if (attuale && !lista.some((u) => u.id === attuale)) {
@@ -536,12 +534,12 @@ function TaskDetailContent({ task, onClose }: TaskDetailPanelProps) {
       lista.unshift({
         id: attuale,
         nome: p
-          ? `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() || "Utente"
-          : "Utente non più attivo",
+          ? `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() || tr("Utente")
+          : tr("Utente non più attivo"),
       });
     }
     return lista;
-  }, [staff, task]);
+  }, [staff, task, tr]);
 
   const saveField = (field: string) => (val: string | null) => {
     updateMutation.mutate({ [field]: val });
@@ -562,7 +560,7 @@ function TaskDetailContent({ task, onClose }: TaskDetailPanelProps) {
           label:
             task.order?.order_code ||
             task.order?.description?.slice(0, 25) ||
-            "Commessa collegata",
+            tr("Commessa collegata"),
           tipo: "Ordine",
           to: `/azienda/ordini/${task.order_id}`,
           fkField: "order_id",
@@ -609,7 +607,7 @@ function TaskDetailContent({ task, onClose }: TaskDetailPanelProps) {
 
   const creatorName = formatProfileName(
     task.creator_profile || creatorProfile,
-    "Utente",
+    tr("Utente"),
   );
 
   return (
@@ -620,7 +618,7 @@ function TaskDetailContent({ task, onClose }: TaskDetailPanelProps) {
       >
         <SheetTitle className="sr-only">{task.title}</SheetTitle>
         <SheetDescription className="sr-only">
-          Dettagli, checklist, documenti e storico dell’attività collegata.
+          {tr("Dettagli, checklist, documenti e storico dell’attività collegata.")}
         </SheetDescription>
         {/* Header: striscia nei colori del brand, poi titolo e stato */}
         <div className="h-1 w-full shrink-0 bg-gradient-to-r from-eic-navy via-eic-navy to-orange-500" />
@@ -644,6 +642,7 @@ function TaskDetailContent({ task, onClose }: TaskDetailPanelProps) {
               />
             ) : (
               <h2
+                dir="auto"
                 className="text-lg font-semibold text-eic-navy dark:text-slate-100 cursor-pointer hover:text-orange-600 transition-colors"
                 onClick={() => {
                   setTitle(task.title);
@@ -658,9 +657,9 @@ function TaskDetailContent({ task, onClose }: TaskDetailPanelProps) {
           {/* Status & Priority dropdowns */}
           {task.activity_scope === "ufficio" && (
             <label className="flex items-center gap-2 text-xs text-muted-foreground">
-              Fase dell’ufficio
+              {tr("Fase dell’ufficio")}
               <OfficeSelect
-                label="Fase dell’ufficio"
+                label={tr("Fase dell’ufficio")}
                 className="h-9 w-56 text-xs text-foreground"
                 value={officeStage(task.office_stage)}
                 disabled={updateMutation.isPending}
@@ -671,7 +670,7 @@ function TaskDetailContent({ task, onClose }: TaskDetailPanelProps) {
                 }
                 options={OFFICE_STAGES.map(([value, label]) => ({
                   value,
-                  label,
+                  label: tr(label),
                 }))}
               />
             </label>
@@ -691,7 +690,7 @@ function TaskDetailContent({ task, onClose }: TaskDetailPanelProps) {
               <SelectContent>
                 {statusOptions.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
-                    {option.label}
+                    {tr(option.label)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -707,7 +706,7 @@ function TaskDetailContent({ task, onClose }: TaskDetailPanelProps) {
               <SelectContent>
                 {Object.entries(PRIORITY_CONFIG).map(([v, c]) => (
                   <SelectItem key={v} value={v}>
-                    {c.emoji} {c.label}
+                    {c.emoji} {tr(c.label)}
                   </SelectItem>
                 ))}
                 {/* Priorità fuori elenco (es. «media» di attività vecchie): senza
@@ -725,26 +724,27 @@ function TaskDetailContent({ task, onClose }: TaskDetailPanelProps) {
                 variant="outline"
                 className="border-amber-200 bg-amber-50 text-xs text-amber-800"
               >
-                Controllo responsabile
+                {tr("Controllo responsabile")}
               </Badge>
             )}
             {isTaskDoneStatus(task.status, statusOptions) && (
               <Badge variant="secondary" className="text-xs">
-                Chiusa
+                {tr("Chiusa")}
               </Badge>
             )}
           </div>
           <div className="hidden sm:flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <User className="h-3.5 w-3.5" />
             <span>
-              Creata da{" "}
+              {tr("Creata da")}{" "}
               <span className="font-medium text-foreground">{creatorName}</span>
             </span>
             {task.created_at && (
               <span>
-                il{" "}
-                {format(new Date(task.created_at), "d MMM yyyy", {
-                  locale: it,
+                {tr("il {data}", {
+                  data: format(new Date(task.created_at), "d MMM yyyy", {
+                    locale: dateFnsCampo(),
+                  }),
                 })}
               </span>
             )}
@@ -754,7 +754,7 @@ function TaskDetailContent({ task, onClose }: TaskDetailPanelProps) {
         {/* Body: fondo grigio chiaro, sezioni a card con barra brand alternata */}
         <div className="flex-1 overflow-y-auto bg-slate-50 p-3 space-y-3 dark:bg-slate-950/40">
           {/* Dettagli */}
-          <SezioneCard titolo="Dettagli" icon={FileText} tono="blu">
+          <SezioneCard titolo={tr("Dettagli")} icon={FileText} tono="blu">
             <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:gap-x-6 sm:gap-y-4">
               {/* Assignee: si cambia da qui */}
               <div className="flex items-start gap-3">
@@ -765,7 +765,7 @@ function TaskDetailContent({ task, onClose }: TaskDetailPanelProps) {
                 />
                 <div className="min-w-0 flex-1">
                   <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                    Assegnato a
+                    {tr("Assegnato a")}
                   </div>
                   <div className="flex items-center gap-2">
                     <Avatar className="hidden sm:flex w-6 h-6">
@@ -789,12 +789,12 @@ function TaskDetailContent({ task, onClose }: TaskDetailPanelProps) {
                     >
                       <SelectTrigger
                         className="h-7 w-auto max-w-full text-sm"
-                        aria-label="Cambia assegnatario"
+                        aria-label={tr("Cambia assegnatario")}
                       >
-                        <SelectValue placeholder="Non assegnato" />
+                        <SelectValue placeholder={tr("Non assegnato")} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">Non assegnato</SelectItem>
+                        <SelectItem value="none">{tr("Non assegnato")}</SelectItem>
                         {opzioniAssegnatario.map((u) => (
                           <SelectItem key={u.id} value={u.id}>
                             {u.nome}
@@ -808,7 +808,7 @@ function TaskDetailContent({ task, onClose }: TaskDetailPanelProps) {
 
               {/* Due date */}
               <EditableField
-                label="Scadenza"
+                label={tr("Scadenza")}
                 icon={Calendar}
                 value={task.due_date ? task.due_date.split("T")[0] : null}
                 type="date"
@@ -818,7 +818,7 @@ function TaskDetailContent({ task, onClose }: TaskDetailPanelProps) {
               {/* Stima ore */}
               {!isMobile && (
                 <EditableField
-                  label="Stima (ore)"
+                  label={tr("Stima (ore)")}
                   icon={Clock}
                   value={
                     task.estimated_hours != null
@@ -835,7 +835,7 @@ function TaskDetailContent({ task, onClose }: TaskDetailPanelProps) {
               )}
 
               <EditableField
-                label="Ore effettive"
+                label={tr("Ore effettive")}
                 icon={Clock}
                 value={
                   task.actual_hours != null ? String(task.actual_hours) : null
@@ -857,7 +857,7 @@ function TaskDetailContent({ task, onClose }: TaskDetailPanelProps) {
                 />
                 <div className="flex-1 min-w-0">
                   <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                    Categoria
+                    {tr("Categoria")}
                   </div>
                   <Select
                     value={task.category || "generale"}
@@ -871,7 +871,7 @@ function TaskDetailContent({ task, onClose }: TaskDetailPanelProps) {
                     <SelectContent>
                       {Object.entries(CATEGORY_LABELS).map(([v, l]) => (
                         <SelectItem key={v} value={v}>
-                          {l}
+                          {tr(l)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -882,7 +882,7 @@ function TaskDetailContent({ task, onClose }: TaskDetailPanelProps) {
               {/* Notes */}
               <div className="col-span-2">
                 <EditableField
-                  label="Note"
+                  label={tr("Note")}
                   icon={FileText}
                   value={task.notes}
                   type="textarea"
@@ -894,7 +894,7 @@ function TaskDetailContent({ task, onClose }: TaskDetailPanelProps) {
 
           {/* Correlations */}
           <SezioneCard
-            titolo="Correlazioni"
+            titolo={tr("Correlazioni")}
             icon={Link2}
             tono="arancio"
             azione={
@@ -907,7 +907,7 @@ function TaskDetailContent({ task, onClose }: TaskDetailPanelProps) {
             <div className="space-y-2">
               {correlations.length === 0 && (
                 <p className="text-xs text-muted-foreground/70 italic">
-                  Nessuna correlazione
+                  {tr("Nessuna correlazione")}
                 </p>
               )}
               {correlations.map((c: any, i: number) => {
@@ -920,7 +920,7 @@ function TaskDetailContent({ task, onClose }: TaskDetailPanelProps) {
                     <Icon className="w-4 h-4 text-orange-600 shrink-0" />
                     <div className="flex-1 min-w-0">
                       <div className="text-[10px] text-muted-foreground">
-                        {c.tipo}
+                        {tr(c.tipo)}
                       </div>
                       <div className="text-sm font-medium truncate">
                         {c.label}
@@ -940,7 +940,8 @@ function TaskDetailContent({ task, onClose }: TaskDetailPanelProps) {
                       onClick={() =>
                         updateMutation.mutate({ [c.fkField]: null })
                       }
-                      title="Rimuovi correlazione"
+                      title={tr("Rimuovi correlazione")}
+                      aria-label={tr("Rimuovi correlazione")}
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -954,7 +955,7 @@ function TaskDetailContent({ task, onClose }: TaskDetailPanelProps) {
           <TaskAllegati taskId={task.id} companyId={companyId} />
 
           {(!isMobile || assignedTags.length > 0) && (
-            <SezioneCard titolo="Etichette" icon={Tag} tono="blu">
+            <SezioneCard titolo={tr("Etichette")} icon={Tag} tono="blu">
               <div className="flex flex-wrap gap-1.5">
                 {assignedTags.map((tag) => (
                   <TaskTagBadge
@@ -1016,18 +1017,12 @@ function TaskDetailContent({ task, onClose }: TaskDetailPanelProps) {
           <div className="px-1 pb-1 text-[11px] text-muted-foreground space-y-0.5 sm:hidden">
             {task.created_at && (
               <p>
-                Creata da {creatorName} il{" "}
-                {format(new Date(task.created_at), "d MMM yyyy 'alle' HH:mm", {
-                  locale: it,
-                })}
+                {tr("Creata da {nome} il {data}", { nome: creatorName, data: dataOra(task.created_at, tr) })}
               </p>
             )}
             {task.updated_at && !isMobile && (
               <p>
-                Ultima modifica:{" "}
-                {format(new Date(task.updated_at), "d MMM yyyy 'alle' HH:mm", {
-                  locale: it,
-                })}
+                {tr("Ultima modifica: {data}", { data: dataOra(task.updated_at, tr) })}
               </p>
             )}
           </div>

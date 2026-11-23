@@ -120,3 +120,39 @@ Altre scelte:
 - **Tedesco:** i tipi di scadenza vanno con la maiuscola, come vuole la lingua; in albanese hanno l'articolo («sigurimi»).
 - **«In scadenza:» dei mezzi:** è reso come «scade presto»; in es-ES «A punto de vencer».
 - **«Tocca Aggiorna per riprovare»:** il nome del bottone è quello che si vede sullo schermo nella lingua.
+
+## App dell'ufficio (rumeno e albanese per primi)
+
+I termini dell'ufficio sono diversi da quelli del cantiere. Da confermare:
+
+| Italiano | Rumeno (ro) | Albanese (sq) |
+|---|---|---|
+| Commessa | lucrare | porosia e punës (in ufficio solo «punë» era troppo vago) |
+| Preventivo | ofertă | preventiv (alternativa: ofertë) |
+| Regia (pannello del team) | Coordonare | Drejtimi |
+| Cruscotto / Dashboard | Panou de bord / Panou | — |
+| Studio (vista del commercialista) | Cabinet (per non confonderlo con «birou» = ufficio) | — |
+| Prima Nota | Registru de casă | Prima Nota (regjistri i arkës) |
+| Scadenzario | Scadențar | Afatorja |
+| Opportunità (CRM) | — | Mundësia (va confermato che si capisca in senso commerciale) |
+| Carte della ditta | Actele firmei | Letrat e firmës |
+| Posa | montaj | montim |
+| P.IVA | — | numri i TVSH-së (P.IVA) |
+
+Restano in italiano di proposito, perché finiscono al server, nei file o all'AI:
+- il testo preparato per Silvio;
+- il sollecito copiato per il fornitore;
+- le colonne del CSV esportato;
+- le frasi della cronologia delle attività;
+- le voci di checklist proposte in automatico;
+- l'esempio del campo «Compila».
+
+### Regia e calendario dell'ufficio
+- **ro: «Lavorazione» → «etapă de lucru».** «Lucrare» nel dizionario è già la commessa; nel calendario le due parole
+  compaiono insieme e vanno distinte. È la scelta più importante da confermare.
+- ro: «Carico lavori» → «Volumul de lucru»; «Assegnatario» → «responsabil»; «Acconto/Saldo» → «Avans/Sold»;
+  abbreviazioni dei giorni «{n} z» (zile).
+- sq: «Posa» → «Montimi»; «Saldo» → «Pagesa përfundimtare»; «Risorse» → «Burimet», mentre «Fonti» → «Burimet e të
+  dhënave»; settimana del Gantt «J{n}» (java); «{n} ditë më parë» è più lungo dell'originale e va controllato negli
+  spazi stretti.
+- In entrambe le lingue: «Smart working» → lavoro da casa; «Ambra» (colore) → «Chihlimbar» / «Qelibar».

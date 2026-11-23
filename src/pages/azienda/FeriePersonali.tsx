@@ -5,7 +5,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, differenceInCalendarDays, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
 import {
   Palmtree, Plus, Clock, RotateCcw, CheckCircle2,
   XCircle, Loader2, UserX, Ban, ShieldAlert,
@@ -39,6 +38,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import type { HrRichiesta, RichiestaTipo, RichiestaStato } from "@/types/hr";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // ── Configurazione badge stato ─────────────────────────────────────────────
 const STATO_CONFIG: Record<RichiestaStato, { label: string; icon: React.ElementType; className: string }> = {
@@ -87,6 +87,7 @@ const FORM_DEFAULT: NuovaRichiestaForm = {
 
 // ─────────────────────────────────────────────────────────────────────────────
 export default function FeriePersonali() {
+  const tr = useT();
   const { role } = useAuth();
   const { data: profilo, isLoading: loadingProfilo } = useMyHrProfilo();
   const createMutation = useCreateRichiesta();
@@ -116,9 +117,9 @@ export default function FeriePersonali() {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center px-4">
         <ShieldAlert className="h-12 w-12 text-muted-foreground mb-4" />
-        <h3 className="text-lg font-semibold">Accesso non autorizzato</h3>
+        <h3 className="text-lg font-semibold">{tr("Accesso non autorizzato")}</h3>
         <p className="text-muted-foreground mt-2">
-          Questa sezione non è disponibile per il tuo ruolo.
+          {tr("Questa sezione non è disponibile per il tuo ruolo.")}
         </p>
       </div>
     );
@@ -142,10 +143,10 @@ export default function FeriePersonali() {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center px-4">
         <UserX className="h-12 w-12 text-muted-foreground mb-4" />
-        <h3 className="text-lg font-semibold">Profilo HR non configurato</h3>
+        <h3 className="text-lg font-semibold">{tr("Profilo HR non configurato")}</h3>
         <p className="text-muted-foreground mt-2 max-w-sm">
-          Il tuo profilo HR non è ancora stato configurato.
-          Contatta l'amministratore per completare la configurazione.
+          {tr("Il tuo profilo HR non è ancora stato configurato.")}{" "}
+          {tr("Contatta l'amministratore per completare la configurazione.")}
         </p>
       </div>
     );
@@ -154,11 +155,11 @@ export default function FeriePersonali() {
   // ── Submit nuova richiesta ────────────────────────────────────────────
   const handleSubmit = async () => {
     if (!form.data_inizio || !form.data_fine) {
-      toast.error("Inserisci le date della richiesta");
+      toast.error(tr("Inserisci le date della richiesta"));
       return;
     }
     if (form.data_fine < form.data_inizio) {
-      toast.error("La data di fine non può precedere la data di inizio");
+      toast.error(tr("La data di fine non può precedere la data di inizio"));
       return;
     }
     try {
@@ -186,12 +187,12 @@ export default function FeriePersonali() {
     setAnnullandoId(id);
     try {
       const annullata = await annullaRichiestaPersonale(id, profilo.id, profilo.company_id);
-      if (annullata) toast.success("Richiesta annullata");
-      else toast.info("La richiesta è già stata aggiornata. Controlla il nuovo stato.");
+      if (annullata) toast.success(tr("Richiesta annullata"));
+      else toast.info(tr("La richiesta è già stata aggiornata. Controlla il nuovo stato."));
     } catch (errore) {
-      toast.error("Impossibile annullare la richiesta", {
+      toast.error(tr("Impossibile annullare la richiesta"), {
         description: typeof errore === "object" && errore !== null && "message" in errore
-          ? String(errore.message) : "Riprova tra poco.",
+          ? String(errore.message) : tr("Riprova tra poco."),
       });
     } finally {
       await qc.invalidateQueries({ queryKey: ["my-richieste", profilo.id] });
@@ -219,13 +220,13 @@ export default function FeriePersonali() {
             <Palmtree className="h-[18px] w-[18px] text-primary" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-base font-bold leading-tight">Ferie &amp; Permessi</h1>
-            <p className="text-xs text-muted-foreground">Gestisci le tue richieste</p>
+            <h1 className="text-base font-bold leading-tight">{tr("Ferie & Permessi")}</h1>
+            <p className="text-xs text-muted-foreground">{tr("Gestisci le tue richieste")}</p>
           </div>
         </div>
         <Button size="sm" className="shrink-0" onClick={() => { setForm(FORM_DEFAULT); setDialogOpen(true); }}>
           <Plus className="h-4 w-4 mr-1.5" />
-          Nuova
+          {tr("Nuova")}
         </Button>
       </div>
 
@@ -236,10 +237,10 @@ export default function FeriePersonali() {
           <CardContent className="p-3">
             <div className="flex items-start justify-between mb-2">
               <div>
-                <p className="text-[10px] font-medium text-muted-foreground uppercase">Ferie</p>
+                <p className="text-[10px] font-medium text-muted-foreground uppercase">{tr("Ferie")}</p>
                 <p className="text-xl font-bold mt-0.5">{profilo.ferie_residue ?? 0}</p>
                 <p className="text-xs text-muted-foreground">
-                  giorni su {profilo.ferie_anno_giorni}
+                  {tr("giorni su {n}", { n: profilo.ferie_anno_giorni })}
                 </p>
               </div>
               <Palmtree className="h-5 w-5 text-green-500 mt-1" />
@@ -252,10 +253,10 @@ export default function FeriePersonali() {
           <CardContent className="p-3">
             <div className="flex items-start justify-between mb-2">
               <div>
-                <p className="text-[10px] font-medium text-muted-foreground uppercase">Permessi</p>
+                <p className="text-[10px] font-medium text-muted-foreground uppercase">{tr("Permessi")}</p>
                 <p className="text-xl font-bold mt-0.5">{profilo.permessi_residui_ore ?? 0}</p>
                 <p className="text-xs text-muted-foreground">
-                  ore su {profilo.permessi_anno_ore}
+                  {tr("ore su {n}", { n: profilo.permessi_anno_ore })}
                 </p>
               </div>
               <Clock className="h-5 w-5 text-blue-500 mt-1" />
@@ -271,7 +272,7 @@ export default function FeriePersonali() {
                 <p className="text-[10px] font-medium text-muted-foreground uppercase">ROL</p>
                 <p className="text-xl font-bold mt-0.5">{profilo.rol_residuo_ore ?? 0}</p>
                 <p className="text-xs text-muted-foreground">
-                  ore su {profilo.rol_anno_ore}
+                  {tr("ore su {n}", { n: profilo.rol_anno_ore })}
                 </p>
               </div>
               <RotateCcw className="h-5 w-5 text-purple-500 mt-1" />
@@ -284,7 +285,7 @@ export default function FeriePersonali() {
       {/* BLOCCO B — Le mie richieste */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Le mie richieste</CardTitle>
+          <CardTitle className="text-base">{tr("Le mie richieste")}</CardTitle>
         </CardHeader>
         <CardContent>
           {loadingRichieste ? (
@@ -294,13 +295,13 @@ export default function FeriePersonali() {
           ) : mieRichieste.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Palmtree className="h-8 w-8 mx-auto mb-2 opacity-40" />
-              <p className="text-sm">Nessuna richiesta ancora inviata</p>
+              <p className="text-sm">{tr("Nessuna richiesta ancora inviata")}</p>
               <Button
                 variant="link"
                 className="mt-1 text-sm"
                 onClick={() => { setForm(FORM_DEFAULT); setDialogOpen(true); }}
               >
-                Crea la prima richiesta →
+                {tr("Crea la prima richiesta →")}
               </Button>
             </div>
           ) : (
@@ -322,21 +323,21 @@ export default function FeriePersonali() {
                       <StatusIcon className={cn("h-4 w-4 mt-0.5 shrink-0", cfg.className.includes("green") ? "text-green-600" : cfg.className.includes("amber") ? "text-amber-600" : cfg.className.includes("red") ? "text-red-600" : "text-slate-400")} />
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-medium text-sm">{tipoLabel}</span>
+                          <span className="font-medium text-sm">{tr(tipoLabel)}</span>
                           <Badge variant="outline" className={cn("text-xs", cfg.className)}>
-                            {cfg.label}
+                            {tr(cfg.label)}
                           </Badge>
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          {format(parseISO(r.data_inizio), "d MMM yyyy", { locale: it })}
+                          {format(parseISO(r.data_inizio), "d MMM yyyy", { locale: dateFnsCampo() })}
                           {r.data_fine && r.data_fine !== r.data_inizio &&
-                            ` → ${format(parseISO(r.data_fine), "d MMM yyyy", { locale: it })}`}
+                            ` → ${format(parseISO(r.data_fine), "d MMM yyyy", { locale: dateFnsCampo() })}`}
                           {" · "}
-                          {r.ore_richieste ? `${r.ore_richieste}h` : `${giorni} giorn${giorni === 1 ? "o" : "i"}`}
+                          {r.ore_richieste ? `${r.ore_richieste}h` : tr(giorni === 1 ? "{n} giorno" : "{n} giorni", { n: giorni })}
                         </p>
                         {(r as any).note_risposta && (
                           <p className="text-xs text-red-600 mt-1 italic">
-                            Nota: {(r as any).note_risposta}
+                            {tr("Nota:")} <span dir="auto">{(r as any).note_risposta}</span>
                           </p>
                         )}
                       </div>
@@ -352,7 +353,7 @@ export default function FeriePersonali() {
                         {annullandoId === r.id ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         ) : (
-                          "Annulla"
+                          tr("Annulla")
                         )}
                       </Button>
                     )}
@@ -368,11 +369,11 @@ export default function FeriePersonali() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Nuova richiesta</DialogTitle>
+            <DialogTitle>{tr("Nuova richiesta")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label htmlFor="tipo">Tipo</Label>
+              <Label htmlFor="tipo">{tr("Tipo")}</Label>
               <Select
                 value={form.tipo}
                 onValueChange={v => setForm(f => ({ ...f, tipo: v as RichiestaTipo }))}
@@ -382,7 +383,7 @@ export default function FeriePersonali() {
                 </SelectTrigger>
                 <SelectContent>
                   {TIPI_RICHIESTA.map(t => (
-                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                    <SelectItem key={t.value} value={t.value}>{tr(t.label)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -390,7 +391,7 @@ export default function FeriePersonali() {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="data_inizio">Dal</Label>
+                <Label htmlFor="data_inizio">{tr("Dal")}</Label>
                 <Input
                   id="data_inizio"
                   type="date"
@@ -399,7 +400,7 @@ export default function FeriePersonali() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="data_fine">Al</Label>
+                <Label htmlFor="data_fine">{tr("Al")}</Label>
                 <Input
                   id="data_fine"
                   type="date"
@@ -412,14 +413,14 @@ export default function FeriePersonali() {
 
             {(form.tipo === "permesso" || form.tipo === "rol" || form.tipo === "straordinario") && (
               <div className="space-y-1.5">
-                <Label htmlFor="ore">Ore richieste (facoltativo)</Label>
+                <Label htmlFor="ore">{tr("Ore richieste (facoltativo)")}</Label>
                 <Input
                   id="ore"
                   type="number"
                   min="0.5"
                   max="24"
                   step="0.5"
-                  placeholder="es. 4"
+                  placeholder={tr("es. 4")}
                   value={form.ore_richieste}
                   onChange={e => setForm(f => ({ ...f, ore_richieste: e.target.value }))}
                 />
@@ -427,11 +428,11 @@ export default function FeriePersonali() {
             )}
 
             <div className="space-y-1.5">
-              <Label htmlFor="motivo">Motivo (facoltativo)</Label>
+              <Label htmlFor="motivo">{tr("Motivo (facoltativo)")}</Label>
               <Textarea
                 id="motivo"
                 rows={3}
-                placeholder="Note aggiuntive..."
+                placeholder={tr("Note aggiuntive...")}
                 value={form.motivo}
                 onChange={e => setForm(f => ({ ...f, motivo: e.target.value }))}
               />
@@ -439,14 +440,14 @@ export default function FeriePersonali() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              Annulla
+              {tr("Annulla")}
             </Button>
             <Button
               onClick={handleSubmit}
               disabled={createMutation.isPending}
             >
               {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Invia richiesta
+              {tr("Invia richiesta")}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import {
   TASK_STATUS_TONE_CLASSES,
   type TaskStatusDefinition,
@@ -14,6 +15,7 @@ interface TaskStatusBadgeProps {
 }
 
 export function TaskStatusBadge({ status, statuses, className, compact = false }: TaskStatusBadgeProps) {
+  const t = useT();
   const definition = getTaskStatusDefinition(status, statuses);
   const tone = TASK_STATUS_TONE_CLASSES[definition.tone] || TASK_STATUS_TONE_CLASSES.slate;
 
@@ -27,7 +29,7 @@ export function TaskStatusBadge({ status, statuses, className, compact = false }
       )}
     >
       <span className={cn("h-1.5 w-1.5 rounded-full", tone.dot)} />
-      {compact ? (definition.shortLabel || definition.label) : definition.label}
+      {t(compact ? (definition.shortLabel || definition.label) : definition.label)}
     </Badge>
   );
 }

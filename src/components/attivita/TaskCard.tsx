@@ -6,7 +6,7 @@ import { ExternalLink, AlertTriangle, CalendarDays } from "lucide-react";
 import { PrioritaBadge } from "./PrioritaBadge";
 import { cn } from "@/lib/utils";
 import { format, isToday, differenceInDays } from "date-fns";
-import { it } from "date-fns/locale";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -29,6 +29,7 @@ interface TaskCardProps {
 }
 
 export function TaskCard({ task, statusOptions, onSelect }: TaskCardProps) {
+  const t = useT();
   const queryClient = useQueryClient();
   const { user, effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -61,7 +62,7 @@ export function TaskCard({ task, statusOptions, onSelect }: TaskCardProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
       queryClient.invalidateQueries({ queryKey: ["my-task-count"] });
-      toast.success(`Stato aggiornato: ${nextStatus.label}`);
+      toast.success(t("Stato aggiornato: {stato}", { stato: t(nextStatus.label) }));
     },
   });
 
@@ -70,10 +71,10 @@ export function TaskCard({ task, statusOptions, onSelect }: TaskCardProps) {
     const d = new Date(task.due_date);
     if (isOverdue) {
       const giorni = differenceInDays(new Date(), d);
-      return { text: `${giorni}g fa`, className: "text-destructive font-medium" };
+      return { text: t("{n}g fa", { n: giorni }), className: "text-destructive font-medium" };
     }
-    if (isToday(d)) return { text: "Oggi", className: "text-primary font-medium" };
-    return { text: format(d, "d MMM", { locale: it }), className: "text-muted-foreground" };
+    if (isToday(d)) return { text: t("Oggi"), className: "text-primary font-medium" };
+    return { text: format(d, "d MMM", { locale: dateFnsCampo() }), className: "text-muted-foreground" };
   })();
 
   const correlation = (() => {
@@ -95,10 +96,10 @@ export function TaskCard({ task, statusOptions, onSelect }: TaskCardProps) {
       onClick={onSelect}
     >
       <div className="mt-0.5" onClick={(e) => { e.stopPropagation(); toggleMutation.mutate(); }}>
-        <Checkbox checked={isCompleted} />
+        <Checkbox checked={isCompleted} aria-label={t("Cambia stato")} />
       </div>
       <div className="flex-1 min-w-0 space-y-1">
-        <p className={cn("text-sm font-medium truncate", isCompleted && "line-through text-muted-foreground")}>
+        <p dir="auto" className={cn("text-sm font-medium truncate", isCompleted && "line-through text-muted-foreground")}>
           {task.title}
         </p>
         <div className="flex items-center gap-2 flex-wrap">

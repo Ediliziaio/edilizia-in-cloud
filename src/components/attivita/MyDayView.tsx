@@ -14,6 +14,7 @@ import { AlertCircle } from "lucide-react";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 import { isTaskDoneStatus } from "@/lib/taskStatuses";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface MyDayViewProps {
   onNewTask: () => void;
@@ -22,6 +23,7 @@ interface MyDayViewProps {
 }
 
 export function MyDayView({ onNewTask, senzaSaluto = false }: MyDayViewProps) {
+  const tr = useT();
   const { user, effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const userId = user?.id;
@@ -117,13 +119,13 @@ export function MyDayView({ onNewTask, senzaSaluto = false }: MyDayViewProps) {
         <div className="flex items-start gap-3">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
           <div className="min-w-0 flex-1">
-            <p className="font-semibold">Errore nel caricamento della giornata</p>
+            <p className="font-semibold">{tr("Errore nel caricamento della giornata")}</p>
             <p className="mt-1 text-xs text-red-800">
-              {error instanceof Error ? error.message : "Non riesco a leggere le attività in questo momento."}
+              {error instanceof Error ? error.message : tr("Non riesco a leggere le attività in questo momento.")}
             </p>
           </div>
           <Button variant="outline" size="sm" className="h-7 border-red-200 bg-white text-red-700 hover:bg-red-100" onClick={() => refetch()}>
-            Riprova
+            {tr("Riprova")}
           </Button>
         </div>
       </div>
@@ -143,19 +145,19 @@ export function MyDayView({ onNewTask, senzaSaluto = false }: MyDayViewProps) {
       ) : (
         <div className="space-y-4 sm:space-y-6">
           {overdue.length > 0 && (
-            <MyDayTimeline title="Scadute" tasks={overdue} variant="overdue" onTaskSelect={handleTaskSelect} />
+            <MyDayTimeline title={tr("Scadute")} tasks={overdue} variant="overdue" onTaskSelect={handleTaskSelect} />
           )}
           {today.length > 0 && (
-            <MyDayTimeline title="Oggi" tasks={today} variant="today" onTaskSelect={handleTaskSelect} />
+            <MyDayTimeline title={tr("Oggi")} tasks={today} variant="today" onTaskSelect={handleTaskSelect} />
           )}
           {tomorrow.length > 0 && (
-            <MyDayTimeline title="Domani" tasks={tomorrow} variant="nodate" onTaskSelect={handleTaskSelect} collapsible />
+            <MyDayTimeline title={tr("Domani")} tasks={tomorrow} variant="nodate" onTaskSelect={handleTaskSelect} collapsible />
           )}
           {thisWeek.length > 0 && (
-            <MyDayTimeline title="Questa settimana" tasks={thisWeek} variant="nodate" onTaskSelect={handleTaskSelect} collapsible />
+            <MyDayTimeline title={tr("Questa settimana")} tasks={thisWeek} variant="nodate" onTaskSelect={handleTaskSelect} collapsible />
           )}
           {noDate.length > 0 && (
-            <MyDayTimeline title="Senza scadenza" tasks={noDate} variant="nodate" onTaskSelect={handleTaskSelect} collapsible />
+            <MyDayTimeline title={tr("Senza scadenza")} tasks={noDate} variant="nodate" onTaskSelect={handleTaskSelect} collapsible />
           )}
         </div>
       )}

@@ -9,7 +9,6 @@ import {
   startOfWeek,
   subWeeks,
 } from "date-fns";
-import { it } from "date-fns/locale";
 import {
   ChevronLeft,
   ChevronRight,
@@ -35,6 +34,7 @@ import {
 import { etichettaCommessa } from "@/lib/calendarUtils";
 import type { CalendarOrder, CalendarScope } from "@/types/calendar";
 import { CalendarDayDetailsDialog } from "./CalendarDayDetailsDialog";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   orders: CalendarOrder[];
@@ -64,6 +64,7 @@ export function CalendarTeamWeekView({
   const [kind, setKind] = useState<"team" | "employee">("team");
   const [search, setSearch] = useState("");
   const [assignedOnly, setAssignedOnly] = useState(true);
+  const t = useT();
   const start = useMemo(
     () => startOfWeek(currentDate, { weekStartsOn: 1 }),
     [currentDate],
@@ -113,7 +114,7 @@ export function CalendarTeamWeekView({
   return (
     <section
       className="overflow-hidden rounded-xl border bg-card"
-      aria-label="Pianificazione settimanale delle risorse"
+      aria-label={t("Pianificazione settimanale delle risorse")}
     >
       <div className="space-y-3 border-b p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -122,20 +123,20 @@ export function CalendarTeamWeekView({
               variant="ghost"
               size="icon"
               className="h-8 w-8"
-              aria-label="Settimana precedente"
+              aria-label={t("Settimana precedente")}
               onClick={() => changeDate(subWeeks(currentDate, 1))}
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <h2 className="text-base font-semibold">
-              {format(days[0], "d MMM", { locale: it })} —{" "}
-              {format(days[6], "d MMM yyyy", { locale: it })}
+              {format(days[0], "d MMM", { locale: dateFnsCampo() })} —{" "}
+              {format(days[6], "d MMM yyyy", { locale: dateFnsCampo() })}
             </h2>
             <Button
               variant="ghost"
               size="icon"
               className="h-8 w-8"
-              aria-label="Settimana successiva"
+              aria-label={t("Settimana successiva")}
               onClick={() => changeDate(addWeeks(currentDate, 1))}
             >
               <ChevronRight className="h-4 w-4" />
@@ -151,14 +152,14 @@ export function CalendarTeamWeekView({
               ["Giorni pianificati", plannedDays],
             ].map(([label, value]) => (
               <div key={label} className="flex items-baseline gap-1.5">
-                <dt className="text-muted-foreground">{label}</dt>
+                <dt className="text-muted-foreground">{t(String(label))}</dt>
                 <dd className="text-sm font-semibold tabular-nums">{value}</dd>
               </div>
             ))}
           </dl>
           <div
             className="flex rounded-lg bg-muted p-1"
-            aria-label="Tipo di risorsa"
+            aria-label={t("Tipo di risorsa")}
           >
             {(
               [
@@ -180,7 +181,7 @@ export function CalendarTeamWeekView({
                   kind === value && "bg-background font-semibold shadow-sm",
                 )}
               >
-                {label}
+                {t(label)}
               </button>
             ))}
           </div>
@@ -190,9 +191,9 @@ export function CalendarTeamWeekView({
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               className="h-9 pl-9"
-              aria-label="Cerca risorsa nella settimana"
+              aria-label={t("Cerca risorsa nella settimana")}
               placeholder={
-                kind === "team" ? "Cerca una squadra…" : "Cerca una persona…"
+                kind === "team" ? t("Cerca una squadra…") : t("Cerca una persona…")
               }
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -204,12 +205,12 @@ export function CalendarTeamWeekView({
             aria-pressed={assignedOnly}
             title={
               assignedOnly
-                ? "Mostra anche le risorse senza assegnazioni"
-                : "Mostra solo le risorse con assegnazioni"
+                ? t("Mostra anche le risorse senza assegnazioni")
+                : t("Mostra solo le risorse con assegnazioni")
             }
             onClick={() => setAssignedOnly(!assignedOnly)}
           >
-            {assignedOnly ? "Con assegnazioni" : "Tutte le risorse"}
+            {assignedOnly ? t("Con assegnazioni") : t("Tutte le risorse")}
           </Button>
         </div>
       </div>
@@ -217,12 +218,12 @@ export function CalendarTeamWeekView({
         <div className="max-h-[65vh] overflow-auto">
           <table className="w-full min-w-[1000px] table-fixed text-left text-xs">
             <caption className="sr-only">
-              Lavorazioni assegnate alle risorse, giorno per giorno
+              {t("Lavorazioni assegnate alle risorse, giorno per giorno")}
             </caption>
             <thead className="sticky top-0 z-20">
               <tr>
                 <th className="sticky left-0 z-30 w-48 border-b bg-card p-3">
-                  {kind === "team" ? "Squadra" : "Persona"}
+                  {kind === "team" ? t("Squadra") : t("Persona")}
                   <span className="ml-2 font-normal text-muted-foreground">
                     {visible.length}
                   </span>
@@ -243,14 +244,14 @@ export function CalendarTeamWeekView({
                       <button
                         type="button"
                         className="w-full rounded px-1 py-1 text-left hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary"
-                        aria-label={`Apri assegnazioni del ${date}`}
+                        aria-label={t("Apri assegnazioni del {data}", { data: date })}
                         onClick={() => setSelected({ date })}
                       >
                         <span className="capitalize">
-                          {format(day, "EEE d", { locale: it })}
+                          {format(day, "EEE d", { locale: dateFnsCampo() })}
                         </span>
                         <span className="mt-1 block text-[10px] font-normal text-muted-foreground">
-                          {count} {count === 1 ? "cantiere" : "cantieri"}
+                          {t(count === 1 ? "{n} cantiere" : "{n} cantieri", { n: count })}
                         </span>
                       </button>
                     </th>
@@ -274,7 +275,7 @@ export function CalendarTeamWeekView({
                       <div>
                         {resource.name}
                         <span className="mt-1 block text-[10px] font-normal text-muted-foreground">
-                          {resource.days}/7 giorni · {resource.orders} cantieri
+                          {t("{giorni}/7 giorni · {n} cantieri", { giorni: resource.days, n: resource.orders })}
                         </span>
                       </div>
                     </div>
@@ -295,7 +296,7 @@ export function CalendarTeamWeekView({
                         <div className="space-y-2">
                           {count > 1 && (
                             <span className="block text-[10px] font-medium text-amber-700">
-                              {count} cantieri assegnati
+                              {t("{n} cantieri assegnati", { n: count })}
                             </span>
                           )}
                           {entries.slice(0, 2).map((event) => {
@@ -311,7 +312,7 @@ export function CalendarTeamWeekView({
                               >
                                 <button
                                   type="button"
-                                  aria-label={`Dettagli ${title} · ${order.order_code} · ${date}`}
+                                  aria-label={t("Dettagli {nome} · {codice} · {data}", { nome: title, codice: order.order_code, data: date })}
                                   onClick={() =>
                                     setSelected({
                                       date,
@@ -321,7 +322,7 @@ export function CalendarTeamWeekView({
                                   }
                                   className="block w-full text-left font-medium leading-snug hover:text-primary focus-visible:ring-2 focus-visible:ring-primary"
                                 >
-                                  {event.work ? title : "Posa"}
+                                  {event.work ? title : t("Posa")}
                                 </button>
                                 <p
                                   className="mt-1 truncate text-[10px] text-muted-foreground"
@@ -331,7 +332,7 @@ export function CalendarTeamWeekView({
                                 </p>
                                 <Link
                                   to={calendarWorkLocation(order.id)}
-                                  aria-label={`Apri lavorazioni ${title} · ${order.order_code}`}
+                                  aria-label={t("Apri lavorazioni {nome} · {codice}", { nome: title, codice: order.order_code })}
                                   title={order.order_code || undefined}
                                   className="mt-1 block overflow-hidden text-ellipsis whitespace-nowrap text-[10px] tracking-tight text-primary hover:underline"
                                 >
@@ -345,8 +346,8 @@ export function CalendarTeamWeekView({
                                 </Link>
                                 <span className="mt-1 block text-[10px] text-muted-foreground">
                                   {time
-                                    ? `${time}${end ? `–${end}` : " · fine da definire"}`
-                                    : "Orario da definire"}
+                                    ? end ? `${time}–${end}` : t("{ora} · fine da definire", { ora: time })
+                                    : t("Orario da definire")}
                                 </span>
                               </div>
                             );
@@ -359,13 +360,13 @@ export function CalendarTeamWeekView({
                                 setSelected({ date, resourceId: resource.id })
                               }
                             >
-                              Vedi tutte ({entries.length})
+                              {t("Vedi tutte ({n})", { n: entries.length })}
                             </button>
                           )}
                           {!entries.length && (
                             <span
                               className="block px-1 py-2 text-muted-foreground"
-                              title="Nessuna assegnazione registrata"
+                              title={t("Nessuna assegnazione registrata")}
                             >
                               —
                             </span>
@@ -381,14 +382,14 @@ export function CalendarTeamWeekView({
         </div>
       ) : (
         <p className="px-4 py-10 text-center text-sm text-muted-foreground">
-          Nessuna assegnazione {kind === "team" ? "a squadre" : "a persone"} nel
-          periodo e nei filtri selezionati.{search && " Prova un altro nome."}
+          {kind === "team"
+            ? t("Nessuna assegnazione a squadre nel periodo e nei filtri selezionati.")
+            : t("Nessuna assegnazione a persone nel periodo e nei filtri selezionati.")}
+          {search && " " + t("Prova un altro nome.")}
         </p>
       )}
       <p className="border-t px-4 py-2 text-[11px] text-muted-foreground">
-        Assegnazioni dalle lavorazioni e dalla posa delle commesse. Gli spazi
-        vuoti indicano nessuna assegnazione registrata; gli orari mancanti
-        restano da definire.
+        {t("Assegnazioni dalle lavorazioni e dalla posa delle commesse. Gli spazi vuoti indicano nessuna assegnazione registrata; gli orari mancanti restano da definire.")}
       </p>
       {validSelection && selected && (
         <CalendarDayDetailsDialog

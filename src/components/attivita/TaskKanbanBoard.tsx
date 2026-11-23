@@ -18,6 +18,7 @@ import {
   getTaskStatusTransitionDescription,
   mergeTaskStatusDefinitions,
 } from "@/lib/taskStatuses";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface TaskKanbanBoardProps {
   tasks: any[];
@@ -27,6 +28,7 @@ interface TaskKanbanBoardProps {
 }
 
 export function TaskKanbanBoard({ tasks, statusOptions, onTaskSelect, onAddTaskToColumn }: TaskKanbanBoardProps) {
+  const tr = useT();
   const queryClient = useQueryClient();
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -57,7 +59,7 @@ export function TaskKanbanBoard({ tasks, statusOptions, onTaskSelect, onAddTaskT
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
       queryClient.invalidateQueries({ queryKey: ["my-task-count"] });
-      toast.success("Stato aggiornato");
+      toast.success(tr("Stato aggiornato"));
     },
   });
 
@@ -98,9 +100,9 @@ export function TaskKanbanBoard({ tasks, statusOptions, onTaskSelect, onAddTaskT
           >
             <div className={cn("flex items-center justify-between px-3 py-2 border-b", tone.panel)}>
               <div className="min-w-0">
-                <span className="block truncate text-sm font-medium">{col.label}</span>
+                <span className="block truncate text-sm font-medium">{tr(col.label)}</span>
                 {col.description && (
-                  <span className="block truncate text-[10px] text-muted-foreground">{col.description}</span>
+                  <span className="block truncate text-[10px] text-muted-foreground">{tr(col.description)}</span>
                 )}
               </div>
               <Badge variant="secondary" className="text-xs">{items.length}</Badge>
@@ -109,7 +111,7 @@ export function TaskKanbanBoard({ tasks, statusOptions, onTaskSelect, onAddTaskT
               <div className="p-2 space-y-2">
                 {items.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground text-sm">
-                    Nessuna attività
+                    {tr("Nessuna attività")}
                   </div>
                 ) : (
                   items.map((task) => (
@@ -135,7 +137,7 @@ export function TaskKanbanBoard({ tasks, statusOptions, onTaskSelect, onAddTaskT
                   className="w-full text-left text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 px-2 py-1.5 rounded hover:bg-muted transition-colors"
                 >
                   <Plus className="h-3.5 w-3.5" />
-                  Aggiungi attività
+                  {tr("Aggiungi attività")}
                 </button>
               </div>
             )}

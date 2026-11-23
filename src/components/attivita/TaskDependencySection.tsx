@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 import { isTaskDoneStatus } from "@/lib/taskStatuses";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const PRIORITY_DOT: Record<string, string> = {
   bassa:   "bg-slate-400",
@@ -32,6 +33,7 @@ interface TaskDependencySectionProps {
 }
 
 export function TaskDependencySection({ taskId, companyId }: TaskDependencySectionProps) {
+  const tr = useT();
   const queryClient = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -100,7 +102,7 @@ export function TaskDependencySection({ taskId, companyId }: TaskDependencySecti
       queryClient.invalidateQueries({ queryKey: qk });
       setAddOpen(false);
     },
-    onError: () => toast.error("Errore aggiunta dipendenza"),
+    onError: () => toast.error(tr("Errore aggiunta dipendenza")),
   });
 
   const removeMutation = useMutation({
@@ -113,7 +115,7 @@ export function TaskDependencySection({ taskId, companyId }: TaskDependencySecti
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: qk }),
-    onError: () => toast.error("Errore rimozione dipendenza"),
+    onError: () => toast.error(tr("Errore rimozione dipendenza")),
   });
 
   const filtered = allTasks.filter((t) => {
@@ -128,29 +130,29 @@ export function TaskDependencySection({ taskId, companyId }: TaskDependencySecti
       <div className="flex items-center gap-2">
         <ChipIcona icon={Lock} tono="arancio" />
         <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300 flex-1">
-          Dipendenze
+          {tr("Dipendenze")}
         </span>
         {hasBlockers && (
           <Badge variant="secondary" className="text-[10px] px-1.5 py-0 text-warning">
-            Bloccata
+            {tr("Bloccata")}
           </Badge>
         )}
         <Popover open={addOpen} onOpenChange={(v) => { setAddOpen(v); if (v) setSearch(""); }}>
           <PopoverTrigger asChild>
             <Button variant="ghost" size="sm" className="h-7 px-2 text-muted-foreground hover:text-foreground">
               <Plus className="h-3.5 w-3.5 mr-1" />
-              Aggiungi
+              {tr("Aggiungi")}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-72 p-0" align="start">
             <div className="p-2 border-b">
               <p className="text-xs text-muted-foreground mb-1.5 px-1">
-                Questa task dipende da:
+                {tr("Questa task dipende da:")}
               </p>
               <div className="relative">
                 <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
-                  placeholder="Cerca attività..."
+                  placeholder={tr("Cerca attività...")}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="h-7 text-sm pl-7"
@@ -161,7 +163,7 @@ export function TaskDependencySection({ taskId, companyId }: TaskDependencySecti
             <div className="max-h-56 overflow-y-auto">
               {filtered.length === 0 ? (
                 <p className="text-xs text-muted-foreground text-center py-4">
-                  {search ? "Nessun risultato" : "Nessuna altra attività"}
+                  {search ? tr("Nessun risultato") : tr("Nessuna altra attività")}
                 </p>
               ) : (
                 filtered.map((t) => (
@@ -172,7 +174,7 @@ export function TaskDependencySection({ taskId, companyId }: TaskDependencySecti
                     disabled={addMutation.isPending}
                   >
                     <span className={cn("w-2 h-2 rounded-full shrink-0", PRIORITY_DOT[t.priority] ?? "bg-slate-400")} />
-                    <span className="flex-1 text-sm truncate">{t.title}</span>
+                    <span dir="auto" className="flex-1 text-sm truncate">{t.title}</span>
                     {isTaskDoneStatus(t.status, statusOptions) && (
                       <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
                     )}
@@ -185,13 +187,13 @@ export function TaskDependencySection({ taskId, companyId }: TaskDependencySecti
       </div>
 
       {blockers.length === 0 && blocking.length === 0 && (
-        <p className="text-xs text-muted-foreground/60 italic pl-7">Nessuna dipendenza</p>
+        <p className="text-xs text-muted-foreground/60 italic pl-7">{tr("Nessuna dipendenza")}</p>
       )}
 
       {/* Blockers: tasks this depends on */}
       {blockers.length > 0 && (
         <div className="pl-7 space-y-1">
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Dipende da</p>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{tr("Dipende da")}</p>
           {blockers.map((t) => (
             <div key={t.id} className={cn(
               "flex items-center gap-2 rounded border px-2.5 py-1.5",
@@ -208,7 +210,8 @@ export function TaskDependencySection({ taskId, companyId }: TaskDependencySecti
               <button
                 className="text-muted-foreground hover:text-destructive transition-colors"
                 onClick={() => removeMutation.mutate({ task_id: taskId, depends_on_id: t.id })}
-                title="Rimuovi dipendenza"
+                title={tr("Rimuovi dipendenza")}
+                aria-label={tr("Rimuovi dipendenza")}
               >
                 <X className="h-3 w-3" />
               </button>
@@ -220,11 +223,11 @@ export function TaskDependencySection({ taskId, companyId }: TaskDependencySecti
       {/* Blocking: tasks that depend on this */}
       {blocking.length > 0 && (
         <div className="pl-7 space-y-1">
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Sblocca</p>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{tr("Sblocca")}</p>
           {blocking.map((t) => (
             <div key={t.id} className="flex items-center gap-2 rounded border px-2.5 py-1.5 border-primary/20 bg-primary/5">
               <ArrowRight className="h-3 w-3 text-primary shrink-0" />
-              <span className="flex-1 text-sm truncate">{t.title}</span>
+              <span dir="auto" className="flex-1 text-sm truncate">{t.title}</span>
               {isTaskDoneStatus(t.status, statusOptions) && (
                 <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
               )}

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Tag, Plus, Check } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // Palette predefinita per nuovi tag
 const COLOR_PALETTE = [
@@ -34,6 +35,7 @@ interface TaskTagPickerProps {
 }
 
 export function TaskTagPicker({ taskId, assignedTags, onChanged }: TaskTagPickerProps) {
+  const tr = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -55,7 +57,7 @@ export function TaskTagPicker({ taskId, assignedTags, onChanged }: TaskTagPicker
         .select("id, name, color")
         .eq("company_id", companyId)
         .order("name");
-      if (error) { toast.error("Errore caricamento tag"); return []; }
+      if (error) { toast.error(tr("Errore caricamento tag")); return []; }
       return data as Tag[];
     },
     enabled: !!companyId && open,
@@ -81,7 +83,7 @@ export function TaskTagPicker({ taskId, assignedTags, onChanged }: TaskTagPicker
       queryClient.invalidateQueries({ queryKey: ["task-tags-assigned", taskId] });
       onChanged();
     },
-    onError: () => toast.error("Errore aggiornamento tag"),
+    onError: () => toast.error(tr("Errore aggiornamento tag")),
   });
 
   const createMutation = useMutation({
@@ -104,7 +106,7 @@ export function TaskTagPicker({ taskId, assignedTags, onChanged }: TaskTagPicker
       queryClient.invalidateQueries({ queryKey: ["task-tags-assigned", taskId] });
       onChanged();
     },
-    onError: (e: any) => toast.error("Errore creazione tag", { description: e.message }),
+    onError: (e: any) => toast.error(tr("Errore creazione tag"), { description: e.message }),
   });
 
   const filtered = allTags.filter((t) =>
@@ -116,13 +118,13 @@ export function TaskTagPicker({ taskId, assignedTags, onChanged }: TaskTagPicker
       <PopoverTrigger asChild>
         <Button variant="ghost" size="sm" className="h-7 px-2 text-muted-foreground hover:text-foreground">
           <Tag className="h-3.5 w-3.5 mr-1" />
-          Aggiungi etichetta
+          {tr("Aggiungi etichetta")}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-64 p-2" align="start">
         <Input
           ref={inputRef}
-          placeholder="Cerca etichette..."
+          placeholder={tr("Cerca etichette...")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="h-7 text-sm mb-2"
@@ -151,7 +153,7 @@ export function TaskTagPicker({ taskId, assignedTags, onChanged }: TaskTagPicker
           })}
           {filtered.length === 0 && !creating && (
             <p className="text-xs text-muted-foreground text-center py-2">
-              {search ? `Nessun tag per "${search}"` : "Nessun tag ancora"}
+              {search ? tr("Nessun tag per \"{ricerca}\"", { ricerca: search }) : tr("Nessun tag ancora")}
             </p>
           )}
         </div>
@@ -160,7 +162,7 @@ export function TaskTagPicker({ taskId, assignedTags, onChanged }: TaskTagPicker
           {creating ? (
             <div className="space-y-2">
               <Input
-                placeholder="Nome etichetta"
+                placeholder={tr("Nome etichetta")}
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 className="h-7 text-sm"
@@ -175,7 +177,7 @@ export function TaskTagPicker({ taskId, assignedTags, onChanged }: TaskTagPicker
                   <button
                     key={c}
                     type="button"
-                    aria-label={`Colore ${COLOR_NAMES[c]}`}
+                    aria-label={tr("Colore {nome}", { nome: tr(COLOR_NAMES[c]) })}
                     aria-pressed={newColor === c}
                     className={cn(
                       "w-5 h-5 rounded-full border-2 transition-transform",
@@ -193,7 +195,7 @@ export function TaskTagPicker({ taskId, assignedTags, onChanged }: TaskTagPicker
                   onClick={() => createMutation.mutate()}
                   disabled={!newName.trim() || createMutation.isPending}
                 >
-                  Crea
+                  {tr("Crea")}
                 </Button>
                 <Button
                   size="sm"
@@ -201,7 +203,7 @@ export function TaskTagPicker({ taskId, assignedTags, onChanged }: TaskTagPicker
                   className="h-7 text-xs"
                   onClick={() => { setCreating(false); setNewName(""); }}
                 >
-                  Annulla
+                  {tr("Annulla")}
                 </Button>
               </div>
             </div>
@@ -211,7 +213,7 @@ export function TaskTagPicker({ taskId, assignedTags, onChanged }: TaskTagPicker
               onClick={() => { setCreating(true); setSearch(""); }}
             >
               <Plus className="h-3.5 w-3.5" />
-              Crea nuova etichetta
+              {tr("Crea nuova etichetta")}
             </button>
           )}
         </div>

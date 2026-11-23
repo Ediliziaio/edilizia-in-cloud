@@ -46,7 +46,7 @@ import {
 import { TaskTemplatePicker } from "./TaskTemplatePicker";
 import { TaskOrderLink } from "./TaskOrderLink";
 import { addDays, format } from "date-fns";
-import { it } from "date-fns/locale";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
@@ -260,6 +260,7 @@ export function TaskDialog({
   defaultAssignedTo,
   defaultActivityScope,
 }: TaskDialogProps) {
+  const t = useT();
   const fieldId = useId();
   const deleteFocusReturn = useDialogFocusReturn();
   const savingRef = useRef(false);
@@ -407,13 +408,14 @@ export function TaskDialog({
     if (user?.id) {
       map.set(user.id, {
         id: user.id,
-        first_name: profile?.first_name || "Me",
-        last_name: profile?.last_name || "stesso",
+        // Senza nome nel profilo: «Me stesso» intero, nella lingua di chi guarda.
+        first_name: profile?.first_name || (profile?.last_name ? "Me" : t("Me stesso")),
+        last_name: profile?.last_name || (profile?.first_name ? "stesso" : ""),
       });
     }
     assignableUsers.forEach((u) => map.set(u.id, u));
     return Array.from(map.values());
-  }, [assignableUsers, profile?.first_name, profile?.last_name, user]);
+  }, [assignableUsers, profile?.first_name, profile?.last_name, user, t]);
 
   const teamAssigneeOptions = useMemo(
     () => assigneeOptions.filter((option) => option.id !== user?.id),
@@ -437,7 +439,7 @@ export function TaskDialog({
   const applySmartDraft = () => {
     const text = aiBrief.trim();
     if (!text) {
-      toast.error("Scrivi prima cosa deve essere fatto");
+      toast.error(t("Scrivi prima cosa deve essere fatto"));
       return;
     }
 
@@ -469,14 +471,14 @@ export function TaskDialog({
     });
     if (matchedAssignee) setAssignedTo(matchedAssignee.id);
 
-    toast.success("Bozza attività compilata");
+    toast.success(t("Bozza attività compilata"));
   };
 
   const addInitialChecklistItem = () => {
     const value = checklistDraft.trim();
     if (!value) return;
     if (initialChecklistItems.length >= MAX_INITIAL_CHECKLIST_ITEMS) {
-      toast.error(`Massimo ${MAX_INITIAL_CHECKLIST_ITEMS} elementi checklist`);
+      toast.error(t("Massimo {n} elementi checklist", { n: MAX_INITIAL_CHECKLIST_ITEMS }));
       return;
     }
     setInitialChecklistItems((items) => [...items, value]);
@@ -561,7 +563,7 @@ export function TaskDialog({
   const handleSave = async () => {
     if (savingRef.current) return;
     if (!title.trim()) {
-      toast.error("Inserisci un titolo");
+      toast.error(t("Inserisci un titolo"));
       return;
     }
     if (!companyId || !user) return;
@@ -573,7 +575,7 @@ export function TaskDialog({
       (!Number.isFinite(normalizedEstimatedHours) ||
         normalizedEstimatedHours < 0)
     ) {
-      toast.error("Stima ore non valida");
+      toast.error(t("Stima ore non valida"));
       return;
     }
     const checklistItems = initialChecklistItems
@@ -673,7 +675,7 @@ export function TaskDialog({
           beforeSnapshot: task as any,
           afterSnapshot: { ...(task as any), ...payload },
         });
-        toast.success("Attività aggiornata");
+        toast.success(t("Attività aggiornata"));
       } else {
         const createPayload = { ...payload, created_by: user.id };
         const { data: createdTask, error } = await supabase
@@ -693,7 +695,7 @@ export function TaskDialog({
               })) as any,
             );
           if (checklistError) {
-            toast.warning("Attività creata, ma checklist non salvata", {
+            toast.warning(t("Attività creata, ma checklist non salvata"), {
               description: checklistError.message,
             });
           }
@@ -707,7 +709,7 @@ export function TaskDialog({
           description: "ha creato l'attività",
           afterSnapshot: createPayload,
         });
-        toast.success("Attività creata");
+        toast.success(t("Attività creata"));
       }
 
       invalidateOfficeWorkspace(taskQueryClient, links.order_id);
@@ -717,7 +719,7 @@ export function TaskDialog({
       onSaved();
       onOpenChange(false);
     } catch (e: any) {
-      toast.error("Errore", { description: e.message });
+      toast.error(t("Errore"), { description: e.message });
     } finally {
       savingRef.current = false;
       setSaving(false);
@@ -745,11 +747,11 @@ export function TaskDialog({
         .eq("id", task.id)
         .eq("company_id", companyId!);
       if (error) throw error;
-      toast.success("Attività eliminata");
+      toast.success(t("Attività eliminata"));
       onSaved();
       onOpenChange(false);
     } catch (e: any) {
-      toast.error("Errore", { description: e.message });
+      toast.error(t("Errore"), { description: e.message });
     } finally {
       savingRef.current = false;
       setSaving(false);
@@ -766,12 +768,12 @@ export function TaskDialog({
           <div className="flex items-start justify-between gap-2 pr-6">
             <div>
               <DialogTitle>
-                {isEditing ? "Modifica Attività" : "Nuova Attività"}
+                {isEditing ? t("Modifica Attività") : t("Nuova Attività")}
               </DialogTitle>
               <DialogDescription className="sr-only">
                 {isEditing
-                  ? "Modifica i dettagli dell'attività"
-                  : "Compila i campi per creare una nuova attività"}
+                  ? t("Modifica i dettagli dell'attività")
+                  : t("Compila i campi per creare una nuova attività")}
               </DialogDescription>
             </div>
             {!isEditing && !isMobile && (
@@ -807,7 +809,7 @@ export function TaskDialog({
         <div className="grid gap-3 py-1 max-sm:py-0">
           {!isEditing && !isMobile && (
             <div className="flex items-start gap-2 rounded-lg bg-primary/5 p-1.5">
-              <Label htmlFor="task-ai-brief" className="sr-only">Assistente AI</Label>
+              <Label htmlFor="task-ai-brief" className="sr-only">{t("Assistente AI")}</Label>
               <Textarea
                 id="task-ai-brief"
                 value={aiBrief}
@@ -819,16 +821,16 @@ export function TaskDialog({
               />
               <Button type="button" className="h-9 shrink-0 gap-1.5" onClick={applySmartDraft}>
                 <Sparkles className="h-4 w-4" />
-                Compila
+                {t("Compila")}
               </Button>
             </div>
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="title">Titolo *</Label>
+            <Label htmlFor="title">{t("Titolo *")}</Label>
             {!isEditing && defaultActivityScope === "ufficio" && (
               <p className="text-xs text-primary">
-                Attività d’ufficio · collegata alla commessa corrente
+                {t("Attività d’ufficio · collegata alla commessa corrente")}
               </p>
             )}
             <Input
@@ -836,19 +838,19 @@ export function TaskDialog({
               id="title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Es. Ordinare prodotto X"
+              placeholder={t("Es. Ordinare prodotto X")}
               maxLength={200}
               autoFocus={isMobile && !isEditing}
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="notes">Note</Label>
+            <Label htmlFor="notes">{t("Note")}</Label>
             <Textarea
               id="notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Dettagli aggiuntivi..."
+              placeholder={t("Dettagli aggiuntivi...")}
               rows={2}
               maxLength={1000}
               className="max-sm:min-h-[60px]"
@@ -859,7 +861,7 @@ export function TaskDialog({
             <div className="space-y-2">
               <Label className="flex items-center gap-1.5">
                 <ListChecks className="h-3.5 w-3.5 text-muted-foreground" />
-                Checklist iniziale
+                {t("Checklist iniziale")}
               </Label>
               <div className="rounded-md border bg-muted/20 p-2">
                 {initialChecklistItems.length > 0 && (
@@ -871,7 +873,7 @@ export function TaskDialog({
                       >
                         <span aria-hidden="true" className="h-4 w-4 shrink-0 rounded-sm border border-primary" />
                         <Input
-                          aria-label={`Elemento checklist ${index + 1}`}
+                          aria-label={t("Elemento checklist {n}", { n: index + 1 })}
                           value={item}
                           onChange={(e) =>
                             updateInitialChecklistItem(index, e.target.value)
@@ -884,7 +886,7 @@ export function TaskDialog({
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                          aria-label={`Rimuovi elemento checklist ${index + 1}`}
+                          aria-label={t("Rimuovi elemento checklist {n}", { n: index + 1 })}
                           onClick={() => removeInitialChecklistItem(index)}
                         >
                           <X className="h-3.5 w-3.5" />
@@ -899,7 +901,7 @@ export function TaskDialog({
                   </div>
                   <Input
                     id="initial-checklist-item"
-                    aria-label="Testo del nuovo elemento checklist"
+                    aria-label={t("Testo del nuovo elemento checklist")}
                     value={checklistDraft}
                     onChange={(e) => setChecklistDraft(e.target.value)}
                     onKeyDown={(e) => {
@@ -908,7 +910,7 @@ export function TaskDialog({
                         addInitialChecklistItem();
                       }
                     }}
-                    placeholder="Aggiungi elemento checklist..."
+                    placeholder={t("Aggiungi elemento checklist...")}
                     className="h-9"
                     maxLength={200}
                   />
@@ -917,7 +919,7 @@ export function TaskDialog({
                     variant="outline"
                     size="icon"
                     className="h-9 w-9 shrink-0"
-                    aria-label="Aggiungi elemento alla checklist"
+                    aria-label={t("Aggiungi elemento alla checklist")}
                     onClick={addInitialChecklistItem}
                     disabled={!checklistDraft.trim()}
                   >
@@ -929,7 +931,7 @@ export function TaskDialog({
           )}
 
           <div className="space-y-2">
-            <Label htmlFor={`${fieldId}-assignee`}>Assegna a</Label>
+            <Label htmlFor={`${fieldId}-assignee`}>{t("Assegna a")}</Label>
             {/* Mobile: basta il menu qui sotto (dentro ci sono «Nessuno», te e il team). */}
             <div className="hidden sm:grid grid-cols-3 gap-2">
               <Button
@@ -941,7 +943,7 @@ export function TaskDialog({
                 disabled={!user?.id}
               >
                 <User className="h-4 w-4" />
-                Per me
+                {t("Per me")}
               </Button>
               <Button
                 type="button"
@@ -952,7 +954,7 @@ export function TaskDialog({
                 disabled={onlyAssigned || teamAssigneeOptions.length === 0}
               >
                 <Users className="h-4 w-4" />
-                Persona
+                {t("Persona")}
               </Button>
               <Button
                 type="button"
@@ -963,7 +965,7 @@ export function TaskDialog({
                 disabled={onlyAssigned}
               >
                 <UserX className="h-4 w-4" />
-                Da assegnare
+                {t("Da assegnare")}
               </Button>
             </div>
             <Select
@@ -972,10 +974,10 @@ export function TaskDialog({
               disabled={onlyAssigned}
             >
               <SelectTrigger id={`${fieldId}-assignee`}>
-                <SelectValue placeholder="Nessun assegnatario" />
+                <SelectValue placeholder={t("Nessun assegnatario")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">Nessuno</SelectItem>
+                <SelectItem value="none">{t("Nessuno")}</SelectItem>
                 {assigneeOptions.map((u) => (
                   <SelectItem key={u.id} value={u.id}>
                     {u.first_name} {u.last_name}
@@ -986,25 +988,25 @@ export function TaskDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor={`${fieldId}-office`}>Area / Ufficio</Label>
+            <Label htmlFor={`${fieldId}-office`}>{t("Area / Ufficio")}</Label>
             <Select value={officeId || "none"} onValueChange={value => { setOfficeId(value === "none" ? "" : value); setAssignedTo("none"); }}>
               <SelectTrigger id={`${fieldId}-office`}><SelectValue /></SelectTrigger>
-              <SelectContent><SelectItem value="none">Attività individuale</SelectItem>
+              <SelectContent><SelectItem value="none">{t("Attività individuale")}</SelectItem>
                 {(offices.data ?? []).filter(o => officeAdmin || o.membri.includes(user?.id ?? "")).map(o => <SelectItem key={o.id} value={o.id}>{o.nome}</SelectItem>)}
               </SelectContent>
             </Select>
-            {offices.isError && <p role="alert">Impossibile caricare le aree. Riprova prima di assegnare.</p>}
+            {offices.isError && <p role="alert">{t("Impossibile caricare le aree. Riprova prima di assegnare.")}</p>}
             {isEditing && officeId && !officeReadOnly && !task?.completed_at && (!task?.assigned_to || task?.assigned_to === user?.id) &&
               <Button type="button" variant="outline" onClick={async () => {
                 const { error } = await supabase.rpc("attivita_prendi_in_carico" as never, { p_task: task?.id, p_rilascia: !!task?.assigned_to } as never);
                 if (error) toast.error(error.message); else { onSaved(); onOpenChange(false); }
-              }}>{task?.assigned_to ? "Rilascia all’area" : "Me ne occupo io"}</Button>}
-            {officeId && <p className="text-xs text-muted-foreground">Condivisa con l’area nei limiti dei permessi. Senza persona assegnata è disponibile per la presa in carico.</p>}
+              }}>{task?.assigned_to ? t("Rilascia all’area") : t("Me ne occupo io")}</Button>}
+            {officeId && <p className="text-xs text-muted-foreground">{t("Condivisa con l’area nei limiti dei permessi. Senza persona assegnata è disponibile per la presa in carico.")}</p>}
           </div>
           <div className="grid grid-cols-2 gap-3 sm:block sm:space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 max-sm:contents">
               <div className="space-y-2">
-                <Label htmlFor={`${fieldId}-priority`}>Priorità</Label>
+                <Label htmlFor={`${fieldId}-priority`}>{t("Priorità")}</Label>
                 <Select value={priority} onValueChange={setPriority}>
                   <SelectTrigger id={`${fieldId}-priority`}>
                     <SelectValue />
@@ -1012,7 +1014,7 @@ export function TaskDialog({
                   <SelectContent>
                     {PRIORITIES.map((p) => (
                       <SelectItem key={p.value} value={p.value}>
-                        {p.label}
+                        {t(p.label)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1020,7 +1022,7 @@ export function TaskDialog({
               </div>
 
               <div className="space-y-2 max-sm:hidden">
-                <Label htmlFor={`${fieldId}-category`}>Categoria</Label>
+                <Label htmlFor={`${fieldId}-category`}>{t("Categoria")}</Label>
                 <Select
                   value={category}
                   onValueChange={(v) => {
@@ -1037,7 +1039,7 @@ export function TaskDialog({
                   <SelectContent>
                     {CATEGORIES.map((c) => (
                       <SelectItem key={c.value} value={c.value}>
-                        {c.label}
+                        {t(c.label)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1051,7 +1053,7 @@ export function TaskDialog({
                   "max-sm:order-last",
                 )}
               >
-                <Label htmlFor={`${fieldId}-status`}>{isEditing ? "Stato" : "Stato iniziale"}</Label>
+                <Label htmlFor={`${fieldId}-status`}>{isEditing ? t("Stato") : t("Stato iniziale")}</Label>
                 <Select value={status} onValueChange={setStatus}>
                   <SelectTrigger id={`${fieldId}-status`}>
                     <SelectValue />
@@ -1059,7 +1061,7 @@ export function TaskDialog({
                   <SelectContent>
                     {statusOptions.map((s) => (
                       <SelectItem key={s.value} value={s.value}>
-                        {s.label}
+                        {t(s.label)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1069,7 +1071,7 @@ export function TaskDialog({
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 max-sm:contents">
               <div className="space-y-2">
-                <Label htmlFor={`${fieldId}-due`}>Scadenza</Label>
+                <Label htmlFor={`${fieldId}-due`}>{t("Scadenza")}</Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button id={`${fieldId}-due`}
@@ -1083,8 +1085,8 @@ export function TaskDialog({
                       {dueDate
                         ? format(dueDate, "dd/MM/yyyy")
                         : isMobile
-                          ? "Data"
-                          : "Seleziona data"}
+                          ? t("Data")
+                          : t("Seleziona data")}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
@@ -1092,7 +1094,7 @@ export function TaskDialog({
                       mode="single"
                       selected={dueDate}
                       onSelect={setDueDate}
-                      locale={it}
+                      locale={dateFnsCampo()}
                     />
                   </PopoverContent>
                 </Popover>
@@ -1104,7 +1106,7 @@ export function TaskDialog({
                   className="flex items-center gap-1.5"
                 >
                   <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                  Stima ore
+                  {t("Stima ore")}
                 </Label>
                 <Input
                   id="estimated-hours"
@@ -1114,7 +1116,7 @@ export function TaskDialog({
                   step="0.25"
                   value={estimatedHours}
                   onChange={(e) => setEstimatedHours(e.target.value)}
-                  placeholder="Es. 2.5"
+                  placeholder={t("Es. 2.5")}
                 />
               </div>
             </div>
@@ -1139,7 +1141,7 @@ export function TaskDialog({
             >
               <span className="flex items-center gap-2 text-sm font-medium">
                 <Link2 className="h-4 w-4 text-muted-foreground" />
-                Collegamenti e opzioni
+                {t("Collegamenti e opzioni")}
               </span>
               <ChevronDown
                 className={cn(
@@ -1157,7 +1159,7 @@ export function TaskDialog({
                 <div className="flex items-center justify-between">
                   <Label htmlFor={`${fieldId}-recurring`} className="flex items-center gap-1.5 cursor-pointer">
                     <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
-                    Ripetizione
+                    {t("Ripetizione")}
                   </Label>
                   <button
                     type="button"
@@ -1182,7 +1184,7 @@ export function TaskDialog({
                   <div className="grid grid-cols-2 gap-3 pt-1">
                     <div className="space-y-1">
                       <Label htmlFor={`${fieldId}-recurrence-rule`} className="text-xs text-muted-foreground">
-                        Ogni
+                        {t("Ogni")}
                       </Label>
                       <Select
                         value={recurrenceRule}
@@ -1196,7 +1198,7 @@ export function TaskDialog({
                             (o) => o.value !== "none",
                           ).map((o) => (
                             <SelectItem key={o.value} value={o.value}>
-                              {o.label}
+                              {t(o.label)}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -1204,7 +1206,7 @@ export function TaskDialog({
                     </div>
                     <div className="space-y-1">
                       <Label htmlFor={`${fieldId}-recurrence-end`} className="text-xs text-muted-foreground">
-                        Termina il (opz.)
+                        {t("Termina il (opz.)")}
                       </Label>
                       <Popover>
                         <PopoverTrigger asChild>
@@ -1219,7 +1221,7 @@ export function TaskDialog({
                             <CalendarDays className="mr-1.5 h-3.5 w-3.5" />
                             {recurrenceEndDate
                               ? format(recurrenceEndDate, "dd/MM/yy")
-                              : "Nessuna fine"}
+                              : t("Nessuna fine")}
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0" align="start">
@@ -1227,7 +1229,7 @@ export function TaskDialog({
                             mode="single"
                             selected={recurrenceEndDate}
                             onSelect={setRecurrenceEndDate}
-                            locale={it}
+                            locale={dateFnsCampo()}
                           />
                           {recurrenceEndDate && (
                             <div className="p-2 border-t">
@@ -1237,7 +1239,7 @@ export function TaskDialog({
                                 className="w-full text-xs"
                                 onClick={() => setRecurrenceEndDate(undefined)}
                               >
-                                Rimuovi data fine
+                                {t("Rimuovi data fine")}
                               </Button>
                             </div>
                           )}
@@ -1250,13 +1252,13 @@ export function TaskDialog({
 
               {category === "magazzino" && (
                 <div className="space-y-2">
-                  <Label htmlFor={`${fieldId}-stock`}>Articolo magazzino</Label>
+                  <Label htmlFor={`${fieldId}-stock`}>{t("Articolo magazzino")}</Label>
                   <Select value={stockItemId} onValueChange={setStockItemId}>
                     <SelectTrigger id={`${fieldId}-stock`}>
-                      <SelectValue placeholder="Seleziona articolo" />
+                      <SelectValue placeholder={t("Seleziona articolo")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Nessuno</SelectItem>
+                      <SelectItem value="none">{t("Nessuno")}</SelectItem>
                       {stockItems.map((s) => (
                         <SelectItem key={s.id} value={s.id}>
                           {s.name}
@@ -1269,13 +1271,13 @@ export function TaskDialog({
 
               {category === "costi" && (
                 <div className="space-y-2">
-                  <Label htmlFor={`${fieldId}-cost`}>Costo collegato</Label>
+                  <Label htmlFor={`${fieldId}-cost`}>{t("Costo collegato")}</Label>
                   <Select value={costId} onValueChange={setCostId}>
                     <SelectTrigger id={`${fieldId}-cost`}>
-                      <SelectValue placeholder="Seleziona costo" />
+                      <SelectValue placeholder={t("Seleziona costo")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Nessuno</SelectItem>
+                      <SelectItem value="none">{t("Nessuno")}</SelectItem>
                       {costs.map((c) => (
                         <SelectItem key={c.id} value={c.id}>
                           {c.name} (€{c.amount})
@@ -1287,13 +1289,13 @@ export function TaskDialog({
               )}
 
               <div className="space-y-2">
-                <Label htmlFor={`${fieldId}-contact`}>Contatto collegato</Label>
+                <Label htmlFor={`${fieldId}-contact`}>{t("Contatto collegato")}</Label>
                 <Select value={contactId} onValueChange={setContactId}>
                   <SelectTrigger id={`${fieldId}-contact`}>
-                    <SelectValue placeholder="Seleziona contatto" />
+                    <SelectValue placeholder={t("Seleziona contatto")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">Nessuno</SelectItem>
+                    <SelectItem value="none">{t("Nessuno")}</SelectItem>
                     {contacts.map((c: any) => (
                       <SelectItem key={c.id} value={c.id}>
                         {c.first_name} {c.last_name || ""}{" "}
@@ -1305,13 +1307,13 @@ export function TaskDialog({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor={`${fieldId}-opportunity`}>Opportunità collegata</Label>
+                <Label htmlFor={`${fieldId}-opportunity`}>{t("Opportunità collegata")}</Label>
                 <Select value={opportunityId} onValueChange={setOpportunityId}>
                   <SelectTrigger id={`${fieldId}-opportunity`}>
-                    <SelectValue placeholder="Seleziona opportunità" />
+                    <SelectValue placeholder={t("Seleziona opportunità")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">Nessuna</SelectItem>
+                    <SelectItem value="none">{t("Nessuna")}</SelectItem>
                     {opportunities.map((o: any) => (
                       <SelectItem key={o.id} value={o.id}>
                         {o.name} {o.value > 0 ? `(€${o.value})` : ""}
@@ -1328,7 +1330,7 @@ export function TaskDialog({
           {isEditing && task?.id && (
             <div className="pt-3 border-t">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-                Campi personalizzati
+                {t("Campi personalizzati")}
               </p>
               <EntityCustomFieldsSection entityType="task" entityId={task.id} />
             </div>
@@ -1345,7 +1347,7 @@ export function TaskDialog({
               className="sm:mr-auto"
             >
               <Trash2 className="h-4 w-4 mr-2" />
-              Elimina
+              {t("Elimina")}
             </Button>
           )}
           <Button
@@ -1353,16 +1355,16 @@ export function TaskDialog({
             onClick={() => onOpenChange(false)}
             disabled={saving}
           >
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button onClick={handleSave} disabled={saving || !title.trim()}>
             {saving
-              ? "Salvataggio..."
+              ? t("Salvataggio...")
               : isEditing
                 ? isMobile
-                  ? "Salva"
-                  : "Salva modifiche"
-                : "Crea attività"}
+                  ? t("Salva")
+                  : t("Salva modifiche")
+                : t("Crea attività")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1370,13 +1372,13 @@ export function TaskDialog({
     <AlertDialog open={deleteConfirmOpen} onOpenChange={(next) => { if (!savingRef.current) setDeleteConfirmOpen(next); }}>
       <AlertDialogContent {...deleteFocusReturn}>
         <AlertDialogHeader>
-          <AlertDialogTitle>Eliminare l’attività?</AlertDialogTitle>
-          <AlertDialogDescription>L’attività «{task?.title}» verrà eliminata definitivamente.</AlertDialogDescription>
+          <AlertDialogTitle>{t("Eliminare l’attività?")}</AlertDialogTitle>
+          <AlertDialogDescription>{t("L’attività «{titolo}» verrà eliminata definitivamente.", { titolo: task?.title ?? "" })}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={saving}>Annulla</AlertDialogCancel>
+          <AlertDialogCancel disabled={saving}>{t("Annulla")}</AlertDialogCancel>
           <AlertDialogAction onClick={handleDelete} disabled={saving} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-            {saving ? "Eliminazione..." : "Elimina definitivamente"}
+            {saving ? t("Eliminazione...") : t("Elimina definitivamente")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

@@ -30,6 +30,7 @@ import {
   type CalendarColorMode,
   type CalendarAvvisiPagamento,
 } from "@/lib/calendarUtils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Employee {
   id: string;
@@ -140,6 +141,7 @@ export function CalendarLayerPanel({
   avvisiPagamento,
   onAvvisiPagamentoChange,
 }: CalendarLayerPanelProps) {
+  const t = useT();
   const [search, setSearch] = useState("");
 
   const filteredEmployees = employees.filter((e) =>
@@ -147,15 +149,15 @@ export function CalendarLayerPanel({
       .toLowerCase()
       .includes(search.toLowerCase()),
   );
-  const filteredTeams = externalTeams.filter((t) =>
-    t.name.toLowerCase().includes(search.toLowerCase()),
+  const filteredTeams = externalTeams.filter((team) =>
+    team.name.toLowerCase().includes(search.toLowerCase()),
   );
 
   const allEmployeesVisible =
     employees.length > 0 && employees.every((e) => visibleEmployees.has(e.id));
   const allTeamsVisible =
     externalTeams.length > 0 &&
-    externalTeams.every((t) => visibleTeams.has(t.id));
+    externalTeams.every((team) => visibleTeams.has(team.id));
 
   const allLayersHidden =
     !showPosa &&
@@ -171,13 +173,13 @@ export function CalendarLayerPanel({
   return (
     <div className="w-full min-w-0 rounded-lg bg-card p-1 space-y-3">
       <h3 className="text-sm font-semibold text-foreground">
-        Contenuti e risorse
+        {t("Contenuti e risorse")}
       </h3>
 
       <div className="relative">
         <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
         <Input
-          placeholder="Cerca..."
+          placeholder={t("Cerca...")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-8 h-8 text-xs"
@@ -191,7 +193,7 @@ export function CalendarLayerPanel({
             <CollapsibleTrigger className="flex items-center justify-between w-full py-1.5 px-1 text-xs font-semibold text-foreground hover:bg-muted/50 rounded">
               <div className="flex items-center gap-1.5">
                 <Hammer className="h-3.5 w-3.5 text-blue-500" />
-                <span>Calendario Lavori</span>
+                <span>{t("Calendario Lavori")}</span>
               </div>
               <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform" />
             </CollapsibleTrigger>
@@ -206,7 +208,7 @@ export function CalendarLayerPanel({
                     style={{ color: eventColors.posa }}
                   />
                 }
-                label="Data Posa"
+                label={t("Data Posa")}
                 color={eventColors.posa}
               />
               <LayerCheckbox
@@ -218,7 +220,7 @@ export function CalendarLayerPanel({
                     style={{ color: eventColors.lavoro }}
                   />
                 }
-                label="Lavori in corso"
+                label={t("Lavori in corso")}
                 color={eventColors.lavoro}
               />
               <LayerCheckbox
@@ -230,7 +232,7 @@ export function CalendarLayerPanel({
                     style={{ color: eventColors.appuntamento }}
                   />
                 }
-                label="Appuntamenti operativi"
+                label={t("Appuntamenti operativi")}
                 color={eventColors.appuntamento}
               />
               {/* 2026-05-27: layer "Commerciale" = appuntamenti del calendario
@@ -241,7 +243,7 @@ export function CalendarLayerPanel({
                   checked={showAppuntamentoCommerciale}
                   onCheckedChange={onToggleAppuntamentoCommerciale}
                   icon={<Target className="h-3 w-3 text-violet-600" />}
-                  label="Appuntamenti commerciali (Marketing)"
+                  label={t("Appuntamenti commerciali (Marketing)")}
                   color="#7c3aed"
                 />
               )}
@@ -257,7 +259,7 @@ export function CalendarLayerPanel({
                     />
                     <Users className="h-3 w-3 text-muted-foreground" />
                     <span className="text-[11px] font-medium text-muted-foreground">
-                      Squadra lavori
+                      {t("Squadra lavori")}
                     </span>
                   </div>
                   {(() => {
@@ -284,7 +286,7 @@ export function CalendarLayerPanel({
                         return (
                           <div key={area} className="pl-2 mt-1">
                             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1 py-0.5">
-                              <span>{info.emoji}</span> {info.label}
+                              <span>{info.emoji}</span> {t(info.label)}
                               <span className="text-[9px] font-normal ml-auto">
                                 {emps.length}
                               </span>
@@ -312,7 +314,7 @@ export function CalendarLayerPanel({
                   })()}
                   {search && filteredEmployees.length === 0 && (
                     <p className="text-[11px] text-muted-foreground pl-4 py-0.5">
-                      Nessun risultato
+                      {t("Nessun risultato")}
                     </p>
                   )}
                 </div>
@@ -329,7 +331,7 @@ export function CalendarLayerPanel({
                     />
                     <UsersRound className="h-3 w-3 text-muted-foreground" />
                     <span className="text-[11px] font-medium text-muted-foreground">
-                      Squadre esterne
+                      {t("Squadre esterne")}
                     </span>
                   </div>
                   {filteredTeams.map((team) => (
@@ -353,15 +355,15 @@ export function CalendarLayerPanel({
                             onTeamColorChange(team.id, e.target.value)
                           }
                           className="h-4 w-5 shrink-0 cursor-pointer rounded border bg-transparent p-0"
-                          title={`Colore squadra ${team.name}`}
-                          aria-label={`Colore squadra ${team.name}`}
+                          title={t("Colore squadra {nome}", { nome: team.name })}
+                          aria-label={t("Colore squadra {nome}", { nome: team.name })}
                         />
                       )}
                     </div>
                   ))}
                   {search && filteredTeams.length === 0 && (
                     <p className="text-[11px] text-muted-foreground pl-4 py-0.5">
-                      Nessun risultato
+                      {t("Nessun risultato")}
                     </p>
                   )}
                 </div>
@@ -376,7 +378,7 @@ export function CalendarLayerPanel({
               checked={showLeaves}
               onCheckedChange={onToggleLeaves}
               icon={<Palmtree className="h-3 w-3 text-amber-500" />}
-              label="Ferie & Permessi"
+              label={t("Ferie & Permessi")}
               color={eventColors.leave}
             />
           </div>
@@ -387,7 +389,7 @@ export function CalendarLayerPanel({
               <CollapsibleTrigger className="flex items-center justify-between w-full py-1.5 px-1 text-xs font-semibold text-foreground hover:bg-muted/50 rounded">
                 <div className="flex items-center gap-1.5">
                   <Package className="h-3.5 w-3.5 text-orange-500" />
-                  <span>Calendario Magazzino</span>
+                  <span>{t("Calendario Magazzino")}</span>
                 </div>
                 <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform" />
               </CollapsibleTrigger>
@@ -401,7 +403,7 @@ export function CalendarLayerPanel({
                       style={{ color: eventColors.merce }}
                     />
                   }
-                  label="Arrivo Merce"
+                  label={t("Arrivo Merce")}
                   color={eventColors.merce}
                 />
               </CollapsibleContent>
@@ -423,7 +425,7 @@ export function CalendarLayerPanel({
               <CollapsibleTrigger className="flex items-center justify-between w-full py-1.5 px-1 text-xs font-semibold text-foreground hover:bg-muted/50 rounded">
                 <div className="flex items-center gap-1.5">
                   <Wrench className="h-3.5 w-3.5 text-orange-500" />
-                  <span>Assistenza</span>
+                  <span>{t("Assistenza")}</span>
                 </div>
                 <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform" />
               </CollapsibleTrigger>
@@ -440,8 +442,8 @@ export function CalendarLayerPanel({
                   }
                   label={
                     allowInterventions
-                      ? "Interventi"
-                      : "Interventi · accesso non abilitato"
+                      ? t("Interventi")
+                      : t("Interventi · accesso non abilitato")
                   }
                   color={eventColors.intervento}
                 />
@@ -459,10 +461,10 @@ export function CalendarLayerPanel({
                   }
                   label={
                     !allowMaintenance
-                      ? "Manutenzioni · accesso non abilitato"
+                      ? t("Manutenzioni · accesso non abilitato")
                       : allowCompanySources
-                        ? "Manutenzioni"
-                        : "Manutenzioni · solo nel team"
+                        ? t("Manutenzioni")
+                        : t("Manutenzioni · solo nel team")
                   }
                   color={eventColors.manutenzione}
                 />
@@ -476,21 +478,21 @@ export function CalendarLayerPanel({
               checked={showWeather}
               onCheckedChange={onToggleWeather}
               icon={<Cloud className="h-3 w-3 text-sky-500" />}
-              label="Previsioni Meteo"
+              label={t("Previsioni Meteo")}
               color={eventColors.weather}
             />
           </div>
 
           <Collapsible>
             <CollapsibleTrigger className="flex items-center justify-between w-full py-1.5 px-1 text-xs font-semibold text-foreground hover:bg-muted/50 rounded">
-              <span>Colori calendario</span>
+              <span>{t("Colori calendario")}</span>
               <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform" />
             </CollapsibleTrigger>
             <CollapsibleContent className="space-y-1 pt-1">
               {colorMode && onColorModeChange && (
                 <div className="space-y-1 pb-1">
                   <p className="px-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Colora le barre per
+                    {t("Colora le barre per")}
                   </p>
                   <div className="grid grid-cols-3 gap-1 px-1">
                     {(
@@ -506,23 +508,23 @@ export function CalendarLayerPanel({
                         onClick={() => onColorModeChange(value)}
                         className={`rounded border px-1 py-1 text-[10px] font-medium transition-colors ${colorMode === value ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"}`}
                       >
-                        {label}
+                        {t(label)}
                       </button>
                     ))}
                   </div>
                   <p className="px-1 text-[10px] text-muted-foreground">
                     {colorMode === "commessa"
-                      ? "Ogni cantiere ha la sua tinta fissa."
+                      ? t("Ogni cantiere ha la sua tinta fissa.")
                       : colorMode === "squadra"
-                        ? "Il colore della squadra assegnata; grigio = senza squadra."
-                        : "I colori per tipo di evento qui sotto."}
+                        ? t("Il colore della squadra assegnata; grigio = senza squadra.")
+                        : t("I colori per tipo di evento qui sotto.")}
                   </p>
                 </div>
               )}
               {avvisiPagamento && onAvvisiPagamentoChange && (
                 <div className="space-y-1 pb-1">
                   <p className="px-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Avvisi pagamento (€)
+                    {t("Avvisi pagamento (€)")}
                   </p>
                   <div className="grid grid-cols-3 gap-1 px-1">
                     {(
@@ -538,31 +540,31 @@ export function CalendarLayerPanel({
                         onClick={() => onAvvisiPagamentoChange(value)}
                         className={`rounded border px-1 py-1 text-[10px] font-medium transition-colors ${avvisiPagamento === value ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"}`}
                       >
-                        {label}
+                        {t(label)}
                       </button>
                     ))}
                   </div>
                   <p className="px-1 text-[10px] text-muted-foreground">
                     {avvisiPagamento === "tutti"
-                      ? "Acconti non incassati (rosso) e saldi a lavori chiusi (ambra)."
+                      ? t("Acconti non incassati (rosso) e saldi a lavori chiusi (ambra).")
                       : avvisiPagamento === "rossi"
-                        ? "Solo i lavori che partono senza acconto incassato."
-                        : "Nessun avviso € sulle barre."}
+                        ? t("Solo i lavori che partono senza acconto incassato.")
+                        : t("Nessun avviso € sulle barre.")}
                   </p>
                 </div>
               )}
               <ColorRow
-                label="Data posa"
+                label={t("Data posa")}
                 value={eventColors.posa}
                 onChange={(color) => onEventColorChange?.("posa", color)}
               />
               <ColorRow
-                label="Lavori"
+                label={t("Lavori")}
                 value={eventColors.lavoro}
                 onChange={(color) => onEventColorChange?.("lavoro", color)}
               />
               <ColorRow
-                label="Appuntamenti"
+                label={t("Appuntamenti")}
                 value={eventColors.appuntamento}
                 onChange={(color) =>
                   onEventColorChange?.("appuntamento", color)
@@ -570,19 +572,19 @@ export function CalendarLayerPanel({
               />
               <>
                 <ColorRow
-                  label="Arrivo merce"
+                  label={t("Arrivo merce")}
                   value={eventColors.merce}
                   onChange={(color) => onEventColorChange?.("merce", color)}
                 />
                 <ColorRow
-                  label="Interventi"
+                  label={t("Interventi")}
                   value={eventColors.intervento}
                   onChange={(color) =>
                     onEventColorChange?.("intervento", color)
                   }
                 />
                 <ColorRow
-                  label="Manutenzioni"
+                  label={t("Manutenzioni")}
                   value={eventColors.manutenzione}
                   onChange={(color) =>
                     onEventColorChange?.("manutenzione", color)
@@ -594,7 +596,7 @@ export function CalendarLayerPanel({
                 onClick={onResetEventColors}
                 className="mt-1 w-full rounded border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted"
               >
-                Ripristina colori standard
+                {t("Ripristina colori standard")}
               </button>
             </CollapsibleContent>
           </Collapsible>
@@ -604,14 +606,14 @@ export function CalendarLayerPanel({
       {/* Warning: all layers hidden */}
       {allLayersHidden && (
         <p className="text-xs text-amber-600 font-medium px-1">
-          ⚠️ Tutti i layer sono nascosti
+          ⚠️ {t("Tutti i layer sono nascosti")}
         </p>
       )}
 
       {/* Legenda colori */}
       <div className="pt-2 border-t border-border/50 space-y-1">
         <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-1">
-          Legenda
+          {t("Legenda")}
         </p>
         {(() => {
           // Quando le barre sono colorate per commessa/squadra la tinta non
@@ -632,7 +634,7 @@ export function CalendarLayerPanel({
                   <Wrench className="h-2 w-2 text-white" />
                 </div>
                 <span className="text-[10px] text-muted-foreground">
-                  Lavori in corso — barra piena
+                  {t("Lavori in corso — barra piena")}
                 </span>
               </div>
               <div className="flex items-center gap-1.5 px-1">
@@ -646,7 +648,7 @@ export function CalendarLayerPanel({
                   <Hammer className="h-2 w-2" style={{ color: cPosa }} />
                 </div>
                 <span className="text-[10px] text-muted-foreground">
-                  Data posa — chiara bordata
+                  {t("Data posa — chiara bordata")}
                 </span>
               </div>
               <div className="flex items-center gap-1.5 px-1">
@@ -660,14 +662,14 @@ export function CalendarLayerPanel({
                   <Package className="h-2 w-2" style={{ color: cMerce }} />
                 </div>
                 <span className="text-[10px] text-muted-foreground">
-                  Arrivo merce — tratteggiata
+                  {t("Arrivo merce — tratteggiata")}
                 </span>
               </div>
               {!perTipo && (
                 <p className="px-1 text-[10px] text-muted-foreground/70">
-                  La tinta è{" "}
-                  {colorMode === "squadra" ? "della squadra" : "della commessa"}
-                  .
+                  {colorMode === "squadra"
+                    ? t("La tinta è della squadra.")
+                    : t("La tinta è della commessa.")}
                 </p>
               )}
             </>
@@ -681,7 +683,7 @@ export function CalendarLayerPanel({
             <CalendarClock className="h-2 w-2 text-white" />
           </div>
           <span className="text-[10px] text-muted-foreground">
-            Appuntamenti
+            {t("Appuntamenti")}
           </span>
         </div>
         <>
@@ -693,7 +695,7 @@ export function CalendarLayerPanel({
               <Wrench className="h-2 w-2 text-white" />
             </div>
             <span className="text-[10px] text-muted-foreground">
-              Interventi
+              {t("Interventi")}
             </span>
           </div>
           <div className="flex items-center gap-1.5 px-1">
@@ -704,14 +706,14 @@ export function CalendarLayerPanel({
               <Settings className="h-2 w-2 text-white" />
             </div>
             <span className="text-[10px] text-muted-foreground">
-              Manutenzioni
+              {t("Manutenzioni")}
             </span>
           </div>
         </>
         <div className="flex items-center gap-1.5 px-1">
           <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />
           <span className="text-[10px] text-muted-foreground">
-            Rischio logistico
+            {t("Rischio logistico")}
           </span>
         </div>
         {avvisiPagamento !== "off" && (
@@ -720,7 +722,7 @@ export function CalendarLayerPanel({
               €
             </span>
             <span className="text-[10px] text-muted-foreground">
-              Acconto non incassato
+              {t("Acconto non incassato")}
             </span>
           </div>
         )}
@@ -730,7 +732,7 @@ export function CalendarLayerPanel({
               €
             </span>
             <span className="text-[10px] text-muted-foreground">
-              Saldo da incassare (lavori chiusi)
+              {t("Saldo da incassare (lavori chiusi)")}
             </span>
           </div>
         )}
@@ -739,7 +741,7 @@ export function CalendarLayerPanel({
             !
           </span>
           <span className="text-[10px] text-muted-foreground">
-            Nessun operaio assegnato
+            {t("Nessun operaio assegnato")}
           </span>
         </div>
         <div className="flex items-center gap-1.5 px-1">
@@ -747,7 +749,7 @@ export function CalendarLayerPanel({
             2op
           </span>
           <span className="text-[10px] text-muted-foreground">
-            Operai assegnati
+            {t("Operai assegnati")}
           </span>
         </div>
         <div className="flex items-center gap-1.5 px-1">
@@ -803,6 +805,7 @@ function ColorRow({
   value: string;
   onChange: (color: string) => void;
 }) {
+  const t = useT();
   return (
     <label className="flex items-center justify-between gap-2 rounded px-1 py-0.5 hover:bg-muted/30">
       <span className="text-[11px] text-muted-foreground">{label}</span>
@@ -811,7 +814,7 @@ function ColorRow({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         className="h-6 w-8 cursor-pointer rounded border bg-transparent p-0.5"
-        aria-label={`Colore ${label}`}
+        aria-label={t("Colore {nome}", { nome: label })}
       />
     </label>
   );

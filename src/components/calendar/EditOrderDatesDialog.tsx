@@ -4,7 +4,6 @@
  */
 import { useState, useEffect, useMemo, useRef } from "react";
 import { format, parseISO, isPast, isToday } from "date-fns";
-import { it } from "date-fns/locale";
 import {
   CalendarIcon,
   Loader2,
@@ -56,6 +55,7 @@ import {
 } from "@/hooks/useWeatherForecast";
 import type { CalendarOrder } from "@/types/calendar";
 import { Link } from "react-router-dom";
+import { dateFnsCampo, intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /* ── Types ──────────────────────────────────────────────── */
 
@@ -83,6 +83,7 @@ interface DateFieldProps {
 /* ── DateField ──────────────────────────────────────────── */
 
 function DateField({ label, value, onChange }: DateFieldProps) {
+  const t = useT();
   return (
     <div className="grid gap-1.5">
       <Label className="text-xs font-medium text-muted-foreground">
@@ -100,8 +101,8 @@ function DateField({ label, value, onChange }: DateFieldProps) {
           >
             <CalendarIcon className="mr-2 h-3.5 w-3.5" />
             {value
-              ? format(value, "d MMMM yyyy", { locale: it })
-              : "Seleziona data"}
+              ? format(value, "d MMMM yyyy", { locale: dateFnsCampo() })
+              : t("Seleziona data")}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">
@@ -109,7 +110,7 @@ function DateField({ label, value, onChange }: DateFieldProps) {
             mode="single"
             selected={value}
             onSelect={onChange}
-            locale={it}
+            locale={dateFnsCampo()}
             className="pointer-events-auto"
           />
         </PopoverContent>
@@ -127,6 +128,7 @@ export function EditOrderDatesDialog({
   onSave,
   orderWeatherInfo,
 }: EditOrderDatesDialogProps) {
+  const t = useT();
   const queryClient = useQueryClient();
   const { effectiveCompany, user } = useAuth();
   const permissions = usePermissions();
@@ -314,7 +316,7 @@ export function EditOrderDatesDialog({
 
     if (o.deposit_amount && o.deposit_amount > 0) {
       lines.push({
-        label: "Acconto",
+        label: t("Acconto"),
         amount: o.deposit_amount,
         paid: !!o.deposit_paid,
         paidDate: o.deposit_paid_date,
@@ -323,7 +325,7 @@ export function EditOrderDatesDialog({
     }
     if (o.deposit_2_amount && o.deposit_2_amount > 0) {
       lines.push({
-        label: "2° Acconto",
+        label: t("2° Acconto"),
         amount: o.deposit_2_amount,
         paid: !!o.deposit_2_paid,
         paidDate: o.deposit_2_paid_date,
@@ -332,7 +334,7 @@ export function EditOrderDatesDialog({
     }
     if (o.balance_amount && o.balance_amount > 0) {
       lines.push({
-        label: "Saldo",
+        label: t("Saldo"),
         amount: o.balance_amount,
         paid: !!o.balance_paid,
         paidDate: o.balance_paid_date,
@@ -347,10 +349,10 @@ export function EditOrderDatesDialog({
       label:
         i.label ||
         (i.type === "deposit"
-          ? "Acconto"
+          ? t("Acconto")
           : i.type === "balance"
-            ? "Saldo"
-            : `Rata ${i.position}`),
+            ? t("Saldo")
+            : t("Rata {n}", { n: i.position })),
       amount: i.amount,
       paid: !!i.is_paid,
       paidDate: i.paid_date,
@@ -365,14 +367,14 @@ export function EditOrderDatesDialog({
       total > 0 ? Math.min(100, Math.round((totalPaid / total) * 100)) : 0;
 
     return { total, totalPaid, pct, lines: finalLines };
-  }, [paymentData, permissions.canViewScadenzario]);
+  }, [paymentData, permissions.canViewScadenzario, t]);
 
   // ── Save dates ──
   const handleSave = async () => {
     if (!canEdit || !companyId || !user?.id) return;
     if (workStartDate && workEndDate && workEndDate < workStartDate) {
       toast.error(
-        "La fine dei lavori deve essere successiva o uguale all’inizio",
+        t("La fine dei lavori deve essere successiva o uguale all’inizio"),
       );
       return;
     }
@@ -385,7 +387,7 @@ export function EditOrderDatesDialog({
         format(workStartDate, "yyyy-MM-dd") ===
           format(workEndDate, "yyyy-MM-dd"))
     ) {
-      toast.error("L’orario di fine deve essere successivo all’inizio");
+      toast.error(t("L’orario di fine deve essere successivo all’inizio"));
       return;
     }
     setIsSaving(true);
@@ -411,7 +413,7 @@ export function EditOrderDatesDialog({
         .select("id")
         .single();
       if (error) throw error;
-      toast.success("Date aggiornate");
+      toast.success(t("Date aggiornate"));
       // La posa raggiunge subito i calendari Google delle squadre. Best effort:
       // il trigger sulla commessa ha già accodato, il cron ci riprova comunque.
       void supabase.functions.invoke("google-calendar-sync", {
@@ -423,7 +425,7 @@ export function EditOrderDatesDialog({
       onOpenChange(false);
     } catch (error) {
       logger.error("Errore aggiornamento date:", error);
-      toast.error("Errore durante l'aggiornamento");
+      toast.error(t("Errore durante l'aggiornamento"));
     } finally {
       setIsSaving(false);
     }
@@ -438,14 +440,14 @@ export function EditOrderDatesDialog({
         <DialogHeader className="pb-2">
           <DialogTitle className="flex items-center gap-2">
             <HardHat className="h-5 w-5 text-primary" />
-            {order.order_code || "Ordine"}
+            {order.order_code || t("Ordine")}
           </DialogTitle>
           <DialogDescription className="space-y-1">
-            <span className="font-medium text-foreground">
+            <span dir="auto" className="font-medium text-foreground">
               {order.customer.first_name} {order.customer.last_name}
             </span>
             {order.description && (
-              <span className="block text-xs line-clamp-2">
+              <span dir="auto" className="block text-xs line-clamp-2">
                 {order.description}
               </span>
             )}
@@ -458,7 +460,7 @@ export function EditOrderDatesDialog({
             {orderAddress && (
               <div className="flex items-start gap-2">
                 <MapPin className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-                <span className="text-sm">{orderAddress}</span>
+                <span dir="auto" className="text-sm">{orderAddress}</span>
               </div>
             )}
             {ow?.distanceKm != null && (
@@ -467,7 +469,7 @@ export function EditOrderDatesDialog({
                 <span className="font-medium">{ow.distanceKm} km</span>
                 {ow.durationLabel && (
                   <span className="text-muted-foreground">
-                    · {ow.durationLabel} dalla sede
+                    · {t("{durata} dalla sede", { durata: ow.durationLabel })}
                   </span>
                 )}
               </div>
@@ -488,7 +490,7 @@ export function EditOrderDatesDialog({
                 </span>
                 <div>
                   <span className="font-medium">
-                    {weatherCodeToLabel(ow.weather.code)}
+                    {t(weatherCodeToLabel(ow.weather.code))}
                   </span>
                   <span className="text-muted-foreground ml-1">
                     {ow.weather.minTemp}°–{ow.weather.maxTemp}°
@@ -504,7 +506,7 @@ export function EditOrderDatesDialog({
                     variant="destructive"
                     className="ml-auto text-[10px] px-1.5"
                   >
-                    Stop lavori
+                    {t("Stop lavori")}
                   </Badge>
                 )}
                 {ow.weather.precip > 5 && ow.weather.precip <= 20 && (
@@ -512,7 +514,7 @@ export function EditOrderDatesDialog({
                     variant="secondary"
                     className="ml-auto text-[10px] px-1.5 bg-orange-100 text-orange-700"
                   >
-                    Rischio pioggia
+                    {t("Rischio pioggia")}
                   </Badge>
                 )}
               </div>
@@ -533,7 +535,7 @@ export function EditOrderDatesDialog({
               className="ml-auto text-xs text-primary hover:underline flex items-center gap-1"
               onClick={() => onOpenChange(false)}
             >
-              Apri ordine <ExternalLink className="h-3 w-3" />
+              {t("Apri ordine")} <ExternalLink className="h-3 w-3" />
             </Link>
           </div>
         )}
@@ -544,26 +546,26 @@ export function EditOrderDatesDialog({
             <Separator />
             <div className="space-y-2.5">
               <h4 className="text-sm font-semibold flex items-center gap-2">
-                <CreditCard className="h-4 w-4" /> Pagamenti
+                <CreditCard className="h-4 w-4" /> {t("Pagamenti")}
               </h4>
 
               {/* Progress bar */}
               <div className="space-y-1">
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">
-                    Incassato:{" "}
+                    {t("Incassato:")}{" "}
                     <span className="font-semibold text-foreground">
                       €
-                      {paymentSummary.totalPaid.toLocaleString("it-IT", {
+                      {paymentSummary.totalPaid.toLocaleString(intlCampo(), {
                         minimumFractionDigits: 2,
                       })}
                     </span>
                   </span>
                   <span className="text-muted-foreground">
-                    Totale:{" "}
+                    {t("Totale:")}{" "}
                     <span className="font-semibold text-foreground">
                       €
-                      {paymentSummary.total.toLocaleString("it-IT", {
+                      {paymentSummary.total.toLocaleString(intlCampo(), {
                         minimumFractionDigits: 2,
                       })}
                     </span>
@@ -583,7 +585,7 @@ export function EditOrderDatesDialog({
                   )}
                 />
                 <p className="text-[11px] text-right text-muted-foreground">
-                  {paymentSummary.pct}% incassato
+                  {t("{n}% incassato", { n: paymentSummary.pct })}
                 </p>
               </div>
 
@@ -617,7 +619,7 @@ export function EditOrderDatesDialog({
                       <span className="font-medium flex-1">{line.label}</span>
                       <span className="font-semibold tabular-nums">
                         €
-                        {line.amount.toLocaleString("it-IT", {
+                        {line.amount.toLocaleString(intlCampo(), {
                           minimumFractionDigits: 2,
                         })}
                       </span>
@@ -626,9 +628,10 @@ export function EditOrderDatesDialog({
                           variant="outline"
                           className="text-[10px] px-1.5 bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800"
                         >
-                          Pagato{" "}
-                          {format(parseISO(line.paidDate), "d MMM", {
-                            locale: it,
+                          {t("Pagato {data}", {
+                            data: format(parseISO(line.paidDate), "d MMM", {
+                              locale: dateFnsCampo(),
+                            }),
                           })}
                         </Badge>
                       ) : line.expectedDate ? (
@@ -641,9 +644,10 @@ export function EditOrderDatesDialog({
                               : "bg-muted text-muted-foreground",
                           )}
                         >
-                          {isOverdue ? "Scaduto" : "Scade"}{" "}
-                          {format(parseISO(line.expectedDate), "d MMM", {
-                            locale: it,
+                          {t(isOverdue ? "Scaduto {data}" : "Scade {data}", {
+                            data: format(parseISO(line.expectedDate), "d MMM", {
+                              locale: dateFnsCampo(),
+                            }),
                           })}
                         </Badge>
                       ) : (
@@ -651,7 +655,7 @@ export function EditOrderDatesDialog({
                           variant="outline"
                           className="text-[10px] px-1.5 text-muted-foreground"
                         >
-                          Da incassare
+                          {t("Da incassare")}
                         </Badge>
                       )}
                     </div>
@@ -663,7 +667,7 @@ export function EditOrderDatesDialog({
               {paymentData?.invoices && paymentData.invoices.length > 0 && (
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground font-medium flex items-center gap-1.5 pt-1">
-                    <Receipt className="h-3.5 w-3.5" /> Fatture collegate
+                    <Receipt className="h-3.5 w-3.5" /> {t("Fatture collegate")}
                   </p>
                   {paymentData.invoices.map((inv) => {
                     const invOverdue =
@@ -687,7 +691,7 @@ export function EditOrderDatesDialog({
                         )}
                       >
                         <span className="font-medium">
-                          {inv.numero || "Bozza"}
+                          {inv.numero || t("Bozza")}
                         </span>
                         {inv.data_emissione && (
                           <span className="text-muted-foreground">
@@ -696,7 +700,7 @@ export function EditOrderDatesDialog({
                         )}
                         <span className="ml-auto font-semibold tabular-nums">
                           €
-                          {inv.totale.toLocaleString("it-IT", {
+                          {inv.totale.toLocaleString(intlCampo(), {
                             minimumFractionDigits: 2,
                           })}
                         </span>
@@ -714,15 +718,15 @@ export function EditOrderDatesDialog({
                           )}
                         >
                           {inv.stato === "pagata"
-                            ? `Pagata`
+                            ? t("Pagata")
                             : inv.stato === "parzialmente_pagata"
                               ? `${invPct}%`
                               : inv.stato === "emessa" ||
                                   inv.stato === "inviata_sdi" ||
                                   inv.stato === "consegnata"
-                                ? "Emessa"
+                                ? t("Emessa")
                                 : inv.stato === "bozza"
-                                  ? "Bozza"
+                                  ? t("Bozza")
                                   : inv.stato}
                         </Badge>
                       </div>
@@ -739,23 +743,23 @@ export function EditOrderDatesDialog({
         {/* ═══ DATE ═══ */}
         <fieldset disabled={!canEdit || isSaving} className="space-y-3">
           <h4 className="text-sm font-semibold flex items-center gap-2">
-            <CalendarIcon className="h-4 w-4" /> Date della commessa
+            <CalendarIcon className="h-4 w-4" /> {t("Date della commessa")}
           </h4>
           <div className="grid grid-cols-2 gap-3">
             <DateField
-              label="Inizio Lavori"
+              label={t("Inizio Lavori")}
               value={workStartDate}
               onChange={setWorkStartDate}
             />
             <DateField
-              label="Fine Lavori"
+              label={t("Fine Lavori")}
               value={workEndDate}
               onChange={setWorkEndDate}
             />
             <div className="col-span-2 grid grid-cols-[1fr_1fr_auto] items-end gap-2">
               <div className="grid gap-1.5">
                 <Label className="text-xs font-medium text-muted-foreground">
-                  Dalle
+                  {t("Dalle")}
                 </Label>
                 <Input
                   type="time"
@@ -766,7 +770,7 @@ export function EditOrderDatesDialog({
               </div>
               <div className="grid gap-1.5">
                 <Label className="text-xs font-medium text-muted-foreground">
-                  Alle
+                  {t("Alle")}
                 </Label>
                 <Input
                   type="time"
@@ -786,7 +790,7 @@ export function EditOrderDatesDialog({
                     setWorkEndTime("12:00");
                   }}
                 >
-                  Mattina
+                  {t("Mattina")}
                 </Button>
                 <Button
                   type="button"
@@ -798,17 +802,17 @@ export function EditOrderDatesDialog({
                     setWorkEndTime("17:00");
                   }}
                 >
-                  Pomeriggio
+                  {t("Pomeriggio")}
                 </Button>
               </div>
             </div>
             <DateField
-              label="Data Posa Prevista"
+              label={t("Data Posa Prevista")}
               value={expectedDate}
               onChange={setExpectedDate}
             />
             <DateField
-              label="Arrivo Merce"
+              label={t("Arrivo Merce")}
               value={warehouseArrivalDate}
               onChange={setWarehouseArrivalDate}
             />
@@ -820,7 +824,7 @@ export function EditOrderDatesDialog({
         <div className="space-y-3">
           <h4 className="flex items-center gap-2 text-sm font-semibold">
             <Users className="h-4 w-4" />
-            Risorse della commessa
+            {t("Risorse della commessa")}
           </h4>
           <div className="flex flex-wrap gap-1.5">
             {order.order_employees?.map(({ employee }) => (
@@ -835,15 +839,14 @@ export function EditOrderDatesDialog({
             ))}
           </div>
           <p className="text-xs text-muted-foreground">
-            Persone, squadre e mezzi si assegnano alle fasi della commessa. Il
-            calendario utilizza le stesse date e assegnazioni.
+            {t("Persone, squadre e mezzi si assegnano alle fasi della commessa. Il calendario utilizza le stesse date e assegnazioni.")}
           </p>
           <Button variant="outline" size="sm" asChild>
             <Link
               to={calendarWorkLocation(order.id)}
               onClick={() => onOpenChange(false)}
             >
-              Apri lavorazioni e risorse{" "}
+              {t("Apri lavorazioni e risorse")}{" "}
               <ExternalLink className="ml-1.5 h-3 w-3" />
             </Link>
           </Button>
@@ -856,12 +859,12 @@ export function EditOrderDatesDialog({
             onClick={() => onOpenChange(false)}
             disabled={isSaving}
           >
-            {canEdit ? "Annulla" : "Chiudi"}
+            {canEdit ? t("Annulla") : t("Chiudi")}
           </Button>
           {canEdit && (
             <Button size="sm" onClick={handleSave} disabled={isSaving}>
               {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Salva date
+              {t("Salva date")}
             </Button>
           )}
         </DialogFooter>

@@ -10,6 +10,7 @@ import { Plus, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { logTaskActivity } from "@/lib/taskActivityLog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface TaskQuickAddProps {
   defaultAssignedTo?: string | null;
@@ -17,6 +18,7 @@ interface TaskQuickAddProps {
 }
 
 export function TaskQuickAdd({ defaultAssignedTo, onAdvancedCreate }: TaskQuickAddProps) {
+  const t = useT();
   const { user, effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -33,15 +35,15 @@ export function TaskQuickAdd({ defaultAssignedTo, onAdvancedCreate }: TaskQuickA
 
   const assignableUsers = useMemo(() => {
     const map = new Map<string, { id: string; name: string }>();
-    if (user?.id) map.set(user.id, { id: user.id, name: "Me stesso" });
+    if (user?.id) map.set(user.id, { id: user.id, name: t("Me stesso") });
     teamMembers.forEach((member) => {
       map.set(member.id, {
         id: member.id,
-        name: `${member.first_name} ${member.last_name}`.trim() || "Utente",
+        name: `${member.first_name} ${member.last_name}`.trim() || t("Utente"),
       });
     });
     return Array.from(map.values());
-  }, [teamMembers, user?.id]);
+  }, [teamMembers, user?.id, t]);
 
   const createMutation = useMutation({
     mutationFn: async (title: string) => {
@@ -75,9 +77,9 @@ export function TaskQuickAdd({ defaultAssignedTo, onAdvancedCreate }: TaskQuickA
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
       queryClient.invalidateQueries({ queryKey: ["my-task-count"] });
       setValue("");
-      toast.success("Attività creata");
+      toast.success(t("Attività creata"));
     },
-    onError: (e: any) => toast.error("Errore", { description: e.message }),
+    onError: (e: any) => toast.error(t("Errore"), { description: e.message }),
   });
 
   const handleSubmit = () => {
@@ -98,20 +100,20 @@ export function TaskQuickAdd({ defaultAssignedTo, onAdvancedCreate }: TaskQuickA
           onKeyDown={(e) => {
             if (e.key === "Enter") handleSubmit();
           }}
-          placeholder="Nuova attività: scrivi il titolo e premi Invio..."
+          placeholder={t("Nuova attività: scrivi il titolo e premi Invio...")}
           className="h-9 pl-9"
           disabled={createMutation.isPending}
           maxLength={200}
-          aria-label="Aggiunta rapida attività"
+          aria-label={t("Aggiunta rapida attività")}
         />
       </div>
       <Select value={assignedTo} onValueChange={setAssignedTo}>
-        <SelectTrigger className="h-9 w-full sm:w-[190px]" aria-label="Assegna a">
+        <SelectTrigger className="h-9 w-full sm:w-[190px]" aria-label={t("Assegna a")}>
           <UserPlus className="mr-2 h-4 w-4 text-muted-foreground" />
-          <SelectValue placeholder="Assegna a" />
+          <SelectValue placeholder={t("Assegna a")} />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="none">Da assegnare</SelectItem>
+          <SelectItem value="none">{t("Da assegnare")}</SelectItem>
           {assignableUsers.map((member) => (
             <SelectItem key={member.id} value={member.id}>
               {member.name}
@@ -123,11 +125,11 @@ export function TaskQuickAdd({ defaultAssignedTo, onAdvancedCreate }: TaskQuickA
         {/* Contorno, non pieno: l'azione in evidenza della pagina è «Nuova attività». */}
         <Button variant="outline" className="h-9 gap-2" onClick={handleSubmit} disabled={!value.trim() || createMutation.isPending}>
           <Plus className="h-4 w-4" />
-          Aggiungi
+          {t("Aggiungi")}
         </Button>
         {onAdvancedCreate && (
           <Button variant="ghost" size="sm" className="h-9 px-2 text-xs whitespace-nowrap" onClick={onAdvancedCreate}>
-            Scheda completa
+            {t("Scheda completa")}
           </Button>
         )}
       </div>

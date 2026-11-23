@@ -15,6 +15,7 @@ import {
   makeTaskStatusValue,
   toneForStage,
 } from "@/lib/taskStatuses";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const STAGE_OPTIONS: { value: TaskStatusStage; label: string }[] = [
   // "In attesa" non e' una scelta: e' il meccanismo del flusso di lavoro
@@ -51,6 +52,7 @@ export function TaskStatusSettingsDialog({
   onSave,
   onReset,
 }: TaskStatusSettingsDialogProps) {
+  const t = useT();
   const [rows, setRows] = useState<TaskStatusDefinition[]>(statuses);
   const [newLabel, setNewLabel] = useState("");
 
@@ -106,12 +108,12 @@ export function TaskStatusSettingsDialog({
       .filter((row) => row.value && row.label);
 
     if (!normalized.some((row) => row.stage === "done")) {
-      toast.error("Serve almeno uno stato di chiusura");
+      toast.error(t("Serve almeno uno stato di chiusura"));
       return;
     }
 
     onSave(normalized);
-    toast.success("Stati attivita aggiornati");
+    toast.success(t("Stati attivita aggiornati"));
     onOpenChange(false);
   };
 
@@ -119,19 +121,19 @@ export function TaskStatusSettingsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Stati attivita</DialogTitle>
+          <DialogTitle>{t("Stati attivita")}</DialogTitle>
           <DialogDescription>
-            Personalizza il flusso operativo. Gli stati in revisione sono pensati per il controllo del responsabile prima della chiusura.
+            {t("Personalizza il flusso operativo. Gli stati in revisione sono pensati per il controllo del responsabile prima della chiusura.")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
           <div className="rounded-lg border bg-muted/20 p-3">
             <div className="mb-2 grid grid-cols-[1.1fr_0.8fr_0.7fr_0.9fr_40px] gap-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-              <span>Nome</span>
-              <span>Fase</span>
-              <span>Colore</span>
-              <span>Anteprima</span>
+              <span>{t("Nome")}</span>
+              <span>{t("Fase")}</span>
+              <span>{t("Colore")}</span>
+              <span>{t("Anteprima")}</span>
               <span />
             </div>
             <div className="space-y-2">
@@ -150,12 +152,12 @@ export function TaskStatusSettingsDialog({
                       disabled={row.stage === "blocked"}
                       onValueChange={(stage) => updateRow(row.value, { stage: stage as TaskStatusStage })}
                     >
-                      <SelectTrigger className="h-9" title={row.stage === "blocked" ? "Stato gestito dal flusso di lavoro commessa" : undefined}>
+                      <SelectTrigger className="h-9" title={row.stage === "blocked" ? t("Stato gestito dal flusso di lavoro commessa") : undefined}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         {STAGE_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                          <SelectItem key={option.value} value={option.value}>{t(option.label)}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -168,7 +170,7 @@ export function TaskStatusSettingsDialog({
                       </SelectTrigger>
                       <SelectContent>
                         {TONE_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                          <SelectItem key={option.value} value={option.value}>{t(option.label)}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -180,7 +182,7 @@ export function TaskStatusSettingsDialog({
                       className="h-9 w-9 text-muted-foreground hover:text-destructive"
                       onClick={() => removeStatus(row.value)}
                       disabled={row.locked}
-                      title={row.locked ? "Gli stati base non si eliminano" : "Elimina stato"}
+                      title={row.locked ? t("Gli stati base non si eliminano") : t("Elimina stato")}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -192,7 +194,7 @@ export function TaskStatusSettingsDialog({
 
           <div className="flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-end">
             <div className="flex-1 space-y-1.5">
-              <Label htmlFor="new-task-status">Aggiungi stato</Label>
+              <Label htmlFor="new-task-status">{t("Aggiungi stato")}</Label>
               <Input
                 id="new-task-status"
                 value={newLabel}
@@ -203,13 +205,13 @@ export function TaskStatusSettingsDialog({
                     addStatus();
                   }
                 }}
-                placeholder="Es. Bloccata, Da validare, In attesa cliente"
+                placeholder={t("Es. Bloccata, Da validare, In attesa cliente")}
                 maxLength={40}
               />
             </div>
             <Button type="button" variant="outline" className="gap-2" onClick={addStatus} disabled={!newLabel.trim()}>
               <Plus className="h-4 w-4" />
-              Aggiungi
+              {t("Aggiungi")}
             </Button>
           </div>
         </div>
@@ -221,18 +223,18 @@ export function TaskStatusSettingsDialog({
             className="mr-auto gap-2"
             onClick={() => {
               onReset();
-              toast.success("Stati ripristinati");
+              toast.success(t("Stati ripristinati"));
               onOpenChange(false);
             }}
           >
             <RotateCcw className="h-4 w-4" />
-            Ripristina default
+            {t("Ripristina default")}
           </Button>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button type="button" onClick={handleSave}>
-            Salva stati
+            {t("Salva stati")}
           </Button>
         </DialogFooter>
       </DialogContent>

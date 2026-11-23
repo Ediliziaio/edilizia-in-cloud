@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import type { CalendarColorMode } from "@/lib/calendarUtils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function CalendarPlanningResourcePanel({
   employees,
@@ -34,27 +35,27 @@ export function CalendarPlanningResourcePanel({
   showColors: boolean;
   canManageResources: boolean;
 }) {
+  const t = useT();
   return (
     <div className="space-y-6 text-sm">
       <p className="text-xs leading-relaxed text-muted-foreground">
-        I filtri selezionano le risorse assegnate alle lavorazioni. Le date e le
-        assegnazioni si aggiornano dalle commesse.
+        {t("I filtri selezionano le risorse assegnate alle lavorazioni. Le date e le assegnazioni si aggiornano dalle commesse.")}
       </p>
       {[
         {
-          label: "Persone",
+          label: t("Persone"),
           items: employees.map((e) => ({
             id: e.id,
             name:
               [e.first_name, e.last_name].filter(Boolean).join(" ") ||
-              "Persona",
+              t("Persona"),
           })),
           visible: visibleEmployees,
           toggle: onEmployee,
           all: onAllEmployees,
         },
         {
-          label: "Squadre",
+          label: t("Squadre"),
           items: teams,
           visible: visibleTeams,
           toggle: onTeam,
@@ -72,8 +73,8 @@ export function CalendarPlanningResourcePanel({
               }
             >
               {group.items.every((i) => group.visible.has(i.id))
-                ? "Nascondi tutte"
-                : "Mostra tutte"}
+                ? t("Nascondi tutte")
+                : t("Mostra tutte")}
             </button>
           </div>
           {group.items.map((item) => (
@@ -91,14 +92,14 @@ export function CalendarPlanningResourcePanel({
           ))}
           {!group.items.length && (
             <p className="text-xs text-muted-foreground">
-              Nessuna risorsa disponibile nei tuoi accessi.
+              {t("Nessuna risorsa disponibile nei tuoi accessi.")}
             </p>
           )}
         </section>
       ))}
       {showColors && (
         <section className="space-y-3">
-          <h3 className="font-semibold">Colore delle lavorazioni</h3>
+          <h3 className="font-semibold">{t("Colore delle lavorazioni")}</h3>
           <div className="grid grid-cols-3 gap-2">
             {(
               [
@@ -118,7 +119,7 @@ export function CalendarPlanningResourcePanel({
                 )}
                 onClick={() => onColorMode(value)}
               >
-                {label}
+                {t(label)}
               </button>
             ))}
           </div>
@@ -129,7 +130,7 @@ export function CalendarPlanningResourcePanel({
           to="/azienda/manodopera"
           className="inline-block text-xs font-medium text-primary hover:underline"
         >
-          Gestisci squadre e persone →
+          {t("Gestisci squadre e persone →")}
         </Link>
       )}
     </div>

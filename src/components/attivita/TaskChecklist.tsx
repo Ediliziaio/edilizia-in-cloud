@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { logTaskActivity } from "@/lib/taskActivityLog";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface TaskChecklistProps {
   taskId: string;
@@ -45,6 +46,7 @@ function dataBreve(iso: string): string {
 }
 
 export function TaskChecklist({ taskId, companyId, taskTitle }: TaskChecklistProps) {
+  const t = useT();
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const [newItem, setNewItem] = useState("");
@@ -67,7 +69,7 @@ export function TaskChecklist({ taskId, companyId, taskTitle }: TaskChecklistPro
   const nomeDi = (id: string | null) => {
     if (!id) return null;
     const u = staff.find((s) => s.id === id);
-    return u ? `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() || "Utente" : "Utente";
+    return u ? `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() || t("Utente") : t("Utente");
   };
 
   const invalida = () => {
@@ -118,7 +120,7 @@ export function TaskChecklist({ taskId, companyId, taskTitle }: TaskChecklistPro
       if (error) throw error;
     },
     onSuccess: invalida,
-    onError: (e: Error) => toast.error("Modifica non salvata", { description: e.message }),
+    onError: (e: Error) => toast.error(t("Modifica non salvata"), { description: e.message }),
   });
 
   const deleteMutation = useMutation({
@@ -144,7 +146,7 @@ export function TaskChecklist({ taskId, companyId, taskTitle }: TaskChecklistPro
       <div className="flex items-center gap-2">
         <ChipIcona icon={ListChecks} tono="blu" />
         <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-          Checklist
+          {t("Checklist")}
         </span>
         {total > 0 && <span className="ml-auto text-[10px] text-muted-foreground">{completed}/{total}</span>}
       </div>
@@ -158,9 +160,9 @@ export function TaskChecklist({ taskId, companyId, taskTitle }: TaskChecklistPro
               <Checkbox
                 checked={item.is_completed}
                 onCheckedChange={(checked) => toggleMutation.mutate({ id: item.id, is_completed: !!checked })}
-                aria-label={item.is_completed ? `Riapri ${item.title}` : `Completa ${item.title}`}
+                aria-label={item.is_completed ? t("Riapri {voce}", { voce: item.title }) : t("Completa {voce}", { voce: item.title })}
               />
-              <span className={`flex-1 truncate text-sm ${item.is_completed ? "text-muted-foreground line-through" : ""}`} title={item.title}>
+              <span dir="auto" className={`flex-1 truncate text-sm ${item.is_completed ? "text-muted-foreground line-through" : ""}`} title={item.title}>
                 {item.title}
               </span>
 
@@ -171,15 +173,15 @@ export function TaskChecklist({ taskId, companyId, taskTitle }: TaskChecklistPro
               >
                 <SelectTrigger
                   className={`h-6 w-auto gap-1 border-none px-1 text-[11px] shadow-none hover:bg-muted ${item.assigned_to ? "text-slate-700 dark:text-slate-300" : "text-muted-foreground"}`}
-                  aria-label={`Responsabile di ${item.title}`}
+                  aria-label={t("Responsabile di {voce}", { voce: item.title })}
                 >
                   <UserRound className="h-3 w-3" />
-                  <span className="max-w-[86px] truncate">{nomeDi(item.assigned_to) ?? "chi?"}</span>
+                  <span className="max-w-[86px] truncate">{nomeDi(item.assigned_to) ?? t("chi?")}</span>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Nessuno</SelectItem>
+                  <SelectItem value="none">{t("Nessuno")}</SelectItem>
                   {staff.map((u) => (
-                    <SelectItem key={u.id} value={u.id}>{`${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() || "Utente"}</SelectItem>
+                    <SelectItem key={u.id} value={u.id}>{`${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() || t("Utente")}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -190,10 +192,10 @@ export function TaskChecklist({ taskId, companyId, taskTitle }: TaskChecklistPro
                   <button
                     type="button"
                     className={`inline-flex items-center gap-1 rounded px-1 py-0.5 text-[11px] hover:bg-muted ${inRitardo ? "font-semibold text-red-600" : item.due_date ? "text-slate-700 dark:text-slate-300" : "text-muted-foreground"}`}
-                    aria-label={`Scadenza di ${item.title}`}
+                    aria-label={t("Scadenza di {voce}", { voce: item.title })}
                   >
                     <CalendarClock className="h-3 w-3" />
-                    {item.due_date ? dataBreve(item.due_date) : "quando?"}
+                    {item.due_date ? dataBreve(item.due_date) : t("quando?")}
                   </button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-2" align="end">
@@ -210,7 +212,7 @@ export function TaskChecklist({ taskId, companyId, taskTitle }: TaskChecklistPro
                       className="mt-1 h-7 w-full text-xs"
                       onClick={() => dettaglioMutation.mutate({ id: item.id, patch: { due_date: null } })}
                     >
-                      Togli la scadenza
+                      {t("Togli la scadenza")}
                     </Button>
                   )}
                 </PopoverContent>
@@ -219,7 +221,7 @@ export function TaskChecklist({ taskId, companyId, taskTitle }: TaskChecklistPro
               <button
                 onClick={() => deleteMutation.mutate(item.id)}
                 className="text-muted-foreground opacity-0 transition-all hover:text-destructive group-hover:opacity-100"
-                aria-label={`Elimina ${item.title}`}
+                aria-label={t("Elimina {voce}", { voce: item.title })}
               >
                 <Trash2 className="h-3 w-3" />
               </button>
@@ -233,7 +235,7 @@ export function TaskChecklist({ taskId, companyId, taskTitle }: TaskChecklistPro
           value={newItem}
           onChange={(e) => setNewItem(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && newItem.trim()) addMutation.mutate(newItem.trim()); }}
-          placeholder="Aggiungi elemento..."
+          placeholder={t("Aggiungi elemento...")}
           className="h-7 text-sm"
           maxLength={200}
         />
@@ -243,7 +245,7 @@ export function TaskChecklist({ taskId, companyId, taskTitle }: TaskChecklistPro
           className="h-7 px-2"
           onClick={() => newItem.trim() && addMutation.mutate(newItem.trim())}
           disabled={!newItem.trim()}
-          aria-label="Aggiungi elemento alla checklist"
+          aria-label={t("Aggiungi elemento alla checklist")}
         >
           <Plus className="h-3.5 w-3.5" />
         </Button>

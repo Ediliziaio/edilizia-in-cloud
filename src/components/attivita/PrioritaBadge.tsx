@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const CONFIG: Record<string, { label: string; className: string }> = {
   urgente: { label: "Urgente", className: "bg-destructive/10 text-destructive border-destructive/20" },
@@ -8,10 +9,11 @@ const CONFIG: Record<string, { label: string; className: string }> = {
 };
 
 export function PrioritaBadge({ priorita }: { priorita: string }) {
+  const t = useT();
   const cfg = CONFIG[priorita] ?? CONFIG.normale;
   return (
     <span className={cn("inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded border", cfg.className)}>
-      {cfg.label}
+      {t(cfg.label)}
     </span>
   );
 }

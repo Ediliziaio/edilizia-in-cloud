@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { CalendarViewType } from "@/types/calendar";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function CalendarViewNavigation({
   view,
@@ -29,15 +30,16 @@ export function CalendarViewNavigation({
   canViewTeam: boolean;
   onToday?: () => void;
 }) {
+  const t = useT();
   const planning = isCalendarPlanningView(view);
   return (
     <div
       className="flex flex-wrap items-center justify-between gap-3"
-      aria-label="Modalità e periodo del calendario"
+      aria-label={t("Modalità e periodo del calendario")}
     >
       {!isMobile && (
         <nav
-          aria-label="Strumenti del calendario"
+          aria-label={t("Strumenti del calendario")}
           className="flex flex-wrap gap-1 rounded-lg bg-muted/60 p-1"
         >
           {(
@@ -85,7 +87,7 @@ export function CalendarViewNavigation({
               )}
             >
               <item.icon className="h-3.5 w-3.5" />
-              {item.label}
+              {t(item.label)}
             </button>
           ))}
         </nav>
@@ -97,24 +99,24 @@ export function CalendarViewNavigation({
         >
           <SelectTrigger
             className="h-9 w-[170px] max-md:h-11 max-md:min-w-0 max-md:flex-1 max-md:text-base"
-            aria-label="Periodo del calendario"
+            aria-label={t("Periodo del calendario")}
           >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="month">Mese</SelectItem>
-            <SelectItem value="agenda">{isMobile ? "7 giorni" : "Prossimi 7 giorni"}</SelectItem>
+            <SelectItem value="month">{t("Mese")}</SelectItem>
+            <SelectItem value="agenda">{isMobile ? t("7 giorni") : t("Prossimi 7 giorni")}</SelectItem>
             {!isMobile && (
               <>
-                <SelectItem value="week">Settimana</SelectItem>
-                <SelectItem value="day">Giorno</SelectItem>
+                <SelectItem value="week">{t("Settimana")}</SelectItem>
+                <SelectItem value="day">{t("Giorno")}</SelectItem>
               </>
             )}
           </SelectContent>
         </Select>
       )}
       {isMobile && onToday && (
-        <Button type="button" variant="outline" className="h-11 shrink-0" onClick={onToday}>Oggi</Button>
+        <Button type="button" variant="outline" className="h-11 shrink-0" onClick={onToday}>{t("Oggi")}</Button>
       )}
     </div>
   );

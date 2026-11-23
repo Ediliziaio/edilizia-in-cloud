@@ -2,6 +2,7 @@ import { useMyTaskCount } from "@/hooks/useMyTaskCount";
 import { useAuth } from "@/contexts/AuthContext";
 import { AlertTriangle, CalendarDays, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface MyDayHeaderProps {
   estimatedHoursToday?: number;
@@ -10,19 +11,20 @@ interface MyDayHeaderProps {
 }
 
 export function MyDayHeader({ estimatedHoursToday, senzaSaluto = false }: MyDayHeaderProps) {
+  const t = useT();
   const { profile } = useAuth();
   const { data: count } = useMyTaskCount();
 
   const ora = new Date().getHours();
-  const saluto = ora < 12 ? "Buongiorno" : ora < 18 ? "Buon pomeriggio" : "Buonasera";
-  const nome = profile?.first_name || "utente";
+  const saluto = ora < 12 ? t("Buongiorno") : ora < 18 ? t("Buon pomeriggio") : t("Buonasera");
+  const nome = profile?.first_name || t("utente");
 
   const numeri = [
-    { label: "Da fare oggi", value: String(count?.dueToday ?? 0), icon: CalendarDays, colore: "text-primary", allarme: false },
-    { label: "Scadute", value: String(count?.overdue ?? 0), icon: AlertTriangle, colore: "text-destructive", allarme: !!count?.overdue },
-    { label: "Totale aperte", value: String(count?.total ?? 0), icon: Clock, colore: "text-muted-foreground", allarme: false },
+    { label: t("Da fare oggi"), value: String(count?.dueToday ?? 0), icon: CalendarDays, colore: "text-primary", allarme: false },
+    { label: t("Scadute"), value: String(count?.overdue ?? 0), icon: AlertTriangle, colore: "text-destructive", allarme: !!count?.overdue },
+    { label: t("Totale aperte"), value: String(count?.total ?? 0), icon: Clock, colore: "text-muted-foreground", allarme: false },
     ...(estimatedHoursToday != null && estimatedHoursToday > 0
-      ? [{ label: "Stimate oggi", value: `~${estimatedHoursToday}h`, icon: Clock, colore: "text-primary", allarme: false }]
+      ? [{ label: t("Stimate oggi"), value: `~${estimatedHoursToday}h`, icon: Clock, colore: "text-primary", allarme: false }]
       : []),
   ];
 
@@ -30,9 +32,9 @@ export function MyDayHeader({ estimatedHoursToday, senzaSaluto = false }: MyDayH
     <div className="space-y-3">
       {!senzaSaluto && (
         <div>
-          <h2 className="text-xl font-semibold">{saluto}, {nome} 👋</h2>
+          <h2 className="text-xl font-semibold">{t("{saluto}, {nome} 👋", { saluto, nome })}</h2>
           <p className="text-sm text-muted-foreground">
-            {new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}
+            {new Date().toLocaleDateString(intlCampo(), { weekday: "long", day: "numeric", month: "long" })}
           </p>
         </div>
       )}

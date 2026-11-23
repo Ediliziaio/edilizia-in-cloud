@@ -1,5 +1,6 @@
 import { ListTodo, AlertTriangle, Clock, CheckCircle2, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface TaskStatCardsProps {
   active: number;
@@ -17,6 +18,7 @@ interface TaskStatCardsProps {
  * piega. Restano filtri: un clic porta alla lista corrispondente.
  */
 export function TaskStatCards({ active, inReview = 0, expiring, overdue, completedThisWeek, onFilterClick, onStatusClick }: TaskStatCardsProps) {
+  const t = useT();
   // «breve» + «resto»: sotto i 1280px il resto dell'etichetta non si vede, così
   // i cinque numeri e il conteggio stanno su una riga anche a 1024.
   const stats: Array<{
@@ -40,7 +42,7 @@ export function TaskStatCards({ active, inReview = 0, expiring, overdue, complet
             key={stat.label}
             type="button"
             disabled={!clickable}
-            title={clickable ? `Mostra: ${stat.label.toLowerCase()}` : undefined}
+            title={clickable ? t("Mostra: {filtro}", { filtro: t(stat.label).toLowerCase() }) : undefined}
             onClick={clickable ? () => {
               if (stat.filter === "in_revisione") onStatusClick?.("in_revisione");
               else onFilterClick?.(stat.filter);
@@ -55,8 +57,8 @@ export function TaskStatCards({ active, inReview = 0, expiring, overdue, complet
             <stat.icon className={cn("h-4 w-4 shrink-0", stat.color)} />
             <span className="text-base font-bold tabular-nums leading-none">{stat.value}</span>
             <span className="text-xs text-muted-foreground">
-              {stat.breve ?? stat.label}
-              {stat.resto && <span className="hidden xl:inline">{stat.resto}</span>}
+              {t(stat.breve ?? stat.label)}
+              {stat.resto && <span className="hidden xl:inline">{" "}{t(stat.resto.trim())}</span>}
             </span>
           </button>
         );

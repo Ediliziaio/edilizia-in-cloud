@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Link2, Briefcase, Users, TrendingUp, Package, DollarSign, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type EntityType = "ordine" | "contatto" | "opportunita" | "magazzino" | "costo";
 
@@ -41,7 +42,7 @@ const ENTITY_CONFIG: Record<EntityType, {
     fkField: "opportunity_id",
     table: "marketing_opportunities",
     labelFn: (i) => i.name,
-    subFn: (i) => i.value != null ? `€ ${Number(i.value).toLocaleString("it")}` : "",
+    subFn: (i) => i.value != null ? `€ ${Number(i.value).toLocaleString(intlCampo())}` : "",
   },
   magazzino: {
     label: "Magazzino",
@@ -57,7 +58,7 @@ const ENTITY_CONFIG: Record<EntityType, {
     fkField: "cost_id",
     table: "company_costs",
     labelFn: (i) => i.name,
-    subFn: (i) => i.amount != null ? `€ ${Number(i.amount).toLocaleString("it")}` : "",
+    subFn: (i) => i.amount != null ? `€ ${Number(i.amount).toLocaleString(intlCampo())}` : "",
   },
 };
 
@@ -67,6 +68,7 @@ interface TaskCorrelationPickerProps {
 }
 
 export function TaskCorrelationPicker({ task, onUpdate }: TaskCorrelationPickerProps) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const [open, setOpen] = useState(false);
@@ -96,7 +98,7 @@ export function TaskCorrelationPicker({ task, onUpdate }: TaskCorrelationPickerP
           ascending: cfg.table === "marketing_contacts",
         })
         .limit(200);
-      if (error) { toast.error("Errore caricamento"); return []; }
+      if (error) { toast.error(t("Errore caricamento")); return []; }
       return data || [];
     },
     enabled: open && !!companyId,
@@ -121,7 +123,7 @@ export function TaskCorrelationPicker({ task, onUpdate }: TaskCorrelationPickerP
       <PopoverTrigger asChild>
         <Button variant="ghost" size="sm" className="h-7 px-2 text-muted-foreground hover:text-foreground">
           <Link2 className="h-3.5 w-3.5 mr-1" />
-          Collega a...
+          {t("Collega a...")}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-80 p-0" align="start">
@@ -143,7 +145,7 @@ export function TaskCorrelationPicker({ task, onUpdate }: TaskCorrelationPickerP
                 onClick={() => { setActiveType(type); setSearch(""); }}
               >
                 <Icon className="h-3 w-3" />
-                {c.label}
+                {t(c.label)}
                 {hasLink && <span className="w-1.5 h-1.5 rounded-full bg-primary ml-0.5" />}
               </button>
             );
@@ -155,7 +157,7 @@ export function TaskCorrelationPicker({ task, onUpdate }: TaskCorrelationPickerP
           <div className="relative">
             <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              placeholder={`Cerca ${cfg.label.toLowerCase()}...`}
+              placeholder={t("Cerca {cosa}...", { cosa: t(cfg.label).toLowerCase() })}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="h-7 text-sm pl-7"
@@ -167,9 +169,9 @@ export function TaskCorrelationPicker({ task, onUpdate }: TaskCorrelationPickerP
         {/* List */}
         <div className="max-h-56 overflow-y-auto">
           {isLoading ? (
-            <p className="text-xs text-muted-foreground text-center py-4">Caricamento...</p>
+            <p className="text-xs text-muted-foreground text-center py-4">{t("Caricamento...")}</p>
           ) : filtered.length === 0 ? (
-            <p className="text-xs text-muted-foreground text-center py-4">Nessun risultato</p>
+            <p className="text-xs text-muted-foreground text-center py-4">{t("Nessun risultato")}</p>
           ) : (
             filtered.map((item: any) => {
               const label = cfg.labelFn(item);
@@ -190,7 +192,7 @@ export function TaskCorrelationPicker({ task, onUpdate }: TaskCorrelationPickerP
                       {sub && <p className="text-[10px] text-muted-foreground truncate">{sub}</p>}
                     </div>
                     {isLinked && (
-                      <span className="text-[10px] text-primary shrink-0">Collegato</span>
+                      <span className="text-[10px] text-primary shrink-0">{t("Collegato")}</span>
                     )}
                   </div>
                 </button>
@@ -206,7 +208,7 @@ export function TaskCorrelationPicker({ task, onUpdate }: TaskCorrelationPickerP
               className="w-full text-xs text-muted-foreground hover:text-destructive transition-colors py-1 text-center"
               onClick={() => { onUpdate({ [cfg.fkField]: null }); setOpen(false); }}
             >
-              Rimuovi collegamento {cfg.label.toLowerCase()}
+              {t("Rimuovi collegamento {cosa}", { cosa: t(cfg.label).toLowerCase() })}
             </button>
           </div>
         )}

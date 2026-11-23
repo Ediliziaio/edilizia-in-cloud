@@ -28,6 +28,7 @@ import { annullaRichiestaPersonale, useCreateRichiesta } from "@/hooks/useRichie
 import type { RichiestaTipo, RichiestaStato } from "@/types/hr";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // ── Tipi selezionabili dal dipendente (no ferie/permessi: gestiti nel tab Ferie) ──
 type TipoOption = { value: RichiestaTipo; label: string; help: string; needsDate: boolean; dateLabel?: string };
@@ -69,6 +70,7 @@ type RichiestaRow = {
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
 export function RichiesteHrPersonali({ companyId, profiloId }: { companyId: string; profiloId: string }) {
+  const tr = useT();
   const qc = useQueryClient();
   const createRichiesta = useCreateRichiesta();
 
@@ -101,10 +103,10 @@ export function RichiesteHrPersonali({ companyId, profiloId }: { companyId: stri
     onSuccess: (annullata) => {
       qc.invalidateQueries({ queryKey: ["my-richieste", profiloId] });
       qc.invalidateQueries({ queryKey: ["hr-richieste"] });
-      if (annullata) toast.success("Richiesta annullata");
-      else toast.info("La richiesta è già stata aggiornata. Controlla il nuovo stato.");
+      if (annullata) toast.success(tr("Richiesta annullata"));
+      else toast.info(tr("La richiesta è già stata aggiornata. Controlla il nuovo stato."));
     },
-    onError: (e: unknown) => toast.error("Errore: " + (e instanceof Error ? e.message : "riprova")),
+    onError: (e: unknown) => toast.error(tr("Errore: {messaggio}", { messaggio: e instanceof Error ? e.message : tr("riprova") })),
   });
 
   function resetForm() {
@@ -116,7 +118,7 @@ export function RichiesteHrPersonali({ companyId, profiloId }: { companyId: stri
   function handleSubmit() {
     const testo = motivo.trim();
     if (!testo) {
-      toast.error("Descrivi la tua richiesta nel campo note");
+      toast.error(tr("Descrivi la tua richiesta nel campo note"));
       return;
     }
     const giorno = tipoConfig.needsDate ? data : todayIso();
@@ -145,15 +147,15 @@ export function RichiesteHrPersonali({ companyId, profiloId }: { companyId: stri
           <div>
             <CardTitle className="flex items-center gap-2 text-base">
               <MessageSquarePlus className="h-4 w-4" />
-              Richieste e segnalazioni
+              {tr("Richieste e segnalazioni")}
             </CardTitle>
             <p className="text-xs text-muted-foreground mt-1">
-              Invia una richiesta o una nota all'HR / amministrazione
+              {tr("Invia una richiesta o una nota all'HR / amministrazione")}
             </p>
           </div>
           <Button size="sm" className="gap-1.5 shrink-0" onClick={() => { resetForm(); setOpen(true); }}>
             <PencilLine className="h-4 w-4" />
-            <span className="hidden sm:inline">Nuova</span>
+            <span className="hidden sm:inline">{tr("Nuova")}</span>
           </Button>
         </div>
       </CardHeader>
@@ -165,9 +167,9 @@ export function RichiesteHrPersonali({ companyId, profiloId }: { companyId: stri
         ) : richieste.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <Inbox className="h-8 w-8 text-muted-foreground/50 mb-2" />
-            <p className="text-sm text-muted-foreground">Nessuna richiesta inviata</p>
+            <p className="text-sm text-muted-foreground">{tr("Nessuna richiesta inviata")}</p>
             <p className="text-xs text-muted-foreground/70 mt-0.5">
-              Usa "Nuova" per segnalare qualcosa all'amministrazione
+              {tr("Usa \"Nuova\" per segnalare qualcosa all'amministrazione")}
             </p>
           </div>
         ) : (
@@ -181,18 +183,18 @@ export function RichiesteHrPersonali({ companyId, profiloId }: { companyId: stri
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm font-medium">{TIPO_LABEL[r.tipo] ?? r.tipo}</span>
+                        <span className="text-sm font-medium">{TIPO_LABEL[r.tipo] ? tr(TIPO_LABEL[r.tipo]!) : r.tipo}</span>
                         <Badge variant="outline" className={cn("text-[10px] gap-1 px-1.5 py-0", stato.className)}>
                           <StatoIcon className="h-2.5 w-2.5" />
-                          {stato.label}
+                          {tr(stato.label)}
                         </Badge>
                       </div>
                       {r.motivo && (
-                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{r.motivo}</p>
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2" dir="auto">{r.motivo}</p>
                       )}
                       {r.note_risposta && (
                         <p className="text-xs mt-1 rounded bg-muted/60 px-2 py-1">
-                          <span className="font-medium">Risposta:</span> {r.note_risposta}
+                          <span className="font-medium">{tr("Risposta:")}</span> <span dir="auto">{r.note_risposta}</span>
                         </p>
                       )}
                     </div>
@@ -208,7 +210,7 @@ export function RichiesteHrPersonali({ companyId, profiloId }: { companyId: stri
                           disabled={annullaMutation.isPending}
                           onClick={() => annullaMutation.mutate(r.id)}
                         >
-                          Annulla
+                          {tr("Annulla")}
                         </Button>
                       )}
                     </div>
@@ -224,15 +226,15 @@ export function RichiesteHrPersonali({ companyId, profiloId }: { companyId: stri
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Nuova richiesta</DialogTitle>
+            <DialogTitle>{tr("Nuova richiesta")}</DialogTitle>
             <DialogDescription>
-              La richiesta viene inviata all'HR / amministrazione, che riceve una notifica.
+              {tr("La richiesta viene inviata all'HR / amministrazione, che riceve una notifica.")}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-1">
             <div className="space-y-1.5">
-              <Label htmlFor="tipo-richiesta">Tipo</Label>
+              <Label htmlFor="tipo-richiesta">{tr("Tipo")}</Label>
               <UniformSelect
                 id="tipo-richiesta"
                 value={tipo}
@@ -240,15 +242,15 @@ export function RichiesteHrPersonali({ companyId, profiloId }: { companyId: stri
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {TIPI_DIPENDENTE.map((t) => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
+                  <option key={t.value} value={t.value}>{tr(t.label)}</option>
                 ))}
               </UniformSelect>
-              <p className="text-xs text-muted-foreground">{tipoConfig.help}</p>
+              <p className="text-xs text-muted-foreground">{tr(tipoConfig.help)}</p>
             </div>
 
             {tipoConfig.needsDate && (
               <div className="space-y-1.5">
-                <Label htmlFor="data-richiesta">{tipoConfig.dateLabel ?? "Data"}</Label>
+                <Label htmlFor="data-richiesta">{tipoConfig.dateLabel ? tr(tipoConfig.dateLabel) : tr("Data")}</Label>
                 <Input
                   id="data-richiesta"
                   type="date"
@@ -261,7 +263,7 @@ export function RichiesteHrPersonali({ companyId, profiloId }: { companyId: stri
 
             <div className="space-y-1.5">
               <Label htmlFor="motivo-richiesta">
-                {tipo === "rettifica_timbratura" ? "Cosa correggere" : "Descrizione"}
+                {tipo === "rettifica_timbratura" ? tr("Cosa correggere") : tr("Descrizione")}
               </Label>
               <Textarea
                 id="motivo-richiesta"
@@ -270,8 +272,8 @@ export function RichiesteHrPersonali({ companyId, profiloId }: { companyId: stri
                 rows={4}
                 placeholder={
                   tipo === "rettifica_timbratura"
-                    ? "Es. ho dimenticato di timbrare l'uscita alle 18:00"
-                    : "Scrivi qui la tua richiesta o segnalazione…"
+                    ? tr("Es. ho dimenticato di timbrare l'uscita alle 18:00")
+                    : tr("Scrivi qui la tua richiesta o segnalazione…")
                 }
                 maxLength={1000}
               />
@@ -280,11 +282,11 @@ export function RichiesteHrPersonali({ companyId, profiloId }: { companyId: stri
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)} disabled={createRichiesta.isPending}>
-              Annulla
+              {tr("Annulla")}
             </Button>
             <Button onClick={handleSubmit} disabled={createRichiesta.isPending} className="gap-1.5">
               {createRichiesta.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              Invia richiesta
+              {tr("Invia richiesta")}
             </Button>
           </DialogFooter>
         </DialogContent>

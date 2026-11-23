@@ -26,7 +26,6 @@ import {
   startOfMonth,
   startOfWeek,
 } from "date-fns";
-import { it } from "date-fns/locale";
 import { Input } from "@/components/ui/input";
 import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
 import { useAppleCalendarSync } from "@/hooks/useAppleCalendarSync";
@@ -139,6 +138,7 @@ import {
 import { cantieriMappa } from "@/components/calendar/mappa/dati";
 import { useDataMappaCalendario, useMappaCalendario } from "@/components/calendar/mappa/useMappaCalendario";
 import { preparaSfondoMappa } from "@/components/calendar/mappa/caricaSfondo";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 const MappaOperativa = lazy(() => import("@/components/calendar/mappa/MappaOperativa"));
 const StoricoCantieriMappa = lazy(() => import("@/components/calendar/mappa/StoricoCantieriMappa"));
 
@@ -175,6 +175,7 @@ const isWorkCalendarEmployee = (employee: CalendarEmployee) => {
 };
 
 function CalendarInner() {
+  const tr = useT();
   const navigate = useNavigate();
   const { effectiveCompany, user } = useAuth();
   const permissions = usePermissions();
@@ -301,7 +302,7 @@ function CalendarInner() {
         !permissions.canEditSettingsCustomization ||
         permissions.solaLettura
       ) {
-        toast.error("Non puoi modificare i colori delle squadre");
+        toast.error(tr("Non puoi modificare i colori delle squadre"));
         return;
       }
       const { error } = await supabase
@@ -312,7 +313,7 @@ function CalendarInner() {
         .select("id")
         .single();
       if (error) {
-        toast.error("Colore squadra non salvato");
+        toast.error(tr("Colore squadra non salvato"));
         return;
       }
       queryClient.invalidateQueries({ queryKey: ["external-teams-filter"] });
@@ -1293,7 +1294,7 @@ function CalendarInner() {
         customersMap.set(order.customer_id, {
           id: order.customer_id,
           first_name: order.customer.first_name || "",
-          last_name: order.customer.last_name || "Cliente senza nome",
+          last_name: order.customer.last_name || tr("Cliente senza nome"),
         });
       }
     });
@@ -1302,7 +1303,7 @@ function CalendarInner() {
         `${b.last_name} ${b.first_name}`,
       ),
     );
-  }, [orders]);
+  }, [orders, tr]);
 
   // Build warehouse info map: orderId → CalendarWarehouseInfo
   const warehouseInfoByOrderId = useMemo(() => {
@@ -1317,7 +1318,7 @@ function CalendarInner() {
         customerName: getPersonName(
           order.customer?.first_name,
           order.customer?.last_name,
-          "Cliente non associato",
+          tr("Cliente non associato"),
         ),
         readyCount: 0,
         pendingCount: 0,
@@ -1337,7 +1338,7 @@ function CalendarInner() {
       map.set(item.order_id, existing);
     }
     return map;
-  }, [warehouseItems, orders]);
+  }, [warehouseItems, orders, tr]);
 
   const goToToday = () => {
     setCurrentDate(new Date());
@@ -1605,13 +1606,13 @@ function CalendarInner() {
           name: getPersonName(
             emp.first_name,
             emp.last_name,
-            "Operatore senza nome",
+            tr("Operatore senza nome"),
           ),
         });
       }
     }
     return map;
-  }, [workEmployees]);
+  }, [workEmployees, tr]);
 
   // Conflict detection
   const { conflicts } = useConflictDetection(
@@ -1721,19 +1722,19 @@ function CalendarInner() {
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight max-sm:text-xl">
             {view === "gantt"
-              ? "Gantt lavori"
+              ? tr("Gantt lavori")
               : view === "teams"
-                ? "Squadre e persone"
+                ? tr("Squadre e persone")
                 : view === "heatmap"
-                  ? "Carico lavori"
-                  : "Calendario lavori"}
+                  ? tr("Carico lavori")
+                  : tr("Calendario lavori")}
           </h1>
           <p className="mt-1 text-xs text-muted-foreground max-md:hidden">
             {calendarData.scope === "personal"
               ? planningView
-                ? "Le tue commesse e le risorse assegnate"
-                : "Commesse assegnate a te · Appuntamenti personali"
-              : "Pianificazione del team secondo i tuoi accessi"}
+                ? tr("Le tue commesse e le risorse assegnate")
+                : tr("Commesse assegnate a te · Appuntamenti personali")
+              : tr("Pianificazione del team secondo i tuoi accessi")}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -1741,7 +1742,7 @@ function CalendarInner() {
             variant="outline"
             size="icon"
             className="hidden size-9 md:inline-flex"
-            aria-label="Aggiorna dati del calendario"
+            aria-label={tr("Aggiorna dati del calendario")}
             disabled={refreshingCalendar || permissions.isLoading}
             onClick={aggiornaCalendario}
           >
@@ -1754,10 +1755,10 @@ function CalendarInner() {
             size="sm"
             onClick={goToToday}
             className="hidden gap-1.5 md:inline-flex"
-            aria-label="Oggi"
+            aria-label={tr("Oggi")}
           >
             <CalendarDays className="h-4 w-4" />
-            Oggi
+            {tr("Oggi")}
           </Button>
 
           {/* In sola lettura il calendario si consulta: la policy su appointments rifiuta le scritture. */}
@@ -1769,13 +1770,13 @@ function CalendarInner() {
               setAppointmentDialogOpen(true);
             }}
             disabled={permissions.solaLettura}
-            title={permissions.solaLettura ? "Sei in sola lettura" : undefined}
-            aria-label="Nuovo appuntamento"
+            title={permissions.solaLettura ? tr("Sei in sola lettura") : undefined}
+            aria-label={tr("Nuovo appuntamento")}
             className={cn("gap-1.5 max-md:h-11", planningView && "hidden")}
           >
             <Plus className="h-4 w-4 sm:mr-1.5" />
-            <span className="md:hidden">Nuovo</span>
-            <span className="hidden md:inline">Appuntamento</span>
+            <span className="md:hidden">{tr("Nuovo")}</span>
+            <span className="hidden md:inline">{tr("Appuntamento")}</span>
           </Button>
 
           {/* Bollini «Sync» solo da 1536: altrove rubavano posto alle azioni. */}
@@ -1815,7 +1816,7 @@ function CalendarInner() {
                 variant="outline"
                 size="sm"
                 className="max-sm:hidden"
-                aria-label="Altre azioni del calendario"
+                aria-label={tr("Altre azioni del calendario")}
               >
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
@@ -1824,14 +1825,14 @@ function CalendarInner() {
               <DropdownMenuItem asChild>
                 <Link to="/azienda/attivita" className="gap-2">
                   <CalendarDays className="h-4 w-4" />
-                  La mia agenda
+                  {tr("La mia agenda")}
                 </Link>
               </DropdownMenuItem>
               {permissions.canViewEmployees && (
                 <DropdownMenuItem asChild>
                   <Link to="/azienda/manodopera" className="gap-2">
                     <Users className="h-4 w-4" />
-                    Squadre e mezzi
+                    {tr("Squadre e mezzi")}
                   </Link>
                 </DropdownMenuItem>
               )}
@@ -1844,7 +1845,7 @@ function CalendarInner() {
                 className="gap-2"
               >
                 <Eye className="h-4 w-4" />
-                Fonti e risorse
+                {tr("Fonti e risorse")}
               </DropdownMenuItem>
               {isGoogleConnected && (
                 <DropdownMenuItem
@@ -1868,11 +1869,11 @@ function CalendarInner() {
                         "pulled" in result
                           ? Number((result as { pulled?: unknown }).pulled ?? 0)
                           : 0;
-                      toast.success("Sincronizzazione completata", {
-                        description: `${pulled} eventi importati`,
+                      toast.success(tr("Sincronizzazione completata"), {
+                        description: tr("{n} eventi importati", { n: pulled }),
                       });
                     } catch {
-                      toast.error("Errore sincronizzazione Google Calendar");
+                      toast.error(tr("Errore sincronizzazione Google Calendar"));
                     } finally {
                       setSyncing(false);
                     }
@@ -1882,7 +1883,7 @@ function CalendarInner() {
                   <RefreshCw
                     className={cn("h-4 w-4", syncing && "animate-spin")}
                   />
-                  Sync Google Calendar
+                  {tr("Sync Google Calendar")}
                 </DropdownMenuItem>
               )}
               <DropdownMenuItem
@@ -1892,7 +1893,7 @@ function CalendarInner() {
                 className="gap-2"
               >
                 <Download className="h-4 w-4" />
-                Esporta iCal
+                {tr("Esporta iCal")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -1904,7 +1905,7 @@ function CalendarInner() {
         <div className="flex flex-wrap gap-1.5 max-sm:hidden">
           {statusFilter !== "all" && (
             <Badge variant="secondary" className="gap-1 pl-2 pr-1 py-1">
-              Stato:{" "}
+              {tr("Stato:")}{" "}
               {statuses.find((s) => s.id === statusFilter)?.name ??
                 statusFilter}
               <button
@@ -1917,7 +1918,7 @@ function CalendarInner() {
           )}
           {customerFilter !== "all" && (
             <Badge variant="secondary" className="gap-1 pl-2 pr-1 py-1">
-              Cliente:{" "}
+              {tr("Cliente:")}{" "}
               {uniqueCustomers.find((c) => c.id === customerFilter)
                 ?.last_name ?? customerFilter}
               <button
@@ -1930,7 +1931,7 @@ function CalendarInner() {
           )}
           {employeeFilter !== "all" && (
             <Badge variant="secondary" className="gap-1 pl-2 pr-1 py-1">
-              Operaio:{" "}
+              {tr("Operaio:")}{" "}
               {workEmployees.find((e) => e.id === employeeFilter)?.last_name ??
                 employeeFilter}
               <button
@@ -1943,7 +1944,7 @@ function CalendarInner() {
           )}
           {externalTeamFilter !== "all" && (
             <Badge variant="secondary" className="gap-1 pl-2 pr-1 py-1">
-              Squadra:{" "}
+              {tr("Squadra:")}{" "}
               {externalTeams.find((t) => t.id === externalTeamFilter)?.name ??
                 externalTeamFilter}
               <button
@@ -1956,7 +1957,7 @@ function CalendarInner() {
           )}
           {assignedToFilter !== "all" && (
             <Badge variant="secondary" className="gap-1 pl-2 pr-1 py-1">
-              Assegnato:{" "}
+              {tr("Assegnato:")}{" "}
               {assignableWorkUsers.find((u) => u.id === assignedToFilter)
                 ?.last_name ?? assignedToFilter}
               <button
@@ -1971,7 +1972,7 @@ function CalendarInner() {
             onClick={resetFilters}
             className="text-xs text-muted-foreground hover:text-foreground underline"
           >
-            Resetta tutti
+            {tr("Resetta tutti")}
           </button>
         </div>
       )}
@@ -1980,7 +1981,7 @@ function CalendarInner() {
       {canViewTeam && (
         <div
           className="flex items-center gap-1 text-xs"
-          aria-label="Visibilità del calendario"
+          aria-label={tr("Visibilità del calendario")}
         >
           {(
             [
@@ -1991,7 +1992,7 @@ function CalendarInner() {
             <button
               key={value}
               type="button"
-              aria-label={label}
+              aria-label={tr(label)}
               aria-pressed={calendarData.scope === value}
               onClick={() => {
                 resetFilters();
@@ -2006,25 +2007,25 @@ function CalendarInner() {
                   : "text-muted-foreground hover:bg-muted",
               )}
             >
-              <span className="md:hidden">{value === "personal" ? "Il mio" : "Team"}</span>
-              <span className="hidden md:inline">{label}</span>
+              <span className="md:hidden">{value === "personal" ? tr("Il mio") : tr("Team")}</span>
+              <span className="hidden md:inline">{tr(label)}</span>
             </button>
           ))}
         </div>
       )}
-      {permissions.canViewOrders && <div role="group" aria-label="Vista operativa" className="flex shrink-0 flex-wrap gap-1">
-        <Button size="sm" className={cn("max-md:h-11", !mostraMappa && "max-md:hidden")} variant={mostraMappa ? "ghost" : "secondary"} aria-pressed={!mostraMappa} onClick={() => impostaVistaMappa(null)}><CalendarDays className="size-4" /> Calendario</Button>
-        <Button size="sm" className={cn("max-md:h-11", mostraMappa && "max-md:hidden")} variant={mostraMappa ? "secondary" : "ghost"} aria-pressed={mostraMappa} onClick={() => impostaVistaMappa("giorno")}><MapIcon className="size-4" /> Mappa</Button>
+      {permissions.canViewOrders && <div role="group" aria-label={tr("Vista operativa")} className="flex shrink-0 flex-wrap gap-1">
+        <Button size="sm" className={cn("max-md:h-11", !mostraMappa && "max-md:hidden")} variant={mostraMappa ? "ghost" : "secondary"} aria-pressed={!mostraMappa} onClick={() => impostaVistaMappa(null)}><CalendarDays className="size-4" /> {tr("Calendario")}</Button>
+        <Button size="sm" className={cn("max-md:h-11", mostraMappa && "max-md:hidden")} variant={mostraMappa ? "secondary" : "ghost"} aria-pressed={mostraMappa} onClick={() => impostaVistaMappa("giorno")}><MapIcon className="size-4" /> {tr("Mappa")}</Button>
       </div>}
       </div>}
       {mostraMappa ? <>
-        <div role="group" aria-label="Periodo della mappa" className="flex flex-wrap gap-1">
+        <div role="group" aria-label={tr("Periodo della mappa")} className="flex flex-wrap gap-1">
           <Button size="sm" variant={storicoMappa ? "ghost" : "secondary"} aria-pressed={!storicoMappa}
-            onClick={() => impostaVistaMappa("giorno")}>Mappa del giorno</Button>
+            onClick={() => impostaVistaMappa("giorno")}>{tr("Mappa del giorno")}</Button>
           <Button size="sm" variant={storicoMappa ? "secondary" : "ghost"} aria-pressed={storicoMappa}
-            onClick={() => impostaVistaMappa("storico")}>Cantieri conclusi</Button>
+            onClick={() => impostaVistaMappa("storico")}>{tr("Cantieri conclusi")}</Button>
         </div>
-        <Suspense fallback={<p role="status" className="p-3 text-sm">Caricamento mappa…</p>}>
+        <Suspense fallback={<p role="status" className="p-3 text-sm">{tr("Caricamento mappa…")}</p>}>
           {storicoMappa ? <StoricoCantieriMappa key={`${companyId}:${user?.id}:${calendarData.scope}`} company={companyId} utente={user?.id} scope={calendarData.scope} /> :
           <MappaOperativa key={`${companyId}:${user?.id}:${calendarData.scope}`} {...statoMappa} ambito="lavori"
             giorno={giornoMappa} onGiorno={d => setCurrentDate(parseISO(d))}
@@ -2055,22 +2056,22 @@ function CalendarInner() {
         className="md:hidden"
         valore={search}
         onCambia={setSearch}
-        segnaposto="Cerca nel calendario"
+        segnaposto={tr("Cerca nel calendario")}
         filtriAttivi={activeFilterCount + Number(!planningView && sourceMode !== "work")}
         onApriFiltri={() => setFiltriMobileAperti(true)}
       />
       <div
         className="hidden flex-wrap items-center gap-2 border-b pb-3 md:flex"
-        aria-label="Comandi del calendario"
+        aria-label={tr("Comandi del calendario")}
       >
         {planningView ? (
           <span className="px-1 text-xs font-medium text-muted-foreground">
-            Lavorazioni e risorse delle commesse
+            {tr("Lavorazioni e risorse delle commesse")}
           </span>
         ) : (
           <div
             className="flex shrink-0 gap-1 rounded-lg bg-muted/60 p-1"
-            aria-label="Contenuto del calendario"
+            aria-label={tr("Contenuto del calendario")}
           >
             {(
               [
@@ -2091,7 +2092,7 @@ function CalendarInner() {
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                {label}
+                {tr(label)}
               </button>
             ))}
           </div>
@@ -2100,11 +2101,11 @@ function CalendarInner() {
           <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             className="h-9 min-w-0 bg-background pl-9 pr-8 text-sm"
-            aria-label="Cerca nel calendario"
+            aria-label={tr("Cerca nel calendario")}
             placeholder={
               planningView
-                ? "Cerca cliente o commessa…"
-                : "Cerca cliente, commessa o appuntamento…"
+                ? tr("Cerca cliente o commessa…")
+                : tr("Cerca cliente, commessa o appuntamento…")
             }
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -2112,7 +2113,7 @@ function CalendarInner() {
           {search && (
             <button
               type="button"
-              aria-label="Cancella ricerca"
+              aria-label={tr("Cancella ricerca")}
               onClick={() => setSearch("")}
               className="absolute right-2 top-2 rounded p-0.5 text-muted-foreground hover:text-foreground"
             >
@@ -2124,19 +2125,19 @@ function CalendarInner() {
           variant="outline"
           size="sm"
           className="h-9 gap-1.5 max-md:hidden"
-          aria-label={planningView ? "Risorse e colori" : "Fonti e risorse"}
+          aria-label={planningView ? tr("Risorse e colori") : tr("Fonti e risorse")}
           onClick={() =>
             isMobile ? setMobileLayerOpen(true) : setLayerPanelOpen(true)
           }
         >
           <Eye className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">
-            {planningView ? "Risorse" : "Fonti"}
+            {planningView ? tr("Risorse") : tr("Fonti")}
           </span>
           {!planningView && sourceMode === "custom" && (
             <span
               className="h-1.5 w-1.5 rounded-full bg-primary"
-              title="Fonti personalizzate"
+              title={tr("Fonti personalizzate")}
             />
           )}
         </Button>
@@ -2148,7 +2149,7 @@ function CalendarInner() {
               className="gap-1.5 relative"
             >
               <SlidersHorizontal className="h-4 w-4" />
-              <span className="hidden sm:inline">Filtri</span>
+              <span className="hidden sm:inline">{tr("Filtri")}</span>
               {hasActiveFilters && (
                 <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
                   {activeFilterCount}
@@ -2164,14 +2165,14 @@ function CalendarInner() {
           className="flex items-center justify-between gap-3 rounded-lg border border-destructive/30 p-3 text-sm"
         >
           <span>
-            Commesse non disponibili. Gli appuntamenti restano consultabili.
+            {tr("Commesse non disponibili. Gli appuntamenti restano consultabili.")}
           </span>
           <Button
             variant="outline"
             size="sm"
             onClick={() => calendarData.orders.refetch()}
           >
-            Riprova commesse
+            {tr("Riprova commesse")}
           </Button>
         </div>
       )}
@@ -2181,14 +2182,14 @@ function CalendarInner() {
           className="flex items-center justify-between gap-3 rounded-lg border border-destructive/30 p-3 text-sm"
         >
           <span>
-            Appuntamenti non disponibili. Le commesse restano consultabili.
+            {tr("Appuntamenti non disponibili. Le commesse restano consultabili.")}
           </span>
           <Button
             variant="outline"
             size="sm"
             onClick={() => calendarData.appointments.refetch()}
           >
-            Riprova appuntamenti
+            {tr("Riprova appuntamenti")}
           </Button>
         </div>
       )}
@@ -2197,34 +2198,34 @@ function CalendarInner() {
           role="alert"
           className="flex items-center justify-between gap-3 rounded-lg border border-destructive/30 p-3 text-sm"
         >
-          <span>Non riesco a verificare le commesse da pianificare.</span>
+          <span>{tr("Non riesco a verificare le commesse da pianificare.")}</span>
           <Button
             variant="outline"
             size="sm"
             onClick={() => calendarData.unplanned.refetch()}
           >
-            Riprova pianificazione
+            {tr("Riprova pianificazione")}
           </Button>
         </div>
       )}
       <div
         className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs text-muted-foreground"
-        aria-label="Riepilogo del periodo"
+        aria-label={tr("Riepilogo del periodo")}
       >
         <p
           className="hidden md:block"
-          title={`Dal ${format(new Date(`${visiblePeriod.from}T12:00:00`), "d MMM yyyy", { locale: it })} al ${format(new Date(`${visiblePeriod.to}T12:00:00`), "d MMM yyyy", { locale: it })}`}
+          title={tr("Dal {inizio} al {fine}", { inizio: format(new Date(`${visiblePeriod.from}T12:00:00`), "d MMM yyyy", { locale: dateFnsCampo() }), fine: format(new Date(`${visiblePeriod.to}T12:00:00`), "d MMM yyyy", { locale: dateFnsCampo() }) })}
         >
           {isStatsLoading ? (
-            "Caricamento del periodo…"
+            tr("Caricamento del periodo…")
           ) : (
             <>
               <span className="font-semibold tabular-nums text-foreground">
                 {isError ? "—" : viewStats.scheduled}
               </span>{" "}
-              cantieri{" "}
+              {tr("cantieri")}{" "}
               {planningView ? (
-                "nel periodo"
+                tr("nel periodo")
               ) : (
                 <>
                   <span className="mx-1.5">·</span>
@@ -2233,7 +2234,7 @@ function CalendarInner() {
                       ? "—"
                       : viewStats.appointments}
                   </span>{" "}
-                  appuntamenti nel periodo
+                  {tr("appuntamenti nel periodo")}
                 </>
               )}
             </>
@@ -2247,7 +2248,7 @@ function CalendarInner() {
               className="inline-flex items-center gap-1.5 text-amber-700 hover:underline max-md:min-h-11"
             >
               <CalendarIcon className="h-3.5 w-3.5" />
-              {viewStats.unplanned} da pianificare
+              {tr("{n} da pianificare", { n: viewStats.unplanned })}
             </button>
           )}
           {viewStats.conflicts > 0 && (
@@ -2255,18 +2256,17 @@ function CalendarInner() {
               type="button"
               onClick={() => setConflictsOpen(true)}
               className="inline-flex items-center gap-1.5 text-amber-700 hover:underline max-md:min-h-11"
-              title="Persone o squadre su più lavori nello stesso giorno con orari che si accavallano (o senza orari), oppure assegnate fuori dalla squadra della commessa. Clicca per l'elenco."
+              title={tr("Persone o squadre su più lavori nello stesso giorno con orari che si accavallano (o senza orari), oppure assegnate fuori dalla squadra della commessa. Clicca per l'elenco.")}
             >
               <AlertTriangle className="h-3.5 w-3.5" />
-              {viewStats.conflicts} verifiche sulle assegnazioni
+              {tr("{n} verifiche sulle assegnazioni", { n: viewStats.conflicts })}
             </button>
           )}
           {viewStats.ordersWithoutTeam > 0 && (
             <span className="hidden sm:inline">
-              {viewStats.ordersWithoutTeam}{" "}
-              {viewStats.ordersWithoutTeam === 1
-                ? "cantiere senza squadra"
-                : "cantieri senza squadra"}
+              {tr(viewStats.ordersWithoutTeam === 1
+                ? "{n} cantiere senza squadra"
+                : "{n} cantieri senza squadra", { n: viewStats.ordersWithoutTeam })}
             </span>
           )}
         </div>
@@ -2281,12 +2281,12 @@ function CalendarInner() {
         !search &&
         !hasActiveFilters && (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-muted/40 px-3 py-3 text-sm">
-            <p>Non hai commesse o appuntamenti assegnati in questo periodo.</p>
+            <p>{tr("Non hai commesse o appuntamenti assegnati in questo periodo.")}</p>
             <Link
               to="/azienda/attivita"
               className="text-xs font-medium text-primary hover:underline"
             >
-              Apri le mie attività
+              {tr("Apri le mie attività")}
             </Link>
           </div>
         )}
@@ -2298,8 +2298,8 @@ function CalendarInner() {
             <SheetHeader>
               <SheetTitle>
                 {planningView
-                  ? "Risorse della pianificazione"
-                  : "Fonti e risorse"}
+                  ? tr("Risorse della pianificazione")
+                  : tr("Fonti e risorse")}
               </SheetTitle>
             </SheetHeader>
             <div className="mt-4 overflow-y-auto">
@@ -2429,36 +2429,36 @@ function CalendarInner() {
         <GruppoFiltri>
           {!planningView && (
             <SceltaFiltro
-              titolo="Contenuti"
+              titolo={tr("Contenuti")}
               valore={sourceMode}
               scelte={[
-                { value: "work", label: "Cantieri" },
-                { value: "appointments", label: "Appuntamenti" },
-                { value: "all", label: "Tutto" },
-                ...(sourceMode === "custom" ? [{ value: "custom" as const, label: "Personalizzati" }] : []),
+                { value: "work", label: tr("Cantieri") },
+                { value: "appointments", label: tr("Appuntamenti") },
+                { value: "all", label: tr("Tutto") },
+                ...(sourceMode === "custom" ? [{ value: "custom" as const, label: tr("Personalizzati") }] : []),
               ]}
               onScegli={(mode) => { if (mode !== "custom") selectSourceMode(mode); }}
             />
           )}
-          <SceltaFiltro titolo="Stato" valore={statusFilter} onScegli={setStatusFilter} scelte={[
-            { value: "all", label: "Tutti" },
+          <SceltaFiltro titolo={tr("Stato")} valore={statusFilter} onScegli={setStatusFilter} scelte={[
+            { value: "all", label: tr("Tutti") },
             ...statuses.map(({ id, name }) => ({ value: id, label: name })),
           ]} />
-          <SceltaFiltro titolo="Cliente" valore={customerFilter} onScegli={setCustomerFilter} scelte={[
-            { value: "all", label: "Tutti" },
-            ...uniqueCustomers.map(({ id, first_name, last_name }) => ({ value: id, label: [last_name, first_name].filter(Boolean).join(" ") || "Cliente" })),
+          <SceltaFiltro titolo={tr("Cliente")} valore={customerFilter} onScegli={setCustomerFilter} scelte={[
+            { value: "all", label: tr("Tutti") },
+            ...uniqueCustomers.map(({ id, first_name, last_name }) => ({ value: id, label: [last_name, first_name].filter(Boolean).join(" ") || tr("Cliente") })),
           ]} />
-          <SceltaFiltro titolo="Operaio" valore={employeeFilter} onScegli={setEmployeeFilter} scelte={[
-            { value: "all", label: "Tutti" },
-            ...workEmployees.map(({ id, first_name, last_name }) => ({ value: id, label: [last_name, first_name].filter(Boolean).join(" ") || "Operaio" })),
+          <SceltaFiltro titolo={tr("Operaio")} valore={employeeFilter} onScegli={setEmployeeFilter} scelte={[
+            { value: "all", label: tr("Tutti") },
+            ...workEmployees.map(({ id, first_name, last_name }) => ({ value: id, label: [last_name, first_name].filter(Boolean).join(" ") || tr("Operaio") })),
           ]} />
-          <SceltaFiltro titolo="Squadra" valore={externalTeamFilter} onScegli={setExternalTeamFilter} scelte={[
-            { value: "all", label: "Tutte" },
+          <SceltaFiltro titolo={tr("Squadra")} valore={externalTeamFilter} onScegli={setExternalTeamFilter} scelte={[
+            { value: "all", label: tr("Tutte") },
             ...externalTeams.map(({ id, name }) => ({ value: id, label: name })),
           ]} />
-          <SceltaFiltro titolo="Responsabile" valore={assignedToFilter} onScegli={setAssignedToFilter} scelte={[
-            { value: "all", label: "Tutti" },
-            ...assignableWorkUsers.map(({ id, first_name, last_name }) => ({ value: id, label: [last_name, first_name].filter(Boolean).join(" ") || "Responsabile" })),
+          <SceltaFiltro titolo={tr("Responsabile")} valore={assignedToFilter} onScegli={setAssignedToFilter} scelte={[
+            { value: "all", label: tr("Tutti") },
+            ...assignableWorkUsers.map(({ id, first_name, last_name }) => ({ value: id, label: [last_name, first_name].filter(Boolean).join(" ") || tr("Responsabile") })),
           ]} />
         </GruppoFiltri>
         <Button
@@ -2470,10 +2470,10 @@ function CalendarInner() {
             setMobileLayerOpen(true);
           }}
         >
-          <Eye className="h-4 w-4" /> Livelli e colori
+          <Eye className="h-4 w-4" /> {tr("Livelli e colori")}
         </Button>
         <Button variant="ghost" className="min-h-11 w-full gap-1.5" onClick={aggiornaCalendario} disabled={refreshingCalendar || permissions.isLoading}>
-          <RefreshCw className={cn("size-4", refreshingCalendar && "animate-spin")} /> Aggiorna calendario
+          <RefreshCw className={cn("size-4", refreshingCalendar && "animate-spin")} /> {tr("Aggiorna calendario")}
         </Button>
       </PannelloFiltri>
 
@@ -2486,10 +2486,10 @@ function CalendarInner() {
             <div className="grid grid-cols-1 sm:flex sm:flex-wrap items-center gap-3 sm:gap-2">
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-full sm:h-9 sm:w-auto sm:gap-2">
-                  <SelectValue placeholder="Tutti gli stati" />
+                  <SelectValue placeholder={tr("Tutti gli stati")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tutti gli stati</SelectItem>
+                  <SelectItem value="all">{tr("Tutti gli stati")}</SelectItem>
                   {statuses.map((status) => (
                     <SelectItem key={status.id} value={status.id}>
                       <div className="flex items-center gap-2">
@@ -2506,10 +2506,10 @@ function CalendarInner() {
 
               <Select value={customerFilter} onValueChange={setCustomerFilter}>
                 <SelectTrigger className="w-full sm:h-9 sm:w-auto sm:gap-2">
-                  <SelectValue placeholder="Tutti i clienti" />
+                  <SelectValue placeholder={tr("Tutti i clienti")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tutti i clienti</SelectItem>
+                  <SelectItem value="all">{tr("Tutti i clienti")}</SelectItem>
                   {uniqueCustomers.map((customer) => (
                     <SelectItem key={customer.id} value={customer.id}>
                       {customer.last_name} {customer.first_name}
@@ -2520,10 +2520,10 @@ function CalendarInner() {
 
               <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
                 <SelectTrigger className="w-full sm:h-9 sm:w-auto sm:gap-2">
-                  <SelectValue placeholder="Tutti gli operai" />
+                  <SelectValue placeholder={tr("Tutti gli operai")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tutti gli operai</SelectItem>
+                  <SelectItem value="all">{tr("Tutti gli operai")}</SelectItem>
                   {workEmployees.map((emp) => (
                     <SelectItem key={emp.id} value={emp.id}>
                       {emp.last_name} {emp.first_name}
@@ -2537,10 +2537,10 @@ function CalendarInner() {
                 onValueChange={setExternalTeamFilter}
               >
                 <SelectTrigger className="w-full sm:h-9 sm:w-auto sm:gap-2">
-                  <SelectValue placeholder="Tutte le squadre" />
+                  <SelectValue placeholder={tr("Tutte le squadre")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tutte le squadre</SelectItem>
+                  <SelectItem value="all">{tr("Tutte le squadre")}</SelectItem>
                   {externalTeams.map((team) => (
                     <SelectItem key={team.id} value={team.id}>
                       {team.name}
@@ -2554,11 +2554,11 @@ function CalendarInner() {
                 onValueChange={setAssignedToFilter}
               >
                 <SelectTrigger className="w-full sm:h-9 sm:w-auto sm:gap-2">
-                  <SelectValue placeholder="Responsabile appuntamenti" />
+                  <SelectValue placeholder={tr("Responsabile appuntamenti")} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">
-                    Appuntamenti: tutti gli utenti visibili
+                    {tr("Appuntamenti: tutti gli utenti visibili")}
                   </SelectItem>
                   {assignableWorkUsers.map((user) => (
                     <SelectItem key={user.id} value={user.id}>
@@ -2576,7 +2576,7 @@ function CalendarInner() {
                   className="gap-1.5"
                 >
                   <RotateCcw className="h-4 w-4" />
-                  Resetta
+                  {tr("Resetta")}
                 </Button>
               )}
             </div>
@@ -2585,8 +2585,7 @@ function CalendarInner() {
                 pianificati» e «Da pianificare» qui sopra. */}
             <div className="flex items-center gap-2 sm:hidden">
               <Badge variant="secondary" className="font-normal">
-                {scheduledOrders.length}{" "}
-                {scheduledOrders.length === 1 ? "ordine" : "ordini"}
+                {tr(scheduledOrders.length === 1 ? "{n} ordine" : "{n} ordini", { n: scheduledOrders.length })}
               </Badge>
               {unplannedOrdersCount > 0 && (
                 <Badge
@@ -2595,7 +2594,7 @@ function CalendarInner() {
                   onClick={() => setUnplannedOpen(true)}
                 >
                   <AlertTriangle className="h-3 w-3" />
-                  {unplannedOrdersCount} non pianificati
+                  {tr("{n} non pianificati", { n: unplannedOrdersCount })}
                 </Badge>
               )}
             </div>
@@ -2628,7 +2627,7 @@ function CalendarInner() {
                   id: e.id,
                   name:
                     [e.first_name, e.last_name].filter(Boolean).join(" ") ||
-                    "Persona",
+                    tr("Persona"),
                 }))}
               teams={externalTeams.filter(
                 (t) =>
@@ -2786,8 +2785,7 @@ function CalendarInner() {
                     : "Fonti e risorse"}
                 </SheetTitle>
                 <SheetDescription>
-                  Scegli cosa mostrare. I filtri rispettano sempre i tuoi
-                  permessi.
+                  {tr("Scegli cosa mostrare. I filtri rispettano sempre i tuoi permessi.")}
                 </SheetDescription>
               </SheetHeader>
               <div className="mt-4">
@@ -2930,11 +2928,10 @@ function CalendarInner() {
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-destructive" />
-              Da pianificare ({unplannedOrders.length})
+              {tr("Da pianificare ({n})", { n: unplannedOrders.length })}
             </SheetTitle>
             <SheetDescription>
-              Commesse senza date operative o con lavorazioni ancora da
-              pianificare.
+              {tr("Commesse senza date operative o con lavorazioni ancora da pianificare.")}
             </SheetDescription>
           </SheetHeader>
           <div className="mt-4 space-y-2 overflow-y-auto flex-1">
@@ -2949,7 +2946,7 @@ function CalendarInner() {
                     {getPersonName(
                       order.customer?.first_name,
                       order.customer?.last_name,
-                      "Cliente non associato",
+                      tr("Cliente non associato"),
                     )}
                   </p>
                   <p className="text-xs text-muted-foreground truncate">
@@ -2959,12 +2956,11 @@ function CalendarInner() {
                     (p) => !p.start_date && p.status !== "completata",
                   ) && (
                     <p className="mt-1 text-[11px] text-amber-700">
-                      {
-                        order.work_phases.filter(
+                      {tr("{n} lavorazioni senza data", {
+                        n: order.work_phases.filter(
                           (p) => !p.start_date && p.status !== "completata",
-                        ).length
-                      }{" "}
-                      lavorazioni senza data
+                        ).length,
+                      })}
                     </p>
                   )}
                 </div>
@@ -2975,14 +2971,14 @@ function CalendarInner() {
                 >
                   <Button size="sm" variant="outline" className="gap-1.5">
                     <CalendarIcon className="h-3.5 w-3.5" />
-                    Pianifica
+                    {tr("Pianifica")}
                   </Button>
                 </Link>
               </div>
             ))}
             {unplannedOrders.length === 0 && (
               <p className="text-center text-muted-foreground text-sm py-8">
-                Tutti gli ordini hanno una data pianificata.
+                {tr("Tutti gli ordini hanno una data pianificata.")}
               </p>
             )}
           </div>
@@ -3004,6 +3000,7 @@ function CalendarInner() {
 }
 
 export default function Calendar() {
+  const t = useT();
   const { user, effectiveCompany } = useAuth();
   const permissions = usePermissions();
   if (!user?.id || permissions.isLoading)
@@ -3011,17 +3008,17 @@ export default function Calendar() {
   if (!effectiveCompany?.id)
     return (
       <p className="text-sm text-muted-foreground">
-        Seleziona un’azienda per aprire il calendario.
+        {t("Seleziona un’azienda per aprire il calendario.")}
       </p>
     );
   if (!permissions.canViewCalendar)
     return (
       <p role="alert" className="text-sm text-muted-foreground">
-        Non hai accesso al calendario aziendale.
+        {t("Non hai accesso al calendario aziendale.")}
       </p>
     );
   return (
-    <ErrorBoundary title="Errore nel calendario">
+    <ErrorBoundary title={t("Errore nel calendario")}>
       <CalendarInner key={`${effectiveCompany.id}:${user.id}`} />
     </ErrorBoundary>
   );

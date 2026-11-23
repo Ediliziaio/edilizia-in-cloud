@@ -1,6 +1,5 @@
 import { useDraggable } from "@dnd-kit/core";
 import { format, differenceInDays } from "date-fns";
-import { it } from "date-fns/locale";
 import { usePermissions } from "@/hooks/usePermissions";
 import {
   Tooltip,
@@ -10,6 +9,7 @@ import {
 import { canMoveCalendarWorkPeriod } from "@/lib/calendar/planningTools";
 import { calendarEventStatus } from "@/lib/calendar/eventDetails";
 import type { CalendarOrder, CalendarWorkPeriod } from "@/types/calendar";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function DraggableOrderBar({
   order,
@@ -34,6 +34,7 @@ export function DraggableOrderBar({
   top?: number;
   height?: number;
 }) {
+  const t = useT();
   const p = usePermissions();
   const canDrag =
     !p.isLoading &&
@@ -76,7 +77,7 @@ export function DraggableOrderBar({
           ref={setNodeRef}
           {...(canDrag ? attributes : {})}
           {...(canDrag ? listeners : {})}
-          aria-label={"Dettagli " + period.name + " · " + order.order_code}
+          aria-label={t("Dettagli {nome} · {codice}", { nome: period.name, codice: order.order_code })}
           title={period.name + " · " + order.order_code}
           className="absolute flex items-center gap-2 overflow-hidden rounded-md border-l-[3px] border-black/15 px-2 text-left text-[11px] text-white shadow-sm hover:brightness-110 focus:ring-2 focus:ring-primary touch-none"
           style={{
@@ -115,19 +116,21 @@ export function DraggableOrderBar({
         <p className="font-semibold">{period.name}</p>
         <p className="text-xs">{order.order_code}</p>
         <p className="text-xs">
-          {format(bar.orderStart, "d MMM", { locale: it })} —{" "}
-          {format(bar.orderEnd, "d MMM yyyy", { locale: it })} · {duration}{" "}
-          giorni di calendario
+          {t("{inizio} — {fine} · {n} giorni di calendario", {
+            inizio: format(bar.orderStart, "d MMM", { locale: dateFnsCampo() }),
+            fine: format(bar.orderEnd, "d MMM yyyy", { locale: dateFnsCampo() }),
+            n: duration,
+          })}
         </p>
         {status && <p className="text-xs">{status}</p>}
         {percent !== undefined && (
-          <p className="text-xs">Avanzamento registrato: {percent}%</p>
+          <p className="text-xs">{t("Avanzamento registrato: {n}%", { n: percent })}</p>
         )}
-        <p className="text-xs">{names.join(", ") || "Risorse da assegnare"}</p>
+        <p className="text-xs">{names.join(", ") || t("Risorse da assegnare")}</p>
         <p className="text-xs">
           {canDrag
-            ? "Trascina per spostare le date della commessa. Clicca per i dettagli."
-            : "Clicca per i dettagli. Le date delle fasi si gestiscono nelle lavorazioni."}
+            ? t("Trascina per spostare le date della commessa. Clicca per i dettagli.")
+            : t("Clicca per i dettagli. Le date delle fasi si gestiscono nelle lavorazioni.")}
         </p>
       </TooltipContent>
     </Tooltip>

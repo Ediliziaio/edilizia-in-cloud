@@ -8,7 +8,6 @@ import {
   addWeeks,
   subWeeks,
 } from "date-fns";
-import { it } from "date-fns/locale";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
 import {
@@ -39,6 +38,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 import { calendarEventDate } from "@/lib/calendar/eventDetails";
 import { getOrderWorkPeriods } from "@/lib/calendar/planning";
 import { calendarWorkLocation } from "@/lib/calendar/navigation";
@@ -193,6 +193,7 @@ export function CalendarWeekView({
   eventColors = DEFAULT_CALENDAR_EVENT_COLORS,
   orderColorFn,
 }: CalendarWeekViewProps) {
+  const t = useT();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { user, effectiveCompany } = useAuth();
@@ -424,10 +425,10 @@ export function CalendarWeekView({
           queryKey: queryKeys.calendarOrders.all,
         });
       }
-      toast("Evento spostato");
+      toast(t("Evento spostato"));
       setPendingDrop(null);
     } catch (e: unknown) {
-      toast.error(`Errore: ${e instanceof Error ? e.message : String(e)}`);
+      toast.error(t("Errore: {messaggio}", { messaggio: e instanceof Error ? e.message : String(e) }));
       setPendingDrop(null);
     } finally {
       setIsConfirming(false);
@@ -457,10 +458,10 @@ export function CalendarWeekView({
             etichettaCommessa(o) || o.order_code,
           ]
             .filter(Boolean)
-            .join(" · ") || "Ordine"
+            .join(" · ") || t("Ordine")
         : evt.busySlot?.team_name
-          ? `${evt.busySlot.team_name} · ${evt.busySlot.summary || "impegno"}`
-          : evt.busySlot?.summary || "Occupato";
+          ? `${evt.busySlot.team_name} · ${evt.busySlot.summary || t("impegno")}`
+          : evt.busySlot?.summary || t("Occupato");
     // Handle intervento and manutenzione types
     if (evt.type === "intervento" && evt.intervento) {
       return (
@@ -622,8 +623,8 @@ export function CalendarWeekView({
           <ChevronLeft className="h-5 w-5" />
         </Button>
         <span className="font-semibold text-sm">
-          {format(weekDays[0], "d MMM", { locale: it })} –{" "}
-          {format(weekDays[6], "d MMM yyyy", { locale: it })}
+          {format(weekDays[0], "d MMM", { locale: dateFnsCampo() })} –{" "}
+          {format(weekDays[6], "d MMM yyyy", { locale: dateFnsCampo() })}
         </span>
         <Button
           variant="ghost"
@@ -649,7 +650,7 @@ export function CalendarWeekView({
                 day.getDay() === 0 && "bg-muted/30",
               )}
             >
-              <div>{WEEK_DAYS_IT_FULL[i]}</div>
+              <div>{t(WEEK_DAYS_IT_FULL[i])}</div>
               <div className="text-lg font-bold">{format(day, "d")}</div>
               {(() => {
                 const dateKey = format(day, "yyyy-MM-dd");
@@ -673,7 +674,7 @@ export function CalendarWeekView({
 
           {/* All-day row */}
           <div className="border-r bg-muted/50 text-[10px] text-muted-foreground p-1 flex items-start justify-center pt-2">
-            Giorno
+            {t("Giorno")}
           </div>
           {weekDays.map((day, i) => {
             const dateStr = format(day, "yyyy-MM-dd");
@@ -737,7 +738,7 @@ export function CalendarWeekView({
                   >
                     <button
                       type="button"
-                      aria-label={`Crea appuntamento ${format(day, "dd/MM/yyyy")} alle ${slot.label}`}
+                      aria-label={t("Crea appuntamento {data} alle {ora}", { data: format(day, "dd/MM/yyyy"), ora: slot.label })}
                       className={cn(
                         "group block w-full border-r border-border/50 px-1 text-left transition-colors hover:bg-blue-50/70 focus:outline-none focus:ring-1 focus:ring-blue-400",
                         "h-4",
@@ -781,7 +782,7 @@ export function CalendarWeekView({
                             <span className="truncate">
                               {o.work_start_time!.slice(0, 5)}–
                               {(o.work_end_time ?? "").slice(0, 5)} ·{" "}
-                              {etichettaCommessa(o) || o.order_code || "Lavori"}
+                              {etichettaCommessa(o) || o.order_code || t("Lavori")}
                             </span>
                           </div>
                         ))}
@@ -796,7 +797,7 @@ export function CalendarWeekView({
                             }
                           >
                             {s.team_name ? `${s.team_name} · ` : ""}
-                            {s.summary || "Occupato"}
+                            {s.summary || t("Occupato")}
                           </div>
                         ))}
                       </div>
@@ -813,15 +814,17 @@ export function CalendarWeekView({
       <Dialog open={!!pendingDrop} onOpenChange={() => setPendingDrop(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Conferma spostamento</DialogTitle>
+            <DialogTitle>{t("Conferma spostamento")}</DialogTitle>
             <DialogDescription>
-              Spostare "{pendingDrop?.label}" dal{" "}
-              {pendingDrop?.fromDate &&
-                format(parseISO(pendingDrop.fromDate), "dd/MM/yyyy")}{" "}
-              al{" "}
-              {pendingDrop?.toDate &&
-                format(parseISO(pendingDrop.toDate), "dd/MM/yyyy")}
-              ?
+              {t("Spostare \"{nome}\" dal {da} al {a}?", {
+                nome: pendingDrop?.label ?? "",
+                da: pendingDrop?.fromDate
+                  ? format(parseISO(pendingDrop.fromDate), "dd/MM/yyyy")
+                  : "",
+                a: pendingDrop?.toDate
+                  ? format(parseISO(pendingDrop.toDate), "dd/MM/yyyy")
+                  : "",
+              })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -830,13 +833,13 @@ export function CalendarWeekView({
               onClick={() => setPendingDrop(null)}
               disabled={isConfirming}
             >
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button onClick={confirmDrop} disabled={isConfirming}>
               {isConfirming && (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               )}
-              Conferma
+              {t("Conferma")}
             </Button>
           </DialogFooter>
         </DialogContent>

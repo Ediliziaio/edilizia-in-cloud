@@ -49,8 +49,8 @@ import { TaskAgendaView } from "@/components/attivita/TaskAgendaView";
 import { TaskStatsView } from "@/components/attivita/TaskStatsView";
 import { TaskDetailPanel } from "@/components/attivita/TaskDetailPanel";
 import { format, isAfter, isBefore, addHours, startOfWeek, addDays, parseISO, startOfDay } from "date-fns";
-import { it } from "date-fns/locale";
 import { toast } from "sonner";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 import { TaskStatCards } from "@/components/tasks/TaskStatCards";
 import { TaskDialog } from "@/components/tasks/TaskDialog";
 import { BulkActionsBar } from "@/components/tasks/BulkActionsBar";
@@ -107,12 +107,13 @@ const VISTE_MOBILE: ViewMode[] = ["list", "agenda"];
 const FILTRI_DEFAULT = { stato: "active", priorita: "all", categoria: "all", fonte: "all", assegnatario: "all" };
 
 export default function UnifiedTasks({ embedded = false, initialTab = "myday" }: UnifiedTasksProps = {}) {
+  const tr = useT();
   const { effectiveCompany, user, isImpersonating, role } = useAuth() as any;
   const { isAdmin, canViewTeamTasks, solaLettura, canEditSettingsCustomization, isLoading: permissionsLoading } = usePermissions();
   const isMobile = useIsMobile();
   // In sola lettura le attività si consultano: la policy RESTRICTIVE su tasks
   // rifiuterebbe l'inserimento, quindi i comandi di creazione sono spenti.
-  const creaTitle = solaLettura ? "Sei in sola lettura" : undefined;
+  const creaTitle = solaLettura ? tr("Sei in sola lettura") : undefined;
   // Visione team: admin, permesso esplicito, o ruolo piattaforma in
   // impersonificazione (che gestisce per conto dell'azienda).
   const seesTeamTasks = isAdmin || canViewTeamTasks || (isImpersonating && PLATFORM_ROLES.includes(role));
@@ -209,7 +210,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
         await supabase.from("tasks").update({ sort_order: u.sort_order }).eq("id", u.id);
       }
     },
-    onError: () => toast.error("Errore nel salvataggio dell'ordine"),
+    onError: () => toast.error(tr("Errore nel salvataggio dell'ordine")),
   });
 
   const toggleSelect = (id: string) => {
@@ -315,7 +316,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
 
   const now = startOfDay(new Date());
   const in48h = addHours(now, 48);
-  const weekStart = startOfWeek(now, { locale: it });
+  const weekStart = startOfWeek(now, { weekStartsOn: 1 });
 
   const stats = useMemo(() => {
     const isDone = (task: any) => isTaskDoneStatus(task.status, statusOptions);
@@ -340,11 +341,11 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
       notifiedRef.current = true;
       try { sessionStorage.setItem(chiave, "1"); } catch { /* ignora */ }
       toast.warning(
-        `${stats.overdue} attività scadut${stats.overdue === 1 ? "a" : "e"}`,
+        tr(stats.overdue === 1 ? "{n} attività scaduta" : "{n} attività scadute", { n: stats.overdue }),
         {
-          description: "Clicca su \"Scadute\" per visualizzarle",
+          description: tr("Clicca su \"Scadute\" per visualizzarle"),
           duration: 6000,
-          action: { label: "Vedi", onClick: () => { setActiveTab("all"); setFilterStatus("overdue"); } },
+          action: { label: tr("Vedi"), onClick: () => { setActiveTab("all"); setFilterStatus("overdue"); } },
         }
       );
     }
@@ -433,7 +434,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
         type="button"
         onClick={() => toggleSort(col)}
         className={cn("inline-flex items-center gap-1 whitespace-nowrap hover:text-foreground", attiva && "text-foreground font-semibold")}
-        title={attiva ? (sort!.dir === "asc" ? "Ordine crescente (clicca per decrescente)" : "Ordine decrescente (clicca per togliere)") : `Ordina per ${label.toLowerCase()}`}
+        title={attiva ? (sort!.dir === "asc" ? tr("Ordine crescente (clicca per decrescente)") : tr("Ordine decrescente (clicca per togliere)")) : tr("Ordina per {colonna}", { colonna: label.toLowerCase() })}
         aria-sort={attiva ? (sort!.dir === "asc" ? "ascending" : "descending") : "none"}
       >
         {label}
@@ -462,7 +463,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
 
   /** Le attività filtrate e ordinate come le vedi, in CSV apribile da Excel. */
   const esportaCsv = () => {
-    if (sortedTasks.length === 0) { toast.info("Nessuna attività da esportare con i filtri attuali"); return; }
+    if (sortedTasks.length === 0) { toast.info(tr("Nessuna attività da esportare con i filtri attuali")); return; }
     const nome = (t: any) => t.assigned_profile ? `${t.assigned_profile.first_name ?? ""} ${t.assigned_profile.last_name ?? ""}`.trim() : "";
     const data = (v: unknown) => (typeof v === "string" && v ? format(parseISO(v), "dd/MM/yyyy") : "");
     const csv = costruisciCsv(sortedTasks as any[], [
@@ -479,7 +480,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
       { label: "Note", valore: (t) => t.notes ?? "" },
     ]);
     scaricaCsv(`attivita-${format(new Date(), "yyyy-MM-dd")}.csv`, csv);
-    toast.success(sortedTasks.length === 1 ? "1 attività esportata" : `${sortedTasks.length} attività esportate`);
+    toast.success(sortedTasks.length === 1 ? tr("1 attività esportata") : tr("{n} attività esportate", { n: sortedTasks.length }));
   };
 
   const openNewTask = useCallback((options?: { assignedTo?: string | null; defaults?: Record<string, unknown> | null }) => {
@@ -526,7 +527,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
     const { data: aggiornata, error } = await scrittura.select("updated_at").maybeSingle();
     if (error || !aggiornata) {
       invalidaTask();
-      toast.error("Stato non cambiato", { description: error?.message ?? "L'attività è cambiata. Controlla lo stato aggiornato." });
+      toast.error(tr("Stato non cambiato"), { description: error?.message ?? tr("L'attività è cambiata. Controlla lo stato aggiornato.") });
       return;
     }
 
@@ -558,7 +559,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
       });
       if (errUndo) {
         invalidaTask();
-        toast.error("Annullamento non riuscito", { description: errUndo.message });
+        toast.error(tr("Annullamento non riuscito"), { description: errUndo.message });
         return;
       }
       await logTaskActivity({
@@ -569,13 +570,13 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
       });
       invalidaTask();
       const conservata = esito && typeof esito === "object" && "occorrenza_conservata" in esito && esito.occorrenza_conservata === true;
-      toast.success("Ripristinato", { description: conservata
-        ? "La prossima occorrenza è stata conservata."
-        : `"${task.title}" è di nuovo ${getTaskStatusLabel(task.status, statusOptions)}` });
+      toast.success(tr("Ripristinato"), { description: conservata
+        ? tr("La prossima occorrenza è stata conservata.")
+        : tr("\"{titolo}\" è di nuovo {stato}", { titolo: task.title, stato: tr(getTaskStatusLabel(task.status, statusOptions)) }) });
     };
-    toast.success(`${isTaskDoneStatus(nuovoStato, statusOptions) ? "Completata" : getTaskStatusLabel(nuovoStato, statusOptions)}: ${task.title}`, {
+    toast.success(tr("{stato}: {titolo}", { stato: isTaskDoneStatus(nuovoStato, statusOptions) ? tr("Completata") : tr(getTaskStatusLabel(nuovoStato, statusOptions)), titolo: task.title }), {
       duration: 8000,
-      action: { label: "Annulla", onClick: () => { void ripristina(); } },
+      action: { label: tr("Annulla"), onClick: () => { void ripristina(); } },
     });
   };
 
@@ -585,7 +586,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
   /** Modifica di un campo singolo con toast; per la scadenza e la priorità dalla riga. */
   const aggiornaCampo = async (task: any, updates: TablesUpdate<"tasks">, messaggio: string, campo: string) => {
     const { error } = await supabase.from("tasks").update(updates).eq("id", task.id);
-    if (error) { toast.error("Modifica non salvata", { description: error.message }); return; }
+    if (error) { toast.error(tr("Modifica non salvata"), { description: error.message }); return; }
     await logTaskActivity({
       companyId, userId: user?.id, taskId: task.id, taskTitle: task.title,
       eventType: "task_updated", description: `ha modificato ${campo}`,
@@ -619,12 +620,12 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
       completed_at: null as string | null,
     };
     const { data, error } = await supabase.from("tasks").insert(copia as any).select("id").single();
-    if (error) { toast.error("Duplicazione non riuscita", { description: error.message }); return; }
+    if (error) { toast.error(tr("Duplicazione non riuscita"), { description: error.message }); return; }
     const nuovoId = (data as { id: string } | null)?.id;
     invalidaTask();
-    toast.success("Attività duplicata", {
+    toast.success(tr("Attività duplicata"), {
       description: copia.title,
-      action: nuovoId ? { label: "Annulla", onClick: () => { void supabase.from("tasks").delete().eq("id", nuovoId).then(() => invalidaTask()); } } : undefined,
+      action: nuovoId ? { label: tr("Annulla"), onClick: () => { void supabase.from("tasks").delete().eq("id", nuovoId).then(() => invalidaTask()); } } : undefined,
     });
   };
 
@@ -633,21 +634,21 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
     if (!task) return;
     setTaskToDelete(null);
     const { error } = await supabase.from("tasks").delete().eq("id", task.id);
-    if (error) { toast.error("Eliminazione non riuscita", { description: error.message }); return; }
+    if (error) { toast.error(tr("Eliminazione non riuscita"), { description: error.message }); return; }
     if (selectedTask?.id === task.id) setSelectedTask(null);
     invalidaTask();
-    toast.success("Attività eliminata", { description: task.title });
+    toast.success(tr("Attività eliminata"), { description: task.title });
   };
 
   const costruisciAzioni = (task: any): AzioniRiga => ({
     onChangeStatus: (status) => { void applicaStato(task, status); },
-    onChangePriority: (priority) => { void aggiornaCampo(task, { priority }, `Priorità: ${priority}`, "la priorità"); },
-    onChangeDueDate: (date) => { void aggiornaCampo(task, { due_date: date }, date ? `Scadenza: ${format(parseISO(date), "d MMM yyyy", { locale: it })}` : "Scadenza rimossa", "la scadenza"); },
+    onChangePriority: (priority) => { void aggiornaCampo(task, { priority }, tr("Priorità: {priorita}", { priorita: priority }), "la priorità"); },
+    onChangeDueDate: (date) => { void aggiornaCampo(task, { due_date: date }, date ? tr("Scadenza: {data}", { data: format(parseISO(date), "d MMM yyyy", { locale: dateFnsCampo() }) }) : tr("Scadenza rimossa"), "la scadenza"); },
     onAssignToMe: user?.id && task.assigned_to !== user.id && (!task.ufficio_id || !task.assigned_to)
       ? () => { void (async () => {
-          if (!task.ufficio_id) return aggiornaCampo(task, { assigned_to: user.id }, "Assegnata a te", "l'assegnatario");
+          if (!task.ufficio_id) return aggiornaCampo(task, { assigned_to: user.id }, tr("Assegnata a te"), "l'assegnatario");
           const { error } = await supabase.rpc("attivita_prendi_in_carico" as never, { p_task: task.id, p_rilascia: false } as never);
-          if (error) toast.error(error.message); else toast.success("Presa in carico confermata");
+          if (error) toast.error(error.message); else toast.success(tr("Presa in carico confermata"));
           await queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
         })(); }
       : undefined,
@@ -655,7 +656,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
     onPostpone: (giorni) => {
       const base = task.due_date ? parseISO(String(task.due_date).slice(0, 10)) : startOfDay(new Date());
       const nuova = format(addDays(base, giorni), "yyyy-MM-dd");
-      void aggiornaCampo(task, { due_date: nuova }, `Rimandata al ${format(parseISO(nuova), "d MMM yyyy", { locale: it })}`, "la scadenza");
+      void aggiornaCampo(task, { due_date: nuova }, tr("Rimandata al {data}", { data: format(parseISO(nuova), "d MMM yyyy", { locale: dateFnsCampo() }) }), "la scadenza");
     },
     onDelete: () => setTaskToDelete(task),
   });
@@ -678,7 +679,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
             dice già la linguetta «Regia attività» qui sopra. */}
         <div className={cn("min-w-0", embedded && "hidden")}>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-xl font-bold tracking-tight">Attività</h1>
+            <h1 className="text-xl font-bold tracking-tight">{tr("Attività")}</h1>
             {/* Toccabile: porta alle scadute. Su mobile sostituisce l'avviso
                 a comparsa che diceva di andarle a cercare. */}
             {stats.overdue > 0 && (
@@ -687,7 +688,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
                 onClick={() => { setActiveTab("all"); setFilterStatus("overdue"); }}
                 className="rounded-full bg-destructive/10 px-2.5 py-0.5 text-xs font-medium text-destructive hover:bg-destructive/15"
               >
-                {stats.overdue} scadute
+                {tr("{n} scadute", { n: stats.overdue })}
               </button>
             )}
           </div>
@@ -696,21 +697,21 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
         {!embedded && <div className="mt-3"><DaApprovareCantieri /></div>}
         <div className={cn("flex flex-wrap items-center justify-between gap-2", !embedded && "mt-3")}>
           <TabsList className="h-9 rounded-lg">
-            <TabsTrigger value="myday"><span className="sm:hidden">Oggi</span><span className="hidden sm:inline">La mia giornata</span></TabsTrigger>
-            <TabsTrigger value="all"><span className="sm:hidden">Tutte</span><span className="hidden sm:inline">Tutte le attività</span></TabsTrigger>
+            <TabsTrigger value="myday"><span className="sm:hidden">{tr("Oggi")}</span><span className="hidden sm:inline">{tr("La mia giornata")}</span></TabsTrigger>
+            <TabsTrigger value="all"><span className="sm:hidden">{tr("Tutte")}</span><span className="hidden sm:inline">{tr("Tutte le attività")}</span></TabsTrigger>
           </TabsList>
           {/* Il cambio vista sta accanto alle linguette: nella riga dei filtri,
               con cinque nomi, mandava tutto a capo. */}
           {activeTab === "all" && (
             <TooltipProvider delayDuration={200}>
-              <div className="flex rounded-md border overflow-hidden ml-auto" role="group" aria-label="Vista">
+              <div className="flex rounded-md border overflow-hidden ml-auto" role="group" aria-label={tr("Vista")}>
                 {VIEW_MODES.filter((m) => !isMobile || VISTE_MOBILE.includes(m.value)).map((m) => (
                   <Tooltip key={m.value}>
                     <TooltipTrigger asChild>
                       <button
                         type="button"
                         onClick={() => setViewMode(m.value)}
-                        aria-label={`Vista ${m.label.toLowerCase()}`}
+                        aria-label={tr("Vista {nome}", { nome: tr(m.label).toLowerCase() })}
                         aria-pressed={vista === m.value}
                         className={cn(
                         "tap-compact flex items-center gap-1.5 px-2.5 py-2 text-xs transition-colors",
@@ -720,12 +721,12 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
                         <m.icon className="h-4 w-4" />
                         {/* Il nome della vista solo sugli schermi molto larghi:
                           con cinque nomi la riga dei filtri andava a capo. */}
-                        <span className="hidden 2xl:inline">{m.label}</span>
+                        <span className="hidden 2xl:inline">{tr(m.label)}</span>
                       </button>
                     </TooltipTrigger>
                     <TooltipContent side="bottom" className="max-w-[220px] text-xs">
-                      <p className="font-medium">{m.label}</p>
-                      <p className="text-muted-foreground">{m.descr}</p>
+                      <p className="font-medium">{tr(m.label)}</p>
+                      <p className="text-muted-foreground">{tr(m.descr)}</p>
                     </TooltipContent>
                   </Tooltip>
                 ))}
@@ -741,7 +742,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
             onClick={() => openNewTask({ assignedTo: user?.id ?? null })}
           >
             <Plus className="h-4 w-4" />
-            Nuova
+            {tr("Nuova")}
           </Button>
           {/* Da tablet: una sola azione in evidenza. Per il team, stati ed
               esportazione (prima tre bottoni con la scritta) stanno nel «⋯»;
@@ -749,30 +750,30 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
           <div className={cn("hidden sm:flex items-center gap-2", activeTab !== "all" && "ml-auto")}>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" className="h-9 w-9" aria-label="Altre azioni">
+                <Button variant="outline" size="icon" className="h-9 w-9" aria-label={tr("Altre azioni")}>
                   <MoreHorizontal className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuItem disabled={solaLettura} onSelect={() => openNewTask({ assignedTo: null })}>
-                  <Users className="mr-2 h-4 w-4" />Nuova attività per il team
+                  <Users className="mr-2 h-4 w-4" />{tr("Nuova attività per il team")}
                 </DropdownMenuItem>
                 {/* Gli stati sono dell'azienda (company_task_statuses): li cambia chi ha
                     «Personalizzazione» in modifica, come nelle impostazioni. */}
                 {canEditSettingsCustomization && (
                   <DropdownMenuItem onSelect={() => setStatusSettingsOpen(true)}>
-                    <SlidersHorizontal className="mr-2 h-4 w-4" />Stati delle attività
+                    <SlidersHorizontal className="mr-2 h-4 w-4" />{tr("Stati delle attività")}
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={esportaCsv}>
-                  <Download className="mr-2 h-4 w-4" />Esporta in CSV (Excel)
+                  <Download className="mr-2 h-4 w-4" />{tr("Esporta in CSV (Excel)")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <Button size="sm" className="h-9 gap-2" disabled={solaLettura} title={creaTitle} onClick={() => openNewTask({ assignedTo: user?.id ?? null })}>
               <Plus className="h-4 w-4" />
-              Nuova attività
+              {tr("Nuova attività")}
             </Button>
           </div>
         </div>
@@ -794,7 +795,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   ref={ricercaRef}
-                  placeholder={isMobile ? "Cerca" : "Cerca attività...  (tasto /)"}
+                  placeholder={isMobile ? tr("Cerca") : tr("Cerca attività...  (tasto /)")}
                   value={searchText}
                   onChange={(e) => setSearchText(e.target.value)}
                   className="pl-9 h-9"
@@ -807,56 +808,56 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
                 onClick={() => setFiltriAperti(true)}
               >
                 <SlidersHorizontal className="h-4 w-4" />
-                Filtri
+                {tr("Filtri")}
                 {nFiltri > 0 && (
                   <span className="rounded-full bg-primary px-1.5 text-[10px] font-semibold leading-4 text-primary-foreground">{nFiltri}</span>
                 )}
               </Button>
               <div className="hidden sm:contents">
               <Select value={filterFonte} onValueChange={setFilterFonte}>
-                <SelectTrigger className="w-full sm:w-auto h-9 gap-1" aria-label="Filtro fonte"><span className="text-muted-foreground">Fonte:</span> <SelectValue placeholder="Tutte" /></SelectTrigger>
+                <SelectTrigger className="w-full sm:w-auto h-9 gap-1" aria-label={tr("Filtro fonte")}><span className="text-muted-foreground">{tr("Fonte:")}</span> <SelectValue placeholder={tr("Tutte")} /></SelectTrigger>
                 <SelectContent>
-                  {FONTE_OPTIONS.map((o) => (<SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>))}
+                  {FONTE_OPTIONS.map((o) => (<SelectItem key={o.value} value={o.value}>{tr(o.label)}</SelectItem>))}
                 </SelectContent>
               </Select>
               <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="w-full sm:w-auto h-9 gap-1" aria-label="Filtro stato"><span className="text-muted-foreground">Stato:</span> <SelectValue placeholder="Attive" /></SelectTrigger>
+                <SelectTrigger className="w-full sm:w-auto h-9 gap-1" aria-label={tr("Filtro stato")}><span className="text-muted-foreground">{tr("Stato:")}</span> <SelectValue placeholder={tr("Attive")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tutte</SelectItem>
-                  <SelectItem value="active">Attive</SelectItem>
+                  <SelectItem value="all">{tr("Tutte")}</SelectItem>
+                  <SelectItem value="active">{tr("Attive")}</SelectItem>
                   {statusOptions.map((status) => (
-                    <SelectItem key={status.value} value={status.value}>{status.label}</SelectItem>
+                    <SelectItem key={status.value} value={status.value}>{tr(status.label)}</SelectItem>
                   ))}
-                  <SelectItem value="expiring">In scadenza (48h)</SelectItem>
-                  <SelectItem value="overdue">Scadute</SelectItem>
+                  <SelectItem value="expiring">{tr("In scadenza (48h)")}</SelectItem>
+                  <SelectItem value="overdue">{tr("Scadute")}</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={filterPriority} onValueChange={setFilterPriority}>
-                <SelectTrigger className="w-full sm:w-auto h-9 gap-1" aria-label="Filtro priorità"><span className="text-muted-foreground">Priorità:</span> <SelectValue placeholder="Tutte" /></SelectTrigger>
+                <SelectTrigger className="w-full sm:w-auto h-9 gap-1" aria-label={tr("Filtro priorità")}><span className="text-muted-foreground">{tr("Priorità:")}</span> <SelectValue placeholder={tr("Tutte")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tutte</SelectItem>
-                  <SelectItem value="bassa">Bassa</SelectItem>
-                  <SelectItem value="normale">Normale</SelectItem>
-                  <SelectItem value="alta">Alta</SelectItem>
-                  <SelectItem value="urgente">Urgente</SelectItem>
+                  <SelectItem value="all">{tr("Tutte")}</SelectItem>
+                  <SelectItem value="bassa">{tr("Bassa")}</SelectItem>
+                  <SelectItem value="normale">{tr("Normale")}</SelectItem>
+                  <SelectItem value="alta">{tr("Alta")}</SelectItem>
+                  <SelectItem value="urgente">{tr("Urgente")}</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={filterCategory} onValueChange={setFilterCategory}>
-                <SelectTrigger className="w-full sm:w-auto h-9 gap-1" aria-label="Filtro categoria"><span className="text-muted-foreground">Categoria:</span> <SelectValue placeholder="Tutte" /></SelectTrigger>
+                <SelectTrigger className="w-full sm:w-auto h-9 gap-1" aria-label={tr("Filtro categoria")}><span className="text-muted-foreground">{tr("Categoria:")}</span> <SelectValue placeholder={tr("Tutte")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tutte</SelectItem>
+                  <SelectItem value="all">{tr("Tutte")}</SelectItem>
                   {Object.entries(ALL_CATEGORY_LABELS).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                    <SelectItem key={value} value={value}>{tr(label)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               {seesTeamTasks && (
                 <Select value={filterAssignee} onValueChange={setFilterAssignee}>
-                  <SelectTrigger className="w-full sm:w-auto h-9 gap-1" aria-label="Filtro assegnatario"><span className="text-muted-foreground">Assegnatario:</span> <SelectValue placeholder="Tutti" /></SelectTrigger>
+                  <SelectTrigger className="w-full sm:w-auto h-9 gap-1" aria-label={tr("Filtro assegnatario")}><span className="text-muted-foreground">{tr("Assegnatario:")}</span> <SelectValue placeholder={tr("Tutti")} /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Tutti</SelectItem>
+                    <SelectItem value="all">{tr("Tutti")}</SelectItem>
                     {assignees.map((a) => (
-                      <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                      <SelectItem key={a.id} value={a.id}><span dir="auto">{a.name}</span></SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -865,10 +866,10 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
                   col conteggio: sotto i numeri andava su una riga da solo.
                   «Le mie» non c'è più: era la tendina Assegnatario col proprio nome. */}
               <div className="ml-auto flex items-center gap-2">
-                <span className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">{isError ? "Dati non disponibili" : `${filteredTasks.length} di ${tasks.length}`}</span>
+                <span className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">{isError ? tr("Dati non disponibili") : tr("{n} di {totale}", { n: filteredTasks.length, totale: tasks.length })}</span>
                 {filtriAttivi && (
                   <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={azzeraFiltri}>
-                    Azzera filtri
+                    {tr("Azzera filtri")}
                   </Button>
                 )}
                 <VistiSalvate
@@ -892,8 +893,8 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
               </div>
             </div>
 
-            {requestedTaskId && !isLoading && !isError && !requestedTask && <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm"><p>L’attività richiesta non è disponibile per questa azienda o per i tuoi permessi.</p><Button size="sm" variant="outline" onClick={clearRequestedTask}>Chiudi collegamento</Button></div>}
-            {isError ? <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/30 p-4 text-sm"><p>Non riesco a caricare le attività. Non significa che siano assenti.</p><Button size="sm" variant="outline" onClick={() => refetch()}>Riprova attività</Button></div> : isLoading ? (
+            {requestedTaskId && !isLoading && !isError && !requestedTask && <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm"><p>{tr("L’attività richiesta non è disponibile per questa azienda o per i tuoi permessi.")}</p><Button size="sm" variant="outline" onClick={clearRequestedTask}>{tr("Chiudi collegamento")}</Button></div>}
+            {isError ? <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/30 p-4 text-sm"><p>{tr("Non riesco a caricare le attività. Non significa che siano assenti.")}</p><Button size="sm" variant="outline" onClick={() => refetch()}>{tr("Riprova attività")}</Button></div> : isLoading ? (
               <Card>
                 <div className="divide-y">
                   {Array.from({ length: 6 }).map((_, i) => (
@@ -915,16 +916,16 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
                   <ListTodo className="mx-auto mb-3 h-8 w-8 text-muted-foreground/50" />
                   {tasks.length > 0 ? (
                     <>
-                      <h3 className="text-lg font-medium mb-1">Nessuna attività con questi filtri</h3>
-                      <p className="text-muted-foreground mb-4">Ce ne sono {tasks.length} in tutto: allarga i filtri o azzerali.</p>
-                      <Button variant="outline" onClick={azzeraFiltri}>Azzera filtri</Button>
+                      <h3 className="text-lg font-medium mb-1">{tr("Nessuna attività con questi filtri")}</h3>
+                      <p className="text-muted-foreground mb-4">{tr("Ce ne sono {n} in tutto: allarga i filtri o azzerali.", { n: tasks.length })}</p>
+                      <Button variant="outline" onClick={azzeraFiltri}>{tr("Azzera filtri")}</Button>
                     </>
                   ) : (
                     <>
-                      <h3 className="text-lg font-medium mb-1">Nessuna attività</h3>
-                      <p className="text-muted-foreground mb-4">Crea la tua prima attività per iniziare</p>
+                      <h3 className="text-lg font-medium mb-1">{tr("Nessuna attività")}</h3>
+                      <p className="text-muted-foreground mb-4">{tr("Crea la tua prima attività per iniziare")}</p>
                       <Button disabled={solaLettura} title={creaTitle} onClick={() => openNewTask({ assignedTo: user?.id ?? null })}>
-                        <Plus className="h-4 w-4 mr-2" /> Nuova Attività
+                        <Plus className="h-4 w-4 mr-2" /> {tr("Nuova Attività")}
                       </Button>
                     </>
                   )}
@@ -989,13 +990,13 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
                             <TableHead className="w-10">
                               <Checkbox checked={tutteVisibiliSelezionate} onCheckedChange={toggleSelectAll} />
                             </TableHead>
-                            <TableHead>{intestazione("title", "Titolo")}</TableHead>
-                            <TableHead>{intestazione("assignee", "Assegnatario")}</TableHead>
-                            <TableHead className="hidden xl:table-cell">Collegamento</TableHead>
-                            <TableHead className="hidden xl:table-cell">Categoria</TableHead>
-                            <TableHead>{intestazione("priority", "Priorità")}</TableHead>
-                            <TableHead>{intestazione("due_date", "Scadenza")}</TableHead>
-                            <TableHead>{intestazione("status", "Stato")}</TableHead>
+                            <TableHead>{intestazione("title", tr("Titolo"))}</TableHead>
+                            <TableHead>{intestazione("assignee", tr("Assegnatario"))}</TableHead>
+                            <TableHead className="hidden xl:table-cell">{tr("Collegamento")}</TableHead>
+                            <TableHead className="hidden xl:table-cell">{tr("Categoria")}</TableHead>
+                            <TableHead>{intestazione("priority", tr("Priorità"))}</TableHead>
+                            <TableHead>{intestazione("due_date", tr("Scadenza"))}</TableHead>
+                            <TableHead>{intestazione("status", tr("Stato"))}</TableHead>
                             <TableHead className="w-10" />
                           </TableRow>
                         </TableHeader>
@@ -1030,40 +1031,40 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
       <Sheet open={filtriAperti} onOpenChange={setFiltriAperti}>
         <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto rounded-t-2xl px-4 pb-6">
           <SheetHeader className="text-left">
-            <SheetTitle>Filtri</SheetTitle>
+            <SheetTitle>{tr("Filtri")}</SheetTitle>
           </SheetHeader>
           <div className="mt-4 space-y-4">
             <GruppoScelte
-              titolo="Stato"
+              titolo={tr("Stato")}
               valore={filterStatus}
               onScegli={setFilterStatus}
               scelte={[
-                { value: "active", label: "Attive" },
-                { value: "overdue", label: stats.overdue > 0 ? `Scadute (${stats.overdue})` : "Scadute", tono: "rosso" },
-                { value: "expiring", label: "In scadenza" },
-                { value: "all", label: "Tutte" },
+                { value: "active", label: tr("Attive") },
+                { value: "overdue", label: stats.overdue > 0 ? tr("Scadute ({n})", { n: stats.overdue }) : tr("Scadute"), tono: "rosso" },
+                { value: "expiring", label: tr("In scadenza") },
+                { value: "all", label: tr("Tutte") },
               ]}
             />
             <GruppoScelte
-              titolo="Priorità"
+              titolo={tr("Priorità")}
               valore={filterPriority}
               onScegli={setFilterPriority}
               scelte={[
-                { value: "all", label: "Tutte" },
-                { value: "urgente", label: "Urgente" },
-                { value: "alta", label: "Alta" },
-                { value: "normale", label: "Normale" },
-                { value: "bassa", label: "Bassa" },
+                { value: "all", label: tr("Tutte") },
+                { value: "urgente", label: tr("Urgente") },
+                { value: "alta", label: tr("Alta") },
+                { value: "normale", label: tr("Normale") },
+                { value: "bassa", label: tr("Bassa") },
               ]}
             />
             {seesTeamTasks && (
               <GruppoScelte
-                titolo="Di chi"
+                titolo={tr("Di chi")}
                 valore={filterAssignee}
                 onScegli={setFilterAssignee}
                 scelte={[
-                  { value: "all", label: "Tutti" },
-                  ...(user?.id ? [{ value: user.id, label: "Le mie" }] : []),
+                  { value: "all", label: tr("Tutti") },
+                  ...(user?.id ? [{ value: user.id, label: tr("Le mie") }] : []),
                   ...assignees.filter((a) => a.id !== user?.id).map((a) => ({ value: a.id, label: a.name })),
                 ]}
               />
@@ -1071,10 +1072,10 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
           </div>
           <div className="mt-6 flex gap-2">
             {filtriAttivi && (
-              <Button variant="outline" className="h-11" onClick={azzeraFiltri}>Azzera</Button>
+              <Button variant="outline" className="h-11" onClick={azzeraFiltri}>{tr("Azzera")}</Button>
             )}
             <Button className="h-11 flex-1" onClick={() => setFiltriAperti(false)}>
-              Mostra {filteredTasks.length}
+              {tr("Mostra {n}", { n: filteredTasks.length })}
             </Button>
           </div>
         </SheetContent>
@@ -1083,12 +1084,12 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
       <AlertDialog open={!!taskToDelete} onOpenChange={(o) => { if (!o) setTaskToDelete(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare "{taskToDelete?.title}"?</AlertDialogTitle>
-            <AlertDialogDescription>Commenti, checklist e cronologia dell'attività vengono eliminati. Questa azione non può essere annullata.</AlertDialogDescription>
+            <AlertDialogTitle>{tr("Eliminare \"{titolo}\"?", { titolo: taskToDelete?.title ?? "" })}</AlertDialogTitle>
+            <AlertDialogDescription>{tr("Commenti, checklist e cronologia dell'attività vengono eliminati. Questa azione non può essere annullata.")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { void eliminaTask(); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Elimina</AlertDialogAction>
+            <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { void eliminaTask(); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">{tr("Elimina")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -1145,7 +1146,7 @@ function GruppoScelte({ titolo, valore, onScegli, scelte }: {
                     : "bg-background text-foreground",
               )}
             >
-              {c.label}
+              <span dir="auto">{c.label}</span>
             </button>
           );
         })}
@@ -1165,15 +1166,16 @@ function RigaAttivitaMobile({ task, statusOptions, onSelect, onToggleComplete }:
   onSelect: () => void;
   onToggleComplete: () => void;
 }) {
+  const tr = useT();
   const fatta = isTaskDoneStatus(task.status, statusOptions);
   const oggi = format(new Date(), "yyyy-MM-dd");
   const domani = format(addDays(new Date(), 1), "yyyy-MM-dd");
   const scadenza = task.due_date ? String(task.due_date).slice(0, 10) : null;
   const scaduta = !fatta && !!scadenza && scadenza < oggi;
   const quando = !scadenza ? null
-    : scadenza === oggi ? "Oggi"
-    : scadenza === domani ? "Domani"
-    : format(parseISO(scadenza), "d MMM", { locale: it });
+    : scadenza === oggi ? tr("Oggi")
+    : scadenza === domani ? tr("Domani")
+    : format(parseISO(scadenza), "d MMM", { locale: dateFnsCampo() });
   const chi = task.assigned_profile
     ? `${task.assigned_profile.first_name ?? ""} ${task.assigned_profile.last_name ? `${task.assigned_profile.last_name[0]}.` : ""}`.trim()
     : null;
@@ -1190,7 +1192,7 @@ function RigaAttivitaMobile({ task, statusOptions, onSelect, onToggleComplete }:
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); onToggleComplete(); }}
-        aria-label={fatta ? "Riapri attività" : "Segna come fatta"}
+        aria-label={fatta ? tr("Riapri attività") : tr("Segna come fatta")}
         className="tap-compact -m-1.5 shrink-0 p-1.5"
       >
         {fatta
@@ -1198,13 +1200,13 @@ function RigaAttivitaMobile({ task, statusOptions, onSelect, onToggleComplete }:
           : <Circle className="h-5 w-5 text-muted-foreground" />}
       </button>
       <div className="min-w-0 flex-1">
-        <p className={cn("truncate text-sm font-medium", fatta && "line-through")}>{task.title}</p>
+        <p dir="auto" className={cn("truncate text-sm font-medium", fatta && "line-through")}>{task.title}</p>
         {(quando || chi || pallino) && (
           <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
             {pallino && <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", pallino)} />}
             {quando && <span className={cn(scaduta && "font-medium text-destructive")}>{quando}</span>}
             {quando && chi && <span aria-hidden>·</span>}
-            {chi && <span className="truncate">{chi}</span>}
+            {chi && <span className="truncate" dir="auto">{chi}</span>}
           </p>
         )}
       </div>

@@ -14,7 +14,6 @@ import {
   addDays,
   startOfDay,
 } from "date-fns";
-import { it } from "date-fns/locale";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
@@ -66,6 +65,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface CalendarMonthViewProps {
   isLoading?: boolean;
@@ -123,6 +123,7 @@ export function CalendarMonthView({
   eventColors = DEFAULT_CALENDAR_EVENT_COLORS,
   orderColorFn,
 }: CalendarMonthViewProps) {
+  const t = useT();
   const queryClient = useQueryClient();
   const permissions = usePermissions();
   const [editingOrder, setEditingOrder] = useState<CalendarOrder | null>(null);
@@ -197,15 +198,15 @@ export function CalendarMonthView({
     if (event.type === "google_busy" && event.busySlot) {
       return {
         label: event.busySlot.team_name
-          ? `${event.busySlot.team_name} · ${event.busySlot.summary || "impegno"}`
-          : event.busySlot.summary || "Occupato (Google)",
+          ? `${event.busySlot.team_name} · ${event.busySlot.summary || t("impegno")}`
+          : event.busySlot.summary || t("Occupato (Google)"),
         color: event.busySlot.team_color || event.color,
       };
     }
     if (event.type === "leave" && event.leave) {
       return {
         label:
-          `Ferie/permesso · ${[event.leave.employee?.first_name, event.leave.employee?.last_name].filter(Boolean).join(" ")}`.trim(),
+          t("Ferie/permesso · {nome}", { nome: [event.leave.employee?.first_name, event.leave.employee?.last_name].filter(Boolean).join(" ") }).trim(),
         color: event.color,
       };
     }
@@ -217,7 +218,7 @@ export function CalendarMonthView({
     }
     if (event.type === "appointment" && event.appointment) {
       return {
-        label: event.appointment.title || "Appuntamento",
+        label: event.appointment.title || t("Appuntamento"),
         color: event.color,
         onClick: () => {
           // Appuntamento commerciale di un collega: si vede che è occupato, non si apre.
@@ -231,10 +232,10 @@ export function CalendarMonthView({
     if (event.order) {
       const kind =
         event.type === "posa"
-          ? "Posa"
+          ? t("Posa")
           : event.type === "lavoro"
-            ? "Lavoro"
-            : "Merce";
+            ? t("Lavoro")
+            : t("Merce");
       return {
         label:
           `${event.work?.phase_id ? event.work.name : kind} · ${etichettaCommessa(event.order)}`.trim(),
@@ -249,7 +250,7 @@ export function CalendarMonthView({
         },
       };
     }
-    return { label: "Evento", color: event.color };
+    return { label: t("Evento"), color: event.color };
   };
 
   const selectedEvents = getEventsForDay(selectedDate);
@@ -260,7 +261,7 @@ export function CalendarMonthView({
   const eventTime = calendarEventTime;
   const previewLabel = (event: CalendarEvent) =>
     event.order
-      ? `${event.work?.phase_id ? `${event.work.name} · ` : event.type === "posa" ? "Posa · " : event.type === "merce" ? "Merce · " : ""}${etichettaCommessa(event.order) || event.order.order_code || "Commessa"}`
+      ? `${event.work?.phase_id ? `${event.work.name} · ` : event.type === "posa" ? `${t("Posa")} · ` : event.type === "merce" ? `${t("Merce")} · ` : ""}${etichettaCommessa(event.order) || event.order.order_code || t("Commessa")}`
       : describeEvent(event).label;
   const previewPriority = (event: CalendarEvent) =>
     event.appointment
@@ -280,8 +281,8 @@ export function CalendarMonthView({
         <div className="flex min-w-0 items-center gap-3 max-md:w-full max-md:justify-between max-md:gap-1">
           <h2 className="text-lg font-semibold capitalize max-md:text-base">
             {presentation === "agenda"
-              ? `${format(days[0], "d MMM", { locale: it })} — ${format(days[6], "d MMM yyyy", { locale: it })}`
-              : format(currentDate, "MMMM yyyy", { locale: it })}
+              ? `${format(days[0], "d MMM", { locale: dateFnsCampo() })} — ${format(days[6], "d MMM yyyy", { locale: dateFnsCampo() })}`
+              : format(currentDate, "MMMM yyyy", { locale: dateFnsCampo() })}
           </h2>
           <div className="flex shrink-0 items-center gap-0.5">
             <Button
@@ -290,8 +291,8 @@ export function CalendarMonthView({
               className="size-8 max-md:size-11"
               aria-label={
                 presentation === "agenda"
-                  ? "Sette giorni precedenti"
-                  : "Mese precedente"
+                  ? t("Sette giorni precedenti")
+                  : t("Mese precedente")
               }
               onClick={() =>
                 onDateChange(
@@ -309,8 +310,8 @@ export function CalendarMonthView({
               className="size-8 max-md:size-11"
               aria-label={
                 presentation === "agenda"
-                  ? "Sette giorni successivi"
-                  : "Mese successivo"
+                  ? t("Sette giorni successivi")
+                  : t("Mese successivo")
               }
               onClick={() =>
                 onDateChange(
@@ -328,27 +329,29 @@ export function CalendarMonthView({
           <div className="flex items-center gap-4">
             <div
               className="hidden items-center gap-3 text-[11px] text-muted-foreground lg:flex"
-              aria-label="Legenda degli eventi"
+              aria-label={t("Legenda degli eventi")}
             >
               <span className="flex items-center gap-1.5">
                 <HardHat className="h-3.5 w-3.5" />
-                Cantieri
+                {t("Cantieri")}
               </span>
               <span className="flex items-center gap-1.5">
                 <Clock3 className="h-3.5 w-3.5" />
-                Appuntamenti
+                {t("Appuntamenti")}
               </span>
             </div>
             <Button
               variant="outline"
               size="sm"
               className="h-8 gap-2 text-xs"
-              aria-label="Apri dettaglio del giorno selezionato"
+              aria-label={t("Apri dettaglio del giorno selezionato")}
               onClick={() => { setEventoIniziale(undefined); setDayDetailsOpen(true); }}
             >
               <PanelRightOpen className="h-3.5 w-3.5" />
-              {format(selectedDate, "d MMM", { locale: it })} ·{" "}
-              {selectedEvents.length} eventi
+              {t("{data} · {n} eventi", {
+                data: format(selectedDate, "d MMM", { locale: dateFnsCampo() }),
+                n: selectedEvents.length,
+              })}
             </Button>
           </div>
         )}
@@ -357,7 +360,7 @@ export function CalendarMonthView({
         <div
           className="divide-y border-t"
           role="region"
-          aria-label="Prossimi sette giorni"
+          aria-label={t("Prossimi sette giorni")}
         >
           {days.map((day) => {
             const events = getEventsForDay(day);
@@ -382,10 +385,10 @@ export function CalendarMonthView({
               >
                 <div className="flex items-baseline justify-between gap-2 sm:block">
                   <h3 className={cn("text-sm font-semibold first-letter:uppercase", isSameDay(day, new Date()) && "text-primary")}>
-                    {isSameDay(day, new Date()) ? `Oggi · ${format(day, "EEEE d MMM", { locale: it })}` : format(day, "EEEE d MMM", { locale: it })}
+                    {isSameDay(day, new Date()) ? t("Oggi · {data}", { data: format(day, "EEEE d MMM", { locale: dateFnsCampo() }) }) : format(day, "EEEE d MMM", { locale: dateFnsCampo() })}
                   </h3>
                   <p className="shrink-0 text-xs text-muted-foreground sm:mt-1">
-                    {events.length === 0 ? "Nessun impegno" : events.length === 1 ? "1 evento" : `${events.length} eventi`}
+                    {events.length === 0 ? t("Nessun impegno") : events.length === 1 ? t("1 evento") : t("{n} eventi", { n: events.length })}
                   </p>
                 </div>
                 {events.length > 0 && <div className="space-y-0.5">
@@ -401,7 +404,7 @@ export function CalendarMonthView({
                         style={{ backgroundColor: event.color }}
                       />
                       <span className={cn("w-11 shrink-0 tabular-nums leading-tight", eventTime(event) ? "pt-px text-xs font-semibold" : "pt-0.5 text-[11px] text-muted-foreground")}>
-                        {eventTime(event) || "Tutto il giorno"}
+                        {eventTime(event) || t("Tutto il giorno")}
                       </span>
                       <span className="min-w-0 flex-1">
                         <span
@@ -429,7 +432,7 @@ export function CalendarMonthView({
                       onClick={() => open()}
                       className="px-2 py-2 text-xs font-medium text-primary hover:underline"
                     >
-                      Apri tutti i {events.length} eventi
+                      {t("Apri tutti i {n} eventi", { n: events.length })}
                     </button>
                   )}
                 </div>}
@@ -445,11 +448,11 @@ export function CalendarMonthView({
                 key={day}
                 className="py-2 text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
               >
-                {day}
+                {t(day)}
               </div>
             ))}
           </div>
-          <div className="grid grid-cols-7" aria-label="Giorni del calendario">
+          <div className="grid grid-cols-7" aria-label={t("Giorni del calendario")}>
             {days.map((day) => {
               const date = format(day, "yyyy-MM-dd");
               const events = getEventsForDay(day);
@@ -479,7 +482,7 @@ export function CalendarMonthView({
                   type="button"
                   aria-pressed={selected}
                   aria-current={today ? "date" : undefined}
-                  aria-label={`${format(day, "EEEE d MMMM yyyy", { locale: it })}: ${work} cantieri, ${meetings} appuntamenti, ${other} altri eventi`}
+                  aria-label={t("{data}: {cantieri} cantieri, {appuntamenti} appuntamenti, {altri} altri eventi", { data: format(day, "EEEE d MMMM yyyy", { locale: dateFnsCampo() }), cantieri: work, appuntamenti: meetings, altri: other })}
                   title={previews
                     .map(
                       (e) =>
@@ -582,7 +585,7 @@ export function CalendarMonthView({
                       ))}
                       {events.length > previews.length && (
                         <span className="block px-2 pt-0.5 text-[10px] font-medium text-muted-foreground">
-                          +{events.length - previews.length} altri eventi
+                          {t("+{n} altri eventi", { n: events.length - previews.length })}
                         </span>
                       )}
                     </div>
@@ -594,8 +597,7 @@ export function CalendarMonthView({
         </div>
       )}
       <p className="px-4 py-2.5 text-[11px] text-muted-foreground max-sm:px-0">
-        Seleziona un giorno per consultare l’agenda completa e le risorse
-        assegnate.
+        {t("Seleziona un giorno per consultare l’agenda completa e le risorse assegnate.")}
       </p>
       <CalendarDayDetailsDialog
         isLoading={isLoading}
@@ -677,10 +679,10 @@ export function CalendarMonthView({
             <div className="mt-4 space-y-3">
               <div className="flex gap-4 text-sm">
                 <span className="text-green-600 font-medium">
-                  ✅ {warehouseDrawer.readyCount} pronti
+                  ✅ {t("{n} pronti", { n: warehouseDrawer.readyCount })}
                 </span>
                 <span className="text-amber-600 font-medium">
-                  ⏳ {warehouseDrawer.pendingCount} in attesa
+                  ⏳ {t("{n} in attesa", { n: warehouseDrawer.pendingCount })}
                 </span>
               </div>
               <div className="space-y-1">
@@ -703,7 +705,7 @@ export function CalendarMonthView({
                 className="block w-full text-center text-xs text-primary hover:underline mt-2"
                 onClick={() => setWarehouseDrawer(null)}
               >
-                Vai all'ordine completo →
+                {t("Vai all'ordine completo →")}
               </Link>
             </div>
           </SheetContent>

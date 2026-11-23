@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { format, isSameDay, addDays, subDays } from "date-fns";
-import { it } from "date-fns/locale";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
 import { Button } from "@/components/ui/button";
@@ -61,6 +60,7 @@ import {
   type MultiLocationWeather,
   type LocationWeatherDay,
 } from "@/hooks/useWeatherForecast";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // 2026-05-27 (UX request): griglia oraria della Day view portata da slot
 // orari (1h) a slot da 15 minuti, coerente con la WeekView operativa e con
@@ -135,6 +135,7 @@ export function CalendarDayView({
   eventColors = DEFAULT_CALENDAR_EVENT_COLORS,
   orderColorFn,
 }: CalendarDayViewProps) {
+  const t = useT();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -319,11 +320,11 @@ export function CalendarDayView({
               isToday && "text-primary",
             )}
           >
-            {format(currentDate, "EEEE d MMMM yyyy", { locale: it })}
+            {format(currentDate, "EEEE d MMMM yyyy", { locale: dateFnsCampo() })}
           </span>
           {isToday && (
             <Badge variant="secondary" className="text-xs">
-              Oggi
+              {t("Oggi")}
             </Badge>
           )}
         </div>
@@ -342,7 +343,7 @@ export function CalendarDayView({
         className="mb-3"
         onClick={() => openDetails()}
       >
-        Dettagli del giorno
+        {t("Dettagli del giorno")}
       </Button>
       {/* Weather card — multi-location */}
       {(() => {
@@ -400,7 +401,7 @@ export function CalendarDayView({
                           {loc.minTemp}° – {loc.maxTemp}°C
                         </span>
                         <span className="text-xs text-muted-foreground">
-                          {weatherCodeToLabel(loc.code)}
+                          {t(weatherCodeToLabel(loc.code))}
                         </span>
                         {loc.precip > 0 && (
                           <span className="text-xs text-blue-600">
@@ -419,10 +420,10 @@ export function CalendarDayView({
                         )}
                       >
                         {isHeavyRain
-                          ? "⚠️ Lavori esterni sconsigliati"
+                          ? "⚠️ " + t("Lavori esterni sconsigliati")
                           : isRainy
-                            ? "⚠️ Rischio pioggia"
-                            : "✓ Ideale per lavori esterni"}
+                            ? "⚠️ " + t("Rischio pioggia")
+                            : "✓ " + t("Ideale per lavori esterni")}
                       </p>
                     </div>
                   </div>
@@ -469,10 +470,10 @@ export function CalendarDayView({
                   )}
                 >
                   {isHeavyRain
-                    ? "⚠️ Lavori esterni sconsigliati"
+                    ? "⚠️ " + t("Lavori esterni sconsigliati")
                     : isRainy
-                      ? "⚠️ Rischio pioggia"
-                      : "✓ Ideale per lavori esterni"}
+                      ? "⚠️ " + t("Rischio pioggia")
+                      : "✓ " + t("Ideale per lavori esterni")}
                 </p>
               </div>
             </div>
@@ -488,8 +489,7 @@ export function CalendarDayView({
           <div className="flex-1">
             <span className="font-medium">{totalKm.toFixed(1)} km</span>
             <span className="text-muted-foreground ml-2 text-xs">
-              · {Math.round(totalMinutes)} min totali ·{" "}
-              {appointmentsWithLocation.length} tappe
+              · {t("{min} min totali · {n} tappe", { min: Math.round(totalMinutes), n: appointmentsWithLocation.length })}
             </span>
           </div>
         </div>
@@ -498,19 +498,19 @@ export function CalendarDayView({
       <div className="mb-3 grid grid-cols-3 gap-2">
         <div className="rounded-lg border bg-card px-3 py-2">
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-            Attività
+            {t("Attività")}
           </p>
           <p className="text-lg font-bold">{dailyOperationalCount}</p>
         </div>
         <div className="rounded-lg border bg-card px-3 py-2">
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-            Lavori
+            {t("Lavori")}
           </p>
           <p className="text-lg font-bold">{dailyWorkCount}</p>
         </div>
         <div className="rounded-lg border bg-card px-3 py-2">
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-            Appunt.
+            {t("Appunt.")}
           </p>
           <p className="text-lg font-bold">{timedAppointments.length}</p>
         </div>
@@ -520,7 +520,7 @@ export function CalendarDayView({
       {allDayEvents.length > 0 && (
         <div className="mb-3 p-2 bg-muted/30 rounded-lg border space-y-1">
           <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">
-            Tutto il giorno
+            {t("Tutto il giorno")}
           </p>
           {allDayEvents.map((evt, idx) => {
             if (evt.type === "intervento" && evt.intervento) {
@@ -559,15 +559,15 @@ export function CalendarDayView({
                     etichettaCommessa(o),
                   ]
                     .filter(Boolean)
-                    .join(" · ") || "Ordine"
+                    .join(" · ") || t("Ordine")
                 : evt.busySlot?.team_name
-                  ? `${evt.busySlot.team_name} · ${evt.busySlot.summary || "impegno"}`
-                  : evt.busySlot?.summary || "Occupato";
+                  ? `${evt.busySlot.team_name} · ${evt.busySlot.summary || t("impegno")}`
+                  : evt.busySlot?.summary || t("Occupato");
             const Icon = IconMap[evt.type];
             return (
               <button
                 type="button"
-                aria-label={`Mostra dettagli: ${label}${o?.order_code ? ` · ${o.order_code}` : ""}`}
+                aria-label={t("Mostra dettagli: {nome}", { nome: `${label}${o?.order_code ? ` · ${o.order_code}` : ""}` })}
                 key={idx}
                 className="text-xs px-2 py-1 rounded flex items-center gap-1.5 cursor-pointer border-l-2"
                 style={getCalendarEventStyle(
@@ -648,7 +648,7 @@ export function CalendarDayView({
               {/* Content — h-6 (24px) ≈ stesso passo delle altre 15-min grids */}
               <button
                 type="button"
-                aria-label={`Crea appuntamento ${format(currentDate, "d MMMM", { locale: it })} alle ${slot.label}`}
+                aria-label={t("Crea appuntamento {data} alle {ora}", { data: format(currentDate, "d MMMM", { locale: dateFnsCampo() }), ora: slot.label })}
                 className={cn(
                   "flex-1 px-1.5 text-left cursor-pointer hover:bg-blue-50/70 dark:hover:bg-blue-950/30 transition-colors focus:outline-none focus:ring-1 focus:ring-blue-400",
                   "h-6 min-h-[1.5rem]",
@@ -721,7 +721,7 @@ export function CalendarDayView({
                       }
                     >
                       {s.team_name ? `${s.team_name} · ` : ""}
-                      {s.summary || "Occupato"}
+                      {s.summary || t("Occupato")}
                     </div>
                   ))}
                 </div>
@@ -806,7 +806,7 @@ export function CalendarDayView({
               queryKey: queryKeys.calendarOrders.all,
             });
             setEditingOrder(null);
-            toast.success("Date aggiornate");
+            toast.success(t("Date aggiornate"));
           }}
           orderWeatherInfo={orderWeatherMap?.get(editingOrder.id)}
         />

@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface TaskTagBadgeProps {
   name: string;
@@ -18,6 +19,7 @@ function contrastColor(hex: string): string {
 }
 
 export function TaskTagBadge({ name, color, onRemove, size = "sm" }: TaskTagBadgeProps) {
+  const t = useT();
   const textColor = contrastColor(color);
   return (
     <span
@@ -33,7 +35,7 @@ export function TaskTagBadge({ name, color, onRemove, size = "sm" }: TaskTagBadg
           type="button"
           onClick={(e) => { e.stopPropagation(); onRemove(); }}
           className="rounded-full hover:opacity-70 transition-opacity"
-          aria-label={`Rimuovi tag ${name}`}
+          aria-label={t("Rimuovi tag {nome}", { nome: name })}
         >
           <X className="h-2.5 w-2.5" />
         </button>

@@ -19,6 +19,7 @@ import { apriDocumentoPaghe } from "@/lib/paghe/apriDocumentoPaghe";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // ── Mese in italiano ───────────────────────────────────────────────────────
 const MESI = [
@@ -35,6 +36,7 @@ const STATO_CONFIG: Record<string, { label: string; className: string }> = {
 
 // ─────────────────────────────────────────────────────────────────────────────
 export default function CedoliniPersonali() {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const { role } = useAuth();
   const { data: profilo, isLoading: loadingProfilo } = useMyHrProfilo();
@@ -53,7 +55,7 @@ export default function CedoliniPersonali() {
       // Il PDF vero del consulente, se c'è: aprirlo vale come consegna della busta.
       if (cedolino.documento_id) {
         await apriDocumentoPaghe(cedolino.documento_id).catch(() => {
-          toast.error("Non riesco ad aprire la busta paga. Riprova tra poco.");
+          toast.error(t("Non riesco ad aprire la busta paga. Riprova tra poco."));
         });
         return;
       }
@@ -63,16 +65,16 @@ export default function CedoliniPersonali() {
       if (error) {
         let errBody: any = null;
         try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch { /* intentionally ignored */ }
-        throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore PDF");
+        throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? t("Errore PDF"));
       }
-      if (!data?.html) throw new Error("Nessun contenuto PDF");
+      if (!data?.html) throw new Error(t("Nessun contenuto PDF"));
       const blob = new Blob([data.html], { type: "text/html" });
       const url = URL.createObjectURL(blob);
       const w = window.open(url, "_blank");
       if (w) w.onload = () => w.print();
       setTimeout(() => URL.revokeObjectURL(url), 30_000);
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Errore nel download");
+      toast.error(err instanceof Error ? err.message : t("Errore nel download"));
     } finally {
       setDownloadingId(null);
     }
@@ -83,9 +85,9 @@ export default function CedoliniPersonali() {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center px-4">
         <ShieldAlert className="h-12 w-12 text-muted-foreground mb-4" />
-        <h3 className="text-lg font-semibold">Accesso non autorizzato</h3>
+        <h3 className="text-lg font-semibold">{t("Accesso non autorizzato")}</h3>
         <p className="text-muted-foreground mt-2">
-          Questa sezione non è disponibile per il tuo ruolo.
+          {t("Questa sezione non è disponibile per il tuo ruolo.")}
         </p>
       </div>
     );
@@ -108,10 +110,10 @@ export default function CedoliniPersonali() {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center px-4">
         <UserX className="h-12 w-12 text-muted-foreground mb-4" />
-        <h3 className="text-lg font-semibold">Profilo HR non configurato</h3>
+        <h3 className="text-lg font-semibold">{t("Profilo HR non configurato")}</h3>
         <p className="text-muted-foreground mt-2 max-w-sm">
-          Il tuo profilo HR non è ancora stato configurato.
-          Contatta l'amministratore per completare la configurazione.
+          {t("Il tuo profilo HR non è ancora stato configurato.")}{" "}
+          {t("Contatta l'amministratore per completare la configurazione.")}
         </p>
       </div>
     );
@@ -127,9 +129,9 @@ export default function CedoliniPersonali() {
           <Receipt className="h-[18px] w-[18px] text-primary" />
         </div>
         <div className="min-w-0">
-          <h1 className="text-base font-bold leading-tight">I miei Cedolini</h1>
+          <h1 className="text-base font-bold leading-tight">{t("I miei Cedolini")}</h1>
           <p className="text-xs text-muted-foreground">
-            Visualizza e scarica le tue buste paga
+            {t("Visualizza e scarica le tue buste paga")}
           </p>
         </div>
       </div>
@@ -137,7 +139,7 @@ export default function CedoliniPersonali() {
       {/* Lista cedolini */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Cedolini disponibili</CardTitle>
+          <CardTitle className="text-base">{t("Cedolini disponibili")}</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -147,15 +149,15 @@ export default function CedoliniPersonali() {
           ) : !employeeId ? (
             <div className="text-center py-8 text-muted-foreground">
               <Receipt className="h-8 w-8 mx-auto mb-2 opacity-40" />
-              <p className="text-sm">Il tuo profilo non è ancora collegato a un record dipendente.</p>
-              <p className="text-xs mt-1">Contatta l'amministratore.</p>
+              <p className="text-sm">{t("Il tuo profilo non è ancora collegato a un record dipendente.")}</p>
+              <p className="text-xs mt-1">{t("Contatta l'amministratore.")}</p>
             </div>
           ) : cedolini.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Receipt className="h-8 w-8 mx-auto mb-2 opacity-40" />
-              <p className="text-sm font-medium">Nessun cedolino disponibile</p>
+              <p className="text-sm font-medium">{t("Nessun cedolino disponibile")}</p>
               <p className="text-xs mt-1">
-                I cedolini vengono caricati dall'amministratore.
+                {t("I cedolini vengono caricati dall'amministratore.")}
               </p>
             </div>
           ) : (
@@ -178,15 +180,15 @@ export default function CedoliniPersonali() {
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-medium text-sm">
-                              {MESI[c.mese]} {c.anno}
+                              {t(MESI[c.mese])} {c.anno}
                             </span>
                             <Badge variant="outline" className={cn("text-xs", cfg.className)}>
-                              {cfg.label}
+                              {t(cfg.label)}
                             </Badge>
                           </div>
                           <p className="text-xs text-muted-foreground mt-0.5">
-                            Netto: <span className="font-semibold text-foreground">
-                              €{c.netto.toLocaleString("it-IT", { minimumFractionDigits: 2 })}
+                            {t("Netto:")} <span className="font-semibold text-foreground">
+                              €{c.netto.toLocaleString(intlCampo(), { minimumFractionDigits: 2 })}
                             </span>
                           </p>
                         </div>
@@ -203,7 +205,7 @@ export default function CedoliniPersonali() {
                         disabled={!canDownload || isDownloading}
                         onClick={() => canDownload && handleDownload(c)}
                         className="shrink-0"
-                        title={canDownload ? "Scarica cedolino" : "Cedolino non ancora emesso"}
+                        title={canDownload ? t("Scarica cedolino") : t("Cedolino non ancora emesso")}
                       >
                         {isDownloading ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
@@ -211,7 +213,7 @@ export default function CedoliniPersonali() {
                           <Download className="h-4 w-4" />
                         )}
                         <span className="hidden sm:inline ml-1.5">
-                          {isDownloading ? "..." : "Scarica"}
+                          {isDownloading ? "..." : t("Scarica")}
                         </span>
                       </Button>
                     </div>
@@ -220,16 +222,16 @@ export default function CedoliniPersonali() {
                     {isExpanded && (
                       <div className="border-t bg-muted/30 px-4 py-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
                         <div>
-                          <p className="text-xs text-muted-foreground">Lordo</p>
+                          <p className="text-xs text-muted-foreground">{t("Lordo")}</p>
                           <p className="font-medium">
-                            €{c.lordo.toLocaleString("it-IT", { minimumFractionDigits: 2 })}
+                            €{c.lordo.toLocaleString(intlCampo(), { minimumFractionDigits: 2 })}
                           </p>
                         </div>
                         <div>
-                          <p className="text-xs text-muted-foreground">Contributi dip.</p>
+                          <p className="text-xs text-muted-foreground">{t("Contributi dip.")}</p>
                           <p className="font-medium">
                             {c.contributi_dipendente != null
-                              ? `${c.contributi_dipendente.toLocaleString("it-IT", { minimumFractionDigits: 2 })} €`
+                              ? `${c.contributi_dipendente.toLocaleString(intlCampo(), { minimumFractionDigits: 2 })} €`
                               : "—"}
                           </p>
                         </div>
@@ -237,19 +239,19 @@ export default function CedoliniPersonali() {
                           <p className="text-xs text-muted-foreground">IRPEF</p>
                           <p className="font-medium">
                             {c.ritenute_irpef != null
-                              ? `${c.ritenute_irpef.toLocaleString("it-IT", { minimumFractionDigits: 2 })} €`
+                              ? `${c.ritenute_irpef.toLocaleString(intlCampo(), { minimumFractionDigits: 2 })} €`
                               : "—"}
                           </p>
                         </div>
                         <div>
-                          <p className="text-xs text-muted-foreground">Netto</p>
+                          <p className="text-xs text-muted-foreground">{t("Netto")}</p>
                           <p className="font-semibold text-green-700">
-                            €{c.netto.toLocaleString("it-IT", { minimumFractionDigits: 2 })}
+                            €{c.netto.toLocaleString(intlCampo(), { minimumFractionDigits: 2 })}
                           </p>
                         </div>
                         {c.note && (
                           <div className="col-span-full">
-                            <p className="text-xs text-muted-foreground">Note</p>
+                            <p className="text-xs text-muted-foreground">{t("Note")}</p>
                             <p className="text-sm italic">{c.note}</p>
                           </div>
                         )}
@@ -267,18 +269,18 @@ export default function CedoliniPersonali() {
       {altriDocumenti.length > 0 && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Altri documenti</CardTitle>
+            <CardTitle className="text-base">{t("Altri documenti")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {altriDocumenti.map((d) => (
               <button
                 key={d.id}
                 type="button"
-                onClick={() => apriDocumentoPaghe(d.id).catch(() => toast.error("Non riesco ad aprire il documento. Riprova tra poco."))}
+                onClick={() => apriDocumentoPaghe(d.id).catch(() => toast.error(t("Non riesco ad aprire il documento. Riprova tra poco.")))}
                 className="flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left text-sm hover:bg-muted/50"
               >
                 <Receipt className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <span className="min-w-0 flex-1 truncate">{d.titolo}</span>
+                <span className="min-w-0 flex-1 truncate" dir="auto">{d.titolo}</span>
                 <Download className="h-4 w-4 shrink-0 text-muted-foreground" />
               </button>
             ))}

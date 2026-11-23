@@ -23,6 +23,7 @@ import { aggiornaAgendaSchede } from "@/lib/opportunitaAgenda";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "sonner";
 import { invalidateOfficeWorkspace } from "@/lib/orders/officeWorkspace";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface LinkedTasksProps {
   orderId?: string;
@@ -100,9 +101,11 @@ export function LinkedTasks({
   compatta,
   editable = true,
   excludeOffice = false,
-  title = "Attività",
+  title: titoloProp,
   description,
 }: LinkedTasksProps) {
+  const tr = useT();
+  const title = titoloProp ?? tr("Attività");
   const { effectiveCompany } = useAuth();
   const companyId = propCompanyId || effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -261,7 +264,7 @@ export function LinkedTasks({
       completed: boolean;
     }) => {
       if (!companyId) throw new Error("Missing company_id");
-      if (!editable) throw new Error("Sola lettura");
+      if (!editable) throw new Error(tr("Sola lettura"));
       let query = supabase
         .from("tasks")
         .update({
@@ -274,7 +277,7 @@ export function LinkedTasks({
       const { data, error } = await query.select("id,status").maybeSingle();
       if (error) throw error;
       if (!data || data.status !== (completed ? "completata" : "da_fare"))
-        throw new Error("Attività non aggiornata");
+        throw new Error(tr("Attività non aggiornata"));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
@@ -286,7 +289,7 @@ export function LinkedTasks({
           queryKey: ["order-next-task", orderId],
         });
     },
-    onError: () => toast.error("Attività non aggiornata. Riprova."),
+    onError: () => toast.error(tr("Attività non aggiornata. Riprova.")),
   });
 
   const activeTasks = tasks.filter((t: any) => t.status !== "completata");
@@ -359,27 +362,27 @@ export function LinkedTasks({
 
   const taskList = isLoading ? (
     <p role="status" className="py-3 text-sm text-muted-foreground">
-      Caricamento attività…
+      {tr("Caricamento attività…")}
     </p>
   ) : isError ? (
     <div
       role="alert"
       className="space-y-2 rounded-lg border border-destructive/20 p-3 text-sm"
     >
-      <p>Non riesco a caricare le attività. Non significa che siano assenti.</p>
+      <p>{tr("Non riesco a caricare le attività. Non significa che siano assenti.")}</p>
       <details className="text-xs text-muted-foreground">
-        <summary>Dettagli tecnici</summary>
+        <summary>{tr("Dettagli tecnici")}</summary>
         {error?.message}
       </details>
       <Button size="sm" variant="outline" onClick={() => refetch()}>
-        Riprova
+        {tr("Riprova")}
       </Button>
     </div>
   ) : tasks.length === 0 ? (
     <p
       className={`text-muted-foreground text-center ${embedded ? "text-[11px] py-2" : "text-sm py-3"}`}
     >
-      Nessuna attività collegata
+      {tr("Nessuna attività collegata")}
     </p>
   ) : (
     <div className={embedded ? "space-y-1" : "space-y-2"}>
@@ -406,7 +409,7 @@ export function LinkedTasks({
               {isBlocked ? (
                 <div
                   className="mt-0.5"
-                  title="Parte da sola quando si chiude il passo precedente"
+                  title={tr("Parte da sola quando si chiude il passo precedente")}
                 >
                   <Lock className="h-4 w-4 text-violet-500" />
                 </div>
@@ -425,7 +428,7 @@ export function LinkedTasks({
                   <Checkbox
                     checked={isCompleted}
                     disabled={!editable || toggleMutation.isPending}
-                    aria-label={`Completa attività ${task.title}`}
+                    aria-label={tr("Completa attività {titolo}", { titolo: task.title })}
                   />
                 </div>
               )}
@@ -437,6 +440,7 @@ export function LinkedTasks({
                     event.stopPropagation();
                     handleEditTask(task);
                   }}
+                  dir="auto"
                   className={`block w-full break-words text-left font-medium ${embedded ? "text-xs" : "text-sm"} ${isCompleted ? "line-through text-muted-foreground" : ""}`}
                 >
                   {task.title}
@@ -470,14 +474,14 @@ export function LinkedTasks({
                         variant="outline"
                         className="text-[10px] px-1.5 py-0 gap-0.5 border-emerald-200 text-emerald-700"
                       >
-                        <Wallet className="h-2.5 w-2.5" /> si chiude all'incasso
+                        <Wallet className="h-2.5 w-2.5" /> {tr("si chiude all'incasso")}
                       </Badge>
                     )}
                   {isBlocked && (
                     <span className="text-[11px] text-violet-600">
                       {task.bloccata_da?.title
-                        ? `dopo: ${task.bloccata_da.title}`
-                        : "in attesa"}
+                        ? tr("dopo: {titolo}", { titolo: task.bloccata_da.title })
+                        : tr("in attesa")}
                     </span>
                   )}
                   {task.due_date && (
@@ -517,7 +521,7 @@ export function LinkedTasks({
               onClick={handleAddTask}
               className="h-6 text-[10px] text-primary px-1.5"
             >
-              <Plus className="h-3 w-3 mr-0.5" /> Nuova
+              <Plus className="h-3 w-3 mr-0.5" /> {tr("Nuova")}
             </Button>
           </div>
           {description && <p className="text-xs text-muted-foreground">{description}</p>}
@@ -542,18 +546,18 @@ export function LinkedTasks({
             {activeTasks.length > 0 && (
               <Badge variant="secondary" className="text-xs">
                 {activeTasks.length === 1
-                  ? "1 da fare"
-                  : `${activeTasks.length} da fare`}
+                  ? tr("1 da fare")
+                  : tr("{n} da fare", { n: activeTasks.length })}
               </Badge>
             )}
             {!isLoading && !isError && tasks.length === 0 && (
-              <span className="text-sm text-muted-foreground">nessuna</span>
+              <span className="text-sm text-muted-foreground">{tr("nessuna")}</span>
             )}
             {!isLoading &&
               !isError &&
               tasks.length > 0 &&
               activeTasks.length === 0 && (
-                <span className="text-sm text-emerald-700">tutte fatte</span>
+                <span className="text-sm text-emerald-700">{tr("tutte fatte")}</span>
               )}
             {tasks.length > 0 && (
               <Button
@@ -564,7 +568,7 @@ export function LinkedTasks({
                 aria-expanded={expanded}
                 onClick={() => setExpanded((value) => !value)}
               >
-                {expanded ? "Nascondi attività" : "Mostra attività"}
+                {expanded ? tr("Nascondi attività") : tr("Mostra attività")}
                 <ChevronDown className="ml-1 h-3.5 w-3.5" />
               </Button>
             )}
@@ -576,7 +580,7 @@ export function LinkedTasks({
                 className="ml-auto h-8 font-semibold text-blue-950 max-sm:min-h-11"
               >
                 <Plus className="h-4 w-4" aria-hidden="true" />
-                <span className="ml-1">Aggiungi</span>
+                <span className="ml-1">{tr("Aggiungi")}</span>
               </Button>
             )}
           </div>
@@ -597,8 +601,8 @@ export function LinkedTasks({
                     onClick={() => setShowCompleted((value) => !value)}
                   >
                     {showCompleted
-                      ? "Nascondi completate"
-                      : `Mostra completate (${tasks.length - activeTasks.length})`}
+                      ? tr("Nascondi completate")
+                      : tr("Mostra completate ({n})", { n: tasks.length - activeTasks.length })}
                   </Button>
                 )}
             </div>
@@ -623,7 +627,7 @@ export function LinkedTasks({
               className="min-h-11 shrink-0 border-slate-300 font-semibold text-blue-950"
             >
               <Plus className="h-4 w-4" />
-              <span className="ml-1">Aggiungi</span>
+              <span className="ml-1">{tr("Aggiungi")}</span>
             </Button>
           </CardHeader>
           <CardContent className="pt-0">{description && <p className="mb-2 text-xs text-muted-foreground">{description}</p>}{taskList}</CardContent>

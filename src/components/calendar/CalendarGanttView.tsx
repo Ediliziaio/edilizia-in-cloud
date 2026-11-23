@@ -20,7 +20,6 @@ import {
   isWeekend,
   parseISO,
 } from "date-fns";
-import { it } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, CalendarRange } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -49,6 +48,7 @@ import type {
   CalendarWorkPeriod,
   GanttZoom,
 } from "@/types/calendar";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   orders: CalendarOrder[];
@@ -77,6 +77,7 @@ export function CalendarGanttView({
   calendarScope = "personal",
 }: Props) {
   const p = usePermissions();
+  const t = useT();
   const { user, effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const timeline = useRef<HTMLDivElement>(null);
@@ -206,9 +207,9 @@ export function CalendarGanttView({
         .single();
       if (result.error) throw result.error;
       refreshWorkQueries(queryClient, order.id, effectiveCompany.id);
-      toast.success("Date della commessa aggiornate");
+      toast.success(t("Date della commessa aggiornate"));
     } catch {
-      toast.error("Date non aggiornate. Verifica i tuoi accessi e riprova.");
+      toast.error(t("Date non aggiornate. Verifica i tuoi accessi e riprova."));
     }
   };
   const detailEvents = selected
@@ -223,19 +224,19 @@ export function CalendarGanttView({
     const key = format(day, "RRRR-II");
     const old = weeks.get(key);
     weeks.set(key, {
-      label: "S" + getISOWeek(day),
+      label: t("S{n}", { n: getISOWeek(day) }),
       count: (old?.count || 0) + 1,
     });
   });
 
   return (
-    <Card className="overflow-hidden p-4" aria-label="Gantt delle lavorazioni">
+    <Card className="overflow-hidden p-4" aria-label={t("Gantt delle lavorazioni")}>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
             size="icon"
-            aria-label="Periodo Gantt precedente"
+            aria-label={t("Periodo Gantt precedente")}
             onClick={() =>
               onDateChange(addMonths(currentDate, -CONFIG[zoom].step))
             }
@@ -245,23 +246,23 @@ export function CalendarGanttView({
           <div className="text-center">
             <h2 className="text-lg font-semibold capitalize">
               {zoom === "month"
-                ? format(currentDate, "MMMM yyyy", { locale: it })
+                ? format(currentDate, "MMMM yyyy", { locale: dateFnsCampo() })
                 : zoom === "year"
                   ? format(currentDate, "yyyy")
-                  : "Trimestre " +
-                    (Math.floor(currentDate.getMonth() / 3) + 1) +
-                    " · " +
-                    format(currentDate, "yyyy")}
+                  : t("Trimestre {n} · {anno}", {
+                      n: Math.floor(currentDate.getMonth() / 3) + 1,
+                      anno: format(currentDate, "yyyy"),
+                    })}
             </h2>
             <p className="text-xs text-muted-foreground">
-              {format(start, "d MMM", { locale: it })} —{" "}
-              {format(end, "d MMM yyyy", { locale: it })}
+              {format(start, "d MMM", { locale: dateFnsCampo() })} —{" "}
+              {format(end, "d MMM yyyy", { locale: dateFnsCampo() })}
             </p>
           </div>
           <Button
             variant="ghost"
             size="icon"
-            aria-label="Periodo Gantt successivo"
+            aria-label={t("Periodo Gantt successivo")}
             onClick={() =>
               onDateChange(addMonths(currentDate, CONFIG[zoom].step))
             }
@@ -271,36 +272,33 @@ export function CalendarGanttView({
         </div>
         <ToggleGroup
           type="single"
-          aria-label="Periodo del Gantt"
+          aria-label={t("Periodo del Gantt")}
           value={zoom}
           onValueChange={(value) => value && onZoomChange(value as GanttZoom)}
           className="rounded-lg bg-muted p-1"
         >
           <ToggleGroupItem value="month" className="text-xs">
-            Mese
+            {t("Mese")}
           </ToggleGroupItem>
           <ToggleGroupItem value="quarter" className="text-xs">
-            Trimestre
+            {t("Trimestre")}
           </ToggleGroupItem>
           <ToggleGroupItem value="year" className="text-xs">
-            Anno
+            {t("Anno")}
           </ToggleGroupItem>
         </ToggleGroup>
       </div>
       <div className="mb-4 flex flex-wrap justify-between gap-2 text-xs text-muted-foreground">
         <p>
-          Ogni barra segue una lavorazione della commessa. Clicca per dettagli,
-          presenze e SAL.
+          {t("Ogni barra segue una lavorazione della commessa. Clicca per dettagli, presenze e SAL.")}
         </p>
         <p>
-          <b className="text-foreground">{phaseCount}</b> lavorazioni · picco{" "}
-          <b className="text-foreground">{peak}</b> cantieri
+          {t("{n} lavorazioni · picco {picco} cantieri", { n: phaseCount, picco: peak })}
         </p>
       </div>
       {!rows.length ? (
         <p className="py-16 text-center text-sm text-muted-foreground">
-          Nessuna lavorazione o posa pianificata nel periodo e nei filtri
-          selezionati.
+          {t("Nessuna lavorazione o posa pianificata nel periodo e nei filtri selezionati.")}
         </p>
       ) : (
         <DndContext sensors={sensors} onDragEnd={dragEnd}>
@@ -310,7 +308,7 @@ export function CalendarGanttView({
               style={{ width: LEFT_WIDTH }}
             >
               <div className="flex h-16 items-center border-b bg-muted/40 px-3 text-xs font-semibold">
-                Commessa e risorse pianificate
+                {t("Commessa e risorse pianificate")}
               </div>
               {rows.map((row) => (
                 <Link
@@ -323,18 +321,18 @@ export function CalendarGanttView({
                     {etichettaCommessa(row.order)}
                   </span>
                   <span className="truncate text-[11px] text-muted-foreground">
-                    {row.order.order_code} · {row.bars.length} lavorazioni
+                    {t("{codice} · {n} lavorazioni", { codice: row.order.order_code, n: row.bars.length })}
                   </span>
                   <span
                     className="truncate text-[10px] text-muted-foreground"
                     title={row.resources.join(", ")}
                   >
-                    {row.resources.join(", ") || "Risorse da assegnare"}
+                    {row.resources.join(", ") || t("Risorse da assegnare")}
                   </span>
                 </Link>
               ))}
               <div className="flex h-9 items-center px-3 text-[10px] font-medium">
-                CANTIERI PER GIORNO
+                {t("CANTIERI PER GIORNO")}
               </div>
             </div>
             <div
@@ -356,7 +354,7 @@ export function CalendarGanttView({
                         }}
                       >
                         {format(month, zoom === "year" ? "MMM" : "MMMM yyyy", {
-                          locale: it,
+                          locale: dateFnsCampo(),
                         })}
                       </div>
                     ))}
@@ -398,7 +396,7 @@ export function CalendarGanttView({
                                   ).length * dayWidth,
                               }}
                             >
-                              {Math.floor(month.getMonth() / 3) + 1}° trim.
+                              {t("{n}° trim.", { n: Math.floor(month.getMonth() / 3) + 1 })}
                             </div>
                           ))}
                   </div>
@@ -456,11 +454,11 @@ export function CalendarGanttView({
                         const phaseOrder = {
                           ...row.order,
                           order_external_teams:
-                            row.order.order_external_teams?.filter((t) =>
+                            row.order.order_external_teams?.filter((ot) =>
                               work.resources.some(
                                 (b) =>
                                   b.resourceType === "team" &&
-                                  b.resourceId === t.external_team.id,
+                                  b.resourceId === ot.external_team.id,
                               ),
                             ),
                         };
@@ -488,13 +486,13 @@ export function CalendarGanttView({
                         <button
                           type="button"
                           aria-label={
-                            "Dettagli posa " +
-                            row.order.order_code +
-                            " del " +
-                            row.installation
+                            t("Dettagli posa {codice} del {data}", {
+                              codice: row.order.order_code,
+                              data: row.installation,
+                            })
                           }
                           className="absolute bottom-1.5 z-10 h-3 w-3 rotate-45 rounded-sm border-2 border-background bg-blue-500 focus:ring-2 focus:ring-primary"
-                          title={"Posa prevista · " + row.installation}
+                          title={t("Posa prevista · {data}", { data: row.installation })}
                           style={{
                             left:
                               differenceInDays(
@@ -515,10 +513,10 @@ export function CalendarGanttView({
                       <div
                         key={index}
                         title={
-                          format(days[index], "d MMM", { locale: it }) +
-                          ": " +
-                          count +
-                          " cantieri"
+                          t("{data}: {n} cantieri", {
+                            data: format(days[index], "d MMM", { locale: dateFnsCampo() }),
+                            n: count,
+                          })
                         }
                         className={cn(
                           "flex shrink-0 items-center justify-center border-r text-[9px]",
@@ -539,12 +537,11 @@ export function CalendarGanttView({
       <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
         <CalendarRange className="h-4 w-4" />
         <span>
-          Avanzamento registrato nelle lavorazioni, quando disponibile.
+          {t("Avanzamento registrato nelle lavorazioni, quando disponibile.")}
         </span>
-        <span>◆ Posa prevista</span>
+        <span>◆ {t("Posa prevista")}</span>
         <span>
-          Il carico conta i cantieri, senza stimare la disponibilità delle
-          squadre.
+          {t("Il carico conta i cantieri, senza stimare la disponibilità delle squadre.")}
         </span>
       </div>
       {selected && (

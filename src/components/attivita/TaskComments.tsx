@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { MessageSquare, Send, Trash2 } from "lucide-react";
 import { ChipIcona } from "./SezioneCard";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 import { toast } from "sonner";
 import { logTaskActivity } from "@/lib/taskActivityLog";
 import { caricaProfiliPerId } from "@/lib/profilesLookup";
@@ -20,6 +20,7 @@ interface TaskCommentsProps {
 }
 
 export function TaskComments({ taskId, companyId, taskTitle }: TaskCommentsProps) {
+  const t = useT();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [content, setContent] = useState("");
@@ -45,7 +46,7 @@ export function TaskComments({ taskId, companyId, taskTitle }: TaskCommentsProps
 
   const addMutation = useMutation({
     mutationFn: async (text: string) => {
-      if (!user) throw new Error("Non autenticato");
+      if (!user) throw new Error(t("Non autenticato"));
       const { error } = await supabase.from("task_comments").insert({
         task_id: taskId,
         user_id: user.id,
@@ -99,7 +100,7 @@ export function TaskComments({ taskId, companyId, taskTitle }: TaskCommentsProps
       <div className="flex items-center gap-2">
         <ChipIcona icon={MessageSquare} tono="arancio" />
         <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-          Commenti
+          {t("Commenti")}
         </span>
         {comments.length > 0 && (
           <span className="text-[10px] text-muted-foreground ml-auto">{comments.length}</span>
@@ -118,17 +119,18 @@ export function TaskComments({ taskId, companyId, taskTitle }: TaskCommentsProps
               <div className="flex-1 min-w-0">
                 <div className="flex items-baseline gap-2">
                   <span className="text-xs font-medium">
-                    {c.profile ? `${c.profile.first_name} ${c.profile.last_name}` : "Utente"}
+                    {c.profile ? `${c.profile.first_name} ${c.profile.last_name}` : t("Utente")}
                   </span>
                   <span className="text-[10px] text-muted-foreground">
-                    {format(new Date(c.created_at), "d MMM HH:mm", { locale: it })}
+                    {format(new Date(c.created_at), "d MMM HH:mm", { locale: dateFnsCampo() })}
                   </span>
                 </div>
-                <p className="text-sm text-foreground whitespace-pre-wrap">{c.content}</p>
+                <p dir="auto" className="text-sm text-foreground whitespace-pre-wrap">{c.content}</p>
               </div>
               {c.user_id === user?.id && (
                 <button
                   onClick={() => deleteMutation.mutate(c.id)}
+                  aria-label={t("Elimina commento")}
                   className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all shrink-0 mt-1"
                 >
                   <Trash2 className="h-3 w-3" />
@@ -143,7 +145,7 @@ export function TaskComments({ taskId, companyId, taskTitle }: TaskCommentsProps
         <Textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          placeholder="Scrivi un commento..."
+          placeholder={t("Scrivi un commento...")}
           rows={2}
           className="text-sm min-h-[60px]"
           maxLength={1000}
@@ -157,6 +159,7 @@ export function TaskComments({ taskId, companyId, taskTitle }: TaskCommentsProps
           className="h-auto px-2 self-end"
           onClick={handleSubmit}
           disabled={!content.trim() || addMutation.isPending}
+          aria-label={t("Invia commento")}
         >
           <Send className="h-4 w-4" />
         </Button>
