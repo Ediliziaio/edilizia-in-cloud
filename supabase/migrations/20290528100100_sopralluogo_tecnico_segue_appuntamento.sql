@@ -1,4 +1,12 @@
 -- Il tecnico del rilievo segue la persona dell'appuntamento, come già fa la data.
+-- Piano: docs/piano-sopralluoghi-vendita-tecnico.md, lotto 1.
+--
+-- Prima: spostare l'appuntamento in calendario a un altro tecnico lasciava il rilievo al
+-- vecchio, che lo vedeva ancora nell'app, mentre il nuovo aveva l'appuntamento senza rilievo.
+-- Il calendario non si deve mai fermare per il rilievo: se l'assegnazione non riesce
+-- (chi sposta non ha il permesso Sopralluoghi, persona di un'altra azienda) l'appuntamento
+-- si salva lo stesso e il rilievo resta com'era.
+
 create or replace function public.survey_segue_appuntamento()
  returns trigger
  language plpgsql
@@ -36,6 +44,7 @@ begin
 end
 $function$;
 
+-- Prima scattava solo su data e ora.
 drop trigger if exists trg_survey_segue_appuntamento on public.appointments;
 create trigger trg_survey_segue_appuntamento
   after update of appointment_date, appointment_time, assigned_to on public.appointments

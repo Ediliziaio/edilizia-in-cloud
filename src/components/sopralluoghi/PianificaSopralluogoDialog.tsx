@@ -39,6 +39,10 @@ export function PianificaSopralluogoDialog({
   const [ora, setOra] = useState("09:00");
   const [durata, setDurata] = useState("60");
   const [tecnico, setTecnico] = useState(SENZA_TECNICO);
+  const [appOperai, setAppOperai] = useState(true);
+  // Stessa regola del database (survey_private.field_actor): l'app operai è per questi ruoli.
+  const persona = staff.find((u) => u.id === tecnico);
+  const eOperaio = !!persona?.roles?.some((r) => r === "employee" || r === "subcontractor");
 
   useEffect(() => {
     if (!sopralluogo) return;
@@ -47,6 +51,7 @@ export function PianificaSopralluogoDialog({
     setOra(prevista ? oraLocale(prevista) : "09:00");
     setDurata("60");
     setTecnico(sopralluogo.technician_id ?? user?.id ?? SENZA_TECNICO);
+    setAppOperai(true);
   }, [sopralluogo, user?.id]);
 
   const salva = useMutation({
@@ -55,6 +60,7 @@ export function PianificaSopralluogoDialog({
       const esito = await pianificaSopralluogo({
         surveyId: sopralluogo.id, companyId, data, ora, durataMin: Number(durata),
         tecnicoId: tecnico === SENZA_TECNICO ? null : tecnico, userId: user.id,
+        appOperai: eOperaio && appOperai,
       });
       // Su Google e Apple: un errore qui non annulla la pianificazione (l'appuntamento c'è già).
       const sync: Promise<unknown>[] = [];
@@ -69,7 +75,11 @@ export function PianificaSopralluogoDialog({
       return esito;
     },
     onSuccess: (esito) => {
-      toast.success(esito.spostato ? "Sopralluogo spostato in calendario" : "Sopralluogo pianificato: è nel calendario");
+      toast.success(esito.spostato ? "Sopralluogo spostato in calendario" : "Sopralluogo pianificato: è nel calendario", {
+        description: esito.appOperai ? "Il tecnico lo apre e lo compila dall'app." : undefined,
+      });
+      queryClient.invalidateQueries({ queryKey: ["survey-assignees", sopralluogo?.id] });
+      queryClient.invalidateQueries({ queryKey: ["order-surveys"] });
       queryClient.invalidateQueries({ queryKey: ["sopralluoghi-bacheca"] });
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
       onClose();
@@ -126,6 +136,12 @@ export function PianificaSopralluogoDialog({
               </Select>
             </div>
           </div>
+          {eOperaio && (
+            <label className="flex min-h-9 cursor-pointer items-center gap-2 text-sm">
+              <input type="checkbox" className="h-4 w-4 accent-orange-600" checked={appOperai} onChange={(e) => setAppOperai(e.target.checked)} />
+              Può aprirlo e compilarlo dall'app operai
+            </label>
+          )}
           <p className="text-xs text-muted-foreground">
             L'appuntamento va nel calendario del tecnico e, se ha Google o Apple collegati, anche lì, con nome, telefono e indirizzo del cliente.
           </p>

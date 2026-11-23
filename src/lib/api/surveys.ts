@@ -157,7 +157,17 @@ export async function createSurvey(
     console.error("[surveys] createSurvey failed", error);
     throw new Error("Creazione sopralluogo fallita");
   }
-  return data as SurveyRow;
+  // Il tecnico scritto nella testata è anche assegnato: senza, un operaio non lo apriva
+  // dall'app. Il rilievo esiste già, quindi un errore qui non lo annulla: si rifà da «Pianifica».
+  const creato = data as SurveyRow;
+  if (creato.technician_id) {
+    try {
+      await assegnaTecnicoSopralluogo(creato.id, creato.technician_id, true);
+    } catch (e) {
+      console.warn("[surveys] tecnico non assegnato", e);
+    }
+  }
+  return creato;
 }
 
 /**
@@ -891,3 +901,51 @@ export const sopralluoghiDaAgganciare = (orderId: string) =>
 
 export const agganciaSopralluogo = (surveyId: string, orderId: string) =>
   rpcMisure<void>("sopralluogo_aggancia_commessa", { p_survey: surveyId, p_order: orderId });
+
+// ─── TECNICO E APPUNTAMENTO (lotto 1, docs/piano-sopralluoghi-vendita-tecnico.md) ──
+
+export type TipoSopralluogo = "commerciale" | "tecnico";
+
+export interface EsitoAssegnaTecnico {
+  tecnico: string | null;
+  /** L'operaio può aprirlo dall'app (/campo). */
+  app_operai: boolean;
+  operaio?: boolean;
+  notificato: boolean;
+}
+
+/**
+ * L'unica strada per scegliere il tecnico: scrive tecnico, assegnazione, accesso all'app
+ * operai (solo se `appOperai` e la persona è un operaio) e l'avviso. Il tecnico sostituito
+ * perde l'incarico.
+ */
+export async function assegnaTecnicoSopralluogo(
+  surveyId: string,
+  tecnicoId: string | null,
+  appOperai = true,
+): Promise<EsitoAssegnaTecnico> {
+  const { data, error } = await supabase.rpc(
+    "sopralluogo_assegna_tecnico" as never,
+    { p_survey: surveyId, p_tecnico: tecnicoId, p_app_operai: appOperai } as never,
+  );
+  if (error) throw new Error(error.message || "Tecnico non assegnato");
+  return data as unknown as EsitoAssegnaTecnico;
+}
+
+/**
+ * Prepara il rilievo di un appuntamento di sopralluogo (cliente, commessa, indirizzo, ora,
+ * tecnico). Se c'è già, restituisce quello: un appuntamento ha al massimo un rilievo.
+ */
+export async function rilievoDaAppuntamento(
+  appointmentId: string,
+  templateId: string,
+  tipo: TipoSopralluogo | null = null,
+  appOperai = true,
+): Promise<string> {
+  const { data, error } = await supabase.rpc(
+    "sopralluogo_da_appuntamento" as never,
+    { p_appointment: appointmentId, p_template: templateId, p_tipo: tipo, p_app_operai: appOperai } as never,
+  );
+  if (error || !data) throw new Error(error?.message || "Rilievo non preparato");
+  return data as unknown as string;
+}

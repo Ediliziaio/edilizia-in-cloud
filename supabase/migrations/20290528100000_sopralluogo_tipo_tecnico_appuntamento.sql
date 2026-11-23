@@ -1,8 +1,18 @@
 -- Sopralluogo commerciale o tecnico; il tecnico scelto ha davvero il rilievo.
 -- Piano: docs/piano-sopralluoghi-vendita-tecnico.md, lotto 1.
+--
+-- Prima di questa migrazione (dati del 23/11/2026):
+--   * «Fissa sopralluogo» creava solo l'appuntamento: 51 rilievi tecnici e 109 sopralluoghi
+--     preventivo in agenda senza alcun rilievo da compilare;
+--   * «Pianifica» scriveva surveys.technician_id ma non survey_assignees: 121 rilievi avevano
+--     per tecnico un operaio che dall'app non poteva aprirli (field_allowed vuole
+--     un'assegnazione autorizzata).
+-- Da qui una sola funzione scrive tecnico, assegnazione, accesso all'app e avviso.
 
 set local lock_timeout = '3s';
 set local statement_timeout = '60s';
+
+-- ── Tipo del sopralluogo ────────────────────────────────────────────────────
 
 alter table public.surveys add column if not exists tipo text not null default 'tecnico';
 
@@ -13,6 +23,7 @@ begin
   end if;
 end $$;
 
+-- I preliminari esistenti sono, nei fatti, commerciali.
 update public.surveys set tipo = 'commerciale'
  where tipo = 'tecnico' and ruolo_misure = 'preliminare';
 
@@ -27,9 +38,12 @@ end $$;
 comment on column public.surveys.tipo is
   'commerciale: misure di massima per l''offerta; tecnico: misure precise per computo, preventivo e ordini.';
 
+-- Un appuntamento, al massimo un rilievo (oggi nessun doppione).
 create unique index if not exists surveys_appuntamento_unico
   on public.surveys (appointment_id)
   where appointment_id is not null and deleted_at is null;
+
+-- ── Il tecnico: una funzione sola ───────────────────────────────────────────
 
 create or replace function public.sopralluogo_assegna_tecnico(
   p_survey uuid,
@@ -114,6 +128,8 @@ $function$;
 
 revoke all on function public.sopralluogo_assegna_tecnico(uuid, uuid, boolean) from public, anon;
 grant execute on function public.sopralluogo_assegna_tecnico(uuid, uuid, boolean) to authenticated, service_role;
+
+-- ── Il rilievo nasce dall'appuntamento ──────────────────────────────────────
 
 create or replace function public.sopralluogo_da_appuntamento(
   p_appointment uuid,

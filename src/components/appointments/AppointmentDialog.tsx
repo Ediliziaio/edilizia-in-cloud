@@ -24,6 +24,8 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
 import AddressAutocomplete, { emptyAddress, type AddressData } from "@/components/shared/AddressAutocomplete";
 import { EntityCustomFieldsSection } from "@/components/shared/EntityCustomFieldsSection";
+import { RilievoAppuntamentoCampo } from "@/components/sopralluoghi/RilievoAppuntamento";
+import { useRilievoAppuntamento } from "@/hooks/useRilievoAppuntamento";
 
 export interface AppointmentData {
   id?: string;
@@ -464,6 +466,8 @@ export function AppointmentDialog({
   const [appointmentType, setAppointmentType] = useState("generico");
   const [assignedTo, setAssignedTo] = useState("");
   const [orderId, setOrderId] = useState("");
+  // Il rilievo che nasce con l'appuntamento di sopralluogo (piano sopralluoghi, lotto 1).
+  const rilievo = useRilievoAppuntamento({ companyId, appointmentId: currentAppointment?.id, appointmentType, spento: solaLettura || !open });
   const onlyAssigned = onlyAssignedCrm && !(hideMarketingFields || defaultOrderId || orderId || currentAppointment?.order_id);
   const { data: membriSquadra = [] } = useMembriMieSquadre(open && onlyAssigned);
   const [referenceType, setReferenceType] = useState<ReferenceType>("none");
@@ -952,9 +956,11 @@ export function AppointmentDialog({
         lng: addressData.lng ?? null,
       };
 
+      let idSalvato: string | null = null;
       if (isEditing && currentAppointment?.id) {
         const { error } = await supabase.from("appointments").update(payload).eq("id", currentAppointment.id);
         if (error) throw error;
+        idSalvato = currentAppointment.id;
         toast({ title: "Appuntamento aggiornato" });
         // Fire-and-forget Google sync
         if (hasAnyCompanyGoogleConnection) {
@@ -963,6 +969,7 @@ export function AppointmentDialog({
       } else {
         const { data: inserted, error } = await supabase.from("appointments").insert({ ...payload, created_by: user.id }).select("id").single();
         if (error) throw error;
+        idSalvato = inserted?.id ?? null;
         toast({ title: "Appuntamento creato" });
         // Diary log (fire-and-forget, solo se collegato a un ordine)
         if (payload.order_id) {
@@ -998,6 +1005,21 @@ export function AppointmentDialog({
           queryClient.invalidateQueries({ queryKey: ["order", payload.order_id] });
           queryClient.invalidateQueries({ queryKey: ["orders"] });
           queryClient.invalidateQueries({ queryKey: ["calendar-orders"] });
+        }
+      }
+
+      // L'appuntamento è salvato comunque: se il rilievo non si prepara, lo si dice e basta.
+      if (idSalvato) {
+        try {
+          const rilievoId = await rilievo.prepara(idSalvato);
+          if (rilievoId) {
+            toast({ title: rilievo.tipo === "commerciale" ? "Rilievo commerciale pronto" : "Rilievo pronto per il tecnico" });
+            for (const key of [["order-surveys"], ["sopralluoghi-bacheca"], ["rilievo-appuntamento"], ["field-surveys"]]) {
+              void queryClient.invalidateQueries({ queryKey: key });
+            }
+          }
+        } catch (e: unknown) {
+          toast({ title: "Appuntamento salvato, rilievo non preparato", description: getErrorMessage(e), variant: "destructive" });
         }
       }
 
@@ -1348,6 +1370,8 @@ export function AppointmentDialog({
               <AddressAutocomplete value={addressData} onChange={setAddressData} />
             )
           )}
+
+          <RilievoAppuntamentoCampo stato={rilievo} />
 
           {calendarioInVista && selettoreCalendario}
 

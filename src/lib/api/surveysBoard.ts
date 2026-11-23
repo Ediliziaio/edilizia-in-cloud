@@ -5,6 +5,7 @@
  */
 import { supabase } from "@/integrations/supabase/client";
 import { oraFine, type SopralluogoBacheca } from "@/lib/sopralluoghi/bacheca";
+import { assegnaTecnicoSopralluogo } from "@/lib/api/surveys";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -66,12 +67,16 @@ export interface PianificaInput {
   durataMin: number;
   tecnicoId: string | null;
   userId: string;
+  /** Se il tecnico è un operaio, può aprirlo e compilarlo dall'app. */
+  appOperai?: boolean;
 }
 
 export interface PianificaEsito {
   appointmentId: string;
   /** true = l'appuntamento esisteva già ed è stato spostato (serve update-event su Google). */
   spostato: boolean;
+  /** L'operaio scelto può aprirlo dall'app. */
+  appOperai: boolean;
 }
 
 /** Il calendario del tecnico: quello suo e attivo, preferendo uno «rilievo» o «sopralluogo». */
@@ -96,7 +101,7 @@ async function calendarioDelTecnico(companyId: string, tecnicoId: string | null)
 export async function pianificaSopralluogo(i: PianificaInput): Promise<PianificaEsito> {
   const { data: s, error: e1 } = await db
     .from("surveys")
-    .select("id, code, address, address_number, city, zip, province, latitude, longitude, contact_id, opportunity_id, order_id, appointment_id")
+    .select("id, code, tipo, address, address_number, city, zip, province, latitude, longitude, contact_id, opportunity_id, order_id, appointment_id")
     .eq("id", i.surveyId).eq("company_id", i.companyId).maybeSingle();
   if (e1 || !s) throw new Error("Sopralluogo non trovato");
 
@@ -115,6 +120,14 @@ export async function pianificaSopralluogo(i: PianificaInput): Promise<Pianifica
   };
   const scheduledAt = new Date(`${i.data}T${i.ora}:00`).toISOString();
 
+  // Prima la data (finisce nell'avviso), poi il tecnico con la funzione unica: assegnazione,
+  // accesso all'app e avviso. Va fatto PRIMA di toccare l'appuntamento, altrimenti il
+  // trigger «il rilievo segue l'appuntamento» assegnerebbe lui, con l'app sempre accesa.
+  const { error: e2 } = await db.from("surveys").update({ scheduled_at: scheduledAt })
+    .eq("id", i.surveyId).eq("company_id", i.companyId);
+  if (e2) throw new Error("Sopralluogo non aggiornato: " + e2.message);
+  const assegnato = await assegnaTecnicoSopralluogo(i.surveyId, i.tecnicoId, i.appOperai ?? true);
+
   let appointmentId: string | null = s.appointment_id ?? null;
   let spostato = false;
   if (appointmentId) {
@@ -131,7 +144,8 @@ export async function pianificaSopralluogo(i: PianificaInput): Promise<Pianifica
       order_id: s.order_id ?? null,
       title: `Sopralluogo${nomeCliente ? ` · ${nomeCliente}` : ""} (${s.code})`,
       description: `Sopralluogo ${s.code}`,
-      appointment_type: "sopralluogo_preventivo",
+      // Il tipo dell'appuntamento dice il tipo del sopralluogo: prima era sempre «preventivo».
+      appointment_type: s.tipo === "commerciale" ? "sopralluogo_preventivo" : "rilievo_tecnico",
       status: "confermato",
       created_by: i.userId,
       address_line: via || null,
@@ -148,9 +162,10 @@ export async function pianificaSopralluogo(i: PianificaInput): Promise<Pianifica
     appointmentId = nuovo.id as string;
   }
 
-  const { error: e3 } = await db.from("surveys")
-    .update({ scheduled_at: scheduledAt, technician_id: i.tecnicoId, appointment_id: appointmentId })
-    .eq("id", i.surveyId).eq("company_id", i.companyId);
-  if (e3) throw new Error("Sopralluogo non aggiornato: " + e3.message);
-  return { appointmentId, spostato };
+  if (appointmentId !== s.appointment_id) {
+    const { error: e3 } = await db.from("surveys").update({ appointment_id: appointmentId })
+      .eq("id", i.surveyId).eq("company_id", i.companyId);
+    if (e3) throw new Error("Sopralluogo non aggiornato: " + e3.message);
+  }
+  return { appointmentId, spostato, appOperai: assegnato.app_operai };
 }
