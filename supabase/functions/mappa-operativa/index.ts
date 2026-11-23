@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
 import { getCorsHeaders, jsonResponse } from "../_shared/headers.ts";
 import { cercaVicini, coordinate, minuti, normalizzaIndirizzo, type Candidato, type ValutazioneVicino, type Coordinate, type Tratta } from "../../../shared/mappa-operativa/calcoli.ts";
-import { cercaIndirizzo, matriceOsrm, percorsoOsrm } from "./provider.ts";
+import { cercaIndirizzo, matriceHere, matriceOsrm, percorsoHere, percorsoOsrm } from "./provider.ts";
 import { geocodeAddress } from "../_shared/forwardGeocode.ts";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -51,6 +51,8 @@ Deno.serve(async req => {
     const router = profilo === "furgone" ? Deno.env.get("MAPPA_OPERATIVA_OSRM_FURGONE_URL") : osrm;
     const tokenRouting = Deno.env.get("MAPPA_OPERATIVA_OSRM_TOKEN");
     const tokenIndirizzi = Deno.env.get("MAPPA_OPERATIVA_GEOCODING_TOKEN");
+    // Senza un server OSRM dedicato si ripiega sul routing HERE (stessa chiave della geocodifica).
+    const hereRouting = Deno.env.get("HERE_API_KEY");
     const versione = Deno.env.get("MAPPA_OPERATIVA_DATI_VERSIONE") ?? "1";
 
     async function conta(provider: string, voce: string, unita: number, perMinuto: number, perMese: number) {
@@ -118,10 +120,12 @@ Deno.serve(async req => {
       const punti = Array.isArray(body.punti)
         ? body.punti.map((p: Coordinate | null) => coordinate(p?.lat, p?.lng)) : [];
       if (!punti.every(Boolean) || punti.length < 2 || punti.length > 25) return rispondi({ error: "Percorso non valido" }, 400);
-      if (!router) throw new Servizio("non_configurato");
-      return rispondi(await unica(["percorso", "geojson_tratte_copertura_v2", router, profilo, punti, body.revisione], 300, async () => {
-        await conta("osrm_privato", "percorsi", 1, 15, 3000);
-        return percorsoOsrm(router, "driving", punti as Coordinate[], tokenRouting);
+      if (!router && !hereRouting) throw new Servizio("non_configurato");
+      return rispondi(await unica(["percorso", "geojson_tratte_copertura_v2", router ?? "here", profilo, punti, body.revisione], 300, async () => {
+        await conta(router ? "osrm_privato" : "here", "percorsi", 1, 15, 3000);
+        return router
+          ? percorsoOsrm(router, "driving", punti as Coordinate[], tokenRouting)
+          : percorsoHere(hereRouting!, profilo, punti as Coordinate[]);
       }));
     }
 
@@ -143,15 +147,17 @@ Deno.serve(async req => {
       const risultato = await cercaVicini((data as Candidato[]).map(c => ({
         ...c, origine: coordinate(c.origine?.lat, c.origine?.lng), prossimo: coordinate(c.prossimo?.lat, c.prossimo?.lng),
       })), meta, minuti(body.inizio)!, minuti(body.fine)!, async rosa => {
-        if (!router) { motivo = "non_configurato"; throw new Servizio("non_configurato"); }
+        if (!router && !hereRouting) { motivo = "non_configurato"; throw new Servizio("non_configurato"); }
         const da = rosa.map(c => c.origine);
         const ritorni = rosa.flatMap((c, i) => c.prossimo ? [{ i, punto: c.prossimo }] : []);
         try {
-          return await unica(["matrice", router, profilo, da, meta, ritorni], 180, async () => {
-            await conta("osrm_privato", "elementi_matrice", da.length + ritorni.length, 100, 10000);
+          return await unica(["matrice", router ?? "here", profilo, da, meta, ritorni], 180, async () => {
+            await conta(router ? "osrm_privato" : "here", "elementi_matrice", da.length + ritorni.length, 100, 10000);
             const [andata, successivi] = await Promise.all([
-              matriceOsrm(router, "driving", da, meta, false, tokenRouting),
-              ritorni.length ? matriceOsrm(router, "driving", ritorni.map(r => r.punto), meta, true, tokenRouting) : [],
+              router ? matriceOsrm(router, "driving", da, meta, false, tokenRouting) : matriceHere(hereRouting!, profilo, da, meta, false),
+              ritorni.length
+                ? (router ? matriceOsrm(router, "driving", ritorni.map(r => r.punto), meta, true, tokenRouting) : matriceHere(hereRouting!, profilo, ritorni.map(r => r.punto), meta, true))
+                : [],
             ]);
             const dopo = da.map<Tratta | null>(() => null);
             ritorni.forEach(({ i }, j) => { dopo[i] = successivi[j]; });

@@ -98,6 +98,109 @@ export async function matriceOsrm(base: string, profilo: string, altri: Coordina
   });
 }
 
+// ── HERE Routing/Matrix v8 — fallback quando non c'è un server OSRM dedicato ──
+// Usano HERE_API_KEY (la stessa chiave della geocodifica) e replicano la forma di
+// percorsoOsrm/matriceOsrm, così il resto della edge non cambia. HERE rifiuta gli
+// host pubblici OSRM/Nominatim per policy, ma ha i suoi servizi di routing a chiave.
+const HERE_ROUTER = "https://router.hereapi.com/v8/routes";
+const HERE_MATRIX = "https://matrix.router.hereapi.com/v8/matrix";
+const modoHere = (profilo: string) => (profilo === "furgone" ? "truck" : "car");
+
+/** Decodifica la "flexible polyline" di HERE (solo lat/lng, scarta l'eventuale 3ª dim). */
+function decodeFlexiblePolyline(encoded: string): Coordinate[] {
+  const T = [62,-1,-1,63,52,53,54,55,56,57,58,59,60,61,-1,-1,-1,-1,-1,-1,-1,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,-1,-1,-1,-1,-1,-1,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51];
+  let i = 0;
+  const unsigned = (): bigint => {
+    let r = 0n, shift = 0n;
+    for (;;) {
+      if (i >= encoded.length) throw new Error("polyline troncata");
+      const c = encoded.charCodeAt(i++) - 45;
+      const v = c >= 0 && c < T.length ? T[c] : -1;
+      if (v < 0) throw new Error("polyline non valida");
+      r |= BigInt(v & 0x1f) << shift;
+      if ((v & 0x20) === 0) return r;
+      shift += 5n;
+    }
+  };
+  const signed = (v: bigint): bigint => ((v & 1n) ? ~(v >> 1n) : (v >> 1n));
+  if (unsigned() !== 1n) throw new Error("versione polyline non supportata");
+  const header = Number(unsigned());
+  const fattore = Math.pow(10, header & 15);
+  const terzaDim = (header >> 4) & 7;
+  const punti: Coordinate[] = [];
+  let lat = 0n, lng = 0n;
+  while (i < encoded.length) {
+    lat += signed(unsigned());
+    lng += signed(unsigned());
+    if (terzaDim) unsigned();
+    punti.push({ lat: Number(lat) / fattore, lng: Number(lng) / fattore });
+  }
+  return punti;
+}
+
+type LuogoHere = { originalLocation?: { lat: number; lng: number }; location?: { lat: number; lng: number } };
+type SezioneHere = {
+  summary?: { length?: number; duration?: number };
+  polyline?: string;
+  departure?: { place?: LuogoHere };
+  arrival?: { place?: LuogoHere };
+};
+
+export async function percorsoHere(apiKey: string, profilo: string, punti: Coordinate[]): Promise<PercorsoStradale> {
+  const vuoto: PercorsoStradale = { tratte: punti.slice(1).map((): null => null), geometria: [] };
+  if (punti.length < 2) return vuoto;
+  const p = new URLSearchParams({
+    transportMode: modoHere(profilo),
+    origin: `${punti[0].lat},${punti[0].lng}`,
+    destination: `${punti[punti.length - 1].lat},${punti[punti.length - 1].lng}`,
+    return: "polyline,summary", apikey: apiKey,
+  });
+  for (const v of punti.slice(1, -1)) p.append("via", `${v.lat},${v.lng}`);
+  const risposta = await fetch(`${HERE_ROUTER}?${p.toString()}`, { signal: AbortSignal.timeout(8000), redirect: "error" });
+  if (!risposta.ok) {
+    if (risposta.status === 400) return { ...vuoto, problema: "nessun_percorso" };
+    throw new Error("Provider cartografico non disponibile");
+  }
+  const data = await risposta.json() as { routes?: Array<{ sections: SezioneHere[] }> };
+  const sezioni = data.routes?.[0]?.sections;
+  if (!sezioni?.length) return { ...vuoto, problema: "nessun_percorso" };
+  const lontano = (place?: LuogoHere) => {
+    const orig = coordinate(place?.originalLocation?.lat, place?.originalLocation?.lng);
+    const snap = coordinate(place?.location?.lat, place?.location?.lng);
+    return !!orig && !!snap && metriInLinea(orig, snap) > raggioAggancio;
+  };
+  const fuori: number[] = [];
+  sezioni.forEach((s, i) => {
+    if (lontano(s.departure?.place) && !fuori.includes(i)) fuori.push(i);
+    if (lontano(s.arrival?.place) && !fuori.includes(i + 1)) fuori.push(i + 1);
+  });
+  if (fuori.length) return { ...vuoto, problema: "fuori_copertura", puntiFuoriCopertura: fuori.sort((a, b) => a - b) };
+  const tratte = sezioni.map(s => valore(s.summary?.length, s.summary?.duration));
+  const geometrieTratte = sezioni.map(s => { try { return s.polyline ? decodeFlexiblePolyline(s.polyline) : []; } catch { return []; } });
+  return { tratte, geometria: geometrieTratte.flat(), geometrieTratte };
+}
+
+export async function matriceHere(apiKey: string, profilo: string, altri: Coordinate[], meta: Coordinate, ritorno = false): Promise<(Tratta | null)[]> {
+  if (!altri.length) return [];
+  const origins = (ritorno ? altri : [meta]).map(p => ({ lat: p.lat, lng: p.lng }));
+  const destinations = (ritorno ? [meta] : altri).map(p => ({ lat: p.lat, lng: p.lng }));
+  const risposta = await fetch(`${HERE_MATRIX}?async=false&apikey=${apiKey}`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, signal: AbortSignal.timeout(9000), redirect: "error",
+    body: JSON.stringify({ origins, destinations, regionDefinition: { type: "autoCircle" },
+      transportMode: modoHere(profilo), matrixAttributes: ["travelTimes", "distances"] }),
+  });
+  if (!risposta.ok) throw new Error("Provider cartografico non disponibile");
+  const data = await risposta.json() as { matrix?: { numDestinations?: number; travelTimes?: number[]; distances?: number[]; errorCodes?: number[] } };
+  const m = data.matrix;
+  if (!m?.distances || !m?.travelTimes) return altri.map((): null => null);
+  const nd = m.numDestinations ?? destinations.length;
+  return altri.map((_, i) => {
+    const [o, d] = ritorno ? [i, 0] : [0, i];
+    const idx = o * nd + d;
+    return (m.errorCodes?.[idx] ?? 0) === 0 ? valore(m.distances![idx], m.travelTimes![idx]) : null;
+  });
+}
+
 export async function cercaIndirizzo(base: string, indirizzo: string, token?: string) {
   const url = endpoint(base, "search");
   url.search = new URLSearchParams({ q: indirizzo, limit: "5", format: "jsonv2", addressdetails: "1",
