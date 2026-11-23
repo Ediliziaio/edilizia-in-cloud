@@ -1,5 +1,7 @@
+import { useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
+import { refreshWorkQueries } from "@/lib/orders/refreshWorkQueries";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { checkVariationDocument, type VariationDocument, type VariationWorkspace } from "@/lib/orders/variationWorkspace";
@@ -33,15 +35,16 @@ export async function openVariationDocument(order: string, company: string, id: 
 }
 export function useVariationWorkflow(order: string, company: string) {
   const queryClient = useQueryClient();
-  const refresh = async () => {
+  const refresh = useCallback(async (lavori = false) => {
     refreshFinancialQueries(queryClient);
+    if (lavori) refreshWorkQueries(queryClient, order, company);
     await Promise.all([
-      ["ordini-variazione", order], ["order-attachments", order], ["marginalita-cantieri"], ["marginalita-widget"], ["order-marginality", order],
+      ["ordini-variazione", order], ["generale-varianti"], ["order-attachments", order], ["marginalita-cantieri"], ["marginalita-widget"], ["order-marginality", order],
     ].map(queryKey => queryClient.invalidateQueries({ queryKey })));
-  };
+  }, [queryClient, order, company]);
   const request = async (id: string, action: string, payload: Record<string, unknown> = {}) => {
-    try { const result = await variationWorkflowRequest(order, company, id, action, payload); if (action !== "load") await refresh(); return result; }
-    catch (error) { if (action !== "load") await refresh(); throw error; }
+    try { const result = await variationWorkflowRequest(order, company, id, action, payload); if (action !== "load") await refresh(action === "approve_offline"); return result; }
+    catch (error) { if (action !== "load") await refresh(action === "approve_offline"); throw error; }
   };
-  return { request, open: (id: string, fileId?: string) => openVariationDocument(order, company, id, fileId) };
+  return { request, refresh, open: (id: string, fileId?: string) => openVariationDocument(order, company, id, fileId) };
 }

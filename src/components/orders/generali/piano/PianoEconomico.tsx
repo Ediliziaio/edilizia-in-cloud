@@ -102,6 +102,8 @@ import { controllaBudget, stimaMancante } from "@/lib/orders/generali/budgetComp
 import { CompletezzaBudget } from "./CompletezzaBudget";
 import { StoricoBusinessPlan } from "./StoricoBusinessPlan";
 import { CassaScadenze } from "./CassaScadenze";
+import { PianoEconomicoMobile } from "./PianoEconomicoMobile";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 type Vista = "voci" | "cassa" | "comuni" | "andamento";
 
@@ -109,6 +111,8 @@ const nomeVersione = (v: VersionePiano) =>
   `Versione ${v.numero} · ${v.stato === "bozza" ? "bozza" : v.stato === "approvata" ? `approvata${v.approvataIl ? ` il ${dataBreve(v.approvataIl)}` : ""}` : "superata"}`;
 
 export function PianoEconomico(props: PropsScheda) {
+  const telefono = useIsMobile();
+  if (telefono) return <PianoEconomicoMobile {...props} />;
   return (
     <AspettoOperativoProvider
       value={{
@@ -144,10 +148,22 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
     p.set("vista-cantiere", vistaCantiere);
     setParametri(p);
   };
+  const apriPrioritaCassa = () => {
+    const p = new URLSearchParams(parametri);
+    p.set("scheda", "cantiere");
+    p.set("vista-cantiere", "da-seguire");
+    p.set("priorita", "cassa");
+    p.delete("priorita-pagina");
+    p.delete("fase-cantiere");
+    p.delete("rapportino-cantiere");
+    setParametri(p);
+  };
   const apriInvestitori = (mese?: string) => {
     const p = new URLSearchParams(parametri);
     p.set("scheda", "investitori");
     p.delete("gruppo-fonti");
+    p.delete("fonte-investitori");
+    p.set("vista-investitori", mese ? "rendiconti" : "fonti");
     if (mese) {
       p.set("rendiconto-mese", mese);
       p.set("rendiconto-aperto", "1");
@@ -261,7 +277,6 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
             onOpenChange={setImportaFile}
             generaleId={g.id}
             versioneId={null}
-            vociEsistenti={0}
             onImportato={setVersioneId}
           />
         )}
@@ -666,9 +681,13 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
         <TabsContent value="cassa" className="mt-3 space-y-6">
           {riepilogo.permessi.costi && riepilogo.permessi.importi && (
             <CassaScadenze
+              key={`${parametri.get("cassa-base")}:${parametri.get("cassa-periodo")}`}
               riepilogo={riepilogo}
               onInvestitori={() => apriInvestitori()}
               onPagamenti={() => apriCantiere("pagamenti")}
+              onPriorita={apriPrioritaCassa}
+              baseIniziale={parametri.get("cassa-base") === "attesi" ? "attesi" : "registrati"}
+              periodoIniziale={parametri.get("cassa-periodo") === "futuro" ? "futuro" : "tutto"}
             />
           )}
           <IntestazioneScheda
@@ -684,6 +703,11 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
               Verifica copertura con le fonti
             </Button>
           </IntestazioneScheda>
+          {n.scadenzeCaricamento && <p role="status" className="text-sm text-muted-foreground">Lettura delle scadenze delle fatture…</p>}
+          {n.scadenzeErrore && <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+            Uso date stimate per le fatture. Le scadenze registrate sono momentaneamente indisponibili.
+            <Button type="button" variant="outline" size="sm" onClick={() => void n.rileggiScadenze()}>Riprova</Button>
+          </div>}
           <CassaIndicatori
             piano={piano}
             scenario={scenario}
@@ -719,7 +743,7 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
           onOpenChange={setImportaFile}
           generaleId={g.id}
           versioneId={v.id}
-          vociEsistenti={n.voci.length}
+          vociEsistenti={n.voci}
         />
       )}
       {modificabile && (

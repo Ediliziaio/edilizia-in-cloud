@@ -164,7 +164,7 @@ describe("la pagina della commessa generale", () => {
     disegna();
     expect(screen.getByText("ODL-2 è in perdita.")).toBeVisible();
     apriImportiLavori();
-    const riga = screen.getByRole("link", { name: /Scuola Collodi/ }).closest("tr")!;
+    const riga = screen.getByRole("link", { name: /^Scuola Collodi/ }).closest("tr")!;
     expect(within(riga).getByText(/-60\.000\s+€/)).toHaveClass("text-destructive");
   });
 
@@ -187,7 +187,7 @@ describe("la pagina della commessa generale", () => {
     m.mobile = true;
     disegna();
     expect(screen.queryByRole("button", { name: /Nuovo lavoro collegato|Collega|Modifica/ })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Scuola Rodari/ })).toHaveAttribute("href", "/azienda/ordini/a");
+    expect(screen.getByRole("link", { name: /^Scuola Rodari/ })).toHaveAttribute("href", "/azienda/ordini/a");
   });
 
   it("previsionale e reale affiancati, col €/m² dalle unità", () => {
@@ -389,7 +389,7 @@ describe("costi comuni nella panoramica", () => {
     m.costoErrore = true;
     disegna();
     apriImportiLavori();
-    const riga = screen.getByRole("link", { name: /Scuola Collodi/ }).closest("tr")!;
+    const riga = screen.getByRole("link", { name: /^Scuola Collodi/ }).closest("tr")!;
     expect(within(riga).getByText("Non disponibile")).toBeVisible();
     expect(within(riga).queryByText(/-60\.000\s+€/)).not.toBeInTheDocument();
     fireEvent.click(within(screen.getByRole("alert")).getByRole("button", { name: "Riprova" }));
@@ -402,7 +402,7 @@ describe("costi comuni nella panoramica", () => {
     apriImportiLavori();
     // 100.000 − 60.000 delle commesse, meno 50.000 di costi comuni
     expect(screen.getAllByText(/-10\.000\s+€/).length).toBeGreaterThan(0);
-    const rodari = screen.getByRole("link", { name: /Scuola Rodari/ }).closest("tr")!;
+    const rodari = screen.getByRole("link", { name: /^Scuola Rodari/ }).closest("tr")!;
     expect(within(rodari).getByText(/quota comuni −31\.250/)).toBeInTheDocument();
     expect(within(rodari).getByText(/68\.750\s+€/)).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Margine a oggi" })).toBeInTheDocument();

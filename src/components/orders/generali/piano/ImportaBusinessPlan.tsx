@@ -11,16 +11,18 @@ import {
 } from "@/lib/orders/generali/pianoCategorie";
 import {
   analizzaBusinessPlan,
+  chiaveVoceBusinessPlan,
   leggiFileBusinessPlan,
   type FoglioBusinessPlan,
 } from "@/lib/orders/generali/businessPlanImport";
+import type { VocePiano } from "@/lib/orders/generali/pianoConti";
 import { leggiNumeroItaliano } from "@/lib/orders/generali/pianoExcel";
 import { euro } from "./formato";
 import { DA_STIMARE, riferimentoImportazione } from "@/lib/orders/generali/budgetCompletezza";
 import { leggiBusinessPlanAi } from "@/lib/orders/documentImportAi";
 import { scenariBusinessPlanAi } from "@/lib/orders/generali/businessPlanAi";
 
-export type VoceImportata = VoceNuova & { nota: string };
+export type VoceImportata = VoceNuova & { nota: string; aggiungiGiaPresente?: true };
 export interface OrigineBusinessPlan {
   file: File;
   hash: string;
@@ -32,14 +34,14 @@ export interface OrigineBusinessPlan {
 export function ImportaBusinessPlan({
   onImporta,
   onAnnulla,
-  vociEsistenti = 0,
+  vociEsistenti,
   occupato = false,
   companyId = null,
   destinazione = "piano",
 }: {
   onImporta: (voci: VoceImportata[], origine?: OrigineBusinessPlan) => void;
   onAnnulla: () => void;
-  vociEsistenti?: number;
+  vociEsistenti?: readonly VocePiano[];
   occupato?: boolean;
   companyId?: string | null;
   destinazione?: "piano" | "simulatore";
@@ -53,7 +55,7 @@ export function ImportaBusinessPlan({
   const [indice, setIndice] = useState(0);
   const [caricamento, setCaricamento] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
-  const [escluse, setEscluse] = useState<Set<number>>(new Set());
+  const [selezionate, setSelezionate] = useState<Record<number, boolean>>({});
   const [categorie, setCategorie] = useState<Record<number, CategoriaPiano>>({});
   const [importi, setImporti] = useState<Record<number, string>>({});
   const [mesi, setMesi] = useState<Record<number, string>>({});
@@ -62,19 +64,33 @@ export function ImportaBusinessPlan({
     () => (fogli[indice] ? analizzaBusinessPlan(fogli[indice]) : null),
     [fogli, indice],
   );
+  const esistentiPerNome = useMemo(() => {
+    const mappa = new Map<string, VocePiano[]>();
+    for (const voce of vociEsistenti ?? []) {
+      const chiave = chiaveVoceBusinessPlan(voce);
+      const voci = mappa.get(chiave);
+      if (voci) voci.push(voce);
+      else mappa.set(chiave, [voce]);
+    }
+    return mappa;
+  }, [vociEsistenti]);
   const righe = (analisi?.righe ?? []).map((r) => {
     const importo = importi[r.riga] === undefined ? r.importo : leggiNumeroItaliano(importi[r.riga]);
+    const giaPresenti = esistentiPerNome.get(chiaveVoceBusinessPlan(r)) ?? [];
     return {
       ...r,
       importo,
+      giaPresenti,
+      selezionata: selezionate[r.riga] ?? (giaPresenti.length === 0),
       mese: mesi[r.riga] ?? r.mese ?? null,
       problema:
         importi[r.riga] === undefined ? r.problema : importo === null ? "Scrivi un importo valido" : importo < 0 ? "Verifica l'importo negativo" : null,
     };
   });
-  const valide = righe.filter((r) => r.importo !== null && r.importo >= 0 && !escluse.has(r.riga));
-  const daImportare = righe.filter((r) => !escluse.has(r.riga));
-  const mancanti = righe.filter((r) => r.importo === null || r.importo < 0).length;
+  const daImportare = righe.filter((r) => r.selezionata);
+  const valide = daImportare.filter((r) => r.importo !== null && r.importo >= 0);
+  const mancanti = daImportare.length - valide.length;
+  const giaPresenti = righe.filter(r => r.giaPresenti.length > 0).length;
   const totale = (tipo: "costo" | "ricavo") =>
     valide.filter((r) => r.tipo === tipo).reduce((s, r) => s + (r.importo ?? 0), 0);
   const carica = async (f: File | undefined) => {
@@ -84,7 +100,7 @@ export function ImportaBusinessPlan({
     setCaricamento(true);
     setFogli([]);
     setConferma(false);
-    setEscluse(new Set());
+    setSelezionate({});
     setCategorie({});
     setImporti({});
     setMesi({});
@@ -169,7 +185,7 @@ export function ImportaBusinessPlan({
                 disabled={occupato}
                 onChange={(e) => {
                   setIndice(Number(e.target.value));
-                  setEscluse(new Set());
+                  setSelezionate({});
                   setCategorie({});
                   setImporti({});
                   setMesi({});
@@ -211,10 +227,10 @@ export function ImportaBusinessPlan({
                 .map((a) => (
                   <li key={a}>{a}</li>
                 ))}
-              {vociEsistenti > 0 && (
+              {giaPresenti > 0 && (
                 <li>
-                  La bozza contiene già {vociEsistenti} voci. Le righe selezionate si aggiungono: togli
-                  dall'anteprima quelle già presenti, soprattutto i ricavi.
+                  {giaPresenti} {giaPresenti === 1 ? "riga già presente" : "righe già presenti"} nella bozza.
+                  Puoi confrontare gli importi qui. Se vuoi aggiungere una seconda voce, selezionala.
                 </li>
               )}
             </ul>
@@ -242,14 +258,9 @@ export function ImportaBusinessPlan({
                         type="checkbox"
                         aria-label={`Importa riga ${r.riga}`}
                         disabled={occupato || r.importo === null || r.importo < 0}
-                        checked={!escluse.has(r.riga)}
+                        checked={r.selezionata}
                         onChange={(e) => {
-                          setEscluse((s) => {
-                            const n = new Set(s);
-                            if (e.target.checked) n.delete(r.riga);
-                            else n.add(r.riga);
-                            return n;
-                          });
+                          setSelezionate((s) => ({ ...s, [r.riga]: e.target.checked }));
                           setConferma(false);
                         }}
                       />
@@ -257,6 +268,11 @@ export function ImportaBusinessPlan({
                     <td className="p-2 tabular-nums text-muted-foreground">{r.riga}</td>
                     <td className="min-w-44 p-2">
                       {r.descrizione}
+                      {r.giaPresenti.length > 0 && (
+                        <span className="block text-xs text-amber-800 dark:text-amber-300">
+                          {r.giaPresenti.length === 1 ? `Già in bozza · ${euro(r.giaPresenti[0].importo)}` : `Già in bozza · ${r.giaPresenti.length} voci con lo stesso nome`}
+                        </span>
+                      )}
                       {r.problema && (
                         <span className="block text-xs text-amber-800 dark:text-amber-300">{r.problema}</span>
                       )}
@@ -297,7 +313,7 @@ export function ImportaBusinessPlan({
                         }
                         onChange={(e) => {
                           setImporti((s) => ({ ...s, [r.riga]: e.target.value }));
-                          setEscluse((s) => { const n = new Set(s); n.delete(r.riga); return n; });
+                          if (r.giaPresenti.length === 0) setSelezionate(s => ({ ...s, [r.riga]: true }));
                           setConferma(false);
                         }}
                       />
@@ -347,6 +363,7 @@ export function ImportaBusinessPlan({
                 importo: r.importo !== null && r.importo >= 0 ? r.importo : 0,
                 mese: r.mese || null,
                 durataMesi: r.durataMesi ?? 1,
+                ...(r.giaPresenti.length > 0 ? { aggiungiGiaPresente: true as const } : {}),
                 nota: `${riferimentoImportazione(hash, fogli[indice].nome, r.riga)} ${r.importo === null || r.importo < 0 ? DA_STIMARE + " " : ""}Fonte: ${file.slice(0, 200)} · ${fogli[indice].nome} · riga ${r.riga}.${importi[r.riga] !== undefined ? " Importo modificato nell'anteprima." : ""} Budget senza consuntivi. ${r.mese ? "Mese letto o verificato nell’anteprima." : "Calendario da completare."}`,
               })),
               originale ? { file: originale, hash, foglio: fogli[indice].nome, ...(fogli[indice].ai ? { simulazione: fogli[indice].ai!.simulazione } : {}) } : undefined,

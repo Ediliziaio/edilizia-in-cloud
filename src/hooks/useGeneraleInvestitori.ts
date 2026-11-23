@@ -5,7 +5,8 @@
 import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { MOVIMENTO_PREVISTO, notaMovimento } from "@/lib/orders/generali/movimentiFonti";
+import { MOVIMENTO_PREVISTO, movimentoPrevisto, notaMovimento } from "@/lib/orders/generali/movimentiFonti";
+import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
 import type { RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 import { useGeneralePianoNumeri } from "@/hooks/useGeneralePiano";
 import { numeriPerInvestitori } from "@/lib/orders/generali/pianoConti";
@@ -45,14 +46,14 @@ export function useFontiGenerale(generaleId: string | undefined, enabled = true)
     enabled: !!generaleId && enabled,
     staleTime: 30_000,
     queryFn: async (): Promise<Fonte[]> => {
-      const { data, error } = await db
+      const data = await loadCatalogPages<Record<string, unknown> & { id: string }>((da, a) => db
         .from("generale_fonti")
         .select(COLONNE_FONTE)
         .eq("generale_id", generaleId!)
         .order("ordine", { ascending: true })
         .order("created_at", { ascending: true })
-        .limit(500);
-      if (error) throw error;
+        .order("id")
+        .range(da, a));
       return leggiFonti(data);
     },
   });
@@ -64,13 +65,13 @@ export function useMovimentiFonti(generaleId: string | undefined, enabled = true
     enabled: !!generaleId && enabled,
     staleTime: 30_000,
     queryFn: async (): Promise<Movimento[]> => {
-      const { data, error } = await db
+      const data = await loadCatalogPages<Record<string, unknown> & { id: string }>((da, a) => db
         .from("generale_fonti_movimenti")
         .select(COLONNE_MOVIMENTO)
         .eq("generale_id", generaleId!)
         .order("data", { ascending: true })
-        .limit(5000);
-      if (error) throw error;
+        .order("id")
+        .range(da, a));
       return leggiMovimenti(data);
     },
   });
@@ -82,13 +83,13 @@ export function useRendicontiInviati(generaleId: string | undefined, enabled = t
     enabled: !!generaleId && enabled,
     staleTime: 30_000,
     queryFn: async (): Promise<RendicontoInviato[]> => {
-      const { data, error } = await db
+      const data = await loadCatalogPages<Record<string, unknown> & { id: string }>((da, a) => db
         .from("generale_rendiconti")
         .select(COLONNE_RENDICONTO)
         .eq("generale_id", generaleId!)
         .order("created_at", { ascending: false })
-        .limit(200);
-      if (error) throw error;
+        .order("id")
+        .range(da, a));
       return leggiRendiconti(data);
     },
   });
@@ -286,17 +287,31 @@ export function useEliminaMovimento(generaleId: string) {
   });
 }
 
-export function useConfermaMovimento(generaleId: string) {
+export type AzioneMovimentoPrevisto = "conferma" | "riprogramma";
+
+export function useAggiornaMovimentoPrevisto(generaleId: string) {
   const invalida = useInvalida(generaleId);
   return useMutation({
     meta: { silent: true },
-    mutationFn: async ({ movimento, data }: { movimento: Movimento; data: string }) => {
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(data) || data > oggiIso()) throw new Error("Scegli la data effettiva, entro oggi.");
-      const nota = `${notaMovimento(movimento.nota)} Movimento confermato come effettuato il ${oggiIso()}.`.trim();
-      const { error } = await db.from("generale_fonti_movimenti").update({ data, nota }).eq("id", movimento.id).eq("generale_id", generaleId).eq("data", movimento.data).select("id").single();
+    mutationFn: async ({ movimento, data, azione }: { movimento: Movimento; data: string; azione: AzioneMovimentoPrevisto }) => {
+      const oggi = oggiIso();
+      const riprogramma = azione === "riprogramma";
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(data) || (riprogramma ? data < oggi : data > oggi)) {
+        throw new Error(riprogramma ? "Scegli una nuova data a partire da oggi." : "Scegli la data effettiva, entro oggi.");
+      }
+      if (!movimentoPrevisto(movimento, oggi)) throw new Error("Il movimento risulta già effettuato.");
+      if (riprogramma && data === movimento.data) throw new Error("Scegli una data diversa da quella già prevista.");
+      let nota = movimento.nota;
+      if (!riprogramma) nota = `${notaMovimento(nota)} Movimento confermato come effettuato il ${oggi}.`.trim();
+      else if (!nota?.includes(MOVIMENTO_PREVISTO)) nota = `${MOVIMENTO_PREVISTO} ${notaMovimento(nota)}`.trim();
+      const query = db.from("generale_fonti_movimenti").update({ data, nota })
+        .eq("id", movimento.id).eq("generale_id", generaleId).eq("data", movimento.data);
+      const { data: aggiornato, error } = await (movimento.nota === null ? query.is("nota", null) : query.eq("nota", movimento.nota))
+        .select("id").maybeSingle();
       if (error) throw error;
+      if (!aggiornato) throw new Error("Il movimento è cambiato. Aggiorna il registro e riprova.");
     },
-    onSuccess: () => void invalida.movimenti(),
+    onSettled: () => invalida.movimenti(),
   });
 }
 

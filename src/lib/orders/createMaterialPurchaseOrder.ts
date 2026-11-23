@@ -47,12 +47,13 @@ export async function createMaterialPurchaseOrder(input: {
     const current: ProcurementItem[] = [];
     for (let start = 0; start < ids.length; start += 100) {
       const { data, error } = await supabase.from("order_items")
-        .select("id, name, quantity, purchase_price, prezzo_da_definire, prezzo_fonte, vat_rate, supplier_id, stock_item_id, status, posizioni, unita_misura, origini, product_code, riferimento, specifiche, measure_status, misure_preventivo, misure_da_ordinare, axis_selections, orders!inner(company_id)")
+        .select("id, name, quantity, purchase_price, prezzo_da_definire, prezzo_fonte, vat_rate, supplier_id, stock_item_id, warehouse_supply_quantity, status, posizioni, unita_misura, origini, product_code, riferimento, specifiche, measure_status, misure_preventivo, misure_da_ordinare, axis_selections, orders!inner(company_id)")
         .eq("order_id", orderId).eq("orders.company_id", companyId).in("id", ids.slice(start, start + 100));
       if (error) throw error;
-      const incomplete = (data ?? []).filter(r => verificaDelMateriale({ name: r.name, origini: Array.isArray(r.origini) ? r.origini as unknown as OrigineRiga[] : [] })?.stato === "da_verificare");
+      const articoli = (data ?? []) as unknown as (ProcurementItem & { origini: unknown })[];
+      const incomplete = articoli.filter(r => verificaDelMateriale({ name: r.name, origini: Array.isArray(r.origini) ? r.origini as OrigineRiga[] : [] })?.stato === "da_verificare");
       if (incomplete.length) throw new Error(`Completa e verifica i dati tecnici prima di creare l'ordine: ${incomplete.map(r => r.name).join(", ")}.`);
-      current.push(...(data ?? []) as unknown as ProcurementItem[]);
+      current.push(...articoli);
     }
     const coverage = await loadMaterialCoverage(companyId, ids);
     const candidates = pendingMaterials(current, coverage).filter(i => i.supplier_id === supplierId);

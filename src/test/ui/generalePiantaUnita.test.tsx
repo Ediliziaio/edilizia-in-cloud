@@ -25,7 +25,7 @@ describe("la pianta dell'unità", () => {
     expect(q.get("da")).toBe("documento");
     expect(q.get("commessa")).toBe("ord1");
     expect(q.get("titolo")).toBe("Pianta A1");
-    expect(q.get("torna")).toBe("/azienda/ordini/gen1?scheda=unita");
+    expect(q.get("torna")).toBe("/azienda/ordini/gen1?scheda=unita&unita=ord1");
     expect(screen.getByRole("link", { name: /Disegna/ })).toBeInTheDocument();
   });
 

@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { totaliGenerale, type RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 import { CantiereGenerale } from "@/components/orders/generali/moduli/CantiereScheda";
+import type { ReactNode } from "react";
 
 vi.mock("@/hooks/usePermissions", () => ({
   usePermissions: () => ({ canViewCosts: true, canViewOrders: true, canEditOrders: true }),
@@ -12,10 +13,14 @@ vi.mock("@/hooks/usePermissions", () => ({
 vi.mock("@/hooks/useMaterialiPerFase", () => ({
   useMaterialiPerFase: (id?: string) => ({ data: { righe: id ? [{ id: "item", name: "Cemento", quantity: 5 }] : [] } }),
 }));
+vi.mock("@/hooks/useDettagliPrioritaOperazione", () => ({
+  useEdificiPriorita: (): { data: undefined } => ({ data: undefined }),
+}));
 vi.mock("@/components/orders/generali/moduli/MovimentiOperazione", () => ({
-  MovimentiOperazione: ({ vista, onApri }: { vista: string; onApri: (id: string, fase: string) => void }) => (
+  MovimentiOperazione: ({ vista, onApri, azioni }: { vista: string; onApri: (id: string, fase: string) => void; azioni?: ReactNode }) => (
     <section aria-label="Vista aggregata">
       {["lavorazioni", "cronoprogramma"].includes(vista) ? <button onClick={() => onApri("figlia", "fase")}>Fondazioni</button> : vista}
+      {azioni}
     </section>
   ),
 }));
@@ -39,6 +44,23 @@ vi.mock("@/components/orders/LinkedPurchaseOrdersCard", () => ({
 vi.mock("@/components/orders/generali/moduli/RiconciliazioneGenerale", () => ({
   RiconciliazioneGenerale: ({ commessaId, onApriPagamenti }: { commessaId?: string; onApriPagamenti: () => void }) =>
     <><p>Controllo · {commessaId ?? "tutta"}</p><button onClick={onApriPagamenti}>Vedi pagamenti</button></>,
+}));
+vi.mock("@/components/orders/generali/moduli/MaterialiOperazione", () => ({
+  default: ({ apri, genera }: { apri: (id: string, ricerca?: string) => void; genera?: (id: string) => void }) => <>
+    <button onClick={() => apri("figlia", "Cemento")}>Materiale del lotto</button>
+    <button onClick={() => genera?.("figlia")}>Genera per il lotto</button>
+  </>,
+}));
+vi.mock("@/components/orders/generali/moduli/MaterialiAmbito", () => ({
+  default: ({ orderId, apriOrdini, generaIniziale, ricercaIniziale, apriRiepilogo }: {
+    orderId: string; apriOrdini: () => void; generaIniziale?: boolean; ricercaIniziale?: string; apriRiepilogo?: () => void;
+  }) => <div>
+    <p>Materiali · {orderId}</p>
+    {generaIniziale && <p>Computo da aprire · {orderId}</p>}
+    {ricercaIniziale && <p>Articolo · {ricercaIniziale}</p>}
+    <button onClick={apriOrdini}>Apri gli ordini del lotto</button>
+    <button onClick={apriRiepilogo}>Riepilogo materiali</button>
+  </div>,
 }));
 
 const riepilogo = {
@@ -76,6 +98,37 @@ describe("Cantiere della commessa generale", () => {
     fireEvent.click(screen.getByRole("button", { name: "Fondazioni" }));
     expect(await screen.findByText("figlia · fase")).toBeInTheDocument();
     expect(screen.getByTestId("ricerca")).toHaveTextContent("ambito-cantiere=figlia");
+  });
+
+  it("l'indice cerca il lotto e collega il computo generale e la vista complessiva", async () => {
+    apri("&vista-cantiere=lavorazioni");
+    const indice = within(screen.getByRole("complementary", { name: "Indice lavorazioni" }));
+    fireEvent.change(indice.getByRole("searchbox"), { target: { value: "edificio" } });
+    fireEvent.click(indice.getByRole("button", { name: /Edificio A/ }));
+    expect(await screen.findByText("figlia ·")).toBeInTheDocument();
+    fireEvent.click(indice.getByRole("button", { name: "Computo generale" }));
+    expect(await screen.findByText("generale ·")).toBeInTheDocument();
+    fireEvent.click(indice.getByRole("button", { name: "Tutte le fasi" }));
+    expect(screen.getByRole("region", { name: "Vista aggregata" })).toBeInTheDocument();
+  });
+
+  it("apre i materiali prima degli acquisti e mantiene la commessa passando agli OdA", async () => {
+    apri("&vista-cantiere=articoli");
+    expect(screen.getByRole("tab", { name: "Materiali" })).toHaveAttribute("aria-selected", "true");
+    fireEvent.click(await screen.findByRole("button", { name: "Materiale del lotto" }));
+    expect(await screen.findByText("Materiali · figlia")).toBeInTheDocument();
+    expect(screen.getByText("Articolo · Cemento")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Apri gli ordini del lotto" }));
+    expect(await screen.findByText("Ordini · figlia · Cemento")).toBeInTheDocument();
+  });
+
+  it("avvia la generazione nell'ambito scelto e torna ai materiali dell’operazione", async () => {
+    apri("&vista-cantiere=materiali&vista-materiali=magazzino");
+    fireEvent.click(await screen.findByRole("button", { name: "Genera per il lotto" }));
+    expect(await screen.findByText("Computo da aprire · figlia")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Riepilogo materiali" }));
+    expect(await screen.findByRole("button", { name: "Genera per il lotto" })).toBeInTheDocument();
+    expect(screen.getByTestId("ricerca")).toHaveTextContent("vista-materiali=magazzino");
   });
 
   it("mantiene il collegamento storico alle forniture e apre il nuovo OdA sulla generale", async () => {

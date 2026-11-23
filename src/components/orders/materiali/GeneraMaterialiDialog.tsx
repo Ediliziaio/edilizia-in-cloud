@@ -187,8 +187,9 @@ function nomeLeggibile(nome: string): string {
   return t && t === t.toUpperCase() && /[A-ZÀ-Ý]{3}/.test(t) ? t.charAt(0) + t.slice(1).toLowerCase() : t;
 }
 
-export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpenChange, onProposti }: {
+export default function GeneraMaterialiDialog({ orderId, orderCode, computoIniziale, open, onOpenChange, onProposti }: {
   orderId: string; orderCode?: string | null; open: boolean; onOpenChange: (o: boolean) => void;
+  computoIniziale?: string;
   /** Dopo il salvataggio: apre la scelta dei materiali proposti. */
   onProposti?: () => void;
 }) {
@@ -198,8 +199,9 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
   const companyId = effectiveCompany?.id ?? "";
   const qc = useQueryClient();
   const computi = useComputiCommessa(orderId, companyId);
-  const letti = (computi.data ?? []).filter(computoLetto);
-  const [computoId, setComputoId] = useState<string | null>(null);
+  const letti = (computi.data ?? []).filter(c => computoLetto(c) && !c.ripartito);
+  const soloOriginaliRipartiti = !letti.length && (computi.data ?? []).some(c => c.ripartito);
+  const [computoId, setComputoId] = useState<string | null>(computoIniziale ?? null);
   const preferito = letti.find((c) => c.stato === "contrattuale") ?? letti.find((c) => c.stato === "verificato") ?? letti[0];
   const scelto = letti.find((c) => c.id === computoId) ?? preferito;
   const voci = useVociComputo(scelto?.id, open);
@@ -237,7 +239,7 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
 
   // Non si aspettano le tavole: senza computo la finestra si apre subito (le tavole contate sono rare,
   // e se ci sono si torna all'anteprima appena lette).
-  const senzaComputo = !computi.isLoading && !!companyId && !letti.length && !inLettura;
+  const senzaComputo = !computi.isLoading && !!companyId && !letti.length && !inLettura && !soloOriginaliRipartiti;
   // La commessa nata da un preventivo con computo ha già le voci: si prendono da lì, senza
   // ricaricare il file (17/11/2026). Solo se non c'è ancora un computo nella commessa.
   const dalPreventivo = useQuery({
@@ -536,7 +538,10 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
           toast.error("Scelte non ricordate", { description: messaggioErrore(e) });
         }
       }
-      await qc.invalidateQueries({ queryKey: ["materiali-proposti", orderId] });
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["materiali-proposti", orderId] }),
+        qc.invalidateQueries({ queryKey: ["generale-materiali-operazione", "proposte"] }),
+      ]);
       onOpenChange(false);
       if (esito.proposti > 0) onProposti?.();
     } catch (e) {
@@ -630,13 +635,13 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
                   </Select>
                 ) : <span className="min-w-0 truncate font-medium text-slate-800">{scelto.titolo || scelto.file_name}</span>}
                 <span className="text-slate-500">{scelto.stato}{voci.data ? ` · ${voci.data.length} voci` : ""}</span>
-                <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => { setVoceInRevisione(null); setPasso("voci"); }}>Modifica voci</Button>
+                <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => { setVoceInRevisione(null); setPasso("voci"); }}>{scelto.ripartizione_origine_id ? "Vedi voci" : "Modifica voci"}</Button>
                 <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setApriComputo(true)}>Documento e misure</Button>
                 <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" disabled={bozzaVoce} onClick={() => setImporta(true)}><Upload className="mr-1 h-3.5 w-3.5" aria-hidden />Carica un altro</Button>
               </div>
             ) : !computi.isLoading && companyId ? (
               <div className="flex flex-1 items-center gap-2 text-xs text-slate-600">
-                <span>Nessun computo: i materiali vengono dalle tavole contate.</span>
+                <span>{soloOriginaliRipartiti ? "Il computo è ripartito. Assegna una quota a questa commessa per usarlo qui." : "Nessun computo: i materiali vengono dalle tavole contate."}</span>
                 <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => setImporta(true)}><Upload className="mr-1 h-3.5 w-3.5" aria-hidden />Carica il computo</Button>
               </div>
             ) : null}
@@ -677,7 +682,7 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
             <div className="space-y-3 pt-3 text-sm">
               {scelto && <div hidden={passoAttivo !== "voci"}>
                 <VociComputoEditor key={scelto.id} voci={voci.data ?? []} computoId={scelto.id} companyId={companyId}
-                  puoModificare={!!permessi.canEditOrders && ["bozza", "verificato"].includes(scelto.stato)} mostraPrezzi={mostraPrezzi}
+                  puoModificare={!!permessi.canEditOrders && !scelto.ripartizione_origine_id && ["bozza", "verificato"].includes(scelto.stato)} mostraPrezzi={mostraPrezzi}
                   selezionata={voceInRevisione} onMostraTutte={() => setVoceInRevisione(null)} onBozza={setBozzaVoce}
                   onSalvata={() => { setAccese({}); setVoceInRevisione(null); }} />
               </div>}
@@ -912,7 +917,8 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
               <DialogDescription>Voci, misure, controllo dei totali, lavoro pubblico e contabilità dei lavori.</DialogDescription>
             </DialogHeader>
             <Suspense fallback={<p className="p-4 text-sm text-slate-600">Carico il computo…</p>}>
-              <OrderComputoTab orderId={orderId} companyId={companyId} canEdit={permessi.canEditOrders} canViewAmounts={permessi.canViewOrderAmounts} orderLabel={orderCode} />
+              <OrderComputoTab orderId={orderId} companyId={companyId} canEdit={permessi.canEditOrders && !scelto?.ripartizione_origine_id}
+                canViewAmounts={permessi.canViewOrderAmounts} orderLabel={orderCode} computoInizialeId={scelto?.id} />
             </Suspense>
           </DialogContent>
         </Dialog>

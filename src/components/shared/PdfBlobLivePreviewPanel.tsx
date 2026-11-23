@@ -107,9 +107,12 @@ interface Props {
   /** Classe colore accent per il titolo (default arancio). */
   accentClass?: string;
   downloadFileName?: string;
+  downloadButtonLabel?: string;
+  requireRenderedDownload?: boolean;
   showDownloadOnMobile?: boolean;
   allowOpenInNewTab?: boolean;
   headerLabel?: string;
+  vistaPagina?: boolean;
 }
 
 export function PdfBlobLivePreviewPanel({
@@ -123,9 +126,12 @@ export function PdfBlobLivePreviewPanel({
   debounceMs = 500,
   accentClass = "text-orange-600",
   downloadFileName = "anteprima-template.pdf",
+  downloadButtonLabel,
+  requireRenderedDownload = false,
   showDownloadOnMobile = false,
   allowOpenInNewTab = true,
   headerLabel = "Anteprima live PDF",
+  vistaPagina = false,
 }: Props) {
   // Debounce, timeout, corsa tra generazioni e revoca dei blob: tutto nell'hook
   // condiviso, così ogni pannello (compreso il Fotovoltaico) eredita
@@ -145,6 +151,7 @@ export function PdfBlobLivePreviewPanel({
   const [pageCount, setPageCount] = useState(0);
   const [renderNonce, setRenderNonce] = useState(0);
   const affiancato = useDocumentoAffiancato();
+  const adattabile = affiancato || vistaPagina;
   const [zoom, setZoom] = useState(1);
   const [adatta, setAdatta] = useState<AdattamentoDocumento>("pagina");
   const [viewportWidth, setViewportWidth] = useState(0);
@@ -169,11 +176,11 @@ export function PdfBlobLivePreviewPanel({
       const width = container.clientWidth;
       if (width === 0) pendingPositionRef.current = lastVisiblePositionRef.current;
       setViewportWidth(width);
-      if (affiancato) setViewportHeight(container.clientHeight);
+      if (adattabile) setViewportHeight(container.clientHeight);
     });
     observer.observe(container);
     return () => observer.disconnect();
-  }, [affiancato]);
+  }, [adattabile]);
 
   // Il visore PDF nativo dentro l'iframe non è consistente tra browser e,
   // nella pagina impostazioni, può restare bianco pur avendo ricevuto il blob.
@@ -257,13 +264,13 @@ export function PdfBlobLivePreviewPanel({
 
     (async () => {
       const containerWidth = container.clientWidth;
-      if (containerWidth <= 24 || (affiancato && viewportHeight <= 24)) return;
-      const fitScale = Math.min(1.6, Math.max(0.4, (containerWidth - (affiancato ? 16 : 24)) / A4_WIDTH_PT));
+      if (containerWidth <= 24 || (adattabile && viewportHeight <= 24)) return;
+      const fitScale = Math.min(1.6, Math.max(0.4, (containerWidth - 24) / A4_WIDTH_PT));
       const scale = fitScale * zoom;
       const pages = await Promise.all(Array.from({ length: pageCount }, (_, i) => pdfDocument.getPage(i + 1)));
       if (cancelled || pdfDocRef.current !== pdfDocument) return;
       const viewports = pages.map(page => page.getViewport({
-        scale: affiancato
+        scale: adattabile
           ? scalaDocumento(page.getViewport({ scale: 1 }), { width: containerWidth, height: viewportHeight }, adatta) * zoom
           : scale,
       }));
@@ -310,7 +317,7 @@ export function PdfBlobLivePreviewPanel({
     });
 
     return () => { cancelled = true; renderTask?.cancel?.(); invalidateNavigation(); };
-  }, [renderNonce, pageCount, zoom, viewportWidth, viewportHeight, adatta, invalidateNavigation, affiancato]);
+  }, [renderNonce, pageCount, zoom, viewportWidth, viewportHeight, adatta, invalidateNavigation, adattabile]);
 
   useEffect(() => {
     const token = ++navigationTokenRef.current;
@@ -362,8 +369,9 @@ export function PdfBlobLivePreviewPanel({
 
   const previewReady = aggiornato && paintedUrl === url && !error && !pdfError;
   const previewFailed = !!error || !!pdfError;
+  const canDownload = !!url && aggiornato && (!requireRenderedDownload || previewReady);
   const handleDownload = () => {
-    if (!url || !aggiornato) return;
+    if (!url || !canDownload) return;
     const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download = downloadFileName;
@@ -379,7 +387,9 @@ export function PdfBlobLivePreviewPanel({
           <span className={"text-[11px] font-semibold uppercase tracking-wide truncate " + accentClass}>
             {headerLabel}
           </span>
-          <span role="status" aria-live="polite" className={affiancato ? "sr-only" : "text-[10px] text-muted-foreground"} data-preview-state={previewFailed?'error':previewReady?'ready':loading || aggiornato?'rendering':'pending'}>{previewFailed?'Anteprima non disponibile':previewReady?'Aggiornata automaticamente':loading || aggiornato?'Aggiorno il PDF…':'Modifiche in attesa di anteprima'}</span>
+          <span role="status" aria-live="polite" className={affiancato || vistaPagina ? "sr-only" : "text-[10px] text-muted-foreground"} data-preview-state={previewFailed?'error':previewReady?'ready':loading || aggiornato?'rendering':'pending'}>{previewFailed ? "Anteprima non disponibile"
+            : vistaPagina ? previewReady ? "Anteprima pronta" : "Caricamento anteprima…"
+            : previewReady ? "Aggiornata automaticamente" : loading || aggiornato ? "Aggiorno il PDF…" : "Modifiche in attesa di anteprima"}</span>
           {loading && (
             <span className={`inline-flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground ${affiancato ? "sr-only" : ""}`}>
               <Loader2 className="h-3 w-3 animate-spin" /> aggiorno…
@@ -387,7 +397,7 @@ export function PdfBlobLivePreviewPanel({
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          {affiancato ? (
+          {adattabile ? (
             <ZoomDocumento nome="PDF" zoom={zoom} onZoom={setZoom} adatta={adatta}
               onAdatta={valore => { setAdatta(valore); setZoom(1); }} />
           ) : (
@@ -413,8 +423,10 @@ export function PdfBlobLivePreviewPanel({
             <ExternalLink className="h-3.5 w-3.5" />
           </Button>}
           {(!isMobile || showDownloadOnMobile) && (
-            <Button size="icon" variant="ghost" onClick={handleDownload} disabled={!url || !aggiornato} title="Scarica PDF" className="h-7 w-7">
-              <Download className="h-3.5 w-3.5" />
+            <Button size={downloadButtonLabel ? "sm" : "icon"} variant={downloadButtonLabel ? "outline" : "ghost"}
+              onClick={handleDownload} disabled={!canDownload} title={downloadButtonLabel ?? "Scarica PDF"}
+              className={downloadButtonLabel ? "h-7 gap-1.5 px-2 text-xs" : "h-7 w-7"}>
+              <Download className="h-3.5 w-3.5" aria-hidden="true" />{downloadButtonLabel}
             </Button>
           )}
         </div>
@@ -452,7 +464,7 @@ export function PdfBlobLivePreviewPanel({
           </div>
         )}
         {url && !pdfError && pageCount > 0 && (
-          <div className={affiancato ? "flex min-w-full w-max flex-col items-center gap-3" : "flex flex-col items-center gap-3 px-3 py-3"}>
+          <div className={adattabile ? "flex min-w-full w-max flex-col items-center gap-3" : "flex flex-col items-center gap-3 px-3 py-3"}>
             {Array.from({ length: pageCount }, (_, index) => index + 1).map((pageNumber) => (
               <div key={pageNumber} className="mx-auto rounded-sm bg-white shadow-md">
                 <canvas data-page={pageNumber} className="block h-auto" aria-label={`Pagina ${pageNumber} di ${pageCount}`} />

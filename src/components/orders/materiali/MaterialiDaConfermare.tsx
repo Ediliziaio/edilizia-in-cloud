@@ -70,9 +70,10 @@ export function useMaterialiProposti(orderId: string, abilitato: boolean) {
   });
 }
 
-export function MaterialiDaConfermare({ orderId, fasi, aperto, onAperto }: {
+export function MaterialiDaConfermare({ orderId, fasi, faseIniziale, aperto, onAperto }: {
   orderId: string;
   fasi: { id: string | null; nome: string }[];
+  faseIniziale?: string | null;
   aperto: boolean;
   onAperto: (a: boolean) => void;
 }) {
@@ -80,7 +81,7 @@ export function MaterialiDaConfermare({ orderId, fasi, aperto, onAperto }: {
   const qc = useQueryClient();
   // Le spunte scelte a mano; senza, vale «consigliata» (le proposte dell'AI da controllare partono spente).
   const [spunte, setSpunte] = useState<Record<string, boolean>>({});
-  const [faseScelta, setFaseScelta] = useState<string | null>(null);
+  const [faseScelta, setFaseScelta] = useState(faseIniziale === null ? "_senza" : faseIniziale ?? null);
   // Chi fa ogni fase (17/11/2026): con la ditta chiavi in mano la fase non ha materiali da comprare, ha il
   // costo previsto della ditta. Parte da quello che la fase ha già salvato, altrimenti «noi».
   const [chiScelto, setChiScelto] = useState<Record<string, ChiFa>>({});
@@ -137,6 +138,7 @@ export function MaterialiDaConfermare({ orderId, fasi, aperto, onAperto }: {
     void qc.invalidateQueries({ queryKey: chiaviMateriali.commessa(orderId) });
     void qc.invalidateQueries({ queryKey: ["fabbisogno-materiali"] });
     void qc.invalidateQueries({ queryKey: ["order-items"] });
+    void qc.invalidateQueries({ queryKey: ["generale-materiali-operazione"] });
     setSpunte({});
   };
   const conferma = useMutation({

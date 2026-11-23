@@ -1,6 +1,7 @@
 import {describe,expect,it,vi} from "vitest";
 vi.mock("@/integrations/supabase/client",()=>({supabase:{}}));
-import {currentManagementScope,orderEconomics,previousOrderReasons,orderScopeGroupIds,orderWorkflowCounts} from "@/lib/orders/annualScope";
+import {currentManagementScope,orderEconomics,orderEconomicsRow,summarizeOrderEconomics,previousOrderReasons,orderScopeGroupIds,orderWorkflowCounts} from "@/lib/orders/annualScope";
+import {orderCreatedMonth} from "@/lib/orders/monthlyChart";
 import type {OrderWithDetails} from "@/lib/orderUtils";
 const order=(id:string,year:number,status:string|null,paid=true):OrderWithDetails => ({
   id,created_at:`${year}-06-15T10:00:00Z`,current_status_id:status,total_amount:100,vat_rate:22,
@@ -44,5 +45,21 @@ describe("Anno corrente e pregresso ancora da gestire",()=>{
     const previous=orderEconomics([order("previous",2025,"done",false)]);
     expect(annual).toEqual({count:1,sold:122,collected:122,pending:0});
     expect(previous).toEqual({count:1,sold:122,collected:0,pending:122});
+  });
+  it("riusa gli importi delle righe del grafico anche per il riepilogo di un solo mese", () => {
+    const caparre = new Map([["june", 30]]);
+    const permute = new Map([["june", 20]]);
+    const rows = [
+      orderEconomicsRow(order("june", 2026, "open", false), caparre, permute),
+      orderEconomicsRow({ ...order("nov", 2026, "open", false), created_at: "2026-11-09T10:00:00Z", vat_rate: null }),
+    ];
+    const june = summarizeOrderEconomics(rows.filter(row => orderCreatedMonth(row.created_at) === "2026-06"));
+    expect(june).toEqual({
+      ids: ["june"],
+      gross: { count: 1, sold: 122, collected: 36.6, pending: expect.closeTo(61, 2) },
+      vat: { sold: 100, collected: 30, pending: 50, missing: 0 },
+    });
+    expect(summarizeOrderEconomics(rows).vat).toEqual({ sold: null, collected: null, pending: null, missing: 1 });
+    expect(summarizeOrderEconomics([]).gross).toEqual({ count: 0, sold: 0, collected: 0, pending: 0 });
   });
 });

@@ -6,10 +6,12 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { queryKeys } from "@/lib/queryKeys";
+import { refreshMaterialQueries } from "@/lib/orders/refreshMaterialQueries";
 import { WAREHOUSE_REQUEST_CHANGED, warehouseResponseVerified, WarehouseRequestSlot, warehouseRequestScope, warehouseRequestStorage, warehouseRpc, type PendingWarehouseRequest } from "@/lib/magazzino/protocolloMovimenti";
 
 const operations = [
   { operation: "reserve", label: "Prenotazione per commessa", rpc: "warehouse_reserve_v2" },
+  { operation: "reserve-operation-material", label: "Riserva materiali della generale", rpc: "commessa_riserva_materiale" },
   { operation: "oda-receive", label: "Ricezione da ODA", rpc: "warehouse_receive_oda_v3" },
   { operation: "goods-receive", label: "Ricezione merce", rpc: "warehouse_goods_receipt_v3" },
   { operation: "import", label: "Importazione articoli", rpc: "warehouse_import_stock_v3" },
@@ -55,7 +57,7 @@ function PendingOperationsSession() {
   })), () => "[]");
   const pending = JSON.parse(snapshot) as Recovery[];
   const canRecover = (r: Recovery) => !permissions.isLoading && permissions.canEditWarehouse
-    && (!["reso", "reserve"].includes(r.operation) || permissions.canEditOrders)
+    && (!["reso", "reserve", "reserve-operation-material"].includes(r.operation) || permissions.canEditOrders)
     && (r.operation !== "reorder" || permissions.canManagePurchasing)
     && (r.operation !== "carico" || !(r.payload.p_scans as Array<{ company_cost?: unknown }> | undefined)?.[0]?.company_cost || permissions.canViewCosts);
   async function recover() {
@@ -68,6 +70,7 @@ function PendingOperationsSession() {
       if (result.error) throw result.error;
       if (!warehouseResponseVerified(selected.operation, result.data, selected.payload)) throw new Error("La risposta non è ancora verificabile. I dati della richiesta restano conservati.");
       slot.succeeded(); setResolved(selected.label); setSelected(null);
+      if (selected.operation === "reserve-operation-material") refreshMaterialQueries(qc);
       for (const key of [queryKeys.warehouse.all, ["warehouse-stock"], ["warehouse-uscite"], ["warehouse-movements"], ["stock-movements"], ["warehouse-transfers"], ["magazzino-live"], ["purchase-orders"], ["order-items"], ["uscita-order-items-prefill"], ["consumi-materiali"], ["materiali-per-fase"], ["order-material-usage"]]) void qc.invalidateQueries({ queryKey: key });
     } catch (e) {
       setError((e as Error).message || "Operazione non verificata. Riprova senza registrare una nuova richiesta.");

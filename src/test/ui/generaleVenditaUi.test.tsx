@@ -13,6 +13,7 @@ const m = vi.hoisted(() => ({
   carica: vi.fn(),
   apri: vi.fn(),
   scarica: vi.fn(),
+  anteprima: vi.fn(),
   /** I dati passati al PDF: quello che finirebbe sulla carta. */
   dati: null as unknown,
   excel: vi.fn(),
@@ -33,6 +34,23 @@ vi.mock("@/hooks/useGeneraleRendiconto", () => ({
 }));
 vi.mock("@/components/orders/filePreviewUtils", () => ({ openAttachmentInTab: m.apri }));
 vi.mock("@/components/orders/generali/vendita/scarica", () => ({ scaricaBlob: m.scarica }));
+vi.mock("@/lib/pdfPreviewSource", () => ({
+  createPdfPreviewUrl: (blob: Blob) => { m.anteprima(blob); return "blob:scheda"; },
+}));
+vi.mock("@/components/shared/PdfBlobLivePreviewPanel", async () => {
+  const { useEffect, useRef } = await import("react");
+  return {
+    PdfBlobLivePreviewPanel: ({ renderBlobUrl, depsKey, downloadFileName, requireRenderedDownload }: {
+      renderBlobUrl: () => Promise<string>; depsKey: string; downloadFileName: string; requireRenderedDownload: boolean;
+    }) => {
+      const genera = useRef(renderBlobUrl);
+      genera.current = renderBlobUrl;
+      useEffect(() => { void genera.current(); }, [depsKey]);
+      return <div data-filename={downloadFileName}
+        data-render-required={requireRenderedDownload} role="region" aria-label="Visore PDF" />;
+    },
+  };
+});
 vi.mock("@react-pdf/renderer", () => ({
   pdf: (el: { props: { d: unknown } }) => {
     m.dati = el.props.d;
@@ -123,9 +141,13 @@ describe("scheda vendita", () => {
     render(<SchedaVendita generaleId="g" modello="sviluppo" operazione="Residenza Via Roma" unita={unita("A1")} vedeImporti />);
     expect(screen.getByLabelText("Metti il prezzo di listino (300.000 €)")).not.toBeChecked();
     fireEvent.change(screen.getByLabelText(/Capitolato in breve/), { target: { value: "Pavimenti in gres\nClasse A4" } });
-    fireEvent.click(screen.getByRole("button", { name: "Scarica la scheda PDF" }));
-    await waitFor(() => expect(m.scarica).toHaveBeenCalled());
-    expect(m.scarica.mock.calls[0][1]).toMatch(/^Scheda-A1-Residenza-Via-Roma-\d{4}-\d{2}-\d{2}\.pdf$/);
+    expect(screen.queryByRole("region", { name: "Visore PDF" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Mostra anteprima" }));
+    const visore = await screen.findByRole("region", { name: "Visore PDF" });
+    await waitFor(() => expect(m.anteprima).toHaveBeenCalledWith(expect.any(Blob)));
+    expect(m.scarica).not.toHaveBeenCalled();
+    expect(visore.getAttribute("data-filename")).toMatch(/^Scheda-A1-Residenza-Via-Roma-\d{4}-\d{2}-\d{2}\.pdf$/);
+    expect(visore).toHaveAttribute("data-render-required", "true");
     expect(scheda()).toMatchObject({
       operazione: "Residenza Via Roma",
       prezzo: null,
@@ -144,7 +166,7 @@ describe("scheda vendita", () => {
     render(<SchedaVendita generaleId="g" modello="sviluppo" operazione="Residenza" unita={unita("A1")} vedeImporti />);
     expect(screen.getByLabelText(/Planimetria \(non caricata/)).toBeDisabled();
     fireEvent.click(screen.getByLabelText(/Metti il prezzo di listino/));
-    fireEvent.click(screen.getByRole("button", { name: "Scarica la scheda PDF" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mostra anteprima" }));
     await waitFor(() => expect(m.dati).not.toBeNull());
     expect(scheda().prezzo).toBe(300000);
     expect(scheda().planimetria).toBeNull();

@@ -22,9 +22,10 @@ interface Props {
   /** Con questo i m² si scrivono nella cella. */
   generaleId?: string;
   puoModificare?: boolean;
+  totale?: string;
 }
 
-export function TabellaUnita({ elenco, conti, riepilogo, onApri, generaleId, puoModificare }: Props) {
+export function TabellaUnita({ elenco, conti, riepilogo, onApri, generaleId, puoModificare, totale = "Totale" }: Props) {
   const p = elenco.permessi;
   const vive = [...unitaVive(elenco.unita)].sort((a, b) => confrontaSigle(a.sigla, b.sigla));
   const [inModifica, setInModifica] = useState<string | null>(null);
@@ -125,7 +126,7 @@ export function TabellaUnita({ elenco, conti, riepilogo, onApri, generaleId, puo
         {vive.length > 1 && (
           <tfoot>
             <tr className="border-t bg-muted/30 text-sm font-medium">
-              <td className="px-3 py-2">Totale</td>
+              <td className="px-3 py-2">{totale}</td>
               <td className="px-2 py-2" />
               <td className="px-2 py-2 text-right tabular-nums">{formattaNumero(riepilogo.mq)}</td>
               <td className="px-2 py-2 text-right tabular-nums">{formattaNumero(riepilogo.millesimi)}</td>

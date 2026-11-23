@@ -302,6 +302,7 @@ export interface AllegatoCommessa {
   file_name: string;
   file_url: string;
   file_type: string | null;
+  folder_id?: string | null;
   created_at: string;
 }
 

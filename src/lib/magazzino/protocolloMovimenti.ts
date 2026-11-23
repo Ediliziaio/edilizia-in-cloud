@@ -113,6 +113,7 @@ export function warehouseResponseVerified(operation: string, response: unknown, 
         && (!scans?.[0]?.company_cost || (typeof row.company_cost_id === "string" && /^[0-9a-f-]{36}$/i.test(row.company_cost_id) && typeof row.company_cost_amount === "number" && row.company_cost_amount > 0));
     }
     case "uscita": return typeof row.uscita_id === "string" && typeof row.numero === "string" && count(row.created_movements);
+    case "reserve-operation-material":
     case "reserve": return typeof row.order_item_id === "string" && /^[0-9a-f-]{36}$/i.test(row.order_item_id)
       && typeof row.reserved === "number" && Number.isFinite(row.reserved) && row.reserved >= 0
       && (!payload || (row.order_item_id === payload.p_order_item_id && row.reserved === payload.p_quantity));

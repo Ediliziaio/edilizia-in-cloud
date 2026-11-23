@@ -3,7 +3,8 @@
 // generale_piano_versioni / generale_piano_voci / generale_fotografie, la risposta di
 // commessa_generale_piano_reale e, se il modulo Unità c'è già, unita_immobiliari.
 import { isCategoriaPiano, type TipoVoce } from "@/lib/orders/generali/pianoCategorie";
-import type { DatiUnita, Incasso, RigaReale, VocePiano } from "@/lib/orders/generali/pianoConti";
+import type { DatiUnita, Incasso, RigaReale, ScadenzaIncassoPiano, VocePiano } from "@/lib/orders/generali/pianoConti";
+import { closed as scadenzaChiusa } from "@/lib/finance/forecastLedger";
 import { MOVIMENTO_PREVISTO } from "./movimentiFonti";
 
 export type StatoVersione = "bozza" | "approvata" | "superata";
@@ -134,6 +135,44 @@ export function leggiReale(data: unknown): RealePiano {
   };
 }
 
+export interface FatturaConScadenza {
+  id: string;
+  due_date: string | null;
+}
+
+export interface RataIncassoPiano {
+  invoice_id: string | null;
+  due_date: string | null;
+  amount: number | null;
+  paid_amount: number | null;
+  status: string;
+  rata_numero: number | null;
+}
+
+/** I residui lordi delle rate distribuiscono il netto della fattura fra le sue date. */
+export function leggiScadenzeIncasso(fatture: FatturaConScadenza[], rate: RataIncassoPiano[]) {
+  const ratePerFattura = new Map<string, RataIncassoPiano[]>();
+  for (const rata of rate) {
+    if (!rata.invoice_id) continue;
+    const gruppo = ratePerFattura.get(rata.invoice_id);
+    if (gruppo) gruppo.push(rata);
+    else ratePerFattura.set(rata.invoice_id, [rata]);
+  }
+  const scadenze = new Map<string, ScadenzaIncassoPiano[]>();
+  for (const fattura of fatture) {
+    const mese = meseDaData(fattura.due_date);
+    const collegate = ratePerFattura.get(fattura.id) ?? [];
+    const numerate = collegate.filter(rata => rata.rata_numero != null);
+    const aperte = (numerate.length ? numerate : collegate).flatMap(rata => {
+      const peso = (numero(rata.amount) ?? 0) - (numero(rata.paid_amount) ?? 0);
+      return !scadenzaChiusa(rata.status) && peso > 0 ? [{ mese: meseDaData(rata.due_date) ?? mese, peso }] : [];
+    });
+    if (aperte.length) scadenze.set(fattura.id, aperte);
+    else if (mese) scadenze.set(fattura.id, [{ mese, peso: 1 }]);
+  }
+  return scadenze;
+}
+
 export function leggiFotografie(data: unknown): FotografiaPiano[] {
   return righe(data)
     .filter((r) => meseDaData(r.mese))
@@ -167,10 +206,16 @@ export function leggiUnita(data: unknown): Map<string, DatiUnita> {
     const prima = mappa.get(chiave);
     const mq = numero(r.mq_commerciali);
     const millesimi = numero(r.millesimi);
+    const statoVendita = testo(r.stato_vendita);
+    const meseRogito = statoVendita === "rogitata" ? null : meseDaData(r.rogito_previsto);
+    const incassiIds = righe(r.movimenti).flatMap(m => typeof m.id === "string" ? [m.id] : []);
     // Una figlia con più righe (non dovrebbe: è 1:1) somma i suoi valori.
     mappa.set(chiave, {
       mq: mq === null ? prima?.mq ?? null : (prima?.mq ?? 0) + mq,
       millesimi: millesimi === null ? prima?.millesimi ?? null : (prima?.millesimi ?? 0) + millesimi,
+      ...(meseRogito ? { meseRogito } : {}),
+      ...(statoVendita ? { statoVendita } : {}),
+      ...(incassiIds.length ? { incassiIds } : {}),
     });
   }
   return mappa;

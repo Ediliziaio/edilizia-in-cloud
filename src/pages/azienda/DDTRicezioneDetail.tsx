@@ -1,6 +1,6 @@
 import type * as React from "react";
 import { useConsegneDDT } from "@/hooks/useConsegneDDT";
-import { PaginaDocumentoGenerale, useAspettoOperativo } from "@/components/orders/generali/design/ContestoOperativo";
+import { PaginaDocumentoGenerale, percorsoDocumentoGenerale, useAspettoOperativo } from "@/components/orders/generali/design/ContestoOperativo";
 import { ricezioneNonAllineata } from "@/lib/magazzino/ricezioneNonAllineata";
 import { useFileDDT } from "@/hooks/useFileDDT";
 // ============================================================================
@@ -111,6 +111,7 @@ function ContenutoDDTRicezioneDetail() {
   const [confrontoAperto, setConfrontoAperto] = useState(() => parametri.get("confronto") === "ordini");
   const [originaleAperto, setOriginaleAperto] = useState(false);
   const confermaVerifica = useConfirm();
+  const ordineOrigine = parametri.get("confronto") === "ordini" ? parametri.get("oda") : null;
   const aspettoGenerale = useAspettoOperativo();
   const { ddt, isLoading, isError: erroreDDT, refetch: rileggiDDT, receipts, isReceiptsLoading, isReceiptsError } = useDDTRicezioneDetail(ddtId);
   const fileDocumento = useFileDDT(ddt);
@@ -515,8 +516,11 @@ function ContenutoDDTRicezioneDetail() {
   // cosa la pagina chiede e che cosa mostra.
   const ritiro = ddt.trasporto_a_cura_di === "noi";
   const meta = DDT_STATO_META[ddt.stato] ?? DDT_STATO_META.atteso;
-  const apriConsegne = () =>
-    document.getElementById("consegne-ddt")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const apriConsegne = () => {
+    const consegne = document.getElementById("consegne-ddt");
+    consegne?.focus({ preventScroll: true });
+    consegne?.scrollIntoView({ block: "start" });
+  };
 
   return (
     <div className="space-y-5 pb-10">
@@ -824,7 +828,9 @@ function ContenutoDDTRicezioneDetail() {
           {ddt?.purchase_order_id && <ArrivoPosizioniPanel odaId={ddt.purchase_order_id} ddtId={ddtId} nascondiSeVuoto />}
 
           <ControlloOrdiniDDTCard key={`controllo:${ddt.id}`} ddt={ddt}
-            apertoDallaScheda={confrontoAperto} onApertoChange={setConfrontoAperto} />
+            apertoDallaScheda={confrontoAperto} onApertoChange={setConfrontoAperto}
+            ordineIniziale={ordineOrigine} mostraOriginale={!!ordineOrigine}
+            onApriConsegne={apriConsegne} />
           <Dialog open={originaleAperto} onOpenChange={setOriginaleAperto}>
             <DialogContent className={`${CLASSE_DIALOG_CONFRONTO} max-w-5xl`}>
               <DialogHeader className="border-b px-4 py-3 pr-12">
@@ -856,7 +862,16 @@ function ContenutoDDTRicezioneDetail() {
               </span>
             </div>
           )}
-          <div id="consegne-ddt" className="scroll-mt-5"><ConsegneDDTCard key={ddt.id} ddt={ddt} /></div>
+          <div id="consegne-ddt" className="scroll-mt-5" tabIndex={-1} aria-label="Consegne del DDT">
+            <ConsegneDDTCard key={ddt.id} ddt={ddt} />
+            {ordineOrigine && <div className="mt-2 flex justify-end">
+              <Button type="button" variant="outline" size="sm" onClick={() => navigate(percorsoDocumentoGenerale(
+                `/azienda/ordini-acquisto/${encodeURIComponent(ordineOrigine)}?vista=fornitura`, aspettoGenerale?.generaleId,
+              ))}>
+                <ArrowLeft className="size-4" aria-hidden="true" /> Torna all’OdA e al residuo
+              </Button>
+            </div>}
+          </div>
           {/* ─── 2. I DOCUMENTI: l'originale in cima, poi gli allegati ───
               11/11/2026 — Erano due schede con due caricatori grandi
               («Documento DDT» e «Allegati»): ora un elenco e un pulsante.

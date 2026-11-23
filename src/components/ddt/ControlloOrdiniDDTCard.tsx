@@ -1,6 +1,6 @@
 import { UniformSelect } from "@/components/ui/uniform-select";
 import { ConfrontoDocumentiLayout, PannelloDocumento } from "@/components/shared/ConfrontoDocumentiLayout";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
@@ -53,18 +53,22 @@ const etichette = {
 };
 const avvisoConsegne = "Se mancano articoli, sono danneggiati o non corrispondono, conferma solo la quantità accettata e segnala il problema nella verifica DDT. Un reso riapre il residuo dell’ordine.";
 
-export function ControlloOrdiniDDTCard({ ddt, apertoDallaScheda, onApertoChange }: {
+export function ControlloOrdiniDDTCard({ ddt, apertoDallaScheda, onApertoChange, ordineIniziale, mostraOriginale, onApriConsegne }: {
   ddt: DDTRicezione;
   apertoDallaScheda?: boolean;
   onApertoChange?: (aperto: boolean) => void;
+  ordineIniziale?: string | null;
+  mostraOriginale?: boolean;
+  onApriConsegne?: () => void;
 }) {
   const [apertoLocale, setApertoLocale] = useState(false);
   const aperto = apertoDallaScheda ?? apertoLocale;
   const setAperto = onApertoChange ?? setApertoLocale;
+  const vaiAlleConsegne = useRef(false);
   const [pannelloMobile,setPannelloMobile]=useState("sinistra");
-  const [ordineAttivo,setOrdineAttivo]=useState("tutti");
+  const [ordineAttivo,setOrdineAttivo]=useState(ordineIniziale ?? "tutti");
   const [vistaOrdine,setVistaOrdine]=useState("righe");
-  const [vistaDDT,setVistaDDT]=useState("righe");
+  const [vistaDDT,setVistaDDT]=useState(mostraOriginale ? "originale" : "righe");
   const [filtroRighe,setFiltroRighe]=useState("tutte");
   const [cerca, setCerca] = useState("");
   const [collega, setCollega] = useState(false);
@@ -187,6 +191,7 @@ export function ControlloOrdiniDDTCard({ ddt, apertoDallaScheda, onApertoChange 
   const errore = controllo.isError || righe.isError || consegne.isError;
   const caricamento =
     controllo.isLoading || righe.isLoading || consegne.isLoading;
+  const ordineCollegato = controllo.data?.ordini.some(o => o.id === ordineAttivo) ? ordineAttivo : "tutti";
   const ordineSelezionato=controllo.data?.ordini.find(o=>o.id===ordineAttivo)??controllo.data?.ordini[0];
   const riepilogo = <RiepilogoConfronto indicatori={[
     {label:"Articoli completi",valore:progresso.complete,tono:"verde",attivo:filtroRighe==="complete",onClick:()=>setFiltroRighe(filtroRighe==="complete"?"tutte":"complete")},
@@ -224,7 +229,7 @@ export function ControlloOrdiniDDTCard({ ddt, apertoDallaScheda, onApertoChange 
           </tr>
         </thead>
         <tbody>
-          {risultati.filter(r=>(ordineAttivo==="tutti"||r.purchase_order_id===ordineAttivo)&&(filtroRighe==="tutte"||filtroRighe==="complete"&&r.stato==="completa"||filtroRighe==="aperte"&&r.stato!=="completa")).map((r) => (
+          {risultati.filter(r=>(ordineCollegato==="tutti"||r.purchase_order_id===ordineCollegato)&&(filtroRighe==="tutte"||filtroRighe==="complete"&&r.stato==="completa"||filtroRighe==="aperte"&&r.stato!=="completa")).map((r) => (
             <tr key={r.id} className="h-14 border-t hover:bg-slate-50/60">
               <td className="max-w-72 px-2 py-2">
                 <Link
@@ -435,7 +440,12 @@ export function ControlloOrdiniDDTCard({ ddt, apertoDallaScheda, onApertoChange 
         )}
       </CardContent>
       <Dialog open={aperto} onOpenChange={setAperto}>
-        <DialogContent className={CLASSE_DIALOG_CONFRONTO}>
+        <DialogContent className={CLASSE_DIALOG_CONFRONTO} onCloseAutoFocus={event => {
+          if (!vaiAlleConsegne.current || !onApriConsegne) return;
+          event.preventDefault();
+          vaiAlleConsegne.current = false;
+          onApriConsegne();
+        }}>
           <DialogHeader className="border-b px-5 py-4">
             <DialogTitle>Confronto DDT e ordini</DialogTitle>
             <DialogDescription>
@@ -502,9 +512,9 @@ export function ControlloOrdiniDDTCard({ ddt, apertoDallaScheda, onApertoChange 
 
               </PannelloDocumento>
             </Tabs>
-            <Tabs value={vistaOrdine} onValueChange={v=>{setVistaOrdine(v);if(v!=="righe"&&ordineAttivo==="tutti"&&ordineSelezionato)setOrdineAttivo(ordineSelezionato.id);}} className="contents">
+            <Tabs value={vistaOrdine} onValueChange={v=>{setVistaOrdine(v);if(v!=="righe"&&ordineCollegato==="tutti"&&ordineSelezionato)setOrdineAttivo(ordineSelezionato.id);}} className="contents">
               <PannelloDocumento nome="Ordini di confronto" lato="destra" attivo={pannelloMobile==="destra"}
-                testata={<div className="space-y-2 border-b px-4 py-3 sm:px-5"><h3 className="text-sm font-semibold">Ordini di confronto</h3>                <UniformSelect aria-label="Ordine da confrontare" className="h-8 w-full rounded-md border px-2 text-xs" value={ordineAttivo} onChange={e=>setOrdineAttivo(e.target.value)}>
+                testata={<div className="space-y-2 border-b px-4 py-3 sm:px-5"><h3 className="text-sm font-semibold">Ordini di confronto</h3>                <UniformSelect aria-label="Ordine da confrontare" className="h-8 w-full rounded-md border px-2 text-xs" value={ordineCollegato} onChange={e=>setOrdineAttivo(e.target.value)}>
                   <option value="tutti">Tutti gli ordini collegati</option>{controllo.data?.ordini.map(o=><option key={o.id} value={o.id}>{o.oda_number}</option>)}
                 </UniformSelect>
 </div>}
@@ -551,9 +561,16 @@ export function ControlloOrdiniDDTCard({ ddt, apertoDallaScheda, onApertoChange 
               Chiudi
             </Button>
             {modificabile && (
-              <Button asChild onClick={() => setAperto(false)}>
-                <a href="#consegne-ddt">Conferma le quantità arrivate</a>
-              </Button>
+              onApriConsegne ? (
+                <Button type="button" onClick={() => {
+                  vaiAlleConsegne.current = true;
+                  setAperto(false);
+                }}>Vai alla conferma quantità</Button>
+              ) : (
+                <Button asChild onClick={() => setAperto(false)}>
+                  <a href="#consegne-ddt">Conferma le quantità arrivate</a>
+                </Button>
+              )
             )}
           </div>
         </DialogContent>

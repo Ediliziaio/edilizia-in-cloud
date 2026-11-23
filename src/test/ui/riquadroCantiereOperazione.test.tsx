@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -18,7 +18,6 @@ vi.mock("@/integrations/supabase/client", () => {
   return { supabase: { from: () => catena } };
 });
 vi.mock("@/hooks/useGeneralePiano", () => ({ useGeneralePianoNumeri: () => m.numeri }));
-vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
 
 import { RiquadroCantiereOperazione } from "@/components/orders/generali/design/RiquadroCantiereOperazione";
 
@@ -30,7 +29,7 @@ function Indirizzo() {
 }
 const disegna = () => render(
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-    <MemoryRouter initialEntries={["/?ambito-cantiere=figlia&fase-cantiere=vecchia"]}>
+    <MemoryRouter initialEntries={["/?ambito-cantiere=figlia&fase-cantiere=vecchia&rapportino-cantiere=vecchio"]}>
       <RiquadroCantiereOperazione riepilogo={riepilogo} /><Indirizzo />
     </MemoryRouter>
   </QueryClientProvider>,
@@ -68,11 +67,13 @@ describe("il cantiere in Panoramica", () => {
     ];
     disegna();
     expect(await screen.findByText("47%")).toBeInTheDocument();
-    expect(screen.getByText(/1 di 3 fasi finite/)).toHaveTextContent("in corso: Strutture");
-    expect(screen.getByText(/Poi: Impianti \(01\/03\/2027\)/)).toBeInTheDocument();
+    expect(screen.getByText("1 di 3 fasi concluse")).toBeInTheDocument();
+    expect(screen.getByText("1 in corso")).toBeInTheDocument();
+    expect(screen.getByText("1 da avviare")).toBeInTheDocument();
+    expect(within(screen.getByRole("list", { name: "Prossimi avvii" })).getByRole("listitem")).toHaveTextContent(/Impianti.*01\/03\/2027/);
   });
 
-  it("conta anche le fasi delle commesse dentro, col loro codice", async () => {
+  it("conta anche le fasi delle commesse collegate e apre tutte le lavorazioni", async () => {
     const prima = riepilogo;
     riepilogo = { ...prima, figlie: [{ id: "f1", codice: "O-0038" }] } as unknown as RiepilogoGenerale;
     m.fasi = [
@@ -81,8 +82,37 @@ describe("il cantiere in Panoramica", () => {
     ];
     disegna();
     expect(await screen.findByText("75%")).toBeInTheDocument();
-    expect(screen.getByText(/1 di 2 fasi finite \(con le commesse dentro\)/)).toHaveTextContent("in corso: Massetti (O-0038)");
+    expect(screen.getByText("1 di 2 fasi concluse")).toBeInTheDocument();
+    expect(screen.getByText("1 in corso")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Tutte le lavorazioni" }));
+    const parametri = new URLSearchParams(screen.getByTestId("indirizzo").textContent ?? "");
+    expect(parametri.get("scheda")).toBe("cantiere");
+    expect(parametri.get("vista-cantiere")).toBe("lavorazioni");
+    expect(parametri.has("ambito-cantiere")).toBe(false);
+    expect(parametri.has("fase-cantiere")).toBe(false);
+    expect(parametri.has("rapportino-cantiere")).toBe(false);
     riepilogo = prima;
+  });
+
+  it("mantiene compatto il riepilogo con 146 fasi, raggruppando gli avvii alla stessa data", async () => {
+    m.fasi = [
+      ...Array.from({ length: 95 }, (_, i) => ({ id: `strutture-${i}`, name: `Strutture ${i}`, status: "in_corso", percentuale: 40 })),
+      { id: "bonifica", name: "Bonifica", status: "da_iniziare", percentuale: 0, start_date: "2026-11-01" },
+      { id: "consegna", name: "Collaudi e consegna", status: "da_iniziare", percentuale: 0, start_date: "2027-04-01" },
+      ...Array.from({ length: 48 }, (_, i) => ({ id: `finiture-${i}`, name: "Finiture", status: "da_iniziare", percentuale: 0, start_date: "2027-03-15" })),
+      { id: "esterni", name: "Sistemazione esterni", status: "da_iniziare", percentuale: 0, start_date: "2027-05-01" },
+    ];
+    disegna();
+    expect(await screen.findByText("0 di 146 fasi concluse")).toBeInTheDocument();
+    expect(screen.getByText("95 in corso")).toBeInTheDocument();
+    expect(screen.getByText("51 da avviare")).toBeInTheDocument();
+    expect(screen.queryByText("Strutture 94")).not.toBeInTheDocument();
+    const avvii = within(screen.getByRole("list", { name: "Prossimi avvii" })).getAllByRole("listitem");
+    expect(avvii).toHaveLength(2);
+    expect(avvii[0]).toHaveTextContent(/Finiture.*48 fasi.*15\/03\/2027/);
+    expect(avvii[1]).toHaveTextContent(/Collaudi e consegna.*01\/04\/2027/);
+    fireEvent.click(screen.getByRole("button", { name: "Cronoprogramma" }));
+    expect(screen.getByTestId("indirizzo")).toHaveTextContent("vista-cantiere=cronoprogramma");
   });
 
   it("le uscite del mese contro il previsto, in rosso se sopra; gli ultimi costi per data", async () => {

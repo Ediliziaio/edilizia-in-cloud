@@ -3,7 +3,7 @@
 // resta qualcosa da fare; si può nascondere (vale per chi guarda, su questo dispositivo).
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ArrowRight, Check, X } from "lucide-react";
+import { ArrowRight, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useDatiContratto } from "@/hooks/useGeneraleContratto";
 import { useFontiGenerale } from "@/hooks/useGeneraleInvestitori";
@@ -76,18 +76,12 @@ export function PerPartire({ riepilogo, nuovaFiglia }: { riepilogo: RiepilogoGen
         Per partire <span className="font-normal text-muted-foreground">{passi.filter((p) => p.fatto).length} di {passi.length}</span>
       </h2>
       <ul className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-        {passi.map((p) => (
+        {passi.filter(p => !p.fatto).map(p => (
           <li key={p.id}>
-            {p.fatto ? (
-              <span className="inline-flex items-center gap-1 px-1 text-xs text-muted-foreground">
-                <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600" aria-hidden="true" /> {testi[p.id].titolo}
-              </span>
-            ) : (
-              <Button type="button" size="sm" variant={p.id === prossimo ? "default" : "ghost"} className="h-7 px-2 text-xs" onClick={testi[p.id].azione}>
-                {testi[p.id].titolo}
-                {p.id === prossimo && <ArrowRight className="ml-1 h-3 w-3" aria-hidden="true" />}
-              </Button>
-            )}
+            <Button type="button" size="sm" variant={p.id === prossimo ? "default" : "ghost"} className="h-7 px-2 text-xs" onClick={testi[p.id].azione}>
+              {testi[p.id].titolo}
+              {p.id === prossimo && <ArrowRight className="ml-1 size-3" aria-hidden="true" />}
+            </Button>
           </li>
         ))}
       </ul>

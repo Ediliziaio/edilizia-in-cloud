@@ -33,7 +33,7 @@ import { FornitoreCombobox } from "@/components/orders/FornitoreCombobox";
  */
 import { useMemo, useRef, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { useDentroPopupDocumento, useIdDocumento, useNavigaDocumento } from "@/lib/orders/documentoPopup";
+import { useDentroPopupDocumento, useIdDocumento, useNavigaDocumento, useParametriDocumento } from "@/lib/orders/documentoPopup";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -109,7 +109,10 @@ export default function SupplierRfqDetail() {
   const [sendMode,setSendMode]=useState<"testo"|"pdf">("testo");
   const [downloadingFor,setDownloadingFor]=useState<string|null>(null);
   const [previewFor,setPreviewFor]=useState<RfqSupplier|null>(null);
-  const [originaleDa, setOriginaleDa] = useState<string | null>(null);
+  const parametriDocumento = useParametriDocumento();
+  const [originaleDa, setOriginaleDa] = useState<string | null>(() =>
+    parametriDocumento.get("originale") === "aggiudicata" ? "aggiudicata" : null,
+  );
   const [editingOffers,setEditingOffers]=useState<string[]>([]);
   const [nuovoFornitore, setNuovoFornitore] = useState("");
   // Un fornitore aperto alla volta; con un solo fornitore è aperto da subito.
@@ -206,6 +209,11 @@ export default function SupplierRfqDetail() {
     fornitoreAperto === undefined ? (fornitori.length === 1 ? fornitori[0].id : null) : fornitoreAperto;
   const confrontoVisibile = !senzaPrezzi && fornitori.length > 0 && items.length > 0;
   const offerteRicevute = fornitori.filter(f => f.status === "risposta" || f.allegato_url || f.email_inbox_id);
+  const aggiudicata = fornitori.find(f => f.supplier_id === rfq.supplier_id_aggiudicato);
+  const originaleIniziale = originaleDa === "aggiudicata" ? aggiudicata?.id : originaleDa;
+  const offerteOriginali = originaleDa === "aggiudicata" && aggiudicata && !offerteRicevute.some(f => f.id === aggiudicata.id)
+    ? [aggiudicata, ...offerteRicevute]
+    : offerteRicevute;
   const primaOffertaConFile = offerteRicevute.find(f => f.allegato_url) ?? offerteRicevute.find(f => f.email_inbox_id);
 
   const composeContext = (f: RfqSupplier): ComposeContext => {
@@ -926,9 +934,9 @@ export default function SupplierRfqDetail() {
         />
       )}
 
-      {originaleDa && !senzaPrezzi && offerteRicevute.length > 0 && (
+      {originaleIniziale && !senzaPrezzi && offerteOriginali.length > 0 && (
         <OriginaliOfferteDialog key={rfq.id} companyId={rfq.company_id} numero={rfq.rfq_number}
-          offerte={offerteRicevute} iniziale={originaleDa} onClose={() => setOriginaleDa(null)} />
+          offerte={offerteOriginali} iniziale={originaleIniziale} onClose={() => setOriginaleDa(null)} />
       )}
 
       {/* Lettura AI del preventivo fornitore */}

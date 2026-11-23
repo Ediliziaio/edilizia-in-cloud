@@ -1,3 +1,7 @@
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { CLASSE_DIALOG_CONFRONTO } from "@/components/acquisti/RiepilogoConfronto";
+import { OriginaliOrdineConfronto } from "@/components/acquisti/OriginaliOrdineConfronto";
+import { FornituraOrdineCard } from "@/components/acquisti/FornituraOrdineCard";
 import { progressoOrdine } from "@/lib/ddt/controlloOrdini";
 import { documentiDb } from "@/lib/ddt/documentiPersistenti";
 import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
@@ -17,7 +21,7 @@ import { totaliRigheOda } from "@/lib/orders/articoloAcquisto";
 import { OrdinaComunqueDialog } from "@/components/orders/OrdinaComunqueDialog";
 import { ControlloDocumentoCard } from "@/components/orders/ControlloDocumentoCard";
 import { type MisuraAperta } from "@/lib/acquisti/misureSuDocumenti";
-import { useRef, useState, lazy, Suspense } from "react";
+import { useEffect, useRef, useState, lazy, Suspense } from "react";
 import {
   ODA_STATUS_LABELS as STATUS_LABELS,
   ODA_STATUS_CHIP_VARIANT as STATUS_CHIP_VARIANT,
@@ -113,6 +117,7 @@ function ContenutoPurchaseOrderDetail() {
   const [ordineFiltroResidui, setOrdineFiltroResidui] = useState<string | null>(null);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [previewOpen,setPreviewOpen]=useState(false);
+  const [originaleFornitoreAperto, setOriginaleFornitoreAperto] = useState(false);
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
 
   // AI Verification
@@ -125,6 +130,14 @@ function ContenutoPurchaseOrderDetail() {
   // ?arrivo=1: chi arriva dalla commessa con «Merce arrivata» trova già aperto l'arrivo.
   const parametri = useParametriDocumento();
   const [arrivoOpen, setArrivoOpen] = useState(parametri.get("arrivo") === "1");
+  const mostraResiduo = parametri.get("vista") === "fornitura";
+  const ordineCaricato = !!order && !isLoading;
+  useEffect(() => {
+    if (!mostraResiduo || !ordineCaricato) return;
+    const sezione = document.getElementById("fornitura-oda");
+    sezione?.focus({ preventScroll: true });
+    sezione?.scrollIntoView({ block: "start" });
+  }, [mostraResiduo, ordineCaricato, odaId]);
 
   // Invio al fornitore: si usa il compositore email dell'app, lo stesso di
   // contatti/opportunita'/commesse, cosi' l'ordine parte dalla casella
@@ -153,32 +166,35 @@ function ContenutoPurchaseOrderDetail() {
     && (permissions.isAdmin || permissions.canEditOrders || permissions.canEditWarehouse || permissions.canManagePurchasing);
   const confirm = useConfirm();
 
-  const { data: richiestaOrigine } = useQuery({
+  const origineOrdine = useQuery({
     queryKey: ["rdo-origine-ordine", effectiveCompany?.id, odaId],
     enabled: !!odaId && !!effectiveCompany?.id,
     queryFn: async () => {
-      const { data, error } = await supabase.from("supplier_rfqs").select("id, rfq_number")
+      const { data, error } = await supabase.from("supplier_rfqs").select("id, rfq_number, supplier_id_aggiudicato")
         .eq("company_id", effectiveCompany!.id).eq("purchase_order_id", odaId!).maybeSingle();
       if (error) throw error;
       return data;
     },
   });
-  const { data: ddtList = [] } = useQuery({
+  const ddtOrdine = useQuery({
     queryKey: ["ddt-ricezione", odaId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("ddt_ricezione").select("*").eq("purchase_order_id", odaId!).order("data_ricezione", { ascending: false });
+      const { data, error } = await supabase.from("ddt_ricezione").select("*").eq("company_id", order!.company_id).eq("purchase_order_id", odaId!).order("data_ricezione", { ascending: false });
       if (error) throw error;
       const legami = await loadCatalogPages<{ id: string; ddt_id: string }>((a, b) => documentiDb.from("ddt_ordini_collegati").select("id,ddt_id").eq("company_id", order!.company_id).eq("purchase_order_id", odaId!).order("ddt_id").range(a, b));
       const legate = legami.map((r) => ({ ddt_ricezione_id: r.ddt_id }));
       const note = new Set((data ?? []).map((d) => d.id));
       const altre = [...new Set((legate ?? []).map((r) => r.ddt_ricezione_id))].filter((id) => !note.has(id));
       if (altre.length === 0) return data || [];
-      const { data: extra, error: errExtra } = await supabase.from("ddt_ricezione").select("*").in("id", altre);
+      const { data: extra, error: errExtra } = await supabase.from("ddt_ricezione").select("*").eq("company_id", order!.company_id).in("id", altre);
       if (errExtra) throw errExtra;
       return [...(data ?? []), ...(extra ?? [])].sort((a, b) => String(b.data_ricezione).localeCompare(String(a.data_ricezione)));
     },
     enabled: !!odaId && !!order,
   });
+
+  const ddtList = ddtOrdine.data ?? [];
+  const richiestaOrigine = origineOrdine.data;
 
   if (isLoading) {
     return (
@@ -388,6 +404,16 @@ function ContenutoPurchaseOrderDetail() {
       : []),
   ];
 
+  const apriConfrontoDdt = (id: string) => navigate(`/azienda/ddt/${id}?confronto=ordini&oda=${encodeURIComponent(order.id)}`);
+  const apriDdt: (() => void) | undefined = ddtOrdine.isError ? () => void ddtOrdine.refetch()
+    : ddtOrdine.isLoading ? undefined
+    : ddtList.length === 1 ? () => apriConfrontoDdt(ddtList[0].id)
+    : ddtList.length > 1 ? () => sezioneDdt.current?.scrollIntoView({ block: "start" })
+    : puoRegistrareDDT && order.status !== "annullato" ? () => setDdtDialogOpen(true) : undefined;
+  const apriSezione = (id: string) => document.getElementById(id)?.scrollIntoView({ block: "start" });
+  const rdo = richiestaOrigine ? `/azienda/richieste-offerta/${richiestaOrigine.id}` : null;
+  const mostraContabilita = permissions.canViewCosts && order.status !== "bozza" && order.status !== "annullato";
+
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Back link — visible on all viewports */}
@@ -421,7 +447,6 @@ function ContenutoPurchaseOrderDetail() {
               </Link>
             ) : null}
             {!order.order_id && <span className="text-xs">Magazzino</span>}
-            {richiestaOrigine && <button type="button" className="text-xs text-blue-700 underline" onClick={() => navigate(`/azienda/richieste-offerta/${richiestaOrigine.id}`)}>Apri richiesta d’origine · {richiestaOrigine.rfq_number}</button>}
             {order.expected_delivery_date && <span className="text-xs">
               Consegna {format(new Date(order.expected_delivery_date), "dd/MM/yyyy")}
               {order.expected_delivery_date < format(new Date(), "yyyy-MM-dd") && !["bozza", "ricevuto", "annullato"].includes(order.status) && " · In ritardo"}
@@ -440,7 +465,7 @@ function ContenutoPurchaseOrderDetail() {
           <>
             {ddtList.length > 0 && (
               <Button variant="outline" size="sm" className="gap-1.5" onClick={() => {
-                if (ddtList.length === 1) navigate(`/azienda/ddt/${ddtList[0].id}?confronto=ordini`);
+                if (ddtList.length === 1) apriConfrontoDdt(ddtList[0].id);
                 else sezioneDdt.current?.scrollIntoView({ block: "start" });
               }}>
                 <ArrowLeftRight className="size-4" aria-hidden="true" />
@@ -540,6 +565,18 @@ function ContenutoPurchaseOrderDetail() {
         </div>
         {(editingDetails || editingNotesId === order.id) && <p role="status" className="mt-3 text-xs text-amber-700">Salva o annulla le modifiche aperte prima di preparare il PDF o l’email.</p>}
       </section>}
+
+      <FornituraOrdineCard
+        righe={items} caricamentoRighe={isItemsLoading}
+        richiesta={richiestaOrigine} caricamentoRichiesta={origineOrdine.isLoading} erroreRichiesta={origineOrdine.isError}
+        ddt={ddtList.length} caricamentoDdt={ddtOrdine.isLoading} erroreDdt={ddtOrdine.isError}
+        apriDdt={apriDdt}
+        apriRichiesta={rdo ? () => navigate(rdo) : undefined}
+        apriOriginale={order.attachment_url ? () => setOriginaleFornitoreAperto(true)
+          : rdo && richiestaOrigine?.supplier_id_aggiudicato && permissions.canViewCosts
+            ? () => navigate(`${rdo}?originale=aggiudicata`) : undefined}
+        apriContabilita={mostraContabilita ? () => apriSezione("contabilita-fornitura-oda") : undefined}
+      />
 
       <AttivitaAcquistoCard attivita={attivitaOda({status:order.status,prezziPendenti:totaliRighe.daConfermare,righe:items.length,email:documentoInvio.destinatario.email,consegna:order.expected_delivery_date,conferma:!!order.attachment_url})}/>
 
@@ -795,7 +832,11 @@ function ContenutoPurchaseOrderDetail() {
                   })()}
                 </div>
               )}
-              {ddtList.length === 0 ? (
+              {ddtOrdine.isError ? (
+                <p role="alert" className="py-3 text-xs text-destructive">DDT non disponibili. <button type="button" className="underline" onClick={() => void ddtOrdine.refetch()}>Riprova</button></p>
+              ) : ddtOrdine.isLoading ? (
+                <p role="status" className="py-3 text-xs text-muted-foreground">Caricamento DDT…</p>
+              ) : ddtList.length === 0 ? (
                 <p className="py-3 text-center text-xs text-slate-500">Nessun DDT registrato</p>
               ) : (
                 <div className="space-y-1.5 mt-2 max-h-80 overflow-y-auto pr-1">
@@ -854,7 +895,7 @@ function ContenutoPurchaseOrderDetail() {
                       </button>
                       <Button type="button" variant="ghost" size="icon" className="mr-1 size-8 shrink-0 text-primary"
                         aria-label={`Confronta DDT ${ddt.numero_ddt}`} title="Confronta con l’ordine"
-                        onClick={() => navigate(`/azienda/ddt/${ddt.id}?confronto=ordini`)}>
+                        onClick={() => apriConfrontoDdt(ddt.id)}>
                         <ArrowLeftRight className="size-4" aria-hidden="true" />
                       </Button>
                       </div>
@@ -892,14 +933,28 @@ function ContenutoPurchaseOrderDetail() {
           )}
 
           {/* Costo + fattura generati da questo ordine */}
-          {permissions.canViewCosts && (
-            <OdaAccountingCard odaId={order.id} totaleOrdine={Number(order.total)} stato={order.status} righe={items} />
+          {mostraContabilita && (
+            <div id="contabilita-fornitura-oda" className="scroll-mt-4">
+              <OdaAccountingCard odaId={order.id} totaleOrdine={Number(order.total)} stato={order.status} righe={items} />
+            </div>
           )}
 
       </section>
       <StoricoAcquistiCard tipo="oda" id={order.id} revisionKey={JSON.stringify([order.updated_at,items,order.attachment_url])}/>
       {order.status !== "annullato" && <ControlloDocumentoCard obiettivo={{ purchaseOrderId: order.id }} tipo="conferma" onApri={id=>{setVerificaDocumentoId(id);setVerifyDialogOpen(true);}} />}
       <VerificationHistoryCard purchaseOrderId={order.id} />
+      {originaleFornitoreAperto && <Dialog open onOpenChange={aperto => { if (!aperto) setOriginaleFornitoreAperto(false); }}>
+        <DialogContent className={`${CLASSE_DIALOG_CONFRONTO} max-w-5xl`}>
+          <DialogHeader className="shrink-0 border-b px-4 py-3 pr-12">
+            <DialogTitle>Documento originale del fornitore</DialogTitle>
+            <DialogDescription>{order.oda_number}</DialogDescription>
+          </DialogHeader>
+          <div className="flex min-h-0 flex-1 flex-col p-3 sm:p-4">
+            <OriginaliOrdineConfronto companyId={order.company_id} ordineId={order.id} numero={order.oda_number}
+              attachmentUrl={order.attachment_url} tipo="fornitore" adatta />
+          </div>
+        </DialogContent>
+      </Dialog>}
       {previewOpen&&<DocumentoAnteprimaDialog documento={documentoInvio} onClose={()=>setPreviewOpen(false)}/>}
 
       {/* Verify Purchase Order Dialog */}

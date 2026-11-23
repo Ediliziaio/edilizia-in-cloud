@@ -57,7 +57,7 @@ export function SpesaControLavori({ speso, budget, avanzamento, fasi, budgetParz
           />
         )}
       </div>
-      <div className="generale-hero-note mt-3 text-[11px]">
+      <div className="generale-hero-note text-[11px]">
         <span>Importi al netto dell'IVA.</span>
         {/* Senza fasi di cantiere non si disegna una barra a zero, che sembrerebbe un cantiere
             fermo: si dice che manca il termine di paragone (16/11/2026). */}

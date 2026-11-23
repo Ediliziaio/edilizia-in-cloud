@@ -4,7 +4,8 @@ export type FiltroDocumenti =
   | "presenti"
   | "mancanti"
   | "in_scadenza"
-  | "scaduti";
+  | "scaduti"
+  | "senza_data";
 export function documentoNelFiltro(
   c: CasellaDocumento,
   filtro: FiltroDocumenti,
@@ -15,5 +16,6 @@ export function documentoNelFiltro(
       c.obbligatoria && (c.stato === "presente" || c.stato === "in_scadenza")
     );
   if (filtro === "mancanti") return c.obbligatoria && c.stato === "mancante";
+  if (filtro === "senza_data") return c.senzaData;
   return c.stato === (filtro === "scaduti" ? "scaduto" : "in_scadenza");
 }

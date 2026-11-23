@@ -3,6 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { warehouseResponseVerified, warehouseCapabilities, warehouseRpc, warehouseRequestScope, warehouseRequestStorage, WarehouseRequestSlot } from '@/lib/magazzino/protocolloMovimenti';
 import { queryKeys } from '@/lib/queryKeys';
+import { refreshMaterialQueries } from '@/lib/orders/refreshMaterialQueries';
 
 export function useWarehouseProtocol(companyId: string | undefined, enabled = true) {
   return useQuery({queryKey:['warehouse','protocol',companyId],enabled:enabled&&!!companyId,staleTime:30_000,retry:false,queryFn:()=>warehouseCapabilities(companyId!)});
@@ -50,6 +51,7 @@ export function useWarehouseOperation(operation:string) {
    if(!legacy)slot.succeeded();return r.data;
   }catch(error){if(!legacy)slot.failed(error);throw error;}
  },onSuccess:()=>{
+  if(operation==='reserve-operation-material')refreshMaterialQueries(qc);
   for(const key of [queryKeys.warehouse.all,['warehouse-stock'],['warehouse-movements'],['stock-movements'],['warehouse-transfers'],['warehouse-stock-for-transfer'],['magazzino-live'],['low-stock-reorder-meta'],['purchase-orders'],['order-items'],['uscita-order-items-prefill']])void qc.invalidateQueries({queryKey:key});
  }});
 }

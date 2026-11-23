@@ -1,240 +1,384 @@
-import { UniformSelect } from "@/components/ui/uniform-select";
-// src/components/orders/generali/investitori/Investitori.tsx
-// La scheda «Investitori» della commessa generale (piano §3.3, §B; tappa 5): da dove
-// arrivano i soldi dell'operazione, il capitale di ogni fonte contro il capitale massimo
-// impegnato del piano, la regola con cui si divide l'utile, i movimenti di ogni fonte e
-// quanto le spetta a fine operazione, il rendiconto PDF da mandare e lo storico degli invii.
-// Dati sensibili: la vede chi vede i margini. Da tablet e computer (telefono: false).
-import { Fragment, useMemo, useState, type ReactNode } from "react";
-import { useSearchParams } from "react-router-dom";
-import { FiltroAttivo, IndicatoreScheda, IntestazioneScheda } from "../design/ElementiScheda";
+import { Fragment, useMemo, useRef, useState, type ReactNode } from "react";
+import { Link, useSearchParams, type To } from "react-router-dom";
+import { FiltroAttivo, IndicatoreScheda } from "../design/ElementiScheda";
 import { GraficoFonti } from "./GraficoFonti";
 import { gruppoFonte } from "@/lib/orders/generali/filtriGrafici";
 import { NOMI_GRUPPO, type GruppoFonte } from "@/lib/orders/generali/investitoriConti";
 import {
-  AlertTriangle, Building2, ChevronDown, ChevronRight, CreditCard, FileText, Landmark, Loader2, Pencil, Plus, Trash2, User, Wallet,
+  AlertTriangle, ArrowUpRight, Building2, ChartNoAxesCombined, ChevronDown, ChevronRight, ClipboardList,
+  CreditCard, FileText, Landmark, Pencil, Plus, Search, Trash2, User, Wallet,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { OfficeSelect } from "@/components/orders/OfficeSelect";
 import type { PropsScheda } from "@/components/orders/generali/tipiScheda";
 import { TONI, dataBreve, euro, nomeMese, nomePiano, percento } from "@/components/orders/generali/piano/formato";
 import { FonteDialog } from "@/components/orders/generali/investitori/FonteDialog";
 import { MovimentoDialog } from "@/components/orders/generali/investitori/MovimentoDialog";
 import { RendicontoDialog } from "@/components/orders/generali/investitori/RendicontoDialog";
 import { RendimentoLeva } from "@/components/orders/generali/investitori/RendimentoLeva";
-import { ReportMensile } from "./ReportMensile";
-import { ConfermaMovimentoDialog } from "./ConfermaMovimentoDialog";
+import { RendicontiInvestitori } from "./RendicontiInvestitori";
+import { MovimentoPrevistoDialog } from "./MovimentoPrevistoDialog";
+import { CoperturaMensileInvestitori } from "./CoperturaMensileInvestitori";
+import { ScenarioFinanziamenti } from "./ScenarioFinanziamenti";
+import { MovimentiOperazioneInvestitori } from "./MovimentiOperazioneInvestitori";
 import { notaMovimento } from "@/lib/orders/generali/movimentiFonti";
-import type { Movimento } from "@/lib/orders/generali/investitoriConti";
+import { cercaNellOperazione } from "@/lib/orders/generali/registroOperazione";
 import {
-  linkPdfRendiconto, messaggioInvestitori, useEliminaFonte, useEliminaMovimento, useGeneraleInvestitori,
-  useRendicontiInviati, useVenditeGenerale,
+  messaggioInvestitori, useEliminaFonte, useEliminaMovimento, useGeneraleInvestitori,
+  useVenditeGenerale, type AzioneMovimentoPrevisto,
 } from "@/hooks/useGeneraleInvestitori";
 import {
   NOMI_FONTE, NOMI_FORMA, NOMI_MOVIMENTO, NOMI_RIMBORSO, aCapitale, aDebito, nomeVersamento, spiegaRegola,
-  type Colonne, type ContiInvestitori, type ContoFonte, type Fonte, type TipoFonte,
+  aPrestito, calcolaInvestitori, type Colonne, type ContiInvestitori, type ContoFonte,
+  type Fonte, type Movimento, type ScenarioDebito, type TipoFonte,
 } from "@/lib/orders/generali/investitoriConti";
 import { cn } from "@/lib/utils";
 
 const ICONE: Record<TipoFonte, typeof User> = { propri: Wallet, capitale: User, prestito: User, banca: Landmark, finanziamento: CreditCard };
 const COLORI_GRUPPO = { propri: "bg-slate-500", investitori: "bg-sky-600", debito: "bg-amber-500" } as const;
+const VISTE = [
+  { id: "fonti", nome: "Fonti", Icona: Landmark },
+  { id: "movimenti", nome: "Movimenti", Icona: ClipboardList },
+  { id: "analisi", nome: "Analisi", Icona: ChartNoAxesCombined },
+  { id: "rendiconti", nome: "Rendiconti", Icona: FileText },
+] as const;
+type Vista = (typeof VISTE)[number]["id"];
+const SCENARIO_BASE: ScenarioDebito = { tassoPunti: 0, debitoPct: 0 };
 
 export function Investitori({ riepilogo, puoModificare }: PropsScheda) {
   const [parametri, setParametri] = useSearchParams();
-  const filtro = ["propri", "investitori", "debito"].includes(parametri.get("gruppo-fonti") ?? "") ? parametri.get("gruppo-fonti") as GruppoFonte : null;
-  const filtra = (gruppo: GruppoFonte | null) => { const p = new URLSearchParams(parametri); if (gruppo) p.set("gruppo-fonti", gruppo); else p.delete("gruppo-fonti"); setParametri(p, { replace: true }); };
-  const g = riepilogo.generale;
-  const inv = useGeneraleInvestitori(riepilogo);
-  const figlieIds = useMemo(() => riepilogo.figlie.map((f) => f.id), [riepilogo.figlie]);
-  const vendite = useVenditeGenerale(g.id, figlieIds, riepilogo.permessi.margini);
-  const [aperta, setAperta] = useState<string | null>(null);
+  const vista = parametri.get("rendiconto-aperto") === "1" ? "rendiconti"
+    : VISTE.find(v => v.id === parametri.get("vista-investitori"))?.id ?? "fonti";
+  const gruppo = parametri.get("gruppo-fonti");
+  const filtro = gruppo === "propri" || gruppo === "investitori" || gruppo === "debito" ? gruppo : null;
+  const aperta = parametri.get("fonte-investitori");
+  const [ricerca, setRicerca] = useState("");
+  const [chiaveRegistro, setChiaveRegistro] = useState(0);
   const [modifica, setModifica] = useState<{ fonte: Fonte | null; tipo?: TipoFonte } | null>(null);
   const [movimentoPer, setMovimentoPer] = useState<Fonte | null>(null);
   const [rendicontoPer, setRendicontoPer] = useState<string | null>(null);
   const [daEliminare, setDaEliminare] = useState<Fonte | null>(null);
+  const [ipotesi, setIpotesi] = useState<{ generaleId: string; valori: ScenarioDebito }>();
+  const areaCopertura = useRef<HTMLElement>(null);
+  const g = riepilogo.generale;
+  const inv = useGeneraleInvestitori(riepilogo);
+  const { fonti, movimenti, numeri, oggi, conti } = inv;
+  const haTassi = fonti.some(f => aPrestito(f.tipo) && f.tassoPct !== null);
+  const haBanca = fonti.some(f => aDebito(f.tipo));
+  const ipotesiScelta = ipotesi?.generaleId === g.id ? ipotesi.valori : SCENARIO_BASE;
+  const tassoPunti = haTassi ? ipotesiScelta.tassoPunti : 0;
+  const debitoPct = haBanca ? ipotesiScelta.debitoPct : 0;
+  const costoDebitoBase = conti.costoDebito.totale;
+  const contiScenario = useMemo(() => vista === "analisi" && (tassoPunti || debitoPct)
+    ? calcolaInvestitori({ fonti, movimenti, numeri, oggi, scenario: { tassoPunti, debitoPct }, costoDebitoBase })
+    : null, [vista, tassoPunti, debitoPct, fonti, movimenti, numeri, oggi, costoDebitoBase]);
+  const figlieIds = useMemo(() => riepilogo.figlie.map(f => f.id), [riepilogo.figlie]);
+  const vendite = useVenditeGenerale(g.id, figlieIds, !!rendicontoPer && riepilogo.permessi.margini);
   const eliminaFonte = useEliminaFonte(g.id);
 
+  const parametriVista = (v: Vista) => {
+    const p = new URLSearchParams(parametri);
+    p.set("vista-investitori", v);
+    if (v !== "rendiconti") p.delete("rendiconto-aperto");
+    return p;
+  };
+  const cambiaVista = (v: Vista) => setParametri(parametriVista(v), { replace: true });
+  const filtra = (id: GruppoFonte | null, daGrafico = false) => {
+    const p = new URLSearchParams(parametri);
+    if (id) p.set("gruppo-fonti", id);
+    else p.delete("gruppo-fonti");
+    if (daGrafico) {
+      p.set("vista-investitori", "fonti");
+      setRicerca("");
+    }
+    setParametri(p, { replace: true });
+  };
+  const apriFonte = (id: string, dalRegistro = false) => {
+    const p = new URLSearchParams(parametri);
+    if (dalRegistro) {
+      p.set("vista-investitori", "fonti");
+      p.delete("gruppo-fonti");
+      p.delete("rendiconto-aperto");
+      setRicerca("");
+    }
+    if (!dalRegistro && aperta === id) p.delete("fonte-investitori");
+    else p.set("fonte-investitori", id);
+    setParametri(p, { replace: true });
+  };
+
   if (!riepilogo.permessi.margini) {
-    return (
-      <div className="rounded-lg border bg-card px-4 py-6 text-sm text-muted-foreground">
-        Gli investitori mostrano capitali, utili e quanto spetta a ciascuno: li vede chi ha il permesso di vedere i margini. Se ti serve, chiedilo al titolare.
-      </div>
-    );
+    return <div className="generale-panel px-4 py-4 text-sm text-muted-foreground">
+      I dati degli investitori li vede chi ha il permesso di vedere i margini.
+    </div>;
   }
   if (inv.isError) {
-    return (
-      <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4 text-sm">
-        Non riesco a leggere le fonti di finanziamento.
-        <Button size="sm" variant="outline" onClick={inv.refetch}>Riprova</Button>
-      </div>
-    );
+    return <div role="alert" className="generale-panel flex flex-wrap items-center justify-between gap-3 p-4 text-sm">
+      Non riesco a leggere le fonti di finanziamento.
+      <Button size="sm" variant="outline" onClick={inv.refetch}>Riprova</Button>
+    </div>;
   }
-  if (inv.isLoading) {
-    return (
-      <div className="space-y-3" aria-busy="true">
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-48 w-full" />
-      </div>
-    );
-  }
+  if (inv.isLoading) return <div className="space-y-3" aria-busy="true">
+    <Skeleton className="h-24 w-full" /><Skeleton className="h-48 w-full" />
+  </div>;
 
-  const conti = inv.conti;
-  const fontiInVista = filtro ? conti.fonti.filter(c => gruppoFonte(c.fonte.tipo) === filtro) : conti.fonti;
+  const impegniRegistrati = conti.fonti.reduce((n, c) => n + c.fonte.impegno, 0);
+  const scopertoDaDate = conti.scopertoCalendario.importo > conti.scopertoImpegni ? conti.scopertoCalendario.mese : null;
+  const datePiano = new Set(inv.numeri?.fabbisogno?.map(m => m.mese.slice(0, 7)));
+  const mesiCopertura = conti.composizione.filter(m => datePiano.has(m.mese));
+  const meseCopertura = mesiCopertura.find(m => m.mese === parametri.get("mese-copertura-investitori"))
+    ?? mesiCopertura.find(m => m.mese === conti.scopertoCalendario.mese)
+    ?? mesiCopertura.find(m => !m.reale)
+    ?? mesiCopertura.at(-1);
+  const meseIpotesi = meseCopertura && !meseCopertura.reale
+    ? contiScenario?.composizione.find(m => m.mese === meseCopertura.mese) : undefined;
+  const parametriAnalisi = (mese: string) => {
+    const p = parametriVista("analisi");
+    p.set("mese-copertura-investitori", mese);
+    return p;
+  };
+  const cambiaMeseCopertura = (mese: string) => setParametri(parametriAnalisi(mese), { replace: true });
+  const parametriRegistro = () => {
+    const p = parametriVista("movimenti");
+    p.delete("fonte-movimenti-investitori");
+    p.delete("mese-movimenti-investitori");
+    p.delete("stato-movimenti-investitori");
+    return p;
+  };
+  const registroDelMese = (mese: string) => {
+    const p = parametriRegistro();
+    p.set("mese-movimenti-investitori", mese);
+    return { search: p.toString() };
+  };
+  const registroDellaFonte = (id: string, previsti = false) => {
+    const p = parametriRegistro();
+    p.set("fonte-movimenti-investitori", id);
+    if (previsti) p.set("stato-movimenti-investitori", "programmati");
+    return { search: p.toString() };
+  };
+  const rendicontiDellaFonte = (id: string) => {
+    const p = parametriVista("rendiconti");
+    p.delete("rendiconto-aperto");
+    p.set("sezione-rendiconti", "pdf");
+    p.set("fonte-rendiconto", id);
+    return { search: p.toString() };
+  };
+  const registroDaConfermare = parametriRegistro();
+  registroDaConfermare.set("stato-movimenti-investitori", "da_confermare");
+  const notaScoperto = scopertoDaDate ? `Calendario · ${nomeMese(scopertoDaDate)}`
+    : inv.numeri ? conti.scopertoImpegni > 0 ? "Impegni al picco del piano" : "Copertura del piano"
+    : "Serve un calendario di cassa";
+  const fontiInVista = conti.fonti.filter(c => (!filtro || gruppoFonte(c.fonte.tipo) === filtro)
+    && cercaNellOperazione(ricerca, [c.fonte.nome, descrizioneFonte(c.fonte)]));
+  const daConfermare = conti.fonti.reduce((totale, c) => totale + (c.programmati ?? []).filter(m => m.data <= inv.oggi).length, 0);
   const nuova = (tipo?: TipoFonte) => setModifica({ fonte: null, tipo });
+  const dettaglio = (c: ContoFonte) => <DettaglioFonte
+    c={c} generaleId={g.id} oggi={inv.oggi} puoModificare={puoModificare}
+    registro={registroDellaFonte(c.fonte.id)}
+    storico={rendicontiDellaFonte(c.fonte.id)}
+    onMovimento={() => setMovimentoPer(c.fonte)}
+    onRendiconto={() => setRendicontoPer(c.fonte.id)}
+    onModifica={() => setModifica({ fonte: c.fonte })}
+    onElimina={() => setDaEliminare(c.fonte)} />;
 
-  return (
-    <div className="generale-sheet generale-investitori space-y-4">
-      <IntestazioneScheda icona={Landmark} titolo="Fonti e investitori" descrizione={`Capitale impegnato, versato e da restituire, secondo ${nomePiano(g.modello)}.`}>
-        <Button variant="outline" size="sm" onClick={() => { const p = new URLSearchParams(parametri); p.set("scheda", "piano"); p.set("vista-piano", "cassa"); setParametri(p); }}>Torna a cassa e fabbisogno</Button>
-        {puoModificare && conti.fonti.length > 0 && (
-          <Button size="sm" onClick={() => nuova()}><Plus className="mr-1.5 h-4 w-4" /> Aggiungi fonte</Button>
-        )}
-      </IntestazioneScheda>
-      <div className="generale-indicators"><IndicatoreScheda titolo="Impegni delle fonti" valore={euro(conti.totali.impegno)} nota="capitale disponibile secondo gli accordi" /><IndicatoreScheda titolo="Capitale ancora dentro" valore={euro(conti.totali.dentro)} nota="versamenti effettivi al netto dei rimborsi" tono="verde" /><IndicatoreScheda titolo="Ancora da versare" valore={euro(conti.totali.daVersare)} nota="quota degli impegni non ancora versata" tono="ambra" /><IndicatoreScheda titolo="Da coprire al picco" valore={inv.numeri ? euro(conti.scoperto) : "—"} nota={inv.numeri ? "considera anche il calendario dei versamenti" : "completa il piano e il calendario"} tono={conti.scoperto > 0 ? "rosso" : "blu"} /></div>
-      <ReportMensile riepilogo={riepilogo} meseIniziale={parametri.get("rendiconto-mese") ?? undefined} apertoInizialmente={parametri.get("rendiconto-aperto") === "1"} />
+  return <div className="generale-sheet generale-investitori min-w-0 space-y-2.5">
+    <section aria-label="Quadro degli investitori" className="generale-panel">
+      <header className="generale-registro-header flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+        <h2 className="flex items-center gap-2 text-sm font-semibold">
+          <Landmark className="size-4 text-primary" aria-hidden="true" /> Fonti e investitori
+        </h2>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => {
+            const p = new URLSearchParams(parametri);
+            p.set("scheda", "piano"); p.set("vista-piano", "cassa"); setParametri(p);
+          }}>Cassa e fabbisogno <ArrowUpRight className="size-3.5" aria-hidden="true" /></Button>
+          {puoModificare && <Button type="button" size="sm" className="h-8 gap-1.5" onClick={() => nuova()}>
+            <Plus className="size-4" aria-hidden="true" /> Aggiungi fonte
+          </Button>}
+        </div>
+      </header>
+      <div className="generale-indicators generale-investitori-indicators border-t bg-muted/20 p-2">
+        <IndicatoreScheda titolo="Impegni" valore={euro(impegniRegistrati)} nota="Dagli accordi con le fonti" />
+        <IndicatoreScheda titolo="Capitale in operazione" valore={euro(conti.totali.dentro)} nota="Versato al netto dei rientri" tono="verde" />
+        <IndicatoreScheda titolo="Da versare" valore={euro(conti.totali.daVersare)} nota="Impegni ancora da incassare" tono="ambra" />
+        <IndicatoreScheda titolo="Da coprire nel piano" valore={inv.numeri ? euro(conti.scoperto) : "—"}
+          nota={scopertoDaDate && datePiano.has(scopertoDaDate) ? <Link className="inline-flex items-center gap-1 font-medium text-primary underline-offset-2 hover:underline"
+            aria-label={`Analizza lo scoperto di ${nomeMese(scopertoDaDate)}`}
+            to={{ search: parametriAnalisi(scopertoDaDate).toString() }}>
+            {notaScoperto} <ArrowUpRight className="size-3" aria-hidden="true" />
+          </Link> : notaScoperto}
+          tono={conti.scoperto > 0 ? "rosso" : "blu"} />
+      </div>
+    </section>
 
-      {(inv.pianoVuoto || inv.pianoInBozza) && (
-        <p className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">
-          {inv.pianoVuoto
-            ? `Senza ${nomePiano(g.modello)} non c'è una stima dell'utile né del capitale massimo: scrivilo nella scheda «Piano economico».`
-            : `I numeri vengono dalla bozza ${nomePiano(g.modello).replace("il ", "del ")}, non ancora approvata.`}
-        </p>
-      )}
-
-      {conti.avvisi.length > 0 && (
-        <ul role="alert" className="space-y-1 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-          {conti.avvisi.map((a) => (
-            <li key={a} className="flex gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{a}</li>
-          ))}
-        </ul>
-      )}
-
-      {conti.fonti.length === 0 ? (
-        <PrimoPasso puoModificare={puoModificare} onNuova={nuova} />
-      ) : (
-        <>
-          <div className="generale-chart-grid">
-            <GraficoFonti conti={conti} onFiltra={filtra} />
-            <CoperturaCapitale conti={conti} capitaleMassimo={inv.numeri?.capitaleMassimo ?? null} meseMassimo={inv.numeri?.meseCapitaleMassimo ?? null} investitoOggi={inv.numeri?.capitaleInvestitoOggi ?? null} />
-          </div>
-          <RegolaUtile conti={conti} haPiano={!!inv.numeri} />
-
-          <RendimentoLeva conti={conti} fonti={inv.fonti} movimenti={inv.movimenti} numeri={inv.numeri} oggi={inv.oggi} />
-
-          <div className="generale-table-toolbar"><label>Fonti di capitale<UniformSelect aria-label="Filtra fonti per gruppo" value={filtro ?? ""} onChange={e => filtra(e.target.value ? e.target.value as GruppoFonte : null)}><option value="">Tutte le fonti</option>{Object.entries(NOMI_GRUPPO).map(([id,nome]) => <option key={id} value={id}>{nome}</option>)}</UniformSelect></label><span className="text-xs text-muted-foreground">{fontiInVista.length} di {conti.fonti.length} fonti</span></div>
-          {filtro && <FiltroAttivo onReset={() => filtra(null)}>{NOMI_GRUPPO[filtro]}. I riepiloghi e il grafico mostrano l'intera operazione.</FiltroAttivo>}
-          <section aria-label="Le fonti" className="generale-panel overflow-x-auto">
-            <table className="w-full min-w-[56rem] text-sm">
-              <thead className="border-b text-xs text-muted-foreground">
-                <tr>
-                  <th rowSpan={2} className="px-3 py-2 text-left font-medium">Fonte</th>
-                  <th colSpan={3} className="border-l px-3 pt-2 text-center font-medium">Capitale</th>
-                  <th colSpan={3} className="border-l px-3 pt-2 text-center font-medium">Utile o interessi</th>
-                  <th rowSpan={2} className="border-l px-3 py-2 text-right font-medium">Gli spetta<br />a fine operazione</th>
-                </tr>
-                <tr>
-                  {[0, 1].map((i) => (
-                    <Fragment key={i}>
-                      <Intestazione tono="previsto" bordo>Previsto</Intestazione>
-                      <Intestazione tono="reale">Ad oggi</Intestazione>
-                      <Intestazione tono="aFinire">A finire</Intestazione>
-                    </Fragment>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {fontiInVista.map((c) => (
-                  <RigaFonte
-                    key={c.fonte.id}
-                    c={c}
-                    aperta={aperta === c.fonte.id}
-                    onApri={() => setAperta(aperta === c.fonte.id ? null : c.fonte.id)}
-                  >
-                    <DettaglioFonte
-                      c={c}
-                      generaleId={g.id}
-                      puoModificare={puoModificare}
-                      onMovimento={() => setMovimentoPer(c.fonte)}
-                      onRendiconto={() => setRendicontoPer(c.fonte.id)}
-                      onModifica={() => setModifica({ fonte: c.fonte })}
-                      onElimina={() => setDaEliminare(c.fonte)}
-                    />
-                  </RigaFonte>
-                ))}
-              </tbody>
-              <tfoot className="border-t font-medium">
-                <tr>
-                  <td className="px-3 py-2">{filtro ? "Totale filtrato" : "Totale"}</td>
-                  <Cifre col={somma(fontiInVista.map((c) => c.capitale))} bordo />
-                  <Cifre col={somma(fontiInVista.map((c) => c.rendimento))} bordo />
-                  <td className="border-l px-3 py-2 text-right tabular-nums">{euro(fontiInVista.reduce((s,c) => s + c.spettaAFine,0))}</td>
-                </tr>
-              </tfoot>
-            </table>
-            <p className="border-t px-3 py-2 text-xs text-muted-foreground">
-              Capitale: previsto è l'impegno, ad oggi quello versato e non ancora rimborsato, a finire quello ancora da versare.
-              Utile o interessi: previsto dal piano approvato, ad oggi già pagato, a finire ancora da ricevere secondo la stima. Tocca una fonte per i movimenti e il rendiconto.
-            </p>
-          </section>
-          {filtro && fontiInVista.length === 0 && <p role="status" className="text-sm text-muted-foreground">Nessuna fonte in questo gruppo.</p>}
-
-          <Storico generaleId={g.id} fonti={conti.fonti.map((c) => c.fonte)} />
-        </>
-      )}
-
-      <FonteDialog open={!!modifica} onOpenChange={(o) => !o && setModifica(null)} generaleId={g.id} fonte={modifica?.fonte ?? null} tipoIniziale={modifica?.tipo} />
-      {movimentoPer && (
-        <MovimentoDialog
-          open onOpenChange={(o) => !o && setMovimentoPer(null)} generaleId={g.id} fonte={movimentoPer} oggi={inv.oggi}
-          unita={riepilogo.figlie.map((f) => ({ id: f.id, nome: f.codice ? `${f.codice} · ${f.nome}` : f.nome }))}
-        />
-      )}
-      {rendicontoPer && (
-        <RendicontoDialog
-          open
-          onOpenChange={(o) => !o && setRendicontoPer(null)}
-          riepilogo={riepilogo}
-          fonteId={rendicontoPer}
-          conti={conti}
-          numeriPiano={inv.numeriPiano}
-          vendite={vendite.data ?? null}
-          oggi={inv.oggi}
-          puoInviare={puoModificare}
-        />
-      )}
-      <AlertDialog open={!!daEliminare} onOpenChange={(o) => !o && setDaEliminare(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare {daEliminare?.nome}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Spariscono anche i suoi versamenti e rimborsi. I rendiconti già inviati restano nello storico.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => {
-                if (!daEliminare) return;
-                eliminaFonte.mutate(daEliminare.id, {
-                  onSuccess: () => toast.success("Fonte eliminata"),
-                  onError: (e) => toast.error(messaggioInvestitori(e, "la fonte")),
-                });
-              }}
-            >
-              Elimina
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+    <div className="generale-panel flex flex-wrap gap-1 p-1.5" role="group" aria-label="Viste investitori">
+      {VISTE.map(({ id, nome, Icona }) => <Button type="button" key={id} size="sm" variant={vista === id ? "secondary" : "ghost"}
+        className="h-8 gap-1.5" aria-pressed={vista === id} onClick={() => cambiaVista(id)}>
+        <Icona className="size-4" aria-hidden="true" /> {nome}
+      </Button>)}
+      {daConfermare > 0 && <Button size="sm" variant="outline" asChild
+        className="ml-auto h-8 gap-1.5 border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100 hover:text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+        <Link to={{ search: registroDaConfermare.toString() }} onClick={() => setChiaveRegistro(n => n + 1)}>
+          <ClipboardList className="size-4" aria-hidden="true" /> Da confermare <span className="tabular-nums">{daConfermare}</span>
+        </Link>
+      </Button>}
     </div>
-  );
+
+    {(inv.pianoVuoto || inv.pianoInBozza) && <p className="rounded-md border bg-muted/25 px-3 py-2 text-xs text-muted-foreground">
+      {inv.pianoVuoto ? `Completa ${nomePiano(g.modello)} per vedere fabbisogno e rientri stimati.` : "Le stime usano una versione del piano in bozza."}
+    </p>}
+    {(vista === "fonti" || vista === "analisi") && conti.avvisi.length > 0 && <div role="alert"
+      className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+      <p className="flex items-start gap-2"><AlertTriangle className="size-4 shrink-0" aria-hidden="true" />{conti.avvisi[0]}</p>
+      {conti.avvisi.length > 1 && <details className="ml-6 mt-1">
+        <summary className="cursor-pointer font-medium">Altre verifiche ({conti.avvisi.length - 1})</summary>
+        <ul className="mt-1 space-y-1">{conti.avvisi.slice(1).map(a => <li key={a}>{a}</li>)}</ul>
+      </details>}
+    </div>}
+
+    {vista === "fonti" && (conti.fonti.length === 0 ? <PrimoPasso puoModificare={puoModificare} onNuova={nuova} /> : <>
+      <div className="generale-panel generale-registro-strumenti flex flex-wrap items-center gap-2 p-2">
+        <div className="relative min-w-[12rem] max-w-sm flex-1">
+          <Search className="pointer-events-none absolute left-2.5 top-2.5 size-4 text-muted-foreground" aria-hidden="true" />
+          <Input type="search" value={ricerca} onChange={e => setRicerca(e.target.value)}
+            aria-label="Cerca fonte di capitale" placeholder="Nome o tipo di fonte…" className="h-9 pl-8 text-sm" />
+        </div>
+        <OfficeSelect label="Filtra fonti per gruppo" value={filtro ?? ""} onValueChange={v => filtra(v ? v as GruppoFonte : null)}
+          className="h-9 w-52 max-w-full text-xs" options={[{ value: "", label: "Tutte le fonti" }, ...Object.entries(NOMI_GRUPPO).map(([value, label]) => ({ value, label }))]} />
+        <span className="ml-auto px-1 text-xs text-muted-foreground">{fontiInVista.length} di {conti.fonti.length} fonti</span>
+      </div>
+      {(filtro || ricerca.trim()) && <FiltroAttivo onReset={() => { filtra(null); setRicerca(""); }}>
+        {[filtro ? NOMI_GRUPPO[filtro] : null, ricerca.trim()].filter(Boolean).join(" · ")}
+      </FiltroAttivo>}
+      <TabellaFonti fonti={fontiInVista} haPiano={!!inv.numeri} aperta={aperta} apri={apriFonte}
+        dettaglio={dettaglio} filtrata={!!filtro || !!ricerca.trim()} oggi={inv.oggi} registro={registroDellaFonte} />
+    </>)}
+
+    {vista === "movimenti" && <MovimentiOperazioneInvestitori key={chiaveRegistro} generaleId={g.id} fonti={conti.fonti} oggi={inv.oggi}
+      figlie={riepilogo.figlie} puoModificare={puoModificare}
+      apriFonte={id => apriFonte(id, true)} registra={setMovimentoPer} />}
+
+    {vista === "analisi" && <>
+      {(haTassi || haBanca) && <ScenarioFinanziamenti valore={{ tassoPunti, debitoPct }}
+        cambia={valori => setIpotesi({ generaleId: g.id, valori })} base={conti} ipotesi={contiScenario}
+        haTassi={haTassi} haBanca={haBanca} apriMese={mese => { cambiaMeseCopertura(mese); areaCopertura.current?.focus(); }} />}
+      {meseCopertura && <CoperturaMensileInvestitori mesi={mesiCopertura} mese={meseCopertura} ipotesi={meseIpotesi}
+        cambiaMese={cambiaMeseCopertura} refArea={areaCopertura}
+        registro={registroDelMese(meseCopertura.mese)} />}
+      {conti.fonti.length > 0 ? <>
+        <div className="generale-chart-grid">
+          <GraficoFonti conti={conti} onFiltra={id => filtra(id, true)} />
+          <CoperturaCapitale conti={conti} capitaleMassimo={inv.numeri?.capitaleMassimo ?? null}
+            meseMassimo={inv.numeri?.meseCapitaleMassimo ?? null} investitoOggi={inv.numeri?.capitaleInvestitoOggi ?? null} />
+        </div>
+        <RegolaUtile conti={conti} haPiano={!!inv.numeri} />
+        <RendimentoLeva conti={conti} numeri={numeri} conScenario={contiScenario} />
+        <TabellaFonti fonti={conti.fonti} haPiano={!!inv.numeri} aperta={aperta} apri={apriFonte} dettaglio={dettaglio}
+          analitica oggi={inv.oggi} registro={registroDellaFonte} />
+      </> : <p role="status" className="generale-panel p-4 text-sm text-muted-foreground">Aggiungi una fonte per stimare versamenti e rientri.</p>}
+    </>}
+
+    {vista === "rendiconti" && <RendicontiInvestitori riepilogo={riepilogo} fonti={conti.fonti.map(c => c.fonte)}
+      prepara={setRendicontoPer} apriFonte={id => apriFonte(id, true)} />}
+
+    <FonteDialog open={!!modifica} onOpenChange={o => !o && setModifica(null)} generaleId={g.id}
+      fonte={modifica?.fonte ?? null} tipoIniziale={modifica?.tipo} />
+    {movimentoPer && <MovimentoDialog
+      open onOpenChange={o => !o && setMovimentoPer(null)} generaleId={g.id} fonte={movimentoPer} oggi={inv.oggi}
+      unita={riepilogo.figlie.map(f => ({ id: f.id, nome: f.codice ? `${f.codice} · ${f.nome}` : f.nome }))} />}
+    {rendicontoPer && <RendicontoDialog open onOpenChange={o => !o && setRendicontoPer(null)}
+      riepilogo={riepilogo} fonteId={rendicontoPer} conti={conti} numeriPiano={inv.numeriPiano}
+      vendite={vendite.data ?? null} oggi={inv.oggi} puoInviare={puoModificare} />}
+    <AlertDialog open={!!daEliminare} onOpenChange={o => !o && setDaEliminare(null)}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Eliminare {daEliminare?.nome}?</AlertDialogTitle>
+          <AlertDialogDescription>L’eliminazione rimuove anche i movimenti associati. I rendiconti già inviati restano nello storico.</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Annulla</AlertDialogCancel>
+          <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => {
+            if (!daEliminare) return;
+            eliminaFonte.mutate(daEliminare.id, {
+              onSuccess: () => toast.success("Fonte eliminata"),
+              onError: e => toast.error(messaggioInvestitori(e, "la fonte")),
+            });
+          }}>Elimina</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  </div>;
+}
+
+function TabellaFonti({ fonti, haPiano, aperta, apri, dettaglio, analitica = false, filtrata = false, oggi, registro }: {
+  fonti: ContoFonte[];
+  haPiano: boolean;
+  aperta: string | null;
+  apri: (id: string) => void;
+  dettaglio: (c: ContoFonte) => ReactNode;
+  analitica?: boolean;
+  filtrata?: boolean;
+  oggi: string;
+  registro: (id: string, previsti?: boolean) => To;
+}) {
+  if (!fonti.length) return <p role="status" className="generale-panel p-4 text-sm text-muted-foreground">Nessuna fonte corrisponde ai filtri.</p>;
+  const totale = (voce: "versato" | "daVersare" | "capitaleDentro" | "spettaAFine") => euro(fonti.reduce((n, c) => n + c[voce], 0));
+  return <section aria-label={analitica ? "Dettaglio economico delle fonti" : "Le fonti"} className="generale-panel min-w-0">
+    {analitica && <h3 className="border-b px-3 py-2 text-sm font-semibold">Dettaglio economico delle fonti</h3>}
+    <div className="overflow-x-auto">
+      <table aria-label={analitica ? "Previsione delle fonti" : "Fonti di capitale"}
+        className={cn("generale-registro-tabella", analitica ? "min-w-[52rem]" : "min-w-[48rem]")}>
+        <thead className="bg-muted/40">
+          {analitica ? <>
+            <tr>
+              <th scope="col" rowSpan={2}>Fonte</th>
+              <th scope="colgroup" colSpan={3} className="border-l text-center">Capitale</th>
+              <th scope="colgroup" colSpan={3} className="border-l text-center">Utile o interessi</th>
+              <th scope="col" rowSpan={2} className="border-l text-right">Rientro stimato</th>
+            </tr>
+            <tr>{[0, 1].map(i => <Fragment key={i}>
+              <Intestazione tono="previsto" bordo>Previsto</Intestazione>
+              <Intestazione tono="reale">Ad oggi</Intestazione>
+              <Intestazione tono="aFinire">A finire</Intestazione>
+            </Fragment>)}</tr>
+          </> : <tr>
+            <th scope="col">Fonte</th><th scope="col" className="text-right">Impegno</th>
+            <th scope="col" className="text-right">Versato</th><th scope="col" className="text-right">Da versare</th>
+            <th scope="col" className="text-right">Capitale in essere</th><th scope="col" className="text-right">Rientro stimato</th>
+            <th scope="col">Primo movimento previsto</th>
+          </tr>}
+        </thead>
+        <tbody>{fonti.map(c => <RigaFonte key={c.fonte.id} c={c} analitica={analitica} haPiano={haPiano}
+          aperta={aperta === c.fonte.id} onApri={() => apri(c.fonte.id)} oggi={oggi}
+          movimentiPrevisti={registro(c.fonte.id, true)}>
+          {aperta === c.fonte.id ? dettaglio(c) : null}
+        </RigaFonte>)}</tbody>
+        <tfoot className="border-t font-medium"><tr>
+          <td>{filtrata ? "Totale filtrato" : "Totale"}</td>
+          {analitica ? <>
+            <Cifre col={somma(fonti.map(c => c.capitale))} bordo />
+            <Cifre col={somma(fonti.map(c => c.rendimento))} bordo />
+          </> : <>
+            <td className="text-right tabular-nums">{euro(fonti.reduce((n, c) => n + c.fonte.impegno, 0))}</td>
+            <td className="text-right tabular-nums">{totale("versato")}</td>
+            <td className="text-right tabular-nums">{totale("daVersare")}</td>
+            <td className="text-right tabular-nums">{totale("capitaleDentro")}</td>
+          </>}
+          <td className={cn("text-right tabular-nums", analitica && "border-l")}>{haPiano ? totale("spettaAFine") : "—"}</td>
+          {!analitica && <td />}
+        </tr></tfoot>
+      </table>
+    </div>
+    {analitica && <p className="border-t px-3 py-2 text-xs text-muted-foreground">
+      Il capitale a finire indica quanto servirà secondo il piano. Il rientro stimato include capitale da restituire e rendimento residuo.
+    </p>}
+  </section>;
 }
 
 const somma = (c: Colonne[]): Colonne => ({
@@ -273,8 +417,18 @@ function descrizioneFonte(f: Fonte): string {
   return parti.join(" · ");
 }
 
-function RigaFonte({ c, aperta, onApri, children }: { c: ContoFonte; aperta: boolean; onApri: () => void; children: ReactNode }) {
+function RigaFonte({ c, aperta, onApri, children, analitica, haPiano, oggi, movimentiPrevisti }: {
+  c: ContoFonte;
+  aperta: boolean;
+  onApri: () => void;
+  children: ReactNode;
+  analitica: boolean;
+  haPiano: boolean;
+  oggi: string;
+  movimentiPrevisti: To;
+}) {
   const Icona = c.fonte.soggetto === "societa" && c.fonte.tipo !== "banca" && c.fonte.tipo !== "propri" ? Building2 : ICONE[c.fonte.tipo];
+  const primoPrevisto = c.programmati?.[0];
   return (
     <>
       <tr className={cn("border-b last:border-b-0 hover:bg-muted/40", aperta && "bg-muted/40")}>
@@ -288,21 +442,33 @@ function RigaFonte({ c, aperta, onApri, children }: { c: ContoFonte; aperta: boo
             </span>
           </button>
         </td>
-        <Cifre col={c.capitale} bordo />
-        <Cifre col={c.rendimento} bordo />
-        <td className="border-l px-3 py-2 text-right">
-          <span className="block font-semibold tabular-nums">{euro(c.spettaAFine)}</span>
-          {c.rendimentoPct !== null && (
+        {analitica ? <>
+          <Cifre col={c.capitale} bordo />
+          <Cifre col={c.rendimento} bordo />
+        </> : <>
+          <td className="text-right tabular-nums">{euro(c.fonte.impegno)}</td>
+          <td className="text-right tabular-nums">{euro(c.versato)}</td>
+          <td className="text-right tabular-nums">{euro(c.daVersare)}</td>
+          <td className="text-right font-medium tabular-nums">{euro(c.capitaleDentro)}</td>
+        </>}
+        <td className={cn("text-right", analitica && "border-l")}>
+          <span className="block font-semibold tabular-nums">{haPiano ? euro(c.spettaAFine) : "—"}</span>
+          {analitica && c.rendimentoPct !== null && (
             <span className={cn("block text-xs", c.rendimentoPct < 0 ? "text-destructive" : "text-muted-foreground")}>
               rendimento {percento(c.rendimentoPct)}
             </span>
           )}
-          {c.tir !== null && <span className="block text-xs text-muted-foreground">TIR {percento(c.tir)} l'anno</span>}
+          {analitica && c.tir !== null && <span className="block text-xs text-muted-foreground">TIR {percento(c.tir)} l'anno</span>}
         </td>
+        {!analitica && <td>{primoPrevisto ? <Link to={movimentiPrevisti} className="block text-primary hover:underline"
+          aria-label={`Movimenti previsti di ${c.fonte.nome}`}>
+          <span className="block font-medium tabular-nums">{dataBreve(primoPrevisto.data)} · {euro(primoPrevisto.importo)}</span>
+          {primoPrevisto.data <= oggi && <span className="text-xs text-destructive">{primoPrevisto.data < oggi ? "In ritardo" : "Da confermare"}</span>}
+        </Link> : <span className="text-muted-foreground">—</span>}</td>}
       </tr>
       {aperta && (
         <tr className="border-b bg-muted/20">
-          <td colSpan={8} className="px-4 py-3">{children}</td>
+          <td colSpan={analitica ? 8 : 7} className="!whitespace-normal !p-3">{children}</td>
         </tr>
       )}
     </>
@@ -310,35 +476,63 @@ function RigaFonte({ c, aperta, onApri, children }: { c: ContoFonte; aperta: boo
 }
 
 function DettaglioFonte({
-  c, generaleId, puoModificare, onMovimento, onRendiconto, onModifica, onElimina,
+  c, generaleId, oggi, puoModificare, registro, storico, onMovimento, onRendiconto, onModifica, onElimina,
 }: {
-  c: ContoFonte; generaleId: string; puoModificare: boolean;
+  c: ContoFonte; generaleId: string; oggi: string; puoModificare: boolean;
+  registro: To; storico: To;
   onMovimento: () => void; onRendiconto: () => void; onModifica: () => void; onElimina: () => void;
 }) {
   const elimina = useEliminaMovimento(generaleId);
-  const [daConfermare, setDaConfermare] = useState<Movimento | null>(null);
+  const [modifica, setModifica] = useState<{ movimento: Movimento; azione: AzioneMovimentoPrevisto }>();
+  const [mostraTutti, setMostraTutti] = useState(false);
+  const limite = 6;
+  const movimenti = [
+    ...(c.programmati ?? []).map(m => ({ m, previsto: true })),
+    ...[...c.movimenti].reverse().map(m => ({ m, previsto: false })),
+  ];
   const nome = (t: string) => (t === "versamento" ? nomeVersamento(c.fonte.tipo) : NOMI_MOVIMENTO[t as keyof typeof NOMI_MOVIMENTO]);
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
-      {daConfermare && <ConfermaMovimentoDialog generaleId={generaleId} movimento={daConfermare} onClose={() => setDaConfermare(null)} />}
-      <div className="space-y-2">
+      {modifica && puoModificare && <MovimentoPrevistoDialog generaleId={generaleId} fonte={c.fonte.nome} oggi={oggi}
+        {...modifica} onClose={() => setModifica(undefined)} />}
+      <div className="min-w-0 space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-medium">Movimenti</h3>
-          {puoModificare && (
-            <Button size="sm" variant="outline" onClick={onMovimento}><Plus className="mr-1.5 h-3.5 w-3.5" /> Registra movimento</Button>
-          )}
+          <div className="flex flex-wrap gap-1.5">
+            <Button size="sm" variant="ghost" className="h-7 gap-1" asChild>
+              <Link to={registro}>Apri registro <ArrowUpRight className="size-3.5" aria-hidden="true" /></Link>
+            </Button>
+            {puoModificare && <Button size="sm" variant="outline" className="h-7 gap-1" onClick={onMovimento}>
+              <Plus className="size-3.5" aria-hidden="true" /> Registra movimento
+            </Button>}
+          </div>
         </div>
-        {c.movimenti.length === 0 && !c.programmati?.length ? (
+        {movimenti.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Nessun movimento. Registra il primo {nomeVersamento(c.fonte.tipo).toLowerCase()} con la data: da lì contano il capitale{aCapitale(c.fonte.tipo) ? " e il tempo" : " e gli interessi"}.
           </p>
         ) : (
-          <table className="w-full text-sm">
+          <table className="w-full table-fixed text-sm">
+            <colgroup>
+              <col className="w-24" /><col /><col className="w-28" />
+              {puoModificare && <col className="w-9" />}
+            </colgroup>
             <tbody>
-              {[...c.movimenti, ...(c.programmati ?? [])].sort((a, b) => a.data.localeCompare(b.data)).map((m) => (
+              {(mostraTutti ? movimenti : movimenti.slice(0, limite)).map(({ m, previsto }) => (
                 <tr key={m.id} className="border-b last:border-b-0">
-                  <td className="py-1.5 pr-3 tabular-nums">{dataBreve(m.data)}{c.programmati?.some(p => p.id === m.id) && <span className="ml-2 text-xs text-amber-700">Previsto</span>}</td>
-                  <td className="py-1.5 pr-3">{nome(m.tipo)}{notaMovimento(m.nota) && <span className="text-muted-foreground"> · {notaMovimento(m.nota)}</span>}{puoModificare && c.programmati?.some(p => p.id === m.id) && <Button variant="link" size="sm" onClick={() => setDaConfermare(m)}>Conferma effettuato</Button>}</td>
+                  <td className="py-1.5 pr-3 tabular-nums">
+                    {dataBreve(m.data)}
+                    {previsto && <span className="block text-xs text-amber-700">Previsto</span>}
+                  </td>
+                  <td className="py-1.5 pr-3">
+                    <p className="truncate" title={[nome(m.tipo), notaMovimento(m.nota)].filter(Boolean).join(" · ")}>
+                      {nome(m.tipo)}{notaMovimento(m.nota) && <span className="text-muted-foreground"> · {notaMovimento(m.nota)}</span>}
+                    </p>
+                    {puoModificare && previsto && <div className="flex flex-wrap gap-1">
+                      <Button variant="link" size="sm" className="h-6 px-1" onClick={() => setModifica({ movimento: m, azione: "riprogramma" })}>Sposta</Button>
+                      <Button variant="link" size="sm" className="h-6 px-1" onClick={() => setModifica({ movimento: m, azione: "conferma" })}>Conferma effettuato</Button>
+                    </div>}
+                  </td>
                   <td className={cn("py-1.5 pr-3 text-right tabular-nums", m.tipo === "versamento" ? "" : "text-emerald-700 dark:text-emerald-400")}>
                     {m.tipo === "versamento" ? "" : "− "}{euro(m.importo)}
                   </td>
@@ -358,6 +552,8 @@ function DettaglioFonte({
             </tbody>
           </table>
         )}
+        {movimenti.length > limite && <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" aria-expanded={mostraTutti}
+          onClick={() => setMostraTutti(v => !v)}>{mostraTutti ? "Mostra meno" : `Mostra tutti i movimenti (${movimenti.length})`}</Button>}
       </div>
       <div className="space-y-3 text-sm">
         <p className="text-muted-foreground">{c.regola}</p>
@@ -375,7 +571,12 @@ function DettaglioFonte({
         {c.fonte.nota && <p className="whitespace-pre-wrap text-muted-foreground">{c.fonte.nota}</p>}
         <div className="flex flex-wrap gap-2">
           {c.fonte.tipo !== "propri" && (
-            <Button size="sm" onClick={onRendiconto}><FileText className="mr-1.5 h-3.5 w-3.5" /> Rendiconto</Button>
+            <>
+              <Button size="sm" onClick={onRendiconto}><FileText className="mr-1.5 h-3.5 w-3.5" /> Rendiconto</Button>
+              <Button size="sm" variant="outline" className="gap-1" asChild>
+                <Link to={storico}>Storico PDF <ArrowUpRight className="size-3.5" aria-hidden="true" /></Link>
+              </Button>
+            </>
           )}
           {puoModificare && <Button size="sm" variant="outline" onClick={onModifica}><Pencil className="mr-1.5 h-3.5 w-3.5" /> Modifica</Button>}
           {puoModificare && (
@@ -392,7 +593,7 @@ function PrimoPasso({ puoModificare, onNuova }: { puoModificare: boolean; onNuov
     <div className="rounded-lg border border-dashed bg-card px-4 py-6">
       <p className="font-medium">Da dove arrivano i soldi dell'operazione?</p>
       <p className="mt-1 text-sm text-muted-foreground">
-        Aggiungi le fonti: i mezzi propri, gli investitori (a capitale o a prestito), la banca o il mutuo e gli altri finanziamenti. Vedrai se coprono il capitale massimo del piano, quanto costa il debito, quanto spetta a ciascuno e quanto rendono i tuoi soldi.
+        Aggiungi una fonte per calcolare quanto del fabbisogno è coperto.
       </p>
       {puoModificare ? (
         <div className="mt-3 flex flex-wrap gap-2">
@@ -413,7 +614,8 @@ export function CoperturaCapitale({ conti, capitaleMassimo, meseMassimo, investi
   conti: ContiInvestitori; capitaleMassimo: number | null; meseMassimo: string | null; investitoOggi: number | null;
 }) {
   const scala = Math.max(capitaleMassimo ?? 0, conti.totali.impegno, 1);
-  const coperto = capitaleMassimo === null || conti.scoperto < 1;
+  const coperto = capitaleMassimo === null || conti.scopertoImpegni < 1;
+  const { mese, importo } = conti.scopertoCalendario;
   return (
     <section aria-label="Capitale per fonte" className="rounded-lg border bg-card px-4 py-3">
       <h3 className="text-sm font-semibold">Capitale per fonte</h3>
@@ -444,11 +646,14 @@ export function CoperturaCapitale({ conti, capitaleMassimo, meseMassimo, investi
       {capitaleMassimo !== null && (
         <p className={cn("mt-2 text-sm", coperto ? "text-emerald-700 dark:text-emerald-400" : "text-destructive")}>
           {coperto
-            ? `Le fonti coprono il picco di ${euro(capitaleMassimo)}.`
-            : `Mancano ${euro(conti.scoperto)} per coprire il picco di ${euro(capitaleMassimo)}.`}
+            ? `Gli impegni coprono il picco di ${euro(capitaleMassimo)}.`
+            : `Mancano ${euro(conti.scopertoImpegni)} per coprire il picco di ${euro(capitaleMassimo)}.`}
           {investitoOggi !== null && <span className="text-muted-foreground"> A oggi l'operazione ha assorbito {euro(investitoOggi)}.</span>}
         </p>
       )}
+      {mese && importo > conti.scopertoImpegni && <p className="mt-1 text-sm text-destructive">
+        Nel calendario mancano {euro(importo)} a {nomeMese(mese)}.
+      </p>}
     </section>
   );
 }
@@ -469,66 +674,6 @@ function RegolaUtile({ conti, haPiano }: { conti: ContiInvestitori; haPiano: boo
         {spiegaRegola(conti).map((r) => <li key={r}>{r}</li>)}
       </ul>
       <p className="mt-2 text-xs text-muted-foreground">La regola di ogni fonte (pro quota o quota fissa) si sceglie in «Modifica».</p>
-    </section>
-  );
-}
-
-function Storico({ generaleId, fonti }: { generaleId: string; fonti: Fonte[] }) {
-  const rendiconti = useRendicontiInviati(generaleId);
-  const [apro, setApro] = useState<string | null>(null);
-  const elenco = Array.isArray(rendiconti.data) ? rendiconti.data : [];
-  const nomi = new Map(fonti.map((f) => [f.id, f.nome]));
-
-  const apri = async (id: string, path: string, nome: string) => {
-    setApro(id);
-    try {
-      // Il nome del file: quello che aveva quando è stato fatto (oggetto dei salvati), o uno nuovo.
-      // Il link porta «scarica come»: la pagina resta qui e il browser salva il file.
-      window.location.assign(await linkPdfRendiconto(path, nome));
-    } catch {
-      toast.error("Non riesco a scaricare il PDF. Riprova tra poco.");
-    } finally {
-      setApro(null);
-    }
-  };
-
-  return (
-    <section aria-label="Storico dei rendiconti" className="rounded-lg border bg-card">
-      <h3 className="border-b px-4 py-2 text-sm font-semibold">Storico dei rendiconti <span className="font-normal text-muted-foreground">· inviati e scaricati</span></h3>
-      {rendiconti.isLoading ? (
-        <Skeleton className="m-4 h-8" />
-      ) : elenco.length === 0 ? (
-        <p className="px-4 py-3 text-sm text-muted-foreground">Nessun rendiconto ancora. Apri una fonte e premi «Rendiconto»: ogni PDF inviato o scaricato resta qui.</p>
-      ) : (
-        <ul className="divide-y">
-          {elenco.map((r) => (
-            <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 text-sm">
-              <span className="min-w-0">
-                <span className="font-medium">{nomi.get(r.fonteId ?? "") ?? r.fonteNome}</span>
-                <span className="text-muted-foreground">
-                  {r.destinatario && r.stato !== "scaricato" ? ` · ${r.destinatario}` : ""} · {dataBreve((r.inviatoIl ?? r.creatoIl).slice(0, 10))}
-                </span>
-                {(r.versionePiano || r.conPiano !== null) && (
-                  <span className="block text-xs text-muted-foreground">
-                    {[r.versionePiano, r.conPiano === false ? "senza il piano voce per voce" : r.conPiano ? "con il piano voce per voce" : null].filter(Boolean).join(" · ")}
-                  </span>
-                )}
-                {r.stato === "fallito" && r.errore && <span className="block text-xs text-destructive">{r.errore}</span>}
-              </span>
-              <span className="flex items-center gap-2">
-                <Badge variant={r.stato === "fallito" ? "destructive" : r.stato === "inviato" || r.stato === "scaricato" ? "secondary" : "outline"} className="font-normal">
-                  {r.stato === "inviato" ? "Inviato" : r.stato === "scaricato" ? "Scaricato" : r.stato === "fallito" ? "Non partito" : "In invio"}
-                </Badge>
-                {r.pdfPath && (
-                  <Button size="sm" variant="ghost" className="h-7" disabled={apro === r.id} onClick={() => void apri(r.id, r.pdfPath!, r.stato === "scaricato" && r.oggetto.endsWith(".pdf") ? r.oggetto : `Rendiconto ${r.fonteNome} ${(r.inviatoIl ?? r.creatoIl).slice(0, 10)}.pdf`)}>
-                    {apro === r.id ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <FileText className="mr-1.5 h-3.5 w-3.5" />} Scarica
-                  </Button>
-                )}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
     </section>
   );
 }

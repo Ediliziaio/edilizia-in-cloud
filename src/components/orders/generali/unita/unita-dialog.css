@@ -1,0 +1,73 @@
+[role="dialog"].unita-dettaglio-dialog {
+  width: min(1280px, calc(100vw - 56px));
+  max-width: calc(100vw - 56px);
+  height: min(720px, 84dvh);
+}
+
+[role="dialog"].unita-dettaglio-dialog[data-state] {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [role="dialog"].unita-dettaglio-dialog[data-state="open"] {
+    animation: unita-dettaglio-apertura 150ms ease-out;
+  }
+}
+
+@keyframes unita-dettaglio-apertura {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.unita-dettaglio-corpo {
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+@media (max-width: 639px) {
+  [role="dialog"].unita-dettaglio-dialog {
+    width: 100%;
+    max-width: 100%;
+    height: 92dvh;
+  }
+
+  .unita-dettaglio-corpo { scrollbar-gutter: auto; }
+  .unita-dettaglio-azioni { padding-bottom: max(0.625rem, env(safe-area-inset-bottom)); }
+}
+
+@media (max-width: 767px) {
+  [role="dialog"].unita-dettaglio-mobile {
+    width: calc(100vw - 12px);
+    max-width: calc(100vw - 12px);
+    height: min(780px, calc(100dvh - max(20px, env(safe-area-inset-top) + env(safe-area-inset-bottom))));
+  }
+
+  .unita-dettaglio-mobile .unita-dettaglio-testata { padding: 12px 42px 10px 12px; }
+  .unita-dettaglio-mobile .unita-dettaglio-nav { padding-inline: 5px; overflow-x: auto; scrollbar-width: none; }
+  .unita-dettaglio-mobile .unita-dettaglio-nav [role="tablist"] {
+    display: flex;
+    width: max-content;
+    max-width: none;
+    min-width: 100%;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    gap: 3px;
+    padding-block: 4px;
+  }
+  .unita-dettaglio-mobile .unita-dettaglio-nav [role="tab"] {
+    flex: 1 0 auto;
+    flex-direction: column;
+    gap: 2px;
+    min-height: 42px;
+    padding: 3px 8px;
+    font-size: 11px;
+  }
+  .unita-dettaglio-mobile .unita-dettaglio-nav [role="tab"] svg { width: 14px; height: 14px; }
+  .unita-dettaglio-mobile .unita-dettaglio-corpo { padding: 10px; }
+  .unita-dettaglio-mobile .unita-dettaglio-corpo :is(input, textarea) { font-size: 16px; }
+  .unita-dettaglio-mobile .unita-dettaglio-azioni { gap: 6px; padding-inline: 10px; }
+  .unita-dettaglio-mobile .unita-dettaglio-azioni a { flex: 1 1 auto; min-height: 40px; padding-inline: 6px; }
+}

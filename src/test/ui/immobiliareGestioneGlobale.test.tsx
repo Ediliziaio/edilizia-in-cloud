@@ -113,6 +113,35 @@ describe("Gestione dell'intera operazione", () => {
     expect(screen.getByText("Bolle di operazione-globale")).toBeVisible();
     expect(screen.queryByText(/Scrivi rapportino/)).not.toBeInTheDocument();
   });
+  it("cerca un'unità oltre le prime venti e apre il registro nel suo ambito", async () => {
+    const scroll = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = vi.fn();
+    vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
+    try {
+      const grande = {
+        ...r,
+        figlie: Array.from({ length: 48 }, (_, i) => ({
+          id: `unita-${i + 1}`, codice: `A${i + 1}`, nome: `Interno ${i + 1}`,
+        } as RiepilogoGenerale["figlie"][number])),
+      };
+      render(
+        <MemoryRouter initialEntries={["/azienda/ordini/G?scheda=cantiere&vista-cantiere=rapportini"]}>
+          <QueryClientProvider client={new QueryClient()}>
+            <CantiereGenerale riepilogo={grande} totali={totaliGenerale(grande)} puoModificare={false} />
+          </QueryClientProvider>
+        </MemoryRouter>,
+      );
+      fireEvent.click(screen.getByRole("combobox", { name: "Ambito del cantiere" }));
+      expect(screen.queryByRole("option", { name: /Interno 48/ })).not.toBeInTheDocument();
+      fireEvent.change(screen.getByRole("combobox", { name: "Cerca nell’ambito del cantiere" }), { target: { value: "a48" } });
+      fireEvent.click(screen.getByRole("option", { name: /Interno 48/ }));
+      expect(await screen.findByText("Rapportini di unita-48")).toBeVisible();
+    } finally {
+      cleanup();
+      Element.prototype.scrollIntoView = scroll;
+      vi.unstubAllGlobals();
+    }
+  });
   it("usa lo stesso identificativo della generale per forniture e DDT", async () => {
     render(
       <MemoryRouter><QueryClientProvider client={new QueryClient()}>
@@ -162,6 +191,10 @@ describe("Navigazione del cantiere", () => {
         <CantiereGenerale riepilogo={r} totali={totaliGenerale(r)} puoModificare />
       </QueryClientProvider></MemoryRouter>,
     );
+    expect(screen.getAllByRole("tab").map(t => t.textContent)).toEqual([
+      "Da seguire", "Rapportini", "Lavorazioni", "Cronoprogramma", "Materiali", "Richieste d’offerta",
+      "Ordini d’acquisto", "DDT", "Costi e pagamenti", "Squadre e ditte",
+    ]);
     expect(screen.getByRole("tab", { name: "Costi e pagamenti" })).toHaveAttribute("aria-selected", "true");
     await waitFor(() => expect(screen.getByText("Pagamenti di operazione-globale")).toBeVisible());
     expect(screen.getByRole("heading", { name: "Pagamenti" })).toBeVisible();

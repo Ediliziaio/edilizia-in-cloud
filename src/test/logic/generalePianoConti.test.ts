@@ -5,6 +5,7 @@ import {
   ripartisciCostiComuni, serieMensile, tirAnnuo, tirMensile, valoreAttuale,
   type DatiUnita, type Incasso, type RigaReale, type VocePiano,
 } from "@/lib/orders/generali/pianoConti";
+import { leggiScadenzeIncasso, leggiUnita } from "@/lib/orders/generali/pianoLettura";
 
 /**
  * Piano economico della commessa generale (tappa 2): previsto → reale → a finire.
@@ -349,6 +350,51 @@ describe("tutto insieme", () => {
     figlie: [{ id: "f1", nome: "A1", importo: 450_000 }, { id: "f2", nome: "A2", importo: 450_000 }],
     unita: new Map<string, DatiUnita>([["f1", { mq: 120, millesimi: null }], ["f2", { mq: 80, millesimi: null }]]),
   };
+
+  it("segue il rogito senza spostare il budget e compensa la caparra sulla propria unità", () => {
+    const vendite = [
+      voce({ id: "A1", tipo: "ricavo", categoria: "vendite", importo: 300_000, figliaId: "f1", mese: "2027-06" }),
+      voce({ id: "A2", tipo: "ricavo", categoria: "vendite", importo: 200_000, figliaId: "f2", mese: "2027-06" }),
+    ];
+    const unita = leggiUnita([
+      { order_id: "f1", stato_vendita: "compromesso", rogito_previsto: "2027-08-15", movimenti: [{ id: "caparra-A1" }] },
+      { order_id: "f2", stato_vendita: "libera" },
+    ]);
+    const p = calcolaPianoEconomico({ ...input, voci: vendite, righe: [],
+      incassi: [{ fatturaId: "caparra-A1", data: "2026-10-12", importo: 20_000 }], unita,
+      scenario: { prezzoPct: 5, ritardoMesi: 0, costiPct: 0 },
+    });
+    expect(p.cassa.previsto.find(m => m.mese === "2027-06")?.entrate).toBe(500_000);
+    expect(p.cassa.stima.find(m => m.mese === "2027-06")?.entrate).toBe(200_000);
+    expect(p.cassa.stima.find(m => m.mese === "2027-08")?.entrate).toBe(280_000);
+    expect(p.cassa.scenario?.find(m => m.mese === "2027-06")?.entrate).toBe(190_000);
+    expect(p.cassa.scenario?.find(m => m.mese === "2027-08")?.entrate).toBe(280_000);
+
+    const revisione = calcolaPianoEconomico({ ...input, righe: [], approvate: vendite, unita,
+      voci: [{ ...vendite[0], id: "A1-revisione", origineId: "A1", mese: "2027-09" }, vendite[1]],
+    });
+    expect(revisione.cassa.stima.find(m => m.mese === "2027-09")?.entrate).toBe(300_000);
+  });
+
+  it("ripartisce il residuo netto fra le scadenze reali senza duplicare fattura o rate pagate", () => {
+    const fatture = [{ id: "f", due_date: "2027-05-15" }];
+    const rate = [
+      { invoice_id: "f", due_date: "2027-05-15", amount: 122_000, paid_amount: 0, status: "da_pagare", rata_numero: null },
+      { invoice_id: "f", due_date: "2027-02-20", amount: 24_400, paid_amount: 24_400, status: "pagata", rata_numero: 1 },
+      { invoice_id: "f", due_date: "2027-03-20", amount: 36_600, paid_amount: 0, status: "da_pagare", rata_numero: 2 },
+      { invoice_id: "f", due_date: "2027-06-20", amount: 61_000, paid_amount: 0, status: "da_pagare", rata_numero: 3 },
+    ];
+    const ricavo = riga({ id: "fatt-f", tipo: "ricavo", fonte: "fattura", rifId: "f", importo: 100_000 });
+    const incassi = [{ fatturaId: "f", data: "2026-10-10", importo: 20_000 }];
+    const p = calcolaPianoEconomico({ ...input, voci: [], righe: [ricavo], incassi,
+      scadenzeIncasso: leggiScadenzeIncasso(fatture, rate),
+      scenario: { prezzoPct: 0, ritardoMesi: 2, costiPct: 0 },
+    });
+    expect(p.cassa.stima.filter(m => m.entrate > 0).map(m => [m.mese, m.entrate]))
+      .toEqual([["2026-10", 20_000], ["2027-03", 30_000], ["2027-06", 50_000]]);
+    expect(p.cassa.scenario?.filter(m => m.entrate > 0).map(m => [m.mese, m.entrate]))
+      .toEqual([["2026-10", 20_000], ["2027-05", 30_000], ["2027-08", 50_000]]);
+  });
 
   it("stima, capitale, costi comuni, m² e avvisi", () => {
     const p = calcolaPianoEconomico(input);

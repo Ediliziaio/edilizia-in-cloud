@@ -6,9 +6,9 @@ import "../commessa-workspace.css";
 // Da telefono si legge soltanto: creare, collegare e modificare si fa da tablet o computer.
 // I moduli (contratto, piano economico, unità, investitori, documenti) aggiungono le loro
 // schede accanto a «Panoramica», solo quando sono pronti e accesi dal modello (schede.tsx).
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { AlertTriangle, ArrowLeft, ArrowRightLeft, ArrowUpRight, Banknote, Building2, CalendarRange, ChartNoAxesCombined, ChevronDown, ClipboardList, CircleDollarSign, FileCheck2, FolderOpen, HardHat, Info, Landmark, LayoutDashboard, Link2, ListChecks, MoreHorizontal, Pencil, Plus, TrendingUp, Unlink, Wallet } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRightLeft, ArrowUpRight, Banknote, Building2, CalendarRange, ChartNoAxesCombined, ChevronDown, ClipboardList, CircleDollarSign, FileCheck2, FolderOpen, HardHat, Info, Landmark, LayoutDashboard, Link2, ListChecks, MoreHorizontal, Pencil, Plus, Search, TrendingUp, Unlink, Wallet } from "lucide-react";
 import { ComposizioneCosti } from "@/components/orders/generali/design/ComposizioneCosti";
 import { GraficoSpesa } from "@/components/orders/generali/design/GraficoSpesa";
 import { FattureOperazione } from "@/components/orders/generali/design/FattureOperazione";
@@ -19,11 +19,14 @@ import { useUnitaGenerale } from "@/hooks/useGeneraleUnita";
 import { useAvanzamentoCantiere } from "@/hooks/useAvanzamentoCantiere";
 import { AvvisiPiano } from "@/components/orders/generali/design/AvvisiPiano";
 import { RiquadroCantiereOperazione } from "@/components/orders/generali/design/RiquadroCantiereOperazione";
+import { ArchivioDocumentiPanoramica } from "@/components/orders/generali/documenti/RiquadroDocumenti";
 import { STILE_STATO } from "@/components/orders/generali/unita/aspetto";
 import { STATI_VENDITA, statoVenditaConfermato, type StatoVendita } from "@/lib/orders/generali/unita";
 import "./design/commessa-generale.css";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { TablePagination } from "@/components/ui/table-pagination";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -47,6 +50,7 @@ import {
 } from "@/lib/orders/commesseGenerali";
 import { SEZIONI_CONTRATTO, fineAggiornata, giorniTra, oggiIso, penaleMaturata, totaliSal, valoreContratto } from "@/lib/orders/generali/contratto";
 import { numeriChiave, pianoPerNumeri, type NumeroChiave } from "@/lib/orders/generali/numeriChiave";
+import { cantiereInAmbito, cercaNellOperazione } from "@/lib/orders/generali/registroOperazione";
 import { cn } from "@/lib/utils";
 
 const euro = (n: number | null) => (n === null ? "—" : formattaEuro(n));
@@ -64,9 +68,33 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
   const [collega, setCollega] = useState(false);
   const [modifica, setModifica] = useState(false);
   const [analisiUnita, setAnalisiUnita] = useState(false);
-  const [elencoUnita, setElencoUnita] = useState(false);
+  const [collegamentiVisibili, setCollegamentiVisibili] = useState(false);
   const [dettaglioLavori, setDettaglioLavori] = useState(false);
+  const [cercaFiglie, setCercaFiglie] = useState("");
+  const [paginaFiglie, setPaginaFiglie] = useState(1);
+  const [righeFiglie, setRigheFiglie] = useState(25);
   const [parametri, setParametri] = useSearchParams();
+  const sogliaSchede = useRef<HTMLDivElement>(null);
+  const navigazioneSchede = useRef<HTMLDivElement>(null);
+  const schedaUrl = parametri.get("scheda");
+  useEffect(() => {
+    if (!isMobile) return;
+    const soglia = sogliaSchede.current;
+    const rail = navigazioneSchede.current;
+    const area = rail?.closest("main");
+    const attiva = rail?.querySelector('[aria-selected="true"]');
+    if (rail && attiva) {
+      const bordo = rail.getBoundingClientRect();
+      const voce = attiva.getBoundingClientRect();
+      if (voce.right > bordo.right) rail.scrollLeft += voce.right - bordo.right;
+      else if (voce.left < bordo.left) rail.scrollLeft += voce.left - bordo.left;
+    }
+    if (area && soglia) {
+      const bordoSuperiore = area.getBoundingClientRect().top + Number.parseFloat(getComputedStyle(area).paddingTop);
+      const distanza = soglia.getBoundingClientRect().top - bordoSuperiore;
+      if (distanza < -1) area.scrollTop += distanza;
+    }
+  }, [isMobile, schedaUrl, isLoading]);
   const puoModificare = !!permissions.canEditOrders && !isMobile;
 
   const totali = useMemo(() => (r ? totaliGenerale(r) : null), [r]);
@@ -101,10 +129,11 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
   const avvisi = avvisiGenerale(r, totali).filter(a => a.id !== "vuota");
   // Un'unità divisa non è più un'unità: si contano le sue parti.
   const quanteVive = r.figlie.filter((f) => !f.divisa).length;
-  // Finché nessuna unità ha un acquirente l'elenco in Panoramica è una riga: chi costruisce non
-  // deve scorrere 26 righe «Libera» per arrivare al resto. Torna tabella dalla prima prenotazione.
-  const unitaTutteLibere = immobiliare && r.figlie.length > 0 && r.figlie.every((f) => !f.statoVendita || f.statoVendita === "libera");
-  const unitaInUnaRiga = unitaTutteLibere && !elencoUnita && !analisiUnita;
+  const filtrate = cercaFiglie.trim() ? r.figlie.filter(f => cercaNellOperazione(cercaFiglie, [f.codice, f.nome, f.indirizzo, f.statoNome])) : r.figlie;
+  const pagineFiglie = Math.max(1, Math.ceil(filtrate.length / righeFiglie));
+  const paginaVisibile = Math.min(pagineFiglie, paginaFiglie);
+  const figlieVisibili = filtrate.slice((paginaVisibile - 1) * righeFiglie, paginaVisibile * righeFiglie);
+  const urlAmbito = (id: string) => cantiereInAmbito(parametri, id);
   // Il cliente della generale arriva già scelto nella commessa nuova (customer_id è letto da CreateOrder).
   const nuovaFiglia = () => navigate(`/azienda/ordini/nuovo?generale=${generaleId}${r.generale.clienteId ? `&customer_id=${r.generale.clienteId}` : ""}`);
   const schede = schedeDelModello(r.generale.modello, isMobile);
@@ -115,11 +144,8 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
   const riquadri = riquadriDelModello(r.generale.modello);
   const propsScheda = { riepilogo: r, totali, puoModificare };
   const iconeSchede = { dati: ClipboardList, unita: Building2, contratto: FileCheck2, piano: ChartNoAxesCombined, cantiere: HardHat, investitori: Landmark, documenti: FolderOpen };
-  // Il grafico delle vendite compare dalla prima prenotazione: con tutte le unità libere ripete
-  // la riga delle unità (26 «Libere», tutto a zero) a chi sta ancora costruendo.
-  const grafici = riquadri.filter(x => x.id === "contratto" || (x.id === "unita" && quanteVive > 0 && !unitaTutteLibere));
   // La scheda aperta sta nell'indirizzo (?scheda=piano): si può mandare un link e tornare indietro.
-  const richiesta = parametri.get("scheda") ?? (
+  const richiesta = schedaUrl ?? (
     r.generale.modello === "appalto" && (SEZIONI_CONTRATTO as readonly string[]).includes(parametri.get("sezione") ?? "")
       ? "contratto" : null
   );
@@ -134,6 +160,7 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
       dopo.set("vista-cantiere", vistaCantiere);
       dopo.delete("ambito-cantiere");
       dopo.delete("fase-cantiere");
+      dopo.delete("rapportino-cantiere");
     }
     setParametri(dopo, { replace: true });
   };
@@ -160,18 +187,17 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
             </div>
           ))}
         </header>
-        {immobiliare && r.figlie.length > 0 && !unitaInUnaRiga && <p className="border-b bg-muted/20 px-4 py-2 text-xs text-muted-foreground">Costi e margine si controllano sull'intera operazione. L'analisi per unità mostra una ripartizione indicativa dei costi registrati, distinta dal margine finale del piano.</p>}
-        {unitaInUnaRiga ? (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-3 text-sm">
-            <span className="min-w-0 flex-1">
-              <span className="font-medium">{quanteVive === 1 ? "1 unità" : `${quanteVive} unità`}</span>, {quanteVive === 1 ? "libera" : "tutte libere"}
-              {r.permessi.importi && totali.assegnato !== null && <> · listino <span className="tabular-nums">{euro(totali.assegnato)}</span></>}
-              <span className="block text-xs text-muted-foreground">Nessuna è ancora prenotata: quando inizi a vendere, qui torna l'elenco con acquirenti e incassi.</span>
-            </span>
-            <Button size="sm" variant="ghost" className="h-8" onClick={() => setElencoUnita(true)}>Mostra l'elenco</Button>
-            {!isMobile && <Button size="sm" variant="outline" className="h-8" onClick={() => apriScheda("unita")}><Building2 className="mr-1.5 h-3.5 w-3.5" /> Unità e vendite</Button>}
+        {r.figlie.length > 0 && <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2 sm:px-4">
+          <div className="relative min-w-40 flex-1 sm:max-w-sm">
+            <Search className="pointer-events-none absolute left-2.5 top-2 size-4 text-muted-foreground" aria-hidden="true" />
+            <Input type="search" aria-label={immobiliare ? "Cerca nelle unità collegate" : "Cerca nei lavori collegati"}
+              placeholder="Cerca nome o codice…" className="h-8 pl-8 text-xs" value={cercaFiglie}
+              onChange={e => { setCercaFiglie(e.target.value); setPaginaFiglie(1); }} />
           </div>
-        ) : r.figlie.length === 0 && dalPiano ? (
+          {cercaFiglie.trim() && <span role="status" className="text-xs tabular-nums text-muted-foreground">{filtrate.length} di {r.figlie.length}</span>}
+        </div>}
+        {immobiliare && analisiUnita && <p className="border-b bg-muted/20 px-3 py-2 text-xs text-muted-foreground">La ripartizione dei costi registrati per unità è indicativa. Il margine complessivo è nel piano economico.</p>}
+        {r.figlie.length === 0 && dalPiano ? (
           <div className="space-y-3 px-4 py-7 text-center">
             <div>
               <p className="text-sm">Il piano economico elenca <span className="font-medium">{dalPiano.composizione}</span>.</p>
@@ -196,68 +222,95 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
               </div>
             )}
           </div>
+        ) : !figlieVisibili.length ? (
+          <p className="px-4 py-5 text-sm text-muted-foreground">Nessun risultato per questa ricerca.</p>
         ) : isMobile ? (
           <ul className="divide-y">
-            {r.figlie.map((f) => <FigliaCard key={f.id} f={f} permessi={r.permessi} commerciale={immobiliare} />)}
+            {figlieVisibili.map((f) => <FigliaCard key={f.id} f={f} permessi={r.permessi} commerciale={immobiliare} />)}
           </ul>
         ) : (
-          <TabellaFiglie r={r} t={totali} puoModificare={puoModificare} quote={quote} costiInAttesa={costiComuni.inAttesa} analisi={!immobiliare || analisiUnita} compatta={!immobiliare && !dettaglioLavori} />
+          <TabellaFiglie r={r} t={totali} figlie={figlieVisibili} urlAmbito={urlAmbito} puoModificare={puoModificare}
+            quote={quote} costiInAttesa={costiComuni.inAttesa} analisi={!immobiliare || analisiUnita} compatta={!immobiliare && !dettaglioLavori} />
         )}
+        {filtrate.length > 25 && <div className="border-t px-3 pb-3 sm:px-4">
+          <TablePagination currentPage={paginaVisibile} totalPages={pagineFiglie} totalItems={filtrate.length} pageSize={righeFiglie}
+            onPageChange={setPaginaFiglie} onPageSizeChange={n => { setRigheFiglie(n); setPaginaFiglie(1); }} />
+        </div>}
       </section>
   );
 
+  const riquadro = (id: string) => {
+    const Riquadro = riquadri.find(scheda => scheda.id === id)?.Riquadro;
+    return Riquadro ? <Riquadro {...propsScheda} /> : null;
+  };
+  const apriAvviso = (id: string) => {
+    if (id === "titolo") return () => apriScheda("dati");
+    if ((id === "oltre" || id === "perdita") && immobiliare) return () => apriScheda("unita");
+    return undefined;
+  };
+  const etichettaAvviso: Record<string, string> = { titolo: "Apri i dati", oltre: "Apri le vendite", perdita: "Apri le unità" };
+
   const panoramica = (
     <>
-      {!immobiliare && elencoCommesse}
-
-      {puoModificare && <PerPartire riepilogo={r} nuovaFiglia={nuovaFiglia} />}
-
-      <div className="generale-attention" aria-label="Da seguire"><AvvisiPiano riepilogo={r} dalPiano={dalPiano} puoModificare={puoModificare} />{riquadri.filter(x => x.id === "documenti").map(x => x.Riquadro && <x.Riquadro key={x.id} {...propsScheda} />)}</div>
-
-      {avvisi.length > 0 && (
-        <section aria-label="Cosa richiede attenzione" className="space-y-1.5">
-          {avvisi.slice(0,3).map((a) => (
-            <div
-              key={a.id}
-              className={cn(
-                "flex items-start gap-2 rounded-md border px-3 py-2 text-sm",
-                a.tono === "attenzione" ? "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200" : "bg-muted/40",
-              )}
-            >
-              {a.tono === "attenzione" ? <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> : <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />}
-              <span>{a.testo}</span>
-            </div>
+      <section className="generale-priorita-panoramica generale-panel" aria-labelledby="generale-da-seguire">
+        <h2 id="generale-da-seguire" className="flex items-center gap-2 border-b bg-muted/25 px-3 py-2 text-sm font-semibold sm:px-4">
+          <ListChecks className="size-4 text-primary" aria-hidden="true" /> Da seguire
+        </h2>
+        <ul className="generale-priorita-panoramica-lista">
+          {avvisi.filter(a => a.tono === "attenzione").map(a => {
+            const azione = apriAvviso(a.id);
+            return <li key={a.id} className="generale-priorita-avviso">
+              <AlertTriangle className="size-4 shrink-0 text-amber-600" aria-hidden="true" />
+              <span className="min-w-0 flex-1">{a.testo}</span>
+              {azione && <button type="button" className="generale-text-link" onClick={azione}>{etichettaAvviso[a.id]}</button>}
+            </li>;
+          })}
+          <li>{riquadro("documenti")}</li>
+          <li><AvvisiPiano riepilogo={r} dalPiano={dalPiano} puoModificare={puoModificare} /></li>
+          {puoModificare && <>
+            <li><PerPartire riepilogo={r} nuovaFiglia={nuovaFiglia} /></li>
+            <li><PerLavorare riepilogo={r} /></li>
+          </>}
+          {avvisi.filter(a => a.tono === "info").map(a => (
+            <li key={a.id} className="generale-priorita-avviso">
+              <Info className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              <span className="min-w-0 flex-1">{a.testo}</span>
+              {a.id === "valore" && puoModificare && <button type="button" className="generale-text-link" onClick={() => setModifica(true)}>Modifica commessa</button>}
+            </li>
           ))}
-        </section>
-      )}
+        </ul>
+      </section>
 
-      {puoModificare && <PerLavorare riepilogo={r} />}
-
-      {/* Sviluppo e compravendita: finché si costruisce, il lavoro si segue dal cantiere. */}
       {immobiliare && schede.some(s => s.id === "cantiere") && <RiquadroCantiereOperazione riepilogo={r} puoModificare={puoModificare} />}
+      {schede.some(s => s.id === "documenti") && <ArchivioDocumentiPanoramica {...propsScheda} />}
+      {immobiliare && r.figlie.length > 0 ? (
+        <>
+          {riquadro("unita")}
+          {puoModificare && (
+            <details className="generale-panel generale-panoramica-dettagli" open={collegamentiVisibili}
+              onToggle={event => setCollegamentiVisibili(event.currentTarget.open)}>
+              <summary>Gestisci i collegamenti delle unità</summary>
+              {collegamentiVisibili && elencoCommesse}
+            </details>
+          )}
+        </>
+      ) : elencoCommesse}
 
-      {/* Le fatture dei fornitori dell'operazione, e quelle che non hanno ancora una commessa
-          (16/11/2026): una fattura importata senza commessa non entra nello speso di nessuno. */}
+      {riquadro("contratto")}
       <FattureOperazione riepilogo={r} />
 
-      {(r.permessi.costi || r.permessi.importi) && <div className="generale-appare" style={{ "--i": 0 } as React.CSSProperties}><GraficoSpesa riepilogo={r} /></div>}
-
-      {(grafici.length > 0 || r.permessi.costi && r.permessi.margini) && <div className="generale-chart-grid">
-        {r.permessi.costi && r.permessi.margini && <ComposizioneCosti riepilogo={r} />}
-        {grafici.map(x => x.Riquadro && <x.Riquadro key={x.id} {...propsScheda} />)}
-      </div>}
-
-      {immobiliare && elencoCommesse}
-
-      {/* Dopo le commesse, i dettagli dei moduli: affiancati, non uno sopra l'altro a tutta larghezza. */}
-      {riquadri.length > 0 && (
-        <div className="grid gap-3 lg:grid-cols-2">
-          {riquadri.filter(x => x.id !== "unita" && x.id !== "contratto" && x.id !== "documenti").map((x) => x.Riquadro && (
-            <div key={x.id} className={cn("min-w-0", (x.id === "unita" || x.id === "documenti") && "lg:col-span-2")}>
-              <x.Riquadro {...propsScheda} />
+      {(r.permessi.costi || r.permessi.importi || r.permessi.margini) && (
+        <details className="generale-panel generale-panoramica-dettagli">
+          <summary>Andamento e analisi economica</summary>
+          <div className="space-y-3 p-3">
+            {(r.permessi.costi || r.permessi.importi) && <GraficoSpesa riepilogo={r} />}
+            {r.permessi.costi && r.permessi.margini && <ComposizioneCosti riepilogo={r} />}
+            <div className="grid gap-3 lg:grid-cols-2">
+              {riquadro("piano")}
+              {riquadro("investitori")}
             </div>
-          ))}
-        </div>
+          </div>
+        </details>
       )}
     </>
   );
@@ -266,13 +319,13 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
     <div className="commessa-workspace generale-design space-y-3">
       {/* Testata */}
       <header className="generale-page-heading commessa-page-heading">
-        <Link to="/azienda/ordini" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+        <Link to="/azienda/ordini" className="generale-back-link inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-3.5 w-3.5" /> Commesse
         </Link>
         <div className="generale-title-row">
           <div className="generale-title-copy">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="outline" className="generale-type-badge font-normal">Commessa generale · {def.nome}</Badge>
+              <Badge variant="outline" className="generale-type-badge font-normal">{!isMobile && "Commessa generale · "}{def.nome}</Badge>
               {r.generale.codice && <span className="text-xs text-muted-foreground">{r.generale.codice}</span>}
               <span className="generale-title-meta">
                 {r.generale.cliente ? `${def.cliente.etichetta}: ${r.generale.cliente} · ` : ""}
@@ -314,14 +367,20 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
         </div>
       </header>
 
-      <QuadroGenerale key={generaleId} inPanoramica={schedaAttiva === "panoramica"} r={r} t={totali} costiComuni={costiComuni} puoModificare={puoModificare} />
+      <QuadroGenerale key={generaleId} inPanoramica={schedaAttiva === "panoramica"} telefono={isMobile}
+        r={r} t={totali} costiComuni={costiComuni} puoModificare={puoModificare} />
 
       {schede.length === 0 ? panoramica : (
         <Tabs value={schedaAttiva} onValueChange={apriScheda}>
-          <TabsList aria-label="Schede della commessa" className="generale-tabs commessa-main-tabs h-auto max-w-full flex-wrap justify-start">
-            <TabsTrigger value="panoramica"><LayoutDashboard aria-hidden="true" />Panoramica</TabsTrigger>
-            {schede.map((x) => { const Icona = iconeSchede[x.id]; return <TabsTrigger key={x.id} value={x.id}><Icona aria-hidden="true" />{x.titolo}</TabsTrigger>; })}
-          </TabsList>
+          <div ref={sogliaSchede} className="generale-nav-soglia" aria-hidden="true" />
+          <div className="generale-nav-schede">
+            <TabsList ref={navigazioneSchede} aria-label="Schede della commessa" className="generale-tabs commessa-main-tabs h-auto max-w-full flex-wrap justify-start">
+              <TabsTrigger value="panoramica"><LayoutDashboard aria-hidden="true" />Panoramica</TabsTrigger>
+              {schede.map((x) => { const Icona = iconeSchede[x.id]; return <TabsTrigger key={x.id} value={x.id} aria-label={x.titolo}>
+                <Icona aria-hidden="true" />{isMobile && x.id === "unita" ? "Unità" : isMobile && x.id === "piano" ? "Piano" : x.titolo}
+              </TabsTrigger>; })}
+            </TabsList>
+          </div>
           <TabsContent value="panoramica" className="mt-2.5 space-y-3">{panoramica}</TabsContent>
           {schede.map((x) => (
             <TabsContent key={x.id} value={x.id} className="mt-2.5">
@@ -355,9 +414,12 @@ function Numero({ etichetta, valore, nota, tono, tipo = "valore" }: { etichetta:
 /**
  * In Panoramica i numeri sono completi. Nelle schede operative si parte dal riepilogo.
  */
-function QuadroGenerale({ r, t, costiComuni, puoModificare, inPanoramica }: { r: RiepilogoGenerale; t: TotaliGenerale; inPanoramica: boolean; costiComuni: ReturnType<typeof useQuoteCostiComuni>; puoModificare: boolean }) {
+function QuadroGenerale({ r, t, costiComuni, puoModificare, inPanoramica, telefono }: {
+  r: RiepilogoGenerale; t: TotaliGenerale; inPanoramica: boolean; telefono: boolean;
+  costiComuni: ReturnType<typeof useQuoteCostiComuni>; puoModificare: boolean;
+}) {
   const { quote, inAttesa: costiInAttesa } = costiComuni;
-  const [apertoInPanoramica, setApertoInPanoramica] = useState(true);
+  const [apertoInPanoramica, setApertoInPanoramica] = useState<boolean | null>(null);
   const [apertoNelleSchede, setApertoNelleSchede] = useState(false);
   const def = DEFINIZIONI_MODELLI[r.generale.modello];
   const appalto = r.generale.modello === "appalto";
@@ -366,12 +428,17 @@ function QuadroGenerale({ r, t, costiComuni, puoModificare, inPanoramica }: { r:
   const inVendita = r.figlie.some((f) => !f.divisa && !!f.statoVendita && f.statoVendita !== "libera") || (t.fatturato ?? 0) > 0 || (t.incassato ?? 0) > 0;
   const costruzione = !appalto && !inVendita;
   const mostraDettaglio = r.permessi.importi || r.permessi.margini || (costruzione && r.permessi.costi);
-  const aperto = mostraDettaglio && (inPanoramica ? apertoInPanoramica : apertoNelleSchede);
-  const setAperto = inPanoramica ? setApertoInPanoramica : setApertoNelleSchede;
-  const n = useGeneralePianoNumeri(r, { enabled: aperto || !appalto });
+  const compatto = telefono && !inPanoramica;
+  const aperto = inPanoramica ? apertoInPanoramica ?? !telefono : apertoNelleSchede;
+  const dettagliAperti = mostraDettaglio && aperto;
+  const alterna = () => {
+    if (inPanoramica) setApertoInPanoramica(!aperto);
+    else setApertoNelleSchede(!aperto);
+  };
+  const n = useGeneralePianoNumeri(r, { enabled: dettagliAperti || !appalto });
   const piano = pianoPerNumeri(n.piano);
   // Il SAL è del contratto: senza il valore del contratto non c'è né la riga né il residuo.
-  const contratto = useDatiContratto(r.generale.id, appalto && aperto && r.permessi.importi);
+  const contratto = useDatiContratto(r.generale.id, appalto && dettagliAperti && r.permessi.importi);
   const aSal = contratto.data && valoreContratto(contratto.data.contratto, contratto.data.atti) ? totaliSal(contratto.data.sal).aSal : null;
   const numeri = numeriChiave(r.generale.modello, t, piano, { costiComuni: quote?.totale ?? 0, aSal });
   const di = (id: NumeroChiave["id"]) => numeri.find((x) => x.id === id)?.valore ?? null;
@@ -465,11 +532,14 @@ function QuadroGenerale({ r, t, costiComuni, puoModificare, inPanoramica }: { r:
     <section aria-labelledby="generale-numeri-titolo" className="generale-hero">
       <header className="generale-hero-heading">
         <div className="flex-wrap"><span className="generale-hero-icon"><LayoutDashboard aria-hidden="true" /></span><h2 id="generale-numeri-titolo">La commessa in numeri</h2>{budgetInBozza && <span className="rounded-md bg-white/10 px-1.5 py-0.5 text-xs">Piano in bozza</span>}</div>
-        {mostraDettaglio && <button type="button" className="generale-kpi-toggle" aria-label={aperto ? "Riduci i numeri" : "Dettaglio dei numeri"} aria-expanded={aperto} aria-controls="generale-numeri-dettaglio" onClick={() => setAperto(v => !v)}>
-          <span>{aperto ? "Riduci" : "Dettaglio"}<span className="generale-kpi-toggle-suffisso"> {aperto ? "i numeri" : "dei numeri"}</span></span><ChevronDown className={cn("size-3.5", aperto && "rotate-180")} aria-hidden="true" />
+        {(mostraDettaglio || compatto) && <button type="button" className="generale-kpi-toggle"
+          aria-label={aperto ? "Riduci i numeri" : compatto ? "Mostra i numeri" : "Dettaglio dei numeri"} aria-expanded={aperto}
+          aria-controls={compatto ? "generale-numeri-sintesi generale-numeri-dettaglio" : "generale-numeri-indicatori generale-numeri-dettaglio"}
+          onClick={alterna}>
+          <span>{aperto ? "Riduci" : compatto ? "Mostra" : "Dettaglio"}<span className="generale-kpi-toggle-suffisso"> {aperto || compatto ? "i numeri" : "dei numeri"}</span></span><ChevronDown className={cn("size-3.5", aperto && "rotate-180")} aria-hidden="true" />
         </button>}
       </header>
-      <div className="generale-kpi-grid">
+      <div id="generale-numeri-sintesi" className={cn("generale-kpi-grid", compatto && !aperto && "!hidden")}>
         {r.permessi.importi
           ? <Numero etichetta={nomeValore} valore={euro(r.generale.valore ?? t.assegnato)} nota={notaValore} />
           : <Numero etichetta={def.figlia.tante} valore={String(t.figlie)} />}
@@ -487,10 +557,8 @@ function QuadroGenerale({ r, t, costiComuni, puoModificare, inPanoramica }: { r:
             <Numero tipo="incasso" etichetta="Da incassare" valore={euro(daIncassare)} />
           </>
         )}
-      </div>
-      <div id="generale-numeri-dettaglio" hidden={!aperto}>
-        {aperto && <>
-          <div className="generale-kpi-grid generale-kpi-grid--dettaglio">
+        <div id="generale-numeri-indicatori" className="generale-kpi-extra" hidden={!dettagliAperti}>
+          {dettagliAperti && <>
             {r.permessi.importi && <>
               {numeri.some((x) => x.id === "residuo") && <Numero etichetta="Residuo del contratto" valore={euro(di("residuo"))} nota="non ancora a SAL" />}
               {appalto && ultimati && <Numero etichetta="Fine lavori" valore="Ultimati" nota={`il ${dataIt(ultimati)}${penale ? ` · penale ${euro(penale.importo)}` : ""}`} tono={penale ? "rosso" : undefined} />}
@@ -529,7 +597,11 @@ function QuadroGenerale({ r, t, costiComuni, puoModificare, inPanoramica }: { r:
                       : undefined}
               />
             )}
-          </div>
+          </>}
+        </div>
+      </div>
+      <div id="generale-numeri-dettaglio" hidden={!dettagliAperti}>
+        {dettagliAperti && <>
           {costiComuni.errore && (
             <div role="alert" className="generale-kpi-avviso">
               <p>Costi comuni non disponibili. Il margine complessivo è in attesa di aggiornamento.</p>
@@ -555,14 +627,14 @@ function QuadroGenerale({ r, t, costiComuni, puoModificare, inPanoramica }: { r:
             <SpesaControLavori speso={speso!} budget={budget!} avanzamento={lavori.percento} fasi={lavori.fasi} budgetParziale={!budgetCompleto} budgetInBozza={budgetInBozza} />
           ) : r.permessi.importi && barre.length > 0 && (
             <div className="generale-hero-progress">
-              <dl className={cn("space-y-1.5 lg:grid lg:gap-5 lg:space-y-0", colonne)}>
+              <dl className={cn("space-y-1 lg:grid lg:gap-4 lg:space-y-0", colonne)}>
                 {barre.map((riga) => {
                   const q = quota(riga.valore, baseBarre);
                   return (
-                    <div key={riga.etichetta} className="grid min-w-0 grid-cols-[6.5rem_1fr] items-center gap-2 text-xs lg:flex lg:flex-col lg:items-stretch lg:gap-1">
+                    <div key={riga.etichetta} className="grid min-w-0 grid-cols-[6.5rem_1fr] items-center gap-2 text-xs lg:flex lg:flex-col lg:items-stretch lg:gap-0.5">
                       <dt className="generale-progress-label lg:order-1">{riga.etichetta}</dt>
                       <dd className="text-right tabular-nums lg:order-2 lg:flex lg:items-baseline lg:justify-between lg:text-left">
-                        <span className="font-medium lg:text-sm">{euro(riga.valore)}</span> <span className="generale-progress-percent">{percento(q)}</span>
+                        <span className="font-medium">{euro(riga.valore)}</span> <span className="generale-progress-percent">{percento(q)}</span>
                       </dd>
                       {/* Da telefono bastano i numeri: la riga resta densa. */}
                       <div className="generale-progress-track h-1.5 overflow-hidden rounded-full max-lg:hidden lg:order-3" aria-hidden="true">
@@ -572,7 +644,7 @@ function QuadroGenerale({ r, t, costiComuni, puoModificare, inPanoramica }: { r:
                   );
                 })}
               </dl>
-              <div className="generale-hero-note mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-[11px]">
+              <div className="generale-hero-note flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-[11px]">
                 <span>Importi al netto dell'IVA.</span>
                 {!appalto && !costruzione && t.daAssegnare !== null && r.figlie.length > 0 && (
                   <span>Differenza ricavi previsti / prezzi unità: {euro(t.daAssegnare)}</span>
@@ -612,7 +684,10 @@ function Avanzamento({ valore, fasi, aMisura }: { valore: number; fasi?: number 
   );
 }
 
-function TabellaFiglie({ r, t, puoModificare, quote, costiInAttesa, analisi, compatta }: { r: RiepilogoGenerale; t: TotaliGenerale; puoModificare: boolean; quote: QuoteCostiComuni | null; costiInAttesa: boolean; analisi: boolean; compatta: boolean }) {
+function TabellaFiglie({ r, t, figlie, urlAmbito, puoModificare, quote, costiInAttesa, analisi, compatta }: {
+  r: RiepilogoGenerale; t: TotaliGenerale; figlie: FigliaGenerale[]; urlAmbito: (id: string) => string;
+  puoModificare: boolean; quote: QuoteCostiComuni | null; costiInAttesa: boolean; analisi: boolean; compatta: boolean;
+}) {
   // Il margine di ogni commessa è «pieno»: meno la sua quota dei costi comuni, se ce ne sono.
   const conQuote = !!quote && quote.totale > 0;
   const pieno = (f: FigliaGenerale) => (!quote || f.margine === null ? null : f.margine - (quote.perFiglia.get(f.id)?.importo ?? 0));
@@ -641,7 +716,7 @@ function TabellaFiglie({ r, t, puoModificare, quote, costiInAttesa, analisi, com
           </tr>
         </thead>
         <tbody className="divide-y">
-          {r.figlie.map((f) => (
+          {figlie.map((f) => (
             <tr key={f.id} className="hover:bg-muted/40">
               <td className="max-w-[22rem] px-4 py-2">
                 <Link to={`/azienda/ordini/${f.id}`} className={cn("block min-w-0 hover:underline", compatta && "generale-link-lavoro")}>
@@ -650,6 +725,10 @@ function TabellaFiglie({ r, t, puoModificare, quote, costiInAttesa, analisi, com
                   {compatta && <ArrowUpRight className="size-3.5 shrink-0" aria-hidden="true" />}
                 </Link>
                 {f.indirizzo && <p className="truncate text-xs text-muted-foreground">{f.indirizzo}</p>}
+                <Link to={urlAmbito(f.id)} aria-label={`Cantiere di ${f.nome}`}
+                  className="mt-0.5 inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                  <HardHat className="size-3" aria-hidden="true" /> Cantiere
+                </Link>
               </td>
               <td className="max-w-[10rem] px-2 py-2 text-xs">{analisi ? <Stato f={f} /> : <StatoCommerciale stato={f.statoVendita} />}</td>
               {analisi && <td className="px-2 py-2"><Avanzamento valore={f.avanzamento} fasi={f.avanzamentoFasi} aMisura={f.aMisura} /></td>}
@@ -697,7 +776,7 @@ function TabellaFiglie({ r, t, puoModificare, quote, costiInAttesa, analisi, com
         {!compatta && r.figlie.length > 1 && (
           <tfoot>
             <tr className="border-t bg-muted/30 text-sm font-medium">
-              <td className="px-4 py-2">Totale</td>
+              <td className="px-4 py-2">{figlie.length < r.figlie.length ? "Totale dell’operazione" : "Totale"}</td>
               <td className="px-2 py-2" />
               {analisi && <td className="px-2 py-2"><Avanzamento valore={t.avanzamento} /></td>}
               {importi && <td className="px-2 py-2 text-right tabular-nums">{euro(t.assegnato)}</td>}

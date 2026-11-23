@@ -694,10 +694,15 @@ function SezioneFase({
   );
 }
 
-export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
+export function MaterialiPerFase({ orderId, orderCode, editor, silvio, generaIniziale = false, computoIniziale, faseProposteIniziale, faseIniziale, ricercaIniziale = "" }: {
   orderId: string; orderCode?: string | null; editor?: EditorArticoli;
   /** Il bottone di Silvio, nella barra accanto ad «Aggiungi articolo». */
   silvio?: ReactNode;
+  generaIniziale?: boolean;
+  computoIniziale?: string;
+  faseProposteIniziale?: string | null;
+  faseIniziale?: string;
+  ricercaIniziale?: string;
 }) {
   const perm = usePermissions();
   const [uscitaMerce, setUscitaMerce] = useState(false);
@@ -710,10 +715,10 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
   const { suppliers } = useOperationalSuppliers();
   const [selezione, setSelezione] = useState<Set<string>>(new Set());
   const [vista, setVista] = useState<VistaArticoli>("fasi");
-  const [gruppo, setGruppo] = useState("_tutti");
-  const [cercaArticoli, setCercaArticoli] = useState("");
+  const [gruppo, setGruppo] = useState(faseIniziale ?? "_tutti");
+  const [cercaArticoli, setCercaArticoli] = useState(ricercaIniziale);
   /** Aperta/chiusa scelta a mano; le altre seguono la regola (chiuse se tutto è arrivato). */
-  const [aperte, setAperte] = useState<Map<string, boolean>>(new Map());
+  const [aperte, setAperte] = useState<Map<string, boolean>>(() => new Map(faseIniziale ? [[faseIniziale, true]] : []));
   const [mostraVuote, setMostraVuote] = useState(false);
   const [filtroStato, setFiltroStato] = useState<StatoMateriale | null>(null);
   const [soloDaCompletare, setSoloDaCompletare] = useState(false);
@@ -724,7 +729,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
   const [modificaBulk, setModificaBulk] = useState(false);
   const [titoloOfferta, setTitoloOfferta] = useState("");
   const [fornitoriOfferta, setFornitoriOfferta] = useState<Set<string>>(new Set());
-  const [genera, setGenera] = useState(false);
+  const [genera, setGenera] = useState(generaIniziale);
   // Dalla Nuova Commessa con «Dal computo»: appena creata si apre l'anteprima, una volta sola.
   useEffect(() => {
     const u = new URL(window.location.href);
@@ -737,7 +742,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
   const [tavole, setTavole] = useState(false);
   const [fabbisogno, setFabbisogno] = useState(false);
   // Il popup dei materiali proposti dal computo: si apre anche da solo dopo «Genera dal computo».
-  const [confermaProposti, setConfermaProposti] = useState(false);
+  const [confermaProposti, setConfermaProposti] = useState(faseProposteIniziale !== undefined);
   const [filtro, setFiltro] = useState<FiltroFonte>("tutti");
   const [ordine, setOrdine] = useState<Ordinamento>("posizione");
   const [richiesta, setRichiesta] = useState<RichiestaArticolo | null>(null);
@@ -935,7 +940,8 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
       <div className="space-y-2" id="materiali-per-fase">
         <VariazioniVariante orderId={orderId} puoDecidere={permessi.canValidateBom} />
         <MaterialiDaRegolarizzare orderId={orderId} />
-        {permessi.canEditOrders && <MaterialiDaConfermare orderId={orderId} fasi={fasi.map((f) => ({ id: f.id, nome: f.nome }))} aperto={confermaProposti} onAperto={setConfermaProposti} />}
+        {permessi.canEditOrders && <MaterialiDaConfermare orderId={orderId} fasi={fasi.map((f) => ({ id: f.id, nome: f.nome }))}
+          faseIniziale={faseProposteIniziale} aperto={confermaProposti} onAperto={setConfermaProposti} />}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-card px-3 py-2">
           <h3 className="text-sm font-semibold text-foreground">Articoli e materiali</h3>
           {tuttiMateriali.length > 0 && (
@@ -1374,7 +1380,8 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
 
         <Suspense fallback={null}>
           {uscitaMerce && <UscitaCommessaDialog orderId={orderId} onClose={() => setUscitaMerce(false)} />}
-          {genera && <GeneraMaterialiDialog orderId={orderId} orderCode={orderCode} open={genera} onOpenChange={setGenera} onProposti={() => setConfermaProposti(true)} />}
+          {genera && <GeneraMaterialiDialog orderId={orderId} orderCode={orderCode} computoIniziale={computoIniziale}
+            open={genera} onOpenChange={setGenera} onProposti={() => setConfermaProposti(true)} />}
           {tavole && <PlanimetrieDialog orderId={orderId} open={tavole} onOpenChange={setTavole} onGenera={() => setGenera(true)} />}
           {fabbisogno && (
             <Dialog open={fabbisogno} onOpenChange={setFabbisogno}>

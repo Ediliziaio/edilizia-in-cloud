@@ -25,7 +25,6 @@ function Numero({ etichetta, valore, nota, tono }: { etichetta: string; valore: 
 export function RiquadroPiano({ riepilogo }: PropsScheda) {
   const n = useGeneralePianoNumeri(riepilogo);
   const [parametri, setParametri] = useSearchParams();
-  // Da telefono la scheda non c'è: il riquadro si legge e basta.
   const telefono = useIsMobile();
   if (!riepilogo.permessi.margini || n.isError) return null;
 
@@ -41,11 +40,9 @@ export function RiquadroPiano({ riepilogo }: PropsScheda) {
         <span className="generale-section-icon"><ChartNoAxesCombined aria-hidden="true" /></span>Piano economico
         {n.inVista?.stato === "bozza" && <Badge variant="outline" className="font-normal">bozza, non approvato</Badge>}
       </h2>
-      {!telefono && (
-        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={apri}>
-          Apri il piano <ArrowRight className="ml-1 h-3.5 w-3.5" />
-        </Button>
-      )}
+      <Button variant="ghost" size="sm" className="h-8 shrink-0 px-2 text-xs" onClick={apri}>
+        Apri il piano <ArrowRight className="ml-1 h-3.5 w-3.5" aria-hidden="true" />
+      </Button>
     </div>
   );
 

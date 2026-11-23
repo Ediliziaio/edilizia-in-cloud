@@ -3,7 +3,7 @@
 // chiede solo quello che serve a quello stato (acquirente, data, prezzo, caparra o saldo).
 // Da telefono il prezzo non si cambia: si conferma quello che c'è, il resto dal computer.
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,9 +36,10 @@ const VERBO: Record<StatoVendita, string> = {
 export function CambioStato({ generaleId, unita: u, permessi, telefono }: Props) {
   const [verso, setVerso] = useState<StatoVendita | null>(null);
   const puo = permessi.modifica && !u.divisaIl;
+  const successivo = STATI_VENDITA[STATI_VENDITA.indexOf(u.stato) + 1];
   return (
     <div className="space-y-3">
-      <div role="group" aria-label="Stato di vendita" className="grid grid-cols-4 gap-1">
+      <div role="group" aria-label="Stato di vendita" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {STATI_VENDITA.map((s) => {
           const attuale = u.stato === s;
           const scelto = verso === s;
@@ -47,14 +48,19 @@ export function CambioStato({ generaleId, unita: u, permessi, telefono }: Props)
               key={s}
               type="button"
               aria-pressed={attuale}
+              aria-expanded={puo && !attuale ? scelto : undefined}
               disabled={!puo || attuale}
               onClick={() => setVerso(scelto ? null : s)}
               className={cn(
-                "tap-compact rounded-md border px-1 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default",
-                attuale ? STILE_STATO[s].scelto : scelto ? "border-foreground bg-muted" : "text-muted-foreground hover:bg-muted/60",
+                "tap-compact inline-flex min-h-10 items-center justify-center gap-1 rounded-md border px-2 py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default",
+                attuale ? STILE_STATO[s].casella
+                  : scelto ? "border-blue-400 bg-blue-100 text-blue-950 dark:bg-blue-950 dark:text-blue-100"
+                    : puo && s === successivo ? "border-blue-200 text-primary hover:bg-blue-50 dark:border-blue-800 dark:hover:bg-blue-950"
+                      : "text-muted-foreground hover:bg-muted/60",
                 !puo && !attuale && "opacity-50",
               )}
             >
+              {attuale && <Check className="size-3.5 shrink-0" aria-hidden="true" />}
               {NOMI_STATO[s].una}
             </button>
           );

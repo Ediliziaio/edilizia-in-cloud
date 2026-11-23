@@ -15,11 +15,11 @@ const tabella = () => supabase.from("order_document_folders" as never);
 const chiave = (companyId: string | null | undefined) => ["cartelle-documenti", companyId];
 
 /** Cartelle attive (non archiviate) in ordine; `tutte` include le archiviate. */
-export function useCartelleDocumenti(opzioni: { tutte?: boolean } = {}) {
+export function useCartelleDocumenti(opzioni: { tutte?: boolean; enabled?: boolean } = {}) {
   const companyId = useEffectiveCompanyId();
   const query = useQuery({
     queryKey: chiave(companyId),
-    enabled: !!companyId,
+    enabled: !!companyId && opzioni.enabled !== false,
     staleTime: 60_000,
     queryFn: async (): Promise<CartellaDocumenti[]> => {
       return loadCatalogPages<CartellaDocumenti>((from, to) => tabella()

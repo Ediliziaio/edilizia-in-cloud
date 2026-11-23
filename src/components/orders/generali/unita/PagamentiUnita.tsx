@@ -8,113 +8,179 @@ import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { DialogContentGenerale as DialogContent } from "@/components/orders/generali/design/DialogGenerale";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { ArrowRight, Loader2, Plus, Receipt, Undo2, WalletCards } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BottoneFattura } from "@/components/orders/generali/fatture/BottoneFattura";
 import { dataBreve, euro, leggiCampo, oggi } from "@/components/orders/generali/unita/aspetto";
 import { messaggioGenerale } from "@/hooks/useCommesseGenerali";
 import { useAggiungiMovimento, useEliminaMovimento, useContabilizzaIncassoUnita } from "@/hooks/useGeneraleUnita";
-import { errorePagamentoUnita, NOMI_MOVIMENTO, prezzoConVarianti, tipiMovimentoAmmessi, type TipoMovimento, type UnitaGenerale } from "@/lib/orders/generali/unita";
+import { errorePagamentoUnita, NOMI_MOVIMENTO, prezzoConVarianti, tipiMovimentoAmmessi, type MovimentoUnita, type TipoMovimento, type UnitaGenerale } from "@/lib/orders/generali/unita";
 import { pagamentiUnita } from "@/lib/orders/generali/unitaConti";
+import { percento } from "@/components/orders/generali/piano/formato";
 
 interface Props {
   generaleId: string;
   unita: UnitaGenerale;
   /** Si possono aggiungere e togliere pagamenti (computer o tablet, con il permesso). */
   gestisci: boolean;
+  apriVendita: () => void;
 }
 
-export function PagamentiUnita({ generaleId, unita: u, gestisci }: Props) {
+export function PagamentiUnita({ generaleId, unita: u, gestisci, apriVendita }: Props) {
   const elimina = useEliminaMovimento(generaleId);
+  const [nuovo, setNuovo] = useState(false);
+  const [daStornare, setDaStornare] = useState<MovimentoUnita | null>(null);
   const pag = pagamentiUnita(u);
   const ammessi = tipiMovimentoAmmessi(u.stato);
-  const togli = (id: string) => {
-    elimina.mutate(id, {
-      onSuccess: () => toast.success("Pagamento stornato; prima nota aggiornata"),
-      onError: (e) => toast.error(messaggioGenerale(e, "il pagamento")),
-    });
-  };
-  return (
-    <div className="space-y-3">
-      <dl className="grid grid-cols-3 gap-2 text-sm">
-        <div className="rounded-md border px-2.5 py-1.5">
-          <dt className="text-xs text-muted-foreground">{u.variantiAccettate ? "Prezzo con varianti" : "Prezzo"}</dt>
-          <dd className="font-medium tabular-nums">{u.stato === "libera" ? "—" : euro(prezzoConVarianti(u))}</dd>
+  const puoRegistrare = gestisci && ammessi.length > 0;
+  const prezzo = u.stato === "libera" ? null : prezzoConVarianti(u);
+  const coperto = prezzo !== null && prezzo > 0 && pag.pagato !== null ? Math.max(0, Math.min(1, pag.pagato / prezzo)) : null;
+  const movimenti = [...u.movimenti].sort((a, b) => b.data.localeCompare(a.data));
+  const storna = (id: string) => elimina.mutate(id, {
+    onSuccess: () => toast.success("Movimento stornato"),
+    onError: e => toast.error(messaggioGenerale(e, "il pagamento")),
+  });
+
+  return <div className="space-y-4">
+    {(u.stato !== "libera" || movimenti.length > 0) && <section aria-label="Riepilogo pagamenti" className="rounded-lg border bg-card">
+      <dl className="grid gap-3 p-4 sm:grid-cols-3">
+        <div>
+          <dt className="text-xs text-muted-foreground">{u.variantiAccettate ? "Prezzo con varianti" : "Prezzo concordato"}</dt>
+          <dd className="text-xl font-semibold tabular-nums">{euro(prezzo)}</dd>
         </div>
-        <div className="rounded-md border px-2.5 py-1.5">
-          <dt className="text-xs text-muted-foreground">Pagato</dt>
-          <dd className="font-medium tabular-nums">{euro(pag.pagato)}</dd>
+        <div>
+          <dt className="text-xs text-muted-foreground">Quota del prezzo pagata</dt>
+          <dd className="text-xl font-semibold tabular-nums">{euro(pag.pagato)}</dd>
+          {(pag.permute ?? 0) > 0 && <dd className="text-xs text-muted-foreground">Di cui {euro(pag.permute)} in permuta</dd>}
         </div>
-        <div className="rounded-md border px-2.5 py-1.5">
-          <dt className="text-xs text-muted-foreground">Da incassare</dt>
-          <dd className="font-medium tabular-nums">{euro(pag.residuo)}</dd>
+        <div>
+          <dt className="text-xs text-muted-foreground">Residuo sul prezzo</dt>
+          <dd className="text-xl font-semibold tabular-nums text-blue-800 dark:text-blue-300">{euro(pag.residuo)}</dd>
         </div>
       </dl>
-      <p className="text-xs text-muted-foreground">Prezzo e quote coperte senza IVA. L’entrata effettiva è registrata una sola volta in prima nota, con IVA se dovuta.</p>
-      <p className="text-xs text-muted-foreground">Caparra e acconti sono soldi entrati, non ancora ricavo: nel piano e nel margine diventano ricavo con la fattura o con il rogito. Fino ad allora contano negli incassi e nella cassa.</p>
+      {coperto !== null && <div className="flex items-center gap-3 border-t px-4 py-2.5">
+        <Progress value={coperto * 100} className="h-1.5 bg-slate-200 dark:bg-slate-800"
+          indicatorClassName="bg-blue-600 motion-reduce:transition-none" aria-label="Copertura del prezzo di vendita" />
+        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{percento(coperto)} coperto</span>
+      </div>}
+    </section>}
 
-      {u.movimenti.length > 0 ? (
-        <ul className="divide-y rounded-md border text-sm">
-          {u.movimenti.map((m) => (
-            <li key={m.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
-              <span className="w-24 shrink-0 text-xs text-muted-foreground">{dataBreve(m.data)}</span>
-              <span className="min-w-0 flex-1 basis-64 whitespace-normal break-words">
-                {NOMI_MOVIMENTO[m.tipo]}
-                {m.descrizione && <span className="text-muted-foreground"> · {m.descrizione}</span>}
-              </span>
-              <span className="shrink-0 tabular-nums">{euro(m.importo)}</span>
-              {m.tipo!=='permuta' && <span className="text-xs text-muted-foreground">{m.primaNotaId ? <Link className="text-emerald-700 underline" to="/azienda/prima-nota">In prima nota · {euro(m.importoCassa ?? null)}</Link> : gestisci ? <AllineaIncasso generaleId={generaleId} orderId={u.orderId} movimentoId={m.id} /> : 'Da collegare alla prima nota'}</span>}
-              {m.tipo !== "permuta" && <BottoneFattura generaleId={generaleId} origine="movimento" id={m.id} crea={gestisci} compatto />}
-              {gestisci && (
-                <Button type="button" variant="ghost" size="icon" className="h-7 w-7" aria-label={`Storna ${NOMI_MOVIMENTO[m.tipo].toLowerCase()} del ${dataBreve(m.data)}`}
-                  disabled={elimina.isPending} onClick={() => togli(m.id)}>
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              )}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="text-sm text-muted-foreground">
-          {u.stato === "libera" ? "I pagamenti si registrano dopo la prenotazione." : "Nessun pagamento registrato."}
-        </p>
-      )}
-      {(pag.permute ?? 0) > 0 && (
-        <p className="text-xs text-muted-foreground">La permuta paga il prezzo senza incasso e conta come costo del terreno, ripartito su tutte le unità: non registrarla anche come costo.</p>
-      )}
-
-      {gestisci && ammessi.length > 0 && <NuovoPagamento generaleId={generaleId} u={u} ammessi={ammessi} residuo={pag.residuo} />}
-    </div>
-  );
+    <section aria-label="Movimenti dell’unità" className="min-w-0 rounded-lg border bg-card">
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
+        <h3 className="flex items-center gap-2 text-sm font-semibold">
+          <WalletCards className="size-4 text-blue-700 dark:text-blue-300" aria-hidden="true" /> Movimenti dell’unità
+        </h3>
+        {puoRegistrare && !nuovo && <Button type="button" size="sm" className="gap-1.5" onClick={() => setNuovo(true)}>
+          <Plus className="size-4" aria-hidden="true" /> Nuovo pagamento
+        </Button>}
+      </header>
+      {puoRegistrare && nuovo && <NuovoPagamento generaleId={generaleId} u={u} ammessi={ammessi}
+        residuo={pag.residuo} chiudi={() => setNuovo(false)} />}
+      {movimenti.length > 0 ? <div className="overflow-x-auto">
+        <table aria-label="Registro dei pagamenti" className="w-full min-w-[40rem] text-sm">
+          <thead className="bg-muted/35 text-xs text-muted-foreground"><tr>
+            <th scope="col" className="px-4 py-2 text-left">Data</th>
+            <th scope="col" className="px-4 py-2 text-left">Movimento</th>
+            <th scope="col" className="px-4 py-2 text-right">Quota prezzo</th>
+            <th scope="col" className="px-4 py-2 text-left">Cassa e prima nota</th>
+            <th scope="col" className="px-4 py-2 text-right">Azioni</th>
+          </tr></thead>
+          <tbody className="divide-y">
+            {movimenti.map(m => <tr key={m.id}>
+              <td className="whitespace-nowrap px-4 py-2.5 tabular-nums">{dataBreve(m.data)}</td>
+              <td className="px-4 py-2.5">
+                <span className="font-medium">{NOMI_MOVIMENTO[m.tipo]}</span>
+                {m.descrizione && <span className="block break-words text-xs text-muted-foreground">{m.descrizione}</span>}
+              </td>
+              <td className="whitespace-nowrap px-4 py-2.5 text-right font-medium tabular-nums">{euro(m.importo)}</td>
+              <td className="px-4 py-2.5 text-xs">
+                {m.tipo === "permuta" ? <span className="text-muted-foreground">Permuta</span> : m.primaNotaId
+                  ? <Link className="inline-flex items-center gap-1.5 font-medium text-emerald-700 hover:underline dark:text-emerald-300" to="/azienda/prima-nota">
+                    In prima nota{m.importoCassa != null && <span className="whitespace-nowrap tabular-nums">{euro(m.importoCassa)}</span>}
+                  </Link>
+                  : gestisci ? <AllineaIncasso generaleId={generaleId} orderId={u.orderId} movimentoId={m.id} />
+                    : <span className="text-amber-700 dark:text-amber-300">Prima nota da collegare</span>}
+              </td>
+              <td className="px-3 py-2.5">
+                <div className="flex items-center justify-end gap-1">
+                  {m.tipo !== "permuta" && <BottoneFattura generaleId={generaleId} origine="movimento" id={m.id} crea={gestisci} compatto />}
+                  {gestisci && <Button type="button" variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-destructive"
+                    title="Storna movimento" aria-label={`Storna ${NOMI_MOVIMENTO[m.tipo].toLowerCase()} del ${dataBreve(m.data)}`}
+                    disabled={elimina.isPending} onClick={() => setDaStornare(m)}>
+                    <Undo2 className="size-4" aria-hidden="true" />
+                  </Button>}
+                </div>
+              </td>
+            </tr>)}
+          </tbody>
+        </table>
+      </div> : <div className="flex flex-wrap items-center gap-3 px-4 py-5">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+          <Receipt className="size-4" aria-hidden="true" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium">Nessun pagamento registrato</p>
+          {u.stato === "libera" && <p className="text-xs text-muted-foreground">Puoi registrare una caparra quando imposti la prenotazione.</p>}
+        </div>
+        {u.stato === "libera" && gestisci && <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={apriVendita}>
+          Vai a Vendita <ArrowRight className="size-4" aria-hidden="true" />
+        </Button>}
+      </div>}
+      {movimenti.length > 0 && <p className="border-t px-4 py-2.5 text-xs text-muted-foreground">
+        La quota prezzo è al netto dell’IVA. La prima nota riporta l’entrata effettiva con IVA, se dovuta.
+        {(pag.permute ?? 0) > 0 && " La permuta copre una quota del prezzo e rientra nei costi comuni."}
+      </p>}
+    </section>
+    <AlertDialog open={!!daStornare} onOpenChange={aperto => { if (!aperto) setDaStornare(null); }}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Stornare il movimento?</AlertDialogTitle>
+          <AlertDialogDescription>
+            {daStornare && `${NOMI_MOVIMENTO[daStornare.tipo]} di ${euro(daStornare.importo)} del ${dataBreve(daStornare.data)} · ${u.sigla}. `}
+            {daStornare?.primaNotaId ? "Lo storno aggiorna la prima nota collegata e il residuo dell’unità." : "Lo storno aggiorna il residuo dell’unità."}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Annulla</AlertDialogCancel>
+          <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            disabled={elimina.isPending} onClick={() => { if (daStornare) storna(daStornare.id); }}>Conferma storno</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  </div>;
 }
 
-function NuovoPagamento({ generaleId, u, ammessi, residuo }: { generaleId: string; u: UnitaGenerale; ammessi: TipoMovimento[]; residuo: number | null }) {
+function NuovoPagamento({ generaleId, u, ammessi, residuo, chiudi }: {
+  generaleId: string; u: UnitaGenerale; ammessi: TipoMovimento[]; residuo: number | null; chiudi: () => void;
+}) {
   const aggiungi = useAggiungiMovimento(generaleId);
   const [tipo, setTipo] = useState<TipoMovimento>(ammessi.includes("acconto") ? "acconto" : ammessi[0]);
   const [importoTesto, setImportoTesto] = useState("");
-  const [cassaTesto,setCassaTesto]=useState('');
+  const [cassaTesto, setCassaTesto] = useState("");
   const [data, setData] = useState(oggi());
   const [descrizione, setDescrizione] = useState("");
   const importo = leggiCampo(importoTesto);
   const errore = errorePagamentoUnita(importo, residuo, data, oggi());
-  const cassa=tipo==='permuta'?0:leggiCampo(cassaTesto);
-  const valido = !errore && cassa!=null && Number.isFinite(cassa) && (tipo==='permuta' || cassa>0);
+  const permuta = tipo === "permuta";
+  const cassa = permuta ? 0 : leggiCampo(cassaTesto);
+  const cassaValida = cassa !== null && Number.isFinite(cassa) && (permuta || cassa > 0);
+  const valido = !errore && cassaValida;
   const id = (n: string) => `pagamento-${u.orderId}-${n}`;
 
   const salva = () => {
     if (!valido || aggiungi.isPending) return;
     aggiungi.mutate(
-      { orderId: u.orderId, tipo, importo: importo!, importoCassa:cassa!,data: data || null, descrizione: descrizione.trim() || null },
+      { orderId: u.orderId, tipo, importo: importo!, importoCassa: cassa!, data: data || null, descrizione: descrizione.trim() || null },
       {
         onSuccess: () => {
           toast.success("Pagamento registrato");
-          setImportoTesto("");
-          setCassaTesto('');
-          setDescrizione("");
+          chiudi();
         },
         onError: (e) => toast.error(messaggioGenerale(e, "il pagamento")),
       },
@@ -122,7 +188,8 @@ function NuovoPagamento({ generaleId, u, ammessi, residuo }: { generaleId: strin
   };
 
   return (
-    <form className="grid grid-cols-2 gap-2 rounded-md border bg-muted/30 p-3 sm:grid-cols-3 sm:items-end" onSubmit={(ev) => { ev.preventDefault(); salva(); }}>
+    <form aria-label="Registra pagamento" className="grid grid-cols-2 items-end gap-x-4 gap-y-3 border-b bg-blue-50/40 p-4 dark:bg-blue-950/20 md:grid-cols-3"
+      onSubmit={(ev) => { ev.preventDefault(); salva(); }}>
       <div className="space-y-1">
         <Label htmlFor={id("tipo")}>Tipo</Label>
         <Select value={tipo} onValueChange={(v) => setTipo(v as TipoMovimento)}>
@@ -135,9 +202,13 @@ function NuovoPagamento({ generaleId, u, ammessi, residuo }: { generaleId: strin
       <div className="space-y-1">
         <Label htmlFor={id("importo")}>Quota prezzo (senza IVA)</Label>
         <Input id={id("importo")} inputMode="decimal" value={importoTesto} onChange={(ev) => setImportoTesto(ev.target.value)}
-          placeholder={residuo ? String(Math.round(residuo)) : "es. 20.000"} aria-invalid={(importoTesto !== "" && !valido) || undefined} />
+          placeholder={residuo ? String(Math.round(residuo)) : "Es. 20.000"} aria-invalid={(importoTesto !== "" && !!errore) || undefined} />
       </div>
-      {tipo!=='permuta' && <div className="space-y-1"><Label htmlFor={id('cassa')}>Entrata effettiva in cassa</Label><Input id={id('cassa')} inputMode="decimal" value={cassaTesto} onChange={ev=>setCassaTesto(ev.target.value)} placeholder="IVA inclusa, se dovuta" required /></div>}
+      {!permuta && <div className="space-y-1">
+        <Label htmlFor={id("cassa")}>Entrata effettiva in cassa</Label>
+        <Input id={id("cassa")} inputMode="decimal" value={cassaTesto} onChange={ev => setCassaTesto(ev.target.value)}
+          placeholder="IVA inclusa, se dovuta" aria-invalid={(cassaTesto !== "" && !cassaValida) || undefined} required />
+      </div>}
       <div className="space-y-1">
         <Label htmlFor={id("data")}>Data</Label>
         <Input id={id("data")} type="date" max={oggi()} value={data} onChange={(ev) => setData(ev.target.value)} />
@@ -146,11 +217,15 @@ function NuovoPagamento({ generaleId, u, ammessi, residuo }: { generaleId: strin
         <Label htmlFor={id("descrizione")}>{tipo === "permuta" ? "Cosa viene dato in permuta" : "Nota"} <span className="font-normal text-muted-foreground">(facolt.)</span></Label>
         <Input id={id("descrizione")} value={descrizione} onChange={(ev) => setDescrizione(ev.target.value)} placeholder={tipo === "permuta" ? "es. terreno foglio 12" : "es. bonifico"} />
       </div>
-      <Button type="submit" size="sm" className="col-span-2 h-9 sm:col-span-1" disabled={!valido || aggiungi.isPending}>
-        {aggiungi.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Plus className="mr-1.5 h-3.5 w-3.5" />}
-        Registra
-      </Button>
       {importoTesto && errore && <p role="alert" className="col-span-full text-xs text-destructive">{errore}</p>}
+      {cassaTesto && !cassaValida && <p role="alert" className="col-span-full text-xs text-destructive">Inserisci un’entrata in cassa maggiore di zero.</p>}
+      <div className="col-span-full flex justify-end gap-2">
+        <Button type="button" variant="outline" size="sm" disabled={aggiungi.isPending} onClick={chiudi}>Annulla</Button>
+        <Button type="submit" size="sm" className="gap-1.5" disabled={!valido || aggiungi.isPending}>
+          {aggiungi.isPending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Plus className="size-4" aria-hidden="true" />}
+          Registra
+        </Button>
+      </div>
     </form>
   );
 }

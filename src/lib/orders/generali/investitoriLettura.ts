@@ -55,7 +55,7 @@ export function leggiMovimenti(data: unknown): Movimento[] {
       tipo: r.tipo as TipoMovimento,
       data: giorno(r.data)!,
       importo: Math.max(0, numero(r.importo) ?? 0),
-      nota: testo(r.nota),
+      nota: typeof r.nota === "string" ? r.nota : null,
       unitaId: testo(r.unita_id),
     }));
 }

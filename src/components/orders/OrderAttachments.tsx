@@ -64,7 +64,8 @@ import { QrCantiereDialog } from "./QrCantiereDialog";
 import { OfficeSelect } from "./OfficeSelect";
 import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
 import { useCartelleDocumenti } from "@/hooks/useCartelleDocumenti";
-import { DocumentFoldersNavigation } from "./DocumentFoldersNavigation";
+import { invalidaChecklistCollegate } from "@/hooks/useGeneraleDocumenti";
+import { DocumentFoldersNavigation, SENZA_CARTELLA, TUTTI_DOCUMENTI } from "./DocumentFoldersNavigation";
 import { usePermissions } from "@/hooks/usePermissions";
 import { BUCKET_DOCUMENTI_CLIENTE, ETICHETTA_DOCUMENTO_CLIENTE } from "@/lib/clienti/documentiCliente";
 import { MESSAGGIO_PERMESSI } from "@/lib/userErrorMessage";
@@ -107,6 +108,7 @@ interface OrderAttachmentsProps {
   editable?: boolean;
   actions?: ReactNode;
   documentiCollegati?: ReactNode;
+  cartellaIniziale?: string;
 }
 
 function formatFileSize(bytes: number): string {
@@ -137,15 +139,15 @@ async function getSignedUrl(filePath: string): Promise<string | null> {
 }
 
 /** Selezione nel pannello: tutte, una cartella, o i file senza cartella. */
-const TUTTI = "__tutti";
-const SENZA = "__senza";
+const TUTTI = TUTTI_DOCUMENTI;
+const SENZA = SENZA_CARTELLA;
 
 export function OrderAttachments(props: OrderAttachmentsProps) {
   // Filtri e conferme appartengono alla commessa, non alla pagina riutilizzata.
   return <OrderAttachmentsPanel key={props.orderId} {...props} />;
 }
 
-function OrderAttachmentsPanel({ orderId, orderCode, editable = true, actions, documentiCollegati }: OrderAttachmentsProps) {
+function OrderAttachmentsPanel({ orderId, orderCode, editable = true, actions, documentiCollegati, cartellaIniziale }: OrderAttachmentsProps) {
   const queryClient = useQueryClient();
   const permissions = usePermissions();
   const puoGestireCartelle = permissions.isAdmin || permissions.canEditSettingsOrders;
@@ -153,7 +155,7 @@ function OrderAttachmentsPanel({ orderId, orderCode, editable = true, actions, d
 
   const { cartelle, isLoading: caricoCartelle, isError: erroreCartelle, refetch: rileggiCartelle } = useCartelleDocumenti({ tutte: true });
   const cartelleAttive = cartelle.filter(c => !c.archiviata_at);
-  const [selezione, setSelezione] = useState<string>(TUTTI);
+  const [selezione, setSelezione] = useState(cartellaIniziale ?? TUTTI);
   const [ricerca, setRicerca] = useState("");
   const [visibilita, setVisibilita] = useState<"tutti" | "interni" | "condivisi">("tutti");
   const [sezione, setSezione] = useState<"commessa" | "cantiere">("commessa");
@@ -224,6 +226,7 @@ function OrderAttachmentsPanel({ orderId, orderCode, editable = true, actions, d
   const invalida = () => {
     queryClient.invalidateQueries({ queryKey: ["campo-scheda-cantiere", orderId] });
     queryClient.invalidateQueries({ queryKey: ["order-attachments", orderId] });
+    void invalidaChecklistCollegate(queryClient, orderId);
     queryClient.invalidateQueries({ queryKey: ["order-documents-summary", orderId] });
     queryClient.invalidateQueries({ queryKey: ["order_attachments", orderId] });
     queryClient.invalidateQueries({ queryKey: ["customer-order-attachments", orderId] });
