@@ -42,6 +42,7 @@ import { leggiVerificheRicevute } from "@/lib/fatturazione/leggiVerificheRicevut
 import { StatoPill } from "@/components/orders/TabellaCommessa";
 import { fatturaVerificata, quoteDelCosto } from "@/lib/fatturazione/ripartizioneFattura";
 import { RiepilogoFatturaRicevuta } from "@/components/fatturazione/RiepilogoFatturaRicevuta";
+import { CellaProtocolloRicevuta, NumeraProtocolliRicevute, useProtocolliRicevute } from "@/components/fatturazione/ProtocolloRicevuta";
 import { RiepilogoFatture, TESTI_RICEVUTE } from "@/components/fatturazione/RiepilogoFatture";
 import { MonthlyTimeline } from "@/components/fatturazione/MonthlyTimeline";
 import { mesiRicevute } from "@/lib/fatturazione/mesiRicevute";
@@ -320,6 +321,8 @@ export default function FattureRicevutePage() {
   const companyId = useEffectiveCompanyId();
   const lettura = useLetturaRicevuta(companyId);
   const permessiCosti = usePermissions();
+  // Protocollo interno: colonna accanto al numero, per chi legge la contabilità (23/11/2026).
+  const protocolli = useProtocolliRicevute(companyId);
   const { data: storni } = useStorniNoteCredito(companyId);
   const [collegaNota, setCollegaNota] = useState<FatturaRicevuta | null>(null);
   const [contabilizzaFattura, setContabilizzaFattura] = useState<FatturaRicevuta | null>(null);
@@ -1335,6 +1338,8 @@ export default function FattureRicevutePage() {
               </label>
             </PopoverContent>
           </Popover>
+          {companyId && <NumeraProtocolliRicevute companyId={companyId} protocolli={protocolli}
+            anni={[...new Set(fatture.map(f => Number((f.data_ricezione_sdi ?? f.data_fattura ?? "").slice(0, 4))).filter(a => a > 2000))]} />}
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" className="gap-1.5 max-sm:hidden"><Columns3 className="h-4 w-4" />Colonne</Button>
@@ -1452,7 +1457,7 @@ export default function FattureRicevutePage() {
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[13px] font-semibold leading-tight">{f.cedente_ragione_sociale}</div>
                 <div className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
-                  N. {f.numero_fattura} · emessa {formatDateShort(f.data_fattura)}
+                  {protocolli.di(f.id) && `Prot. ${protocolli.etichetta(protocolli.di(f.id)!)} · `}N. {f.numero_fattura} · emessa {formatDateShort(f.data_fattura)}
                   {colonne.has("scadenza") && ` · scad. ${dataScadenza(f)}`}
                   {f.data_ricezione_sdi ? ` · arrivata ${formatDateShort(f.data_ricezione_sdi)}` : ""}
                   {f.categoria_ai ? ` · ${etichettaCategoria(f.categoria_ai)}` : ""}
@@ -1486,6 +1491,7 @@ export default function FattureRicevutePage() {
                 )}
                 {/* Numero, data, fornitore (16/11/2026): come si cerca una fattura su carta. */}
                 <TableHead>Numero</TableHead>
+                {protocolli.visibile && <TableHead className="whitespace-nowrap" title="Protocollo interno: 1, 2, 3… per anno">Prot.</TableHead>}
                 <IntestazioneOrdinabile campo="data" ordinamento={ordinamento} onOrdina={ordinaPer}>Emessa il</IntestazioneOrdinabile>
                 {colonne.has("scadenza") && <TableHead className="whitespace-nowrap">Scadenza fattura</TableHead>}
                 <IntestazioneOrdinabile campo="fornitore" ordinamento={ordinamento} onOrdina={ordinaPer}>Fornitore</IntestazioneOrdinabile>
@@ -1541,6 +1547,7 @@ export default function FattureRicevutePage() {
                       {etichettaTipoRicevuta(f.tipo_documento) !== "Fattura" && <span className="whitespace-nowrap text-xs text-muted-foreground">{etichettaTipoRicevuta(f.tipo_documento)}</span>}
                     </div>
                   </TableCell>
+                  {protocolli.visibile && <TableCell><CellaProtocolloRicevuta fattura={f} protocolli={protocolli} /></TableCell>}
                   <TableCell className="whitespace-nowrap">
                     <DataEmissione f={f} />
                   </TableCell>
@@ -1792,6 +1799,7 @@ export default function FattureRicevutePage() {
                 {dettaglioMobile.data_ricezione_sdi ? ` · arrivata dallo SDI il ${formatDateTime(dettaglioMobile.data_ricezione_sdi)}` : ""}
                 {dettaglioMobile.cedente_piva ? ` · P.IVA ${dettaglioMobile.cedente_piva}` : ""}
               </p>
+              {protocolli.visibile && <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">Protocollo interno: <CellaProtocolloRicevuta fattura={dettaglioMobile} protocolli={protocolli} /></p>}
               <div className="mt-3 grid grid-cols-3 gap-2 text-center">
                 {[
                   { l: "Imponibile", v: dettaglioMobile.imponibile_totale },
