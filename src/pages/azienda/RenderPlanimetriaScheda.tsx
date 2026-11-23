@@ -1,3 +1,4 @@
+import { FabbisognoMateriali } from "@/components/planimetrie/FabbisognoMateriali";
 import { StatoVerificaDocumento } from "@/components/planimetrie/ControlloPrimaDellUso";
 import { useControlloPrimaDellUso } from "@/hooks/useVerificaPlanimetria";
 import { MaterialiProgetto } from "@/components/planimetrie/MaterialiProgetto";
@@ -466,6 +467,7 @@ export default function RenderPlanimetriaScheda() {
               ["verifiche", "Verifiche"],
               piuUnita && ["unita", "Unità e vendite"],
               ["abachi", "Abachi"],
+              ["materiali", "Materiali"],
               completati.length > 0 && ["render-fatti", "Render fatti"],
             ].filter(Boolean) as Array<[string, string]>).map(([ancora, nome]) => (
               <a key={ancora} href={`#${ancora}`}
@@ -597,6 +599,10 @@ export default function RenderPlanimetriaScheda() {
 
       <div id="abachi" className="scroll-mt-4">
         <AbachiPianta documento={documento} livelloId={livello.id} ambito={ambito} titolo={data.riga.titolo} />
+      </div>
+
+      <div id="materiali" className="scroll-mt-4">
+        <FabbisognoMateriali documento={documento} ambito={ambito} />
       </div>
 
       {completati.length > 0 && (

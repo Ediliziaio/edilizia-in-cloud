@@ -1,3 +1,4 @@
+import { FabbisognoMateriali } from "./FabbisognoMateriali";
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
@@ -345,6 +346,8 @@ export function StudioImmobiliare({ documento, companyId, planimetriaId, version
           </div>
         </div>
       </div>
+      {/* Cambia con la variante: frazionare o spostare un tramezzo aggiorna i materiali. */}
+      <FabbisognoMateriali documento={documento} ambito={`progetto:${variante}`} titolo={`Materiali da comprare · ${varianti.find(v=>v.propostaId===variante)?.nome ?? "variante"}`} />
       <AccessiProposta accessi={accessi}/>
       {puoSimulare && !!studio.unita.length && !studio.sovrapposti.length && !localiDaRivedere.length && <div className="flex flex-wrap items-center gap-2">
         <p className="mr-1 text-sm font-medium">Business plan</p>

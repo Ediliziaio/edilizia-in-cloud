@@ -9,6 +9,7 @@ import { coloriContraddittori } from "../../../shared/render-room/colours.ts";
 import { COLORI_INFISSI_PROGETTO, PROFILI_PROGETTO, descrizionePavimento, statoConMateriali } from "../../../shared/planimetrie/materialiProgetto.ts";
 import { svgPiantaStanza } from "../../../shared/render-planimetria/piantaStanza.ts";
 import { NOMI_VERIFICA, verificaPianta, type Verifica } from "../../../shared/planimetrie/verifiche.ts";
+import { fabbisognoMateriali } from "../../../shared/planimetrie/fabbisogno.ts";
 import { DATI_URBANISTICI, firmaRiscontroTecnico, RISCONTRI_TECNICI, RUOLI_TAVOLA, valutaUrbanistica } from "../../../shared/planimetrie/urbanistica.ts";
 import { selectedRoomVisuals } from "../../../shared/render-references/roomVisualCatalog.ts";
 import { makeReferenceImage } from "../../../shared/render-references/referenceUrl.ts";
@@ -454,6 +455,17 @@ export async function esportaFascicolo(d: DatiFascicolo): Promise<{ dati: Uint8A
         testo([d.documento.livelli.find(l=>l.id===r.livelloId)?.nome,r.tecnico,r.data,urbanistica.fonti.find(f=>f.id===r.fonteId)?.titolo].filter(Boolean).join(" | "));
         testo(r.riferimento);
       }
+    }
+  }
+  // La lista della spesa dalla pianta: quantità, confezioni e come sono calcolate (23/11/2026).
+  const materiali = fabbisognoMateriali(d.documento, d.ambito);
+  if (materiali.length) {
+    avanza("Materiali da comprare");
+    nuovaPagina("Materiali da comprare", `${nomeAmbito} · rese tipiche di cantiere, da confermare con le schede dei prodotti`, true);
+    for (const r of materiali) {
+      testo(`${r.materiale}: ${r.quantita.toLocaleString("it-IT")} ${r.unita}${r.confezioni ? ` · ${r.confezioni.nome}` : ""}`, 11, true);
+      testo(r.come);
+      y -= 4;
     }
   }
   nuovaPagina("Riepilogo e punti da verificare", nomeAmbito, true);

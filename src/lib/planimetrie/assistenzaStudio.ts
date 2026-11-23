@@ -27,6 +27,8 @@ export async function cercaRegoleNellEstratto(companyId: string, estratto: strin
 export async function chiediSulProgetto(companyId: string, richiesta: string, contesto: ContestoChatProgetto, cronologia: MessaggioChatProgetto[]) {
   const data = await invocaAssistenza({company_id:companyId,assistenza:"chat-progetto",richiesta,contesto,cronologia});
   const risposta = leggiRispostaChatProgetto(data.risposta, contesto);
-  if (!risposta) throw new Error("La risposta non contiene una proposta leggibile. Riprova con una richiesta più breve.");
+  // Una proposta con anche un solo comando non applicabile si scarta tutta (per esempio due nomi
+  // per la stessa stanza): meglio dirlo così che chiedere «una richiesta più breve» (23/11/2026).
+  if (!risposta) throw new Error("Silvio ha proposto una modifica che non posso applicare così com'è. Chiedi una modifica alla volta: prima la divisione con il tramezzo, poi i nomi delle nuove stanze.");
   return risposta;
 }

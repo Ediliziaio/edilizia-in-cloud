@@ -28,6 +28,12 @@ const ESEMPI_GRUPPO = [
 ];
 const superficie = (l:Locale) => `${(areaPoligono(l.contorno)/10_000).toLocaleString("it-IT",{maximumFractionDigits:2})} m²`;
 
+/** Il grassetto «**testo**» che a volte scrive l'AI, mostrato come grassetto e non con gli asterischi. */
+function conGrassetto(testo: string) {
+  return testo.split(/(\*\*[^*\n]+\*\*)/g).map((pezzo, i) =>
+    /^\*\*[^*\n]+\*\*$/.test(pezzo) ? <strong key={i}>{pezzo.slice(2, -2)}</strong> : pezzo);
+}
+
 const TUTTA_LA_CASA = "__tutto_il_piano";
 
 export function SilvioPlanimetria({ documento, selezione, locali, companyId, puoScrivere, bozza, mostraPrima, salvataggio, erroreSalvataggio, analisi, onAnalisi, onEsodo, onRiscontro, evidenziata, onMostraSegnalazione, onSeleziona, onAnteprima, onSalva, onChiudi, onVaiAllaCorrente, gruppoIniziale, onGruppo }: {
@@ -217,7 +223,7 @@ export function SilvioPlanimetria({ documento, selezione, locali, companyId, puo
           </button>)}</div>}
         </div>}
         {messaggi.map((m,i)=><p key={i} className={cn("max-w-[91%] whitespace-pre-wrap break-words rounded-xl px-3 py-2.5 text-sm leading-relaxed",
-          m.ruolo==="utente" ? "ml-auto bg-blue-700 text-white" : "bg-muted text-foreground")}>{m.testo}</p>)}
+          m.ruolo==="utente" ? "ml-auto bg-blue-700 text-white" : "bg-muted text-foreground")}>{m.ruolo==="utente" ? m.testo : conGrassetto(m.testo)}</p>)}
         {invio && <p className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin"/>Silvio sta elaborando la risposta…</p>}
         <div ref={fine}/>
       </div>
