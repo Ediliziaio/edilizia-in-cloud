@@ -71,7 +71,7 @@ export const TESTI_RICEVUTE: TestiRiepilogo = {
 };
 
 export function RiepilogoFatture({
-  mesi, mesiAnnoPrima, meseScelto, isMobile, etichettaDocumenti = "fatture", testi = TESTI_EMESSE,
+  mesi, mesiAnnoPrima, meseScelto, isMobile, etichettaDocumenti = "fatture", testi = TESTI_EMESSE, caricamento,
 }: {
   mesi: MonthSummary[];
   mesiAnnoPrima?: MonthSummary[];
@@ -79,6 +79,8 @@ export function RiepilogoFatture({
   isMobile?: boolean;
   etichettaDocumenti?: string;
   testi?: TestiRiepilogo;
+  /** I numeri stanno arrivando: i riquadri si disegnano subito con «…» al posto della cifra. */
+  caricamento?: boolean;
 }) {
   const anno = mesi[0]?.year ?? new Date().getFullYear();
 
@@ -98,7 +100,35 @@ export function RiepilogoFatture({
     : String(anno);
 
 
-  if (s.doc === 0 && !mesi.some(m => m.docCount > 0)) return null;
+  const vuoto = s.doc === 0 && !mesi.some(m => m.docCount > 0);
+
+  // Finché i numeri non sono arrivati i riquadri ci sono già, con «…» al posto
+  // della cifra: stessa altezza, così quando arrivano l'elenco sotto non si
+  // sposta (23/11/2026, come il lampo blu delle ricevute). Senza caricamento in
+  // corso restano invisibili: un'azienda senza fatture non deve vedere zeri.
+  if (vuoto && caricamento) {
+    if (isMobile) {
+      return (
+        <section aria-label="Numeri delle fatture" aria-busy="true" className="grid grid-cols-3 gap-2">
+          {[testi.totale, testi.incassato, "Scaduto"].map((e, i) => (
+            <Comparsa key={e} indice={i} className="min-w-0 rounded-xl border bg-card px-2.5 py-2">
+              <p className="truncate text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{e}</p>
+              <p className="truncate text-sm font-bold tabular-nums text-muted-foreground">…</p>
+            </Comparsa>
+          ))}
+        </section>
+      );
+    }
+    return (
+      <section aria-label="Numeri delle fatture" aria-busy="true" className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+        {[`${testi.totale} ${nomePeriodo}`, "Imponibile", "IVA", testi.incassato, testi.daIncassare, "Scaduto"].map((e, i) => (
+          <NumeroVeloce key={e} indice={i} etichetta={e} testo="…" nota="…" />
+        ))}
+      </section>
+    );
+  }
+
+  if (vuoto) return null;
 
   // Telefono: solo i tre numeri che contano, su una riga, per non spingere giù l'elenco.
   if (isMobile) {

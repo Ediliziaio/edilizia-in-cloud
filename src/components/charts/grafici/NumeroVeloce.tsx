@@ -30,7 +30,9 @@ export function NumeroVeloce({
   const corpo = (
     <>
       <p className="truncate text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{etichetta}</p>
-      <div className="mt-0.5 flex items-center gap-1.5">
+      {/* 22px fissi, quanto l'anello della percentuale: il riquadro è alto uguale
+          con o senza anello, e quando l'anello arriva nulla si sposta. */}
+      <div className="mt-0.5 flex min-h-[22px] items-center gap-1.5">
         <p
           className={cn(
             "truncate text-base font-bold tabular-nums leading-tight",

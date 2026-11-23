@@ -1177,7 +1177,7 @@ export default function FattureRicevutePage() {
           resta la testata di prima: la striscia è di un anno. */}
       {!erroreFatture && (mesi && !isMobile ? (
         <div className="space-y-3">
-          <RiepilogoFatture mesi={mesi} meseScelto={meseScelto} testi={TESTI_RICEVUTE} etichettaDocumenti="fatture ricevute" />
+          <RiepilogoFatture mesi={mesi} meseScelto={meseScelto} testi={TESTI_RICEVUTE} etichettaDocumenti="fatture ricevute" caricamento={isLoading} />
           <MonthlyTimeline
             months={mesi}
             selectedMonth={meseScelto}

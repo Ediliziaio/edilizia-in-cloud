@@ -29,6 +29,30 @@ const MONTH_ABBR_IT = [
   "LUG", "AGO", "SET", "OTT", "NOV", "DIC",
 ];
 
+/**
+ * I dodici mesi di un anno, vuoti: zero documenti e zero importi.
+ *
+ * Serve a disegnare la striscia dei mesi SUBITO, prima che i numeri arrivino dal
+ * database: la striscia è già alla sua altezza definitiva e l'elenco sotto non
+ * viene spinto giù mezzo secondo dopo (23/11/2026, misurato: la pagina si
+ * disegnava a 157 ms e la striscia compariva a 500 ms).
+ */
+export function mesiVuoti(anno: number): MonthSummary[] {
+  return MONTH_NAMES_IT.map((label, i) => ({
+    year: anno,
+    month: i + 1,
+    label,
+    docCount: 0,
+    totalAmount: 0,
+    imponibile: 0,
+    iva: 0,
+    incassato: 0,
+    daIncassare: 0,
+    scaduto: 0,
+    key: `${anno}-${String(i + 1).padStart(2, "0")}`,
+  }));
+}
+
 export function useMonthlyTimeline(tipoFilter?: TipoDocumento[] | null, year?: number, opzioni?: { enabled?: boolean }) {
   const companyId = useEffectiveCompanyId();
   const targetYear = year ?? new Date().getFullYear();
@@ -48,25 +72,8 @@ export function useMonthlyTimeline(tipoFilter?: TipoDocumento[] | null, year?: n
 
       if (error) throw error;
 
-      // Build 12 months for the target year
-      const monthMap = new Map<string, MonthSummary>();
-
-      for (let m = 0; m < 12; m++) {
-        const key = `${targetYear}-${String(m + 1).padStart(2, "0")}`;
-        monthMap.set(key, {
-          year: targetYear,
-          month: m + 1,
-          label: MONTH_NAMES_IT[m],
-          docCount: 0,
-          totalAmount: 0,
-          imponibile: 0,
-          iva: 0,
-          incassato: 0,
-          daIncassare: 0,
-          scaduto: 0,
-          key,
-        });
-      }
+      // I dodici mesi dell'anno, gli stessi che la striscia disegna già vuoti.
+      const monthMap = new Map(mesiVuoti(targetYear).map(m => [m.key, m]));
 
       // Merge server-side aggregation
       const rows = (typeof data === "string" ? JSON.parse(data) : data) as

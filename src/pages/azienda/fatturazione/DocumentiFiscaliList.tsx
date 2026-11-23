@@ -11,7 +11,7 @@ import { preparaCopiaDocumento, siPuoDuplicare } from "@/lib/fatturazione/duplic
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
-import { useMonthlyTimeline } from "@/hooks/billing/useMonthlyTimeline";
+import { mesiVuoti, useMonthlyTimeline } from "@/hooks/billing/useMonthlyTimeline";
 import { useDocumentCounts } from "@/hooks/billing/useDocumentCounts";
 import { downloadNativePDF } from "@/lib/fatturazione/generatePDF";
 import { useShipmentDDTPDF } from "@/hooks/useShipmentDDTPDF";
@@ -405,7 +405,11 @@ function DocumentiFiscaliListInner() {
   const loadingKey = JSON.stringify([activeTab, page, search, selectedMonth, statoFilter]);
   const showSlowLoading = isLoading && slowLoadingKey === loadingKey;
   const { data: counts } = useDocumentCounts();
-  const { data: timelineMonths } = useMonthlyTimeline(isTrash ? null : currentTab.tipos, timelineYear, { enabled: !soloBozzeFatture });
+  const { data: timelineMonths, isPending: caricaTimeline } = useMonthlyTimeline(isTrash ? null : currentTab.tipos, timelineYear, { enabled: !soloBozzeFatture });
+  // La striscia dei mesi e i sei numeri si disegnano subito, coi dodici mesi
+  // vuoti: prima aspettavano i numeri e comparivano a mezzo secondo dalla
+  // pagina, spingendo giù l'elenco (23/11/2026).
+  const mesiStriscia = useMemo(() => timelineMonths ?? mesiVuoti(timelineYear), [timelineMonths, timelineYear]);
   // L'anno prima serve solo alla variazione dei numeri veloci, e solo da tablet in su.
   const { data: timelineMonthsPrima } = useMonthlyTimeline(currentTab.tipos, timelineYear - 1, {
     enabled: !isTrash && !soloBozzeFatture && activeTab === "fattura" && !isMobile,
@@ -761,22 +765,23 @@ function DocumentiFiscaliListInner() {
       {esterna && effectiveCompany?.id && <ImportInCorsoBanner companyId={effectiveCompany.id} />}
 
       {/* ── Numeri veloci (solo Fatture) ───────────────── */}
-      {!isTrash && !soloBozzeFatture && activeTab === "fattura" && timelineMonths && (
+      {!isTrash && !soloBozzeFatture && activeTab === "fattura" && (
         <RiepilogoFatture
-          mesi={timelineMonths}
+          mesi={mesiStriscia}
           mesiAnnoPrima={timelineMonthsPrima}
           meseScelto={selectedMonth}
           isMobile={isMobile}
+          caricamento={caricaTimeline}
         />
       )}
 
       {/* ── Monthly Timeline ───────────────────────────── */}
       {/* Strip 12 mesi a scorrimento: filtro secondario ingombrante su mobile.
           Solo da tablet in su; su telefono si resta su "tutti i mesi". */}
-      {!isTrash && !soloBozzeFatture && timelineMonths && timelineMonths.length > 0 && (
+      {!isTrash && !soloBozzeFatture && (
         <div className="hidden md:block">
           <MonthlyTimeline
-            months={timelineMonths}
+            months={mesiStriscia}
             selectedMonth={selectedMonth}
             onSelectMonth={(m) => {
               setSelectedMonth(m);
