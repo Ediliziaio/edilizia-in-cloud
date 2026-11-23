@@ -6,7 +6,7 @@ import { useTestoCheSegue } from "@/hooks/useTestoCheSegue";
 
 /**
  * Il campo di ricerca delle fatture ricevute restava indietro di due o tre
- * lettere (23/11/2026, Impresa Vulcano): ogni lettera ridisegnava la pagina con
+ * lettere (23/11/2026, un'azienda cliente): ogni lettera ridisegnava la pagina con
  * tutte le sue 1.294 righe. Il campo adesso ha lo stato suo e la pagina lo
  * riceve quando si smette di digitare.
  */

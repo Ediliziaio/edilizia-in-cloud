@@ -1,7 +1,7 @@
 -- ════════════════════════════════════════════════════════════════════════════
 -- Pagamento di una fattura ricevuta: «c'è in banca», da collegare con un clic (23/11/2026)
 -- ════════════════════════════════════════════════════════════════════════════
--- Impresa Vulcano: registrare un pagamento doveva essere facile. Ma se il
+-- un'azienda cliente: registrare un pagamento doveva essere facile. Ma se il
 -- pagamento è già passato in banca, scriverlo a mano lo registra due volte —
 -- il movimento arriva, la fattura risulta già pagata e il movimento resta lì
 -- senza documento. Le proposte del motore (stesso fornitore, importo, data)

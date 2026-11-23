@@ -1,7 +1,7 @@
 -- ════════════════════════════════════════════════════════════════════════════
 -- Tesoreria: il pagamento certo a un fornitore si collega da solo (23/11/2026)
 -- ════════════════════════════════════════════════════════════════════════════
--- Su Impresa Vulcano quindici uscite di banca (20.198 €) erano già state
+-- Su un'azienda cliente quindici uscite di banca (20.198 €) erano già state
 -- riconosciute dal motore — Enel, Agesp, Aemme Service, La C2, Wind: stesso
 -- fornitore, importo uguale al residuo, un solo candidato, nessun conflitto —
 -- e restavano «proposta» da confermare a mano. Nessuno le confermava, e nel

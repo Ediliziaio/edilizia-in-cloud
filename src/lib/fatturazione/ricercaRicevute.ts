@@ -19,7 +19,7 @@ export function terminiRicercaRicevute(ricerca: string): string[] {
  * Normalizzare costa: Unicode NFKD e due espressioni regolari per ogni campo.
  * L'elenco delle fatture ricevute lo faceva a OGNI lettera digitata, su tutte le
  * righe e su tutti i campi — 1.294 fatture × una quindicina di campi per
- * Impresa Vulcano. Da quando le fatture sono contabilizzate ogni riga ha in più
+ * un'azienda cliente. Da quando le fatture sono contabilizzate ogni riga ha in più
  * la commessa (codice, descrizione, indirizzo), e il campo di ricerca ha
  * cominciato a restare indietro di due o tre lettere.
  *

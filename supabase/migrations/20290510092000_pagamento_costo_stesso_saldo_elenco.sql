@@ -1,7 +1,7 @@
 -- ════════════════════════════════════════════════════════════════════════════
 -- Pagamenti di una fattura ricevuta: il popup dice quello che dice l'elenco (23/11/2026)
 -- ════════════════════════════════════════════════════════════════════════════
--- Impresa Vulcano: «pagamenti e residuo ancora non funzionanti». Nell'elenco delle
+-- un'azienda cliente: «pagamenti e residuo ancora non funzionanti». Nell'elenco delle
 -- fatture ricevute CSI Broker FT-2026/4077 risultava pagata (segnata il 16/11),
 -- nel popup dei pagamenti «Pagato 0,00 · Residuo 100,00». Intesa Sanpaolo:
 -- pagata, con il movimento di banca già collegato dalla tesoreria, e il popup

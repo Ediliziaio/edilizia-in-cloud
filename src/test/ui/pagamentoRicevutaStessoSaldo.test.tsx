@@ -7,7 +7,7 @@ import { ExpensePaymentDialog } from "@/components/orders/ExpensePaymentDialog";
 /**
  * Il popup dei pagamenti di una fattura ricevuta dice quello che dice l'elenco (23/11/2026).
  *
- * Impresa Vulcano: Intesa Sanpaolo pagata, col movimento di banca già collegato dalla
+ * un'azienda cliente: Intesa Sanpaolo pagata, col movimento di banca già collegato dalla
  * tesoreria, e il popup «Pagato 0,00» più l'avviso «registrazioni storiche da
  * riconciliare»; CSI Broker segnata pagata nell'elenco e «Residuo 100,00» nel popup.
  * Il saldo adesso arriva dallo stesso calcolo dell'elenco, con i movimenti di banca.

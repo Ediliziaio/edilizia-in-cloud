@@ -726,7 +726,7 @@ export default function FattureRicevutePage() {
     );
 
   // 23/11/2026 — il campo di ricerca restava indietro di due o tre lettere
-  // (Impresa Vulcano, 1.294 fatture). Ogni lettera rinormalizzava il testo di
+  // (un'azienda cliente, 1.294 fatture). Ogni lettera rinormalizzava il testo di
   // tutte le fatture su tutti i campi, e da quando sono contabilizzate ogni riga
   // porta anche la sua commessa. Adesso:
   //  · il testo di ogni fattura si prepara UNA volta, quando cambiano i dati;

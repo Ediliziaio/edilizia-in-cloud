@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 /**
  * Un campo di ricerca che risponde subito alla tastiera, mentre la pagina lo
  * segue con un attimo di ritardo (23/11/2026).
  *
  * Nelle fatture ricevute il campo era «controllato» dalla pagina: ogni lettera
- * ridisegnava tutta la pagina — 1.294 righe per Impresa Vulcano — e il testo
+ * ridisegnava tutta la pagina — oltre mille righe per un'azienda — e il testo
  * restava indietro di due o tre lettere rispetto a quello che si digitava.
  *
  * Usato DENTRO un componente piccolo (solo il campo): così a ogni lettera si
@@ -27,7 +27,10 @@ export function useTestoCheSegue(
   const passato = useRef(valore);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const richiama = useRef(onCambia);
-  richiama.current = onCambia;
+  // Aggiornato dopo il disegno, non durante (react-hooks/refs).
+  useLayoutEffect(() => {
+    richiama.current = onCambia;
+  }, [onCambia]);
 
   useEffect(() => {
     if (valore === passato.current) return;

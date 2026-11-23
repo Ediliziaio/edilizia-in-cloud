@@ -100,7 +100,7 @@ export default function Scadenzario() {
   const [search, setSearch] = useState("");
   const [payDialog, setPayDialog] = useState<Scadenza | null>(null);
   // 23/11/2026: la rata di una fattura fornitore si paga qui. Prima «Segna pagata» portava alla
-  // pagina Costi, e da lì riepilogo, popup e modulo: Impresa Vulcano non riusciva a registrare.
+  // pagina Costi, e da lì riepilogo, popup e modulo: un'azienda cliente non riusciva a registrare.
   const [pagaCosto, setPagaCosto] = useState<{ costId: string; importo: number } | null>(null);
   const pagaSulPosto = (s: Scadenza) => s.auto_source === "fonte_costo" && !!s.cost_id && permessi.canViewCosts && !permessi.solaLettura;
   const apriPagamento = (s: Scadenza) => {
