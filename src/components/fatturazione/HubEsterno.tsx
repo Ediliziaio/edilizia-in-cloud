@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Archive, CreditCard, FileText, Inbox, Search, Wallet } from "lucide-react";
@@ -184,6 +185,11 @@ export function RegistroIncassiImportate({ soloSeCeNe = false }: { soloSeCeNe?: 
   });
 
   const daIncassare = useMemo(() => (aperte.data ?? []).filter((d) => residuoImportata(d) > 0), [aperte.data]);
+  // Telefono: 30 righe per elenco, poi «Mostra altri» (185 incassi tutti in pagina: 10.000px).
+  const telefono = useIsMobile(640);
+  const [quanteDa, setQuanteDa] = useState(30);
+  const [quanteInc, setQuanteInc] = useState(30);
+  const taglia = <T,>(xs: T[], n: number) => (telefono ? xs.slice(0, n) : xs);
   const kpi = useMemo(() => {
     let residuo = 0, scaduto = 0;
     for (const d of daIncassare) {
@@ -235,7 +241,7 @@ export function RegistroIncassiImportate({ soloSeCeNe = false }: { soloSeCeNe?: 
           <p className="p-4 text-sm text-muted-foreground">Nessuna fattura da incassare.</p>
         ) : (
           <ul className="divide-y">
-            {daIncassare.map((d) => {
+            {taglia(daIncassare, quanteDa).map((d) => {
               const scad = getScadenzaInfo(d);
               return (
                 <li key={d.id} className="flex items-center gap-3 px-4 py-2.5 max-sm:gap-2 max-sm:px-3">
@@ -254,6 +260,9 @@ export function RegistroIncassiImportate({ soloSeCeNe = false }: { soloSeCeNe?: 
                 </li>
               );
             })}
+            {telefono && daIncassare.length > quanteDa && (
+              <li><button type="button" onClick={() => setQuanteDa((n) => n + 30)} className="w-full px-3 py-2.5 text-sm font-medium text-primary">Mostra altre ({daIncassare.length - quanteDa})</button></li>
+            )}
           </ul>
         )}
       </section>
@@ -271,7 +280,7 @@ export function RegistroIncassiImportate({ soloSeCeNe = false }: { soloSeCeNe?: 
           <p className="p-4 text-sm text-muted-foreground">Nessun incasso registrato quest'anno in Edilizia in Cloud. Le fatture segnate pagate nel gestionale risultano già «Pagata» nell'elenco.</p>
         ) : (
           <ul className="divide-y">
-            {(incassi.data ?? []).map((p) => (
+            {taglia(incassi.data ?? [], quanteInc).map((p) => (
               <li key={p.id} className="flex items-center gap-3 px-4 py-2.5 max-sm:px-3">
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium max-sm:text-[13px]">{p.invoices?.client_company_name ?? "—"}</div>
@@ -282,6 +291,9 @@ export function RegistroIncassiImportate({ soloSeCeNe = false }: { soloSeCeNe?: 
                 <div className="shrink-0 text-sm font-semibold tabular-nums text-emerald-700 max-sm:text-[13px]">{formatCurrency(Number(p.amount))}</div>
               </li>
             ))}
+            {telefono && (incassi.data?.length ?? 0) > quanteInc && (
+              <li><button type="button" onClick={() => setQuanteInc((n) => n + 30)} className="w-full px-3 py-2.5 text-sm font-medium text-primary">Mostra altri ({(incassi.data?.length ?? 0) - quanteInc})</button></li>
+            )}
           </ul>
         )}
       </section>

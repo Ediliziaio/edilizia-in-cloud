@@ -1487,7 +1487,7 @@ function AddCard({ onClick, disabled }: { onClick: () => void; disabled: boolean
     <button
       onClick={onClick}
       disabled={disabled}
-      className="rounded-xl border-2 border-dashed border-muted-foreground/20 flex flex-col items-center justify-center gap-2.5 min-h-[200px] text-muted-foreground/40 transition-all hover:border-primary/50 hover:text-primary hover:bg-primary/5 group"
+      className="max-sm:hidden rounded-xl border-2 border-dashed border-muted-foreground/20 flex flex-col items-center justify-center gap-2.5 min-h-[200px] text-muted-foreground/40 transition-all hover:border-primary/50 hover:text-primary hover:bg-primary/5 group"
     >
       <div className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-dashed border-current transition-transform group-hover:scale-110 group-hover:border-primary">
         <Plus className="h-5 w-5" />
@@ -1528,8 +1528,8 @@ export default function CruscottoHub() {
   return (
     <div className="space-y-6 max-w-6xl">
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 shadow-sm sm:px-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 shadow-sm sm:px-6 max-sm:py-3">
+        <div className="flex flex-row items-start justify-between gap-3 sm:gap-4">
           <div className="flex min-w-0 items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
               <LayoutGrid className="h-5 w-5" />
@@ -1546,9 +1546,9 @@ export default function CruscottoHub() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" className="gap-1.5" disabled={!canManage} onClick={openCreation}>
+            <Button size="sm" className="gap-1.5 max-sm:h-9 max-sm:w-9 max-sm:rounded-full max-sm:p-0" aria-label="Aggiungi dashboard" disabled={!canManage} onClick={openCreation}>
               <Plus className="h-4 w-4" />
-              Aggiungi dashboard
+              <span className="max-sm:hidden">Aggiungi dashboard</span>
             </Button>
           </div>
         </div>

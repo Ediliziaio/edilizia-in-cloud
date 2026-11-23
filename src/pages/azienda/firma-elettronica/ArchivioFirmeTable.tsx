@@ -1,3 +1,5 @@
+import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorrimentoOrizzontale";
 import { useMemo, useState, type ReactNode } from "react";
 import { Columns3 } from "lucide-react";
@@ -47,6 +49,7 @@ export function ArchivioFirmeTable({ rows, visible, openDetail, status, document
   actions: (row: SignatureRequestRow) => ReactNode;
 }) {
   const [scrollContainer, setScrollContainer] = useState<HTMLDivElement | null>(null);
+  const telefono = useIsMobile(640);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const selectedRows = rows.filter(r => selected.has(r.id));
   const all = rows.length > 0 && selectedRows.length === rows.length;
@@ -57,6 +60,24 @@ export function ArchivioFirmeTable({ rows, visible, openDetail, status, document
       "Creata il": formatFirmaDate(r.created_at), "Inviata il": formatFirmaDate(r.sent_at),
       "Firmata il": formatFirmaDate(r.signed_at), Scadenza: formatFirmaDate(r.expires_at),
     };
+  }
+  // Telefono: una riga per richiesta (documento, firmatario, stato), non la tabella a dieci colonne
+  // che scorreva di lato (collaudo 23/11/2026). Il tocco apre il dettaglio, come «Apri» da computer.
+  if (telefono) {
+    return <ul aria-label="Archivio richieste di firma" className="divide-y overflow-hidden rounded-xl border bg-card">
+      {rows.map(r => {
+        const st = status(r);
+        return <li key={r.id}>
+          <button type="button" onClick={() => openDetail(r.id)} className="flex w-full items-center gap-3 px-3 py-2.5 text-left">
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-medium">{r.documento_label || "Documento"}</span>
+              <span className="block truncate text-xs text-muted-foreground">{r.signer_name || "—"} · {documentType(r)} · {formatFirmaDate(r.sent_at ?? r.created_at)}</span>
+            </span>
+            <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium", st.className)}>{st.label}</span>
+          </button>
+        </li>;
+      })}
+    </ul>;
   }
   return <div className="overflow-hidden rounded-xl border bg-card">
     {selectedRows.length > 0 && <div className="flex flex-wrap items-center justify-end gap-2 border-b px-3 py-1.5">

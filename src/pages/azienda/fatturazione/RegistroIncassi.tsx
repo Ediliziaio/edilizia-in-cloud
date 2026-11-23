@@ -68,6 +68,9 @@ export default function RegistroIncassi({
 }: RegistroIncassiProps = {}) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  // Telefono: 40 righe per elenco, poi «Mostra altri». Con tutti i movimenti in pagina il
+  // registro era alto 36.000px (collaudo 23/11/2026).
+  const [quanteTelefono, setQuanteTelefono] = useState(40);
   const [tab, setTab] = useState("incassi");
   const [sheetOpen, setSheetOpen] = useState(false);
 
@@ -514,7 +517,7 @@ export default function RegistroIncassi({
               senza tabella a sette colonne e senza cestino. */}
           {!movLoading && (
             <div className="divide-y divide-border overflow-hidden rounded-lg border bg-card sm:hidden">
-              {(movimenti ?? []).map((m) => (
+              {(movimenti ?? []).slice(0, quanteTelefono).map((m) => (
                 <button
                   key={m.id}
                   type="button"
@@ -548,6 +551,11 @@ export default function RegistroIncassi({
                 <p className="px-3 py-3 text-center text-xs text-muted-foreground">
                   Nessun incasso registrato
                 </p>
+              )}
+              {(movimenti?.length ?? 0) > quanteTelefono && (
+                <button type="button" onClick={() => setQuanteTelefono((n) => n + 40)} className="w-full px-3 py-2.5 text-sm font-medium text-primary">
+                  Mostra altri ({(movimenti?.length ?? 0) - quanteTelefono})
+                </button>
               )}
             </div>
           )}
@@ -666,7 +674,7 @@ export default function RegistroIncassi({
                 Nessuna scadenza aperta
               </div>
             )}
-            {scadenzario.map((d) => (
+            {(isMobile ? scadenzario.slice(0, quanteTelefono) : scadenzario).map((d) => (
               <div
                 key={d.id}
                 className={cn(
@@ -713,6 +721,11 @@ export default function RegistroIncassi({
                 </div>
               </div>
             ))}
+            {isMobile && scadenzario.length > quanteTelefono && (
+              <button type="button" onClick={() => setQuanteTelefono((n) => n + 40)} className="w-full rounded-lg border bg-card px-3 py-2.5 text-sm font-medium text-primary">
+                Mostra altre ({scadenzario.length - quanteTelefono})
+              </button>
+            )}
           </div>
         </TabsContent>
       </Tabs>

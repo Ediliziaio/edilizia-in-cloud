@@ -602,7 +602,7 @@ export default function FirmaElettronicaHub() {
             filtriAttivi={[statusFilter !== "tutti", tipoDocFilter !== "tutti"].filter(Boolean).length}
             onApriFiltri={() => setFiltriMobileAperti(true)}
           />
-            <MenuColonneFirme {...colonneFirme} />
+            <span className="max-sm:hidden"><MenuColonneFirme {...colonneFirme} /></span>
           </div>
           {/* Filtri in riga sopra la tabella, senza riquadro attorno. */}
           <div className="flex items-center gap-2 rounded-xl border bg-white p-2.5 shadow-sm max-sm:hidden">
@@ -643,7 +643,7 @@ export default function FirmaElettronicaHub() {
                 <SelectItem value="odv">Ordine di vendita</SelectItem>
               </SelectContent>
             </Select>
-            <MenuColonneFirme {...colonneFirme} />
+            <span className="max-sm:hidden"><MenuColonneFirme {...colonneFirme} /></span>
           </div>
 
           {!companyId && (

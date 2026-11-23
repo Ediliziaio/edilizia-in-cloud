@@ -257,7 +257,13 @@ export const OpportunityListView = memo(function OpportunityListView({
               const fullName = contact
                 ? `${contact.first_name || ""} ${contact.last_name || ""}`.trim()
                 : "";
-              const titolo = opp.name || fullName || "Senza nome";
+              // Due righe con l'essenziale (segnalazione del founder, 23/11/2026): il titolo spesso è
+              // «Lavoro — Cliente» e da telefono si tagliava; sopra il lavoro, sotto cliente, città e
+              // da quanto è ferma (giorni dall'ultimo aggiornamento).
+              const nomeIntero = opp.name || fullName || "Senza nome";
+              const separato = fullName && nomeIntero.includes(" — ") && nomeIntero.toLocaleLowerCase("it-IT").endsWith(fullName.toLocaleLowerCase("it-IT"));
+              const titolo = separato ? nomeIntero.slice(0, nomeIntero.lastIndexOf(" — ")) : nomeIntero;
+              const giorniFermo = opp.updated_at ? Math.floor((Date.now() - new Date(opp.updated_at).getTime()) / 86_400_000) : null;
               const statusInfo = STATUS_MAP[opp.status] || STATUS_MAP.open;
               const coloreStato =
                 opp.status === "won" ? "text-green-700" : opp.status === "lost" ? "text-red-600" : "text-muted-foreground";
@@ -273,8 +279,9 @@ export const OpportunityListView = memo(function OpportunityListView({
                   titolo={titolo}
                   sottotitolo={[
                     mobileStageId ? null : stageMap[opp.stage_id],
-                    // «Cappotto termico — Davide Pagano»: se il titolo contiene già il nome, non si ripete sotto.
                     fullName && !titolo.toLocaleLowerCase("it-IT").includes(fullName.toLocaleLowerCase("it-IT")) ? fullName : null,
+                    contact?.city || null,
+                    giorniFermo == null ? null : giorniFermo === 0 ? "oggi" : giorniFermo === 1 ? "ieri" : `${giorniFermo} gg fa`,
                   ].filter(Boolean).join(" · ") || undefined}
                   // formatCount: punto delle migliaia anche a 4 cifre («6.800», non «6800»).
                   valore={`€ ${formatCount(Math.round(Number(opp.value || 0)))}`}

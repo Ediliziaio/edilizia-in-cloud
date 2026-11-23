@@ -851,6 +851,7 @@ export default function FattureRicevutePage() {
     scadenze: Array.isArray(f.piano_pagamento) ? (f.piano_pagamento as Array<{ scadenza?: string | null }>).map((r) => r.scadenza ?? null) : [],
   })), [filtered, selezionate, pagataIl, pagataSulCosto, verificata, stornataDelTutto]);
   const tutteSelezionate = filtered.length > 0 && righeInBlocco.length === filtered.length;
+  const [quanteTelefono, setQuanteTelefono] = useState(40);
   const selezionaTutte = useCallback(() => setSelezionate(new Set(filtered.map((f) => f.id))), [filtered]);
 
   // ─── Mutations ──────────────────────────────────────────
@@ -1441,7 +1442,8 @@ export default function FattureRicevutePage() {
         {/* Mobile: una riga per fattura (fornitore, numero · data, totale e
             stato); si apre un riquadro dal basso. Via la tabella a dieci colonne. */}
         <div className="divide-y divide-border overflow-hidden rounded-lg border bg-card sm:hidden">
-          {filtered.map((f) => (
+          {/* 40 righe, poi «Mostra altre»: con tutte in pagina era alta 19.000px (23/11/2026). */}
+          {filtered.slice(0, quanteTelefono).map((f) => (
             <div key={f.id} className="flex items-center">
             {puoInBlocco && (
               <label className="flex shrink-0 items-center self-stretch pl-3 pr-1">
@@ -1475,6 +1477,11 @@ export default function FattureRicevutePage() {
             </button>
             </div>
           ))}
+          {filtered.length > quanteTelefono && (
+            <button type="button" onClick={() => setQuanteTelefono((n) => n + 40)} className="w-full px-3 py-2.5 text-sm font-medium text-primary">
+              Mostra altre ({filtered.length - quanteTelefono})
+            </button>
+          )}
         </div>
         <Card className="max-sm:hidden">
           {/* L'elenco scorre dentro il riquadro: così la barra orizzontale resta
