@@ -430,9 +430,11 @@ serveConMetricheRapida("company-backup", async (req) => {
     const esiti: Array<{ azienda: string; percorso?: string; record?: number; errore?: string; a_blocchi?: boolean; motivo?: string }> = [];
     // Le aziende da fare a blocchi, ognuna in una chiamata sua, in fila.
     const aBlocchi: Array<{ id: string; nome: string }> = [];
+    const piccole: Array<{ id: string; name: string }> = [];
 
+    // Primo giro: solo il conto delle righe, che è svelto (decimi di secondo) e
+    // decide la strada. Nessun dump, così si arriva in fondo in pochi secondi.
     for (const azienda of aziende ?? []) {
-      // Quante righe ha? Il conto è svelto (decimi di secondo) e decide la strada.
       const { data: conDati, error: errConto } = await admin.rpc("admin_tabelle_con_dati", { p_company_id: azienda.id });
       const righe = errConto ? null : ((conDati ?? []) as Array<{ righe: number }>).reduce((n, t) => n + Number(t.righe ?? 0), 0);
       if (vaABlocchi(righe)) {
@@ -440,6 +442,34 @@ serveConMetricheRapida("company-backup", async (req) => {
         esiti.push({ azienda: azienda.name, a_blocchi: true, record: righe ?? undefined, motivo: "azienda grande" });
         continue;
       }
+      piccole.push({ id: String(azienda.id), name: String(azienda.name) });
+    }
+
+    // 23/11/2026 — LE GRANDI PARTONO PER PRIME, PRIMA DEL LAVORO LUNGO.
+    // La catena stava in fondo al gestore, dopo i dump e i caricamenti di tutte
+    // le aziende piccole: un giro intero (una quarantina di aziende, un minuto e
+    // mezzo di file scritti) non arrivava in fondo — il runtime ritira il worker
+    // e nessuno legge la risposta. Risultato: dal 15/11 le quattordici aziende
+    // che vanno a blocchi — Vulcano con 131 commesse, Renova, Bonarrigo, le Demo
+    // — non avevano più una copia, e Consorzio Amalfi non l'ha mai avuta.
+    // Adesso la catena parte appena si sa chi ne fa parte: ogni azienda grande
+    // gira in una chiamata sua, con tutto il suo tempo, e non dipende più dal
+    // fatto che questo giro arrivi alla fine.
+    if (aBlocchi.length > 0) {
+      try {
+        await avviaBackupABlocchi(aBlocchi[0].id, aBlocchi.slice(1).map((a) => a.id));
+      } catch (e) {
+        const motivo = (e as Error)?.message ?? "errore sconosciuto";
+        for (const esito of esiti) {
+          if (esito.a_blocchi) esito.errore = `backup a blocchi non partito: ${motivo}`;
+        }
+      }
+    }
+
+    // Secondo giro: le piccole col dump unico. Chi non ce la fa finisce nel
+    // ripiego, che parte in coda con una catena sua.
+    const ripiego: Array<{ id: string; nome: string }> = [];
+    for (const azienda of piccole) {
       try {
         // Il dump lo costruisce il database in una chiamata sola: 628 tabelle
         // via PostgREST sarebbero migliaia di richieste per azienda.
@@ -462,18 +492,19 @@ serveConMetricheRapida("company-backup", async (req) => {
         // Il dump unico non è passato (di solito gli 8 secondi di PostgREST):
         // non si resta senza copia, si ripiega sui blocchi.
         const motivo = (e as Error)?.message ?? "errore sconosciuto";
-        aBlocchi.push({ id: azienda.id, nome: azienda.name });
+        ripiego.push({ id: azienda.id, nome: azienda.name });
         esiti.push({ azienda: azienda.name, a_blocchi: true, motivo: `dump unico fallito: ${motivo}` });
       }
     }
 
-    if (aBlocchi.length > 0) {
+    if (ripiego.length > 0) {
       try {
-        await avviaBackupABlocchi(aBlocchi[0].id, aBlocchi.slice(1).map((a) => a.id));
+        await avviaBackupABlocchi(ripiego[0].id, ripiego.slice(1).map((a) => a.id));
       } catch (e) {
         const motivo = (e as Error)?.message ?? "errore sconosciuto";
+        const nomi = new Set(ripiego.map((a) => a.nome));
         for (const esito of esiti) {
-          if (esito.a_blocchi) esito.errore = `backup a blocchi non partito: ${motivo}`;
+          if (esito.a_blocchi && nomi.has(esito.azienda)) esito.errore = `backup a blocchi non partito: ${motivo}`;
         }
       }
     }

@@ -96,8 +96,11 @@ describe("company-backup", () => {
     expect(funzione.indexOf("vaABlocchi(righe)")).toBeLessThan(funzione.indexOf('admin.rpc("admin_esporta_azienda"'));
   });
 
+  // Dal 23/11 il ripiego ha una lista sua (`ripiego`): la catena delle grandi è
+  // già partita prima dei dump, quindi non si può più accodare lì.
   it("se il dump unico fallisce non si resta senza copia: si ripiega sui blocchi", () => {
-    expect(funzione).toMatch(/catch \(e\) \{[\s\S]{0,400}aBlocchi\.push\(\{ id: azienda\.id, nome: azienda\.name \}\)/);
+    expect(funzione).toMatch(/catch \(e\) \{[\s\S]{0,400}ripiego\.push\(\{ id: azienda\.id, nome: azienda\.name \}\)/);
+    expect(funzione).toContain("avviaBackupABlocchi(ripiego[0].id, ripiego.slice(1).map((a) => a.id))");
   });
 
   it("un'azienda per volta: parte la prima, e ognuna fa partire la successiva", () => {
