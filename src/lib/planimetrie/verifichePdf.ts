@@ -26,7 +26,8 @@ export async function pdfVerifiche(d: { documento: Planimetria; titolo: string; 
   let y = H - M - 16;
   const testo = (t: string, x: number, size = 8.5, f = font, c = scuro, max?: number) => {
     let s = pulito(t);
-    if (max) while (s.length > 3 && f.widthOfTextAtSize(s, size) > max) s = s.slice(0, -2);
+    // I puntini contano nella larghezza: prima il testo tagliato finiva sopra la colonna accanto.
+    if (max && f.widthOfTextAtSize(s, size) > max) while (s.length > 3 && f.widthOfTextAtSize(`${s}...`, size) > max) s = s.slice(0, -1);
     p.drawText(s === pulito(t) ? s : `${s}...`, { x, y, size, font: f, color: c });
   };
   testo(`${d.titolo} — verifiche igienico-sanitarie`, M, 15, bold);

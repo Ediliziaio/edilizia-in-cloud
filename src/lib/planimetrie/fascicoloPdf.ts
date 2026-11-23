@@ -1,3 +1,5 @@
+import { conPrezziProposti, FONTE_INDICATIVA, type FontiPrezzi } from "./prezziProposti";
+import { previsioneLavori } from "./previsioneLavori";
 import { esigiVerificaDocumento, verificheDelDocumento } from "../../../shared/planimetrie/verificaDocumento.ts";
 import type { PDFImage, PDFPage } from "pdf-lib";
 import { controlliDalDocumento } from "../../../shared/planimetrie/letturaDocumento.ts";
@@ -23,6 +25,10 @@ import type { RenderDellaPianta } from "./render/renderDallaPianta";
 import type { RenderVisitaSalvato } from "./renderVisitaArchivio";
 
 /** Una verifica nel riepilogo del fascicolo: piano, stanza, controllo, messaggio e misure. */
+// Il simbolo davanti: nel carattere del PDF l'euro è stretto e, messo dopo la cifra, si attacca a quello che segue.
+const euro = (n: number) => `€ ${String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
+const giorni = (n: number) => `${n.toLocaleString("it-IT")} ${n === 1 ? "giorno" : "giorni"}`;
+
 export function rigaVerificaFascicolo(v: Verifica): string {
   const misure = v.valore ? ` (${v.valore}${v.richiesto ? ` / richiesto ${v.richiesto}` : ""})` : "";
   return `${v.livello} - ${v.oggetto} · ${NOMI_VERIFICA[v.codice]}: ${v.messaggio}${misure}`;
@@ -38,6 +44,8 @@ export interface DatiFascicolo {
   leggiSorgente?: (render: RenderDellaPianta) => Promise<Uint8Array | null>;
   leggiCampioniPersonali?: (render: RenderDellaPianta) => Promise<Uint8Array[]>;
   leggiDocumentoOriginale?: () => Promise<Uint8Array | null>;
+  /** Solo per chi vede gli importi: le lavorazioni escono quotate e si aggiunge la previsione di costi e tempi. */
+  fontiPrezzi?: FontiPrezzi;
 }
 
 async function comprimiFoto(dati: Uint8Array): Promise<Uint8Array> {
@@ -68,7 +76,7 @@ export async function esportaFascicolo(d: DatiFascicolo): Promise<{ dati: Uint8A
   const W = 841.89, H = 595.28, M = 40, utile = W - M * 2;
   const nero = rgb(.08, .13, .19), grigio = rgb(.35, .4, .46), blu = rgb(.09, .25, .44);
   const fondo = rgb(.944, .965, .985), rigaChiara = rgb(.84, .89, .94);
-  const pulito = (s: string) => s.replace(/[\r\n\t]+/g, " ").replace(/[–—]/g, "-").replace(/[^ -ÿ€’‘“”]/g, "");
+  const pulito = (s: string) => s.replace(/[\r\n\t]+/g, " ").replace(/[–—−]/g, "-").replace(/[^ -ÿ€’‘“”]/g, "");
   const num = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits: 2 });
   let pagina: PDFPage, y = H - M;
   let titoloInCorso = "", sottoInCorso = "";
@@ -381,17 +389,55 @@ export async function esportaFascicolo(d: DatiFascicolo): Promise<{ dati: Uint8A
   }
   if (propostaId) {
     const { studioVariante } = await import("./studioImmobiliare");
-    const { righe } = studioVariante(d.documento, propostaId);
+    const righe = d.fontiPrezzi ? conPrezziProposti(studioVariante(d.documento, propostaId).righe, d.fontiPrezzi) : studioVariante(d.documento, propostaId).righe;
     if (righe.length) {
       avanza("Lavorazioni e quantità della variante");
       nuovaPagina("Lavorazioni e quantità", `${nomeAmbito} / Misure a partire dal progetto`, true);
       for (const riga of righe) {
         if (y < M + 64) nuovaPagina("Lavorazioni e quantità (continua)", nomeAmbito);
         const quantita = riga.quantita === null ? "Da quantificare" : `${num(riga.quantita)} ${riga.unita}${riga.stimata ? " (stima)" : ""}`;
-        testo(`${riga.descrizione}  |  ${quantita}`, 11, true);
+        testo(`${riga.descrizione} · ${quantita}`, 11, true);
         testo([riga.piano, riga.fase, riga.criterio].filter(Boolean).join(" / "), 9);
-        if (riga.prezzo) testo(`Prezzo unitario ${num(riga.prezzo.importo)} €/${riga.prezzo.unita} / ${riga.prezzo.fonte} ${riga.prezzo.tariffa}`, 9);
+        if (riga.prezzo) testo(`Prezzo unitario ${num(riga.prezzo.importo)} €/${riga.prezzo.unita}${riga.quantita === null ? "" : ` / importo ${euro(riga.quantita * riga.prezzo.importo)}`} / ${riga.prezzo.fonte} ${riga.prezzo.tariffa}`, 9);
         y -= 8;
+      }
+      const quotate = righe.filter((r) => r.prezzo && r.quantita !== null);
+      if (quotate.length) {
+        if (y < M + 50) nuovaPagina("Lavorazioni e quantità (continua)", nomeAmbito);
+        const fuori = righe.length - quotate.length;
+        testo(`Importo delle voci quotate: ${euro(quotate.reduce((s, r) => s + Math.round(r.quantita! * r.prezzo!.importo * 100) / 100, 0))}${fuori ? ` · ${fuori} ${fuori === 1 ? "voce" : "voci"} senza prezzo o senza quantità` : ""}`, 12, true);
+        if (quotate.some((r) => r.prezzo!.fonte === FONTE_INDICATIVA)) testo("I prezzi indicativi sono ordini di grandezza (fornitura e posa, 2026): vanno confermati prima di un preventivo.", 9);
+      }
+      const previsione = d.fontiPrezzi ? previsioneLavori(righe) : null;
+      if (previsione?.lavori) {
+        avanza("Previsione di costi e tempi");
+        nuovaPagina("Previsione dei lavori", `${nomeAmbito} / Stima da rese tipiche di una squadra di due persone: un ordine di grandezza, non un consuntivo`, true);
+        testo(`Spesa probabile ${euro(previsione.intervallo.probabile)} · da ${euro(previsione.intervallo.minimo)} a ${euro(previsione.intervallo.massimo)}`, 13, true);
+        testo(`Durata ${giorni(previsione.giorniCalendario)} di calendario: ${giorni(previsione.giorniLavoro)} di squadra${previsione.giorniAttesa ? `, ${previsione.giorniAttesa} di attesa` : ""} · Manodopera ${euro(previsione.manodopera)}, materiali ${euro(previsione.materiali)}`, 10);
+        y -= 10;
+        testo("Per fase", 12, true);
+        for (const f of previsione.fasi) {
+          if (y < M + 45) nuovaPagina("Previsione dei lavori (continua)", nomeAmbito);
+          testo(`${f.fase}: ${euro(f.importo)} · ${giorni(f.giorni)}`, 11, true);
+          testo(`Manodopera ${euro(f.manodopera)}, materiali ${euro(f.materiali)}${f.attesa ? ` / parte dopo ${f.attesa} giorni: ${f.perche}` : ""}`, 9);
+          y -= 3;
+        }
+        const altre = previsione.lavori - previsione.fasi.reduce((s, f) => s + f.importo, 0);
+        if (altre > 0.5) testo(`Altre voci quotate (impianti e opere a corpo), senza stima dei tempi: ${euro(altre)}`, 10);
+        testo(`Lavori: ${euro(previsione.lavori)}`, 11, true);
+        y -= 10;
+        if (y < M + 90) nuovaPagina("Previsione dei lavori (continua)", nomeAmbito);
+        testo("Costi in più", 12, true);
+        for (const e of previsione.extra) { if (y < M + 45) nuovaPagina("Previsione dei lavori (continua)", nomeAmbito); testo(`${e.nome}: ${euro(e.importo)} (${e.regola})`, 11, true); testo(e.perche, 9); y -= 3; }
+        if (y < M + 70) nuovaPagina("Previsione dei lavori (continua)", nomeAmbito);
+        testo(`Totale previsto: ${euro(previsione.totale)}`, 13, true);
+        const note = [
+          previsione.indicativi ? `${previsione.indicativi} ${previsione.indicativi === 1 ? "voce ha" : "voci hanno"} un prezzo indicativo: l'intervallo tiene conto di un ±${previsione.intervallo.incertezzaPct}% sui lavori.` : "",
+          previsione.fuori.senzaPrezzo + previsione.fuori.senzaQuantita ? `${previsione.fuori.senzaPrezzo + previsione.fuori.senzaQuantita} voci sono fuori dal conto perché senza prezzo o senza quantità.` : "",
+          "Spese generali e utile sono già nei prezzi delle voci. Gli importi a corpo sono valori tipici, da correggere nel computo.",
+        ].filter(Boolean);
+        y -= 6;
+        for (const n of note) testo(n, 9);
       }
     }
   }
@@ -466,10 +512,12 @@ export async function esportaFascicolo(d: DatiFascicolo): Promise<{ dati: Uint8A
     avanza("Materiali da comprare");
     nuovaPagina("Materiali da comprare", `${nomeAmbito} · ${toccate.length ? `stanze che cambiano: ${toccate.map((s) => s.nome).join(", ").slice(0, 90)}` : "tutta la casa"} · rese tipiche, da confermare`, true);
     for (const f of FASI_FABBISOGNO.filter((f) => materiali.some((r) => r.fase === f.id))) {
+      if (y < M + 90) nuovaPagina("Materiali da comprare (continua)", nomeAmbito);
       testo(f.nome, 12, true);
       testo(f.posa);
       y -= 4;
       for (const r of materiali.filter((r) => r.fase === f.id)) {
+        if (y < M + 45) nuovaPagina("Materiali da comprare (continua)", nomeAmbito);
         testo(`${r.materiale}: ${r.quantita.toLocaleString("it-IT")} ${r.unita}${r.confezioni ? ` · ${r.confezioni.nome}` : ""}`, 11, true);
         testo(r.come);
         y -= 4;

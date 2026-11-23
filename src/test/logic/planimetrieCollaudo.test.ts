@@ -8,6 +8,7 @@ import { importiLavorazioni, studioVariante, type RigaStudio } from "@/lib/plani
 import { attinenza, conPrezziProposti, FONTE_INDICATIVA, proponiPrezzo, tipiDaCercare, tipoLavorazione, type FontiPrezzi } from "@/lib/planimetrie/prezziProposti";
 import { extraPredefiniti, previsioneLavori } from "@/lib/planimetrie/previsioneLavori";
 import { costoDellaProposta } from "@/lib/planimetrie/costoProposta";
+import { euro, lavoriDaPianta } from "@/lib/planimetrie/primaEDopo";
 import { escludiDalPavimentoComune, stanzeConPavimentoAParte } from "../../../shared/planimetrie/materialiProgetto";
 import { piantaCollaudo, piantaCollaudoConVariante } from "../fixtures/piantaCollaudo";
 
@@ -181,5 +182,17 @@ describe("pavimento radiante: prezzi e tempi", () => {
       ["Pavimenti e rivestimenti", 1100, 1.5, 21],      // 20/18 = 1,11 → 1,5 · dopo 21 giorni di massetto
     ]);
     expect(p.fuori.nonStimate).toBe(0);
+  });
+});
+
+describe("«Prima e dopo»: stesso totale dello studio della variante", () => {
+  it("conta anche le lavorazioni indotte e non chiude il vano di una parete che va giù", () => {
+    const r = lavoriDaPianta(piantaCollaudoConVariante(), "pt", "A");
+    // lo stesso importo che lo studio dà con i prezzi indicativi (prima: 1.589 € contro 2.642 €)
+    expect(r.totale).toBe(importiLavorazioni(conPrezziProposti(studioVariante(piantaCollaudoConVariante(), "A").righe)).importo);
+    const descrizioni = r.stanze.flatMap((s) => s.lavori.map((l) => l.descrizione));
+    expect(descrizioni).toContain("Rimozione di un serramento (con la parete demolita)");
+    expect(descrizioni).not.toContain("Chiusura di un vano (porta o finestra tolta)");
+    expect(euro(2642.4)).toBe("2.642 €");
   });
 });

@@ -19,6 +19,7 @@ import { NOMI_AREA, origineMisura, originePeggiore, type TipoArea } from "../../
 import { areaPoligono, puntoNelPoligono } from "../../../shared/planimetrie/geometria.ts";
 import { calcolaQuantita } from "../../../shared/planimetrie/quantita.ts";
 import { LISTINO_IMPIANTI } from "./listinoImpianti";
+import { REGOLE_LAVORAZIONI } from "./prezziProposti";
 
 export type GenereLavoro = "demolizione" | "costruzione" | "serramenti" | "impianti" | "arredi" | "esterni" | "uso";
 
@@ -151,7 +152,19 @@ function confronta(doc: Planimetria, fatto: StatoPianta, progetto: StatoPianta, 
     if (m.stato === "da_demolire") {
       metti(stanza, { genere: "demolizione", descrizione: portante ? "Demolizione di muratura portante (con opere di sostegno)" : "Demolizione di tramezzo", quantita: mq, unita: "mq", prezzo: portante ? P.demolizionePortante : P.demolizioneTramezzo }, dettaglio);
     } else {
-      metti(stanza, { genere: "costruzione", descrizione: portante ? "Nuova muratura portante" : "Nuovo tramezzo (laterizio o cartongesso), intonacato", quantita: mq, unita: "mq", prezzo: portante ? P.nuovoPortante : P.nuovoTramezzo }, dettaglio);
+      metti(stanza, { genere: "costruzione", descrizione: portante ? "Nuova muratura portante" : "Nuovo tramezzo (laterizio o cartongesso)", quantita: mq, unita: "mq", prezzo: portante ? P.nuovoPortante : P.nuovoTramezzo }, dettaglio);
+    }
+    // Quello che la parete si porta dietro, come nello studio della variante e nel computo:
+    // senza, il totale di questo foglio era più basso di quello del computo per gli stessi lavori.
+    const metriLineari = lunghezza(m) / 100, R = REGOLE_LAVORAZIONI;
+    if (m.stato === "da_demolire") {
+      metti(stanza, { genere: "demolizione", descrizione: "Carico, trasporto e smaltimento delle macerie", quantita: 1, unita: "n", prezzo: R.macerie.indicativo });
+      metti(stanza, { genere: "costruzione", descrizione: "Ripristino del pavimento nella traccia della parete demolita", quantita: metriLineari * m.spessore / 100, unita: "mq", prezzo: R.ripristino.indicativo });
+    } else {
+      const porte = progetto.aperture.filter((a) => a.muroId === m.id && a.stato !== "da_demolire" && a.tipo !== "finestra").reduce((s, a) => s + a.larghezza / 100, 0);
+      metti(stanza, { genere: "costruzione", descrizione: "Intonaco sulle due facce della nuova parete", quantita: mq * 2, unita: "mq", prezzo: R.intonaco.indicativo });
+      metti(stanza, { genere: "costruzione", descrizione: "Tinteggiatura delle due facce della nuova parete", quantita: mq * 2, unita: "mq", prezzo: R.tinteggiatura.indicativo });
+      metti(stanza, { genere: "costruzione", descrizione: "Battiscopa ai piedi della nuova parete", quantita: Math.max(0, (metriLineari - porte) * 2), unita: "ml", prezzo: R.battiscopa.indicativo });
     }
   }
 
@@ -162,7 +175,10 @@ function confronta(doc: Planimetria, fatto: StatoPianta, progetto: StatoPianta, 
     const m = progetto.muri.find((x) => x.id === a.muroId);
     const stanza = m ? stanzaDelMuro(m, locProg, locOggi) : p ? stanzaDi(p, locProg, locOggi) : null;
     const dettaglio: DettaglioLavoro = { oggetto: { tipo: "apertura", id: a.id }, operazione: `${a.stato}:${a.tipo}`, origine: a.origine };
-    if (a.stato === "da_demolire") {
+    if (a.stato === "da_demolire" && m?.stato === "da_demolire") {
+      // la parete va giù intera: il serramento si toglie, il vano non si chiude
+      metti(stanza, { genere: "demolizione", descrizione: "Rimozione di un serramento (con la parete demolita)", quantita: 1, unita: "n", prezzo: P.rimozione }, dettaglio);
+    } else if (a.stato === "da_demolire") {
       metti(stanza, { genere: "serramenti", descrizione: "Chiusura di un vano (porta o finestra tolta)", quantita: 1, unita: "n", prezzo: P.chiusuraVano }, dettaglio);
     } else {
       const descr = { porta: "Nuova porta interna, con apertura del vano", finestra: "Nuova finestra, con apertura del vano", portafinestra: "Nuova portafinestra, con apertura del vano", varco: "Nuovo varco (apertura senza serramento)" }[a.tipo];
@@ -242,7 +258,8 @@ export function avanzamento(r: RiepilogoLavori, fatti: ReadonlySet<string>) {
   return { stanze, eseguito, percento: r.totale > 0 ? Math.round((eseguito / r.totale) * 100) : 0 };
 }
 
-export const euro = (v: number) => v.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+// Migliaia sempre separate («1.589 €»): in italiano i numeri di quattro cifre altrimenti restano attaccati.
+export const euro = (v: number) => `${String(Math.round(v)).replace(/\B(?=(\d{3})+(?!\d))/g, ".")} €`;
 export const scriviQuantita = (l: Lavoro) => `${l.quantita.toLocaleString("it-IT", { maximumFractionDigits: 2 })} ${l.unita === "n" ? "n." : l.unita === "ml" ? "m" : l.unita === "mc" ? "m³" : "m²"}`;
 
 /**

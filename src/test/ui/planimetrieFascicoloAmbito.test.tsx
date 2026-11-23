@@ -6,6 +6,7 @@ import { EsportaPiantaDialog } from "@/components/planimetrie/EsportaPiantaDialo
 
 const mocks = vi.hoisted(() => ({ esporta: vi.fn(async () => ({ dati: new Uint8Array([1]), pagine: 1, immaginiRender: 0, avvisi: 0 })) }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "azienda", name: "Demo" } }) }));
+vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewPreventivi: false }) }));
 vi.mock("@/hooks/useBranding", () => ({ useBranding: () => ({ branding: null as null }) }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: ({ queryKey }: { queryKey: string[] }): { data: unknown[] | { name: string } } => ({ data: queryKey[0].includes("preventivi") ? [] : { name: "Demo" } }) }));
 vi.mock("@/components/shared/CampoIndirizzo", () => ({ CampoIndirizzo: () => <input aria-label="Indirizzo del cantiere" /> }));

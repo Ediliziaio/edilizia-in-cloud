@@ -208,6 +208,35 @@ corretto di conseguenza:
   vale per la variante: per l'azienda basta metterlo nel listino); righe del radiante e
   degli impianti «a corpo» ancora da quotare; lotti F, G, H, I, L.
 
+## 8 ter. Stato a fine giornata (23/11/2026, notte)
+
+Pubblicati dopo il primo giro:
+- **Lotto L** — `previsioneLavori.ts` e il pannello «Previsione dei lavori» nello studio della
+  variante: costo per fase con manodopera e materiali, costi extra accendibili, durata con
+  le attese (14 giorni di intonaco prima della pittura, 21 di massetto sopra il radiante),
+  spesa come intervallo che si allarga dove i prezzi sono indicativi.
+- **Costo prima di salvare** — nella barra dell'anteprima di Silvio e nella barra
+  dell'editor (vista «Progetto»), ricalcolato poco dopo ogni modifica (`CostoProposta`).
+- **Lotto G** — pareti bloccate (`shared/planimetrie/vincoli.ts`): spunta nei dettagli della
+  parete; il controllo sta nel punto unico in cui l'editor applica una modifica e nella
+  costruzione dell'anteprima di Silvio.
+- **Pavimento comune** — per bagni, lavanderie ed esterni si chiede.
+- **Radiante** — pannelli, tubo e collettore quotati e nei tempi.
+
+Non fatto, con il motivo:
+- **Previsione che impara dai consuntivi.** Guardati i dati il 23/11: le commesse chiuse con
+  date sono 214, di cui 176 della demo; quelle vere sono 38 in 5 aziende. E non esiste un
+  «costo previsto» salvato da confrontare col consuntivo: c'è solo venduto contro costo.
+  Una correzione calcolata così sarebbe un numero inventato. Serve prima salvare la
+  previsione insieme alla commessa, poi confrontarla alla chiusura.
+- **Prezzario regionale in automatico** — vedi sopra.
+- **Lotto F (una sola chat)** e **Lotto I (telefono)** — non iniziati.
+
+Regola presa dopo un errore: prima del push il controllo dei tipi dei file toccati deve
+uscire con codice zero, e il push parte solo in quel caso (l'8a25df5e2 è partito con un
+errore di tipo in un test; corretto un minuto dopo con 016978e59, prima che un giro di CI
+lo vedesse).
+
 ## 9. Lotto L — Analisi dei costi e previsione (richiesta del 23/11)
 
 Dalla pianta non solo quantità e prezzi: un'**analisi dei costi** e una **previsione** di

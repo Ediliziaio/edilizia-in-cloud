@@ -15,6 +15,8 @@ import { toast } from "sonner";
 import { BookOpen, Check, Download, FileImage, FileText, Loader2, Paperclip, PenTool } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
+import { caricaFontiPrezzi } from "@/lib/planimetrie/fontiPrezzi";
 import { useBranding } from "@/hooks/useBranding";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -133,6 +135,7 @@ export function EsportaPiantaDialog({
   modifiche3DNonSalvate?: boolean;
 }) {
   const { effectiveCompany } = useAuth();
+  const permessi = usePermissions();
   const { branding } = useBranding();
   const [formato, setFormato] = useState<Formato>(formatoIniziale);
   const notaFormatoId = useId();
@@ -278,8 +281,10 @@ export function EsportaPiantaDialog({
       if (!sorgenti.has(path)) sorgenti.set(path, sorgentePerFascicolo(effectiveCompany.id, path));
       return sorgenti.get(path)!;
     };
+    // Importi e previsione entrano nel PDF solo per chi li può vedere.
+    const fontiPrezzi = permessi.canViewPreventivi && effectiveCompany?.id ? await caricaFontiPrezzi(effectiveCompany.id, ["nuovo_tramezzo"]) : undefined;
     return esportaFascicolo({
-      documento, titolo, versione, ambito, cartiglio,
+      documento, titolo, versione, ambito, cartiglio, fontiPrezzi,
       renders: renders.status === "fulfilled" ? renders.value : [],
       renderVisita: renderVisita.status === "fulfilled" ? renderVisita.value : [],
       avvisiIniziali, renderDaIncludere, progresso: setFaseFascicolo, leggiSorgente,
