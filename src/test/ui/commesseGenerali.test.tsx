@@ -99,7 +99,6 @@ const riepilogo = (permessi = permessiPieni): RiepilogoGenerale => ({
 });
 
 const disegna = () => render(<MemoryRouter><CommessaGeneraleDettaglio generaleId="g" /></MemoryRouter>);
-const apriNumeri = () => fireEvent.click(screen.getByRole("button", { name: "Dettaglio dei numeri" }));
 const apriImportiLavori = () => fireEvent.click(screen.getByRole("button", { name: "Importi per lavoro" }));
 const IndirizzoAttuale = () => <output aria-label="Indirizzo attuale">{useLocation().search}</output>;
 
@@ -131,9 +130,7 @@ describe("la pagina della commessa generale", () => {
     disegna();
     const scala = screen.getByRole("region", { name: "La commessa in numeri" });
     expect(within(scala).getByText("Valore del contratto").parentElement).toHaveTextContent(/2\.970\.000/);
-    expect(within(scala).getByText("Fatturato").parentElement).toHaveTextContent(/1\.194\.000/);
-    expect(within(scala).queryByText("Da assegnare")).not.toBeInTheDocument();
-    apriNumeri();
+    expect(within(scala).getByText("Fatturato", { selector: ".generale-kpi-label" }).parentElement).toHaveTextContent(/1\.194\.000/);
     expect(within(scala).getByText("Da assegnare").parentElement).toHaveTextContent(/570\.000/);
     expect(within(scala).getByText("Incassato")).toBeVisible();
     expect(within(scala).getByText(/900\.000\s+€/, { selector: "dd span" })).toBeVisible();
@@ -149,6 +146,18 @@ describe("la pagina della commessa generale", () => {
     expect(within(lavori).queryByRole("columnheader", { name: "Margine a oggi" })).not.toBeInTheDocument();
     apriImportiLavori();
     expect(within(lavori).getByRole("columnheader", { name: "Margine a oggi" })).toBeVisible();
+  });
+
+  it("apre il quadro completo in Panoramica e permette di ridurlo", () => {
+    disegna();
+    const numeri = screen.getByRole("region", { name: "La commessa in numeri" });
+    expect(within(numeri).getByRole("table", { name: "Previsionale e reale" })).toBeVisible();
+    const riduci = within(numeri).getByRole("button", { name: "Riduci i numeri" });
+    expect(riduci).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(riduci);
+    expect(within(numeri).queryByRole("table", { name: "Previsionale e reale" })).not.toBeInTheDocument();
+    fireEvent.click(within(numeri).getByRole("button", { name: "Dettaglio dei numeri" }));
+    expect(within(numeri).getByRole("table", { name: "Previsionale e reale" })).toBeVisible();
   });
 
   it("una commessa in perdita compare tra le cose da guardare, e il margine è rosso nella tabella", () => {
@@ -185,7 +194,6 @@ describe("la pagina della commessa generale", () => {
     m.riepilogo!.generale.modello = "sviluppo";
     m.unita = { unita: [{ mq: 600 }, { mq: 400 }, { mq: null }] };
     disegna();
-    apriNumeri();
     expect(screen.getByRole("table", { name: "Previsionale e reale" })).toBeVisible();
     // 1.000 m² da due unità; la terza non ha la superficie e lo si dice.
     expect(screen.getByText(/1000 m²/, { selector: ".quadro-prev-mq" })).toBeVisible();
@@ -201,7 +209,6 @@ describe("la pagina della commessa generale", () => {
     m.riepilogo!.generale.modello = "sviluppo";
     m.unita = { unita: [] };
     disegna();
-    apriNumeri();
     expect(screen.getByText(/Per i €\/m² serve la superficie vendibile/)).toBeVisible();
     // Nessun valore al metro quadro: il testo d'aiuto non è un numero.
     expect(screen.queryByText(/^[\d.]+ €\/m²/)).not.toBeInTheDocument();
@@ -282,6 +289,8 @@ describe("le schede dei moduli", () => {
     expect(screen.getByRole("tab", { name: "Contratto e SAL" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByText("Scheda del contratto")).toBeVisible();
     expect(screen.getByRole("region", { name: "La commessa in numeri" })).toBeVisible();
+    const numeri = screen.getByRole("region", { name: "La commessa in numeri" });
+    expect(within(numeri).getByRole("button", { name: "Dettaglio dei numeri" })).toHaveAttribute("aria-expanded", "false");
   });
 
   it("un'operazione che costruisce e non vende ancora: spesa in testata e «Apri il cantiere» come bottone", () => {
@@ -310,7 +319,6 @@ describe("le schede dei moduli", () => {
       figlie: base.figlie.map((f) => ({ ...f, statoVendita: "libera", fatturato: 0, incassato: 0 })),
     };
     disegna();
-    apriNumeri();
     expect(screen.getByText("Acquisto").parentElement).toHaveTextContent(/185\.000/);
     expect(screen.getByText("Rivendita").parentElement).toHaveTextContent(/320\.000/);
   });
@@ -324,7 +332,7 @@ describe("le schede dei moduli", () => {
     };
     disegna();
     const numeri = screen.getByRole("region", { name: "La commessa in numeri" });
-    expect(within(numeri).getByText("Vendite confermate").parentElement).toHaveTextContent("0 €");
+    expect(within(numeri).getByText("Vendite confermate", { selector: ".generale-kpi-label" }).parentElement).toHaveTextContent("0 €");
     expect(within(numeri).getByText("Da incassare").parentElement).toHaveTextContent("0 €");
     expect(screen.queryByText("Speso finora")).not.toBeInTheDocument();
   });
@@ -349,7 +357,6 @@ describe("le schede dei moduli", () => {
     cleanup();
     m.contratto = { contratto: { importoBase: 100_000, ribassoPct: 0, oneriSicurezza: 0 }, atti: [], sal: [{ diContratto: true, stato: "emesso", numero: 1, cumulativo: 40_000, netto: 36_000, al: "2026-10-01" }] };
     disegna();
-    apriNumeri();
     expect(screen.getByText("A SAL").parentElement).toHaveTextContent(/40\.000/);
   });
 
@@ -357,12 +364,10 @@ describe("le schede dei moduli", () => {
     const contratto = (fine: string) => ({ contratto: { importoBase: 100_000, ribassoPct: 0, oneriSicurezza: 0, dataFinePrevista: fine, dataUltimazione: null as string | null, penaleGiornaliera: 100, penaleMassimaPct: 10 }, atti: [] as never[], sal: [] as never[] });
     m.contratto = contratto("2099-01-01") as never;
     disegna();
-    apriNumeri();
     expect(screen.getByText("Fine lavori").closest(".generale-kpi")).toHaveTextContent(/tra \d+ giorni/);
     cleanup();
     m.contratto = contratto("2020-01-01") as never;
     disegna();
-    apriNumeri();
     const kpi = screen.getByText("Fine lavori").closest(".generale-kpi") as HTMLElement;
     expect(kpi).toHaveTextContent(/giorni di ritardo/);
     expect(kpi).toHaveTextContent(/penale maturata 10\.000.*al tetto/);
@@ -383,7 +388,6 @@ describe("costi comuni nella panoramica", () => {
     m.quote = null;
     m.costoErrore = true;
     disegna();
-    apriNumeri();
     apriImportiLavori();
     const riga = screen.getByRole("link", { name: /Scuola Collodi/ }).closest("tr")!;
     expect(within(riga).getByText("Non disponibile")).toBeVisible();
@@ -394,7 +398,6 @@ describe("costi comuni nella panoramica", () => {
   it("il margine diventa quello dell'operazione e ogni commessa porta la sua quota", () => {
     m.quote = { totale: 50_000, criterio: "importo", motivo: "Ripartiti in proporzione all'importo.", perFiglia: new Map([["a", { importo: 31_250, parte: 0.625, base: 1 }], ["b", { importo: 18_750, parte: 0.375, base: 1 }]]) };
     disegna();
-    apriNumeri();
     expect(screen.getByText("Margine dell'operazione")).toBeVisible();
     apriImportiLavori();
     // 100.000 − 60.000 delle commesse, meno 50.000 di costi comuni

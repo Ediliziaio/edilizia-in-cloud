@@ -314,7 +314,7 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
         </div>
       </header>
 
-      <QuadroGenerale r={r} t={totali} costiComuni={costiComuni} puoModificare={puoModificare} />
+      <QuadroGenerale key={generaleId} inPanoramica={schedaAttiva === "panoramica"} r={r} t={totali} costiComuni={costiComuni} puoModificare={puoModificare} />
 
       {schede.length === 0 ? panoramica : (
         <Tabs value={schedaAttiva} onValueChange={apriScheda}>
@@ -353,17 +353,21 @@ function Numero({ etichetta, valore, nota, tono, tipo = "valore" }: { etichetta:
 }
 
 /**
- * I numeri principali precedono la navigazione. Previsioni, SAL e margini si aprono su richiesta.
+ * In Panoramica i numeri sono completi. Nelle schede operative si parte dal riepilogo.
  */
-function QuadroGenerale({ r, t, costiComuni, puoModificare }: { r: RiepilogoGenerale; t: TotaliGenerale; costiComuni: ReturnType<typeof useQuoteCostiComuni>; puoModificare: boolean }) {
+function QuadroGenerale({ r, t, costiComuni, puoModificare, inPanoramica }: { r: RiepilogoGenerale; t: TotaliGenerale; inPanoramica: boolean; costiComuni: ReturnType<typeof useQuoteCostiComuni>; puoModificare: boolean }) {
   const { quote, inAttesa: costiInAttesa } = costiComuni;
-  const [aperto, setAperto] = useState(false);
+  const [apertoInPanoramica, setApertoInPanoramica] = useState(true);
+  const [apertoNelleSchede, setApertoNelleSchede] = useState(false);
   const def = DEFINIZIONI_MODELLI[r.generale.modello];
   const appalto = r.generale.modello === "appalto";
   // Un'operazione immobiliare che non ha ancora venduto né fatturato sta costruendo: la testata
   // parla di spesa contro budget, non di «da incassare 0 €» e barre di vendita vuote (14/11/2026).
   const inVendita = r.figlie.some((f) => !f.divisa && !!f.statoVendita && f.statoVendita !== "libera") || (t.fatturato ?? 0) > 0 || (t.incassato ?? 0) > 0;
   const costruzione = !appalto && !inVendita;
+  const mostraDettaglio = r.permessi.importi || r.permessi.margini || (costruzione && r.permessi.costi);
+  const aperto = mostraDettaglio && (inPanoramica ? apertoInPanoramica : apertoNelleSchede);
+  const setAperto = inPanoramica ? setApertoInPanoramica : setApertoNelleSchede;
   const n = useGeneralePianoNumeri(r, { enabled: aperto || !appalto });
   const piano = pianoPerNumeri(n.piano);
   // Il SAL è del contratto: senza il valore del contratto non c'è né la riga né il residuo.
@@ -456,7 +460,6 @@ function QuadroGenerale({ r, t, costiComuni, puoModificare }: { r: RiepilogoGene
   const notaValore = r.generale.valore === null ? (appalto ? "Valore del contratto principale non indicato" : `somma delle ${def.figlia.tante.toLowerCase()}`) : undefined;
 
   const avanzamento = appalto ? t.avanzamento : lavori.percento;
-  const mostraDettaglio = r.permessi.importi || r.permessi.margini || (costruzione && r.permessi.costi);
 
   return (
     <section aria-labelledby="generale-numeri-titolo" className="generale-hero">
