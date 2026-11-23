@@ -3,7 +3,7 @@ import { bilancio, combinazioniEsatte, filtraDocumenti, importoProposto, meseSti
 
 const doc = (id: string, controparte: string, residuo: number, data = "2026-10-01", numero = id): DocumentoAperto =>
   ({ tipo: "documento", id, numero, data, controparte, totale: residuo, residuo, order_id: null, order_code: null });
-const quota = (d: DocumentoAperto, importo: string): Quota => ({ chiave: d.id, tipo: d.tipo, documento: d, importo });
+const quota = (d: DocumentoAperto, importo: string): Quota => ({ chiave: d.id, tipo: d.tipo, documento: d, importo }) as Quota;
 
 describe("movimento diviso in quote", () => {
   it("il bilancio dice quanto manca, in centesimi senza errori di virgola", () => {
