@@ -21,6 +21,7 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { oraDiRoma, rapportoClientiMarketing, ricordaPriorita } from "./clienti-marketing.ts";
 import { statoPiattaforma } from "./stato.ts";
 import { controllaCreditoAI, provaAvvisoCreditoAI } from "./creditoAI.ts";
+import { controllaBackupMancanti, provaAvvisoBackup } from "./backupMancanti.ts";
 import { appuntamentiDiOggi, giornoLungo } from "./appuntamenti.ts";
 import { componiMattino, rigaSegnale } from "../_shared/mattino.ts";
 import { componiRiepilogo } from "../_shared/outreachRiepilogo.ts";
@@ -108,6 +109,25 @@ serveConMetricheRapida("ops-canarino", async (req) => {
       return new Response(JSON.stringify({ ok: true, ...esito }), { headers: corsH });
     } catch (err) {
       console.error("[ops-canarino credito-ai]", err);
+      return new Response(JSON.stringify({ ok: false, error: err instanceof Error ? err.message : String(err) }), { status: 500, headers: corsH });
+    }
+  }
+
+  // I backup mancanti (23/11/2026): una volta al giorno, dopo il giro notturno.
+  // Quattordici aziende sono state senza copia per quindici giorni mentre il
+  // rapporto del mattino lo diceva ogni mattina, in una riga fra i segnali
+  // vitali. Qui l'avviso è dedicato e si ripete finché non è risolto: il perché
+  // e le regole stanno in backupMancanti.ts.
+  if (modo === "backup") {
+    try {
+      if (prova) {
+        const p = await provaAvvisoBackup(supabase);
+        return new Response(JSON.stringify({ ok: p.inviata, prova: true, oggetto: p.oggetto }), { headers: corsH });
+      }
+      const esito = await controllaBackupMancanti(supabase, { anteprima });
+      return new Response(JSON.stringify({ ok: true, ...esito }), { headers: corsH });
+    } catch (err) {
+      console.error("[ops-canarino backup]", err);
       return new Response(JSON.stringify({ ok: false, error: err instanceof Error ? err.message : String(err) }), { status: 500, headers: corsH });
     }
   }
