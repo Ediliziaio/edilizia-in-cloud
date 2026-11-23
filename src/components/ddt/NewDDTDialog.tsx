@@ -163,6 +163,7 @@ export function NewDDTDialog({
   const [fornitoreLetto, setFornitoreLetto] = useState<string | null>(null);
   const [destinazioneLetta, setDestinazioneLetta] = useState<string | null>(null);
   const [propostaCommessa, setPropostaCommessa] = useState<CommessaProposta | null>(null);
+  const propostaFattaPer = useRef<string | null>(null);
 
   // ── Trasporto ─────────────────────────────────────
   const [trasportoACuraDi, setTrasportoACuraDi] = useState<TrasportoACuraDi | null>(null);
@@ -299,16 +300,18 @@ export function NewDDTDialog({
     },
   });
   // Una proposta sola per destinazione letta: chi la toglie, o sceglie altro, ha deciso.
-  const propostaFattaPer = useRef<string | null>(null);
   useEffect(() => {
-    if (!destinazioneLetta || !cantieri.data || poId || orderId || propostaFattaPer.current === destinazioneLetta) return;
-    propostaFattaPer.current = destinazioneLetta;
+    if (!open || !destinazioneLetta || !cantieri.data || poId || orderId || propostaFattaPer.current === destinazioneLetta) return;
     const proposta = commessaDallaDestinazione(destinazioneLetta, cantieri.data);
-    if (!proposta) return;
-    setOrderId(proposta.id);
-    setPropostaCommessa(proposta);
-    if (!destinazioneToccata) setDestinazioneScelta("cantiere");
-  }, [destinazioneLetta, cantieri.data, poId, orderId, destinazioneToccata]);
+    const aggiorna = window.setTimeout(() => {
+      propostaFattaPer.current = destinazioneLetta;
+      if (!proposta) return;
+      setOrderId(proposta.id);
+      setPropostaCommessa(proposta);
+      if (!destinazioneToccata) setDestinazioneScelta("cantiere");
+    }, 0);
+    return () => window.clearTimeout(aggiorna);
+  }, [open, destinazioneLetta, cantieri.data, poId, orderId, destinazioneToccata]);
 
   // La stessa bolla c'è già (registrata dalla fattura, o due volte per sbaglio): lo si dice prima di
   // registrarne una seconda (23/11/2026). Stesso fornitore, stesso numero letto, data entro 10 giorni.

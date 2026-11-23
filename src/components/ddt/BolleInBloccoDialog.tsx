@@ -2,7 +2,7 @@
  * Caricare tante bolle insieme (05/11/2026): si scelgono i file, ognuno viene letto, e prima di salvare
  * si vede una riga per bolla con quello che il sistema ha capito. Niente entra senza conferma.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -253,7 +253,7 @@ function BolleAperte({
     };
   }, []);
 
-  const cambia = (id: string, patch: Partial<BollaLetta>) =>
+  const cambia = useCallback((id: string, patch: Partial<BollaLetta>) =>
     setBolle((p) =>
       p.map((b) => {
         if (b.id !== id) return b;
@@ -277,7 +277,7 @@ function BolleAperte({
             : {}),
         };
       }),
-    );
+    ), []);
 
   const leggiTutte = async (nuove: BollaLetta[]) => {
     if (!companyId || !user?.id) return;
@@ -415,12 +415,15 @@ function BolleAperte({
     b.stato === "letta" && !b.ddtCreatoId ? bollaDaCompletare(b, senzaOriginale) : null])), [bolle, senzaOriginale]);
   // La bolla da completare ha già commessa e destinazione: la riga le prende, così è pronta.
   useEffect(() => {
-    for (const b of bolle) {
-      const m = daCompletare.get(b.id);
-      if (m && !b.orderId && m.order_id) cambia(b.id, { orderId: m.order_id, destinazione: m.destinazione === "magazzino" ? "magazzino" : "cantiere" });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [daCompletare]);
+    if (!open || !bolle.some(b => !b.orderId && daCompletare.get(b.id)?.order_id)) return;
+    const aggiorna = window.setTimeout(() => {
+      for (const b of bolle) {
+        const m = daCompletare.get(b.id);
+        if (m && !b.orderId && m.order_id) cambia(b.id, { orderId: m.order_id, destinazione: m.destinazione === "magazzino" ? "magazzino" : "cantiere" });
+      }
+    }, 0);
+    return () => window.clearTimeout(aggiorna);
+  }, [open, bolle, daCompletare, cambia]);
   const doppi = useMemo(() => {
     const d = doppioni(bolle, esistenti);
     for (const [id, m] of daCompletare) if (m) d.set(id, null);
