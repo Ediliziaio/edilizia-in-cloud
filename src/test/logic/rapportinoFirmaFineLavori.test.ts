@@ -45,9 +45,12 @@ describe("Fine lavori — step firme in CampoRapportino", () => {
     expect(src).toContain("lavoro_completato ? 3 : semplice ? 1 : TOTAL_STEPS");
     expect(src).not.toContain("setLavoroCompletato");
     expect(src).toContain('tipo === "client"');
-    expect(src).toContain("if (firmaOperaio) {");
+    // La firma dell'operaio parte con gli altri allegati del rapportino (aggiungiFirma), solo se c'è.
+    expect(src).toContain('aggiungiFirma(firmaOperaio, "operaio")');
     expect(src).toContain("/firme/");
-    expect(src).toContain('from("campo-rapportini")');
+    // Il caricamento sul bucket lo fa la coda dei rapporti (rapportoInCoda), per foto e firme insieme.
+    expect(src).toContain("riferimentoAllegatoRapportino(percorso)");
+    expect(readFileSync(resolve(process.cwd(), "src/lib/campo/rapportoInCoda.ts"), "utf8")).toContain('"campo-rapportini"');
   });
 
   it("l'avviso all'ufficio lo manda il database, non il telefono", () => {

@@ -13,18 +13,36 @@ it("convalida i trasporti di campo e ufficio, raggruppa il mezzo condiviso e col
   try {
     await db.exec(readFileSync("src/test/fixtures/mappaOperativaDatabase.sql", "utf8"));
     await db.exec(`drop table mezzi_viaggi;
-      create function public.miei_hr_profili() returns setof uuid language sql as $$ select id from hr_profili where user_id=auth.uid() $$;
-      create function public._order_visible_under_rls(uuid,boolean) returns boolean language sql as $$ select public.ufficio_vede_commessa($1) $$;
-      create function public.campo_e_ufficio(uuid) returns boolean language sql as $$ select true $$;
-      create function public.assert_company_access(uuid) returns void language plpgsql as $$ begin return; end $$;
-      create function public.campo_mezzi_ammessi(uuid) returns table(mezzo_id uuid) language sql as $$ select '${alfa}'::uuid $$;
-      create table campo_rapportini(
-        id uuid primary key, company_id uuid, order_id uuid, user_id uuid, data_lavoro date, campi_extra jsonb default '[]', stato text default 'inviato',
-        lavoro_completato boolean default false, firma_cliente_url text, annullato_at timestamptz,
-        ufficio_employee_id uuid, updated_at timestamptz default now(), approvato boolean default false, approvato_da uuid, approvato_at timestamptz,
-        descrizione_lavori text, note text, ore_lavorate numeric, ore_straordinario numeric, presenze jsonb, fasi_lavorate jsonb,
-        materiali_usati jsonb, mezzi_usati jsonb, motivo_rifiuto text, pdf_url text
-      );
+      create or replace function public.miei_hr_profili() returns setof uuid language sql as $$ select id from hr_profili where user_id=auth.uid() $$;
+      create or replace function public._order_visible_under_rls(uuid,boolean) returns boolean language sql as $$ select public.ufficio_vede_commessa($1) $$;
+      create or replace function public.campo_e_ufficio(uuid) returns boolean language sql as $$ select true $$;
+      create or replace function public.assert_company_access(uuid) returns void language plpgsql as $$ begin return; end $$;
+      create or replace function public.campo_mezzi_ammessi(uuid) returns table(mezzo_id uuid) language sql as $$ select '${alfa}'::uuid $$;
+      -- La tabella base la crea già la fixture comune: qui si aggiungono le colonne che servono a questo test.
+      alter table campo_rapportini add column if not exists company_id uuid;
+      alter table campo_rapportini add column if not exists order_id uuid;
+      alter table campo_rapportini add column if not exists user_id uuid;
+      alter table campo_rapportini add column if not exists data_lavoro date;
+      alter table campo_rapportini add column if not exists campi_extra jsonb default '[]';
+      alter table campo_rapportini add column if not exists stato text default 'inviato';
+      alter table campo_rapportini add column if not exists lavoro_completato boolean default false;
+      alter table campo_rapportini add column if not exists firma_cliente_url text;
+      alter table campo_rapportini add column if not exists annullato_at timestamptz;
+      alter table campo_rapportini add column if not exists ufficio_employee_id uuid;
+      alter table campo_rapportini add column if not exists updated_at timestamptz default now();
+      alter table campo_rapportini add column if not exists approvato boolean default false;
+      alter table campo_rapportini add column if not exists approvato_da uuid;
+      alter table campo_rapportini add column if not exists approvato_at timestamptz;
+      alter table campo_rapportini add column if not exists descrizione_lavori text;
+      alter table campo_rapportini add column if not exists note text;
+      alter table campo_rapportini add column if not exists ore_lavorate numeric;
+      alter table campo_rapportini add column if not exists ore_straordinario numeric;
+      alter table campo_rapportini add column if not exists presenze jsonb;
+      alter table campo_rapportini add column if not exists fasi_lavorate jsonb;
+      alter table campo_rapportini add column if not exists materiali_usati jsonb;
+      alter table campo_rapportini add column if not exists mezzi_usati jsonb;
+      alter table campo_rapportini add column if not exists motivo_rifiuto text;
+      alter table campo_rapportini add column if not exists pdf_url text;
       create table appalto_rendiconto_righe(stato text,rapportino_id uuid,voce_libera_id uuid);
       create table rapportino_voci_libere(id uuid,rapportino_id uuid);
       create table giornale_lavori(order_id uuid,stato text,source_rapportini_ids uuid[]);

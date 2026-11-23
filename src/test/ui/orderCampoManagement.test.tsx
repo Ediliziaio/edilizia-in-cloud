@@ -7,7 +7,7 @@ import { OrdineRapportiniCampo } from "@/components/orders/OrdineRapportiniCampo
 const state = vi.hoisted(() => ({
   assignments: [] as Array<Record<string, unknown>>, reports: [] as Array<Record<string, unknown>>,
   assignmentsError: false, subError: false, canEdit: true, canViewCosts: true, fasiNomi: new Map<string, string>(),
-  from: vi.fn(), invalidate: vi.fn(), success: vi.fn(), warning: vi.fn(), error: vi.fn(),
+  from: vi.fn(), rpc: vi.fn(), invalidate: vi.fn(), success: vi.fn(), warning: vi.fn(), error: vi.fn(),
   recheck: vi.fn(), notifyPdf: vi.fn().mockResolvedValue(null),
 }));
 // Il client PDF ha test dedicati; qui verifichiamo che l'approvazione lo avvii.
@@ -22,11 +22,12 @@ vi.mock("@/hooks/useCompanyStaffUsers", () => ({ useCompanyStaffUsers: () => ({ 
   { id: "worker", first_name: "Mario", last_name: "Rossi", roles: ["worker"] },
   { id: "sub", first_name: "Luca", last_name: "Bianchi", roles: ["subcontractor"] },
 ] }) }));
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: state.from, auth: { getUser: async () => ({ data: { user: { id: "admin" } } }) } } }));
+vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: state.from, rpc: state.rpc, auth: { getUser: async () => ({ data: { user: { id: "admin" } } }) } } }));
 vi.mock("sonner", () => ({ toast: { success: state.success, warning: state.warning, error: state.error } }));
 vi.mock("@tanstack/react-query", () => ({
   useQuery: ({ queryKey }: { queryKey: string[] }) => ({
-    data: queryKey[0] === "order-campo-assignments" ? state.assignments : queryKey[0] === "order-campo-rapportini" ? state.reports : queryKey[0] === "order-campo-fasi-nomi" ? state.fasiNomi : [],
+    // «Costi da completare» legge un oggetto, non un elenco: senza dati il riquadro non compare.
+    data: queryKey[0] === "commessa-costi-da-completare" ? undefined : queryKey[0] === "order-campo-assignments" ? state.assignments : queryKey[0] === "order-campo-rapportini" ? state.reports : queryKey[0] === "order-campo-fasi-nomi" ? state.fasiNomi : [],
     isError: queryKey[0] === "order-campo-assignments" ? state.assignmentsError : state.subError,
     isLoading: false, refetch: vi.fn(),
   }),
@@ -104,15 +105,18 @@ describe("Gestione Campo: protezioni e percorso semplice", () => {
     expect(state.from).not.toHaveBeenCalled(); fireEvent.click(screen.getByRole("button", { name: "Annulla" }));
     expect(state.from).not.toHaveBeenCalled();
   });
-  it("dopo la rimozione confermata aggiorna anche ruolo e squadra", async () => {
-    state.assignments = [assignment]; const q = builder({ id: "a" }); state.from.mockReturnValue(q); draw();
+  // Dal 2026 la rimozione passa da commessa_togli_accesso_manuale (database), che dice anche quale accesso resta.
+  it("dopo la rimozione confermata toglie l'accesso dal database e aggiorna le viste del campo", async () => {
+    state.assignments = [assignment]; state.rpc.mockResolvedValue({ data: "squadra", error: null }); draw();
     fireEvent.click(screen.getByRole("button", { name: "Rimuovi assegnazione esplicita Mario Rossi" }));
     fireEvent.click(screen.getByRole("button", { name: "Rimuovi assegnazione" }));
-    await waitFor(() => expect(state.invalidate).toHaveBeenCalledWith({ queryKey: ["campo-ruolo", "order"] }));
-    expect(q.eq).toHaveBeenCalledWith("id", "a"); expect(q.eq).toHaveBeenCalledWith("order_id", "order");
+    await waitFor(() => expect(state.success).toHaveBeenCalledWith("Accesso manuale rimosso. Resta quello dalla squadra."));
+    expect(state.rpc).toHaveBeenCalledWith("commessa_togli_accesso_manuale", { p_order_id: "order", p_accesso_id: "a" });
+    expect(state.invalidate).toHaveBeenCalledWith({ queryKey: ["campo-scheda-cantiere", "order"] });
+    expect(state.from).not.toHaveBeenCalled();
   });
   it("conserva il dialog e segnala l'errore se la rimozione fallisce", async () => {
-    state.assignments = [assignment]; state.from.mockReturnValue(builder(null, new Error("RLS"))); draw();
+    state.assignments = [assignment]; state.rpc.mockResolvedValue({ data: null, error: new Error("RLS") }); draw();
     fireEvent.click(screen.getByRole("button", { name: "Rimuovi assegnazione esplicita Mario Rossi" }));
     fireEvent.click(screen.getByRole("button", { name: "Rimuovi assegnazione" }));
     await waitFor(() => expect(state.error).toHaveBeenCalled()); expect(screen.getByRole("alertdialog")).toBeInTheDocument();
@@ -123,11 +127,11 @@ describe("Gestione Campo: protezioni e percorso semplice", () => {
     expect(screen.queryByRole("button", { name: /Rimuovi assegnazione/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Dai l'accesso a una persona" })).not.toBeInTheDocument();
   });
-  it("non comunica successo se la policy non ha rimosso nessuna riga", async () => {
-    state.assignments = [assignment]; draw();
+  it("non comunica successo se il database non trova l'accesso da togliere", async () => {
+    state.assignments = [assignment]; state.rpc.mockResolvedValue({ data: null, error: { message: "Accesso non trovato" } }); draw();
     fireEvent.click(screen.getByRole("button", { name: "Rimuovi assegnazione esplicita Mario Rossi" }));
     fireEvent.click(screen.getByRole("button", { name: "Rimuovi assegnazione" }));
-    await waitFor(() => expect(state.error).toHaveBeenCalled());
+    await waitFor(() => expect(state.error).toHaveBeenCalledWith("Accesso non trovato"));
     expect(state.success).not.toHaveBeenCalled(); expect(state.invalidate).not.toHaveBeenCalled();
   });
 });

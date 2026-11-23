@@ -58,6 +58,7 @@ const ECCEZIONI: Record<string, string> = {
   "src/components/shared/AddressAutocomplete.tsx": "i dettagli da correggere a mano, sotto la ricerca",
   "src/components/orders/VariationEditor.tsx": "testo libero per il PDF (indirizzo, P.IVA e contatti insieme), non un indirizzo da cercare",
   "src/components/giornale/InviaDirezioneLavori.tsx": "è l'indirizzo email della direzione lavori, non un indirizzo postale",
+  "src/components/calendar/mappa/PosizioneOperativa.tsx": "ha già la sua ricerca: «Cerca indirizzo» trova il punto e mette il pin sulla mappa",
 };
 
 /** I moduli che chiedono un indirizzo: tutti con la ricerca. */
