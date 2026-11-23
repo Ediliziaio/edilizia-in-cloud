@@ -1,6 +1,7 @@
-import { corrispondeRicercaRicevute, terminiRicercaRicevute } from "@/lib/fatturazione/ricercaRicevute";
+import { corrispondeTestoPronto, terminiRicercaRicevute, testoRicercaRicevute, type TestoRicerca } from "@/lib/fatturazione/ricercaRicevute";
 import { leggiXmlRicevuta, scaricaOriginaleRicevuta } from "@/lib/fatturazione/originaleRicevuta";
-import { useState, useMemo, useCallback, type ReactNode } from "react";
+import { useState, useMemo, useCallback, useDeferredValue, type ComponentProps, type ReactNode } from "react";
+import { useTestoCheSegue } from "@/hooks/useTestoCheSegue";
 import { cn } from "@/lib/utils";
 import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorrimentoOrizzontale";
 import { Link, useSearchParams } from "react-router-dom";
@@ -720,6 +721,31 @@ export default function FattureRicevutePage() {
         : { campo, dir: campo === "fornitore" ? "asc" : "desc" },
     );
 
+  // 23/11/2026 — il campo di ricerca restava indietro di due o tre lettere
+  // (Impresa Vulcano, 1.294 fatture). Ogni lettera rinormalizzava il testo di
+  // tutte le fatture su tutti i campi, e da quando sono contabilizzate ogni riga
+  // porta anche la sua commessa. Adesso:
+  //  · il testo di ogni fattura si prepara UNA volta, quando cambiano i dati;
+  //  · l'elenco segue la ricerca con `useDeferredValue`: la tastiera risponde
+  //    subito, e se si digita veloce React salta i filtri intermedi.
+  const ricercaDifferita = useDeferredValue(searchQuery);
+  const testiRicerca = useMemo(() => {
+    const testi = new Map<string, TestoRicerca>();
+    for (const f of fatture) {
+      const ordini = [f.purchase_order_id, ...(quoteOrdini[f.id] ?? []).map(q => q.purchase_order_id)];
+      testi.set(f.id, testoRicercaRicevute([
+        f.cedente_ragione_sociale, f.numero_fattura, f.cedente_piva, f.cedente_cf,
+        f.note_interne, f.note, f.rettifica_motivo,
+        ...commesseDi(f).flatMap((c) => [c.codice, c.descrizione, c.indirizzo]),
+        ...ordini.flatMap(id => {
+          const ordine = id ? ordiniCollegati[id] : undefined;
+          return ordine ? [ordine.numero, ...ordine.cantiere] : [];
+        }),
+      ]));
+    }
+    return testi;
+  }, [fatture, commesseDi, quoteOrdini, ordiniCollegati]);
+
   const filtered = useMemo(() => {
     let result = fatture;
     if (meseScelto) result = result.filter((f) => f.data_fattura?.startsWith(meseScelto));
@@ -749,21 +775,8 @@ export default function FattureRicevutePage() {
     if (pagamentoFilter === "da_pagare") {
       result = result.filter(daPagare);
     }
-    const termini = terminiRicercaRicevute(searchQuery);
-    if (termini.length) {
-      result = result.filter((f) => {
-        const ordini = [f.purchase_order_id, ...(quoteOrdini[f.id] ?? []).map(q => q.purchase_order_id)];
-        return corrispondeRicercaRicevute(termini, [
-          f.cedente_ragione_sociale, f.numero_fattura, f.cedente_piva, f.cedente_cf,
-          f.note_interne, f.note, f.rettifica_motivo,
-          ...commesseDi(f).flatMap((c) => [c.codice, c.descrizione, c.indirizzo]),
-          ...ordini.flatMap(id => {
-            const ordine = id ? ordiniCollegati[id] : undefined;
-            return ordine ? [ordine.numero, ...ordine.cantiere] : [];
-          }),
-        ]);
-      });
-    }
+    const termini = terminiRicercaRicevute(ricercaDifferita);
+    if (termini.length) result = result.filter((f) => corrispondeTestoPronto(termini, testiRicerca.get(f.id)));
     const segno = ordinamento.dir === "asc" ? 1 : -1;
     return [...result].sort((a, b) => {
       if (ordinamento.campo === "fornitore") {
@@ -774,7 +787,7 @@ export default function FattureRicevutePage() {
       }
       return segno * (a.data_fattura < b.data_fattura ? -1 : a.data_fattura > b.data_fattura ? 1 : 0);
     });
-  }, [fatture, haCollegamento, verificata, verifiche, verifichePronte, metodoFilter, allegatiFilter, conteggiAllegati, soloDaRettificare, daPagare, soloDaVerificare, statoFilter, tipoFilter, categoriaFilter, ordineFilter, contabFilter, pagamentoFilter, storni, searchQuery, ordinamento, commesseDi, ordiniCollegati, quoteOrdini, meseScelto]);
+  }, [fatture, haCollegamento, verificata, verifiche, verifichePronte, metodoFilter, allegatiFilter, conteggiAllegati, soloDaRettificare, daPagare, soloDaVerificare, statoFilter, tipoFilter, categoriaFilter, ordineFilter, contabFilter, pagamentoFilter, storni, ricercaDifferita, testiRicerca, ordinamento, meseScelto]);
 
   // Modifiche in blocco: si selezionano le fatture che l'elenco mostra, anche dopo aver filtrato.
   const puoInBlocco = !permessiCosti.solaLettura;
@@ -1195,7 +1208,7 @@ export default function FattureRicevutePage() {
       />}
 
       {/* Mobile: ricerca e bottone dei filtri (anno e stato nel pannello). */}
-      <CercaConFiltri
+      <CercaConFiltriVeloce
         className="sm:hidden"
         valore={searchQuery}
         onCambia={setSearchQuery}
@@ -1207,15 +1220,7 @@ export default function FattureRicevutePage() {
       {/* Filtri: chip rapidi con il conteggio, poi ricerca e tendine. */}
       <div className="space-y-3 max-sm:hidden">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-[220px] flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Cerca fornitore, fattura, note o riferimenti…"
-              className="pl-9"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
+          <CampoRicercaRicevute valore={searchQuery} onCambia={setSearchQuery} />
           <Select value={annoFilter} onValueChange={setAnnoFilter}>
             <SelectTrigger className="w-[130px]" aria-label="Anno">
               <SelectValue placeholder="Anno" />
@@ -1975,4 +1980,29 @@ export default function FattureRicevutePage() {
       />
     </div>
   );
+}
+
+/**
+ * I campi di ricerca stanno in componenti loro (23/11/2026): a ogni lettera si
+ * ridisegna il campo, non la pagina con tutte le sue righe. La pagina riceve il
+ * testo quando si smette di digitare (useTestoCheSegue).
+ */
+function CampoRicercaRicevute({ valore, onCambia }: { valore: string; onCambia: (testo: string) => void }) {
+  const [testo, scrivi] = useTestoCheSegue(valore, onCambia);
+  return (
+    <div className="relative min-w-[220px] flex-1">
+      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      <Input
+        placeholder="Cerca fornitore, fattura, note o riferimenti…"
+        className="pl-9"
+        value={testo}
+        onChange={(e) => scrivi(e.target.value)}
+      />
+    </div>
+  );
+}
+
+function CercaConFiltriVeloce(props: ComponentProps<typeof CercaConFiltri>) {
+  const [testo, scrivi] = useTestoCheSegue(props.valore, props.onCambia);
+  return <CercaConFiltri {...props} valore={testo} onCambia={scrivi} />;
 }
