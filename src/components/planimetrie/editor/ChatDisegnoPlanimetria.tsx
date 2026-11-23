@@ -1,5 +1,7 @@
 import { lazy, Suspense, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { usePermissions } from "@/hooks/usePermissions";
+import { interpretaComando } from "@/lib/planimetrie/assistenzaStudio";
 import { AppWindow, Armchair, ArrowUpRight, Box, Check, ClipboardList, DoorOpen, Droplet, Eraser, FileText, Focus, ImageIcon, MessageSquare, Mic, MicOff, Paperclip, Rows3, Ruler, ScanLine, ScanSearch, SquareDashed, TriangleAlert, Undo2, X, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -162,6 +164,7 @@ export function ChatDisegnoPlanimetria({
   onVerifica, onApriConfronto, onRiferimento, onVista, onApriStudioBilocali, onChiudi,
 }: Props) {
   const companyId = useEffectiveCompanyId();
+  const { canViewRenderAi: puoChiedereASilvio } = usePermissions();
   const [testo, setTesto] = useState("");
   const conversazione = useContext(ConversazioneProgettoSilvio);
   const [messaggiDisegno, setMessaggiDisegno] = useState<Messaggio[]>([]);
@@ -418,6 +421,11 @@ export function ChatDisegnoPlanimetria({
     onVerifica(null);
     aggiungi({ ruolo: "utente", testo: comando });
     if (richiesta === undefined) setTesto("");
+    esegui(controller, comando, false);
+  }
+
+  /** Prima le regole (gratis); se non capiscono la frase, Silvio la riscrive nei comandi che le regole eseguono. */
+  function esegui(controller: AbortController, comando: string, interpretato: boolean) {
     const piantaDiPartenza = passo?.confrontoTramezzo?.interferenze.length ? base : passo?.pianta ?? base;
     const nuovoContesto = { ...contesto, selezione };
     const lavorazione = !passo?.riferimento ? preparaInterventi(base, vista, comando, nuovoContesto, passo?.revisioneInterventi) : null;
@@ -443,6 +451,23 @@ export function ChatDisegnoPlanimetria({
       return;
     }
     const passi = passo?.riferimento ? sulDisegno.map(p => ({ ...p, riferimento: passo.riferimento })) : sulDisegno;
+    if (!passi.length && !viste.length && !revisione && !interpretato && companyId && puoChiedereASilvio && !comando.includes("\n")) {
+      setFase({ testo: "Chiedo a Silvio di interpretare la richiesta", completati: 0, totale: 0 });
+      interpretaComando(companyId, comando, localiVisibili.map(l => l.nome), vista).then(r => {
+        if (controller.signal.aborted || lavoro.current !== controller) return;
+        if (r.comandi.length) {
+          aggiungi({ ruolo: "assistente", testo: `Ho capito così: ${r.comandi.join(" · ")}` });
+          esegui(controller, r.comandi.join("\n"), true);
+        } else {
+          finisci(controller);
+          aggiungi({ ruolo: "assistente", testo: r.domanda || "Mi serve un’indicazione più precisa", avvisi: esito.avvisi });
+        }
+      }, (e: unknown) => {
+        if (controller.signal.aborted || lavoro.current !== controller) return;
+        mostraPassi(controller, passi, [...esito.avvisi, e instanceof Error ? e.message : "Silvio non è disponibile in questo momento."], [], revisione);
+      });
+      return;
+    }
     const ultimo = revisione ? { pianta: revisione.piantaValida } : passi.at(-1);
     const accessi = ultimo ? accessiInterrotti(base, ultimo.pianta, vista, contesto) : [];
     mostraPassi(controller, passi, [...esito.avvisi, ...accessi], onVista ? viste : [], revisione);

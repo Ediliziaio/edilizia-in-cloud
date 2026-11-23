@@ -45,7 +45,18 @@ export function PrevisioneLavori({ righe }: { righe: readonly RigaStudio[] }) {
         {p.indicativi > 0 && <>{p.indicativi} {p.indicativi === 1 ? "voce ha" : "voci hanno"} un prezzo indicativo: l’intervallo è largo (±{p.intervallo.incertezzaPct}% sui lavori). Mettile nel listino per stringerlo. </>}
         {fuori > 0 && <>{fuori} {fuori === 1 ? "voce è fuori" : "voci sono fuori"} dal conto perché senza prezzo o senza quantità.</>}
       </p>}
-      <table className="w-full text-xs" aria-label="Costo e durata per fase">
+      {/* Sul telefono cinque colonne non ci stanno: una riga per fase, con l'attesa a tutta larghezza. */}
+      <ul className="divide-y text-xs sm:hidden" aria-label="Costo e durata per fase">
+        {p.fasi.map((f) => <li key={f.fase} className="space-y-0.5 py-2">
+          <p className="flex justify-between gap-3 font-medium"><span>{f.fase}</span><span className="tabular-nums">{euro.format(f.importo)}</span></p>
+          <p className="flex justify-between gap-3 text-muted-foreground"><span>Manodopera {euro.format(f.manodopera)} · materiali {euro.format(f.materiali)}</span><span className="shrink-0 tabular-nums">{giorni(f.giorni)}</span></p>
+          {f.attesa > 0 && <p className="text-muted-foreground">Dopo {f.attesa} giorni: {f.perche}</p>}
+        </li>)}
+        {p.fuori.nonStimate > 0 && <li className="flex justify-between gap-3 py-2 text-muted-foreground"><span>Altre voci quotate, senza stima dei tempi</span>
+          <span className="shrink-0 font-medium tabular-nums text-foreground">{euro.format(p.lavori - p.fasi.reduce((s, f) => s + f.importo, 0))}</span></li>}
+        <li className="flex justify-between gap-3 py-2 font-semibold"><span>Lavori</span><span className="tabular-nums">{euro.format(p.lavori)}</span></li>
+      </ul>
+      <table className="hidden w-full text-xs sm:table" aria-label="Costo e durata per fase">
         <thead><tr className="text-left text-muted-foreground"><th className="py-1 font-medium">Fase</th><th className="px-2 text-right font-medium">Manodopera</th><th className="px-2 text-right font-medium">Materiali</th><th className="px-2 text-right font-medium">Importo</th><th className="text-right font-medium">Durata</th></tr></thead>
         <tbody className="divide-y">
           {p.fasi.map((f) => <tr key={f.fase} className="align-top">

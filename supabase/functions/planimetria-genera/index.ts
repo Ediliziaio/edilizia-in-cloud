@@ -1,4 +1,3 @@
-// 23/11/2026: ripubblicata per i nuovi campioni di finitura in shared/planimetrie/finiture.ts.
 /**
  * planimetria-genera — la pianta generata da ciò che l'impresa ha già.
  *
@@ -38,6 +37,7 @@ import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { verificaPermessoAzienda } from "../_shared/permessoAzienda.ts";
 import { getCorsHeaders, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { leggiRispostaInterprete, LIMITE_RICHIESTA_INTERPRETE, messaggioInterprete, PROMPT_INTERPRETE } from "../../../shared/planimetrie/interpreteComandi.ts";
 import { isProviderCreditError } from "../_shared/aiRequestGuard.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { erroreAiPerUtente } from "../_shared/erroriAi.ts";
@@ -79,7 +79,7 @@ const TEMPO_PER_MODELLO_MS = 75_000;
 const MAX_BYTES = 15 * 1024 * 1024;
 const MIME_AMMESSI = ["image/png", "image/jpeg", "image/webp", "application/pdf"];
 const INGRESSI = ["documento", "schizzo", "descrizione", "sopralluogo", "dxf", "rilievo"] as const;
-const ASSISTENZE = ["frazionamento","norme","chat-progetto"];
+const ASSISTENZE = ["frazionamento","norme","chat-progetto","comando"];
 /** «rilievo»: ogni foto di stanza al massimo 3 MB (il browser le riduce prima). */
 const MAX_BYTES_FOTO = 3 * 1024 * 1024;
 type Ingresso = typeof INGRESSI[number];
@@ -143,6 +143,22 @@ serveConMetricheRapida(NOME, async (req: Request) => {
       if (lettura.error || lettura.data) return rifiuto("accesso","L’accesso in sola lettura non può avviare l’AI.",403,cors);
 
       const richiesta = typeof body.richiesta === "string" ? body.richiesta.trim() : "";
+      // L'interprete della chat del disegno: riscrive una frase libera nei comandi che la chat
+      // esegue a regole. Costa poco e si paga a consumo (router), non un credito render intero.
+      if (assistenza === "comando") {
+        const ambienti = Array.isArray(body.ambienti) ? body.ambienti.filter((a: unknown): a is string => typeof a === "string") : [];
+        if (!richiesta || richiesta.length > LIMITE_RICHIESTA_INTERPRETE) return rifiuto("richiesta","Scrivi una richiesta più breve.",400,cors);
+        const r = await aiRouterComplete({
+          supabase,companyId,userId,sessionId:crypto.randomUUID(),taskKey:"planimetria_genera",
+          forceModel:MODELLI[0],disableModelFallback:true,
+          messages:[{role:"system",content:PROMPT_INTERPRETE},{role:"user",content:messaggioInterprete(richiesta,ambienti,body.vista === "fatto" ? "fatto" : "progetto")}],
+          params:{temperature:0,max_tokens:600,timeoutMs:20000},responseFormat:{type:"json_object"},
+        });
+        let letta: unknown = null;
+        try { letta = JSON.parse(r.content); } catch { letta = { comandi: [], domanda: (r.content ?? "").trim() }; }
+        const interpretazione = leggiRispostaInterprete(letta);
+        return jsonResponse({success:true,interpretazione: interpretazione ?? {comandi:[],domanda:"Non ho capito la richiesta. Prova a dirla con il nome della stanza e la misura."}},200,cors);
+      }
       const alternative: unknown = body.alternative;
       const estratto = typeof body.estratto === "string" ? body.estratto.trim() : "";
       const contesto = assistenza === "chat-progetto" ? leggiContestoChatProgetto(body.contesto) : null;
