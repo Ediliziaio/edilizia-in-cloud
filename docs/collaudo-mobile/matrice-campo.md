@@ -376,3 +376,5 @@ pausa. Non li ho cancellati: si tolgono dall'ufficio o con una riga SQL, se il f
 - Tipi: puliti su tutti i file cambiati (controllo a lotti). Test dell'area operai: 2.807/2.809; i 2 rossi (rapportinoFirmaFineLavori, rapportinoTrasportiDatabase) e orderCampoManagement falliscono già su main; anche indirizziUnaRicerca (PosizioneOperativa:66) è rosso su main.
 - Scheda dipendente → Documenti: riquadro «Tesserino di cantiere» con «Rigenera QR» (solo per chi lavora in cantiere).
 - Demo 2: Marco Verdi riattivato; scheda del personale «Marco Operaio» collegata a operaio2; corso e visita «DEMO ·» su entrambi: i tesserini risultano «In regola».
+- Scontrino del pranzo dal telefono (migrazione 20290523130000, cartella privata buoni-pasto-ricevute): provato come operaio2 nella Demo 2 (modalità «entrambi»), ricevuta «DEMO · Bar del cantiere» 9,80 € con foto. In Paghe: esercente e «Vedi scontrino».
+- Rifiniture della sessione lingua portate sul ramo (0803593ba, fast-forward): 535 frasi nuove, 17 schermate, sottocartelle nel test. Test dell'area operai dopo l'unione: 2.810/2.812; rossi solo i 3 già rossi su main.
