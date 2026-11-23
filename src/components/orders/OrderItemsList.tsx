@@ -83,6 +83,7 @@ export interface OrderItem {
   supplier_id?: string;
   supplier_name?: string;
   purchase_price?: number;
+  origine_preventivo_id?: string;
   preparazione_prezzo?: import("@/lib/orders/preparazioneForniture").PrezzoPreparazione;
   costo_stimato_iniziale?: number | null;
   origine_materiale?: string | null;
