@@ -29,7 +29,7 @@ begin
 end;
 $$;
 
-create table public.preventivo_analisi_costi (
+create table if not exists public.preventivo_analisi_costi (
   company_id uuid not null references public.companies(id) on delete cascade,
   tipo text not null check (tipo in ('computo', 'preventivo')),
   documento_id uuid not null,
@@ -46,7 +46,7 @@ grant select, insert on public.preventivo_analisi_costi to authenticated;
 grant update (dati, versione) on public.preventivo_analisi_costi to authenticated;
 grant select, insert, update, delete on public.preventivo_analisi_costi to service_role;
 
-create function public.puo_leggere_analisi_preventivo(p_azienda uuid, p_tipo text, p_id uuid)
+create or replace function public.puo_leggere_analisi_preventivo(p_azienda uuid, p_tipo text, p_id uuid)
 returns boolean
 language plpgsql stable security invoker
 set search_path = ''
@@ -70,8 +70,10 @@ $$;
 revoke all on function public.puo_leggere_analisi_preventivo(uuid, text, uuid) from public, anon;
 grant execute on function public.puo_leggere_analisi_preventivo(uuid, text, uuid) to authenticated;
 
+drop policy if exists preventivo_analisi_lettura on public.preventivo_analisi_costi;
 create policy preventivo_analisi_lettura on public.preventivo_analisi_costi for select to authenticated
   using (public.puo_leggere_analisi_preventivo(company_id, tipo, documento_id));
+drop policy if exists preventivo_analisi_inserimento on public.preventivo_analisi_costi;
 create policy preventivo_analisi_inserimento on public.preventivo_analisi_costi for insert to authenticated
   with check (revisione = '' and fotografia is null
     and public.puo_leggere_analisi_preventivo(company_id, tipo, documento_id)
@@ -79,6 +81,7 @@ create policy preventivo_analisi_inserimento on public.preventivo_analisi_costi 
     and not public.utente_sola_lettura(company_id)
     and (tipo = 'computo' or exists (select 1 from public.quotes q where q.id = documento_id
       and q.company_id = preventivo_analisi_costi.company_id and q.status in ('bozza', 'draft'))));
+drop policy if exists preventivo_analisi_modifica on public.preventivo_analisi_costi;
 create policy preventivo_analisi_modifica on public.preventivo_analisi_costi for update to authenticated
   using (revisione = '' and public.puo_leggere_analisi_preventivo(company_id, tipo, documento_id)
     and public.has_permission_for_company((select auth.uid()), 'can_edit_preventivi', company_id)
@@ -93,7 +96,7 @@ create policy preventivo_analisi_modifica on public.preventivo_analisi_costi for
       and q.company_id = preventivo_analisi_costi.company_id and q.status in ('bozza', 'draft'))));
 
 -- Le versioni del documento conservano una copia dei costi, nello stesso ambito riservato.
-create function private.fotografa_analisi_preventivo()
+create or replace function private.fotografa_analisi_preventivo()
 returns trigger language plpgsql security definer set search_path = ''
 as $$
 declare
@@ -125,14 +128,16 @@ begin
 end;
 $$;
 revoke all on function private.fotografa_analisi_preventivo() from public, anon, authenticated;
+drop trigger if exists quote_versions_analisi_costi on public.quote_versions;
 create trigger quote_versions_analisi_costi after insert on public.quote_versions
   for each row execute function private.fotografa_analisi_preventivo();
+drop trigger if exists computo_revisioni_analisi_costi on public.computo_preventivo_drafts;
 create trigger computo_revisioni_analisi_costi after update of payload on public.computo_preventivo_drafts
   for each row when (old.payload->'revisioni' is distinct from new.payload->'revisioni')
   execute function private.fotografa_analisi_preventivo();
 
 -- Costi e quantità dell'offerta accettata, per il budget della commessa.
-create function private.congela_analisi_preventivo_accettato()
+create or replace function private.congela_analisi_preventivo_accettato()
 returns trigger language plpgsql security definer set search_path = ''
 as $$
 begin
@@ -149,11 +154,12 @@ begin
 end;
 $$;
 revoke all on function private.congela_analisi_preventivo_accettato() from public, anon, authenticated;
+drop trigger if exists quotes_congela_analisi_costi on public.quotes;
 create trigger quotes_congela_analisi_costi after update of status on public.quotes
   for each row when (old.status is distinct from new.status and new.status = 'accettata')
   execute function private.congela_analisi_preventivo_accettato();
 
-create function private.numero_analisi_preventivo(testo text)
+create or replace function private.numero_analisi_preventivo(testo text)
 returns numeric language sql immutable set search_path = ''
 as $$
   select case when n ~ '^[0-9]+([.][0-9]+)?$' and length(n)<=32
@@ -162,7 +168,7 @@ as $$
     from (select regexp_replace(testo,'[[:space:]]','','g') s) pulito) decimale
 $$;
 
-create function private.somma_risorse_preventivo(risorse jsonb, quantita numeric, base numeric)
+create or replace function private.somma_risorse_preventivo(risorse jsonb, quantita numeric, base numeric)
 returns table(diretto numeric, costo numeric)
 language sql immutable set search_path = ''
 as $$
@@ -183,7 +189,7 @@ as $$
   from d
 $$;
 
-create function private.budget_analisi_preventivo(p_azienda uuid, p_preventivo uuid)
+create or replace function private.budget_analisi_preventivo(p_azienda uuid, p_preventivo uuid)
 returns jsonb language sql stable set search_path = ''
 as $$
   with foto as (

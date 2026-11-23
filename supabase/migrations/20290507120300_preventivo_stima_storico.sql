@@ -1,6 +1,6 @@
 -- I consuntivi di commessa sono confrontabili con una voce quando il perimetro
 -- commerciale coincide con quella voce e la quantità eseguita è registrata.
-create function private.preventivo_riferimenti_storici(
+create or replace function private.preventivo_riferimenti_storici(
   p_azienda uuid, p_codice text, p_descrizione text, p_tariffa uuid, p_preventivo uuid
 )
 returns jsonb
@@ -167,7 +167,7 @@ $$;
 revoke all on function private.preventivo_riferimenti_storici(uuid, text, text, uuid, uuid) from public, anon;
 grant execute on function private.preventivo_riferimenti_storici(uuid, text, text, uuid, uuid) to authenticated;
 
-create function public.preventivo_riferimenti_storici(
+create or replace function public.preventivo_riferimenti_storici(
   p_azienda uuid, p_codice text, p_descrizione text, p_tariffa uuid, p_preventivo uuid
 )
 returns jsonb
