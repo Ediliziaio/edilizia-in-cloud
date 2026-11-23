@@ -46,10 +46,10 @@ function seme() {
       { id: "qx", company_id: ALTRA, quote_number: "ALTRA/1", status: "accettata", signed_at: "2026-10-10T09:00:00Z", created_at: "2026-10-01T09:00:00Z" },
     ],
     quote_items: [
-      { id: "i1", company_id: AZIENDA, quote_id: "q1", name: "Posa pavimento in gres 60x60", description: "", quantity: 40, unit_price: 40, discount_percent: 0, unit_of_measure: "mq", codice_prezzario: "PAV.020", is_optional: false },
-      { id: "i2", company_id: AZIENDA, quote_id: "q2", name: "Posa pavimento in gres 60x60", description: "", quantity: 35, unit_price: 46, discount_percent: 0, unit_of_measure: "mq", codice_prezzario: "PAV.020", is_optional: false },
-      { id: "i3", company_id: AZIENDA, quote_id: "q3", name: "Posa pavimento in gres 60x60", description: "", quantity: 35, unit_price: 5, discount_percent: 0, unit_of_measure: "mq", codice_prezzario: "PAV.020", is_optional: false },
-      { id: "ix", company_id: ALTRA, quote_id: "qx", name: "Posa pavimento in gres 60x60", description: "", quantity: 40, unit_price: 77, discount_percent: 0, unit_of_measure: "mq", codice_prezzario: "PAV.020", is_optional: false },
+      { id: "i1", company_id: AZIENDA, quote_id: "q1", name: "Posa pavimento in gres 60x60", description: "", quantity: 40, unit_price: 40, discount_percent: 0, unit_of_measure: "mq", codice_prezzario: "PAV.020", is_optional: false, item_category: "prodotto" },
+      { id: "i2", company_id: AZIENDA, quote_id: "q2", name: "Posa pavimento in gres 60x60", description: "", quantity: 35, unit_price: 46, discount_percent: 0, unit_of_measure: "mq", codice_prezzario: "PAV.020", is_optional: false, item_category: "prodotto" },
+      { id: "i3", company_id: AZIENDA, quote_id: "q3", name: "Posa pavimento in gres 60x60", description: "", quantity: 35, unit_price: 5, discount_percent: 0, unit_of_measure: "mq", codice_prezzario: "PAV.020", is_optional: false, item_category: "prodotto" },
+      { id: "ix", company_id: ALTRA, quote_id: "qx", name: "Posa pavimento in gres 60x60", description: "", quantity: 40, unit_price: 77, discount_percent: 0, unit_of_measure: "mq", codice_prezzario: "PAV.020", is_optional: false, item_category: "prodotto" },
     ],
     prezzario_fonte: [] as Record<string, unknown>[],
     prezzario_voce: [] as Record<string, unknown>[],
@@ -309,7 +309,7 @@ describe("storico: forme vecchie degli stati, righe che non sono lavorazioni, da
     dati.quote_items = [
       { id: "i9", company_id: AZIENDA, quote_id: "q9", name: "Rasatura armata con rete in fibra", description: "", quantity: 12, unit_price: 21, discount_percent: 10, unit_of_measure: "mq", codice_prezzario: "", is_optional: false, item_category: "posa" },
       { id: "i10", company_id: AZIENDA, quote_id: "q9", name: "Rasatura armata con rete in fibra", description: "", quantity: 12, unit_price: 500, discount_percent: 0, unit_of_measure: "mq", codice_prezzario: "", is_optional: false, item_category: "subtotale" },
-    ] as typeof dati.quote_items;
+    ];
     const voci = [voce("r", { descrizione: "Rasatura armata con rete in fibra", unita: "mq", quantita: "12" })];
     const { esito } = await verifica(voci, { db: new DbFinto(dati) });
     expect(esito.voci[0].candidati.map(c => [c.valore, c.selezionabile])).toEqual([[18.9, true]]);
