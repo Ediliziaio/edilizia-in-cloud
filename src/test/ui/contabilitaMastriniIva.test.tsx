@@ -75,8 +75,9 @@ vi.mock("@/pages/azienda/fatturazione/RegistroIVA", () => ({
 vi.mock("@/pages/azienda/ContabilitaFiscale", () => ({
   LiquidazioneIvaEF24: (p: { chiaveVista?: string }) => <div>LIQUIDAZIONE E F24 DI FISCALITÀ ({p.chiaveVista})</div>,
 }));
-const controllo = vi.hoisted(() => ({ stato: undefined as undefined | { impostazioniCompilate: boolean; periodicita?: "mensile" | "trimestrale" | null; acquistiSenzaRicezione: number; senzaImporti: Array<{ data: string; lato: "emesse" | "ricevute" }> } }));
-vi.mock("@/hooks/useControlloIva", () => ({ useControlloIva: () => ({ data: controllo.stato }) }));
+const controllo = vi.hoisted(() => ({ stato: undefined as undefined | import("@/hooks/useControlloIva").StatoControlloIva }));
+const rilegge = vi.hoisted(() => ({ volte: 0, fn: () => { rilegge.volte += 1; return Promise.resolve(); } }));
+vi.mock("@/hooks/useControlloIva", () => ({ useControlloIva: () => ({ data: controllo.stato, refetch: rilegge.fn }) }));
 const csv = vi.hoisted(() => ({ file: [] as Array<{ nome: string; contenuto: string }> }));
 vi.mock("@/lib/csv", () => ({ scaricaCsv: (nome: string, contenuto: string) => { csv.file.push({ nome, contenuto }); } }));
 vi.mock("@/hooks/useAnagraficaAzienda", () => ({ useAnagraficaAzienda: () => ({ data: { ragione_sociale: "Prova srl" } }) }));
@@ -168,19 +169,27 @@ it("scritture: «Stampa registri IVA» porta ai registri", async () => {
   expect(await screen.findByText("REGISTRO IVA DI FISCALITÀ")).toBeTruthy();
 });
 
-it("vista IVA: dice cosa blocca la LIPE e porta dove si sistema (23/11/2026)", async () => {
-  controllo.stato = { impostazioniCompilate: false, acquistiSenzaRicezione: 732, senzaImporti: [{ data: "2026-01-10", lato: "emesse" }, { data: "2026-07-03", lato: "ricevute" }] };
+it("vista IVA: il percorso guidato dice il passo da fare e porta dove si fa (23/11/2026)", async () => {
+  controllo.stato = {
+    impostazioniCompilate: false, periodicita: null, acquistiSenzaRicezione: 732, lipe: [], lipeRegistrate: 0, f24Iva: { daPagare: 0, pagati: 0 },
+    senzaImporti: [{ data: "2026-01-10", lato: "emesse" }, { data: "2026-07-03", lato: "ricevute" }],
+  };
   apri("iva&iva=contabile");
-  expect(await screen.findByText(/Impostazioni IVA 2026 non sono compilate/)).toBeTruthy();
-  expect(screen.getByText(/732 fatture ricevute non hanno la data di ricezione SDI/)).toBeTruthy();
-  expect(screen.getByText(/1 fattura emessa e 1 ricevuta hanno solo il totale.*gennaio, luglio/)).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: "Compila le impostazioni" }));
+  expect(await screen.findByRole("region", { name: "Percorso IVA 2026" })).toBeTruthy();
+  expect(screen.getByText("Da fare adesso: Impostazioni IVA 2026")).toBeTruthy();
+  expect(screen.getByText(/732 fatture ricevute sono senza data di ricezione SDI/)).toBeTruthy();
+  expect(screen.getByText(/1 emessa e 1 ricevuta col solo totale \(gennaio, luglio\)/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Compila" }));
   expect(await screen.findByText("LIQUIDAZIONE E F24 DI FISCALITÀ (iva_vista)")).toBeTruthy();
+  // Cambiando scheda il percorso si rilegge (una LIPE confermata o un giroconto ne cambiano lo stato).
+  expect(rilegge.volte).toBeGreaterThan(0);
+  fireEvent.click(screen.getByRole("button", { name: "Registro acquisti" }));
+  expect(await screen.findByText("REGISTRO IVA DI FISCALITÀ")).toBeTruthy();
 });
 
 it("un solo calcolo: senza LIPE confermata il periodo è un'anteprima e porta a confermarla", async () => {
   state.fonte["2026-01-01"] = "scritture";
-  controllo.stato = { impostazioniCompilate: true, periodicita: "mensile", acquistiSenzaRicezione: 0, senzaImporti: [{ data: "2026-01-10", lato: "ricevute" }] };
+  controllo.stato = { impostazioniCompilate: true, periodicita: "mensile", acquistiSenzaRicezione: 0, senzaImporti: [{ data: "2026-01-10", lato: "ricevute" }], lipe: [], lipeRegistrate: 0, f24Iva: null };
   apri("iva&iva=contabile");
   expect(await screen.findByText("anteprima dalle scritture")).toBeTruthy();
   expect(screen.getByText("1 ricevuta senza importi: importi parziali nelle scritture")).toBeTruthy();

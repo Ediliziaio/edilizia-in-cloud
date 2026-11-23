@@ -8,7 +8,7 @@ import { TabellaContabile } from "./TabellaContabile";
  * chiamano le funzioni, niente scritture dirette sulle tabelle.
  */
 import { Link } from "react-router-dom";
-import { Suspense, useId, useMemo, useState } from "react";
+import { Suspense, useEffect, useId, useMemo, useRef, useState } from "react";
 import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from "recharts";
 import { COLORI_GRAFICO, StatGrafico, TESTO_ASSE, TooltipScheda, defsGrafico, euroAsse, idSvg } from "@/components/charts/grafici/comune";
@@ -55,7 +55,8 @@ import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { csvLiquidazioneContabile, differenzaLipe, htmlLiquidazioneContabile, importiPeriodo, righeLiquidazione, type EsitoLiquidazione } from "@/lib/contabilita/liquidazioneContabile";
 import { avvisoPeriodo, incompletiPerPeriodo, type DocumentoSenzaImporti } from "@/lib/contabilita/controlloIva";
 import { useControlloIva } from "@/hooks/useControlloIva";
-import { CosaMancaIva } from "@/components/contabilita/ControlloIva";
+import { PercorsoIva } from "@/components/contabilita/ControlloIva";
+import type { DestinazionePasso } from "@/lib/contabilita/percorsoIva";
 // Gli stessi strumenti IVA di Fatture → Fiscalità (23/11/2026): registri, liquidazione e LIPE, F24, impostazioni.
 const RegistroIVA = lazy(() => import("@/pages/azienda/fatturazione/RegistroIVA"));
 const LiquidazioneIvaEF24 = lazy(() => import("@/pages/azienda/ContabilitaFiscale").then((m) => ({ default: m.LiquidazioneIvaEF24 })));
@@ -1475,11 +1476,23 @@ function IvaContabilita({ companyId, anno }: { companyId: string; anno: number }
   const conPeriodo = sotto === "registri" || (sotto === "liquidazione" && (vistaLiquidazione === "f24" || vistaLiquidazione === "ritenute_bancarie"));
   const registriAperti = permessi.canViewBilling && (documenti.isEnabled || documenti.isPreview);
   const controllo = useControlloIva(companyId, anno);
+  // Il percorso segue quello che si fa nelle sottoschede (LIPE confermata, giroconto, F24): si rilegge cambiando scheda.
+  const { refetch: rileggiPercorso } = controllo;
+  const sottoPrima = useRef(sotto);
+  useEffect(() => {
+    if (sottoPrima.current === sotto) return;
+    sottoPrima.current = sotto;
+    void rileggiPercorso();
+  }, [sotto, rileggiPercorso]);
+  const vai = (dove: DestinazionePasso) => p.set(
+    dove === "impostazioni" ? { iva: "liquidazione", iva_vista: "impostazioni_iva" }
+    : dove === "ricezione" ? { iva: "registri", registro: "acquisti" }
+    : dove === "lipe" ? { iva: "liquidazione", iva_vista: "iva" }
+    : dove === "f24" ? { iva: "liquidazione", iva_vista: "f24" }
+    : { iva: "contabile" });
   return (
     <div className="space-y-3">
-      <CosaMancaIva stato={controllo.data} anno={anno}
-        onImpostazioni={() => p.set({ iva: "liquidazione", iva_vista: "impostazioni_iva" })}
-        onRicezione={() => p.set({ iva: "registri", registro: "acquisti" })} />
+      <PercorsoIva stato={controllo.data} anno={anno} oggi={oggi()} onVai={vai} />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div role="group" aria-label="Strumenti IVA" className="flex flex-wrap gap-1">
           {SOTTOVISTE_IVA.map(([k, l]) => (

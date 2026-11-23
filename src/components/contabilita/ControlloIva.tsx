@@ -1,51 +1,58 @@
 /**
- * In testa alla vista IVA della Contabilità generale: che cosa impedisce a liquidazione e LIPE
- * di essere giuste, e dove si sistema (23/11/2026). Vedi `lib/contabilita/controlloIva.ts`.
+ * Il percorso guidato dell'IVA in testa alla vista IVA della Contabilità generale (23/11/2026):
+ * i passi nell'ordine in cui si fanno, con lo stato di ciascuno e il pulsante che porta dove si fa.
+ * La logica sta in `lib/contabilita/percorsoIva.ts`, i dati in `hooks/useControlloIva.ts`.
  */
-import type { ReactNode } from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Check, Circle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { mesiInLettere } from "@/lib/contabilita/controlloIva";
+import { passoAttuale, percorsoIva, type DestinazionePasso, type PassoIva } from "@/lib/contabilita/percorsoIva";
 import type { StatoControlloIva } from "@/hooks/useControlloIva";
 
-export function CosaMancaIva({ stato, anno, onImpostazioni, onRicezione }: {
+function Segno({ passo, numero }: { passo: PassoIva; numero: number }) {
+  const base = "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold";
+  if (passo.stato === "fatto") return <span className={`${base} bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300`} aria-label="fatto"><Check className="h-3.5 w-3.5" /></span>;
+  if (passo.stato === "avviso") return <span className={`${base} bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300`} aria-label="da guardare"><AlertTriangle className="h-3.5 w-3.5" /></span>;
+  if (passo.stato === "in_attesa") return <span className={`${base} bg-muted text-muted-foreground`} aria-label="in attesa"><Circle className="h-3 w-3" /></span>;
+  return <span className={`${base} bg-primary text-primary-foreground`} aria-label="da fare">{numero}</span>;
+}
+
+export function PercorsoIva({ stato, anno, oggi, onVai }: {
   stato: StatoControlloIva | undefined;
   anno: number;
-  onImpostazioni: () => void;
-  onRicezione: () => void;
+  /** Data di oggi (ISO): decide quali periodi sono finiti. */
+  oggi: string;
+  onVai: (dove: DestinazionePasso) => void;
 }) {
   if (!stato) return null;
-  const emesse = stato.senzaImporti.filter((d) => d.lato === "emesse");
-  const ricevute = stato.senzaImporti.filter((d) => d.lato === "ricevute");
-  const voci = [
-    !stato.impostazioniCompilate && {
-      chiave: "impostazioni",
-      testo: `Le Impostazioni IVA ${anno} non sono compilate: senza periodicità e regime la liquidazione periodica e la LIPE non si calcolano.`,
-      azione: <Button size="sm" variant="outline" onClick={onImpostazioni}>Compila le impostazioni</Button>,
-    },
-    stato.acquistiSenzaRicezione > 0 && {
-      chiave: "ricezione",
-      testo: `${stato.acquistiSenzaRicezione} fatture ricevute non hanno la data di ricezione SDI (importate da un altro programma): la LIPE si ferma finché non la dichiari, dal registro acquisti.`,
-      azione: <Button size="sm" variant="outline" onClick={onRicezione}>Apri il registro acquisti</Button>,
-    },
-    stato.senzaImporti.length > 0 && {
-      chiave: "importi",
-      testo: `${[emesse.length ? `${emesse.length} ${emesse.length === 1 ? "fattura emessa" : "fatture emesse"}` : "", ricevute.length ? `${ricevute.length} ${ricevute.length === 1 ? "ricevuta" : "ricevute"}` : ""].filter(Boolean).join(" e ")} ${stato.senzaImporti.length === 1 ? "ha" : "hanno"} solo il totale, senza imponibile né IVA (${mesiInLettere(stato.senzaImporti.map((d) => d.data))}). La loro IVA non è in contabilità né nella liquidazione: completale con l'XML, o registra a mano l'IVA di quei mesi se la liquidazione l'ha fatta un altro programma.`,
-      azione: null,
-    },
-  ].filter(Boolean) as Array<{ chiave: string; testo: string; azione: ReactNode }>;
-  if (voci.length === 0) return null;
+  const passi = percorsoIva(stato, anno, oggi);
+  const attuale = passoAttuale(passi);
+  const completo = !attuale && passi.every((p) => p.stato === "fatto");
   return (
-    <section aria-label="Cosa manca per l'IVA" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
-      <p className="flex items-center gap-2 font-medium"><AlertTriangle className="h-4 w-4" aria-hidden="true" />Prima che l'IVA del {anno} torni</p>
-      <ul className="mt-2 space-y-2">
-        {voci.map((v) => (
-          <li key={v.chiave} className="flex flex-wrap items-center justify-between gap-2">
-            <span className="max-w-3xl">{v.testo}</span>
-            {v.azione}
+    <section aria-label={`Percorso IVA ${anno}`} className="rounded-xl border bg-card p-3">
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-sm font-semibold">Percorso IVA {anno}</h2>
+        <p className="text-xs text-muted-foreground">
+          {completo ? "Tutto in ordine: liquidazioni confermate, registrate e versate."
+            : attuale ? `Da fare adesso: ${attuale.titolo}` : "Niente da fare adesso"}
+        </p>
+      </div>
+      <ol className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        {passi.map((p, i) => (
+          <li key={p.chiave} aria-current={p === attuale ? "step" : undefined}
+            className={`flex gap-2 rounded-lg border p-2 ${p === attuale ? "border-primary ring-1 ring-primary/30" : ""} ${p.stato === "in_attesa" ? "opacity-70" : ""}`}>
+            <Segno passo={p} numero={i + 1} />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">{p.titolo}</p>
+              <p className="text-xs text-muted-foreground">{p.dettaglio}</p>
+              {p.azione && (
+                <Button size="sm" variant={p === attuale ? "default" : "outline"} className="mt-1.5 h-7 px-2 text-xs" onClick={() => onVai(p.azione!.vai)}>
+                  {p.azione.etichetta}
+                </Button>
+              )}
+            </div>
           </li>
         ))}
-      </ul>
+      </ol>
     </section>
   );
 }
