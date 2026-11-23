@@ -3650,5 +3650,28 @@ const dizionario: Dizionario = {
   "Controtelaio da murare: definire fissaggi, quote da pavimento finito e opere murarie; ingombro illustrativo, non profilo esecutivo.": "Precadru de zidit: stabilește fixările, cotele de la pardoseala finită și lucrările de zidărie; gabarit ilustrativ, nu profil de execuție.",
   "Controtelaio già murato: verificarne stato, misure, piombo e compatibilità col modello; il riutilizzo non è automatico.": "Precadru deja zidit: verifică starea, măsurile, verticalitatea (firul cu plumb) și compatibilitatea cu modelul; refolosirea nu e automată.",
   "Portoncino": "Ușă de intrare",
+  // Sopralluogo, riquadro per l'operaio e filtri (23/11/2026).
+  "Consegnato: in attesa dell’ufficio": "Predat: așteaptă biroul",
+  "Compilazione sul posto": "Completare la fața locului",
+  "Compila misure, foto e posizionamenti, poi consegna all’ufficio.": "Completează măsurile, pozele și pozițiile, apoi predă la birou.",
+  "Misure, foto e PDF restano consultabili. Modifiche solo dopo restituzione dell’ufficio.": "Măsurile, pozele și PDF-ul se pot vedea. Modificări doar după ce biroul îl trimite înapoi.",
+  "Ultimo riscontro dell’ufficio:": "Ultimul răspuns de la birou:",
+  "In ufficio": "La birou",
+  "Conclusi": "Încheiate",
+  // Checklist di sicurezza e frasi trovate a schermo (23/11/2026). SICUREZZA: revisione madrelingua prioritaria.
+  "OK": "OK",
+  "Completate": "Finalizate",
+  "Casco protettivo indossato": "Cască de protecție purtată",
+  "Scarpe antinfortunistiche indossate": "Bocanci de protecție purtați",
+  "Guanti da lavoro indossati": "Mănuși de lucru purtate",
+  "Imbracatura di sicurezza (se lavori in quota)": "Ham de siguranță (dacă lucrezi la înălțime)",
+  "Giubbotto alta visibilità indossato": "Vestă reflectorizantă purtată",
+  "Area cantiere delimitata e segnalata": "Zona șantierului delimitată și semnalizată",
+  "Segnaletica di sicurezza presente e visibile": "Semnalizarea de siguranță prezentă și vizibilă",
+  "Estintori presenti e accessibili": "Stingătoare prezente și accesibile",
+  "Cassetta primo soccorso presente": "Trusă de prim ajutor prezentă",
+  "Vie di fuga libere e segnalate": "Căi de evacuare libere și semnalizate",
+  "Impalcature controllate (se presenti)": "Schele verificate (dacă există)",
+  "Condizioni meteo verificate": "Condiții meteo verificate",
 };
 export default dizionario;

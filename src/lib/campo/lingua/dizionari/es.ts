@@ -3650,5 +3650,28 @@ const dizionario: Dizionario = {
   "Controtelaio da murare: definire fissaggi, quote da pavimento finito e opere murarie; ingombro illustrativo, non profilo esecutivo.": "Premarco por recibir en obra: define fijaciones, cotas desde el suelo terminado y obras de albañilería; dimensiones ilustrativas, no perfil de ejecución.",
   "Controtelaio già murato: verificarne stato, misure, piombo e compatibilità col modello; il riutilizzo non è automatico.": "Premarco ya recibido en obra: comprueba estado, medidas, plomo y compatibilidad con el modelo; la reutilización no es automática.",
   "Portoncino": "Puerta de entrada",
+  // Sopralluogo, riquadro per l'operaio e filtri (23/11/2026).
+  "Consegnato: in attesa dell’ufficio": "Entregado: esperando a la oficina",
+  "Compilazione sul posto": "Rellenado en obra",
+  "Compila misure, foto e posizionamenti, poi consegna all’ufficio.": "Rellena medidas, fotos y posiciones y luego entrégalo a la oficina.",
+  "Misure, foto e PDF restano consultabili. Modifiche solo dopo restituzione dell’ufficio.": "Medidas, fotos y PDF se pueden consultar. Cambios solo cuando la oficina lo devuelva.",
+  "Ultimo riscontro dell’ufficio:": "Último comentario de la oficina:",
+  "In ufficio": "En oficina",
+  "Conclusi": "Terminados",
+  // Checklist di sicurezza e frasi trovate a schermo (23/11/2026). SICUREZZA: revisione madrelingua prioritaria.
+  "OK": "OK",
+  "Completate": "Completadas",
+  "Casco protettivo indossato": "Casco de protección puesto",
+  "Scarpe antinfortunistiche indossate": "Calzado de seguridad puesto",
+  "Guanti da lavoro indossati": "Guantes de trabajo puestos",
+  "Imbracatura di sicurezza (se lavori in quota)": "Arnés de seguridad (si trabajas en altura)",
+  "Giubbotto alta visibilità indossato": "Chaleco de alta visibilidad puesto",
+  "Area cantiere delimitata e segnalata": "Zona de obra delimitada y señalizada",
+  "Segnaletica di sicurezza presente e visibile": "Señalización de seguridad presente y visible",
+  "Estintori presenti e accessibili": "Extintores presentes y accesibles",
+  "Cassetta primo soccorso presente": "Botiquín de primeros auxilios presente",
+  "Vie di fuga libere e segnalate": "Vías de evacuación libres y señalizadas",
+  "Impalcature controllate (se presenti)": "Andamios revisados (si los hay)",
+  "Condizioni meteo verificate": "Condiciones meteorológicas revisadas",
 };
 export default dizionario;

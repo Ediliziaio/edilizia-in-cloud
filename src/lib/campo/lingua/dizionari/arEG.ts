@@ -3650,5 +3650,28 @@ const dizionario: Dizionario = {
   "Controtelaio da murare: definire fissaggi, quote da pavimento finito e opere murarie; ingombro illustrativo, non profilo esecutivo.": "حلق تحتاني هيتركب في الحيطة: حدد التثبيت والمقاسات من الأرضية النهائية وأعمال المباني؛ المساحة للتوضيح، مش قطاع تنفيذ.",
   "Controtelaio già murato: verificarne stato, misure, piombo e compatibilità col modello; il riutilizzo non è automatico.": "حلق تحتاني متركب خلاص: راجع حالته ومقاساته والميزان والتوافق مع الموديل؛ الاستخدام تاني مش أوتوماتيك.",
   "Portoncino": "باب المدخل",
+  // Sopralluogo, riquadro per l'operaio e filtri (23/11/2026).
+  "Consegnato: in attesa dell’ufficio": "اتسلّم: مستني المكتب",
+  "Compilazione sul posto": "الملء في المكان",
+  "Compila misure, foto e posizionamenti, poi consegna all’ufficio.": "املا المقاسات والصور والأماكن، وبعدين سلّمها للمكتب.",
+  "Misure, foto e PDF restano consultabili. Modifiche solo dopo restituzione dell’ufficio.": "المقاسات والصور والـPDF تقدر تشوفهم. التعديل بس بعد ما المكتب يرجّعها.",
+  "Ultimo riscontro dell’ufficio:": "آخر رد من المكتب:",
+  "In ufficio": "في المكتب",
+  "Conclusi": "خلصانة",
+  // Checklist di sicurezza e frasi trovate a schermo (23/11/2026). SICUREZZA: revisione madrelingua prioritaria.
+  "OK": "تمام",
+  "Completate": "خلصت",
+  "Casco protettivo indossato": "لابس الخوذة",
+  "Scarpe antinfortunistiche indossate": "لابس جزمة السيفتي",
+  "Guanti da lavoro indossati": "لابس جوانتي الشغل",
+  "Imbracatura di sicurezza (se lavori in quota)": "حزام الأمان (لو بتشتغل على ارتفاع)",
+  "Giubbotto alta visibilità indossato": "لابس الفيست العاكس",
+  "Area cantiere delimitata e segnalata": "الموقع متحدد وعليه علامات",
+  "Segnaletica di sicurezza presente e visibile": "علامات السلامة موجودة وباينة",
+  "Estintori presenti e accessibili": "الطفايات موجودة وسهل توصلها",
+  "Cassetta primo soccorso presente": "شنطة الإسعافات الأولية موجودة",
+  "Vie di fuga libere e segnalate": "مخارج الطوارئ فاضية وعليها علامات",
+  "Impalcature controllate (se presenti)": "السقالات اتراجعت (لو موجودة)",
+  "Condizioni meteo verificate": "الجو اتراجع",
 };
 export default dizionario;

@@ -974,5 +974,12 @@ const dizionario: Dizionario = {
   "Controtelaio: conferma se acquistarlo, verificarne il riutilizzo o se non è previsto.": "Premarco: confirmá si hay que comprarlo, comprobar si se reutiliza o si no está previsto.",
   "Controtelaio da murare: definire fissaggi, quote da pavimento finito e opere murarie; ingombro illustrativo, non profilo esecutivo.": "Premarco por recibir en obra: definí fijaciones, cotas desde el piso terminado y obras de albañilería; dimensiones ilustrativas, no perfil de ejecución.",
   "Controtelaio già murato: verificarne stato, misure, piombo e compatibilità col modello; il riutilizzo non è automatico.": "Premarco ya recibido en obra: comprobá estado, medidas, plomo y compatibilidad con el modelo; la reutilización no es automática.",
+  // Sopralluogo, riquadro per l'operaio e filtri (23/11/2026).
+  "Compilazione sul posto": "Completado en obra",
+  "Compila misure, foto e posizionamenti, poi consegna all’ufficio.": "Completá medidas, fotos y posiciones y después entregalo a la oficina.",
+  // Checklist di sicurezza e frasi trovate a schermo (23/11/2026). SICUREZZA: revisione madrelingua prioritaria.
+  "Scarpe antinfortunistiche indossate": "Botines de seguridad puestos",
+  "Imbracatura di sicurezza (se lavori in quota)": "Arnés de seguridad (si trabajás en altura)",
+  "Estintori presenti e accessibili": "Matafuegos presentes y accesibles",
 };
 export default dizionario;

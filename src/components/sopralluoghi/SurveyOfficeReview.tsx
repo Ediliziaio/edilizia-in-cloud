@@ -8,6 +8,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { buildSurveyReport } from "@/lib/surveys/report";
 import type { SurveyDetail } from "@/lib/api/surveys";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 function OfficeReviewForm({ detail }: { detail: SurveyDetail }) {
   const qc = useQueryClient();
   const [note, setNote] = useState("");
@@ -81,6 +82,8 @@ function OfficeReviewForm({ detail }: { detail: SurveyDetail }) {
 }
 
 export function SurveyOfficeReview({ detail }: { detail: SurveyDetail }) {
+  // Il riquadro per l'operaio si traduce; il modulo di revisione dell'ufficio resta in italiano.
+  const t = useT();
   const access = useSurveyAccess(),
     permissions = usePermissions(),
     status = detail.survey.status;
@@ -94,19 +97,19 @@ export function SurveyOfficeReview({ detail }: { detail: SurveyDetail }) {
       <section className="my-3 rounded-2xl border bg-blue-50 p-3 text-sm sm:p-4">
         <p className="font-semibold">
           {status === "completed"
-            ? "Consegnato: in attesa dell’ufficio"
+            ? t("Consegnato: in attesa dell’ufficio")
             : status === "reviewed"
-              ? "Revisionato dall’ufficio"
-              : "Compilazione sul posto"}
+              ? t("Revisionato dall’ufficio")
+              : t("Compilazione sul posto")}
         </p>
         <p className="mt-1">
           {access.canEdit
-            ? "Compila misure, foto e posizionamenti, poi consegna all’ufficio."
-            : "Misure, foto e PDF restano consultabili. Modifiche solo dopo restituzione dell’ufficio."}
+            ? t("Compila misure, foto e posizionamenti, poi consegna all’ufficio.")
+            : t("Misure, foto e PDF restano consultabili. Modifiche solo dopo restituzione dell’ufficio.")}
         </p>
         {feedback && (
           <p className="mt-2 whitespace-pre-wrap">
-            <strong>Ultimo riscontro dell’ufficio:</strong> {feedback}
+            <strong>{t("Ultimo riscontro dell’ufficio:")}</strong> <span dir="auto">{feedback}</span>
           </p>
         )}
       </section>

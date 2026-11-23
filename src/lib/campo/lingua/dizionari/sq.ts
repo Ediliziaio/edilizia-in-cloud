@@ -3650,5 +3650,28 @@ const dizionario: Dizionario = {
   "Controtelaio da murare: definire fissaggi, quote da pavimento finito e opere murarie; ingombro illustrativo, non profilo esecutivo.": "Kundërkasë për t’u murosur: përcakto fiksimet, kuotat nga dyshemeja e përfunduar dhe punimet e murit; përmasë ilustruese, jo profil ekzekutiv.",
   "Controtelaio già murato: verificarne stato, misure, piombo e compatibilità col modello; il riutilizzo non è automatico.": "Kundërkasë e murosur tashmë: kontrollo gjendjen, matjet, vertikalitetin (plumbçen) dhe përputhshmërinë me modelin; ripërdorimi nuk është automatik.",
   "Portoncino": "Derë hyrëse",
+  // Sopralluogo, riquadro per l'operaio e filtri (23/11/2026).
+  "Consegnato: in attesa dell’ufficio": "Dorëzuar: në pritje të zyrës",
+  "Compilazione sul posto": "Plotësim në vend",
+  "Compila misure, foto e posizionamenti, poi consegna all’ufficio.": "Plotëso matjet, fotot dhe pozicionet, pastaj dorëzoja zyrës.",
+  "Misure, foto e PDF restano consultabili. Modifiche solo dopo restituzione dell’ufficio.": "Matjet, fotot dhe PDF-ja mund të shihen. Ndryshime vetëm pasi zyra ta kthejë.",
+  "Ultimo riscontro dell’ufficio:": "Përgjigjja e fundit e zyrës:",
+  "In ufficio": "Në zyrë",
+  "Conclusi": "Të mbyllura",
+  // Checklist di sicurezza e frasi trovate a schermo (23/11/2026). SICUREZZA: revisione madrelingua prioritaria.
+  "OK": "OK",
+  "Completate": "Të përfunduara",
+  "Casco protettivo indossato": "Kaska mbrojtëse e veshur",
+  "Scarpe antinfortunistiche indossate": "Këpucë mbrojtëse të veshura",
+  "Guanti da lavoro indossati": "Doreza pune të veshura",
+  "Imbracatura di sicurezza (se lavori in quota)": "Rripi i sigurisë (nëse punon në lartësi)",
+  "Giubbotto alta visibilità indossato": "Jelek reflektues i veshur",
+  "Area cantiere delimitata e segnalata": "Zona e kantierit e kufizuar dhe e sinjalizuar",
+  "Segnaletica di sicurezza presente e visibile": "Sinjalistika e sigurisë e pranishme dhe e dukshme",
+  "Estintori presenti e accessibili": "Fikëset të pranishme dhe të arritshme",
+  "Cassetta primo soccorso presente": "Kutia e ndihmës së parë e pranishme",
+  "Vie di fuga libere e segnalate": "Rrugët e daljes emergjente të lira dhe të sinjalizuara",
+  "Impalcature controllate (se presenti)": "Skelat të kontrolluara (nëse ka)",
+  "Condizioni meteo verificate": "Kushtet e motit të kontrolluara",
 };
 export default dizionario;

@@ -181,7 +181,23 @@ export function LinguaCampoProvider({ children }: { children: ReactNode }) {
 
   const voci = codice !== "it" && dizionario?.codice === codice ? dizionario.voci : null;
   const rtl = Boolean(lingua.rtl);
-  const t = useCallback((testo: string, valori?: Valori) => traduci(voci, testo, valori, rtl), [voci, rtl]);
+  const t = useCallback((testo: string, valori?: Valori) => {
+    // Solo in sviluppo: annota le frasi senza traduzione (anche quelle passate come variabile, che i test non vedono).
+    // In console: [...window.__frasiSenzaTraduzione]. In produzione questo ramo non esiste.
+    if (import.meta.env.DEV && voci && testo && !(testo in voci)) {
+      const g = globalThis as { __frasiSenzaTraduzione?: Set<string> };
+      const insieme = (g.__frasiSenzaTraduzione ??= new Set());
+      if (!insieme.has(testo)) {
+        insieme.add(testo);
+        // Anche nella memoria del browser, così si accumulano pagina dopo pagina (chiave «sviluppo-frasi-senza-traduzione»).
+        try {
+          const prima = JSON.parse(localStorage.getItem("sviluppo-frasi-senza-traduzione") ?? "[]") as string[];
+          if (!prima.includes(testo)) localStorage.setItem("sviluppo-frasi-senza-traduzione", JSON.stringify([...prima, testo]));
+        } catch { /* niente: è solo un aiuto in sviluppo */ }
+      }
+    }
+    return traduci(voci, testo, valori, rtl);
+  }, [voci, rtl]);
   const scegli = useCallback((nuovo: CodiceLingua) => {
     // Subito sul dispositivo (vale anche senza rete); la decisione si ricalcola e porta la scelta sul profilo.
     scriviSceltaDispositivo({ codice: nuovo, utente: idProfilo, quando: new Date().toISOString(), salvata: false });

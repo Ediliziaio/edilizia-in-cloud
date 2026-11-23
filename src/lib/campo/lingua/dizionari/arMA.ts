@@ -3650,5 +3650,28 @@ const dizionario: Dizionario = {
   "Controtelaio da murare: definire fissaggi, quote da pavimento finito e opere murarie; ingombro illustrativo, non profilo esecutivo.": "الكونتروتيلايو خاصو يتبنى: حدد التثبيت، القياسات من الزليج المكمّل وخدمة البني؛ البلاصة غير للتوضيح، ماشي بروفيل تنفيذي.",
   "Controtelaio già murato: verificarne stato, misure, piombo e compatibilità col modello; il riutilizzo non è automatico.": "الكونتروتيلايو مبني من قبل: راجع الحالة، القياسات، الپلومب وواش كيتوافق مع الموديل؛ ما كيتعاودش يتخدم بيه أوتوماتيكيا.",
   "Portoncino": "الباب ديال الدخلة",
+  // Sopralluogo, riquadro per l'operaio e filtri (23/11/2026).
+  "Consegnato: in attesa dell’ufficio": "تسلّم: كيتسنى البيرو",
+  "Compilazione sul posto": "التعمار فالبلاصة",
+  "Compila misure, foto e posizionamenti, poi consegna all’ufficio.": "عمّر القياسات، التصاور والبلايص، ومن بعد سلّمها للبيرو.",
+  "Misure, foto e PDF restano consultabili. Modifiche solo dopo restituzione dell’ufficio.": "القياسات، التصاور والـPDF تقدر تشوفهم. التبديل غير ملي يرجعو ليك البيرو.",
+  "Ultimo riscontro dell’ufficio:": "آخر جواب من البيرو:",
+  "In ufficio": "فالبيرو",
+  "Conclusi": "سالاو",
+  // Checklist di sicurezza e frasi trovate a schermo (23/11/2026). SICUREZZA: revisione madrelingua prioritaria.
+  "OK": "واخا",
+  "Completate": "سالاو",
+  "Casco protettivo indossato": "لابس الكاسك",
+  "Scarpe antinfortunistiche indossate": "لابس الصبابط ديال السيكوريتي",
+  "Guanti da lavoro indossati": "لابس الليݣا ديال الخدمة",
+  "Imbracatura di sicurezza (se lavori in quota)": "الهارنيس ديال السيكوريتي (إلا كتخدم فالعلو)",
+  "Giubbotto alta visibilità indossato": "لابس الجيلي اللي كيبان",
+  "Area cantiere delimitata e segnalata": "الشانطي محدود وفيه الإشارات",
+  "Segnaletica di sicurezza presente e visibile": "الإشارات ديال السيكوريتي كاينين وباينين",
+  "Estintori presenti e accessibili": "الطفّايات كاينين وساهل توصل ليهم",
+  "Cassetta primo soccorso presente": "الصندوق ديال الإسعافات الأولية كاين",
+  "Vie di fuga libere e segnalate": "الطرقان ديال الهروب خاويين وفيهم الإشارات",
+  "Impalcature controllate (se presenti)": "السقالات تشافو (إلا كانو)",
+  "Condizioni meteo verificate": "الجو تشاف",
 };
 export default dizionario;

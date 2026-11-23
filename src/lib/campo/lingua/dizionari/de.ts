@@ -3650,5 +3650,28 @@ const dizionario: Dizionario = {
   "Controtelaio da murare: definire fissaggi, quote da pavimento finito e opere murarie; ingombro illustrativo, non profilo esecutivo.": "Blindrahmen einzumauern: Befestigungen, Maße ab Fertigboden und Maurerarbeiten festlegen; Platzbedarf nur zur Erklärung, kein Ausführungsprofil.",
   "Controtelaio già murato: verificarne stato, misure, piombo e compatibilità col modello; il riutilizzo non è automatico.": "Blindrahmen schon eingemauert: Zustand, Maße, Lot und Passung zum Modell prüfen; die Wiederverwendung ist nicht automatisch.",
   "Portoncino": "Haustür",
+  // Sopralluogo, riquadro per l'operaio e filtri (23/11/2026).
+  "Consegnato: in attesa dell’ufficio": "Abgegeben: wartet auf das Büro",
+  "Compilazione sul posto": "Ausfüllen vor Ort",
+  "Compila misure, foto e posizionamenti, poi consegna all’ufficio.": "Fülle Maße, Fotos und Positionen aus und gib dann an das Büro ab.",
+  "Misure, foto e PDF restano consultabili. Modifiche solo dopo restituzione dell’ufficio.": "Maße, Fotos und PDF bleiben einsehbar. Änderungen erst, wenn das Büro es zurückgibt.",
+  "Ultimo riscontro dell’ufficio:": "Letzte Rückmeldung vom Büro:",
+  "In ufficio": "Im Büro",
+  "Conclusi": "Abgeschlossen",
+  // Checklist di sicurezza e frasi trovate a schermo (23/11/2026). SICUREZZA: revisione madrelingua prioritaria.
+  "OK": "OK",
+  "Completate": "Erledigt",
+  "Casco protettivo indossato": "Schutzhelm getragen",
+  "Scarpe antinfortunistiche indossate": "Sicherheitsschuhe getragen",
+  "Guanti da lavoro indossati": "Arbeitshandschuhe getragen",
+  "Imbracatura di sicurezza (se lavori in quota)": "Auffanggurt (bei Arbeiten in der Höhe)",
+  "Giubbotto alta visibilità indossato": "Warnweste getragen",
+  "Area cantiere delimitata e segnalata": "Baustellenbereich abgesperrt und gekennzeichnet",
+  "Segnaletica di sicurezza presente e visibile": "Sicherheitskennzeichnung vorhanden und sichtbar",
+  "Estintori presenti e accessibili": "Feuerlöscher vorhanden und zugänglich",
+  "Cassetta primo soccorso presente": "Erste-Hilfe-Kasten vorhanden",
+  "Vie di fuga libere e segnalate": "Fluchtwege frei und gekennzeichnet",
+  "Impalcature controllate (se presenti)": "Gerüste geprüft (falls vorhanden)",
+  "Condizioni meteo verificate": "Wetterlage geprüft",
 };
 export default dizionario;

@@ -3650,5 +3650,28 @@ const dizionario: Dizionario = {
   "Controtelaio da murare: definire fissaggi, quote da pavimento finito e opere murarie; ingombro illustrativo, non profilo esecutivo.": "Subframe to be built in: decide fixings, dimensions from finished floor and building work; illustrative size, not a working profile.",
   "Controtelaio già murato: verificarne stato, misure, piombo e compatibilità col modello; il riutilizzo non è automatico.": "Subframe already built in: check its condition, measurements, plumb and compatibility with the model; reuse is not automatic.",
   "Portoncino": "Entrance door",
+  // Sopralluogo, riquadro per l'operaio e filtri (23/11/2026).
+  "Consegnato: in attesa dell’ufficio": "Handed in: waiting for the office",
+  "Compilazione sul posto": "Filling in on site",
+  "Compila misure, foto e posizionamenti, poi consegna all’ufficio.": "Fill in measurements, photos and positions, then hand in to the office.",
+  "Misure, foto e PDF restano consultabili. Modifiche solo dopo restituzione dell’ufficio.": "Measurements, photos and PDF can still be viewed. Changes only after the office sends it back.",
+  "Ultimo riscontro dell’ufficio:": "Last feedback from the office:",
+  "In ufficio": "At the office",
+  "Conclusi": "Completed",
+  // Checklist di sicurezza e frasi trovate a schermo (23/11/2026). SICUREZZA: revisione madrelingua prioritaria.
+  "OK": "OK",
+  "Completate": "Completed",
+  "Casco protettivo indossato": "Hard hat worn",
+  "Scarpe antinfortunistiche indossate": "Safety boots worn",
+  "Guanti da lavoro indossati": "Work gloves worn",
+  "Imbracatura di sicurezza (se lavori in quota)": "Safety harness (if working at height)",
+  "Giubbotto alta visibilità indossato": "Hi-vis vest worn",
+  "Area cantiere delimitata e segnalata": "Site area fenced off and signposted",
+  "Segnaletica di sicurezza presente e visibile": "Safety signs in place and visible",
+  "Estintori presenti e accessibili": "Fire extinguishers in place and accessible",
+  "Cassetta primo soccorso presente": "First aid kit in place",
+  "Vie di fuga libere e segnalate": "Escape routes clear and signposted",
+  "Impalcature controllate (se presenti)": "Scaffolding checked (if present)",
+  "Condizioni meteo verificate": "Weather conditions checked",
 };
 export default dizionario;

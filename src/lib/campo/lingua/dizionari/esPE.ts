@@ -250,5 +250,10 @@ const dizionario: Dizionario = {
   "La maniglia interna / B supera la distanza libera registrata: verificare l’ostacolo e i riferimenti.": "La manija interior / B supera la distancia libre registrada: comprueba el obstáculo y las referencias.",
   "La maniglia esterna / A supera la distanza libera registrata: verificare l’ostacolo e i riferimenti.": "La manija exterior / A supera la distancia libre registrada: comprueba el obstáculo y las referencias.",
   "Controtelaio da murare: definire fissaggi, quote da pavimento finito e opere murarie; ingombro illustrativo, non profilo esecutivo.": "Premarco por recibir en obra: define fijaciones, cotas desde el piso terminado y obras de albañilería; dimensiones ilustrativas, no perfil de ejecución.",
+  // Sopralluogo, riquadro per l'operaio e filtri (23/11/2026).
+  "Compilazione sul posto": "Llenado en obra",
+  "Compila misure, foto e posizionamenti, poi consegna all’ufficio.": "Llena medidas, fotos y posiciones y luego entrégalo a la oficina.",
+  // Checklist di sicurezza e frasi trovate a schermo (23/11/2026). SICUREZZA: revisione madrelingua prioritaria.
+  "Scarpe antinfortunistiche indossate": "Zapatos de seguridad puestos",
 };
 export default dizionario;

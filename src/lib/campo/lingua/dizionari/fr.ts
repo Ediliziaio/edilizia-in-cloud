@@ -3650,5 +3650,28 @@ const dizionario: Dizionario = {
   "Controtelaio da murare: definire fissaggi, quote da pavimento finito e opere murarie; ingombro illustrativo, non profilo esecutivo.": "Précadre à sceller : définir fixations, cotes depuis le sol fini et maçonnerie ; encombrement indicatif, pas un profil d’exécution.",
   "Controtelaio già murato: verificarne stato, misure, piombo e compatibilità col modello; il riutilizzo non è automatico.": "Précadre déjà scellé : vérifier état, mesures, aplomb et compatibilité avec le modèle ; la réutilisation n’est pas automatique.",
   "Portoncino": "Porte d’entrée",
+  // Sopralluogo, riquadro per l'operaio e filtri (23/11/2026).
+  "Consegnato: in attesa dell’ufficio": "Remis : en attente du bureau",
+  "Compilazione sul posto": "Saisie sur place",
+  "Compila misure, foto e posizionamenti, poi consegna all’ufficio.": "Remplis mesures, photos et positions, puis remets au bureau.",
+  "Misure, foto e PDF restano consultabili. Modifiche solo dopo restituzione dell’ufficio.": "Mesures, photos et PDF restent consultables. Modifications seulement après renvoi du bureau.",
+  "Ultimo riscontro dell’ufficio:": "Dernier retour du bureau :",
+  "In ufficio": "Au bureau",
+  "Conclusi": "Terminés",
+  // Checklist di sicurezza e frasi trovate a schermo (23/11/2026). SICUREZZA: revisione madrelingua prioritaria.
+  "OK": "OK",
+  "Completate": "Terminées",
+  "Casco protettivo indossato": "Casque de protection porté",
+  "Scarpe antinfortunistiche indossate": "Chaussures de sécurité portées",
+  "Guanti da lavoro indossati": "Gants de travail portés",
+  "Imbracatura di sicurezza (se lavori in quota)": "Harnais de sécurité (si tu travailles en hauteur)",
+  "Giubbotto alta visibilità indossato": "Gilet haute visibilité porté",
+  "Area cantiere delimitata e segnalata": "Zone de chantier délimitée et signalée",
+  "Segnaletica di sicurezza presente e visibile": "Signalisation de sécurité présente et visible",
+  "Estintori presenti e accessibili": "Extincteurs présents et accessibles",
+  "Cassetta primo soccorso presente": "Trousse de premiers secours présente",
+  "Vie di fuga libere e segnalate": "Issues de secours dégagées et signalées",
+  "Impalcature controllate (se presenti)": "Échafaudages contrôlés (s’il y en a)",
+  "Condizioni meteo verificate": "Conditions météo vérifiées",
 };
 export default dizionario;

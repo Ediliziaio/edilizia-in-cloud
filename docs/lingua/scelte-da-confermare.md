@@ -4,6 +4,15 @@ Per i revisori madrelingua, insieme ai fogli `revisione/<lingua>.csv` (colonne: 
 Tutte le traduzioni sono **automatiche** e vanno riviste. Qui sotto ci sono le scelte su cui il traduttore automatico aveva
 dubbi. Conviene partire da queste e dal `glossario.csv`: se un termine è giusto nel glossario, è giusto ovunque.
 
+## PRIMA DI TUTTO: checklist di sicurezza
+Le 12 voci della checklist di sicurezza (casco, scarpe antinfortunistiche, guanti, imbracatura, giubbotto alta
+visibilità, area delimitata, segnaletica, estintori, cassetta di primo soccorso, vie di fuga, impalcature, meteo)
+sono tradotte, ma vanno **riviste per prime** da un madrelingua per ogni lingua: un errore lì è un rischio.
+Varianti già scelte:
+- es-AR: «Botines de seguridad», «Matafuegos»;
+- es-PE: «Zapatos de seguridad»;
+- darija: termini parlati, per esempio «الكاسك» e «الصبابط ديال السيكوريتي».
+
 ## Tutte le lingue
 - **Sigle italiane lasciate come sono:** DDT, SAL, PDF, DURC, ROL, POS, PSC, CSE, Unilav, SOA. Si mostrano così perché
   l'ufficio le usa così.
