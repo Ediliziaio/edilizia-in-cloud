@@ -15,12 +15,3 @@ export function configPerApertureInquadrate(config: ConfigurazioneStanza, metada
   const finestraVisibile = metadati.aperture_visibili.some((a) => a.tipo === "finestra" || a.tipo === "portafinestra");
   return finestraVisibile || !config.tende.attivo ? config : { ...config, tende: { ...config.tende, attivo: false } };
 }
-
-/** Mantiene i riferimenti dell’inquadratura nel payload del render. */
-export function riferimentiFotogramma(metadati: MetadatiFotogramma) {
-  return {
-    inquadrate: metadati.aperture_visibili.map(({ id, posizione, riquadro }) => ({ id, posizione, riquadro })),
-    arredi_inquadrati: metadati.arredi_inquadrati,
-    posizioni_arredi: metadati.posizioni_arredi,
-  };
-}
