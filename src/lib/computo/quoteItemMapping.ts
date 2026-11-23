@@ -1,6 +1,8 @@
 import type { ComputoVoceLocal } from "@/types/computo";
 import type { CatalogItem } from "@/types/catalogItem";
 import { applyScontiFornitore } from "@/lib/priceMarkup";
+import { classificaVoce } from "@/lib/distinta/generaDistinta";
+import { classificaServizio } from "@/lib/distinta/serviziComputo";
 
 export interface ComputoQuoteItemPayload {
   id: string;
@@ -164,6 +166,35 @@ export function categoriaRigaPreventivo(categoria: string, abbinataATariffa: boo
   return abbinataATariffa ? "posa" : "prodotto";
 }
 
+/**
+ * La stessa lettura di «Genera dal computo» (23/11/2026): una voce che lì NON compra niente
+ * («Oneri di sicurezza», «Spese generali», ore di operaio, un nolo, una lavorazione affidata a una
+ * ditta) nel preventivo non è un prodotto. Prima il ripiego era «prodotto», e alla conversione in
+ * commessa diventava un articolo da acquistare. Si guarda SOLO la descrizione breve: l'estesa di
+ * una fornitura vera nomina spesso «certificazione», «oneri», «collaudo» («Quadro elettrico…
+ * completo di certificazione CE» diventava una pratica). Una voce di lavoro qualunque resta la
+ * riga normale di prima.
+ */
+export function categoriaDaNaturaVoce(voce: ComputoVoceLocal): string | null {
+  const v = {
+    id: voce.id, descrizione_breve: voce.descrizione_breve ?? "", descrizione_estesa: null as string | null,
+    unita_misura: voce.unita_misura ?? null, quantita: voce.quantita ?? null,
+    is_sicurezza: (voce as { is_sicurezza?: boolean | null }).is_sicurezza ?? null,
+    a_corpo: (voce as { a_corpo?: boolean | null }).a_corpo ?? null,
+  };
+  const servizio = classificaServizio(v);
+  if (servizio?.tipo === "nolo") return "nolo";
+  const c = classificaVoce(v, []);
+  if (c.tipo !== "esclusa") return null;
+  switch (c.causa) {
+    case "nolo": return "nolo";
+    case "smaltimento": return "smaltimento";
+    case "prestazione": return "pratica";
+    case "sicurezza": case "generica": case "manodopera": case "subappalto": case "assistenza": return "posa";
+    default: return null;
+  }
+}
+
 export function buildComputoQuoteItemPayload(
   voce: ComputoVoceLocal,
   index: number,
@@ -196,7 +227,11 @@ export function buildComputoQuoteItemPayload(
     : prodottoInRevisione
       ? (voce._matched_family_id ?? null)
       : (voce.matched_family_id ?? null);
-  const itemCategory = categoriaRigaPreventivo(inferComputoItemCategory(voce), Boolean(tariffaId));
+  const dedotta = inferComputoItemCategory(voce);
+  // Senza un abbinamento a listino, una voce che non compra niente non ripiega su «prodotto».
+  const senzaAbbinamento = !tariffaId && !articleId && !familyId;
+  const itemCategory = (senzaAbbinamento && (dedotta === "prodotto" || !CATEGORIE_AMMESSE.has(dedotta)) ? categoriaDaNaturaVoce(voce) : null)
+    ?? categoriaRigaPreventivo(dedotta, Boolean(tariffaId));
   const itemType = itemCategory === "prodotto" && !tariffaId ? "product" : "service";
   const discountPercent = safeNumber(voce.sconto_percentuale);
   const lineTotal = safeNumber(voce._importoImpresa) * (1 - discountPercent / 100);

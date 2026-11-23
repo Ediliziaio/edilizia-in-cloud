@@ -29,6 +29,7 @@
 
 import { applicaSovrapprezziSpessore } from "./sovrapprezziSpessore";
 import { classificaServizio, ETICHETTA_SERVIZIO } from "./serviziComputo";
+import { caratteristicheTecniche } from "./caratteristicheVoce";
 import { completaVerificheAcquisto, preparaQuantitaAcquisto, type VerificaAcquisto } from "./verificaAcquisto";
 import { completaMaterialiDaDocumenti, prodottoEsplicito, type DatiDocumentaliMateriale } from "./materialiDocumentali";
 import { prodottoDaVoceDocumentata } from "./prodottiDocumentati";
@@ -307,14 +308,30 @@ export function trovaScomposizione(
   return migliore;
 }
 
-const NON_MATERIALI: { re: RegExp; motivo: string }[] = [
-  { re: /\boneri\b|\bsicurezza\b.*\b(psc|cantiere)\b|\bapprestament/, motivo: "Oneri o apprestamenti della sicurezza: non sono materiali da ordinare" },
-  { re: /\b(?:parcell\w*|onorar\w*|progettazion\w*|direzione lavori|coordinamento|collaud\w*|certificazion\w*|asseveraz\w*|relazione tecnica|pratica|pratiche|spese tecniche|frazionamento|accatastament\w*)\b/, motivo: "Prestazione tecnica o pratica: non è un materiale" },
-  { re: /\b(nolo|noleggio|noli)\b/, motivo: "Nolo: si noleggia, non si acquista" },
-  { re: /\b(mano d.?opera|manodopera|operaio (specializzato|qualificato|comune)|ora di (operaio|lavoro))\b/, motivo: "Manodopera" },
-  { re: /\b(smaltiment|conferimento a discarica|oneri di discarica|trasporto a (discarica|rifiuto))/, motivo: "Smaltimento o trasporto a discarica" },
-  { re: /\b(assistenza muraria|assistenze murarie)\b/, motivo: "Assistenza muraria: lavorazione senza materiali da ordinare" },
-  { re: /^sovrapprezz/, motivo: "Sovrapprezzo: i materiali sono già nella voce principale" },
+/** Perché una voce non compra niente: lo legge chi interpreta la voce, senza rileggere il motivo scritto. */
+export type CausaEsclusione =
+  | "tolta" | "detrazione" | "quantita_mancante" | "sovrapprezzo" | "demolizione" | "sicurezza" | "generica" | "subappalto"
+  | "prestazione" | "nolo" | "manodopera" | "smaltimento" | "assistenza" | "solo_posa" | "committente";
+
+/** Lavorazione data a una ditta: materiali e manodopera sono nel suo prezzo (23/11/2026). */
+export const AFFIDATA_A_TERZI = /\b(?:in subappalto|subappaltat[oaie]|affidat[oaie] (?:in subappalto|a terzi|a (?:una )?(?:ditta|impresa) (?:specializzata|esterna|terza|abilitata|qualificata)))\b/;
+/**
+ * Voci che dicono un importo, non un lavoro (23/11/2026): «spese generali», «imprevisti», «opere
+ * accessorie», «assistenze varie». Prima finivano fra le voci «da scomporre» e l'AI ne ricavava
+ * materiali. Vanno chiarite: si compra qualcosa solo se c'è un dettaglio che lo dice.
+ */
+export const VOCE_GENERICA = /^(?:spese generali|imprevist[oi]|oneri (?:generali|vari|accessori)|opere (?:accessorie|varie|complementari|di completamento varie)|lavori vari|varie(?: ed eventuali)?\b|assistenz[ae] (?:varie|generich[ae])|opere e assistenze|arrotondament[oi]|utile d.?impresa)/;
+
+const NON_MATERIALI: { re: RegExp; motivo: string; causa: CausaEsclusione }[] = [
+  { re: AFFIDATA_A_TERZI, causa: "subappalto", motivo: "Lavorazione affidata a una ditta: materiali e manodopera sono nel suo prezzo" },
+  { re: VOCE_GENERICA, causa: "generica", motivo: "Voce generica: va chiarito che cosa comprende prima di comprare qualcosa" },
+  { re: /\boneri\b|\bsicurezza\b.*\b(psc|cantiere)\b|\bapprestament/, causa: "sicurezza", motivo: "Oneri o apprestamenti della sicurezza: non sono materiali da ordinare" },
+  { re: /\b(?:parcell\w*|onorar\w*|progettazion\w*|direzione lavori|coordinamento|collaud\w*|certificazion\w*|asseveraz\w*|relazione tecnica|pratica|pratiche|spese tecniche|frazionamento|accatastament\w*)\b/, causa: "prestazione", motivo: "Prestazione tecnica o pratica: non è un materiale" },
+  { re: /\b(nolo|noleggio|noli)\b/, causa: "nolo", motivo: "Nolo: si noleggia, non si acquista" },
+  { re: /\b(mano d.?opera|manodopera|operaio (specializzato|qualificato|comune)|ora di (operaio|lavoro))\b/, causa: "manodopera", motivo: "Manodopera" },
+  { re: /\b(smaltiment|conferimento a discarica|oneri di discarica|trasporto a (discarica|rifiuto))/, causa: "smaltimento", motivo: "Smaltimento o trasporto a discarica" },
+  { re: /\b(assistenza muraria|assistenze murarie)\b/, causa: "assistenza", motivo: "Assistenza muraria: lavorazione senza materiali da ordinare" },
+  { re: /^sovrapprezz/, causa: "sovrapprezzo", motivo: "Sovrapprezzo: i materiali sono già nella voce principale" },
 ];
 
 /** Voci che descrivono una cosa da comprare, non una lavorazione. */
@@ -327,7 +344,7 @@ const UNITA_MATERIALE = new Set(["cad", "pz", "m", "mq", "mc", "kg", "t", "q", "
 const PRODOTTO_FV_CONTATO = /^(?:regolator[ei] di carica\b|concentrator[ei] per (?:\d+ )?batteri[ae]\b|batteri[ae] (?:piombo|litio|al piombo)\b|sistema di commutazione.*batteri)/;
 
 export type ClassificazioneVoce =
-  | { tipo: "esclusa"; motivo: string }
+  | { tipo: "esclusa"; motivo: string; causa?: CausaEsclusione }
   | { tipo: "scomposta"; scomposizione: Scomposizione; fonte: FonteMateriale; fattore?: number; nota?: string | null }
   | { tipo: "fornitura"; nome: string; nota: string | null; compresi?: string[]; unita?: string; specifiche?: string }
   | { tipo: "senza_scomposizione" };
@@ -562,11 +579,11 @@ export function classificaVoce(v: VoceComputo, scomposizioni: Scomposizione[], o
   if (/^f\.?\s*p\.?\s*o\.?(?:\s|$)/i.test(v.descrizione_breve)) {
     v = { ...v, descrizione_breve: v.descrizione_breve.replace(/^f\.?\s*p\.?\s*o\.?\s*(?:di\s+)?/i, "Fornitura e posa di ") };
   }
-  if (v.is_included === false) return { tipo: "esclusa", motivo: "Voce tolta dal computo" };
-  if (v.is_sicurezza) return { tipo: "esclusa", motivo: "Oneri della sicurezza: non sono materiali da ordinare" };
-  if (v.is_detrazione) return { tipo: "esclusa", motivo: "Voce in detrazione" };
+  if (v.is_included === false) return { tipo: "esclusa", causa: "tolta", motivo: "Voce tolta dal computo" };
+  if (v.is_sicurezza) return { tipo: "esclusa", causa: "sicurezza", motivo: "Oneri della sicurezza: non sono materiali da ordinare" };
+  if (v.is_detrazione) return { tipo: "esclusa", causa: "detrazione", motivo: "Voce in detrazione" };
   const q = Number(v.quantita ?? 0);
-  if (!(q > 0)) return { tipo: "esclusa", motivo: "Quantità zero o mancante" };
+  if (!(q > 0)) return { tipo: "esclusa", causa: "quantita_mancante", motivo: "Quantità zero o mancante" };
 
   const esplicito = prodottoEsplicito(v);
   if (esplicito && !SOLO_POSA.test(normalizzaTesto(v.descrizione_breve))
@@ -588,7 +605,7 @@ export function classificaVoce(v: VoceComputo, scomposizioni: Scomposizione[], o
   // Un sovrapprezzo («…: sovrapprezzo per ogni cm in più di spessore») non è un'altra
   // superficie: a Genzano 27.488 mq×cm diventavano 28.862 mq di pannelli e 169.877 tasselli.
   if (!perCodiceAzienda && SOVRAPPREZZO.test(breveN)) {
-    return { tipo: "esclusa", motivo: "Sovrapprezzo: i materiali sono già nella voce principale" };
+    return { tipo: "esclusa", causa: "sovrapprezzo", motivo: "Sovrapprezzo: i materiali sono già nella voce principale" };
   }
   if (s) {
     const perCodice = punteggioScomposizione(s, datiVoce) >= 900;
@@ -604,12 +621,12 @@ export function classificaVoce(v: VoceComputo, scomposizioni: Scomposizione[], o
   const prestazioniNegate = /\b(?:nessun[ao]?|senza)\s+(?:posa|manodopera|mano d.opera|nolo|noleggio)(?:\s*(?:,|e|o|né)\s*(?:posa|manodopera|mano d.opera|nolo|noleggio))*\b/gi;
   const testoClassificazione = normalizzaTesto(`${v.descrizione_breve} ${v.descrizione_estesa ?? ""}`.replace(prestazioniNegate, " "));
   // «Rimozione e rifacimento di intonaco»: si toglie e si rifà, il materiale nuovo si compra.
-  if (SENZA_MATERIALI.test(breve) && !RIFACIMENTO.test(breve)) return { tipo: "esclusa", motivo: "Demolizione, rimozione, scavo o trasporto: nessun materiale da comprare" };
-  for (const { re, motivo } of NON_MATERIALI) if (re.test(testoClassificazione)) return { tipo: "esclusa", motivo };
+  if (SENZA_MATERIALI.test(breve) && !RIFACIMENTO.test(breve)) return { tipo: "esclusa", causa: "demolizione", motivo: "Demolizione, rimozione, scavo o trasporto: nessun materiale da comprare" };
+  for (const { re, motivo, causa } of NON_MATERIALI) if (re.test(testoClassificazione)) return { tipo: "esclusa", causa, motivo };
   const um = normalizzaUnita(v.unita_misura);
-  if (um === "h") return { tipo: "esclusa", motivo: "Manodopera (a ore)" };
-  if (SOLO_POSA.test(breve)) return { tipo: "esclusa", motivo: "Solo posa: il materiale non è da comprare" };
-  if (MATERIALE_DEL_COMMITTENTE.test(testoClassificazione)) return { tipo: "esclusa", motivo: "Materiale fornito dal committente: si fa solo la posa" };
+  if (um === "h") return { tipo: "esclusa", causa: "manodopera", motivo: "Manodopera (a ore)" };
+  if (SOLO_POSA.test(breve)) return { tipo: "esclusa", causa: MATERIALE_DEL_COMMITTENTE.test(testoClassificazione) ? "committente" : "solo_posa", motivo: MATERIALE_DEL_COMMITTENTE.test(testoClassificazione) ? "Solo posa: il materiale lo fornisce il committente" : "Solo posa: il materiale non è da comprare" };
+  if (MATERIALE_DEL_COMMITTENTE.test(testoClassificazione)) return { tipo: "esclusa", causa: "committente", motivo: "Materiale fornito dal committente: si fa solo la posa" };
 
   const prefisso = PREFISSO_FORNITURA.exec(breve);
   const resto = prefisso ? breve.slice(prefisso[0].length) : breve;
@@ -863,13 +880,18 @@ export function generaDistinta(input: {
           nota: "Lotto VMC: tubi già inclusi nella fornitura, da coordinare con l'affidamento per non comprarli due volte." });
         continue;
       }
+      // Formato, spessore, prestazioni scritte nella voce (23/11/2026): chi ordina le vede accanto al nome.
+      const caratteristiche = c.specifiche ? [] : caratteristicheTecniche(`${v.descrizione_breve}. ${v.descrizione_estesa ?? ""}`)
+        .filter((x) => !normalizzaTesto(c.nome).includes(normalizzaTesto(x)));
+      const notaFornitura = caratteristiche.length ? [nota, `Dal computo: ${caratteristiche.join(" · ")}`].filter(Boolean).join(" — ") : nota;
       parti.push({
         ...base,
+        nota: notaFornitura,
         descrizione: c.nome,
         specifiche: c.specifiche ?? (/^(?:isolamento termico|coibentazione)/i.test(v.descrizione_breve) ? v.descrizione_breve : null),
         unita: c.unita ?? normalizzaUnita(v.unita_misura),
         netta: q, conSfrido: q, sfrido: 0,
-        provenienza: origineComputo(q),
+        provenienza: origineComputo(q, fonte, notaFornitura),
         categoria: categoriaVoce(v),
         article_template_id: null, supplier_id: null, scomposizione_id: null,
       });

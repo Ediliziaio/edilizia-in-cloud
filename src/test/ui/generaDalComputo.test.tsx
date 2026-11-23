@@ -68,7 +68,7 @@ const apri = () => render(
   </QueryClientProvider>,
 );
 
-beforeEach(() => { computi = []; vociLette = []; tabelle.fasi = []; tabelle.articoli = []; tabelle.fornitori = []; tabelle.inseriti = []; permessi.listino = true; salva.mutate.mockReset(); });
+beforeEach(() => { window.localStorage.clear(); computi = []; vociLette = []; tabelle.fasi = []; tabelle.articoli = []; tabelle.fornitori = []; tabelle.inseriti = []; permessi.listino = true; salva.mutate.mockReset(); });
 
 describe("Genera dal computo", () => {
   it("senza computo apre la finestra di «Importa voci»: trascinamento, scelta e gli stessi formati", async () => {
@@ -183,6 +183,47 @@ describe("Genera dal computo", () => {
     });
     expect(fasi).toEqual(expect.arrayContaining(["Intonaci e cartongessi · 5", "Impianto idraulico · 1", "Opere edili (nuova) · 1"]));
     expect(fasi).toHaveLength(3);
+  });
+
+  it("voce per voce: oneri di sicurezza e spese generali restano da chiarire, il subappalto è una ditta, nessun articolo improprio", async () => {
+    computi = [computo({})];
+    vociLette = [
+      { id: "v1", numero_ordine: "1", descrizione_breve: "Fornitura di battiscopa in gres porcellanato h 8 cm", unita_misura: "m", quantita: 40, super_categoria: "Pavimenti" },
+      { id: "v2", numero_ordine: "2", descrizione_breve: "Oneri di sicurezza", unita_misura: "a corpo", quantita: 1, a_corpo: true, super_categoria: "Sicurezza" },
+      { id: "v3", numero_ordine: "3", descrizione_breve: "Spese generali e imprevisti", unita_misura: "a corpo", quantita: 1, a_corpo: true, super_categoria: "Varie" },
+      { id: "v4", numero_ordine: "4", descrizione_breve: "Realizzazione di impianto elettrico completo affidato a ditta specializzata", unita_misura: "a corpo", quantita: 1, a_corpo: true, super_categoria: "Impianti" },
+    ];
+    apri();
+    expect(await screen.findByText("Battiscopa in gres porcellanato h 8 cm")).toBeInTheDocument();
+    // Le voci generiche non finiscono fra quelle «da scomporre» (cioè all'AI).
+    expect(screen.queryByRole("region", { name: "Voci da scomporre" })).not.toBeInTheDocument();
+    const elenco = screen.getByText(/Voce per voce: che cosa nasce da ognuna/).closest("details")!;
+    expect(within(elenco).getByText("Oneri di sicurezza").closest("li")).toHaveTextContent("Voce economica + Da chiarire");
+    expect(within(elenco).getByText(/impianto elettrico completo/).closest("li")).toHaveTextContent("Ditta esterna");
+    expect(within(elenco).getByText(/^Fornitura di battiscopa/).closest("li")).toHaveTextContent("Materiale da fornire");
+    // Nel controllo: le domande a cui rispondere prima di comprare, con il rimando alla voce.
+    fireEvent.click(screen.getByRole("tab", { name: /Controllo/ }));
+    const daChiarire = screen.getByRole("region", { name: "Voci da chiarire" });
+    expect(daChiarire).toHaveTextContent("Da chiarire prima di comprare (2)");
+    expect(daChiarire).toHaveTextContent(/serve l'elenco degli apprestamenti/);
+    expect(within(daChiarire).getByRole("button", { name: "Apri voce 3" })).toBeInTheDocument();
+  });
+
+  it("chiusa a metà e riaperta: ritrova la riga spenta e lo dice; «Ricomincia da capo» la riaccende", async () => {
+    computi = [computo({})];
+    vociLette = [{ id: "v1", descrizione_breve: "Fornitura di battiscopa in gres porcellanato h 8 cm", unita_misura: "m", quantita: 40, super_categoria: "Pavimenti" }];
+    const prima = apri();
+    const casella = async () => within((await screen.findByText("Battiscopa in gres porcellanato h 8 cm")).closest("tr")!).getAllByRole("checkbox")[0];
+    expect(await casella()).toBeChecked();
+    fireEvent.click(await casella());
+    expect(await casella()).not.toBeChecked();
+    prima.unmount();
+    apri();
+    expect(await casella()).not.toBeChecked();
+    expect(screen.getByRole("status")).toHaveTextContent(/Riprese le scelte che avevi lasciato/);
+    fireEvent.click(screen.getByRole("button", { name: "Ricomincia da capo" }));
+    expect(await casella()).toBeChecked();
+    expect(Object.keys(window.localStorage).filter((k) => k.startsWith("eic-genera-materiali:"))).toEqual([]);
   });
 
   it("l'articolo si sceglie nella riga fra quelli simili: prezzo, fornitore, confezioni e totale cambiano", async () => {

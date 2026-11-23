@@ -20,8 +20,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useFabbisognoMateriali, useImpostaDataFabbisogno, useOrdinaDalFabbisogno } from "@/hooks/useFabbisognoMateriali";
 import { EccezioniOperative } from "@/components/operazioni/EccezioniOperative";
 import { usePermissions } from "@/hooks/usePermissions";
+import { ODA_STATI_EMESSI } from "@/lib/odaStatus";
+import { ETICHETTA_LIVELLO, proponiFornitori, type AnagraficaFornitore, type FornitoreProposto, type ProvaAcquisto, type ProvaListino } from "@/lib/acquisti/fornitoriSuggeriti";
 import { gruppiDaOrdinare, ordinabile } from "@/lib/acquisti/ordinaDalFabbisogno";
-import { apertaFabbisogno, avanzamentoFasi, differenze, nomeBreve, suggerisciFornitori, ETICHETTA_URGENZA, linkMateriali, raggruppaPerFase, raggruppaPerUrgenza, selezionabile, testoLimite, urgenza, type FornitoreStorico, type RigaFabbisogno, type Urgenza } from "@/lib/acquisti/fabbisogno";
+import { apertaFabbisogno, avanzamentoFasi, differenze, nomeBreve, ETICHETTA_URGENZA, linkMateriali, raggruppaPerFase, raggruppaPerUrgenza, selezionabile, testoLimite, urgenza, type RigaFabbisogno, type Urgenza } from "@/lib/acquisti/fabbisogno";
 import { ETICHETTA_STATO_MATERIALE, type StatoMateriale } from "@/lib/distinta/statoMateriale";
 import { cn } from "@/lib/utils";
 import { VerificaDatiMaterialeDialog } from "@/components/orders/materiali/VerificaDatiMateriale";
@@ -59,7 +61,7 @@ export default function FabbisognoMateriali({ orderId, inFinestra = false }: { o
   const gruppi = raggruppaPerUrgenza(filtrate, oggi);
   const conta = (u: Urgenza) => gruppi.find((g) => g.urgenza === u)?.righe.length ?? 0;
 
-  const { canManagePurchasing, canEditOrders } = usePermissions();
+  const { canManagePurchasing, canEditOrders, canViewCosts } = usePermissions();
   const puoOrdinare = canManagePurchasing;
   const puoDatare = canManagePurchasing || canEditOrders;
   // Si spunta anche senza fornitore (17/11/2026): prima si assegna il fornitore, poi si ordina.
@@ -72,37 +74,58 @@ export default function FabbisognoMateriali({ orderId, inFinestra = false }: { o
     enabled: !!effectiveCompany?.id && puoScegliere,
     staleTime: 5 * 60_000,
     queryFn: async () => {
-      const { data, error } = await supabase.from("suppliers").select("id, name").eq("company_id", effectiveCompany!.id).order("name").limit(2000);
+      const { data, error } = await supabase.from("suppliers").select("id, name, tipo, lead_time_days, min_order_amount, is_active").eq("company_id", effectiveCompany!.id).order("name").limit(2000);
       if (error) throw error;
-      return (data ?? []) as { id: string; name: string }[];
+      return (data ?? []) as AnagraficaFornitore[];
     },
   });
   // Per proporre il fornitore ai materiali che non l'hanno: cosa l'azienda ha già comprato e da chi, e i listini attivi.
   const storicoFornitori = useQuery({
-    queryKey: ["fornitori-storico-materiali", effectiveCompany?.id],
+    queryKey: ["fornitori-prove-materiali", effectiveCompany?.id, canViewCosts],
     enabled: !!effectiveCompany?.id && !!orderId && puoScegliere,
     staleTime: 10 * 60_000,
     queryFn: async () => {
-      const nomi = new Map((fornitoriAzienda.data ?? []).map((f) => [f.id, f.name]));
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const db = supabase as any;
-      const [acq, lis] = await Promise.all([
-        db.from("order_items").select("name, supplier_id, suppliers(name), orders!inner(company_id)")
+      const [acq, lis, oda] = await Promise.all([
+        db.from("order_items").select("name, product_code, unita_misura, purchase_price, article_template_id, created_at, supplier_id, orders!inner(company_id)")
           .eq("orders.company_id", effectiveCompany!.id).not("supplier_id", "is", null).order("created_at", { ascending: false }).limit(1500),
-        db.from("listino_fornitore_voci").select("descrizione, listini_fornitore!inner(supplier_id, attivo, suppliers(name))")
+        // I prezzi di listino si chiedono solo per chi vede i costi: a chi non li vede non devono nemmeno arrivare al browser.
+        db.from("listino_fornitore_voci").select(`codice, descrizione, unita, ${canViewCosts ? "prezzo, sconto_pct, " : ""}listini_fornitore!inner(supplier_id, attivo, valido_dal, valido_al)`)
           .eq("company_id", effectiveCompany!.id).eq("listini_fornitore.attivo", true).limit(3000),
+        // Gli ordini emessi: la prova più forte, col prezzo pagato davvero.
+        db.from("purchase_order_items").select("description, sku, unit_of_measure, unit_price, discount_percent, article_template_id, created_at, purchase_orders!inner(supplier_id, status, sent_at)")
+          .eq("company_id", effectiveCompany!.id).in("purchase_orders.status", ODA_STATI_EMESSI).order("created_at", { ascending: false }).limit(1500),
       ]);
-      const storico: FornitoreStorico[] = [];
-      for (const r of (acq.data ?? []) as { name: string; supplier_id: string; suppliers: { name: string } | null }[]) {
-        storico.push({ nome: r.name, supplier_id: r.supplier_id, fornitore: r.suppliers?.name ?? nomi.get(r.supplier_id) ?? "Fornitore" });
+      // Una lettura fallita non deve passare per «nessun fornitore da proporre».
+      for (const r of [acq, lis, oda]) if (r.error) throw r.error;
+      // I prezzi si mostrano solo a chi vede i costi: agli altri resta chi vende l'articolo, non a quanto.
+      const prezzo = (n: number | null | undefined) => (canViewCosts ? n ?? null : null);
+      const acquisti: ProvaAcquisto[] = ((acq.data ?? []) as { name: string; product_code: string | null; unita_misura: string | null; purchase_price: number | null; article_template_id: string | null; created_at: string | null; supplier_id: string }[])
+        .map((r) => ({ origine: "commessa" as const, supplier_id: r.supplier_id, descrizione: r.name, codice: r.product_code, unita: r.unita_misura, prezzo: prezzo(r.purchase_price), data: r.created_at, article_template_id: r.article_template_id }));
+      const listini: ProvaListino[] = ((lis.data ?? []) as { codice: string | null; descrizione: string; unita: string | null; prezzo: number | null; sconto_pct: number | null; listini_fornitore: { supplier_id: string; attivo: boolean; valido_dal: string | null; valido_al: string | null } }[])
+        .map((v) => ({ supplier_id: v.listini_fornitore.supplier_id, descrizione: v.descrizione, codice: v.codice, unita: v.unita, prezzo: prezzo(v.prezzo), sconto_pct: v.sconto_pct,
+          valido_dal: v.listini_fornitore.valido_dal, valido_al: v.listini_fornitore.valido_al, attivo: v.listini_fornitore.attivo }));
+      for (const r of (oda.data ?? []) as { description: string; sku: string | null; unit_of_measure: string | null; unit_price: number | null; discount_percent: number | null; article_template_id: string | null; created_at: string; purchase_orders: { supplier_id: string; sent_at: string | null } }[]) {
+        const netto = r.unit_price != null ? Number(r.unit_price) * (1 - (Number(r.discount_percent) || 0) / 100) : null;
+        acquisti.push({ origine: "ordine", supplier_id: r.purchase_orders.supplier_id, descrizione: r.description, codice: r.sku, unita: r.unit_of_measure,
+          prezzo: prezzo(netto), data: r.purchase_orders.sent_at ?? r.created_at, article_template_id: r.article_template_id });
       }
-      // Una voce di listino vale più di un acquisto passato: è il fornitore che quel materiale lo vende.
-      for (const v of (lis.data ?? []) as { descrizione: string; listini_fornitore: { supplier_id: string; suppliers: { name: string } | null } }[]) {
-        storico.push({ nome: v.descrizione, supplier_id: v.listini_fornitore.supplier_id, fornitore: v.listini_fornitore.suppliers?.name ?? "Fornitore", peso: 3 });
-      }
-      return storico;
+      return { acquisti, listini };
     },
   });
+  // Per ogni materiale senza fornitore: da chi comprarlo, con la prova (listino, acquisto) e che cosa manca.
+  const suggeriti = (() => {
+    const esito = new Map<string, FornitoreProposto[]>();
+    if (!puoScegliere || !storicoFornitori.data) return esito;
+    const dati = { ...storicoFornitori.data, fornitori: fornitoriAzienda.data ?? [] };
+    for (const r of filtrate) {
+      if (r.supplier_id) continue;
+      const proposti = proponiFornitori({ nome: r.name, unita: r.unita_misura }, dati, { oggi, quanti: 3 });
+      if (proposti.length) esito.set(r.order_item_id, proposti);
+    }
+    return esito;
+  })();
   const assegna = useMutation({
     mutationFn: async ({ ids, supplierId }: { ids: string[]; supplierId: string }) => {
       // Come nei materiali della commessa: chi modifica le commesse scrive la riga, l'ufficio acquisti
@@ -264,10 +287,18 @@ export default function FabbisognoMateriali({ orderId, inFinestra = false }: { o
           </p>
         </div>
       ) : orderId ? (
+        <>
+        {puoScegliere && storicoFornitori.isError && (
+          <p role="alert" className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            Non riesco a leggere listini e ordini: i fornitori proposti non sono disponibili.{" "}
+            <button type="button" className="font-medium underline underline-offset-2" onClick={() => storicoFornitori.refetch()}>Riprova</button>
+          </p>
+        )}
         <VistaPerFasi righe={filtrate} tutte={tutteLeRighe} oggi={oggi} scelti={scelti} cambia={cambia} sceltaGruppo={sceltaGruppo}
           puoScegliere={puoScegliere} puoDatare={puoDatare} barra={barraScelta}
-          suggeriti={puoScegliere ? suggerisciFornitori(filtrate, storicoFornitori.data ?? []) : new Map()}
+          suggeriti={suggeriti}
           assegnaSuggerito={(ids, supplierId) => assegna.mutate({ ids, supplierId })} assegnando={assegna.isPending} />
+        </>
       ) : (
         <>
           {righe.length >= 500 && (
@@ -326,7 +357,7 @@ function VistaPerFasi({ righe, tutte, oggi, scelti, cambia, sceltaGruppo, puoSce
   puoScegliere: boolean;
   puoDatare: boolean;
   barra: ReactNode;
-  suggeriti: Map<string, { supplier_id: string; fornitore: string }>;
+  suggeriti: Map<string, FornitoreProposto[]>;
   assegnaSuggerito: (ids: string[], supplierId: string) => void;
   assegnando: boolean;
 }) {
@@ -433,7 +464,7 @@ function VistaPerFasi({ righe, tutte, oggi, scelti, cambia, sceltaGruppo, puoSce
             const tutti = sc.length > 0 && sc.every((r) => scelti.has(r.order_item_id));
             // Senza fornitore: le proposte raggruppate per fornitore, da assegnare con un clic.
             const proposte = fornitore ? [] : [...sc.reduce((m, r) => {
-              const s = suggeriti.get(r.order_item_id);
+              const s = suggeriti.get(r.order_item_id)?.[0];
               if (s) m.set(s.supplier_id, { fornitore: s.fornitore, ids: [...(m.get(s.supplier_id)?.ids ?? []), r.order_item_id] });
               return m;
             }, new Map<string, { fornitore: string; ids: string[] }>()).entries()].sort((a, b) => b[1].ids.length - a[1].ids.length);
@@ -448,7 +479,7 @@ function VistaPerFasi({ righe, tutte, oggi, scelti, cambia, sceltaGruppo, puoSce
                 {proposte.length > 0 && (
                   <div className="flex flex-wrap items-center gap-1.5 rounded-md bg-muted/50 px-2.5 py-1.5 text-xs">
                     <Lightbulb className="h-3.5 w-3.5 text-amber-600" aria-hidden />
-                    <span className="text-muted-foreground">Di solito li prendi da:</span>
+                    <span className="text-muted-foreground">Da chi comprarli:</span>
                     {proposte.slice(0, 4).map(([id, p]) => (
                       <Button key={id} size="sm" variant="outline" className="h-6 px-2 text-xs" disabled={assegnando}
                         onClick={() => assegnaSuggerito(p.ids, id)} title={`Assegna ${p.fornitore} a ${p.ids.length} materiali di questa fase`}>
@@ -460,7 +491,8 @@ function VistaPerFasi({ righe, tutte, oggi, scelti, cambia, sceltaGruppo, puoSce
                 <ul className="divide-y rounded-md border">
                   {rr.map((r) => (
                     <RigaCompatta key={r.order_item_id} r={r} oggi={oggi} puoDatare={puoDatare} differenza={diverse.get(r.order_item_id) ?? null}
-                      proposto={fornitore ? null : suggeriti.get(r.order_item_id)?.fornitore ?? null}
+                      proposti={fornitore ? [] : suggeriti.get(r.order_item_id) ?? []}
+                      assegna={assegnando ? null : (supplierId) => assegnaSuggerito([r.order_item_id], supplierId)}
                       scelta={puoScegliere && selezionabile(r) ? { si: scelti.has(r.order_item_id), cambia: (v) => cambia(r.order_item_id, v) } : null} />
                   ))}
                 </ul>
@@ -478,15 +510,18 @@ function VistaPerFasi({ righe, tutte, oggi, scelti, cambia, sceltaGruppo, puoSce
   );
 }
 
-function RigaCompatta({ r, oggi, puoDatare, scelta, differenza, proposto }: {
+function RigaCompatta({ r, oggi, puoDatare, scelta, differenza, proposti = [], assegna = null }: {
   r: RigaFabbisogno;
   oggi: string;
   puoDatare: boolean;
   scelta: { si: boolean; cambia: (v: boolean) => void } | null;
   /** Il pezzo di descrizione che la distingue da righe col nome uguale. */
   differenza: string | null;
-  proposto: string | null;
+  /** I fornitori proposti, dal più adatto, ognuno con la prova e che cosa manca. */
+  proposti?: FornitoreProposto[];
+  assegna?: ((supplierId: string) => void) | null;
 }) {
+  const proposto = proposti[0] ?? null;
   const [aperta, setAperta] = useState(false);
   const u = urgenza(r, oggi);
   const unita = r.unita_misura ?? "pz";
@@ -498,9 +533,14 @@ function RigaCompatta({ r, oggi, puoDatare, scelta, differenza, proposto }: {
         <span>{scelta && <Checkbox checked={scelta.si} onCheckedChange={(v) => scelta.cambia(v === true)} aria-label={`Seleziona ${titolo}`} />}</span>
         <span className="min-w-0">
           <span className="block truncate font-medium" title={r.name}>{titolo}</span>
-          {(differenza || stato || proposto) && (
-            <span className="block truncate text-[11px] text-muted-foreground">
-              {[differenza, stato, proposto ? `di solito da ${proposto}` : null].filter(Boolean).join(" · ")}
+          {(differenza || stato) && (
+            <span className="block truncate text-[11px] text-muted-foreground">{[differenza, stato].filter(Boolean).join(" · ")}</span>
+          )}
+          {proposto && (
+            <span className="block truncate text-[11px] text-muted-foreground"
+              title={[`${proposto.fornitore}: ${proposto.motivo}`, proposto.mancano.length ? `Manca: ${proposto.mancano.join("; ")}` : null].filter(Boolean).join("\n")}>
+              <span className={proposto.livello === "stesso_articolo" ? "text-emerald-700 dark:text-emerald-300" : "text-amber-700 dark:text-amber-300"}>{proposto.fornitore}</span>
+              {" · "}{proposto.motivo}{proposto.mancano.length > 0 && ` · manca: ${proposto.mancano[0]}`}{proposti.length > 1 && ` · +${proposti.length - 1} ${proposti.length === 2 ? "altro" : "altri"}`}
             </span>
           )}
           {r.unita_diversa && <span className="flex items-center gap-1 text-[11px] text-violet-700 dark:text-violet-300"><AlertTriangle className="h-3 w-3" aria-hidden /> Ordine in un'altra unità</span>}
@@ -516,6 +556,21 @@ function RigaCompatta({ r, oggi, puoDatare, scelta, differenza, proposto }: {
       {aperta && (
         <div className="mt-1.5 space-y-1 pl-7 text-xs text-muted-foreground">
           {accorciato && <p className="whitespace-pre-line text-foreground/80">{r.name}</p>}
+          {proposti.length > 0 && (
+            <ul aria-label={`Fornitori proposti per ${titolo}`} className="divide-y rounded-md border bg-background">
+              {proposti.map((p) => (
+                <li key={p.supplier_id} className="flex items-start justify-between gap-3 px-2 py-1.5">
+                  <span className="min-w-0">
+                    <span className="font-medium text-foreground">{p.fornitore}</span>
+                    <span className={cn("ml-2", p.livello === "stesso_articolo" ? "text-emerald-700 dark:text-emerald-300" : "text-amber-700 dark:text-amber-300")}>{ETICHETTA_LIVELLO[p.livello]}</span>
+                    <span className="block">{p.motivo}{p.consegna_giorni != null ? ` · consegna ${p.consegna_giorni} gg` : ""}{p.ordine_minimo ? ` · ordine minimo ${numero(p.ordine_minimo)} €` : ""}</span>
+                    {p.mancano.length > 0 && <span className="block text-amber-800 dark:text-amber-300">Manca: {p.mancano.join("; ")}</span>}
+                  </span>
+                  {assegna && <Button type="button" size="sm" variant="outline" className="h-6 shrink-0 px-2 text-xs" onClick={() => assegna(p.supplier_id)}>Assegna</Button>}
+                </li>
+              ))}
+            </ul>
+          )}
           <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
             <span>{testoLimite(r.ordina_entro, oggi)}{r.giorni_consegna != null ? ` · consegna ${r.giorni_consegna} gg` : ""}</span>
             <DataServe key={r.data_scritta ?? ""} r={r} puoDatare={puoDatare} />

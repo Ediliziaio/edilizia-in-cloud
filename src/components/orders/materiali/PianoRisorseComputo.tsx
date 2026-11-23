@@ -8,6 +8,8 @@ import { archivioRisorseComputo, salvaPianoRisorse, usePianoRisorseComputo } fro
 import type { PropostaRisorsa, StatoPropostaRisorsa, TipoRisorsa } from "@/lib/distinta/proposteRisorseComputo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { mezziPerNolo } from "@/lib/distinta/mezziPerNolo";
+import { useMezziPerNolo } from "@/hooks/useMezziPerNolo";
 
 const TIPI: Record<TipoRisorsa, string> = { nolo: "Noleggio", servizio: "Servizio", manodopera: "Manodopera", lotto: "Distinta da completare" };
 const STATI: Record<StatoPropostaRisorsa, string> = { da_completare: "Da completare", da_quotare: "Da quotare", in_gestione: "In gestione", esclusa: "Esclusa" };
@@ -29,6 +31,8 @@ function EditorRisorse({ companyId, orderId, computoId, userId, dati, puoModific
   const [modificata, setModificata] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const qc = useQueryClient();
+  // Prima di noleggiare: l'azienda ce l'ha già? (23/11/2026)
+  const mezziAzienda = useMezziPerNolo(companyId, proposte.some(p => p.tipo === "nolo"));
   const cambia = (id: string, patch: Partial<PropostaRisorsa["scelta"]>) => {
     setProposte(rr => rr.map(r => r.id === id ? { ...r, scelta: { ...r.scelta, ...patch } } : r)); setModificata(true);
   };
@@ -70,6 +74,10 @@ function EditorRisorse({ companyId, orderId, computoId, userId, dati, puoModific
         <p className="mt-2 text-xs">Fasi: {p.fase_ids.map(id => dati.fasi.find(f => f.id === id)?.name ?? "Fase").join(" · ") || "Da collegare"} · {p.sottofase_ids.length} sottofasi collegate</p>
         <p className="mt-1 text-xs font-medium">{p.periodi.length ? p.periodi.map(t => `${n(t.quantita)} ${t.unita} × ${n(t.mesi)} mesi`).join(" + ") : p.quantita != null ? `${n(p.quantita)} ${p.unita}` : "Quantità fisica da completare"}</p>
         {p.note_origine.map(t => <p key={t} className="mt-1 text-xs text-muted-foreground">{t}</p>)}
+        {p.tipo === "nolo" && mezziPerNolo(p.descrizione, mezziAzienda.data ?? [], orderId).map(m =>
+          <p key={m.mezzo.id} className={`mt-1 text-xs ${m.libero ? "text-emerald-800" : "text-muted-foreground"}`}>
+            {m.libero ? "L'azienda ce l'ha: " : "L'azienda ce l'ha, ma: "}{m.motivo}{m.libero ? " — puoi assegnarlo invece di noleggiare." : ""}
+          </p>)}
         <fieldset disabled={!puoModificare || salvando} className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
           <label>Stato proposta<select className="mt-1 h-8 w-full rounded border bg-background px-2" value={p.scelta.stato} onChange={e => cambia(p.id, { stato: e.target.value as StatoPropostaRisorsa })}>
             {Object.entries(STATI).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>

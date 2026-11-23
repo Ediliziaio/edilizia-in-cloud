@@ -111,4 +111,34 @@ describe("abbinamento tolto in revisione", () => {
     );
     expect(riga.family_id).toBe("fam-server");
   });
+
+  // 23/11/2026: la stessa lettura di «Genera dal computo». Prima queste voci ripiegavano su
+  // «prodotto» e alla conversione in commessa diventavano articoli da acquistare.
+  it.each([
+    ["Oneri di sicurezza", "a corpo", "posa"],
+    ["Spese generali e imprevisti", "a corpo", "posa"],
+    ["Operaio specializzato per lavori in economia", "h", "posa"],
+    ["Realizzazione di impianto elettrico affidato a ditta specializzata", "a corpo", "posa"],
+    ["Direzione lavori e coordinamento", "a corpo", "pratica"],
+  ])("«%s» senza abbinamento non è un prodotto: %s → %s", (descrizione, unita, categoria) => {
+    const riga = buildComputoQuoteItemPayload(voce({ descrizione_breve: descrizione, descrizione_estesa: null, unita_misura: unita, quantita: 1,
+      _matched_template_id: null, _matched_name: null, _match_type: "none" }), 0);
+    expect(riga).toMatchObject({ item_category: categoria, item_type: "service" });
+  });
+
+  it("conta solo la descrizione breve: una fornitura la cui estesa nomina certificazione o oneri resta un prodotto", () => {
+    const senza: Partial<ComputoVoceLocal> = { _matched_template_id: null, _matched_name: null, _match_type: "none" };
+    expect(buildComputoQuoteItemPayload(voce({ ...senza, descrizione_breve: "Fornitura di quadro elettrico", unita_misura: "cad",
+      descrizione_estesa: "Quadro elettrico completo di certificazione CE" }), 0)).toMatchObject({ item_category: "prodotto", item_type: "product" });
+    expect(buildComputoQuoteItemPayload(voce({ ...senza, descrizione_breve: "Intonaco civile premiscelato", unita_misura: "mq",
+      descrizione_estesa: "Intonaco civile, compresi gli oneri per i ponteggi di servizio" }), 0)).toMatchObject({ item_category: "prodotto", item_type: "product" });
+  });
+
+  it("una voce di lavoro qualunque senza abbinamento resta la riga normale; un articolo abbinato vince sempre", () => {
+    const lavoro = buildComputoQuoteItemPayload(voce({ descrizione_breve: "Intonaco civile lavorato a frattazzo", descrizione_estesa: null,
+      _matched_template_id: null, _matched_name: null, _match_type: "none" }), 0);
+    expect(lavoro).toMatchObject({ item_category: "prodotto", item_type: "product" });
+    const abbinata = buildComputoQuoteItemPayload(voce({ descrizione_breve: "Oneri di sicurezza", unita_misura: "a corpo" }), 0);
+    expect(abbinata).toMatchObject({ item_category: "prodotto", article_template_id: "article-1" });
+  });
 });

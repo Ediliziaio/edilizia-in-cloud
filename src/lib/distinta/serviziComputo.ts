@@ -10,9 +10,9 @@
  * «Per 13 mesi (13*20)» = 20 cartelli per 13 mesi; «Durata cantiere 9 mesi (8*2407,80)» = 2.407,80 m²
  * per 8 mesi successivi; «130 giorni per 8 ore» = 1.040 ore.
  */
-import { normalizzaTesto, type VoceComputo } from "./generaDistinta";
+import { normalizzaTesto, type VoceComputo, AFFIDATA_A_TERZI } from "./generaDistinta";
 
-export type TipoServizio = "nolo" | "manodopera" | "prestazione" | "impianto_cantiere" | "trasferimento";
+export type TipoServizio = "nolo" | "manodopera" | "prestazione" | "impianto_cantiere" | "trasferimento" | "subappalto";
 
 export interface ServizioComputo {
   voce_id: string;
@@ -112,7 +112,35 @@ export function classificaServizio(v: VoceServizio): ServizioComputo | null {
 
   // Da qui solo le voci della sicurezza e delle opere provvisionali: fuori, «trasporto» o «smontaggio»
   // compaiono in mille voci di lavoro.
-  if (!v.is_sicurezza) return null;
+  if (!v.is_sicurezza) {
+    // Lavorazione data a una ditta (23/11/2026): si contratta, i materiali sono nel suo prezzo.
+    if (AFFIDATA_A_TERZI.test(t)) {
+      return { ...base, tipo: "subappalto", mesi: null, pezzi: null,
+        nota: "Lavorazione affidata a una ditta: materiali e manodopera sono nel suo prezzo. Si contratta, non si compra." };
+    }
+    // Lo smaltimento va contrattato (23/11/2026): la voce che È lo smaltimento, o la demolizione che
+    // lo dichiara compreso. Non il «trasporto» citato in mille voci di lavoro, né un rifacimento
+    // (lì i materiali nuovi si comprano: la voce resta ai materiali).
+    const smaltisce = /\b(?:smaltiment\w*|conferiment\w* (?:a|in|presso) (?:discarica|impianto)|(?:oneri|trasporto) (?:di|a|alla) discarica|trasporto a rifiuto)\b/.test(t);
+    if (smaltisce && /^(?:smaltiment|conferiment|oneri di discarica|trasporto a (?:discarica|rifiuto))/.test(t)) {
+      return { ...base, tipo: "prestazione", mesi: null, pezzi: null,
+        nota: "Smaltimento: da contrattare con trasportatore e impianto autorizzato (formulario dei rifiuti)." };
+    }
+    if (smaltisce && /^(?:demolizion|rimozion|smontaggi|scarific|spicconatur|asportazion|sgombero)/.test(t)
+      && !/\b(?:rifaciment|ricostruzion|ripristin|sostituzion|nuov[oa] (?:posa|fornitura|realizzazion))/.test(t)) {
+      return { ...base, tipo: "prestazione", mesi: null, pezzi: null,
+        nota: "Demolizione con smaltimento compreso: nessun materiale da comprare, ma trasporto e conferimento vanno contrattati (formulario dei rifiuti)." };
+    }
+    // Un nolo dichiarato in testa alla voce è un nolo anche fuori dalla sicurezza (23/11/2026):
+    // prima usciva dai materiali ma non compariva fra i noli, e nessuno lo contrattava.
+    if (/^(?:nolo|noleggio)\b/.test(t)) {
+      const mesi = /^mes[ei]$/i.test(unita) ? q : mesiDaTesto(misure) ?? mesiDaTesto(t);
+      const durata = q > 0 && unita ? `${q.toLocaleString("it-IT")} ${unita}` : "durata da chiarire";
+      return { ...base, tipo: "nolo", mesi, pezzi: null,
+        nota: `Nolo (${durata}): prima di noleggiare, verifica se il mezzo è già fra le attrezzature dell'azienda.` };
+    }
+    return null;
+  }
 
   if (IMPIANTO_CANTIERE.test(t)) return { ...base, tipo: "impianto_cantiere", mesi: mesiDaTesto(misure), pezzi: null, nota: "Impianto di cantiere a corpo per tutta la durata: un contratto con l'elettricista." };
 
@@ -158,7 +186,7 @@ export function classificaServizio(v: VoceServizio): ServizioComputo | null {
 }
 
 export const ETICHETTA_SERVIZIO: Record<TipoServizio, string> = {
-  nolo: "Nolo", manodopera: "Ore", prestazione: "Prestazione", impianto_cantiere: "Impianto di cantiere", trasferimento: "Spostamento di importo",
+  nolo: "Nolo", manodopera: "Ore", prestazione: "Prestazione", impianto_cantiere: "Impianto di cantiere", trasferimento: "Spostamento di importo", subappalto: "Ditta esterna",
 };
 
 export function serviziDelComputo(voci: VoceServizio[]): ServizioComputo[] {
