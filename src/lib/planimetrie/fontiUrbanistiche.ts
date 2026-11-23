@@ -16,7 +16,9 @@ const normale = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLocal
   .replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 const COMUNI = Object.entries(comuni).flatMap(([regione, righe]) => righe.map(([codiceIstat, comune, provincia, codiceCatastale, sito]) => ({
   codiceIstat, comune, provincia, codiceCatastale, regione, sito,
-  nomi: comune.split("/").map(normale),
+  // Anche senza l'articolo eliso («Aquila» per «L'Aquila») e tutto attaccato
+  // («santangelo» per «Sant'Angelo»): 23/11/2026.
+  nomi: [...new Set(comune.split("/").map(normale).flatMap((n) => [n, n.replace(/^(?:l|la|lo|le|il|i) /, ""), n.replace(/ /g, "")]))],
   ricerca: normale(`${comune} ${provincia} ${regione} ${codiceIstat} ${codiceCatastale}`),
 })));
 const perCodice = new Map(COMUNI.map(c => [c.codiceIstat, c]));
@@ -30,17 +32,27 @@ export function corrispondeNomeComune(c: ComuneUrbanistica, nome: string) {
     || normale(`${c.comune} (${c.provincia})`) === chiave
     || (c.codiceIstat === ROMA_ISTAT && chiave === "roma capitale");
 }
-export function suggerisciComuniUrbanistica(testo: string) {
+export function suggerisciComuniUrbanistica(testo: string): ComuneUrbanistica[] {
+  const trovati = cercaComuni(testo);
+  if (trovati.length) return trovati;
+  // Un indirizzo incollato («Via Garibaldi 26, 21100 Varese (VA)») o un nome con il CAP:
+  // si riprova con l'ultimo pezzo dopo la virgola, senza numeri né sigla della provincia.
+  const ultimo = (testo.split(",").pop() ?? "").replace(/\([A-Za-z]{2}\)/g, " ").replace(/\d+/g, " ").trim();
+  return ultimo && normale(ultimo) !== normale(testo) ? cercaComuni(ultimo) : [];
+}
+
+function cercaComuni(testo: string): ComuneUrbanistica[] {
   const chiave = normale(testo);
   if (chiave.length < 2) return [];
   const parole = chiave.split(" ");
+  const attaccata = chiave.replace(/ /g, "");
   const esatti: ComuneUrbanistica[] = [];
   const prefissi: ComuneUrbanistica[] = [];
   const altri: ComuneUrbanistica[] = [];
   for (const c of COMUNI) {
     if (c.codiceIstat === chiave || c.codiceCatastale?.toLowerCase() === chiave
-      || c.nomi.some(n => n === chiave || n + " " + c.provincia?.toLowerCase() === chiave)) esatti.push(c);
-    else if (c.nomi.some(n => n.startsWith(chiave))) prefissi.push(c);
+      || c.nomi.some(n => n === chiave || n === attaccata || n + " " + c.provincia?.toLowerCase() === chiave)) esatti.push(c);
+    else if (c.nomi.some(n => n.startsWith(chiave) || (attaccata.length > 3 && n.startsWith(attaccata)))) prefissi.push(c);
     else if (parole.every(p => c.ricerca.includes(p))) altri.push(c);
   }
   return [...esatti, ...prefissi, ...altri].slice(0, 16);

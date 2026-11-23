@@ -82,3 +82,12 @@ describe("fascicolo completo della casa", () => {
     expect(query.firmate).toEqual(["stanza-originals/azienda/materiali/tavola.jpg"]);
   });
 });
+
+describe("riepilogo del fascicolo", () => {
+  it("dice quale controllo non torna e con quali misure, non solo il nome della stanza", async () => {
+    const { rigaVerificaFascicolo } = await import("@/lib/planimetrie/fascicoloPdf");
+    expect(rigaVerificaFascicolo({ codice: "rai", esito: "non_conforme", livello: "Piano terra", oggetto: "Soggiorno con cucina",
+      messaggio: "La superficie risulta insufficiente già usando la misura lorda dei vani.", valore: "2,88 m²", richiesto: "3,12 m² (1/8)" }))
+      .toBe("Piano terra - Soggiorno con cucina · Aeroilluminazione 1/8: La superficie risulta insufficiente già usando la misura lorda dei vani. (2,88 m² / richiesto 3,12 m² (1/8))");
+  });
+});

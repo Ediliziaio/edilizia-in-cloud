@@ -8,7 +8,7 @@ import { nomeDelTipo, TIPI_ARREDO_3D } from "@/components/planimetrie/editor/cat
 import { coloriContraddittori } from "../../../shared/render-room/colours.ts";
 import { COLORI_INFISSI_PROGETTO, PROFILI_PROGETTO, descrizionePavimento, statoConMateriali } from "../../../shared/planimetrie/materialiProgetto.ts";
 import { svgPiantaStanza } from "../../../shared/render-planimetria/piantaStanza.ts";
-import { verificaPianta } from "../../../shared/planimetrie/verifiche.ts";
+import { NOMI_VERIFICA, verificaPianta, type Verifica } from "../../../shared/planimetrie/verifiche.ts";
 import { DATI_URBANISTICI, firmaRiscontroTecnico, RISCONTRI_TECNICI, RUOLI_TAVOLA, valutaUrbanistica } from "../../../shared/planimetrie/urbanistica.ts";
 import { selectedRoomVisuals } from "../../../shared/render-references/roomVisualCatalog.ts";
 import { makeReferenceImage } from "../../../shared/render-references/referenceUrl.ts";
@@ -20,6 +20,12 @@ import { pianiProspetto, prospettoQuotato, sezione } from "./prospetti";
 import { accodaTavole, accodaFoglioImpianti, impaginaDisegni } from "./tavole";
 import type { RenderDellaPianta } from "./render/renderDallaPianta";
 import type { RenderVisitaSalvato } from "./renderVisitaArchivio";
+
+/** Una verifica nel riepilogo del fascicolo: piano, stanza, controllo, messaggio e misure. */
+export function rigaVerificaFascicolo(v: Verifica): string {
+  const misure = v.valore ? ` (${v.valore}${v.richiesto ? ` / richiesto ${v.richiesto}` : ""})` : "";
+  return `${v.livello} - ${v.oggetto} · ${NOMI_VERIFICA[v.codice]}: ${v.messaggio}${misure}`;
+}
 
 export interface DatiFascicolo {
   documento: Planimetria; titolo: string; versione: number; ambito: string;
@@ -463,7 +469,9 @@ export async function esportaFascicolo(d: DatiFascicolo): Promise<{ dati: Uint8A
     for (const avviso of new Set(riscontri3D)) testo(avviso);
     y -= 10;
   }
-  for (const v of verificaPianta(d.documento, d.ambito).filter((v) => v.esito !== "ok")) testo(`${v.livello} - ${v.oggetto}: ${v.messaggio}`);
+  // Con il nome del controllo e le misure: senza, «Soggiorno: la superficie risulta insufficiente»
+  // sembrava parlare della stanza, mentre parlava delle finestre (23/11/2026).
+  for (const v of verificaPianta(d.documento, d.ambito).filter((v) => v.esito !== "ok")) testo(rigaVerificaFascicolo(v));
   if (avvisi.size) {
     nuovaPagina("Immagini e allegati da recuperare", "Risorse che non è stato possibile leggere durante l’esportazione", true);
     for (const nome of avvisi) testo(nome, 11);

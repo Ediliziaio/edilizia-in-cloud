@@ -23,6 +23,12 @@ import { sistemaDi } from "./serramenti.ts";
 
 export type EsitoVerifica = "ok" | "attenzione" | "non_conforme";
 
+/** Il nome del controllo, come lo legge chi usa la pianta (scheda e fascicolo PDF). */
+export const NOMI_VERIFICA: Record<Verifica["codice"], string> = {
+  rai: "Aeroilluminazione 1/8", altezza: "Altezza", superficie: "Superficie minima", bagno: "Bagno", alloggio: "Alloggio",
+  interferenza: "Interferenza", scala: "Scala", contenimento: "Muro di contenimento", serramento: "Serramento", tetto: "Tetto",
+};
+
 export interface Verifica {
   /** Codice breve per raggruppare: «rai», «altezza», «superficie», «bagno», «alloggio». */
   codice: "rai" | "altezza" | "superficie" | "bagno" | "alloggio" | "interferenza" | "scala" | "contenimento" | "serramento" | "tetto";

@@ -8,7 +8,8 @@ import { percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
  * Le funzioni c'erano (src/lib/planimetrie/esporta, fase 6) ma nessuna pagina le usava.
  * Il cartiglio prende nome, recapiti e logo dell'azienda; se il logo non si carica si va senza.
  */
-import { useId, useMemo, useRef, useState, type Ref } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type Ref } from "react";
+import { datiCartiglioDaCollegamenti } from "@/lib/planimetrie/collegamenti";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { BookOpen, Check, Download, FileImage, FileText, Loader2, Paperclip, PenTool } from "lucide-react";
@@ -143,6 +144,18 @@ export function EsportaPiantaDialog({
   const [scala, setScala] = useState<string>("auto");
   const [cliente, setCliente] = useState("");
   const [cantiere, setCantiere] = useState("");
+  // Committente e cantiere dalle schede collegate: si riempiono solo se l'utente non ha già scritto.
+  useEffect(() => {
+    const companyId = effectiveCompany?.id;
+    if (!aperto || !planimetriaId || !companyId) return;
+    let attivo = true;
+    void datiCartiglioDaCollegamenti(companyId, planimetriaId).then((d) => {
+      if (!attivo) return;
+      if (d.committente) setCliente((v) => v || d.committente!);
+      if (d.cantiere) setCantiere((v) => v || d.cantiere!);
+    }).catch((): undefined => undefined);
+    return () => { attivo = false; };
+  }, [aperto, planimetriaId, effectiveCompany?.id]);
   const [inCorso, setInCorso] = useState(false);
   const [faseFascicolo, setFaseFascicolo] = useState("");
   const [renderDaIncludere, setRenderDaIncludere] = useState<"ultimi" | "tutti">("ultimi");

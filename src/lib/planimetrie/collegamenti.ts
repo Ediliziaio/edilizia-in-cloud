@@ -103,3 +103,29 @@ export async function caricaContestoCollegamenti(companyId: string, scelte: Scel
   }));
   return result;
 }
+
+/**
+ * Committente e indirizzo del cantiere per il cartiglio del fascicolo, presi dalle
+ * schede collegate alla planimetria (23/11/2026): prima si riscrivevano a mano
+ * anche quando la pianta era già collegata a cliente e commessa. Cliente prima del
+ * contatto; indirizzo dalla commessa. Quello che le regole di accesso non fanno
+ * leggere resta vuoto, senza errori.
+ */
+export async function datiCartiglioDaCollegamenti(companyId: string, planimetriaId: string): Promise<{ committente?: string; cantiere?: string }> {
+  const { data: p } = await supabase.from("planimetrie").select("customer_id,contact_id,order_id")
+    .eq("company_id", companyId).eq("id", planimetriaId).maybeSingle();
+  if (!p) return {};
+  const nome = (r: Record<string, unknown> | null) => {
+    if (!r) return "";
+    const t = (k: string) => typeof r[k] === "string" ? (r[k] as string).trim() : "";
+    return t("business_name") || t("company_name") || [t("first_name"), t("last_name")].filter(Boolean).join(" ");
+  };
+  const [cliente, contatto, commessa] = await Promise.all([
+    p.customer_id ? supabase.from("profiles").select("first_name,last_name,business_name").eq("id", p.customer_id).maybeSingle().then(r => r.data) : null,
+    p.contact_id ? supabase.from("marketing_contacts").select("first_name,last_name,company_name").eq("company_id", companyId).eq("id", p.contact_id).maybeSingle().then(r => r.data) : null,
+    p.order_id ? supabase.from("orders").select("work_address").eq("company_id", companyId).eq("id", p.order_id).maybeSingle().then(r => r.data) : null,
+  ]);
+  const committente = nome(cliente as Record<string, unknown> | null) || nome(contatto as Record<string, unknown> | null);
+  const cantiere = typeof commessa?.work_address === "string" ? commessa.work_address.trim() : "";
+  return { ...(committente ? { committente } : {}), ...(cantiere ? { cantiere } : {}) };
+}

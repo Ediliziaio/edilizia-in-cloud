@@ -8,12 +8,12 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { riepilogoVerifiche, verificaPianta, type Verifica } from "../../../shared/planimetrie/verifiche.ts";
+import { NOMI_VERIFICA, riepilogoVerifiche, verificaPianta, type Verifica } from "../../../shared/planimetrie/verifiche.ts";
 import type { Planimetria } from "../../../shared/planimetrie/modello.ts";
 import { controlloPrimaDellUso } from "../../../shared/planimetrie/verificaDocumento.ts";
 import { useControlloPrimaDellUso } from "@/hooks/useVerificaPlanimetria";
 
-const NOMI = { rai: "Aeroilluminazione 1/8", altezza: "Altezza", superficie: "Superficie minima", bagno: "Bagno", alloggio: "Alloggio", interferenza: "Interferenza", scala: "Scala", contenimento: "Muro di contenimento", serramento: "Serramento", tetto: "Tetto" } as const;
+const NOMI = NOMI_VERIFICA;
 
 export function VerifichePianta({ documento, titolo, ambito, nomeStato, modifica }: { documento: Planimetria; titolo: string; ambito: string; nomeStato: string; modifica?: string }) {
   const { effectiveCompany } = useAuth();
