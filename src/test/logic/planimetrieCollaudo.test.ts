@@ -162,3 +162,24 @@ describe("costo di una proposta prima di salvarla", () => {
     expect(costoDellaProposta(piantaCollaudo(), piantaCollaudoConVariante(), "fatto", quota)).toBeNull();
   });
 });
+
+describe("pavimento radiante: prezzi e tempi", () => {
+  const riga = (id: string, descrizione: string, unita: "m²" | "m" | "cad", quantita: number) =>
+    ({ id, descrizione, unita, quantita, livelloId: "pt", piano: "Piano terra", fase: "Impianti di riscaldamento", gruppo: "Soggiorno", criterio: "", stimata: true });
+  const righe = conPrezziProposti([
+    riga("l1-radiante-pannelli", "Pannelli per pavimento radiante · Soggiorno", "m²", 20),
+    riga("l1-radiante-circuito-1", "Tubo radiante · Soggiorno · circuito 1", "m", 140),
+    riga("impianto-pt-radiante-collettore", "Collettore per pavimento radiante", "cad", 1),
+    riga("l1-pavimento", "Posa pavimento · Soggiorno", "m²", 20),
+  ]);
+
+  it("quota pannelli, tubo e collettore, e fa aspettare il massetto prima del pavimento", () => {
+    expect(righe.map((r) => r.prezzo?.importo)).toEqual([22, 2.8, 480, 55]);
+    const p = previsioneLavori(righe);
+    expect(p.fasi.map((f) => [f.fase, f.importo, f.giorni, f.attesa])).toEqual([
+      ["Pavimento radiante", 1312, 2.5, 0],             // 440 + 392 + 480 · 20/40 + 140/250 + 1 = 2,06 → 2,5 giorni
+      ["Pavimenti e rivestimenti", 1100, 1.5, 21],      // 20/18 = 1,11 → 1,5 · dopo 21 giorni di massetto
+    ]);
+    expect(p.fuori.nonStimate).toBe(0);
+  });
+});

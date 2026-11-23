@@ -18,8 +18,8 @@ interface RegolaPosa {
   fase: FasePrevisione;
 }
 
-export type FasePrevisione = "Demolizioni" | "Murature" | "Serramenti" | "Intonaci" | "Pavimenti e rivestimenti" | "Tinteggiature";
-export const FASI_PREVISIONE: readonly FasePrevisione[] = ["Demolizioni", "Murature", "Serramenti", "Intonaci", "Pavimenti e rivestimenti", "Tinteggiature"];
+export type FasePrevisione = "Demolizioni" | "Murature" | "Serramenti" | "Intonaci" | "Pavimento radiante" | "Pavimenti e rivestimenti" | "Tinteggiature";
+export const FASI_PREVISIONE: readonly FasePrevisione[] = ["Demolizioni", "Murature", "Serramenti", "Intonaci", "Pavimento radiante", "Pavimenti e rivestimenti", "Tinteggiature"];
 
 export const REGOLE_POSA: Record<TipoLavorazione, RegolaPosa> = {
   demolizione_tramezzo: { resa: 20, manodopera: 0.85, fase: "Demolizioni" },
@@ -34,6 +34,9 @@ export const REGOLE_POSA: Record<TipoLavorazione, RegolaPosa> = {
   finestra: { resa: 3, manodopera: 0.15, fase: "Serramenti" },
   portafinestra: { resa: 2, manodopera: 0.15, fase: "Serramenti" },
   intonaco: { resa: 25, manodopera: 0.7, fase: "Intonaci" },
+  radiante_pannelli: { resa: 40, manodopera: 0.35, fase: "Pavimento radiante" },
+  radiante_tubo: { resa: 250, manodopera: 0.4, fase: "Pavimento radiante" },
+  radiante_collettore: { resa: 1, manodopera: 0.3, fase: "Pavimento radiante" },
   ripristino: { resa: 8, manodopera: 0.6, fase: "Pavimenti e rivestimenti" },
   pavimento: { resa: 18, manodopera: 0.4, fase: "Pavimenti e rivestimenti" },
   rivestimento: { resa: 12, manodopera: 0.45, fase: "Pavimenti e rivestimenti" },
@@ -44,6 +47,7 @@ export const REGOLE_POSA: Record<TipoLavorazione, RegolaPosa> = {
 /** Giorni di attesa obbligata prima che parta la fase: l'intonaco deve asciugare prima della pittura. */
 export const ATTESE: Partial<Record<FasePrevisione, { dopo: FasePrevisione; giorni: number; perche: string }>> = {
   Tinteggiature: { dopo: "Intonaci", giorni: 14, perche: "asciugatura dell'intonaco prima della pittura" },
+  "Pavimenti e rivestimenti": { dopo: "Pavimento radiante", giorni: 21, perche: "maturazione del massetto sopra il radiante prima di posare" },
 };
 
 export type RegolaExtra = { tipo: "a_corpo"; importo: number } | { tipo: "percentuale"; percento: number };

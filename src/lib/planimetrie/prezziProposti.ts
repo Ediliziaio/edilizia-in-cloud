@@ -17,7 +17,8 @@ export type TipoLavorazione =
   | "demolizione_tramezzo" | "demolizione_muratura" | "nuovo_tramezzo" | "nuova_muratura"
   | "macerie" | "ripristino" | "intonaco" | "tinteggiatura" | "battiscopa"
   | "porta" | "finestra" | "portafinestra" | "varco" | "chiusura_vano" | "rimozione_serramento"
-  | "pavimento" | "rivestimento";
+  | "pavimento" | "rivestimento"
+  | "radiante_pannelli" | "radiante_tubo" | "radiante_collettore";
 
 interface Regola {
   /** Ogni gruppo deve comparire con almeno una delle sue radici. */
@@ -48,6 +49,9 @@ export const REGOLE_LAVORAZIONI: Record<TipoLavorazione, Regola> = {
   rimozione_serramento: { parole: [["rimozione", "smontaggio"], ["serrament", "infiss", "porta", "porte", "finestr"]], cerca: "rimozione serramenti interni", indicativo: 60 },
   pavimento: { parole: [["pavim"], ["posa", "fornitura"]], evita: ["demoliz", "rimoz", "ripristin", "massetto", "sottofondo", "battiscopa"], cerca: "pavimento gres porcellanato posa", indicativo: 55 },
   rivestimento: { parole: [["rivestim"], ["ceramic", "gres", "piastrell"]], evita: ["demoliz", "rimoz"], cerca: "rivestimento pareti piastrelle ceramica", indicativo: 60 },
+  radiante_pannelli: { parole: [["radiant", "pavimento riscaldat"], ["pannell", "isolant", "bugnat"]], cerca: "pannello isolante bugnato pavimento radiante", indicativo: 22 },
+  radiante_tubo: { parole: [["radiant", "pavimento riscaldat"], ["tubo", "tubazion", "pe x", "pex", "pe rt"]], cerca: "tubo pavimento radiante", indicativo: 2.8 },
+  radiante_collettore: { parole: [["collettor"], ["radiant", "riscaldament"]], cerca: "collettore pavimento radiante", indicativo: 480 },
 };
 
 export const FONTE_INDICATIVA = "Prezzo indicativo 2026, da confermare";
@@ -56,6 +60,9 @@ export const FONTE_INDICATIVA = "Prezzo indicativo 2026, da confermare";
 export function tipoLavorazione(r: Pick<RigaStudio, "id" | "descrizione">): TipoLavorazione | null {
   const coda = /-(macerie|ripristino|intonaco|tinteggiatura|battiscopa)$/.exec(r.id)?.[1];
   if (coda) return coda as TipoLavorazione;
+  if (/-radiante-pannelli$/.test(r.id)) return "radiante_pannelli";
+  if (/-radiante-(circuito-\d+|tubo)$/.test(r.id)) return "radiante_tubo";
+  if (/-radiante-collettore$/.test(r.id)) return "radiante_collettore";
   const d = r.descrizione;
   if (d.startsWith("Demolizione tramezzo")) return "demolizione_tramezzo";
   if (d.startsWith("Demolizione parete")) return "demolizione_muratura";
