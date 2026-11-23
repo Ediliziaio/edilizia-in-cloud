@@ -374,7 +374,11 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
       }
     };
 
+    const chiuso = (t: TicketListItem) => (TICKET_STATI_CHIUSI.includes(t.status as never) ? 1 : 0);
     return [...filteredTickets].sort((a, b) => {
+      // Gli interventi chiusi vanno in fondo (tranne quando si ordina per stato): prima c'era
+      // in testa un «Chiuso» aggiornato di recente e gli aperti finivano sotto.
+      if (sort.key !== "status" && chiuso(a) !== chiuso(b)) return chiuso(a) - chiuso(b);
       const order = compareSortValues(getSortValue(a, sort.key), getSortValue(b, sort.key));
       return sort.direction === "asc" ? order : -order;
     });
@@ -1173,9 +1177,11 @@ function TipoChip({ tipo }: { tipo: string | null | undefined }) {
   );
 }
 
-function ScadenzaCell({ iso }: { iso: string | null | undefined }) {
+function ScadenzaCell({ iso, chiuso = false }: { iso: string | null | undefined; chiuso?: boolean }) {
   const bucket = bucketScadenza(iso);
   if (bucket === "nessuna") return <span className="text-muted-foreground text-sm">—</span>;
+  // Un intervento chiuso non è «scaduto»: la data resta, senza il rosso dell'allarme.
+  if (chiuso) return <span className="text-sm tabular-nums text-muted-foreground">{formatScadenza(iso)}</span>;
   const styles: Record<ScadenzaBucket, string> = {
     scaduto: "bg-red-100 text-red-700 border-red-300 dark:bg-red-950 dark:text-red-300",
     oggi: "bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-950 dark:text-orange-300",
@@ -1261,7 +1267,8 @@ function MobileTicketRow({
 }) {
   const statusColor = getTicketStatusColor(ticket.status);
   const priorityColor = getTicketPriorityColor(ticket.priority);
-  const scadenza = ticket.data_intervento_prevista;
+  // Sul telefono la scadenza di un intervento chiuso non serve: era un «Scaduto» rosso su un lavoro finito.
+  const scadenza = TICKET_STATI_CHIUSI.includes(ticket.status as never) ? null : ticket.data_intervento_prevista;
   const fermo = calcolaFermo(ticket as never);
   const cliente = `${ticket.customer?.first_name ?? ""} ${ticket.customer?.last_name ?? ""}`.trim();
   return (
@@ -1354,7 +1361,7 @@ function DesktopTicketRow({
           {getTicketPriorityLabel(ticket.priority)}
         </Badge>
       </TableCell>
-      <TableCell><ScadenzaCell iso={scadenza} /></TableCell>
+      <TableCell><ScadenzaCell iso={scadenza} chiuso={TICKET_STATI_CHIUSI.includes(ticket.status as never)} /></TableCell>
       <TableCell onClick={(event) => event.stopPropagation()}>
         <TicketStatusSelect value={ticket.status} disabled={isUpdating} onChange={(value) => onStatusChange(ticket.id, value)} />
       </TableCell>

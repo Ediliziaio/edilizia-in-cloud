@@ -13,7 +13,7 @@
  * sono, elenco), riquadri che contano e filtrano, gruppi che si aprono e si
  * chiudono (i piccoli affiancati), e su ogni mezzo i documenti che mancano.
  */
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorrimentoOrizzontale";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
@@ -33,7 +33,6 @@ import {
 } from "@/hooks/useMezzi";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
-import { KpiMobili } from "@/components/mobile/FiltriMobile";
 import {
   SezioneApribile, TABELLONE_GRUPPI, apriGruppo, gruppoPiccolo, larghezzaGruppo,
 } from "@/components/common/SezioneApribile";
@@ -406,21 +405,26 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
 
       {/* I riquadri contano e filtrano, come nei subappaltatori; da telefono i due che chiedono di fare qualcosa. */}
       {diQuesti.length > 0 && (isMobile ? (
-          <KpiMobili
-            voci={vista === "mezzo"
+          // Telefono: una riga sola (come Attività e Calendario), non due riquadri.
+          <p className="flex flex-wrap items-center gap-x-1 px-1 text-[13px] text-muted-foreground">
+            {(vista === "mezzo"
               ? [
-                  { label: "Documenti da sistemare", valore: String(numeri.documenti), tono: numeri.documenti > 0 ? "text-red-600" : undefined,
-                    onClick: () => alterna("documenti"), attivo: filtroRiquadro === "documenti" },
-                  { label: "Fermi", valore: String(numeri.fermi), tono: numeri.fermi > 0 ? "text-amber-600" : undefined,
-                    onClick: () => alterna("fermi"), attivo: filtroRiquadro === "fermi" },
+                  { chiave: "documenti" as const, testo: `${numeri.documenti} ${numeri.documenti === 1 ? "documento" : "documenti"} da sistemare`, n: numeri.documenti, tono: "text-red-700" },
+                  { chiave: "fermi" as const, testo: `${numeri.fermi} ${numeri.fermi === 1 ? "fermo" : "fermi"}`, n: numeri.fermi, tono: "text-amber-700" },
                 ]
               : [
-                  { label: "Ferme", valore: String(numeri.fermi), tono: numeri.fermi > 0 ? "text-amber-600" : undefined,
-                    onClick: () => alterna("fermi"), attivo: filtroRiquadro === "fermi" },
-                  { label: "Non viste", valore: String(numeri.nonVisti), tono: numeri.nonVisti > 0 ? "text-amber-600" : undefined,
-                    onClick: () => alterna("non_visti"), attivo: filtroRiquadro === "non_visti" },
-                ]}
-          />
+                  { chiave: "fermi" as const, testo: `${numeri.fermi} ${numeri.fermi === 1 ? "ferma" : "ferme"}`, n: numeri.fermi, tono: "text-amber-700" },
+                  { chiave: "non_visti" as const, testo: `${numeri.nonVisti} non ${numeri.nonVisti === 1 ? "vista" : "viste"}`, n: numeri.nonVisti, tono: "text-amber-700" },
+                ]).map((v, i) => (
+              <Fragment key={v.chiave}>
+                {i > 0 && <span aria-hidden="true">·</span>}
+                <button type="button" aria-pressed={filtroRiquadro === v.chiave} onClick={() => alterna(v.chiave)}
+                  className={cn("underline-offset-2 hover:underline", v.n > 0 && `font-semibold ${v.tono}`, filtroRiquadro === v.chiave && "underline")}>
+                  {v.testo}
+                </button>
+              </Fragment>
+            ))}
+          </p>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <OperationalKpiCard
@@ -832,7 +836,8 @@ function RigaMezzo({
         {copertina ? (
           <img src={copertina} alt="" loading="lazy" className="h-10 w-12 shrink-0 rounded-lg border object-cover" />
         ) : (
-          <span className="flex h-10 w-12 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+          // Sul telefono l'icona del tipo ripete il titolo del gruppo e toglieva spazio al nome.
+          <span className="flex h-10 w-12 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 max-sm:hidden">
             <IconaMezzo tipo={m.tipo} className="h-5 w-5" />
           </span>
         )}
@@ -857,12 +862,13 @@ function RigaMezzo({
             </span>
           )}
           {urgente && (
-            <span className={`mt-0.5 block truncate text-xs font-medium ${peggiore === "scaduto" ? "text-red-700" : "text-amber-700"}`}>
+            // Sul telefono un solo avviso per riga, il più grave: il resto è nella scheda.
+            <span className={`mt-0.5 block truncate text-xs font-medium ${peggiore === "scaduto" ? "text-red-700" : "text-amber-700"} ${nGuasti > 0 ? "max-sm:hidden" : ""}`}>
               {descriviScadenza(urgente)}
             </span>
           )}
           {mancano.length > 0 && (
-            <span className="mt-0.5 block truncate text-xs font-medium text-amber-700" title={testoMancanze(mancano)}>{testoMancanze(mancano)}</span>
+            <span className={`mt-0.5 block truncate text-xs font-medium text-amber-700 ${nGuasti > 0 || urgente ? "max-sm:hidden" : ""}`} title={testoMancanze(mancano)}>{testoMancanze(mancano)}</span>
           )}
           {giorniNonVisto > GIORNI_NON_VISTO && (
             <span className="mt-0.5 block truncate text-xs font-medium text-amber-700">Non visto da {giorniNonVisto} giorni</span>
@@ -875,9 +881,10 @@ function RigaMezzo({
             aria-label={pallinoTesto}
           />
         )}
-        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground max-sm:hidden" aria-hidden="true" />
       </Link>
-      {mezzoHaRegistroViaggi(m) && <Link className="mr-2 grid size-9 shrink-0 place-items-center rounded-md text-slate-600 hover:bg-muted hover:text-primary"
+      {/* Lo storico percorsi sul telefono si apre dalla scheda del mezzo (scheda Viaggi). */}
+      {mezzoHaRegistroViaggi(m) && <Link className="mr-2 grid size-9 shrink-0 max-sm:hidden place-items-center rounded-md text-slate-600 hover:bg-muted hover:text-primary"
         to={`/azienda/mezzi/${m.id}?tab=viaggi&vista=mappa`} aria-label={`Storico percorsi di ${m.nome}`} title="Storico percorsi">
         <Route className="size-4" />
       </Link>}

@@ -341,7 +341,7 @@ export function TicketChat({
   return (
     <Card
       className="flex flex-col relative"
-      style={{ height, minHeight: "300px" }}
+      style={{ height, minHeight: height === "auto" ? undefined : "300px" }}
       onDragEnter={disabled ? undefined : handleDragEnter}
       onDragLeave={disabled ? undefined : handleDragLeave}
       onDragOver={disabled ? undefined : handleDragOver}
@@ -373,10 +373,10 @@ export function TicketChat({
           </div>
         )}
         {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center py-12 max-sm:py-6">
-            <MessageSquare className="h-12 w-12 text-muted-foreground/40 mb-3" />
-            <p className="text-sm font-medium text-muted-foreground">Nessun messaggio</p>
-            <p className="text-xs text-muted-foreground/70 mt-1">Scrivi il primo messaggio per iniziare la conversazione.</p>
+          <div className="flex flex-col items-center justify-center h-full text-center py-12 max-sm:py-1">
+            <MessageSquare className="h-12 w-12 text-muted-foreground/40 mb-3 max-sm:hidden" />
+            <p className="text-sm font-medium text-muted-foreground max-sm:text-xs max-sm:font-normal">Nessun messaggio</p>
+            <p className="text-xs text-muted-foreground/70 mt-1 max-sm:hidden">Scrivi il primo messaggio per iniziare la conversazione.</p>
           </div>
         )}
         {messages.map((msg) => {

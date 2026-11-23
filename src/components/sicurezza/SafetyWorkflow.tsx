@@ -3,6 +3,7 @@ import { isPipelineCardControl } from "@/lib/orders/cardInteraction";
 import { useOperationalViewMemory } from "@/hooks/useOperationalViewMemory";
 import { OperationalHelp } from "@/components/orders/OperationalHelp";
 import { useState, type ReactNode } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Link, useSearchParams } from "react-router-dom";
 import { Search, X, ArrowRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -95,8 +96,11 @@ export function SafetyWorkflow<T extends { id: string }>({
     ["vista", "cerca", "commessa", "fase"].map(key),
   );
   const rawView = params.get(key("vista"));
-  const view =
-    rawView === "elenco" || rawView === "pipeline" ? rawView : defaultView;
+  // Sul telefono le colonne affiancate non ci stanno: sempre l'elenco, senza selettore.
+  const telefono = useIsMobile(640);
+  const view = telefono
+    ? "elenco"
+    : rawView === "elenco" || rawView === "pipeline" ? rawView : defaultView;
   const search = params.get(key("cerca")) ?? "";
   const order = params.get(key("commessa")) ?? "tutte";
   const raw = params.get(key("fase")) ?? "tutte";
@@ -151,10 +155,12 @@ export function SafetyWorkflow<T extends { id: string }>({
         className="space-y-2 rounded-xl border bg-white p-2.5 shadow-sm"
       >
         <div className="flex flex-wrap items-center gap-2">
-          <OperationalViewSwitch
-            value={view}
-            onChange={(v) => update({ vista: v })}
-          />
+          {!telefono && (
+            <OperationalViewSwitch
+              value={view}
+              onChange={(v) => update({ vista: v })}
+            />
+          )}
           <div className="relative min-w-48 flex-1">
             <Search className="absolute left-3 top-2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -236,6 +242,46 @@ export function SafetyWorkflow<T extends { id: string }>({
             ? "Nessun risultato per questi filtri."
             : "Nessun elemento registrato."}
         </div>
+      ) : telefono ? (
+        // Sul telefono: una riga per documento (titolo, commessa, fase). Le azioni stanno
+        // nella scheda che si apre col tocco: niente icone in fila su ogni riga.
+        <>
+          <ul aria-label={`Elenco ${label}`} className="divide-y overflow-hidden rounded-lg border bg-card">
+            {rows.slice((page - 1) * 25, page * 25).map((item) => {
+              const commessa = getOrderId(item)
+                ? orders.find((o) => o.id === getOrderId(item))
+                : undefined;
+              const fase =
+                stages.find((st) => st.id === getStage(item))?.label ?? getStage(item);
+              return (
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    onClick={() => openItem(item)}
+                    aria-label={`Apri ${getTitle(item)}`}
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left"
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">{getTitle(item)}</span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {commessa?.description || commessa?.order_code || "Senza commessa"}
+                      </span>
+                    </span>
+                    <Badge variant="outline" className="shrink-0 whitespace-nowrap text-[11px]">
+                      {fase}
+                    </Badge>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <OperationalPagination
+            page={page}
+            total={rows.length}
+            label={`Pagine ${label}`}
+            onChange={(v) => update({ pagina: String(v) })}
+          />
+        </>
       ) : view === "pipeline" ? (
         <OperationalBoard
           label={`Pipeline ${label}`}

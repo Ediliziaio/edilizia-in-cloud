@@ -932,7 +932,9 @@ function SchedaTicket({ id }: { id: string | undefined }) {
             olderMessages={olderMessages}
             customerId={ticket.customer_id}
             invalidateKeys={chatInvalidateKeys}
-            height="min(60vh, calc(100vh - 220px))"
+            // Conversazione vuota: alta quanto il suo contenuto. Con 60vh fissi, sul telefono una
+            // scatola vuota di ~480 px spingeva stato e scadenze fuori dalla prima schermata.
+            height={messages.length === 0 && !olderMessages ? "auto" : "min(60vh, calc(100vh - 220px))"}
           />
         </div>
       </div>
