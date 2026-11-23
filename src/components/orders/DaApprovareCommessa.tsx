@@ -139,13 +139,27 @@ function useRapportiniInviati(orderId: string) {
   });
 }
 
-export function DaApprovareCommessa({ orderId, onApriRapportini }: { orderId: string; onApriRapportini?: () => void }) {
+/**
+ * `compatto`: dentro il popup «Approva» di Attività, dove l'elenco dei rapportini è subito sotto.
+ * Lì titolo, spiegazione e riquadro giallo «1 rapportino aspetta… Vai ai rapportini» ripetevano
+ * il titolo del popup e l'elenco sottostante (collaudo 23/11/2026): restano solo le cose da
+ * decidere (timbrature dimenticate, bolle e acquisti), e niente se non ce ne sono.
+ */
+export function DaApprovareCommessa({ orderId, onApriRapportini, compatto = false }: { orderId: string; onApriRapportini?: () => void; compatto?: boolean }) {
   const { role, user } = useAuth();
   const permissions = usePermissions();
   const puoDecidere = role === "company_admin" || role === "super_admin" || !!permissions.canEditOrders;
   const titolare = role === "company_admin" || role === "super_admin";
   const rapportini = useRapportiniInviati(orderId);
   const n = rapportini.data ?? 0;
+  if (compatto) {
+    return (
+      <div className="space-y-4 empty:hidden">
+        <CorrezioniTimbrature orderId={orderId} puoDecidere={puoDecidere} utenteId={user?.id} titolare={titolare} />
+        <AcquistiCampoCard orderId={orderId} />
+      </div>
+    );
+  }
   return (
     <Card>
       <CardHeader className="pb-3">

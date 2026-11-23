@@ -764,7 +764,7 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
 
     // Vista normale — card
     return (
-      <div key={t.id} className={`group flex items-start gap-2.5 rounded-lg border bg-card px-3 py-2 transition-all hover:shadow-sm hover:border-primary/20 ${isDone ? "opacity-50" : ""} ${scaduta ? "border-red-200 dark:border-red-900/30 bg-red-50/30 dark:bg-red-950/10" : ""} ${isSelected ? "ring-2 ring-primary/40 bg-primary/5" : ""}`}>
+      <div key={t.id} className={`group flex items-start gap-2.5 rounded-lg border bg-card px-3 py-2 transition-all hover:shadow-sm hover:border-primary/20 ${isDone ? "opacity-50" : ""} ${scaduta ? "sm:border-red-200 sm:dark:border-red-900/30 sm:bg-red-50/30 sm:dark:bg-red-950/10" : ""} ${isSelected ? "ring-2 ring-primary/40 bg-primary/5" : ""}`}>
         {/* Un solo controllo a sinistra: checkbox in modalità selezione,
             altrimenti il cerchio "completa" (gesto to-do naturale). Niente più
             cerchio + quadrato impilati. */}
@@ -801,7 +801,8 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
               ordine) si troncano invece di mandare a capo la card. */}
           <div className="mt-1 flex items-center gap-1.5 overflow-hidden text-[11px] text-muted-foreground">
             <span className={`h-2 w-2 shrink-0 rounded-full ${cfg.dotClass}`} title={`Priorità ${cfg.label}`} />
-            <Badge variant="outline" className={`text-[10px] px-1.5 py-0 shrink-0 ${stCfg.className}`}>{stCfg.label}</Badge>
+            {/* Telefono: «Da fare» è lo stato di quasi tutte e non distingue niente; gli altri stati restano. */}
+            <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 shrink-0", stCfg.className, stCfg.label === "Da fare" && "max-sm:hidden")}>{stCfg.label}</Badge>
             {t.ufficio_id && <span className="text-xs" onClick={e => e.stopPropagation()}>
               <span>{(offices.data ?? []).find(o => o.id === t.ufficio_id)?.nome ?? "Area"} · {t.assignee ? [t.assignee.first_name,t.assignee.last_name].filter(Boolean).join(" ") : "Da prendere in carico"}</span>
               {!solaLettura && !isDone && (!t.assigned_to || t.assigned_to === user?.id) &&
@@ -814,7 +815,8 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
             )}
             {catLabel && <span className="flex min-w-0 items-center gap-1"><Tag className="w-3 h-3 shrink-0" /><span className="truncate">{catLabel}</span></span>}
             {assigneeName && <span className="flex shrink-0 items-center gap-1 text-violet-600 dark:text-violet-400 font-medium"><Users className="w-3 h-3" />{assigneeName}</span>}
-            {t.order?.order_code && (canViewOrders && t.order_id ? <Link to={`/azienda/ordini/${t.order_id}`} onClick={(e) => e.stopPropagation()} className="flex shrink-0 items-center gap-1 hover:text-foreground transition-colors"><ExternalLink className="w-3 h-3" />{t.order.order_code}</Link> : <span>{t.order.order_code}</span>)}
+            {/* Telefono: il codice commessa non si ripete se è già nel titolo. */}
+            {t.order?.order_code && (canViewOrders && t.order_id ? <Link to={`/azienda/ordini/${t.order_id}`} onClick={(e) => e.stopPropagation()} className={cn("flex shrink-0 items-center gap-1 hover:text-foreground transition-colors", t.title.includes(t.order.order_code) && "max-sm:hidden")}><ExternalLink className="w-3 h-3" />{t.order.order_code}</Link> : <span>{t.order.order_code}</span>)}
             {collegata && (hrefCollegata ? (
               <Link
                 to={hrefCollegata}
@@ -882,7 +884,9 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2 flex-wrap min-w-0">
               <h2 className="flex items-center gap-2 text-base font-semibold shrink-0 max-md:text-[15px]">
-                <ClipboardCheck className="h-4 w-4 text-primary" />Attività mie e delle mie aree
+                <ClipboardCheck className="h-4 w-4 text-primary" /><span className="max-sm:hidden">Attività mie e delle mie aree</span>
+                {/* Telefono: titolo corto, così «+ Nuova» resta sulla stessa riga. */}
+                <span className="sm:hidden">Attività</span>
                 {!calendarDate && stats.total > 0 && <Badge variant="secondary" className="text-xs">{stats.total}</Badge>}
               </h2>
               {calendarDate && (
@@ -1444,9 +1448,10 @@ export function TeamTaskPulse({ compact = false }: { compact?: boolean }) {
 
   return (
     <Card role="region" aria-label="Priorità del team">
-      <CardHeader className="pb-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <CardTitle className="flex items-center gap-2 text-base">
+      {/* Telefono: il titolo c'è già sul bottone che apre il riquadro; qui resta solo «Apri regia». */}
+      <CardHeader className="pb-3 max-sm:hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 max-sm:justify-end">
+          <CardTitle className="flex items-center gap-2 text-base max-sm:hidden">
             <ArrowUpCircle className="h-4 w-4" />{compact ? "Priorità del team" : "Regia rapida"}
           </CardTitle>
           <Button variant="outline" size="sm" className="h-8 gap-1.5" asChild>
@@ -1456,8 +1461,8 @@ export function TeamTaskPulse({ compact = false }: { compact?: boolean }) {
           </Button>
         </div>
       </CardHeader>
-      <CardContent>
-        <p className="mb-3 text-xs text-muted-foreground">Attività del team che sei autorizzato a consultare. La tua agenda resta personale.</p>
+      <CardContent className="max-sm:p-3">
+        <p className="mb-3 text-xs text-muted-foreground max-sm:hidden">Attività del team che sei autorizzato a consultare. La tua agenda resta personale.</p>
         {isError ? (
           <InlineLoadError
             title="Errore nel caricamento della regia"
@@ -1474,8 +1479,15 @@ export function TeamTaskPulse({ compact = false }: { compact?: boolean }) {
         ) : pulse.openCount === 0 ? (
           <p className="text-sm text-muted-foreground">Nessuna attività aperta da gestire</p>
         ) : (
-          <div className="space-y-4">
-            <div className={cn("grid grid-cols-2 gap-3", !compact && "md:grid-cols-4")}>
+          <div className="space-y-4 max-sm:space-y-3">
+            {/* Telefono: i numeri in una riga (solo quelli diversi da zero), non quattro riquadri alti. */}
+            <p className="text-[13px] leading-snug text-muted-foreground sm:hidden">
+              {metrics.filter((m) => m.value > 0).map((m, i) => (
+                <Fragment key={m.label}>{i > 0 && " · "}<span className={cn("font-semibold tabular-nums", m.label === "Scadute" ? "text-red-700" : "text-foreground")}>{m.value}</span> {m.label.toLowerCase()}</Fragment>
+              ))}
+              {" · "}<Link to="/azienda/attivita?tab=regia" className="font-medium text-primary underline-offset-2 hover:underline">Vai alla regia</Link>
+            </p>
+            <div className={cn("grid grid-cols-2 gap-3 max-sm:hidden", !compact && "md:grid-cols-4")}>
               {metrics.map((metric) => (
                 <div key={metric.label} className={`rounded-lg border p-3 ${metric.className}`}>
                   <p className="text-xs font-medium opacity-80">{metric.label}</p>
@@ -1501,9 +1513,24 @@ export function TeamTaskPulse({ compact = false }: { compact?: boolean }) {
                     const assigneeName = [task.assignee?.first_name, task.assignee?.last_name].filter(Boolean).join(" ") || "Non assegnata";
 
                     return (
+                      compact ? (
+                        // Compatto: pallino accanto al titolo (prima stava da solo su una riga), sotto una
+                        // riga di testo «chi · area · scadenza» al posto di due etichette.
+                        <div key={task.id} className="flex items-start gap-2 px-1 py-2 text-sm">
+                          <div className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${priority.dotClass}`} />
+                          <div className="min-w-0 flex-1">
+                            <Link to={`/azienda/attivita?tab=regia&attivita=${encodeURIComponent(task.id)}`} className="line-clamp-2 font-medium text-primary hover:underline">{task.title}</Link>
+                            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                              {assigneeName}
+                              {task.category && <> · {CATEGORY_OPTIONS.find(c => c.value === task.category)?.label || task.category}</>}
+                              {dueDate && <> · <span className={cn(scaduta ? "font-medium text-red-700" : isToday(dueDate) && "font-medium text-amber-700")}>{scaduta ? `scaduta il ${format(dueDate, "d MMM", { locale: it })}` : isToday(dueDate) ? "oggi" : format(dueDate, "d MMM", { locale: it })}</span></>}
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
                       <div key={task.id} className="flex flex-wrap items-center gap-2 px-1 py-2 text-sm">
                         <div className={`h-2 w-2 shrink-0 rounded-full ${priority.dotClass}`} />
-                        <Link to={`/azienda/attivita?tab=regia&attivita=${encodeURIComponent(task.id)}`} className={cn("flex-1 font-medium text-primary hover:underline", compact ? "w-full basis-full line-clamp-2" : "min-w-[180px] truncate")}>{task.title}</Link>
+                        <Link to={`/azienda/attivita?tab=regia&attivita=${encodeURIComponent(task.id)}`} className="min-w-[180px] flex-1 truncate font-medium text-primary hover:underline">{task.title}</Link>
                         <span className="text-xs text-muted-foreground">{assigneeName}</span>
                         {task.category && <Badge variant="outline" className="text-[10px]">{CATEGORY_OPTIONS.find(c => c.value === task.category)?.label || task.category}</Badge>}
                         {dueDate && (
@@ -1512,6 +1539,7 @@ export function TeamTaskPulse({ compact = false }: { compact?: boolean }) {
                           </Badge>
                         )}
                       </div>
+                      )
                     );
                   })}
                 </div>

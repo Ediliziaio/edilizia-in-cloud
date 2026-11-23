@@ -241,7 +241,7 @@ export function DaApprovareCantieri() {
             <Suspense fallback={<p className="p-4 text-sm text-muted-foreground"><Loader2 className="mr-2 inline h-4 w-4 animate-spin" />{t("Carico il cantiere…")}</p>}>
               <div className="space-y-4">
                 {/* Timbrature dimenticate e bolle/acquisti: si approvano qui. */}
-                <DaApprovareCommessa orderId={commessaPopup.id} onApriRapportini={() => document.getElementById("popup-rapportini")?.scrollIntoView({ behavior: "smooth", block: "start" })} />
+                <DaApprovareCommessa compatto orderId={commessaPopup.id} onApriRapportini={() => document.getElementById("popup-rapportini")?.scrollIntoView({ behavior: "smooth", block: "start" })} />
                 {/* Rapportini, con Approva/Rifiuta/PDF direttamente sulla riga. */}
                 <div id="popup-rapportini"><OrdineRapportiniCampo orderId={commessaPopup.id} azioniInRiga /></div>
               </div>
