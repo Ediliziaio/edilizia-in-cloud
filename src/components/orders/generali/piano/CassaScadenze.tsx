@@ -36,10 +36,16 @@ export function CassaScadenze({
   riepilogo,
   onInvestitori,
   onPagamenti,
+  onPriorita,
+  baseIniziale = "registrati",
+  periodoIniziale = "tutto",
 }: {
   riepilogo: RiepilogoGenerale;
   onInvestitori?: () => void;
   onPagamenti?: () => void;
+  onPriorita?: () => void;
+  baseIniziale?: BaseCassa;
+  periodoIniziale?: PeriodoCassa;
 }) {
   const q = useCassaOperazione(riepilogo);
   const movimenti = useMovimentiFonti(
@@ -47,8 +53,8 @@ export function CassaScadenze({
     riepilogo.permessi.margini,
   );
   const [ritardo, setRitardo] = useState(0);
-  const [base, setBase] = useState<BaseCassa>("registrati");
-  const [periodo, setPeriodo] = useState<PeriodoCassa>("tutto");
+  const [base, setBase] = useState<BaseCassa>(baseIniziale);
+  const [periodo, setPeriodo] = useState<PeriodoCassa>(periodoIniziale);
   if (q.isError || movimenti.isError)
     return (
       <div role="alert" className="generale-toolbar">
@@ -98,11 +104,16 @@ export function CassaScadenze({
             </p>
           </div>
         </div>
+        <div className="flex flex-wrap gap-2">
+        {onPriorita && <Button variant="ghost" size="sm" onClick={onPriorita}>
+          Priorità di cassa <ArrowUpRight className="size-4" aria-hidden="true" />
+        </Button>}
         {onPagamenti && (
           <Button variant="outline" size="sm" onClick={onPagamenti}>
             Apri i pagamenti <ArrowUpRight className="ml-2 h-4 w-4" />
           </Button>
         )}
+        </div>
       </header>
       <div
         className="generale-indicators"

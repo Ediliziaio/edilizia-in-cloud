@@ -28,7 +28,8 @@ interface Props {
 /** La stessa navigazione in creazione e nella commessa salvata: nessuna lista locale di cartelle. */
 export function DocumentFoldersNavigation({ cartelle, conteggi, totale, senzaCartella, mancanti = [], loading, selezione, onSelect, puoGestireCartelle, sopraCartella, onDragOverCartella, onDropCartella, compact = false }: Props) {
   const [explore, setExplore] = useState(false);
-  const available = cartelle.filter(c => !c.archiviata_at || (conteggi[c.id] ?? 0) > 0);
+  const available = cartelle.filter(c => !c.archiviata_at || (conteggi[c.id] ?? 0) > 0 || selezione === c.id);
+  const mostraSenzaCartella = senzaCartella > 0 || selezione === SENZA_CARTELLA;
   const used = available.filter(c => (conteggi[c.id] ?? 0) > 0 || mancanti.includes(c.id) || selezione === c.id);
   const empty = available.filter(c => !used.some(u => u.id === c.id));
   const voce = (id: string, nome: string, count: number, dropId?: string | null) => {
@@ -73,7 +74,7 @@ export function DocumentFoldersNavigation({ cartelle, conteggi, totale, senzaCar
             value: c.id,
             label: `${c.nome} (${conteggi[c.id] ?? 0})${mancanti.includes(c.id) ? " · obbligatoria, vuota" : ""}${c.archiviata_at ? " · archiviata" : ""}`,
           })),
-          ...(senzaCartella > 0 ? [{ value: SENZA_CARTELLA, label: `Senza categoria (${senzaCartella})` }] : []),
+          ...(mostraSenzaCartella ? [{ value: SENZA_CARTELLA, label: `Senza categoria (${senzaCartella})` }] : []),
           ...empty.map(c => ({
             value: c.id,
             label: `${c.nome} (0)`,
@@ -99,7 +100,7 @@ export function DocumentFoldersNavigation({ cartelle, conteggi, totale, senzaCar
         {voce(TUTTI_DOCUMENTI, "Tutti", totale)}
         {loading && <span role="status" className="m-2 inline-flex items-center gap-2 text-xs text-muted-foreground"><Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />Caricamento cartelle…</span>}
         {available.map((c) => voce(c.id, `${c.nome}${c.archiviata_at ? " · archiviata" : ""}`, conteggi[c.id] ?? 0, c.archiviata_at ? undefined : c.id))}
-        {senzaCartella > 0 && voce(SENZA_CARTELLA, "Senza cartella", senzaCartella, null)}
+        {mostraSenzaCartella && voce(SENZA_CARTELLA, "Senza cartella", senzaCartella, null)}
       </div>
       {puoGestireCartelle && <Link to="/azienda/impostazioni/cartelle-documenti" className="mt-2 hidden items-center gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground md:inline-flex"><Settings2 aria-hidden="true" className="h-3.5 w-3.5" />Gestisci cartelle</Link>}
     </nav>

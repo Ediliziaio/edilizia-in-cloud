@@ -23,7 +23,7 @@ const prefixes = new Set([
 const purchasingPrefixes = new Set([
   'material-procurement', 'material-procurement-unmapped', 'po-item-coverage', 'po-item-coverage-panel',
   'linked-purchase-orders', 'oes-oda', 'commessa-bolle-ddt', 'commessa-fatture-fornitori',
-  'generale-controllo-forniture', 'generale-piano-reale', 'commessa-generale-riepilogo',
+  'generale-controllo-forniture', 'generale-materiali-operazione', 'generale-piano-reale', 'commessa-generale-riepilogo',
   'ddt-ricezione', 'ddt-consegne', 'ddt-controllo-ordini', 'ddt-righe-ordine', 'oda-residui-destinazioni', 'ddt-righe-ordini-citati',
   'operazioni-eccezioni', 'verifica-prima-pagamento',
   'ddt-fatture-collegate', 'ddt-fatture-fornitore', 'ddt-valorizzazioni', 'ddt-fattura-righe',
@@ -34,6 +34,7 @@ const purchasingPrefixes = new Set([
   'oda-pagamenti-riepilogo', 'commessa-impegni-acquisti', 'order-economics-canonical', 'orders',
 ]);
 export function isPurchasingQuery(key: readonly unknown[]) {
+  if (key[0] === "generale-movimenti-operazione") return ["da-seguire", "acquisti", "ddt", "fatture"].includes(String(key[6]));
   return typeof key[0] === 'string' && purchasingPrefixes.has(key[0]);
 }
 function avvisaSchede(event: 'commit' | 'purchasing') {

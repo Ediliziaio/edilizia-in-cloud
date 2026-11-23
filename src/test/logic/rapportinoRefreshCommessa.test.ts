@@ -36,9 +36,17 @@ it("non esegue richieste per le viste chiuse, le marca solo da aggiornare", () =
 
 it("la funzione mirata rispetta l'azienda e non ricarica riepiloghi globali", () => {
   const qc = new QueryClient();
-  const own = [["cronoprogramma-rapportini", "o", "c"], ["order-events", "c", "o"], ["order-diary-audit", "o", "c"]];
+  const own = [
+    ["cronoprogramma-rapportini", "o", "c"], ["order-events", "c", "o"], ["order-diary-audit", "o", "c"],
+    ["generale-movimenti-operazione", "c", "g", "g,o", true, true, "rapportini"],
+    ["generale-movimenti-operazione", "c", "g", "g,o", true, true, "cronoprogramma"],
+  ];
   const others = [["cronoprogramma-rapportini", "o", "altra"], ["order-events", "altra", "o"],
-    ["order-diary-audit", "o", "altra"], ["company-costs", "c"], ["campo-rapportino-gia-oggi", "c", "altro", "u"]];
+    ["order-diary-audit", "o", "altra"], ["company-costs", "c"], ["campo-rapportino-gia-oggi", "c", "altro", "u"],
+    ["generale-movimenti-operazione", "altra", "g", "g,o", true, true, "rapportini"],
+    ["generale-movimenti-operazione", "c", "g", "g,o", true, true, "ddt"],
+    ["generale-movimenti-operazione", "c", "g", "g,xo", true, true, "rapportini"],
+  ];
   [...own, ...others].forEach(key => qc.setQueryData(key, []));
   const spy = vi.spyOn(qc, "invalidateQueries");
   refreshRapportinoQueries(qc, "o", "c");

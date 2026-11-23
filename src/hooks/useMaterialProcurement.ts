@@ -5,18 +5,21 @@ import type { ProcurementItem, ProcurementCoverage } from "@/lib/orders/material
 
 /** Explicit company scope, bounded IN clauses and pagination. Errors are not
  * an empty coverage: that would enable duplicate purchases. */
-export async function loadMaterialCoverage(companyId: string, itemIds: string[]): Promise<ProcurementCoverage[]> {
+export async function loadMaterialCoverage(companyId: string, itemIds: string[], {
+  signal, includeAnnullati = false,
+}: { signal?: AbortSignal; includeAnnullati?: boolean } = {}): Promise<ProcurementCoverage[]> {
   if (!companyId) throw new Error("Azienda non disponibile");
   const ids = [...new Set(itemIds)].sort();
   const result: ProcurementCoverage[] = [];
   for (let offset = 0; offset < ids.length; offset += 100) {
     for (let page = 0; ; page++) {
-      const { data, error } = await supabase.from("purchase_order_items")
+      const query = supabase.from("purchase_order_items")
         .select("id, order_item_id, quantity, quantity_received, unit_of_measure, purchase_orders!inner(id, oda_number, status, issue_date, expected_delivery_date, actual_delivery_date)")
         .eq("company_id", companyId).eq("purchase_orders.company_id", companyId)
-        .in("order_item_id", ids.slice(offset, offset + 100))
-        .neq("purchase_orders.status", "annullato")
-        .order("id").range(page * 500, page * 500 + 499);
+        .in("order_item_id", ids.slice(offset, offset + 100));
+      const filtrata = includeAnnullati ? query : query.neq("purchase_orders.status", "annullato");
+      const richiesta = filtrata.order("id").range(page * 500, page * 500 + 499);
+      const { data, error } = await (signal ? richiesta.abortSignal(signal) : richiesta);
       if (error) throw error;
       const rows = (data ?? []) as unknown as ProcurementCoverage[];
       if (rows.some(r => !r.purchase_orders || !Number.isFinite(Number(r.quantity)) || Number(r.quantity) < 0 || !Number.isFinite(Number(r.quantity_received)) || Number(r.quantity_received) < 0)) {

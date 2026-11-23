@@ -126,7 +126,7 @@ export function OrderMeasureControl({ orderId, onProponiVariante }: { orderId: s
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["order-measure-items", orderId] });
-    qc.invalidateQueries({ queryKey: ["order-items", orderId] });
+    refreshMaterialQueries(qc);
   };
 
   const revisioneCosto = useMutation({
@@ -149,7 +149,6 @@ export function OrderMeasureControl({ orderId, onProponiVariante }: { orderId: s
     },
     onSuccess: () => {
       invalidate();
-      refreshMaterialQueries(qc);
       setRevisione(null);
       toast.success("Prezzo e codice confermati per queste misure");
     },

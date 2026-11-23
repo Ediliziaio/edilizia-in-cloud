@@ -5,7 +5,7 @@ import { sommeDaGarantire } from "@/lib/orders/commesseGenerali";
 // dell'azienda sull'elenco (commesse_generali_documenti_voci). Le regole stanno in
 // src/lib/orders/generali/documenti.ts.
 import { useMemo } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
@@ -29,6 +29,14 @@ export const chiaviDocumentiGenerale = {
   // elimina dalla scheda Documenti) la checklist si rilegge da sola.
   checklist: (generaleId: string) => ["order-attachments", generaleId, "documenti-richiesti"] as const,
 };
+
+/** Aggiorna le operazioni che includono la commessa appena modificata. */
+export function invalidaChecklistCollegate(qc: QueryClient, orderId: string) {
+  return qc.invalidateQueries({ predicate: ({ queryKey: k }) =>
+    k[0] === "order-attachments" && k[1] !== orderId && k[2] === "documenti-richiesti"
+    && Array.isArray(k[3]) && k[3].includes(orderId),
+  });
+}
 
 /** Il messaggio per chi usa l'app: quello del database quando è scritto per lui, altrimenti uno generico. */
 export function messaggioDocumenti(e: unknown, fallback: string): string {
@@ -101,13 +109,13 @@ export function useChecklistGenerale(r: RiepilogoGenerale): ChecklistGenerale {
   const ids = useMemo(() => [generaleId, ...r.figlie.map((f) => f.id)], [generaleId, r.figlie]);
   const azienda = useVociDocumentiAzienda();
   const query = useQuery({
-    queryKey: [...chiaviDocumentiGenerale.checklist(generaleId), ids.join(",")],
+    queryKey: [...chiaviDocumentiGenerale.checklist(generaleId), ids],
     staleTime: 30_000,
     queryFn: async (): Promise<{ allegati: AllegatoCommessa[]; segni: SegnoDocumento[] }> => {
       const [allegati, segni] = await Promise.all([
         leggiPerCommesse<AllegatoCommessa>(ids, (blocco, da, a) => supabase
           .from("order_attachments")
-          .select("id, order_id, file_name, file_url, file_type, created_at")
+          .select("id, order_id, file_name, file_url, file_type, folder_id, created_at")
           .in("order_id", blocco)
           .order("created_at", { ascending: false })
           .order("id")
@@ -143,7 +151,11 @@ export function useChecklistGenerale(r: RiepilogoGenerale): ChecklistGenerale {
   }, [dati, voci, generaleId, r.figlie, r.permessi.importi]);
   const allegatiPer = useMemo(() => {
     const m = new Map<string, AllegatoCommessa[]>();
-    for (const a of dati?.allegati ?? []) m.set(a.order_id, [...(m.get(a.order_id) ?? []), a]);
+    for (const a of dati?.allegati ?? []) {
+      const gruppo = m.get(a.order_id);
+      if (gruppo) gruppo.push(a);
+      else m.set(a.order_id, [a]);
+    }
     return m;
   }, [dati]);
 

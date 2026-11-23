@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 
 const dataValida = (v: string) => v === "" || /^(19|20)\d\d-\d\d-\d\d$/.test(v);
 
-export function PannelloVoce({ casella: c, generaleId, dove, allegati, puoModificare, nascondiIntestazione = false }: {
+export function PannelloVoce({ casella: c, generaleId, dove, allegati, puoModificare, nascondiIntestazione = false, apriOriginale }: {
   casella: CasellaDocumento;
   generaleId: string;
   /** La commessa su cui sta la voce, se è una figlia («ODL 12 · Via Roma»). */
@@ -30,6 +30,7 @@ export function PannelloVoce({ casella: c, generaleId, dove, allegati, puoModifi
   allegati: readonly AllegatoCommessa[];
   puoModificare: boolean;
   nascondiIntestazione?: boolean;
+  apriOriginale?: (file: AllegatoCommessa) => void;
 }) {
   const azione = useAzioneDocumento(generaleId);
   const carica = useCaricaDocumentoVoce(generaleId);
@@ -81,7 +82,7 @@ export function PannelloVoce({ casella: c, generaleId, dove, allegati, puoModifi
       {c.documenti.length > 0 && (
         <ul className="space-y-2">
           {c.documenti.map((d) => (
-            <DocumentoRiga key={d.allegato.id} d={d} c={c} puoModificare={puoModificare} occupato={occupato} esegui={esegui} />
+            <DocumentoRiga key={d.allegato.id} d={d} c={c} puoModificare={puoModificare} occupato={occupato} esegui={esegui} apriOriginale={apriOriginale} />
           ))}
         </ul>
       )}
@@ -153,12 +154,13 @@ export function PannelloVoce({ casella: c, generaleId, dove, allegati, puoModifi
   );
 }
 
-function DocumentoRiga({ d, c, puoModificare, occupato, esegui }: {
+function DocumentoRiga({ d, c, puoModificare, occupato, esegui, apriOriginale }: {
   d: DocumentoDellaVoce;
   c: CasellaDocumento;
   puoModificare: boolean;
   occupato: boolean;
   esegui: (a: AzioneDocumento, fatto?: string) => void;
+  apriOriginale?: (file: AllegatoCommessa) => void;
 }) {
   const [scadenza, setScadenza] = useState(d.scadenza ?? "");
   const salvaScadenza = () => {
@@ -173,7 +175,10 @@ function DocumentoRiga({ d, c, puoModificare, occupato, esegui }: {
     <li className="space-y-1.5 rounded-md border px-2.5 py-2">
       <button
         type="button"
-        onClick={() => void openAttachmentInTab(d.allegato.file_url)}
+        onClick={() => {
+          if (apriOriginale) apriOriginale(d.allegato);
+          else void openAttachmentInTab(d.allegato.file_url);
+        }}
         className="flex w-full min-w-0 items-center gap-1.5 text-left text-xs font-medium hover:underline"
       >
         <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />

@@ -1,8 +1,8 @@
 // src/components/orders/generali/unita/DatiUnita.tsx
 // I dati dell'unità: sigla, dove sta, m² e millesimi, prezzi, agenzia. Solo da tablet e computer.
 // Si salvano solo i campi cambiati; prezzi e provvigione solo a chi vede gli importi.
-import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Building2, Loader2, Save, Tag } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ import { TIPOLOGIE_SUGGERITE, type UnitaGenerale } from "@/lib/orders/generali/u
 
 type Campo = "sigla" | "edificio" | "piano" | "tipologia" | "mq" | "millesimi" | "listino" | "trattato" | "rogito" | "agenzia" | "provvigione" | "note";
 const NUMERICI: Campo[] = ["mq", "millesimi", "listino", "trattato", "rogito", "provvigione"];
+const IMPORTI: Campo[] = ["listino", "trattato", "rogito", "provvigione"];
 const CHIAVE: Record<Campo, keyof Dati> = {
   sigla: "sigla", edificio: "edificio", piano: "piano", tipologia: "tipologia", mq: "mq_commerciali", millesimi: "millesimi",
   listino: "prezzo_listino", trattato: "prezzo_trattato", rogito: "prezzo_rogito", agenzia: "agenzia", provvigione: "provvigione_agenzia", note: "note",
@@ -25,23 +26,43 @@ const iniziali = (u: UnitaGenerale): Record<Campo, string> => ({
   mq: inCampo(u.mq), millesimi: inCampo(u.millesimi), listino: inCampo(u.listino), trattato: inCampo(u.trattato),
   rogito: inCampo(u.rogito), agenzia: u.agenzia ?? "", provvigione: inCampo(u.provvigione), note: u.note ?? "",
 });
+const valoreCampo = (c: Campo, valore: string) => NUMERICI.includes(c) ? leggiCampo(valore) : valore.trim() || null;
 
 export function DatiUnita({ generaleId, unita: u, vedeImporti }: { generaleId: string; unita: UnitaGenerale; vedeImporti: boolean }) {
   const salva = useSalvaUnita(generaleId);
-  const prima = iniziali(u);
-  const [v, setV] = useState(prima);
-  const cambia = (c: Campo) => (ev: { target: { value: string } }) => setV((x) => ({ ...x, [c]: ev.target.value }));
+  const prima = useMemo(() => iniziali(u), [u]);
+  const [bozza, setBozza] = useState<Partial<Record<Campo, string>>>({});
+  const [ultimaLettura, setUltimaLettura] = useState(prima);
+  if (ultimaLettura !== prima) {
+    setUltimaLettura(prima);
+    const campi = Object.keys(bozza) as Campo[];
+    const inAttesa = campi.filter(c => valoreCampo(c, bozza[c]!) !== valoreCampo(c, prima[c]));
+    if (inAttesa.length !== campi.length) setBozza(Object.fromEntries(inAttesa.map(c => [c, bozza[c]])));
+  }
+  const v = { ...prima, ...bozza };
+  const cambia = (c: Campo) => (ev: { target: { value: string } }) => {
+    const valore = ev.target.value;
+    setBozza(x => ({ ...x, [c]: valore }));
+  };
 
-  const cambiati = (Object.keys(v) as Campo[]).filter((c) => v[c].trim() !== prima[c].trim());
-  const sbagliati = NUMERICI.filter((c) => cambiati.includes(c) && Number.isNaN(leggiCampo(v[c]) ?? 0));
-  const negativi = NUMERICI.filter((c) => (leggiCampo(v[c]) ?? 0) < 0);
-  const errore = v.sigla.trim() === "" ? "Scrivi la sigla (es. A1)." : sbagliati.length || negativi.length ? "Controlla i numeri: m², millesimi e prezzi." : null;
+  const cambiati = (Object.keys(bozza) as Campo[]).filter(c =>
+    (vedeImporti || !IMPORTI.includes(c))
+    && (c !== "trattato" || u.stato !== "libera")
+    && (c !== "rogito" || u.stato === "rogitata")
+    && valoreCampo(c, v[c]) !== valoreCampo(c, prima[c]),
+  );
+  const invalidi = cambiati.filter(c => {
+    if (!NUMERICI.includes(c)) return false;
+    const n = leggiCampo(v[c]);
+    return n !== null && (!Number.isFinite(n) || n < 0);
+  });
+  const errore = !v.sigla.trim() ? "Inserisci la sigla dell’unità." : invalidi.length ? "Controlla i campi numerici evidenziati." : null;
 
   const conferma = () => {
     if (errore || cambiati.length === 0 || salva.isPending) return;
     const dati: Dati = {};
     for (const c of cambiati) {
-      (dati as Record<string, unknown>)[CHIAVE[c]] = NUMERICI.includes(c) ? leggiCampo(v[c]) : v[c].trim() || null;
+      (dati as Record<string, unknown>)[CHIAVE[c]] = valoreCampo(c, v[c]);
     }
     salva.mutate(
       { orderId: u.orderId, dati },
@@ -56,36 +77,55 @@ export function DatiUnita({ generaleId, unita: u, vedeImporti }: { generaleId: s
   const campo = (c: Campo, etichetta: string, extra: Record<string, unknown> = {}) => (
     <div className="space-y-1">
       <Label htmlFor={id(c)}>{etichetta}</Label>
-      <Input id={id(c)} value={v[c]} onChange={cambia(c)} {...extra} />
+      <Input id={id(c)} value={v[c]} onChange={cambia(c)} disabled={salva.isPending}
+        aria-invalid={(invalidi.includes(c) || (c === "sigla" && !v.sigla.trim())) || undefined} {...extra} />
     </div>
   );
 
   return (
-    <form className="space-y-3" onSubmit={(ev) => { ev.preventDefault(); conferma(); }}>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {campo("sigla", "Sigla", { maxLength: 40 })}
-        {campo("edificio", "Edificio", { placeholder: "es. Scala A" })}
-        {campo("piano", "Piano", { placeholder: "es. T, 1, S1" })}
-        {campo("tipologia", "Tipologia", { list: `tipologie-${u.orderId}` })}
-        {campo("mq", "m² commerciali", { inputMode: "decimal" })}
-        {campo("millesimi", "Millesimi", { inputMode: "decimal" })}
-        {vedeImporti && campo("listino", "Prezzo di listino", { inputMode: "decimal" })}
-        {vedeImporti && u.stato !== "libera" && campo("trattato", "Prezzo trattato", { inputMode: "decimal" })}
-        {vedeImporti && u.stato === "rogitata" && campo("rogito", "Prezzo di rogito", { inputMode: "decimal" })}
-        {campo("agenzia", "Agenzia", { placeholder: "nessuna" })}
-        {vedeImporti && campo("provvigione", "Provvigione agenzia €", { inputMode: "decimal" })}
-      </div>
+    <form className="space-y-4" onSubmit={(ev) => { ev.preventDefault(); conferma(); }}>
       <datalist id={`tipologie-${u.orderId}`}>
         {TIPOLOGIE_SUGGERITE.map((t) => <option key={t} value={t} />)}
       </datalist>
-      <div className="space-y-1">
-        <Label htmlFor={id("note")}>Note</Label>
-        <Textarea id={id("note")} value={v.note} onChange={cambia("note")} rows={2} />
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+        <section aria-label="Identificazione e superfici" className="min-w-0 rounded-lg border bg-card">
+          <h3 className="flex items-center gap-2 border-b px-4 py-3 text-sm font-semibold">
+            <Building2 className="size-4 text-blue-700 dark:text-blue-300" aria-hidden="true" /> Identificazione e superfici
+          </h3>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3 p-4 xl:grid-cols-3">
+            {campo("sigla", "Sigla", { maxLength: 40, required: true })}
+            {campo("tipologia", "Tipologia", { list: `tipologie-${u.orderId}` })}
+            {campo("edificio", "Edificio", { placeholder: "Es. Palazzina A" })}
+            {campo("piano", "Piano", { placeholder: "Es. T, 1, S1" })}
+            {campo("mq", "m² commerciali", { inputMode: "decimal" })}
+            {campo("millesimi", "Millesimi", { inputMode: "decimal" })}
+          </div>
+          <div className="space-y-1.5 border-t p-4">
+            <Label htmlFor={id("note")}>Note</Label>
+            <Textarea id={id("note")} value={v.note} onChange={cambia("note")} rows={2} disabled={salva.isPending} />
+          </div>
+        </section>
+        <section aria-label="Condizioni commerciali" className="min-w-0 rounded-lg border bg-card">
+          <h3 className="flex items-center gap-2 border-b px-4 py-3 text-sm font-semibold">
+            <Tag className="size-4 text-blue-700 dark:text-blue-300" aria-hidden="true" /> Condizioni commerciali
+          </h3>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3 p-4">
+            {vedeImporti && campo("listino", "Prezzo di listino", { inputMode: "decimal" })}
+            {vedeImporti && u.stato !== "libera" && campo("trattato", "Prezzo trattato", { inputMode: "decimal" })}
+            {vedeImporti && u.stato === "rogitata" && campo("rogito", "Prezzo di rogito", { inputMode: "decimal" })}
+            {campo("agenzia", "Agenzia")}
+            {vedeImporti && campo("provvigione", "Provvigione agenzia €", { inputMode: "decimal" })}
+          </div>
+        </section>
       </div>
-      {errore && cambiati.length > 0 && <p className="text-xs text-destructive">{errore}</p>}
-      <div className="flex justify-end">
-        <Button type="submit" size="sm" disabled={!!errore || cambiati.length === 0 || salva.isPending}>
-          {salva.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+      <div className="flex flex-wrap items-center justify-end gap-2 rounded-lg border bg-muted/25 px-4 py-3">
+        {cambiati.length > 0 && (errore
+          ? <p role="alert" className="mr-auto text-xs text-destructive">{errore}</p>
+          : <p role="status" className="mr-auto text-xs text-muted-foreground">Modifiche da salvare</p>)}
+        <Button type="button" size="sm" variant="outline" disabled={!cambiati.length || salva.isPending}
+          onClick={() => setBozza({})}>Ripristina</Button>
+        <Button type="submit" size="sm" className="gap-1.5" disabled={!!errore || cambiati.length === 0 || salva.isPending}>
+          {salva.isPending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Save className="size-4" aria-hidden="true" />}
           Salva i dati
         </Button>
       </div>

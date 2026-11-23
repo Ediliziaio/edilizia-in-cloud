@@ -43,6 +43,8 @@ export interface ComputoCommessa {
   motivo_variante: string | null;
   contrattuale_dal: string | null;
   fonte_variante?: FonteVarianteComputo | null;
+  ripartito?: boolean;
+  ripartizione_origine_id?: string | null;
 }
 
 // Stringa non letterale: il tipo della select resta quello dichiarato sotto (ComputoCommessa).
@@ -56,8 +58,10 @@ export function useComputiCommessa(orderId: string | undefined, companyId: strin
     queryKey: ["computo-commessa", orderId, companyId],
     enabled: !!orderId && !!companyId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("computo_uploads").select(COLONNE)
+      const leggi = (colonne: string) => supabase.from("computo_uploads").select(colonne)
         .eq("order_id", orderId!).eq("company_id", companyId!).order("created_at", { ascending: false });
+      const risposta = await leggi(`${COLONNE}, ripartito, ripartizione_origine_id`);
+      const { data, error } = risposta.error?.code === "42703" ? await leggi(COLONNE) : risposta;
       if (error) throw error;
       return (data ?? []) as unknown as ComputoCommessa[];
     },
@@ -74,8 +78,8 @@ export function useVociComputo(uploadId: string | undefined, abilitato: boolean)
       const tutte: VoceComputo[] = [];
       for (let da = 0; ; da += 1000) {
         const { data, error } = await supabase.from("computo_voci_estratte")
-          .select("id, ordine, numero_ordine, codice_voce, codice_tariffa, codice_prezzario, descrizione_breve, descrizione_estesa, unita_misura, quantita, prezzo_unitario_computo, importo_computo, super_categoria, categoria, sotto_categoria, is_sicurezza, is_detrazione, a_corpo, warnings, is_modified, quadro_voce, voce_origine_id, nuovo_prezzo, misure:computo_voci_misure(id, ordine, descrizione, parti_uguali, lunghezza, larghezza, altezza_peso, quantita, formula, planimetria_id, planimetria_versione, planimetria_chiavi)")
-          .eq("computo_upload_id", uploadId!).order("ordine").range(da, da + 999);
+          .select("id, ordine, numero_ordine, codice_voce, codice_tariffa, codice_prezzario, descrizione_breve, descrizione_estesa, unita_misura, quantita, prezzo_unitario_computo, importo_computo, super_categoria, categoria, sotto_categoria, is_sicurezza, is_detrazione, a_corpo, warnings, is_modified, is_included, quadro_voce, voce_origine_id, nuovo_prezzo, misure:computo_voci_misure(id, ordine, descrizione, parti_uguali, lunghezza, larghezza, altezza_peso, quantita, formula, planimetria_id, planimetria_versione, planimetria_chiavi)")
+          .eq("computo_upload_id", uploadId!).order("ordine").order("id").range(da, da + 999);
         if (error) throw error;
         tutte.push(...((data ?? []) as unknown as VoceComputo[]).map(v => ({ ...v, misure: [...(v.misure ?? [])].sort((a, b) => a.ordine - b.ordine) })));
         if (!data || data.length < 1000) break;

@@ -1,5 +1,6 @@
 import { nettoUnitaInLordo } from "@/lib/orders/incassiCommessa";
-import {getAmountCollected, getAmountDue, getGrossOrderAmount, type OrderWithDetails} from "@/lib/orderUtils";
+import {getAmountCollected, getAmountDue, getGrossOrderAmount, type OrderPaymentDetails, type OrderWithDetails} from "@/lib/orderUtils";
+import { netOrderTotals } from "./summaryIndicators";
 
 export function orderYear(order: Pick<OrderWithDetails, "created_at">): number {
   return new Date(order.created_at).getFullYear();
@@ -23,7 +24,9 @@ export function currentManagementScope<T extends OrderWithDetails>(orders: T[], 
  * `incassiUnita`: caparre, acconti e saldi delle unità in vendita (commesse generali), per commessa.
  * Si prende il più alto tra rate/fatture e incassi dell'unità (stessi soldi, mai sommati).
  */
-export function orderEconomics(orders: OrderWithDetails[], incassiUnita?: ReadonlyMap<string, number>, permuteUnita?: ReadonlyMap<string, number>) {
+type OrderEconomicPayment = OrderPaymentDetails & Pick<OrderWithDetails, "id">;
+
+export function orderEconomics(orders: readonly OrderEconomicPayment[], incassiUnita?: ReadonlyMap<string, number>, permuteUnita?: ReadonlyMap<string, number>) {
   return orders.reduce((total, order) => {
     const daRate = getAmountCollected(order);
     const inPiu = order.incasso_unita_lordo!=null ? 0 : Math.max(0, nettoUnitaInLordo(incassiUnita?.get(order.id) ?? 0, order.vat_rate) - daRate);
@@ -34,6 +37,32 @@ export function orderEconomics(orders: OrderWithDetails[], incassiUnita?: Readon
       pending: total.pending + Math.max(0, getAmountDue(order) - inPiu - nettoUnitaInLordo(permuteUnita?.get(order.id) ?? 0, order.vat_rate)),
     };
   }, {count: 0, sold: 0, collected: 0, pending: 0});
+}
+
+/** Una riga economica per commessa, condivisa da riepilogo e grafico. */
+export function orderEconomicsRow(
+  order: OrderEconomicPayment & Pick<OrderWithDetails, "created_at"> & Partial<Pick<OrderWithDetails, "expected_date" | "current_status_id">>,
+  incassiUnita?: ReadonlyMap<string, number>,
+  permuteUnita?: ReadonlyMap<string, number>,
+) {
+  return {
+    id: order.id,
+    created_at: order.created_at,
+    expected_date: order.expected_date,
+    current_status_id: order.current_status_id,
+    vatRate: order.vat_rate ?? null,
+    ...orderEconomics([order], incassiUnita, permuteUnita),
+  };
+}
+
+export function summarizeOrderEconomics(rows: readonly ReturnType<typeof orderEconomicsRow>[]) {
+  const gross = { count: rows.length, sold: 0, collected: 0, pending: 0 };
+  for (const row of rows) {
+    gross.sold += row.sold;
+    gross.collected += row.collected;
+    gross.pending += row.pending;
+  }
+  return { gross, vat: netOrderTotals(rows), ids: rows.map(row => row.id) };
 }
 
 export type OrderScopeGroup = "all" | "annual" | "previous";

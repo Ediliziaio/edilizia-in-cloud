@@ -1,10 +1,11 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({
   reads: [] as { table: string; filters: [string, unknown][] }[],
   writes: vi.fn(),
+  rapportini: [] as Array<Record<string, unknown>>,
 }));
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({
@@ -36,7 +37,7 @@ vi.mock("@/integrations/supabase/client", () => ({
       };
       q.then = (yes: (r: unknown) => unknown) => {
         state.reads.push(read);
-        return Promise.resolve({ data: [], error: null }).then(yes);
+        return Promise.resolve({ data: table === "campo_rapportini" ? state.rapportini : [], error: null }).then(yes);
       };
       q.insert = state.writes;
       q.update = state.writes;
@@ -47,10 +48,29 @@ vi.mock("@/integrations/supabase/client", () => ({
 import { OrdineRapportiniCampo } from "@/components/orders/OrdineRapportiniCampo";
 beforeEach(() => {
   state.reads = [];
+  state.rapportini = [];
   vi.clearAllMocks();
 });
 afterEach(cleanup);
 describe("report approval filter integration", () => {
+  it("apre il rapportino richiesto oltre la prima pagina senza eseguire scritture", async () => {
+    const report = { stato: "inviato", data_lavoro: "2026-11-10", ore_lavorate: 8 };
+    state.rapportini = [
+      ...Array.from({ length: 11 }, (_, i) => ({ ...report, id: `recente-${i}` })),
+      { ...report, id: "r1", autore: { first_name: "Mario", last_name: "Rossi" } },
+    ];
+    const chiudi = vi.fn();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={client}>
+      <OrdineRapportiniCampo orderId="order" rapportinoIniziale="r1" onChiudiRapportinoIniziale={chiudi} />
+    </QueryClientProvider>);
+    const dialogo = await screen.findByRole("dialog", { name: /Rapportino · Mario Rossi/ });
+    expect(dialogo).toBeVisible();
+    fireEvent.click(within(dialogo).getByRole("button", { name: /Close|Chiudi/ }));
+    expect(chiudi).toHaveBeenCalledOnce();
+    expect(state.writes).not.toHaveBeenCalled();
+  });
+
   it.each([true, false])(
     "keeps the pending-only cache separate while preserving the standard list (pending: %s)",
     async (pending) => {

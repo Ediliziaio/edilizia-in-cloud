@@ -295,6 +295,8 @@ export interface MeseComposizione {
   debito: number;
   /** Il capitale che il piano chiede quel mese. */
   fabbisogno: number;
+  capitaleDalleFonti: number;
+  scoperto: number;
   /** Mese passato (movimenti veri) o futuro (proiezione). */
   reale: boolean;
 }
@@ -321,8 +323,10 @@ export interface ContiInvestitori {
   quotaAzienda: { previsto: number; stima: number };
   copertura: Copertura[];
   totali: { impegno: number; dentro: number; daVersare: number; spettaAFine: number };
-  /** Quanto manca agli impegni per coprire il picco di esposizione; 0 = coperto. */
+  /** Il maggiore tra la carenza degli impegni e lo scoperto mensile. */
   scoperto: number;
+  scopertoImpegni: number;
+  scopertoCalendario: { importo: number; mese: string | null };
   /** Interessi e spese di tutto ciò che è a prestito. */
   costoDebito: { interessi: Colonne; spese: Colonne; totale: number; costoAnnuo: number | null; mensile: MeseCostoDebito[] };
   composizione: MeseComposizione[];
@@ -495,6 +499,8 @@ export function calcolaInvestitori(input: {
   /** «2027-03-15». */
   oggi: string;
   scenario?: ScenarioDebito | null;
+  /** Costo del caso base per applicare al margine del piano la sola variazione simulata. */
+  costoDebitoBase?: number;
 }): ContiInvestitori {
   const { numeri, oggi } = input;
   const scenario = input.scenario ?? null;
@@ -532,6 +538,7 @@ export function calcolaInvestitori(input: {
     somma(contiPrestito.map((c) => c.spese!.adOggi)),
     somma(contiPrestito.map((c) => c.spese!.aFinire)),
   );
+  const costoDebito = arrotonda(interessi.stima + spese.stima);
   const euroAnni = basi.filter((b) => aPrestito(b.fonte.tipo)).reduce((t, b) => t + capitaleGiorni(b.futuri, b.fineConteggio) / 365, 0);
   const togli = numeri && !numeri.interessiNelPiano;
   // Senza voce prevista, quello che il piano ha già nel reale (interessi e spese pagati) non si toglie di nuovo.
@@ -540,9 +547,12 @@ export function calcolaInvestitori(input: {
     previsto: togli ? arrotonda(interessi.previsto + spese.previsto) : 0,
     stima: togli ? arrotonda(Math.max(0, interessi.stima + spese.stima - giaNelReale)) : 0,
   };
+  const variazioneOneriNelPiano = numeri?.interessiNelPiano && !scenarioDebitoNeutro(scenario) && input.costoDebitoBase !== undefined
+    ? arrotonda(costoDebito - input.costoDebitoBase)
+    : 0;
   const utile = {
     previsto: numeri ? arrotonda(numeri.marginePrevisto - interessiTolti.previsto) : 0,
-    stima: numeri ? arrotonda(numeri.margineStima - interessiTolti.stima) : 0,
+    stima: numeri ? arrotonda(numeri.margineStima - interessiTolti.stima - variazioneOneriNelPiano) : 0,
     interessiTolti,
   };
 
@@ -632,14 +642,20 @@ export function calcolaInvestitori(input: {
   const dentro = somma(copertura.map((c) => c.dentro));
   const nominale = numeri ? arrotonda(Math.max(0, numeri.capitaleMassimo - impegno)) : 0;
   const composizioneFonti = composizione(basi, numeri, oggi, fine);
-  const temporale = numeri ? arrotonda(Math.max(0, ...composizioneFonti.filter(m => m.mese >= oggi.slice(0, 7)).map(m => m.fabbisogno - m.propri - m.investitori - m.debito))) : 0;
+  const meseCorrente = oggi.slice(0, 7);
+  const massimoMensile = composizioneFonti.reduce<MeseComposizione | null>(
+    (massimo, m) => m.mese >= meseCorrente && m.scoperto > (massimo?.scoperto ?? 0) ? m : massimo, null,
+  );
+  const temporale = massimoMensile?.scoperto ?? 0;
   const scoperto = Math.max(nominale, temporale);
+  if (temporale > nominale + .01 && massimoMensile) {
+    avvisi.push(`Il calendario di erogazioni e rimborsi lascia ${eur(temporale)} senza copertura a ${meseIt(massimoMensile.mese)}.`);
+  }
   if (numeri && nominale >= 1) {
     avvisi.push(
       `Le fonti coprono ${eur(impegno)} su un capitale massimo impegnato di ${eur(numeri.capitaleMassimo)}${numeri.meseCapitaleMassimo ? ` (${meseIt(numeri.meseCapitaleMassimo)})` : ""}: mancano ${eur(nominale)} al picco di esposizione.`,
     );
   }
-  if (temporale > nominale + .01) avvisi.push(`Le date di erogazione e rimborso lasciano ${eur(temporale)} di fabbisogno senza copertura in uno dei mesi. Un impegno non è denaro già disponibile.`);
   if (numeri && numeri.capitaleInvestitoOggi - dentro >= 1) {
     avvisi.push(`A oggi l'operazione ha assorbito ${eur(numeri.capitaleInvestitoOggi)}, ma dalle fonti ne sono entrati ${eur(dentro)}: la differenza la sta anticipando l'azienda.`);
   }
@@ -696,10 +712,12 @@ export function calcolaInvestitori(input: {
     copertura,
     totali: { impegno, dentro, daVersare: somma(conti.map((c) => c.daVersare)), spettaAFine: somma(conti.map((c) => c.spettaAFine)) },
     scoperto,
+    scopertoImpegni: nominale,
+    scopertoCalendario: { importo: temporale, mese: massimoMensile?.mese ?? null },
     costoDebito: {
       interessi,
       spese,
-      totale: arrotonda(interessi.stima + spese.stima),
+      totale: costoDebito,
       costoAnnuo: euroAnni > 0 ? (interessi.stima + spese.stima) / euroAnni : null,
       mensile: costoMensile(basi, oggi),
     },
@@ -754,12 +772,19 @@ function composizione(basi: Base[], numeri: NumeriOperazione | null, oggi: strin
       const s = passi.filter((p) => p.data <= fino).reduce((t, p) => t + segno(p.tipo) * p.importo, 0);
       saldo[GRUPPO[b.fonte.tipo]] += Math.max(0, s);
     }
+    const propri = arrotonda(saldo.propri);
+    const investitori = arrotonda(saldo.investitori);
+    const debito = arrotonda(saldo.debito);
+    const capitaleDalleFonti = arrotonda(propri + investitori + debito);
+    const richiesto = arrotonda(fabbisogno.get(m) ?? 0);
     righe.push({
       mese: m,
-      propri: arrotonda(saldo.propri),
-      investitori: arrotonda(saldo.investitori),
-      debito: arrotonda(saldo.debito),
-      fabbisogno: arrotonda(fabbisogno.get(m) ?? 0),
+      propri,
+      investitori,
+      debito,
+      fabbisogno: richiesto,
+      capitaleDalleFonti,
+      scoperto: arrotonda(Math.max(0, richiesto - capitaleDalleFonti)),
       reale: m < meseOggi,
     });
   }

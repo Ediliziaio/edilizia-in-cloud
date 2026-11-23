@@ -41,9 +41,10 @@ const PASSI: { id: Passo; titolo: string }[] = [
 ];
 
 /** `bozzaIniziale`: un lavoro extra nuovo già scritto (dal preventivo accettato): nasce da salvare, chiudere lo salva. */
-interface Props { id: string; existing: boolean; order: string; company: string; context: VariationContext; canEdit: boolean; onClose: () => void; bozzaIniziale?: VariationDraft }
-export function VariationLifecycleDialog({ id, existing, order, company, context, canEdit, onClose, bozzaIniziale }: Props) {
+interface Props { id: string; existing: boolean; order: string; company: string; context: VariationContext; canEdit: boolean; onClose: () => void; bozzaIniziale?: VariationDraft; inline?: boolean }
+export function VariationLifecycleDialog({ id, existing, order, company, context, canEdit, onClose, bozzaIniziale, inline = false }: Props) {
   const workflow = useVariationWorkflow(order, company);
+  const { refresh } = workflow;
   const [form, setForm] = useState<VariationDraft>(() => (!existing && bozzaIniziale) ? bozzaIniziale : ({ ...emptyVariationDraft(), documentCompanyName: context.companyName, documentCompanyDetails: context.companyDetails, documentCustomerName: context.customerName, documentCustomerDetails: context.customerAddress }));
   const [receipt, setReceipt] = useState<WorkflowResponse | null>(null);
   const [saved, setSaved] = useState(existing || bozzaIniziale ? "" : JSON.stringify(form));
@@ -59,6 +60,14 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
   const [emailCliente, setEmailCliente] = useState(context.customerEmail ?? "");
   const [nomeCliente, setNomeCliente] = useState(context.customerName ?? "");
   const lock = useRef(false), alive = useRef(true);
+  const editorRef = useRef<HTMLElement>(null);
+  const pdfRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (inline) editorRef.current?.focus();
+  }, [inline]);
+  useEffect(() => {
+    if (passo === "manda" && pdf) pdfRef.current?.scrollIntoView?.({ block: "nearest" });
+  }, [passo, pdf]);
   // Una variante nuova parte con le condizioni di «Contratti e condizioni» (09/11/2026). È una COPIA sul documento:
   // si può correggere qui, e cambiare il modello domani non tocca le varianti già fatte.
   const condizioniAzienda = useCondizioniDocumento("commessa");
@@ -79,13 +88,13 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
   const approvata = stato === "approvato";
   const pending = stato === "in_attesa";
 
-  const absorb = (data: WorkflowResponse) => {
+  const absorb = useCallback((data: WorkflowResponse) => {
     setReceipt(data);
     if (data.workspace) { setForm(data.workspace.content); setSaved(JSON.stringify(data.workspace.content)); }
     else if(data.variation) {const legacy={...emptyVariationDraft(),title:data.variation.titolo,description:data.variation.descrizione,amount:String(Math.abs(data.variation.impatto_economico)),kind:data.variation.impatto_economico<0?"riduzione" as const:"aggiunta" as const,days:String(data.variation.impatto_giorni)};setForm(legacy);setSaved(JSON.stringify(legacy));}
     if (Array.isArray(data.evidence)) setEvidence(data.evidence);
     else if (data.evidence) setEvidence(previous => [data.evidence as WorkflowEvidence, ...previous.filter(item => item.id !== (data.evidence as WorkflowEvidence).id)]);
-  };
+  }, []);
   useEffect(() => {
     alive.current = true;
     if (existing) void workflow.request(id, "load").then(data => {
@@ -98,6 +107,25 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
     // Dialog is keyed by company/order/id; no background reload can overwrite edits.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, order, company]);
+
+  const aggiornamentoFirma = useQuery({
+    queryKey: ["variation-signature-status", company, order, id],
+    queryFn: () => workflow.request(id, "load"),
+    enabled: pending,
+    refetchInterval: 8000,
+    staleTime: 0,
+    meta: { silent: true },
+  });
+  useEffect(() => {
+    const firmata = aggiornamentoFirma.data;
+    if (!pending || firmata?.variation.status !== "approvato") return;
+    const aggiorna = window.setTimeout(() => {
+      absorb(firmata);
+      setPasso("manda");
+      void refresh(true);
+    }, 0);
+    return () => window.clearTimeout(aggiorna);
+  }, [pending, aggiornamentoFirma.data, absorb, refresh]);
 
   const phases = useQuery({ queryKey: ["variation-phase-options", order, company], enabled: editable,
     queryFn: async () => { const {data, error} = await supabase.from("order_work_phases").select("id,name,end_date").eq("order_id", order).eq("company_id", company).order("position"); if(error) throw error; return data ?? []; }, staleTime: 30_000 });
@@ -161,15 +189,26 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
     if(alive.current) setPdf({key:crypto.randomUUID(),blob:result.blob,name:result.name,downloadUrl:result.url});
   };
   const render = useCallback(async () => pdf ? createPdfPreviewUrl(pdf.blob) : "", [pdf]);
-  /** Niente «Salva bozza»: chiudere salva. Così un modulo lungo non si perde e il passo resta uno solo. */
+  const tornaAlPdf = (): void => void run("Apro…", async () => {
+    await showDocument();
+    if (alive.current) setPasso("rivedi");
+  });
+  /** La stessa operazione salva la bozza quando si torna all’elenco o si chiude il dialogo. */
   const close = () => {
     if (busy || lock.current) return;
     if (!dirty || !editable) { onClose(); return; }
-    void run("Salvo…", async () => { await save(); if (alive.current) onClose(); });
+    void run("Salvo…", async () => {
+      await save();
+      if (alive.current) {
+        if (inline) toast.success("Bozza salvata");
+        onClose();
+      }
+    });
   };
 
   const fresh = !!receipt?.document && !dirty && receipt.document.source_revision === receipt.workspace?.revision;
   const evidenceForDocument = evidence.filter(item => item.document_id === receipt?.document?.id);
+  const copiaFirmata = receipt?.variation.approval_evidence_id;
   // Il link di firma: quello della firma elettronica col codice. I vecchi link /firma-odv già mandati
   // restano validi e funzionanti, ma da oggi non se ne creano più.
   const link = firmaEsistente.data?.link ?? null;
@@ -261,27 +300,35 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
     : pending ? "Mandato al cliente: aspetta la firma."
     : "Scrivi cosa fai, guardi il PDF, lo mandi. Niente parte senza il tuo clic.";
 
-  return <Dialog open onOpenChange={open => { if(!open) close(); }}><DialogContent className="flex max-h-[94dvh] flex-col overflow-hidden p-0 sm:max-w-3xl">
-    <DialogHeader className="shrink-0 border-b p-4 pr-10">
-      <DialogTitle>{titolo}</DialogTitle>
-      <DialogDescription>{sottotitolo}</DialogDescription>
-      {!approvata && <ol className="mt-2 flex flex-wrap items-center gap-1.5 text-xs" aria-label="A che punto sei">
+  const indicatore = !approvata && <ol className="mt-2 flex flex-wrap items-center gap-1.5 text-xs" aria-label="A che punto sei">
         {PASSI.map((p, i) => {
           const fatto = i < passoCorrente;
           const ora = i === passoCorrente;
-          const puoAndare = i < passoCorrente || (i === 1 && !!receipt?.document) || (i === 2 && pending);
+          const puoAndare = i < passoCorrente || (i === 1 && fresh) || (i === 2 && pending);
           return <li key={p.id}>
-            <button type="button" disabled={!puoAndare || busy} onClick={() => setPasso(p.id)}
+            <button type="button" disabled={!puoAndare || busy} onClick={() => {
+              if (p.id === "rivedi" && !pdf) tornaAlPdf();
+              else setPasso(p.id);
+            }}
               className={cn("flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-medium",
                 ora ? "border-primary bg-primary text-primary-foreground" : fatto ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "text-muted-foreground",
                 puoAndare && !ora && "hover:bg-muted")}>
-              {fatto ? <Check className="h-3.5 w-3.5" aria-hidden /> : <span className="tabular-nums">{i + 1}</span>}{p.titolo}
+              {fatto ? <Check className="h-3.5 w-3.5" aria-hidden /> : <span className="tabular-nums">{i + 1}</span>}{inline && p.id === "manda" ? "Firma" : p.titolo}
             </button>
           </li>;
         })}
-      </ol>}
-    </DialogHeader>
+      </ol>;
 
+  const anteprima = pdf && (
+    <div ref={pdfRef} className={inline ? "h-[clamp(290px,41dvh,410px)]" : "h-[58dvh] min-h-[340px]"}>
+      <PdfBlobLivePreviewPanel key={pdf.key} renderBlobUrl={render} depsKey={pdf.key} debounceMs={0}
+        downloadFileName={pdf.name} downloadButtonLabel={inline ? "Scarica PDF" : undefined}
+        requireRenderedDownload={inline} fitWholePage={inline} showDownloadOnMobile allowOpenInNewTab={!inline}
+        headerLabel="Anteprima del documento" accentClass={inline ? "text-blue-700 dark:text-blue-300" : undefined} />
+    </div>
+  );
+
+  const corpo = (
     <div className="min-h-0 overflow-y-auto p-4 space-y-4">
       {error && <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{error} {existing && !receipt && <Button variant="outline" size="sm" onClick={() => void run("Riprovo…", async () => absorb(await workflow.request(id,"load")))}>Riprova</Button>}</div>}
 
@@ -297,9 +344,8 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
           {impatto.vat !== null && <div><p className="text-[11px] text-muted-foreground">Con IVA {impatto.rate}%</p><p className="text-base font-semibold tabular-nums">{formatCurrency(impatto.grossDelta)}</p></div>}
           {impatto.revisedNet !== null && <div><p className="text-[11px] text-muted-foreground">Contratto se accetta</p><p className="text-base font-semibold tabular-nums">{formatCurrency(impatto.revisedNet)}</p></div>}
         </div>}
-        {pdf ? <div className="h-[58dvh] min-h-[340px]"><PdfBlobLivePreviewPanel key={pdf.key} renderBlobUrl={render} depsKey={pdf.key} debounceMs={0} downloadFileName={pdf.name} showDownloadOnMobile /></div>
-          : <p role="status" className="rounded-lg border p-6 text-center text-sm text-muted-foreground">{busy ? "Preparo il PDF…" : "Il PDF si prepara quando arrivi qui."}</p>}
-        {pdf && <a href={pdf.downloadUrl} download={pdf.name} target="_blank" rel="noopener" className="inline-flex min-h-10 items-center rounded-md border px-4 text-sm font-medium">Scarica il PDF</a>}
+        {anteprima ?? <p role="status" className="rounded-lg border p-6 text-center text-sm text-muted-foreground">{busy ? "Preparo il PDF…" : "Il PDF si prepara quando arrivi qui."}</p>}
+        {!inline && pdf && <a href={pdf.downloadUrl} download={pdf.name} target="_blank" rel="noopener" className="inline-flex min-h-10 items-center rounded-md border px-4 text-sm font-medium">Scarica il PDF</a>}
         {receipt?.document?.attachments.map(file => <div key={file.id} className="flex items-center justify-between gap-2 rounded-md border p-3"><span className="text-sm break-all">{file.name}</span><Button variant="outline" size="sm" disabled={busy} onClick={() => void run("Apro…", () => showDocument(file.id))}>Apri</Button></div>)}
         <p className="text-xs text-muted-foreground">Se cambi qualcosa, il PDF si rifà: quelli vecchi restano nei Documenti della commessa.</p>
       </>}
@@ -310,8 +356,10 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
             <p className="flex items-center gap-2 text-sm font-medium text-emerald-900"><Check className="h-4 w-4" />Accettato dal cliente {receipt?.variation.approval_channel === "offline" ? "con firma su carta" : "online, dal link"}{receipt?.variation.firmato_da ? ` · ${receipt.variation.firmato_da}` : ""}.</p>
             <p className="text-sm text-emerald-900">L'importo è nel contratto della commessa e il lavoro è una fase delle Lavorazioni, con le sue sottofasi.</p>
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" disabled={busy} onClick={() => void run("Apro…", () => showDocument())}>Apri il PDF firmato</Button>
-              {evidence.map(item => <Button key={item.id} variant="outline" size="sm" disabled={busy} onClick={() => void run("Apro…", () => showDocument(item.id))}>Copia caricata: {item.file_name}</Button>)}
+              {copiaFirmata && <Button variant="outline" size="sm" disabled={busy}
+                onClick={() => void run("Apro…", () => showDocument(copiaFirmata))}>Apri la copia firmata</Button>}
+              <Button variant="outline" size="sm" disabled={busy} onClick={() => void run("Apro…", () => showDocument())}>Apri la proposta PDF</Button>
+              {evidence.filter(item => item.id !== copiaFirmata).map(item => <Button key={item.id} variant="outline" size="sm" disabled={busy} onClick={() => void run("Apro…", () => showDocument(item.id))}>Copia caricata: {item.file_name}</Button>)}
             </div>
           </div>
         ) : <>
@@ -367,18 +415,48 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
             {approval.isError && <p role="alert" className="text-sm text-destructive">Permesso non verificabile: puoi conservare la copia, non registrarla.</p>}
           </div>}
         </>}
+        {anteprima}
       </>}
     </div>
-
-    <DialogFooter className="shrink-0 flex-wrap gap-2 border-t p-4">
-      <Button variant="outline" disabled={busy} onClick={close}>{dirty && editable ? "Salva bozza e chiudi" : "Chiudi"}</Button>
+  );
+  const azioni = <>
+      <Button variant="outline" disabled={busy} onClick={close}>
+        {dirty && editable ? (inline ? "Salva bozza" : "Salva bozza e chiudi") : (inline ? "Torna alle varianti" : "Chiudi")}
+      </Button>
       {passo === "cosa" && editable && <Button disabled={busy} onClick={vaiARivedi}>{busy ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />{azione}</> : "Avanti: guarda il PDF"}</Button>}
       {passo === "rivedi" && <>
         {editable && <Button variant="outline" disabled={busy} onClick={() => setPasso("cosa")}>Correggi</Button>}
-        <Button disabled={busy || !receipt?.document} onClick={() => setPasso("manda")}>Avanti: mandalo</Button>
+        <Button disabled={busy || !receipt?.document} onClick={() => { setPdf(null); setPasso("manda"); }}>{inline ? "Vai alla firma" : "Avanti: mandalo"}</Button>
       </>}
-      {passo === "manda" && !approvata && <Button variant="outline" disabled={busy} onClick={() => setPasso(editable ? "cosa" : "rivedi")}>{editable ? "Correggi" : "Rivedi il PDF"}</Button>}
+      {passo === "manda" && !approvata && <Button variant="outline" disabled={busy} onClick={() => {
+        if (editable) setPasso("cosa");
+        else tornaAlPdf();
+      }}>{editable ? "Correggi" : "Rivedi il PDF"}</Button>}
       {canEdit && receipt && ["bozza","in_attesa"].includes(receipt.variation.status) && <Button variant="ghost" className="text-muted-foreground" disabled={busy} onClick={()=>void run("Annullo…", async()=>{if(window.confirm("Annullare questo lavoro extra e togliere il link? I documenti restano."))absorb(await workflow.request(id,"cancel"));})}>Annulla</Button>}
-    </DialogFooter>
-  </DialogContent></Dialog>;
+  </>;
+
+  if (inline) return (
+    <section ref={editorRef} tabIndex={-1} aria-label={titolo}
+      className="flex h-[clamp(320px,53dvh,580px)] flex-col overflow-hidden rounded-lg border bg-card focus:outline-none">
+      <header className="shrink-0 space-y-1 border-b bg-muted/30 px-4 py-3">
+        <h3 className="text-sm font-semibold">{titolo}</h3>
+        <p className="text-xs text-muted-foreground">{sottotitolo}</p>
+        {indicatore}
+      </header>
+      {corpo}
+      <div className="mt-auto flex shrink-0 flex-wrap justify-end gap-2 border-t bg-card p-3">{azioni}</div>
+    </section>
+  );
+
+  return <Dialog open onOpenChange={open => { if(!open) close(); }}>
+    <DialogContent className="flex max-h-[94dvh] flex-col overflow-hidden p-0 sm:max-w-3xl">
+      <DialogHeader className="shrink-0 border-b p-4 pr-10">
+        <DialogTitle>{titolo}</DialogTitle>
+        <DialogDescription>{sottotitolo}</DialogDescription>
+        {indicatore}
+      </DialogHeader>
+      {corpo}
+      <DialogFooter className="shrink-0 flex-wrap gap-2 border-t p-4">{azioni}</DialogFooter>
+    </DialogContent>
+  </Dialog>;
 }

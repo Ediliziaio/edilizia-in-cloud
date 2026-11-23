@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ElencoUnita } from "@/lib/orders/generali/unita";
+import { leggiElencoUnita } from "@/lib/orders/generali/unita";
 import type { RiepilogoGenerale, TotaliGenerale } from "@/lib/orders/commesseGenerali";
 import { unitaDalPiano, type UnitaDalPiano } from "@/lib/orders/generali/unitaDalPiano";
 import type { VocePiano } from "@/lib/orders/generali/pianoConti";
@@ -17,6 +18,8 @@ const m = vi.hoisted(() => ({
   serie: vi.fn(),
 }));
 vi.mock("@/hooks/useUnitaDalPiano", () => ({ useUnitaDalPiano: () => m.dalPiano }));
+vi.mock("@/hooks/useGeneraleRendiconto", () => ({ useAziendaDossier: () => ({ data: undefined }) }));
+vi.mock("@/hooks/useGeneraleVendita", () => ({ useFileVenditaUnita: () => ({ file: null, isLoading: false }) }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
 vi.mock("@/hooks/useCommesseGenerali", () => ({ messaggioGenerale: (_e: unknown, cosa: string) => `errore ${cosa}`, useCriterioRipartizione: () => ({ data: { criterio: "auto", disponibile: false } }) }));
 vi.mock("@/hooks/useGeneraleFatture", () => ({ useFattureGenerale: () => ({ data: undefined as undefined }) }));
@@ -29,6 +32,7 @@ vi.mock("@/hooks/useGeneraleUnita", () => {
   };
 });
 vi.mock("@/components/orders/generali/vendita/BottoneListino", () => ({ BottoneListino: () => <button type="button">Listino</button> }));
+vi.mock("@/components/orders/generali/vendita/MaterialeUnita", () => ({ MaterialeUnita: () => null }));
 
 import { SchedaUnita } from "@/components/orders/generali/unita/SchedaUnita";
 
@@ -108,5 +112,30 @@ describe("unità dalle vendite del piano", () => {
   it("chi non può modificare non vede le partenze", () => {
     render(<MemoryRouter><SchedaUnita riepilogo={riepilogo} totali={{} as TotaliGenerale} puoModificare={false} /></MemoryRouter>);
     expect(screen.queryByRole("button", { name: /Crea dalle vendite del piano/ })).not.toBeInTheDocument();
+  });
+
+  it("cerca oltre la prima pagina e apre la stessa unità tramite un link", () => {
+    m.elenco = leggiElencoUnita({
+      modello: "sviluppo", costi_comuni: 0, permessi: vuoto().permessi,
+      figlie: Array.from({ length: 48 }, (_, i) => {
+        const sigla = `U${String(i + 1).padStart(2, "0")}`;
+        return { order_id: sigla, nome: `Interno ${sigla}`, codice: sigla, unita: {
+          id: `scheda-${sigla}`, sigla, edificio: i < 24 ? "Palazzina A" : "Palazzina B", piano: "2",
+          stato: "libera", mq_commerciali: 80, movimenti: [],
+        } };
+      }),
+    });
+    const prima = disegna("/?scheda=unita");
+    expect(screen.queryByRole("button", { name: /^U48, / })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole("searchbox", { name: "Cerca unità" }), { target: { value: "palazzina b u48" } });
+    expect(screen.getByText("1 di 48 unità")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^U48, / })).toBeInTheDocument();
+    prima.unmount();
+
+    disegna("/?scheda=unita&unita=U48&cerca-unita=U48");
+    const finestra = within(screen.getByRole("dialog", { name: /^U48/ }));
+    const linkCantiere = finestra.getByRole("link", { name: "Cantiere di questa unità" });
+    expect(linkCantiere.getAttribute("href")).toContain("ambito-cantiere=U48");
+    expect(linkCantiere.getAttribute("href")).toContain("cerca-unita=U48");
   });
 });

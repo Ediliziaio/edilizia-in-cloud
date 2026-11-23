@@ -6,7 +6,7 @@ import { UniformSelect } from "@/components/ui/uniform-select";
 // sviluppo; immobile acquistato, ristrutturazione e rivendita della compravendita). Ogni sezione si
 // salva da sé: un dato si cambia qui e solo qui.
 import { useState } from "react";
-import { AlertTriangle, ClipboardList, Loader2 } from "lucide-react";
+import { AlertTriangle, ArrowDownRight, ClipboardList, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,6 @@ import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ScegliCliente } from "@/components/orders/generali/ScegliCliente";
-import { IntestazioneScheda } from "@/components/orders/generali/design/ElementiScheda";
 import type { ModuloScheda, PropsScheda } from "@/components/orders/generali/tipiScheda";
 import { messaggioGenerale, useSalvaDatiGenerale } from "@/hooks/useCommesseGenerali";
 import { leggiImporto } from "@/lib/controlloGestione/formatCG";
@@ -59,20 +58,24 @@ function Riquadro({ titolo, descrizione, children, salva, inSalvataggio, cambiat
   puoModificare: boolean;
 }) {
   return (
-    <section aria-label={titolo} className="generale-panel">
-      <header className="flex flex-wrap items-baseline justify-between gap-2 border-b px-4 py-3">
-        <div>
+    <section aria-label={titolo} className="generale-panel generale-dati-card">
+      <div className="generale-dati-card-header">
+        <div className="min-w-0">
           <h3 className="text-sm font-semibold">{titolo}</h3>
-          <p className="text-xs text-muted-foreground">{descrizione}</p>
+          {descrizione && <p className="text-xs text-muted-foreground">{descrizione}</p>}
         </div>
         {puoModificare && (
-          <Button size="sm" onClick={salva} disabled={!cambiato || inSalvataggio}>
-            {inSalvataggio && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-            Salva
-          </Button>
+          <div className="flex shrink-0 items-center gap-2">
+            {cambiato && !inSalvataggio && <span className="text-xs text-amber-800 dark:text-amber-200">Da salvare</span>}
+            <Button type="button" size="sm" variant={cambiato ? "default" : "outline"} className="h-8"
+              onClick={salva} disabled={!cambiato || inSalvataggio}>
+              {inSalvataggio && <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />}
+              {inSalvataggio ? "Salvataggio…" : "Salva"}
+            </Button>
+          </div>
         )}
-      </header>
-      <div className="grid gap-3 px-4 py-3 sm:grid-cols-2 lg:grid-cols-3">{children}</div>
+      </div>
+      <div className="generale-dati-campi">{children}</div>
     </section>
   );
 }
@@ -185,14 +188,17 @@ function SezioneComune({ riepilogo, puoModificare }: PropsScheda) {
   const luogo = g.modello === "compravendita" ? "Indirizzo dell'immobile" : g.modello === "sviluppo" ? "Indirizzo dell'area" : "Indirizzo del cantiere";
 
   return (
-    <Riquadro titolo="La commessa" descrizione="Per chi è, dove, quando e chi la segue." salva={conferma} inSalvataggio={salva.isPending} cambiato={cambiati.length > 0} puoModificare={puoModificare}>
+    <Riquadro titolo="La commessa" descrizione="" salva={conferma} inSalvataggio={salva.isPending} cambiato={cambiati.length > 0} puoModificare={puoModificare}>
       <div className="space-y-1">
         <Label htmlFor="dati-cliente" className="text-xs">{def.cliente.etichetta}</Label>
-        {puoModificare
-          ? <ScegliCliente id="dati-cliente" valore={v.cliente} onCambia={(c) => setV((x) => ({ ...x, cliente: c }))} />
-          : <p className="text-sm">{g.cliente ?? "—"}</p>}
+        {puoModificare ? (
+          <>
+            <ScegliCliente id="dati-cliente" valore={v.cliente} onCambia={(c) => setV((x) => ({ ...x, cliente: c }))} />
+            {!v.cliente && g.cliente && <p className="text-xs text-muted-foreground">{g.cliente} · da collegare alla rubrica</p>}
+          </>
+        ) : <p id="dati-cliente" className="text-sm">{g.cliente ?? "—"}</p>}
       </div>
-      <div className="space-y-1 sm:col-span-2">
+      <div className="generale-dati-indirizzo space-y-1">
         <Label htmlFor="dati-indirizzo" className="text-xs">{luogo}</Label>
         <CampoIndirizzo id="dati-indirizzo" className="h-9" value={v.indirizzo} disabled={disab} placeholder="Via, numero, comune" onChange={(t) => setV((x) => ({ ...x, indirizzo: t }))} />
       </div>
@@ -209,9 +215,9 @@ function SezioneComune({ riepilogo, puoModificare }: PropsScheda) {
         <Label htmlFor="dati-responsabile" className="text-xs">Chi la segue</Label>
         <Input id="dati-responsabile" className="h-9" value={v.responsabile} disabled={disab} placeholder="es. Mario Rossi" onChange={(e) => setV((x) => ({ ...x, responsabile: e.target.value }))} />
       </div>
-      <div className="space-y-1 sm:col-span-2 lg:col-span-3">
+      <div className="generale-dati-note space-y-1">
         <Label htmlFor="dati-note" className="text-xs">Note</Label>
-        <Textarea id="dati-note" rows={2} value={v.note} disabled={disab} onChange={(e) => setV((x) => ({ ...x, note: e.target.value }))} />
+        <Textarea id="dati-note" rows={2} className="min-h-12 resize-y" value={v.note} disabled={disab} onChange={(e) => setV((x) => ({ ...x, note: e.target.value }))} />
       </div>
     </Riquadro>
   );
@@ -227,30 +233,62 @@ export function SchedaDati(props: PropsScheda) {
     fine: g.fine ?? null,
     dati: g.dati ?? {},
   });
+  const campiMancanti: Record<string, { id: string; etichetta: string }> = {
+    cliente: { id: "dati-cliente", etichetta: g.cliente ? "Collega il committente alla rubrica" : "Committente" },
+    tipo: { id: "dati-appalto-tipo", etichetta: "Appalto pubblico o privato" },
+    indirizzo: { id: "dati-indirizzo", etichetta: g.modello === "sviluppo" ? "Indirizzo dell’area" : g.modello === "compravendita" ? "Indirizzo dell’immobile" : "Indirizzo del cantiere" },
+    inizio: { id: "dati-inizio", etichetta: "Inizio lavori" },
+    titolo: { id: "dati-titolo-tipo", etichetta: "Titolo edilizio" },
+    immobile: {
+      id: g.dati?.immobile?.prezzo == null ? "dati-immobile-prezzo" : "dati-immobile-data_rogito",
+      etichetta: g.dati?.immobile?.prezzo == null && !g.dati?.immobile?.data_rogito ? "Prezzo e data del rogito" : g.dati?.immobile?.prezzo == null ? "Prezzo d’acquisto" : "Data del rogito",
+    },
+  };
+  const vaiAlCampo = (id: string) => {
+    const campo = document.getElementById(id);
+    campo?.scrollIntoView?.({ block: "center" });
+    campo?.focus({ preventScroll: true });
+  };
+
   return (
-    <section aria-label="Dati della commessa generale" className="generale-sheet space-y-4">
-      <IntestazioneScheda
-        icona={ClipboardList}
-        titolo={g.modello === "appalto" ? "Dati dell'appalto" : "Dati dell'operazione"}
-        descrizione="Ogni dato si scrive qui, una volta: liste, calendario, documenti e piano lo leggono da qui."
-      />
+    <section aria-labelledby="generale-dati-titolo" className="generale-dati space-y-2.5">
+      <h2 id="generale-dati-titolo" className="flex items-center gap-2 text-sm font-semibold">
+        <span className="generale-section-icon"><ClipboardList className="size-4" aria-hidden="true" /></span>
+        {g.modello === "appalto" ? "Dati dell’appalto" : "Dati dell’operazione"}
+      </h2>
       {mancanti.length > 0 && (
-        <p role="status" className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-          <span>Mancano {mancanti.map((m) => m.testo).join(", ")}.</span>
-        </p>
+        <div className="generale-dati-mancanti">
+          <p role="status" className="flex shrink-0 items-center gap-1.5 text-xs font-semibold">
+            <AlertTriangle className="size-3.5" aria-hidden="true" /> Da completare · {mancanti.length}
+          </p>
+          <ul className="flex flex-wrap gap-1.5">
+            {mancanti.map(m => {
+              const campo = campiMancanti[m.id];
+              return (
+                <li key={m.id}>
+                  {campo && props.puoModificare ? (
+                    <button type="button" className="generale-dati-salto" onClick={() => vaiAlCampo(campo.id)}>
+                      {campo.etichetta} <ArrowDownRight className="size-3" aria-hidden="true" />
+                    </button>
+                  ) : <span className="generale-dati-salto">{campo?.etichetta ?? m.testo}</span>}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       )}
-      {/* La chiave rimonta le sezioni quando arrivano dati nuovi dal database. */}
-      <SezioneComune key={`comune-${g.clienteId}-${g.indirizzo}-${g.inizio}-${g.fine}-${g.dati?.responsabile}-${g.dati?.note}`} {...props} />
-      {SEZIONI_PER_MODELLO[g.modello].map((s) => (
-        <SezioneTipologia
-          key={`${s.id}-${JSON.stringify(g.dati?.[s.id] ?? {})}`}
-          generaleId={g.id}
-          sezione={s}
-          iniziali={(g.dati?.[s.id] ?? {}) as Record<string, unknown>}
-          puoModificare={props.puoModificare}
-        />
-      ))}
+      <div className="generale-dati-griglia">
+        <SezioneComune key={`comune-${g.clienteId}-${g.indirizzo}-${g.inizio}-${g.fine}-${g.dati?.responsabile}-${g.dati?.note}`} {...props} />
+        {SEZIONI_PER_MODELLO[g.modello].map((s) => (
+          <SezioneTipologia
+            key={`${s.id}-${JSON.stringify(g.dati?.[s.id] ?? {})}`}
+            generaleId={g.id}
+            sezione={s}
+            iniziali={(g.dati?.[s.id] ?? {}) as Record<string, unknown>}
+            puoModificare={props.puoModificare}
+          />
+        ))}
+      </div>
     </section>
   );
 }

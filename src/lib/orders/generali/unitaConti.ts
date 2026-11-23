@@ -3,7 +3,7 @@
 // di ogni unità, il margine, cosa chiede il D.Lgs. 122/2005, come si divide un'unità.
 // Niente React né database: i dati arrivano da `generale_unita_elenco` (unita.ts).
 import {
-  confrontaSigle, isIncasso, prezzoConVarianti, prezzoCorrente, unitaVive, type ElencoUnita, type StatoVendita, type UnitaGenerale,
+  confrontaSigle, isIncasso, prezzoConVarianti, prezzoCorrente, statoVenditaConfermato, unitaVive, type ElencoUnita, type StatoVendita, type UnitaGenerale,
 } from "@/lib/orders/generali/unita";
 
 const arrotonda = (n: number) => Math.round(n * 100) / 100;
@@ -83,7 +83,7 @@ export function riepilogoVendite(e: Pick<ElencoUnita, "unita" | "permessi">): Ri
   const importi = e.permessi.importi;
   const somma = (lista: UnitaGenerale[], f: (u: UnitaGenerale) => number | null) =>
     importi ? arrotonda(lista.reduce((t, u) => t + (f(u) ?? 0), 0)) : null;
-  const vendute = vive.filter((u) => u.stato === "compromesso" || u.stato === "rogitata");
+  const vendute = vive.filter((u) => statoVenditaConfermato(u.stato));
   const pagamenti = new Map(vive.map((u) => [u.orderId, pagamentiUnita(u)]));
   return {
     unita: vive.length,

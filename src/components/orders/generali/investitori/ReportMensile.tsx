@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { CalendarDays, Download } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   useFotografieGenerale,
@@ -11,20 +12,20 @@ import {
 import type { RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 import { csvReportMensile } from "@/lib/orders/generali/reportMensileCsv";
 import { Button } from "@/components/ui/button";
-import { euro } from "../piano/formato";
+import { Input } from "@/components/ui/input";
+import { dataBreve, euro } from "../piano/formato";
 import { dayKey } from "@/lib/finance/forecastLedger";
 import { movimentoPrevisto } from "@/lib/orders/generali/movimentiFonti";
 import { dataFotografia } from "@/lib/orders/generali/reportMensilePeriodo";
+import { meseValido } from "@/lib/orders/rapportiniMese";
 
 /** Closed periods use frozen monthly economic figures; live forecasts cannot be backdated. */
 export function ReportMensile({
   riepilogo,
   meseIniziale,
-  apertoInizialmente = false,
 }: {
   riepilogo: RiepilogoGenerale;
   meseIniziale?: string;
-  apertoInizialmente?: boolean;
 }) {
   const { effectiveCompany } = useAuth();
   const foto = useFotografieGenerale(riepilogo.generale.id);
@@ -32,15 +33,13 @@ export function ReportMensile({
   const fonti = useFontiGenerale(riepilogo.generale.id);
   const mov = useMovimentiFonti(riepilogo.generale.id);
   const oggi = dayKey(new Date());
+  const meseOggi = oggi.slice(0, 7);
   const [mese, setMese] = useState(() =>
-    meseIniziale &&
-    /^\d{4}-(0[1-9]|1[0-2])$/.test(meseIniziale) &&
-    meseIniziale <= oggi.slice(0, 7)
+    meseValido(meseIniziale) && meseIniziale <= meseOggi
       ? meseIniziale
-      : oggi.slice(0, 7),
+      : meseOggi,
   );
-  const [aperto, setAperto] = useState(apertoInizialmente);
-  const corrente = mese === oggi.slice(0, 7);
+  const corrente = mese === meseOggi;
   const p = piano.piano;
   const f =
     corrente && p && piano.inVista?.stato === "approvata"
@@ -123,6 +122,8 @@ export function ReportMensile({
     !mov.isError &&
     !fonti.isLoading &&
     !mov.isLoading;
+  const caricamento = fonti.isLoading || mov.isLoading || (corrente ? piano.isLoading : foto.isLoading);
+  const errore = foto.isError || fonti.isError || mov.isError || (corrente && piano.isError);
   const scarica = () => {
     if (!f || !pronto) return;
     const rows = [
@@ -174,75 +175,66 @@ export function ReportMensile({
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
   return (
-    <details
-      className="rounded-lg border bg-card p-4"
-      open={aperto}
-      onToggle={(e) => setAperto(e.currentTarget.open)}
-    >
-      <summary className="cursor-pointer font-semibold">
-        Rendiconto mensile dell'operazione
-      </summary>
-      <div className="mt-3 space-y-3">
-        <label className="flex items-center gap-2 text-sm">
-          Periodo{" "}
-          <input
+    <section className="generale-panel min-w-0" aria-labelledby="investitori-rendiconto-mensile">
+      <header className="flex flex-wrap items-center gap-2 px-3 py-2">
+        <h3 id="investitori-rendiconto-mensile" className="mr-auto flex items-center gap-2 text-sm font-semibold">
+          <CalendarDays className="size-4 text-primary" aria-hidden="true" /> Rendiconto mensile dell’operazione
+        </h3>
+        <label className="flex items-center gap-2 text-xs">
+          Periodo
+          <Input
             aria-label="Periodo rendiconto investitori"
+            lang="it"
             type="month"
-            max={oggi.slice(0, 7)}
+            max={meseOggi}
             value={mese}
             onChange={(e) => {
-              if (/^\d{4}-\d{2}$/.test(e.target.value)) setMese(e.target.value);
+              const valore = e.target.value;
+              if (meseValido(valore) && valore <= meseOggi) setMese(valore);
             }}
-            className="rounded border bg-background px-2 py-1"
+            className="h-8 w-40 text-xs"
           />
         </label>
-        <p className="text-xs text-muted-foreground">
-          {effectiveCompany?.name} · Capitale riferito al{" "}
-          {data || "periodo selezionato"}.{" "}
-          {corrente
-            ? "Mese corrente: budget approvato e stima aggiornati alla data del report."
-            : "Budget e stima finale dalla fotografia del periodo; i mesi chiusi non usano valori correnti retrodatati."}
-        </p>
-        {foto.isError || fonti.isError || mov.isError ? (
-          <p role="alert">Dati del rendiconto non disponibili.</p>
-        ) : !pronto ? (
-          <p role="status" className="text-sm text-amber-800">
-            {corrente
-              ? "Completa e approva il budget e il calendario prima di scaricare il rendiconto corrente."
-              : "Manca una fotografia valida con budget approvato per il periodo. Il rendiconto storico completo resta bloccato."}
-          </p>
-        ) : (
-          <p className="text-sm">
-            Budget costi {euro(f!.costiPrevisti)} · stima finale{" "}
-            {euro(f!.costiStima)} · scostamento{" "}
-            {euro(f!.costiStima - f!.costiPrevisti)}
-          </p>
-        )}
-        {oneriPrevisti > 0 && (
-          <p className="text-xs text-muted-foreground">
-            Oneri finanziari ancora previsti: {euro(oneriPrevisti)}, esclusi dai
-            pagati alla data del report.{" "}
-            {corrente
-              ? "Budget e stima provengono dal piano approvato."
-              : "Budget e stima restano quelli della fotografia."}
-          </p>
-        )}
-        {righe.map((r) => (
-          <div
-            key={r.id}
-            className="flex flex-wrap justify-between gap-2 border-t pt-2 text-sm"
-          >
-            <span>{r.nome}</span>
-            <span>
-              Versato {euro(r.versato)} · rimborsato {euro(r.rimborsato)} ·
-              capitale dentro {euro(r.dentro)}
-            </span>
-          </div>
-        ))}
-        <Button variant="outline" disabled={!pronto} onClick={scarica}>
-          Scarica rendiconto del periodo
+        <Button type="button" size="sm" className="h-8 gap-1.5" disabled={!pronto} onClick={scarica}>
+          <Download className="size-4" aria-hidden="true" /> Scarica CSV
         </Button>
-      </div>
-    </details>
+      </header>
+      {errore ? <p role="alert" className="border-t p-3 text-sm">Dati del rendiconto non disponibili.</p>
+        : caricamento ? <p role="status" className="border-t p-3 text-sm text-muted-foreground">Caricamento del rendiconto…</p>
+          : !pronto || !f ? <p role="status" className="border-t p-3 text-sm text-amber-800 dark:text-amber-300">
+            {corrente ? "Completa e approva il budget e il calendario per preparare il rendiconto corrente."
+              : "Per questo periodo serve una fotografia economica con budget approvato."}
+          </p> : <>
+            <p className="border-t bg-muted/25 px-3 py-2 text-xs text-muted-foreground">
+              {corrente ? "Piano approvato" : "Fotografia del periodo"} · Versione {f.versioneNumero} · Capitale riferito al {dataBreve(data)}
+            </p>
+            <dl className="grid border-t sm:grid-cols-3 sm:divide-x">
+              {[
+                { titolo: "Budget costi", valore: f.costiPrevisti },
+                { titolo: "Stima finale", valore: f.costiStima },
+                { titolo: "Scostamento costi", valore: f.costiStima - f.costiPrevisti },
+              ].map(c => <div className="px-3 py-2" key={c.titolo}>
+                <dt className="text-xs text-muted-foreground">{c.titolo}</dt>
+                <dd className="text-sm font-semibold tabular-nums">{euro(c.valore)}</dd>
+              </div>)}
+            </dl>
+            {righe.length ? <div className="overflow-x-auto border-t">
+              <table aria-label="Movimenti effettivi per fonte nel rendiconto mensile" className="generale-registro-tabella min-w-[41rem]">
+                <thead className="bg-muted/40"><tr>
+                  <th scope="col">Fonte</th>
+                  {["Versato", "Rimborsato", "Accollo", "Capitale in essere", "Interessi, spese e utile pagati"].map(c =>
+                    <th scope="col" key={c} className="text-right">{c}</th>)}
+                </tr></thead>
+                <tbody>{righe.map(r => <tr key={r.id}>
+                  <th scope="row" className="text-left font-medium">{r.nome}</th>
+                  {[r.versato, r.rimborsato, r.accollo, r.dentro, r.remunerato].map((v, i) => <td key={i} className="text-right tabular-nums">{euro(v)}</td>)}
+                </tr>)}</tbody>
+              </table>
+            </div> : <p className="border-t px-3 py-2 text-sm text-muted-foreground">Nessuna fonte registrata.</p>}
+            {oneriPrevisti > 0 && <p className="border-t px-3 py-2 text-xs text-muted-foreground">
+              Oneri finanziari ancora previsti · {euro(oneriPrevisti)}
+            </p>}
+          </>}
+    </section>
   );
 }

@@ -10,7 +10,7 @@ interface Props {
   unita: UnitaGenerale[];
   vedeImporti: boolean;
   onApri: (orderId: string) => void;
-  /** Da telefono: caselle in griglia da quattro, etichetta del piano sopra e non a lato. */
+  /** Da telefono: caselle in griglia da tre, etichetta del piano sopra e non a lato. */
   telefono: boolean;
 }
 
@@ -31,7 +31,7 @@ export function TabelloneUnita({ unita, vedeImporti, onApri, telefono }: Props) 
                   {conPiani && (
                     <p className={cn("text-[11px] text-muted-foreground", telefono ? "mb-1" : "w-24 shrink-0 pt-2 text-right")}>{p.etichetta}</p>
                   )}
-                  <ul className={cn(telefono ? "grid grid-cols-4 gap-1.5" : "flex flex-1 flex-wrap gap-1.5")}>
+                  <ul className={cn(telefono ? "grid grid-cols-3 gap-1.5" : "flex flex-1 flex-wrap gap-1.5")}>
                     {p.unita.map((u) => (
                       <li key={u.orderId}>
                         <Casella u={u} vedeImporti={vedeImporti} telefono={telefono} onApri={onApri} />

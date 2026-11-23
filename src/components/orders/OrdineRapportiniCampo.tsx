@@ -43,7 +43,14 @@ import { CostiDaCompletareCommessa } from "@/components/orders/CostiDaCompletare
 import { RifiutaRapportinoDialog, useDecisioneRapportino } from "@/components/orders/DecisioneRapportino";
 import { orePersoneRapportino } from "@/lib/campo/orePersone";
 
-interface Props { orderId: string; /** Bottoni Approva/Rifiuta/PDF direttamente sulla riga (per il popup di Attività). */ azioniInRiga?: boolean; soloDaApprovare?: boolean; }
+interface Props {
+  orderId: string;
+  /** Bottoni Approva/Rifiuta/PDF direttamente sulla riga (per il popup di Attività). */
+  azioniInRiga?: boolean;
+  soloDaApprovare?: boolean;
+  rapportinoIniziale?: string | null;
+  onChiudiRapportinoIniziale?: () => void;
+}
 
 const fmtSafeDate = (value: string | null | undefined, pattern: string) => {
   if (!value) return "—";
@@ -106,7 +113,7 @@ const presenzeDi = (r: RigaOre) => (Array.isArray(r.presenze) ? (r.presenze as A
 const haPresenze = (r: RigaOre) => presenzeDi(r).length > 0;
 export { orePersoneRapportino };
 
-export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApprovare = false }: Props) {
+export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApprovare = false, rapportinoIniziale = null, onChiudiRapportinoIniziale }: Props) {
   const qc = useQueryClient();
   const { schema: moduloCantiere } = useModuloRapportino(orderId);
   const { effectiveCompany } = useAuth();
@@ -115,9 +122,12 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
 
   // Stato della vista legato alla commessa: nessun frame con la pagina o il
   // rapporto espanso della commessa precedente, né reset asincrono delle scelte.
-  const [expanded, setExpanded] = useState({ orderId, id: null as string | null });
+  const [expanded, setExpanded] = useState({ orderId, id: rapportinoIniziale });
   const expandedId = expanded.orderId === orderId ? expanded.id : null;
-  const setExpandedId = (id: string | null) => setExpanded({ orderId, id });
+  const setExpandedId = (id: string | null) => {
+    setExpanded({ orderId, id });
+    if (id === null && rapportinoIniziale && expandedId === rapportinoIniziale) onChiudiRapportinoIniziale?.();
+  };
   const [page, setPage] = useState({ orderId, count: 10 });
   const visibleCount = page.orderId === orderId ? page.count : 10;
   const setVisibleCount = (value: number | ((previous: number) => number)) => setPage(previous => ({
@@ -205,7 +215,7 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
       perMese.set(m, corrente);
     }
     const gruppi: Array<{ mese: string; etichetta: string; totale: number; ore: number; righe: typeof rapportini }> = [];
-    for (const r of rapportini.slice(0, visibleCount)) {
+    for (const r of rapportini.filter((r, indice) => indice < visibleCount || r.id === expandedId)) {
       const m = mese(r.data_lavoro);
       let gruppo = gruppi[gruppi.length - 1];
       if (!gruppo || gruppo.mese !== m) {
@@ -215,7 +225,7 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
       gruppo.righe.push(r);
     }
     return { riepilogo: { ore, daApprovare, avanzamento }, gruppi };
-  }, [rapportini, visibleCount]);
+  }, [rapportini, visibleCount, expandedId]);
 
   return (
     <Card>

@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -11,7 +12,10 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "az" } }) }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => stato.permessi }));
 vi.mock("@/hooks/useOperationalSuppliers", () => ({ useOperationalSuppliers: () => ({ suppliers: [{ id: "s1", name: "Aluplast" }, { id: "s2", name: "Vecchio", is_active: false }] }) }));
-vi.mock("@/hooks/useSupplierRfqs", () => ({ useSupplierRfqs: () => ({ rfqs: stato.rfqs, contatori: stato.contatori, isLoading: false, isError: false, create: { mutateAsync: stato.crea } }) }));
+vi.mock("@/hooks/useSupplierRfqs", () => ({
+  rfqKeys: { all: ["supplier-rfqs"] },
+  useSupplierRfqs: () => ({ rfqs: stato.rfqs, contatori: stato.contatori, isLoading: false, isError: false, create: { mutateAsync: stato.crea } }),
+}));
 vi.mock("@/hooks/useMaterialiPerFase", () => ({
   useMaterialiPerFase: () => ({ fasi: stato.fasi, isLoading: false }),
   useAzioniMateriali: () => ({ richiediOfferta: { mutateAsync: stato.richiedi } }),
@@ -19,7 +23,11 @@ vi.mock("@/hooks/useMaterialiPerFase", () => ({
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: () => ({ insert: stato.insert, update: () => ({ eq: stato.update }) }) } }));
 import { OrderRichiesteOfferta } from "@/components/orders/OrderRichiesteOfferta";
 
-const mostra = () => render(<MemoryRouter><OrderRichiesteOfferta orderId="o1" orderCode="O-1" /></MemoryRouter>);
+const mostra = (commesse?: React.ComponentProps<typeof OrderRichiesteOfferta>["commesse"]) => render(
+  <QueryClientProvider client={new QueryClient()}>
+    <MemoryRouter><OrderRichiesteOfferta orderId="o1" orderCode="O-1" commesse={commesse} /></MemoryRouter>
+  </QueryClientProvider>,
+);
 const materiale = (id: string, extra = {}) => ({ id, name: `Art ${id}`, quantity: 3, unita_misura: "m", ordinabile: true, supplier_rfq_item_id: null as string | null, ...extra });
 beforeEach(() => {
   vi.clearAllMocks();
@@ -95,6 +103,21 @@ describe("Richieste d'offerta della commessa", () => {
     await waitFor(() => expect(stato.crea).toHaveBeenCalledWith(expect.objectContaining({ order_id: "o1" })));
     await waitFor(() => expect(stato.insert).toHaveBeenCalledWith([{ rfq_id: "r-vuota", company_id: "az", supplier_id: "s1" }]));
     await waitFor(() => expect(stato.naviga).toHaveBeenCalledWith("/azienda/richieste-offerta/r-vuota"));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("raggruppa le richieste collegate e crea la nuova sulla generale", async () => {
+    stato.rfqs = [
+      { id: "a", order_id: "o1", titolo: "Infissi", rfq_number: "RDO-1", status: "inviata" },
+      { id: "b", order_id: "o2", titolo: "Ferri", rfq_number: "RDO-2", status: "bozza" },
+      { id: "c", order_id: "altro", titolo: "Altra operazione", rfq_number: "RDO-3", status: "bozza" },
+    ];
+    mostra([{ id: "o1", codice: "O-1", nome: "Generale" }, { id: "o2", codice: "O-2", nome: "Edificio" }]);
+    expect(screen.getByRole("cell", { name: "O-2" })).toHaveTextContent("O-2");
+    expect(screen.queryByText("Altra operazione")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Nuova richiesta sulla generale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Crea richiesta" }));
+    await waitFor(() => expect(stato.crea).toHaveBeenCalledWith(expect.objectContaining({ order_id: "o1" })));
   });
   it("se la creazione fallisce la finestra resta aperta", async () => {
     stato.crea.mockRejectedValue(new Error("no"));

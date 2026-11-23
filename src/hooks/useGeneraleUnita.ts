@@ -44,13 +44,14 @@ function useRileggi(generaleId: string) {
   const qc = useQueryClient();
   return (nuoveCommesse = false) => {
     refreshFinancialQueries(qc);
-    void qc.invalidateQueries({ queryKey: chiaviUnita.elenco(generaleId) });
+    const aggiornaUnita = qc.invalidateQueries({ queryKey: chiaviUnita.elenco(generaleId) }, { cancelRefetch: false });
     void qc.invalidateQueries({ queryKey: chiaviGenerali.riepilogo(generaleId) });
     // Un pagamento cambia anche l'elenco delle commesse e i suoi riquadri.
     void qc.invalidateQueries({ queryKey: ["mappa-commesse-generali"] });
     void qc.invalidateQueries({ queryKey: ["incassi-unita"] });
     void qc.invalidateQueries({ queryKey: ["orders-global-stats"] });
     if (nuoveCommesse) void qc.invalidateQueries({ queryKey: ["orders"] });
+    return aggiornaUnita;
   };
 }
 
@@ -102,7 +103,10 @@ export function useCambiaStatoUnita(generaleId: string) {
       const { error } = await db.rpc("generale_unita_stato", { p_order_id: orderId, p_stato: stato, p_dati: p });
       if (error) throw error;
     },
-    onSuccess: () => { richiesta.current=null; rileggi(); },
+    onSuccess: () => {
+      richiesta.current = null;
+      return rileggi();
+    },
   });
 }
 
@@ -119,7 +123,10 @@ export function useAggiungiMovimento(generaleId: string) {
       });
       if (error) throw error;
     },
-    onSuccess: () => { richiesta.current=null; rileggi(); },
+    onSuccess: () => {
+      richiesta.current = null;
+      return rileggi();
+    },
   });
 }
 

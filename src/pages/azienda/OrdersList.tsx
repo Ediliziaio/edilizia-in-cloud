@@ -5,7 +5,7 @@ import { useDashboardBillingKPI } from "@/hooks/billing/useDashboardBillingKPI";
 import { leggiModalitaCommesse } from "@/lib/finanziamenti/leggiModalitaCommesse";
 import {OrdersCarryoverSummary} from "@/components/orders/OrdersAnnualScope";
 import { OrdersTrashDialog } from '@/components/orders/OrdersTrashDialog';
-import {currentManagementScope, orderEconomics, orderYear, previousOrderReasons, orderScopeGroupIds, type OrderScopeGroup} from "@/lib/orders/annualScope";
+import {currentManagementScope, orderEconomicsRow, summarizeOrderEconomics, orderYear, previousOrderReasons, orderScopeGroupIds, type OrderScopeGroup} from "@/lib/orders/annualScope";
 import {TICKET_STATI_CHIUSI} from "@/types/tickets";
 import {readOrdersPage, soloQuesteCommesse, type OrdersReaderFilters} from "@/lib/orders/listQuery";
 import { parseOrderAdvancedFilters } from "@/lib/orders/advancedFilters";
@@ -45,10 +45,10 @@ const DDTRicezioneList = lazy(() => import("@/pages/azienda/DDTRicezioneList"));
 const GlobalErrors = lazy(() => import("@/pages/azienda/GlobalErrors"));
 const MarginalitaCantieri = lazy(() => import("@/pages/azienda/MarginalitaCantieri"));
 import { format } from "date-fns";
-import { annualComparisonPeriod, comparableOrderMonths, orderChartMonthFilter } from "@/lib/orders/monthlyChart";
+import { annualComparisonPeriod, comparableOrderMonths, orderChartMonthFilter, orderCreatedMonth } from "@/lib/orders/monthlyChart";
 import { OrdersMarginSummary } from "@/components/orders/OrdersMarginSummary";
 import { OrdersSummaryCard } from "@/components/orders/OrdersSummaryCard";
-import { directMarginSummary, groupedSummaryCards, netOrderTotals } from "@/lib/orders/summaryIndicators";
+import { directMarginSummary, groupedSummaryCards } from "@/lib/orders/summaryIndicators";
 import { useOrdersPayables } from "@/hooks/useOrdersPayables";
 const OrdersMonthlyChart = lazy(() => import("@/components/orders/OrdersMonthlyChart").then(module => ({default: module.OrdersMonthlyChart})));
 
@@ -74,7 +74,7 @@ import { commessaDaRiga } from "@/lib/orders/importaCommesse";
 import { messaggioErrore } from "@/lib/orders/sottofasi";
 import { CustomerSheetsExportDialog } from "@/components/orders/CustomerSheetsExportDialog";
 import { useToast } from "@/hooks/use-toast";
-import { type OrderPaymentDetails, type OrderWithDetails, getAmountDue, getAmountCollected, getPendingPayments, deleteOrderCascading, getGrossOrderAmount, contrattoPattuito } from "@/lib/orderUtils";
+import { type OrderWithDetails, getAmountDue, getAmountCollected, getPendingPayments, deleteOrderCascading, getGrossOrderAmount, contrattoPattuito } from "@/lib/orderUtils";
 import { PlanLimitWarning } from "@/components/billing/PlanLimitWarning";
 import { ScopriProgressBanner } from "@/components/subscription/UpgradeScopriBanner";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
@@ -204,6 +204,8 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
   const month = Number(monthFilter);
   const monthYear = /^\d{4}$/.test(yearFilter) ? Number(yearFilter) : new Date().getFullYear();
   const hasMonth = monthFilter !== "all" && Number.isInteger(month) && month >= 0 && month <= 11;
+  const selectedMonth = hasMonth ? `${monthYear}-${String(month + 1).padStart(2, "0")}` : null;
+  const selectedMonthLabel = hasMonth ? new Date(monthYear, month, 1).toLocaleDateString("it-IT", { month: "long", year: "numeric" }) : null;
   const contractDateRange: DateRange = {
     from: dateFromURL(urlFilters.contractFrom) ?? (hasMonth ? new Date(monthYear,month,1) : undefined),
     to: dateFromURL(urlFilters.contractTo) ?? (hasMonth ? new Date(monthYear,month+1,0) : undefined),
@@ -539,12 +541,6 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
     staleTime: 5 * 60 * 1000,
   });
 
-  // Il grafico e il riepilogo condividono le righe finanziarie già lette.
-  // La serie limita i mesi in fase di aggregazione.
-  const monthlyOrders = scopeOrders;
-  const isLoadingMonthlyOrders = !elencoInizializzato || !gestione;
-  const isMonthlyOrdersError = isStatusesError || errorePerimetro;
-
   const {data: allOrdersForPipeline = [], isPending: pipelinePending, isLoadingError: pipelineError,
     isRefetchError: pipelineRefreshError, isFetching: pipelineFetching, refetch: retryPipeline} = useQuery({
     queryKey: ["orders-pipeline", effectiveCompany?.id, filterReaderKey(), soloPrimoLivello, idsPipeline, sortField, sortDir],
@@ -562,9 +558,8 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
     ? (pipelinePending ? null : allOrdersForPipeline.length)
     : (conteggioInAttesa ? null : totalCount);
 
-  const { data: globalStats, isLoading: isLoadingGlobalStats, isError: erroreRiepilogo } = useQuery({
-    queryKey: ["orders-global-stats", "riepilogo-v1", effectiveCompany?.id, yearFilter, currentYear, lastStatusId, supportStatusId, gestioneResultAt, generaliConfigurate],
-    queryFn: ({signal}) => withAbortableClientTimeout(async (readSignal) => {
+  const caricaRiepilogo = (signal: AbortSignal) =>
+    withAbortableClientTimeout(async (readSignal) => {
       if (!effectiveCompany?.id || !gestione) throw new Error("Perimetro commesse non disponibile.");
       const { rows } = gestione;
       const ticketIds = new Set(gestione.ticketIds);
@@ -573,17 +568,14 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
         generaliConfigurate ? leggiMovimentiUnita(effectiveCompany.id) : { incassi: undefined, permute: undefined, statoVendita: undefined },
       ]);
       readSignal.throwIfAborted();
-      const generali = new Set(generaliIds);
-      // Nemmeno le unità ancora in vendita: sono appartamenti da vendere, non lavori né crediti
-      // (44 unità di URBAN VISION contavano come 44 contratti firmati da incassare, 14/11).
-      const righeCheContano = generali.size
-        ? rows.filter(order => !generali.has(order.id) && !unitaInVendita(statoVendita?.get(order.id)))
-        : rows;
-      const annualRows = isYearCorrente ? righeCheContano.filter(order => orderYear(order) === currentYear) : righeCheContano;
+      const esclusi = new Set(generaliIds);
+      for (const [id, stato] of statoVendita ?? []) if (unitaInVendita(stato)) esclusi.add(id);
+      // Le generali aggregano le figlie. Le unità libere e prenotate sono ancora a listino.
+      const righeCheContano = rows.filter(order => !esclusi.has(order.id));
+      const economicRows = righeCheContano.map(order => orderEconomicsRow(order, incassiUnita, permuteUnita));
+      const annual = summarizeOrderEconomics(isYearCorrente ? economicRows.filter(order => orderYear(order) === currentYear) : economicRows);
       const previousRows = isYearCorrente ? righeCheContano.filter(order => orderYear(order) < currentYear) : [];
-      const annual = orderEconomics(annualRows, incassiUnita, permuteUnita);
-      const annualVat = netOrderTotals(annualRows.map(order => ({ ...orderEconomics([order], incassiUnita, permuteUnita), vatRate: order.vat_rate })));
-      const previous = orderEconomics(previousRows, incassiUnita, permuteUnita);
+      const previous = summarizeOrderEconomics(isYearCorrente ? economicRows.filter(order => orderYear(order) < currentYear) : []).gross;
       const previousReasons = Object.fromEntries(previousRows.map(order => [order.id,previousOrderReasons(order,currentYear,lastStatusId,supportStatusId,ticketIds)]));
       const reasons = {work:0,support:0,payment:0};
       Object.values(previousReasons).forEach(values => {
@@ -591,24 +583,34 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
         if (values.includes("Assistenza aperta")) reasons.support++;
         if (values.includes("Saldo da incassare")) reasons.payment++;
       });
-      const totalGross = annual.sold;
-      const collected = annual.collected;
-      const pending = annual.pending;
-      let countAssistenza = 0;
-      let countCompletati = 0;
-      for (const o of righeCheContano) {
-        if (o.current_status_id && supportStatusId && o.current_status_id === supportStatusId) countAssistenza++;
-        else if (o.current_status_id && lastStatusId && o.current_status_id === lastStatusId) countCompletati++;
-      }
-      const countDaCompletare = righeCheContano.length - countAssistenza - countCompletati;
-      const unitaInVenditaIds = [...(statoVendita?.entries() ?? [])].filter(([, v]) => unitaInVendita(v)).map(([id]) => id);
-      return { annualVat, annualIds: annualRows.map((order) => order.id), totalOrders: righeCheContano.length, totalGross, collected, pending, countAssistenza, countCompletati, countDaCompletare, scopeRows: rows, annual, previous, reasons, previousReasons, generaliIds, unitaInVenditaIds };
-    }, "Riepilogo commesse", 20_000, signal),
+      return { annual, economicRows, excludedIds: [...esclusi], incassiUnita, permuteUnita, previous, reasons, previousReasons };
+    }, "Riepilogo commesse", 20_000, signal);
+
+  const chiaveRiepilogo = ["orders-global-stats", "riepilogo-v2", effectiveCompany?.id, yearFilter, currentYear,
+    lastStatusId, supportStatusId, generaliConfigurate, orderPerms.canViewTickets] as const;
+  const {
+    data: globalStats, isLoading: isLoadingGlobalStats, isError: erroreRiepilogo, refetch: retryGlobalStats,
+  } = useQuery<Awaited<ReturnType<typeof caricaRiepilogo>>>({
+    queryKey: [...chiaveRiepilogo, gestioneResultAt],
+    queryFn: ({ signal }) => caricaRiepilogo(signal),
+    placeholderData: (previous, query) =>
+      chiaveRiepilogo.every((value, index) => query?.queryKey[index] === value) ? previous : undefined,
     enabled: !!gestione && elencoInizializzato,
     staleTime: 5 * 60 * 1000,
   });
 
   const isGlobalStatsError = errorePerimetro || erroreRiepilogo;
+  const riepilogoPeriodo = useMemo(() => {
+    if (!globalStats) return null;
+    const rows = selectedMonth
+      ? globalStats.economicRows.filter(row => orderCreatedMonth(row.created_at) === selectedMonth)
+      : globalStats.economicRows;
+    const economy = selectedMonth ? summarizeOrderEconomics(rows) : globalStats.annual;
+    const support = supportStatusId ? rows.filter(row => row.current_status_id === supportStatusId).length : 0;
+    const completed = lastStatusId && lastStatusId !== supportStatusId
+      ? rows.filter(row => row.current_status_id === lastStatusId).length : 0;
+    return { ...economy, rows, support, completed, open: rows.length - support - completed };
+  }, [globalStats, selectedMonth, supportStatusId, lastStatusId]);
 
   // Batch queries for cost calculations — use rawOrders IDs to avoid circular dep with salespeopleMap
   const orderIds = useMemo(() => rawOrders.map(o => o.id), [rawOrders]);
@@ -1049,29 +1051,14 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
   const showingFrom = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
   const showingTo = Math.min(page * pageSize, totalCount);
 
-  // KPI card usa globalStats (ignora filtri) per mostrare SEMPRE i totali reali.
-  // Le card sono solo informative: i filtri restano nei controlli dedicati.
-  const stats = useMemo(() => ({
-    totalOrders: globalStats?.totalOrders ?? 0,
-    totalGross: globalStats?.totalGross ?? 0,
-    collected: globalStats?.collected ?? 0,
-    pending: globalStats?.pending ?? 0,
-    countAssistenza: globalStats?.countAssistenza ?? 0,
-    countCompletati: globalStats?.countCompletati ?? 0,
-    countDaCompletare: globalStats?.countDaCompletare ?? 0,
-    averageGross: (globalStats?.annual.count ?? 0) > 0
-      ? (globalStats?.totalGross ?? 0) / (globalStats?.annual.count ?? 1)
-      : 0,
-  }), [globalStats]);
-
   // Da telefono la parte blu è il riassunto dei soldi. Fatturato: il registro vendite, come nel cruscotto.
   const { data: kpiFatturazione, isLoading: billingLoading } = useDashboardBillingKPI(
     effectiveCompany?.id ?? null, elencoInizializzato && isNative && orderPerms.canViewBilling && sceltaRiepilogo.riquadri.includes("fatturato"));
   const costiSostenuti = useMemo(() => {
-    if (!scopeMargins || !globalStats) return null;
-    const delPeriodo = new Set(globalStats.annualIds);
+    if (!scopeMargins || !riepilogoPeriodo) return null;
+    const delPeriodo = new Set(riepilogoPeriodo.ids);
     return scopeMargins.reduce((somma, riga) => (riga.id && delPeriodo.has(riga.id) ? somma + Number(riga.consuntivo ?? 0) : somma), 0);
-  }, [scopeMargins, globalStats]);
+  }, [scopeMargins, riepilogoPeriodo]);
 
   const visibleOrders = orders;
   const visibleTotalCount = totalCount;
@@ -1099,56 +1086,31 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
     });
     const byKey = new Map(months.map((month) => [month.key, month]));
 
-    monthlyOrders.forEach((order) => {
-      if (!order.created_at) return;
-      // Un'unità ancora in vendita non è venduto: il suo listino resta fuori dal grafico.
-      if (unitaInVendita(mappaGenerali.statoVenditaUnita?.get(order.id))) return;
-      const date = new Date(order.created_at);
-      if (Number.isNaN(date.getTime())) return;
-      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-      const month = byKey.get(key);
-      if (!month) return;
+    for (const order of globalStats?.economicRows ?? []) {
+      const key = orderCreatedMonth(order.created_at);
+      const month = key ? byKey.get(key) : undefined;
+      if (!month) continue;
       month.commesse += 1;
-      month.venduto += getGrossOrderAmount(order);
-      month.incassato += getAmountCollected(order);
-      month.daIncassare += getAmountDue(order);
-    });
+      month.venduto += order.sold;
+      month.incassato += order.collected;
+      month.daIncassare += order.pending;
+    }
 
     return months;
-  }, [monthlyOrders, hasSelectedYear, selectedYear, isYearCorrente, currentYear, mappaGenerali]);
+  }, [globalStats, hasSelectedYear, selectedYear, isYearCorrente, currentYear]);
 
   const chartWithComparison = useMemo(() => {
-    if (!comparisonEnabled || !comparisonPeriod || comparisonPending || comparisonError) return monthlySalesChart;
-    const values = (rows: ReadonlyArray<OrderPaymentDetails & Pick<OrderWithDetails, "id" | "created_at">>) =>
-      rows.filter(order => !unitaInVendita(mappaGenerali.statoVenditaUnita?.get(order.id))).map(order => ({
-        created_at: order.created_at,
-        venduto: getGrossOrderAmount(order),
-        incassato: getAmountCollected(order),
-        daIncassare: getAmountDue(order),
-      }));
-    return comparableOrderMonths(monthlySalesChart, values(monthlyOrders), values(previousChartOrders), comparisonPeriod);
-  }, [comparisonEnabled, comparisonPeriod, comparisonPending, comparisonError, monthlySalesChart, monthlyOrders, previousChartOrders, mappaGenerali]);
-
-  const monthlySalesTotals = useMemo(() => {
-    return monthlySalesChart.reduce(
-      (acc, month) => ({
-        venduto: acc.venduto + month.venduto,
-        incassato: acc.incassato + month.incassato,
-        commesse: acc.commesse + month.commesse,
-      }),
-      { venduto: 0, incassato: 0, commesse: 0 }
+    if (!globalStats || !comparisonEnabled || !comparisonPeriod || comparisonPending || comparisonError) return monthlySalesChart;
+    const excluded = new Set(globalStats.excludedIds);
+    const previous = previousChartOrders.filter(order => !excluded.has(order.id)).map(order =>
+      orderEconomicsRow(order, globalStats.incassiUnita, globalStats.permuteUnita),
     );
-  }, [monthlySalesChart]);
-
-  const monthlySalesAverages = useMemo(() => {
-    const months = Math.max(1, monthlySalesChart.length);
-    return {
-      ordersPerMonth: (isYearCorrente || hasSelectedYear ? globalStats?.annual.count ?? 0 : monthlySalesTotals.commesse) / months,
-      soldPerOrder: monthlySalesTotals.commesse > 0 ? monthlySalesTotals.venduto / monthlySalesTotals.commesse : 0,
-      collectedPerMonth: (isYearCorrente || hasSelectedYear ? stats.collected : monthlySalesTotals.incassato) / months,
-      pendingRatio: stats.totalGross > 0 ? (stats.pending / stats.totalGross) * 100 : 0,
-    };
-  }, [monthlySalesChart.length, monthlySalesTotals, stats.pending, stats.totalGross, stats.collected, isYearCorrente, hasSelectedYear, globalStats?.annual.count]);
+    const values = (rows: typeof previous) => rows.map(order => ({
+      created_at: order.created_at, venduto: order.sold, incassato: order.collected, daIncassare: order.pending,
+    }));
+    return comparableOrderMonths(monthlySalesChart, values(globalStats.economicRows), values(previous), comparisonPeriod);
+  }, [comparisonEnabled, comparisonPeriod, comparisonPending, comparisonError, monthlySalesChart, globalStats, previousChartOrders]);
+  const ordersPerMonth = monthlySalesChart.reduce((sum, entry) => sum + entry.commesse, 0) / monthlySalesChart.length;
 
   // Export CSV
   // M2 — Export CSV con tutti i filtri attivi (non solo i 20 della pagina corrente)
@@ -1420,48 +1382,46 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
     fatturazione: orderPerms.canViewBilling && isNative,
     appalti: modelliGenerali.includes("appalto"), operazioni: modelliGenerali.includes("sviluppo") || modelliGenerali.includes("compravendita"),
   };
-  const margineMedio = useMemo(() => directMarginSummary(scopeMargins ?? [], new Set(globalStats?.annualIds ?? [])), [scopeMargins, globalStats]);
-  const annualIds = globalStats?.annualIds;
-  const scopeRows = globalStats?.scopeRows;
+  const margineMedio = useMemo(() => directMarginSummary(scopeMargins ?? [], new Set(riepilogoPeriodo?.ids ?? [])), [scopeMargins, riepilogoPeriodo]);
   const margineConseguito = useMemo(() => {
-    const ids = new Set(annualIds ?? []);
-    const completate = new Set((scopeRows ?? []).filter(order => ids.has(order.id) && !!lastStatusId && order.current_status_id === lastStatusId).map(order => order.id));
+    const ids = new Set(riepilogoPeriodo?.ids ?? []);
+    const completate = new Set((riepilogoPeriodo?.rows ?? []).filter(order => ids.has(order.id) && !!lastStatusId && order.current_status_id === lastStatusId).map(order => order.id));
     return directMarginSummary(scopeMargins ?? [], completate);
-  }, [scopeMargins, annualIds, scopeRows, lastStatusId]);
-  const costiDaPagare = useOrdersPayables(effectiveCompany?.id, globalStats?.annualIds ?? [], orderPerms.canViewCosts && !!globalStats && !isGlobalStatsError && !isStatusesError);
+  }, [scopeMargins, riepilogoPeriodo, lastStatusId]);
   const riquadriRiepilogo = groupedSummaryCards(riquadriVisibili(sceltaRiepilogo.riquadri, permessiRiepilogo));
+  const costiDaPagare = useOrdersPayables(effectiveCompany?.id, riepilogoPeriodo?.ids ?? [],
+    riepilogoVisibile && riquadriRiepilogo.includes("costi") && orderPerms.canViewCosts && !!riepilogoPeriodo && !hasStatsError);
   // I numeri delle generali li dà il server, già filtrati per permesso: si chiedono solo se un riquadro li usa.
   const { data: numeriGenerali, isPending: numeriGeneraliPending } = useCruscottoGenerali(elencoInizializzato && usaGenerali(riquadriRiepilogo));
-  const nettoIncassato = globalStats?.annualVat?.collected;
-  const nettoResiduo = globalStats?.annualVat?.pending;
+  const nettoIncassato = riepilogoPeriodo?.vat.collected;
+  const nettoResiduo = riepilogoPeriodo?.vat.pending;
   const quotaIncassata = nettoIncassato != null && nettoResiduo != null && nettoIncassato + nettoResiduo > 0 ? Math.max(0, nettoIncassato) / (Math.max(0, nettoIncassato) + Math.max(0, nettoResiduo)) * 100 : null;
-  const incidenzaCosti = isYearCorrente && permessiRiepilogo.fatturazione && costiSostenuti != null && kpiFatturazione?.fatturato_ytd && kpiFatturazione.fatturato_ytd > 0 ? costiSostenuti / kpiFatturazione.fatturato_ytd * 100 : null;
+  const incidenzaCosti = !selectedMonth && isYearCorrente && permessiRiepilogo.fatturazione && costiSostenuti != null && kpiFatturazione?.fatturato_ytd && kpiFatturazione.fatturato_ytd > 0 ? costiSostenuti / kpiFatturazione.fatturato_ytd * 100 : null;
   const valoriRiepilogo = useMemo(() => {
     const euro = (n: number) => n.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" });
-    const periodo = isYearCorrente ? String(currentYear) : "del periodo";
-    const generali = new Set(globalStats?.generaliIds ?? []);
-    const righe = (globalStats?.scopeRows ?? []).filter((o) => !generali.has(o.id));
+    const periodo = selectedMonthLabel ?? (isYearCorrente ? String(currentYear) : "del periodo");
+    const righe = riepilogoPeriodo?.rows ?? [];
     const ritardo = commesseInRitardo(righe, new Set([lastStatusId, supportStatusId].filter(Boolean)), new Date().toLocaleDateString("en-CA"));
-    const margine = scopeMargins && globalStats ? margineDelPeriodo(scopeMargins, new Set(globalStats.annualIds)) : null;
+    const margine = scopeMargins && riepilogoPeriodo ? margineDelPeriodo(scopeMargins, new Set(riepilogoPeriodo.ids)) : null;
     const soldi = (n: number | null | undefined) => (n == null ? "—" : euro(n));
     const ta = numeriGenerali?.totaleAppalti;
     const to = numeriGenerali?.totaleOperazioni;
-    const quanteCommesse = isYearCorrente ? globalStats?.annual.count ?? 0 : stats.totalOrders;
+    const quanteCommesse = riepilogoPeriodo?.gross.count ?? 0;
     const valori: Record<RiquadroRiepilogo, { titolo: string; valore: string; nota: string; icona: typeof Euro }> = {
-      commesse: { titolo: isYearCorrente ? `Commesse ${currentYear}` : "Commesse del periodo", valore: String(quanteCommesse), icona: ShoppingBag,
-        nota: `media mese ${monthlySalesAverages.ordersPerMonth.toLocaleString("it-IT", { maximumFractionDigits: 1 })}` },
-      venduto: { titolo: `Venduto · contratti ${periodo}`, valore: soldi(globalStats?.annualVat?.sold), icona: Euro, nota: `Imponibile · ${quanteCommesse} commesse` },
-      incassato: { titolo: `Incassi commesse ${periodo}`, valore: soldi(globalStats?.annualVat?.collected), icona: TrendingUp, nota: "Già incassato · imponibile" },
-      da_incassare: { titolo: `Da incassare ${isYearCorrente ? currentYear : "periodo"}`, valore: euro(stats.pending), icona: AlertCircle,
+      commesse: { titolo: `Commesse ${periodo}`, valore: String(quanteCommesse), icona: ShoppingBag,
+        nota: selectedMonthLabel ? "Per data di creazione" : `media mese ${ordersPerMonth.toLocaleString("it-IT", { maximumFractionDigits: 1 })}` },
+      venduto: { titolo: `Venduto · contratti ${periodo}`, valore: soldi(riepilogoPeriodo?.vat.sold), icona: Euro, nota: `Imponibile · ${quanteCommesse} commesse` },
+      incassato: { titolo: `Incassi commesse ${periodo}`, valore: soldi(riepilogoPeriodo?.vat.collected), icona: TrendingUp, nota: "Già incassato · imponibile" },
+      da_incassare: { titolo: `Da incassare ${periodo}`, valore: euro(riepilogoPeriodo?.gross.pending ?? 0), icona: AlertCircle,
         nota: "residuo sulle commesse" },
-      ticket_medio: { titolo: "Valore medio commessa", valore: euro(stats.averageGross), icona: Coins, nota: `su ${quanteCommesse} commesse · IVA inclusa` },
+      ticket_medio: { titolo: "Valore medio commessa", valore: euro(quanteCommesse ? (riepilogoPeriodo?.gross.sold ?? 0) / quanteCommesse : 0), icona: Coins, nota: `su ${quanteCommesse} commesse · IVA inclusa` },
       costi: { titolo: `Costi commesse ${periodo}`, valore: costiSostenuti == null ? "—" : euro(costiSostenuti), icona: Wallet, nota: "Registrati sulle commesse · imponibile" },
       margine: { titolo: `Margine ${periodo}`, valore: margine ? euro(margine.margine) : "—", icona: Percent,
         nota: !margine ? "" : `${margine.percentuale == null ? "—" : `${margine.percentuale.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%`} su ${margine.conCosti} con costi${margine.senzaCosti ? ` · ${margine.senzaCosti} senza` : ""}` },
-      aperte: { titolo: "Commesse aperte", valore: String(stats.countDaCompletare), icona: FolderOpen, nota: "anche degli anni prima" },
+      aperte: { titolo: "Commesse aperte", valore: String(riepilogoPeriodo?.open ?? 0), icona: FolderOpen, nota: selectedMonthLabel ? "del mese selezionato" : "anche degli anni prima" },
       in_ritardo: { titolo: "In ritardo", valore: String(ritardo), icona: Clock, nota: "posa prevista già passata" },
-      assistenza: { titolo: "In assistenza", valore: String(stats.countAssistenza), icona: Wrench, nota: "nella fase di assistenza" },
-      completate: { titolo: "Completate", valore: String(stats.countCompletati), icona: CheckCircle2, nota: "arrivate all'ultima fase" },
+      assistenza: { titolo: "In assistenza", valore: String(riepilogoPeriodo?.support ?? 0), icona: Wrench, nota: "nella fase di assistenza" },
+      completate: { titolo: "Completate", valore: String(riepilogoPeriodo?.completed ?? 0), icona: CheckCircle2, nota: "arrivate all'ultima fase" },
       pregresso: { titolo: "Pregresso da gestire", valore: String(globalStats?.previous.count ?? 0), icona: History,
         nota: `${globalStats?.reasons.work ?? 0} lavori · ${globalStats?.reasons.support ?? 0} assistenze · ${globalStats?.reasons.payment ?? 0} saldi` },
       fatturato: { titolo: `Fatturato · fatture ${currentYear}`, valore: kpiFatturazione?.fatturato_ytd == null ? "—" : euro(kpiFatturazione.fatturato_ytd), icona: Receipt, nota: "Fatture emesse · IVA esclusa · tutta l’azienda" },
@@ -1479,7 +1439,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
       operazioni_margine: { titolo: "Margine a finire operazioni", valore: soldi(to?.margineAFinire), icona: Percent, nota: `stima su ${to?.conPiano ?? 0} operazioni con il piano` },
     };
     return valori;
-  }, [globalStats, stats, isYearCorrente, currentYear, lastStatusId, supportStatusId, scopeMargins, costiSostenuti, monthlySalesAverages, numeriGenerali, kpiFatturazione]);
+  }, [globalStats, riepilogoPeriodo, selectedMonthLabel, isYearCorrente, currentYear, lastStatusId, supportStatusId, scopeMargins, costiSostenuti, ordersPerMonth, numeriGenerali, kpiFatturazione]);
 
   const barraBacheca = viewMode === "pipeline" && focusReady && !isStatusesError && !pipelinePending && !pipelineError && !scopeError;
   const opzioniTabella = viewMode === "table" ? (
@@ -1797,17 +1757,18 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
           <ChevronDown aria-hidden="true" className={`size-4 text-muted-foreground ${riepilogoCompattoAperto ? "rotate-180" : ""}`} />
         </Button>
       </div>
-      <section id="riepilogo-commesse" hidden={!riepilogoVisibile} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <section id="riepilogo-commesse" aria-labelledby="titolo-riepilogo-commesse" hidden={!riepilogoVisibile} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         {riepilogoVisibile && <div className={`grid gap-0 ${analisiAperta && orderPerms.canViewOrderAmounts && !isMobile ? "xl:grid-cols-2" : ""}`}>
           <div className="flex flex-col bg-eic-navy-deep px-3 py-2 text-white">
-            <div className="flex flex-wrap items-start justify-between gap-3 max-md:hidden">
+            <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="flex min-w-0 flex-1 items-start gap-2.5 sm:gap-3">
                 <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)]">
                   <Target className="h-4 w-4 sm:h-5 sm:w-5" />
                 </div>
                 <div className="min-w-0">
-                  <h2 className="text-base font-semibold text-white">Riepilogo commesse · {isYearCorrente ? currentYear : "Periodo selezionato"}</h2>
-
+                  <h2 id="titolo-riepilogo-commesse" className="text-base font-semibold text-white">
+                    Riepilogo commesse · {selectedMonthLabel ?? (isYearCorrente ? currentYear : selectedYear ?? "Tutti gli anni")}
+                  </h2>
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
@@ -1835,7 +1796,15 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
                   : isEconomicStatsLoading || ((voce?.permesso === "costi" || voce?.permesso === "margini") && scopeMarginsPending);
                 const ring = id === "incassato" && quotaIncassata != null ? { value: quotaIncassata, label: "Quota incassata", color: "green" as const }
                   : id === "costi" && incidenzaCosti != null ? { value: incidenzaCosti, label: "Costi commesse sul fatturato aziendale", color: "amber" as const } : undefined;
-                return <OrdersSummaryCard key={id} id={id} title={v.titolo} value={v.valore} note={(id === "venduto" || id === "incassato") && globalStats?.annualVat?.missing ? `Imponibile da verificare · ${globalStats.annualVat.missing} aliquote mancanti` : v.nota} alternateValue={id === "venduto" ? stats.totalGross.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }) : id === "incassato" ? stats.collected.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }) : id === "fatturato" && kpiFatturazione?.fatturato_ytd_ivato != null ? kpiFatturazione.fatturato_ytd_ivato.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }) : undefined} icon={v.icona} loading={inAttesa} ring={ring} info={id === "costi" ? `Il totale costi è imponibile. Il totale IVA inclusa non è disponibile nella fonte aggregata: non viene stimato con un’aliquota fissa. I costi registrati sono attribuiti alle commesse: non comprendono i costi fissi aziendali non imputati. I debiti ancora da pagare includono l’IVA se dovuta e non sono costi aggiuntivi da sommare.${incidenzaCosti != null ? " Il cerchio confronta i costi delle commesse con il fatturato aziendale, entrambi senza IVA." : ""}` : id === "incassato" || id === "venduto" ? "Imponibile ricavato scorporando l’IVA registrata su ciascuna commessa, senza usare un’aliquota unica. Il cerchio degli incassi usa imponibile incassato e residuo imponibile. Le aliquote mancanti richiedono verifica." : undefined}>
+                const aliquoteMancanti = riepilogoPeriodo?.vat.missing ?? 0;
+                const ivato = id === "venduto" ? riepilogoPeriodo?.gross.sold
+                  : id === "incassato" ? riepilogoPeriodo?.gross.collected
+                  : id === "fatturato" ? kpiFatturazione?.fatturato_ytd_ivato : undefined;
+                return <OrdersSummaryCard key={id} id={id} title={v.titolo} value={v.valore}
+                  note={(id === "venduto" || id === "incassato") && aliquoteMancanti ? `Imponibile da verificare · ${aliquoteMancanti} aliquote mancanti` : v.nota}
+                  alternateValue={ivato?.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}
+                  icon={v.icona} loading={inAttesa} ring={ring}
+                  info={id === "costi" ? `Il totale costi è imponibile. Il totale IVA inclusa non è disponibile nella fonte aggregata: non viene stimato con un’aliquota fissa. I costi registrati sono attribuiti alle commesse: non comprendono i costi fissi aziendali non imputati. I debiti ancora da pagare includono l’IVA se dovuta e non sono costi aggiuntivi da sommare.${incidenzaCosti != null ? " Il cerchio confronta i costi delle commesse con il fatturato aziendale, entrambi senza IVA." : ""}` : id === "incassato" || id === "venduto" ? "Imponibile ricavato scorporando l’IVA registrata su ciascuna commessa, senza usare un’aliquota unica. Il cerchio degli incassi usa imponibile incassato e residuo imponibile. Le aliquote mancanti richiedono verifica." : undefined}>
                   {id === "incassato" && <div className="text-xs text-blue-100"><div className="flex flex-wrap justify-between gap-x-2 gap-y-1"><span>Da incassare · imponibile</span><strong className="font-semibold tabular-nums text-white">{isEconomicStatsLoading ? "…" : nettoResiduo == null ? "—" : nettoResiduo.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}</strong></div><div className="mt-1 flex flex-wrap justify-between gap-1 text-[10px] text-blue-100/80"><span>IVA inclusa</span><span className="tabular-nums">{isEconomicStatsLoading ? "…" : valoriRiepilogo.da_incassare.valore}</span></div></div>}
                   {id === "costi" && <>
                     <div className="flex flex-wrap justify-between gap-x-2 gap-y-1 text-xs text-blue-100"><span>Da pagare · IVA se dovuta</span><strong className="font-semibold tabular-nums text-white">{costiDaPagare.isError ? "—" : costiDaPagare.isPending ? "…" : (costiDaPagare.data ?? 0).toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}</strong></div>
@@ -1845,13 +1814,17 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
               })}
             </div>}
             {/* Da telefono restano i numeri: il pregresso è da scrivania. */}
-            {isYearCorrente && globalStats && !isGlobalStatsError && !isStatusesError && !isMobile && <OrdersCarryoverSummary
+            {!selectedMonth && isYearCorrente && globalStats && !isGlobalStatsError && !isStatusesError && !isMobile && <OrdersCarryoverSummary
               previous={globalStats.previous} reasons={globalStats.reasons} showAmounts={orderPerms.canViewOrderAmounts} />}
           </div>
 
           {analisiAperta && orderPerms.canViewOrderAmounts && !isMobile && (
           <aside id="orders-annual-chart" className="flex min-w-0 border-t border-slate-200 bg-white px-3 py-2 xl:border-l xl:border-t-0">
-            {isMonthlyOrdersError ? <div role="alert" className="p-4 text-sm text-amber-800">Andamento non disponibile. <Button variant="outline" size="sm" onClick={()=>{ if (isStatusesError) void retryStatuses(); else void ricaricaPerimetro(); }}>Riprova grafico</Button></div> : isLoadingMonthlyOrders ? (
+            {isStatusesError || isGlobalStatsError ? <div role="alert" className="p-4 text-sm text-amber-800">Andamento non disponibile. <Button variant="outline" size="sm" onClick={() => {
+              if (isStatusesError) void retryStatuses();
+              else if (errorePerimetro) void ricaricaPerimetro();
+              else void retryGlobalStats();
+            }}>Riprova grafico</Button></div> : !globalStats ? (
               <div aria-label="Caricamento andamento" className="flex h-[160px] items-end gap-3 px-4 pb-4">
                 {[60,92,48,130,78,155,105,184].map((height,index)=><Skeleton key={index} className="flex-1 rounded-t-md" style={{height}}/>)}
               </div>
@@ -1860,7 +1833,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
               vistaIniziale={sceltaRiepilogo.graficoVista === "numero" ? "count" : "money"}
               formaIniziale={sceltaRiepilogo.graficoForma === "barre" ? "bars" : "lines"}
               comparison={comparisonPeriod ? {year:comparisonPeriod.previousYear, enabled:comparisonEnabled, onToggle:()=>setCompareChart(value=>!value), loading:comparisonPending, error:comparisonError, onRetry:()=>void retryComparison(), label:comparisonPeriod.label} : undefined} period={isYearCorrente ? String(currentYear) : hasSelectedYear ? String(selectedYear) : "Ultimi 12 mesi"}
-              selectedMonth={hasMonth ? `${monthYear}-${String(month+1).padStart(2,"0")}` : null}
+              selectedMonth={selectedMonth}
               onSelectMonth={(key) => {const patch=orderChartMonthFilter(key,yearFilter,currentYear,scopeGroup);if(patch){setURLParams(patch);setPage(1);}}} /></Suspense>}
           </aside>
           )}
@@ -1951,7 +1924,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
                 <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                 <h3 className="text-lg font-medium mb-2">Nessuna commessa trovata</h3>
                 <p className="text-muted-foreground mb-4">
-                  {globalStats && stats.totalOrders === 0
+                  {globalStats && scopeOrders.length === 0
                     ? "Non hai ancora creato nessuna commessa."
                     : controlFocus !== "all"
                       ? "Nessuna commessa corrisponde al focus operativo selezionato in questa pagina."
@@ -1969,7 +1942,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
                   <Button variant="outline" onClick={clearAllFilters} className="gap-2">
                     Pulisci tutti i filtri
                   </Button>
-                ) : globalStats && stats.totalOrders === 0 && !isCommercialistaMode && canCreateOrders && !nienteDaCreare && (
+                ) : globalStats && scopeOrders.length === 0 && !isCommercialistaMode && canCreateOrders && !nienteDaCreare && (
                   conBivio ? (
                     <Button onClick={() => setShowOrderTypeDialog(true)}>
                       <Plus className="h-4 w-4 mr-2" />

@@ -45,6 +45,7 @@ export interface MaterialeFase {
   locale: string | null;
   supplier_rfq_item_id: string | null;
   stock_item_id: string | null;
+  warehouse_supply_quantity?: number | null;
   posizioni: { descrizione: string; misure?: string | null; quantita: number }[] | null;
   /** Calcolati dalla copertura degli ordini. */
   stato: StatoAcquistoMateriale;
@@ -55,6 +56,7 @@ export interface MaterialeFase {
   /** materiale (default), lavorazione, descrizione. */
   natura_riga?: string | null;
   article_template_id?: string | null;
+  product_code?: string | null;
   scomposizione_id?: string | null;
   prezzo_fonte?: string | null;
   standard_cost?: number | null;
@@ -93,8 +95,8 @@ export interface FaseMateriali {
 
 const COLONNE_MATERIALE =
   "id, order_id, name, description, quantity, status, supplier_id, purchase_price, prezzo_da_definire, vat_rate, phase_id, unita_misura, specifiche, origine_materiale, quantita_calcolata, origini, locale, supplier_rfq_item_id, stock_item_id, posizioni, position, " +
-  "gruppo_id, riferimento, misure_preventivo, misure_da_ordinare, measure_status, natura_riga, article_template_id, scomposizione_id, prezzo_fonte, standard_cost, delivery_date, is_paid, deposit_paid, balance_paid, payment_method, " +
-  "deposit_amount, balance_amount, balance_expected_date";
+  "gruppo_id, riferimento, misure_preventivo, misure_da_ordinare, measure_status, natura_riga, article_template_id, product_code, scomposizione_id, prezzo_fonte, standard_cost, delivery_date, is_paid, deposit_paid, balance_paid, payment_method, " +
+  "deposit_amount, balance_amount, balance_expected_date, warehouse_supply_quantity";
 
 export const chiaviMateriali = {
   commessa: (orderId: string) => ["materiali-per-fase", orderId] as const,

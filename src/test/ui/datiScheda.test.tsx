@@ -9,7 +9,7 @@ vi.mock("@/hooks/useCommesseGenerali", () => ({
   messaggioGenerale: (_e: unknown, cosa: string) => `errore ${cosa}`,
 }));
 vi.mock("@/components/orders/generali/ScegliCliente", () => ({
-  ScegliCliente: ({ onCambia }: { onCambia: (v: string | null) => void }) => <button type="button" onClick={() => onCambia("cli-2")}>Scegli cliente</button>,
+  ScegliCliente: ({ id, onCambia }: { id: string; onCambia: (v: string | null) => void }) => <button id={id} type="button" onClick={() => onCambia("cli-2")}>Scegli cliente</button>,
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 import { SchedaDati } from "@/components/orders/generali/moduli/DatiScheda";
@@ -27,16 +27,25 @@ afterEach(cleanup);
 describe("scheda Dati", () => {
   it("appalto: dice cosa manca e ha la sezione delle figure", () => {
     disegna(riepilogo("appalto"));
-    expect(screen.getByRole("status")).toHaveTextContent("Mancano il committente, se è pubblico o privato, l'indirizzo del cantiere, l'inizio dei lavori.");
+    expect(screen.getByRole("status")).toHaveTextContent("Da completare · 4");
+    fireEvent.click(screen.getByRole("button", { name: "Indirizzo del cantiere" }));
+    expect(screen.getByLabelText("Indirizzo del cantiere")).toHaveFocus();
     expect(screen.getByRole("region", { name: "Committente e figure" })).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Immobile acquistato" })).toBeNull();
+  });
+
+  it("distingue il nome del committente già scritto dal collegamento alla rubrica", () => {
+    disegna(riepilogo("appalto", { cliente: "Condominio Demo" }));
+    expect(screen.getByText("Condominio Demo · da collegare alla rubrica")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Collega il committente alla rubrica" }));
+    expect(screen.getByLabelText("Committente")).toHaveFocus();
   });
 
   it("la commessa: manda solo quello che è cambiato, il cliente come cliente_id", () => {
     disegna(riepilogo("sviluppo", { indirizzo: "Via A" }));
     const comune = screen.getByRole("region", { name: "La commessa" });
     fireEvent.change(within(comune).getByLabelText("Inizio lavori"), { target: { value: "2027-03-01" } });
-    fireEvent.click(within(comune).getByRole("button", { name: "Scegli cliente" }));
+    fireEvent.click(within(comune).getByLabelText("Società dell'operazione"));
     fireEvent.click(within(comune).getByRole("button", { name: "Salva" }));
     expect(m.salva).toHaveBeenCalledWith({ inizio: "2027-03-01", cliente_id: "cli-2" }, expect.anything());
   });

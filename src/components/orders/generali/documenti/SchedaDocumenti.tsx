@@ -1,746 +1,414 @@
-// src/components/orders/generali/documenti/SchedaDocumenti.tsx
-// La scheda «Documenti» della commessa generale: la checklist del modello (sul contratto o
-// sull'operazione, poi su ogni ordine di lavoro o unità) e, sotto, l'archivio della generale.
-// Da telefono si legge soltanto: un elenco compatto, toccando una voce si apre il file.
-import { useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
-import {
-  ChevronDown,
-  ChevronRight,
-  FolderOpen,
-  MoreHorizontal,
-  Settings2,
-  Upload,
-} from "lucide-react";
-import { IntestazioneScheda, FiltroAttivo } from "../design/ElementiScheda";
-import {
-  documentoNelFiltro,
-  type FiltroDocumenti,
-} from "@/lib/orders/generali/documentiFiltri";
+import { lazy, Suspense, useMemo, useRef, useState, type ReactNode } from "react";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
+import { ChevronLeft, ChevronRight, ClipboardList, FolderOpen, Search, Settings2, Table2, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Dialog, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { OrderAttachments } from "@/components/orders/OrderAttachments";
-import { openAttachmentInTab } from "@/components/orders/filePreviewUtils";
-import { PannelloVoce } from "@/components/orders/generali/documenti/PannelloVoce";
-import { IconaStato } from "@/components/orders/generali/documenti/IconaStato";
-import {
-  COLORE_TONO,
-  nomeBreve,
-  testoBreve,
-  tonoCasella,
-} from "@/components/orders/generali/documenti/statoVisivo";
-import type { PropsScheda } from "@/components/orders/generali/tipiScheda";
+import { KindIcon } from "@/components/orders/filePreview";
+import { fileKind, KIND_LABEL } from "@/components/orders/filePreviewUtils";
+import { DocumentFoldersNavigation, SENZA_CARTELLA, TUTTI_DOCUMENTI } from "@/components/orders/DocumentFoldersNavigation";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useCartelleDocumenti } from "@/hooks/useCartelleDocumenti";
+import { useChecklistGenerale } from "@/hooks/useGeneraleDocumenti";
 import { usePermissions } from "@/hooks/usePermissions";
-import {
-  useChecklistGenerale,
-  type ChecklistGenerale,
-} from "@/hooks/useGeneraleDocumenti";
-import {
-  DEFINIZIONI_MODELLI,
-  type FigliaGenerale,
-  type RiepilogoGenerale,
-} from "@/lib/orders/commesseGenerali";
-import {
-  etichettaAmbito,
-  riepilogoVoceFiglie,
-  testoCasella,
-  testoConteggi,
-  type CasellaDocumento,
-  type ChecklistDocumenti,
-  type ConteggiDocumenti,
-} from "@/lib/orders/generali/documenti";
+import { contaPerCartella } from "@/lib/commesse/documentiCommessa";
+import { DEFINIZIONI_MODELLI } from "@/lib/orders/commesseGenerali";
+import { documentoNelFiltro, type FiltroDocumenti } from "@/lib/orders/generali/documentiFiltri";
+import { formattaData, riepilogoVoceFiglie, testoCasella, type AllegatoCommessa, type CasellaDocumento, type ChecklistDocumenti } from "@/lib/orders/generali/documenti";
+import { cercaNellOperazione } from "@/lib/orders/generali/registroOperazione";
 import { cn } from "@/lib/utils";
+import type { PropsScheda } from "../tipiScheda";
 import { DocumentoContrattoAppalto } from "../contratto/DocumentoContrattoAppalto";
+import { DialogContentOperativo } from "../design/ContestoOperativo";
+import { AmbitoOperazione } from "../moduli/AmbitoOperazione";
+import { IconaStato } from "./IconaStato";
+import { PannelloVoce } from "./PannelloVoce";
+import { COLORE_TONO, nomeBreve, testoBreve, tonoCasella } from "./statoVisivo";
+
+const OrderAttachments = lazy(() => import("@/components/orders/OrderAttachments").then(m => ({ default: m.OrderAttachments })));
+const OriginaleDocumentoDialog = lazy(() => import("./OriginaleDocumentoDialog").then(m => ({ default: m.OriginaleDocumentoDialog })));
+
+type Vista = "requisiti" | "unita" | "archivio";
+type Commessa = { id: string; codice?: string | null; nome: string };
+const FILTRI = [
+  { id: "tutti", nome: "Tutti" },
+  { id: "mancanti", nome: "Mancanti", colore: "text-destructive" },
+  { id: "in_scadenza", nome: "In scadenza", colore: COLORE_TONO.ambra },
+  { id: "scaduti", nome: "Scaduti", colore: "text-destructive" },
+  { id: "senza_data", nome: "Senza scadenza", colore: COLORE_TONO.ambra },
+  { id: "presenti", nome: "Obbligatori presenti", colore: COLORE_TONO.verde },
+] as const satisfies readonly { id: FiltroDocumenti; nome: string; colore?: string }[];
+
+const CAMPO_STATO = "stato-documenti";
+const CAMPO_AMBITO = "ambito-documenti";
+const CAMPO_VISTA = "vista-documenti";
+const CAMPO_CARTELLA = "cartella-documenti";
+const Tutta = { id: "", nome: "Tutta l’operazione" };
+const nomeCommessa = (c: Commessa) => [c.codice, c.nome].filter(Boolean).join(" · ");
+const data = (s: string | null | undefined) => s ? formattaData(s) : "—";
+const classeTesto = "block max-w-full truncate text-left";
+const gravita = (c: CasellaDocumento) => {
+  if (c.stato === "scaduto") return 0;
+  if (c.stato === "in_scadenza") return 1;
+  if (c.stato === "mancante" && c.obbligatoria) return 2;
+  if (c.senzaData) return 3;
+  return c.stato === "presente" ? 4 : 5;
+};
 
 export function SchedaDocumenti({ riepilogo: r, puoModificare }: PropsScheda) {
   const [parametri, setParametri] = useSearchParams();
+  const { hash } = useLocation();
   const [cerca, setCerca] = useState("");
-  const filtro: FiltroDocumenti = [
-    "presenti",
-    "mancanti",
-    "in_scadenza",
-    "scaduti",
-  ].includes(parametri.get("stato-documenti") ?? "")
-    ? (parametri.get("stato-documenti") as FiltroDocumenti)
-    : "tutti";
-  const filtra = (s: FiltroDocumenti) => {
+  const [voce, setVoce] = useState<{ orderId: string; id: string }>();
+  const [originale, setOriginale] = useState<AllegatoCommessa>();
+  const [gestione, setGestione] = useState<string>();
+  const ritornoOriginale = useRef<HTMLElement | null>(null);
+  const isMobile = useIsMobile();
+  const permissions = usePermissions();
+  const dati = useChecklistGenerale(r);
+  const generaleId = r.generale.id;
+  const principale: Commessa = { id: generaleId, codice: r.generale.codice, nome: "Commessa generale" };
+  const commesse = new Map<string, Commessa>([[generaleId, principale], ...r.figlie.map(f => [f.id, f] as const)]);
+  const richiestaVista = parametri.get(CAMPO_VISTA);
+  const vista: Vista = richiestaVista === "archivio" || (hash === "#contratto-appalto" && !richiestaVista) ? "archivio"
+    : richiestaVista === "unita" && r.figlie.length ? "unita" : "requisiti";
+  const categorie = useCartelleDocumenti({ tutte: true, enabled: vista === "archivio" });
+  const perIdCartella = new Map(categorie.cartelle.map(c => [c.id, c.nome]));
+  const richiestaCartella = parametri.get(CAMPO_CARTELLA);
+  const cartella = !categorie.isError && richiestaCartella &&
+    (richiestaCartella === SENZA_CARTELLA ? !categorie.isLoading : perIdCartella.has(richiestaCartella))
+    ? richiestaCartella : TUTTI_DOCUMENTI;
+  const nomeCartella = (f: AllegatoCommessa) => categorie.isLoading || categorie.isError ? ""
+    : (f.folder_id && perIdCartella.get(f.folder_id)) || "Senza cartella";
+  const richiestaAmbito = parametri.get(CAMPO_AMBITO) ?? "";
+  const ambito = commesse.has(richiestaAmbito) && (vista !== "unita" || richiestaAmbito !== generaleId) ? richiestaAmbito : "";
+  const attivo = FILTRI.find(s => s.id === parametri.get(CAMPO_STATO))?.id ?? "tutti";
+  const cambia = (chiave: string, valore: string) => {
     const p = new URLSearchParams(parametri);
-    if (s === "tutti") p.delete("stato-documenti");
-    else p.set("stato-documenti", s);
+    if (valore) p.set(chiave, valore);
+    else p.delete(chiave);
+    if (chiave === CAMPO_VISTA && valore === "unita" && richiestaAmbito === generaleId) p.delete(CAMPO_AMBITO);
     setParametri(p, { replace: true });
   };
-  const isMobile = useIsMobile();
-  const dati = useChecklistGenerale(r);
-  if (dati.isLoading) {
-    return (
-      <div className="space-y-3">
-        <Skeleton className="h-16 w-full rounded-lg" />
-        <Skeleton className="h-64 w-full rounded-lg" />
-      </div>
-    );
-  }
-  if (dati.isError || !dati.checklist) {
-    return (
-      <div role="alert" className="space-y-3 rounded-lg border p-4 text-sm">
-        <p>Non riesco a leggere i documenti di questa commessa generale.</p>
-        <Button size="sm" variant="outline" onClick={dati.refetch}>
-          Riprova
-        </Button>
-      </div>
-    );
-  }
-  const checklist = dati.checklist;
-  const c = checklist.conteggi;
-  const conteggi: {
-    id: FiltroDocumenti;
-    nome: string;
-    valore: number;
-    tono: string;
-  }[] = [
-    {
-      id: "presenti",
-      nome: "Obbligatori presenti",
-      valore: c.presenti,
-      tono: "verde",
-    },
-    {
-      id: "mancanti",
-      nome: "Obbligatori mancanti",
-      valore: c.mancanti,
-      tono: "ambra",
-    },
-    {
-      id: "in_scadenza",
-      nome: "In scadenza",
-      valore: c.inScadenza,
-      tono: "ambra",
-    },
-    { id: "scaduti", nome: "Scaduti", valore: c.scaduti, tono: "rosso" },
-  ];
-  const lista = [
-    ...checklist.generale.map((casella) => ({
-      casella,
-      orderId: r.generale.id,
-      dove: r.generale.codice ?? "Commessa generale",
-    })),
-    ...checklist.figlie.flatMap((g) =>
-      g.caselle.map((casella, i) => ({
-        casella,
-        orderId: r.figlie[i]?.id ?? r.generale.id,
-        dove: r.figlie[i] ? nomeFiglia(r.figlie[i]) : "Commessa collegata",
-      })),
-    ),
-  ];
-  const visibili = lista
-    .filter(
-      (x) =>
-        documentoNelFiltro(x.casella, filtro) &&
-        `${x.casella.voce.nome} ${x.dove}`
-          .toLocaleLowerCase("it-IT")
-          .includes(cerca.trim().toLocaleLowerCase("it-IT")),
-    )
-    .sort((a, b) => ORDINE_GRAVITA(a.casella) - ORDINE_GRAVITA(b.casella));
-  const filtrata = filtro !== "tutti" || !!cerca.trim();
-  return (
-    <div className="generale-sheet generale-documenti space-y-4">
-      <DocumentoContrattoAppalto riepilogo={r} puoModificare={puoModificare && !isMobile} />
-      <IntestazioneScheda
-        icona={FolderOpen}
-        titolo="Archivio e scadenze"
-        descrizione="Documenti dell'operazione e delle commesse collegate, con le priorità da seguire."
-      />
-      <div className="generale-indicators">
-        {conteggi.map((x) => (
-          <button
-            type="button"
-            className={`generale-indicator generale-indicator--${x.tono}`}
-            key={x.id}
-            aria-pressed={filtro === x.id}
-            onClick={() => filtra(filtro === x.id ? "tutti" : x.id)}
-          >
-            <span>{x.nome}</span>
-            <strong>{x.valore}</strong>
-            <small>
-              {x.id === "presenti"
-                ? `su ${c.richiesti} richiesti`
-                : "apri l'elenco"}
-            </small>
-          </button>
-        ))}
-      </div>
-      <div className="generale-table-toolbar">
-        <label>
-          Cerca documento
-          <input
-            aria-label="Cerca nei documenti della commessa"
-            placeholder="Nome documento o commessa…"
-            value={cerca}
-            onChange={(e) => setCerca(e.target.value)}
-          />
-        </label>
-        <button
-          type="button"
-          className="generale-text-link"
-          onClick={() => {
-            filtra("tutti");
-            setCerca("");
-          }}
-        >
-          Tutti i documenti
-        </button>
-      </div>
-      {filtrata && (
-        <FiltroAttivo
-          onReset={() => {
-            filtra("tutti");
-            setCerca("");
-          }}
-        >
-          {visibili.length} voci corrispondenti al filtro. I conteggi in alto
-          riguardano l'intera operazione.
-        </FiltroAttivo>
-      )}
-      {filtrata ? (
-        <>
-          <div className="generale-panel overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr>
-                  <th className="px-4 py-3 text-left">Documento</th>
-                  <th className="px-4 py-3 text-left">Commessa</th>
-                  <th className="px-4 py-3 text-left">Stato</th>
-                  <th className="px-4 py-3">
-                    <span className="sr-only">Azioni documento</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {visibili.map(({ casella: x, orderId, dove }) => (
-                  <tr key={`${orderId}-${x.voce.id}`}>
-                    <td className="px-4 py-3">
-                      <span className="flex items-center gap-2">
-                        <IconaStato c={x} />
-                        {x.voce.nome}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground">
-                      {dove}
-                    </td>
-                    <td
-                      className={cn(
-                        "px-4 py-3 text-xs",
-                        COLORE_TONO[tonoCasella(x)],
-                      )}
-                    >
-                      {testoCasella(x)}
-                    </td>
-                    <td className="px-4 py-3">
-                      {isMobile ? (
-                        x.documenti[0] && (
-                          <button
-                            type="button"
-                            className="generale-text-link"
-                            onClick={() =>
-                              void openAttachmentInTab(
-                                x.documenti[0].allegato.file_url,
-                              )
-                            }
-                          >
-                            Apri
-                          </button>
-                        )
-                      ) : (
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              aria-label={`Gestisci ${x.voce.nome}, ${dove}`}
-                            >
-                              {puoModificare && x.stato === "mancante"
-                                ? "Carica"
-                                : "Dettagli"}
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent align="end" className="w-80">
-                            <PannelloVoce
-                              casella={x}
-                              generaleId={r.generale.id}
-                              dove={dove}
-                              allegati={dati.allegatiPer.get(orderId) ?? []}
-                              puoModificare={puoModificare}
-                            />
-                          </PopoverContent>
-                        </Popover>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {visibili.length === 0 && (
-              <p className="p-6 text-sm text-muted-foreground">
-                Nessun documento corrisponde al filtro.
-              </p>
-            )}
-          </div>
-          {!isMobile && (
-            <OrderAttachments
-              orderId={r.generale.id}
-              editable={puoModificare}
-            />
-          )}
-        </>
-      ) : isMobile ? (
-        <DocumentiTelefono r={r} checklist={checklist} />
-      ) : (
-        <DocumentiComputer
-          r={r}
-          dati={dati}
-          checklist={checklist}
-          puoModificare={puoModificare}
-        />
-      )}
-    </div>
-  );
-}
-
-/** «12 di 15 presenti · 3 documenti mancanti, 1 in scadenza». */
-function riassunto(c: ConteggiDocumenti): string {
-  const parti = [
-    c.richiesti === 0
-      ? "Nessun documento obbligatorio"
-      : `${c.presenti} di ${c.richiesti} obbligatori presenti`,
-  ];
-  const testo = testoConteggi(c);
-  if (testo) parti.push(testo);
-  if (c.senzaData > 0)
-    parti.push(
-      c.senzaData === 1 ? "1 senza scadenza" : `${c.senzaData} senza scadenza`,
-    );
-  return parti.join(" · ");
-}
-
-const ORDINE_GRAVITA = (c: CasellaDocumento) =>
-  c.stato === "scaduto"
-    ? 0
-    : c.stato === "mancante" && c.obbligatoria
-      ? 1
-      : c.stato === "in_scadenza"
-        ? 2
-        : c.senzaData
-          ? 3
-          : c.stato === "mancante"
-            ? 4
-            : c.stato === "presente"
-              ? 5
-              : 6;
-/** La casella che dice com'è messa una voce su tutte le figlie: la più grave. */
-const peggiore = (caselle: readonly CasellaDocumento[]) =>
-  [...caselle].sort((a, b) => ORDINE_GRAVITA(a) - ORDINE_GRAVITA(b))[0];
-
-const nomeFiglia = (f: Pick<FigliaGenerale, "codice" | "nome">) =>
-  [f.codice, f.nome].filter(Boolean).join(" · ");
-
-// ── Computer e tablet ────────────────────────────────────────────────────────
-
-function DocumentiComputer({
-  r,
-  dati,
-  checklist,
-  puoModificare,
-}: {
-  r: RiepilogoGenerale;
-  dati: ChecklistGenerale;
-  checklist: ChecklistDocumenti;
-  puoModificare: boolean;
-}) {
-  const permissions = usePermissions();
-  const def = DEFINIZIONI_MODELLI[r.generale.modello];
-  const modello = r.generale.modello;
-  const puoCambiareElenco =
-    permissions.isAdmin || permissions.canViewSettingsOrders;
-  const allegatiDi = (orderId: string) => dati.allegatiPer.get(orderId) ?? [];
-
-  return (
-    <div className="space-y-4">
-      <section
-        aria-labelledby="documenti-titolo"
-        className="rounded-lg border bg-card"
-      >
-        <header className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
-          <div className="min-w-0">
-            <h2 id="documenti-titolo" className="text-base font-semibold">
-              Documenti richiesti
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              {riassunto(checklist.conteggi)}
-            </p>
-          </div>
-          {puoCambiareElenco && (
-            <Button asChild variant="ghost" size="sm">
-              <Link to="/azienda/impostazioni/cartelle-documenti#documenti-generali">
-                <Settings2 className="mr-1.5 h-3.5 w-3.5" /> Cambia l'elenco
-              </Link>
-            </Button>
-          )}
-        </header>
-
-        {checklist.generale.length > 0 && (
-          <div className="py-2">
-            <h3 className="px-4 py-1 text-xs font-medium text-muted-foreground">
-              {etichettaAmbito(modello, "generale")}
-            </h3>
-            <table className="w-full text-sm">
-              <tbody className="divide-y">
-                {checklist.generale.map((c) => (
-                  <tr key={c.voce.id} className="hover:bg-muted/30">
-                    <td className="w-9 py-2 pl-4 pr-1">
-                      <IconaStato c={c} />
-                    </td>
-                    <td className="px-2 py-2">
-                      <span className="font-medium">{c.voce.nome}</span>
-                      {!c.obbligatoria && c.stato !== "non_serve" && (
-                        <span className="ml-1.5 text-xs text-muted-foreground">
-                          facoltativo
-                        </span>
-                      )}
-                    </td>
-                    <td className="max-w-[16rem] px-2 py-2 text-xs">
-                      {c.documenti.length === 0 ? (
-                        <span className="text-muted-foreground">—</span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void openAttachmentInTab(
-                              c.documenti[0].allegato.file_url,
-                            )
-                          }
-                          className="block max-w-full truncate text-left hover:underline"
-                        >
-                          {c.documenti[0].allegato.file_name}
-                          {c.documenti.length > 1 && (
-                            <span className="text-muted-foreground">
-                              {" "}
-                              +{c.documenti.length - 1}
-                            </span>
-                          )}
-                        </button>
-                      )}
-                    </td>
-                    <td
-                      className={cn(
-                        "whitespace-nowrap px-2 py-2 text-xs",
-                        COLORE_TONO[tonoCasella(c)],
-                      )}
-                    >
-                      {testoCasella(c)}
-                    </td>
-                    <td className="w-32 py-1.5 pl-2 pr-4 text-right">
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          {puoModificare && c.stato === "mancante" ? (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-8 text-primary"
-                            >
-                              <Upload className="mr-1.5 h-3.5 w-3.5" /> Carica
-                            </Button>
-                          ) : (
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8"
-                              aria-label={`Dettagli di ${c.voce.nome}`}
-                            >
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </PopoverTrigger>
-                        <PopoverContent align="end" className="w-80">
-                          <PannelloVoce
-                            casella={c}
-                            generaleId={r.generale.id}
-                            allegati={allegatiDi(r.generale.id)}
-                            puoModificare={puoModificare}
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {checklist.figlie.length > 0 && (
-          <div className="border-t py-2">
-            <h3 className="px-4 py-1 text-xs font-medium text-muted-foreground">
-              {etichettaAmbito(modello, "figlia")}
-            </h3>
-            {r.figlie.length === 0 ? (
-              <p className="px-4 py-3 text-sm text-muted-foreground">
-                Quando aggiungi {def.figlia.tante.toLowerCase()}, qui vedi per
-                ognuna:{" "}
-                {checklist.figlie.map((g) => nomeBreve(g.voce.nome)).join(", ")}
-                .
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-left text-xs text-muted-foreground">
-                      <th className="px-4 py-2 font-medium">
-                        {def.figlia.tante}
-                      </th>
-                      {checklist.figlie.map((g) => (
-                        <th
-                          key={g.voce.id}
-                          className="px-2 py-2 font-medium"
-                          title={g.voce.aiuto ?? g.voce.nome}
-                        >
-                          {nomeBreve(g.voce.nome)}
-                          {!g.voce.obbligatoria && (
-                            <span className="block font-normal">
-                              facoltativo
-                            </span>
-                          )}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {r.figlie.map((f, i) => (
-                      <tr key={f.id} className="hover:bg-muted/30">
-                        <td className="max-w-[16rem] px-4 py-1.5">
-                          <Link
-                            to={`/azienda/ordini/${f.id}`}
-                            className="block truncate hover:underline"
-                          >
-                            {f.codice && (
-                              <span className="mr-1.5 text-xs text-muted-foreground">
-                                {f.codice}
-                              </span>
-                            )}
-                            <span className="font-medium">{f.nome}</span>
-                          </Link>
-                        </td>
-                        {checklist.figlie.map((g) => {
-                          const c = g.caselle[i];
-                          return (
-                            <td key={g.voce.id} className="px-1 py-1">
-                              <Popover>
-                                <PopoverTrigger asChild>
-                                  <button
-                                    type="button"
-                                    className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-xs hover:bg-muted"
-                                    aria-label={`${g.voce.nome}, ${nomeFiglia(f)}: ${testoCasella(c)}`}
-                                  >
-                                    <IconaStato c={c} className="h-3.5 w-3.5" />
-                                    <span
-                                      className={cn(
-                                        "truncate",
-                                        COLORE_TONO[tonoCasella(c)],
-                                      )}
-                                    >
-                                      {testoBreve(c)}
-                                    </span>
-                                  </button>
-                                </PopoverTrigger>
-                                <PopoverContent align="start" className="w-80">
-                                  <PannelloVoce
-                                    casella={c}
-                                    generaleId={r.generale.id}
-                                    dove={nomeFiglia(f)}
-                                    allegati={allegatiDi(f.id)}
-                                    puoModificare={puoModificare}
-                                  />
-                                </PopoverContent>
-                              </Popover>
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                  {r.figlie.length > 1 && (
-                    <tfoot>
-                      <tr className="border-t bg-muted/30 text-xs">
-                        <td className="px-4 py-2 font-medium">Presenti</td>
-                        {checklist.figlie.map((g) => {
-                          const s = riepilogoVoceFiglie(g.caselle);
-                          return (
-                            <td
-                              key={g.voce.id}
-                              className="px-2.5 py-2 tabular-nums"
-                            >
-                              {s.presenti} di {s.valgono}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    </tfoot>
-                  )}
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-      </section>
-
-      <div className="space-y-1.5">
-        <p className="text-xs text-muted-foreground">
-          L'archivio della commessa generale. I file di{" "}
-          {def.figlia.tante.toLowerCase()} stanno nelle loro pagine e qui sopra
-          spuntano le loro voci.
-        </p>
-        <OrderAttachments orderId={r.generale.id} editable={puoModificare} />
-      </div>
-    </div>
-  );
-}
-
-// ── Telefono: sola lettura, compatta ─────────────────────────────────────────
-
-function DocumentiTelefono({
-  r,
-  checklist,
-}: {
-  r: RiepilogoGenerale;
-  checklist: ChecklistDocumenti;
-}) {
-  const modello = r.generale.modello;
-  const [aperta, setAperta] = useState<string | null>(null);
-  const apri = (c: CasellaDocumento) => {
-    if (c.documenti[0])
-      void openAttachmentInTab(c.documenti[0].allegato.file_url);
+  const tutte = useMemo(() => {
+    const c = dati.checklist;
+    return c ? [...c.generale, ...c.figlie.flatMap(g => g.caselle)] : [];
+  }, [dati.checklist]);
+  const selezionata = voce ? tutte.find(c => c.orderId === voce.orderId && c.voce.id === voce.id) : undefined;
+  const apriVoce = (c: CasellaDocumento) => setVoce({ orderId: c.orderId, id: c.voce.id });
+  const apriOriginale = (file: AllegatoCommessa) => {
+    ritornoOriginale.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setOriginale(file);
   };
-  const figlie = r.figlie.length > 0 ? checklist.figlie : [];
+  const descrivi = (orderId: string) => {
+    const commessa = commesse.get(orderId);
+    return commessa ? nomeCommessa(commessa) : "Commessa collegata";
+  };
+  const righeAmbito = ambito ? tutte.filter(c => c.orderId === ambito) : tutte;
+  const casellePerVista = vista === "unita" ? righeAmbito.filter(c => c.orderId !== generaleId) : righeAmbito;
+  const cercaVoce = (c: CasellaDocumento) => cercaNellOperazione(cerca, [
+    c.voce.nome, descrivi(c.orderId), ...c.documenti.map(d => d.allegato.file_name),
+  ]);
+  const modificabile = puoModificare && !isMobile;
+  const unita = DEFINIZIONI_MODELLI[r.generale.modello].figlia;
+  const viste = [
+    { id: "requisiti", nome: "Checklist", icona: ClipboardList },
+    ...(r.figlie.length ? [{ id: "unita", nome: `Per ${unita.una}`, icona: Table2 }] : []),
+    { id: "archivio", nome: "File originali", icona: FolderOpen },
+  ] as const;
 
-  return (
-    <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">
-        {riassunto(checklist.conteggi)}
-      </p>
-      {checklist.generale.length > 0 && (
-        <section aria-label={etichettaAmbito(modello, "generale")}>
-          <h3 className="mb-1 text-xs font-medium text-muted-foreground">
-            {etichettaAmbito(modello, "generale")}
-          </h3>
-          <ul className="divide-y rounded-lg border bg-card">
-            {checklist.generale.map((c) => (
-              <li key={c.voce.id}>
-                <RigaTelefono
-                  c={c}
-                  nome={nomeBreve(c.voce.nome)}
-                  onClick={c.documenti[0] ? () => apri(c) : undefined}
-                />
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-      {figlie.length > 0 && (
-        <section aria-label={etichettaAmbito(modello, "figlia")}>
-          <h3 className="mb-1 text-xs font-medium text-muted-foreground">
-            {etichettaAmbito(modello, "figlia")}
-          </h3>
-          <ul className="divide-y rounded-lg border bg-card">
-            {figlie.map((g) => {
-              const s = riepilogoVoceFiglie(g.caselle);
-              const espansa = aperta === g.voce.id;
-              return (
-                <li key={g.voce.id}>
-                  <button
-                    type="button"
-                    onClick={() => setAperta(espansa ? null : g.voce.id)}
-                    aria-expanded={espansa}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left active:bg-muted/60"
-                  >
-                    <IconaStato c={peggiore(g.caselle)} />
-                    <span className="min-w-0 flex-1 truncate text-[13px]">
-                      {nomeBreve(g.voce.nome)}
-                    </span>
-                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                      {s.presenti} di {s.valgono}
-                    </span>
-                    {espansa ? (
-                      <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                    ) : (
-                      <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                    )}
-                  </button>
-                  {espansa && (
-                    <ul className="divide-y border-t bg-muted/20">
-                      {r.figlie.map((f, i) => {
-                        const c = g.caselle[i];
-                        return (
-                          <li key={f.id}>
-                            <RigaTelefono
-                              c={c}
-                              nome={f.codice ?? f.nome}
-                              rientrata
-                              onClick={
-                                c.documenti[0] ? () => apri(c) : undefined
-                              }
-                            />
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
+  if (dati.isLoading) return <Skeleton className="h-48 rounded-lg" />;
+  if (dati.isError || !dati.checklist) {
+    return <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
+      <p>Documenti della commessa non disponibili.</p>
+      <Button size="sm" variant="outline" onClick={dati.refetch}>Riprova</Button>
+    </div>;
+  }
+
+  const scopeKey = JSON.stringify([vista, ambito, attivo, cerca, vista === "archivio" ? cartella : null]);
+  const elenco = vista === "requisiti" ? righeAmbito.filter(c => documentoNelFiltro(c, attivo) && cercaVoce(c))
+    .sort((a, b) => gravita(a) - gravita(b) || (a.scadenza ?? "9999").localeCompare(b.scadenza ?? "9999")
+      || Number(b.orderId === generaleId) - Number(a.orderId === generaleId)) : [];
+
+  const fileAmbito = vista === "archivio" ? [...dati.allegatiPer.entries()]
+    .filter(([id]) => commesse.has(id) && (!ambito || id === ambito)).flatMap(([, righe]) => righe) : [];
+  const perCartella = contaPerCartella(fileAmbito);
+  const senzaCartella = fileAmbito.length - categorie.cartelle.reduce((n, c) => n + (perCartella[c.id] ?? 0), 0);
+  const file = fileAmbito.filter(a => {
+    const id = a.folder_id && perIdCartella.has(a.folder_id) ? a.folder_id : SENZA_CARTELLA;
+    return (cartella === TUTTI_DOCUMENTI || id === cartella)
+      && cercaNellOperazione(cerca, [a.file_name, descrivi(a.order_id), KIND_LABEL[fileKind(a)], nomeCartella(a)]);
+  })
+    .sort((a, b) => b.created_at.localeCompare(a.created_at) || a.id.localeCompare(b.id));
+
+  return <section aria-labelledby="titolo-documenti-generale" className="generale-sheet generale-documenti min-w-0 space-y-2">
+    <div className="generale-panel">
+      <header className="flex flex-wrap items-center justify-between gap-1.5 border-b px-3 py-2">
+        <h2 id="titolo-documenti-generale" className="flex items-center gap-2 text-sm font-semibold">
+          <FolderOpen className="size-4 text-primary" aria-hidden="true" /> Archivio e scadenze
+        </h2>
+        {(permissions.isAdmin || permissions.canViewSettingsOrders) && <Button asChild variant="ghost" size="sm" className="h-8 gap-1.5 px-2 text-xs">
+          <Link to="/azienda/impostazioni/cartelle-documenti#documenti-generali" aria-label="Impostazioni requisiti">
+            <Settings2 className="size-3.5" aria-hidden="true" /> {isMobile ? "Requisiti" : "Impostazioni requisiti"}
+          </Link>
+        </Button>}
+      </header>
+      <div className="generale-registro-strumenti flex min-w-0 flex-wrap items-center gap-2 px-2.5 py-1.5">
+        <div role="group" aria-label="Viste documenti" className="flex min-w-0 flex-wrap items-center gap-0.5 rounded-md bg-muted/60 p-0.5">
+          {viste.map(({ id, nome, icona: Icona }) => <Button key={id} type="button" size="sm" variant="ghost"
+            aria-pressed={vista === id}
+            className={cn("h-8 gap-1.5 px-2 text-xs", vista === id && "bg-card text-foreground shadow-sm")}
+            onClick={() => {
+              if (vista !== id) {
+                setCerca("");
+                cambia(CAMPO_VISTA, id === "requisiti" && hash !== "#contratto-appalto" ? "" : id);
+              }
+            }}>
+            <Icona className="size-3.5 text-primary" aria-hidden="true" /> {nome}
+          </Button>)}
+        </div>
+        <div className="relative min-w-[10rem] max-w-sm flex-1">
+          <Search className="pointer-events-none absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" aria-hidden="true" />
+          <Input type="search" aria-label="Cerca nei documenti della commessa"
+            placeholder={vista === "archivio" ? "Nome file o codice…" : vista === "unita" ? "Nome o codice…" : "Documento, file o codice…"}
+            className="h-8 pl-8 pr-8 text-xs" value={cerca} onChange={e => setCerca(e.target.value)} />
+          {cerca && <button type="button" aria-label="Cancella ricerca" className="absolute right-1 top-1 grid size-6 place-items-center rounded hover:bg-muted"
+            onClick={() => setCerca("")}><X className="size-3.5" aria-hidden="true" /></button>}
+        </div>
+        <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:max-w-60">
+          <span className="text-xs font-medium">Ambito</span>
+          <AmbitoOperazione fissi={vista === "unita" ? [Tutta] : [Tutta, principale]} figlie={r.figlie} valore={ambito}
+            onChange={id => cambia(CAMPO_AMBITO, id)} etichetta="Ambito dei documenti" />
+        </div>
+        {vista === "archivio" && <Button type="button" variant="outline" size="sm" className="ml-auto h-8 gap-1.5"
+          onClick={() => setGestione(ambito || generaleId)}>
+          <FolderOpen className="size-3.5" aria-hidden="true" /> {ambito ? "Gestisci archivio" : "Archivio della generale"}
+        </Button>}
+      </div>
+      {vista !== "archivio" && <div className="flex flex-wrap items-center gap-1 border-t bg-muted/20 px-2.5 py-1.5" role="group" aria-label="Stato dei documenti">
+        {FILTRI.map(s => {
+          const valore = s.id === "tutti" ? casellePerVista.length : casellePerVista.filter(c => documentoNelFiltro(c, s.id)).length;
+          const selezionato = s.id === attivo;
+          return <Button key={s.id} type="button" variant={selezionato ? "default" : "outline"} size="sm"
+            aria-pressed={selezionato} className="h-7 gap-1.5 px-2 text-xs"
+            onClick={() => cambia(CAMPO_STATO, s.id === "tutti" ? "" : s.id)}>
+            {s.nome} <span className={cn("font-semibold tabular-nums", !selezionato && ("colore" in s ? s.colore : "text-muted-foreground"))}>{valore}</span>
+          </Button>;
+        })}
+      </div>}
     </div>
-  );
+
+    {vista === "archivio" && (!ambito || ambito === generaleId) && <DocumentoContrattoAppalto
+      riepilogo={r} puoModificare={modificabile} apriOriginale={apriOriginale} />}
+    {vista === "requisiti" && <RegistroDocumenti key={scopeKey} righe={elenco} dimensione={20}
+      singolare="voce" plurale="voci" vuoto="Nessun requisito corrisponde ai filtri."
+      nome="Checklist documenti" intestazione={<>
+        <th scope="col" className="w-[53%] md:w-auto">Documento</th>
+        <th scope="col" className="hidden md:table-cell">{unita.tante === "Unità" ? "Commessa / unità" : "Commessa / ordine"}</th>
+        <th scope="col">Stato</th><th scope="col" className="hidden lg:table-cell">Scadenza</th>
+        <th scope="col" className="hidden md:table-cell">Originale</th>
+        <th scope="col" className="w-9 text-right"><span className="sr-only">Azioni</span></th>
+      </>}>
+      {c => {
+        const primo = c.documenti[0]?.allegato;
+        const deveCaricare = modificabile && c.stato === "mancante";
+        return <tr key={`${c.orderId}:${c.voce.id}`}>
+          <td className="min-w-0">
+            <button type="button" className={cn(classeTesto, "font-medium hover:text-primary hover:underline")} title={c.voce.nome} onClick={() => apriVoce(c)}>
+              {c.voce.nome}
+            </button>
+            <div className="truncate text-[11px] text-muted-foreground md:hidden">{descrivi(c.orderId)}</div>
+            {primo && <button type="button" className="block max-w-full truncate text-left text-[11px] text-primary hover:underline md:hidden"
+              onClick={() => apriOriginale(primo)}>{primo.file_name}</button>}
+          </td>
+          <td className="hidden md:table-cell"><span className="block max-w-64 truncate text-xs" title={descrivi(c.orderId)}>{descrivi(c.orderId)}</span></td>
+          <td><StatoDocumento casella={c} /></td>
+          <td className="hidden whitespace-nowrap text-xs tabular-nums lg:table-cell">{data(c.scadenza)}</td>
+          <td className="hidden max-w-60 md:table-cell">{primo ? <button type="button" className={cn(classeTesto, "text-xs text-primary hover:underline")}
+            title={primo.file_name} onClick={() => apriOriginale(primo)}>
+            {primo.file_name}{c.documenti.length > 1 && <span className="ml-1 text-muted-foreground">+{c.documenti.length - 1}</span>}
+          </button> : <span className="text-xs text-muted-foreground">—</span>}</td>
+          <td className="text-right">
+            <Button type="button" variant="ghost" size="icon" className="size-8"
+              aria-label={`${deveCaricare ? "Carica" : "Dettagli"} ${c.voce.nome} · ${descrivi(c.orderId)}`}
+              onClick={() => apriVoce(c)} title={deveCaricare ? "Carica o collega file" : "Dettagli requisito"}>
+              {deveCaricare ? <Upload className="size-4 text-primary" aria-hidden="true" /> : <ChevronRight className="size-4" aria-hidden="true" />}
+            </Button>
+          </td>
+        </tr>;
+      }}
+    </RegistroDocumenti>}
+
+    {vista === "unita" && <MatriceDocumenti key={scopeKey} checklist={dati.checklist}
+      figlie={r.figlie.filter(f => (!ambito || ambito === f.id) && cercaNellOperazione(cerca, [f.codice, f.nome, f.indirizzo]))}
+      filtro={attivo} titolo={unita.tante} apri={apriVoce} />}
+
+    {vista === "archivio" && <div className="grid min-w-0 items-start gap-2 md:grid-cols-[13rem_minmax(0,1fr)]">
+      <aside className="generale-panel min-w-0 p-2 md:max-h-[58dvh] md:overflow-y-auto">
+        <DocumentFoldersNavigation
+          compact={isMobile}
+          cartelle={categorie.isError ? [] : categorie.cartelle} conteggi={perCartella} totale={fileAmbito.length}
+          senzaCartella={categorie.isLoading || categorie.isError ? 0 : senzaCartella}
+          selezione={cartella} onSelect={id => cambia(CAMPO_CARTELLA, id === TUTTI_DOCUMENTI ? "" : id)}
+          loading={categorie.isLoading} puoGestireCartelle={permissions.isAdmin || permissions.canEditSettingsOrders} />
+        {categorie.isError && <div role="status" className="space-y-1 p-2 text-xs text-muted-foreground">
+          <p>Cartelle non disponibili.</p>
+          <Button type="button" variant="outline" size="sm" onClick={() => void categorie.refetch()}>Riprova</Button>
+        </div>}
+      </aside>
+      <RegistroDocumenti key={scopeKey} righe={file} dimensione={20}
+      singolare="file" plurale="file" vuoto={cerca ? "Nessun file corrisponde alla ricerca."
+        : cartella === TUTTI_DOCUMENTI ? "Nessun file in questo ambito." : "Nessun file in questa cartella."}
+      nome="Originali dell’operazione" intestazione={<>
+        <th scope="col" className="w-[70%] md:w-auto">File originale</th>
+        <th scope="col" className="hidden md:table-cell">{unita.tante === "Unità" ? "Commessa / unità" : "Commessa / ordine"}</th>
+        <th scope="col" className="hidden lg:table-cell">Cartella</th>
+        <th scope="col">Tipo</th><th scope="col" className="hidden sm:table-cell">Caricato il</th>
+      </>}>
+      {a => {
+        const tipo = fileKind(a);
+        return <tr key={a.id}>
+          <td>
+            <button type="button" className="flex w-full min-w-0 items-center gap-2 text-left font-medium text-primary hover:underline"
+              title={a.file_name} onClick={() => apriOriginale(a)}>
+              <KindIcon kind={tipo} className="size-4 shrink-0" />
+              <span className="min-w-0 truncate">{a.file_name}</span>
+            </button>
+            <span className="block truncate pl-6 text-[11px] text-muted-foreground md:hidden">
+              {[descrivi(a.order_id), nomeCartella(a)].filter(Boolean).join(" · ")}
+            </span>
+          </td>
+          <td className="hidden md:table-cell">{descrivi(a.order_id)}</td>
+          <td className="hidden lg:table-cell"><span className="block max-w-44 truncate text-xs" title={nomeCartella(a)}>{nomeCartella(a) || "—"}</span></td>
+          <td className="text-xs">{KIND_LABEL[tipo]}</td>
+          <td className="hidden whitespace-nowrap text-xs tabular-nums sm:table-cell">{data(a.created_at.slice(0, 10))}</td>
+        </tr>;
+      }}
+      </RegistroDocumenti>
+    </div>}
+
+    {selezionata && <Dialog open onOpenChange={open => { if (!open) setVoce(undefined); }}>
+      <DialogContentOperativo ampiezza="modulo" struttura="contenuta" className="max-h-[86dvh] max-w-lg overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{selezionata.voce.nome}</DialogTitle>
+          <DialogDescription>{descrivi(selezionata.orderId)} · {testoCasella(selezionata)}
+            {selezionata.voce.aiuto && <span className="block">{selezionata.voce.aiuto}</span>}
+          </DialogDescription>
+        </DialogHeader>
+        <PannelloVoce key={`${selezionata.orderId}:${selezionata.voce.id}`} generaleId={generaleId}
+          casella={selezionata} allegati={dati.allegatiPer.get(selezionata.orderId) ?? []}
+          puoModificare={modificabile} nascondiIntestazione apriOriginale={apriOriginale} />
+      </DialogContentOperativo>
+    </Dialog>}
+    {originale && <Suspense fallback={<span role="status" className="sr-only">Caricamento anteprima…</span>}>
+      <OriginaleDocumentoDialog key={originale.id} file={originale} ambito={descrivi(originale.order_id)}
+        chiudi={() => setOriginale(undefined)} restituisciFocus={() => ritornoOriginale.current?.focus()} />
+    </Suspense>}
+    {gestione && <Dialog open onOpenChange={open => {
+      if (!open) { setGestione(undefined); dati.refetch(); }
+    }}>
+      <DialogContentOperativo struttura="contenuta" className="max-h-[88dvh] max-w-5xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Archivio della commessa</DialogTitle>
+          <DialogDescription>{descrivi(gestione)}</DialogDescription>
+        </DialogHeader>
+        <Suspense fallback={<p role="status" className="text-sm">Caricamento archivio…</p>}>
+          <OrderAttachments orderId={gestione} orderCode={commesse.get(gestione)?.codice ?? undefined} editable={modificabile}
+            cartellaIniziale={cartella === TUTTI_DOCUMENTI ? undefined : cartella} />
+        </Suspense>
+      </DialogContentOperativo>
+    </Dialog>}
+  </section>;
 }
 
-function RigaTelefono({
-  c,
-  nome,
-  rientrata,
-  onClick,
-}: {
-  c: CasellaDocumento;
+function StatoDocumento({ casella }: { casella: CasellaDocumento }) {
+  const tono = tonoCasella(casella);
+  return <span className={cn("inline-flex items-center gap-1.5 text-xs", COLORE_TONO[tono])} title={testoCasella(casella)}>
+    <IconaStato c={casella} className="size-3.5" />
+    {tono === "verde" ? "Presente" : casella.stato === "in_scadenza" ? "In scadenza" : testoBreve(casella)}
+  </span>;
+}
+
+function RegistroDocumenti<T>({ righe, dimensione, singolare, plurale, vuoto, nome, intestazione, children, minimo }: {
+  righe: readonly T[];
+  dimensione: number;
+  singolare: string;
+  plurale: string;
+  vuoto: string;
   nome: string;
-  rientrata?: boolean;
-  onClick?: () => void;
+  intestazione: ReactNode;
+  children: (riga: T) => ReactNode;
+  minimo?: string;
 }) {
-  const contenuto = (
-    <>
-      <IconaStato c={c} className={rientrata ? "h-3.5 w-3.5" : undefined} />
-      <span className="min-w-0 flex-1 truncate text-[13px]">{nome}</span>
-      <span className={cn("shrink-0 text-xs", COLORE_TONO[tonoCasella(c)])}>
-        {testoBreve(c)}
+  const [pagina, setPagina] = useState(1);
+  const totale = righe.length;
+  const pagine = Math.ceil(totale / dimensione);
+  const corrente = Math.min(Math.max(1, pagine), pagina);
+  const inizio = (corrente - 1) * dimensione;
+  const fine = Math.min(totale, inizio + dimensione);
+  if (!totale) return <div role="status" className="generale-panel p-4 text-sm text-muted-foreground">{vuoto}</div>;
+  return <div className="generale-panel min-w-0 overflow-hidden">
+    <div className="overflow-x-auto" tabIndex={minimo ? 0 : undefined} role={minimo ? "region" : undefined} aria-label={minimo ? nome : undefined}>
+      <table aria-label={nome} className={cn("generale-registro-tabella table-fixed md:table-auto", minimo)}>
+        <thead className="bg-muted/55 text-[11px] text-muted-foreground"><tr>{intestazione}</tr></thead>
+        <tbody className="divide-y border-t [&_tr:hover]:bg-muted/30">{righe.slice(inizio, fine).map(children)}</tbody>
+      </table>
+    </div>
+    <div className="flex items-center justify-between gap-2 border-t px-2.5 py-1">
+      <span role="status" className="text-xs tabular-nums text-muted-foreground">
+        {pagine > 1 ? `${inizio + 1}–${fine} di ${totale} ${plurale}` : `${totale} ${totale === 1 ? singolare : plurale}`}
       </span>
-    </>
-  );
-  const classe = cn(
-    "flex w-full items-center gap-2 py-2 text-left",
-    rientrata ? "pl-6 pr-3" : "px-3",
-  );
-  return onClick ? (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(classe, "active:bg-muted/60")}
-    >
-      {contenuto}
-    </button>
-  ) : (
-    <div className={classe}>{contenuto}</div>
-  );
+      {pagine > 1 && <nav aria-label={`Pagine di ${nome.toLowerCase()}`} className="flex gap-1">
+        <Button type="button" variant="outline" size="icon" className="size-8" aria-label="Pagina precedente"
+          disabled={corrente <= 1} onClick={() => setPagina(corrente - 1)}><ChevronLeft className="size-4" aria-hidden="true" /></Button>
+        <Button type="button" variant="outline" size="icon" className="size-8" aria-label="Pagina successiva"
+          disabled={corrente >= pagine} onClick={() => setPagina(corrente + 1)}><ChevronRight className="size-4" aria-hidden="true" /></Button>
+      </nav>}
+    </div>
+  </div>;
+}
+
+function MatriceDocumenti({ checklist, figlie, filtro, titolo, apri }: {
+  checklist: ChecklistDocumenti;
+  figlie: Commessa[];
+  filtro: FiltroDocumenti;
+  titolo: string;
+  apri: (c: CasellaDocumento) => void;
+}) {
+  const idFiglie = new Set(figlie.map(f => f.id));
+  const perVoce = checklist.figlie.map(g => ({
+    voce: g.voce,
+    totale: riepilogoVoceFiglie(g.caselle.filter(c => idFiglie.has(c.orderId))),
+    caselle: new Map(g.caselle.map(c => [c.orderId, c])),
+  }));
+  const righe = perVoce.length ? figlie.filter(f => perVoce.some(g => {
+    const c = g.caselle.get(f.id);
+    return c && documentoNelFiltro(c, filtro);
+  })) : [];
+  return <RegistroDocumenti righe={righe} dimensione={12} singolare={titolo === "Unità" ? "unità" : "ordine"}
+    plurale={titolo.toLocaleLowerCase("it")} nome="Matrice dei documenti" vuoto="Nessuna commessa collegata corrisponde ai filtri."
+    minimo="!w-auto min-w-full !table-auto" intestazione={<>
+      <th scope="col" className="sticky left-0 z-10 whitespace-nowrap !bg-card">{titolo}</th>
+      {perVoce.map(g => <th scope="col" key={g.voce.id} className="min-w-28" title={g.voce.nome}>
+        <span className="block font-medium text-foreground">{nomeBreve(g.voce.nome)}</span>
+        <span className="font-normal tabular-nums">{g.totale.presenti}/{g.totale.valgono} presenti</span>
+      </th>)}
+    </>}>
+    {f => <tr key={f.id} className="group">
+      <th scope="row" className="sticky left-0 z-10 max-w-44 whitespace-nowrap !bg-card group-hover:!bg-muted">
+        <Link to={`/azienda/ordini/${f.id}?tab=panoramica&section=section-documenti`} className="block truncate font-medium text-primary hover:underline"
+          title={nomeCommessa(f)}>{f.codice || f.nome}</Link>
+      </th>
+      {perVoce.map(g => {
+        const c = g.caselle.get(f.id);
+        return <td key={g.voce.id} className="whitespace-nowrap">
+          {c && documentoNelFiltro(c, filtro) ? <button type="button" onClick={() => apri(c)}
+            className="rounded px-1 py-0.5 text-left hover:bg-muted" aria-label={`${g.voce.nome} · ${nomeCommessa(f)} · ${testoCasella(c)}`}>
+            <StatoDocumento casella={c} />
+          </button> : <span className="text-muted-foreground">—</span>}
+        </td>;
+      })}
+    </tr>}
+  </RegistroDocumenti>;
 }

@@ -7,7 +7,7 @@ import { ArrowRight, Landmark } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { PropsScheda } from "@/components/orders/generali/tipiScheda";
-import { euro } from "@/components/orders/generali/piano/formato";
+import { euro, nomeMese } from "@/components/orders/generali/piano/formato";
 import { useGeneraleInvestitori } from "@/hooks/useGeneraleInvestitori";
 import { cn } from "@/lib/utils";
 
@@ -67,6 +67,7 @@ export function RiquadroInvestitori({ riepilogo }: PropsScheda) {
   }
 
   const n = inv.numeri;
+  const meseScoperto = c.scopertoCalendario.importo > c.scopertoImpegni ? c.scopertoCalendario.mese : null;
   return (
     <section aria-label="Investitori" className="generale-panel px-4 py-4">
       {intestazione}
@@ -80,7 +81,8 @@ export function RiquadroInvestitori({ riepilogo }: PropsScheda) {
       )}
       {n && c.scoperto >= 1 && (
         <p className="mt-2 text-xs text-destructive">
-          Le fonti non coprono il picco di esposizione: mancano {euro(c.scoperto)}.
+          {meseScoperto ? `Nel calendario mancano ${euro(c.scoperto)} a ${nomeMese(meseScoperto)}.`
+            : `Al picco di esposizione mancano ${euro(c.scoperto)}.`}
         </p>
       )}
     </section>

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { ReportMensile } from "@/components/orders/generali/investitori/ReportMensile";
 import type { RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 const m = vi.hoisted(() => ({
@@ -112,23 +112,25 @@ afterEach(() => {
 const r = {
   generale: { id: "g", nome: "Residenza", codice: "O-1" },
 } as RiepilogoGenerale;
+const versato = () => within(screen.getByRole("row", { name: /^Investitore/ })).getAllByRole("cell")[0];
+
 it("apre il periodo passato richiesto dall’Andamento senza sostituirlo con quello corrente", () => {
   render(
-    <ReportMensile riepilogo={r} meseIniziale="2026-10" apertoInizialmente />,
+    <ReportMensile riepilogo={r} meseIniziale="2026-10" />,
   );
   expect(screen.getByLabelText("Periodo rendiconto investitori")).toHaveValue(
     "2026-10",
   );
   expect(
-    screen.getByText(/Capitale riferito al 2026-10-05/),
+    screen.getByText(/Capitale riferito al 05\/10\/2026/),
   ).toBeInTheDocument();
   expect(
-    screen.getByRole("button", { name: "Scarica rendiconto del periodo" }),
+    screen.getByRole("button", { name: "Scarica CSV" }),
   ).toBeEnabled();
 });
 it("non usa un mese futuro o malformato ricevuto dal collegamento", () => {
   render(
-    <ReportMensile riepilogo={r} meseIniziale="2027-13" apertoInizialmente />,
+    <ReportMensile riepilogo={r} meseIniziale="2027-13" />,
   );
   expect(screen.getByLabelText("Periodo rendiconto investitori")).toHaveValue(
     "2026-11",
@@ -140,14 +142,13 @@ it("usa la data della fotografia anche per il capitale: esclude versamenti succe
     target: { value: "2026-10" },
   });
   expect(
-    screen.getByText(/Capitale riferito al 2026-10-05/),
+    screen.getByText(/Capitale riferito al 05\/10\/2026/),
   ).toBeInTheDocument();
-  expect(screen.getByText(/Versato 100/)).toBeInTheDocument();
+  expect(versato()).toHaveTextContent(/100\s*€/);
   expect(screen.queryByText(/9\.999/)).not.toBeInTheDocument();
   expect(
     screen.getByRole("button", {
-      name: "Scarica rendiconto del periodo",
-      hidden: true,
+      name: "Scarica CSV",
     }),
   ).toBeEnabled();
 });
@@ -159,23 +160,22 @@ it("blocca l'esportazione se la fotografia non ha un budget approvato", () => {
   });
   expect(
     screen.getByRole("button", {
-      name: "Scarica rendiconto del periodo",
-      hidden: true,
+      name: "Scarica CSV",
     }),
   ).toBeDisabled();
+  expect(screen.queryByRole("table")).toBeNull();
 });
 it("il report corrente usa il piano approvato aggiornato a oggi e non una vecchia fotografia", () => {
   m.corrente = true;
   render(<ReportMensile riepilogo={r} />);
   expect(
-    screen.getByText(/Capitale riferito al 2026-11-11/),
+    screen.getByText(/Capitale riferito al 11\/11\/2026/),
   ).toBeInTheDocument();
-  expect(screen.getByText(/stima finale 1\.300/)).toBeInTheDocument();
-  expect(screen.getByText(/Versato 10.099/)).toBeInTheDocument();
+  expect(screen.getByText("Stima finale").parentElement).toHaveTextContent(/1\.300\s*€/);
+  expect(versato()).toHaveTextContent(/10\.099\s*€/);
   expect(
     screen.getByRole("button", {
-      name: "Scarica rendiconto del periodo",
-      hidden: true,
+      name: "Scarica CSV",
     }),
   ).toBeEnabled();
 });
@@ -183,36 +183,36 @@ it("il report corrente usa il piano approvato aggiornato a oggi e non una vecchi
 it("gli oneri futuri restano previsti e non bloccano una fotografia approvata valida", () => {
   m.oneri = true;
   render(
-    <ReportMensile riepilogo={r} meseIniziale="2026-10" apertoInizialmente />,
+    <ReportMensile riepilogo={r} meseIniziale="2026-10" />,
   );
   expect(
-    screen.getByText(/Oneri finanziari ancora previsti: 43.875/),
+    screen.getByText(/Oneri finanziari ancora previsti · 43\.875/),
   ).toBeInTheDocument();
   expect(
-    screen.getByRole("button", { name: "Scarica rendiconto del periodo" }),
+    screen.getByRole("button", { name: "Scarica CSV" }),
   ).toBeEnabled();
-  expect(screen.getByText(/Versato 100/)).toBeInTheDocument();
+  expect(versato()).toHaveTextContent(/100\s*€/);
 });
 
 it("una rettifica successiva non include i movimenti dei mesi dopo la fotografia", () => {
   m.aggiornataIl = "2026-11-11T12:00:00Z";
   render(
-    <ReportMensile riepilogo={r} meseIniziale="2026-10" apertoInizialmente />,
+    <ReportMensile riepilogo={r} meseIniziale="2026-10" />,
   );
   expect(
-    screen.getByText(/Capitale riferito al 2026-10-31/),
+    screen.getByText(/Capitale riferito al 31\/10\/2026/),
   ).toBeInTheDocument();
   expect(
-    screen.getByRole("button", { name: "Scarica rendiconto del periodo" }),
+    screen.getByRole("button", { name: "Scarica CSV" }),
   ).toBeEnabled();
 });
 
 it("blocca una fotografia con valori non validi anche se approvata", () => {
   m.invalida = true;
   render(
-    <ReportMensile riepilogo={r} meseIniziale="2026-10" apertoInizialmente />,
+    <ReportMensile riepilogo={r} meseIniziale="2026-10" />,
   );
   expect(
-    screen.getByRole("button", { name: "Scarica rendiconto del periodo" }),
+    screen.getByRole("button", { name: "Scarica CSV" }),
   ).toBeDisabled();
 });

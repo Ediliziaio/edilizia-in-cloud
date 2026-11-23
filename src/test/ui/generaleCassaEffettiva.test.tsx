@@ -94,3 +94,13 @@ it("non mostra un fabbisogno residuo certo se una scadenza manca", () => {
     "movimenti senza data 1",
   );
 });
+
+it("apre gli attesi dal collegamento e torna alle priorità", () => {
+  const onPriorita = vi.fn();
+  render(<CassaScadenze riepilogo={{
+    generale: { id: "g" }, permessi: { margini: true },
+  } as RiepilogoGenerale} baseIniziale="attesi" periodoIniziale="futuro" onPriorita={onPriorita} />);
+  expect(screen.getByRole("button", { name: "Ancora attesi" })).toHaveAttribute("aria-pressed", "true");
+  fireEvent.click(screen.getByRole("button", { name: "Priorità di cassa" }));
+  expect(onPriorita).toHaveBeenCalledOnce();
+});

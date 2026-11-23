@@ -14,6 +14,7 @@ beforeEach(()=>{
       is:vi.fn((key:string,value:unknown)=>{mock.calls.push(["is",key,value]);return query;}),
       in:vi.fn((key:string,ids:string[])=>{mock.calls.push(["in",key,ids]);rows=rows.filter(row=>ids.includes(row[key as keyof typeof row]));return query;}),
       or:vi.fn((espressione:string, options?:unknown)=>{mock.calls.push(options ? ["or",espressione,options] : ["or",espressione]);return query;}),gte:vi.fn().mockReturnThis(),lte:vi.fn().mockReturnThis(),
+      lt:vi.fn((key:string,value:string)=>{mock.calls.push(["lt",key,value]);return query;}),
       order:vi.fn().mockReturnThis(),
       range:vi.fn((from:number,to:number)=>{mock.calls.push(["range",from,to]);start=from;end=to;return query;}),
       then:(resolve:(value:unknown)=>unknown)=>Promise.resolve(resolve({data:mock.error?null:rows.slice(start,end+1),error:mock.error,count:rows.length})),
@@ -21,6 +22,11 @@ beforeEach(()=>{
   });
 });
 describe("Filtri prima della paginazione delle commesse",()=>{
+  it("la data finale del mese usa la mezzanotte locale del giorno successivo", async () => {
+    const contractDateRange = { from: new Date(2027, 9, 1), to: new Date(2027, 9, 31) };
+    await readOrdersPage({ ...filters, monthFilter: "9", contractDateRange }, 0, 19);
+    expect(mock.calls).toContainEqual(["lt", "created_at", new Date(2027, 10, 1).toISOString()]);
+  });
   it("completa gli importi finanziari solo per le commesse della pagina e dell'azienda selezionata",async()=>{
     const result=await readOrdersPage(filters,20,39);
     expect(mock.rpc).toHaveBeenCalledWith("commesse_importi_finanziari",{p_company_id:"company-a",p_ids:result.orders.map(row=>row.id)});

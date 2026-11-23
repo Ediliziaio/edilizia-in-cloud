@@ -41,6 +41,7 @@ interface Props {
   incassato: number | null;
   /** Il piano non ha ancora tutte le stime: il budget è parziale e va detto. */
   budgetParziale?: boolean;
+  budgetInBozza?: boolean;
   /** Nessun costo previsto nel piano: si dice cosa manca invece di lasciare un trattino muto. */
   notaCostiPrevisti?: string | null;
   /** Con questo la superficie si scrive da qui, senza passare dalla scheda Dati. */
@@ -48,7 +49,7 @@ interface Props {
   appalto?: boolean;
 }
 
-export function QuadroPrevisionale({ n, etichettaVendita, incassato, budgetParziale, notaCostiPrevisti, superficieAMano, appalto = false }: Props) {
+export function QuadroPrevisionale({ n, etichettaVendita, incassato, budgetParziale, budgetInBozza, notaCostiPrevisti, superficieAMano, appalto = false }: Props) {
   const { previsionale: p, reale: r } = n;
   const mq = n.superficie;
   const tonoMargine = (m: number | null) => (m === null ? undefined : m < 0 ? "rosso" : "verde");
@@ -87,7 +88,7 @@ export function QuadroPrevisionale({ n, etichettaVendita, incassato, budgetParzi
 
         <div role="row" className="contents">
           <span role="rowheader" className="quadro-prev-riga-nome">
-            Previsionale<span className="quadro-prev-riga-sotto">dal piano</span>
+            Previsionale<span className="quadro-prev-riga-sotto">{budgetInBozza ? "piano in bozza" : "dal piano"}</span>
           </span>
           <Cella valore={euro(p.vendita)} nota={euroMq(p.venditaMq)} />
           <Cella
@@ -109,7 +110,7 @@ export function QuadroPrevisionale({ n, etichettaVendita, incassato, budgetParzi
           />
           <Cella
             valore={euro(r.costi)}
-            nota={[euroMq(r.costiMq), n.spesoPct !== null ? `${pct(n.spesoPct)} del budget` : null].filter(Boolean).join(" · ") || null}
+            nota={[euroMq(r.costiMq), n.spesoPct !== null ? `${pct(n.spesoPct)} ${budgetInBozza ? "dei costi in bozza" : "del budget"}` : null].filter(Boolean).join(" · ") || null}
           />
           <Cella
             valore={r.margine === null ? "—" : euro(r.margine)}
@@ -119,7 +120,7 @@ export function QuadroPrevisionale({ n, etichettaVendita, incassato, budgetParzi
         </div>
       </div>
 
-      {(n.scartoCosti !== null || n.scartoCostoMq !== null) && (
+      {!budgetInBozza && r.costi !== 0 && (n.scartoCosti !== null || n.scartoCostoMq !== null) && (
         <p className="quadro-prev-scarto">
           {n.scartoCosti !== null && (
             <span className={cn(tonoScarto === "rosso" && "generale-negative", tonoScarto === "verde" && "generale-positive")}>
