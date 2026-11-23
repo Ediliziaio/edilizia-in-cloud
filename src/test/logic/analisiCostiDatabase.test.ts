@@ -86,8 +86,8 @@ beforeAll(async () => {
   `);
   await db.exec(migrazione("20281105370000_preventivo_tiene_il_legame_col_computo.sql"));
   await db.exec(migrazione("20290418120000_commessa_da_computo_con_detrazioni.sql"));
-  await db.exec(migrazione("20290506142000_preventivo_analisi_costi.sql"));
-  await db.exec(migrazione("20290506174000_prepara_commessa_computo_atomic.sql"));
+  await db.exec(migrazione("20290507120200_preventivo_analisi_costi.sql"));
+  await db.exec(migrazione("20290507120500_prepara_commessa_computo_atomic.sql"));
 }, 30_000);
 afterAll(async () => { await db?.close(); });
 

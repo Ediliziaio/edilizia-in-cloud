@@ -1,3 +1,6 @@
+set local lock_timeout = '3s';
+set local statement_timeout = '60s';
+
 insert into public.platform_feature_flags
   (key, name, description, category, is_beta, default_value, plans_included, icon, sort_order, supports_preview)
 select 'preventivi_analisi_costi', 'Analisi costi preventivi',
