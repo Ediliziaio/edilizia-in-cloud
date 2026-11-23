@@ -240,6 +240,7 @@ export const TRAME: Record<string, { lato: number; disegna: Disegnatore; rilievo
   ghiaia: { lato: 256, disegna: (ctx, n, rnd) => { ctx.fillStyle = "#bcb7ac"; ctx.fillRect(0, 0, n, n); for (let i = 0; i < 2600; i++) { const t = 0.55 + rnd() * 0.6; ctx.fillStyle = rgb(190 * t, 185 * t, 172 * t); ctx.beginPath(); ctx.arc(rnd() * n, rnd() * n, 1 + rnd() * 2.4, 0, Math.PI * 2); ctx.fill(); } } },
   prato: {
     lato: 512,
+    rilievo: .45,
     disegna: (ctx, n, rnd) => {
       ctx.fillStyle = "#6f9a4d"; ctx.fillRect(0, 0, n, n);
       macchie(ctx, n, rnd, 70, (r) => `rgba(${r < 0.5 ? "40,90,30" : "150,190,90"},${0.05 + r * 0.05})`, [20, 70]);
@@ -648,7 +649,8 @@ export function creaAspetto({ renderer, scene, camera }: Avvio): Aspetto {
         scene.background = new THREE.Color("#ecece7");
         scene.environmentIntensity = .72;
         mt.color.set("#deddd5");
-        ambiente.sole.intensity = st.intensita * (sera ? .14 : diffusa ? .23 : .48);
+        // di giorno il sole deve staccare le ombre anche sullo sfondo neutro dello Studio
+        ambiente.sole.intensity = st.intensita * (sera ? .14 : diffusa ? .23 : .72);
         ambiente.sole.color.set(st.colore);
         const [dx, dy, dz] = st.direzione;
         ambiente.sole.position.set(cx + dx * r * 3, (scena.nord === undefined ? Math.max(dy, .48) : dy) * r * 3, cz + dz * r * 3);

@@ -170,3 +170,24 @@ describe("ritocchi dopo la revisione", () => {
     expect(campioneFinitura("marmo calacatta grande formato", "pavimento")?.id).toBe("marmo_calacatta");
   });
 });
+
+describe("esterni", () => {
+  it("acqua increspata, mosaico in vasca e pavimentazioni con le fughe hanno una texture generata", () => {
+    for (const id of ["acqua", "acqua_turchese", "acqua_profonda"]) {
+      expect(MATERIALI[id].tessitura?.trama, id).toBe("onde");
+      expect(MATERIALI[id].opacita, id).toBeLessThan(1);
+    }
+    for (const id of ["piscina_mosaico", "piscina_mosaico_chiaro", "piscina_mosaico_scuro"]) expect(MATERIALI[id].tessitura?.trama, id).toBe("mosaico");
+    expect(TRAME_GENERATE[MATERIALI.pavimento_esterno.tessitura!.trama]).toBeDefined();
+    expect(TRAME_GENERATE[MATERIALI.marciapiede.tessitura!.trama]).toBeDefined();
+    // l'acqua non ha disegno (colore quasi uniforme) ma ha increspature (normali inclinate)
+    const onde = generaTrama("onde", 128)!;
+    let min = 255, max = 0, inclinate = 0;
+    for (let i = 0; i < 128 * 128; i++) {
+      min = Math.min(min, onde.colore[4 * i]); max = Math.max(max, onde.colore[4 * i]);
+      if (onde.normale[4 * i + 2] < 250) inclinate++;
+    }
+    expect(max - min).toBeLessThan(30);
+    expect(inclinate).toBeGreaterThan(128 * 128 * .2);
+  });
+});

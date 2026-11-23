@@ -29,6 +29,8 @@ export interface FormatoTrama {
   grana: number;
   /** Lucentezza della piastrella rispetto alla ruvidità del campione: la fuga resta sempre opaca. */
   superficieIrregolare?: number;
+  /** Solo per l'acqua: quanto sono ripide le increspature. */
+  onde?: number;
   /** Forza del rilievo nel visore. */
   rilievo: number;
   provenienza: string;
@@ -45,6 +47,8 @@ export const TRAME_GENERATE: Readonly<Record<string, FormatoTrama>> = {
   cotto_30: { metri: [1.2, 1.2], colonne: 4, righe: 4, fugaMm: 7, biselloMm: 5, stonalizzazione: .16, nuvole: .14, scalaNuvoleM: .12, grana: .07, superficieIrregolare: .5, rilievo: 1.3, provenienza: GENERATA },
   mosaico: { metri: [.6, .6], colonne: 12, righe: 12, fugaMm: 2.5, biselloMm: 2, stonalizzazione: .12, nuvole: .04, scalaNuvoleM: .1, grana: .02, rilievo: 1.1, provenienza: GENERATA },
   metro: { metri: [.6, .6], colonne: 4, righe: 8, sfalsata: true, fugaMm: 2.5, biselloMm: 6, stonalizzazione: .03, nuvole: .03, scalaNuvoleM: .1, grana: .01, superficieIrregolare: .35, rilievo: 1.2, provenienza: GENERATA },
+  // l'acqua: nessun disegno, solo increspature che muovono i riflessi del cielo
+  onde: { metri: [1.6, 1.6], colonne: 1, righe: 1, fugaMm: 0, biselloMm: 0, stonalizzazione: 0, nuvole: .025, scalaNuvoleM: .2, grana: 0, superficieIrregolare: 1.5, onde: 5, rilievo: 1, provenienza: GENERATA },
   resina: { metri: [2.4, 2.4], colonne: 1, righe: 1, fugaMm: 0, biselloMm: 0, stonalizzazione: 0, nuvole: .1, scalaNuvoleM: .7, grana: .025, superficieIrregolare: .25, rilievo: .35, provenienza: GENERATA },
 };
 
@@ -138,7 +142,8 @@ export function generaTrama(trama: string, lato = 1024): MappeTrama | null {
   }
   // dalla quota alla mappa normale (la tela ha la Y verso il basso, la texture verso l'alto)
   const normale = new Uint8ClampedArray(n * n * 4);
-  const forza = 2.2;
+  // le onde sono pendenze dolci e larghe: la loro forza segue la risoluzione, così a 512 e a 1024 sono uguali
+  const forza = f.onde ? 2.2 * f.onde * n / 128 : 2.2;
   for (let y = 0; y < n; y++) {
     const su = ((y - 1 + n) % n) * n, giu = ((y + 1) % n) * n;
     for (let x = 0; x < n; x++) {

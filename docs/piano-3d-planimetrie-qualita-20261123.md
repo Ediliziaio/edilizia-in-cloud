@@ -80,11 +80,18 @@ Sulla tela vera sono una ogni 7,5 cm, misurate sui pixel.
   specchio sopra il lavabo, scaldasalviette, pianta. Stessi controlli di ingombro dei mobili; un comando
   per un solo mobile («divano in soggiorno») non aggiunge niente altro.
 
+- **Lotto 4, esterni (prima parte).** Acqua della piscina increspata, che muove i riflessi; mosaico vero sul
+  fondo e sulle pareti della vasca; pavimentazione esterna e marciapiede con le fughe; prato con un po' di
+  rilievo; sole più deciso nella vista da fuori, così le ombre staccano.
+  ![piscina](piano-3d-planimetrie-immagini/dopo-esterno-piscina.jpg)
+
 ### Solo impostato o non fatto
 
 - **Inquadratura della camera**: parte ancora con mezzo fotogramma coperto. Ho provato una correzione al
   punteggio della telecamera, non ha cambiato il risultato e l'ho tolta. Va capito cosa copre la vista.
-- **Esterni (lotto 4)**: non toccati. Il confronto prima/dopo è uguale.
+- **Esterni (lotto 4), il resto**: siepe e recinzione sul confine, alberi, prato con fili d'erba veri e cielo
+  nella vista «Gira intorno» dello Studio (oggi lo sfondo è grigio per scelta) non sono fatti. «Arreda» non
+  lavora sulle aree esterne disegnate (prato, patio), solo sulle stanze.
 - **Finiture chieste in chat (lotto 5)**: «arreda …» in chat c'era già e ora fa di più; i comandi per le
   finiture («parquet a spina in soggiorno», «gres in diagonale in bagno») non sono stati scritti: si fanno
   dallo Studio. Il file dei comandi (`editor/comandiChat.ts`) ha modifiche non pubblicate di un'altra sessione.
