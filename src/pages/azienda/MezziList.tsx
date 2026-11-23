@@ -294,7 +294,7 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
   };
 
   const azioni = (
-    <div className={cn("flex items-center gap-2", incorporata ? "ml-auto max-sm:w-full" : "max-sm:w-full")}>
+    <div className={cn("flex items-center gap-2", incorporata ? "ml-auto max-sm:hidden" : "max-sm:w-full")}>
       <ScansionaMezzoButton onLibero={(codice) => setNuovo({ codice })} />
       {vista === "attrezzatura" && (
         <Button
@@ -325,10 +325,29 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
     </div>
   );
 
+  // Telefono (pagina dentro Manodopera e Mezzi): scansione e «+» tondi sulla riga Mezzi ·
+  // Attrezzature, al posto della barra arancio a tutta larghezza (decisione del founder, 23/11/2026).
+  const azioniTelefono = incorporata && (
+    <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:hidden">
+      <ScansionaMezzoButton onLibero={(codice) => setNuovo({ codice })} />
+      {vista === "attrezzatura" && (
+        <Button size="icon" variant="outline" className="h-9 w-9 rounded-full" onClick={() => navigate("/azienda/mezzi/inventario")} aria-label="Inventario">
+          <ClipboardCheck className="h-4 w-4 text-orange-600" />
+        </Button>
+      )}
+      {puoModificare && (
+        <Button size="icon" onClick={apriNuovo} aria-label={nomeNuovo}
+          className="h-9 w-9 rounded-full bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm">
+          <Plus className="h-4 w-4" aria-hidden="true" />
+        </Button>
+      )}
+    </div>
+  );
+
   return (
     <div className="space-y-3 sm:space-y-4">
       {incorporata ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 max-sm:gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-3 max-sm:hidden">
           <p className="text-sm text-slate-500 max-sm:hidden">
             {vista === "attrezzatura"
               ? "Attrezzi e ponteggi: dove sono, chi li ha, manutenzioni e verifiche. Con l'etichetta QR si trovano dal telefono."
@@ -354,8 +373,8 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
       )}
 
       {/* Due elenchi, mezzi e attrezzature; accanto come raggrupparli (06/10/2026). */}
-      <div className="flex items-center gap-2">
-      <div className="grid flex-1 grid-cols-2 gap-1 rounded-xl border bg-muted/60 p-1 sm:inline-grid sm:flex-none" role="tablist" aria-label="Mezzi o attrezzature">
+      <div className="flex items-center gap-2 max-sm:flex-wrap">
+      <div className="grid flex-1 grid-cols-2 gap-1 rounded-xl border bg-muted/60 p-1 sm:inline-grid sm:flex-none max-sm:flex max-sm:flex-none max-sm:gap-1.5 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0" role="tablist" aria-label="Mezzi o attrezzature">
         {(["mezzo", "attrezzatura"] as const).map((c) => (
           <button
             key={c}
@@ -364,8 +383,8 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
             aria-selected={vista === c}
             onClick={() => cambiaVista(c)}
             className={cn(
-              "relative flex h-9 items-center justify-center gap-2 rounded-lg px-4 text-sm font-medium transition-colors max-sm:h-8 max-sm:px-2",
-              vista === c ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+              "relative flex h-9 items-center justify-center gap-2 rounded-lg px-4 text-sm font-medium transition-colors max-sm:rounded-full max-sm:border max-sm:px-3.5",
+              vista === c ? "bg-background text-foreground shadow-sm max-sm:border-orange-200 max-sm:bg-orange-50 max-sm:text-orange-700 max-sm:shadow-none" : "text-muted-foreground hover:text-foreground max-sm:border-border max-sm:bg-background",
             )}
           >
             {c === "mezzo" ? <Truck className="h-4 w-4 max-sm:hidden" aria-hidden="true" /> : <Wrench className="h-4 w-4 max-sm:hidden" aria-hidden="true" />}
@@ -377,8 +396,9 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
           </button>
         ))}
       </div>
+      {azioniTelefono}
       {diQuesti.length > 0 && (
-        <div role="group" aria-label="Vista" className="ml-auto inline-flex shrink-0 rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm">
+        <div role="group" aria-label="Vista" className="ml-auto inline-flex shrink-0 rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm max-sm:ml-0 max-sm:gap-1.5 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
           {visteRaggruppa.map((v) => {
             const nome = v === "tipo" ? (vista === "attrezzatura" ? "Per categoria" : "Per tipo") : v === "dove" ? "Dove sono" : "Elenco";
             return (
@@ -389,12 +409,12 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
                 aria-label={nome}
                 onClick={() => cambiaPer(v)}
                 className={cn(
-                  "tap-compact rounded-md px-3 py-1.5 text-sm font-medium transition-colors max-sm:px-2.5",
-                  per === v ? "bg-orange-50 text-orange-700" : "text-slate-600 hover:text-slate-900",
+                  "tap-compact rounded-md px-3 py-1.5 text-sm font-medium transition-colors max-sm:h-9 max-sm:rounded-full max-sm:border max-sm:px-3.5 max-sm:py-0",
+                  per === v ? "bg-orange-50 text-orange-700 max-sm:border-orange-200" : "text-slate-600 hover:text-slate-900 max-sm:border-border max-sm:bg-background",
                 )}
               >
                 {/* Da telefono una parola sola: sta nella riga degli elenchi. */}
-                <span className="sm:hidden">{v === "tipo" ? "Tipo" : "Dove"}</span>
+                <span className="sm:hidden">{v === "tipo" ? "Per tipo" : "Dove sono"}</span>
                 <span className="max-sm:hidden">{nome}</span>
               </button>
             );

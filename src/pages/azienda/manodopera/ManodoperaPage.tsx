@@ -17,6 +17,8 @@ import { useStatoPiano } from "@/hooks/useStatoPiano";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 import { SCHEDE_MANODOPERA, schedaDaAprire, type SchedaManodopera } from "@/lib/manodopera/schede";
 import { cn } from "@/lib/utils";
+import { PILLOLA_TAB } from "@/lib/ui/pillole";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const OperaiTab = lazy(() => import("./OperaiTab"));
 const SubappaltatoriPage = lazy(() => import("@/pages/azienda/SubappaltatoriPage"));
@@ -43,6 +45,7 @@ export default function ManodoperaPage() {
   const { schede, inCaricamento } = useSchedeManodopera();
   const { isScopriPlan } = useStatoPiano();
   const [searchParams, setSearchParams] = useSearchParams();
+  const telefono = useIsMobile(640);
   const attiva = schedaDaAprire(schede, searchParams.get("tab"));
 
   if (inCaricamento) {
@@ -77,8 +80,8 @@ export default function ManodoperaPage() {
           <TabsList
             className={cn(
               "flex h-auto w-full sm:w-fit justify-start gap-1 overflow-x-auto rounded-lg border border-slate-200 bg-white p-1 scrollbar-none",
-              "max-sm:grid max-sm:rounded-lg max-sm:p-1 max-sm:shadow-none",
-              schede.length === 3 ? "max-sm:grid-cols-3" : "max-sm:grid-cols-2",
+              // Telefono: pillole tonde come nelle altre pagine, non un riquadro con tre caselle.
+              "max-sm:gap-1.5 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none",
             )}
           >
             {SCHEDE_MANODOPERA.filter((s) => schede.includes(s.chiave)).map((s) => {
@@ -87,7 +90,7 @@ export default function ManodoperaPage() {
                 <TabsTrigger
                   key={s.chiave}
                   value={s.chiave}
-                  className="tap-compact shrink-0 gap-1.5 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 max-sm:h-8 max-sm:px-1 max-sm:text-xs"
+                  className={cn("tap-compact shrink-0 gap-1.5 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700", telefono && PILLOLA_TAB)}
                 >
                   <Icona className="h-4 w-4 max-sm:hidden" aria-hidden="true" />
                   {s.chiave === "mezzi"

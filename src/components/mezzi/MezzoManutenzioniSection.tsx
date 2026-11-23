@@ -163,8 +163,8 @@ export function MezzoManutenzioniSection({ mezzoId, companyId, contatoreAttuale,
             : attrezzo ? "Manutenzioni, riparazioni, tarature: lo storico dell'attrezzo." : "Tagliandi, riparazioni, gomme: lo storico del mezzo."}
         </p>
         {puoModificare && (
-          <Button size="sm" onClick={nuovo} className="shrink-0">
-            <Plus className="mr-1 h-4 w-4" />Aggiungi
+          <Button size="sm" onClick={nuovo} aria-label={attrezzo ? "Aggiungi manutenzione" : "Aggiungi tagliando"} className="shrink-0 max-sm:h-9 max-sm:w-9 max-sm:rounded-full max-sm:p-0">
+            <Plus className="mr-1 h-4 w-4 max-sm:mr-0" /><span className="max-sm:hidden">Aggiungi</span>
           </Button>
         )}
       </div>

@@ -540,7 +540,7 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
       {incorporata ? (
         <div className="flex items-center justify-between gap-3">
           {/* Le ditte divise per lavoro, zona o cantiere, come gli operai nelle squadre (06/10/2026) */}
-          <div role="group" aria-label="Vista" className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm">
+          <div role="group" aria-label="Vista" className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm max-sm:gap-1.5 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
             {visteDisponibili.map(({ v, etichetta }) => (
               <button
                 key={v}
@@ -548,8 +548,8 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
                 aria-pressed={vista === v}
                 onClick={() => cambiaVista(v)}
                 className={cn(
-                  'tap-compact rounded-md px-3 py-1.5 text-sm font-medium transition-colors max-sm:px-2.5',
-                  vista === v ? 'bg-orange-50 text-orange-700' : 'text-slate-600 hover:text-slate-900',
+                  'tap-compact rounded-md px-3 py-1.5 text-sm font-medium transition-colors max-sm:h-9 max-sm:rounded-full max-sm:border max-sm:px-3.5 max-sm:py-0',
+                  vista === v ? 'bg-orange-50 text-orange-700 max-sm:border-orange-200' : 'text-slate-600 hover:text-slate-900 max-sm:border-border max-sm:bg-background',
                 )}
               >
                 {etichetta}
@@ -559,11 +559,11 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
           <Button
             size="sm"
             onClick={() => setDialogOpen(true)}
-            className="ml-auto gap-1.5 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600"
+            className="ml-auto gap-1.5 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-9 max-sm:w-9 max-sm:rounded-full max-sm:p-0"
+            aria-label="Nuovo subappaltatore"
           >
             <Plus className="h-4 w-4" />
             <span className="hidden sm:inline">Nuovo subappaltatore</span>
-            <span className="sm:hidden">Nuovo</span>
           </Button>
         </div>
       ) : (
@@ -593,10 +593,10 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
 
       {/* Mobile: solo i due numeri che chiedono di fare qualcosa, e fanno da filtro. */}
       {!incorporata && (
-        <div role="group" aria-label="Vista" className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm">
+        <div role="group" aria-label="Vista" className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm max-sm:gap-1.5 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
           {visteDisponibili.map(({ v, etichetta }) => (
             <button key={v} type="button" aria-pressed={vista === v} onClick={() => cambiaVista(v)}
-              className={cn('tap-compact rounded-md px-3 py-1.5 text-sm font-medium transition-colors', vista === v ? 'bg-orange-50 text-orange-700' : 'text-slate-600 hover:text-slate-900')}>
+              className={cn('tap-compact rounded-md px-3 py-1.5 text-sm font-medium transition-colors max-sm:h-9 max-sm:rounded-full max-sm:border max-sm:px-3.5 max-sm:py-0', vista === v ? 'bg-orange-50 text-orange-700 max-sm:border-orange-200' : 'text-slate-600 hover:text-slate-900 max-sm:border-border max-sm:bg-background')}>
               {etichetta}
             </button>
           ))}

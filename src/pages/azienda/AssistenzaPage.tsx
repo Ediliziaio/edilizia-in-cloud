@@ -55,8 +55,8 @@ export default function AssistenzaPage() {
   return (
     <Tabs value={attiva} onValueChange={(value) => vaiA(value as "assistenza" | "manutenzioni")} className="space-y-4 max-sm:space-y-3">
       <h1 className="sr-only">Assistenza e manutenzioni</h1>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <TabsList className="h-auto gap-2 bg-transparent p-0" aria-label="Assistenza e Manutenzione">
+      <div className="flex flex-wrap items-center justify-between gap-2 max-sm:flex-nowrap">
+        <TabsList className="h-auto gap-2 bg-transparent p-0 max-sm:gap-1.5" aria-label="Assistenza e Manutenzione">
           {[
             { key: "assistenza" as const, label: "Assistenza", icon: LifeBuoy },
             { key: "manutenzioni" as const, label: "Manutenzioni", icon: Wrench },
@@ -68,24 +68,24 @@ export default function AssistenzaPage() {
                 key={s.key}
                 value={s.key}
                 className={cn(
-                  "inline-flex items-center gap-2 rounded-xl border px-5 py-2.5 text-base font-semibold transition-colors max-sm:px-3 max-sm:py-2 max-sm:text-sm",
+                  "inline-flex items-center gap-2 rounded-xl border px-5 py-2.5 text-base font-semibold transition-colors max-sm:h-9 max-sm:rounded-full max-sm:px-3.5 max-sm:py-0 max-sm:text-sm max-sm:font-medium max-sm:shadow-none",
                   on
                     ? "border-orange-300 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-800 shadow-sm dark:border-orange-800 dark:data-[state=active]:bg-orange-950/40 dark:data-[state=active]:text-orange-200"
                     : "border-border bg-background text-muted-foreground hover:bg-accent",
                 )}
               >
-                <Icona className="h-4 w-4" aria-hidden="true" />
+                <Icona className="h-4 w-4 max-sm:hidden" aria-hidden="true" />
                 {s.label}
               </TabsTrigger>
             );
           })}
         </TabsList>
-        {/* Qui atterrano i pulsanti della pagina attiva (portal dal figlio). Su
-            telefono la riga va a capo: prende tutta la larghezza e il pulsante
-            «Nuovo» diventa un CTA pieno, invece di restare solo e storto. */}
+        {/* Qui atterrano i pulsanti della pagina attiva (portal dal figlio). Telefono: sulla
+            stessa riga delle schede, tondi, invece della barra arancio a tutta larghezza
+            (decisione del founder, 23/11/2026: un solo disegno, tondo). */}
         <div
           ref={setActionsSlot}
-          className="flex items-center gap-2 max-sm:w-full max-sm:[&>button]:flex-1"
+          className="flex shrink-0 items-center gap-2"
         />
       </div>
 

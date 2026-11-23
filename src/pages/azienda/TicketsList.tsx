@@ -624,10 +624,10 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
       </div>
       <Button
         onClick={() => setNuovoOpen(true)}
-        className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-9 max-sm:px-3 max-sm:text-xs"
+        className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-9 max-sm:w-9 max-sm:rounded-full max-sm:p-0"
+        aria-label="Nuovo Ticket"
       >
-        <Plus className="mr-2 h-4 w-4" />
-        <span className="sm:hidden">Nuovo</span>
+        <Plus className="mr-2 h-4 w-4 max-sm:mr-0" />
         <span className="hidden sm:inline">Nuovo Ticket</span>
       </Button>
     </>
@@ -711,7 +711,7 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
             aria-pressed={f.attivo}
             className={cn(
               "tap-compact flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-medium",
-              f.attivo ? "border-slate-900 bg-slate-900 text-white" : "bg-white text-slate-700",
+              f.attivo ? "border-orange-200 bg-orange-50 text-orange-700" : "bg-white text-slate-700",
             )}
           >
             {f.label}
@@ -758,9 +758,11 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
           priorità e assegnato; scadenza, fonte, pagamento e merce stanno in
           «Altri filtri». Prima erano un riquadro con sette tendine su due
           righe sotto la ricerca. */}
-      <div className="flex flex-col gap-3 max-sm:gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
-        <div className="flex items-center gap-2 sm:contents">
-          <div className="relative flex-1 min-w-0 sm:min-w-[220px]">
+      <div className="flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-center">
+        {/* Fino a 1024 (telefono e tablet): ricerca + «Filtri» su una riga; a 768 le tre tendine
+            e «Altri filtri» andavano su due righe (segnalazione del founder). */}
+        <div className="flex items-center gap-2 lg:contents">
+          <div className="relative flex-1 min-w-0 lg:min-w-[220px]">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder={isMobile ? "Cerca" : "Cerca per cliente, oggetto o email…"}
@@ -773,7 +775,7 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
             type="button"
             variant="outline"
             size="icon"
-            className="tap-compact relative h-9 w-9 shrink-0 bg-white sm:hidden"
+            className="tap-compact relative h-9 w-9 shrink-0 bg-white lg:hidden"
             onClick={() => setFiltriMobileAperti(true)}
             aria-label="Filtri"
           >
@@ -785,7 +787,7 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
             )}
           </Button>
         </div>
-        <div className="flex flex-wrap items-center gap-2 max-sm:hidden sm:contents">
+        <div className="flex flex-wrap items-center gap-2 max-lg:hidden lg:contents">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger aria-label="Filtra assistenze per stato" className="flex-1 sm:h-9 sm:w-auto sm:flex-none"><SelectValue placeholder="Stato" /></SelectTrigger>
             <SelectContent className="max-h-[380px]">
@@ -897,7 +899,7 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
             type="single"
             value={vista}
             onValueChange={(v) => v && cambiaVista(v as "tabella" | "pipeline")}
-            className="ml-auto hidden rounded-md border sm:flex"
+            className="ml-auto hidden rounded-md border lg:flex"
           >
             <ToggleGroupItem value="tabella" aria-label="Vista elenco" className="px-3">
               <LayoutList className="h-4 w-4" />
@@ -932,7 +934,7 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
 
       {/* Pipeline: stessa lista filtrata, disposta per fase */}
       {vista === "pipeline" ? (
-        <div className="hidden sm:block">
+        <div className="hidden lg:block">
           <AssistenzaPipeline tickets={sortedTickets as never} onStatusChange={updateTicketStatus} />
           {sortedTickets.length === 0 && (
             <p className="py-8 text-center text-sm text-muted-foreground">
@@ -943,7 +945,7 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
       ) : null}
 
       {/* Tabella (sempre su mobile) */}
-      <div className={vista === "pipeline" ? "sm:hidden" : undefined}>
+      <div className={vista === "pipeline" ? "lg:hidden" : undefined}>
       {sortedTickets.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
@@ -958,8 +960,9 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
         </Card>
       ) : (
         <Card>
-          {/* Mobile list */}
-          <div className="sm:hidden divide-y">
+          {/* Righe da telefono e da tablet (fino a 1024): a 768 la tabella scorreva di lato
+              e l'oggetto restava tagliato (collaudo tablet 23/11/2026). */}
+          <div className="lg:hidden divide-y">
             {sortedTickets.map((ticket) => (
               <MobileTicketRow
                 key={ticket.id}
@@ -973,7 +976,7 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
               da 1536, celle più strette sotto: con le tendine di stato e
               assegnato a larghezza fissa la tabella usciva dalla pagina anche
               a 1440 e l'oggetto restava di 70px. */}
-          <div className="hidden sm:block">
+          <div className="hidden lg:block">
             <BarraScorrimentoOrizzontale contenitore={tabella} className="mx-3" />
             <Table wrapperRef={setTabella} className="whitespace-nowrap [&_td]:px-3 [&_td]:py-1.5 [&_th]:px-3">
               <TableHeader>
@@ -1594,7 +1597,7 @@ function PilloleFiltro({ titolo, valore, onScegli, scelte }: {
               aria-pressed={attiva}
               className={cn(
                 "tap-compact h-8 rounded-full border px-3 text-xs font-medium transition-colors",
-                attiva ? "border-slate-900 bg-slate-900 text-white" : "bg-background text-slate-700",
+                attiva ? "border-orange-200 bg-orange-50 text-orange-700" : "bg-background text-slate-700",
               )}
             >
               {c.label}

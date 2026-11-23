@@ -81,7 +81,8 @@ export function ImpiantiTable({
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
       {/* Mobile: righe compatte come l'assistenza. */}
-      <ul className="divide-y sm:hidden">
+      {/* Righe anche da tablet (fino a 1024): a 768 la tabella scorreva di lato (collaudo 23/11/2026). */}
+      <ul className="divide-y lg:hidden">
         {impianti.map((im) => {
           const meta = STATO_MANUT_META[im.stato];
           const cliente = [im.customer?.first_name, im.customer?.last_name].filter(Boolean).join(" ") || "—";
@@ -118,7 +119,7 @@ export function ImpiantiTable({
       </ul>
 
       {/* Tablet/desktop: stessa tabella dell'assistenza. */}
-      <div className="hidden sm:block">
+      <div className="hidden lg:block">
         <BarraScorrimentoOrizzontale contenitore={tabella} className="mx-3" />
             <Table wrapperRef={setTabella} className="whitespace-nowrap [&_td]:px-3 [&_td]:py-1.5 [&_th]:px-3">
           <TableHeader>

@@ -70,7 +70,7 @@ export function ScansionaMezzoButton({ onLibero, className }: Props) {
         variant="outline"
         onClick={() => setAperto(true)}
         disabled={cercando}
-        className={cn("gap-2 max-sm:h-9 max-sm:w-9 max-sm:p-0", className)}
+        className={cn("gap-2 max-sm:h-9 max-sm:w-9 max-sm:rounded-full max-sm:p-0", className)}
         aria-label="Scansiona un'etichetta"
         title="Scansiona un'etichetta QR"
       >

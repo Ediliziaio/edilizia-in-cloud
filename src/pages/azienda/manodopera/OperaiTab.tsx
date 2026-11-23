@@ -88,7 +88,7 @@ export default function OperaiTab() {
   return (
     <div className="space-y-2.5">
       <div className="flex items-center justify-between gap-2">
-        <div role="group" aria-label="Vista" className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm">
+        <div role="group" aria-label="Vista" className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm max-sm:gap-1.5 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
           {VISTE.map(({ v, etichetta }) => (
             <button
               key={v}
@@ -98,6 +98,9 @@ export default function OperaiTab() {
               className={cn(
                 "tap-compact rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
                 vista === v ? "bg-orange-50 text-orange-700" : "text-slate-600 hover:text-slate-900",
+                // Telefono: pillole tonde come le altre pagine (decisione del founder, 23/11/2026).
+                "max-sm:h-9 max-sm:rounded-full max-sm:border max-sm:py-0",
+                vista === v ? "max-sm:border-orange-200" : "max-sm:border-border max-sm:bg-background",
               )}
             >
               {etichetta}
@@ -129,7 +132,7 @@ export default function OperaiTab() {
                 <Button
                   size="icon"
                   aria-label="Aggiungi"
-                  className="h-9 w-9 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm sm:hidden"
+                  className="h-9 w-9 rounded-full bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm sm:hidden"
                 >
                   <Plus className="h-4 w-4" />
                 </Button>
@@ -285,8 +288,8 @@ function GiornataOperai({ onNuovo }: { onNuovo?: () => void }) {
           <button type="button" className="font-medium text-orange-700 hover:underline" onClick={() => setFiltro("tutti")}>Mostra tutti</button>
         </p>
       ) : (
-        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="space-y-4">
+        <div className="grid items-start gap-4 grid-cols-[minmax(0,1fr)] xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="min-w-0 space-y-4">
           {gruppi.length === 0 && (
             <p className="rounded-xl border border-dashed bg-white px-4 py-6 text-center text-sm text-muted-foreground">
               Nessuno corrisponde alla ricerca.
@@ -301,19 +304,19 @@ function GiornataOperai({ onNuovo }: { onNuovo?: () => void }) {
                 : `${stati.filter((x) => x === "al_lavoro" || x === "in_pausa" || x === "uscito" || x === "uscita_mancante").length} su ${g.righe.length} presenti`;
             const dove = cantiereDelGruppo(g.righe);
             return (
-              <section key={g.id ?? "senza"} aria-label={g.nome} className="overflow-hidden rounded-2xl border bg-white shadow-sm">
+              <section key={g.id ?? "senza"} aria-label={g.nome} className="min-w-0 overflow-hidden rounded-2xl border bg-white shadow-sm">
                 <header
-                  className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b bg-slate-50/70 px-4 py-2.5"
+                  className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b bg-slate-50/70 px-4 py-2.5 max-sm:px-3"
                   style={g.colore ? { borderTop: `3px solid ${g.colore}` } : undefined}
                 >
-                  <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                    {g.id ? <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: g.colore ?? "#94A3B8" }} aria-hidden="true" /> : <Users className="h-4 w-4 text-slate-400" aria-hidden="true" />}
-                    {g.nome}
-                    <span className="font-normal text-muted-foreground tabular-nums">· {riepilogo}</span>
+                  <h3 className="flex min-w-0 max-w-full items-center gap-2 text-sm font-semibold text-slate-900">
+                    {g.id ? <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: g.colore ?? "#94A3B8" }} aria-hidden="true" /> : <Users className="h-4 w-4 text-slate-400" aria-hidden="true" />}
+                    <span className="min-w-0 truncate">{g.nome}</span>
+                    <span className="shrink-0 font-normal text-muted-foreground tabular-nums">· {riepilogo}</span>
                   </h3>
                   {dove && <p className="max-w-full truncate text-xs text-slate-500"><HardHat className="mr-1 inline h-3.5 w-3.5" aria-hidden="true" />{dove}</p>}
                 </header>
-                <ul className="grid sm:grid-cols-2 xl:grid-cols-3 [&>li]:border-b [&>li]:border-slate-100 sm:[&>li]:border-r">
+                <ul className="grid grid-cols-[minmax(0,1fr)] sm:grid-cols-2 xl:grid-cols-3 [&>li]:border-b [&>li]:border-slate-100 sm:[&>li]:border-r">
                   {g.righe.map((r) => <SchedinaGiornata key={r.profilo_id} r={r} linkCommesse={linkCommesse} />)}
                 </ul>
               </section>

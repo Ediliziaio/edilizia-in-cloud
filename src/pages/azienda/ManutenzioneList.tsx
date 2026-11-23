@@ -357,10 +357,10 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
       <Button
         disabled={permissions.solaLettura}
         onClick={() => { if (!permissions.solaLettura) setWizardOpen(true); }}
-        className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-9 max-sm:px-3 max-sm:text-xs"
+        className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-9 max-sm:w-9 max-sm:rounded-full max-sm:p-0"
+        aria-label="Nuovo Impianto"
       >
-        <Plus className="mr-2 h-4 w-4" />
-        <span className="sm:hidden">Nuovo</span>
+        <Plus className="mr-2 h-4 w-4 max-sm:mr-0" />
         <span className="hidden sm:inline">Nuovo Impianto</span>
       </Button>
     </>
@@ -392,7 +392,7 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
 
       {/* Pill in alto — per STATO (come le pill dell'assistenza): Tutti ·
           Scadenza imminente · In regola · Senza piano · Contratti. */}
-      <div className="flex gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+      <div className="flex gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm max-lg:rounded-none max-lg:border-0 max-lg:bg-transparent max-lg:p-0 max-lg:shadow-none max-lg:[scrollbar-width:none]">
         {[
           { value: "all", label: "Tutti", icon: ClipboardList, n: impianti.length },
           { value: "urgenti", label: "Scadenza imminente", icon: AlertTriangle, n: nScaduteInScadenza },
@@ -408,7 +408,7 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
               aria-pressed={active}
               onClick={() => setPill(tab.value)}
               className={cn(
-                "tap-compact flex shrink-0 items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium transition-all whitespace-nowrap max-sm:h-8 max-sm:rounded-full max-sm:border max-sm:px-3 max-sm:py-0 max-sm:text-xs",
+                "tap-compact flex shrink-0 items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium transition-all whitespace-nowrap max-lg:h-8 max-lg:rounded-full max-lg:border max-lg:px-3 max-lg:py-0 max-lg:text-xs",
                 active ? "bg-orange-50 text-orange-700 shadow-sm ring-1 ring-orange-100" : "text-muted-foreground hover:bg-slate-50 hover:text-slate-900",
               )}
             >
@@ -420,13 +420,16 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
         })}
       </div>
 
-      {/* Riepilogo condiviso; i contratti e i canoni restano disponibili sotto. */}
+      {/* Riepilogo condiviso; i contratti e i canoni restano disponibili sotto. Fino a 1024 non c'è:
+          ripeteva le stesse quattro scelte delle pillole qui sopra (stessi numeri, stesso filtro). */}
+      <div className="max-lg:hidden">
       <OperationalSummary label="Riepilogo manutenzioni" title="Impianti e scadenze" icon={ClipboardList} error={impiantiError || contrattiError || pianiError} note="Impianti e piani accessibili al tuo utente.">
         <OperationalSummaryMetric label="Impianti" value={impianti.length} isLoading={loadingImpianti || loadingPiani} onClick={() => setPill("all")} active={pill === "all"} />
         <OperationalSummaryMetric label="Scadenza imminente" value={nScaduteInScadenza} tone={nScaduteInScadenza > 0 ? "amber" : undefined} isLoading={loadingImpianti || loadingContratti || loadingPiani} onClick={() => setPill("urgenti")} active={pill === "urgenti"} hint="Scadute o in scadenza" />
         <OperationalSummaryMetric label="In regola" value={contaStato.in_regola} isLoading={loadingImpianti || loadingPiani} onClick={() => setPill("in_regola")} active={pill === "in_regola"} />
         <OperationalSummaryMetric label="Senza piano" value={contaStato.senza_piano} isLoading={loadingImpianti || loadingPiani} onClick={() => setPill("senza_piano")} active={pill === "senza_piano"} />
       </OperationalSummary>
+      </div>
       {!(impiantiError || contrattiError || pianiError) && <details className="rounded-xl border bg-background p-3 text-sm"><summary className="cursor-pointer font-medium">Contratti e canoni</summary><div className="mt-3 grid grid-cols-2 gap-3"><div><p className="text-muted-foreground">Contratti attivi</p><p className="font-semibold">{loadingContratti ? "Caricamento…" : contratti.filter(c => c.stato === "attivo").length}</p></div><div><p className="text-muted-foreground">Canoni al mese</p><p className="font-semibold">{loadingContratti ? "Caricamento…" : `${mrr.toLocaleString("it-IT", { maximumFractionDigits: 0, useGrouping: true })} €`}</p></div></div></details>}
 
       {(impiantiError || contrattiError || pianiError) && (
@@ -451,7 +454,7 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
         {/* Toggle elenco/kanban: solo da tablet in su. Su telefono la vista è
             sempre l'elenco compatto, come le assistenze (la pipeline è desktop). */}
         {!mostraContratti && (
-          <ToggleGroup type="single" value={vista} onValueChange={(v) => v && cambiaVista(v as "tabella" | "kanban")} className="hidden shrink-0 sm:flex">
+          <ToggleGroup type="single" value={vista} onValueChange={(v) => v && cambiaVista(v as "tabella" | "kanban")} className="hidden shrink-0 lg:flex">
             <ToggleGroupItem value="tabella" aria-label="Vista elenco" className="px-3"><List className="h-4 w-4" /></ToggleGroupItem>
             <ToggleGroupItem value="kanban" aria-label="Vista kanban" className="px-3"><Columns3 className="h-4 w-4" /></ToggleGroupItem>
           </ToggleGroup>
@@ -512,7 +515,7 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
         <>
           {/* Kanban: solo desktop (come la pipeline dell'assistenza). */}
           {vista === "kanban" && (
-            <div className="hidden sm:block">
+            <div className="hidden lg:block">
               <ManutenzionePipeline
                 impianti={impiantiFiltrati}
                 onOpen={openImpianto}
@@ -524,7 +527,7 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
             </div>
           )}
           {/* Elenco: sempre su telefono; su desktop quando la vista è «tabella». */}
-          <div className={vista === "kanban" ? "sm:hidden" : undefined}>
+          <div className={vista === "kanban" ? "lg:hidden" : undefined}>
             <ImpiantiTable
               impianti={impiantiFiltrati}
               onOpen={openImpianto}

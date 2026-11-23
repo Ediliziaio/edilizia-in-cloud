@@ -10,9 +10,10 @@ export function PercorsiSubappaltatore({ mostraListino }: { mostraListino: boole
     { id: "contabilita", nome: "Contabilità", Icona: WalletCards },
     ...(mostraListino ? [{ id: "listino", nome: "Listino", Icona: List }] : []),
   ];
-  return <TabsList aria-label="Scheda del subappaltatore" className="grid h-auto w-full grid-cols-2 justify-start gap-1 rounded-lg border p-1 sm:flex sm:overflow-x-auto">
-    {sezioni.map(({ id, nome, Icona }) => <TabsTrigger key={id} value={id} className="min-w-0 shrink-0 justify-start gap-1.5 whitespace-normal px-2 py-2 text-left max-sm:text-xs">
-      <Icona className="size-4 shrink-0" aria-hidden="true" />{nome}
+  // Telefono: una riga di pillole che scorre, come tutte le schede (era una griglia 2×3 di caselle).
+  return <TabsList aria-label="Scheda del subappaltatore" className="grid h-auto w-full grid-cols-2 justify-start gap-1 rounded-lg border p-1 sm:flex sm:overflow-x-auto max-sm:flex max-sm:border-0">
+    {sezioni.map(({ id, nome, Icona }) => <TabsTrigger key={id} value={id} className="min-w-0 shrink-0 justify-start gap-1.5 whitespace-normal px-2 py-2 text-left max-sm:whitespace-nowrap max-sm:text-sm">
+      <Icona className="size-4 shrink-0 max-sm:hidden" aria-hidden="true" />{nome}
     </TabsTrigger>)}
   </TabsList>;
 }

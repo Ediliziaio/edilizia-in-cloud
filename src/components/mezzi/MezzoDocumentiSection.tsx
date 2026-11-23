@@ -219,8 +219,9 @@ export function MezzoDocumentiSection({ mezzoId, companyId, puoModificare, targa
           Assicurazione, bollo, revisione, contratti: ti avvisiamo prima che scadano.
         </p>
         {puoModificare && (
-          <Button size="sm" onClick={nuovo} className="shrink-0 max-sm:h-8 max-sm:text-xs">
-            <Plus className="mr-1 h-4 w-4" />Aggiungi
+          <Button size="sm" onClick={nuovo} aria-label="Aggiungi documento" className="shrink-0 max-sm:h-9 max-sm:w-9 max-sm:rounded-full max-sm:p-0">
+            {/* Telefono: «+» tondo, come in tutte le pagine (decisione del founder, 23/11/2026). */}
+            <Plus className="mr-1 h-4 w-4 max-sm:mr-0" /><span className="max-sm:hidden">Aggiungi</span>
           </Button>
         )}
       </div>
