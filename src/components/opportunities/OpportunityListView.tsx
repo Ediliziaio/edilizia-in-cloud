@@ -273,7 +273,8 @@ export const OpportunityListView = memo(function OpportunityListView({
                   titolo={titolo}
                   sottotitolo={[
                     mobileStageId ? null : stageMap[opp.stage_id],
-                    fullName && fullName !== titolo ? fullName : null,
+                    // «Cappotto termico — Davide Pagano»: se il titolo contiene già il nome, non si ripete sotto.
+                    fullName && !titolo.toLocaleLowerCase("it-IT").includes(fullName.toLocaleLowerCase("it-IT")) ? fullName : null,
                   ].filter(Boolean).join(" · ") || undefined}
                   // formatCount: punto delle migliaia anche a 4 cifre («6.800», non «6800»).
                   valore={`€ ${formatCount(Math.round(Number(opp.value || 0)))}`}

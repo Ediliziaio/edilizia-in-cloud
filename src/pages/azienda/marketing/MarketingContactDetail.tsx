@@ -1870,7 +1870,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   la sua intestazione, niente Card+titolo doppio) */}
               {rightTab === "activities" && id && companyId && (
                 <div className="space-y-3">
-                  <PlanimetrieAssociate companyId={companyId} tipo="contatto" schedaId={id} />
+                  <PlanimetrieAssociate companyId={companyId} tipo="contatto" schedaId={id} nascondiSeVuoto />
                   <LinkedTasks
                     contactId={id}
                     category="contatti"

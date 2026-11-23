@@ -93,7 +93,7 @@ describe("AI agent UI: errors are not empty successful data", () => {
   it("watches v2 calls, chat sessions and credits in the selected company", () => {
     mocks.query.mockReturnValue({ data: undefined, isLoading: false, isError: false, refetch: vi.fn() });
     const view = mount(<StatisticheTab />);
-    expect(mocks.channel).toHaveBeenCalledWith("ai-stats-realtime:company");
+    expect(mocks.channel).toHaveBeenCalledWith(expect.stringMatching(/^ai-stats-realtime:company:/));
     for (const table of ["ai_conversations_v2", "ai_chat_sessions", "ai_credit_transactions"]) {
       expect(mocks.on).toHaveBeenCalledWith("postgres_changes", expect.objectContaining({ table, filter: "company_id=eq.company" }), expect.any(Function));
     }

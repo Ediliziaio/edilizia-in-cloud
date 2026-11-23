@@ -869,7 +869,7 @@ function CustomersListInner() {
                       aria-pressed={divisione === v}
                       onClick={() => cambiaDivisione(v)}
                       className={cn(
-                        "rounded-md px-3 py-1.5 transition-colors",
+                        "rounded-md px-3 py-1.5 transition-colors max-sm:min-h-9 max-sm:px-4 max-sm:text-[13px]",
                         divisione === v ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100",
                       )}
                     >
@@ -1460,8 +1460,8 @@ function CustomersListInner() {
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
-                      <p className="truncate text-[13px] font-semibold leading-tight">{fullName}</p>
-                      <p className={cn("truncate text-[11px]", cleanPhone || cleanEmail ? "text-muted-foreground" : "text-amber-700")}>
+                      <p className="truncate text-sm font-semibold leading-tight">{fullName}</p>
+                      <p className={cn("truncate text-xs", cleanPhone || cleanEmail ? "text-muted-foreground" : "text-amber-700")}>
                         {cleanPhone || cleanEmail || "Nessun contatto"}
                         {customer.city ? ` · ${customer.city}` : ""}
                       </p>
@@ -1472,15 +1472,16 @@ function CustomersListInner() {
                           "shrink-0 text-[11px] font-medium",
                           severity === "high" ? "text-red-600" : severity === "medium" ? "text-amber-600" : "text-slate-500",
                         )}
-                        title={`${anomalies.length} anomalie`}
+                        title={anomalies.map((a) => a.label).join(", ")}
                       >
-                        ⚠ {anomalies.length}
+                        {/* In parole (collaudo 23/11/2026): «⚠ 4» da solo non diceva cosa fare. */}
+                        ⚠ {anomalies.length === 1 ? anomalies[0].label : `${anomalies.length} da sistemare`}
                       </span>
                     )}
                     {customer.order_count > 0 && (
-                      <span className="flex shrink-0 items-center gap-0.5 text-[11px] text-muted-foreground">
-                        <ClipboardList className="h-3 w-3" />
-                        {customer.order_count}
+                      <span className="flex shrink-0 items-center gap-0.5 text-[11px] text-muted-foreground" title={`${customer.order_count} ${customer.order_count === 1 ? "commessa" : "commesse"}`}>
+                        <ClipboardList className="h-3 w-3" aria-hidden="true" />
+                        <span className="sr-only">Commesse: </span>{customer.order_count}
                       </span>
                     )}
                   </Link>

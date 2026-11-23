@@ -44,6 +44,8 @@ interface QuotePageHeaderProps {
   azioniInRiga?: boolean;
   /** Telefono: niente titolo quando ripete la scheda già accesa in alto; restano le azioni. */
   titoloSoloDaComputer?: boolean;
+  /** Telefono: niente etichetta col numero quando il titolo lo dice già. */
+  numeroSoloDaComputer?: boolean;
 }
 
 export function QuotePageHeader({
@@ -58,6 +60,7 @@ export function QuotePageHeader({
   className,
   azioniInRiga,
   titoloSoloDaComputer,
+  numeroSoloDaComputer,
 }: QuotePageHeaderProps) {
   return (
     <div data-ui="document-header"
@@ -69,7 +72,7 @@ export function QuotePageHeader({
       {(numero || stato || chips || lastModified) && (
         <div className="flex items-center gap-2 flex-wrap text-xs text-slate-500 mb-2">
           {numero && (
-            <span className="font-mono bg-slate-100 text-slate-800 font-semibold px-2 py-0.5 rounded text-[11px]">
+            <span className={cn("font-mono bg-slate-100 text-slate-800 font-semibold px-2 py-0.5 rounded text-[11px]", numeroSoloDaComputer && "max-sm:hidden")}>
               {numero}
             </span>
           )}
@@ -81,7 +84,8 @@ export function QuotePageHeader({
       <div className={cn("flex items-start justify-between gap-3 sm:gap-4 flex-wrap", azioniInRiga && "max-sm:flex-nowrap max-sm:items-center")}>
         <div className={cn("flex items-start gap-2.5 sm:gap-3 min-w-0 flex-1 sm:min-w-[18rem]", titoloSoloDaComputer && "max-sm:hidden")}>
           {icon && (
-            <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+            // Sul telefono il quadratino-icona non dice niente e toglie spazio al titolo.
+            <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)] max-sm:hidden">
               {icon}
             </div>
           )}
@@ -450,7 +454,7 @@ export function QuoteStepper({
             >
               <span
                 className={cn(
-                  "flex items-center justify-center w-6 h-6 rounded-full border text-[11px] font-bold flex-shrink-0 transition-all max-sm:h-5 max-sm:w-5 max-sm:text-[10px]",
+                  "flex items-center justify-center w-6 h-6 rounded-full border text-[11px] font-bold flex-shrink-0 transition-all max-sm:h-5 max-sm:w-5 max-sm:text-[11px]",
                   !isActive &&
                     !isCompleted &&
                     "bg-slate-100 border-slate-300 text-slate-500",

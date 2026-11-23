@@ -737,10 +737,13 @@ export default function MarketingContacts() {
         )
         .select(colonne);
     }
+    // Mai i contatti nel cestino: arrivano da fusioni di doppioni e import annullati, e l'elenco
+    // li mostrava insieme ai vivi (collaudo 23/11/2026: in Demo 2 297 «contatti» di cui 121 cestinati).
     return supabase
       .from("marketing_contacts")
       .select(colonne, conConteggio ? { count: "exact" } : undefined)
-      .eq("company_id", companyId!);
+      .eq("company_id", companyId!)
+      .is("deleted_at", null);
   }, [companyId, regoleDeiGruppiAttivi]);
 
   /**
@@ -984,7 +987,8 @@ export default function MarketingContacts() {
         let q = supabase
           .from("marketing_contacts")
           .select("id", { count: "exact", head: true })
-          .eq("company_id", companyId!);
+          .eq("company_id", companyId!)
+          .is("deleted_at", null);
         if (permissions.onlyAssigned && idAgente) q = q.or(filtroSoloMiei(idAgente));
         return q;
       };

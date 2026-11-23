@@ -43,7 +43,10 @@ export function StatisticheTab() {
   // Realtime subscription: invalida le query stats ad ogni nuova conversazione
   useEffect(() => {
     if (!companyId) return;
-    let channel = supabase.channel(`ai-stats-realtime:${companyId}`);
+    // Nome nuovo a ogni apertura: supabase-js restituisce il canale già esistente con lo
+    // stesso nome e, se è ancora iscritto (riapertura veloce della scheda), `.on()` lancia
+    // un errore che fa cadere la pagina. Stesso guasto corretto in useFinancialLive.
+    let channel = supabase.channel(`ai-stats-realtime:${companyId}:${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`);
     for (const table of ["ai_agent_conversations", "ai_conversations_v2", "ai_chat_sessions", "public_chat_sessions", "ai_credit_usage", "ai_credit_transactions", "ai_agents_v2"]) {
       channel = channel.on("postgres_changes", {
         event: "*", schema: "public", table, filter: `company_id=eq.${companyId}`,

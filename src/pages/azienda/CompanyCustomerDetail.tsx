@@ -515,28 +515,17 @@ export default function CompanyCustomerDetail() {
         )}
         {!scheda && schedaLoading && <p role="status" className="mt-3 text-sm text-muted-foreground">Caricamento riepilogo cliente…</p>}
         {scheda && <>
-        {/* KPI strip — desktop grid 4 col, mobile scroll-x compatto stile marketing */}
-        {/* MOBILE: 4 chips inline, scroll-x se serve, no subtext (compatto) */}
-        <div className="mt-3 md:hidden grid grid-cols-4 gap-1.5">
-          <div className="rounded-lg bg-blue-50 border border-blue-100 px-2 py-1.5 text-center">
-            <p className="text-[9px] text-blue-700 uppercase font-semibold leading-none">Commesse</p>
-            <p className="text-sm font-bold tabular-nums leading-tight text-blue-900 mt-0.5">{orderCount}</p>
-          </div>
-          <div className={cn("rounded-lg border px-2 py-1.5 text-center", daIncassare?.scaduto ? "bg-red-50 border-red-100" : "bg-emerald-50 border-emerald-100")}>
-            <p className={cn("text-[9px] uppercase font-semibold leading-none", daIncassare?.scaduto ? "text-red-700" : "text-emerald-700")}>Da incassare</p>
-            <p className={cn("text-sm font-bold tabular-nums leading-tight mt-0.5", daIncassare?.scaduto ? "text-red-900" : "text-emerald-900")}>
-              {daIncassare ? (daIncassare.totale >= 1000 ? `${Math.round(daIncassare.totale / 1000)}k` : Math.round(daIncassare.totale)) : "—"}
-            </p>
-          </div>
-          <div className="rounded-lg bg-violet-50 border border-violet-100 px-2 py-1.5 text-center">
-            <p className="text-[9px] text-violet-700 uppercase font-semibold leading-none">Preventivi</p>
-            <p className="text-sm font-bold tabular-nums leading-tight text-violet-900 mt-0.5">{preventivi.length}</p>
-          </div>
-          <div className="rounded-lg bg-amber-50 border border-amber-100 px-2 py-1.5 text-center">
-            <p className="text-[9px] text-amber-700 uppercase font-semibold leading-none">Assistenza</p>
-            <p className="text-sm font-bold tabular-nums leading-tight text-amber-900 mt-0.5">{openTickets}</p>
-          </div>
-        </div>
+        {/* Telefono: i quattro numeri in una riga di testo, non quattro tessere strette
+            (le etichette maiuscole a 9px andavano a capo o uscivano dal bordo). */}
+        <p className="mt-3 md:hidden text-[13px] leading-snug text-muted-foreground">
+          <span className="font-semibold text-foreground tabular-nums">{orderCount}</span> {orderCount === 1 ? "commessa" : "commesse"}
+          {" · "}
+          <span className={cn("font-semibold tabular-nums", daIncassare?.scaduto ? "text-red-700" : "text-foreground")}>{daIncassare ? euro(daIncassare.totale) : "—"}</span> da incassare
+          {" · "}
+          <span className="font-semibold text-foreground tabular-nums">{preventivi.length}</span> {preventivi.length === 1 ? "preventivo" : "preventivi"}
+          {" · "}
+          <span className="font-semibold text-foreground tabular-nums">{openTickets}</span> in assistenza
+        </p>
 
         {/* Cinque numeri che dicono come sta il cliente; ognuno apre il suo pannello. */}
         <RigaNumeri
@@ -631,7 +620,7 @@ export default function CompanyCustomerDetail() {
       {/* Altezza LIMITATA su desktop (come la scheda contatti): così la timeline
           scrolla dentro il pannello e la barra «scrivi email / WhatsApp» resta
           FISSA in basso invece di finire in coda allo scroll della pagina. */}
-      <PlanimetrieAssociate companyId={effectiveCompany?.id} tipo="cliente" schedaId={customer.id} />
+      <PlanimetrieAssociate companyId={effectiveCompany?.id} tipo="cliente" schedaId={customer.id} nascondiSeVuoto />
       <div className="flex flex-col lg:flex-row gap-3 lg:gap-4 lg:h-[calc(100dvh-14rem)]">
         {/* ─── LEFT 280px (su mobile va dopo center → order-2) ─── */}
         <ColonnaAnagrafica chiusa={anagraficaChiusa} onApri={() => setAnagraficaChiusa(false)}>

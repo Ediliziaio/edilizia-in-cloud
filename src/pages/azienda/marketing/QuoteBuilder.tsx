@@ -3250,7 +3250,9 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                                     />
                                   )}
                                 </div>
-                                <div className="col-span-6 2xl:col-span-3 max-sm:col-span-4">
+                                {/* Da 768px quantità, prezzo, sconto, IVA e totale su una riga (prima solo da 1536):
+                                    con 30 voci su tablet la pagina si accorcia di una riga per voce (collaudo 23/11/2026). */}
+                                <div className="col-span-6 md:col-span-3 max-sm:col-span-4">
                                   <Label className="text-xs"><span className="max-sm:hidden">Quantità</span><span className="sm:hidden">Q.tà</span></Label>
                                   <Input
                                     type="number"
@@ -3271,7 +3273,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                                 </div>
                                 {/* Riga di sconto (05/10/2026): si scrive l'importo, si salva in
                                     negativo e il totale scende. Prima il 100 scritto si sommava. */}
-                                <div className="col-span-6 2xl:col-span-3 max-sm:col-span-4">
+                                <div className="col-span-6 md:col-span-3 max-sm:col-span-4">
                                   <Label className="text-xs">{isSconto ? "Sconto €" : <><span className="max-sm:hidden">Prezzo unitario €</span><span className="sm:hidden">Prezzo €</span></>}</Label>
                                   <Input
                                     type="number"
@@ -3287,7 +3289,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                                     className={isSconto ? "text-red-600" : ""}
                                   />
                                 </div>
-                                {!isSconto && <div className="col-span-4 2xl:col-span-2">
+                                {!isSconto && <div className="col-span-4 md:col-span-2">
                                   <Label className="text-xs">Sconto %</Label>
                                   <Input
                                     type="number"
@@ -3305,7 +3307,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                                     }
                                   />
                                 </div>}
-                                <div className="col-span-4 2xl:col-span-2">
+                                <div className="col-span-4 md:col-span-2">
                                   <Label className="text-xs">IVA%</Label>
                                   <Input
                                     type="number"
@@ -3321,7 +3323,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                                     }
                                   />
                                 </div>
-                                <div className="col-span-4 2xl:col-span-2 flex items-end justify-end gap-1 max-sm:col-span-4 max-sm:col-start-9">
+                                <div className="col-span-4 md:col-span-2 flex items-end justify-end gap-1 max-sm:col-span-4 max-sm:col-start-9">
                                   <p
                                     className={`font-medium text-sm py-2 max-sm:hidden ${
                                       isSconto ? "text-red-600" : ""

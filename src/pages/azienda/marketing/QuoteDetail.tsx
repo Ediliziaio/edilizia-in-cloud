@@ -574,7 +574,7 @@ export default function QuoteDetail() {
         }
       />
 
-      <PlanimetrieAssociate companyId={companyId} tipo="preventivo" schedaId={id} />
+      <PlanimetrieAssociate companyId={companyId} tipo="preventivo" schedaId={id} nascondiSeVuoto />
       {permessi.canEditPreventivi && idComputoNativo(quote.source) && <Button variant="outline" onClick={() => navigate(percorsoComputoNativo(idComputoNativo(quote.source)!))}><FileText className="mr-2 h-4 w-4" />Apri computo del preventivo</Button>}
 
       {/* Pianta o computo cambiati dopo il preventivo: quantità da aggiornare (o revisione). */}
