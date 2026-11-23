@@ -21,6 +21,7 @@ export interface ProcurementItem {
   supplier_id?: string | null;
   vat_rate?: number | null;
   stock_item_id?: string | null;
+  warehouse_supply_quantity?: number | null;
   product_code?: string | null;
   riferimento?: string | null;
   specifiche?: string | null;
@@ -94,7 +95,8 @@ export function planMaterial(item: ProcurementItem, rows: ProcurementCoverage[])
   const received = roundQty(active.filter(r => (ODA_STATI_EMESSI as string[]).includes(r.purchase_orders.status)).reduce((n, r) => n + Number(r.quantity_received), 0));
   const covered = roundQty(active.reduce((n, r) => n + Number(r.quantity), 0));
   const required = Number(item.quantity);
-  const remaining = positive(required) ? roundQty(Math.max(0, required - covered)) : 0;
+  const daScorta = item.stock_item_id && positive(item.warehouse_supply_quantity) ? Number(item.warehouse_supply_quantity) : 0;
+  const remaining = positive(required) ? roundQty(Math.max(0, required - covered - daScorta)) : 0;
   const unitaScritta = (item.unita_misura ?? "").trim().toLowerCase();
   const unitaOrdine = active.map(r => (r.unit_of_measure ?? "").trim().toLowerCase()).find(u => u && u !== unitaMateriale(item));
   const ordini = [...new Map(active.map(r => [r.purchase_orders.id, { id: r.purchase_orders.id, oda_number: r.purchase_orders.oda_number }])).values()];
@@ -117,13 +119,13 @@ export function planMaterial(item: ProcurementItem, rows: ProcurementCoverage[])
   } else if (item.posizioni?.length && covered > 0 && remaining > 0) {
     // No position ID in purchase_order_items: never guess which openings remain.
     review = "Distinta parzialmente coperta: verifica le posizioni nell’OdA";
-  } else if (!item.stock_item_id && remaining > 0 && item.status && item.status !== "da_ordinare" && covered === 0) {
+  } else if ((!item.stock_item_id || daScorta > 0) && remaining > 0 && item.status && item.status !== "da_ordinare" && covered === 0) {
     review = "Stato avanzato senza OdA collegato: verifica prima di riordinare";
   }
-  return { item, drafted, issued, received, covered, remaining, review, ordini,
+  return { item, drafted, issued, received, covered, daScorta, remaining, review, ordini,
     ricevuto: positive(required) && received >= required,
-    overOrdered: positive(required) && covered > required,
-    canOrder: !!item.id && !item.stock_item_id && remaining > 0 && !review,
+    overOrdered: positive(required) && covered + daScorta > required,
+    canOrder: !!item.id && (!item.stock_item_id || daScorta > 0) && remaining > 0 && !review,
   };
 }
 

@@ -474,7 +474,7 @@ export function OrdersMonthlyChart({
               </span>
             </div>
           ) : (
-            <p className="mb-1 text-[11px] text-slate-500">Seleziona un mese per filtrare l’elenco.</p>
+            <p className="mb-1 text-[11px] text-slate-500">Seleziona un mese per aggiornare l’elenco e il riepilogo.</p>
           )}
           <div
             role="group"

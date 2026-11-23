@@ -28,6 +28,8 @@ import {
   giornoLocale,
   giorniTra,
   intervalloCronoprogramma,
+  intervalloPrevistoFase as previsto,
+  intervalloRealeFase as reale,
   lavoroRealeFasi,
   ritardoFase,
   riepilogoCronoprogramma,
@@ -76,21 +78,6 @@ const TRAGUARDO_BREVE: Record<Traguardo["tipo"], string> = {
   fine_lavori: "Fine lavori",
   consegna: "Consegna",
 };
-
-/** Intervallo previsto della fase; con una data sola vale per un giorno. */
-function previsto(f: FaseCrono): [string, string] | null {
-  const da = f.previstoInizio ?? f.previstoFine;
-  const a = f.previstoFine ?? f.previstoInizio;
-  return da && a && a >= da ? [da, a] : null;
-}
-
-/** Intervallo reale: dal primo rapportino alla chiusura, o fino a oggi se è in corso. */
-function reale(f: FaseCrono, oggi: string): [string, string] | null {
-  if (!f.realeInizio) return null;
-  if (f.realeFine && f.realeFine < f.realeInizio) return null;
-  const fine = f.realeFine ?? (f.stato === "in_corso" ? oggi : f.realeInizio);
-  return [f.realeInizio, fine < f.realeInizio ? f.realeInizio : fine];
-}
 
 function Dettaglio({
   fase,

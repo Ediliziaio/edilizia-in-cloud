@@ -150,7 +150,7 @@ export function cartelleMancanti(
 }
 
 /** Numero di documenti per cartella (chiave "" = senza cartella). */
-export function contaPerCartella(documenti: { folder_id: string | null }[]): Record<string, number> {
+export function contaPerCartella(documenti: readonly { folder_id?: string | null }[]): Record<string, number> {
   const out: Record<string, number> = {};
   for (const d of documenti) {
     const k = d.folder_id ?? "";

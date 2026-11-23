@@ -30,6 +30,7 @@ import { useBrandingByDomain } from "@/hooks/useBrandingByDomain";
 import { isMobileAppRuntime } from "@/lib/mobile/platform";
 import { cn } from "@/lib/utils";
 import { COMPANY_APP_HOME } from "@/lib/auth/appHome";
+import { messaggioErroreLogin } from "@/lib/auth/erroriLogin";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 
 type ViewMode = "login" | "forgot" | "2fa" | "email-otp";
@@ -149,21 +150,9 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
     try {
       const { error } = await signIn(email, password);
       if (error) {
-        // Distinguish timeout (Supabase auth cold-start) from real credential
-        // errors. Prima TUTTI gli errori mostravano "Email o password non
-        // validi" → utente confuso anche se credenziali corrette ma server lento.
-        const isTimeout =
-          (error as Error & { __isTimeout?: boolean }).__isTimeout === true ||
-          /timeout/i.test(error.message ?? "");
-        const msg = isTimeout
-          ? "Server lento (cold-start). Attendi 2 secondi e riprova: il prossimo tentativo sarà istantaneo."
-          : "Email o password non validi. Riprova.";
+        const msg = messaggioErroreLogin(error);
         setFormError(msg);
-        toast({
-          variant: "destructive",
-          title: isTimeout ? "Connessione lenta" : "Errore di accesso",
-          description: msg,
-        });
+        toast({ variant: "destructive", title: "Errore di accesso", description: msg });
         return;
       }
 

@@ -6,7 +6,7 @@ import type { RiepilogoGenerale, TotaliGenerale } from "@/lib/orders/commesseGen
 
 /**
  * Modulo «Unità e vendite» (30/10/2026): cosa vede chi vende. Da computer tabellone, tabella,
- * serie, divisione; da telefono (375 px) solo tabellone e cambio di stato.
+ * serie, divisione; da telefono (375 px) tabellone e schede di consultazione.
  */
 const m = vi.hoisted(() => ({
   elenco: null as ElencoUnita | null,
@@ -14,6 +14,9 @@ const m = vi.hoisted(() => ({
   cambia: vi.fn(),
   serie: vi.fn(),
   dividi: vi.fn(),
+  salva: vi.fn(),
+  aggiungi: vi.fn(),
+  storna: vi.fn(),
 }));
 
 vi.mock("@/hooks/useUnitaDalPiano", () => ({ useUnitaDalPiano: (): null => null }));
@@ -22,15 +25,14 @@ vi.mock("@/hooks/useCommesseGenerali", () => ({ messaggioGenerale: (_e: unknown,
 // Fatture dei pagamenti (sessione cg-fatture): qui non si provano, il bottone resta spento.
 vi.mock("@/hooks/useGeneraleFatture", () => ({ useFattureGenerale: () => ({ data: undefined as undefined }) }));
 vi.mock("@/hooks/useGeneraleUnita", () => {
-  const ferma = () => ({ mutate: vi.fn(), isPending: false });
   return {
     useUnitaGenerale: () => ({ data: m.elenco, isLoading: false, isError: false, refetch: vi.fn() }),
     useCambiaStatoUnita: () => ({ mutate: m.cambia, isPending: false }),
     useCreaUnitaInSerie: () => ({ mutate: m.serie, isPending: false }),
     useDividiUnita: () => ({ mutate: m.dividi, isPending: false }),
-    useSalvaUnita: ferma,
-    useAggiungiMovimento: ferma,
-    useEliminaMovimento: ferma,
+    useSalvaUnita: () => ({ mutate: m.salva, isPending: false }),
+    useAggiungiMovimento: () => ({ mutate: m.aggiungi, isPending: false }),
+    useEliminaMovimento: () => ({ mutate: m.storna, isPending: false }),
   };
 });
 // Il materiale di vendita (planimetria, foto, scheda, listino) ha la sua prova: generaleVenditaUi.test.tsx.
@@ -83,6 +85,9 @@ beforeEach(() => {
   m.cambia.mockReset();
   m.serie.mockReset();
   m.dividi.mockReset();
+  m.salva.mockReset();
+  m.aggiungi.mockReset();
+  m.storna.mockReset();
   Object.defineProperty(window, "innerWidth", { configurable: true, writable: true, value: 1280 });
 });
 afterEach(cleanup);
@@ -104,14 +109,15 @@ describe("da computer", () => {
     fireEvent.click(screen.getByRole("radio", { name: "Tabella" }));
     const riga = screen.getByRole("button", { name: "A3" }).closest("tr")!;
     expect(riga).toHaveTextContent("200.000 €");
-    fireEvent.click(screen.getByRole("button", { name: "Rimuovi filtro" }));
+    fireEvent.click(screen.getByRole("button", { name: "Azzera filtri" }));
     expect(screen.getByRole("button", { name: "A1" })).toBeVisible();
   });
   it("il tabellone: caselle per stato, piani dall'alto, contatori e avviso delle garanzie", () => {
     disegna();
     expect(casella("A1")).toHaveAccessibleName("A1, Libera");
     expect(casella("A2")).toHaveAccessibleName("A2, Compromesso, Mario Rossi");
-    const piani = screen.getAllByText(/° piano|Piano terra/).map((n) => n.textContent);
+    const tabellone = screen.getByRole("region", { name: "Unità", exact: true });
+    const piani = within(tabellone).getAllByText(/° piano|Piano terra/).map(n => n.textContent);
     expect(piani).toEqual(["2° piano", "1° piano", "Piano terra"]);
     const legenda = screen.getByRole("list", { name: "Unità per stato" });
     expect(within(legenda).getByText("Libere").nextSibling).toHaveTextContent("1");
@@ -164,8 +170,64 @@ describe("da computer", () => {
     expect(screen.getByRole("button", { name: "Listino" })).toBeVisible();
     fireEvent.click(casella("A1"));
     const finestra = screen.getByRole("dialog");
+    expect(within(finestra).getByLabelText("Importi dell’unità")).toHaveTextContent("300.000 €");
     expect(within(finestra).getByText("Materiale di A1, si carica")).toBeVisible();
     expect(within(finestra).getByRole("tab", { name: "Scheda vendita" })).toBeVisible();
+  });
+
+  it("il riepilogo del popup rispetta il permesso sugli importi", () => {
+    m.elenco = { ...elencoPieno(), permessi: { importi: false, costi: false, margini: false, modifica: false } };
+    disegna(false);
+    fireEvent.click(casella("A2"));
+    const finestra = within(screen.getByRole("dialog", { name: /^A2/ }));
+    expect(finestra.queryByLabelText("Importi dell’unità")).toBeNull();
+    expect(finestra.queryByRole("tab", { name: "Pagamenti" })).toBeNull();
+    expect(finestra.getByText("Mario Rossi")).toBeVisible();
+  });
+
+  it("l’unità libera rimanda a Vendita e i dati in modifica restano passando da una scheda all’altra", () => {
+    disegna();
+    fireEvent.click(casella("A1"));
+    const finestra = within(screen.getByRole("dialog", { name: /^A1/ }));
+    fireEvent.mouseDown(finestra.getByRole("tab", { name: "Pagamenti" }), { button: 0, ctrlKey: false });
+    expect(finestra.getByText("Nessun pagamento registrato")).toBeVisible();
+    fireEvent.click(finestra.getByRole("button", { name: "Vai a Vendita" }));
+    expect(finestra.getByRole("tab", { name: "Vendita" })).toHaveAttribute("aria-selected", "true");
+    fireEvent.mouseDown(finestra.getByRole("tab", { name: "Dati" }), { button: 0, ctrlKey: false });
+    const piano = finestra.getByLabelText("Piano", { exact: true });
+    fireEvent.change(piano, { target: { value: "1" } });
+    fireEvent.mouseDown(finestra.getByRole("tab", { name: "Margine" }), { button: 0, ctrlKey: false });
+    expect(finestra.getByRole("region", { name: "Riparto dei costi comuni" })).toHaveTextContent("10.000 €");
+    expect(finestra.getByLabelText("Riepilogo del margine")).toHaveTextContent("190.000 €");
+    fireEvent.mouseDown(finestra.getByRole("tab", { name: "Dati" }), { button: 0, ctrlKey: false });
+    expect(piano).toHaveValue("1");
+    fireEvent.click(finestra.getByRole("button", { name: "Salva i dati" }));
+    expect(m.salva).toHaveBeenCalledWith({ orderId: "o-A1", dati: { piano: "1" } }, expect.anything());
+  });
+
+  it("Pagamenti distingue quota prezzo e cassa e richiede la conferma dello storno", () => {
+    const a2 = m.elenco!.unita[1];
+    a2.movimenti = a2.movimenti.map(mm => ({ ...mm, primaNotaId: `pn-${mm.id}`, importoCassa: 33_000 }));
+    disegna();
+    fireEvent.click(casella("A2"));
+    const finestra = within(screen.getByRole("dialog", { name: /^A2/ }));
+    fireEvent.mouseDown(finestra.getByRole("tab", { name: "Pagamenti" }), { button: 0, ctrlKey: false });
+    const riga = within(finestra.getByRole("row", { name: /Caparra/ }));
+    expect(riga.getByText("30.000 €")).toBeVisible();
+    expect(riga.getByRole("link", { name: /33.000/ })).toBeVisible();
+    fireEvent.click(finestra.getByRole("button", { name: "Nuovo pagamento" }));
+    const modulo = within(finestra.getByRole("form", { name: "Registra pagamento" }));
+    fireEvent.change(modulo.getByLabelText(/Quota prezzo/), { target: { value: "1.000" } });
+    fireEvent.change(modulo.getByLabelText("Entrata effettiva in cassa"), { target: { value: "1.100" } });
+    fireEvent.click(modulo.getByRole("button", { name: "Registra" }));
+    expect(m.aggiungi).toHaveBeenCalledWith(expect.objectContaining({ importo: 1_000, importoCassa: 1_100 }), expect.anything());
+    fireEvent.click(modulo.getByRole("button", { name: "Annulla" }));
+    fireEvent.click(riga.getByRole("button", { name: /Storna caparra/ }));
+    expect(m.storna).not.toHaveBeenCalled();
+    const conferma = within(screen.getByRole("alertdialog", { name: "Stornare il movimento?" }));
+    expect(conferma.getByText(/30.000/)).toBeVisible();
+    fireEvent.click(conferma.getByRole("button", { name: "Conferma storno" }));
+    expect(m.storna).toHaveBeenCalledWith(a2.movimenti[0].id, expect.anything());
   });
 
   it("non si rimette in vendita un'unità con dei pagamenti", () => {
@@ -235,10 +297,11 @@ describe("da telefono, a 375 px", () => {
     expect(screen.queryByRole("button", { name: /Nuove unità in serie/ })).toBeNull();
     expect(screen.queryByRole("radio", { name: "Tabella" })).toBeNull();
     expect(screen.queryByText(/Venduto/)).toBeNull();
-    // Le caselle stanno in una griglia da quattro: niente spazio vuoto a destra.
-    expect(casella("A2").closest("ul")).toHaveClass("grid-cols-4");
-    expect(screen.getByRole("note")).toHaveTextContent("Garanzie D.Lgs. 122/2005 per A2.");
-    // Listino e scheda vendita si preparano dal computer.
+    expect(casella("A2").closest("ul")).toHaveClass("grid-cols-3");
+    const garanzie = screen.getByText("Garanzie pre-rogito · 1 unità interessata");
+    expect(garanzie.closest("details")).not.toHaveAttribute("open");
+    expect(garanzie.closest("details")).toHaveTextContent("A2.");
+    // Il listino collettivo si prepara dal computer.
     expect(screen.queryByRole("button", { name: "Listino" })).toBeNull();
   });
 
@@ -248,11 +311,14 @@ describe("da telefono, a 375 px", () => {
     expect(within(screen.getByRole("dialog")).getByText("Materiale di A1")).toBeVisible();
   });
 
-  it("si cambia lo stato confermando il prezzo che c'è; niente pagamenti, dati né divisione", () => {
+  it("si consulta il dettaglio e si cambia lo stato confermando il prezzo che c'è", () => {
     disegna(false);
     fireEvent.click(casella("A1"));
     const finestra = screen.getByRole("dialog");
-    expect(within(finestra).queryByRole("tab")).toBeNull();
+    expect(within(finestra).getByRole("tab", { name: "Pagamenti" })).toBeVisible();
+    expect(within(finestra).getByRole("tab", { name: "Margine" })).toBeVisible();
+    expect(within(finestra).getByRole("tab", { name: "Scheda vendita" })).toBeVisible();
+    expect(within(finestra).queryByRole("tab", { name: "Dati" })).toBeNull();
     expect(within(finestra).queryByRole("button", { name: /Dividi/ })).toBeNull();
     fireEvent.click(within(finestra).getByRole("button", { name: "Prenotata" }));
     expect(within(finestra).queryByLabelText(/Prezzo trattato/)).toBeNull();
@@ -271,12 +337,10 @@ describe("da telefono, a 375 px", () => {
 });
 
 describe("il riquadro in Panoramica", () => {
-  it("contatori per stato, venduto e incassato", () => {
+  it("mostra i contatori e apre le unità filtrate per stato di vendita", () => {
     render(<MemoryRouter><RiquadroUnita riepilogo={riepilogo} totali={totali} puoModificare /></MemoryRouter>);
-    expect(screen.getByRole("heading", { name: "Vendite · 4 unità" })).toBeVisible();
-    expect(screen.getByRole("link", { name: "Filtra unità: Rogitate" }).closest("li")).toHaveTextContent("1");
-    expect(screen.getByText("Venduto").nextSibling).toHaveTextContent("600.000 €");
-    expect(screen.getByText("Incassato").nextSibling).toHaveTextContent("360.000 €");
+    expect(screen.getByRole("heading", { name: "Unità e vendite 4" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Rogitate 1" })).toHaveAttribute("href", "/?scheda=unita&vista-unita=tabella&stato-vendita=rogitata");
   });
 
   it("da telefono solo i contatori; senza unità non c'è", () => {

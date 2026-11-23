@@ -1,6 +1,7 @@
 import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { ArrowRight, ClipboardCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,8 +24,13 @@ import { RiepilogoFatturaRicevuta } from "@/components/fatturazione/RiepilogoFat
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 
 const euro = (n: number | null) => (n === null ? "Da completare" : formatCurrency(n));
-export function RiconciliazioneGenerale({ riepilogo }: { riepilogo: RiepilogoGenerale }) {
-  const q = useControlloFornitureGenerale(riepilogo);
+export function RiconciliazioneGenerale({ riepilogo, commessaId, onApriPagamenti, onApriFase }: {
+  riepilogo: RiepilogoGenerale;
+  commessaId?: string;
+  onApriPagamenti?: () => void;
+  onApriFase?: (commessaId: string, faseId: string) => void;
+}) {
+  const q = useControlloFornitureGenerale(riepilogo, commessaId);
   const collega = useCollegaRigaFornitura(riepilogo.generale.id);
   const p = usePermissions();
   const [soloProblemi, setSoloProblemi] = useState(false);
@@ -43,45 +49,56 @@ export function RiconciliazioneGenerale({ riepilogo }: { riepilogo: RiepilogoGen
   if (!q.data) return <Skeleton className="h-64 w-full" />;
   const d = q.data;
   const nomi = new Map([
-    [riepilogo.generale.id, "Generale"],
+    [riepilogo.generale.id, ["Generale", riepilogo.generale.codice].filter(Boolean).join(" · ")],
     ...riepilogo.figlie.map((f) => [f.id, f.codice ?? f.nome] as [string, string]),
   ]);
   const righe = d.righe.map((r) => ({ r, c: riconciliaRiga(r, d.consegne, d.fatture) }));
+  const righeInAmbito = new Set(d.righe.map(r => r.id));
+  const ddtsConOrdine = new Set(d.bolleConOrdine ?? []);
+  for (const bolla of d.bolle) if (bolla.purchase_order_id) ddtsConOrdine.add(bolla.id);
   const visibili = soloProblemi ? righe.filter((x) => x.c.avvisi.length > 0) : righe;
-  const pagamenti = d.quadri.map((x) => ({ ...x, totali: totaliQuadro(x.quadro) }));
+  const pagamenti = d.quadri.map((x) => ({ ...x, totali: totaliQuadro(x.quadro) }))
+    .filter(({ totali }) => totali.pagato !== 0 || totali.daPagare !== 0 || totali.impegnato !== 0);
   const diretti = d.bolle
-    .filter((b) => !b.purchase_order_id)
+    .filter((b) => !ddtsConOrdine.has(b.id))
     .map((bolla) => ({
       bolla,
       controllo: riconciliaDdtDiretto(bolla, d.consegne, d.fatture, d.legamiDdt),
     }));
   const nonAbbinate = d.consegne.filter(
     (c) =>
-      !c.purchase_order_item_id && d.bolle.some((b) => b.id === c.ddt_ricezione_id && b.purchase_order_id),
+      !c.purchase_order_item_id && ddtsConOrdine.has(c.ddt_ricezione_id),
   ).length;
   const problemi =
     righe.filter((x) => x.c.avvisi.length).length + diretti.filter((x) => x.controllo.avvisi.length).length;
+  const haDocumenti = righe.length > 0 || diretti.length > 0 || nonAbbinate > 0;
+  const ambito = commessaId ? nomi.get(commessaId) : "Tutta l’operazione";
   return (
-    <section className="space-y-4" aria-labelledby="controllo-forniture">
-      <div>
-        <h2 id="controllo-forniture" className="text-lg font-semibold">
-          Forniture: DDT, fatture e pagamenti
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          Tutta l'operazione: generale e unità collegate, con o senza ordine d'acquisto. Ogni passaggio resta
-          un documento distinto; questi importi non si sommano per ottenere il costo.
-        </p>
-      </div>
-      <h3 className="font-semibold">Forniture con ordine d'acquisto</h3>
+    <section id="cantiere-controllo" className="space-y-4 rounded-xl border bg-card p-4 sm:p-5" aria-labelledby="controllo-forniture">
+      <header className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h3 id="controllo-forniture" className="flex items-center gap-2 text-base font-semibold">
+            <ClipboardCheck className="size-4 text-primary" aria-hidden="true" /> Controllo forniture
+          </h3>
+          <p className="mt-1 text-xs text-muted-foreground">{ambito} · Ordini, DDT e fatture collegate</p>
+        </div>
+        {onApriPagamenti && <Button size="sm" variant="ghost" onClick={onApriPagamenti}>
+          Costi e pagamenti <ArrowRight className="size-4" aria-hidden="true" />
+        </Button>}
+      </header>
+      {!haDocumenti && <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+        Nessun ordine emesso o DDT da confrontare in questo ambito.
+      </p>}
+      {righe.length > 0 && <>
       <div className="grid gap-3 sm:grid-cols-3">
         {(
           [
-            ["Impegnato nelle righe d'ordine", "impegnato"],
-            ["Ricevuto valorizzato al prezzo d'ordine", "maturato"],
-            ["Fatturato sulle righe abbinate", "fatturato"],
+            ["Ordinato", "impegnato"],
+            ["Ricevuto al prezzo d’ordine", "maturato"],
+            ["Fatturato abbinato", "fatturato"],
           ] as const
         ).map(([titolo, campo]) => (
-          <div key={campo} className="rounded-lg border p-3">
+          <div key={campo} className="rounded-lg border bg-muted/25 p-3">
             <p className="text-xs text-muted-foreground">{titolo}</p>
             <p className="text-xl font-semibold">
               {euro(
@@ -90,33 +107,30 @@ export function RiconciliazioneGenerale({ riepilogo }: { riepilogo: RiepilogoGen
                   : righe.reduce((s, x) => s + (x.c[campo] ?? 0), 0),
               )}
             </p>
-            <p className="text-xs text-muted-foreground">IVA esclusa · solo forniture</p>
           </div>
         ))}
       </div>
-      <p className="text-sm text-muted-foreground">
-        Il budget e il costo complessivo sono nel Piano economico. Il ricevuto valorizzato è una stima al
-        prezzo d'ordine; la fattura può rettificarla. I pagamenti sotto sono IVA inclusa e comprendono tutte
-        le uscite.
-      </p>
-      <label className="flex items-center gap-2 text-sm">
+      <p className="text-xs text-muted-foreground">Importi al netto IVA. Il ricevuto è valorizzato al prezzo d’ordine.</p>
+      </>}
+      {haDocumenti && <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" checked={soloProblemi} onChange={(e) => setSoloProblemi(e.target.checked)} />
         Solo righe da controllare ({problemi})
-      </label>
+      </label>}
       {nonAbbinate > 0 && (
         <p role="status" className="rounded-md bg-amber-50 p-3 text-sm text-amber-950">
           {nonAbbinate} righe di DDT non sono abbinate a una riga d'ordine. Apri la bolla per completare il
           collegamento; non sono considerate consegne a valore zero.
         </p>
       )}
-      <div className="overflow-x-auto rounded-lg border">
-        <table className="w-full text-sm">
+      {righe.length > 0 && <div className="overflow-x-auto rounded-lg border">
+        <table className="w-full text-sm" aria-label="Righe d’ordine e consegne">
           <thead className="bg-muted text-left">
             <tr>
               {[
                 "Commessa / ordine / materiale",
                 "Ordinato",
                 "Ricevuto",
+                "Da ricevere",
                 "Fatturato netto",
                 "Documenti e controlli",
               ].map((s) => (
@@ -129,6 +143,7 @@ export function RiconciliazioneGenerale({ riepilogo }: { riepilogo: RiepilogoGen
           <tbody className="divide-y">
             {visibili.map(({ r, c }) => {
               const o = d.ordini.find((o) => o.id === r.purchase_order_id);
+              const fase = r.order_item_id ? d.fasiPerMateriale?.[r.order_item_id] : undefined;
               return (
                 <tr key={r.id}>
                   <td className="p-3">
@@ -140,9 +155,12 @@ export function RiconciliazioneGenerale({ riepilogo }: { riepilogo: RiepilogoGen
                       {o?.oda_number ?? "Ordine"}
                     </Link>
                     <p>{r.description}</p>
+                    {fase && onApriFase && <button type="button" className="mt-1 block text-left text-xs text-primary hover:underline"
+                      onClick={() => onApriFase(fase.order_id, fase.id)}>{fase.name}</button>}
                   </td>
                   <td className="p-3 tabular-nums">{c.ordinata}</td>
                   <td className="p-3 tabular-nums">{c.ricevuta}</td>
+                  <td className="p-3 tabular-nums">{c.ricevutaCompleta ? Math.max(0, c.ordinata - c.ricevuta).toLocaleString("it-IT") : "Da verificare"}</td>
                   <td className="p-3 tabular-nums">{euro(c.fatturato)}</td>
                   <td className="space-y-1 p-3">
                     {c.bolle.map((id) => (
@@ -174,23 +192,21 @@ export function RiconciliazioneGenerale({ riepilogo }: { riepilogo: RiepilogoGen
             })}
             {!visibili.length && (
               <tr>
-                <td colSpan={5} className="p-4 text-muted-foreground">
-                  {soloProblemi
-                    ? "Nessuna anomalia nelle righe lette."
-                    : "Nessuna riga d'ordine collegata. Puoi registrare una fornitura direttamente sulla generale."}
+                <td colSpan={6} className="p-4 text-muted-foreground">
+                  Nessuna anomalia nelle righe d’ordine lette.
                 </td>
               </tr>
             )}
           </tbody>
         </table>
-      </div>
+      </div>}
       <DdtSenzaOrdine
         righe={diretti}
         nomi={nomi}
         soloProblemi={soloProblemi}
         onApriFattura={setFatturaAperta}
       />
-      <details className="rounded-lg border p-4">
+      {d.fattureConOrdine.length > 0 && <details className="rounded-lg border p-4">
         <summary className="cursor-pointer font-medium">
           Collega le righe delle fatture agli ordini ({d.fattureConOrdine.length}{" "}
           {d.fattureConOrdine.length === 1 ? "documento" : "documenti"})
@@ -209,7 +225,9 @@ export function RiconciliazioneGenerale({ riepilogo }: { riepilogo: RiepilogoGen
                 <span>
                   {r.descrizione || `Riga ${i + 1}`} · {euro(valoreRigaFattura(r))}
                 </span>
-                <UniformSelect
+                {r.purchase_order_item_id && !righeInAmbito.has(r.purchase_order_item_id) ? (
+                  <span className="text-xs text-muted-foreground">Collegata fuori dall’ambito selezionato</span>
+                ) : <UniformSelect
                   aria-label={`Riga ordine per fattura ${f.numero_fattura} riga ${i + 1}`}
                   className="h-10 rounded border bg-background px-2"
                   disabled={!(p.canEditOrders && p.canViewBilling) || collega.isPending}
@@ -234,14 +252,14 @@ export function RiconciliazioneGenerale({ riepilogo }: { riepilogo: RiepilogoGen
                         {d.ordini.find((o) => o.id === x.purchase_order_id)?.oda_number} · {x.description}
                       </option>
                     ))}
-                </UniformSelect>
+                </UniformSelect>}
               </label>
             ))}
           </div>
         ))}
-      </details>
-      <div className="rounded-lg border p-4">
-        <h3 className="font-medium">Pagamenti dell'intera operazione · IVA inclusa</h3>
+      </details>}
+      {(pagamenti.length > 0 || d.fatture.some(f => f.company_cost_id)) && <div className="rounded-lg border p-4">
+        <h3 className="font-medium">Pagamenti · IVA inclusa</h3>
         <div className="mt-3 space-y-2">
           {pagamenti.map((x) => (
             <div key={x.orderId} className="flex flex-wrap justify-between gap-2 border-b py-2 text-sm">
@@ -260,7 +278,7 @@ export function RiconciliazioneGenerale({ riepilogo }: { riepilogo: RiepilogoGen
               Pagamenti fattura {f.numero_fattura}
             </Button>
           ))}
-      </div>
+      </div>}
       {costo && (
         <ExpensePaymentDialog
           costId={costo}

@@ -10,8 +10,7 @@ import { RiquadroPiano } from "@/components/orders/generali/piano/RiquadroPiano"
 export const modulo: ModuloScheda = {
   pronto: true,
   titolo: "Piano economico",
-  // Il piano è un foglio di calcolo largo: tablet e computer (piano §3.4).
-  telefono: false,
+  telefono: true,
   Scheda: PianoEconomico,
   Riquadro: RiquadroPiano,
 };

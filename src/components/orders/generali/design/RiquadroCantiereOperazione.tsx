@@ -1,62 +1,60 @@
-// src/components/orders/generali/design/RiquadroCantiereOperazione.tsx
-// Il cantiere in Panoramica (lotto 5 del piano 2026-11-14-operazione-immobiliare-piano-completo).
-// Un'operazione immobiliare, finché costruisce, si segue dal cantiere: quali fasi sono in corso,
-// quanto si è speso questo mese contro quanto prevedeva il piano, gli ultimi costi arrivati.
-// Prima la Panoramica parlava solo di vendite (la tabella delle unità) a chi stava costruendo.
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ArrowRight, HardHat } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useGeneralePianoNumeri } from "@/hooks/useGeneralePiano";
-import { faseFinita, faseInCorso, useFasiCantiere, type FaseCantiere } from "@/hooks/useAvanzamentoCantiere";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { avanzamentoDalleFasi, faseFinita, faseInCorso, useFasiCantiere } from "@/hooks/useAvanzamentoCantiere";
 import type { RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 import { cn } from "@/lib/utils";
 import { dataBreve, euro, nomeMese } from "../piano/formato";
 import { FasiDalPianoDialog } from "./FasiDalPianoDialog";
 
-type Fase = FaseCantiere;
-
-const FINITA = faseFinita;
-const IN_CORSO = faseInCorso;
-
 export function RiquadroCantiereOperazione({ riepilogo, puoModificare = false }: { riepilogo: RiepilogoGenerale; puoModificare?: boolean }) {
   const [dalPiano, setDalPiano] = useState(false);
   const generaleId = riepilogo.generale.id;
   const [parametri, setParametri] = useSearchParams();
-  const telefono = useIsMobile();
   const n = useGeneralePianoNumeri(riepilogo);
-  // Le fasi della generale e quelle delle commesse dentro (lotto C, 14/11/2026): prima
-  // l'avanzamento contava solo la generale, e un lotto finito non muoveva niente.
-  const codici = new Map(riepilogo.figlie.map((f) => [f.id, f.codice] as const));
-  // La stessa lettura che usa la testata per «Lavori fatti» (useAvanzamentoCantiere): una sola
-  // query condivisa, e due numeri che non si contraddicono.
   const fasi = useFasiCantiere(generaleId, riepilogo.figlie.map((f) => f.id));
-  const nome = (f: Fase) => (f.order_id === generaleId ? f.name : `${f.name} (${codici.get(f.order_id) ?? "commessa"})`);
-  // Il riquadro vive nella Panoramica: una risposta strana non deve farla cadere.
-  const sulleFiglie = Array.isArray(fasi.data) && fasi.data.some((f) => f.order_id !== generaleId);
 
-  const apri = (vista?: string) => {
+  const apri = (vista?: "lavorazioni" | "cronoprogramma", ambito?: string) => {
     const dopo = new URLSearchParams(parametri);
     dopo.set("scheda", "cantiere");
     if (vista) dopo.set("vista-cantiere", vista);
+    else dopo.delete("vista-cantiere");
+    if (ambito) dopo.set("ambito-cantiere", ambito);
+    else dopo.delete("ambito-cantiere");
+    dopo.delete("fase-cantiere");
+    dopo.delete("rapportino-cantiere");
     setParametri(dopo, { replace: true });
   };
 
-  // Il riquadro vive nella Panoramica: qualunque cosa arrivi, non deve farla cadere.
   const elenco = Array.isArray(fasi.data) ? fasi.data : [];
   const conVoci = Array.isArray(n.voci) && n.voci.length > 0;
-  const finite = elenco.filter(FINITA).length;
-  const inCorso = elenco.filter(IN_CORSO);
-  const prossime = elenco.filter((f) => !FINITA(f) && !IN_CORSO(f)).slice(0, 2);
-  const avanzamento = elenco.length ? Math.round(elenco.reduce((t, f) => t + Math.min(100, f.percentuale), 0) / elenco.length) : 0;
+  const oggi = typeof n.reale?.oggi === "string" ? n.reale.oggi : new Date().toISOString().slice(0, 10);
+  const meseCorrente = oggi.slice(0, 7);
+  const finite = elenco.filter(faseFinita).length;
+  const inCorso = elenco.filter(faseInCorso).length;
+  const daAvviare = elenco.length - finite - inCorso;
+  const avanzamento = avanzamentoDalleFasi(elenco);
+
+  const avvii = new Map<string, { nome: string; data: string; numero: number }>();
+  for (const fase of elenco) {
+    const data = fase.start_date;
+    if (!data || data < oggi || faseFinita(fase) || faseInCorso(fase)) continue;
+    const chiave = JSON.stringify([data, fase.name]);
+    const gruppo = avvii.get(chiave);
+    if (gruppo) gruppo.numero += 1;
+    else avvii.set(chiave, { nome: fase.name, data, numero: 1 });
+  }
+  const prossimiAvvii = [...avvii.entries()]
+    .sort(([, a], [, b]) => a.data.localeCompare(b.data) || a.nome.localeCompare(b.nome, "it"))
+    .slice(0, 2);
 
   // Il mese di oggi: registrato contro previsto dal calendario del piano.
   const vedeCosti = riepilogo.permessi.costi;
-  const oggi = typeof n.reale?.oggi === "string" ? n.reale.oggi.slice(0, 7) : new Date().toISOString().slice(0, 7);
   const righe = (Array.isArray(n.reale?.righe) ? n.reale!.righe : []).filter((r) => r.tipo === "costo");
-  const delMese = righe.filter((r) => r.data?.startsWith(oggi)).reduce((t, r) => t + r.importo, 0);
-  const previstoMese = (Array.isArray(n.piano?.cassa?.previsto) ? n.piano!.cassa.previsto : []).find((m) => m.mese === oggi)?.uscite ?? null;
+  const delMese = righe.filter((r) => r.data?.startsWith(meseCorrente)).reduce((t, r) => t + r.importo, 0);
+  const previstoMese = (Array.isArray(n.piano?.cassa?.previsto) ? n.piano!.cassa.previsto : []).find((m) => m.mese === meseCorrente)?.uscite ?? null;
   const ultimi = [...righe]
     .filter((r) => r.data && r.data < "9999")
     .sort((a, b) => (b.data ?? "").localeCompare(a.data ?? ""))
@@ -64,62 +62,77 @@ export function RiquadroCantiereOperazione({ riepilogo, puoModificare = false }:
 
   return (
     <section aria-labelledby="cantiere-operazione" className="generale-panel overflow-hidden">
-      <header className="flex items-center justify-between gap-2 border-b px-4 py-2.5">
-        <div className="min-w-0">
-          <h2 id="cantiere-operazione" className="flex items-center gap-2 text-sm font-semibold">
-            <span className="generale-section-icon"><HardHat aria-hidden="true" /></span>Cantiere
-          </h2>
-        </div>
-        {!telefono && (
-          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => apri()}>
-            Apri il cantiere <ArrowRight className="ml-1 h-3.5 w-3.5" />
-          </Button>
-        )}
+      <header className="flex items-center justify-between gap-2 border-b bg-muted/25 px-3 py-2 sm:px-4">
+        <h2 id="cantiere-operazione" className="flex items-center gap-2 text-sm font-semibold">
+          <span className="generale-section-icon !size-7"><HardHat aria-hidden="true" /></span>Cantiere
+        </h2>
+        <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => apri()}>
+          Apri il cantiere <ArrowRight className="ml-1.5 size-3.5" aria-hidden="true" />
+        </Button>
       </header>
-      <div className="grid divide-y md:grid-cols-3 md:divide-x md:divide-y-0">
+      <div className="grid divide-y md:grid-cols-[minmax(0,1.25fr)_minmax(0,0.8fr)_minmax(0,1fr)] md:divide-x md:divide-y-0">
         {/* Le fasi */}
-        <div className="min-w-0 px-4 py-3">
-          <p className="text-xs text-muted-foreground">Lavori</p>
+        <div className="min-w-0 px-3 py-2.5 sm:px-4">
+          <h3 className="text-xs font-medium text-muted-foreground">Avanzamento lavori</h3>
           {fasi.isLoading ? (
-            <p className="mt-1 text-sm text-muted-foreground">…</p>
+            <p role="status" className="mt-1 text-sm text-muted-foreground">Caricamento delle fasi…</p>
+          ) : fasi.isError ? (
+            <p className="mt-1 text-sm text-muted-foreground">Fasi non disponibili. <button type="button" onClick={() => void fasi.refetch()} className="text-primary hover:underline">Riprova</button></p>
           ) : elenco.length === 0 ? (
             <>
               <p className="mt-0.5 text-sm font-medium">Nessuna fase</p>
               <p className="text-xs text-muted-foreground">Dividi il lavoro in fasi, con le date e chi le fa.</p>
-              {!telefono && (
-                <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
-                  {puoModificare && conVoci && (
-                    <button type="button" onClick={() => setDalPiano(true)} className="inline-flex items-center gap-1 text-xs font-semibold text-orange-700 hover:text-orange-800 dark:text-orange-300">
-                      Proponi le fasi dal piano <ArrowRight className="h-3 w-3" aria-hidden="true" />
-                    </button>
-                  )}
-                  <button type="button" onClick={() => apri("lavorazioni")} className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-                    {puoModificare && conVoci ? "o a mano" : "Imposta le fasi"} <ArrowRight className="h-3 w-3" aria-hidden="true" />
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+                {puoModificare && conVoci && (
+                  <button type="button" onClick={() => setDalPiano(true)} className="inline-flex items-center gap-1 text-xs font-semibold text-orange-700 hover:text-orange-800 dark:text-orange-300">
+                    Proponi le fasi dal piano <ArrowRight className="size-3" aria-hidden="true" />
                   </button>
-                </div>
-              )}
+                )}
+                <button type="button" onClick={() => apri("lavorazioni", generaleId)} className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+                  {puoModificare && conVoci ? "Aggiungi fasi a mano" : "Imposta le fasi"} <ArrowRight className="size-3" aria-hidden="true" />
+                </button>
+              </div>
             </>
           ) : (
             <>
-              <p className="mt-0.5 text-lg font-semibold tabular-nums">{avanzamento}%</p>
+              <div className="mt-0.5 flex flex-wrap items-baseline justify-between gap-x-2">
+                <p className="text-lg font-semibold tabular-nums">{avanzamento}%</p>
+                <button type="button" onClick={() => apri("lavorazioni")} className="generale-text-link">
+                  Tutte le lavorazioni <ArrowRight className="size-3" aria-hidden="true" />
+                </button>
+              </div>
               <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden="true">
                 <div className="h-full rounded-full bg-emerald-500" style={{ width: `${avanzamento}%` }} />
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {finite} di {elenco.length} fasi finite{sulleFiglie && " (con le commesse dentro)"}{inCorso.length > 0 && <> · in corso: <span className="text-foreground">{inCorso.map(nome).join(", ")}</span></>}
+              <p className="mt-1.5 text-xs tabular-nums text-muted-foreground">
+                <span className="whitespace-nowrap">{finite} di {elenco.length} fasi concluse</span>
+                {" · "}<span className="whitespace-nowrap">{inCorso} in corso</span>
+                {" · "}<span className="whitespace-nowrap">{daAvviare} da avviare</span>
               </p>
-              {prossime.length > 0 && (
-                <p className="truncate text-xs text-muted-foreground" title={prossime.map(nome).join(", ")}>
-                  Poi: {prossime.map((f) => `${nome(f)}${f.start_date ? ` (${dataBreve(f.start_date)})` : ""}`).join(", ")}
-                </p>
+              {prossimiAvvii.length > 0 && (
+                <div className="mt-2 border-t pt-1.5">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-2">
+                    <p className="text-xs font-medium text-muted-foreground">Prossimi avvii</p>
+                    <button type="button" onClick={() => apri("cronoprogramma")} className="generale-text-link">Cronoprogramma</button>
+                  </div>
+                  <ul aria-label="Prossimi avvii" className="mt-0.5 space-y-0.5">
+                    {prossimiAvvii.map(([chiave, { nome, data, numero }]) => (
+                      <li key={chiave} className="flex items-baseline gap-2 text-xs">
+                        <span title={nome} className="min-w-0 truncate">{nome}</span>
+                        {numero > 1 && <span className="shrink-0 text-muted-foreground">{numero} fasi</span>}
+                        <time dateTime={data} className="ml-auto shrink-0 tabular-nums text-muted-foreground">{dataBreve(data)}</time>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
             </>
           )}
         </div>
 
         {/* Il mese */}
-        <div className="min-w-0 px-4 py-3">
-          <p className="text-xs text-muted-foreground">Uscite di {nomeMese(oggi)}</p>
+        <div className="min-w-0 px-3 py-2.5 sm:px-4">
+          <h3 className="text-xs font-medium text-muted-foreground">Uscite di {nomeMese(meseCorrente)}</h3>
           {!vedeCosti ? (
             <p className="mt-0.5 text-sm text-muted-foreground">Riservato</p>
           ) : (
@@ -135,8 +148,8 @@ export function RiquadroCantiereOperazione({ riepilogo, puoModificare = false }:
         </div>
 
         {/* Gli ultimi costi */}
-        <div className="min-w-0 px-4 py-3">
-          <p className="text-xs text-muted-foreground">Ultimi costi registrati</p>
+        <div className="min-w-0 px-3 py-2.5 sm:px-4">
+          <h3 className="text-xs font-medium text-muted-foreground">Ultimi costi registrati</h3>
           {!vedeCosti ? (
             <p className="mt-0.5 text-sm text-muted-foreground">Riservato</p>
           ) : ultimi.length === 0 ? (

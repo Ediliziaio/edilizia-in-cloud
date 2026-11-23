@@ -5,7 +5,7 @@
 // tutte insieme, con quanto aggiungono al prezzo e la scadenza entro cui l'acquirente sceglie.
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, FileText, Plus } from "lucide-react";
+import { AlertTriangle, FileText, GitBranch, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,7 +44,8 @@ export function VariantiUnita({ generaleId, unita: u, elenco, gestisci }: Props)
     return <p className="text-sm text-muted-foreground">Non riesco a leggere le varianti di questa unità. Riprova tra poco.</p>;
   }
   const varianti = d.varianti.filter((v) => v.orderId === u.orderId).sort((a, b) => a.numero - b.numero);
-  const t = totaliVarianti(varianti, d.permessi);
+  const t = totaliVarianti(varianti.filter((v) => !v.inBozza), d.permessi);
+  const bozze = varianti.filter((v) => v.inBozza).length;
   const puoScrivere = gestisci && d.permessi.modifica && !!effectiveCompany?.id;
   const prezzo = prezzoCorrente(u);
   const contesto = {
@@ -57,8 +58,28 @@ export function VariantiUnita({ generaleId, unita: u, elenco, gestisci }: Props)
     rileggiDopoVariante(qc, generaleId);
   };
 
+  if (aperta && effectiveCompany?.id) {
+    return <VariationLifecycleDialog key={aperta.id} id={aperta.id} existing={aperta.esistente}
+      order={u.orderId} company={effectiveCompany.id} context={contesto}
+      canEdit={puoScrivere} onClose={chiudi} inline />;
+  }
+
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+      <header className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card px-4 py-3">
+        <div className="space-y-1">
+          <h3 className="flex items-center gap-2 text-sm font-semibold">
+            <GitBranch className="size-4 text-blue-700 dark:text-blue-300" aria-hidden="true" /> Varianti di {u.sigla}
+          </h3>
+          {varianti.length > 0 && <p className="text-xs text-muted-foreground">
+            {varianti.length === 1 ? "1 variante" : `${varianti.length} varianti`}
+            {bozze > 0 && (bozze === 1 ? " · 1 bozza" : ` · ${bozze} bozze`)}
+          </p>}
+        </div>
+        {puoScrivere && <Button size="sm" className="gap-1.5" onClick={() => setAperta({ id: crypto.randomUUID(), esistente: false })}>
+          <Plus className="size-4" aria-hidden="true" /> Nuova variante
+        </Button>}
+      </header>
       {d.permessi.importi && (t.numeroAccettate > 0 || t.numeroProposte > 0) && (
         <dl className="grid grid-cols-3 gap-2 text-sm">
           <div className="rounded-md border px-2.5 py-1.5">
@@ -79,11 +100,10 @@ export function VariantiUnita({ generaleId, unita: u, elenco, gestisci }: Props)
       )}
 
       {varianti.length === 0 ? (
-        <p className="rounded-md border border-dashed bg-muted/30 px-3 py-4 text-sm text-muted-foreground">
-          {u.acquirente
-            ? `Finiture extra o modifiche chieste da ${u.acquirente}: scrivi la proposta con prezzo e costo previsto, poi falla firmare. Accettata, entra nel prezzo e nel margine dell'unità.`
-            : "Nessuna variante. Quando un acquirente chiede finiture extra o modifiche a pagamento, scrivi qui la proposta."}
-        </p>
+        <div className="rounded-lg border border-dashed bg-muted/25 px-4 py-5 text-sm">
+          <p className="font-medium">Nessuna variante registrata</p>
+          {puoScrivere && <p className="mt-1 text-xs text-muted-foreground">Puoi preparare una proposta per finiture extra e modifiche richieste dall’acquirente.</p>}
+        </div>
       ) : (
         <ul className="divide-y rounded-md border">
           {varianti.map((v) => (
@@ -100,24 +120,6 @@ export function VariantiUnita({ generaleId, unita: u, elenco, gestisci }: Props)
         </p>
       )}
 
-      {puoScrivere && (
-        <Button size="sm" variant="outline" onClick={() => setAperta({ id: crypto.randomUUID(), esistente: false })}>
-          <Plus className="mr-1.5 h-3.5 w-3.5" /> Nuova variante
-        </Button>
-      )}
-
-      {aperta && effectiveCompany?.id && (
-        <VariationLifecycleDialog
-          key={aperta.id}
-          id={aperta.id}
-          existing={aperta.esistente}
-          order={u.orderId}
-          company={effectiveCompany.id}
-          context={contesto}
-          canEdit={puoScrivere}
-          onClose={chiudi}
-        />
-      )}
     </div>
   );
 }
@@ -137,14 +139,14 @@ function RigaVariante({ generaleId, v, vedeImporti, vedeCosti, puoScrivere, onAp
   };
   const firma = v.firmataIl
     ? `${v.stato === "rifiutata" ? "Rifiutata" : "Firmata"} il ${dataBreve(v.firmataIl)}${v.canale === "offline" ? " su carta" : v.canale === "online" ? " online" : ""}`
-    : v.inBozza ? "In bozza" : v.stato === "proposta" ? (v.documento ? "Documento pronto, da firmare" : "Da preparare") : null;
+    : v.stato === "proposta" && !v.inBozza ? (v.documento ? "Documento pronto, da firmare" : "Da preparare") : null;
 
   return (
     <li className="space-y-1.5 px-3 py-2 text-sm">
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
         <span className="font-mono text-xs text-muted-foreground">OdV {v.numero}</span>
         <span className="min-w-0 flex-1 truncate font-medium">{v.titolo}</span>
-        <span className={cn("rounded-full border px-2 py-0.5 text-[11px] font-medium", STILE[v.stato])}>{NOMI_STATO_VARIANTE[v.stato]}</span>
+        <span className={cn("rounded-full border px-2 py-0.5 text-[11px] font-medium", v.inBozza ? STILE.annullata : STILE[v.stato])}>{v.inBozza ? "Bozza" : NOMI_STATO_VARIANTE[v.stato]}</span>
       </div>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
         {vedeImporti && <span>Prezzo <span className="font-medium tabular-nums text-foreground">{euro(v.importo)}</span></span>}

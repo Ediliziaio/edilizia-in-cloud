@@ -4,7 +4,7 @@
 // «Carica planimetria» se manca, «Aggiungi foto»: il file va nell'archivio della commessa
 // dell'unità, segnato sulla voce della checklist. Da telefono si guarda e si apre, non si carica.
 import { useRef, useState } from "react";
-import { FileText, ImagePlus, Loader2, Upload } from "lucide-react";
+import { FileText, Image, ImagePlus, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -33,17 +33,8 @@ export function MaterialeUnita({ generaleId, modello, orderId, sigla, puoCaricar
   const input = useRef<HTMLInputElement>(null);
   const [cosa, setCosa] = useState<MaterialeVendita>("planimetria");
 
-  if (isLoading) return <Skeleton className="h-28 w-full rounded-md" />;
-  if (isError || !file) {
-    return (
-      <p role="alert" className="text-sm text-muted-foreground">
-        Non riesco a leggere planimetria e foto. <button type="button" className="underline" onClick={refetch}>Riprova</button>
-      </p>
-    );
-  }
-
-  const planimetria = file.planimetria[0] ?? null;
-  const foto = file.foto;
+  const planimetria = file?.planimetria[0] ?? null;
+  const foto = file?.foto ?? [];
   const scegli = (m: MaterialeVendita) => {
     setCosa(m);
     input.current?.click();
@@ -60,49 +51,62 @@ export function MaterialeUnita({ generaleId, modello, orderId, sigla, puoCaricar
   };
 
   const vuoto = !planimetria && foto.length === 0;
-  const pianta = <PiantaUnita orderId={orderId} sigla={sigla} generaleId={generaleId} puoCreare={puoCaricare} />;
   return (
-    <section aria-label="Planimetria e foto" className="space-y-2">
-      {pianta}
-      {!vuoto && (
-        <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-          {planimetria && (
-            <li className="col-span-2 row-span-2">
-              <Anteprima a={planimetria} etichetta="Planimetria" grande />
-            </li>
-          )}
-          {foto.map((a) => (
-            <li key={a.id}><Anteprima a={a} etichetta="Foto" /></li>
-          ))}
-        </ul>
-      )}
-      {vuoto && !puoCaricare && <p className="text-sm text-muted-foreground">Nessuna planimetria caricata per {sigla}.</p>}
-      {puoCaricare && (
-        <div className="flex flex-wrap gap-2">
-          <input
-            ref={input}
-            type="file"
-            accept={ACCETTA}
-            className="sr-only"
-            aria-label="Scegli il file da caricare"
-            onChange={(ev) => {
-              const f = ev.target.files?.[0];
-              ev.target.value = "";
-              if (f) caricaFile(f);
-            }}
-          />
-          {!planimetria && (
-            <Button type="button" size="sm" variant="outline" disabled={carica.isPending} onClick={() => scegli("planimetria")}>
-              {carica.isPending && cosa === "planimetria" ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-1.5 h-3.5 w-3.5" />}
-              Carica planimetria
+    <section aria-label="Planimetria e foto" className="min-w-0 rounded-lg border bg-card">
+      <div className="flex items-center gap-2 border-b px-4 py-3">
+        <Image className="size-4 text-blue-700 dark:text-blue-300" aria-hidden="true" />
+        <h3 className="text-sm font-semibold">Planimetria e foto</h3>
+      </div>
+      {isLoading ? <Skeleton className="m-4 h-24 rounded-md" /> : isError || !file ? (
+        <p role="alert" className="p-4 text-sm text-muted-foreground">
+          Non riesco a leggere planimetria e foto. <button type="button" className="underline" onClick={refetch}>Riprova</button>
+        </p>
+      ) : <div className="space-y-4 p-4">
+        {vuoto ? (
+          <p className="rounded-md border border-dashed bg-muted/25 px-3 py-3 text-sm text-muted-foreground">
+            {puoCaricare ? "Nessun file caricato per questa unità." : `Nessuna planimetria caricata per ${sigla}.`}
+          </p>
+        ) : (
+          <ul className="grid grid-cols-3 gap-2">
+            {planimetria && (
+              <li className="col-span-2 row-span-2">
+                <Anteprima a={planimetria} etichetta="Planimetria" grande />
+              </li>
+            )}
+            {foto.map((a) => (
+              <li key={a.id}><Anteprima a={a} etichetta="Foto" /></li>
+            ))}
+          </ul>
+        )}
+        {puoCaricare && (
+          <div className="flex flex-wrap gap-2">
+            <input
+              ref={input}
+              type="file"
+              accept={ACCETTA}
+              className="sr-only"
+              tabIndex={-1}
+              aria-label="Scegli il file da caricare"
+              onChange={(ev) => {
+                const f = ev.target.files?.[0];
+                ev.target.value = "";
+                if (f) caricaFile(f);
+              }}
+            />
+            {!planimetria && (
+              <Button type="button" size="sm" variant="outline" disabled={carica.isPending} onClick={() => scegli("planimetria")}>
+                {carica.isPending && cosa === "planimetria" ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-1.5 h-3.5 w-3.5" />}
+                Carica planimetria
+              </Button>
+            )}
+            <Button type="button" size="sm" variant="outline" disabled={carica.isPending} onClick={() => scegli("foto")}>
+              {carica.isPending && cosa === "foto" ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="mr-1.5 h-3.5 w-3.5" />}
+              Aggiungi foto o render
             </Button>
-          )}
-          <Button type="button" size="sm" variant="ghost" disabled={carica.isPending} onClick={() => scegli("foto")}>
-            {carica.isPending && cosa === "foto" ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="mr-1.5 h-3.5 w-3.5" />}
-            Aggiungi foto o render
-          </Button>
-        </div>
-      )}
+          </div>
+        )}
+        <PiantaUnita orderId={orderId} sigla={sigla} generaleId={generaleId} puoCreare={puoCaricare} />
+      </div>}
     </section>
   );
 }

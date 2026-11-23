@@ -52,7 +52,9 @@ describe("date e capitale nel tempo", () => {
     expect(conti.fonti[0].versato).toBe(0);
     expect(conti.fonti[0].proiezione.filter(p => p.tipo === "versamento")).toHaveLength(1);
     expect(conti.scoperto).toBe(1000);
-    expect(conti.avvisi.join(" ")).toContain("date di erogazione");
+    expect(conti.scopertoImpegni).toBe(0);
+    expect(conti.scopertoCalendario).toEqual({ importo: 1000, mese: "2027-02" });
+    expect(conti.avvisi.join(" ")).toContain("senza copertura a febbraio 2027");
   });
   it("conta i giorni e la fine del mese (anche bisestile)", () => {
     expect(giorniTra("2027-01-01", "2027-01-31")).toBe(30);
@@ -242,6 +244,8 @@ describe("copertura del capitale massimo", () => {
     ]);
     expect(r.totali.impegno).toBe(600_000);
     expect(r.scoperto).toBe(100_000);
+    expect(r.scopertoImpegni).toBe(100_000);
+    expect(r.scopertoCalendario).toEqual({ importo: 0, mese: null });
     expect(r.avvisi.join(" ")).toMatch(/mancano 100\.000\s€ al picco/);
     expect(r.avvisi.join(" ")).toContain("settembre 2027");
     expect(r.avvisi.join(" ")).toContain("la sta anticipando l'azienda");

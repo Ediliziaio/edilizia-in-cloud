@@ -115,6 +115,8 @@ interface Props {
   /** Classe colore accent per il titolo (default arancio). */
   accentClass?: string;
   downloadFileName?: string;
+  downloadButtonLabel?: string;
+  requireRenderedDownload?: boolean;
   showDownloadOnMobile?: boolean;
   allowOpenInNewTab?: boolean;
   headerLabel?: string;
@@ -133,6 +135,8 @@ export function PdfBlobLivePreviewPanel({
   debounceMs = 500,
   accentClass = "text-orange-600",
   downloadFileName = "anteprima-template.pdf",
+  downloadButtonLabel,
+  requireRenderedDownload = false,
   showDownloadOnMobile = false,
   allowOpenInNewTab = true,
   headerLabel = "Anteprima live PDF",
@@ -156,6 +160,7 @@ export function PdfBlobLivePreviewPanel({
   const [pageCount, setPageCount] = useState(0);
   const [renderNonce, setRenderNonce] = useState(0);
   const affiancato = useDocumentoAffiancato();
+  const adattabile = affiancato || fitWholePage;
   const [zoom, setZoom] = useState(1);
   const [adatta, setAdatta] = useState<AdattamentoDocumento>("pagina");
   const wholePage = fitWholePage && zoom === 1;
@@ -383,8 +388,9 @@ export function PdfBlobLivePreviewPanel({
 
   const previewReady = aggiornato && paintedUrl === url && !error && !pdfError;
   const previewFailed = !!error || !!pdfError;
+  const canDownload = !!url && aggiornato && (!requireRenderedDownload || previewReady);
   const handleDownload = () => {
-    if (!url || !aggiornato) return;
+    if (!url || !canDownload) return;
     const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download = downloadFileName;
@@ -400,7 +406,9 @@ export function PdfBlobLivePreviewPanel({
           <span className={"text-[11px] font-semibold uppercase tracking-wide truncate " + accentClass}>
             {headerLabel}
           </span>
-          <span role="status" aria-live="polite" className={affiancato ? "sr-only" : "text-[10px] text-muted-foreground"} data-preview-state={previewFailed?'error':previewReady?'ready':loading || aggiornato?'rendering':'pending'}>{previewFailed?'Anteprima non disponibile':previewReady?'Aggiornata automaticamente':loading || aggiornato?'Aggiorno il PDF…':'Modifiche in attesa di anteprima'}</span>
+          <span role="status" aria-live="polite" className={adattabile ? "sr-only" : "text-[10px] text-muted-foreground"} data-preview-state={previewFailed?'error':previewReady?'ready':loading || aggiornato?'rendering':'pending'}>{previewFailed ? "Anteprima non disponibile"
+            : fitWholePage ? previewReady ? "Anteprima pronta" : "Caricamento anteprima…"
+            : previewReady ? "Aggiornata automaticamente" : loading || aggiornato ? "Aggiorno il PDF…" : "Modifiche in attesa di anteprima"}</span>
           {loading && (
             <span className={`inline-flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground ${affiancato ? "sr-only" : ""}`}>
               <Loader2 className="h-3 w-3 animate-spin" /> aggiorno…
@@ -408,7 +416,7 @@ export function PdfBlobLivePreviewPanel({
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          {affiancato ? (
+          {adattabile ? (
             <ZoomDocumento nome="PDF" zoom={zoom} onZoom={setZoom} adatta={adatta}
               onAdatta={valore => { setAdatta(valore); setZoom(1); }} />
           ) : (
@@ -435,8 +443,10 @@ export function PdfBlobLivePreviewPanel({
             <ExternalLink className="h-3.5 w-3.5" />
           </Button>}
           {(!isMobile || showDownloadOnMobile) && (
-            <Button size="icon" variant="ghost" onClick={handleDownload} disabled={!url || !aggiornato} title="Scarica PDF" className="h-7 w-7">
-              <Download className="h-3.5 w-3.5" />
+            <Button size={downloadButtonLabel ? "sm" : "icon"} variant={downloadButtonLabel ? "outline" : "ghost"}
+              onClick={handleDownload} disabled={!canDownload} title={downloadButtonLabel ?? "Scarica PDF"}
+              className={downloadButtonLabel ? "h-7 gap-1.5 px-2 text-xs" : "h-7 w-7"}>
+              <Download className="h-3.5 w-3.5" aria-hidden="true" />{downloadButtonLabel}
             </Button>
           )}
         </div>

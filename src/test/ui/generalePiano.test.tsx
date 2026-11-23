@@ -10,12 +10,14 @@ import type { RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
  * Panoramica. I conti sono in generalePianoConti.test.ts; qui i dati arrivano finti.
  */
 const m = vi.hoisted(() => ({
+  mobile: false,
   chiudi: vi.fn(),
   numeri: null as unknown,
   crea: vi.fn(),
   mutazione: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
+vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => m.mobile }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "demo" } }) }));
 vi.mock("@/components/orders/generali/piano/StoricoBusinessPlan", () => ({ StoricoBusinessPlan: () => <p>Archivio Excel</p> }));
@@ -101,6 +103,7 @@ const disegna = (puoModificare = true, r = riepilogo()) =>
   );
 
 beforeEach(() => {
+  m.mobile = false;
   m.crea.mockReset();
 });
 afterEach(cleanup);
@@ -285,4 +288,25 @@ describe("indicatori economici nella prima schermata", () => {
     expect(within(indicatori).queryByText(/2.400.000/)).not.toBeInTheDocument();
     expect(within(indicatori).queryByText(/1.556.000/)).not.toBeInTheDocument();
   });
+});
+
+
+it("da telefono cerca anche nei movimenti di costo e mantiene i totali del piano", async () => {
+  m.mobile = true;
+  m.numeri = numeri("approvata");
+  disegna();
+  const riepilogoMobile = within(screen.getByRole("region", { name: "Costi e margine del piano" }));
+  expect(riepilogoMobile.getByText("1.556.000 €")).toBeVisible();
+  expect(riepilogoMobile.getByText("844.000 €")).toBeVisible();
+  const categorie = screen.getByRole("region", { name: "Voci di costo" });
+  expect(within(categorie).queryByText("Terreno e notaio")).not.toBeInTheDocument();
+  fireEvent.change(within(categorie).getByRole("searchbox"), { target: { value: "Studio Bianchi" } });
+  expect(within(categorie).getByText("1 voce trovata")).toBeVisible();
+  expect(within(categorie).getByText("Terreno e notaio")).toBeVisible();
+  fireEvent.click(within(categorie).getByText("Movimenti registrati (1)"));
+  expect(await within(categorie).findByText("Rogito · Studio Bianchi")).toBeVisible();
+  expect(within(categorie).getByText("12/10/2026")).toBeVisible();
+  expect(riepilogoMobile.getByText("1.556.000 €")).toBeVisible();
+  expect(riepilogoMobile.getByText("844.000 €")).toBeVisible();
+  expect(screen.queryByRole("table")).not.toBeInTheDocument();
 });

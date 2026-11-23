@@ -10,6 +10,7 @@ import { Progress } from "@/components/ui/progress";
 import { caricaAllegatoConProgresso, oggettoGiaCaricato } from "@/lib/commesse/caricaAllegatoConProgresso";
 import { TIPI_DOCUMENTO_CANTIERE, tipoDocumentoCantiere, type TipoDocumentoCantiere } from "@/lib/commesse/documentiCantiere";
 import { useQueryClient } from "@tanstack/react-query";
+import { invalidaChecklistCollegate } from "@/hooks/useGeneraleDocumenti";
 import { Checkbox } from "@/components/ui/checkbox";
 import { byteLiberi, chiaveSpazio, useSpazioArchiviazione } from "@/hooks/useSpazioArchiviazione";
 import { riduciFile, fotoDaRidurre } from "@/lib/commesse/riduciFoto";
@@ -291,6 +292,7 @@ export function CaricaDocumentiDialog({
     avviato.current = false;
     setInCorso(false);
     queryClient.invalidateQueries({ queryKey: ["order-attachments", orderId] });
+    void invalidaChecklistCollegate(queryClient, orderId);
     queryClient.invalidateQueries({ queryKey: ["campo-scheda-cantiere", orderId] });
     queryClient.invalidateQueries({ queryKey: ["order-documents-summary", orderId] });
     queryClient.invalidateQueries({ queryKey: ["order_attachments", orderId] });

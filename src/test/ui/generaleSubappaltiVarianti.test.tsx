@@ -118,6 +118,7 @@ const elenco = (): ElencoUnita => ({
     varianti: [
       { id: "v1", order_id: "o-A1", numero: 1, titolo: "Parquet", stato: "approvato", importo: 8000, costo_previsto: "5000", firmata_il: "2026-10-10", canale: "offline", documento: true },
       { id: "v2", order_id: "o-A1", numero: 2, titolo: "Doccia", stato: "in_attesa", importo: 3000, documento: true },
+      { id: "vb", order_id: "o-A1", numero: 3, titolo: "Finiture", stato: "bozza", importo: 800 },
       { id: "v3", order_id: "o-B1", numero: 1, titolo: "Altra unità", stato: "approvato", importo: 1000 },
     ],
   }),
@@ -128,6 +129,7 @@ describe("Varianti dell'acquirente", () => {
     render(<VariantiUnita generaleId="G" unita={unita()} elenco={elenco()} gestisci />);
     expect(screen.getByText("Prezzo con varianti").nextElementSibling!.textContent).toContain("298.000");
     expect(screen.getByText("una da decidere")).toBeTruthy();
+    expect(within(screen.getByText("Finiture").closest("li")!).getByText("Bozza")).toBeTruthy();
     expect(screen.queryByText("Altra unità")).toBeNull();
     expect(screen.getByText(/Firmata il 10\/10\/2026 su carta/)).toBeTruthy();
     expect(screen.getByText(/margine delle varianti/).textContent).toMatch(/margine delle varianti 3\.?000/);
@@ -136,7 +138,7 @@ describe("Varianti dell'acquirente", () => {
   it("la nuova variante usa il flusso delle varianti di commessa, sulla commessa dell'unità", () => {
     render(<VariantiUnita generaleId="G" unita={unita()} elenco={elenco()} gestisci />);
     fireEvent.click(screen.getByRole("button", { name: /Nuova variante/ }));
-    expect(m.dialogo).toHaveBeenCalledWith(expect.objectContaining({ order: "o-A1", existing: false, company: "az" }));
+    expect(m.dialogo).toHaveBeenCalledWith(expect.objectContaining({ order: "o-A1", existing: false, company: "az", inline: true }));
   });
 
   it("la scadenza delle scelte si salva lasciando il campo", () => {

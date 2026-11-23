@@ -14,6 +14,13 @@ export interface OrderChartMonth {
   daIncassare: number;
 }
 
+export function orderCreatedMonth(createdAt: string | null | undefined) {
+  if (!createdAt) return null;
+  const date = new Date(createdAt);
+  return Number.isNaN(date.getTime()) ? null
+    : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
 /** Future empty months are unavailable, rather than an apparent fall to zero.
  * Keep real data even if a record was created with a future timestamp. */
 export function orderChartMonths(months: OrderChartMonth[], now = new Date()) {

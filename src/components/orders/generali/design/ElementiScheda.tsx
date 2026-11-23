@@ -10,7 +10,7 @@ export function IntestazioneScheda({
 }: {
   icona: LucideIcon;
   titolo: string;
-  descrizione: string;
+  descrizione?: string;
   children?: ReactNode;
 }) {
   return (
@@ -21,7 +21,7 @@ export function IntestazioneScheda({
         </span>
         <div>
           <h2>{titolo}</h2>
-          <p>{descrizione}</p>
+          {descrizione && <p>{descrizione}</p>}
         </div>
       </div>
       {children && <div className="generale-sheet-actions">{children}</div>}

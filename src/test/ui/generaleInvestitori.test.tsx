@@ -13,6 +13,7 @@ const m = vi.hoisted(() => ({
   movimenti: [] as unknown[],
   numeri: null as unknown,
   pianoVuoto: false,
+  aggiornaMovimento: vi.fn(),
 }));
 
 vi.mock("@/components/orders/generali/investitori/ReportMensile", () => ({ ReportMensile: () => <p>Report mensile</p> }));
@@ -39,6 +40,7 @@ vi.mock("@/hooks/useGeneraleInvestitori", async () => {
       ],
     }),
     useEliminaFonte: muta, useEliminaMovimento: muta, useSalvaFonte: muta, useAggiungiMovimento: muta, useInviaRendiconto: muta,
+    useAggiornaMovimentoPrevisto: () => ({ mutate: m.aggiornaMovimento, isPending: false }),
     messaggioInvestitori: () => "errore", linkPdfRendiconto: vi.fn(),
   };
 });
@@ -64,9 +66,9 @@ const NUMERI: NumeriOperazione = {
   tirProgetto: 0.2,
 };
 
-const disegna = (r = riepilogo(), puoModificare = true) => {
+const disegna = (r = riepilogo(), puoModificare = true, percorso = "/") => {
   const { Scheda } = modulo;
-  return render(<MemoryRouter><Scheda riepilogo={r} totali={totali} puoModificare={puoModificare} /></MemoryRouter>);
+  return render(<MemoryRouter initialEntries={[percorso]}><Scheda riepilogo={r} totali={totali} puoModificare={puoModificare} /></MemoryRouter>);
 };
 
 beforeEach(() => {
@@ -78,6 +80,7 @@ beforeEach(() => {
   m.movimenti = [mov("1", "M", "2027-01-15", 200_000), mov("2", "P", "2027-01-15", 150_000)];
   m.numeri = NUMERI;
   m.pianoVuoto = false;
+  m.aggiornaMovimento.mockClear();
 });
 afterEach(cleanup);
 
@@ -96,7 +99,12 @@ describe("il modulo Investitori", () => {
 
   it("elenca le fonti con previsto, ad oggi e a finire, e quanto spetta a ciascuna", () => {
     disegna();
-    const tabella = within(screen.getByRole("region", { name: "Le fonti" })).getByRole("table");
+    const fonti = screen.getByRole("table", { name: "Fonti di capitale" });
+    expect(within(fonti).getByRole("columnheader", { name: "Versato" })).toBeInTheDocument();
+    expect(within(fonti).getByRole("columnheader", { name: "Da versare" })).toBeInTheDocument();
+    expect(within(fonti).getByRole("columnheader", { name: "Rientro stimato" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Analisi" }));
+    const tabella = screen.getByRole("table", { name: "Previsione delle fonti" });
     expect(within(tabella).getAllByText("Previsto")).toHaveLength(2);
     expect(within(tabella).getAllByText("Ad oggi")).toHaveLength(2);
     expect(within(tabella).getAllByText("A finire")).toHaveLength(2);
@@ -108,18 +116,21 @@ describe("il modulo Investitori", () => {
 
   it("mostra il rendimento dell'operazione contro quello dei mezzi propri, e la leva", () => {
     disegna();
+    fireEvent.click(screen.getByRole("button", { name: "Analisi" }));
     const r = screen.getByRole("region", { name: "Rendimento e leva" });
     expect(r).toHaveTextContent("ROI");
     expect(r).toHaveTextContent("TIR del progetto");
     expect(r).toHaveTextContent("ROE");
     expect(r).toHaveTextContent("TIR dei mezzi propri");
     expect(r).toHaveTextContent("Effetto leva");
-    expect(within(r).getByLabelText("Tasso")).toBeInTheDocument();
-    expect(within(r).getByLabelText("Banca e finanziamenti")).toBeInTheDocument();
+    const simulazione = screen.getByRole("region", { name: "Simula i finanziamenti" });
+    expect(within(simulazione).getByLabelText("Variazione del tasso annuo")).toBeInTheDocument();
+    expect(within(simulazione).getByLabelText("Variazione di banca e finanziamenti")).toBeInTheDocument();
   });
 
   it("mostra il costo del debito e le fonti nel tempo", () => {
     disegna();
+    fireEvent.click(screen.getByRole("button", { name: "Analisi" }));
     const c = screen.getByRole("region", { name: "Costo del debito" });
     expect(c).toHaveTextContent("Interessi");
     expect(c).toHaveTextContent("Spese");
@@ -129,6 +140,7 @@ describe("il modulo Investitori", () => {
 
   it("divide il capitale per fonte e avvisa se le fonti non coprono il picco", () => {
     disegna();
+    fireEvent.click(screen.getByRole("button", { name: "Analisi" }));
     const copertura = screen.getByRole("region", { name: "Capitale per fonte" });
     expect(within(copertura).getByText("Mezzi propri")).toBeInTheDocument();
     expect(within(copertura).getByText("Investitori")).toBeInTheDocument();
@@ -139,6 +151,7 @@ describe("il modulo Investitori", () => {
 
   it("spiega la regola di ripartizione dell'utile", () => {
     disegna();
+    fireEvent.click(screen.getByRole("button", { name: "Analisi" }));
     const regola = screen.getByRole("region", { name: "Come si divide l'utile" });
     expect(regola).toHaveTextContent("pro quota");
     expect(regola).toHaveTextContent("Chi presta riceve il capitale e gli interessi");
@@ -169,12 +182,93 @@ describe("il modulo Investitori", () => {
 
   it("tiene lo storico dei rendiconti inviati e scaricati, con la versione del piano", () => {
     disegna();
+    fireEvent.click(screen.getByRole("button", { name: "Rendiconti" }));
     const storico = screen.getByRole("region", { name: "Storico dei rendiconti" });
     expect(storico).toHaveTextContent("mario@example.com");
     expect(storico).toHaveTextContent("Inviato");
     expect(storico).toHaveTextContent("Scaricato");
     expect(storico).toHaveTextContent("Versione 2 approvata · con il piano voce per voce");
     expect(storico).toHaveTextContent("Versione 1 superata · senza il piano voce per voce");
+    fireEvent.change(within(storico).getByRole("searchbox", { name: "Cerca rendiconto" }), { target: { value: "versione 2" } });
+    expect(within(storico).getByText("Inviato")).toBeInTheDocument();
+    expect(within(storico).queryByText("Scaricato")).toBeNull();
+  });
+
+  it("apre il registro previsto della fonte e lo storico con la stessa fonte", () => {
+    m.movimenti.push(
+      { ...mov("a", "M", "2027-07-09", 10_000), nota: "[EIC:MOVIMENTO_PREVISTO] Tranche di Mario" },
+      { ...mov("b", "B", "2027-07-09", 20_000), nota: "[EIC:MOVIMENTO_PREVISTO] Tranche della banca" },
+    );
+    disegna();
+    fireEvent.click(screen.getByRole("link", { name: "Movimenti previsti di Mario Rossi" }));
+    expect(screen.getByRole("combobox", { name: "Fonte del movimento" })).toHaveTextContent("Mario Rossi");
+    const registro = screen.getByRole("table", { name: "Movimenti delle fonti" });
+    expect(within(registro).getByText("Tranche di Mario")).toBeInTheDocument();
+    expect(within(registro).queryByText("Tranche della banca")).toBeNull();
+    fireEvent.click(within(registro).getByRole("button", { name: "Mario Rossi" }));
+    fireEvent.click(screen.getByRole("link", { name: "Storico PDF" }));
+    expect(screen.getByRole("combobox", { name: "Fonte del rendiconto" })).toHaveTextContent("Mario Rossi");
+    expect(screen.getByRole("button", { name: "Prepara PDF" })).toBeEnabled();
+  });
+
+  it("i link al rendiconto mensile continuano ad aprire il report", () => {
+    disegna(riepilogo(), true, "/?rendiconto-aperto=1&rendiconto-mese=2027-05");
+    expect(screen.getByText("Report mensile")).toBeInTheDocument();
+    expect(screen.queryByRole("table", { name: "PDF archiviati" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "PDF per fonte" }));
+    expect(screen.getByRole("table", { name: "PDF archiviati" })).toBeInTheDocument();
+  });
+
+  it("mette in coda solo i movimenti programmati arrivati a scadenza", () => {
+    m.movimenti.push(
+      { ...mov("scaduto", "B", "2027-06-28", 25_000), nota: "[EIC:MOVIMENTO_PREVISTO] Tranche scaduta" },
+      { ...mov("futuro", "B", "2027-07-09", 10_000), nota: "[EIC:MOVIMENTO_PREVISTO] Tranche futura" },
+    );
+    disegna();
+    fireEvent.click(screen.getByRole("link", { name: "Da confermare 1" }));
+    expect(screen.getByRole("button", { name: "Da confermare 1" })).toHaveAttribute("aria-pressed", "true");
+    const registro = screen.getByRole("table", { name: "Movimenti delle fonti" });
+    expect(within(registro).getByText("Tranche scaduta")).toBeInTheDocument();
+    expect(within(registro).queryByText("Tranche futura")).toBeNull();
+    expect(within(registro).queryByText("Mario Rossi")).toBeNull();
+    fireEvent.click(within(registro).getByRole("button", { name: /^Conferma.*Banca Locale/ }));
+    expect(screen.getByRole("dialog", { name: "Conferma movimento effettuato" })).toBeInTheDocument();
+  });
+
+  it("apre il mese scoperto e porta al registro filtrato sulle sue date", () => {
+    m.fonti = [fonte({ id: "B", tipo: "banca", nome: "Banca Locale", impegno: 600_000, tassoPct: 4 })];
+    m.movimenti = [
+      { ...mov("set", "B", "2027-09-20", 25_000), nota: "[EIC:MOVIMENTO_PREVISTO] Erogazione di settembre" },
+      { ...mov("ott", "B", "2027-10-05", 575_000), nota: "[EIC:MOVIMENTO_PREVISTO] Erogazione di ottobre" },
+    ];
+    disegna();
+    fireEvent.click(screen.getByRole("link", { name: "Analizza lo scoperto di set 2027" }));
+    const copertura = screen.getByRole("region", { name: "Copertura mensile" });
+    expect(copertura).toHaveTextContent(/Da coprire\s*575\.000\s€/);
+    fireEvent.click(within(copertura).getByRole("link", { name: "Movimenti del mese" }));
+    expect(screen.getByRole("combobox", { name: "Mese dei movimenti" })).toHaveTextContent("set 2027");
+    const registro = screen.getByRole("table", { name: "Movimenti delle fonti" });
+    expect(within(registro).getByText("Erogazione di settembre")).toBeInTheDocument();
+    expect(within(registro).queryByText("Erogazione di ottobre")).toBeNull();
+  });
+
+  it("riprogramma il movimento previsto con la nuova data", () => {
+    const previsto = { ...mov("futuro", "B", "2027-07-09", 10_000), nota: "[EIC:MOVIMENTO_PREVISTO] Tranche futura" };
+    m.movimenti.push(previsto);
+    disegna();
+    fireEvent.click(screen.getByRole("button", { name: "Movimenti" }));
+    const registro = screen.getByRole("table", { name: "Movimenti delle fonti" });
+    expect(within(registro).getAllByRole("button", { name: /^Riprogramma/ })).toHaveLength(1);
+    fireEvent.click(within(registro).getByRole("button", { name: /^Riprogramma.*Banca Locale/ }));
+    const dialog = screen.getByRole("dialog", { name: "Riprogramma movimento" });
+    const salva = within(dialog).getByRole("button", { name: "Salva nuova data" });
+    expect(salva).toBeDisabled();
+    fireEvent.change(within(dialog).getByLabelText("Nuova data prevista"), { target: { value: "2027-08-02" } });
+    expect(within(dialog).getByLabelText("Nuova data prevista")).toHaveAccessibleDescription("2 agosto 2027");
+    fireEvent.click(salva);
+    expect(m.aggiornaMovimento).toHaveBeenCalledWith(
+      { movimento: previsto, data: "2027-08-02", azione: "riprogramma" }, expect.any(Object),
+    );
   });
 
   it("il riquadro in Panoramica distingue capitale dentro e ancora da versare", () => {

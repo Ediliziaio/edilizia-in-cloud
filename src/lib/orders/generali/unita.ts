@@ -196,6 +196,9 @@ export interface RequisitiStato {
 }
 
 /** Cosa chiede ogni stato: solo quello che serve lì (piano, flusso F5). */
+export const statoVenditaConfermato = (stato: string | null | undefined): boolean =>
+  stato === "compromesso" || stato === "rogitata";
+
 export function requisitiStato(stato: StatoVendita): RequisitiStato {
   switch (stato) {
     case "libera":

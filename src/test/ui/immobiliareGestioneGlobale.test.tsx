@@ -22,9 +22,11 @@ vi.mock("@/components/orders/LinkedPurchaseOrdersCard", () => ({
   LinkedPurchaseOrdersCard: ({ orderId }: { orderId: string }) => <p>Ordini e DDT di {orderId}</p>,
 }));
 vi.mock("@/components/orders/OrderLaborCosts", () => ({ OrderLaborCosts: () => <p>Squadre</p> }));
-// Dal 15/11/2026 le lavorazioni stanno nella stessa scheda dei rapportini.
-vi.mock("@/components/orders/OrderWorkPhases", () => ({
-  OrderWorkPhases: ({ orderId }: { orderId: string }) => <p>Lavorazioni di {orderId}</p>,
+vi.mock("@/components/orders/generali/moduli/LavorazioniAmbito", () => ({
+  LavorazioniAmbito: ({ orderId }: { orderId: string }) => <p>Lavorazioni di {orderId}</p>,
+}));
+vi.mock("@/components/orders/generali/moduli/MovimentiOperazione", () => ({
+  MovimentiOperazione: () => <p>Priorità del cantiere</p>,
 }));
 vi.mock("@/components/orders/generali/design/FasiDalPianoDialog", () => ({ InvitoFasiDalPiano: (): null => null }));
 // Il controllo forniture sta nella scheda degli acquisti.
@@ -103,7 +105,7 @@ describe("Gestione dell'intera operazione", () => {
   });
   it("registra rapportini e bolle sulla generale e nasconde la scrittura in sola lettura", async () => {
     render(
-      <MemoryRouter><QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter initialEntries={["/azienda/ordini/G?scheda=cantiere&vista-cantiere=rapportini"]}><QueryClientProvider client={new QueryClient()}>
         <CantiereGenerale riepilogo={r} totali={totaliGenerale(r)} puoModificare={false} />
       </QueryClientProvider></MemoryRouter>,
     );
@@ -111,19 +113,49 @@ describe("Gestione dell'intera operazione", () => {
     expect(screen.getByText("Bolle di operazione-globale")).toBeVisible();
     expect(screen.queryByText(/Scrivi rapportino/)).not.toBeInTheDocument();
   });
+  it("cerca un'unità oltre le prime venti e apre il registro nel suo ambito", async () => {
+    const scroll = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = vi.fn();
+    vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
+    try {
+      const grande = {
+        ...r,
+        figlie: Array.from({ length: 48 }, (_, i) => ({
+          id: `unita-${i + 1}`, codice: `A${i + 1}`, nome: `Interno ${i + 1}`,
+        } as RiepilogoGenerale["figlie"][number])),
+      };
+      render(
+        <MemoryRouter initialEntries={["/azienda/ordini/G?scheda=cantiere&vista-cantiere=rapportini"]}>
+          <QueryClientProvider client={new QueryClient()}>
+            <CantiereGenerale riepilogo={grande} totali={totaliGenerale(grande)} puoModificare={false} />
+          </QueryClientProvider>
+        </MemoryRouter>,
+      );
+      fireEvent.click(screen.getByRole("combobox", { name: "Ambito del cantiere" }));
+      expect(screen.queryByRole("option", { name: /Interno 48/ })).not.toBeInTheDocument();
+      fireEvent.change(screen.getByRole("combobox", { name: "Cerca nell’ambito del cantiere" }), { target: { value: "a48" } });
+      fireEvent.click(screen.getByRole("option", { name: /Interno 48/ }));
+      expect(await screen.findByText("Rapportini di unita-48")).toBeVisible();
+    } finally {
+      cleanup();
+      Element.prototype.scrollIntoView = scroll;
+      vi.unstubAllGlobals();
+    }
+  });
   it("usa lo stesso identificativo della generale per forniture e DDT", async () => {
     render(
       <MemoryRouter><QueryClientProvider client={new QueryClient()}>
         <CantiereGenerale riepilogo={r} totali={totaliGenerale(r)} puoModificare />
       </QueryClientProvider></MemoryRouter>,
     );
-    fireEvent.mouseDown(screen.getByRole("tab", { name: "Acquisti e DDT" }), { button: 0, ctrlKey: false });
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Ordini d’acquisto" }), { button: 0, ctrlKey: false });
     await waitFor(() => expect(screen.getByText("Ordini e DDT di operazione-globale")).toBeVisible());
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /^DDT$/ }), { button: 0, ctrlKey: false });
+    await waitFor(() => expect(screen.getByText("Bolle ricevute di operazione-globale")).toBeVisible());
   });
   it.each([
-    // Otto schede diventate quattro (15/11/2026): fatture e pagamenti insieme, ditte con le squadre.
-    ["Fatture e pagamenti", "Fatture"],
-    ["Fatture e pagamenti", "Pagamenti"],
+    ["Costi e pagamenti", "Fatture"],
+    ["Costi e pagamenti", "Pagamenti"],
     ["Squadre e ditte", "Subappalti"],
   ])("apre %s (%s) direttamente sulla generale", async (tab, testo) => {
     render(
@@ -141,7 +173,7 @@ describe("Gestione dell'intera operazione", () => {
       nome: "Appartamento",
     } as RiepilogoGenerale["figlie"][number];
     render(
-      <MemoryRouter><QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter initialEntries={["/azienda/ordini/G?scheda=cantiere&vista-cantiere=rapportini"]}><QueryClientProvider client={new QueryClient()}>
         <CantiereGenerale riepilogo={{ ...r, figlie: [figlia] }} totali={totaliGenerale(r)} puoModificare />
       </QueryClientProvider></MemoryRouter>,
     );
@@ -152,29 +184,30 @@ describe("Gestione dell'intera operazione", () => {
   });
 });
 
-describe("le schede del cantiere: otto diventate quattro", () => {
-  it("quattro schede, e un collegamento vecchio apre la scheda che contiene la sezione", async () => {
+describe("Navigazione del cantiere", () => {
+  it("il collegamento storico apre i pagamenti nella scheda Costi e pagamenti", async () => {
     render(
       <MemoryRouter initialEntries={["/azienda/ordini/G?scheda=cantiere&vista-cantiere=pagamenti"]}><QueryClientProvider client={new QueryClient()}>
         <CantiereGenerale riepilogo={r} totali={totaliGenerale(r)} puoModificare />
       </QueryClientProvider></MemoryRouter>,
     );
-    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual([
-      "Rapportini e lavorazioni", "Acquisti e DDT", "Fatture e pagamenti", "Squadre e ditte",
+    expect(screen.getAllByRole("tab").map(t => t.textContent)).toEqual([
+      "Da seguire", "Rapportini", "Lavorazioni", "Cronoprogramma", "Materiali", "Richieste d’offerta",
+      "Ordini d’acquisto", "DDT", "Costi e pagamenti", "Squadre e ditte",
     ]);
-    expect(screen.getByRole("tab", { name: "Fatture e pagamenti" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Costi e pagamenti" })).toHaveAttribute("aria-selected", "true");
     await waitFor(() => expect(screen.getByText("Pagamenti di operazione-globale")).toBeVisible());
     expect(screen.getByRole("heading", { name: "Pagamenti" })).toBeVisible();
   });
 
-  it("senza il permesso dei costi non c'è la scheda delle fatture e il collegamento ripiega sui rapportini", async () => {
+  it("senza il permesso dei costi il collegamento apre la vista delle priorità", async () => {
     render(
       <MemoryRouter initialEntries={["/azienda/ordini/G?scheda=cantiere&vista-cantiere=fatture"]}><QueryClientProvider client={new QueryClient()}>
         <CantiereGenerale riepilogo={{ ...r, permessi: { importi: false, costi: false, margini: false } }} totali={totaliGenerale(r)} puoModificare={false} />
       </QueryClientProvider></MemoryRouter>,
     );
-    expect(screen.queryByRole("tab", { name: "Fatture e pagamenti" })).not.toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText("Rapportini di operazione-globale")).toBeVisible());
-    expect(screen.getByText("Lavorazioni di operazione-globale")).toBeVisible();
+    expect(screen.queryByRole("tab", { name: "Costi e pagamenti" })).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Da seguire" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText("Priorità del cantiere")).toBeVisible();
   });
 });

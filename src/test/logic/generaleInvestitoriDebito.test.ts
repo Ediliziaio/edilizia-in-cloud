@@ -203,6 +203,20 @@ describe("scenari sul debito", () => {
     expect(meno.totali.impegno).toBe(800_000);
     expect(meno.scoperto).toBe(200_000);
   });
+
+  it("se gli oneri fanno già parte del piano, l'ipotesi modifica l'utile solo della differenza", () => {
+    const input = {
+      fonti, movimenti: m, oggi: "2027-02-01",
+      numeri: numeri({ interessiNelPiano: true, oneriNelPiano: { previsto: 30_000, stima: 25_000 }, margineStima: 175_000 }),
+    };
+    const base = calcolaInvestitori(input);
+    const ipotesi = calcolaInvestitori({ ...input, scenario: { tassoPunti: 1, debitoPct: 0 }, costoDebitoBase: base.costoDebito.totale });
+    const aumentoOneri = ipotesi.costoDebito.totale - base.costoDebito.totale;
+    expect(aumentoOneri).toBeGreaterThan(0);
+    expect(ipotesi.utile.stima).toBeCloseTo(base.utile.stima - aumentoOneri, 2);
+    expect(ipotesi.rendimenti.progetto).toEqual(base.rendimenti.progetto);
+    expect(ipotesi.totali.dentro).toBe(base.totali.dentro);
+  });
 });
 
 describe("dal piano: fabbisogno, oneri e TIR", () => {

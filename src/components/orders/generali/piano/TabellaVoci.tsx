@@ -102,8 +102,8 @@ export const rigaPiena = (r: RigaConfronto) =>
   (r.aFinireManuale && Math.abs(r.aFinire) > 0.005);
 
 const ORDINE_CATEGORIE: string[] = [...CATEGORIE_RICAVO, ...CATEGORIE_COSTO];
-const nomeCategoria = (c: string) =>
-  CATEGORIE_PIANO[c as CategoriaPiano]?.nome ?? CHIAVI_REALI[c] ?? c;
+export const nomeCategoria = (c: string) =>
+  c === CATEGORIA_VARIANTI ? "Varianti degli acquirenti" : CATEGORIE_PIANO[c as CategoriaPiano]?.nome ?? CHIAVI_REALI[c] ?? c;
 
 export interface GruppoVoci {
   categoria: string;

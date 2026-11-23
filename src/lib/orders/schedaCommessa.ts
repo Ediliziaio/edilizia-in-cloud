@@ -46,7 +46,7 @@ export interface SchedaCommessa {
 export interface AvanzamentoFasi { total: number; done: number; inCorso: number; avgPct: number | null }
 
 /** Fasi fatte, in corso e media: completata = stato «completata» o percentuale al 100. */
-export function faseCompletata(fase: { status: string; percentuale: number | null }) {
+export function faseCompletata(fase: { status: string | null; percentuale: number | null }) {
   return fase.status === "completata" || Number(fase.percentuale) >= 100;
 }
 

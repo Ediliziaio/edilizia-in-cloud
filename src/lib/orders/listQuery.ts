@@ -4,7 +4,7 @@ import {supabase} from "@/integrations/supabase/client";
 import type {OrderWithDetails} from "@/lib/orderUtils";
 import type {OrdersFilterState} from "@/components/orders/OrdersFilterSidebar";
 import type {DateRange} from "@/pages/azienda/OrdersList/constants";
-import {format} from "date-fns";
+import {addDays, format} from "date-fns";
 import type { ImportiFinanziari } from "@/lib/orders/importiFinanziari";
 
 export interface OrdersReaderFilters {
@@ -201,7 +201,7 @@ export async function readOrdersPage(
           .lte("created_at", new Date(selectedYear, 11, 31, 23, 59, 59, 999).toISOString());
       }
       if (contractDateRange.from) query = query.gte("created_at", contractDateRange.from.toISOString());
-      if (contractDateRange.to) query = query.lte("created_at", new Date(contractDateRange.to.getTime() + 86400000 - 1).toISOString());
+      if (contractDateRange.to) query = query.lt("created_at", addDays(contractDateRange.to, 1).toISOString());
       if (warehouseDateRange.from) query = query.gte("warehouse_arrival_date", format(warehouseDateRange.from,"yyyy-MM-dd"));
       if (warehouseDateRange.to) query = query.lte("warehouse_arrival_date", format(warehouseDateRange.to,"yyyy-MM-dd"));
       if (expectedDateRange.from) query = query.gte("expected_date", format(expectedDateRange.from,"yyyy-MM-dd"));

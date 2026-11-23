@@ -11,7 +11,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useRiepilogoGenerale } from "@/hooks/useCommesseGenerali";
 import { fonteStudioDaArea } from "@/lib/planimetrie/studioImmobiliare";
 import { useElencoPlanimetrie } from "@/lib/planimetrie/archivio";
-import { percorsoVariantePlanimetria, percorsiPlanimetrie, type ModoNuovaPianta } from "@/lib/planimetrie/render/percorsi";
+import { percorsoProgettoAssociato, percorsoVariantePlanimetria, percorsiPlanimetrie, type ModoNuovaPianta } from "@/lib/planimetrie/render/percorsi";
 
 export function PiantaUnita({ orderId, sigla, generaleId, puoCreare }: { orderId: string; sigla: string; generaleId: string; puoCreare: boolean }) {
   const { effectiveCompany } = useAuth();
@@ -23,19 +23,17 @@ export function PiantaUnita({ orderId, sigla, generaleId, puoCreare }: { orderId
   const fonte = fonteStudioDaArea(generale?.generale.dati?.area);
   if (!attiva || isError) return null;
 
-  const torna = `/azienda/ordini/${generaleId}?scheda=unita`;
-  const nuova = (modo: ModoNuovaPianta) => percorsiPlanimetrie.nuova(modo, {
-    commessa: orderId, titolo: `Pianta ${sigla}`, torna,
-  });
+  const torna = `/azienda/ordini/${generaleId}?${new URLSearchParams({ scheda: "unita", unita: orderId })}`;
+  const nuova = (modo: ModoNuovaPianta) => percorsiPlanimetrie.nuova(modo, { commessa: orderId, titolo: `Pianta ${sigla}`, torna });
   return (
-    <section aria-label="Pianta disegnata" className="rounded-md border px-3 py-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="inline-flex items-center gap-1.5 text-sm font-medium"><Ruler className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" /> Pianta</p>
+    <section aria-label="Pianta digitale" className="rounded-md border bg-muted/20 px-3 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2.5">
+        <p className="inline-flex items-center gap-1.5 text-sm font-medium"><Ruler className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" /> Pianta digitale</p>
         {puoCreare && piante.length === 0 && (
-          <div className="flex flex-wrap gap-1">
-            <Button asChild size="sm" variant="outline" className="h-7 text-xs"><Link to={nuova("disegno")}><PenLine className="mr-1 h-3 w-3" /> Disegna</Link></Button>
-            <Button asChild size="sm" variant="outline" className="h-7 text-xs"><Link to={nuova("documento")}><FileUp className="mr-1 h-3 w-3" /> Da PDF o foto</Link></Button>
-            <Button asChild size="sm" variant="outline" className="h-7 text-xs"><Link to={nuova("testo")}><Wand2 className="mr-1 h-3 w-3" /> A parole</Link></Button>
+          <div className="flex flex-wrap gap-1.5">
+            <Button asChild size="sm" variant="outline" className="h-8 gap-1.5 px-2 text-xs"><Link to={nuova("disegno")}><PenLine className="size-3.5" aria-hidden="true" /> Disegna</Link></Button>
+            <Button asChild size="sm" variant="outline" className="h-8 gap-1.5 px-2 text-xs"><Link to={nuova("documento")}><FileUp className="size-3.5" aria-hidden="true" /> Da PDF o foto</Link></Button>
+            <Button asChild size="sm" variant="outline" className="h-8 gap-1.5 px-2 text-xs"><Link to={nuova("testo")}><Wand2 className="size-3.5" aria-hidden="true" /> A parole</Link></Button>
           </div>
         )}
       </div>
@@ -47,7 +45,7 @@ export function PiantaUnita({ orderId, sigla, generaleId, puoCreare }: { orderId
         <ul className="mt-1 space-y-0.5">
           {piante.map((p) => (
             <li key={p.id}>
-              <Link to={percorsiPlanimetrie.pianta(p.id)} className="text-sm text-primary hover:underline">{p.titolo}</Link>
+              <Link to={percorsoProgettoAssociato(p.id, torna)} className="text-sm text-primary hover:underline">{p.titolo}</Link>
               <span className="ml-1.5 text-xs text-muted-foreground">versione {p.versione_corrente}</span>
             </li>
           ))}

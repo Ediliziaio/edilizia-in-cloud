@@ -8,7 +8,7 @@ import {
 } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
-import type { ComponentProps } from "react";
+import { useState, type ComponentProps } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 const m = vi.hoisted(() => ({
   readonly: false,
@@ -99,24 +99,31 @@ beforeEach(() => {
   m.rpc.mockReset();
 });
 afterEach(cleanup);
-function mostra(daScheda?: Pick<ComponentProps<typeof ControlloOrdiniDDTCard>, "apertoDallaScheda" | "onApertoChange">) {
+function mostra(daScheda?: Omit<ComponentProps<typeof ControlloOrdiniDDTCard>, "ddt">) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
+  function Controllo() {
+    const [aperto, setAperto] = useState(daScheda?.apertoDallaScheda);
+    return <ControlloOrdiniDDTCard
+      {...daScheda}
+      apertoDallaScheda={aperto}
+      onApertoChange={aperto === undefined ? undefined : (valore) => {
+        setAperto(valore);
+        daScheda?.onApertoChange?.(valore);
+      }}
+      ddt={{
+        id: "ddt",
+        company_id: "azienda",
+        supplier_id: "fornitore",
+        numero_ddt: "DDT-TEST",
+      } as DDTRicezione}
+    />;
+  }
   render(
     <MemoryRouter>
       <QueryClientProvider client={client}>
-        <ControlloOrdiniDDTCard
-          {...daScheda}
-          ddt={
-            {
-              id: "ddt",
-              company_id: "azienda",
-              supplier_id: "fornitore",
-              numero_ddt: "DDT-TEST",
-            } as DDTRicezione
-          }
-        />
+        <Controllo />
       </QueryClientProvider>
     </MemoryRouter>,
   );
@@ -128,6 +135,18 @@ it("apre il confronto richiesto dalla testata della scheda", () => {
   expect(within(dialogo).getByText("Tapparella alluminio")).toBeInTheDocument();
   fireEvent.click(within(dialogo).getByRole("button", { name: /^Chiudi confronto$/ }));
   expect(onApertoChange).toHaveBeenCalledWith(false);
+  expect(m.rpc).not.toHaveBeenCalled();
+});
+it("dall’OdA mostra l’originale e l’ordine scelto prima di andare alle quantità", async () => {
+  const onApriConsegne = vi.fn();
+  mostra({ apertoDallaScheda: true, ordineIniziale: "oda", mostraOriginale: true, onApriConsegne });
+  const dialogo = within(screen.getByRole("dialog", { name: "Confronto DDT e ordini" }));
+  expect(dialogo.getByRole("tab", { name: "PDF / foto originali" })).toHaveAttribute("aria-selected", "true");
+  expect(dialogo.getByRole("combobox", { name: "Ordine da confrontare" })).toHaveTextContent("ODA-TEST");
+  expect(dialogo.getByText("Foto originale della bolla")).toBeInTheDocument();
+  expect(dialogo.getByText("Tapparella alluminio")).toBeInTheDocument();
+  fireEvent.click(dialogo.getByRole("button", { name: "Vai alla conferma quantità" }));
+  await waitFor(() => expect(onApriConsegne).toHaveBeenCalledOnce());
   expect(m.rpc).not.toHaveBeenCalled();
 });
 it("mostra la tapparella mancante anche se non appare nel DDT e apre il confronto con l’originale", () => {

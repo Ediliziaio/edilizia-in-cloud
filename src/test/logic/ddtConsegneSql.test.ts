@@ -1,6 +1,8 @@
 import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, beforeEach, expect, it } from "vitest";
+import { consegneFasi, type RigaFabbisognoFase } from "@/lib/orders/generali/consegneFasi";
+import type { ProcurementCoverage } from "@/lib/orders/materialProcurement";
 const id = (n: number) =>
   `00000000-0000-4000-a000-${String(n).padStart(12, "0")}`;
 const [
@@ -186,4 +188,34 @@ it("blocca modifiche a merce già consegnata e accessi di altre aziende", async 
   await expect(conferma([ingresso({ quantita: 1 })], id(22))).rejects.toThrow(
     "Non puoi confermare",
   );
+});
+
+it("una ricezione da 37 m² aggiorna una sola volta l’OdA e la fase mantiene 37 m² da consegnare", async () => {
+  await preparaOda();
+  await db.query("update purchase_order_items set quantity=74 where id=$1", [poi]);
+  await db.query("update order_items set quantity=74 where id=$1", [articolo]);
+  await db.query("update ddt_righe set quantita=74 where id=$1", [riga]);
+  const rigaArrivata = ingresso({ quantita: 37, purchase_order_item_id: poi, crea_articolo: false });
+  const fase = { id: id(31), order_id: order, name: "Finiture B02", status: "in_corso", percentuale: 30, start_date: "2026-11-24" };
+  const situazione = async () => {
+    const { rows: materiali } = await db.query<RigaFabbisognoFase>(`
+      select id, order_id, $1::uuid as phase_id, name, quantity, quantity_received, unita_misura,
+        '2026-11-24' as data_fabbisogno, 'da_ordinare' as status, stock_item_id, null as quantity_reserved, false as auto_deducted
+      from order_items where id=$2
+    `, [fase.id, articolo]);
+    const { rows: ordini } = await db.query<ProcurementCoverage>(`
+      select pi.id, pi.order_item_id, pi.quantity, pi.quantity_received, pi.unit_of_measure,
+        jsonb_build_object('id', po.id, 'oda_number', 'ODA-B02', 'status', po.status, 'expected_delivery_date', '2026-11-26') as purchase_orders
+      from purchase_order_items pi join purchase_orders po on po.id=pi.purchase_order_id where pi.id=$1
+    `, [poi]);
+    return consegneFasi(materiali, ordini, [fase], "2026-11-23");
+  };
+  expect(await situazione()).toMatchObject([{ mancanti: 74 }]);
+  await conferma([rigaArrivata]);
+  expect((await conferma([rigaArrivata])).rows[0]).toMatchObject({ risultato: { gia_registrata: true } });
+  expect(await situazione()).toMatchObject([{
+    arrivati: 37, mancanti: 37, daOrdinare: 0, aRischio: true, motivo: "ritardo", oda: { status: "parziale" },
+  }]);
+  await conferma([rigaArrivata], id(21));
+  expect(await situazione()).toEqual([]);
 });
