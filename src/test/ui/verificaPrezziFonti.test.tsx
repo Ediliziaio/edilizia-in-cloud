@@ -10,9 +10,10 @@ const voce = (id: string, patch: Partial<VoceEditor>): VoceEditor => ({ ...voceV
 
 function db() {
   return new DbFinto({
-    preventivo_impostazioni: [{ company_id: AZIENDA, margine_target_default: 30, margine_minimo_percentuale: 20 }],
+    preventivo_impostazioni: [] as Record<string, unknown>[],
     tariffe_aziendali: [
-      { id: "t1", company_id: AZIENDA, attivo: true, codice: "DEM.010", nome: "Demolizione pavimento in ceramica", descrizione: "", unita: "mq", prezzo_vendita: 18, prezzo_costo: 11, costo_interno: null, created_at: "2026-03-12T10:00:00Z" },
+      { id: "t2", company_id: AZIENDA, attivo: true, codice: "MAS.030", nome: "Massetto autolivellante", descrizione: "", unita: "mq", prezzo_vendita: 0, prezzo_costo: 100, costo_interno: 0, created_at: "2026-02-01T10:00:00Z" },
+      { id: "t1", company_id: AZIENDA, attivo: true, codice: "DEM.010", nome: "Demolizione pavimento in ceramica", descrizione: "", unita: "mq", prezzo_vendita: 18, prezzo_costo: 11, costo_interno: 0, created_at: "2026-03-12T10:00:00Z" },
     ],
     listini_fornitore: [], listino_fornitore_voci: [], purchase_order_items: [], quotes: [], quote_items: [], prezzario_fonte: [], prezzario_voce: [],
   });
@@ -54,6 +55,26 @@ describe("Verifica prezzi e fonti", () => {
     render(<VerificaPrezziFonti open onOpenChange={() => {}} companyId={AZIENDA} voci={voci} vediCosti={false} onApplica={() => {}} db={db().client} />);
     await waitFor(() => expect(screen.getByTestId("riepilogo-verifica")).toBeInTheDocument());
     expect(screen.queryByText(/Costo stimato|margine \d/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Margine obiettivo %")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("economia-verifica")).not.toBeInTheDocument();
     expect(screen.getByText(/preventivi già accettati\./)).toBeInTheDocument();
+  });
+
+  it("il margine obiettivo si vede, parte dallo standard e cambiandolo cambia il prezzo calcolato dal costo", async () => {
+    localStorage.clear();
+    const massetto = [voce("massetto", { tariffa: "MAS.030", descrizione: "Massetto autolivellante", unita: "mq", quantita: "10" })];
+    render(<VerificaPrezziFonti open onOpenChange={() => {}} companyId={AZIENDA} voci={massetto} vediCosti onApplica={() => {}} db={db().client} />);
+    await waitFor(() => expect(screen.getByTestId("margine-spiegazione").textContent).toContain("30% (standard)"));
+    expect(screen.getByRole("region", { name: "Proposte" }).textContent).toContain("142,86");
+    expect(screen.getByTestId("economia-verifica").textContent).toMatch(/margine 30%/);
+
+    fireEvent.change(screen.getByLabelText("Margine obiettivo %"), { target: { value: "45" } });
+    await waitFor(() => expect(screen.getByTestId("margine-spiegazione").textContent).toContain("45% (scelto da te)"), { timeout: 3000 });
+    expect(screen.getByTestId("margine-spiegazione").textContent).toContain("Di solito sta tra 25% e 35%");
+    expect(screen.getByRole("region", { name: "Proposte" }).textContent).toContain("181,82");
+    expect(localStorage.getItem(`eic:margine-obiettivo:${AZIENDA}`)).toBe("45");
+
+    fireEvent.change(screen.getByLabelText("Margine obiettivo %"), { target: { value: "abc" } });
+    expect(screen.getByTestId("margine-spiegazione").textContent).toContain("tra 1 e 94");
   });
 });

@@ -13,11 +13,12 @@
  */
 import { arrotondaDecimale } from "@/lib/computo/editorNativo";
 import { corrispondenza, improntaVoce } from "./abbinamento";
-import { agenteListini, agentePrezzari, agenteProfilo, agenteStorico, type DbLettura, type EsitoAgente, type RigaFonte } from "./agenti";
+import { agenteListini, agentePrezzari, agenteProfilo, agenteStorico, type DbLettura, type EsitoAgente, type ImpostazioniMargine, type RigaFonte } from "./agenti";
 import { controlliFinali } from "./controlli";
 import { marginePct, prezzoDaMargine, testoRegola } from "./prezzoVendita";
 import {
   ETICHETTE_FONTE, PRIORITA_PREDEFINITA,
+  MARGINE_STANDARD_PCT, margineValido, type EconomiaVerifica,
   type CandidatoPrezzo, type Controllo, type EsitoVoce, type NaturaPrezzo, type ProfiloAzienda, type PropostaVoce, type TipoFonte, type VoceRichiesta,
 } from "./tipi";
 
@@ -29,7 +30,7 @@ export const TOLLERANZA_CONFLITTO_PCT = 5;
 type Letto<T> = { dati: T; avvisi: string[]; lettoIl: number };
 export interface MemoriaCoordinatore {
   chiave: string;
-  profilo?: Letto<Omit<ProfiloAzienda, "listinoPresente">>;
+  profilo?: Letto<ImpostazioniMargine>;
   listini?: Letto<RigaFonte[]>;
   storico?: Letto<RigaFonte[]>;
   prezzari: Map<string, RigaFonte[]>;
@@ -47,12 +48,16 @@ export interface RichiestaVerifica {
   oggi: string;
   priorita?: readonly TipoFonte[];
   escludiPreventivo?: string;
+  /** Il margine scelto da chi fa il preventivo: vince su quello dell'azienda e sullo standard. */
+  margineObiettivoPct?: number;
 }
 
 export interface EsitoVerifica {
   voci: EsitoVoce[];
   controlli: Controllo[];
   profilo: ProfiloAzienda;
+  /** `null` per chi non vede i costi. */
+  economia: EconomiaVerifica | null;
   misure: {
     ms: number; letture: number; chiamateAi: 0;
     vociTotali: number; abbinamentiRiusati: number; abbinamentiRifatti: number; agentiRiletti: string[];
@@ -115,6 +120,7 @@ function candidatiDellaVoce(voce: VoceRichiesta, righe: readonly RigaFonte[], fo
   };
 }
 
+const ORIGINE_MARGINE = { indicato: "", azienda: " · margine dell'azienda", standard: " · margine standard" } as const;
 const uguali = (a: number, b: number) => Math.abs(a - b) < 0.005;
 
 /** Solo conti e regole: stesso ingresso, stessa uscita. Qui si decide cosa proporre e cosa lasciare stare. */
@@ -141,11 +147,11 @@ export function valutaVoce(voce: VoceRichiesta, candidati: CandidatoPrezzo[], pr
   } else if (voce.prezzo !== null) {
     // Un prezzo che c'è già e che nessuna fonte conferma: se una persona l'ha scritto resta suo, altrimenti si dice che non è stato ritrovato.
     stato = voce.manuale ? "manuale" : opzioni.fonteDichiarata.trim() ? "da_confermare" : "senza_fonte";
-  } else if (costoNoto !== null && costoNoto > 0 && profilo.margineObiettivoPct !== null) {
+  } else if (costoNoto !== null && costoNoto > 0) {
     const regola = { tipo: "margine" as const, pct: profilo.margineObiettivoPct };
     const prezzo = prezzoDaMargine(costoNoto, regola.pct);
     stato = prezzo === null ? "senza_fonte" : "stima";
-    if (prezzo !== null) proposta = { prezzo, fonte: "Prezzo calcolato dal costo, da confermare", regola: testoRegola(costoNoto, regola), suManuale: false };
+    if (prezzo !== null) proposta = { prezzo, fonte: "Prezzo calcolato dal costo, da confermare", regola: `${testoRegola(costoNoto, regola)}${ORIGINE_MARGINE[profilo.margineOrigine]}`, suManuale: false };
   } else stato = "senza_fonte";
   proposta = conCosto(proposta);
   const prezzoFinale = proposta?.prezzo !== undefined && !proposta.suManuale ? proposta.prezzo : voce.prezzo;
@@ -154,6 +160,24 @@ export function valutaVoce(voce: VoceRichiesta, candidati: CandidatoPrezzo[], pr
     conflitti: [...conflitti(candidati, vendita, "vendita"), ...(opzioni.costi ? conflitti(candidati, costo, "costo") : [])],
     marginePct: opzioni.costi ? marginePct(costoNoto, prezzoFinale) : null,
   };
+}
+
+/**
+ * Ricavo, costo e margine sulle voci che hanno quantità, prezzo e costo. Il prezzo è quello che resterebbe
+ * applicando le proposte (mai quelle che toccano un prezzo scritto a mano). Le opzionali restano fuori, come nel totale.
+ */
+export function economiaDelPreventivo(voci: readonly VoceRichiesta[], esiti: readonly EsitoVoce[]): EconomiaVerifica {
+  let ricavo = 0, costo = 0, vociConCosto = 0, vociSenzaCosto = 0;
+  voci.forEach((v, i) => {
+    const e = esiti[i];
+    const prezzo = e.proposta?.prezzo !== undefined && !e.proposta.suManuale ? e.proposta.prezzo : v.prezzo;
+    if (v.opzionale || v.quantita === null || prezzo === null) return;
+    const unitario = v.costo ?? e.costo?.valore ?? null;
+    if (unitario === null) { vociSenzaCosto++; return; }
+    vociConCosto++; ricavo += v.quantita * prezzo; costo += v.quantita * unitario;
+  });
+  ricavo = arrotondaDecimale(ricavo); costo = arrotondaDecimale(costo);
+  return { ricavo, costo, marginePct: vociConCosto ? marginePct(costo, ricavo) : null, vociConCosto, vociSenzaCosto };
 }
 
 async function conMemoria<T>(nome: string, salvato: Letto<T> | undefined, adesso: number, leggi: () => Promise<EsitoAgente<T>>, riletti: string[], mancanti: string[], conta: (n: number) => void): Promise<Letto<T> | undefined> {
@@ -197,7 +221,9 @@ export async function coordinaVerifica(richiesta: RichiestaVerifica, db: DbLettu
   if (fontiCambiate) memoria.abbinamenti.clear();
   const righe = [...(listini?.dati ?? []), ...(storico?.dati ?? []), ...[...memoria.prezzari.values()].flat()];
   const profiloCompleto: ProfiloAzienda = {
-    margineObiettivoPct: profilo?.dati.margineObiettivoPct ?? null, margineMinimoPct: profilo?.dati.margineMinimoPct ?? null,
+    margineObiettivoPct: margineValido(richiesta.margineObiettivoPct) ? richiesta.margineObiettivoPct : profilo?.dati.margineObiettivoPct ?? MARGINE_STANDARD_PCT,
+    margineOrigine: margineValido(richiesta.margineObiettivoPct) ? "indicato" : profilo?.dati.margineObiettivoPct != null ? "azienda" : "standard",
+    margineAziendaPct: profilo?.dati.margineObiettivoPct ?? null, margineMinimoPct: profilo?.dati.margineMinimoPct ?? null,
     listinoPresente: (listini?.dati ?? []).some(r => r.tipo === "listino_aziendale"),
   };
 
@@ -212,14 +238,15 @@ export async function coordinaVerifica(richiesta: RichiestaVerifica, db: DbLettu
     return valutaVoce(voce, candidati, profiloCompleto, { costi, priorita, fonteDichiarata, unitaDiverse });
   });
 
-  const controlli = controlliFinali(richiesta.voci, esiti, profiloCompleto, { costi });
+  const economia = costi ? economiaDelPreventivo(richiesta.voci, esiti) : null;
+  const controlli = controlliFinali(richiesta.voci, esiti, profiloCompleto, { costi }, economia);
   for (const a of [...(listini?.avvisi ?? []), ...(storico?.avvisi ?? [])]) controlli.push({ gravita: "avviso", codice: "lettura_parziale", voceId: null, testo: a });
   for (const m of mancanti) controlli.push({ gravita: "avviso", codice: "agente_mancante", voceId: null, testo: `Non sono riuscito a leggere: ${m}. Il resto vale; riprova per completare.` });
 
   const conPrezzo = richiesta.voci.filter((v, i) => v.prezzo !== null || esiti[i].proposta?.prezzo !== undefined).length;
   const conFonte = esiti.filter((e, i) => e.vendita !== null || e.stato === "stima" || (richiesta.voci[i].prezzo !== null && !richiesta.voci[i].manuale && !!(fontiDichiarate[e.voceId] ?? "").trim())).length;
   return {
-    voci: esiti, controlli, profilo: profiloCompleto, mancanti,
+    voci: esiti, controlli, profilo: profiloCompleto, mancanti, economia,
     misure: {
       ms: orologio() - inizio, letture, chiamateAi: 0, vociTotali: richiesta.voci.length,
       abbinamentiRiusati: riusati, abbinamentiRifatti: rifatti, agentiRiletti: riletti, conFonte, conPrezzo,

@@ -9,7 +9,10 @@
  * Ogni lettura ha un tetto di righe e un tempo massimo. Se il tetto taglia, l'agente lo dice
  * (`parziale`): un listino letto a metà non può far concludere «questa voce non ha un prezzo».
  */
-import type { NaturaPrezzo, ProfiloAzienda, TipoFonte } from "./tipi";
+import type { NaturaPrezzo, TipoFonte } from "./tipi";
+
+/** Ciò che l'azienda ha scritto nelle impostazioni dei preventivi: può non aver scelto niente. */
+export interface ImpostazioniMargine { margineObiettivoPct: number | null; margineMinimoPct: number | null }
 
 // Il client arriva da fuori (Supabase vero o finto nei test): solo la forma che serve.
 export type DbLettura = { from(tabella: string): any }; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -60,7 +63,7 @@ async function leggi(query: any, cosa: string): Promise<Riga[]> { // eslint-disa
   return Array.isArray(data) ? data as Riga[] : [];
 }
 
-export async function agenteProfilo(db: DbLettura, companyId: string): Promise<EsitoAgente<Omit<ProfiloAzienda, "listinoPresente">>> {
+export async function agenteProfilo(db: DbLettura, companyId: string): Promise<EsitoAgente<ImpostazioniMargine>> {
   const righe = await leggi(db.from("preventivo_impostazioni")
     .select("margine_target_default, margine_minimo_percentuale").eq("company_id", companyId).limit(1), "Impostazioni dei preventivi");
   const pct = (v: unknown) => { const n = numero(v); return n !== null && n > 0 && n < 95 ? n : null; };

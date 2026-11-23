@@ -157,7 +157,7 @@ describe("scenario 2: informazioni mancanti e prezzi discordanti", () => {
     const { esito } = await verifica(voci);
     const v = esito.voci.find(x => x.voceId === "solo-costo")!;
     expect(v.stato).toBe("stima");
-    expect(v.proposta).toMatchObject({ prezzo: 142.86, costo: 100, regola: expect.stringMatching(/^margine 30% sul costo 100,00\s€$/) });
+    expect(v.proposta).toMatchObject({ prezzo: 142.86, costo: 100, regola: expect.stringMatching(/^margine 30% sul costo 100,00\s€ · margine dell'azienda$/) });
     expect(v.marginePct).toBe(30);
   });
   it("niente si inventa: una voce spenta nel listino o mai vista resta senza prezzo", async () => {
@@ -256,5 +256,47 @@ describe("preventivo da foto: solo i file dell'azienda verificata", () => {
     expect(controllo).toBeGreaterThan(sorgente.indexOf("requireCompanyAccess(supabase, user.id, companyId"));
     expect(controllo).toBeLessThan(sorgente.indexOf(".download(body.audio_path)"));
     expect(sorgente).toMatch(/from\("preventivo_da_foto_runs"\)\.select\("id"\)\.eq\("id", body\.run_id\)\.eq\("company_id", companyId\)/);
+  });
+});
+
+describe("margine obiettivo: sempre un numero, e si sa da dove viene", () => {
+  const voci = [
+    voce("solo-costo", { tariffa: "MAS.030", descrizione: "Massetto autolivellante", unita: "mq", quantita: "40" }),
+    voce("listino", { tariffa: "PAV.020", descrizione: "Posa pavimento in gres 60x60", unita: "mq", quantita: "10" }),
+  ];
+  const giro = async (margine: number | undefined, impostazioni = true) => {
+    const dati = seme();
+    if (!impostazioni) dati.preventivo_impostazioni = [];
+    return coordinaVerifica({ companyId: AZIENDA, voci: voci.map(v => voceRichiesta(v, true)), fontiDichiarate: fontiDichiarate(voci), permessi: { costi: true }, oggi: OGGI, margineObiettivoPct: margine }, new DbFinto(dati).client);
+  };
+  it("l'azienda non ha scelto: parte lo standard del 30%, e lo dice", async () => {
+    const esito = await giro(undefined, false);
+    expect(esito.profilo).toMatchObject({ margineObiettivoPct: 30, margineOrigine: "standard", margineAziendaPct: null });
+    expect(esito.voci[0].proposta).toMatchObject({ prezzo: 142.86, regola: expect.stringContaining("margine standard") });
+  });
+  it("chi fa il preventivo ne indica un altro: vince sul resto e i prezzi dal costo cambiano", async () => {
+    const esito = await giro(25);
+    expect(esito.profilo).toMatchObject({ margineObiettivoPct: 25, margineOrigine: "indicato", margineAziendaPct: 30 });
+    expect(esito.voci[0].proposta?.prezzo).toBe(133.33);
+    // Un prezzo di listino non si ricalcola: il margine vale solo dove il prezzo nasce dal costo.
+    expect(esito.voci[1].proposta?.prezzo).toBe(32);
+  });
+  it("un margine senza senso si ignora", async () => {
+    expect((await giro(0)).profilo.margineOrigine).toBe("azienda");
+    expect((await giro(120)).profilo.margineOrigine).toBe("azienda");
+  });
+  it("riepilogo: ricavo, costo e margine del preventivo contro l'obiettivo", async () => {
+    const esito = await giro(35);
+    // 40 mq × 153,85 (da costo 100 al 35%) + 10 mq × 32 (listino, costo 20) = 6.474,00 su 4.200,00 di costo.
+    expect(esito.economia).toEqual({ ricavo: 6474, costo: 4200, marginePct: 35.1, vociConCosto: 2, vociSenzaCosto: 0 });
+    expect(esito.controlli.some(c => c.codice === "margine_sotto_obiettivo")).toBe(false);
+    const alto = await giro(40);
+    expect(alto.economia?.marginePct).toBeLessThan(40);
+    expect(alto.controlli.filter(c => c.codice === "margine_sotto_obiettivo")).toHaveLength(1);
+  });
+  it("senza permesso sui costi non c'è alcun riepilogo economico", async () => {
+    const esito = await coordinaVerifica({ companyId: AZIENDA, voci: voci.map(v => voceRichiesta(v, false)), permessi: { costi: false }, oggi: OGGI, margineObiettivoPct: 25 }, new DbFinto(seme()).client);
+    expect(esito.economia).toBeNull();
+    expect(esito.voci[0].proposta).toBeNull();
   });
 });

@@ -10,7 +10,7 @@
  */
 import { normalizzaTesto } from "@/lib/distinta/generaDistinta";
 import { unitaConfrontabile } from "./abbinamento";
-import type { Controllo, EsitoVoce, ProfiloAzienda, VoceRichiesta } from "./tipi";
+import type { Controllo, EconomiaVerifica, EsitoVoce, ProfiloAzienda, VoceRichiesta } from "./tipi";
 
 /** Oltre questo scarto dal prezzo già concordato in passato, lo si fa notare. */
 export const SCARTO_STORICO_PCT = 20;
@@ -25,7 +25,7 @@ function mediana(valori: number[]): number | null {
   return o.length % 2 ? o[m] : (o[m - 1] + o[m]) / 2;
 }
 
-export function controlliFinali(voci: readonly VoceRichiesta[], esiti: readonly EsitoVoce[], profilo: ProfiloAzienda, permessi: { costi: boolean }): Controllo[] {
+export function controlliFinali(voci: readonly VoceRichiesta[], esiti: readonly EsitoVoce[], profilo: ProfiloAzienda, permessi: { costi: boolean }, economia: EconomiaVerifica | null = null): Controllo[] {
   const controlli: Controllo[] = [];
   const perVoce = new Map(esiti.map(e => [e.voceId, e]));
   const aggiungi = (gravita: Controllo["gravita"], codice: string, voceId: string | null, testo: string) => controlli.push({ gravita, codice, voceId, testo: testo.slice(0, 600) });
@@ -60,6 +60,11 @@ export function controlliFinali(voci: readonly VoceRichiesta[], esiti: readonly 
         aggiungi("avviso", "margine_sotto_minimo", v.id, `${nome(v)}: margine ${perc(e.marginePct)}, sotto il minimo dell'azienda (${perc(profilo.margineMinimoPct)}).`);
       }
     }
+  }
+
+  // Un numero solo per tutto il preventivo, invece di un avviso per ogni voce un po' sotto l'obiettivo.
+  if (permessi.costi && economia && economia.marginePct !== null && economia.marginePct < profilo.margineObiettivoPct - 0.05) {
+    aggiungi("avviso", "margine_sotto_obiettivo", null, `Il preventivo rende il ${perc(economia.marginePct)} sulle ${economia.vociConCosto} voci di cui conosco il costo: l'obiettivo è ${perc(profilo.margineObiettivoPct)} (mancano ${euro.format(Math.max(0, economia.costo / (1 - profilo.margineObiettivoPct / 100) - economia.ricavo))} di prezzo).`);
   }
 
   // Doppioni: stessa lavorazione, stessa unità, nello stesso capitolo. Capitoli diversi (cucina, bagno) sono legittimi.

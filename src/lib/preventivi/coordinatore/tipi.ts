@@ -62,7 +62,11 @@ export interface VoceRichiesta {
 }
 
 export interface ProfiloAzienda {
-  margineObiettivoPct: number | null;
+  /** Il margine con cui si calcola un prezzo dal costo: sempre un numero, e sempre si sa da dove viene. */
+  margineObiettivoPct: number;
+  /** `indicato` = scritto da chi fa il preventivo; `azienda` = dalle impostazioni; `standard` = nessuno l'ha scelto. */
+  margineOrigine: "indicato" | "azienda" | "standard";
+  margineAziendaPct: number | null;
   margineMinimoPct: number | null;
   /** Il listino aziendale ha voci attive: senza, le voci senza prezzo sono attese, non un errore. */
   listinoPresente: boolean;
@@ -121,3 +125,17 @@ export const ETICHETTE_FONTE: Record<TipoFonte, string> = {
 export const PRIORITA_PREDEFINITA: readonly TipoFonte[] = [
   "contratto", "offerta_fornitore", "listino_aziendale", "acquisto_recente", "storico", "prezzario", "stima",
 ];
+
+/**
+ * Il margine di partenza quando né l'azienda né chi fa il preventivo ne ha scelto uno. È margine DIRETTO
+ * (sul prezzo, prima delle spese generali): di solito sta tra il 25% e il 35%, in certi lavori di più.
+ */
+export const MARGINE_STANDARD_PCT = 30;
+export const FASCIA_MARGINE_ABITUALE = { da: 25, a: 35 } as const;
+export const margineValido = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n) && n > 0 && n < 95;
+
+/** Quanto rende il preventivo sulle voci di cui si conosce il costo. Mai a chi non vede i costi. */
+export interface EconomiaVerifica {
+  ricavo: number; costo: number; marginePct: number | null;
+  vociConCosto: number; vociSenzaCosto: number;
+}

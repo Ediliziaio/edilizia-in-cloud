@@ -8,11 +8,19 @@ import type { VoceEditor } from "@/lib/computo/editorNativo";
 import { applicaVerifica, fontiDichiarate, voceRichiesta, type RisposteDomande } from "@/lib/preventivi/coordinatore/computo";
 import { coordinaVerifica, descriviCandidato, memoriaVuota, MAX_VOCI_VERIFICA, type EsitoVerifica, type MemoriaCoordinatore } from "@/lib/preventivi/coordinatore/coordinatore";
 import type { DbLettura } from "@/lib/preventivi/coordinatore/agenti";
-import type { VoceRichiesta } from "@/lib/preventivi/coordinatore/tipi";
+import { FASCIA_MARGINE_ABITUALE, margineValido, type VoceRichiesta } from "@/lib/preventivi/coordinatore/tipi";
+import { numeroEditor } from "@/lib/computo/editorNativo";
+import { Label } from "@/components/ui/label";
 
 const euro = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
 const oggiIso = () => new Date().toLocaleDateString("en-CA");
 const titolo = (v: VoceRichiesta) => (v.descrizione.trim().split("\n")[0] || "Voce senza descrizione").slice(0, 110);
+
+const chiaveMargine = (companyId: string) => `eic:margine-obiettivo:${companyId}`;
+function margineRicordato(companyId: string): string {
+  try { return localStorage.getItem(chiaveMargine(companyId)) ?? ""; } catch { return ""; }
+}
+const ORIGINE = { indicato: "scelto da te", azienda: "quello dell'azienda", standard: "standard" } as const;
 
 // Le letture restano in memoria finché la pagina è aperta: riaprire la verifica dopo aver cambiato una quantità non rilegge i listini.
 const memorie = new Map<string, MemoriaCoordinatore>();
@@ -36,6 +44,10 @@ export default function VerificaPrezziFonti({ open, onOpenChange, companyId, voc
   const [inCorso, setInCorso] = useState(open);
   const [accettate, setAccettate] = useState<ReadonlySet<string>>(new Set());
   const [risposte, setRisposte] = useState<Required<RisposteDomande>>({ quantita: {}, prezzi: {} });
+  // Il margine obiettivo: vuoto = decide l'azienda o lo standard; scritto = vale quello, e lo si ritrova la volta dopo.
+  const [margine, setMargine] = useState(() => (vediCosti ? margineRicordato(companyId) : ""));
+  const margineScelto = vediCosti ? numeroEditor(margine) : null;
+  const margineDaUsare = margineValido(margineScelto) ? margineScelto : undefined;
   const giro = useRef(0);
   const vociAttuali = useRef(voci);
   useEffect(() => { vociAttuali.current = voci; }, [voci]);
@@ -49,7 +61,7 @@ export default function VerificaPrezziFonti({ open, onOpenChange, companyId, voc
       const client = db ?? (await import("@/integrations/supabase/client")).supabase as unknown as DbLettura;
       const chiave = `${companyId}|${vediCosti}`;
       if (!memorie.has(chiave)) { memorie.clear(); memorie.set(chiave, memoriaVuota()); }
-      const risultato = await coordinaVerifica({ companyId, voci: richieste, fontiDichiarate: fontiDichiarate(vociAttuali.current), permessi: { costi: vediCosti }, oggi: oggiIso() }, client, memorie.get(chiave));
+      const risultato = await coordinaVerifica({ companyId, voci: richieste, fontiDichiarate: fontiDichiarate(vociAttuali.current), permessi: { costi: vediCosti }, oggi: oggiIso(), margineObiettivoPct: margineDaUsare }, client, memorie.get(chiave));
       if (mio !== giro.current) return;
       setEsito(risultato); setAnalizzate(richieste); setRisposte({ quantita: {}, prezzi: {} });
       // Di partenza si accetta tutto ciò che non tocca un prezzo scritto a mano.
@@ -59,14 +71,24 @@ export default function VerificaPrezziFonti({ open, onOpenChange, companyId, voc
     } finally {
       if (mio === giro.current) setInCorso(false);
     }
-  }, [companyId, vediCosti, db]);
+  }, [companyId, vediCosti, db, margineDaUsare]);
 
-  // La verifica parte da sola all'apertura, un attimo dopo il primo disegno.
+  // La verifica parte da sola all'apertura e si rifà quando cambia il margine, dopo che si è smesso di scrivere.
+  const primoGiro = useRef(true);
   useEffect(() => {
     if (!open) return;
-    const attesa = setTimeout(() => void avvia(), 0);
+    const attesa = setTimeout(() => void avvia(), primoGiro.current ? 0 : 500);
+    primoGiro.current = false;
     return () => clearTimeout(attesa);
   }, [open, avvia]);
+  const cambiaMargine = (testo: string) => {
+    setMargine(testo);
+    try {
+      const n = numeroEditor(testo);
+      if (margineValido(n)) localStorage.setItem(chiaveMargine(companyId), testo.trim());
+      else if (!testo.trim()) localStorage.removeItem(chiaveMargine(companyId));
+    } catch { /* senza memoria del browser il margine vale per questa volta */ }
+  };
 
   const perId = useMemo(() => new Map(analizzate.map(v => [v.id, v])), [analizzate]);
   const proposte = useMemo(() => (esito?.voci ?? []).filter(v => v.proposta && (v.proposta.prezzo !== undefined || v.proposta.costo !== undefined || v.proposta.fonte)), [esito]);
@@ -92,12 +114,30 @@ export default function VerificaPrezziFonti({ open, onOpenChange, companyId, voc
         </DialogDescription>
       </DialogHeader>
       {voci.length > MAX_VOCI_VERIFICA && <p role="alert" className="text-sm text-destructive">La verifica lavora fino a {MAX_VOCI_VERIFICA} voci: questo preventivo ne ha {voci.length}.</p>}
+      {vediCosti && <div className="flex flex-wrap items-end gap-x-3 gap-y-1 rounded-md border bg-muted/30 px-2.5 py-2">
+        <div className="space-y-1">
+          <Label htmlFor="margine-obiettivo" className="text-xs">Margine obiettivo %</Label>
+          <Input id="margine-obiettivo" className="h-8 w-24" inputMode="decimal" maxLength={6} value={margine}
+            placeholder={esito ? String(esito.profilo.margineObiettivoPct).replace(".", ",") : "30"} onChange={e => cambiaMargine(e.target.value)} />
+        </div>
+        <p className="min-w-0 flex-1 pb-1 text-xs text-muted-foreground" data-testid="margine-spiegazione">
+          {margine.trim() && !margineValido(margineScelto) ? <span className="text-destructive">Scrivi una percentuale tra 1 e 94.</span>
+            : esito ? <>Uso il <strong>{String(esito.profilo.margineObiettivoPct).replace(".", ",")}%</strong> ({ORIGINE[esito.profilo.margineOrigine]}): è margine diretto, sul prezzo. Dove c'è solo il costo, il prezzo nasce da qui: costo 100 € → {euro.format(100 / (1 - esito.profilo.margineObiettivoPct / 100))}.
+              {(esito.profilo.margineObiettivoPct < FASCIA_MARGINE_ABITUALE.da || esito.profilo.margineObiettivoPct > FASCIA_MARGINE_ABITUALE.a) && <span className="text-amber-700"> Di solito sta tra {FASCIA_MARGINE_ABITUALE.da}% e {FASCIA_MARGINE_ABITUALE.a}%.</span>}</>
+            : `Di solito tra ${FASCIA_MARGINE_ABITUALE.da}% e ${FASCIA_MARGINE_ABITUALE.a}%.`}
+        </p>
+      </div>}
       {inCorso && <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Leggo listini e storico…</p>}
       {errore && <p role="alert" className="text-sm text-destructive">{errore}</p>}
       {esito && !inCorso && <>
         <p className="text-xs text-muted-foreground" data-testid="riepilogo-verifica">
           {esito.misure.vociTotali} voci · {esito.misure.conFonte} con una fonte{esito.misure.percentualeConFonte !== null ? ` (${String(esito.misure.percentualeConFonte).replace(".", ",")}%)` : ""} · {proposte.length} proposte · {domande.length} da completare · {avvisi.length} da guardare · {esito.misure.letture} letture, nessun costo AI
         </p>
+        {esito.economia && esito.economia.vociConCosto > 0 && <p className="text-sm" data-testid="economia-verifica">
+          Con queste proposte: ricavo {euro.format(esito.economia.ricavo)}, costo {euro.format(esito.economia.costo)}, margine{" "}
+          <strong className={esito.economia.marginePct !== null && esito.economia.marginePct < esito.profilo.margineObiettivoPct - 0.05 ? "text-amber-700" : "text-emerald-700"}>{esito.economia.marginePct === null ? "non calcolabile" : `${String(esito.economia.marginePct).replace(".", ",")}%`}</strong>
+          {" "}su {esito.economia.vociConCosto} {esito.economia.vociConCosto === 1 ? "voce" : "voci"} con costo{esito.economia.vociSenzaCosto ? ` · ${esito.economia.vociSenzaCosto} senza costo, fuori dal conto` : ""}.
+        </p>}
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
           {domande.length > 0 && <section aria-label="Da completare" className="space-y-2">
             <h3 className="flex items-center gap-1.5 text-sm font-semibold"><HelpCircle className="h-4 w-4 text-blue-700" />Da completare ({domande.length})</h3>
