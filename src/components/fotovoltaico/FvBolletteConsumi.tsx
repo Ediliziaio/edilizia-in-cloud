@@ -444,9 +444,25 @@ function FvBolletteConsumiDettaglio(
           type="button"
           className="font-medium text-sky-700 underline"
           disabled={!modificabile}
-          onClick={() => setManuale((v) => !v)}
+          onClick={() => {
+            const apri = !manuale;
+            setManuale(apri);
+            if (apri && !value && consumoManuale && consumoManuale > 0) {
+              onChange({
+                ...a,
+                correzioni: {
+                  consumoAnnuo: consumoManuale,
+                  ...(costoManuale != null
+                    ? { costiEvitabiliAnnui: consumoManuale * costoManuale }
+                    : {}),
+                },
+              });
+            }
+          }}
         >
-          Non ho la bolletta · inserisci a mano
+          {a.documenti.length
+            ? "Correggi consumi e spesa a mano"
+            : "Non ho la bolletta · inserisci a mano"}
         </button>
       </div>
       {caricando && (
@@ -795,32 +811,8 @@ function FvBolletteConsumiDettaglio(
           Puoi correggerla qui sotto.
         </p>
       )}
-      <details
-        className="mt-4"
-        open={manuale}
-        onToggle={(e) => {
-          setManuale(e.currentTarget.open);
-          if (
-            e.currentTarget.open && !value && consumoManuale &&
-            consumoManuale > 0
-          ) {
-            onChange({
-              ...a,
-              correzioni: {
-                consumoAnnuo: consumoManuale,
-                ...(costoManuale != null
-                  ? { costiEvitabiliAnnui: consumoManuale * costoManuale }
-                  : {}),
-              },
-            });
-          }
-        }}
-      >
-        <summary className="cursor-pointer text-sm font-medium text-sky-700">
-          {a.documenti.length
-            ? "Correggi consumi e spesa"
-            : "Inserisci consumi e spesa a mano"}
-        </summary>
+      {manuale && (
+      <div className="mt-4">
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           {([[
             "consumoAnnuo",
@@ -885,7 +877,8 @@ function FvBolletteConsumiDettaglio(
           depositi, arretrati e conguagli richiedono verifica separata. Le tue
           correzioni restano quando aggiungi nuove bollette.
         </p>
-      </details>
+      </div>
+      )}
       {a.documenti.filter((d) =>
         (d.dati.pod ?? "") === a.podSelezionato &&
         (d.dati.avvisi.length > 0 || d.pagine_non_lette.length > 0)
