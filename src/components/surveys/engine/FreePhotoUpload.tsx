@@ -17,6 +17,7 @@ import { uploadMedia, deleteMedia, validateSurveyPhoto } from "@/lib/api/surveys
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface FreePhotoUploadProps {
   surveyId: string;
@@ -31,12 +32,14 @@ export interface FreePhotoUploadProps {
 
 export function FreePhotoUpload({
   surveyId, areaId, elementId, media, onMediaAdded, onMediaDeleted,
-  label = "Foto libere",
+  label,
 }: FreePhotoUploadProps) {
   const [uploading, setUploading] = useState(false);
   const cameraRef = useRef<HTMLInputElement | null>(null);
   const galleryRef = useRef<HTMLInputElement | null>(null);
   const confirm = useConfirm();
+  const t = useT();
+  const titolo = label ?? t("Foto libere");
 
   const photos = media.filter((m) => m.type === "photo" && !m.checklist_key);
 
@@ -48,7 +51,7 @@ export function FreePhotoUpload({
     try {
       for (const file of list) {
         const invalid = validateSurveyPhoto(file);
-        if (invalid) { toast.error("File non valido", { description: invalid }); continue; }
+        if (invalid) { toast.error(t("File non valido"), { description: invalid }); continue; }
         const m = await uploadMedia(surveyId, file, {
           type: "photo",
           areaId: areaId ?? null,
@@ -59,7 +62,7 @@ export function FreePhotoUpload({
         onMediaAdded?.(m);
       }
     } catch (e) {
-      toast.error("Upload foto fallito", {
+      toast.error(t("Upload foto fallito"), {
         description: e instanceof Error ? e.message : String(e),
       });
     } finally {
@@ -69,16 +72,16 @@ export function FreePhotoUpload({
 
   const handleDelete = async (id: string) => {
     if (!(await confirm({
-      title: "Eliminare la foto?",
-      description: "La foto verrà rimossa definitivamente dal sopralluogo.",
-      confirmLabel: "Elimina",
+      title: t("Eliminare la foto?"),
+      description: t("La foto verrà rimossa definitivamente dal sopralluogo."),
+      confirmLabel: t("Elimina"),
       variant: "destructive",
     }))) return;
     try {
       await deleteMedia(id);
       onMediaDeleted?.(id);
     } catch (e) {
-      toast.error("Eliminazione fallita", {
+      toast.error(t("Eliminazione fallita"), {
         description: e instanceof Error ? e.message : String(e),
       });
     }
@@ -88,7 +91,7 @@ export function FreePhotoUpload({
     <div className="space-y-2">
       <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
         <ImageIcon className="h-3 w-3" />
-        {label}{photos.length > 0 ? ` · ${photos.length}` : ""}
+        {titolo}{photos.length > 0 ? ` · ${photos.length}` : ""}
       </p>
 
       {photos.length > 0 && (
@@ -98,7 +101,7 @@ export function FreePhotoUpload({
               <img
                 loading="lazy"
                 src={p.url}
-                alt={p.filename ?? "Foto"}
+                alt={p.filename ?? t("Foto")}
                 className="w-full h-full object-cover rounded-lg border"
               />
               {/* Delete sempre visibile (su touch non c'è hover) */}
@@ -106,8 +109,8 @@ export function FreePhotoUpload({
                 type="button"
                 onClick={() => handleDelete(p.id)}
                 className="absolute top-1 right-1 bg-black/60 hover:bg-rose-600 text-white rounded-full p-1.5"
-                title="Elimina"
-                aria-label="Elimina foto"
+                title={t("Elimina")}
+                aria-label={t("Elimina foto")}
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
@@ -125,7 +128,7 @@ export function FreePhotoUpload({
           className="h-11 gap-2 border-dashed"
         >
           {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-          Scatta foto
+          {t("Scatta foto")}
         </Button>
         <Button
           type="button"
@@ -135,7 +138,7 @@ export function FreePhotoUpload({
           className="h-11 gap-2 border-dashed"
         >
           <Images className="h-4 w-4" />
-          Galleria
+          {t("Galleria")}
         </Button>
       </div>
 

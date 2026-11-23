@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import {
   Popover,
   PopoverContent,
@@ -31,6 +32,7 @@ export function SurveyCreatePicker({
   disabled?: boolean;
   onChange: (id: string | null) => void;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const selected = options.find((o) => o.id === value);
   return (
@@ -48,7 +50,7 @@ export function SurveyCreatePicker({
         >
           <span className="truncate">
             {selected?.label ||
-              (value ? "Collegamento selezionato · da verificare" : emptyLabel)}
+              (value ? t("Collegamento selezionato · da verificare") : emptyLabel)}
           </span>
           <ChevronsUpDown className="h-4 w-4 shrink-0 text-slate-400" />
         </Button>
@@ -59,11 +61,11 @@ export function SurveyCreatePicker({
       >
         <Command>
           <CommandInput
-            placeholder={`Cerca ${label.toLowerCase()}…`}
-            aria-label={`Cerca ${label.toLowerCase()}`}
+            placeholder={t("Cerca {cosa}…", { cosa: label.toLowerCase() })}
+            aria-label={t("Cerca {cosa}", { cosa: label.toLowerCase() })}
           />
           <CommandList className="max-h-64 overscroll-contain">
-            <CommandEmpty>Nessun risultato. Prova un altro nome.</CommandEmpty>
+            <CommandEmpty>{t("Nessun risultato. Prova un altro nome.")}</CommandEmpty>
             {[{ id: "none", label: emptyLabel }, ...options].map((o) => (
               <CommandItem
                 key={o.id}

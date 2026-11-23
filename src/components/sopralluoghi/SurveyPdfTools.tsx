@@ -22,6 +22,7 @@ import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
 import { downloadQuotePdf } from "@/lib/preventivi/quotePdfDownload";
 import { toast } from "sonner";
 import type { SurveyPdfBrand } from "@/lib/surveys/pdfBrand";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const PdfPanel = lazy(() =>
   import("@/components/shared/PdfBlobLivePreviewPanel").then((m) => ({
@@ -46,6 +47,7 @@ export function SurveyPdfTools({
   const [preview, setPreview] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState<string | null>(null);
+  const t = useT();
   // Media and area edits do not necessarily update the survey header timestamp.
   const previewKey = useMemo(
     () => JSON.stringify([detail, companyName, references, brand]),
@@ -102,13 +104,13 @@ export function SurveyPdfTools({
       const blob = await getBlob();
       if (!alive.current) return;
       downloadQuotePdf(blob, surveyPdfName(detail.survey.code));
-      toast.success("PDF scaricato", {
-        description: "Report dei dati salvati; nessun invio al cliente.",
+      toast.success(t("PDF scaricato"), {
+        description: t("Report dei dati salvati; nessun invio al cliente."),
       });
     } catch (e) {
       if (alive.current)
         setError(
-          e instanceof Error ? e.message : "PDF non disponibile. Riprova.",
+          e instanceof Error ? e.message : t("PDF non disponibile. Riprova."),
         );
     } finally {
       inFlight.current = false;
@@ -119,8 +121,8 @@ export function SurveyPdfTools({
     const target = window.open("", "_blank");
     if (target) {
       target.opener = null;
-      target.document.title = "Documento archiviato";
-      target.document.body.textContent = "Apertura del documento originale…";
+      target.document.title = t("Documento archiviato");
+      target.document.body.textContent = t("Apertura del documento originale…");
     }
     try {
       const { resolveSavedSurveyReport } =
@@ -133,19 +135,19 @@ export function SurveyPdfTools({
       if (target && !target.closed) target.location.replace(url);
       else
         throw new Error(
-          "Il browser ha bloccato l’apertura. Consenti la nuova scheda e riprova.",
+          t("Il browser ha bloccato l’apertura. Consenti la nuova scheda e riprova."),
         );
     } catch (e) {
       target?.close();
       if (alive.current)
-        setError(e instanceof Error ? e.message : "Documento non disponibile.");
+        setError(e instanceof Error ? e.message : t("Documento non disponibile."));
     }
   };
   return (
     <>
       <div
         className="flex flex-wrap items-center gap-2"
-        aria-label="Documento del sopralluogo"
+        aria-label={t("Documento del sopralluogo")}
       >
         <Button
           type="button"
@@ -155,7 +157,7 @@ export function SurveyPdfTools({
           onClick={() => setPreview(true)}
         >
           <Eye className="h-4 w-4" />
-          {compact ? "PDF" : "Anteprima PDF"}
+          {compact ? "PDF" : t("Anteprima PDF")}
         </Button>
         {!compact && (
           <Button
@@ -169,7 +171,7 @@ export function SurveyPdfTools({
             ) : (
               <Download className="h-4 w-4" />
             )}
-            {busy ? "Preparo PDF…" : "Scarica PDF"}
+            {busy ? t("Preparo PDF…") : t("Scarica PDF")}
           </Button>
         )}
         {detail.survey.pdf_report_url && (
@@ -180,7 +182,7 @@ export function SurveyPdfTools({
             disabled={disabled || busy}
           >
             <Archive className="h-4 w-4" />
-            Documento archiviato
+            {t("Documento archiviato")}
           </Button>
         )}
       </div>
@@ -195,12 +197,11 @@ export function SurveyPdfTools({
             <DialogHeader className="shrink-0 pr-9">
               <DialogTitle>PDF · {detail.survey.code}</DialogTitle>
               <DialogDescription>
-                Report dei dati salvati. Nessun documento viene inviato o
-                archiviato automaticamente.
+                {t("Report dei dati salvati. Nessun documento viene inviato o archiviato automaticamente.")}
               </DialogDescription>
             </DialogHeader>
             <div className="min-h-0 flex-1">
-              <Suspense fallback={<p role="status">Preparo l’anteprima…</p>}>
+              <Suspense fallback={<p role="status">{t("Preparo l’anteprima…")}</p>}>
                 <PdfPanel
                   renderBlobUrl={previewUrl}
                   depsKey={previewKey}

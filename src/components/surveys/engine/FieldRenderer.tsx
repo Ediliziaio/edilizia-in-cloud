@@ -19,6 +19,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface FieldRendererProps {
   field: FieldDefinition;
@@ -38,6 +39,7 @@ const WIDTH_TO_CLASS: Record<number, string> = {
 };
 
 export function FieldRenderer({ field, value, allValues, onChange, showErrors }: FieldRendererProps) {
+  const t = useT();
   const visible = useMemo(() => isVisible(field.show_if, allValues), [field.show_if, allValues]);
   if (!visible) return null;
 
@@ -53,16 +55,16 @@ export function FieldRenderer({ field, value, allValues, onChange, showErrors }:
     <div className={cn(widthClass, "space-y-1.5")}>
       {field.type !== "boolean" && field.type !== "compound_boolean" && (
         <Label className="text-xs flex items-center gap-1">
-          {field.label}
+          {t(field.label)}
           {field.required && <span className="text-rose-500">*</span>}
         </Label>
       )}
       <FieldInput field={field} value={value} allValues={allValues} onChange={onChange} hasError={hasError} />
       {field.help && (
-        <p className="text-[11px] text-muted-foreground">{field.help}</p>
+        <p className="text-[11px] text-muted-foreground">{t(field.help)}</p>
       )}
       {hasError && (
-        <p className="text-[11px] text-rose-600">Campo obbligatorio</p>
+        <p className="text-[11px] text-rose-600">{t("Campo obbligatorio")}</p>
       )}
     </div>
   );
@@ -71,16 +73,19 @@ export function FieldRenderer({ field, value, allValues, onChange, showErrors }:
 function FieldInput({
   field, value, allValues, onChange, hasError,
 }: FieldRendererProps & { hasError?: boolean }) {
+  const t = useT();
   const errClass = hasError ? "border-rose-500 focus-visible:ring-rose-500" : "";
+  const etichetta = t(field.label);
+  const segnaposto = field.placeholder ? t(field.placeholder) : undefined;
 
   switch (field.type) {
     case "text":
       return (
         <Input
-          aria-label={field.label}
+          aria-label={etichetta}
           value={(value as string) ?? ""}
           onChange={(e) => onChange(field.key, e.target.value)}
-          placeholder={field.placeholder}
+          placeholder={segnaposto}
           maxLength={field.max_length}
           className={cn("h-9", errClass)}
         />
@@ -89,10 +94,10 @@ function FieldInput({
     case "textarea":
       return (
         <Textarea
-          aria-label={field.label}
+          aria-label={etichetta}
           value={(value as string) ?? ""}
           onChange={(e) => onChange(field.key, e.target.value)}
-          placeholder={field.placeholder}
+          placeholder={segnaposto}
           rows={4}
           className={errClass}
         />
@@ -109,13 +114,13 @@ function FieldInput({
           <Input
             type="number"
             inputMode="decimal"
-            aria-label={field.label}
+            aria-label={etichetta}
             value={value == null ? "" : String(value)}
             onChange={(e) => {
               const raw = e.target.value;
               onChange(field.key, raw === "" ? null : Number(raw));
             }}
-            placeholder={field.placeholder}
+            placeholder={segnaposto}
             min={field.min}
             max={field.max}
             step={field.step ?? (field.decimals ? 1 / Math.pow(10, field.decimals) : 1)}
@@ -136,7 +141,7 @@ function FieldInput({
       if (opts.length <= 4) {
         return (
           <RadioGroup
-            aria-label={field.label}
+            aria-label={etichetta}
             aria-required={field.required || undefined}
             aria-invalid={hasError || undefined}
             value={(value as string) ?? ""}
@@ -158,7 +163,7 @@ function FieldInput({
                   id={`${field.key}-${o.value}`}
                   className="h-4 w-4 min-h-0 min-w-0 shrink-0 self-center border-slate-300 text-blue-600 data-[state=checked]:border-blue-600"
                 />
-                <span className="min-w-0 break-words text-sm font-medium leading-snug">{o.label}</span>
+                <span className="min-w-0 break-words text-sm font-medium leading-snug">{t(o.label)}</span>
               </label>
             ))}
           </RadioGroup>
@@ -166,12 +171,12 @@ function FieldInput({
       }
       return (
         <Select value={(value as string) ?? ""} onValueChange={(v) => onChange(field.key, v)}>
-          <SelectTrigger aria-label={field.label} className={cn("h-9 text-xs", errClass)}>
-            <SelectValue placeholder={field.placeholder ?? "Seleziona…"} />
+          <SelectTrigger aria-label={etichetta} className={cn("h-9 text-xs", errClass)}>
+            <SelectValue placeholder={segnaposto ?? t("Seleziona…")} />
           </SelectTrigger>
           <SelectContent>
             {opts.map((o) => (
-              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              <SelectItem key={o.value} value={o.value}>{t(o.label)}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -207,7 +212,7 @@ function FieldInput({
                     else onChange(field.key, arr.filter((x) => x !== o.value));
                   }}
                 />
-                {o.label}
+                {t(o.label)}
               </label>
             );
           })}
@@ -219,8 +224,8 @@ function FieldInput({
       return (
         <div className="flex items-center justify-between border rounded-md p-2.5">
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium">{field.label}</p>
-            {field.help && <p className="text-[11px] text-muted-foreground mt-0.5">{field.help}</p>}
+            <p className="text-sm font-medium">{etichetta}</p>
+            {field.help && <p className="text-[11px] text-muted-foreground mt-0.5">{t(field.help)}</p>}
           </div>
           <Switch checked={!!value} onCheckedChange={(v) => onChange(field.key, v)} />
         </div>
@@ -233,7 +238,7 @@ function FieldInput({
       return (
         <div className="border rounded-md overflow-hidden">
           <div className="flex items-center justify-between p-2.5 bg-muted/30">
-            <p className="text-sm font-medium">{field.toggle_label ?? field.label}</p>
+            <p className="text-sm font-medium">{field.toggle_label ? t(field.toggle_label) : etichetta}</p>
             <Switch
               checked={isOn}
               onCheckedChange={(v) => onChange(field.key, v ? (nested ?? {}) : false)}
@@ -263,7 +268,7 @@ function FieldInput({
       return (
         <Input
           type="date"
-          aria-label={field.label}
+          aria-label={etichetta}
           value={(value as string) ?? ""}
           onChange={(e) => onChange(field.key, e.target.value)}
           className={cn("h-9", errClass)}
@@ -275,13 +280,13 @@ function FieldInput({
         <div className="flex items-center gap-2">
           <Input
             type="color"
-            aria-label={field.label}
+            aria-label={etichetta}
             value={(value as string) ?? "#ffffff"}
             onChange={(e) => onChange(field.key, e.target.value)}
             className="h-9 w-14 p-1 cursor-pointer"
           />
           <Input
-            aria-label={`${field.label} (codice)`}
+            aria-label={t("{etichetta} (codice)", { etichetta })}
             value={(value as string) ?? ""}
             onChange={(e) => onChange(field.key, e.target.value)}
             placeholder="RAL 9010 / #ffffff"
@@ -293,7 +298,7 @@ function FieldInput({
     default:
       return (
         <Input
-          aria-label={field.label}
+          aria-label={etichetta}
           value={(value as string) ?? ""}
           onChange={(e) => onChange(field.key, e.target.value)}
           className={cn("h-9", errClass)}

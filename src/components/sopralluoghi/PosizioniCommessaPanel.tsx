@@ -13,6 +13,7 @@ import {
   valoreNelCampo, type SchedaPosizione, type TipoMisura,
 } from "@/lib/surveys/misureRilievo";
 import type { TemplateSchema } from "@/types/surveys";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * L'elenco delle posizioni della commessa, dentro il sopralluogo: riferimento e misura
@@ -62,6 +63,7 @@ interface Props {
 
 export function PosizioniCommessaPanel({ surveyId, schema, canEdit }: Props) {
   const qc = useQueryClient();
+  const t = useT();
   const chiave = ["sopralluogo-posizioni", surveyId];
   const { data, isLoading, isError } = useQuery({
     queryKey: chiave,
@@ -115,10 +117,10 @@ export function PosizioniCommessaPanel({ surveyId, schema, canEdit }: Props) {
       qc.invalidateQueries({ queryKey: chiave });
       qc.invalidateQueries({ queryKey: ["sopralluogo", surveyId] });
       qc.invalidateQueries({ queryKey: ["order-measure-items"] });
-      toast.success(`Misure salvate: ${esito.applicate + esito.tenute}`);
-      if (esito.con_ordine.length > 0) toast.warning("Alcune posizioni sono già in un ordine: avvisa l'ufficio.");
+      toast.success(t("Misure salvate: {n}", { n: esito.applicate + esito.tenute }));
+      if (esito.con_ordine.length > 0) toast.warning(t("Alcune posizioni sono già in un ordine: avvisa l'ufficio."));
     },
-    onError: (e) => toast.error((e as Error).message || "Misure non salvate: riprova, restano qui"),
+    onError: (e) => toast.error((e as Error).message || t("Misure non salvate: riprova, restano qui")),
     onSettled: () => { inCorso.current = false; },
   });
   const salvaUnaVolta = () => {
@@ -130,32 +132,32 @@ export function PosizioniCommessaPanel({ surveyId, schema, canEdit }: Props) {
   if (isLoading) {
     return (
       <p className="flex items-center gap-2 rounded-xl border bg-white p-4 text-sm text-slate-500">
-        <Loader2 className="h-4 w-4 animate-spin" /> Carico le posizioni della commessa…
+        <Loader2 className="h-4 w-4 animate-spin" /> {t("Carico le posizioni della commessa…")}
       </p>
     );
   }
-  if (isError) return <p role="alert" className="rounded-xl border border-orange-200 bg-orange-50 p-4 text-sm">Posizioni della commessa non disponibili.</p>;
+  if (isError) return <p role="alert" className="rounded-xl border border-orange-200 bg-orange-50 p-4 text-sm">{t("Posizioni della commessa non disponibili.")}</p>;
   if (righe.length === 0) return null;
 
   const rilevate = righe.filter(({ riga }) => riga.measure_status !== "da_rilevare").length;
   const gioco = Number(data?.gioco_posa_mm ?? 0);
 
   return (
-    <section aria-label="Posizioni della commessa" className="space-y-3 rounded-xl border bg-white p-3 sm:p-4">
+    <section aria-label={t("Posizioni della commessa")} className="space-y-3 rounded-xl border bg-white p-3 sm:p-4">
       <header className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="flex items-center gap-2 font-semibold">
           <Ruler className="h-4 w-4 text-orange-500" aria-hidden="true" />
-          Posizioni della commessa
-          <span className="text-xs font-normal text-slate-500">{rilevate} di {righe.length} rilevate</span>
+          {t("Posizioni della commessa")}
+          <span className="text-xs font-normal text-slate-500">{t("{n} di {totale} rilevate", { n: rilevate, totale: righe.length })}</span>
         </h3>
         {data?.ruolo_misure && (
           <Badge variant="outline" className="text-[10px]">
-            {data.ruolo_misure === "definitivo" ? "Misure definitive" : "Misure preliminari"}
+            {data.ruolo_misure === "definitivo" ? t("Misure definitive") : t("Misure preliminari")}
           </Badge>
         )}
       </header>
       {gioco > 0 && (
-        <p className="text-xs text-slate-500">Scrivi la misura reale: dal foro l'ufficio toglie {gioco} mm di gioco di posa.</p>
+        <p className="text-xs text-slate-500">{t("Scrivi la misura reale: dal foro l'ufficio toglie {mm} mm di gioco di posa.", { mm: gioco })}</p>
       )}
 
       <ul className="space-y-2">
@@ -175,11 +177,11 @@ export function PosizioniCommessaPanel({ surveyId, schema, canEdit }: Props) {
       {canEdit && (
         <div className="sticky bottom-0 -mx-3 flex items-center justify-between gap-2 border-t bg-white/95 px-3 py-2 sm:-mx-4 sm:px-4">
           <span className="text-xs text-slate-500">
-            {senzaScelta ? "Scegli quali misure tenere" : daSalvare.length ? `${daSalvare.length} da salvare` : "Scrivi le misure definitive"}
+            {senzaScelta ? t("Scegli quali misure tenere") : daSalvare.length ? t("{n} da salvare", { n: daSalvare.length }) : t("Scrivi le misure definitive")}
           </span>
           <Button className="min-h-11" disabled={daSalvare.length === 0 || senzaScelta || salva.isPending} onClick={salvaUnaVolta}>
             {salva.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
-            Salva misure
+            {t("Salva misure")}
           </Button>
         </div>
       )}
@@ -202,6 +204,7 @@ function Posizione({
   onChange: (m: Partial<Bozza>) => void;
 }) {
   const altro = altroSopralluogo(riga, surveyId);
+  const tr = useT();
   // Le misure di questo stesso sopralluogo si ritrovano; quelle di un altro vanno riscritte.
   const salvate = altro ? null : riga.misure_rilevate;
   const valori = bozza?.valori ?? {};
@@ -215,14 +218,14 @@ function Posizione({
     <li className="rounded-lg border p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold">{riga.riferimento || riga.name}</p>
-          {riga.riferimento && <p className="truncate text-xs text-slate-500">{riga.name}</p>}
+          <p dir="auto" className="truncate text-sm font-semibold">{riga.riferimento || riga.name}</p>
+          {riga.riferimento && <p dir="auto" className="truncate text-xs text-slate-500">{riga.name}</p>}
         </div>
-        <Badge variant="outline" className={`text-[10px] ${stato.classe}`}>{stato.testo}</Badge>
+        <Badge variant="outline" className={`text-[10px] ${stato.classe}`}>{tr(stato.testo)}</Badge>
       </div>
       <p className="mt-1 text-xs text-slate-500">
-        Provvisoria: <span className="tabular-nums">{misureInTesto(riga.misure_preventivo, unita)}</span>
-        {altro && <> · Altro sopralluogo: <span className="tabular-nums">{misureInTesto(riga.misure_rilevate, unita)}</span></>}
+        {tr("Provvisoria:")} <span className="tabular-nums">{misureInTesto(riga.misure_preventivo, unita)}</span>
+        {altro && <> · {tr("Altro sopralluogo:")} <span className="tabular-nums">{misureInTesto(riga.misure_rilevate, unita)}</span></>}
       </p>
 
       <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -230,7 +233,7 @@ function Posizione({
           const id = `pos-${riga.id}-${c.asse}`;
           return (
             <div key={c.asse} className="min-w-0">
-              <Label htmlFor={id} className="text-xs">{c.etichetta} ({c.unita})</Label>
+              <Label htmlFor={id} className="text-xs">{tr(c.etichetta)} ({c.unita})</Label>
               <Input
                 id={id}
                 inputMode="decimal"
@@ -250,10 +253,10 @@ function Posizione({
         })}
         {lati && (
           <div className="min-w-0">
-            <Label htmlFor={`pos-${riga.id}-tipo`} className="text-xs">È la misura del</Label>
+            <Label htmlFor={`pos-${riga.id}-tipo`} className="text-xs">{tr("È la misura del")}</Label>
             <Select disabled={!canEdit} value={bozza?.tipo ?? scheda.misuraTipo} onValueChange={value => onChange({tipo:value as TipoMisura})}>
               <SelectTrigger id={`pos-${riga.id}-tipo`} className="mt-1 h-11 w-full"><SelectValue /></SelectTrigger>
-              <SelectContent><SelectItem value="foro">Foro</SelectItem><SelectItem value="telaio">Telaio</SelectItem><SelectItem value="finita">Prodotto finito</SelectItem></SelectContent>
+              <SelectContent><SelectItem value="foro">{tr("Foro")}</SelectItem><SelectItem value="telaio">{tr("Telaio")}</SelectItem><SelectItem value="finita">{tr("Prodotto finito")}</SelectItem></SelectContent>
             </Select>
           </div>
         )}
@@ -263,11 +266,11 @@ function Posizione({
         <fieldset className="mt-2 rounded-md bg-amber-50 p-2 text-xs">
           <legend className="font-medium text-amber-900">
             {differenze.length
-              ? differenze.map((d) => `${NOME_ASSE[d.asse]} ${d.delta! > 0 ? "+" : ""}${d.delta}`).join(" · ")
-              : "Uguali all'altro sopralluogo"}
+              ? differenze.map((d) => `${tr(NOME_ASSE[d.asse])} ${d.delta! > 0 ? "+" : ""}${d.delta}`).join(" · ")
+              : tr("Uguali all'altro sopralluogo")}
           </legend>
           <div className="mt-1 flex flex-wrap gap-3">
-            {([["tieni_nuovo", "Tieni le nuove"], ["tieni_precedente", "Tieni le precedenti"]] as const).map(([v, t]) => (
+            {([["tieni_nuovo", tr("Tieni le nuove")], ["tieni_precedente", tr("Tieni le precedenti")]] as const).map(([v, t]) => (
               <label key={v} className="flex min-h-9 items-center gap-1.5">
                 <input type="radio" name={`scelta-${riga.id}`} checked={bozza?.scelta === v} onChange={() => onChange({ scelta: v })} />
                 {t}

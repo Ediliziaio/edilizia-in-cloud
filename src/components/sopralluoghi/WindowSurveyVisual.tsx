@@ -36,6 +36,14 @@ import {
   type WindowComponent,
   type WindowValues,
 } from "@/lib/surveys/windowSurvey";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
+
+const QUOTE_CASSONETTO: Record<string, string> = {
+  L: "L · Larghezza",
+  H: "H · Altezza",
+  P: "P · Profondità",
+  C: "C · Cielino",
+};
 
 type Props = {
   type: ElementTypeDefinition;
@@ -61,6 +69,7 @@ export function WindowSurveyVisual({
   resumeAnnotation,
   onAnnotationDraftChange,
 }: Props) {
+  const t = useT();
   const [view, setView] = useState<DrawingView>(
       resumeAnnotation?.view ??
         (type.key === "porta_interna" ? "esterna" : "interna"),
@@ -132,23 +141,23 @@ export function WindowSurveyVisual({
   );
   return (
     <section
-      aria-label="Disegno tecnico del rilievo"
+      aria-label={t("Disegno tecnico del rilievo")}
       className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
     >
       <div className="flex items-center gap-2 border-b px-4 py-3">
         <Ruler className="h-4 w-4 text-blue-700" />
         <h4 className="text-sm font-semibold text-slate-900">
-          Il tuo rilievo, in vista
+          {t("Il tuo rilievo, in vista")}
         </h4>
         <span className="ml-auto text-[10px] font-medium uppercase tracking-wider text-slate-400">
-          Quote in mm
+          {t("Quote in mm")}
         </span>
       </div>
       <div className="space-y-4 p-4">
         <div
           className="flex flex-wrap gap-2"
           role="group"
-          aria-label="Vista del disegno"
+          aria-label={t("Vista del disegno")}
         >
           {drawing?.axonometric && !finite
             ? ([true, false] as const).map((v) => (
@@ -165,7 +174,7 @@ export function WindowSurveyVisual({
                     setPinMode(false);
                   }}
                 >
-                  {v ? "Vista 3D" : "Frontale e note"}
+                  {v ? t("Vista 3D") : t("Frontale e note")}
                 </Button>
               ))
             : (["interna", "esterna"] as const).map((v) => (
@@ -181,11 +190,11 @@ export function WindowSurveyVisual({
                 >
                   {type.key === "porta_interna"
                     ? v === "esterna"
-                      ? "Lato A · riferimento"
-                      : "Lato B · retro"
+                      ? t("Lato A · riferimento")
+                      : t("Lato B · retro")
                     : v === "interna"
-                      ? "Da dentro"
-                      : "Da fuori"}
+                      ? t("Da dentro")
+                      : t("Da fuori")}
                 </Button>
               ))}
         </div>
@@ -202,8 +211,12 @@ export function WindowSurveyVisual({
                     className="text-xs text-slate-600"
                   >
                     {type.key === "porta_interna"
-                      ? `Colore lato ${view === "esterna" ? "A" : "B"}`
-                      : `Colore ${view === "interna" ? "interno" : "esterno"}`}
+                      ? t("Colore lato {lato}", {
+                          lato: view === "esterna" ? "A" : "B",
+                        })
+                      : view === "interna"
+                        ? t("Colore interno")
+                        : t("Colore esterno")}
                   </Label>
                   <Select
                     value={ownColor || "__general"}
@@ -220,7 +233,7 @@ export function WindowSurveyVisual({
                     </SelectTrigger>
                     <SelectContent className="rounded-xl">
                       <SelectItem value="__general">
-                        Generale / non indicato
+                        {t("Generale / non indicato")}
                       </SelectItem>
                       {ownColor &&
                         !colorOptions.some(([key]) => key === ownColor) && (
@@ -228,7 +241,7 @@ export function WindowSurveyVisual({
                         )}
                       {colorOptions.map(([key, label]) => (
                         <SelectItem key={key} value={key}>
-                          {label}
+                          {t(label)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -236,7 +249,7 @@ export function WindowSurveyVisual({
                 </div>
               )}
             <p className="text-[11px] text-slate-500" aria-live="polite">
-              {windowSurveyFinishLabel(projected.values, view)}
+              {t(windowSurveyFinishLabel(projected.values, view))}
             </p>
           </div>
         )}
@@ -245,7 +258,7 @@ export function WindowSurveyVisual({
           values.complementi.length > 0 && (
             <div
               className="flex flex-wrap gap-1"
-              aria-label="Componente da disegnare"
+              aria-label={t("Componente da disegnare")}
             >
               {WINDOW_COMPONENTS.filter(
                 ([k]) =>
@@ -266,7 +279,7 @@ export function WindowSurveyVisual({
                     setPinMode(false);
                   }}
                 >
-                  {label}
+                  {t(label)}
                 </Button>
               ))}
             </div>
@@ -275,8 +288,8 @@ export function WindowSurveyVisual({
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
             <span className="font-medium text-slate-600">
               {boxMeasured
-                ? "Proporzioni delle misure rilevate"
-                : "Schema illustrativo · non in scala"}
+                ? t("Proporzioni delle misure rilevate")
+                : t("Schema illustrativo · non in scala")}
             </span>
             <Button
               type="button"
@@ -286,8 +299,8 @@ export function WindowSurveyVisual({
               onClick={() => setBoxMeasured(!boxMeasured)}
             >
               {boxMeasured
-                ? "Torna allo schema"
-                : "Mostra proporzioni rilevate"}
+                ? t("Torna allo schema")
+                : t("Mostra proporzioni rilevate")}
             </Button>
           </div>
         )}
@@ -328,7 +341,10 @@ export function WindowSurveyVisual({
                     <span
                       key={p.id}
                       title={p.text}
-                      aria-label={`Nota ${pins.indexOf(p) + 1}: ${p.text}`}
+                      aria-label={t("Nota {n}: {testo}", {
+                        n: pins.indexOf(p) + 1,
+                        testo: p.text,
+                      })}
                       className="pointer-events-none absolute flex h-6 w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white bg-orange-500 text-xs font-semibold text-white shadow"
                       style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%` }}
                     >
@@ -338,7 +354,7 @@ export function WindowSurveyVisual({
               {pinMode && !finite && (
                 <button
                   type="button"
-                  aria-label="Scegli il punto della nota sul disegno"
+                  aria-label={t("Scegli il punto della nota sul disegno")}
                   className="absolute inset-0 cursor-crosshair rounded-xl border-2 border-dashed border-orange-400 bg-orange-100/10 focus-visible:ring-2 focus-visible:ring-orange-500"
                   onClick={(e) => {
                     const rect = e.currentTarget.getBoundingClientRect();
@@ -375,28 +391,23 @@ export function WindowSurveyVisual({
           ) : (
             <div className="max-w-64 text-center text-sm text-slate-500">
               <Ruler className="mx-auto mb-3 h-7 w-7 text-blue-300" />
-              Inserisci larghezza e altezza con un’unità nota per vedere
-              l’ingombro. Nessuna misura di esempio viene aggiunta.
+              {t(
+                "Inserisci larghezza e altezza con un’unità nota per vedere l’ingombro. Nessuna misura di esempio viene aggiunta.",
+              )}
             </div>
           )}
         </div>
         <div className="space-y-1">
           {spatial && (
             <dl
-              aria-label="Quote del cassonetto"
+              aria-label={t("Quote del cassonetto")}
               className="mb-3 grid grid-cols-2 gap-x-4 gap-y-2 rounded-xl bg-slate-50 p-3 sm:grid-cols-4"
             >
               {spatial.dimensions.map((d) => (
                 <div key={d.text}>
                   <dt className="text-[10px] font-medium text-slate-500">
-                    {
-                      {
-                        L: "L · Larghezza",
-                        H: "H · Altezza",
-                        P: "P · Profondità",
-                        C: "C · Cielino",
-                      }[d.text[0]]
-                    }
+                    {QUOTE_CASSONETTO[d.text[0]] &&
+                      t(QUOTE_CASSONETTO[d.text[0]])}
                   </dt>
                   <dd className="text-sm font-semibold tabular-nums text-blue-950">
                     {d.text.slice(2)}
@@ -406,41 +417,51 @@ export function WindowSurveyVisual({
               {!spatial.dimensions.some((d) => d.text.startsWith("C ")) && (
                 <div>
                   <dt className="text-[10px] font-medium text-slate-500">
-                    C · Cielino
+                    {t("C · Cielino")}
                   </dt>
                   <dd className="text-sm font-medium text-amber-800">
-                    Da rilevare
+                    {t("Da rilevare")}
                   </dd>
                 </div>
               )}
             </dl>
           )}
           <p className="text-xs font-medium text-blue-900">
-            {drawing?.basis ?? "Misure mancanti o unità non riconosciuta"}
+            {drawing?.basis
+              ? t(drawing.basis)
+              : t("Misure mancanti o unità non riconosciuta")}
           </p>
           {spatial && (
             <details className="text-[11px] text-slate-500">
               <summary className="cursor-pointer font-medium text-blue-800">
-                Legenda L · H · P · C
+                {t("Legenda L · H · P · C")}
               </summary>
               <ul className="mt-1 space-y-1">
                 {(boxSketch ?? spatial).notes.map((n) => (
-                  <li key={n}>{n}</li>
+                  <li key={n}>{t(n)}</li>
                 ))}
               </ul>
             </details>
           )}
           <p className="text-[11px] text-slate-500">
             {spatial ? (
-              "L e H: cassonetto. P: profondità del corpo. C: profondità totale del cielino. Profili e pannello sono illustrativi."
+              t(
+                "L e H: cassonetto. P: profondità del corpo. C: profondità totale del cielino. Profili e pannello sono illustrativi.",
+              )
             ) : (
               <>
-                Schema proporzionale, profili illustrativi.{" "}
+                {t("Schema proporzionale, profili illustrativi.")}{" "}
                 {type.key === "porta_interna"
-                  ? "Porta interna: cerniere, spingere/tirare e scorrimento si definiscono dal lato A, identificato con il nome della stanza."
+                  ? t(
+                      "Porta interna: cerniere, spingere/tirare e scorrimento si definiscono dal lato A, identificato con il nome della stanza.",
+                    )
                   : type.key === "portoncino_blindato"
-                    ? "Portoncino: cerniere e spingere/tirare si definiscono dal lato esterno."
-                    : "Destra e sinistra si definiscono da dentro; la vista esterna si specchia."}
+                    ? t(
+                        "Portoncino: cerniere e spingere/tirare si definiscono dal lato esterno.",
+                      )
+                    : t(
+                        "Destra e sinistra si definiscono da dentro; la vista esterna si specchia.",
+                      )}
               </>
             )}
           </p>
@@ -451,7 +472,7 @@ export function WindowSurveyVisual({
             role="status"
             className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"
           >
-            {warning}
+            {t(warning)}
           </p>
         ))}
         {drawing?.abaco && (
@@ -467,13 +488,16 @@ export function WindowSurveyVisual({
             open={drawing.axonometric ? undefined : true}
           >
             <summary className="cursor-pointer text-xs font-semibold text-blue-950">
-              {drawing.detail.title}
+              {t(drawing.detail.title)}
             </summary>
             <figure className="mt-3 space-y-2">
               {["portoncino_blindato", "porta_interna"].includes(type.key) && (
                 <p className="text-center text-[10px] font-medium tracking-widest text-slate-500">
-                  {drawing.detail.labels?.top ??
-                    (type.key === "porta_interna" ? "LATO A" : "ESTERNO")}
+                  {drawing.detail.labels?.top
+                    ? t(drawing.detail.labels.top)
+                    : type.key === "porta_interna"
+                      ? t("LATO A")
+                      : t("ESTERNO")}
                 </p>
               )}
               <div
@@ -481,19 +505,22 @@ export function WindowSurveyVisual({
               >
                 <DisegnoSerramentoSvg
                   scena={drawing.detail.scene}
-                  ariaLabel={`${drawing.detail.title}. ${drawing.detail.caption}`}
+                  ariaLabel={`${t(drawing.detail.title)}. ${t(drawing.detail.caption)}`}
                   finituraInterna={drawing.internal}
                   finituraEsterna={drawing.external}
                 />
               </div>
               {["portoncino_blindato", "porta_interna"].includes(type.key) && (
                 <p className="text-center text-[10px] font-medium tracking-widest text-slate-500">
-                  {drawing.detail.labels?.bottom ??
-                    (type.key === "porta_interna" ? "LATO B" : "INTERNO")}
+                  {drawing.detail.labels?.bottom
+                    ? t(drawing.detail.labels.bottom)
+                    : type.key === "porta_interna"
+                      ? t("LATO B")
+                      : t("INTERNO")}
                 </p>
               )}
               <p className="text-[11px] text-slate-500">
-                {drawing.detail.caption}
+                {t(drawing.detail.caption)}
               </p>
             </figure>
           </details>
@@ -514,7 +541,7 @@ export function WindowSurveyVisual({
                 }}
                 aria-pressed={order === o}
               >
-                {o ? "Finite verificate" : "Rilevate"}
+                {o ? t("Finite verificate") : t("Rilevate")}
               </Button>
             ))}
           </div>
@@ -522,18 +549,18 @@ export function WindowSurveyVisual({
         {!!drawing?.warnings.length && (
           <div className="space-y-1 rounded-xl bg-orange-50 p-3 text-xs text-orange-900">
             {drawing.warnings.map((w) => (
-              <p key={w}>{w}</p>
+              <p key={w}>{t(w)}</p>
             ))}
           </div>
         )}
         {onChange && component === "primary" && type.key === "infisso" && (
           <details open className="rounded-xl border p-3">
             <summary className="cursor-pointer text-xs font-semibold text-slate-700">
-              Componi le ante
+              {t("Componi le ante")}
             </summary>
             <div className="mt-3 space-y-3">
               <Label htmlFor={`${id}-count`} className="text-xs">
-                Numero totale di ante / campi
+                {t("Numero totale di ante / campi")}
               </Label>
               <Input
                 id={`${id}-count`}
@@ -553,16 +580,18 @@ export function WindowSurveyVisual({
               {Array.from({ length: count }, (_, i) => (
                 <div key={i} className="space-y-2 rounded-xl bg-slate-50 p-2.5">
                   <p className="text-xs font-medium">
-                    Anta {i + 1} · da sinistra a destra
+                    {t("Anta {n} · da sinistra a destra", { n: i + 1 })}
                   </p>
                   <Pick
-                    label={`Anta ${i + 1} · apertura`}
+                    label={t("Anta {n} · apertura", { n: i + 1 })}
                     value={String(values[`rv_leaf_${i}_type`] ?? "")}
                     options={LEAF_TYPES}
                     onValueChange={(v) => patch(`rv_leaf_${i}_type`, v)}
                   />
                   <Pick
-                    label={`Anta ${i + 1} · cerniere / scorrimento da dentro`}
+                    label={t("Anta {n} · cerniere / scorrimento da dentro", {
+                      n: i + 1,
+                    })}
                     value={String(values[`rv_leaf_${i}_side`] ?? "")}
                     options={[
                       ["sx", "Sinistra"],
@@ -590,29 +619,32 @@ export function WindowSurveyVisual({
               }}
             >
               <MapPin className="h-4 w-4" />
-              {pinMode ? "Annulla posizionamento" : "Aggiungi nota sul disegno"}
+              {pinMode
+                ? t("Annulla posizionamento")
+                : t("Aggiungi nota sul disegno")}
             </Button>
             {pinMode && !pending && (
               <p role="status" className="text-xs text-orange-800">
-                Tocca il punto sul disegno. Con tastiera, Invio posiziona la
-                nota al centro.
+                {t(
+                  "Tocca il punto sul disegno. Con tastiera, Invio posiziona la nota al centro.",
+                )}
               </p>
             )}
             {pending && (
               <div className="space-y-2 rounded-xl border border-orange-200 bg-orange-50 p-3">
                 <Label htmlFor={`${id}-note`} className="text-xs">
-                  Nota sul punto selezionato
+                  {t("Nota sul punto selezionato")}
                 </Label>
                 <Textarea
                   id={`${id}-note`}
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                   maxLength={2000}
-                  placeholder="Es. mazzetta fuori squadra da verificare"
+                  placeholder={t("Es. mazzetta fuori squadra da verificare")}
                 />
                 {photos.length > 0 && (
                   <Pick
-                    label="Foto collegata alla nota"
+                    label={t("Foto collegata alla nota")}
                     value={photoId}
                     options={[
                       ["none", "Nessuna foto"],
@@ -648,14 +680,14 @@ export function WindowSurveyVisual({
                     setPinMode(false);
                   }}
                 >
-                  Aggiungi alla bozza
+                  {t("Aggiungi alla bozza")}
                 </Button>
               </div>
             )}
           </div>
         )}
         {pins.length > 0 && (
-          <ol className="space-y-2" aria-label="Note del disegno">
+          <ol className="space-y-2" aria-label={t("Note del disegno")}>
             {pins.map((p, i) => (
               <li
                 key={p.id}
@@ -671,21 +703,27 @@ export function WindowSurveyVisual({
                     setOrder(false);
                   }}
                   className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-orange-500 font-medium text-white"
-                  aria-label={`Mostra nota ${i + 1} nella vista ${p.view}`}
+                  aria-label={t("Mostra nota {n} nella vista {vista}", {
+                    n: i + 1,
+                    vista: t(p.view),
+                  })}
                 >
                   {i + 1}
                 </button>
                 <div className="min-w-0 flex-1">
-                  <p className="whitespace-pre-wrap break-words text-slate-800">
+                  <p
+                    dir="auto"
+                    className="whitespace-pre-wrap break-words text-slate-800"
+                  >
                     {p.text}
                   </p>
                   <p className="mt-1 text-[10px] text-slate-500">
-                    Vista {p.view}
+                    {t("Vista {vista}", { vista: t(p.view) })}
                     {p.component && p.component !== "primary"
                       ? ` · ${p.component}`
                       : ""}
                     {p.photoId
-                      ? ` · ${photos.find((m) => m.id === p.photoId)?.filename || "Foto non disponibile"}`
+                      ? ` · ${photos.find((m) => m.id === p.photoId)?.filename || t("Foto non disponibile")}`
                       : ""}
                   </p>
                 </div>
@@ -695,7 +733,7 @@ export function WindowSurveyVisual({
                     variant="ghost"
                     size="icon"
                     className="h-6 w-6 shrink-0"
-                    aria-label={`Elimina nota ${i + 1}`}
+                    aria-label={t("Elimina nota {n}", { n: i + 1 })}
                     onClick={() =>
                       patch(
                         WINDOW_PINS,
@@ -713,13 +751,19 @@ export function WindowSurveyVisual({
         {trims.entered > 0 && (
           <div className="rounded-xl bg-blue-50 p-3">
             <p className="text-xs font-medium text-blue-900">
-              Coprifili: {trims.perElement.toLocaleString("it-IT")} ml /
-              elemento
+              {t("Coprifili: {n} ml / elemento", {
+                n: trims.perElement.toLocaleString(intlCampo()),
+              })}
             </p>
             <p className="mt-1 text-[11px] text-blue-700">
-              {trims.entered}/4 lati inseriti ·{" "}
-              {trims.total.toLocaleString("it-IT")} ml per {quantity} elementi.
-              Senza sfrido e senza arrotondamenti a barre.
+              {t(
+                "{lati}/4 lati inseriti · {totale} ml per {n} elementi. Senza sfrido e senza arrotondamenti a barre.",
+                {
+                  lati: trims.entered,
+                  totale: trims.total.toLocaleString(intlCampo()),
+                  n: quantity,
+                },
+              )}
             </p>
           </div>
         )}
@@ -732,12 +776,12 @@ export function WindowSurveyVisual({
           .filter((issue) => !drawing?.warnings.includes(issue))
           .map((issue) => (
             <p key={issue} className="text-[11px] text-slate-500">
-              {issue}
+              {t(issue)}
             </p>
           ))}
         <p className="flex items-start gap-1.5 border-t pt-3 text-[11px] text-slate-400">
           <RotateCcw className="h-3 w-3 shrink-0" />
-          Il rilievo non modifica preventivi, listini o ordini.
+          {t("Il rilievo non modifica preventivi, listini o ordini.")}
         </p>
       </div>
     </section>
@@ -754,6 +798,7 @@ function Pick({
   options: ReadonlyArray<readonly [string, string]>;
   onValueChange: (value: string) => void;
 }) {
+  const t = useT();
   return (
     <Select value={value} onValueChange={onValueChange}>
       <SelectTrigger
@@ -765,7 +810,7 @@ function Pick({
       <SelectContent className="rounded-xl">
         {options.map(([v, l]) => (
           <SelectItem key={v} value={v}>
-            {l}
+            {t(l)}
           </SelectItem>
         ))}
       </SelectContent>

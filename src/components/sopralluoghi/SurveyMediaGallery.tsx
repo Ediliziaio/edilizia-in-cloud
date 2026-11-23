@@ -19,6 +19,7 @@ import {
   ZoomOut,
   Paperclip,
 } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 function Picture({
   url,
@@ -32,10 +33,11 @@ function Picture({
   style?: CSSProperties;
 }) {
   const [failed, setFailed] = useState(false);
+  const t = useT();
   return failed ? (
     <span className="flex min-h-24 items-center justify-center gap-2 p-4 text-xs text-orange-900">
       <ImageOff className="h-4 w-4" />
-      Immagine non disponibile: aggiorna il rilievo.
+      {t("Immagine non disponibile: aggiorna il rilievo.")}
     </span>
   ) : (
     <img
@@ -51,7 +53,7 @@ function Picture({
 export function SurveyMediaGallery({
   media,
   context,
-  emptyText = "Nessuna foto o allegato registrato.",
+  emptyText,
 }: {
   media: SurveyMediaRow[];
   context?: (media: SurveyMediaRow) => string;
@@ -59,6 +61,7 @@ export function SurveyMediaGallery({
 }) {
   const [selected, setSelected] = useState<string | null>(null),
     [zoom, setZoom] = useState(1);
+  const t = useT();
   const photos = media.filter(
     (m) => surveyMediaIsImage(m) && surveyMediaUrl(m.url),
   );
@@ -67,7 +70,7 @@ export function SurveyMediaGallery({
   const label = (m: SurveyMediaRow) =>
     m.filename ||
     m.checklist_label ||
-    (m.type === "audio" ? "Nota vocale" : "Allegato");
+    (m.type === "audio" ? t("Nota vocale") : t("Allegato"));
   const move = (next: number) => {
     setSelected(photos[next].id);
     setZoom(1);
@@ -76,7 +79,7 @@ export function SurveyMediaGallery({
     <>
       {!media.length ? (
         <p className="rounded-xl border border-dashed p-4 text-sm text-slate-500">
-          {emptyText}
+          {emptyText ?? t("Nessuna foto o allegato registrato.")}
         </p>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -95,7 +98,7 @@ export function SurveyMediaGallery({
                       setSelected(m.id);
                       setZoom(1);
                     }}
-                    aria-label={`Ingrandisci ${label(m)}`}
+                    aria-label={t("Ingrandisci {nome}", { nome: label(m) })}
                   >
                     <Picture
                       key={url}
@@ -106,7 +109,7 @@ export function SurveyMediaGallery({
                   </button>
                 )}
                 <div className="space-y-1.5 p-3">
-                  <p className="break-words text-sm font-medium">{label(m)}</p>
+                  <p dir="auto" className="break-words text-sm font-medium">{label(m)}</p>
                   {photoPlacementCaption(m.annotations).map((line, i) => <p key={i} className="whitespace-pre-wrap break-words text-xs text-slate-600">{line}</p>)}
                   {context && (
                     <p className="text-xs text-slate-500">{context(m)}</p>
@@ -123,9 +126,9 @@ export function SurveyMediaGallery({
                   {m.transcription && (
                     <details className="text-xs text-slate-600">
                       <summary className="cursor-pointer py-1">
-                        Leggi trascrizione
+                        {t("Leggi trascrizione")}
                       </summary>
-                      <p className="whitespace-pre-wrap py-2">
+                      <p dir="auto" className="whitespace-pre-wrap py-2">
                         {m.transcription}
                       </p>
                     </details>
@@ -138,12 +141,11 @@ export function SurveyMediaGallery({
                       className="inline-flex min-h-8 items-center gap-1 text-xs font-medium text-blue-700"
                     >
                       <Paperclip className="h-3 w-3" />
-                      {m.type === "annotated_photo" ? "Apri proposta" : "Apri originale"}
+                      {m.type === "annotated_photo" ? t("Apri proposta") : t("Apri originale")}
                     </a>
                   ) : (
                     <p role="status" className="text-xs text-orange-800">
-                      File non disponibile. Aggiorna il sopralluogo per
-                      rinnovare l’accesso.
+                      {t("File non disponibile. Aggiorna il sopralluogo per rinnovare l’accesso.")}
                     </p>
                   )}
                 </div>
@@ -163,8 +165,7 @@ export function SurveyMediaGallery({
             <DialogHeader className="pr-10">
               <DialogTitle>{label(photo)}</DialogTitle>
               <DialogDescription>
-                {context?.(photo) || "Foto del sopralluogo"} · {index + 1} di{" "}
-                {photos.length}
+                {context?.(photo) || t("Foto del sopralluogo")} · {t("{n} di {totale}", { n: index + 1, totale: photos.length })}
               </DialogDescription>
             </DialogHeader>
             <div className="min-h-0 flex-1 overflow-auto rounded-xl bg-slate-100">
@@ -186,7 +187,7 @@ export function SurveyMediaGallery({
                 <Button
                   size="icon"
                   variant="outline"
-                  aria-label="Foto precedente"
+                  aria-label={t("Foto precedente")}
                   disabled={index === 0}
                   onClick={() => move(index - 1)}
                 >
@@ -195,7 +196,7 @@ export function SurveyMediaGallery({
                 <Button
                   size="icon"
                   variant="outline"
-                  aria-label="Foto successiva"
+                  aria-label={t("Foto successiva")}
                   disabled={index === photos.length - 1}
                   onClick={() => move(index + 1)}
                 >
@@ -206,7 +207,7 @@ export function SurveyMediaGallery({
                 <Button
                   size="icon"
                   variant="ghost"
-                  aria-label="Riduci foto"
+                  aria-label={t("Riduci foto")}
                   disabled={zoom <= 1}
                   onClick={() => setZoom(Math.max(1, zoom - 0.5))}
                 >
@@ -218,7 +219,7 @@ export function SurveyMediaGallery({
                 <Button
                   size="icon"
                   variant="ghost"
-                  aria-label="Ingrandisci foto"
+                  aria-label={t("Ingrandisci foto")}
                   disabled={zoom >= 3}
                   onClick={() => setZoom(Math.min(3, zoom + 0.5))}
                 >
@@ -232,7 +233,7 @@ export function SurveyMediaGallery({
                 className="inline-flex items-center gap-1 text-sm text-blue-700"
               >
                 <ExternalLink className="h-4 w-4" />
-                {photo.type === "annotated_photo" ? "Apri proposta" : "Apri originale"}
+                {photo.type === "annotated_photo" ? t("Apri proposta") : t("Apri originale")}
               </a>
             </div>
           </DialogContent>

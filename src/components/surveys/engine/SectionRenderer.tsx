@@ -11,6 +11,7 @@ import {
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface SectionRendererProps {
   section: FieldSection;
@@ -23,6 +24,7 @@ export function SectionRenderer({ section, values, onChange, showErrors }: Secti
   const visible = useMemo(() => isVisible(section.show_if, values), [section.show_if, values]);
   const [open, setOpen] = useState(section.default_open !== false);
   const collapsible = section.collapsible !== false;
+  const t = useT();
 
   if (!visible) return null;
 
@@ -39,9 +41,9 @@ export function SectionRenderer({ section, values, onChange, showErrors }: Secti
             disabled={!collapsible}
           >
             <div>
-              <p className="font-semibold text-sm">{section.label}</p>
+              <p className="font-semibold text-sm">{t(section.label)}</p>
               {section.description && (
-                <p className="text-[11px] text-muted-foreground mt-0.5">{section.description}</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">{t(section.description)}</p>
               )}
             </div>
             {collapsible && (

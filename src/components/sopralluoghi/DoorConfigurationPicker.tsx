@@ -1,6 +1,7 @@
 import { DisegnoSerramentoSvg } from "@/components/serramenti/DisegnoSerramentoSvg";
 import { doorSurveyScene } from "@/lib/surveys/doorSurvey";
 import type { WindowValues } from "@/lib/surveys/windowSurvey";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 const presets = [
   { label: "Anta unica", layout: "singola", sides: "no", top: "no" },
   { label: "Anta con fiancoluce", layout: "singola", sides: "sx", top: "no" },
@@ -33,19 +34,20 @@ export function DoorConfigurationPicker({
   onChange: (v: WindowValues) => void;
   disabled?: boolean;
 }) {
+  const t = useT();
   return (
     <details className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
       <summary className="cursor-pointer text-sm font-semibold text-slate-900">
-        Scegli la forma dal disegno
+        {t("Scegli la forma dal disegno")}
       </summary>
       <p className="my-3 text-xs text-slate-500">
-        Figure illustrative, non in scala. La scelta imposta solo la
-        configurazione: inserisci poi le misure reali. Puoi combinare ante,
-        fiancoluce e sopraluce nei campi sotto.
+        {t(
+          "Figure illustrative, non in scala. La scelta imposta solo la configurazione: inserisci poi le misure reali. Puoi combinare ante, fiancoluce e sopraluce nei campi sotto.",
+        )}
       </p>
       <div
         className="grid grid-cols-2 gap-2 sm:grid-cols-3"
-        aria-label="Configurazioni illustrate del portoncino"
+        aria-label={t("Configurazioni illustrate del portoncino")}
       >
         {presets.map((p) => {
           const scene = doorSurveyScene(
@@ -71,7 +73,7 @@ export function DoorConfigurationPicker({
               key={p.label}
               type="button"
               disabled={disabled}
-              aria-label={`Configurazione: ${p.label}`}
+              aria-label={t("Configurazione: {nome}", { nome: t(p.label) })}
               aria-pressed={selected}
               className={`min-w-0 rounded-xl border bg-white p-3 text-left transition-colors motion-reduce:transition-none ${selected ? "border-blue-500 ring-2 ring-blue-100" : "border-slate-200 hover:border-blue-300"}`}
               onClick={() =>
@@ -95,7 +97,7 @@ export function DoorConfigurationPicker({
                 />
               </span>
               <span className="block text-xs font-medium text-slate-800">
-                {p.label}
+                {t(p.label)}
               </span>
             </button>
           );

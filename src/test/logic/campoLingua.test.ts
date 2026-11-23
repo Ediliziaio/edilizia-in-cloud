@@ -52,12 +52,14 @@ describe("Lingue dell'area operai (23/11/2026)", () => {
 
   it("le frasi delle schermate tradotte ci sono in tutte le lingue", () => {
     // Ogni file dell'area operai che usa la lingua (più i componenti condivisi che il campo mostra).
-    const cartelle = ["src/pages/campo", "src/components/campo", "src/components/calendar/mappa"];
+    const cartelle = ["src/pages/campo", "src/components/campo", "src/components/calendar/mappa",
+      // Editor del sopralluogo: l'operaio lo apre da /campo/sopralluoghi/:id.
+      "src/components/sopralluoghi", "src/components/surveys/engine"];
     const schermate = [
       // Anche le sottocartelle (es. src/pages/campo/subappaltatore).
       ...cartelle.flatMap(c => (readdirSync(c, { recursive: true }) as string[]).filter(f => f.endsWith(".tsx")).map(f => join(c, f))),
       "src/components/layouts/CampoLayout.tsx", "src/pages/azienda/InternalChat.tsx",
-      "src/pages/azienda/impostazioni/MioProfilo.tsx",
+      "src/pages/azienda/impostazioni/MioProfilo.tsx", "src/pages/azienda/sopralluoghi/SopralluogoEditor.tsx",
     ].filter(f => /\b(useT|useLinguaCampo)\b/.test(readFileSync(f, "utf8")));
     const frasi = new Set<string>();
     for (const file of schermate) {

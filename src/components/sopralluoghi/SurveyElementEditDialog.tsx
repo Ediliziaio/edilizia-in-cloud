@@ -25,6 +25,7 @@ import {
   type SurveyElementEditorHandle,
 } from "./SurveyElementEditor";
 import { nextSurveyElement } from "@/lib/surveys/elementWorkflow";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** The full editor uses the same element form/save/recovery path as the commessa popup. */
 export function SurveyElementEditDialog({
@@ -38,8 +39,12 @@ export function SurveyElementEditDialog({
   onClose: () => void;
   onNextElement?: (element: SurveyElementRow) => void;
 }) {
+  const t = useT();
   const editor = useRef<SurveyElementEditorHandle>(null);
   const next = nextSurveyElement(detail, element.id);
+  const typeLabel = detail.template.schema.element_types.find(
+    (et) => et.key === element.element_type,
+  )?.label;
   const [keepFailed, setKeepFailed] = useState(false);
   const [state, setState] = useState<SurveyEditState>({
       dirty: false,
@@ -65,14 +70,12 @@ export function SurveyElementEditDialog({
           <DialogHeader className="shrink-0 border-b p-4 pr-12">
             <DialogTitle>
               {element.element_label ||
-                detail.template.schema.element_types.find(
-                  (t) => t.key === element.element_type,
-                )?.label ||
-                "Scheda elemento"}
+                (typeLabel ? t(typeLabel) : t("Scheda elemento"))}
             </DialogTitle>
             <DialogDescription>
-              Misure, disegno e dettagli. Le modifiche entrano nel rilievo
-              soltanto con Salva.
+              {t(
+                "Misure, disegno e dettagli. Le modifiche entrano nel rilievo soltanto con Salva.",
+              )}
             </DialogDescription>
           </DialogHeader>
           <div className="min-h-0 flex-1 overflow-y-auto p-4">
@@ -90,7 +93,7 @@ export function SurveyElementEditDialog({
               nextLabel={
                 next?.element_label ||
                 detail.template.schema.element_types.find(
-                  (t) => t.key === next?.element_type,
+                  (et) => et.key === next?.element_type,
                 )?.label
               }
             />
@@ -100,21 +103,22 @@ export function SurveyElementEditDialog({
       <AlertDialog open={confirm} onOpenChange={setConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Hai modifiche non salvate</AlertDialogTitle>
+            <AlertDialogTitle>{t("Hai modifiche non salvate")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Puoi continuare, conservare la bozza su questo browser o
-              scartarla. I dati già salvati non cambiano.
+              {t(
+                "Puoi continuare, conservare la bozza su questo browser o scartarla. I dati già salvati non cambiano.",
+              )}
             </AlertDialogDescription>
             {keepFailed && (
               <p role="alert" className="text-sm text-orange-900">
-                La bozza non può essere conservata completamente. Torna alla
-                scheda: controlla le foto ancora da caricare e gli avvisi sul
-                salvataggio locale.
+                {t(
+                  "La bozza non può essere conservata completamente. Torna alla scheda: controlla le foto ancora da caricare e gli avvisi sul salvataggio locale.",
+                )}
               </p>
             )}
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Continua a modificare</AlertDialogCancel>
+            <AlertDialogCancel>{t("Continua a modificare")}</AlertDialogCancel>
             <Button
               type="button"
               variant="outline"
@@ -125,7 +129,7 @@ export function SurveyElementEditDialog({
                 } else setKeepFailed(true);
               }}
             >
-              Conserva bozza e chiudi
+              {t("Conserva bozza e chiudi")}
             </Button>
             <AlertDialogAction
               onClick={() => {
@@ -134,7 +138,7 @@ export function SurveyElementEditDialog({
                 onClose();
               }}
             >
-              Scarta modifiche
+              {t("Scarta modifiche")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

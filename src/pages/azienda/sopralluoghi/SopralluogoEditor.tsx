@@ -42,7 +42,7 @@ import {
 } from "lucide-react";
 import { SurveyAssignDialog } from "@/components/sopralluoghi/SurveyAssignDialog";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { SectionRenderer } from "@/components/surveys/engine/SectionRenderer";
@@ -96,6 +96,7 @@ export const SurveyEditorForm = forwardRef<SurveyEditorHandle, {id:string;onBack
   const navigate = useNavigate();
   const {effectiveCompany}=useAuth();
   const qc = useQueryClient();
+  const tr = useT();
 
   const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
@@ -204,11 +205,11 @@ export const SurveyEditorForm = forwardRef<SurveyEditorHandle, {id:string;onBack
         qc.invalidateQueries({ queryKey: ["sopralluogo", id] });
       } catch {
         setAutoSaveStatus("error");
-        toast.error("Errore nel salvataggio automatico delle note");
+        toast.error(tr("Errore nel salvataggio automatico delle note"));
       }
     }, 600);
     return () => clearTimeout(timer);
-  }, [headerData, generalNotes, id, detail, qc]);
+  }, [headerData, generalNotes, id, detail, qc, tr]);
 
   // Riporta l'indicatore a "idle" 2.5s dopo "saved" (UX pulita)
   useEffect(() => {
@@ -229,13 +230,13 @@ export const SurveyEditorForm = forwardRef<SurveyEditorHandle, {id:string;onBack
       await logActivity(id, `status_change:${status}`);
     },
     onSuccess: () => {
-      toast.success("Stato aggiornato");
+      toast.success(tr("Stato aggiornato"));
       qc.invalidateQueries({ queryKey: ["sopralluogo", id] });
       qc.invalidateQueries({ queryKey: ["sopralluoghi-list"] });
       qc.invalidateQueries({ queryKey: ["field-survey-access"] });
       qc.invalidateQueries({ queryKey: ["field-surveys"] });
     },
-    onError: (e) => toast.error("Aggiornamento stato fallito", { description: String(e) }),
+    onError: (e) => toast.error(tr("Aggiornamento stato fallito"), { description: String(e) }),
   });
 
   const addAreaMut = useMutation({
@@ -248,7 +249,7 @@ export const SurveyEditorForm = forwardRef<SurveyEditorHandle, {id:string;onBack
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["sopralluogo", id] });
     },
-    onError: (e) => toast.error("Aggiunta area fallita", { description: String(e) }),
+    onError: (e) => toast.error(tr("Aggiunta area fallita"), { description: String(e) }),
   });
 
   const updateAreaMut = useMutation({
@@ -273,7 +274,7 @@ export const SurveyEditorForm = forwardRef<SurveyEditorHandle, {id:string;onBack
     onError: (err) => {
       console.error("[sopralluogo] autosave mutation failed", err);
       setAutoSaveStatus("error");
-      toast.error("Salvataggio fallito", { description: "Riprovo automaticamente al prossimo input" });
+      toast.error(tr("Salvataggio fallito"), { description: tr("Riprovo automaticamente al prossimo input") });
     },
   });
 
@@ -290,10 +291,10 @@ export const SurveyEditorForm = forwardRef<SurveyEditorHandle, {id:string;onBack
   const deleteAreaMut = useMutation({
     mutationFn: deleteArea,
     onSuccess: () => {
-      toast.success("Area eliminata");
+      toast.success(tr("Area eliminata"));
       qc.invalidateQueries({ queryKey: ["sopralluogo", id] });
     },
-    onError: (e) => toast.error("Eliminazione area fallita", { description: String(e) }),
+    onError: (e) => toast.error(tr("Eliminazione area fallita"), { description: String(e) }),
   });
 
   const addElementMut = useMutation({
@@ -312,17 +313,17 @@ export const SurveyEditorForm = forwardRef<SurveyEditorHandle, {id:string;onBack
       }
       qc.invalidateQueries({ queryKey: ["sopralluogo", id] });
     },
-    onError: (e) => toast.error("Aggiunta elemento fallita", { description: String(e) }),
+    onError: (e) => toast.error(tr("Aggiunta elemento fallita"), { description: String(e) }),
   });
 
 
   const deleteElementMut = useMutation({
     mutationFn: deleteElement,
     onSuccess: () => {
-      toast.success("Elemento eliminato");
+      toast.success(tr("Elemento eliminato"));
       qc.invalidateQueries({ queryKey: ["sopralluogo", id] });
     },
-    onError: (e) => toast.error("Eliminazione fallita", { description: String(e) }),
+    onError: (e) => toast.error(tr("Eliminazione fallita"), { description: String(e) }),
   });
 
   // Duplica un elemento (mutation con feedback errore — prima era addElement diretto)
@@ -346,10 +347,10 @@ export const SurveyEditorForm = forwardRef<SurveyEditorHandle, {id:string;onBack
       });
     },
     onSuccess: () => {
-      toast.success("Elemento duplicato");
+      toast.success(tr("Elemento duplicato"));
       qc.invalidateQueries({ queryKey: ["sopralluogo", id] });
     },
-    onError: (e) => toast.error("Duplicazione fallita", { description: String(e) }),
+    onError: (e) => toast.error(tr("Duplicazione fallita"), { description: String(e) }),
   });
 
   // Calcolo % completamento (campi obbligatori header + area + element + foto)
@@ -361,9 +362,9 @@ export const SurveyEditorForm = forwardRef<SurveyEditorHandle, {id:string;onBack
 
   const unsaved=!!detail && (!sameSurveyJson(headerData,detail.survey.header_data ?? {}) || generalNotes!==(detail.survey.notes ?? "") || areaDrafts.size>0 || pendingWrites>0 || autoSaveStatus==="saving" || autoSaveStatus==="error" || addAreaMut.isPending || deleteAreaMut.isPending || addElementMut.isPending || deleteElementMut.isPending);
   useImperativeHandle(ref,()=>({requestClose(close) {
-    if (unsaved) { toast.warning("Attendi il salvataggio del rilievo o correggi l'errore prima di chiudere."); return; }
+    if (unsaved) { toast.warning(tr("Attendi il salvataggio del rilievo o correggi l'errore prima di chiudere.")); return; }
     close();
-  }}),[unsaved]);
+  }}),[unsaved, tr]);
 
   if (isLoading) {
     return (
@@ -380,20 +381,20 @@ export const SurveyEditorForm = forwardRef<SurveyEditorHandle, {id:string;onBack
         <div className="mx-auto max-w-md rounded-xl border border-red-200 dark:border-red-900/40 bg-card p-6 sm:p-10 text-center">
           <AlertCircle className="h-10 w-10 mx-auto mb-3 text-red-500/70" />
           <p className="font-semibold mb-1">
-            {isError ? "Impossibile caricare il sopralluogo" : "Sopralluogo non trovato"}
+            {isError ? tr("Impossibile caricare il sopralluogo") : tr("Sopralluogo non trovato")}
           </p>
           <p className="text-sm text-muted-foreground mb-4">
             {isError
-              ? "Si è verificato un errore. Controlla la connessione e riprova."
-              : "Il sopralluogo potrebbe essere stato eliminato o il link non è più valido."}
+              ? tr("Si è verificato un errore. Controlla la connessione e riprova.")
+              : tr("Il sopralluogo potrebbe essere stato eliminato o il link non è più valido.")}
           </p>
           <div className="flex items-center justify-center gap-2">
             <Button variant="outline" size="sm" onClick={() => embedded ? onBack() : navigate("/azienda/sopralluoghi")}>
-              Torna alla lista
+              {tr("Torna alla lista")}
             </Button>
             {isError && (
               <Button size="sm" className="bg-orange-600 hover:bg-orange-700" onClick={() => refetch()}>
-                Riprova
+                {tr("Riprova")}
               </Button>
             )}
           </div>
@@ -411,8 +412,8 @@ export const SurveyEditorForm = forwardRef<SurveyEditorHandle, {id:string;onBack
   // "Convertito") e indovinare "In corso": nessuno dei sopralluoghi creati è
   // mai stato avviato. La tendina resta per i casi fuori percorso.
   const prossimoPasso: { stato: string; etichetta: string } | null =
-    survey.status === "draft"       ? { stato: "in_progress", etichetta: "Inizia sopralluogo" }
-  : survey.status === "in_progress" ? { stato: "completed",   etichetta: access.field ? "Consegna all’ufficio" : "Invia in revisione" }
+    survey.status === "draft"       ? { stato: "in_progress", etichetta: tr("Inizia sopralluogo") }
+  : survey.status === "in_progress" ? { stato: "completed",   etichetta: access.field ? tr("Consegna all’ufficio") : tr("Invia in revisione") }
   : null;
   // Media a livello sopralluogo (né area né elemento): foto generali + audio generale.
   const generalMedia = media.filter((m) => !m.area_id && !m.element_id);
@@ -423,22 +424,22 @@ export const SurveyEditorForm = forwardRef<SurveyEditorHandle, {id:string;onBack
       {/* Sticky header */}
       <div className="sticky top-0 z-30 bg-background border-b">
         <div className="container mx-auto p-3 flex items-center gap-3 flex-wrap">
-          <Button variant="ghost" size="sm" onClick={onBack} disabled={unsaved} aria-label="Torna al riepilogo">
+          <Button variant="ghost" size="sm" onClick={onBack} disabled={unsaved} aria-label={tr("Torna al riepilogo")}>
             <ArrowLeft className="h-4 w-4" />
-            <span className="ml-1 hidden sm:inline">Riepilogo</span>
+            <span className="ml-1 hidden sm:inline">{tr("Riepilogo")}</span>
           </Button>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-mono text-sm font-bold text-orange-700">{survey.code}</span>
               <Badge variant="outline" className={cn("text-[10px]", statusCfg.color)}>
-                {statusCfg.label}
+                {tr(statusCfg.label)}
               </Badge>
-              {(autoSaveStatus === "saving" || pendingWrites > 0) && <span className="text-[10px] text-muted-foreground flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Salvataggio…</span>}
-              {autoSaveStatus === "saved" && pendingWrites === 0 && <span className="text-[10px] text-emerald-600 flex items-center gap-1"><Save className="h-3 w-3" /> Salvato</span>}
-              {autoSaveStatus === "error" && <span className="text-[10px] text-rose-600">Errore salvataggio</span>}
+              {(autoSaveStatus === "saving" || pendingWrites > 0) && <span className="text-[10px] text-muted-foreground flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> {tr("Salvataggio…")}</span>}
+              {autoSaveStatus === "saved" && pendingWrites === 0 && <span className="text-[10px] text-emerald-600 flex items-center gap-1"><Save className="h-3 w-3" /> {tr("Salvato")}</span>}
+              {autoSaveStatus === "error" && <span className="text-[10px] text-rose-600">{tr("Errore salvataggio")}</span>}
             </div>
-            <p className="text-xs text-muted-foreground truncate">
-              {template.name} · {survey.address ?? "Indirizzo non specificato"}
+            <p dir="auto" className="text-xs text-muted-foreground truncate">
+              {template.name} · {survey.address ?? tr("Indirizzo non specificato")}
             </p>
           </div>
           {!access.field && <Button
@@ -455,7 +456,7 @@ export const SurveyEditorForm = forwardRef<SurveyEditorHandle, {id:string;onBack
               size="sm"
               className="h-8 gap-1.5"
               disabled={updateStatusMut.isPending || unsaved}
-              onClick={() => prossimoPasso.stato === "completed" ? setConfirmDialog({title:"Consegnare il rilievo alla revisione?",description:`La compilazione risulta al ${completionPct}%. I dati mancanti restano segnalati. Dopo la consegna l’operatore non potrà modificare finché l’ufficio non restituisce il rilievo.`,onConfirm:()=>updateStatusMut.mutate("completed"),action:"Consegna all’ufficio"}) : updateStatusMut.mutate(prossimoPasso.stato)}
+              onClick={() => prossimoPasso.stato === "completed" ? setConfirmDialog({title:tr("Consegnare il rilievo alla revisione?"),description:tr("La compilazione risulta al {pct}%. I dati mancanti restano segnalati. Dopo la consegna l’operatore non potrà modificare finché l’ufficio non restituisce il rilievo.",{pct:completionPct}),onConfirm:()=>updateStatusMut.mutate("completed"),action:tr("Consegna all’ufficio")}) : updateStatusMut.mutate(prossimoPasso.stato)}
             >
               {updateStatusMut.isPending
                 ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -479,7 +480,7 @@ export const SurveyEditorForm = forwardRef<SurveyEditorHandle, {id:string;onBack
             <SurveyPdfTools detail={detail} companyName={effectiveCompany?.name || "Azienda"} references={references.data} disabled={unsaved||references.isPending}/>
             {!access.field && <Button variant="outline" className="min-h-10 rounded-xl gap-2" onClick={()=>navigate(`/azienda/sopralluoghi/${id}/firma`)} disabled={unsaved}><FileSignature className="h-4 w-4"/>Firma</Button>}
             {!access.field && <Button variant="ghost" className="min-h-10 rounded-xl gap-2 text-blue-700" disabled={aiSummaryMut.isPending||unsaved} onClick={()=>aiSummaryMut.mutate()}>{aiSummaryMut.isPending?<Loader2 className="h-4 w-4 animate-spin"/>:<Sparkles className="h-4 w-4"/>}Riassunto AI</Button>}
-            {unsaved&&<span className="text-xs text-orange-800">Attendi il salvataggio prima di esportare o uscire.</span>}
+            {unsaved&&<span className="text-xs text-orange-800">{tr("Attendi il salvataggio prima di esportare o uscire.")}</span>}
           </div>
           <div className="flex items-center gap-2">
             <Progress value={completionPct} className="flex-1 h-1.5" />
@@ -510,7 +511,7 @@ export const SurveyEditorForm = forwardRef<SurveyEditorHandle, {id:string;onBack
                 )
               )}
               {survey.address && (
-                <span className="flex items-center gap-1">
+                <span dir="auto" className="flex items-center gap-1">
                   <MapPin className="h-3 w-3 text-orange-600" />
                   {surveyAddress(survey)}
                 </span>
@@ -518,7 +519,7 @@ export const SurveyEditorForm = forwardRef<SurveyEditorHandle, {id:string;onBack
               {survey.scheduled_at && (
                 <span className="flex items-center gap-1">
                   <Calendar className="h-3 w-3 text-orange-600" />
-                  {format(new Date(survey.scheduled_at), "d MMM yyyy 'alle' HH:mm", { locale: it })}
+                  {tr("{data} alle {ora}", { data: format(new Date(survey.scheduled_at), "d MMM yyyy", { locale: dateFnsCampo() }), ora: format(new Date(survey.scheduled_at), "HH:mm") })}
                 </span>
               )}
               {!access.field && survey.order_id && (
@@ -576,8 +577,8 @@ export const SurveyEditorForm = forwardRef<SurveyEditorHandle, {id:string;onBack
                 onAreaChange={editArea}
                 onAreaDelete={() => {
                   setConfirmDialog({
-                    title: `Eliminare "${area.name}"?`,
-                    description: "Verranno eliminati anche tutti gli elementi e le foto di questa area. L'azione non è reversibile.",
+                    title: tr("Eliminare \"{nome}\"?", { nome: area.name }),
+                    description: tr("Verranno eliminati anche tutti gli elementi e le foto di questa area. L'azione non è reversibile."),
                     onConfirm: () => deleteAreaMut.mutate(area.id),
                   });
                 }}
@@ -596,8 +597,8 @@ export const SurveyEditorForm = forwardRef<SurveyEditorHandle, {id:string;onBack
                 }}
                 onElementDelete={(eid) => {
                   setConfirmDialog({
-                    title: "Eliminare questo elemento?",
-                    description: "Verranno eliminate anche tutte le foto associate. L'azione non è reversibile.",
+                    title: tr("Eliminare questo elemento?"),
+                    description: tr("Verranno eliminate anche tutte le foto associate. L'azione non è reversibile."),
                     onConfirm: () => deleteElementMut.mutate(eid),
                   });
                 }}
@@ -613,20 +614,20 @@ export const SurveyEditorForm = forwardRef<SurveyEditorHandle, {id:string;onBack
             className="w-full gap-2 border-dashed border-2 border-orange-300 hover:bg-orange-50"
           >
             {addAreaMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-            Aggiungi {template.area_label.toLowerCase()}
+            {tr("Aggiungi {area}", { area: template.area_label.toLowerCase() })}
           </Button>
         </div>
 
         {/* Note generali */}
         <Card>
           <CardHeader className="p-3 pb-2">
-            <CardTitle className="text-sm">Note generali</CardTitle>
+            <CardTitle className="text-sm">{tr("Note generali")}</CardTitle>
           </CardHeader>
           <CardContent className="p-3 pt-0 space-y-3">
             <Textarea
               value={generalNotes}
               onChange={(e) => setGeneralNotes(e.target.value)}
-              placeholder="Osservazioni, vincoli, contesto…"
+              placeholder={tr("Osservazioni, vincoli, contesto…")}
               rows={3}
             />
             {(template.schema.general_required_photos?.length ?? 0) > 0 && (
@@ -643,7 +644,7 @@ export const SurveyEditorForm = forwardRef<SurveyEditorHandle, {id:string;onBack
               media={generalMedia}
               onMediaAdded={onMediaChange}
               onMediaDeleted={onMediaChange}
-              label="Foto generali"
+              label={tr("Foto generali")}
             />
             <AudioRecorder
               surveyId={survey.id}
@@ -661,15 +662,15 @@ export const SurveyEditorForm = forwardRef<SurveyEditorHandle, {id:string;onBack
             <CardContent className="p-3 flex items-center gap-3">
               <FileSignature className="h-5 w-5 text-violet-600" />
               <div className="flex-1">
-                <p className="text-sm font-semibold">Firmato dal cliente</p>
-                <p className="text-[11px] text-muted-foreground">
-                  {survey.client_signature_name ?? "Firmatario non specificato"}
-                  {survey.client_signature_at && ` · ${format(new Date(survey.client_signature_at), "d MMM yyyy HH:mm", { locale: it })}`}
+                <p className="text-sm font-semibold">{tr("Firmato dal cliente")}</p>
+                <p dir="auto" className="text-[11px] text-muted-foreground">
+                  {survey.client_signature_name ?? tr("Firmatario non specificato")}
+                  {survey.client_signature_at && ` · ${format(new Date(survey.client_signature_at), "d MMM yyyy HH:mm", { locale: dateFnsCampo() })}`}
                 </p>
               </div>
               <img loading="lazy"
                 src={survey.client_signature_url}
-                alt="Firma cliente"
+                alt={tr("Firma cliente")}
                 className="h-12 border rounded bg-white"
               />
             </CardContent>
@@ -692,7 +693,7 @@ export const SurveyEditorForm = forwardRef<SurveyEditorHandle, {id:string;onBack
             <AlertDialogDescription>{confirmDialog?.description}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-rose-600 hover:bg-rose-700"
               onClick={() => {
@@ -700,7 +701,7 @@ export const SurveyEditorForm = forwardRef<SurveyEditorHandle, {id:string;onBack
                 setConfirmDialog(null);
               }}
             >
-              {confirmDialog?.action || "Elimina"}
+              {confirmDialog?.action || tr("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -6,6 +6,7 @@ import {
   type LocalSurveyDraft,
 } from "@/lib/surveys/elementDraft";
 import type { SurveyElementDraft } from "@/lib/surveys/workspace";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 const show = (v: unknown) =>
   v === undefined
     ? "Non compilato"
@@ -29,6 +30,8 @@ export function SurveyDraftRecovery({
   onRecover: (draft: SurveyElementDraft) => void;
   onForget: () => void;
 }) {
+  const t = useT();
+  const vedi = (v: unknown) => (v === undefined ? t("Non compilato") : show(v));
   const [resolutions, setResolutions] = useState<
     Record<string, "local" | "remote">
   >({});
@@ -52,38 +55,30 @@ export function SurveyDraftRecovery({
   }
   return (
     <section
-      aria-label="Recupero bozza del rilievo"
+      aria-label={t("Recupero bozza del rilievo")}
       className="space-y-3 rounded-2xl border border-blue-200 bg-blue-50 p-4"
     >
       <h4 className="font-semibold text-blue-950">
-        Hai una bozza da recuperare
+        {t("Hai una bozza da recuperare")}
       </h4>
       <p className="text-sm text-slate-600">
-        Copia del {new Date(entry.savedAt).toLocaleString("it-IT")}, solo su
-        questo browser, recuperabile per 7 giorni. Non è stata salvata nel
-        gestionale.
+        {t("Copia del {data}, solo su questo browser, recuperabile per 7 giorni. Non è stata salvata nel gestionale.", { data: new Date(entry.savedAt).toLocaleString(intlCampo()) })}
       </p>
       {entry.annotation && (
-        <p className="break-words text-sm text-slate-600">
-          Nota grafica in compilazione:{" "}
-          {entry.annotation.note ||
-            "Punto selezionato, testo ancora da inserire"}
-          . Posizione e riferimento vanno ricontrollati prima di aggiungerla.
+        <p dir="auto" className="break-words text-sm text-slate-600">
+          {t("Nota grafica in compilazione: {nota}. Posizione e riferimento vanno ricontrollati prima di aggiungerla.", { nota: entry.annotation.note ||
+            t("Punto selezionato, testo ancora da inserire") })}
         </p>
       )}
       {differentSchema ? (
         <p role="alert" className="text-sm text-orange-900">
-          Il modello dei campi è cambiato: per evitare errori di unità o
-          significato non applico la vecchia bozza. Puoi scaricarne una copia e
-          ricontrollare i dati.
+          {t("Il modello dei campi è cambiato: per evitare errori di unità o significato non applico la vecchia bozza. Puoi scaricarne una copia e ricontrollare i dati.")}
         </p>
       ) : (
         <>
           {changed && (
             <p className="text-sm text-orange-900">
-              I dati salvati sono cambiati. Mantengo gli aggiornamenti su altri
-              campi; scegli come risolvere eventuali differenze. La verifica
-              d’ordine andrà riconfermata.
+              {t("I dati salvati sono cambiati. Mantengo gli aggiornamenti su altri campi; scegli come risolvere eventuali differenze. La verifica d’ordine andrà riconfermata.")}
             </p>
           )}
           {merge.conflicts.map((conflict, i) => (
@@ -94,17 +89,17 @@ export function SurveyDraftRecovery({
               <p className="text-sm font-medium">
                 {labels[conflict.key] || conflict.key}
               </p>
-              <p className="break-words text-xs text-slate-600">
-                Bozza: {show(conflict.local)} · Salvato: {show(conflict.remote)}
+              <p dir="auto" className="break-words text-xs text-slate-600">
+                {t("Bozza: {bozza} · Salvato: {salvato}", { bozza: vedi(conflict.local), salvato: vedi(conflict.remote) })}
               </p>
               <FieldRenderer
                 field={{
                   key: `recovery_${i}`,
-                  label: "Quale valore conservi?",
+                  label: t("Quale valore conservi?"),
                   type: "select",
                   options: [
-                    { value: "local", label: "Usa la bozza" },
-                    { value: "remote", label: "Mantieni il salvato" },
+                    { value: "local", label: t("Usa la bozza") },
+                    { value: "remote", label: t("Mantieni il salvato") },
                   ],
                 }}
                 value={resolutions[conflict.key]}
@@ -124,7 +119,7 @@ export function SurveyDraftRecovery({
             disabled={!!merge.unresolved.length}
             onClick={() => onRecover(merge.draft)}
           >
-            Riprendi bozza
+            {t("Riprendi bozza")}
           </Button>
         </>
       )}
@@ -135,7 +130,7 @@ export function SurveyDraftRecovery({
           className="min-h-11 rounded-xl"
           onClick={download}
         >
-          Scarica copia della bozza
+          {t("Scarica copia della bozza")}
         </Button>
         <Button
           type="button"
@@ -143,7 +138,7 @@ export function SurveyDraftRecovery({
           className="min-h-11 rounded-xl"
           onClick={onForget}
         >
-          Elimina bozza e usa i dati salvati
+          {t("Elimina bozza e usa i dati salvati")}
         </Button>
       </div>
     </section>

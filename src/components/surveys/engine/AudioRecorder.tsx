@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { SurveyMediaRow } from "@/types/surveys";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface AudioRecorderProps {
   surveyId: string;
@@ -30,6 +31,7 @@ const MAX_DURATION = 300; // 5 min
 export function AudioRecorder({
   surveyId, areaId, elementId, existingAudio, onAudioAdded, onAudioDeleted, autoTranscribe = false,
 }: AudioRecorderProps) {
+  const t = useT();
   const [isRecording, setIsRecording] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -46,11 +48,11 @@ export function AudioRecorder({
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
       mr.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
+        stream.getTracks().forEach((traccia) => traccia.stop());
         if (intervalRef.current) clearInterval(intervalRef.current);
         const blob = new Blob(chunksRef.current, { type: "audio/webm" });
         if (blob.size < 1000) {
-          toast.error("Registrazione troppo breve");
+          toast.error(t("Registrazione troppo breve"));
           return;
         }
         setIsUploading(true);
@@ -73,11 +75,11 @@ export function AudioRecorder({
             if (text) {
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               await (supabase as any).from("survey_media").update({ transcription: text }).eq("id", m.id);
-              toast.success("Audio trascritto");
+              toast.success(t("Audio trascritto"));
             }
           }
         } catch (e) {
-          toast.error("Upload audio fallito", { description: e instanceof Error ? e.message : String(e) });
+          toast.error(t("Upload audio fallito"), { description: e instanceof Error ? e.message : String(e) });
         } finally {
           setIsUploading(false);
           setIsRecording(false);
@@ -98,8 +100,8 @@ export function AudioRecorder({
         });
       }, 1000);
     } catch (e) {
-      toast.error("Impossibile accedere al microfono", {
-        description: e instanceof Error ? e.message : "permesso negato",
+      toast.error(t("Impossibile accedere al microfono"), {
+        description: e instanceof Error ? e.message : t("permesso negato"),
       });
     }
   };
@@ -116,7 +118,7 @@ export function AudioRecorder({
       await deleteMedia(existingAudio.id);
       onAudioDeleted?.(existingAudio.id);
     } catch (e) {
-      toast.error("Eliminazione fallita", { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Eliminazione fallita"), { description: e instanceof Error ? e.message : String(e) });
     }
   };
 
@@ -125,7 +127,7 @@ export function AudioRecorder({
       <div className="rounded-lg border bg-muted/20 p-2.5 flex items-center gap-2">
         <Play className="h-4 w-4 text-violet-600" />
         <audio src={existingAudio.url} controls className="flex-1 h-8" />
-        <Button variant="ghost" size="icon" onClick={handleDelete} className="h-7 w-7 text-rose-600">
+        <Button variant="ghost" size="icon" onClick={handleDelete} className="h-7 w-7 text-rose-600" aria-label={t("Elimina nota vocale")}>
           <Trash2 className="h-3.5 w-3.5" />
         </Button>
       </div>
@@ -143,11 +145,11 @@ export function AudioRecorder({
         className={cn("gap-2", isRecording && "animate-pulse")}
       >
         {isUploading ? (
-          <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Upload…</>
+          <><Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("Upload…")}</>
         ) : isRecording ? (
-          <><MicOff className="h-3.5 w-3.5" /> Stop</>
+          <><MicOff className="h-3.5 w-3.5" /> {t("Stop")}</>
         ) : (
-          <><Mic className="h-3.5 w-3.5" /> Registra nota vocale</>
+          <><Mic className="h-3.5 w-3.5" /> {t("Registra nota vocale")}</>
         )}
       </Button>
       {isRecording && (

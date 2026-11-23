@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Eraser, Check, X, Loader2 } from "lucide-react";
 import { uploadMedia, updateSurvey } from "@/lib/api/surveys";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface SignaturePadProps {
   surveyId: string;
@@ -17,6 +18,7 @@ export interface SignaturePadProps {
 }
 
 export function SignaturePad({ surveyId, signerName, onConfirm, onCancel }: SignaturePadProps) {
+  const t = useT();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const confirmingRef = useRef(false);
   const [drawing, setDrawing] = useState(false);
@@ -96,7 +98,7 @@ export function SignaturePad({ surveyId, signerName, onConfirm, onCancel }: Sign
     if (confirmingRef.current) return;
     const canvas = canvasRef.current;
     if (!canvas || !hasDrawn) {
-      toast.error("Firma assente. Disegna sopra per firmare.");
+      toast.error(t("Firma assente. Disegna sopra per firmare."));
       return;
     }
     confirmingRef.current = true;
@@ -116,10 +118,10 @@ export function SignaturePad({ surveyId, signerName, onConfirm, onCancel }: Sign
         signed_at: now,
         status: "signed",
       });
-      toast.success("Firma registrata");
+      toast.success(t("Firma registrata"));
       onConfirm?.(media.url, now);
     } catch (e) {
-      toast.error("Salvataggio firma fallito", { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Salvataggio firma fallito"), { description: e instanceof Error ? e.message : String(e) });
     } finally {
       confirmingRef.current = false;
       setUploading(false);
@@ -129,24 +131,25 @@ export function SignaturePad({ surveyId, signerName, onConfirm, onCancel }: Sign
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col">
       <div className="p-3 border-b flex items-center gap-3">
-        <Button variant="ghost" size="icon" aria-label="Annulla firma" onClick={() => { if (!confirmingRef.current) onCancel?.(); }} disabled={uploading}>
+        <Button variant="ghost" size="icon" aria-label={t("Annulla firma")} onClick={() => { if (!confirmingRef.current) onCancel?.(); }} disabled={uploading}>
           <X className="h-4 w-4" />
         </Button>
         <div className="flex-1">
-          <p className="font-semibold">Firma cliente</p>
-          <p className="text-xs text-muted-foreground">Firma con dito o penna sul riquadro</p>
+          <p className="font-semibold">{t("Firma cliente")}</p>
+          <p className="text-xs text-muted-foreground">{t("Firma con dito o penna sul riquadro")}</p>
         </div>
       </div>
 
       <div className="p-3 border-b">
         <label className="block">
-          <span className="text-xs text-muted-foreground">Nome firmatario (opzionale)</span>
+          <span className="text-xs text-muted-foreground">{t("Nome firmatario (opzionale)")}</span>
           <input
             type="text"
+            dir="auto"
             value={name}
             disabled={uploading}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Es. Mario Rossi"
+            placeholder={t("Es. Mario Rossi")}
             className="mt-1 w-full h-9 rounded-md border px-2.5 text-sm"
           />
         </label>
@@ -155,7 +158,7 @@ export function SignaturePad({ surveyId, signerName, onConfirm, onCancel }: Sign
       <div className="flex-1 relative bg-white p-3">
         <canvas
           ref={canvasRef}
-          aria-label="Riquadro per la firma"
+          aria-label={t("Riquadro per la firma")}
           aria-busy={uploading}
           onPointerDown={handleDown}
           onPointerMove={handleMove}
@@ -169,7 +172,7 @@ export function SignaturePad({ surveyId, signerName, onConfirm, onCancel }: Sign
       <div className="p-3 border-t flex gap-2">
         <Button variant="outline" onClick={clear} disabled={uploading} className="gap-2">
           <Eraser className="h-4 w-4" />
-          Cancella
+          {t("Cancella")}
         </Button>
         <Button
           onClick={confirm}
@@ -177,7 +180,7 @@ export function SignaturePad({ surveyId, signerName, onConfirm, onCancel }: Sign
           className="ml-auto gap-2 bg-emerald-600 hover:bg-emerald-700"
         >
           {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-          {uploading ? "Registrazione…" : "Conferma firma"}
+          {uploading ? t("Registrazione…") : t("Conferma firma")}
         </Button>
       </div>
     </div>

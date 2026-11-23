@@ -2,6 +2,7 @@ import {
   boxFaceColor,
   type BoxAxonometric,
 } from "@/lib/surveys/boxAxonometric";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 export function BoxAxonometricSvg({
   sketch,
   color,
@@ -9,11 +10,12 @@ export function BoxAxonometricSvg({
   sketch: BoxAxonometric;
   color?: string;
 }) {
+  const t = useT();
   return (
     <svg
       viewBox={sketch.viewBox.join(" ")}
       role="img"
-      aria-label={`Cassonetto in assonometria. ${sketch.illustrative ? "Schema illustrativo non in scala. " : "Proporzioni rilevate. "}${sketch.dimensions.map((d) => d.text).join(", ")}`}
+      aria-label={`${t("Cassonetto in assonometria.")} ${sketch.illustrative ? t("Schema illustrativo non in scala.") : t("Proporzioni rilevate.")} ${sketch.dimensions.map((d) => d.text).join(", ")}`}
       className="block w-full"
       style={{ maxHeight: sketch.illustrative ? 340 : 260 }}
     >

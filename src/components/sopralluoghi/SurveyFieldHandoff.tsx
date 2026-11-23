@@ -15,6 +15,7 @@ import { submitFieldSurvey } from "@/lib/surveys/fieldAccess";
 import { surveyCompletion } from "@/lib/surveys/completion";
 import type { SurveyDetail } from "@/lib/api/surveys";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 /** A single hand-off action from the read/element-edit workspace, no detour through general settings. */
 export function SurveyFieldHandoff({
   detail,
@@ -27,11 +28,12 @@ export function SurveyFieldHandoff({
 }) {
   const [open, setOpen] = useState(false),
     qc = useQueryClient();
+  const t = useT();
   const mutation = useMutation({
     mutationFn: () => submitFieldSurvey(detail.survey.id),
     onSuccess: () => {
       setOpen(false);
-      toast.success("Consegnato all’ufficio");
+      toast.success(t("Consegnato all’ufficio"));
       void qc.invalidateQueries({
         queryKey: ["sopralluogo", detail.survey.id],
       });
@@ -44,26 +46,23 @@ export function SurveyFieldHandoff({
     <>
       <Button
         className="min-h-11 rounded-xl px-3"
-        aria-label="Consegna all’ufficio"
+        aria-label={t("Consegna all’ufficio")}
         disabled={disabled || mutation.isPending || !detail.elements.length}
         onClick={() => setOpen(true)}
       >
-        {compact ? "Consegna" : "Consegna all’ufficio"}
+        {compact ? t("Consegna") : t("Consegna all’ufficio")}
       </Button>
       <AlertDialog open={open} onOpenChange={setOpen}>
         <AlertDialogContent className="rounded-2xl">
           <AlertDialogHeader>
-            <AlertDialogTitle>Consegnare il rilievo?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Consegnare il rilievo?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Compilazione al {surveyCompletion(detail)}%. I dati mancanti
-              restano segnalati. Dopo la consegna puoi consultare foto,
-              posizionamenti e PDF, ma solo l’ufficio può restituirti il rilievo
-              per modificarlo.
+              {t("Compilazione al {pct}%. I dati mancanti restano segnalati. Dopo la consegna puoi consultare foto, posizionamenti e PDF, ma solo l’ufficio può restituirti il rilievo per modificarlo.", { pct: surveyCompletion(detail) })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={mutation.isPending}>
-              Continua a compilare
+              {t("Continua a compilare")}
             </AlertDialogCancel>
             <AlertDialogAction
               disabled={disabled || mutation.isPending}
@@ -72,7 +71,7 @@ export function SurveyFieldHandoff({
                 mutation.mutate();
               }}
             >
-              Conferma consegna
+              {t("Conferma consegna")}
             </AlertDialogAction>
           </AlertDialogFooter>
           {mutation.isError && (

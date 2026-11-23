@@ -24,6 +24,7 @@ import type {
   PhotoComponentKind,
   PhotoPlacementDocument,
 } from "@/lib/surveys/photoPlacement";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type SurveyPhotoState = { pending: number; busy: boolean };
 type QueuedPhoto = {
@@ -44,6 +45,7 @@ function QueuedPhotoPreview({
   enabled: boolean;
   onPlace: (url: string) => void;
 }) {
+  const t = useT();
   const preview = useRef<HTMLImageElement>(null),
     url = useRef("");
   useEffect(() => {
@@ -60,7 +62,7 @@ function QueuedPhotoPreview({
     <div className="space-y-2">
       <img
         ref={preview}
-        alt={`Anteprima ${item.file.name}`}
+        alt={t("Anteprima {nome}", { nome: item.file.name })}
         className="max-h-40 w-full rounded-xl object-contain"
       />
       {enabled && !item.annotations && (
@@ -72,7 +74,7 @@ function QueuedPhotoPreview({
             if (url.current) onPlace(url.current);
           }}
         >
-          Posiziona impianto sulla foto
+          {t("Posiziona impianto sulla foto")}
         </Button>
       )}
     </div>
@@ -103,6 +105,7 @@ export function SurveyElementPhotos({
   onStateChange: (state: SurveyPhotoState) => void;
   onAdded: (media: SurveyMediaRow) => void;
 }) {
+  const t = useT();
   const [queue, setQueue] = useState<QueuedPhoto[]>([]),
     [busy, setBusy] = useState(false),
     [error, setError] = useState<string | null>(null),
@@ -136,7 +139,7 @@ export function SurveyElementPhotos({
       errors: string[] = [];
     for (const file of Array.from(files ?? [])) {
       const invalid = validateSurveyPhoto(file);
-      if (invalid) errors.push(invalid);
+      if (invalid) errors.push(t(invalid));
       else
         accepted.push({ id: crypto.randomUUID(), file, key: "free", context });
     }
@@ -153,13 +156,15 @@ export function SurveyElementPhotos({
     try {
       for (const item of queue) {
         if (currentContext.current !== context)
-          throw new Error("Contesto cambiato: interrompo il caricamento.");
+          throw new Error(t("Contesto cambiato: interrompo il caricamento."));
         if (item.context !== context)
           throw new Error(
-            "Le foto appartengono a un’altra scheda: riapri l’elemento originale prima di caricarle.",
+            t(
+              "Le foto appartengono a un’altra scheda: riapri l’elemento originale prima di caricarle.",
+            ),
           );
         if (item.sourceQueueId && !savedSources.current.has(item.sourceQueueId))
-          throw new Error("Carica prima la foto originale della proposta.");
+          throw new Error(t("Carica prima la foto originale della proposta."));
         const def = checklist.find((p) => p.key === item.key);
         const saved = await uploadMedia(surveyId, item.file, {
           type: item.annotations ? "annotated_photo" : "photo",
@@ -184,10 +189,10 @@ export function SurveyElementPhotos({
         setQueue((old) => old.filter((p) => p.id !== item.id));
         onAdded(saved);
       }
-      setNotice(`${count} foto caricate nel rilievo.`);
+      setNotice(t("{n} foto caricate nel rilievo.", { n: count }));
     } catch (e) {
       setError(
-        `${count ? `${count} foto già caricate. ` : ""}${e instanceof Error ? e.message : "Caricamento non riuscito."} Le foto rimaste sono ancora da inviare; puoi riprovare.`,
+        `${count ? `${t("{n} foto già caricate.", { n: count })} ` : ""}${e instanceof Error ? e.message : t("Caricamento non riuscito.")} ${t("Le foto rimaste sono ancora da inviare; puoi riprovare.")}`,
       );
     } finally {
       inFlight.current = false;
@@ -196,15 +201,15 @@ export function SurveyElementPhotos({
   }
   return (
     <section
-      aria-label="Foto dell’elemento"
+      aria-label={t("Foto dell’elemento")}
       className="space-y-3 rounded-2xl border bg-white p-4"
     >
       <div>
-        <h3 className="font-semibold">Foto dell’elemento</h3>
+        <h3 className="font-semibold">{t("Foto dell’elemento")}</h3>
         <p className="mt-1 text-xs text-slate-500">
-          Scegli le foto, indica cosa mostrano, poi premi Carica. Le foto
-          caricate restano nel rilievo anche se annulli le modifiche alle
-          misure.
+          {t(
+            "Scegli le foto, indica cosa mostrano, poi premi Carica. Le foto caricate restano nel rilievo anche se annulli le modifiche alle misure.",
+          )}
         </p>
       </div>
       <div className="grid grid-cols-2 gap-2">
@@ -216,7 +221,7 @@ export function SurveyElementPhotos({
           onClick={() => camera.current?.click()}
         >
           <Camera className="h-4 w-4" />
-          Scatta foto
+          {t("Scatta foto")}
         </Button>
         <Button
           type="button"
@@ -226,13 +231,13 @@ export function SurveyElementPhotos({
           onClick={() => gallery.current?.click()}
         >
           <Images className="h-4 w-4" />
-          Galleria
+          {t("Galleria")}
         </Button>
       </div>
       <input
         ref={camera}
         type="file"
-        aria-label="Scatta foto dell’elemento"
+        aria-label={t("Scatta foto dell’elemento")}
         accept="image/*"
         capture="environment"
         className="hidden"
@@ -245,7 +250,7 @@ export function SurveyElementPhotos({
       <input
         ref={gallery}
         type="file"
-        aria-label="Scegli foto dell’elemento"
+        aria-label={t("Scegli foto dell’elemento")}
         accept="image/*"
         multiple
         className="hidden"
@@ -258,8 +263,10 @@ export function SurveyElementPhotos({
       {queue.length > 0 && (
         <div className="space-y-3 rounded-xl bg-slate-50 p-3">
           <p className="text-xs text-orange-900">
-            {queue.length} foto da caricare. I file non sono inclusi nella bozza
-            recuperabile: caricali o rimuovili prima di chiudere.
+            {t(
+              "{n} foto da caricare. I file non sono inclusi nella bozza recuperabile: caricali o rimuovili prima di chiudere.",
+              { n: queue.length },
+            )}
           </p>
           {queue.map((item) => (
             <div
@@ -267,7 +274,7 @@ export function SurveyElementPhotos({
               className="grid grid-cols-[minmax(0,1fr)_2.75rem] items-center gap-2"
             >
               <div className="min-w-0 space-y-1">
-                <p className="truncate text-sm">{item.file.name}</p>
+                <p dir="auto" className="truncate text-sm">{item.file.name}</p>
                 <QueuedPhotoPreview
                   item={item}
                   enabled={allowPlacement && !disabled && !busy && !placement}
@@ -282,13 +289,14 @@ export function SurveyElementPhotos({
                 />
                 {item.annotations && (
                   <p className="text-xs text-blue-800">
-                    Copia illustrativa · originale conservato · non conta come
-                    foto tecnica richiesta.
+                    {t(
+                      "Copia illustrativa · originale conservato · non conta come foto tecnica richiesta.",
+                    )}
                   </p>
                 )}
                 {queue.some((p) => p.sourceQueueId === item.id) && (
                   <p className="text-xs text-slate-500">
-                    Per rimuovere l’originale, rimuovi prima la sua proposta.
+                    {t("Per rimuovere l’originale, rimuovi prima la sua proposta.")}
                   </p>
                 )}
                 {!item.annotations && (
@@ -303,18 +311,18 @@ export function SurveyElementPhotos({
                   >
                     <SelectTrigger
                       className="h-11 rounded-xl"
-                      aria-label={`Cosa mostra ${item.file.name}`}
+                      aria-label={t("Cosa mostra {nome}", { nome: item.file.name })}
                     >
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl">
                       <SelectItem value="free">
-                        Particolare / foto libera
+                        {t("Particolare / foto libera")}
                       </SelectItem>
                       {checklist.map((p) => (
                         <SelectItem key={p.key} value={p.key}>
-                          {p.label}
-                          {p.required ? " · richiesta" : ""}
+                          {t(p.label)}
+                          {p.required ? ` · ${t("richiesta")}` : ""}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -332,7 +340,7 @@ export function SurveyElementPhotos({
                   !!placement ||
                   queue.some((p) => p.sourceQueueId === item.id)
                 }
-                aria-label={`Rimuovi ${item.file.name}`}
+                aria-label={t("Rimuovi {nome}", { nome: item.file.name })}
                 onClick={() =>
                   setQueue((old) => old.filter((p) => p.id !== item.id))
                 }
@@ -348,7 +356,9 @@ export function SurveyElementPhotos({
             onClick={() => void upload()}
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            {busy ? "Caricamento…" : `Carica ${queue.length} foto nel rilievo`}
+            {busy
+              ? t("Caricamento…")
+              : t("Carica {n} foto nel rilievo", { n: queue.length })}
           </Button>
         </div>
       )}
@@ -374,7 +384,9 @@ export function SurveyElementPhotos({
             ]);
             setPlacement(null);
             setNotice(
-              "Proposta pronta: premi Carica per conservarla nel rilievo e nel PDF. L’originale resta separato.",
+              t(
+                "Proposta pronta: premi Carica per conservarla nel rilievo e nel PDF. L’originale resta separato.",
+              ),
             );
           }}
         />
@@ -395,7 +407,7 @@ export function SurveyElementPhotos({
             m.element_id === element.id &&
             ["photo", "annotated_photo", "sketch"].includes(m.type),
         )}
-        emptyText="Nessuna foto per questo elemento."
+        emptyText={t("Nessuna foto per questo elemento.")}
       />
       {allowPlacement &&
         media
@@ -416,12 +428,13 @@ export function SurveyElementPhotos({
                 setPlacement({
                   context,
                   url: surveyMediaUrl(m.url)!,
-                  name: m.filename || "Foto del rilievo",
+                  name: m.filename || t("Foto del rilievo"),
                   mediaId: m.id,
                 })
               }
             >
-              Posiziona impianto · {m.filename || m.checklist_label || "Foto"}
+              {t("Posiziona impianto")} ·{" "}
+              {m.filename || m.checklist_label || t("Foto")}
             </Button>
           ))}
     </section>

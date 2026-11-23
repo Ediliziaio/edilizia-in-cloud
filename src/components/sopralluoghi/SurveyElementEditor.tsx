@@ -57,6 +57,7 @@ import {
   surveyElementReview,
   visibleSurveySections,
 } from "@/lib/surveys/elementWorkflow";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type SurveyEditState = { dirty: boolean; saving: boolean };
 export type SurveyElementEditorHandle = {
@@ -78,6 +79,7 @@ export const SurveyElementEditor = forwardRef<
   { detail, element, onStateChange, onCancel, onSaved, onNext, nextLabel },
   ref,
 ) {
+  const t = useT();
   const [initial] = useState<SurveyElementDraft>(() => ({
     values: structuredClone(element.values ?? {}),
     quantity: element.quantity,
@@ -114,7 +116,7 @@ export const SurveyElementEditor = forwardRef<
   const qc = useQueryClient();
   const inFlight = useRef(false);
   const type = detail.template.schema.element_types.find(
-    (t) => t.key === element.element_type,
+    (et) => et.key === element.element_type,
   );
   const locked =
     !!detail.survey.client_signature_at || detail.survey.status === "signed";
@@ -158,14 +160,16 @@ export const SurveyElementEditor = forwardRef<
       keepDraft: () => {
         if (photoState.pending || photoState.busy) {
           setError(
-            "Le foto da caricare non sono incluse nella bozza: caricale o rimuovile prima di conservare e chiudere.",
+            t(
+              "Le foto da caricare non sono incluse nella bozza: caricale o rimuovile prima di conservare e chiudere.",
+            ),
           );
           return false;
         }
         return persistLocal();
       },
     }),
-    [discardLocal, persistLocal, photoState.pending, photoState.busy],
+    [discardLocal, persistLocal, photoState.pending, photoState.busy, t],
   );
   const allSections = (type ? windowSurveySections(type) : []).map((s) =>
     type?.key === "portoncino_blindato"
@@ -263,7 +267,9 @@ export const SurveyElementEditor = forwardRef<
       if (goNext && onNext) onNext(saved);
       else onSaved();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Salvataggio non riuscito.");
+      setError(
+        e instanceof Error ? e.message : t("Salvataggio non riuscito."),
+      );
     } finally {
       inFlight.current = false;
       setSaving(false);
@@ -275,8 +281,9 @@ export const SurveyElementEditor = forwardRef<
         role="alert"
         className="rounded-xl bg-orange-50 p-4 text-sm text-orange-900"
       >
-        Azienda o utente cambiati. Chiudi questa scheda e riapri il rilievo nel
-        contesto corretto.
+        {t(
+          "Azienda o utente cambiati. Chiudi questa scheda e riapri il rilievo nel contesto corretto.",
+        )}
       </p>
     );
   return (
@@ -286,21 +293,21 @@ export const SurveyElementEditor = forwardRef<
         void save();
       }}
       className="space-y-4 max-lg:[&_input:not([type=radio]):not([type=checkbox]):not([type=hidden])]:min-h-11 max-lg:[&_input]:text-base max-lg:[&_textarea]:text-base max-lg:[&_button:not([role=radio]):not([role=checkbox]):not([role=switch])]:min-h-11"
-      aria-label="Modifica elemento del sopralluogo"
+      aria-label={t("Modifica elemento del sopralluogo")}
     >
       <div
         className={`rounded-2xl bg-slate-50 px-4 py-3 ${compact ? "hidden" : ""}`}
       >
         <p className="text-sm font-semibold text-slate-900">
-          {type?.label || "Scheda elemento"}
+          {type?.label ? t(type.label) : t("Scheda elemento")}
         </p>
         <p className="mt-1 text-sm text-slate-600">
           {type
-            ? surveyProductGuide(type)
-            : "Verifica i dati prima di salvare."}
+            ? t(surveyProductGuide(type))
+            : t("Verifica i dati prima di salvare.")}
         </p>
         <p className="mt-1 text-xs text-slate-500">
-          Misure in bozza fino a Salva · nessun ordine automatico
+          {t("Misure in bozza fino a Salva · nessun ordine automatico")}
         </p>
       </div>
       {type && !solaLettura && !locked && (
@@ -334,7 +341,9 @@ export const SurveyElementEditor = forwardRef<
             setPendingNote(false);
             setVisualEpoch((v) => v + 1);
             setRecoveryNotice(
-              "Dati comuni applicati alla bozza. Misure del vano e apertura conservate; verifica compatibilità e salva quando pronto.",
+              t(
+                "Dati comuni applicati alla bozza. Misure del vano e apertura conservate; verifica compatibilità e salva quando pronto.",
+              ),
             );
           }}
         />
@@ -346,13 +355,13 @@ export const SurveyElementEditor = forwardRef<
           schema={schema}
           version={element.updated_at}
           labels={{
-            quantity: "Quantità",
-            notes: "Note",
-            element_label: "Nome elemento",
+            quantity: t("Quantità"),
+            notes: t("Note"),
+            element_label: t("Nome elemento"),
             ...Object.fromEntries(
               (type ? windowSurveySections(type) : [])
                 .flatMap((s) => flattenWindowFields(s.fields))
-                .map((f) => [`values.${f.key}`, f.label]),
+                .map((f) => [`values.${f.key}`, t(f.label)]),
             ),
           }}
           onForget={local.forgetRecovery}
@@ -390,11 +399,15 @@ export const SurveyElementEditor = forwardRef<
                   .join("\n"),
               };
               setRecoveryNotice(
-                "Il componente della nota non è più presente: ho conservato il testo nelle note, senza posizionarlo su un altro disegno.",
+                t(
+                  "Il componente della nota non è più presente: ho conservato il testo nelle note, senza posizionarlo su un altro disegno.",
+                ),
               );
             } else if (!photoExists)
               setRecoveryNotice(
-                "La foto collegata non è più disponibile. La nota è recuperata senza collegamento: scegli la foto corretta prima di aggiungerla.",
+                t(
+                  "La foto collegata non è più disponibile. La nota è recuperata senza collegamento: scegli la foto corretta prima di aggiungerla.",
+                ),
               );
             setDraft(
               changed
@@ -427,18 +440,20 @@ export const SurveyElementEditor = forwardRef<
           className="rounded-xl border border-orange-200 bg-orange-50 p-3 text-sm text-orange-900"
         >
           {!local.contextValid
-            ? "Azienda o utente cambiati. Chiudi questa scheda e riapri il rilievo nel contesto corretto."
-            : local.error}
+            ? t(
+                "Azienda o utente cambiati. Chiudi questa scheda e riapri il rilievo nel contesto corretto.",
+              )
+            : local.error && t(local.error)}
         </p>
       )}
       {locked && (
         <p role="alert" className="text-sm text-orange-900">
-          Il rilievo contiene una firma: la modifica non è disponibile.
+          {t("Il rilievo contiene una firma: la modifica non è disponibile.")}
         </p>
       )}
       {compact && (isWindowSurvey(type) || isEnergySurvey(type)) && (
         <nav
-          aria-label="Passi della scheda rilievo"
+          aria-label={t("Passi della scheda rilievo")}
           className="sticky top-0 z-20 grid grid-cols-4 gap-1 rounded-xl border bg-white/95 p-1 shadow-sm backdrop-blur"
         >
           {MOBILE_STEPS.map((label, i) => (
@@ -451,7 +466,7 @@ export const SurveyElementEditor = forwardRef<
               disabled={pendingNote || busy}
               onClick={() => setMobileStep(i)}
             >
-              {i + 1}. {label}
+              {i + 1}. {t(label)}
             </Button>
           ))}
         </nav>
@@ -471,18 +486,18 @@ export const SurveyElementEditor = forwardRef<
           className={`grid ${isEnergySurvey(type) ? "grid-cols-1" : "grid-cols-[minmax(0,1fr)_5rem] sm:grid-cols-[1fr_8rem]"} gap-3 ${compact && (isWindowSurvey(type) || isEnergySurvey(type)) && mobileStep !== 0 ? "hidden" : ""}`}
         >
           <div className="space-y-1">
-            <Label htmlFor="survey-element-label">Nome elemento</Label>
+            <Label htmlFor="survey-element-label">{t("Nome elemento")}</Label>
             <Input
               id="survey-element-label"
               value={draft.element_label ?? ""}
               onChange={(e) =>
                 setDraft({ ...draft, element_label: e.target.value })
               }
-              placeholder={type?.label}
+              placeholder={type?.label ? t(type.label) : undefined}
             />
           </div>
           <div className={`space-y-1 ${isEnergySurvey(type) ? "hidden" : ""}`}>
-            <Label htmlFor="survey-element-quantity">Quantità</Label>
+            <Label htmlFor="survey-element-quantity">{t("Quantità")}</Label>
             <Input
               id="survey-element-quantity"
               type="number"
@@ -521,8 +536,9 @@ export const SurveyElementEditor = forwardRef<
                 hidden={!compact}
                 className="mb-3 cursor-pointer rounded-xl border bg-blue-50 px-4 py-3 text-sm font-medium text-blue-950"
               >
-                Disegno, aperture e note ·{" "}
-                {previewOpen ? "riduci" : "tocca per aprire"}
+                {previewOpen
+                  ? t("Disegno, aperture e note · riduci")
+                  : t("Disegno, aperture e note · tocca per aprire")}
               </summary>
               <WindowSurveyVisual
                 key={visualEpoch}
@@ -597,8 +613,9 @@ export const SurveyElementEditor = forwardRef<
               isWindowSurvey(type) &&
               activeSections.length === 0 && (
                 <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
-                  Nessun dettaglio aggiuntivo per questo tipo di elemento. Puoi
-                  proseguire al passo successivo.
+                  {t(
+                    "Nessun dettaglio aggiuntivo per questo tipo di elemento. Puoi proseguire al passo successivo.",
+                  )}
                 </p>
               )}
           </div>
@@ -606,7 +623,9 @@ export const SurveyElementEditor = forwardRef<
         <div
           className={`space-y-1 ${compact && (isWindowSurvey(type) || isEnergySurvey(type)) && mobileStep !== 3 ? "hidden" : ""}`}
         >
-          <Label htmlFor="survey-element-notes">Note sull’elemento</Label>
+          <Label htmlFor="survey-element-notes">
+            {t("Note sull’elemento")}
+          </Label>
           <Textarea
             id="survey-element-notes"
             value={draft.notes ?? ""}
@@ -624,16 +643,16 @@ export const SurveyElementEditor = forwardRef<
         >
           <summary className="flex min-h-12 cursor-pointer items-center gap-2 px-4 py-3 text-sm font-medium">
             <Camera className="h-4 w-4" />
-            Foto e particolari ·{" "}
-            {
-              media.filter(
+            {t("Foto e particolari · {n} caricate", {
+              n: media.filter(
                 (m) =>
                   m.element_id === element.id &&
                   ["photo", "annotated_photo", "sketch"].includes(m.type),
-              ).length
-            }{" "}
-            caricate
-            {photoState.pending ? ` · ${photoState.pending} da caricare` : ""}
+              ).length,
+            })}
+            {photoState.pending
+              ? ` · ${t("{n} da caricare", { n: photoState.pending })}`
+              : ""}
             <ChevronDown className="ml-auto h-4 w-4" />
           </summary>
           <SurveyElementPhotos
@@ -678,11 +697,11 @@ export const SurveyElementEditor = forwardRef<
         {review && (
           <div
             className="space-y-2 rounded-2xl border bg-slate-50 p-4"
-            aria-label="Verifica dell’elemento"
+            aria-label={t("Verifica dell’elemento")}
           >
             <h3 className="flex items-center gap-2 text-sm font-semibold">
               <ClipboardCheck className="h-4 w-4" />
-              Prima di proseguire
+              {t("Prima di proseguire")}
             </h3>
             {review.missing.length +
               review.photos.length +
@@ -690,30 +709,34 @@ export const SurveyElementEditor = forwardRef<
             0 ? (
               <>
                 <p className="text-xs text-slate-600">
-                  Puoi salvare la bozza. Questi dati restano da completare:
+                  {t("Puoi salvare la bozza. Questi dati restano da completare:")}
                 </p>
                 <ul className="list-disc space-y-1 pl-5 text-sm text-orange-900">
                   {review.missing.map((f) => (
-                    <li key={f.key}>{f.label}</li>
+                    <li key={f.key}>{t(f.label)}</li>
                   ))}
                   {review.photos.map((p) => (
-                    <li key={`photo:${p.key}`}>Foto · {p.label}</li>
+                    <li key={`photo:${p.key}`}>
+                      {t("Foto · {nome}", { nome: t(p.label) })}
+                    </li>
                   ))}
                   {review.checks.map((message) => (
-                    <li key={message}>{message}</li>
+                    <li key={message}>{t(message)}</li>
                   ))}
                 </ul>
               </>
             ) : (
               <p className="text-sm text-emerald-800">
-                Dati e foto obbligatori presenti. Verifica comunque misure,
-                aperture e dettagli sul posto.
+                {t(
+                  "Dati e foto obbligatori presenti. Verifica comunque misure, aperture e dettagli sul posto.",
+                )}
               </p>
             )}
             {isWindowSurvey(type) && (
               <p className="text-xs text-slate-500">
-                La completezza del rilievo non certifica le misure per la
-                produzione. La verifica d’ordine è separata.
+                {t(
+                  "La completezza del rilievo non certifica le misure per la produzione. La verifica d’ordine è separata.",
+                )}
               </p>
             )}
           </div>
@@ -727,7 +750,9 @@ export const SurveyElementEditor = forwardRef<
           disabled={pendingNote || busy}
           onClick={() => setMobileStep((s) => s + 1)}
         >
-          Continua: {MOBILE_STEPS[mobileStep + 1]} →
+          {t("Continua: {passo} →", {
+            passo: t(MOBILE_STEPS[mobileStep + 1]),
+          })}
         </Button>
       )}
       {error && (
@@ -735,18 +760,19 @@ export const SurveyElementEditor = forwardRef<
           role="alert"
           className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"
         >
-          {error}
+          {t(error)}
         </p>
       )}
       {pendingNote && (
         <p role="status" className="text-xs text-orange-800">
-          Aggiungi la nota alla bozza oppure annulla il posizionamento prima di
-          salvare.
+          {t(
+            "Aggiungi la nota alla bozza oppure annulla il posizionamento prima di salvare.",
+          )}
         </p>
       )}
       {solaLettura && (
         <p role="alert" className="text-sm text-orange-900">
-          Il profilo è in sola lettura. Nessuna modifica verrà salvata.
+          {t("Il profilo è in sola lettura. Nessuna modifica verrà salvata.")}
         </p>
       )}
       <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-end gap-2 border-t bg-white/95 py-3 backdrop-blur">
@@ -756,15 +782,15 @@ export const SurveyElementEditor = forwardRef<
         >
           {busy
             ? photoState.busy
-              ? "Caricamento foto in corso…"
-              : "Salvataggio in corso…"
+              ? t("Caricamento foto in corso…")
+              : t("Salvataggio in corso…")
             : dirty
               ? local.savedAt && !local.error
-                ? "Bozza locale protetta · da salvare"
-                : "Modifiche non salvate"
+                ? t("Bozza locale protetta · da salvare")
+                : t("Modifiche non salvate")
               : uploadedMedia.length
-                ? "Foto caricate · conferma la verifica con Salva"
-                : "Nessuna modifica"}
+                ? t("Foto caricate · conferma la verifica con Salva")
+                : t("Nessuna modifica")}
         </span>
         <Button
           type="button"
@@ -773,7 +799,7 @@ export const SurveyElementEditor = forwardRef<
           onClick={onCancel}
           disabled={busy}
         >
-          Annulla
+          {t("Annulla")}
         </Button>
         <Button
           type="submit"
@@ -795,7 +821,7 @@ export const SurveyElementEditor = forwardRef<
           ) : (
             <Save className="h-4 w-4" />
           )}
-          Salva elemento
+          {t("Salva elemento")}
         </Button>
         {onNext && (
           <Button
@@ -812,10 +838,10 @@ export const SurveyElementEditor = forwardRef<
               solaLettura ||
               !canViewSopralluoghi
             }
-            title={nextLabel ? `Prossimo: ${nextLabel}` : undefined}
+            title={nextLabel ? t("Prossimo: {nome}", { nome: nextLabel }) : undefined}
             onClick={() => void save(true)}
           >
-            {needsSave ? "Salva e prossimo" : "Prossimo elemento"}
+            {needsSave ? t("Salva e prossimo") : t("Prossimo elemento")}
             <ArrowRight className="h-4 w-4" />
           </Button>
         )}

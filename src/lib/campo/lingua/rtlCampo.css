@@ -63,10 +63,14 @@ html[dir="rtl"] body .mr-2 { margin-left: 0.5rem; }
 html[dir="rtl"] .mr-2 { margin-right: 0px; }
 html[dir="rtl"] body .mr-3 { margin-left: 0.75rem; }
 html[dir="rtl"] .mr-3 { margin-right: 0px; }
+html[dir="rtl"] body .mr-auto { margin-left: auto; }
+html[dir="rtl"] .mr-auto { margin-right: 0px; }
 html[dir="rtl"] body .pl-10 { padding-right: 2.5rem; }
 html[dir="rtl"] .pl-10 { padding-left: 0px; }
 html[dir="rtl"] body .pl-2 { padding-right: 0.5rem; }
 html[dir="rtl"] .pl-2 { padding-left: 0px; }
+html[dir="rtl"] body .pl-4 { padding-right: 1rem; }
+html[dir="rtl"] .pl-4 { padding-left: 0px; }
 html[dir="rtl"] body .pl-5 { padding-right: 1.25rem; }
 html[dir="rtl"] .pl-5 { padding-left: 0px; }
 html[dir="rtl"] body .pl-6 { padding-right: 1.5rem; }
@@ -77,6 +81,8 @@ html[dir="rtl"] body .pl-9 { padding-right: 2.25rem; }
 html[dir="rtl"] .pl-9 { padding-left: 0px; }
 html[dir="rtl"] body .pr-1 { padding-left: 0.25rem; }
 html[dir="rtl"] .pr-1 { padding-right: 0px; }
+html[dir="rtl"] body .pr-10 { padding-left: 2.5rem; }
+html[dir="rtl"] .pr-10 { padding-right: 0px; }
 html[dir="rtl"] body .pr-11 { padding-left: 2.75rem; }
 html[dir="rtl"] .pr-11 { padding-right: 0px; }
 html[dir="rtl"] body .pr-12 { padding-left: 3rem; }
@@ -93,6 +99,8 @@ html[dir="rtl"] body .pr-9 { padding-left: 2.25rem; }
 html[dir="rtl"] .pr-9 { padding-right: 0px; }
 html[dir="rtl"] body .right-0 { left: 0px; }
 html[dir="rtl"] .right-0 { right: auto; }
+html[dir="rtl"] body .right-0\.5 { left: 0.125rem; }
+html[dir="rtl"] .right-0\.5 { right: auto; }
 html[dir="rtl"] body .right-1 { left: 0.25rem; }
 html[dir="rtl"] .right-1 { right: auto; }
 html[dir="rtl"] body .right-2 { left: 0.5rem; }
@@ -113,6 +121,10 @@ html[dir="rtl"] body .rounded-tr-none { border-top-left-radius: 0px; }
 html[dir="rtl"] .rounded-tr-none { border-top-right-radius: 0px; }
 html[dir="rtl"] body .text-left { text-align: right; }
 html[dir="rtl"] body .text-right { text-align: left; }
+@media (min-width: 640px) {
+  html[dir="rtl"] body .sm\:pr-14 { padding-left: 3.5rem; }
+  html[dir="rtl"] .sm\:pr-14 { padding-right: 0px; }
+}
 @media (min-width: 640px) {
   html[dir="rtl"] .sm\:space-x-2 > :not([hidden]) ~ :not([hidden]) { --tw-space-x-reverse: 1; }
 }

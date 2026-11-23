@@ -25,6 +25,7 @@ import {
 import { MapPin, Plus, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { availableSurveyTypes } from "@/lib/surveys/availableTypes";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface AreaCardProps {
   area: SurveyAreaRow;
@@ -60,6 +61,7 @@ export function AreaCard({
   onMediaDeleted,
 }: AreaCardProps) {
   const [expanded, setExpanded] = useState(true);
+  const tr = useT();
   const elementTypes = availableSurveyTypes(originalElementTypes);
   const areaMedia = media.filter((m) => m.area_id === area.id && !m.element_id);
   const elementCount = elements.length;
@@ -91,7 +93,7 @@ export function AreaCard({
             value={area.name}
             onChange={(e) => onAreaChange(area.id, { name: e.target.value })}
             onClick={(e) => e.stopPropagation()}
-            placeholder="Nome area (es. Soggiorno, Falda Sud)"
+            placeholder={tr("Nome area (es. Soggiorno, Falda Sud)")}
             className="h-8 font-semibold flex-1 min-w-0"
             list={`area-suggestions-${area.id}`}
           />
@@ -102,14 +104,14 @@ export function AreaCard({
           </datalist>
         </button>
         <span className="text-xs text-muted-foreground shrink-0">
-          {elementCount} {elementCount === 1 ? "elemento" : "elementi"}
+          {tr(elementCount === 1 ? "{n} elemento" : "{n} elementi", { n: elementCount })}
         </span>
         <Button
           variant="ghost"
           size="icon"
           onClick={onAreaDelete}
           className="h-7 w-7 text-rose-600"
-          title="Elimina area"
+          title={tr("Elimina area")}
         >
           <Trash2 className="h-3.5 w-3.5" />
         </Button>
@@ -146,14 +148,14 @@ export function AreaCard({
             media={areaMedia}
             onMediaAdded={onMediaAdded}
             onMediaDeleted={onMediaDeleted}
-            label="Altre foto area"
+            label={tr("Altre foto area")}
           />
 
           {/* Lista elementi */}
           {elements.length > 0 && (
             <div className="space-y-2">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Elementi rilevati
+                {tr("Elementi rilevati")}
               </p>
               {elements
                 .sort((a, b) => a.position - b.position)
@@ -192,7 +194,7 @@ export function AreaCard({
               )}
             >
               <Plus className="h-4 w-4" />
-              Aggiungi {elementTypes[0].label}
+              {tr("Aggiungi {tipo}", { tipo: tr(elementTypes[0].label) })}
             </Button>
           ) : (
             <DropdownMenu>
@@ -202,7 +204,7 @@ export function AreaCard({
                   className="w-full gap-2 border-dashed border-2 border-orange-300 hover:bg-orange-50"
                 >
                   <Plus className="h-4 w-4" />
-                  Aggiungi elemento
+                  {tr("Aggiungi elemento")}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-56">
@@ -211,7 +213,7 @@ export function AreaCard({
                     key={t.key}
                     onClick={() => onElementAdd(t.key)}
                   >
-                    {t.label}
+                    {tr(t.label)}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>

@@ -30,6 +30,10 @@ export const SORGENTI = [
   // Anche queste le vede l'operaio (tradotte dalla sessione di collaudo il 23/11/2026).
   "src/components/calendar/mappa",
   "src/pages/azienda/InternalChat.tsx",
+  // Editor del sopralluogo (l'operaio lo apre da /campo/sopralluoghi/:id).
+  "src/pages/azienda/sopralluoghi/SopralluogoEditor.tsx",
+  "src/components/sopralluoghi",
+  "src/components/surveys/engine",
 ];
 const USCITA = "src/lib/campo/lingua/rtlCampo.css";
 

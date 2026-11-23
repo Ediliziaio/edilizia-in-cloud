@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { portoncinoOpeningComplete } from "@/lib/surveys/windowSurvey";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface ElementCardProps {
   element: SurveyElementRow;
@@ -49,6 +50,7 @@ export function ElementCard({
   onMediaAdded,
   onMediaDeleted,
 }: ElementCardProps) {
+  const t = useT();
   const elementMedia = media.filter((m) => m.element_id === element.id);
   const audioMedia = elementMedia.find((m) => m.type === "audio") ?? null;
 
@@ -106,7 +108,7 @@ export function ElementCard({
           <Badge variant="outline" className="font-mono text-[10px]">
             #{index + 1}
           </Badge>
-          <p className="font-semibold text-sm">{elementType.label}</p>
+          <p className="font-semibold text-sm">{t(elementType.label)}</p>
           {isComplete ? (
             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
           ) : (
@@ -120,7 +122,7 @@ export function ElementCard({
               size="icon"
               onClick={onDuplicate}
               className="h-7 w-7"
-              title="Duplica"
+              title={t("Duplica")}
             >
               <Copy className="h-3.5 w-3.5" />
             </Button>
@@ -131,7 +133,7 @@ export function ElementCard({
               size="icon"
               onClick={onDelete}
               className="h-7 w-7 text-rose-600"
-              title="Elimina"
+              title={t("Elimina")}
             >
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
@@ -143,16 +145,12 @@ export function ElementCard({
           <div className="rounded-md bg-amber-50 border border-amber-200 px-2.5 py-1.5 text-[11px] text-amber-800">
             {missingFields.length > 0 && (
               <p>
-                Mancano {missingFields.length}{" "}
-                {missingFields.length === 1 ? "campo" : "campi"} obbligatori
+                {t(missingFields.length === 1 ? "Manca {n} campo obbligatorio" : "Mancano {n} campi obbligatori", { n: missingFields.length })}
               </p>
             )}
             {missingPhotos.length > 0 && (
               <p>
-                Mancano {missingPhotos.length}{" "}
-                {missingPhotos.length === 1
-                  ? "foto richiesta"
-                  : "foto richieste"}
+                {t(missingPhotos.length === 1 ? "Mancano {n} foto richiesta" : "Mancano {n} foto richieste", { n: missingPhotos.length })}
               </p>
             )}
           </div>
@@ -161,12 +159,10 @@ export function ElementCard({
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-100 bg-blue-50/40 p-3">
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">
-              {element.element_label || elementType.label} · Quantità{" "}
-              {element.quantity}
+              {t("{nome} · Quantità {n}", { nome: element.element_label || t(elementType.label), n: element.quantity })}
             </p>
             <p className="text-xs text-slate-500">
-              Scheda visuale con misure, aperture e dettagli. Salvataggio
-              esplicito.
+              {t("Scheda visuale con misure, aperture e dettagli. Salvataggio esplicito.")}
             </p>
           </div>
           <Button
@@ -176,7 +172,7 @@ export function ElementCard({
             className="min-h-11 gap-2 rounded-xl"
           >
             <Pencil className="h-4 w-4" />
-            Apri scheda elemento
+            {t("Apri scheda elemento")}
           </Button>
         </div>
 
@@ -197,7 +193,7 @@ export function ElementCard({
           media={elementMedia}
           onMediaAdded={onMediaAdded}
           onMediaDeleted={onMediaDeleted}
-          label="Altre foto"
+          label={t("Altre foto")}
         />
 
         <AudioRecorder

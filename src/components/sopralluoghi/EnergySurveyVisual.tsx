@@ -12,6 +12,7 @@ import {
 } from "@/lib/surveys/energyDrawing";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function EnergySurveyVisual({
   type,
@@ -24,6 +25,7 @@ export function EnergySurveyVisual({
   onChange?: (v: EnergyValues) => void;
   disabled?: boolean;
 }) {
+  const t = useT();
   const [error, setError] = useState("");
   const [selected, setSelected] = useState(0);
   const [obstacle, setObstacle] = useState({
@@ -55,22 +57,32 @@ export function EnergySurveyVisual({
   const editable = !!onChange && !disabled;
   return (
     <section
-      aria-label="Disegno del rilievo energetico"
+      aria-label={t("Disegno del rilievo energetico")}
       className="min-w-0 space-y-3 rounded-2xl border bg-white p-3 sm:p-4"
     >
       <div>
-        <h3 className="text-sm font-semibold">{scene.label}</h3>
+        <h3 className="text-sm font-semibold">{t(scene.label)}</h3>
         <p className="text-xs text-slate-500">
-          {scene.unit === "m" ? "Quote in metri" : "Quote in millimetri"} ·{" "}
+          {scene.unit === "m" ? t("Quote in metri") : t("Quote in millimetri")} ·{" "}
           {roof
-            ? `${values.en_count ?? "?"} moduli · ${typeof values.en_count === "number" && typeof values.en_module_watt === "number" ? ((values.en_count * values.en_module_watt) / 1000).toLocaleString("it-IT") : "?"} kWp nominali`
-            : "Rilievo tecnico"}
+            ? t("{n} moduli · {kwp} kWp nominali", {
+                n: String(values.en_count ?? "?"),
+                kwp:
+                  typeof values.en_count === "number" &&
+                  typeof values.en_module_watt === "number"
+                    ? (
+                        (values.en_count * values.en_module_watt) /
+                        1000
+                      ).toLocaleString(intlCampo())
+                    : "?",
+              })
+            : t("Rilievo tecnico")}
         </p>
       </div>
       <svg
         viewBox={`0 0 ${canvasWidth} ${canvasHeight}`}
         role="img"
-        aria-label={`${scene.label}: ${scene.width} × ${scene.height} ${scene.unit}`}
+        aria-label={`${t(scene.label)}: ${scene.width} × ${scene.height} ${scene.unit}`}
         className="w-full rounded-xl bg-slate-50"
         style={{ minHeight: 180 }}
       >
@@ -148,7 +160,7 @@ export function EnergySurveyVisual({
                 ? "×"
                 : r.kind === "module"
                   ? r.label
-                  : r.label.slice(0, 24)}
+                  : t(r.label).slice(0, 24)}
             </text>
           </g>
         ))}
@@ -171,24 +183,36 @@ export function EnergySurveyVisual({
           fontSize="18"
         >
           {route
-            ? `Lunghezza rilevata: ${values.en_length ?? "?"} m`
-            : `${scene.width.toLocaleString("it-IT")} × ${scene.height.toLocaleString("it-IT")} ${scene.unit}`}
+            ? t("Lunghezza rilevata: {n} m", { n: String(values.en_length ?? "?") })
+            : `${scene.width.toLocaleString(intlCampo())} × ${scene.height.toLocaleString(intlCampo())} ${scene.unit}`}
         </text>
       </svg>
       {obstacles.length > 0 && (
         <ul
-          aria-label="Quote degli ostacoli"
+          aria-label={t("Quote degli ostacoli")}
           className="space-y-1 text-xs text-slate-600"
         >
           {obstacles.map((r, i) => (
             <li key={i}>
-              × {r.label} · {r.w} × {r.h} {scene.unit} · da sinistra {r.x}{" "}
-              {scene.unit}, dall’alto {r.y} {scene.unit}
+              ×{" "}
+              {t(
+                "{nome} · {l} × {h} {u} · da sinistra {x} {u}, dall’alto {y} {u}",
+                {
+                  nome: r.label,
+                  l: r.w,
+                  h: r.h,
+                  u: scene.unit,
+                  x: r.x,
+                  y: r.y,
+                },
+              )}
             </li>
           ))}
         </ul>
       )}
-      <p className="text-xs leading-relaxed text-slate-500">{scene.caption}</p>
+      <p className="text-xs leading-relaxed text-slate-500">
+        {t(scene.caption)}
+      </p>
       {editable && roof && (
         <div className="space-y-3 border-t pt-3">
           <Button
@@ -199,11 +223,13 @@ export function EnergySurveyVisual({
               act(() => ({ ...values, en_layout: proposeEnergyLayout(values) }))
             }
           >
-            Disponi i moduli con le misure inserite
+            {t("Disponi i moduli con le misure inserite")}
           </Button>
           <div className="rounded-xl bg-slate-50 p-3">
             <p className="mb-2 text-xs font-medium">
-              Tocca un modulo e spostalo di 10 cm · selezionato {selected + 1}
+              {t("Tocca un modulo e spostalo di 10 cm · selezionato {n}", {
+                n: selected + 1,
+              })}
             </p>
             <div className="grid grid-cols-4 gap-2">
               {[
@@ -216,13 +242,13 @@ export function EnergySurveyVisual({
                   key={label}
                   type="button"
                   variant="outline"
-                  aria-label={`Sposta modulo ${label}`}
+                  aria-label={t("Sposta modulo {freccia}", { freccia: String(label) })}
                   className="min-h-11"
                   onClick={() =>
                     act(() => {
                       const rows = energyRects(values, "en_layout");
                       if (!rows[selected])
-                        throw new Error("Prima prepara la disposizione.");
+                        throw new Error(t("Prima prepara la disposizione."));
                       return {
                         ...values,
                         en_layout: rows.map((r, i) =>
@@ -251,11 +277,11 @@ export function EnergySurveyVisual({
           </div>
           <details className="rounded-xl border p-3">
             <summary className="cursor-pointer text-sm font-medium">
-              Ostacoli, lucernari e zone escluse
+              {t("Ostacoli, lucernari e zone escluse")}
             </summary>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <label className="col-span-2 text-xs">
-                Descrizione
+                {t("Descrizione")}
                 <Input
                   value={obstacle.label}
                   onChange={(e) =>
@@ -272,7 +298,7 @@ export function EnergySurveyVisual({
                 ] as const
               ).map(([key, label]) => (
                 <label key={key} className="text-xs">
-                  {label}
+                  {t(label)}
                   <Input
                     type="number"
                     min="0"
@@ -296,7 +322,9 @@ export function EnergySurveyVisual({
                         (s) => !s.trim(),
                       )
                     )
-                      throw new Error("Compila tutte le quote dell’ostacolo.");
+                      throw new Error(
+                        t("Compila tutte le quote dell’ostacolo."),
+                      );
                     const next = {
                       ...values,
                       en_obstacles: [
@@ -315,7 +343,7 @@ export function EnergySurveyVisual({
                   })
                 }
               >
-                Aggiungi zona esclusa
+                {t("Aggiungi zona esclusa")}
               </Button>
             </div>
             {energyRectsSafe(values).map((r, i) => (
@@ -323,7 +351,7 @@ export function EnergySurveyVisual({
                 key={i}
                 className="mt-2 flex items-center justify-between gap-2 text-xs"
               >
-                <span>
+                <span dir="auto">
                   {r.label} · {r.w} × {r.h} m
                 </span>
                 <Button
@@ -338,7 +366,7 @@ export function EnergySurveyVisual({
                     }))
                   }
                 >
-                  Rimuovi
+                  {t("Rimuovi")}
                 </Button>
               </div>
             ))}
@@ -350,17 +378,19 @@ export function EnergySurveyVisual({
           role="alert"
           className="rounded-lg bg-red-50 p-3 text-sm text-red-700"
         >
-          {error}
+          {t(error)}
         </p>
       )}
       {checks.length > 0 && (
         <details className="rounded-xl bg-amber-50 p-3">
           <summary className="cursor-pointer text-xs font-medium text-amber-950">
-            {checks.length} verifiche aperte · nessuna approvazione automatica
+            {t("{n} verifiche aperte · nessuna approvazione automatica", {
+              n: checks.length,
+            })}
           </summary>
           <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-amber-950">
             {checks.map((c) => (
-              <li key={c}>{c}</li>
+              <li key={c}>{t(c)}</li>
             ))}
           </ul>
         </details>

@@ -80,15 +80,17 @@ import { useSurveyAccess } from "@/contexts/SurveyAccessContext";
 import { SurveyOfficeReview } from "./SurveyOfficeReview";
 import { SurveyFieldHandoff } from "./SurveyFieldHandoff";
 import { useSottoLarghezza } from "@/hooks/useSottoLarghezza";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 function Fields({ fields }: { fields: ReportField[] }) {
+  const t = useT();
   return (
     <dl className="grid gap-x-8 gap-y-4 sm:grid-cols-2">
       {fields.map((f) => (
         <div key={f.key} className="min-w-0">
           <dt className="text-xs text-slate-500">
             {f.label}
-            {f.required && <span className="sr-only"> (obbligatorio)</span>}
+            {f.required && <span className="sr-only"> {t("(obbligatorio)")}</span>}
           </dt>
           <dd
             className={`mt-1 whitespace-pre-wrap break-words text-sm ${f.missing ? "text-slate-400" : "font-medium text-slate-900"}`}
@@ -125,11 +127,12 @@ function AudioNote({
   transcription: string | null;
   label: string;
 }) {
+  const t = useT();
   return (
     <>
       {transcription && (
-        <p className="mt-3 whitespace-pre-wrap text-sm text-slate-600">
-          Nota vocale: {transcription}
+        <p dir="auto" className="mt-3 whitespace-pre-wrap text-sm text-slate-600">
+          {t("Nota vocale: {testo}", { testo: transcription })}
         </p>
       )}
       {surveyMediaUrl(url) && (
@@ -195,6 +198,7 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
     const small = useSottoLarghezza(640);
     const [metadataOpen, setMetadataOpen] = useState(false);
     const routeTo = useNavigate();
+    const tr = useT();
     function navigate(action: () => void) {
       if (editState.saving) return;
       if (editState.dirty) {
@@ -219,13 +223,13 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
     if (!query.allowed)
       return (
         <p role="alert" className="p-6 text-sm">
-          Per consultare il sopralluogo serve il permesso «Sopralluoghi».
+          {tr("Per consultare il sopralluogo serve il permesso «Sopralluoghi».")}
         </p>
       );
     if (query.isPending)
       return (
         <p role="status" className="p-6 text-sm text-slate-600">
-          Carico il sopralluogo…
+          {tr("Carico il sopralluogo…")}
         </p>
       );
     if (query.isError || !query.data)
@@ -234,14 +238,14 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
           role="alert"
           className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50 p-6"
         >
-          <h2 className="font-semibold">Sopralluogo non disponibile</h2>
+          <h2 className="font-semibold">{tr("Sopralluogo non disponibile")}</h2>
           <p className="text-sm">
             {query.error?.message ||
-              "Controlla l’azienda selezionata e i permessi, poi riprova."}
+              tr("Controlla l’azienda selezionata e i permessi, poi riprova.")}
           </p>
           <Button variant="outline" onClick={() => void query.refetch()}>
             <RefreshCw className="mr-2 h-4 w-4" />
-            Riprova
+            {tr("Riprova")}
           </Button>
         </div>
       );
@@ -272,7 +276,7 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
         ? [
             {
               id: "unassigned",
-              name: "Senza area riconosciuta",
+              name: tr("Senza area riconosciuta"),
               elements: report.unassigned,
             },
           ]
@@ -299,7 +303,7 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
         all.find((e) => e.id === m.element_id)?.title,
       ]
         .filter(Boolean)
-        .join(" · ") || "Sopralluogo";
+        .join(" · ") || tr("Sopralluogo");
     const ordinal = (e: SurveyReportElement) =>
       String(all.findIndex((x) => x.id === e.id) + 1).padStart(2, "0");
     function startEdit(e: SurveyReportElement) {
@@ -309,14 +313,14 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
       });
     }
     const index = (
-      <nav aria-label="Indice del sopralluogo" className="space-y-1 p-3">
+      <nav aria-label={tr("Indice del sopralluogo")} className="space-y-1 p-3">
         <button
           type="button"
           onClick={() => choose({ kind: "overview" })}
           aria-current={selection.kind === "overview" ? "page" : undefined}
           className={`mb-3 flex min-h-10 w-full items-center justify-between rounded-xl px-3 text-left text-sm font-semibold ${selection.kind === "overview" ? "bg-blue-50 text-blue-800" : "text-slate-600 hover:bg-slate-100"}`}
         >
-          <span>Riepilogo</span>
+          <span>{tr("Riepilogo")}</span>
           <span className="text-xs">{all.length}</span>
         </button>
         {groups.map((a) => (
@@ -331,14 +335,14 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
               aria-current={area?.id === a.id ? "page" : undefined}
               className="flex min-h-10 w-full items-center justify-between gap-2 rounded-lg px-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 hover:bg-slate-100"
             >
-              <span>{a.name}</span>
+              <span dir="auto">{a.name}</span>
               <span>{a.elements.length}</span>
             </button>
             {a.elements.map((e) => (
               <button
                 type="button"
                 key={e.id}
-                aria-label={`Vai a ${e.title}`}
+                aria-label={tr("Vai a {nome}", { nome: e.title })}
                 aria-current={selected?.id === e.id ? "page" : undefined}
                 onClick={() => choose({ kind: "element", id: e.id })}
                 className={`flex min-h-10 w-full items-start gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors ${selected?.id === e.id ? "bg-blue-50 font-medium text-blue-800" : "text-slate-600 hover:bg-slate-100"}`}
@@ -350,7 +354,7 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
                 {surveyElementQuality(detail, e).missing > 0 && (
                   <span
                     className="ml-auto mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-orange-500"
-                    aria-label="Dati mancanti"
+                    aria-label={tr("Dati mancanti")}
                   />
                 )}
               </button>
@@ -366,7 +370,7 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
           type="button"
           key={e.id}
           onClick={() => choose({ kind: "element", id: e.id })}
-          aria-label={`Apri ${e.title}`}
+          aria-label={tr("Apri {nome}", { nome: e.title })}
           className="group flex w-full items-center gap-3 border-b px-4 py-4 text-left transition-colors last:border-0 hover:bg-blue-50/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
         >
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-slate-100 text-xs font-semibold text-slate-500">
@@ -381,12 +385,12 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
             </span>
           </span>
           <span className="hidden shrink-0 text-xs text-slate-500 sm:block">
-            Qtà {e.quantity ?? "—"}
+            {tr("Qtà {n}", { n: e.quantity ?? "—" })}
           </span>
           <span
             className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-medium ${q.missing ? "bg-orange-50 text-orange-800" : "bg-slate-100 text-slate-600"}`}
           >
-            {q.missing ? `${q.missing} da completare` : "Dati compilati"}
+            {q.missing ? tr("{n} da completare", { n: q.missing }) : tr("Dati compilati")}
           </span>
           <span className="hidden items-center gap-1 text-xs text-slate-400 md:flex">
             <Camera className="h-3.5 w-3.5" />
@@ -417,7 +421,7 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
               className="mb-2 inline-flex items-center gap-1 text-xs text-slate-500"
             >
               <ArrowLeft className="h-3 w-3" />
-              Tutti i sopralluoghi
+              {tr("Tutti i sopralluoghi")}
             </Link>
           )}
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -428,18 +432,18 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
                 </span>
                 <Badge
                   variant="outline"
-                  title="Stato amministrativo: non certifica misure o allegati"
+                  title={tr("Stato amministrativo: non certifica misure o allegati")}
                   className="rounded-full text-[10px]"
                 >
-                  {survey.status === "completed" ? "Da revisionare" : SURVEY_STATUS[survey.status] ?? survey.status}
+                  {survey.status === "completed" ? tr("Da revisionare") : SURVEY_STATUS[survey.status] ? tr(SURVEY_STATUS[survey.status]) : survey.status}
                 </Badge>
               </div>
-              <Heading className="text-lg font-semibold tracking-tight text-slate-900 sm:text-xl">
+              <Heading dir="auto" className="text-lg font-semibold tracking-tight text-slate-900 sm:text-xl">
                 {detail.template.name}
               </Heading>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {access.field && !solaLettura && !embedded && onEdit && <Button variant="outline" className="min-h-11 rounded-xl" onClick={()=>navigate(onEdit)}>Compila</Button>}
+              {access.field && !solaLettura && !embedded && onEdit && <Button variant="outline" className="min-h-11 rounded-xl" onClick={()=>navigate(onEdit)}>{tr("Compila")}</Button>}
               <SurveyPdfTools
                 detail={detail}
                 companyName={effectiveCompany?.name || "Azienda"}
@@ -498,10 +502,10 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
               hidden={!small}
               className="mt-2 cursor-pointer py-1 text-xs text-slate-500"
             >
-              Indirizzo e appuntamento
+              {tr("Indirizzo e appuntamento")}
             </summary>
             <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-500">
-              <span className="inline-flex items-center gap-1.5">
+              <span dir="auto" className="inline-flex items-center gap-1.5">
                 <MapPin className="h-3.5 w-3.5 text-orange-500" />
                 {surveyAddress(survey)}
               </span>
@@ -510,7 +514,7 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
                 {dateSurvey(survey.scheduled_at, true)}
               </span>
               {references.isPending ? (
-                <span role="status">Carico contatto e incaricati…</span>
+                <span role="status">{tr("Carico contatto e incaricati…")}</span>
               ) : references.isError ? (
                 <button
                   type="button"
@@ -518,18 +522,18 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
                   className="text-orange-800 underline"
                   onClick={() => void references.refetch()}
                 >
-                  Riferimenti non disponibili · riprova
+                  {tr("Riferimenti non disponibili · riprova")}
                 </button>
               ) : (
                 <>
-                  <span className="font-medium text-slate-700">
+                  <span dir="auto" className="font-medium text-slate-700">
                     {references.data?.reference ||
-                      "Nessun cliente o contatto collegato"}
+                      tr("Nessun cliente o contatto collegato")}
                   </span>
-                  <span>
+                  <span dir="auto">
                     {references.data?.assignees.length
                       ? references.data.assignees.join(", ")
-                      : "Nessun incaricato registrato"}
+                      : tr("Nessun incaricato registrato")}
                   </span>
                 </>
               )}
@@ -568,17 +572,17 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
             className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b bg-white px-3 py-2 sm:px-5"
           >
             <TabsList
-              aria-label="Contenuti sopralluogo"
+              aria-label={tr("Contenuti sopralluogo")}
               className="h-auto flex-wrap justify-start gap-1 rounded-xl bg-slate-100 p-1"
             >
               <TabsTrigger value="rilievo" className="min-h-9 rounded-lg">
-                {small ? "Rilievo" : "Dati e rilievi"}
+                {small ? tr("Rilievo") : tr("Dati e rilievi")}
               </TabsTrigger>
               <TabsTrigger value="allegati" className="min-h-9 rounded-lg">
-                {small ? "Foto" : "Foto e allegati"} ({report.media.length})
+                {small ? tr("Foto") : tr("Foto e allegati")} ({report.media.length})
               </TabsTrigger>
               <TabsTrigger value="note" className="min-h-9 rounded-lg">
-                Note e firma
+                {tr("Note e firma")}
               </TabsTrigger>
             </TabsList>
             <button
@@ -592,7 +596,7 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
               aria-expanded={showChecks}
               aria-label={
                 small
-                  ? `Controllo dati · ${issues.length} verifiche`
+                  ? tr("Controllo dati · {n} verifiche", { n: issues.length })
                   : undefined
               }
               className={`inline-flex min-h-9 items-center gap-2 rounded-lg px-2 text-xs ${issues.length ? "text-orange-800 hover:bg-orange-50" : "text-slate-500 hover:bg-slate-50"}`}
@@ -600,8 +604,8 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
               <ShieldCheck className="h-3.5 w-3.5" />
               {!small &&
                 (issues.length
-                  ? `${report.missingFields} campi · ${report.missingPhotos} foto richieste mancanti`
-                  : "Controllo dati")}
+                  ? tr("{campi} campi · {foto} foto richieste mancanti", { campi: report.missingFields, foto: report.missingPhotos })
+                  : tr("Controllo dati"))}
               <ChevronRight
                 className={`${small ? "hidden" : ""} h-3 w-3 transition-transform motion-reduce:transition-none ${showChecks ? "rotate-90" : ""}`}
               />
@@ -621,12 +625,10 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
               {showChecks && (
                 <section className="mb-4 rounded-xl border border-orange-200 bg-orange-50 p-4 text-sm text-orange-950">
                   <h3 className="font-semibold">
-                    Stato dei dati, distinto dallo stato «
-                    {SURVEY_STATUS[survey.status]}»
+                    {tr("Stato dei dati, distinto dallo stato «{stato}»", { stato: SURVEY_STATUS[survey.status] ? tr(SURVEY_STATUS[survey.status]) : "" })}
                   </h3>
                   <p className="mt-1">
-                    {report.missingFields} campi obbligatori da completare ·{" "}
-                    {report.missingPhotos} foto richieste mancanti.
+                    {tr("{campi} campi obbligatori da completare · {foto} foto richieste mancanti.", { campi: report.missingFields, foto: report.missingPhotos })}
                   </p>
                   {issues.length > 0 && (
                     <ul className="mt-2 list-inside list-disc space-y-1 text-xs">
@@ -637,11 +639,9 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
                   )}
                   <p className="mt-2 text-xs">
                     {survey.client_signature_at
-                      ? "Firma presente"
-                      : "Firma non presente"}{" "}
-                    · {report.media.length} allegati. La compilazione non
-                    equivale alla verifica tecnica; la firma non è obbligatoria
-                    per ogni tipo di sopralluogo.
+                      ? tr("Firma presente")
+                      : tr("Firma non presente")}{" "}
+                    · {tr("{n} allegati. La compilazione non equivale alla verifica tecnica; la firma non è obbligatoria per ogni tipo di sopralluogo.", { n: report.media.length })}
                   </p>
                 </section>
               )}
@@ -656,7 +656,7 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
                 )}
                 {(!access.field || selected || area) && <details className="rounded-xl border bg-white lg:hidden">
                   <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
-                    Vai a un ambiente o elemento
+                    {tr("Vai a un ambiente o elemento")}
                   </summary>
                   {index}
                 </details>}
@@ -669,21 +669,20 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
                         className="inline-flex min-h-9 items-center gap-1 text-sm text-slate-500 hover:text-blue-700"
                       >
                         <ArrowLeft className="h-4 w-4" />
-                        Tutti gli elementi
+                        {tr("Tutti gli elementi")}
                       </button>
-                      <span className="text-xs text-slate-500">
+                      <span dir="auto" className="text-xs text-slate-500">
                         {report.areas.find((a) => a.id === selected.area_id)
-                          ?.name || "Senza area riconosciuta"}
+                          ?.name || tr("Senza area riconosciuta")}
                       </span>
                     </div>
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
-                        <h3 className="text-lg font-semibold text-slate-900">
+                        <h3 dir="auto" className="text-lg font-semibold text-slate-900">
                           {selected.title}
                         </h3>
                         <p className="mt-1 text-sm text-slate-500">
-                          {surveyElementSummary(selected)} · Quantità{" "}
-                          {selected.quantity}
+                          {surveyElementSummary(selected)} · {tr("Quantità {n}", { n: selected.quantity ?? "" })}
                         </p>
                       </div>
                       {!solaLettura &&
@@ -707,7 +706,7 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
                               }
                             >
                               <Copy className="h-4 w-4" />
-                              Duplica
+                              {tr("Duplica")}
                             </Button>
                             <Button
                               variant="outline"
@@ -715,7 +714,7 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
                               onClick={() => startEdit(selected)}
                             >
                               <Pencil className="h-4 w-4" />
-                              Modifica elemento
+                              {tr("Modifica elemento")}
                             </Button>
                           </div>
                         )}
@@ -725,8 +724,7 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
                         role="status"
                         className="rounded-xl bg-blue-50 p-3 text-sm text-blue-800"
                       >
-                        Elemento salvato. Riepilogo e PDF useranno le misure
-                        aggiornate.
+                        {tr("Elemento salvato. Riepilogo e PDF useranno le misure aggiornate.")}
                       </p>
                     )}
                     {editing ? (
@@ -789,25 +787,25 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
                             )}
                           />
                           {selected.notes && (
-                            <p className="whitespace-pre-wrap rounded-xl border bg-white p-4 text-sm text-slate-600">
+                            <p dir="auto" className="whitespace-pre-wrap rounded-xl border bg-white p-4 text-sm text-slate-600">
                               {selected.notes}
                             </p>
                           )}
                           <AudioNote
                             url={selected.audio_url}
                             transcription={selected.audio_transcription}
-                            label={`Nota vocale: ${selected.title}`}
+                            label={tr("Nota vocale: {testo}", { testo: selected.title })}
                           />
                         </div>
                         <section className="space-y-3">
                           <h4 className="text-sm font-semibold text-slate-700">
-                            Foto e allegati dell’elemento
+                            {tr("Foto e allegati dell’elemento")}
                           </h4>
                           <SurveyMediaGallery
                             media={detail.media.filter(
                               (m) => m.element_id === selected.id,
                             )}
-                            emptyText="Nessuna foto o allegato collegato a questo elemento."
+                            emptyText={tr("Nessuna foto o allegato collegato a questo elemento.")}
                           />
                           {surveyElementQuality(
                             detail,
@@ -817,7 +815,7 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
                               key={p.key}
                               className="rounded-lg bg-orange-50 p-3 text-xs text-orange-900"
                             >
-                              Foto richiesta da aggiungere: {p.label}
+                              {tr("Foto richiesta da aggiungere: {nome}", { nome: p.label })}
                             </p>
                           ))}
                         </section>
@@ -826,8 +824,7 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
                     {(survey.client_signature_at ||
                       survey.status === "signed") && (
                       <p className="text-xs text-slate-500">
-                        Rilievo sottoscritto: consultazione disponibile,
-                        modifica rapida disattivata per preservare l’originale.
+                        {tr("Rilievo sottoscritto: consultazione disponibile, modifica rapida disattivata per preservare l’originale.")}
                       </p>
                     )}
                   </>
@@ -835,16 +832,16 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
                   <>
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
-                        <h3 className="text-base font-semibold text-slate-900">
-                          {area?.name || "Il rilievo in sintesi"}
+                        <h3 dir="auto" className="text-base font-semibold text-slate-900">
+                          {area?.name || tr("Il rilievo in sintesi")}
                         </h3>
                         <p className="mt-1 text-xs text-slate-500">
                           {area
-                            ? `${area.elements.length} ${area.elements.length === 1 ? "elemento" : "elementi"}`
-                            : `${report.areas.length} ${report.areas.length === 1 ? "ambiente" : "ambienti"} · ${all.length} ${all.length === 1 ? "elemento" : "elementi"} · ${report.media.length} allegati`}{" "}
+                            ? tr(area.elements.length === 1 ? "{n} elemento" : "{n} elementi", { n: area.elements.length })
+                            : `${tr(report.areas.length === 1 ? "{n} ambiente" : "{n} ambienti", { n: report.areas.length })} · ${tr(all.length === 1 ? "{n} elemento" : "{n} elementi", { n: all.length })} · ${tr("{n} allegati", { n: report.media.length })}`}{" "}
                           {solaLettura
-                            ? "· apri una voce per consultare misure e foto."
-                            : "· apri una voce per misure, foto e modifica."}
+                            ? tr("· apri una voce per consultare misure e foto.")
+                            : tr("· apri una voce per misure, foto e modifica.")}
                         </p>
                       </div>
                       {area && (
@@ -853,7 +850,7 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
                           size="sm"
                           onClick={() => choose({ kind: "overview" })}
                         >
-                          Tutti gli ambienti
+                          {tr("Tutti gli ambienti")}
                         </Button>
                       )}
                     </div>
@@ -861,14 +858,14 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
                       <section className="rounded-xl border bg-white p-4">
                         <Fields fields={area.fields} />
                         {area.notes && (
-                          <p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">
+                          <p dir="auto" className="mt-2 whitespace-pre-wrap text-sm text-slate-600">
                             {area.notes}
                           </p>
                         )}
                         <AudioNote
                           url={area.audio_url}
                           transcription={area.audio_transcription}
-                          label={`Nota vocale: ${area.name}`}
+                          label={tr("Nota vocale: {testo}", { testo: area.name })}
                         />
                         {detail.media.some(
                           (m) => m.area_id === area.id && !m.element_id,
@@ -885,7 +882,7 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
                     ) : (
                       <details className="rounded-xl border bg-white">
                         <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-slate-600">
-                          Immobile, colori e accesso · dettagli generali
+                          {tr("Immobile, colori e accesso · dettagli generali")}
                         </summary>
                         <div className="grid gap-3 border-t p-3 md:grid-cols-2">
                           <Sections sections={report.header} />
@@ -898,15 +895,15 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
                         type="search"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        aria-label="Cerca nel sopralluogo"
-                        placeholder="Cerca ambiente, elemento o materiale…"
+                        aria-label={tr("Cerca nel sopralluogo")}
+                        placeholder={tr("Cerca ambiente, elemento o materiale…")}
                         className="h-10 rounded-xl bg-white pl-9"
                       />
                     </div>
                     {!all.length && (
                       <p className="rounded-xl border border-dashed p-5 text-sm text-slate-500">
-                        Nessun elemento registrato.
-                        {!report.areas.length && " Nessuna area registrata."}
+                        {tr("Nessun elemento registrato.")}
+                        {!report.areas.length && ` ${tr("Nessuna area registrata.")}`}
                       </p>
                     )}
                     {filtered
@@ -917,14 +914,13 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
                           className="overflow-hidden rounded-xl border bg-white"
                         >
                           <div className="flex items-center justify-between border-b bg-slate-50/70 px-4 py-2.5">
-                            <h4 className="text-sm font-semibold text-slate-700">
+                            <h4 dir="auto" className="text-sm font-semibold text-slate-700">
                               {a.name}
                             </h4>
                             <span className="text-xs text-slate-400">
-                              {a.elements.length}{" "}
-                              {a.elements.length === 1
-                                ? "elemento"
-                                : "elementi"}
+                              {tr(a.elements.length === 1
+                                ? "{n} elemento"
+                                : "{n} elementi", { n: a.elements.length })}
                             </span>
                           </div>
                           {a.elements.map(row)}
@@ -932,18 +928,17 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
                       ))}
                     {!!needle && !filtered.some((a) => a.elements.length) && (
                       <p className="p-4 text-sm text-slate-500">
-                        Nessun elemento corrisponde alla ricerca.{" "}
+                        {tr("Nessun elemento corrisponde alla ricerca.")}{" "}
                         <button
                           className="text-blue-700 underline"
                           onClick={() => setSearch("")}
                         >
-                          Azzera ricerca
+                          {tr("Azzera ricerca")}
                         </button>
                       </p>
                     )}
                     <p className="text-[11px] text-slate-400">
-                      Aggiornato {dateSurvey(surveyLastUpdated(detail), true)} · i dati
-                      mancanti restano evidenziati, non vengono stimati.
+                      {tr("Aggiornato {data} · i dati mancanti restano evidenziati, non vengono stimati.", { data: dateSurvey(surveyLastUpdated(detail), true) })}
                     </p>
                   </>
                 )}
@@ -952,48 +947,48 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
                 <SurveyMediaGallery
                   media={report.media}
                   context={mediaContext}
-                  emptyText="Nessuna foto o allegato registrato. Non vengono mostrate immagini dimostrative."
+                  emptyText={tr("Nessuna foto o allegato registrato. Non vengono mostrate immagini dimostrative.")}
                 />
               </TabsContent>
               <TabsContent value="note" className="mt-0 space-y-4">
                 <section className="rounded-xl border bg-white p-5">
                   <h3 className="mb-3 font-semibold text-blue-950">
-                    Note generali
+                    {tr("Note generali")}
                   </h3>
-                  <p className="whitespace-pre-wrap break-words text-sm text-slate-700">
-                    {survey.notes || "Nessuna nota registrata."}
+                  <p dir="auto" className="whitespace-pre-wrap break-words text-sm text-slate-700">
+                    {survey.notes || tr("Nessuna nota registrata.")}
                   </p>
                   <AudioNote
                     url={survey.general_audio_url}
                     transcription={survey.general_audio_transcription}
-                    label="Audio generale"
+                    label={tr("Audio generale")}
                   />
                 </section>
                 <section className="rounded-xl border bg-white p-5">
                   <h3 className="mb-3 font-semibold text-blue-950">
-                    {survey.client_signature_at ? "Firma registrata" : "Firma cliente"}
+                    {survey.client_signature_at ? tr("Firma registrata") : tr("Firma cliente")}
                   </h3>
                   {survey.client_signature_at ? (
                     <>
-                      <p className="text-sm">
+                      <p dir="auto" className="text-sm">
                         {survey.client_signature_name ||
-                          "Firmatario non indicato"}{" "}
+                          tr("Firmatario non indicato")}{" "}
                         · {dateSurvey(survey.client_signature_at, true)}
                       </p>
                       {surveyMediaUrl(survey.client_signature_url) && (
                         <img
                           src={surveyMediaUrl(survey.client_signature_url)!}
-                          alt="Firma registrata del cliente"
+                          alt={tr("Firma registrata del cliente")}
                           className="mt-3 max-h-24 max-w-full border bg-white p-2"
                         />
                       )}
                       <p className="mt-2 text-xs text-slate-500">
-                        La consultazione non modifica né ricrea la firma.
+                        {tr("La consultazione non modifica né ricrea la firma.")}
                       </p>
                     </>
                   ) : (
                     <p className="text-sm text-slate-500">
-                      Nessuna firma registrata.
+                      {tr("Nessuna firma registrata.")}
                     </p>
                   )}
                 </section>
@@ -1016,7 +1011,7 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
                   editState.saving ||
                   editState.dirty
                 )
-                  throw new Error("Chiudi prima le modifiche in corso.");
+                  throw new Error(tr("Chiudi prima le modifiche in corso."));
                 const created = await duplicateSurveyElement(
                   detail,
                   copySource,
@@ -1058,21 +1053,18 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
         >
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Hai modifiche non salvate</AlertDialogTitle>
+              <AlertDialogTitle>{tr("Hai modifiche non salvate")}</AlertDialogTitle>
               <AlertDialogDescription>
-                Puoi continuare, conservare la bozza su questo browser o
-                scartarla. I dati già salvati non cambiano.
+                {tr("Puoi continuare, conservare la bozza su questo browser o scartarla. I dati già salvati non cambiano.")}
               </AlertDialogDescription>
               {keepFailed && (
                 <p role="alert" className="text-sm text-orange-900">
-                  La bozza non può essere conservata completamente. Torna alla
-                  scheda: controlla le foto ancora da caricare e gli avvisi sul
-                  salvataggio locale.
+                  {tr("La bozza non può essere conservata completamente. Torna alla scheda: controlla le foto ancora da caricare e gli avvisi sul salvataggio locale.")}
                 </p>
               )}
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Continua a modificare</AlertDialogCancel>
+              <AlertDialogCancel>{tr("Continua a modificare")}</AlertDialogCancel>
               <Button
                 type="button"
                 variant="outline"
@@ -1088,7 +1080,7 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
                   action?.();
                 }}
               >
-                Conserva bozza e chiudi
+                {tr("Conserva bozza e chiudi")}
               </Button>
               <AlertDialogAction
                 onClick={() => {
@@ -1100,7 +1092,7 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
                   action?.();
                 }}
               >
-                Scarta modifiche
+                {tr("Scarta modifiche")}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

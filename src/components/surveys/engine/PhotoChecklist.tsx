@@ -15,6 +15,7 @@ import { uploadMedia, deleteMedia, validateSurveyPhoto } from "@/lib/api/surveys
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface PhotoChecklistProps {
   items: PhotoChecklistItem[];
@@ -33,6 +34,7 @@ export function PhotoChecklist({
   const [uploading, setUploading] = useState<string | null>(null);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const confirm = useConfirm();
+  const t = useT();
 
   const photosByKey = items.reduce((acc, item) => {
     acc[item.key] = media.filter(
@@ -48,7 +50,7 @@ export function PhotoChecklist({
     try {
       for (const file of list) {
         const invalid = validateSurveyPhoto(file);
-        if (invalid) { toast.error("File non valido", { description: invalid }); continue; }
+        if (invalid) { toast.error(t("File non valido"), { description: invalid }); continue; }
         const m = await uploadMedia(surveyId, file, {
           type: "photo",
           areaId: areaId ?? null,
@@ -59,7 +61,7 @@ export function PhotoChecklist({
         onMediaAdded?.(m);
       }
     } catch (e) {
-      toast.error("Upload foto fallito", {
+      toast.error(t("Upload foto fallito"), {
         description: e instanceof Error ? e.message : String(e),
       });
     } finally {
@@ -70,9 +72,9 @@ export function PhotoChecklist({
   const handleDelete = async (mediaId: string) => {
     if (
       !(await confirm({
-        title: "Eliminare la foto?",
-        description: "La foto verrà rimossa definitivamente dal sopralluogo.",
-        confirmLabel: "Elimina",
+        title: t("Eliminare la foto?"),
+        description: t("La foto verrà rimossa definitivamente dal sopralluogo."),
+        confirmLabel: t("Elimina"),
         variant: "destructive",
       }))
     ) {
@@ -82,7 +84,7 @@ export function PhotoChecklist({
       await deleteMedia(mediaId);
       onMediaDeleted?.(mediaId);
     } catch (e) {
-      toast.error("Eliminazione fallita", {
+      toast.error(t("Eliminazione fallita"), {
         description: e instanceof Error ? e.message : String(e),
       });
     }
@@ -92,7 +94,7 @@ export function PhotoChecklist({
     <div className="space-y-2">
       <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
         <Camera className="h-3 w-3" />
-        Foto richieste
+        {t("Foto richieste")}
       </p>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
         {items.map((item) => {
@@ -124,15 +126,15 @@ export function PhotoChecklist({
                     <Camera className={cn("h-6 w-6", isMissing ? "text-rose-500" : "text-muted-foreground")} />
                   )}
                   <p className={cn("text-[10px] font-medium leading-tight", isMissing && "text-rose-700")}>
-                    {item.label} {item.required && <span>*</span>}
+                    {t(item.label)} {item.required && <span>*</span>}
                   </p>
                   {item.hint && (
-                    <p className="text-[9px] text-muted-foreground leading-tight line-clamp-2">{item.hint}</p>
+                    <p className="text-[9px] text-muted-foreground leading-tight line-clamp-2">{t(item.hint)}</p>
                   )}
                   {isMissing && (
                     <p className="text-[9px] text-rose-600 flex items-center gap-0.5">
                       <AlertCircle className="h-2.5 w-2.5" />
-                      Richiesta
+                      {t("Richiesta")}
                     </p>
                   )}
                 </button>
@@ -140,22 +142,22 @@ export function PhotoChecklist({
                 <div className="space-y-1 p-1">
                   <p className="text-[10px] font-medium px-1 line-clamp-1 flex items-center gap-1">
                     <ImageIcon className="h-2.5 w-2.5 text-emerald-600" />
-                    {item.label}
+                    {t(item.label)}
                   </p>
                   <div className="grid grid-cols-2 gap-1">
                     {photos.map((p) => (
                       <div key={p.id} className="relative aspect-square">
                         <img loading="lazy"
                           src={p.url}
-                          alt={p.checklist_label ?? "Foto"}
+                          alt={p.checklist_label ? t(p.checklist_label) : t("Foto")}
                           className="w-full h-full object-cover rounded"
                         />
                         <button
                           type="button"
                           onClick={() => handleDelete(p.id)}
                           className="absolute top-0.5 right-0.5 bg-black/60 hover:bg-rose-600 text-white rounded-full p-1.5"
-                          title="Elimina"
-                          aria-label="Elimina foto"
+                          title={t("Elimina")}
+                          aria-label={t("Elimina foto")}
                         >
                           <Trash2 className="h-3 w-3" />
                         </button>

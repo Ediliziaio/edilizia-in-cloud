@@ -13,6 +13,7 @@ import {
   type PhotoPlacement,
   type PhotoPlacementDocument,
 } from "@/lib/surveys/photoPlacement";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type PlacementSource = {
   url: string;
@@ -33,6 +34,7 @@ export function SurveyPhotoPlacementEditor({
   onCancel: () => void;
   onSave: (file: File, annotations: PhotoPlacementDocument) => void;
 }) {
+  const t = useT();
   const [size, setSize] = useState<{ width: number; height: number } | null>(
       null,
     ),
@@ -104,14 +106,15 @@ export function SurveyPhotoPlacementEditor({
   }
   return (
     <section
-      aria-label="Posizionamento sulla foto"
+      aria-label={t("Posizionamento sulla foto")}
       className="min-w-0 space-y-3 rounded-2xl border border-blue-200 bg-white p-3 sm:p-4"
     >
       <div>
-        <h3 className="font-semibold">Prova la posizione sulla foto</h3>
+        <h3 className="font-semibold">{t("Prova la posizione sulla foto")}</h3>
         <p className="mt-1 text-xs text-slate-500">
-          Aggiungi il componente, poi toccalo o trascinalo nella posizione
-          prevista. L’originale non viene modificato.
+          {t(
+            "Aggiungi il componente, poi toccalo o trascinalo nella posizione prevista. L’originale non viene modificato.",
+          )}
         </p>
       </div>
       {size ? (
@@ -119,7 +122,7 @@ export function SurveyPhotoPlacementEditor({
           ref={svg}
           viewBox={`0 0 1000 ${1000 / aspect}`}
           role="img"
-          aria-label="Foto con posizione proposta dei componenti"
+          aria-label={t("Foto con posizione proposta dei componenti")}
           className="block w-full touch-none select-none rounded-xl border bg-slate-50"
           onPointerDown={(event) => {
             if (locked || !active) return;
@@ -214,18 +217,19 @@ export function SurveyPhotoPlacementEditor({
       ) : (
         !error && (
           <p role="status" className="text-sm">
-            Apro la foto…
+            {t("Apro la foto…")}
           </p>
         )
       )}
       <p className="text-xs text-orange-900">
-        Proposta illustrativa non in scala: non verifica fattibilità, distanze
-        di posa o dimensionamento.
+        {t(
+          "Proposta illustrativa non in scala: non verifica fattibilità, distanze di posa o dimensionamento.",
+        )}
       </p>
       <fieldset disabled={locked || !size} className="space-y-3">
         <div
           className="grid grid-cols-2 gap-2 sm:grid-cols-3"
-          aria-label="Tipo componente sulla foto"
+          aria-label={t("Tipo componente sulla foto")}
         >
           {(Object.keys(PHOTO_COMPONENTS) as PhotoComponentKind[]).map(
             (key) => (
@@ -237,7 +241,7 @@ export function SurveyPhotoPlacementEditor({
                 className="min-h-11 rounded-xl px-2 text-xs"
                 onClick={() => setKind(key)}
               >
-                {PHOTO_COMPONENTS[key].label}
+                {t(PHOTO_COMPONENTS[key].label)}
               </Button>
             ),
           )}
@@ -267,12 +271,14 @@ export function SurveyPhotoPlacementEditor({
             setSelected(id);
           }}
         >
-          + Aggiungi {PHOTO_COMPONENTS[kind].label.toLowerCase()}
+          {t("+ Aggiungi {cosa}", {
+            cosa: t(PHOTO_COMPONENTS[kind].label).toLowerCase(),
+          })}
         </Button>
         {items.length > 0 && (
           <div
             className="flex flex-wrap gap-2"
-            aria-label="Componenti inseriti"
+            aria-label={t("Componenti inseriti")}
           >
             {items.map((p, i) => (
               <Button
@@ -282,7 +288,7 @@ export function SurveyPhotoPlacementEditor({
                 key={p.id}
                 onClick={() => setSelected(p.id)}
               >
-                {i + 1}. {p.label || PHOTO_COMPONENTS[p.kind].label}
+                {i + 1}. {p.label || t(PHOTO_COMPONENTS[p.kind].label)}
               </Button>
             ))}
           </div>
@@ -290,9 +296,9 @@ export function SurveyPhotoPlacementEditor({
         {active && (
           <div className="space-y-3 rounded-xl bg-slate-50 p-3">
             <label className="block text-xs">
-              Nome / posizione
+              {t("Nome / posizione")}
               <Input
-                aria-label="Nome del componente sulla foto"
+                aria-label={t("Nome del componente sulla foto")}
                 maxLength={70}
                 value={active.label}
                 onChange={(e) => update(active.id, { label: e.target.value })}
@@ -300,9 +306,11 @@ export function SurveyPhotoPlacementEditor({
               />
             </label>
             <label className="block text-xs">
-              Dimensione visiva · {Math.round(active.width * 100)}% della foto
+              {t("Dimensione visiva · {n}% della foto", {
+                n: Math.round(active.width * 100),
+              })}
               <input
-                aria-label="Dimensione visiva del componente"
+                aria-label={t("Dimensione visiva del componente")}
                 type="range"
                 min="8"
                 max="75"
@@ -314,9 +322,9 @@ export function SurveyPhotoPlacementEditor({
               />
             </label>
             <label className="block text-xs">
-              Rotazione · {Math.round(active.rotation)}°
+              {t("Rotazione · {n}°", { n: Math.round(active.rotation) })}
               <input
-                aria-label="Rotazione del componente"
+                aria-label={t("Rotazione del componente")}
                 type="range"
                 min="-45"
                 max="45"
@@ -339,7 +347,7 @@ export function SurveyPhotoPlacementEditor({
                   key={label}
                   variant="outline"
                   className="min-h-11 rounded-xl"
-                  aria-label={`Sposta componente ${label}`}
+                  aria-label={t("Sposta componente {freccia}", { freccia: String(label) })}
                   onClick={() =>
                     update(active.id, {
                       x: active.x + Number(dx),
@@ -360,25 +368,25 @@ export function SurveyPhotoPlacementEditor({
                 setSelected(items.find((p) => p.id !== active.id)?.id || "");
               }}
             >
-              Rimuovi componente selezionato
+              {t("Rimuovi componente selezionato")}
             </Button>
           </div>
         )}
         <label className="block text-xs">
-          Note di posizionamento
+          {t("Note di posizionamento")}
           <Textarea
-            aria-label="Note di posizionamento"
+            aria-label={t("Note di posizionamento")}
             maxLength={400}
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="Es. Sopra la porta, passaggio tubi da verificare…"
+            placeholder={t("Es. Sopra la porta, passaggio tubi da verificare…")}
             className="mt-1 rounded-xl"
           />
         </label>
       </fieldset>
       {error && (
         <p role="alert" className="text-sm text-red-800">
-          {error}
+          {t(error)}
         </p>
       )}
       <div className="grid grid-cols-2 gap-2">
@@ -386,20 +394,20 @@ export function SurveyPhotoPlacementEditor({
           type="button"
           variant="outline"
           className="min-h-11 rounded-xl"
-          aria-label="Annulla fotoinserimento"
+          aria-label={t("Annulla fotoinserimento")}
           disabled={busy}
           onClick={onCancel}
         >
-          Annulla
+          {t("Annulla")}
         </Button>
         <Button
           type="button"
           className="min-h-11 rounded-xl"
-          aria-label="Usa questa proposta"
+          aria-label={t("Usa questa proposta")}
           disabled={locked || !size || !items.length}
           onClick={() => void save()}
         >
-          {busy ? "Preparo la copia…" : "Usa proposta"}
+          {busy ? t("Preparo la copia…") : t("Usa proposta")}
         </Button>
       </div>
     </section>
