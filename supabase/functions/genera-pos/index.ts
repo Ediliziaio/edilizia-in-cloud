@@ -17,6 +17,13 @@ import { normalizzaRiferimentoPsc } from "../_shared/posPsc.ts";
 import { AZIONI_POS, eAzioneBrowserPos, scriveAzionePos, type AzionePos } from "../_shared/posAzioni.ts";
 import { applicaFontiProposteAiPos, capitoliComputoPos, ISTRUZIONE_VOCI_DA_CLASSIFICARE, preparaContestoAiPos, vociDaClassificarePerAi } from "../_shared/posAiContesto.ts";
 import { computoPerAiPos, fasiPerAiPos, leggiPaginePscConOcr, pscPerAiPos } from "../_shared/posAiFonti.ts";
+import {
+  ISTRUZIONE_INDICAZIONI_DOCUMENTI, indicazioniPerProposte, normalizzaRisultatoLettore, normalizzaDecisioniLettore, proposteEmergenzaDaLettura,
+} from "../_shared/posLettoreDocumenti.ts";
+import {
+  contrattoPerLettore, eseguiLetturaDocumenti, LETTURA_FERMA_MS, prenotaLetturaDocumenti, risultatoUtilizzabile, salvaDecisioniLettura,
+  ultimaLetturaDocumenti, type LetturaDocumentiPos,
+} from "../_shared/posLettoreServer.ts";
 import { controlliApprovazione } from "../_shared/posApprovazione.ts";
 import { leggiRichiestaPos } from "../_shared/posRichiesta.ts";
 /**
@@ -160,6 +167,10 @@ async function proponiLavorazioni(db: Db, companyId: string, userId: string, pos
   const fonti = preparaContestoAiPos({
     fasi, ambito, descrizione, computo: computo.fonte, psc: psc.fonte, limitaAlPerimetro: perimetroEsplicito, capitoli,
   });
+  // Le citazioni verificate della lettura di PSC e contratto, se riguarda ancora il PSC di questo POS.
+  const letturaDocumenti = risultatoUtilizzabile(await ultimaLetturaDocumenti(db, companyId, String(pos.id)).catch(() => null), pscRef ?? null);
+  const indicazioniDocumenti = letturaDocumenti
+    ? indicazioniPerProposte(letturaDocumenti.risultato, letturaDocumenti.decisioni, pscRef?.revisione) : [];
   const subappaltatori = inSubappalto ? [] : contesto.subappaltatori;
   const dati = {
     perimetro_esplicito: perimetroEsplicito,
@@ -176,6 +187,7 @@ async function proponiLavorazioni(db: Db, companyId: string, userId: string, pos
       ref: "C" + (i + 1), titolo: titolo.slice(0, 180), capitolo: capitolo.slice(0, 84), codice, quantita, unita,
     })),
     voci_computo_da_classificare: vociDaClassificarePerAi(fonti),
+    indicazioni_documenti: indicazioniDocumenti.length ? indicazioniDocumenti : undefined,
     psc: fonti.psc ? { revisione: fonti.psc.riferimento.revisione, pagine: fonti.psc.pagine } : undefined,
     schede_standard: fonti.schede.map(({ id, titolo, prima, durante, dopo, rischi }) => ({ id, titolo, prima, durante, dopo, rischi })),
   };
@@ -195,7 +207,8 @@ async function proponiLavorazioni(db: Db, companyId: string, userId: string, pos
       messages: [
         { role: "system", content: SISTEMA_LAVORAZIONI + (capitoli.length
           ? " Con capitoli_selezionati proponi solo lavorazioni riscontrate nelle voci del computo fornite e cita almeno un riferimento C per ogni scheda." : "")
-          + (dati.voci_computo_da_classificare ? ISTRUZIONE_VOCI_DA_CLASSIFICARE : "") },
+          + (dati.voci_computo_da_classificare ? ISTRUZIONE_VOCI_DA_CLASSIFICARE : "")
+          + (dati.indicazioni_documenti ? ISTRUZIONE_INDICAZIONI_DOCUMENTI : "") },
         { role: "user", content: `Dati del cantiere:\n${JSON.stringify(dati, null, 2)}` },
       ],
       params: { temperature: 0.2, max_tokens: 7000 },
@@ -226,6 +239,24 @@ async function proponiLavorazioni(db: Db, companyId: string, userId: string, pos
   const modalita = (parsed as { modalita_organizzative?: unknown })?.modalita_organizzative;
   return { lavorazioni, modalita_organizzative: typeof modalita === "string" ? modalita.trim().slice(0, 4000) : "",
     avvisi, ditte: [...new Set(subappaltatori.map(s => s.ragione_sociale).filter(Boolean))] };
+}
+
+/** Quello che il browser vede di una lettura: niente parziali grezzi, il risultato solo se pronto. */
+function vistaLettura(l: LetturaDocumentiPos) {
+  const risultato = l.stato === "pronta" ? normalizzaRisultatoLettore(l.risultato) : null;
+  const fatti = Array.isArray(l.parziali) ? l.parziali.filter(Boolean).length : 0;
+  return {
+    id: l.id, stato: l.stato, errore: l.errore, avvisi: Array.isArray(l.avvisi) ? l.avvisi : [],
+    fonti: {
+      psc: l.fonti?.psc ? { id: l.fonti.psc.id, titolo: l.fonti.psc.titolo, revisione: l.fonti.psc.revisione, sha256: l.fonti.psc.sha256 } : null,
+      contratto: l.fonti?.contratto ? { id: l.fonti.contratto.id, file_name: l.fonti.contratto.file_name, file_path: l.fonti.contratto.file_path } : null,
+    },
+    avanzamento: { fatti, blocchi: l.fonti?.blocchi ?? null },
+    ferma: l.stato === "in_corso" && Date.now() - new Date(l.updated_at).getTime() > LETTURA_FERMA_MS,
+    risultato,
+    decisioni: risultato ? normalizzaDecisioniLettore(l.decisioni, risultato) : {},
+    aggiornata_il: l.updated_at,
+  };
 }
 
 function pianificaGiroOcr(db: Db, id: string | null, cors: Record<string, string>) {
@@ -438,7 +469,19 @@ Deno.serve(async (req: Request) => {
               ?? await pscPerAiPos(db, companyId, String(pos.order_id), fonte);
             const avviso = lettura.fonte?.letturaIntegrale
               ? `${lettura.avviso ?? ""} La ricerca consulta gli estratti più pertinenti del PSC.`.trim() : lettura.avviso;
-            return jsonResponse({ proposte: lettura.fonte ? proponiEmergenzeDalPsc(lettura.fonte) : [], avviso }, 200, cors);
+            // Prima le citazioni verificate della lettura di PSC e contratto, poi quelle trovate per parole chiave.
+            const daLettura = risultatoUtilizzabile(await ultimaLetturaDocumenti(db, companyId, posId).catch(() => null), fonte);
+            const viste = new Set<string>();
+            const proposte = [
+              ...(daLettura ? proposteEmergenzaDaLettura(daLettura.risultato, fonte, daLettura.decisioni) : []),
+              ...(lettura.fonte ? proponiEmergenzeDalPsc(lettura.fonte) : []),
+            ].filter(p => {
+              const k = `${p.campo}|${p.pagina}|${p.estratto}`;
+              if (viste.has(k)) return false;
+              viste.add(k);
+              return true;
+            });
+            return jsonResponse({ proposte, avviso }, 200, cors);
           }
           if (body.pagina != null) {
             if (typeof body.pagina !== "number" || !Number.isSafeInteger(body.pagina) || body.pagina < 1 || body.pagina > 9999) {
@@ -535,6 +578,40 @@ Deno.serve(async (req: Request) => {
       if(supportaMezziPos(body))preparato.contenuto.versione_mezzi=1;
       if(supportaDocumentiMezziPos(body))preparato.contenuto.versione_documenti_mezzi=1;
       return jsonResponse({ ok: true, contenuto: preparato.contenuto, contesto: preparato.contesto }, 200, cors);
+    }
+
+    if (azione === "stato_lettura_documenti") {
+      const lettura = await ultimaLetturaDocumenti(db, companyId, posId);
+      return jsonResponse({ lettura: lettura ? vistaLettura(lettura) : null }, 200, cors);
+    }
+
+    if (azione === "avvia_lettura_documenti") {
+      if (pos.status !== "bozza") return errorResponse("Apri una bozza per leggere PSC e contratto.", 409, cors);
+      const orderId = String(pos.order_id);
+      const pscPos = normalizzaPos(pos.contenuto).procedure_psc;
+      let psc = null;
+      if (body.usa_psc !== false && pscPos.psc_presente && pscPos.documento) {
+        const r = await riferimentoPscCorrente(db, companyId, orderId, pscPos.documento);
+        if (!r.fonte) return errorResponse(r.avviso || "Allinea il PSC del POS a quello vigente prima di leggerlo.", 409, cors);
+        psc = r.fonte;
+      }
+      const contrattoId = typeof body.contratto_id === "string" ? body.contratto_id : "";
+      const contratto = contrattoId ? await contrattoPerLettore(db, supabaseUser, orderId, contrattoId) : null;
+      if (!psc && !contratto) return errorResponse("Collega il PSC al POS o scegli il contratto da leggere.", 422, cors);
+      const { lettura, avvia } = await prenotaLetturaDocumenti(db, { companyId, orderId, posId, userId, psc, contratto: contratto?.fonte ?? null });
+      if (avvia) {
+        const lavoro = eseguiLetturaDocumenti(db, lettura, userId, contratto?.bytes)
+          .catch(error => console.warn("genera-pos: lettura documenti interrotta", error instanceof Error ? error.message : error));
+        const runtime = (globalThis as typeof globalThis & { EdgeRuntime?: { waitUntil(p: Promise<void>): void } }).EdgeRuntime;
+        runtime?.waitUntil(lavoro);
+      }
+      return jsonResponse({ lettura: vistaLettura(lettura) }, 202, cors);
+    }
+
+    if (azione === "decidi_lettura_documenti") {
+      if (pos.status !== "bozza") return errorResponse("Apri una bozza per scegliere fra PSC e contratto.", 409, cors);
+      const decisioni = await salvaDecisioniLettura(db, companyId, posId, String(body.lettura_id || ""), body.decisioni);
+      return jsonResponse({ decisioni }, 200, cors);
     }
 
     if (azione === "computo_ai") {

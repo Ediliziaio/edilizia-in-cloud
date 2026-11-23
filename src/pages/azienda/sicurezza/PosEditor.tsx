@@ -5,6 +5,8 @@ import { ContestoSchedaCommessa, useModificheSchedaCommessa } from "@/components
 import { invalidaRiesameTecnico } from "../../../../supabase/functions/_shared/posTecnica";
 import { ConfrontoFontiPos } from "@/components/sicurezza/pos/ConfrontoFontiPos";
 import { PreparaBozzaPos } from "@/components/sicurezza/pos/PreparaBozzaPos";
+import { LetturaDocumentiPos } from "@/components/sicurezza/pos/LetturaDocumentiPos";
+import { aggiungiRigheOrganizzazione, applicaEmergenzeDalPsc } from "@/lib/sicurezza/inserimentiBozzaPos";
 import { inserisciTestiLavorazione, stessaLavorazionePos } from "@/lib/sicurezza/testiLavorazionePos";
 import { useAnteprimaPos } from "@/hooks/useAnteprimaPos";
 import { AnnullaPdf, AnnunciaFasePdf } from "@/components/sicurezza/pos/PosPdfStato";
@@ -649,7 +651,12 @@ function EditorPos({ pos, datiApp, puoScrivere, puoLeggereComputo, senzaPrecompi
 
         <AperturaSezioniContext.Provider value={sezioniApertura}>
         <div className="min-w-0 space-y-4">
-          <SezioneOpera {...baseProps} mancanti={perSezione.get("opera") ?? 0} />
+          <SezioneOpera {...baseProps} mancanti={perSezione.get("opera") ?? 0} lettore={ro ? undefined : <LetturaDocumentiPos companyId={pos.company_id}
+            posId={pos.id} orderId={pos.order_id} psc={bozza.procedure_psc.psc_presente ? bozza.procedure_psc.documento : undefined}
+            salva={sporco ? salvaOra : undefined} onInserisci={(righe, emergenze) => modifica(x => {
+              aggiungiRigheOrganizzazione(x, righe);
+              applicaEmergenzeDalPsc(x, emergenze);
+            })} />} />
           <SezioneImpresa {...baseProps} mancanti={perSezione.get("impresa") ?? 0} />
           <SezioneFigure {...baseProps} mancanti={perSezione.get("figure") ?? 0} />
           <SezioneEmergenze {...baseProps} lettura={contestoLetturaPsc} mancanti={perSezione.get("emergenze") ?? 0} />

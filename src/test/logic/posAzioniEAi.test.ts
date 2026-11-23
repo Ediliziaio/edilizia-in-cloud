@@ -25,7 +25,7 @@ describe("azioni di genera-pos", () => {
     }
   });
   it("ogni azione è classificata", () => {
-    expect(AZIONI_POS.length).toBe(23);
+    expect(AZIONI_POS.length).toBe(26);
   });
 });
 

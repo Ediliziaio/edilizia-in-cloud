@@ -9,6 +9,7 @@ export const eAzioneBrowserPos = (a: string): a is (typeof AZIONI_BROWSER_POS)[n
 export const AZIONI_POS = [
   "fonte_rapporto_rumore", "apri_originale_addetto", "apri_documento_mezzo", "crea", "crea_manuale", "dati_app", "computo_ai", "lavorazioni_ai", "testo_lavorazione_ai", "approva",
   "stato_ocr_psc", "avvia_ocr_psc", "riprova_ocr_psc", "ocr_rapporto_rumore",
+  "avvia_lettura_documenti", "stato_lettura_documenti", "decidi_lettura_documenti",
   "salva_modello", "archivia_modello", "emetti", "scarica_emissione", "anteprima_pdf",
   ...AZIONI_BROWSER_POS,
 ] as const;
@@ -20,5 +21,6 @@ export type AzionePos = typeof AZIONI_POS[number];
  * davanti al PDF di un POS già emesso, mentre lavorazioni_ai (credito AI) passava.
  */
 const SCRIVONO: ReadonlySet<AzionePos> = new Set<AzionePos>(["crea", "crea_manuale", "approva", "emetti", "salva_modello", "archivia_modello", "lavorazioni_ai", "testo_lavorazione_ai",
-  "prepara_emissione", "completa_emissione", "annulla_emissione", "avvia_ocr_psc", "riprova_ocr_psc", "ocr_rapporto_rumore"]);
+  "prepara_emissione", "completa_emissione", "annulla_emissione", "avvia_ocr_psc", "riprova_ocr_psc", "ocr_rapporto_rumore",
+  "avvia_lettura_documenti", "decidi_lettura_documenti"]);
 export const scriveAzionePos = (azione: AzionePos): boolean => SCRIVONO.has(azione);

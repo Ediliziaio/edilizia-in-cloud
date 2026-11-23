@@ -1,6 +1,6 @@
 import { EsitiDalRapportoRumore } from "./EsitiDalRapportoRumore";
 import { EmergenzeDalPsc } from "./EmergenzeDalPsc";
-import { fontiEmergenzeDaRiesaminare, normalizzaFontiEmergenzePsc, testoIndicazioniEmergenza } from "../../../../supabase/functions/_shared/posEmergenzePsc";
+import { fontiEmergenzeDaRiesaminare } from "../../../../supabase/functions/_shared/posEmergenzePsc";
 import { LetturaOcrPsc, type ContestoLetturaPsc } from "./LetturaOcrPsc";
 import { apriFileRiservato } from "@/lib/storagePrivato";
 import { CAMPI_EMERGENZE_POS, dpiPrevistiPos, type CampoEmergenzePos } from "../../../../supabase/functions/_shared/posEvidenzeOperative";
@@ -21,7 +21,7 @@ import { TecnicaLavorazionePos } from "./TecnicaLavorazionePos";
  * DI 9/9/2014 (Allegato I). Ogni sezione modifica la bozza con `modifica`,
  * che lavora su una copia: niente mutazioni dello stato di React.
  */
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, CheckCircle2, ChevronDown, Copy, ExternalLink, Loader2, Paperclip, Plus, Sparkles, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -44,6 +44,7 @@ import { caricaAllegatoPos, linkAllegatoPos } from "@/hooks/usePos";
 import { RisorseNonPrevistePos } from "./RisorseNonPrevistePos";
 import { FasiDaCommessaPos } from "./FasiDaCommessaPos";
 import { TestiOrganizzazionePos } from "./TestiOrganizzazionePos";
+import { aggiungiRigheOrganizzazione, applicaEmergenzeDalPsc } from "@/lib/sicurezza/inserimentiBozzaPos";
 
 import { ProdottiLavorazionePos } from "./ProdottiLavorazionePos";
 import { FunzioniAvanzatePos } from "./FunzioniAvanzatePos";
@@ -62,7 +63,7 @@ const nuovoId = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ?
 
 // ── 1. Opera e committente ───────────────────────────────────────────────────
 
-export function SezioneOpera({ d, modifica, ro, mancanti }: BaseProps) {
+export function SezioneOpera({ d, modifica, ro, mancanti, lettore }: BaseProps & { lettore?: ReactNode }) {
   const o = d.opera;
   return (
     <Sezione id="opera" numero={1} titolo="Opera, committente e cantiere" riferimento={`punto 3.2.1 e ${RIFERIMENTI_SEZIONE.opera}`} mancanti={mancanti}>
@@ -114,13 +115,13 @@ export function SezioneOpera({ d, modifica, ro, mancanti }: BaseProps) {
 
       <Area id="descr-att" label="Descrizione sintetica delle attività che saranno svolte in cantiere" rows={3} value={o.descrizione_attivita} readOnly={ro}
         onChange={(v) => modifica((x) => { x.opera.descrizione_attivita = v; })} />
-      {!ro && <TestiOrganizzazionePos turniPresenti={!!o.turni_lavoro.trim()} onInserisci={(righe, turni) => modifica(x => {
-        const precedenti = x.opera.modalita_organizzative.trim();
-        const esistenti = new Set(precedenti.split("\n").map(riga => riga.trim()));
-        const nuove = righe.filter(riga => !esistenti.has(riga));
-        if (nuove.length) x.opera.modalita_organizzative = [precedenti, ...nuove].filter(Boolean).join("\n");
-        if (turni && !x.opera.turni_lavoro.trim()) x.opera.turni_lavoro = turni;
-      })} />}
+      {!ro && <div className="flex flex-wrap gap-2">
+        <TestiOrganizzazionePos turniPresenti={!!o.turni_lavoro.trim()} onInserisci={(righe, turni) => modifica(x => {
+          aggiungiRigheOrganizzazione(x, righe);
+          if (turni && !x.opera.turni_lavoro.trim()) x.opera.turni_lavoro = turni;
+        })} />
+        {lettore}
+      </div>}
       <div className="grid gap-3 sm:grid-cols-2">
         <Area id="mod-org" label="Modalità organizzative" rows={3} value={o.modalita_organizzative} readOnly={ro}
           placeholder="Es.: accesso al cantiere dal cancello su via…, area di stoccaggio materiali nel cortile, servizi igienici chimici, orari di consegna"
@@ -343,18 +344,7 @@ export function SezioneEmergenze({ d, modifica, ro, mancanti, lettura }: BasePro
         <legend className="px-1 text-sm font-semibold">Organizzazione operativa delle emergenze</legend>
         {!ro && <p className="text-xs text-muted-foreground sm:col-span-2">Se una disposizione è nel PSC o nella planimetria, indica dove trovarla e come applicarla in cantiere.</p>}
         {!ro && lettura && <div className="sm:col-span-2">
-          <EmergenzeDalPsc key={`${lettura.fonte.id}:${lettura.fonte.sha256}:${lettura.fonte.revisione}`} origine={lettura} piano={e.piano} fonti={e.fonti_psc} applica={proposte => modifica(x => {
-            const psc = x.procedure_psc.documento;
-            if (!x.procedure_psc.psc_presente || proposte.some(p => pscSchedaDaRiesaminare(p, psc))) return;
-            const raggruppate = normalizzaFontiEmergenzePsc(Object.fromEntries(
-              Object.keys(CAMPI_EMERGENZE_POS).map(k => [k, proposte.filter(p => p.campo === k)]),
-            ));
-            for (const [k, fonti] of Object.entries(raggruppate ?? {})) {
-              const campo = k as CampoEmergenzePos;
-              (x.emergenze.piano ??= {})[campo] = testoIndicazioniEmergenza(fonti);
-              (x.emergenze.fonti_psc ??= {})[campo] = fonti;
-            }
-          })} />
+          <EmergenzeDalPsc key={`${lettura.fonte.id}:${lettura.fonte.sha256}:${lettura.fonte.revisione}`} origine={lettura} piano={e.piano} fonti={e.fonti_psc} applica={proposte => modifica(x => { applicaEmergenzeDalPsc(x, proposte); })} />
         </div>}
         {(Object.entries(CAMPI_EMERGENZE_POS) as [CampoEmergenzePos, string][]).filter(([k]) => !ro || e.piano?.[k]).map(([k, label]) => {
           const fonti = e.fonti_psc?.[k], superata = superate.includes(k);

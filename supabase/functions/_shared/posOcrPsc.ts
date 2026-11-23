@@ -101,7 +101,7 @@ export async function trascriviPaginaPos(db: Db, fonte: Pick<RiferimentoPsc, "co
       if ([401, 403, 404].includes(risposta.status)) throw new ConfigurazioneOcrNonValida();
       throw new ServizioOcrTemporaneamenteIndisponibile();
     }
-    const json = await risposta.json().catch(() => null);
+    const json = await risposta.json().catch((): null => null);
     if (typeof json?.testo !== "string" || typeof json.completa !== "boolean") {
       throw new ServizioOcrTemporaneamenteIndisponibile();
     }
