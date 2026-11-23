@@ -5601,5 +5601,10 @@ const dizionario: Dizionario = {
   "Giallo": "E verdhë",
   "Turchese": "Bruz",
   "Grigio": "Gri",
+  // Ufficio: frasi arrivate con l'allineamento a main (23/11/2026).
+  "Quali attività vedere e come raggrupparle.": "Cilat aktivitete të shohësh dhe si t'i gruposh.",
+  "Quali": "Cilat",
+  "Oggi · {data}": "Sot · {data}",
+  "1 evento": "1 ngjarje",
 };
 export default dizionario;
