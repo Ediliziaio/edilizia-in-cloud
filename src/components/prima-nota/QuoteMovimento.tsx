@@ -7,16 +7,17 @@
  */
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Sparkles, X } from "lucide-react";
+import { Plus, Sparkles, Users, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { CommessaCombobox } from "@/components/orders/CommessaCombobox";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import {
-  bilancio, chiaveDocumento, combinazioniEsatte, daCentesimi, ETICHETTA_TIPO, euro, filtraDocumenti, importoProposto,
-  type DocumentoAperto, type Quota,
+  bilancio, centesimi, chiaveDocumento, combinazioniEsatte, daCentesimi, ETICHETTA_TIPO, euro, filtraDocumenti, importoProposto,
+  meseStipendi, MESI, type DipendenteDaPagare, type DocumentoAperto, type Quota,
 } from "@/lib/primaNota/quoteMovimento";
 
 export const CATEGORIE_QUOTA = {
@@ -66,7 +67,8 @@ interface Props {
 export function QuoteMovimento({ companyId, direction, importo, quote, onQuote }: Props) {
   const documenti = useDocumentiAperti(companyId, direction, true);
   const [cerca, setCerca] = useState("");
-  const usati = useMemo(() => new Set(quote.flatMap(q => (q.tipo === "libera" ? [] : [chiaveDocumento(q.documento)]))), [quote]);
+  const usati = useMemo(() => new Set(quote.flatMap(q => (q.tipo === "libera" || q.tipo === "dipendente" ? [] : [chiaveDocumento(q.documento)]))), [quote]);
+  const [stipendiAperti, setStipendiAperti] = useState(false);
   const conti = bilancio(importo, quote);
   const risultati = useMemo(() => (cerca.trim() ? filtraDocumenti(documenti.data ?? [], cerca, usati, 12) : []), [documenti.data, cerca, usati]);
   // La proposta serve quando non si è ancora scelto niente e l'importo c'è.
@@ -137,7 +139,13 @@ export function QuoteMovimento({ companyId, direction, importo, quote, onQuote }
         <ul className="divide-y rounded-md border">
           {quote.map(q => (
             <li key={q.chiave} className="space-y-2 px-3 py-2">
-              {q.tipo === "libera" ? (
+              {q.tipo === "dipendente" ? (
+                <div className="min-w-0 text-sm">
+                  <span className="font-medium">{q.dipendente.nome}</span>
+                  <span className="text-muted-foreground"> · stipendio di {MESI[q.mese - 1]} {q.anno}</span>
+                  {q.dipendente.origine && <span className="block text-xs text-muted-foreground">Netto proposto dal{q.dipendente.origine === "cedolino" ? " cedolino" : "la scheda del dipendente"}</span>}
+                </div>
+              ) : q.tipo === "libera" ? (
                 <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                   <Select value={q.categoria} onValueChange={v => cambia(q.chiave, { categoria: v })}>
                     <SelectTrigger aria-label="Categoria della voce"><SelectValue placeholder="Categoria" /></SelectTrigger>
@@ -162,7 +170,7 @@ export function QuoteMovimento({ companyId, direction, importo, quote, onQuote }
                     className="h-full border-0 px-0 text-right tabular-nums shadow-none focus-visible:ring-0 focus-visible:ring-offset-0" />
                   <span className="text-sm text-muted-foreground">€</span>
                 </div>
-                {q.tipo !== "libera" && Math.round(Number(q.importo) * 100) < Math.round(q.documento.residuo * 100) && Number(q.importo) > 0 && (
+                {q.tipo !== "libera" && q.tipo !== "dipendente" && Math.round(Number(q.importo) * 100) < Math.round(q.documento.residuo * 100) && Number(q.importo) > 0 && (
                   <span className="whitespace-nowrap text-xs text-amber-700 dark:text-amber-400">acconto</span>
                 )}
                 <Button type="button" variant="ghost" size="sm" className="h-9 w-9 p-0" aria-label="Togli la quota" onClick={() => togli(q.chiave)}><X className="h-4 w-4" /></Button>
@@ -176,10 +184,20 @@ export function QuoteMovimento({ companyId, direction, importo, quote, onQuote }
         <Button type="button" variant="outline" size="sm" onClick={() => aggiungiLibera()}>
           <Plus className="mr-1 h-3.5 w-3.5" />Voce senza fattura
         </Button>
+        {direction === "uscita" && (
+          <Button type="button" variant="outline" size="sm" aria-expanded={stipendiAperti} onClick={() => setStipendiAperti(v => !v)}>
+            <Users className="mr-1 h-3.5 w-3.5" />Stipendi
+          </Button>
+        )}
         {conti.mancano > 0 && quote.length > 0 && (
           <span className="text-xs text-muted-foreground">es. commissioni, arrotondamento, una commessa</span>
         )}
       </div>
+
+      {stipendiAperti && direction === "uscita" && (
+        <PannelloStipendi companyId={companyId} quote={quote}
+          onAggiungi={nuove => { onQuote([...quote, ...nuove]); setStipendiAperti(false); }} />
+      )}
 
       <Barra totale={conti.totale} assegnato={conti.assegnato} />
     </section>
@@ -199,6 +217,81 @@ function Barra({ totale, assegnato }: { totale: number; assegnato: number }) {
         Assegnati {euro(assegnato / 100)} di {euro(totale / 100)}
         {mancano > 0 ? ` · mancano ${euro(mancano / 100)}` : mancano < 0 ? ` · ${euro(-mancano / 100)} in più` : " · tutto assegnato"}
       </p>
+    </div>
+  );
+}
+
+/**
+ * Gli stipendi del mese: si spuntano i dipendenti e il netto si propone dal cedolino, o dalla
+ * scheda se il cedolino non c'è. Chi non vede le paghe vede i nomi e scrive l'importo a mano.
+ */
+function PannelloStipendi({ companyId, quote, onAggiungi }: {
+  companyId: string | undefined;
+  quote: Quota[];
+  onAggiungi: (q: Quota[]) => void;
+}) {
+  const [periodo, setPeriodo] = useState(meseStipendi);
+  const [scelti, setScelti] = useState<Set<string>>(new Set());
+  const dipendenti = useQuery({
+    queryKey: ["prima-nota-dipendenti", companyId, periodo.anno, periodo.mese],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("prima_nota_dipendenti" as never, { p_company: companyId, p_anno: periodo.anno, p_mese: periodo.mese } as never);
+      if (error) throw error;
+      return ((data ?? []) as DipendenteDaPagare[]).map(d => ({ ...d, netto_proposto: d.netto_proposto == null ? null : Number(d.netto_proposto) }));
+    },
+  });
+  const giaNelleQuote = new Set(quote.flatMap(q => (q.tipo === "dipendente" && q.anno === periodo.anno && q.mese === periodo.mese ? [q.dipendente.id] : [])));
+  const elenco = (dipendenti.data ?? []).filter(d => !giaNelleQuote.has(d.id));
+  const daPagare = elenco.filter(d => !d.pagato_il);
+  const totale = elenco.filter(d => scelti.has(d.id)).reduce((s, d) => s + centesimi(d.netto_proposto ?? 0), 0);
+  const alterna = (id: string) => setScelti(v => { const n = new Set(v); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const mesi = Array.from({ length: 13 }, (_, i) => {
+    const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i);
+    return { anno: d.getFullYear(), mese: d.getMonth() + 1 };
+  });
+  let progressivoStipendi = 0;
+  const aggiungi = () => onAggiungi(elenco.filter(d => scelti.has(d.id)).map(d => ({
+    chiave: `s${periodo.anno}${periodo.mese}-${d.id}-${++progressivoStipendi}`, tipo: "dipendente" as const,
+    dipendente: { id: d.id, nome: d.nome, origine: d.origine }, anno: periodo.anno, mese: periodo.mese,
+    importo: d.netto_proposto == null ? "" : daCentesimi(centesimi(d.netto_proposto)),
+  })));
+
+  return (
+    <div className="space-y-2 rounded-md border bg-muted/20 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-medium">Stipendi di</p>
+        <Select value={`${periodo.anno}-${periodo.mese}`} onValueChange={v => { const [a, m] = v.split("-").map(Number); setPeriodo({ anno: a, mese: m }); setScelti(new Set()); }}>
+          <SelectTrigger className="h-8 w-44" aria-label="Mese degli stipendi"><SelectValue /></SelectTrigger>
+          <SelectContent>{mesi.map(m => <SelectItem key={`${m.anno}-${m.mese}`} value={`${m.anno}-${m.mese}`}>{MESI[m.mese - 1]} {m.anno}</SelectItem>)}</SelectContent>
+        </Select>
+      </div>
+      {dipendenti.isPending && <p className="text-xs text-muted-foreground">Carico i dipendenti…</p>}
+      {dipendenti.isError && <p className="text-xs text-destructive">Dipendenti non caricati: {(dipendenti.error as Error).message}</p>}
+      {dipendenti.isSuccess && elenco.length === 0 && <p className="text-xs text-muted-foreground">Nessun dipendente da aggiungere per questo mese.</p>}
+      {elenco.length > 0 && (
+        <>
+          <button type="button" className="text-xs text-primary underline-offset-2 hover:underline"
+            onClick={() => setScelti(new Set(daPagare.map(d => d.id)))}>Spunta tutti quelli ancora da pagare ({daPagare.length})</button>
+          <ul className="max-h-56 divide-y overflow-y-auto rounded-md border bg-background">
+            {elenco.map(d => (
+              <li key={d.id}>
+                <label className="flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm">
+                  <Checkbox checked={scelti.has(d.id)} onCheckedChange={() => alterna(d.id)} aria-label={`Paga ${d.nome}`} />
+                  <span className="min-w-0 flex-1 truncate">{d.nome}</span>
+                  {d.pagato_il && <span className="shrink-0 text-xs text-emerald-700 dark:text-emerald-400">pagato il {d.pagato_il.split("-").reverse().join("/")}</span>}
+                  <span className="shrink-0 tabular-nums text-muted-foreground">{d.netto_proposto == null ? "—" : euro(d.netto_proposto)}</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs text-muted-foreground tabular-nums">{scelti.size} scelti{totale > 0 ? ` · ${euro(totale / 100)}` : ""}</span>
+            <Button type="button" size="sm" disabled={!scelti.size} onClick={aggiungi}>Aggiungi {scelti.size || ""} stipendi</Button>
+          </div>
+          <p className="text-xs text-muted-foreground">Gli stipendi non vanno sulle commesse: la manodopera ci arriva già dai rapportini.</p>
+        </>
+      )}
     </div>
   );
 }

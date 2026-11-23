@@ -20,9 +20,29 @@ export interface DocumentoAperto {
   order_code: string | null;
 }
 
+/** Una riga di prima_nota_dipendenti: chi pagare quel mese e quanto proporre. */
+export interface DipendenteDaPagare {
+  id: string;
+  nome: string;
+  /** Netto del cedolino del mese, altrimenti della scheda; null a chi non vede le paghe. */
+  netto_proposto: number | null;
+  origine: "cedolino" | "scheda" | null;
+  cedolino_id: string | null;
+  pagato_il: string | null;
+}
+
 export type Quota =
   | { chiave: string; tipo: TipoDocumentoAperto; documento: DocumentoAperto; importo: string }
+  | { chiave: string; tipo: "dipendente"; dipendente: Pick<DipendenteDaPagare, "id" | "nome" | "origine">; anno: number; mese: number; importo: string }
   | { chiave: string; tipo: "libera"; categoria: string; orderId: string | null; descrizione: string; importo: string };
+
+export const MESI = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];
+
+/** Il mese degli stipendi che si pagano oggi: quello prima (lo stipendio di ottobre si paga a novembre). */
+export function meseStipendi(oggi: Date = new Date()): { anno: number; mese: number } {
+  const m = oggi.getMonth(); // 0 = gennaio
+  return m === 0 ? { anno: oggi.getFullYear() - 1, mese: 12 } : { anno: oggi.getFullYear(), mese: m };
+}
 
 export const centesimi = (v: string | number | null | undefined): number => {
   const n = typeof v === "number" ? v : Number(String(v ?? "").replace(",", "."));
@@ -49,9 +69,11 @@ export function problemaQuote(totale: string | number, quote: Quota[]): string |
   if (!quote.length) return "Aggiungi almeno una fattura o una voce.";
   for (const q of quote) {
     const c = centesimi(q.importo);
-    const nome = q.tipo === "libera" ? (q.descrizione.trim() || "una voce senza fattura") : `la fattura ${q.documento.numero ?? ""}`.trim();
+    const nome = q.tipo === "libera" ? (q.descrizione.trim() || "una voce senza fattura")
+      : q.tipo === "dipendente" ? `lo stipendio di ${q.dipendente.nome}`
+      : `la fattura ${q.documento.numero ?? ""}`.trim();
     if (c <= 0) return `Manca l'importo per ${nome}.`;
-    if (q.tipo !== "libera" && c > centesimi(q.documento.residuo)) return `Per ${nome} l'importo supera il residuo.`;
+    if (q.tipo !== "libera" && q.tipo !== "dipendente" && c > centesimi(q.documento.residuo)) return `Per ${nome} l'importo supera il residuo.`;
     if (q.tipo === "libera" && !q.categoria) return `Scegli la categoria per ${nome}.`;
   }
   const { mancano } = bilancio(totale, quote);
@@ -114,9 +136,12 @@ export function combinazioniEsatte(documenti: DocumentoAperto[], importo: string
 
 /** Il corpo per prima_nota_registra_divisa. */
 export function quotePerServer(quote: Quota[]) {
-  return quote.map(q => q.tipo === "libera"
-    ? { tipo: "libera", importo: Number(daCentesimi(centesimi(q.importo))), categoria: q.categoria, order_id: q.orderId, descrizione: q.descrizione.trim() || null }
-    : { tipo: q.tipo, id: q.documento.id, importo: Number(daCentesimi(centesimi(q.importo))) });
+  return quote.map(q => {
+    const importo = Number(daCentesimi(centesimi(q.importo)));
+    if (q.tipo === "libera") return { tipo: "libera", importo, categoria: q.categoria, order_id: q.orderId, descrizione: q.descrizione.trim() || null };
+    if (q.tipo === "dipendente") return { tipo: "dipendente", id: q.dipendente.id, anno: q.anno, mese: q.mese, importo };
+    return { tipo: q.tipo, id: q.documento.id, importo };
+  });
 }
 
 export const ETICHETTA_TIPO: Record<TipoDocumentoAperto, string> = {

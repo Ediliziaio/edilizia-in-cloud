@@ -10,6 +10,11 @@ const documenti = [
 ];
 const rpc = vi.fn(async (fn: string, _args?: unknown): Promise<{ data: unknown; error: null }> => {
   if (fn === "prima_nota_documenti_aperti") return { data: documenti, error: null };
+  if (fn === "prima_nota_dipendenti") return { data: [
+    { id: "e1", nome: "Rossi Mario", netto_proposto: 1500, origine: "cedolino", cedolino_id: "c1", pagato_il: null },
+    { id: "e2", nome: "Verdi Luca", netto_proposto: 1320.5, origine: "scheda", cedolino_id: null, pagato_il: null },
+    { id: "e3", nome: "Neri Anna", netto_proposto: 1400, origine: "scheda", cedolino_id: null, pagato_il: "2026-11-10" },
+  ], error: null };
   if (fn === "prima_nota_registra_divisa") return { data: { gruppo_id: "g1", righe: [] }, error: null };
   return { data: [], error: null };
 });
@@ -57,4 +62,23 @@ it("cercando il cliente la quota propone quello che manca (acconto) e la voce se
   fireEvent.click(screen.getByRole("button", { name: /Voce senza fattura/ }));
   expect((screen.getAllByLabelText("Importo della quota")[1] as HTMLInputElement).value).toBe("50.00");
   expect(screen.getByText("Scegli la categoria per una voce senza fattura.")).toBeTruthy();
+});
+
+it("gli stipendi del mese: si spuntano quelli da pagare, il netto si propone e si registra in un colpo", async () => {
+  render(<QueryClientProvider client={new QueryClient()}><NewEntryDialog open onOpenChange={vi.fn()} onConfirm={vi.fn()} isPending={false} /></QueryClientProvider>);
+  fireEvent.click(screen.getByRole("checkbox"));
+  fireEvent.change(screen.getByLabelText("Importo"), { target: { value: "2820.50" } });
+  fireEvent.click(screen.getByRole("button", { name: "Stipendi" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Spunta tutti quelli ancora da pagare (2)" }));
+  expect(screen.getByText(/pagato il 10\/11\/2026/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Aggiungi 2 stipendi" }));
+  expect(screen.getByText(/tutto assegnato/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Registra 2 quote" }));
+  await waitFor(() => expect(rpc).toHaveBeenCalledWith("prima_nota_registra_divisa", expect.objectContaining({
+    p_testata: expect.objectContaining({ direction: "uscita", importo: 2820.5 }),
+    p_quote: [
+      expect.objectContaining({ tipo: "dipendente", id: "e1", importo: 1500 }),
+      expect.objectContaining({ tipo: "dipendente", id: "e2", importo: 1320.5 }),
+    ],
+  })));
 });

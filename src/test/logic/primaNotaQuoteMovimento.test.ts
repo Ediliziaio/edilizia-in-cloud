@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bilancio, combinazioniEsatte, filtraDocumenti, importoProposto, problemaQuote, quotePerServer, type DocumentoAperto, type Quota } from "@/lib/primaNota/quoteMovimento";
+import { bilancio, combinazioniEsatte, filtraDocumenti, importoProposto, meseStipendi, problemaQuote, quotePerServer, type DocumentoAperto, type Quota } from "@/lib/primaNota/quoteMovimento";
 
 const doc = (id: string, controparte: string, residuo: number, data = "2026-10-01", numero = id): DocumentoAperto =>
   ({ tipo: "documento", id, numero, data, controparte, totale: residuo, residuo, order_id: null, order_code: null });
@@ -43,5 +43,14 @@ describe("movimento diviso in quote", () => {
       { tipo: "documento", id: "a", importo: 10 },
       { tipo: "libera", importo: 2.5, categoria: "commissioni", order_id: "o1", descrizione: "RiBa" },
     ]);
+  });
+
+  it("gli stipendi: il mese è quello prima (a gennaio, dicembre dell'anno prima) e al server vanno dipendente e mese", () => {
+    expect(meseStipendi(new Date(2026, 10, 23))).toEqual({ anno: 2026, mese: 10 });
+    expect(meseStipendi(new Date(2027, 0, 10))).toEqual({ anno: 2026, mese: 12 });
+    const q: Quota = { chiave: "s", tipo: "dipendente", dipendente: { id: "e1", nome: "Rossi Mario", origine: "scheda" }, anno: 2026, mese: 10, importo: "" };
+    expect(problemaQuote("1500", [q])).toBe("Manca l'importo per lo stipendio di Rossi Mario.");
+    expect(problemaQuote("1500", [{ ...q, importo: "1500" }])).toBeNull();
+    expect(quotePerServer([{ ...q, importo: "1500,456" }])).toEqual([{ tipo: "dipendente", id: "e1", anno: 2026, mese: 10, importo: 1500.46 }]);
   });
 });

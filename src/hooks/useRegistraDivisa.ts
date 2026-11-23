@@ -33,9 +33,9 @@ export function useRegistraDivisa(companyId: string | undefined) {
         p_company: companyId, p_testata: testata, p_quote: quotePerServer(quote),
       } as never);
       if (error) throw error;
-      const daAllineare = quote.filter(q => q.tipo === "invoice");
+      const daAllineare = quote.flatMap(q => (q.tipo === "invoice" ? [q] : []));
       const esiti = await Promise.all(daAllineare.map(q => allineaFattureInCloud(
-        q.tipo === "libera" ? "" : q.documento.id, Number(q.importo), testata.data).catch(() => "non_allineata" as const)));
+        q.documento.id, Number(q.importo), testata.data).catch(() => "non_allineata" as const)));
       return { gruppo: (data as { gruppo_id: string } | null)?.gruppo_id, quote: quote.length, nonAllineate: esiti.filter(e => e === "non_allineata").length };
     },
     onSuccess: r => {
@@ -46,6 +46,7 @@ export function useRegistraDivisa(companyId: string | undefined) {
         void queryClient.invalidateQueries({ queryKey: k });
       }
       void queryClient.invalidateQueries({ queryKey: ["prima-nota-documenti-aperti", companyId] });
+      void queryClient.invalidateQueries({ queryKey: ["prima-nota-dipendenti", companyId] });
       void queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] });
       void queryClient.invalidateQueries({ queryKey: ["fatture-ricevute-pagamento"] });
     },
