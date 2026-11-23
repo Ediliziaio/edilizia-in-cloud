@@ -202,7 +202,10 @@ export default function MarketingCalendar() {
   const [activeTab, setActiveTab] = useState<TabKey>(() => searchParams.get("mappa") === "giorno" ? "map" : "calendar");
   // 2026-05-27: ripristinato lo switcher Day/Week/Month dopo bug in cui mancava
   // il setter — la vista era hardcoded "month" e i tasti non facevano nulla.
-  const [calendarView, setCalendarView] = useState<CalendarView>("month");
+  // Da telefono si apre sul giorno: il commerciale cerca gli appuntamenti di oggi, che sotto
+  // la griglia del mese finivano fuori schermo (collaudo 23/11/2026). Da computer il mese.
+  const [calendarView, setCalendarView] = useState<CalendarView>(() =>
+    typeof window !== "undefined" && window.matchMedia?.("(max-width: 767px)").matches ? "day" : "month");
   const [currentDate, setCurrentDate] = useDataMappaCalendario(companyId, user?.id, "vendite");
   const statoMappa = useMappaCalendario(companyId, user?.id, permissions.onlyAssigned ? "vendite:personale" : "vendite:team");
   const [datePickerOpen, setDatePickerOpen] = useState(false);
@@ -1226,7 +1229,29 @@ export default function MarketingCalendar() {
         <div className="flex items-center gap-3 max-sm:min-w-0">
           <div className="max-sm:min-w-0">
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight max-sm:truncate max-sm:text-lg">Calendario<span className="hidden xl:inline"> appuntamenti</span></h1>
-            <p className="text-xs text-muted-foreground sm:hidden">{headerStats.todayCount} oggi</p>
+            <p className="text-sm text-muted-foreground max-sm:text-xs sm:hidden">
+              {/* Telefono (founder, 23/11/2026): niente riquadri, una riga sola — quanti oggi e,
+                  se ce ne sono, quanti da assegnare (tocco = filtro). */}
+              <span className="font-medium text-foreground">{headerStats.todayCount}</span> {headerStats.todayCount === 1 ? "appuntamento" : "appuntamenti"} oggi
+              {headerStats.unassigned > 0 && (
+                <>
+                  {" "}·{" "}
+                  <button type="button" aria-pressed={kpiFilter === "unassigned"}
+                    onClick={() => setKpiFilter((f) => (f === "unassigned" ? "all" : "unassigned"))}
+                    className={cn("font-medium text-amber-700 underline-offset-2 hover:underline", kpiFilter === "unassigned" && "underline")}>
+                    {headerStats.unassigned} da assegnare
+                  </button>
+                </>
+              )}
+              {activeFilterCount > 0 && (
+                <>
+                  {" "}·{" "}
+                  <span className="text-primary font-medium">
+                    {activeFilterCount} filtro{activeFilterCount > 1 ? "i" : ""} attiv{activeFilterCount > 1 ? "i" : "o"}
+                  </span>
+                </>
+              )}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2 max-sm:shrink-0">
@@ -1281,7 +1306,8 @@ export default function MarketingCalendar() {
           l'utente sta filtrando, NON dell'intera azienda. */}
       {/* Telefono: oggi e settimana; «da assegnare» e «conflitti» solo quando ce ne sono.
           Nome a 11px e cifra a 16px, come gli altri riquadri numero del telefono. */}
-      <div className={cn("grid grid-cols-2 gap-2 md:grid-cols-5", !headerStats.unassigned && !headerStats.conflicts && "max-sm:hidden")}>
+      {/* Telefono: i riquadri non ci sono, i numeri stanno nella riga sotto il titolo. */}
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-5 max-sm:hidden">
         <div className="rounded-lg border bg-card px-3 py-2 max-sm:hidden">
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">Visibili</p>
           <p className="text-xl font-bold tabular-nums max-md:text-base">{headerStats.visible}</p>
@@ -1312,7 +1338,7 @@ export default function MarketingCalendar() {
           )}
         >
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">
-            Da assegnare{kpiFilter === "unassigned" && " · filtro attivo"}
+            Da assegnare<span className="max-sm:hidden">{kpiFilter === "unassigned" && " · filtro attivo"}</span>
           </p>
           <p className={cn(
             "text-xl font-bold tabular-nums max-md:text-base",

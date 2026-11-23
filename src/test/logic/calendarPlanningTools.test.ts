@@ -165,7 +165,11 @@ describe("Strumenti allineati alla pianificazione della commessa", () => {
   it("i collegamenti alle viste rispettano permessi e dispositivo", () => {
     expect(normalizeCalendarView("teams", false, false)).toBe("month");
     expect(normalizeCalendarView("teams", false, true)).toBe("teams");
-    expect(normalizeCalendarView("gantt", true, true)).toBe("month");
+    // Da telefono le viste da scrivania ricadono sull'agenda, la vista d'apertura.
+    expect(normalizeCalendarView("gantt", true, true)).toBe("agenda");
+    expect(normalizeCalendarView(null, true, true)).toBe("agenda");
+    expect(normalizeCalendarView(null, false, true)).toBe("month");
+    expect(normalizeCalendarView("month", true, true)).toBe("month");
     expect(normalizeCalendarView("agenda", true, false)).toBe("agenda");
     expect(normalizeCalendarView("heatmap", false, false)).toBe("heatmap");
   });

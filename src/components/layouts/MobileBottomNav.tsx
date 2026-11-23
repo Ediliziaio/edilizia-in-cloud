@@ -57,7 +57,7 @@ interface BottomNavItem {
 /** Marketing & Vendite */
 const MARKETING_ITEMS: BottomNavItem[] = [
   { label: "Opportunità", icon: Target, href: "/azienda/marketing/opportunita", permissionKey: "canViewMarketingOpportunities" },
-  { label: "Calendario", icon: CalendarDays, href: "/azienda/marketing/calendario", permissionKey: "canViewMarketingAppointments" },
+  { label: "Calendario", icon: CalendarDays, href: "/azienda/calendario?tipo=commerciali", permissionKey: "canViewMarketingAppointments" },
 ];
 
 /** Gestione operativa — ordine di priorità, prende i primi 2 accessibili */
@@ -77,7 +77,7 @@ const GESTIONE_ITEMS: BottomNavItem[] = [
 /** Cruscotto — profilo rilevato automaticamente */
 const CRUSCOTTO_COMMERCIAL: BottomNavItem[] = [
   { label: "Opportunità", icon: Target, href: "/azienda/marketing/opportunita", permissionKey: "canViewMarketingOpportunities" },
-  { label: "Calendario", icon: CalendarDays, href: "/azienda/marketing/calendario", permissionKey: "canViewMarketingAppointments" },
+  { label: "Calendario", icon: CalendarDays, href: "/azienda/calendario?tipo=commerciali", permissionKey: "canViewMarketingAppointments" },
 ];
 
 const CRUSCOTTO_OFFICE: BottomNavItem[] = [
@@ -101,8 +101,10 @@ const CRUSCOTTO_GENERIC: BottomNavItem[] = [
 
 type NavSection = "marketing" | "gestione" | "cruscotto";
 
-function detectSection(pathname: string): NavSection {
+function detectSection(pathname: string, search = ""): NavSection {
   if (pathname.startsWith("/azienda/marketing")) return "marketing";
+  // Il calendario unico, scheda «Commerciali»: resta la barra del commerciale.
+  if (pathname.startsWith("/azienda/calendario") && new URLSearchParams(search).get("tipo") === "commerciali") return "marketing";
   if (pathname.startsWith("/azienda/cruscotto")) return "cruscotto";
   return "gestione";
 }
@@ -240,7 +242,7 @@ export function MobileBottomNav({ badgePronti = true }: { badgePronti?: boolean 
   // coerenti tra pagine di lavoro e settings.
 
   // Rileva la sezione corrente e seleziona gli item contestuali
-  const section = detectSection(location.pathname);
+  const section = detectSection(location.pathname, location.search);
   const dynamicItems = (() => {
     if (effectiveCompany?.management_mode === "accounting") return filterAccessible([
       { label: "Prima Nota", icon: NotebookPen, href: "/azienda/prima-nota", permissionKey: "canViewPrimaNota" },

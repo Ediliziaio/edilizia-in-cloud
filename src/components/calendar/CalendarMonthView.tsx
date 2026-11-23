@@ -27,7 +27,7 @@ import {
 
 import { cn } from "@/lib/utils";
 import { buildCalendarEvents, type CalendarEvent } from "@/lib/calendar/events";
-import { calendarEventTime } from "@/lib/calendar/eventDetails";
+import { calendarEventKey, calendarEventTime } from "@/lib/calendar/eventDetails";
 import { CalendarDayDetailsDialog } from "./CalendarDayDetailsDialog";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -137,6 +137,9 @@ export function CalendarMonthView({
     useState<CalendarWarehouseInfo | null>(null);
 
   const [agendaDay, setAgendaDay] = useState<Date | null>(null);
+  // Dall'agenda, toccando un evento si apre quell'evento, non l'elenco del giorno da cui
+  // ritrovarlo (collaudo 23/11/2026: in un giorno con 20 cantieri l'appuntamento spariva).
+  const [eventoIniziale, setEventoIniziale] = useState<string | undefined>(undefined);
   const days = useMemo(() => {
     if (presentation === "agenda")
       return Array.from({ length: 7 }, (_, i) =>
@@ -341,7 +344,7 @@ export function CalendarMonthView({
               size="sm"
               className="h-8 gap-2 text-xs"
               aria-label="Apri dettaglio del giorno selezionato"
-              onClick={() => setDayDetailsOpen(true)}
+              onClick={() => { setEventoIniziale(undefined); setDayDetailsOpen(true); }}
             >
               <PanelRightOpen className="h-3.5 w-3.5" />
               {format(selectedDate, "d MMM", { locale: it })} ·{" "}
@@ -363,44 +366,47 @@ export function CalendarMonthView({
                 previewPriority(a) - previewPriority(b) ||
                 eventTime(a).localeCompare(eventTime(b)),
             );
-            const open = () => {
+            const open = (evento?: (typeof events)[number]) => {
               setAgendaDay(day);
+              setEventoIniziale(evento ? calendarEventKey(evento) : undefined);
               setDayDetailsOpen(true);
             };
             return (
+              // Telefono (collaudo 23/11/2026): una riga per giorno con il conteggio a destra,
+              // «Oggi» in evidenza, orario a sinistra e titolo in primo piano. Prima: titolo,
+              // poi «1 eventi» su una riga sua, e la colonna «Giorno» per gli impegni senza ora.
               <section
                 key={format(day, "yyyy-MM-dd")}
-                className="grid gap-3 px-4 py-4 sm:grid-cols-[130px_minmax(0,1fr)]"
+                aria-current={isSameDay(day, new Date()) ? "date" : undefined}
+                className={cn("grid gap-1.5 px-3 py-3 sm:grid-cols-[130px_minmax(0,1fr)] sm:gap-3 sm:px-4 sm:py-4", isSameDay(day, new Date()) && "bg-primary/[0.04]")}
               >
-                <div>
-                  <h3 className="text-sm font-semibold capitalize">
-                    {format(day, "EEEE d MMM", { locale: it })}
+                <div className="flex items-baseline justify-between gap-2 sm:block">
+                  <h3 className={cn("text-sm font-semibold first-letter:uppercase", isSameDay(day, new Date()) && "text-primary")}>
+                    {isSameDay(day, new Date()) ? `Oggi · ${format(day, "EEEE d MMM", { locale: it })}` : format(day, "EEEE d MMM", { locale: it })}
                   </h3>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {events.length
-                      ? `${events.length} eventi`
-                      : "Nessun impegno"}
+                  <p className="shrink-0 text-xs text-muted-foreground sm:mt-1">
+                    {events.length === 0 ? "Nessun impegno" : events.length === 1 ? "1 evento" : `${events.length} eventi`}
                   </p>
                 </div>
-                <div className="space-y-1">
+                {events.length > 0 && <div className="space-y-0.5">
                   {ordered.slice(0, 3).map((event, i) => (
                     <button
                       key={i}
                       type="button"
-                      onClick={open}
-                      className="flex w-full items-start gap-3 rounded-lg px-2 py-2 text-left hover:bg-muted/40"
+                      onClick={() => open(event)}
+                      className="flex w-full items-start gap-2.5 rounded-lg px-1.5 py-1.5 text-left hover:bg-muted/40 sm:gap-3 sm:px-2 sm:py-2"
                     >
                       <span
                         className="mt-1.5 h-2 w-2 shrink-0 rounded-full"
                         style={{ backgroundColor: event.color }}
                       />
-                      <span className="w-10 shrink-0 text-xs font-semibold tabular-nums">
-                        {eventTime(event) || "Giorno"}
+                      <span className={cn("w-11 shrink-0 tabular-nums leading-tight", eventTime(event) ? "pt-px text-xs font-semibold" : "pt-0.5 text-[11px] text-muted-foreground")}>
+                        {eventTime(event) || "Tutto il giorno"}
                       </span>
-                      <span className="min-w-0 text-sm">
+                      <span className="min-w-0 flex-1">
                         <span
                           className={cn(
-                            "line-clamp-2",
+                            "line-clamp-2 text-sm font-medium leading-snug",
                             // Annullato: resta nel calendario, barrato (bf92b7566).
                             event.appointment &&
                               appuntamentoAnnullato(event.appointment.status) &&
@@ -410,7 +416,7 @@ export function CalendarMonthView({
                           {previewLabel(event)}
                         </span>
                         {event.order?.order_code && (
-                          <span className="text-[11px] text-muted-foreground">
+                          <span className="block text-[11px] text-muted-foreground">
                             {event.order.order_code}
                           </span>
                         )}
@@ -420,13 +426,13 @@ export function CalendarMonthView({
                   {events.length > 3 && (
                     <button
                       type="button"
-                      onClick={open}
+                      onClick={() => open()}
                       className="px-2 py-2 text-xs font-medium text-primary hover:underline"
                     >
                       Apri tutti i {events.length} eventi
                     </button>
                   )}
-                </div>
+                </div>}
               </section>
             );
           })}
@@ -482,6 +488,7 @@ export function CalendarMonthView({
                     .join("\n")}
                   onClick={() => {
                     onDateChange(day);
+                    setEventoIniziale(undefined);
                     setDayDetailsOpen(true);
                   }}
                   className={cn(
@@ -595,6 +602,7 @@ export function CalendarMonthView({
         calendarScope={calendarScope}
         open={dayDetailsOpen}
         onOpenChange={setDayDetailsOpen}
+        initialEventKey={eventoIniziale}
         date={selectedDate}
         events={selectedEvents}
         isMobile={isMobile}

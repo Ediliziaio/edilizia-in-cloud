@@ -14,6 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Calendar } from "@/components/ui/calendar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { numeroWhatsApp } from "@/lib/subappaltatori/gruppi";
 import { CalendarDays, Trash2, Plus, Clock, Ban, Car, Loader2, ChevronsUpDown, Check, AlertCircle, Sparkles, ListChecks, Video, ExternalLink, Copy } from "lucide-react";
 import { addDays, format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
@@ -893,6 +894,22 @@ export default function MarketingAppointmentDialog({
         </DialogHeader>
 
         <fieldset disabled={saving} aria-busy={saving} className="contents">
+        {/* Telefono, appuntamento già fissato (collaudo 23/11/2026): in cima chi, quando e i
+            tasti per contattarlo. Prima stavano in fondo a un modulo di 1.600px; l'esito
+            si registra dallo «Stato» nella barra in basso. */}
+        {isEditing && selectedContact && (
+          <div className="rounded-lg border bg-muted/30 p-3 sm:hidden">
+            <p className="text-sm font-semibold">{`${selectedContact.first_name} ${selectedContact.last_name || ""}`.trim()}</p>
+            {appointmentDate && <p className="text-xs text-muted-foreground">{format(appointmentDate, "EEEE d MMMM", { locale: it })} · {startTime}{endTime ? `–${endTime}` : ""}</p>}
+            {(selectedContact.phone || selectedContact.email) && (
+              <div className="mt-2 flex gap-2 [&>a]:flex [&>a]:h-10 [&>a]:flex-1 [&>a]:items-center [&>a]:justify-center [&>a]:rounded-md [&>a]:border [&>a]:bg-background [&>a]:text-sm [&>a]:font-medium">
+                {selectedContact.phone && <a href={`tel:${selectedContact.phone.replace(/[^\d+]/g, "")}`}>Chiama</a>}
+                {numeroWhatsApp(selectedContact.phone) && <a className="text-emerald-700" target="_blank" rel="noopener noreferrer" href={`https://wa.me/${numeroWhatsApp(selectedContact.phone)}`}>WhatsApp</a>}
+                {!selectedContact.phone && selectedContact.email && <a href={`mailto:${selectedContact.email}`}>Email</a>}
+              </div>
+            )}
+          </div>
+        )}
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "appointment" | "blocked")}>
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="appointment" className="gap-1.5">
@@ -1268,9 +1285,15 @@ export default function MarketingAppointmentDialog({
                           <Sparkles className="h-3.5 w-3.5 text-primary" />
                           Contesto CRM
                         </p>
-                        <p className="text-xs text-muted-foreground">
-                          {selectedContact.phone || selectedContact.email || "Nessun recapito salvato"}
-                        </p>
+                        {/* Recapiti toccabili: dal campo si chiama o si scrive da qui (collaudo
+                            23/11/2026: il numero era solo testo). */}
+                        {selectedContact.phone || selectedContact.email ? (
+                          <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+                            {selectedContact.phone && <a className="font-medium text-primary underline-offset-2 hover:underline" href={`tel:${selectedContact.phone.replace(/[^\d+]/g, "")}`}>Chiama {selectedContact.phone}</a>}
+                            {numeroWhatsApp(selectedContact.phone) && <a className="font-medium text-emerald-700 underline-offset-2 hover:underline" target="_blank" rel="noopener noreferrer" href={`https://wa.me/${numeroWhatsApp(selectedContact.phone)}`}>WhatsApp</a>}
+                            {selectedContact.email && <a className="font-medium text-primary underline-offset-2 hover:underline" href={`mailto:${selectedContact.email}`}>Email</a>}
+                          </p>
+                        ) : <p className="text-xs text-muted-foreground">Nessun recapito salvato</p>}
                       </div>
                       <div className="flex shrink-0 items-center gap-1.5">
                         {(selectedContact.ai_score ?? selectedContact.lead_score ?? selectedContact.score) != null && (
@@ -1503,7 +1526,8 @@ export default function MarketingAppointmentDialog({
             {isEditing && (
               <Button variant="destructive" onClick={() => setDeleteConfirmOpen(true)} disabled={saving || solaLettura} title={bloccoTitle} size="sm">
                 <Trash2 className="h-4 w-4 mr-1" aria-hidden="true" />
-                Annulla
+                {/* «Disdici», non «Annulla»: accanto c'è già «Annulla» che chiude la finestra. */}
+                Disdici
               </Button>
             )}
 

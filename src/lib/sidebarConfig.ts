@@ -251,7 +251,9 @@ export const macroAreas: MacroArea[] = [
       // "Cantieri & Lavori". Il commerciale invia comunque preventivi/contratti in firma
       // dal dettaglio preventivo (SendSignatureDialog in QuoteDetail/FotovoltaicoDettaglio),
       // flusso indipendente da questa voce e dal permesso canViewFirmaElettronica.
-      { title: "Calendario CRM", url: "/azienda/marketing/calendario", icon: CalendarDays, permissionKey: "canViewMarketingAppointments", featureKey: "crm_modulo" },
+      // Un solo «Calendario» (23/11/2026): chi vede anche i lavori lo trova sotto Cantieri,
+      // con la scelta Lavori/Commerciali in alto; qui resta per chi ha solo il CRM.
+      { title: "Calendario", url: "/azienda/calendario?tipo=commerciali", icon: CalendarDays, permissionKey: "canViewMarketingAppointments", hideIfPermissionKey: "canViewCalendar", featureKey: "crm_modulo" },
       { title: "Sales OS", url: "/azienda/marketing/sales-os", icon: Gauge, permissionKey: "canViewSalesOs", featureKey: "sales_os" },
       { title: "Reportistica", url: "/azienda/marketing/reportistica", icon: PieChart, permissionKey: "canViewMarketingReports", featureKey: "marketing_reporting" },
       // ─── Marketing ───
@@ -337,7 +339,7 @@ export const marketingNavItems: NavItem[] = [
   { title: "Contatti", url: "/azienda/marketing/contatti", icon: Contact, permissionKey: "canViewMarketingContacts", category: "marketing", subcategory: "mkt_crm" },
   { title: "Opportunità", url: "/azienda/marketing/opportunita", icon: Target, permissionKey: "canViewMarketingOpportunities", category: "marketing", subcategory: "mkt_crm" },
   { title: "Preventivi", url: "/azienda/marketing/preventivi", icon: FileSignature, permissionKey: "canViewMarketingOpportunities", featureKey: "preventivi_crm", category: "marketing", subcategory: "mkt_crm" },
-  { title: "Appuntamenti", url: "/azienda/marketing/calendario", icon: CalendarDays, permissionKey: "canViewMarketingAppointments", category: "marketing", subcategory: "mkt_crm" },
+  { title: "Appuntamenti", url: "/azienda/calendario?tipo=commerciali", icon: CalendarDays, permissionKey: "canViewMarketingAppointments", category: "marketing", subcategory: "mkt_crm" },
 
   { title: "Email Marketing", url: "/azienda/marketing/email", icon: Mail, permissionKey: "canViewMarketingEmail", category: "marketing", subcategory: "mkt_comunicazione" },
   { title: "SMS", url: "/azienda/sms", icon: MessageSquare, permissionKey: "canViewSmsMarketing", category: "marketing", subcategory: "mkt_comunicazione" },

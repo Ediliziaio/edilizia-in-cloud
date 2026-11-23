@@ -103,7 +103,7 @@ export function CalendarViewNavigation({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="month">Mese</SelectItem>
-            <SelectItem value="agenda">Prossimi 7 giorni</SelectItem>
+            <SelectItem value="agenda">{isMobile ? "7 giorni" : "Prossimi 7 giorni"}</SelectItem>
             {!isMobile && (
               <>
                 <SelectItem value="week">Settimana</SelectItem>

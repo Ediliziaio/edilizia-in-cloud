@@ -62,6 +62,14 @@ function RimandoFatturaImportata() {
 }
 
 /** Un indirizzo vecchio che porta al nuovo tenendo i parametri (?tab, ?q…) e l'ancora. */
+/** Il vecchio «Calendario CRM»: ora è il calendario unico, scheda «Commerciali». */
+function RimandoCalendarioCommerciale() {
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  params.set("tipo", "commerciali");
+  return <Navigate to={`/azienda/calendario?${params.toString()}${location.hash}`} replace />;
+}
+
 function RimandoConParametri({ to }: { to: string }) {
   const location = useLocation();
   return <Navigate to={`${to}${location.search}${location.hash}`} replace />;
@@ -296,7 +304,8 @@ const MezziInventario = lazy(() => import("@/pages/azienda/MezziInventario"));
 const CompanyCosts = lazy(() => import("@/pages/azienda/CompanyCosts"));
 const AnalisiAcquisti = lazy(() => import("@/pages/azienda/AnalisiAcquisti"));
 const FabbisognoMateriali = lazy(() => import("@/pages/azienda/FabbisognoMateriali"));
-const Calendar = lazy(() => import("@/pages/azienda/Calendar"));
+// Un solo «Calendario» (23/11/2026): sceglie tra lavori e commerciali secondo chi guarda.
+const CalendarioUnico = lazy(() => import("@/pages/azienda/CalendarioUnico"));
 const UnifiedTasks = lazy(() => import("@/pages/azienda/UnifiedTasks"));
 const AttivitaStaff = lazy(() => import("@/pages/azienda/AttivitaStaff"));
 
@@ -473,7 +482,6 @@ const MarketingDashboard = lazy(() => import("@/pages/azienda/marketing/Marketin
 const CallCenterDashboard = lazy(() => import("@/pages/azienda/CallCenterDashboard"));
 const MarketingContacts = lazy(() => import("@/pages/azienda/marketing/MarketingContacts"));
 const MarketingOpportunities = lazy(() => import("@/pages/azienda/marketing/MarketingOpportunities"));
-const MarketingCalendar = lazy(() => import("@/pages/azienda/marketing/MarketingCalendar"));
 // MarketingAutomations → sostituito da AutomazioniUnified
 // MarketingTasks → sostituito da UnifiedTasks
 const MarketingAutomationBuilder = lazy(() => import("@/pages/azienda/marketing/MarketingAutomationBuilder"));
@@ -710,7 +718,7 @@ export default function CompanyRoutesContainer() {
         <Route path="mezzi/inventario" element={withCompanyPermission("canViewMezzi", <ErrorBoundary title="Errore nell'inventario"><MezziInventario /></ErrorBoundary>)} />
         <Route path="mezzi/inventario/:id" element={withCompanyPermission("canViewMezzi", <ErrorBoundary title="Errore nell'inventario"><MezziInventario /></ErrorBoundary>)} />
         <Route path="mezzi/:id" element={withCompanyPermission("canViewMezzi", <ErrorBoundary title="Errore nella scheda del mezzo"><MezzoDetail /></ErrorBoundary>)} />
-        <Route path="calendario" element={withCompanyPermission("canViewCalendar", <ErrorBoundary title="Errore nel caricamento calendario"><Calendar /></ErrorBoundary>)} />
+        <Route path="calendario" element={withCompanyPermission("canViewCalendar", <CalendarioUnico />, (p) => p.canViewCalendar || p.canViewMarketingAppointments)} />
         <Route path="clienti" element={withCompanyPermission("canViewCustomers", <ErrorBoundary title="Errore nel caricamento clienti"><CustomersList /></ErrorBoundary>)} />
         <Route path="clienti/nuovo" element={withCompanyPermission("canEditCustomers", <CreateCustomer />)} />
         <Route path="clienti/:id" element={withCompanyPermission("canViewCustomers", <ErrorBoundary title="Errore nel dettaglio cliente"><CompanyCustomerDetail /></ErrorBoundary>)} />
@@ -995,7 +1003,7 @@ export default function CompanyRoutesContainer() {
         <Route path="marketing/contatti/:id" element={withCompanyPermission("canViewMarketingContacts", <FeatureRoute featureKey="crm_modulo"><MarketingContactDetail /></FeatureRoute>)} />
         <Route path="marketing/opportunita" element={withCompanyPermission("canViewMarketingOpportunities", <FeatureRoute featureKey="crm_modulo"><MarketingOpportunities /></FeatureRoute>)} />
         <Route path="marketing/attivita" element={<Navigate to="/azienda/attivita?fonte=marketing" replace />} />
-        <Route path="marketing/calendario" element={withCompanyPermission("canViewMarketingAppointments", <FeatureRoute featureKey="crm_modulo"><MarketingCalendar /></FeatureRoute>)} />
+        <Route path="marketing/calendario" element={withCompanyPermission("canViewMarketingAppointments", <RimandoCalendarioCommerciale />)} />
         
         {/* Backward-compatible redirects for old marketing automation/agent routes */}
         <Route path="marketing/automazioni" element={<Navigate to="/azienda/automazioni" replace />} />

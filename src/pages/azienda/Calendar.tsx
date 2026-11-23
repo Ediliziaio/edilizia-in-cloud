@@ -133,6 +133,7 @@ import { CalendarViewNavigation } from "@/components/calendar/CalendarViewNaviga
 import {
   isCalendarPlanningView,
   normalizeCalendarView,
+  vistaPredefinita,
 } from "@/lib/calendar/viewModes";
 
 import { cantieriMappa } from "@/components/calendar/mappa/dati";
@@ -371,7 +372,7 @@ function CalendarInner() {
     });
     if (requestedView && requestedView !== nextView) {
       const nextParams = new URLSearchParams(searchParams);
-      if (nextView === "month") nextParams.delete("view");
+      if (nextView === vistaPredefinita(isMobile)) nextParams.delete("view");
       else nextParams.set("view", nextView);
       setSearchParams(nextParams, { replace: true });
     }
@@ -391,7 +392,7 @@ function CalendarInner() {
       const safeView = normalizeCalendarView(nextView, isMobile, canViewTeam);
       setViewState(safeView);
       const nextParams = new URLSearchParams(searchParams);
-      if (safeView === "month") nextParams.delete("view");
+      if (safeView === vistaPredefinita(isMobile)) nextParams.delete("view");
       else nextParams.set("view", safeView);
       setSearchParams(nextParams, { replace: true });
     },
@@ -2913,6 +2914,9 @@ function CalendarInner() {
         }}
         appointment={editingAppointment}
         defaultDate={isMobile ? giornoMappa : undefined}
+        // Da «Il mio calendario» l'appuntamento è mio: senza assegnatario, salvato spariva
+        // dalla vista (che mostra solo i propri), come se non fosse stato creato.
+        defaultAssignedTo={calendarData.scope === "personal" ? user?.id ?? null : null}
         hideMarketingFields
         onSaved={() => {
           queryClient.invalidateQueries({ queryKey: ["appointments"] });
