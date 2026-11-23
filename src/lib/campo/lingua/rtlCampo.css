@@ -120,6 +120,10 @@ html[dir="rtl"] body .text-right { text-align: left; }
   html[dir="rtl"] body .sm\:text-left { text-align: right; }
 }
 @media not all and (min-width: 640px) {
+  html[dir="rtl"] body .max-sm\:border-l-0 { border-right-width: 0px; }
+  html[dir="rtl"] .max-sm\:border-l-0 { border-left-width: 0px; }
+}
+@media not all and (min-width: 640px) {
   html[dir="rtl"] body .max-sm\:ml-4 { margin-right: 1rem; }
   html[dir="rtl"] .max-sm\:ml-4 { margin-left: 0px; }
 }
