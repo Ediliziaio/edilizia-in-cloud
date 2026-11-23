@@ -101,14 +101,24 @@ export interface ScadenzarioFilters {
   tipo?: string | null;
   /** RiBa, bonifico…: il gruppo del modo di pagamento (16/11/2026). */
   metodo?: GruppoMetodo | null;
+  /**
+   * L'anno del grafico dei mesi, quando il grafico c'è (23/11/2026). I dodici
+   * mesi arrivano insieme al riepilogo, da una sola esecuzione: prima il
+   * grafico si scaricava da solo tutte le righe dell'anno, a pagine da 500.
+   * I filtri di data non lo toccano: è sempre l'anno intero.
+   */
+  annoGrafico?: number | null;
 }
+
+/** Un mese del grafico: gli importi pieni delle scadenze con una data in quel mese. */
+export interface MeseScadenze { entrate: number; uscite: number }
 
 export function useScadenzario(page: number = 1, pageSize: number = 50, filters: ScadenzarioFilters = {}) {
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
 
-  const { direction, status, dateFrom, dateTo, search, soloScadute, soloAperte, tipo, metodo, includiSenzaData, soloSenzaData } = filters;
+  const { direction, status, dateFrom, dateTo, search, soloScadute, soloAperte, tipo, metodo, includiSenzaData, soloSenzaData, annoGrafico } = filters;
 
   const scadenzeQuery = useQuery({
     queryKey: [...queryKeys.scadenzario.list(companyId), page, pageSize, direction, status, dateFrom, dateTo, search, soloScadute ?? false, tipo ?? null, soloAperte ?? false, metodo ?? null, includiSenzaData ?? false, soloSenzaData ?? false],
@@ -130,18 +140,23 @@ export function useScadenzario(page: number = 1, pageSize: number = 50, filters:
     gcTime: 15 * 60 * 1000,
   });
 
+  // Riepilogo e grafico dei mesi: UNA chiamata, una esecuzione di
+  // scadenzario_fonti (23/11/2026). Costruire lo scadenzario costa quasi un
+  // secondo su un'azienda piena, e prima si faceva tre volte: il riepilogo e
+  // due giri del grafico, che si scaricava le righe dell'anno a pagine da 500.
   const summaryQuery = useQuery({
-    queryKey: [...queryKeys.scadenzario.summary(companyId), dateFrom, dateTo, includiSenzaData ?? false, soloSenzaData ?? false],
+    queryKey: [...queryKeys.scadenzario.summary(companyId), dateFrom, dateTo, includiSenzaData ?? false, soloSenzaData ?? false, annoGrafico ?? null],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("scadenzario_riepilogo_fonti", {
+      const { data, error } = await supabase.rpc("scadenzario_totali" as never, {
         p_company_id: companyId!,
         p_date_from: dateFrom ?? null,
         p_date_to: dateTo ?? null,
         p_includi_senza_data: includiSenzaData ?? false,
         p_solo_senza_data: soloSenzaData ?? false,
-      });
+        p_anno: annoGrafico ?? null,
+      } as never);
       if (error) throw error;
-      return data as unknown as ScadenzarioSummary;
+      return data as unknown as { riepilogo: ScadenzarioSummary; mesi: MeseScadenze[] | null };
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
@@ -312,7 +327,9 @@ export function useScadenzario(page: number = 1, pageSize: number = 50, filters:
     refetch: scadenzeQuery.refetch,
     totalCount,
     totalPages,
-    summary: summaryQuery.data,
+    summary: summaryQuery.data?.riepilogo,
+    /** I dodici mesi del grafico, quando è stato chiesto un anno: arrivano col riepilogo. */
+    mesiScadenze: summaryQuery.data?.mesi ?? null,
     isSummaryLoading: summaryQuery.isLoading,
     isSummaryError: summaryQuery.isError,
     refetchSummary: summaryQuery.refetch,

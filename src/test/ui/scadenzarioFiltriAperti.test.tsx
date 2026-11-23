@@ -20,7 +20,9 @@ vi.mock("@/components/scadenzario/MarkPaidDialog", () => ({ default: (): null =>
 vi.mock("@/components/scadenzario/AnnullaIncassoDialog", () => ({ AnnullaIncassoDialog: (): null => null }));
 vi.mock("@/components/scadenzario/ScadenzarioTable", () => ({ default: ({ scadenze }: { scadenze: { id: string; description: string }[] }) => <ul aria-label="Risultati scadenze">{scadenze.map(s => <li key={s.id}>{s.description}</li>)}</ul> }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {
-  rpc: (name: string) => name === "scadenzario_fonti" ? supabase.from("scadenze") : Promise.resolve({ data: { senza_data_count: state.senzaData ? 1 : 0 }, error: state.summaryFail ? { message: "Riepilogo assente" } : null }),
+  // scadenzario_totali (23/11/2026) risponde riepilogo e mesi insieme: una
+  // chiamata sola invece del riepilogo più due giri del grafico.
+  rpc: (name: string) => name === "scadenzario_fonti" ? supabase.from("scadenze") : Promise.resolve({ data: { riepilogo: { senza_data_count: state.senzaData ? 1 : 0 }, mesi: null }, error: state.summaryFail ? { message: "Riepilogo assente" } : null }),
   from: () => {
     const year = new Date().getFullYear();
     let rows = [

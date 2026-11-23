@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Loader2, Search, Download, Ellipsis, ChevronDown, ChevronLeft, ChevronRight, CalendarClock } from "lucide-react";
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { readAllPages } from "@/lib/personale/readAllPages";
 import { exportToCSV } from "@/lib/csvExport";
@@ -198,6 +198,10 @@ export default function Scadenzario() {
   const ricercaInAttesa = search.trim() !== searchServer;
   const dateInvertite = tab !== "senza_data" && datePreset === "custom" && !!customFrom && !!customTo && customFrom > customTo;
 
+  // Da incassare e da pagare per mese di scadenza dell'anno scelto (16/11/2026): il grafico
+  // sopra l'elenco. Solo da tablet in su e con un anno scelto; le annullate non contano.
+  const conGraficoMesi = !vistaCompatta && yearFilter !== "all" && tab !== "rate" && tab !== "settimane" && tab !== "adempimenti" && tab !== "senza_data";
+
   const serverFilters: ScadenzarioFilters = useMemo(() => ({
     includiSenzaData: !datePreset || tab === "senza_data",
     soloSenzaData: tab === "senza_data",
@@ -210,9 +214,12 @@ export default function Scadenzario() {
     soloAperte: tab === "aperte" || tab === "da_incassare" || tab === "da_pagare",
     tipo: filterTipo && filterTipo !== "all" ? filterTipo : null,
     metodo: filterMetodo && filterMetodo !== "all" ? (filterMetodo as GruppoMetodo) : null,
-  }), [tabDirection, tabStatus, filterStatus, serverDateRange, searchServer, tab, filterTipo, filterMetodo, datePreset]);
+    // L'anno del grafico viaggia coi totali: i dodici mesi arrivano insieme al
+    // riepilogo, da una sola costruzione dello scadenzario (23/11/2026).
+    annoGrafico: conGraficoMesi ? Number(yearFilter) : null,
+  }), [tabDirection, tabStatus, filterStatus, serverDateRange, searchServer, tab, filterTipo, filterMetodo, datePreset, conGraficoMesi, yearFilter]);
 
-  const { scadenze, isLoading, isError, refetch, totalCount, totalPages, summary, isSummaryLoading, isSummaryError, refetchSummary, markPaid, create, cancel, cancelMany, update, annullaIncasso, updateNotes } = useScadenzario(page, pageSize, serverFilters);
+  const { scadenze, isLoading, isError, refetch, totalCount, totalPages, summary, mesiScadenze: mesiDalServer, isSummaryLoading, isSummaryError, refetchSummary, markPaid, create, cancel, cancelMany, update, annullaIncasso, updateNotes } = useScadenzario(page, pageSize, serverFilters);
   const [daAnnullare, setDaAnnullare] = useState<Scadenza | null>(null);
   const [daModificare, setDaModificare] = useState<Scadenza | null>(null);
   const [erroriAnnullamento, setErroriAnnullamento] = useState<Array<{ nome: string; motivo: string }>>([]);
@@ -223,28 +230,12 @@ export default function Scadenzario() {
   const { effectiveCompany, role } = useAuth();
   const companyId = effectiveCompany?.id;
 
-  // Da incassare e da pagare per mese di scadenza dell'anno scelto (16/11/2026): il grafico
-  // sopra l'elenco. Solo da tablet in su e con un anno scelto; le annullate non contano.
-  const conGraficoMesi = !vistaCompatta && yearFilter !== "all" && tab !== "rate" && tab !== "settimane" && tab !== "adempimenti" && tab !== "senza_data";
-  const { data: mesiScadenze } = useQuery({
-    queryKey: ["scadenzario", "mesi", companyId, yearFilter],
-    enabled: !!companyId && conGraficoMesi,
-    staleTime: 60_000,
-    queryFn: async () => {
-      const righe = await readAllPages<{ direction: string; amount: number | null; due_date: string }>((from, to) => queryFontiScadenzario(companyId!).select("id, direction, amount, due_date")
-        .eq("company_id", companyId!).neq("status", "annullata")
-        .gte("due_date", `${yearFilter}-01-01`).lte("due_date", `${yearFilter}-12-31`)
-        .order("id").range(from, to) as never);
-      const mesi = MESI_BREVI.map((m) => ({ month: m, entrate: 0, uscite: 0 }));
-      for (const r of righe) {
-        const i = Number(r.due_date?.slice(5, 7)) - 1;
-        if (!(i >= 0 && i < 12)) continue;
-        if (r.direction === "entrata") mesi[i].entrate += Number(r.amount ?? 0);
-        else if (r.direction === "uscita") mesi[i].uscite += Number(r.amount ?? 0);
-      }
-      return mesi;
-    },
-  });
+  // I nomi dei mesi restano qui: dal database arrivano dodici coppie di numeri,
+  // da gennaio a dicembre, già sommate.
+  const mesiScadenze = useMemo(
+    () => mesiDalServer?.map((m, i) => ({ month: MESI_BREVI[i], entrate: Number(m.entrate), uscite: Number(m.uscite) })),
+    [mesiDalServer],
+  );
   // Il mese scelto nel grafico è il filtro «Personalizzato» di quel mese esatto.
   const meseGrafico = useMemo(() => {
     if (datePreset !== "custom" || !customFrom || !customTo || !customFrom.startsWith(yearFilter)) return null;
@@ -469,7 +460,7 @@ export default function Scadenzario() {
       )}
 
       {companyId && !permessi.solaLettura && (permessi.canManagePayments || role === "company_admin" || role === "super_admin") &&
-        <div className="flex justify-end max-sm:hidden"><DistintePagamenti key={companyId} companyId={companyId} /></div>}
+        <div className="flex justify-end"><DistintePagamenti key={companyId} companyId={companyId} /></div>}
 
       {/* Fatture passive caricate in chat (Silvio) da confermare */}
       <FattureDaRegistrareCard companyId={companyId} />
