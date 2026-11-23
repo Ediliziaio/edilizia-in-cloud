@@ -9,7 +9,7 @@ import { StepUpload, type ImportMode } from "./import-wizard/StepUpload";
 import { StepMap } from "./import-wizard/StepMap";
 import { StepReview } from "./import-wizard/StepReview";
 import type { AnteprimaImport, AutomazioneScelta, EsitoImportazione, OpzioniImport } from "@/lib/importazione/tipi";
-import type { Programmazione } from "@/lib/importazione/programmata";
+import { programmazioneValida, type Programmazione } from "@/lib/importazione/programmata";
 import { scaricaRigheDaRivedere } from "./import-wizard/scaricaRighe";
 import { PAGINA_IMPORTAZIONE } from "./import-wizard/useImportaDaUrl";
 import { campiObbligatoriMancanti, type ImportField } from "./CSVImportDialog";
@@ -47,7 +47,8 @@ function autoMatch(fileHeaders: string[], fields: ImportField[]): Record<string,
   return mapping;
 }
 
-function parseFileData(file: File): Promise<{ headers: string[]; rows: string[][] }> {
+/** Le righe del file e, per ognuna, il suo numero vero nel file (le righe vuote si saltano ma contano). */
+function parseFileData(file: File): Promise<{ headers: string[]; rows: string[][]; numeri: number[] }> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     const isCSV = file.name.toLowerCase().endsWith(".csv");
@@ -57,7 +58,9 @@ function parseFileData(file: File): Promise<{ headers: string[]; rows: string[][
         if (!text) return reject(new Error("File vuoto"));
         const firstLine = text.split("\n")[0];
         const sep = firstLine.includes(";") ? ";" : ",";
-        const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+        const tutte = text.split("\n").map((l, i) => ({ l: l.trim(), n: i + 1 }));
+        const lines = tutte.filter((x) => x.l).map((x) => x.l);
+        const numeri = tutte.filter((x) => x.l).map((x) => x.n).slice(1);
         const parseRow = (line: string) => {
           const result: string[] = [];
           let inQuote = false, current = "";
@@ -69,7 +72,7 @@ function parseFileData(file: File): Promise<{ headers: string[]; rows: string[][
           result.push(current.trim());
           return result;
         };
-        resolve({ headers: parseRow(lines[0]), rows: lines.slice(1).map(parseRow) });
+        resolve({ headers: parseRow(lines[0]), rows: lines.slice(1).map(parseRow), numeri });
       };
       reader.onerror = () => reject(new Error("Errore lettura file"));
       reader.readAsText(file);
@@ -86,8 +89,10 @@ function parseFileData(file: File): Promise<{ headers: string[]; rows: string[][
           ws.getRow(1).eachCell({ includeEmpty: true }, (cell) => { headers.push(String(cell.value ?? "")); });
           if (headers.length === 0) return reject(new Error("File vuoto"));
           const rows: string[][] = [];
+          const numeri: number[] = [];
           ws.eachRow((row, rowNumber) => {
             if (rowNumber === 1) return;
+            numeri.push(rowNumber);
             const r: string[] = [];
             row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
               while (r.length < colNumber - 1) r.push("");
@@ -95,7 +100,7 @@ function parseFileData(file: File): Promise<{ headers: string[]; rows: string[][
             });
             rows.push(r);
           });
-          resolve({ headers, rows });
+          resolve({ headers, rows, numeri });
         } catch (e) {
           reject(e instanceof Error ? e : new Error("Errore lettura file"));
         }
@@ -114,6 +119,7 @@ export function ImportWizard({
   const [importMode, setImportMode] = useState<ImportMode>("create");
   const [fileHeaders, setFileHeaders] = useState<string[]>([]);
   const [fileRows, setFileRows] = useState<string[][]>([]);
+  const [fileNumeri, setFileNumeri] = useState<number[]>([]);
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [skipUnmapped, setSkipUnmapped] = useState(true);
   const [consent, setConsent] = useState(false);
@@ -138,11 +144,12 @@ export function ImportWizard({
 
   const handleFileChange = useCallback(async (f: File | null) => {
     setFile(f);
-    if (!f) { setFileHeaders([]); setFileRows([]); setMapping({}); return; }
+    if (!f) { setFileHeaders([]); setFileRows([]); setFileNumeri([]); setMapping({}); return; }
     try {
-      const { headers, rows } = await parseFileData(f);
+      const { headers, rows, numeri } = await parseFileData(f);
       setFileHeaders(headers);
       setFileRows(rows);
+      setFileNumeri(numeri);
       setMapping(autoMatch(headers, fields));
     } catch {
       setFile(null);
@@ -156,7 +163,7 @@ export function ImportWizard({
   const canNext = (s: number) => {
     if (s === 1) return !!file && fileHeaders.length > 0;
     if (s === 2) return missingRequired.length === 0 && fileRows.length > 0;
-    if (s === 3) return consent && !isImporting;
+    if (s === 3) return consent && !isImporting && (!programmazione || programmazioneValida(programmazione));
     return true;
   };
 
@@ -168,9 +175,9 @@ export function ImportWizard({
       const fieldKey = mapping[header];
       if (fieldKey) obj[fieldKey] = row[idx] || "";
     });
-    return { obj, riga: n + 2 };
+    return { obj, riga: fileNumeri[n] ?? n + 2 };
   }).filter(({ obj }) => Object.values(obj).some((v) => v.trim()))
-    .map(({ obj, riga }) => ({ ...obj, __riga: String(riga) })), [fileRows, fileHeaders, mapping]);
+    .map(({ obj, riga }) => ({ ...obj, __riga: String(riga) })), [fileRows, fileNumeri, fileHeaders, mapping]);
 
   const opzioniCorrenti = (): OpzioniImport => ({
     mode: importMode, etichette, automazioni, programmazione, nomeFile: file?.name,
@@ -273,7 +280,7 @@ export function ImportWizard({
             anteprima={anteprima}
             onRiprovaAnteprima={calcolaAnteprima}
             onScaricaRighe={result?.righeDaRivedere?.length
-              ? () => scaricaRigheDaRivedere(file?.name ?? "importazione", fileHeaders, fileRows, result.righeDaRivedere!)
+              ? () => scaricaRigheDaRivedere(file?.name ?? "importazione", fileHeaders, fileRows, result.righeDaRivedere!, fileNumeri)
               : undefined}
           />
         )}

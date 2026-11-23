@@ -87,7 +87,7 @@ function QuandoImportare({ programmazione, onChange, totale }: {
           </div>
           <p className="rounded bg-primary/5 px-2 py-1.5 text-xs text-primary">
             {p.giorni.length === 0 ? "Scegli almeno un giorno."
-              : p.fasciaDa && p.fasciaA && p.fasciaDa >= p.fasciaA ? "L'orario di fine deve venire dopo quello di inizio."
+              : p.fasciaDa && p.fasciaA && p.fasciaDa >= p.fasciaA ? "L'orario di fine deve venire dopo quello di inizio, nello stesso giorno."
               : <>{descriviProgrammazione(p)}{fine ? <>. Finisce verso <strong>{formatoData(fine)}</strong></> : null}.</>}
           </p>
         </div>

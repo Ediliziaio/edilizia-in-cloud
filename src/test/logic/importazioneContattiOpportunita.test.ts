@@ -16,6 +16,7 @@ function dbFinto(esistenti: { id: string; email?: string | null; phone?: string 
     const catena = {
       select: () => catena,
       eq: () => catena,
+      is: () => catena,
       in: async (col: string, valori: string[]) => {
         filtroIn = { col, valori };
         const f = filtroIn;
@@ -179,5 +180,24 @@ describe("righe da correggere", () => {
     const csv = csvRigheDaRivedere(["nome", "email"], [["Anna", "anna@x.it"], ["Bea; B", "sbagliata"]], [{ riga: 3, motivo: "email «sbagliata» non valida" }]);
     expect(csv.startsWith("﻿")).toBe(true);
     expect(csv.split("\r\n")).toEqual(["﻿nome;email;Motivo", '"Bea; B";sbagliata;email «sbagliata» non valida']);
+  });
+});
+
+describe("righe vuote nel file", () => {
+  it("il numero di riga resta quello del file anche dopo una riga vuota", () => {
+    // Nel file: 1 intestazione, 2 Anna, 3 vuota, 4 Bea. Le righe lette sono due, coi numeri 2 e 4.
+    const csv = csvRigheDaRivedere(["nome"], [["Anna"], ["Bea"]], [{ riga: 4, motivo: "da correggere" }], [2, 4]);
+    expect(csv.split("\r\n")[1]).toBe("Bea;da correggere");
+  });
+});
+
+describe("programmazione che non può partire", () => {
+  it("nessun giorno o fascia rovesciata non si salvano", async () => {
+    const { programmazioneValida } = await import("@/lib/importazione/programmata");
+    const base: Programmazione = { perGiro: 10, ogniMinuti: 10, inizio: new Date(), giorni: [1], fasciaDa: "09:00", fasciaA: "18:00" };
+    expect(programmazioneValida(base)).toBe(true);
+    expect(programmazioneValida({ ...base, giorni: [] })).toBe(false);
+    expect(programmazioneValida({ ...base, fasciaDa: "22:00", fasciaA: "06:00" })).toBe(false);
+    expect(programmazioneValida({ ...base, fasciaDa: undefined, fasciaA: undefined })).toBe(true);
   });
 });

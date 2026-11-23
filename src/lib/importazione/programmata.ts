@@ -33,6 +33,13 @@ const minuti = (hhmm: string) => {
 };
 const giornoIso = (d: Date) => ((d.getDay() + 6) % 7) + 1;
 
+/** Si può salvare? Il database rifiuta nessun giorno o una fascia che finisce prima di iniziare. */
+export function programmazioneValida(p: Programmazione): boolean {
+  if (p.giorni.length === 0 || p.perGiro < 1 || p.perGiro > 500 || p.ogniMinuti < 1) return false;
+  if (!!p.fasciaDa !== !!p.fasciaA) return false;
+  return !p.fasciaDa || !p.fasciaA || p.fasciaDa < p.fasciaA;
+}
+
 /** Il momento è dentro i giorni e la fascia oraria scelti? */
 export function dentroFascia(d: Date, p: Programmazione): boolean {
   if (!p.giorni.includes(giornoIso(d))) return false;

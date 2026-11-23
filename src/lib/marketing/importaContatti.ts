@@ -131,7 +131,7 @@ export async function cercaEsistenti(ctx: ContestoContatti, pronti: ContattoPron
   const phones = [...new Set(pronti.map((p) => p.data.phone).filter(Boolean) as string[])];
   for (const lotto of aLotti(emails, 100)) {
     const { data, error } = await ctx.db.from("marketing_contacts")
-      .select("id, email, tags").eq("company_id", ctx.companyId).in("email", lotto);
+      .select("id, email, tags").eq("company_id", ctx.companyId).is("deleted_at", null).in("email", lotto);
     if (error) throw error;
     for (const e of (data ?? []) as { id: string; email: string | null; tags: string[] | null }[]) {
       if (e.email) {
@@ -143,7 +143,7 @@ export async function cercaEsistenti(ctx: ContestoContatti, pronti: ContattoPron
   // Lo stesso numero può essere salvato con o senza +39: si cercano tutte le forme.
   for (const lotto of aLotti(phones, 20)) {
     const { data, error } = await ctx.db.from("marketing_contacts")
-      .select("id, phone, tags").eq("company_id", ctx.companyId).in("phone", lotto.flatMap(formeTelefono));
+      .select("id, phone, tags").eq("company_id", ctx.companyId).is("deleted_at", null).in("phone", lotto.flatMap(formeTelefono));
     if (error) throw error;
     for (const e of (data ?? []) as { id: string; phone: string | null; tags: string[] | null }[]) {
       if (e.phone) {

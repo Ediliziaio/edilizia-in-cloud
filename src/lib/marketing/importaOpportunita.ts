@@ -104,12 +104,12 @@ async function contattiEsistenti(ctx: ContestoOpportunita, pronte: OpportunitaPr
   const emails = [...new Set(pronte.map((p) => p.contatto.email).filter(Boolean) as string[])];
   const phones = [...new Set(pronte.map((p) => p.contatto.phone).filter(Boolean) as string[])];
   for (const lotto of aLotti(emails, 100)) {
-    const { data, error } = await ctx.db.from("marketing_contacts").select("id, email").eq("company_id", ctx.companyId).in("email", lotto);
+    const { data, error } = await ctx.db.from("marketing_contacts").select("id, email").eq("company_id", ctx.companyId).is("deleted_at", null).in("email", lotto);
     if (error) throw error;
     for (const c of (data ?? []) as { id: string; email: string }[]) if (!perEmail.has(c.email.toLowerCase())) perEmail.set(c.email.toLowerCase(), c.id);
   }
   for (const lotto of aLotti(phones, 20)) {
-    const { data, error } = await ctx.db.from("marketing_contacts").select("id, phone").eq("company_id", ctx.companyId).in("phone", lotto.flatMap(formeTelefono));
+    const { data, error } = await ctx.db.from("marketing_contacts").select("id, phone").eq("company_id", ctx.companyId).is("deleted_at", null).in("phone", lotto.flatMap(formeTelefono));
     if (error) throw error;
     for (const c of (data ?? []) as { id: string; phone: string }[]) {
       const k = telefonoInternazionale(c.phone);
@@ -161,6 +161,7 @@ export async function importaOpportunita(ctx: ContestoOpportunita, rows: Record<
         })),
       });
     }
+    if (!pronte.length) return fine({});
     const quando = fineStimata(pronte.length, p);
     return fine({ programmata: { totale: pronte.length, descrizione: descriviProgrammazione(p), fine: quando ? formatoData(quando) : null } });
   }
@@ -202,7 +203,10 @@ export async function importaOpportunita(ctx: ContestoOpportunita, rows: Record<
         }
       }
       const valori = customOpp(r).map((v) => ({ opportunity_id: opp.id, ...v }));
-      if (valori.length) await ctx.db.from("marketing_opportunity_field_values").insert(valori);
+      if (valori.length) {
+        const { error: cErr } = await ctx.db.from("marketing_opportunity_field_values").insert(valori);
+        if (cErr) nonRiuscito.push(`Riga ${p.riga}: i campi personalizzati dell'opportunità non sono stati salvati (${cErr.message}). L'opportunità è creata: non reimportare il file o la creeresti due volte.`);
+      }
     } catch (err) {
       errori.push({ riga: p.riga, motivo: (err as { message?: string })?.message || "errore sconosciuto" });
     }
