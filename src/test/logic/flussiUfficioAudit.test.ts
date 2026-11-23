@@ -295,7 +295,7 @@ describe("importazione contatti: etichette, automazioni e doppioni", () => {
     const aggiorna = vi.fn((_riga: { tags?: string[] }) => ({ eq: () => ({ eq: async () => ({ error: null as Error | null }) }) }));
     const iscrivi = vi.fn(async (_nome: string, arg: { p_entity_ids: string[] }) => ({ data: { enrolled: arg.p_entity_ids.length }, error: null as null }));
     const tabella = {
-      select: () => ({ eq: () => ({ in: async () => ({ data: [{ id: "esistente", email: "gia@example.test", tags: ["vecchia"] }], error: null }) }) }),
+      select: () => ({ eq: () => ({ in: async () => ({ data: [{ id: "esistente", email: "gia@example.test", tags: ["vecchia"] }], error: null as null }) }) }),
       insert: inserisci, update: aggiorna,
     };
     const handleImport = esegui(codice + "\nhandleImport", {
