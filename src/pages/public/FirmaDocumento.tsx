@@ -62,6 +62,10 @@ function scadenzaTra(secondi: number): number {
   return Date.now() + secondi * 1000;
 }
 
+function secondiCodice(scadenza: number): number {
+  return Math.max(0, Math.ceil((scadenza - Date.now()) / 1000));
+}
+
 /**
  * Cornice della pagina di firma. Sta FUORI dal componente: definita dentro,
  * a ogni render era un componente nuovo e React rimontava tutta la pagina.
@@ -138,7 +142,7 @@ export default function FirmaDocumento() {
   // Usa l'orario di scadenza anche se il telefono torna da una scheda in secondo piano.
   useEffect(() => {
     if (step !== 'otp') return;
-    const intervallo = setInterval(() => setOtpTimer(Math.max(0, Math.ceil((otpScadenza.current - Date.now()) / 1000))), 1000);
+    const intervallo = setInterval(() => setOtpTimer(secondiCodice(otpScadenza.current)), 1000);
     return () => clearInterval(intervallo);
   }, [step]);
 
@@ -208,8 +212,10 @@ export default function FirmaDocumento() {
       if (error) throw new Error(await messaggioErroreEdge(error, 'Codice non inviato. Riprova.'));
       if (data?.error) throw new Error(data.error);
       if (data?.success !== true) throw new Error('Invio del codice non confermato. Riprova.');
-      otpScadenza.current = scadenzaTra(600);
-      setOtpTimer(600);
+      const limiteLocale = scadenzaTra(600);
+      const scadenzaServer = Date.parse(data.otp_valido_fino ?? "");
+      otpScadenza.current = Number.isFinite(scadenzaServer) ? Math.min(scadenzaServer, limiteLocale) : limiteLocale;
+      setOtpTimer(secondiCodice(otpScadenza.current));
       setOtpTentativi(0);
       setOtpDigits(['', '', '', '', '', '']);
       setStep('otp');

@@ -180,8 +180,11 @@ describe("FEA: gestori reali, nessun invio a persone reali", () => {
   });
   it("rispetta il canale NOT NULL e conferma il codice già inviato senza duplicarlo", async () => {
     stato.db.tabelle.signature_requests[0] = richiesta({ status: "pending", otp_hash: null, otp_scadenza: null });
-    expect((await chiama("fea-genera-otp", { request_id: "r-1" })).data.success).toBe(true);
-    expect((await chiama("fea-genera-otp", { request_id: "r-1" })).data).toMatchObject({ success: true, gia_inviato: true });
+    const prima = await chiama("fea-genera-otp", { request_id: "r-1" });
+    const validita = stato.db.tabelle.signature_requests[0].otp_scadenza;
+    expect(prima.data).toMatchObject({ success: true, otp_valido_fino: validita });
+    expect((await chiama("fea-genera-otp", { request_id: "r-1" })).data)
+      .toMatchObject({ success: true, gia_inviato: true, otp_valido_fino: validita });
     expect(stato.email).toHaveBeenCalledTimes(1);
     for (const s of stato.db.scritture.filter(s => s.tabella === "signature_requests")) {
       expect(s.dati).not.toHaveProperty("otp_canale", null);
