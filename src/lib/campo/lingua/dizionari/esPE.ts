@@ -115,5 +115,8 @@ const dizionario: Dizionario = {
   "Pronto soccorso": "Emergencia",
   "Qui puoi aggiungere {dettagli}.": "Aquí puedes agregar {dettagli}.",
   "scontrino": "boleta",
+  "Nome, targa, cantiere o persona": "Nombre, placa, obra o persona",
+  "Su iPhone aggiungi il sito alla schermata Home e aprilo da lì.": "En iPhone agrega el sitio a la pantalla Home y ábrelo desde ahí.",
+  "sul furgone": "en la camioneta",
 };
 export default dizionario;
