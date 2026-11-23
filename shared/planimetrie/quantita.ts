@@ -46,7 +46,7 @@ import { misureOscurante, misureSerramento, misureZanzariera, NOMI_CASSONETTO, N
 import { TOLLERANZA_LOCALE_CM, apertureDelLocale, areaPoligono, lunghezzaMuro, perimetroPoligono } from "./geometria.ts";
 import { metriConSfrido, percorsiImpianti, type LineaImpianto } from "./impianti.ts";
 import { zoneRadianti } from "./pavimentoRadiante.ts";
-import { circuitiRadianti, nomeCircuito } from "./circuitiRadianti.ts";
+import { circuitiRadianti, metriPosaZonaRadiante, nomeCircuito } from "./circuitiRadianti.ts";
 import { facceTetto, finituraDi, fotovoltaicoSulTetto, rettangoloTetto, SUBSTRATO_VERDE_CM, superficieFalde } from "./tetto.ts";
 import { puntiTerreno, scaviERiporti } from "./terreno.ts";
 
@@ -302,7 +302,7 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
     if (stato.collettoreRadiante) collettoriRadianti++;
     for (const z of zoneRadianti(stato)) {
       const delLocale = circuiti.filter(c => c.localeId === z.locale.id);
-      const tuboM = z.tuboM + delLocale.reduce((totale, c) => totale + c.mandataM + c.ritornoM, 0);
+      const tuboM = metriPosaZonaRadiante(z.tuboM, delLocale);
       radianteMq += z.superficieMq;
       radianteTuboM += tuboM;
       const soggetto = `locale:${z.locale.id}`;

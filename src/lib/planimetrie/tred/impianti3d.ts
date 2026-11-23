@@ -9,7 +9,7 @@
  */
 import { metriConSfrido, percorsiDaElementi, puntiPercorso, quotaPunto, type LineaImpianto, type PartenzaMancante } from "../../../../shared/planimetrie/impianti.ts";
 import { COLORE_RADIANTE, fasceRadianti, zoneRadianti } from "../../../../shared/planimetrie/pavimentoRadiante.ts";
-import { quoteCollettoreRadiante } from "../../../../shared/planimetrie/circuitiRadianti.ts";
+import { metriPosaZonaRadiante, quoteCollettoreRadiante } from "../../../../shared/planimetrie/circuitiRadianti.ts";
 import { CostruttoreMesh } from "./costruttore";
 import { instradaTubo } from "./instradamento";
 import { MATERIALI } from "./materiali";
@@ -142,17 +142,17 @@ export function meshImpianti(pianta: PiantaPer3D): Impianti3D {
     const fasce = new CostruttoreMesh();
     let metri = 0, superficieMq = 0;
     for (const { locale, zona, tuboM, superficieMq: mq } of radianti) {
-      for (const [a, b] of rete?.circuiti.some(c => c.localeId === locale.id) ? [] : fasceRadianti(locale.contorno, zona.passoCm)) {
+      const delLocale = rete?.circuiti.filter(c => c.localeId === locale.id) ?? [];
+      for (const [a, b] of delLocale.length ? [] : fasceRadianti(locale.contorno, zona.passoCm)) {
         fasce.scatola((a.x + b.x) * CM / 2, a.y * CM, 0.012, (b.x - a.x) * CM, 0.022, 0.009, 0);
       }
-      metri += tuboM;
+      metri += metriPosaZonaRadiante(tuboM, delLocale);
       superficieMq += mq;
     }
     if (!fasce.vuoto()) mesh.push(fasce.mesh({
       id: "impianto:radiante", nome: "Pavimento radiante · zona indicativa", genere: "elemento",
       materiale: "impianto_radiante", riferimento: "impianto:radiante", stratoEsploso: "impianti",
     }));
-    metri += rete?.circuiti.reduce((s, c) => s + c.mandataM + c.ritornoM, 0) ?? 0;
     impianti.push({ linea: "radiante", nome: "Pavimento radiante", colore: COLORE_RADIANTE, metri, superficieMq, ...(rete ? { circuiti: rete.circuiti } : {}) });
   }
   return { mesh, impianti, avvisi };

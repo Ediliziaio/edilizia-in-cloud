@@ -158,6 +158,7 @@ describe("pavimento radiante", () => {
     const scena = costruisciScena(pianteDaPlanimetria(doc).progetto, { impianti: true });
     expect(scena.mesh.map(m => m.id)).toEqual(expect.arrayContaining(["impianto:radiante:mandata", "impianto:radiante:ritorno", "impianto:radiante:circuiti"]));
     expect(scena.impianti?.find(l => l.linea === "radiante")?.circuiti).toHaveLength(3);
+    expect(scena.impianti?.find(l => l.linea === "radiante")?.metri).toBeCloseTo(righe.reduce((s, r) => s + (r.quantita ?? 0), 0), 8);
     const fogli = await accodaFoglioImpianti(null, p, { intestazione: "Prova collettore" });
     expect((await PDFDocument.load(fogli!.dati)).getPageCount()).toBe(2);
   });

@@ -26,6 +26,11 @@ export function nomeCircuito(c: Pick<CircuitoRadiante, "localeNome" | "numero">)
   return `${c.localeNome} · circuito ${c.numero}`;
 }
 
+/** Usa lo sviluppo del circuito per le zone tracciate e la stima per le altre. */
+export function metriPosaZonaRadiante(stimaM: number, circuiti: readonly CircuitoRadiante[]) {
+  return circuiti.length ? circuiti.reduce((totale, c) => totale + c.totaleM, 0) : stimaM;
+}
+
 export function quoteCollettoreRadiante(quotaCm: number) {
   return { mandata: quotaCm, ritorno: quotaCm - SCARTO_BARRE_CM };
 }

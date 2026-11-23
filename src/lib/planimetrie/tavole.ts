@@ -8,7 +8,7 @@ import { STILE_DISEGNO, type Disegno2D } from "./prospetti";
 import type { Punto, StatoPianta } from "../../../shared/planimetrie/modello.ts";
 import { metriConSfrido, percorsiImpianti, puntiPercorso } from "../../../shared/planimetrie/impianti.ts";
 import { COLORE_RADIANTE, fasceRadianti, zoneRadianti } from "../../../shared/planimetrie/pavimentoRadiante.ts";
-import { circuitiRadianti, COLORI_CIRCUITO, quoteCollettoreRadiante } from "../../../shared/planimetrie/circuitiRadianti.ts";
+import { circuitiRadianti, COLORI_CIRCUITO, metriPosaZonaRadiante, quoteCollettoreRadiante } from "../../../shared/planimetrie/circuitiRadianti.ts";
 
 export type Foglio = "A4" | "A3";
 
@@ -286,7 +286,7 @@ export async function accodaFoglioImpianti(pdf: Uint8Array | null, stato: StatoP
   }
   if (radianti.length) {
     const area = radianti.reduce((totale, z) => totale + z.superficieMq, 0);
-    const tubo = radianti.reduce((totale, z) => totale + z.tuboM, 0) + circuiti.reduce((s, c) => s + c.mandataM + c.ritornoM, 0);
+    const tubo = radianti.reduce((totale, z) => totale + metriPosaZonaRadiante(z.tuboM, circuiti.filter(c => c.localeId === z.locale.id)), 0);
     y -= 3;
     riga("Pavimento radiante", COLORE_RADIANTE, grassetto, 8);
     riga(`Area riscaldata ${numero(area)} m² / tubo stimato ${numero(tubo)} m`);
