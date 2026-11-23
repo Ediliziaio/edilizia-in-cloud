@@ -200,8 +200,37 @@ export function QuoteMovimento({ companyId, direction, importo, quote, onQuote }
       )}
 
       <Barra totale={conti.totale} assegnato={conti.assegnato} />
+      <AggiustaResto quote={quote} mancano={conti.mancano} direction={direction} onQuote={onQuote} />
     </section>
   );
+}
+
+/**
+ * Pochi euro di differenza sono quasi sempre commissioni: si propongono come voce. Se le fatture
+ * superano l'accredito, la differenza resta da incassare sull'ultima fattura (acconto).
+ */
+function AggiustaResto({ quote, mancano, direction, onQuote }: { quote: Quota[]; mancano: number; direction: "entrata" | "uscita"; onQuote: (q: Quota[]) => void }) {
+  const documenti = quote.filter(q => q.tipo !== "libera" && q.tipo !== "dipendente");
+  if (!documenti.length || mancano === 0) return null;
+  if (mancano > 0 && mancano <= 1000) {
+    return (
+      <button type="button" className="text-left text-xs text-primary underline-offset-2 hover:underline"
+        onClick={() => onQuote([...quote, { chiave: `c${Date.now()}`, tipo: "libera", categoria: direction === "uscita" ? "commissioni" : "altro", orderId: null,
+          descrizione: direction === "uscita" ? "Commissioni bancarie" : "Arrotondamento", importo: daCentesimi(mancano) }])}>
+        Metti i {euro(mancano / 100)} che mancano su «{direction === "uscita" ? "Commissioni bancarie" : "Arrotondamento"}»
+      </button>
+    );
+  }
+  const ultima = documenti[documenti.length - 1];
+  if (mancano < 0 && centesimi(ultima.importo) + mancano > 0) {
+    return (
+      <button type="button" className="text-left text-xs text-primary underline-offset-2 hover:underline"
+        onClick={() => onQuote(quote.map(q => (q.chiave === ultima.chiave ? { ...q, importo: daCentesimi(centesimi(q.importo) + mancano) } : q)))}>
+        Lascia {euro(-mancano / 100)} {direction === "entrata" ? "da incassare" : "da pagare"} sull'ultima fattura
+      </button>
+    );
+  }
+  return null;
 }
 
 function Barra({ totale, assegnato }: { totale: number; assegnato: number }) {

@@ -2,7 +2,12 @@
  * Le quote di un movimento diviso (23/11/2026): nel dettaglio di una riga della Prima Nota si
  * vedono tutte le altre righe dello stesso bonifico o RiBa, con fattura, commessa e importo.
  */
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
@@ -20,13 +25,34 @@ export function etichettaQuota(gruppo: { descrizione: string; importo: number } 
   return gruppo ? `Quota di «${gruppo.descrizione}» · ${formatCurrency(Number(gruppo.importo))}` : null;
 }
 
-export function QuoteDelMovimento({ gruppo, correnteId, onApri, apribile = () => true }: {
+export function QuoteDelMovimento({ gruppo, correnteId, onApri, apribile = () => true, puoAnnullare = false, onAnnullato }: {
   gruppo: { id: string; descrizione: string; importo: number };
   correnteId: string;
   onApri: (id: string) => void;
   /** Si apre solo una quota che l'elenco ha in pagina (i filtri possono nasconderla). */
   apribile?: (id: string) => boolean;
+  /** Annullare tutto il movimento: solo l'amministratore (lo ricontrolla il database). */
+  puoAnnullare?: boolean;
+  onAnnullato?: () => void;
 }) {
+  const cache = useQueryClient();
+  const [chiediMotivo, setChiediMotivo] = useState(false);
+  const [motivo, setMotivo] = useState("");
+  const annulla = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.rpc("prima_nota_annulla_gruppo" as never, { p_gruppo: gruppo.id, p_motivo: motivo.trim() } as never);
+      if (error) throw error;
+      return Number(data ?? 0);
+    },
+    onSuccess: n => {
+      toast.success(`Movimento annullato: ${n} quote tolte`, { description: "Fatture, costi e cedolini tornano come prima; il movimento di banca, se c'era, torna libero." });
+      refreshFinancialQueries(cache);
+      void cache.invalidateQueries({ queryKey: ["prima-nota"] });
+      void cache.invalidateQueries({ queryKey: ["prima-nota-documenti-aperti"] });
+      onAnnullato?.();
+    },
+    onError: (e: Error) => toast.error("Movimento non annullato", { description: e.message, duration: 12000 }),
+  });
   const righe = useQuery({
     queryKey: ["prima-nota-quote-gruppo", gruppo.id],
     queryFn: async () => {
@@ -69,6 +95,23 @@ export function QuoteDelMovimento({ gruppo, correnteId, onApri, apribile = () =>
         <p className="text-xs text-amber-700 dark:text-amber-400">
           Le quote attive fanno {formatCurrency(somma)}: una quota è stata tolta o stornata dopo la registrazione.
         </p>
+      )}
+      {puoAnnullare && !chiediMotivo && (
+        <Button type="button" variant="outline" size="sm" className="text-destructive" onClick={() => setChiediMotivo(true)}>
+          Annulla tutto il movimento
+        </Button>
+      )}
+      {puoAnnullare && chiediMotivo && (
+        <div className="space-y-2 rounded-md border border-destructive/40 p-2">
+          <p className="text-xs">Si tolgono tutte le quote: fatture e costi tornano da pagare o incassare, i cedolini tornano da pagare e il movimento di banca, se c'era, torna libero.</p>
+          <Input value={motivo} onChange={e => setMotivo(e.target.value)} placeholder="Perché lo annulli" aria-label="Motivo dell'annullamento" />
+          <div className="flex gap-2">
+            <Button type="button" size="sm" variant="destructive" disabled={!motivo.trim() || annulla.isPending} onClick={() => annulla.mutate()}>
+              {annulla.isPending ? "Annullo…" : "Annulla le quote"}
+            </Button>
+            <Button type="button" size="sm" variant="ghost" disabled={annulla.isPending} onClick={() => setChiediMotivo(false)}>Lascia stare</Button>
+          </div>
+        </div>
       )}
     </section>
   );

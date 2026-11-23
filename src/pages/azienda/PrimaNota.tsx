@@ -784,7 +784,8 @@ function PrimaNotaInner() {
               <div key={nome}><dt className="text-xs text-muted-foreground">{nome}</dt><dd className="break-words">{valore}</dd></div>)}
           </dl>
           {dettaglio.prima_nota_gruppi && <QuoteDelMovimento gruppo={dettaglio.prima_nota_gruppi} correnteId={dettaglio.id} onApri={setDettaglioId}
-            apribile={id => entriesWithBalance.some(e => e.id === id)} />}
+            apribile={id => entriesWithBalance.some(e => e.id === id)}
+            puoAnnullare={permessi.isAdmin} onAnnullato={() => setDettaglioId(null)} />}
           {dettaglio.notes && <div><p className="text-xs text-muted-foreground">Note</p><p className="whitespace-pre-wrap break-words text-sm">{dettaglio.notes}</p></div>}
           <div className="space-y-3 border-y py-3 text-sm">
             <div>

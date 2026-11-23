@@ -108,3 +108,31 @@ it("dal movimento di banca: verso, importo e data sono della banca e le quote si
   })));
   await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
 });
+
+it("pochi euro di differenza in uscita si propongono come commissioni bancarie", async () => {
+  render(<QueryClientProvider client={new QueryClient()}><NewEntryDialog open onOpenChange={vi.fn()} onConfirm={vi.fn()} isPending={false} /></QueryClientProvider>);
+  fireEvent.click(screen.getByRole("button", { name: "↓ Entrata" }));
+  fireEvent.click(screen.getByRole("checkbox"));
+  fireEvent.change(screen.getByLabelText("Importo"), { target: { value: "703.50" } });
+  fireEvent.change(screen.getByLabelText("Cerca cliente o fattura"), { target: { value: "bianchi" } });
+  fireEvent.click(await screen.findByRole("option", { name: /Bianchi/ }));
+  fireEvent.click(screen.getByRole("button", { name: /Metti i 3,50/ }));
+  expect(screen.getByText(/tutto assegnato/)).toBeTruthy();
+  expect((screen.getByLabelText("Descrizione della voce") as HTMLInputElement).value).toBe("Arrotondamento");
+});
+
+it("se le fatture superano l'accredito, la differenza resta da incassare sull'ultima", async () => {
+  render(<QueryClientProvider client={new QueryClient()}><NewEntryDialog open onOpenChange={vi.fn()} onConfirm={vi.fn()} isPending={false} /></QueryClientProvider>);
+  fireEvent.click(screen.getByRole("button", { name: "↓ Entrata" }));
+  fireEvent.click(screen.getByRole("checkbox"));
+  fireEvent.change(screen.getByLabelText("Importo"), { target: { value: "1500" } });
+  fireEvent.change(screen.getByLabelText("Cerca cliente o fattura"), { target: { value: "rossi" } });
+  fireEvent.click(await screen.findByRole("option", { name: /FT\/40/ }));
+  fireEvent.change(screen.getByLabelText("Cerca cliente o fattura"), { target: { value: "bianchi" } });
+  fireEvent.click(await screen.findByRole("option", { name: /Bianchi/ }));
+  fireEvent.change(screen.getAllByLabelText("Importo della quota")[0], { target: { value: "1000" } });
+  fireEvent.change(screen.getAllByLabelText("Importo della quota")[1], { target: { value: "700" } });
+  fireEvent.click(screen.getByRole("button", { name: /Lascia 200,00/ }));
+  expect((screen.getAllByLabelText("Importo della quota")[1] as HTMLInputElement).value).toBe("500.00");
+  expect(screen.getByText(/tutto assegnato/)).toBeTruthy();
+});
