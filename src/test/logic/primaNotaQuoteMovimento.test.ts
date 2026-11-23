@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bilancio, combinazioniEsatte, filtraDocumenti, importoProposto, meseStipendi, problemaQuote, quotePerServer, type DocumentoAperto, type Quota } from "@/lib/primaNota/quoteMovimento";
+import { bilancio, combinazioniEsatte, filtraDocumenti, importoProposto, meseStipendi, nettoBonificoParlante, problemaQuote, quotePerServer, type DocumentoAperto, type Quota } from "@/lib/primaNota/quoteMovimento";
 
 const doc = (id: string, controparte: string, residuo: number, data = "2026-10-01", numero = id): DocumentoAperto =>
   ({ tipo: "documento", id, numero, data, controparte, totale: residuo, residuo, order_id: null, order_code: null });
@@ -52,5 +52,26 @@ describe("movimento diviso in quote", () => {
     expect(problemaQuote("1500", [q])).toBe("Manca l'importo per lo stipendio di Rossi Mario.");
     expect(problemaQuote("1500", [{ ...q, importo: "1500" }])).toBeNull();
     expect(quotePerServer([{ ...q, importo: "1500,456" }])).toEqual([{ tipo: "dipendente", id: "e1", anno: 2026, mese: 10, importo: 1500.46 }]);
+  });
+
+  it("la nota di credito non è denaro: non entra nel totale e va su una fattura del movimento", () => {
+    const f: DocumentoAperto = { ...doc("f1", "Fornitore", 253.05), tipo: "fattura_ricevuta", numero: "432" };
+    const n: DocumentoAperto = { ...doc("n1", "Fornitore", 21.45), tipo: "nota_credito", numero: "NC9" };
+    const qf: Quota = { chiave: "a", tipo: "fattura_ricevuta", documento: f, importo: "231.60" };
+    const qn: Quota = { chiave: "b", tipo: "nota_credito", documento: n, fatturaChiave: "a", importo: "21.45" };
+    expect(bilancio("231.60", [qf, qn]).mancano).toBe(0);
+    expect(problemaQuote("231.60", [qf, qn])).toBeNull();
+    expect(problemaQuote("231.60", [qf, { ...qn, fatturaChiave: null }])).toBe("Scegli la fattura su cui va la nota di credito NC9.");
+    expect(quotePerServer([qf, qn])[1]).toEqual({ tipo: "nota_credito", id: "n1", fattura_id: "f1", importo: 21.45 });
+    expect(combinazioniEsatte([n], "21.45")).toEqual([]);
+  });
+
+  it("bonifico parlante: 11% sul lordo diviso 1,22; la fattura si salda per il lordo, in banca il netto", () => {
+    expect(nettoBonificoParlante("11000")).toEqual({ ritenuta: 991.8, netto: 10008.2 });
+    const d = doc("d1", "Rossi", 11000, "2026-10-01", "7");
+    const q: Quota = { chiave: "r", tipo: "documento", documento: d, importo: "10008.20", ritenuta: true, lordo: "11000" };
+    expect(problemaQuote("10008.20", [q])).toBeNull();
+    expect(problemaQuote("10008.20", [{ ...q, lordo: "12000" }])).toBe("Per la fattura 7 il lordo supera il residuo.");
+    expect(quotePerServer([q])).toEqual([{ tipo: "documento", id: "d1", importo: 10008.2, ritenuta: true, lordo: 11000 }]);
   });
 });

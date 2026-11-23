@@ -136,3 +136,16 @@ it("se le fatture superano l'accredito, la differenza resta da incassare sull'ul
   expect((screen.getAllByLabelText("Importo della quota")[1] as HTMLInputElement).value).toBe("500.00");
   expect(screen.getByText(/tutto assegnato/)).toBeTruthy();
 });
+
+it("bonifico parlante: spuntata la ritenuta, la quota scende al netto e si scrive il lordo", async () => {
+  render(<QueryClientProvider client={new QueryClient()}><NewEntryDialog open onOpenChange={vi.fn()} onConfirm={vi.fn()} isPending={false} /></QueryClientProvider>);
+  fireEvent.click(screen.getByRole("button", { name: "↓ Entrata" }));
+  fireEvent.click(screen.getByRole("checkbox", { name: /Divido/ }));
+  fireEvent.change(screen.getByLabelText("Importo"), { target: { value: "631.15" } });
+  fireEvent.change(screen.getByLabelText("Cerca cliente o fattura"), { target: { value: "bianchi" } });
+  fireEvent.click(await screen.findByRole("option", { name: /Bianchi/ }));
+  fireEvent.click(screen.getByRole("checkbox", { name: "Bonifico parlante con ritenuta" }));
+  expect((screen.getByLabelText("Lordo saldato") as HTMLInputElement).value).toBe("631.15");
+  fireEvent.change(screen.getByLabelText("Lordo saldato"), { target: { value: "700" } });
+  expect(screen.getByText(/Lordo saldato 700,00.*ritenuta 63,11.*in banca 636,89/)).toBeTruthy();
+});

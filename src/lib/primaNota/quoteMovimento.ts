@@ -5,7 +5,9 @@
  * è uno solo, tutto o niente: prima_nota_registra_divisa.
  */
 
-export type TipoDocumentoAperto = "fattura_ricevuta" | "documento" | "invoice";
+import { ritenutaSuLordo } from "@/lib/orders/bonusFiscali";
+
+export type TipoDocumentoAperto = "fattura_ricevuta" | "documento" | "invoice" | "nota_credito";
 
 /** Una riga di prima_nota_documenti_aperti. */
 export interface DocumentoAperto {
@@ -32,7 +34,13 @@ export interface DipendenteDaPagare {
 }
 
 export type Quota =
-  | { chiave: string; tipo: TipoDocumentoAperto; documento: DocumentoAperto; importo: string }
+  | {
+    chiave: string; tipo: Exclude<TipoDocumentoAperto, "nota_credito">; documento: DocumentoAperto; importo: string;
+    /** Bonifico parlante (solo fatture fatte con l'app): in banca arriva il netto, la fattura si salda per il lordo. */
+    ritenuta?: boolean; lordo?: string;
+  }
+  /** Una nota di credito del fornitore che riduce una fattura pagata con lo stesso movimento: non è denaro. */
+  | { chiave: string; tipo: "nota_credito"; documento: DocumentoAperto; fatturaChiave: string | null; importo: string }
   | { chiave: string; tipo: "dipendente"; dipendente: Pick<DipendenteDaPagare, "id" | "nome" | "origine">; anno: number; mese: number; importo: string }
   | { chiave: string; tipo: "libera"; categoria: string; orderId: string | null; descrizione: string; importo: string };
 
@@ -52,9 +60,16 @@ export const daCentesimi = (c: number) => (c / 100).toFixed(2);
 
 export function chiaveDocumento(d: Pick<DocumentoAperto, "tipo" | "id">) { return `${d.tipo}:${d.id}`; }
 
-/** Quanto è stato assegnato e quanto manca (in centesimi; negativo = assegnato troppo). */
+/** La ritenuta dell'11% su un bonifico parlante di quel lordo, e il netto che arriva in banca. */
+export function nettoBonificoParlante(lordo: string | number) {
+  const l = centesimi(lordo) / 100;
+  const ritenuta = ritenutaSuLordo(l);
+  return { ritenuta, netto: Math.round((l - ritenuta) * 100) / 100 };
+}
+
+/** Quanto è stato assegnato e quanto manca (in centesimi; negativo = assegnato troppo). Le note di credito non sono denaro. */
 export function bilancio(totale: string | number, quote: Quota[]) {
-  const assegnato = quote.reduce((s, q) => s + centesimi(q.importo), 0);
+  const assegnato = quote.reduce((s, q) => s + (q.tipo === "nota_credito" ? 0 : centesimi(q.importo)), 0);
   return { totale: centesimi(totale), assegnato, mancano: centesimi(totale) - assegnato };
 }
 
@@ -71,8 +86,19 @@ export function problemaQuote(totale: string | number, quote: Quota[]): string |
     const c = centesimi(q.importo);
     const nome = q.tipo === "libera" ? (q.descrizione.trim() || "una voce senza fattura")
       : q.tipo === "dipendente" ? `lo stipendio di ${q.dipendente.nome}`
+      : q.tipo === "nota_credito" ? `la nota di credito ${q.documento.numero ?? ""}`.trim()
       : `la fattura ${q.documento.numero ?? ""}`.trim();
     if (c <= 0) return `Manca l'importo per ${nome}.`;
+    if (q.tipo === "nota_credito") {
+      if (!q.fatturaChiave || !quote.some(x => x.chiave === q.fatturaChiave)) return `Scegli la fattura su cui va ${nome}.`;
+      if (c > centesimi(q.documento.residuo)) return `Per ${nome} l'importo supera la nota.`;
+      continue;
+    }
+    if ((q.tipo === "documento" || q.tipo === "invoice" || q.tipo === "fattura_ricevuta") && q.ritenuta) {
+      if (centesimi(q.lordo) <= c) return `Per ${nome} indica il lordo saldato.`;
+      if (centesimi(q.lordo) > centesimi(q.documento.residuo)) return `Per ${nome} il lordo supera il residuo.`;
+      continue;
+    }
     if (q.tipo !== "libera" && q.tipo !== "dipendente" && c > centesimi(q.documento.residuo)) return `Per ${nome} l'importo supera il residuo.`;
     if (q.tipo === "libera" && !q.categoria) return `Scegli la categoria per ${nome}.`;
   }
@@ -105,7 +131,7 @@ export function combinazioniEsatte(documenti: DocumentoAperto[], importo: string
   if (obiettivo <= 0) return [];
   const perControparte = new Map<string, DocumentoAperto[]>();
   for (const d of documenti) {
-    if (esclusi.has(chiaveDocumento(d)) || centesimi(d.residuo) <= 0) continue;
+    if (d.tipo === "nota_credito" || esclusi.has(chiaveDocumento(d)) || centesimi(d.residuo) <= 0) continue;
     const k = (d.controparte ?? "").trim().toLowerCase();
     if (!k) continue;
     perControparte.set(k, [...(perControparte.get(k) ?? []), d]);
@@ -140,6 +166,11 @@ export function quotePerServer(quote: Quota[]) {
     const importo = Number(daCentesimi(centesimi(q.importo)));
     if (q.tipo === "libera") return { tipo: "libera", importo, categoria: q.categoria, order_id: q.orderId, descrizione: q.descrizione.trim() || null };
     if (q.tipo === "dipendente") return { tipo: "dipendente", id: q.dipendente.id, anno: q.anno, mese: q.mese, importo };
+    if (q.tipo === "nota_credito") {
+      const fattura = quote.find(x => x.chiave === q.fatturaChiave);
+      return { tipo: "nota_credito", id: q.documento.id, fattura_id: fattura && "documento" in fattura ? fattura.documento.id : null, importo };
+    }
+    if (q.ritenuta) return { tipo: q.tipo, id: q.documento.id, importo, ritenuta: true, lordo: Number(daCentesimi(centesimi(q.lordo))) };
     return { tipo: q.tipo, id: q.documento.id, importo };
   });
 }
@@ -148,4 +179,5 @@ export const ETICHETTA_TIPO: Record<TipoDocumentoAperto, string> = {
   fattura_ricevuta: "Fattura ricevuta",
   documento: "Fattura emessa",
   invoice: "Fattura emessa",
+  nota_credito: "Nota di credito",
 };

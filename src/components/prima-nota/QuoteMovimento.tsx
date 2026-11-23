@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import {
   bilancio, centesimi, chiaveDocumento, combinazioniEsatte, daCentesimi, ETICHETTA_TIPO, euro, filtraDocumenti, importoProposto,
-  meseStipendi, MESI, type DipendenteDaPagare, type DocumentoAperto, type Quota,
+  meseStipendi, MESI, nettoBonificoParlante, type DipendenteDaPagare, type DocumentoAperto, type Quota,
 } from "@/lib/primaNota/quoteMovimento";
 
 export const CATEGORIE_QUOTA = {
@@ -77,12 +77,28 @@ export function QuoteMovimento({ companyId, direction, importo, quote, onQuote }
     [documenti.data, importo, quote.length, conti.totale, usati],
   );
 
+  const stessoFornitore = (a: DocumentoAperto, b: DocumentoAperto) => (a.controparte ?? "").trim().toLowerCase() === (b.controparte ?? "").trim().toLowerCase();
   const aggiungi = (d: DocumentoAperto) => {
-    onQuote([...quote, { chiave: nuovaChiave(), tipo: d.tipo, documento: d, importo: importoProposto(d.residuo, conti.mancano) }]);
     setCerca("");
+    if (d.tipo === "nota_credito") {
+      // La nota va su una fattura dello stesso fornitore già nel movimento, e ne riduce il pagamento.
+      const fattura = [...quote].reverse().find(q => q.tipo === "fattura_ricevuta" && stessoFornitore(q.documento, d));
+      const nota = centesimi(d.residuo);
+      const nuove = fattura && centesimi(fattura.importo) > nota
+        ? quote.map(q => (q.chiave === fattura.chiave ? { ...q, importo: daCentesimi(centesimi(q.importo) - nota) } : q))
+        : quote;
+      onQuote([...nuove, { chiave: nuovaChiave(), tipo: "nota_credito", documento: d, fatturaChiave: fattura?.chiave ?? null, importo: daCentesimi(nota) }]);
+      return;
+    }
+    onQuote([...quote, { chiave: nuovaChiave(), tipo: d.tipo, documento: d, importo: importoProposto(d.residuo, conti.mancano) }]);
   };
   const aggiungiTutte = (docs: DocumentoAperto[]) =>
     onQuote([...quote, ...docs.map(d => ({ chiave: nuovaChiave(), tipo: d.tipo, documento: d, importo: daCentesimi(Math.round(d.residuo * 100)) }) as Quota)]);
+  // Bonifico parlante: si scrive il lordo che la fattura salda, in banca arriva il netto.
+  const conRitenuta = (chiave: string, lordo: string) => {
+    const { netto } = nettoBonificoParlante(lordo);
+    cambia(chiave, { ritenuta: true, lordo, importo: centesimi(lordo) > 0 ? daCentesimi(Math.round(netto * 100)) : "" } as Partial<Quota>);
+  };
   const aggiungiLibera = (importoQuota = conti.mancano > 0 ? daCentesimi(conti.mancano) : "") =>
     onQuote([...quote, { chiave: nuovaChiave(), tipo: "libera", categoria: "", orderId: null, descrizione: "", importo: importoQuota }]);
   const cambia = (chiave: string, campi: Partial<Quota>) => onQuote(quote.map(q => (q.chiave === chiave ? ({ ...q, ...campi } as Quota) : q)));
@@ -110,9 +126,9 @@ export function QuoteMovimento({ companyId, direction, importo, quote, onQuote }
                   <Plus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   <span className="min-w-0 flex-1 truncate">
                     <span className="font-medium">{d.controparte ?? "—"}</span>
-                    <span className="text-muted-foreground"> · n. {d.numero} del {dataIt(d.data)}{d.order_code ? ` · ${d.order_code}` : ""}</span>
+                    <span className="text-muted-foreground"> · {d.tipo === "nota_credito" ? "nota di credito " : ""}n. {d.numero} del {dataIt(d.data)}{d.order_code ? ` · ${d.order_code}` : ""}</span>
                   </span>
-                  <span className="shrink-0 tabular-nums">{euro(d.residuo)}</span>
+                  <span className={cn("shrink-0 tabular-nums", d.tipo === "nota_credito" && "text-emerald-700 dark:text-emerald-400")}>{d.tipo === "nota_credito" ? "−" : ""}{euro(d.residuo)}</span>
                 </button>
               </li>
             ))}
@@ -154,6 +170,23 @@ export function QuoteMovimento({ companyId, direction, importo, quote, onQuote }
                   <CommessaCombobox value={q.orderId} onChange={id => cambia(q.chiave, { orderId: id ?? null })} ariaLabel="Commessa della voce" nessunaLabel="Nessuna commessa" />
                   <Input className="sm:col-span-2" value={q.descrizione} onChange={e => cambia(q.chiave, { descrizione: e.target.value })} placeholder="Descrizione (es. commissioni RiBa)" aria-label="Descrizione della voce" />
                 </div>
+              ) : q.tipo === "nota_credito" ? (
+                <div className="min-w-0 space-y-1 text-sm">
+                  <div>
+                    <span className="font-medium">{q.documento.controparte ?? "—"}</span>
+                    <span className="text-muted-foreground"> · nota di credito n. {q.documento.numero} del {dataIt(q.documento.data)}</span>
+                  </div>
+                  {(() => {
+                    const fatture = quote.filter(x => x.tipo === "fattura_ricevuta" && stessoFornitore(x.documento, q.documento));
+                    return fatture.length ? (
+                      <Select value={q.fatturaChiave ?? ""} onValueChange={v => cambia(q.chiave, { fatturaChiave: v } as Partial<Quota>)}>
+                        <SelectTrigger className="h-8" aria-label="Fattura ridotta dalla nota"><SelectValue placeholder="Riduce la fattura…" /></SelectTrigger>
+                        <SelectContent>{fatture.map(f => <SelectItem key={f.chiave} value={f.chiave}>Riduce la fattura n. {"documento" in f ? f.documento.numero : ""}</SelectItem>)}</SelectContent>
+                      </Select>
+                    ) : <p className="text-xs text-amber-700 dark:text-amber-400">Aggiungi una fattura dello stesso fornitore: la nota ne riduce il pagamento.</p>;
+                  })()}
+                  <p className="text-xs text-muted-foreground">Non è denaro: non entra nel totale, riduce quanto si paga su quella fattura.</p>
+                </div>
               ) : (
                 <div className="min-w-0 text-sm">
                   <span className="font-medium">{q.documento.controparte ?? "—"}</span>
@@ -161,16 +194,37 @@ export function QuoteMovimento({ companyId, direction, importo, quote, onQuote }
                   <span className="block text-xs text-muted-foreground">
                     Residuo {euro(q.documento.residuo)}{q.documento.order_code ? ` · commessa ${q.documento.order_code}` : ""}
                   </span>
+                  {q.tipo === "documento" && direction === "entrata" && (
+                    <label className="mt-1 flex cursor-pointer items-center gap-2 text-xs">
+                      <Checkbox checked={!!q.ritenuta} aria-label="Bonifico parlante con ritenuta"
+                        onCheckedChange={v => (v === true
+                          ? conRitenuta(q.chiave, daCentesimi(Math.min(centesimi(q.documento.residuo), Math.max(centesimi(q.importo), 0)) || centesimi(q.documento.residuo)))
+                          : cambia(q.chiave, { ritenuta: false, importo: q.lordo ?? q.importo } as Partial<Quota>))} />
+                      Bonifico parlante: la banca ha trattenuto la ritenuta dell'11%
+                    </label>
+                  )}
                 </div>
+              )}
+              {"ritenuta" in q && q.ritenuta && (
+                <p className="text-xs text-muted-foreground tabular-nums">
+                  Lordo saldato {euro(centesimi(q.lordo) / 100)} · ritenuta {euro(nettoBonificoParlante(q.lordo ?? "0").ritenuta)} · in banca {euro(centesimi(q.importo) / 100)}
+                </p>
               )}
               <div className="flex items-center gap-2">
                 <div className="flex h-9 flex-1 items-center gap-1 rounded-md border px-2">
-                  <Input type="number" inputMode="decimal" step="0.01" min="0.01" value={q.importo} aria-label="Importo della quota"
-                    onWheel={e => e.currentTarget.blur()} onChange={e => cambia(q.chiave, { importo: e.target.value })}
-                    className="h-full border-0 px-0 text-right tabular-nums shadow-none focus-visible:ring-0 focus-visible:ring-offset-0" />
+                  {q.tipo === "nota_credito" && <span className="text-sm text-emerald-700 dark:text-emerald-400">−</span>}
+                  {"ritenuta" in q && q.ritenuta ? (
+                    <Input type="number" inputMode="decimal" step="0.01" min="0.01" value={q.lordo ?? ""} aria-label="Lordo saldato"
+                      onWheel={e => e.currentTarget.blur()} onChange={e => conRitenuta(q.chiave, e.target.value)}
+                      className="h-full border-0 px-0 text-right tabular-nums shadow-none focus-visible:ring-0 focus-visible:ring-offset-0" />
+                  ) : (
+                    <Input type="number" inputMode="decimal" step="0.01" min="0.01" value={q.importo} aria-label="Importo della quota"
+                      onWheel={e => e.currentTarget.blur()} onChange={e => cambia(q.chiave, { importo: e.target.value })}
+                      className="h-full border-0 px-0 text-right tabular-nums shadow-none focus-visible:ring-0 focus-visible:ring-offset-0" />
+                  )}
                   <span className="text-sm text-muted-foreground">€</span>
                 </div>
-                {q.tipo !== "libera" && q.tipo !== "dipendente" && Math.round(Number(q.importo) * 100) < Math.round(q.documento.residuo * 100) && Number(q.importo) > 0 && (
+                {q.tipo !== "libera" && q.tipo !== "dipendente" && q.tipo !== "nota_credito" && !q.ritenuta && Math.round(Number(q.importo) * 100) < Math.round(q.documento.residuo * 100) && Number(q.importo) > 0 && (
                   <span className="whitespace-nowrap text-xs text-amber-700 dark:text-amber-400">acconto</span>
                 )}
                 <Button type="button" variant="ghost" size="sm" className="h-9 w-9 p-0" aria-label="Togli la quota" onClick={() => togli(q.chiave)}><X className="h-4 w-4" /></Button>
@@ -210,7 +264,7 @@ export function QuoteMovimento({ companyId, direction, importo, quote, onQuote }
  * superano l'accredito, la differenza resta da incassare sull'ultima fattura (acconto).
  */
 function AggiustaResto({ quote, mancano, direction, onQuote }: { quote: Quota[]; mancano: number; direction: "entrata" | "uscita"; onQuote: (q: Quota[]) => void }) {
-  const documenti = quote.filter(q => q.tipo !== "libera" && q.tipo !== "dipendente");
+  const documenti = quote.filter(q => q.tipo !== "libera" && q.tipo !== "dipendente" && q.tipo !== "nota_credito");
   if (!documenti.length || mancano === 0) return null;
   if (mancano > 0 && mancano <= 1000) {
     return (
