@@ -50,6 +50,9 @@ export interface BenefitRow {
   km?: number;
   tariffa_eur_km?: number;
   note?: string | null;
+  /** Buoni a ricevuta: dove si è mangiato e la foto dello scontrino caricata dall'operaio (buoni-pasto-ricevute). */
+  esercente?: string | null;
+  foto_url?: string | null;
 }
 export interface BenefitConfig {
   company_id: string;

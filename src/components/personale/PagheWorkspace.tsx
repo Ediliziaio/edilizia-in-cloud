@@ -386,7 +386,11 @@ function WorkspaceBody({
                             ? `${r.km} km × ${r.tariffa_eur_km} €/km`
                             : r.tipo === "fisso"
                               ? "Da ore registrate"
-                              : "Ricevuta"}
+                              : <>
+                                Ricevuta{r.esercente ? ` · ${r.esercente}` : ""}
+                                {/* Scontrino fotografato dall'operaio dall'app (23/11/2026). */}
+                                {r.foto_url && <ScontrinoLink percorso={r.foto_url} />}
+                              </>}
                         </td>
                         <td className="p-3 whitespace-nowrap">
                           {formatCurrency(Number(r.importo))}
@@ -1189,5 +1193,32 @@ function BenefitHistory({
         </p>
       )}
     </details>
+  );
+}
+
+/** Apre la foto dello scontrino caricata dall'operaio (cartella privata: link firmato per un'ora). */
+function ScontrinoLink({ percorso }: { percorso: string }) {
+  const [apertura, setApertura] = useState(false);
+  async function apri() {
+    if (apertura) return;
+    const scheda = window.open("about:blank", "_blank");
+    if (scheda) scheda.opener = null;
+    setApertura(true);
+    try {
+      const { data, error } = await supabase.storage.from("buoni-pasto-ricevute").createSignedUrl(percorso, 3600);
+      if (error || !data?.signedUrl) throw error ?? new Error("assente");
+      if (scheda) scheda.location.replace(data.signedUrl);
+    } catch {
+      scheda?.close();
+      toast.error("Scontrino non disponibile. Riprova.");
+    } finally {
+      setApertura(false);
+    }
+  }
+  return (
+    <button type="button" onClick={() => void apri()} disabled={apertura}
+      className="ml-1 text-xs font-medium text-primary underline disabled:opacity-50">
+      Vedi scontrino
+    </button>
   );
 }

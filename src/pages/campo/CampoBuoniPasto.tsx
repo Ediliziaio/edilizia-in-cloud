@@ -9,6 +9,7 @@ import { useBuoniPastoCampo } from "@/hooks/campo/useBuoniPastoCampo";
 import { buoniDelMese, meseDi, riepilogoMese, sogliaLeggibile, spostaMese, type StatoBuono } from "@/lib/campo/buoniPasto";
 import { useLinguaCampo } from "@/lib/campo/lingua/LinguaCampo";
 import { cn } from "@/lib/utils";
+import { ScontrinoPasto } from "@/components/campo/ScontrinoPasto";
 
 const STATO: Record<StatoBuono, string> = {
   maturato: "Maturato",
@@ -19,7 +20,7 @@ const STATO: Record<StatoBuono, string> = {
 
 export default function CampoBuoniPasto() {
   const { t, lingua } = useLinguaCampo();
-  const { caricamento, errore, riprova, regole, motivo, buoni } = useBuoniPastoCampo();
+  const { caricamento, errore, riprova, regole, motivo, buoni, companyId, profiloId } = useBuoniPastoCampo();
   const oggi = new Date().toISOString().slice(0, 10);
   // Si apre sul mese corrente; se lì non c'è niente, sull'ultimo mese con buoni (a inizio mese la pagina non resta vuota).
   const [meseScelto, setMese] = useState<string | null>(null);
@@ -105,6 +106,10 @@ export default function CampoBuoniPasto() {
                 </li>
               ))}
             </ul>
+          )}
+          {/* Scontrino del pranzo: solo se l'azienda rimborsa anche a ricevuta (23/11/2026). */}
+          {regole && regole.buono_pasto_modalita !== "fisso" && companyId && profiloId && (
+            <ScontrinoPasto companyId={companyId} profiloId={profiloId} />
           )}
           <p className="text-xs text-muted-foreground">
             {t("Un buono si annulla da solo se la giornata viene corretta sotto le ore minime.")}

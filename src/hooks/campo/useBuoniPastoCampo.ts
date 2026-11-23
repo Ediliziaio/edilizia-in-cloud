@@ -63,6 +63,8 @@ export function useBuoniPastoCampo() {
     errore: base.isError || buoni.isError,
     riprova: () => { void base.refetch(); void buoni.refetch(); },
     regole: base.data?.regole ?? null,
+    companyId,
+    profiloId,
     /** null = ha i buoni; altrimenti perché no. */
     motivo,
     buoni: buoni.data ?? [],
