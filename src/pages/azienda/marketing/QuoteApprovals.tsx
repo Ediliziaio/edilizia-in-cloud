@@ -680,7 +680,7 @@ export default function QuoteApprovals() {
         <Card className="overflow-hidden border-l-4 border-l-orange-500">
           <CardContent className="p-4 max-sm:px-2 max-sm:py-1.5">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide max-sm:truncate max-sm:text-[10px]">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide max-sm:truncate max-sm:text-[11px]">
                 In attesa
               </p>
               <Clock className="h-4 w-4 text-orange-500 max-sm:hidden" />
@@ -694,7 +694,7 @@ export default function QuoteApprovals() {
         <Card className="overflow-hidden border-l-4 border-l-emerald-500">
           <CardContent className="p-4 max-sm:px-2 max-sm:py-1.5">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide max-sm:truncate max-sm:text-[10px]">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide max-sm:truncate max-sm:text-[11px]">
                 Approvate
               </p>
               <Check className="h-4 w-4 text-emerald-500 max-sm:hidden" />
@@ -712,7 +712,7 @@ export default function QuoteApprovals() {
         <Card className="overflow-hidden border-l-4 border-l-red-500">
           <CardContent className="p-4 max-sm:px-2 max-sm:py-1.5">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide max-sm:truncate max-sm:text-[10px]">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide max-sm:truncate max-sm:text-[11px]">
                 Rifiutate
               </p>
               <XCircle className="h-4 w-4 text-red-500 max-sm:hidden" />
@@ -728,7 +728,7 @@ export default function QuoteApprovals() {
         <Card className="overflow-hidden border-l-4 border-l-primary">
           <CardContent className="p-4 max-sm:px-2 max-sm:py-1.5">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide max-sm:truncate max-sm:text-[10px]">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide max-sm:truncate max-sm:text-[11px]">
                 Sconto<span className="max-sm:hidden"> medio autorizzato</span>
               </p>
               <TrendingDown className="h-4 w-4 text-primary max-sm:hidden" />

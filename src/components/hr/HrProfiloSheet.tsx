@@ -221,7 +221,7 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili, onApriProfil
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent aria-describedby={undefined} className="top-1/2 flex h-[min(88dvh,52rem)] w-[calc(100%-1.5rem)] max-w-4xl flex-col gap-0 overflow-hidden rounded-xl p-0">
+      <DialogContent aria-describedby={undefined} className="top-1/2 flex h-[min(88dvh,52rem)] w-[calc(100%-1.5rem)] max-w-4xl flex-col gap-0 overflow-hidden rounded-xl p-0 max-sm:top-0 max-sm:translate-y-0 max-sm:h-[100dvh] max-sm:max-h-none max-sm:w-full max-sm:max-w-none max-sm:rounded-none max-sm:border-0 max-sm:pt-[env(safe-area-inset-top)]">
         <DialogHeader className="shrink-0 border-b border-slate-100 px-6 pb-4 pt-6 max-sm:px-4 max-sm:pb-3 max-sm:pt-4">
           {isEditing && profilo ? (
             <div className="flex items-center gap-3.5 pr-8">

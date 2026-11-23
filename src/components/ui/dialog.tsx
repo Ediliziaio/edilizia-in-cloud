@@ -30,17 +30,21 @@ const DialogOverlay = React.forwardRef<
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
 /**
- * Su telefono (<640px) il dialog si apre dal basso, a tutta larghezza, con 16px
- * di margine invece di 24: il pollice arriva ai bottoni e non si sprecano
- * bordi. Chi decide da sé posizione (tutto schermo, `inset-0`, `top-…`) o
+ * Su telefono (<640px) il dialog è una pagina a tutto schermo che compare in dissolvenza,
+ * con i bottoni d'azione fissi in fondo (`DialogFooter`, vedi index.css). Fino al 23/11/2026
+ * saliva dal basso come un foglio alto quasi quanto lo schermo: il founder l'ha bocciato
+ * («non mi piace che compaia da sotto»). 16px di margine invece di 24. Chi decide da sé posizione (tutto schermo, `inset-0`, `top-…`) o
  * padding (`p-0` con layout proprio) resta com'è: le classi `max-sm:` non si
  * annullano con twMerge, quindi vanno proprio omesse.
  */
 const POSIZIONE_PROPRIA = /(^|\s)!?(max-sm:)?(inset-|top-|bottom-|h-\[100|h-screen|rounded-none)/;
 const PADDING_PROPRIO = /(^|\s)!?(p|px|py|pt|pb|pl|pr)-/;
 const FOGLIO_MOBILE =
-  "max-sm:top-auto max-sm:bottom-0 max-sm:translate-y-0 max-sm:max-w-none max-sm:rounded-t-2xl max-sm:border-x-0 max-sm:border-b-0 " +
-  "max-sm:data-[state=open]:slide-in-from-bottom-full max-sm:data-[state=closed]:slide-out-to-bottom-full " +
+  // max-sm:w-full: senza, una finestra con larghezza propria (es. «w-[calc(100%-2rem)]», «w-[95vw]»)
+  // restava stretta sul telefono, con una striscia di pagina ai lati (scadenza, 23/11/2026).
+  "max-sm:top-0 max-sm:translate-y-0 max-sm:h-[100dvh] max-sm:max-h-none max-sm:max-w-none max-sm:w-full max-sm:content-start " +
+  "max-sm:rounded-none max-sm:border-0 max-sm:shadow-none max-sm:pt-[max(1rem,env(safe-area-inset-top))] " +
+  "max-sm:data-[state=open]:slide-in-from-top-0 max-sm:data-[state=closed]:slide-out-to-top-0 " +
   "max-sm:data-[state=open]:zoom-in-100 max-sm:data-[state=closed]:zoom-out-100";
 
 type DialogContentProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
@@ -87,6 +91,7 @@ const DialogContent = React.forwardRef<
         struttura !== "libera" && "commessa-modal-layout",
       )}
       data-ampiezza={ampiezza}
+      data-pagina-mobile={foglio && struttura === "libera" ? "" : undefined}
       {...props}
     >
       {struttura === "scorrevole" ? (

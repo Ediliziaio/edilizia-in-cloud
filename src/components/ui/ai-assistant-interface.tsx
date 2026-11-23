@@ -125,7 +125,7 @@ export function AIAssistantInterface({
             type="button"
             onClick={onAttach}
             disabled={disabled}
-            className="tap-compact p-2 rounded-full text-slate-400 transition-colors hover:text-slate-600 max-sm:p-1.5"
+            className="tap-compact p-2 rounded-full text-slate-400 transition-colors hover:text-slate-600 max-sm:p-2.5"
             aria-label="Allega un documento o una foto"
             title="Allega contratto, DDT, fattura o foto"
           >
@@ -137,7 +137,7 @@ export function AIAssistantInterface({
           onClick={voice.toggle}
           disabled={disabled || voice.transcribing}
           className={cn(
-            "tap-compact p-2 rounded-full transition-colors max-sm:p-1.5",
+            "tap-compact p-2 rounded-full transition-colors max-sm:p-2.5",
             voice.recording ? "text-rose-500 bg-rose-50 animate-pulse" : "text-slate-400 hover:text-slate-600",
           )}
           aria-label={voice.recording ? "Ferma registrazione" : "Detta con la voce"}

@@ -96,7 +96,7 @@ function QuoteChooser({ params, onSelect, ai }: { params: URLSearchParams; onSel
   const ricercaInutile = isMobile && !!area && !haModelli(area);
 
   return <DialogContent onOpenAutoFocus={event => { event.preventDefault(); heading.current?.focus(); }}
-    className="flex max-h-[94dvh] w-[calc(100%-1.5rem)] max-w-4xl flex-col gap-0 overflow-hidden rounded-2xl p-0 sm:max-h-[88dvh] [&>button]:flex [&>button]:h-11 [&>button]:w-11 [&>button]:items-center [&>button]:justify-center [&>button]:right-2 [&>button]:top-2 max-sm:w-full max-sm:rounded-b-none max-sm:pb-[env(safe-area-inset-bottom)] max-sm:[&>button]:top-1.5">
+    className="flex max-h-[94dvh] w-[calc(100%-1.5rem)] max-w-4xl flex-col gap-0 overflow-hidden rounded-2xl p-0 sm:max-h-[88dvh] max-sm:top-0 max-sm:translate-y-0 max-sm:h-[100dvh] max-sm:max-h-none max-sm:w-full max-sm:max-w-none max-sm:rounded-none max-sm:border-0 max-sm:pt-[env(safe-area-inset-top)] [&>button]:flex [&>button]:h-11 [&>button]:w-11 [&>button]:items-center [&>button]:justify-center [&>button]:right-2 [&>button]:top-2 max-sm:w-full max-sm:rounded-b-none max-sm:pb-[env(safe-area-inset-bottom)] max-sm:[&>button]:top-1.5">
     {/* Telefono: resta il titolo (via soprattitolo e spiegazione), a 18px. */}
     <DialogHeader className="shrink-0 border-b px-4 pb-4 pt-5 text-left sm:px-6 max-sm:pb-3 max-sm:pt-4">
       <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.15em] text-orange-600 max-sm:hidden">Un nuovo progetto, pochi passi</p>

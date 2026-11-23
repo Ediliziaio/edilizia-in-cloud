@@ -4563,7 +4563,7 @@ function GestioneSocial({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl font-bold text-slate-900 max-sm:text-lg">Gestione social</h1>
-              <Badge className="border-0 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white max-sm:px-1.5 max-sm:py-0 max-sm:text-[10px]">Beta</Badge>
+              <Badge className="border-0 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white max-sm:px-1.5 max-sm:py-0 max-sm:text-[11px]">Beta</Badge>
             </div>
           </div>
           {/* Senza sottotitolo; Collegamenti e Importa da CSV in un menu «⋯»

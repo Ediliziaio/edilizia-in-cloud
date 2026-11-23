@@ -451,7 +451,9 @@ export default function PublicBooking() {
               {/* Passo 1 — la data */}
               <div className={cn("space-y-3", selectedSlot && "hidden md:block")}>
                 <p className="hidden text-sm font-medium md:block">Scegli una data</p>
-                <Calendar
+                {/* Senza giorni pubblicati un mese tutto grigio non serve a niente: resta solo
+                    il messaggio qui sotto. */}
+                {!(!availabilityLoading && !availabilityError && availability.length === 0) && <Calendar
                   mode="single"
                   selected={selectedDate}
                   onSelect={(d) => { setSelectedDate(d); setSelectedSlot(null); }}
@@ -474,7 +476,7 @@ export default function PublicBooking() {
                     day: "relative h-10 w-full max-w-10 rounded-lg p-0 text-center text-sm focus-within:relative focus-within:z-20 [&>button]:w-full",
                     selected: "rounded-lg bg-primary [&>button]:text-primary-foreground [&>button:hover]:bg-primary/90 [&>button:hover]:text-primary-foreground",
                   }}
-                />
+                />}
                 {!selectedDate && !availabilityLoading && availability.length > 0 && (
                   <p className="text-center text-xs text-muted-foreground md:hidden">
                     Tocca un giorno per vedere gli orari liberi.

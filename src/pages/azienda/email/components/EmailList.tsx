@@ -635,7 +635,7 @@ function ThreadRowItem({
               {formatRelTime(thread.last_received_at)}
             </span>
           </div>
-          <p className={cn("mt-1 truncate text-xs leading-snug", unread ? "font-semibold text-slate-800" : "text-slate-600")}>
+          <p className={cn("mt-1 truncate text-xs leading-snug max-md:text-[13px]", unread ? "font-semibold text-slate-800" : "text-slate-600")}>
             {subject}
           </p>
           <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-400">

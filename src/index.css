@@ -957,10 +957,11 @@ html .react-flow .react-flow__edges svg {
   .testata-pagina h1 + p {
     display: none !important;
   }
-  /* Titolo a 18px su tutte (alcune pagine lo avevano a 24px anche qui). */
+  /* Titolo a 17px su tutte, come la scala del telefono decisa il 23/11/2026 (alcune
+     pagine lo avevano a 24px; questa regola lo portava a 18). */
   .testata-pagina h1 {
-    font-size: 1.125rem !important;
-    line-height: 1.5rem !important;
+    font-size: 17px !important;
+    line-height: 1.25 !important;
   }
   /* I bottoni della testata tengono la loro altezza (h-8/h-9): gonfiati a 44px
      dalla regola del tocco, «+ Nuovo» sembrava un blocco. */
@@ -1097,4 +1098,54 @@ html .react-flow .react-flow__edges svg {
     scroll-margin-block: 5rem;
   }
   .preventivo-touch textarea { min-height: 88px; }
+}
+
+/* Telefono (collaudo 23/11/2026, regola del founder): nel contenuto e nelle finestre niente
+   testo sotto gli 11px. Le classi da 9–10,5px erano 3.784 nel codice, spesso accanto a testi
+   da 14–17px: una regola sola qui invece che a mano in centinaia di file. La barra in basso
+   (fuori da #main-content) ha il suo disegno e resta com'è. */
+@media (max-width: 767px) {
+  #main-content :is(.text-\[9px\], .text-\[9\.5px\], .text-\[10px\], .text-\[10\.5px\]),
+  [role="dialog"] :is(.text-\[9px\], .text-\[9\.5px\], .text-\[10px\], .text-\[10\.5px\]),
+  /* Anche le varianti «solo telefono» (max-sm:/max-md:): le etichette della scheda commessa
+     erano scese a 10px così, scavalcando la regola qui sopra. */
+  #main-content :is(.max-sm\:text-\[9px\], .max-sm\:text-\[10px\], .max-md\:text-\[9px\], .max-md\:text-\[10px\]),
+  [role="dialog"] :is(.max-sm\:text-\[9px\], .max-sm\:text-\[10px\], .max-md\:text-\[9px\], .max-md\:text-\[10px\]) {
+    font-size: 11px;
+  }
+}
+
+/* Telefono: la finestra è una pagina intera (dialog.tsx, FOGLIO_MOBILE) e i suoi bottoni
+   d'azione restano fissi in fondo mentre si scorre il modulo, sopra l'area sicura. */
+@media (max-width: 639px) {
+  [data-pagina-mobile] > [data-ui="dialog-footer"] {
+    position: sticky;
+    /* Il riferimento dello «sticky» è il bordo interno: si scende del margine del foglio. */
+    bottom: calc(-1 * max(1rem, env(safe-area-inset-bottom)));
+    z-index: 10;
+    margin-inline: -1rem;
+    margin-bottom: calc(-1 * max(1rem, env(safe-area-inset-bottom)));
+    padding: 0.75rem 1rem max(0.75rem, env(safe-area-inset-bottom));
+    border-top: 1px solid hsl(var(--border));
+    background: hsl(var(--background));
+  }
+  /* Bottoni d'azione delle finestre: 44px, misura comoda per il pollice (prima 32–36px). */
+  [data-pagina-mobile] [data-ui="dialog-footer"] [data-ui="button"] {
+    min-height: 44px;
+    font-size: 15px;
+  }
+}
+
+/* Telefono (regola del founder, 23/11/2026): una scala sola. Titolo di pagina 17px, titoli
+   di sezione 15px; prima andavano da 16 a 24px a seconda di chi aveva scritto la pagina.
+   Si toccano solo i titoli dichiarati grandi: quelli già piccoli restano come sono. */
+@media (max-width: 767px) {
+  #main-content h1:not(.sr-only) {
+    font-size: 17px;
+    line-height: 1.25;
+  }
+  #main-content :is(h2, h3):is(.text-base, .text-lg, .text-xl, .text-2xl, .text-3xl) {
+    font-size: 15px;
+    line-height: 1.3;
+  }
 }
