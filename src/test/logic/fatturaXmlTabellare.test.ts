@@ -28,12 +28,12 @@ it('gestisce tutti i corpi di un lotto e rifiuta file non XML senza recuperare d
  const originale=xml();const body=originale.match(/<FatturaElettronicaBody>[\s\S]*<\/FatturaElettronicaBody>/)![0];const lotto=originale.replace('</p:FatturaElettronica>',body+'</p:FatturaElettronica>');expect(leggiFattureXmlStampabili(lotto)).toHaveLength(2);
  expect(()=>leggiFattureXmlStampabili('<html>errore</html>')).toThrow();expect(()=>leggiFattureXmlStampabili('<FatturaElettronica><broken')).toThrow();
 });
-it('genera un vero PDF scaricabile con testo selezionabile, causale e importi originali',async()=>{
- const bytes=await generaPdfFatturaXml(xml());expect(new TextDecoder().decode(bytes.slice(0,5))).toBe('%PDF-');
+it('genera un PDF sintetico di una pagina con testo selezionabile, causale e importi originali',async()=>{
+ const bytes=await generaPdfFatturaXml(xml(), { direzione: 'ricevuta', versione: 'sintetico' });expect(new TextDecoder().decode(bytes.slice(0,5))).toBe('%PDF-');
  const pdf=await getDocument({data:new Uint8Array(bytes),useSystemFonts:true}).promise;let text='';for(let i=1;i<=pdf.numPages;i++)text+=(await(await pdf.getPage(i)).getTextContent()).items.map(x=>'str'in x?x.str:'').join(' ');
- expect(text).toContain('59702');expect(text).toContain('122,00');expect(text).toContain('Via Cliente');expect(text).not.toContain('RISERVATO');await pdf.cleanup();
+ expect(pdf.numPages).toBe(1);expect(text).toContain('59702');expect(text).toContain('122,00');expect(text).toContain('Via Cliente');expect(text).not.toContain('RISERVATO');await pdf.cleanup();
 },30000);
-it('impagina fatture lunghe senza perdere le ultime righe o le note',async()=>{
- const bytes=await generaPdfFatturaXml(xml(70));const pdf=await getDocument({data:new Uint8Array(bytes),useSystemFonts:true}).promise;expect(pdf.numPages).toBeGreaterThan(1);let text='';for(let i=1;i<=pdf.numPages;i++)text+=(await(await pdf.getPage(i)).getTextContent()).items.map(x=>'str'in x?x.str:'').join(' ');
+it.each(['sintetico', 'completo'] as const)('impagina fatture lunghe in PDF %s senza perdere le ultime righe o le note',async(versione)=>{
+ const bytes=await generaPdfFatturaXml(xml(70), { direzione: 'ricevuta', versione });const pdf=await getDocument({data:new Uint8Array(bytes),useSystemFonts:true}).promise;expect(pdf.numPages).toBeGreaterThan(1);let text='';for(let i=1;i<=pdf.numPages;i++)text+=(await(await pdf.getPage(i)).getTextContent()).items.map(x=>'str'in x?x.str:'').join(' ');
  expect(text).toContain('Voce 70');expect(text).toContain('59702');await pdf.cleanup();
 },30000);
