@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/hooks/campo/useCampoWorkDay", () => ({ useCampoWorkDay: () => "2026-11-23" }));
 vi.mock("@/hooks/useCalendarioCantiere", () => ({ useCalendarioCantiere: () => ({ lavorativo: () => true }) }));
+// Gli aggiornamenti della fase (foto e note dal campo) leggono il database: qui non servono.
+vi.mock("@/components/campo/AggiornamentiFaseCampo", () => ({ AggiornamentiFaseCampo: () => null }));
 import { FasiSchedaCantiere, conArticolo, faseInRitardo } from "@/components/campo/PianoSchedaCantiere";
 import type { FaseSchedaCantiere } from "@/lib/campo/schedaCantiere";
 
@@ -19,7 +21,7 @@ describe("Ritardi delle fasi nella scheda cantiere (collaudo 23/11)", () => {
   });
 
   it("il conteggio in cima e la riga della fase dicono il ritardo", () => {
-    render(<FasiSchedaCantiere fasi={[fase("a", "in_corso", "2026-06-08"), fase("b", "completata", "2026-06-17"), fase("c", "da_iniziare", "2026-07-14")]} />);
+    render(<FasiSchedaCantiere fasi={[fase("a", "in_corso", "2026-06-08"), fase("b", "completata", "2026-06-17"), fase("c", "da_iniziare", "2026-07-14")]} orderId="o1" />);
     expect(screen.getByText(/2 in ritardo/)).toBeInTheDocument();
     expect(screen.getAllByText(/In ritardo · doveva finire/)).toHaveLength(2);
   });
