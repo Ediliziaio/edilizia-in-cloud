@@ -15,12 +15,12 @@ import { ExpensePaymentDialog } from "@/components/orders/ExpensePaymentDialog";
 Element.prototype.scrollIntoView ??= () => {};
 const stato = vi.hoisted(() => ({ dettaglio: {} as Record<string, unknown> }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: async (nome: string) => {
-  if (nome === "dettaglio_pagamento_costo") return { data: stato.dettaglio, error: null };
+  if (nome === "dettaglio_pagamento_costo") return { data: stato.dettaglio, error: null as null };
   throw new Error(`RPC inattesa ${nome}`);
 } } }));
-vi.mock("@/hooks/useContiPrimaNota", () => ({ useContiPrimaNota: () => ({ data: [], isError: false, isFetching: false }) }));
+vi.mock("@/hooks/useContiPrimaNota", () => ({ useContiPrimaNota: () => ({ data: [] as unknown[], isError: false, isFetching: false }) }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewCosts: true, solaLettura: false, canViewTesoreria: true, canManagePayments: true, isAdmin: false }) }));
-vi.mock("@/components/orders/ExpensePaymentLinks", () => ({ ExpenseSalLinks: () => null, ExpenseBankLink: () => <span>Collega alla banca</span> }));
+vi.mock("@/components/orders/ExpensePaymentLinks", () => ({ ExpenseSalLinks: (): null => null, ExpenseBankLink: () => <span>Collega alla banca</span> }));
 
 beforeEach(() => { vi.stubGlobal("BroadcastChannel", undefined); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
