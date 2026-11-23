@@ -28,10 +28,13 @@ export function ComputoDaVarianteDialog({ companyId, userId, onChiudi, onApri }:
   const storico = numero !== null && numero !== corrente.data?.versione.numero;
   const vecchia = useVersionePlanimetria(planimetriaId,storico ? numero : null);
   const v = storico ? vecchia.data : corrente.data?.versione;
-  const varianti = v ? ambitiDi(v.documento).filter(a=>a.propostaId !== null) : [];
-  const varianteId = varianti.find(a=>a.propostaId===variante)?.propostaId ?? varianti[0]?.propostaId;
+  const documento = v?.documento;
+  const { varianti, varianteId, studio } = useMemo(() => {
+    const ambiti = documento ? ambitiDi(documento).filter(a => a.propostaId !== null) : [];
+    const selezionata = ambiti.find(a => a.propostaId === variante)?.propostaId ?? ambiti[0]?.propostaId;
+    return { varianti: ambiti, varianteId: selezionata, studio: documento && selezionata ? studioVariante(documento, selezionata) : null };
+  }, [documento, variante]);
   const fonte = v && varianteId ? { planimetriaId, versione:v.numero, varianteId } : null;
-  const studio = useMemo(()=>v && varianteId ? studioVariante(v.documento,varianteId) : null,[v,varianteId]);
   const esistente = useQuery({
     queryKey:["computo-studio",companyId,planimetriaId,v?.numero,varianteId],
     enabled:!!fonte && corrente.data?.riga.company_id === companyId,

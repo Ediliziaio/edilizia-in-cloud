@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { idComputoValido, percorsoComputoNativo } from "@/lib/computo/percorsiComputo";
 import { CollegamentiComputoNativo } from "@/components/computo/CollegamentiComputoNativo";
 import { useNavigate, useSearchParams } from "react-router-dom";
