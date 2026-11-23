@@ -12,7 +12,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { useWarehouses } from "@/hooks/useWarehouses";
 import { toast } from "sonner";
-import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History, CheckSquare, Filter, MoveRight, X, GripVertical, ClipboardCheck, ChevronLeft, ChevronRight, ScanLine, Package, MoreVertical, MapPin, Barcode, Trash2, Loader2, Columns3, Upload, Download } from "lucide-react";
+import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History, CheckSquare, Filter, MoveRight, X, GripVertical, ClipboardCheck, ChevronLeft, ChevronRight, ScanLine, Package, MoreVertical, MapPin, Barcode, Trash2, Loader2, Columns3, Upload, Download, CalendarClock } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -54,6 +54,8 @@ import InventoryAuditDialog from "./InventoryAuditDialog";
 import { filtraInventario, INVENTORY_FILTER_LABELS, type InventoryFilter } from "@/lib/magazzino/filtriInventario";
 import { isSottoScorta, type StockItem } from "@/types/warehouse";
 import { useMagazzinoInArrivo, type InArrivoArticolo } from "@/hooks/useMagazzinoRiepilogo";
+import { cn } from "@/lib/utils";
+import { eArticoloAZero, separaArticoliAZero, CHIAVE_MOSTRA_A_ZERO } from "@/lib/magazzino/articoliAZero";
 import { conteggioVerificato, valutaEliminazione } from "@/lib/magazzino/eliminazioneArticolo";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -127,6 +129,10 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
 
   const [tableContainer, setTableContainer] = useState<HTMLDivElement | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  // Gli articoli a zero restano fuori finché non si chiedono; la scelta resta ricordata.
+  const [mostraAZero, setMostraAZero] = useState(() => {
+    try { return localStorage.getItem(CHIAVE_MOSTRA_A_ZERO) === "1"; } catch { return false; }
+  });
   const [sectionFilter, setSectionFilter] = useState<string>("all");
   const [lottoFilter, setLottoFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -637,7 +643,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
     },
   });
 
-  const filtered = useMemo(() => {
+  const tuttiFiltrati = useMemo(() => {
     let items = filtraInventario(stockItems, metricFilter, inArrivo);
     if (sectionFilter !== "all") {
       if (sectionFilter === "none") {
@@ -660,6 +666,19 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
         (item.barcode && item.barcode.toLowerCase().includes(q))
     );
   }, [stockItems, searchQuery, sectionFilter, lottoFilter, lottoStockItemId, metricFilter, inArrivo]);
+
+  // Chi cerca un nome o usa un filtro vuole vedere tutto ciò che corrisponde, zeri compresi
+  // (anche per caricare un articolo finito).
+  const nascondeAZero = !mostraAZero && !searchQuery && metricFilter === "all" && lottoFilter === "all";
+  const { visibili: filtered, nascosti: aZeroNascosti } = useMemo(
+    () => separaArticoliAZero(tuttiFiltrati, nascondeAZero, inArrivo),
+    [tuttiFiltrati, nascondeAZero, inArrivo],
+  );
+  const cambiaMostraAZero = (valore: boolean) => {
+    setMostraAZero(valore);
+    setStockPage(0);
+    try { localStorage.setItem(CHIAVE_MOSTRA_A_ZERO, valore ? "1" : "0"); } catch { /* resta per questa visita */ }
+  };
 
   // Pagination for stock items
   const STOCK_PAGE_SIZE = 50;
@@ -824,9 +843,10 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
                 <DropdownMenuSeparator /><DropdownMenuItem onClick={() => setOptionalColumns([])}>Ripristina colonne essenziali</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <div className="col-span-2 grid grid-cols-2 gap-2 sm:ml-auto sm:flex sm:flex-wrap sm:items-center">
+            <div className="col-span-2 grid grid-cols-3 gap-2 sm:ml-auto sm:flex sm:flex-wrap sm:items-center">
               {primaryActions}
-              {!readOnly && permissions.canEditOrders && <Button variant="outline" className="h-10 gap-1.5 max-sm:h-11" onClick={() => setReservation({})}>Prenota</Button>}
+              {/* Telefono: «Prenota» sta in «Altro», le azioni restano su una riga. */}
+              {!readOnly && permissions.canEditOrders && <Button variant="outline" className="h-10 gap-1.5 max-sm:hidden" onClick={() => setReservation({})}>Prenota</Button>}
               {!primaryActions && !readOnly && showMovementActions && <>
                 <Button className="h-10" onClick={() => { if (onRegisterArrival) onRegisterArrival(); else { setCaricoItem(undefined); setCaricoOpen(true); } }}>Carica</Button>
                 <Button className="h-10" variant="outline" onClick={() => setUscitaOpen(true)}>Preleva</Button>
@@ -834,6 +854,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
               <DropdownMenu>
                 <DropdownMenuTrigger asChild><Button ref={toolsTriggerRef} variant="outline" className="h-10 gap-1.5 max-sm:h-11" aria-label="Altre azioni del magazzino"><MoreVertical className="h-4 w-4" />Altro</Button></DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="max-h-[75vh] w-64 overflow-y-auto">
+                  {!readOnly && permissions.canEditOrders && <DropdownMenuItem className="sm:hidden" onClick={() => setReservation({})}><CalendarClock className="mr-2 h-4 w-4" />Prenota per una commessa</DropdownMenuItem>}
                   <DropdownMenuLabel>Articoli e inventario</DropdownMenuLabel>
                   {!readOnly && <DropdownMenuItem onClick={() => { setEditingItem(null); setDialogOpen(true); }}><Plus className="mr-2 h-4 w-4" />Aggiungi articolo</DropdownMenuItem>}
                   <DropdownMenuItem onClick={() => setQuickScanOpen(true)}><ScanLine className="mr-2 h-4 w-4" />Cerca con QR / barcode</DropdownMenuItem>
@@ -864,6 +885,15 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
         {importOpen && <Suspense fallback={<p role="status">Apertura importazione…</p>}><ArticoliCSVImportDialog warehouseId={warehouseFilter} open={importOpen} onOpenChange={setImportOpen} onCloseAutoFocus={(event) => { event.preventDefault(); toolsTriggerRef.current?.focus(); }} hideTrigger /></Suspense>}
         <div className="flex flex-wrap items-center justify-between gap-2 px-1">
           <p className="text-sm text-muted-foreground" aria-live="polite">{isLoading ? "Caricamento articoli…" : isError ? "Elenco non disponibile" : `${filtered.length} ${filtered.length === 1 ? "articolo" : "articoli"}${searchQuery || activeFilterCount ? " trovati" : " in elenco"}`}</p>
+          {aZeroNascosti > 0 ? (
+            <Button size="sm" variant="ghost" className="h-8 px-2 text-sm" onClick={() => cambiaMostraAZero(true)}>
+              Mostra anche {aZeroNascosti} a zero
+            </Button>
+          ) : mostraAZero && !searchQuery && metricFilter === "all" && lottoFilter === "all" && tuttiFiltrati.some((i) => eArticoloAZero(i, inArrivo)) ? (
+            <Button size="sm" variant="ghost" className="h-8 px-2 text-sm" onClick={() => cambiaMostraAZero(false)}>
+              Nascondi quelli a zero
+            </Button>
+          ) : null}
           {onReorder && !readOnly && metricFilter === "low_stock" && lowStockItems.length > 0 && <Button size="sm" variant="outline" onClick={onReorder}>Riordina sotto scorta</Button>}
         </div>
 
@@ -994,7 +1024,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
             </Card>
 
             {/* Mobile: Lista a cards */}
-            <div className="md:hidden space-y-2">
+            <ul className="md:hidden divide-y overflow-hidden rounded-lg border bg-card">
               {paginatedItems.map((item) => (
                 <StockItemMobileCard
                   key={item.id}
@@ -1018,7 +1048,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
                         canViewCosts={canViewCosts}
                 />
               ))}
-            </div>
+            </ul>
           </>
         )}
 
@@ -1422,61 +1452,54 @@ interface StockItemMobileCardProps {
 }
 
 const StockItemMobileCard = memo(function StockItemMobileCard({
-  item, isLow, inArrivo, section, isSelected, supplierName,
+  item, isLow, inArrivo, isSelected,
   onToggleSelect, onEdit, onCarico, onScarico, onHistory, onTask, onAudit, onSerials, onDelete, onReserve,
   readOnly = false,
   canViewCosts = false,
 }: StockItemMobileCardProps) {
+  // Una riga per articolo (decisione del founder, 23/11/2026): nome, quanto ce n'è e quanto
+  // vale. Codice, descrizione, fornitore, scaffale e prezzo unitario stanno nel dettaglio,
+  // che si apre toccando il nome. Prima ogni articolo era una scheda alta il doppio.
+  const unita = item.unita_misura || "unità";
+  const impegnato = Number(item.quantity_reserved ?? 0);
+  const disponibile = Number(item.quantity_available ?? item.quantity);
+  const dettagli = [
+    impegnato > 0 ? `${formattaQuantitaMovimento(disponibile)} disponibili` : null,
+    impegnato > 0 ? `${formattaQuantitaMovimento(impegnato)} impegnati` : null,
+    isLow ? `sotto il minimo (${formattaQuantitaMovimento(Number(item.min_stock_level))})` : null,
+    item.tracking_mode === "serialized" ? "con seriali" : null,
+  ].filter(Boolean).join(" · ");
   return (
-    <Card
-      className={`${isLow ? "border-amber-400/60 bg-amber-50/40 dark:bg-amber-950/10" : ""}`}
-    >
-      <CardContent className="p-3 space-y-2.5">
-        <div className="flex items-start gap-2.5">
-          {!readOnly && (
-            <Checkbox
-              checked={isSelected}
-              onCheckedChange={onToggleSelect}
-              aria-label={`Seleziona ${item.name}`}
-              className="mt-0.5 shrink-0"
-            />
-          )}
-          <div className="flex-1 min-w-0">
-            <button type="button" className="text-left font-medium text-sm leading-tight text-primary hover:underline" onClick={onHistory} aria-label={`Dettaglio ${item.name}`}>{item.name}</button>
-            {item.internal_code && (
-              <p className="text-[10px] font-mono text-muted-foreground truncate mt-0.5">
-                {item.internal_code}
-              </p>
-            )}
-            {item.description && (
-              <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-                {item.description}
-              </p>
-            )}
-            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-              <Badge variant={isLow ? "destructive" : "secondary"} className="text-[10px]">
-                {formattaQuantitaMovimento(Number(item.quantity))} {item.unita_misura || "unità"}
-              </Badge>
-              <InArrivoNota inArrivo={inArrivo} />
-              {item.tracking_mode === "serialized" && (
-                <Badge variant="outline" className="px-1 py-0 text-[9px] font-mono">SER</Badge>
-              )}
-              {item.min_stock_level > 0 && (
-                <span className="text-[10px] text-muted-foreground">
-                  min {item.min_stock_level}
-                </span>
-              )}
-              {section && (
-                <Badge variant="outline" className="text-[10px] gap-1">
-                  <div className="h-2 w-2 rounded-full" style={{ backgroundColor: section.color }} />
-                  {section.name}
-                </Badge>
-              )}
-            </div>
-          </div>
+    <li className={cn("flex items-center gap-2 py-2 pl-3 pr-1", isLow && "bg-amber-50/60 dark:bg-amber-950/10")}>
+      {!readOnly && (
+        <Checkbox
+          checked={isSelected}
+          onCheckedChange={onToggleSelect}
+          aria-label={`Seleziona ${item.name}`}
+          className="shrink-0"
+        />
+      )}
+      <button type="button" className="min-w-0 flex-1 text-left" onClick={onHistory} aria-label={`Dettaglio ${item.name}`}>
+        <span className="block truncate text-sm font-medium">{item.name}</span>
+        {(dettagli || inArrivo) && (
+          <span className={cn("block truncate text-xs", isLow ? "text-amber-700 dark:text-amber-500" : "text-muted-foreground")}>
+            {dettagli}{dettagli && inArrivo ? " · " : ""}{inArrivo ? `${formattaQuantitaMovimento(Number(inArrivo.quantita))} in arrivo` : ""}
+          </span>
+        )}
+      </button>
+      <div className="shrink-0 text-right">
+        <p className={cn("whitespace-nowrap text-sm font-semibold tabular-nums", isLow && "text-amber-700 dark:text-amber-500")}>
+          {formattaQuantitaMovimento(Number(item.quantity))} <span className="text-xs font-normal text-muted-foreground">{unita}</span>
+        </p>
+        {canViewCosts && (
+          <p className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">
+            {item.prezzo_da_definire ? "da valorizzare" : formatCurrency(item.unit_cost * item.quantity)}
+          </p>
+        )}
+      </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label="Azioni">
+              <Button variant="ghost" size="icon" className="h-9 w-8 shrink-0" aria-label={`Altre azioni: ${item.name}`}>
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -1530,19 +1553,6 @@ const StockItemMobileCard = memo(function StockItemMobileCard({
               )}
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
-
-        <p className="text-xs text-muted-foreground">Impegnato {formattaQuantitaMovimento(Number(item.quantity_reserved ?? 0))} · Disponibile {formattaQuantitaMovimento(Number(item.quantity_available ?? item.quantity))} · {item.unita_misura || "Unità non indicata"}</p>
-        <div className="flex items-center justify-between text-[11px] text-muted-foreground border-t pt-2">
-          <span className="truncate flex-1">{supplierName}</span>
-          {canViewCosts && <div className="flex items-center gap-3 shrink-0">
-            <span>{item.prezzo_da_definire ? "Prezzo da definire" : `${formatCurrency(item.unit_cost)}/${item.unita_misura || "u"}`}</span>
-            <span className="font-medium text-foreground">
-              {item.prezzo_da_definire ? "Da valorizzare" : formatCurrency(item.unit_cost * item.quantity)}
-            </span>
-          </div>}
-        </div>
-      </CardContent>
-    </Card>
+    </li>
   );
 });

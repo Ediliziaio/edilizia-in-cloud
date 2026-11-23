@@ -40,7 +40,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 import { StockMovementHistoryDialog } from "@/components/warehouse/StockMovementHistoryDialog";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const articolo = { id: "a1", name: "Cemento 32,5 R", quantity: 120, unit_cost: 11.5 } as any;
+const articolo = { id: "a1", name: "Cemento 32,5 R", quantity: 120, unit_cost: 11.5, unita_misura: "sacchi" } as any;
 
 const mostra = () =>
   render(
@@ -83,6 +83,9 @@ describe("andamento del prezzo d'acquisto", () => {
     expect(sezione).toHaveTextContent(/\+60\.0% sul medio/);
     // Il carico non rincarato mostra il medio di allora, non un avviso.
     expect(sezione).toHaveTextContent(/medio di allora/);
+    // La quantità acquistata è nell'unità dell'articolo, non sempre «pz».
+    expect(sezione).toHaveTextContent("50 sacchi");
+    expect(sezione).not.toHaveTextContent(/\bpz\b/);
   });
 
   it("un solo acquisto: nessuna variazione da raccontare", async () => {

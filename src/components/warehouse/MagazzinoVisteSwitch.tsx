@@ -25,9 +25,11 @@ export function MagazzinoVisteSwitch({
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
       <Tabs value={gruppoAttivo} onValueChange={(v) => onGruppo(v as GruppoMagazzino)} className="min-w-0">
-        <TabsList className="flex h-auto w-full max-w-full justify-start gap-1 rounded-xl p-1 max-sm:grid max-sm:grid-cols-2 sm:w-fit">
+        {/* Telefono: tutte su una riga, colonne uguali (prima due colonne: con tre gruppi il
+            terzo andava a capo — collaudo 23/11/2026). */}
+        <TabsList className="flex h-auto w-full max-w-full justify-start gap-1 rounded-xl p-1 max-sm:grid max-sm:grid-flow-col max-sm:auto-cols-fr sm:w-fit">
           {gruppi.map((g) => (
-            <TabsTrigger key={g.key} value={g.key} className="shrink-0 px-3 text-[11px] sm:text-sm">
+            <TabsTrigger key={g.key} value={g.key} className="shrink-0 px-3 text-[13px] max-sm:min-h-9 max-sm:px-1.5 sm:text-sm">
               {g.label}
             </TabsTrigger>
           ))}

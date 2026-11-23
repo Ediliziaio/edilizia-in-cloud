@@ -727,11 +727,18 @@ function WarehousePage() {
       {isReadOnly ? <Badge variant="outline" className="h-10 px-3">Sola lettura</Badge> : <>
         <Button className="h-10 max-sm:h-11 gap-1.5 bg-orange-600 text-white hover:bg-orange-700" onClick={() => apriArrivoMerce()} aria-label="Carica merce"><ArrowDownToLine className="h-4 w-4" aria-hidden="true" />Carica</Button>
         <Button className="h-10 max-sm:h-11 gap-1.5" variant="outline" onClick={() => openStockAction("ship")} aria-label="Preleva merce"><ArrowUpFromLine className="h-4 w-4" aria-hidden="true" />Preleva</Button>
-        {permissions.canEditOrders && <Button className="h-10 max-sm:h-11 gap-1.5" variant="outline" onClick={() => setReturnOpen(true)} aria-label="Reso da cantiere"><Undo2 className="h-4 w-4" aria-hidden="true" />Reso</Button>}
+        {/* Telefono: «Reso» sta in «Altro» (Carica, Preleva, Altro su una riga — collaudo 23/11/2026). */}
+        {permissions.canEditOrders && <Button className="h-10 max-sm:hidden gap-1.5" variant="outline" onClick={() => setReturnOpen(true)} aria-label="Reso da cantiere"><Undo2 className="h-4 w-4" aria-hidden="true" />Reso</Button>}
       </>}
     </>
   );
   const warehouseMenuItems = <>
+                  {!isReadOnly && permissions.canEditOrders && (
+                    <DropdownMenuItem className="sm:hidden" onClick={() => setReturnOpen(true)}>
+                      <Undo2 className="h-4 w-4 mr-2" />
+                      Reso da cantiere
+                    </DropdownMenuItem>
+                  )}
                   {!isReadOnly && (
                     <>
                       <DropdownMenuItem onClick={() => setTransferOpen(true)}>
@@ -852,7 +859,7 @@ function WarehousePage() {
           error={riepilogoError}
           note={<>{riepilogoFetching ? "Aggiornamento del riepilogo…" : "Totali del magazzino selezionato, indipendenti dai filtri dell’elenco."}{riepilogoError && <Button variant="ghost" size="sm" className="ml-2 text-white hover:bg-white/10 hover:text-white" onClick={() => void refetchRiepilogo()}>Riprova riepilogo</Button>}</>}
         >
-        <div className="col-span-2 space-y-3 sm:col-span-4">
+        <div className="col-span-full space-y-3">
           {gruppoAttivo === "preparare" ? (
             <WarehouseStats riepilogo={riepilogo?.righe} activeFilter={activeStatsFilter} onCardClick={handleStatsCardClick} isLoading={riepilogoLoading} canViewCosts={canViewCosts} visibleCards={metricPreferences.order} />
           ) : (

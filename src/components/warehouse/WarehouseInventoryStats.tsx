@@ -13,6 +13,7 @@
  *   - Senza costo: articoli a stock che falsano il valore
  */
 
+import { cn } from "@/lib/utils";
 import { AlertTriangle, Euro, Package, Truck, type LucideIcon } from "lucide-react";
 import { OperationalSummaryMetric } from "@/components/shared/OperationalSummary";
 import { formatCurrency } from "@/lib/formatters";
@@ -94,9 +95,13 @@ export default function WarehouseInventoryStats({ riepilogo, visibleCards, onCar
     visibleCards ?? ["inventory_value", "stock_items", "low_stock", "incoming_7d"],
   );
 
+  const mostrate = cards.filter((card) => visible.has(card.key) && (canViewCosts || !["inventory_value", "missing_cost"].includes(card.key)));
+
+  // Sul telefono: tre riquadri su una riga, quattro in due righe da due. Con tre colonne
+  // fisse il quarto restava da solo su una riga.
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
-      {cards.filter((card) => visible.has(card.key) && (canViewCosts || !["inventory_value", "missing_cost"].includes(card.key))).map(({ key, ...card }) => (
+    <div className={cn("grid gap-2 sm:grid-cols-4 sm:gap-3", mostrate.length % 3 === 0 ? "grid-cols-3" : "grid-cols-2")}>
+      {mostrate.map(({ key, ...card }) => (
         <KpiCard
           key={key}
           {...card}

@@ -188,7 +188,7 @@ export function StockMovementHistoryDialog({
                   <span className="whitespace-nowrap text-muted-foreground">
                     {format(new Date(r.quando), "dd/MM/yyyy", { locale: it })}
                   </span>
-                  <span className="tabular-nums text-muted-foreground">{r.quantita} pz</span>
+                  <span className="tabular-nums text-muted-foreground">{formattaQuantitaMovimento(Number(r.quantita))} {item?.unita_misura || "unità"}</span>
                   <span className="tabular-nums font-medium">{formatCurrency(r.prezzo_pagato)}</span>
                   {r.e_rincaro ? (
                     <span className="inline-flex items-center gap-1 whitespace-nowrap text-xs font-medium text-amber-700 dark:text-amber-500">

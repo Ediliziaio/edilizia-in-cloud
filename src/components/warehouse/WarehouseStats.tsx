@@ -69,7 +69,7 @@ export default function WarehouseStats({ riepilogo, activeFilter, onCardClick, v
   return (
     // Quattro per riga da 768px: sono conteggi brevi (38, 7, 42) e a due per
     // riga, con gli altri quattro riquadri sotto, i numeri prendevano 320px.
-    <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4">
+    <div className="grid grid-cols-4 gap-1.5 sm:gap-3">
       {/* In Ritardo */}
       {visible.has("overdue") && (
         <ClickableCard
